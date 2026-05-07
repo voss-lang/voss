@@ -32,10 +32,12 @@ Per-phase validation contract for semantic analysis execution.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 03-01-01 | 01 | 1 | ANLY-01 | T-03-01 | Diagnostics do not execute user code | unit | `pytest tests/analyzer/test_diagnostics.py tests/analyzer/test_probable.py -q` | No | pending |
-| 03-02-01 | 02 | 2 | ANLY-02 | T-03-02 | Static estimator avoids provider/API calls | unit | `pytest tests/analyzer/test_ctx_budget.py -q` | No | pending |
-| 03-03-01 | 03 | 3 | ANLY-03 | T-03-03 | Index paths remain inside `.voss-cache/` | unit | `pytest tests/analyzer/test_match_index.py -q` | No | pending |
-| 03-04-01 | 04 | 4 | ANLY-01..03 | T-03-04 | Analyzer integrates without mutating AST | integration | `pytest tests/parser tests/analyzer -q` | No | pending |
+| 03-01-00 | 01 | 1 | ANLY-01..03 | T-03-01 | Required Phase 2 AST/parser contract exists before analyzer work starts | preflight | `python - <<'PY' ... PY` contract check from `03-01-PLAN.md` | No | pending |
+| 03-01-01 | 01 | 1 | ANLY-01..03 | T-03-01 | Diagnostics do not execute user code | unit | `pytest tests/analyzer/test_diagnostics.py -q` | No | pending |
+| 03-02-01 | 02 | 2 | ANLY-01 | T-03-02 | Confidence-gate analysis never executes user code | unit | `pytest tests/analyzer/test_probable.py -q` | No | pending |
+| 03-03-01 | 03 | 3 | ANLY-02 | T-03-03 | Static estimator avoids provider/API calls | unit | `pytest tests/analyzer/test_ctx_budget.py -q` | No | pending |
+| 03-04-01 | 04 | 4 | ANLY-03 | T-03-04 | Index paths remain inside project-local `.voss-cache/` | unit | `pytest tests/analyzer/test_match_index.py -q` | No | pending |
+| 03-05-01 | 05 | 5 | ANLY-01..03 | T-03-05 | Analyzer integrates without mutating AST | integration | `pytest tests/parser tests/analyzer -q` | No | pending |
 
 ## Wave 0 Requirements
 
