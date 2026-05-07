@@ -1,0 +1,54 @@
+// Voss grammar — Phase 2.
+// Newline strategy: explicit _NL in statement lists (D-02, RESEARCH risk #1, strategy A).
+// Continuation: lines may break inside (), [], <>, {}; expression rules tolerate _NL filler
+// at brace/bracket interiors (added in later plans).
+
+start: program
+program: _NL* (top_stmt (_NL+ top_stmt)*)? _NL*
+
+// In plan 02-01 the only top_stmt is an expression statement (literals + idents).
+// Later plans extend top_stmt with let/if/fn/agent/prompt/class/use/decorated.
+top_stmt: expr_stmt
+expr_stmt: expr
+
+// Plan 02-01 expression set: just literals and identifiers.
+// Plan 02-02 replaces this with a full precedence ladder.
+expr: literal | IDENT | budget_literal
+
+literal: INT          -> int_lit
+       | FLOAT        -> float_lit
+       | STRING       -> string_lit
+       | TRIPLE_STRING -> triple_string_lit
+       | "true"       -> true_lit
+       | "false"      -> false_lit
+       | "null"       -> null_lit
+
+// Composite unit-suffix literals (D-07). Plan 02-03 wires these into ctx/within.
+// Exposed in plan 02-01 only via `budget_literal` so we can unit-test the lexer.
+budget_literal: TOKEN_BUDGET | DURATION_MS | DURATION_S | COST_USD | TURNS
+
+// ---------- Terminals ----------
+
+// Composite unit-suffix terminals MUST be declared before INT so Lark prefers them.
+TOKEN_BUDGET: /\d+[ \t]+tokens\b/
+TURNS:        /\d+[ \t]+turns\b/
+DURATION_MS:  /\d+ms\b/
+DURATION_S:   /\d+s\b/
+COST_USD:     /\$\d+(\.\d+)?/
+
+FLOAT: /\d+\.\d+/
+INT:   /\d+/
+
+TRIPLE_STRING: /"""([^"\\]|\\.|"(?!""))*?"""/
+STRING:        /"([^"\\\n]|\\.)*"/
+
+IDENT: /[a-zA-Z_][a-zA-Z0-9_]*/
+
+NEWLINE: /(\r?\n)+/
+_NL: NEWLINE
+
+COMMENT: /\#[^\n]*/
+
+%ignore /[\t ]+/
+%ignore COMMENT
+// IMPORTANT: do NOT ignore NEWLINE globally. Strategy A (D-02 / RESEARCH risk #1).
