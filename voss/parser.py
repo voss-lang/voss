@@ -1,11 +1,14 @@
 from __future__ import annotations
 from pathlib import Path
 from lark import Lark, Transformer, v_args
-from lark.exceptions import UnexpectedToken, UnexpectedCharacters, UnexpectedInput
+from lark.exceptions import UnexpectedToken, UnexpectedCharacters, UnexpectedInput, VisitError
 
 from .ast_nodes import (
     Span, Program, ExprStmt, IntLit, FloatLit, StringLit, BoolLit, NullLit,
     Identifier, BudgetArg,
+    QualName, TypeKwarg, TypeRef,
+    Arg, BinOp, UnaryOp, Call, Member, Index, ListLit, DictLit,
+    Param, Lambda, SpawnExpr, ConfidenceGate,
 )
 from .exceptions import VossParseError
 
@@ -26,6 +29,16 @@ _HUMANIZE = {
     "STRING": "a string literal",
     "INT": "an integer",
     "FLOAT": "a float",
+    "EQ": "'=='",
+    "NE": "'!='",
+    "LE": "'<='",
+    "GE": "'>='",
+    "LT": "'<'",
+    "GT": "'>'",
+    "PLUS": "'+'",
+    "MINUS": "'-'",
+    "STAR": "'*'",
+    "SLASH": "'/'",
 }
 
 def _humanize(name: str) -> str:
@@ -52,6 +65,28 @@ def _span(meta, file: str) -> Span:
         line_start=meta.line, col_start=meta.column,
         line_end=meta.end_line, col_end=meta.end_column,
     )
+
+
+def _binop_chain(file: str, meta, children):
+    if len(children) == 1:
+        return children[0]
+    node = children[0]
+    i = 1
+    while i < len(children):
+        op = str(children[i])
+        right = children[i + 1]
+        node = BinOp(span=_span(meta, file), op=op, left=node, right=right)
+        i += 2
+    return node
+
+
+def _left_assoc(file: str, meta, children, op: str):
+    if len(children) == 1:
+        return children[0]
+    node = children[0]
+    for right in children[1:]:
+        node = BinOp(span=_span(meta, file), op=op, left=node, right=right)
+    return node
 
 
 def _parse_unit_token(tok: str) -> tuple[str, int | float, str]:
@@ -169,19 +204,207 @@ class _Transformer(Transformer):
     def literal(self, meta, children):
         return children[0]
 
-    # --- expr / expr_stmt / program ---
-    def expr(self, meta, children):
-        c = children[0]
-        # An IDENT token (not a literal subtree) becomes Identifier.
-        if hasattr(c, "type") and c.type == "IDENT":
-            return Identifier(span=_span(meta, self.file), name=str(c))
-        return c
-
     def budget_literal(self, meta, children):
         tok = children[0]
         unit, value, raw = _parse_unit_token(tok)
         return BudgetArg(span=_span(meta, self.file), name="", unit=unit, value=value, raw=raw)
 
+    # --- type_expr family ---
+    def qual_name(self, meta, children):
+        parts = tuple(str(t) for t in children)
+        return QualName(span=_span(meta, self.file), parts=parts)
+
+    def type_generics(self, meta, children):
+        # LT/GT are named tokens because they are also comparison operators;
+        # only nested TypeRef children are part of the AST generics tuple.
+        return tuple(c for c in children if isinstance(c, TypeRef))
+
+    def type_kwargs(self, meta, children):
+        return tuple(c for c in children if c is not None)
+
+    def type_kwarg(self, meta, children):
+        name = str(children[0])
+        return TypeKwarg(span=_span(meta, self.file), name=name, value=children[1])
+
+    def type_arg_value(self, meta, children):
+        return children[0]
+
+    def type_expr(self, meta, children):
+        name = children[0]
+        generics = ()
+        kwargs = ()
+        for c in (child for child in children[1:] if child is not None):
+            if isinstance(c, tuple) and c and isinstance(c[0], TypeRef):
+                generics = c
+            elif isinstance(c, tuple) and c and isinstance(c[0], TypeKwarg):
+                kwargs = c
+            elif isinstance(c, tuple) and len(c) == 0:
+                pass
+        return TypeRef(span=_span(meta, self.file), name=name, generics=generics, kwargs=kwargs)
+
+    # --- expression ladder ---
+    def expr(self, meta, children):
+        return children[0]
+
+    def or_expr(self, meta, children):
+        return _left_assoc(self.file, meta, children, op="or")
+
+    def and_expr(self, meta, children):
+        return _left_assoc(self.file, meta, children, op="and")
+
+    def not_expr(self, meta, children):
+        return children[0]
+
+    def not_op(self, meta, children):
+        return UnaryOp(span=_span(meta, self.file), op="not", operand=children[0])
+
+    def comparison(self, meta, children):
+        if len(children) == 1:
+            return children[0]
+        node = children[0]
+        i = 1
+        while i < len(children):
+            op = str(children[i])
+            right = children[i + 1]
+            node = BinOp(span=_span(meta, self.file), op=op, left=node, right=right)
+            i += 2
+        return node
+
+    def cmp_op(self, meta, children):
+        return str(children[0])
+
+    def additive(self, meta, children):
+        return _binop_chain(self.file, meta, children)
+
+    def add_op(self, meta, children):
+        return str(children[0])
+
+    def multiplicative(self, meta, children):
+        return _binop_chain(self.file, meta, children)
+
+    def mul_op(self, meta, children):
+        return str(children[0])
+
+    def unary(self, meta, children):
+        return children[0]
+
+    def neg_op(self, meta, children):
+        # MINUS is a named token for binary operators, so the operand is the last child.
+        return UnaryOp(span=_span(meta, self.file), op="-", operand=children[-1])
+
+    def postfix(self, meta, children):
+        node = children[0]
+        for suf in children[1:]:
+            kind, payload = suf
+            if kind == "call":
+                node = Call(span=_span(meta, self.file), callee=node, args=payload)
+            elif kind == "member":
+                node = Member(span=_span(meta, self.file), obj=node, attr=payload)
+            elif kind == "index":
+                node = Index(span=_span(meta, self.file), obj=node, index=payload)
+        return node
+
+    def call_suf(self, meta, children):
+        present = [c for c in children if c is not None]
+        args = present[0] if present else ()
+        if not isinstance(args, tuple):
+            args = tuple(args)
+        return ("call", args)
+
+    def member_suf(self, meta, children):
+        return ("member", str(children[0]))
+
+    def index_suf(self, meta, children):
+        return ("index", children[0])
+
+    def arg_list(self, meta, children):
+        return tuple(c for c in children if c is not None)
+
+    def named_arg(self, meta, children):
+        return Arg(span=_span(meta, self.file), name=str(children[0]), value=children[1])
+
+    def arg(self, meta, children):
+        c = children[0]
+        if isinstance(c, Arg):
+            return c
+        return Arg(span=_span(meta, self.file), name=None, value=c)
+
+    def list_lit(self, meta, children):
+        return ListLit(span=_span(meta, self.file), items=tuple(c for c in children if c is not None))
+
+    def dict_lit(self, meta, children):
+        return DictLit(span=_span(meta, self.file), items=tuple(c for c in children if c is not None))
+
+    def kv(self, meta, children):
+        return (children[0], children[1])
+
+    def dict_key(self, meta, children):
+        c = children[0]
+        if hasattr(c, "type") and c.type == "STRING":
+            return StringLit(span=_span(meta, self.file), value=_decode_string_literal(str(c)), triple=False)
+        return Identifier(span=_span(meta, self.file), name=str(c))
+
+    def ident_primary(self, meta, children):
+        return Identifier(span=_span(meta, self.file), name=str(children[0]))
+
+    def paren_primary(self, meta, children):
+        return children[0]
+
+    def primary(self, meta, children):
+        return children[0]
+
+    def lambda_single(self, meta, children):
+        name_tok, body = children
+        p = Param(span=_span(meta, self.file), name=str(name_tok), type_annot=None, default=None)
+        return Lambda(span=_span(meta, self.file), params=(p,), body=body)
+
+    def lambda_multi(self, meta, children):
+        present = [c for c in children if c is not None]
+        body = present[-1]
+        params = present[0] if len(present) > 1 and isinstance(present[0], tuple) else ()
+        return Lambda(span=_span(meta, self.file), params=tuple(params), body=body)
+
+    def lambda_param_list(self, meta, children):
+        return tuple(c for c in children if c is not None)
+
+    def lambda_param(self, meta, children):
+        name = str(children[0])
+        type_annot = children[1] if len(children) > 1 else None
+        return Param(span=_span(meta, self.file), name=name, type_annot=type_annot, default=None)
+
+    def spawn_expr(self, meta, children):
+        target = children[0]
+        if not isinstance(target, Call):
+            if isinstance(target, Identifier):
+                # The plan requires SpawnExpr.agent to be a Call while also listing
+                # `t => spawn x` as a valid shape. Normalize only a bare identifier
+                # into a zero-argument call; other non-call targets remain errors.
+                target = Call(span=_span(meta, self.file), callee=target, args=())
+            else:
+                raise VossParseError(
+                    file=self.file,
+                    line=meta.line,
+                    col=meta.column,
+                    expected=["a function or agent call"],
+                    got=type(target).__name__,
+                )
+        return SpawnExpr(span=_span(meta, self.file), agent=target)
+
+    def call_target(self, meta, children):
+        return children[0]
+
+    def confidence_gate(self, meta, children):
+        target, op, threshold_node = children[0], str(children[1]), children[2]
+        threshold = float(threshold_node.value if hasattr(threshold_node, "value") else threshold_node)
+        return ConfidenceGate(span=_span(meta, self.file), target=target, op=op, threshold=threshold)
+
+    def number_literal(self, meta, children):
+        c = children[0]
+        if hasattr(c, "type") and c.type == "FLOAT":
+            return FloatLit(span=_span(meta, self.file), value=float(c))
+        return IntLit(span=_span(meta, self.file), value=int(c))
+
+    # --- expr_stmt / program ---
     def expr_stmt(self, meta, children):
         return ExprStmt(span=_span(meta, self.file), expr=children[0])
 
@@ -228,4 +451,9 @@ def parse(source: str, file: str = "<string>") -> Program:
     except UnexpectedInput as exc:
         raise _wrap_lark_error(exc, source, file) from exc
     transformer = _Transformer(file)
-    return transformer.transform(tree)
+    try:
+        return transformer.transform(tree)
+    except VisitError as exc:
+        if isinstance(exc.orig_exc, VossParseError):
+            raise exc.orig_exc from None
+        raise
