@@ -88,3 +88,96 @@ class ExprStmt(Stmt):
 @dataclass(frozen=True, slots=True)
 class Program(Node):
     body: tuple[Stmt, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True, slots=True)
+class QualName(Node):
+    parts: tuple[str, ...]      # e.g. ("memory", "episodic")
+
+
+@dataclass(frozen=True, slots=True)
+class TypeKwarg(Node):
+    name: str                   # e.g. "capacity"
+    # value is one of: IntLit | FloatLit | StringLit | BoolLit | NullLit | BudgetArg | QualName
+    value: Node
+
+
+@dataclass(frozen=True, slots=True)
+class TypeRef(TypeExpr):
+    name: QualName
+    generics: tuple["TypeExpr", ...] = ()
+    kwargs: tuple[TypeKwarg, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Arg(Node):
+    name: str | None       # None for positional, str for `name: value`
+    value: Expr
+
+
+@dataclass(frozen=True, slots=True)
+class BinOp(Expr):
+    op: str                # "+", "-", "*", "/", "==", "!=", "<", "<=", ">", ">=", "and", "or"
+    left: Expr
+    right: Expr
+
+
+@dataclass(frozen=True, slots=True)
+class UnaryOp(Expr):
+    op: str                # "-", "not"
+    operand: Expr
+
+
+@dataclass(frozen=True, slots=True)
+class Call(Expr):
+    callee: Expr
+    args: tuple[Arg, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Member(Expr):
+    obj: Expr
+    attr: str
+
+
+@dataclass(frozen=True, slots=True)
+class Index(Expr):
+    obj: Expr
+    index: Expr
+
+
+@dataclass(frozen=True, slots=True)
+class ListLit(Expr):
+    items: tuple[Expr, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class DictLit(Expr):
+    # Each entry: (key, value). Key is Expr (typically StringLit or Identifier) per RESEARCH grammar `kv: (STRING|IDENT) ":" expr`.
+    items: tuple[tuple[Expr, Expr], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Param(Node):
+    name: str
+    type_annot: TypeExpr | None = None
+    default: Expr | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Lambda(Expr):
+    params: tuple[Param, ...]
+    body: Expr
+
+
+@dataclass(frozen=True, slots=True)
+class SpawnExpr(Expr):
+    agent: Call            # spawn always wraps a Call (e.g. `spawn Researcher(t)`)
+
+
+@dataclass(frozen=True, slots=True)
+class ConfidenceGate(Node):
+    # Not an Expr — only legal in `if` condition slot. Plan 02-03 wires it into IfStmt.condition.
+    target: Expr
+    op: str                # "==", "!=", "<", "<=", ">", ">="
+    threshold: float

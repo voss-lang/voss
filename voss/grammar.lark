@@ -1,19 +1,76 @@
 // Voss grammar — Phase 2.
 // Newline strategy: explicit _NL in statement lists (D-02, RESEARCH risk #1, strategy A).
-// Continuation: lines may break inside (), [], <>, {}; expression rules tolerate _NL filler
-// at brace/bracket interiors (added in later plans).
+// Continuation: expression and type rules tolerate _NL filler inside (), [], <>, and
+// dict-literal {} interiors. Block braces are introduced in later plans and are not
+// expression slots here.
 
 start: program
 program: _NL* (top_stmt (_NL+ top_stmt)*)? _NL*
 
-// In plan 02-01 the only top_stmt is an expression statement (literals + idents).
+// In plan 02-02 the only top_stmt is still an expression statement.
 // Later plans extend top_stmt with let/if/fn/agent/prompt/class/use/decorated.
 top_stmt: expr_stmt
 expr_stmt: expr
 
-// Plan 02-01 expression set: just literals and identifiers.
-// Plan 02-02 replaces this with a full precedence ladder.
-expr: literal | IDENT | budget_literal
+// ---- Type expressions (D-08, D-09) ----
+type_expr: qual_name type_generics? type_kwargs?
+qual_name: IDENT ("." IDENT)*
+type_generics: LT _NL* type_expr (_NL* "," _NL* type_expr)* _NL* ","? _NL* GT
+type_kwargs:   "(" _NL* type_kwarg (_NL* "," _NL* type_kwarg)* _NL* ","? _NL* ")"
+type_kwarg:    IDENT ":" type_arg_value
+type_arg_value: literal | budget_literal | qual_name
+
+// ---- Expression precedence ladder (lowest -> highest) ----
+expr:           lambda_expr | spawn_expr | or_expr
+lambda_expr:    IDENT "=>" expr                                 -> lambda_single
+              | "(" _NL* lambda_param_list? _NL* ")" "=>" expr  -> lambda_multi
+lambda_param_list: lambda_param (_NL* "," _NL* lambda_param)* _NL* ","?
+lambda_param:   IDENT (":" type_expr)?
+
+spawn_expr:     "spawn" call_target
+
+or_expr:        and_expr ("or" and_expr)*
+and_expr:       not_expr ("and" not_expr)*
+not_expr:       "not" not_expr                                  -> not_op
+              | comparison
+comparison:     additive (cmp_op additive)*
+cmp_op:         EQ | NE | LT | LE | GT | GE
+additive:       multiplicative (add_op multiplicative)*
+add_op:         PLUS | MINUS
+multiplicative: unary (mul_op unary)*
+mul_op:         STAR | SLASH
+unary:          MINUS unary                                      -> neg_op
+              | postfix
+
+postfix:        primary (call_suffix | member_suffix | index_suffix)*
+call_suffix:    "(" _NL* arg_list? _NL* ")"                     -> call_suf
+member_suffix:  "." IDENT                                       -> member_suf
+index_suffix:   "[" _NL* expr _NL* "]"                          -> index_suf
+
+// `call_target` is what spawn wraps. The transformer normalizes a bare target
+// such as `spawn Worker` into a zero-arg Call so SpawnExpr.agent is always Call.
+call_target:    postfix
+
+primary:        literal
+              | budget_literal
+              | IDENT                                           -> ident_primary
+              | "(" _NL* expr _NL* ")"                          -> paren_primary
+              | list_lit
+              | dict_lit
+
+list_lit:       "[" _NL* (expr (_NL* "," _NL* expr)* _NL* ","?)? _NL* "]"
+dict_lit:       "{" _NL* (kv (_NL* "," _NL* kv)* _NL* ","?)? _NL* "}"
+kv:             dict_key ":" _NL* expr
+dict_key:       STRING | IDENT
+
+arg_list:       arg (_NL* "," _NL* arg)* _NL* ","?
+arg:            named_arg | expr
+named_arg:      IDENT ":" _NL* expr
+
+// Confidence gate — exposed as a separate rule. Plan 02-03's `if` rule will reach this rule
+// from the condition slot. It is NOT in the `expr` ladder (D-11).
+confidence_gate: expr "@" "p" cmp_op number_literal
+number_literal:  FLOAT | INT
 
 literal: INT          -> int_lit
        | FLOAT        -> float_lit
@@ -24,10 +81,20 @@ literal: INT          -> int_lit
        | "null"       -> null_lit
 
 // Composite unit-suffix literals (D-07). Plan 02-03 wires these into ctx/within.
-// Exposed in plan 02-01 only via `budget_literal` so we can unit-test the lexer.
 budget_literal: TOKEN_BUDGET | DURATION_MS | DURATION_S | COST_USD | TURNS
 
 // ---------- Terminals ----------
+
+EQ: "=="
+NE: "!="
+LE: "<="
+GE: ">="
+LT: "<"
+GT: ">"
+PLUS: "+"
+MINUS: "-"
+STAR: "*"
+SLASH: "/"
 
 // Composite unit-suffix terminals MUST be declared before INT so Lark prefers them.
 TOKEN_BUDGET: /\d+[ \t]+tokens\b/
