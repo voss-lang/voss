@@ -411,20 +411,24 @@ class _Transformer(Transformer):
         return children[0]
 
     def let_stmt(self, meta, children):
-        # children: [IDENT, let_type|None, let_value|None] with maybe_placeholders=True.
-        # let_type and let_value are wrapper rules so optional slots stay positionally
-        # distinct (without them, `let x = 42` collapses to [IDENT, expr] and the value
-        # masquerades as a type annotation).
+        # children: [IDENT, let_type?, let_value?]. Lark drops missing optional rule
+        # slots rather than filling them with None, so we tag the optional pieces and
+        # demux by tag instead of by position.
         name = str(children[0])
-        type_annot = children[1] if len(children) > 1 and children[1] is not None else None
-        value = children[2] if len(children) > 2 and children[2] is not None else None
+        type_annot = None
+        value = None
+        for c in children[1:]:
+            if isinstance(c, tuple) and len(c) == 2 and c[0] == "let_type":
+                type_annot = c[1]
+            elif isinstance(c, tuple) and len(c) == 2 and c[0] == "let_value":
+                value = c[1]
         return LetStmt(span=_span(meta, self.file), name=name, type_annot=type_annot, value=value)
 
     def let_type(self, meta, children):
-        return children[0]
+        return ("let_type", children[0])
 
     def let_value(self, meta, children):
-        return children[0]
+        return ("let_value", children[0])
 
     def if_condition(self, meta, children):
         return children[0]
