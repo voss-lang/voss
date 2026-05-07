@@ -7,9 +7,9 @@
 start: program
 program: _NL* (top_stmt (_NL+ top_stmt)*)? _NL*
 
-// In plan 02-02 the only top_stmt is still an expression statement.
-// Later plans extend top_stmt with let/if/fn/agent/prompt/class/use/decorated.
-top_stmt: expr_stmt
+// Plan 02-03 promotes top_stmt to the full statement umbrella.
+// Plan 02-04 will extend it with top_decl (fn/agent/prompt/class/use/decorated).
+top_stmt: stmt
 expr_stmt: expr
 
 // ---- Type expressions (D-08, D-09) ----
@@ -82,6 +82,54 @@ literal: INT          -> int_lit
 
 // Composite unit-suffix literals (D-07). Plan 02-03 wires these into ctx/within.
 budget_literal: TOKEN_BUDGET | DURATION_MS | DURATION_S | COST_USD | TURNS
+
+// ---- Statements ----
+stmt: let_stmt
+    | if_stmt
+    | match_stmt
+    | ctx_stmt
+    | within_stmt
+    | try_stmt
+    | return_stmt
+    | yield_stmt
+    | include_stmt
+    | match_threshold_stmt
+    | expr_stmt
+
+let_stmt: "let" IDENT (":" type_expr)? ("=" expr)?
+
+if_stmt: "if" if_condition "{" block "}" ("else" "{" block "}")?
+if_condition: confidence_gate | expr
+
+match_stmt: "match" expr "{" _NL* match_case (_NL+ match_case)* _NL* "}"
+match_case: "case" pattern "=>" match_case_body
+match_case_body: ("{" block "}") | expr
+
+pattern: similar_pattern | wildcard_pattern | expr_pattern
+similar_pattern:  "similar" "(" STRING ")"
+wildcard_pattern: "_"
+expr_pattern:     expr
+
+// @match_threshold(N) immediately preceding a match. Resolved question #2: lift into MatchStmt.threshold.
+// Disambiguation vs the future general `@<decorator>` rule introduced in plan 02-04:
+// match_threshold_stmt eats `@match_threshold(N) <NEWLINE> match_stmt` as a single statement.
+// Plan 02-04 scopes its decorator rule to declarations only (`@tool fn ...`, `@whatever class ...`),
+// so the two rules occupy distinct grammar slots and do not collide.
+match_threshold_stmt: "@" "match_threshold" "(" number_literal ")" _NL+ match_stmt
+
+ctx_stmt: "ctx" "(" _NL* budget_kwarg _NL* ")" "{" block "}"
+within_stmt: "within" "budget" "(" _NL* budget_kwarg (_NL* "," _NL* budget_kwarg)* _NL* ","? _NL* ")" "{" block "}" ("fallback" "{" block "}")?
+budget_kwarg: IDENT ":" budget_literal
+
+try_stmt: "try" "{" block "}" "catch" IDENT? "{" block "}"
+
+return_stmt:  "return" expr?
+yield_stmt:   "yield" expr?
+include_stmt: "include" expr
+
+// Block: a sequence of statements separated by NEWLINEs. _NL is underscore-prefixed
+// so Lark filters newline tokens out of the children automatically.
+block: _NL* (stmt (_NL+ stmt)*)? _NL*
 
 // ---------- Terminals ----------
 
