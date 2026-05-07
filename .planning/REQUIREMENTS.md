@@ -50,6 +50,12 @@
 - [ ] **CLI-05**: `voss ast myprogram.voss` prints the AST for debugging
 - [ ] **CLI-06**: `pyproject.toml` with correct dependencies; package installable via `pip install` (locally or from GitHub)
 
+### Tooling
+
+- [ ] **TOOL-01**: Repo-level `.gitattributes` configures GitHub Linguist for `.voss` files (`linguist-language=Voss`, `linguist-detectable=true`); pending Linguist registration, falls back to a sensible parent (e.g. Python) so files render with highlighting on GitHub
+- [ ] **TOOL-02**: `voss init` scaffolds `.gitattributes` in new projects so user repos get correct Linguist behavior automatically
+- [ ] **TOOL-03**: Repo provides language metadata (file extension `.voss`, sample programs, language color) sufficient to support a future GitHub Linguist PR; sample sources live under `samples/` for upstream submission
+
 ### Examples
 
 - [ ] **EX-01**: `classify.voss` (PRD §7.1) compiles and runs end-to-end (probabilistic classification with confidence gate)
@@ -63,6 +69,11 @@
 - **EDIT-01**: Tree-sitter grammar for syntax highlighting
 - **EDIT-02**: VSCode extension (highlighting + snippets)
 - **EDIT-03**: LSP server for inline type errors
+
+### Linguist Upstream
+
+- **LING-01**: Submit Voss to github-linguist/linguist registry (languages.yml entry + sample) for native GitHub support
+- **LING-02**: Once accepted, drop `.gitattributes` override and rely on native detection
 
 ### Distribution
 
@@ -119,13 +130,16 @@
 | CLI-04 | Phase 5 | Pending |
 | CLI-05 | Phase 5 | Pending |
 | CLI-06 | Phase 5 | Pending |
+| TOOL-01 | Phase 5 | Pending |
+| TOOL-02 | Phase 5 | Pending |
+| TOOL-03 | Phase 5 | Pending |
 | EX-01 | Phase 6 | Pending |
 | EX-02 | Phase 6 | Pending |
 | EX-03 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 33 total
-- Mapped to phases: 33
+- v1 requirements: 36 total
+- Mapped to phases: 36
 - Unmapped: 0 ✓
 
 ---

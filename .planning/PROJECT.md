@@ -29,6 +29,7 @@ A program that takes 300 lines of Python boilerplate around an AI workflow takes
 - [ ] `use foo::bar` import syntax for multi-file Voss programs
 - [ ] Multi-provider model abstraction (Anthropic + OpenAI + Ollama) via unified runtime interface
 - [ ] CLI: `voss compile`, `voss run`, `voss check`, `voss init`, `voss ast`
+- [ ] GitHub Linguist / Git support for `.voss` files (`.gitattributes`, language metadata, samples ready for upstream Linguist PR)
 - [ ] Three example programs (PRD §7) compile and run end-to-end
 
 ### Out of Scope
@@ -71,6 +72,7 @@ A program that takes 300 lines of Python boilerplate around an AI workflow takes
 | Compile-time embedding indexes in `.voss-cache/` | Separate gitignored dir, multiple files OK, easy to nuke | — Pending |
 | Native Voss `try/catch` syntax (not Python interop only) | First-class error handling matches the language's "constructs not patterns" philosophy; codegens to Python `try/except` | — Pending |
 | `use foo::bar` import keyword (not Python-style `import`) | Distinct Voss syntax signals Voss-aware module resolution; compiles to Python imports under the hood | — Pending |
+| Ship `.gitattributes` + Linguist metadata in v1 | Voss files render as code (not "Other") on GitHub from day one; sample/metadata work also seeds future Linguist registry PR | — Pending |
 | Build runtime library before compiler | Locks in runtime semantics before syntax; lets us validate the design with hand-written Python | — Pending |
 | Audience = author + early adopters for v1 | Lets v1 ship faster; PyPI/OSS launch deferred post-v1 | — Pending |
 | Success metric = three PRD §7 examples run end-to-end | Concrete, testable, covers all five core constructs | — Pending |
