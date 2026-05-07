@@ -513,8 +513,22 @@ class _Transformer(Transformer):
     def budget_kwarg(self, meta, children):
         from dataclasses import replace
         name = str(children[0])
-        inner = children[1]   # BudgetArg from budget_literal — name is ""
-        return replace(inner, name=name, span=_span(meta, self.file))
+        inner = children[1]   # BudgetArg (from budget_literal) OR (IntLit|FloatLit) (bare number)
+        if isinstance(inner, BudgetArg):
+            return replace(inner, name=name, span=_span(meta, self.file))
+        # Bare number like `tokens: 4000` inside `within budget(...)`. The unit is implied
+        # by the kwarg name itself, so reuse `name` as the unit and the raw text.
+        value = inner.value
+        return BudgetArg(
+            span=_span(meta, self.file),
+            name=name,
+            unit=name,
+            value=value,
+            raw=str(value),
+        )
+
+    def budget_kwarg_value(self, meta, children):
+        return children[0]
 
     def try_stmt(self, meta, children):
         # children: [block(try), IDENT|None, block(catch)] (maybe_placeholders=True)

@@ -121,7 +121,8 @@ match_threshold_stmt: "@" "match_threshold" "(" number_literal ")" _NL+ match_st
 
 ctx_stmt: "ctx" "(" _NL* budget_kwarg _NL* ")" "{" block "}"
 within_stmt: "within" "budget" "(" _NL* budget_kwarg (_NL* "," _NL* budget_kwarg)* _NL* ","? _NL* ")" "{" block "}" ("fallback" "{" block "}")?
-budget_kwarg: IDENT ":" budget_literal
+budget_kwarg: IDENT ":" budget_kwarg_value
+budget_kwarg_value: budget_literal | number_literal
 
 try_stmt: "try" "{" block "}" "catch" IDENT? "{" block "}"
 
