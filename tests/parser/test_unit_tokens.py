@@ -19,5 +19,17 @@ def test_unit_token_parses(parse_source, src, unit, value):
 
 def test_unknown_unit_is_parse_error(parse_source):
     from voss import VossParseError
-    with pytest.raises(VossParseError):
-        parse_source("4000 banana")
+    with pytest.raises(VossParseError) as exc_info:
+        parse_source("4000 banana", file="budget.voss")
+
+    err = exc_info.value
+    assert err.file == "budget.voss"
+    assert err.line == 1
+    assert err.col == 6
+    assert isinstance(err.expected, list)
+    assert "end of line" in err.expected
+    assert isinstance(err.got, str)
+    assert "b" in err.got
+    assert isinstance(err.source_excerpt, str)
+    assert "4000 banana" in err.source_excerpt
+    assert "^" in err.source_excerpt

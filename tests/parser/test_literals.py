@@ -21,6 +21,18 @@ def test_null_literal(parse_source):
     program = parse_source("null")
     assert isinstance(program.body[0].expr, NullLit)
 
+@pytest.mark.parametrize("src,expected", [
+    ('"café"', "café"),
+    ('"caf\\u00e9"', "café"),
+    ('"emoji 😃 and \\\"quote\\\""', 'emoji 😃 and "quote"'),
+])
+def test_unicode_string_decoding(parse_source, src, expected):
+    program = parse_source(src)
+    s = program.body[0].expr
+    assert isinstance(s, StringLit)
+    assert s.value == expected
+
+
 def test_triple_string(parse_source):
     program = parse_source('"""multi\nline"""')
     s = program.body[0].expr

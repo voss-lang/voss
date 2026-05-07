@@ -21,6 +21,7 @@ _HUMANIZE = {
     "DURATION_S": "a second duration like 30s",
     "COST_USD": "a USD cost like $0.02",
     "NEWLINE": "end of line",
+    "_NL": "end of line",
     "IDENT": "an identifier",
     "STRING": "a string literal",
     "INT": "an integer",
@@ -35,6 +36,8 @@ def _build_parser() -> Lark:
     return Lark(
         _GRAMMAR_PATH.read_text(),
         parser="earley",
+        # Lark 1.x rejects lexer="contextual" with Earley; dynamic is the supported
+        # state-aware Earley lexer (accepted: basic/dynamic/dynamic_complete).
         lexer="dynamic",
         propagate_positions=True,
         maybe_placeholders=True,
@@ -66,6 +69,73 @@ def _parse_unit_token(tok: str) -> tuple[str, int | float, str]:
     return (unit, int(num), raw)
 
 
+_SIMPLE_STRING_ESCAPES = {
+    '"': '"',
+    "'": "'",
+    "\\": "\\",
+    "a": "\a",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
+}
+_HEX_DIGITS = set("0123456789abcdefABCDEF")
+_OCTAL_DIGITS = set("01234567")
+
+
+def _decode_string_literal(raw: str) -> str:
+    """Decode Voss string escapes without re-encoding Unicode source text."""
+    inner = raw[1:-1]
+    decoded: list[str] = []
+    i = 0
+    while i < len(inner):
+        ch = inner[i]
+        if ch != "\\":
+            decoded.append(ch)
+            i += 1
+            continue
+
+        if i + 1 >= len(inner):
+            decoded.append("\\")
+            i += 1
+            continue
+
+        esc = inner[i + 1]
+        if esc in _SIMPLE_STRING_ESCAPES:
+            decoded.append(_SIMPLE_STRING_ESCAPES[esc])
+            i += 2
+            continue
+
+        if esc in _OCTAL_DIGITS:
+            end = i + 2
+            while end < min(i + 4, len(inner)) and inner[end] in _OCTAL_DIGITS:
+                end += 1
+            decoded.append(chr(int(inner[i + 1:end], 8)))
+            i = end
+            continue
+
+        hex_width = {"x": 2, "u": 4, "U": 8}.get(esc)
+        if hex_width is not None:
+            start = i + 2
+            end = start + hex_width
+            digits = inner[start:end]
+            if len(digits) == hex_width and all(c in _HEX_DIGITS for c in digits):
+                try:
+                    decoded.append(chr(int(digits, 16)))
+                    i = end
+                    continue
+                except (OverflowError, ValueError):
+                    pass
+
+        # Preserve unknown escapes rather than dropping the backslash.
+        decoded.append("\\" + esc)
+        i += 2
+
+    return "".join(decoded)
+
+
 @v_args(meta=True)
 class _Transformer(Transformer):
     def __init__(self, file: str):
@@ -81,7 +151,7 @@ class _Transformer(Transformer):
 
     def string_lit(self, meta, children):
         raw = str(children[0])
-        return StringLit(span=_span(meta, self.file), value=bytes(raw[1:-1], "utf-8").decode("unicode_escape"), triple=False)
+        return StringLit(span=_span(meta, self.file), value=_decode_string_literal(raw), triple=False)
 
     def triple_string_lit(self, meta, children):
         raw = str(children[0])
