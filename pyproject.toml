@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Voss runtime library"
 requires-python = ">=3.11"
 dependencies = [
+    "lark>=1.1.9",
     "litellm>=1.50.0",
     "pydantic>=2.6,<3.0",
     "chromadb>=0.5.0",
@@ -29,7 +30,8 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["voss_runtime"]
+packages = ["voss_runtime", "voss"]
+package-data = { "voss" = ["grammar.lark"] }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
