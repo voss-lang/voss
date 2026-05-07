@@ -3,11 +3,15 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
-
-import numpy as np
+from typing import Any, Optional, Sequence
 
 DEFAULT_LOCAL_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+
+def _numpy():
+    import numpy as np
+
+    return np
 
 
 @dataclass(frozen=True)
@@ -23,7 +27,7 @@ class SemanticMatcher:
         *,
         threshold: float = 0.75,
         model: str = DEFAULT_LOCAL_MODEL,
-        embeddings: Optional[np.ndarray] = None,
+        embeddings: Optional[Any] = None,
     ):
         self.cases: list[Case] = [
             c if isinstance(c, Case) else Case(label=c[1], description=c[0])
@@ -33,6 +37,7 @@ class SemanticMatcher:
         self.model_name = model
         self._encoder = None
         if embeddings is not None:
+            np = _numpy()
             self._embeddings = np.asarray(embeddings, dtype=np.float32)
         else:
             self._embeddings = self._encode([c.description for c in self.cases])
@@ -44,7 +49,8 @@ class SemanticMatcher:
             self._encoder = SentenceTransformer(self.model_name)
         return self._encoder
 
-    def _encode(self, texts: list[str]) -> np.ndarray:
+    def _encode(self, texts: list[str]) -> Any:
+        np = _numpy()
         enc = self._ensure_encoder()
         vecs = enc.encode(texts, normalize_embeddings=True)
         return np.asarray(vecs, dtype=np.float32)
@@ -76,6 +82,7 @@ class SemanticMatcher:
         cases = [
             Case(label=c["label"], description=c["description"]) for c in data["cases"]
         ]
+        np = _numpy()
         embeddings = np.asarray(
             [c["embedding"] for c in data["cases"]], dtype=np.float32
         )
