@@ -181,3 +181,72 @@ class ConfidenceGate(Node):
     target: Expr
     op: str                # "==", "!=", "<", "<=", ">", ">="
     threshold: float
+
+
+# ----- Patterns (only inside match cases) -----
+@dataclass(frozen=True, slots=True)
+class SimilarPattern(Pattern):
+    text: str
+
+@dataclass(frozen=True, slots=True)
+class WildcardPattern(Pattern):
+    pass
+
+@dataclass(frozen=True, slots=True)
+class ExprPattern(Pattern):
+    expr: Expr
+
+# ----- Statements -----
+@dataclass(frozen=True, slots=True)
+class LetStmt(Stmt):
+    name: str
+    type_annot: TypeExpr | None = None
+    value: Expr | None = None
+
+@dataclass(frozen=True, slots=True)
+class IfStmt(Stmt):
+    # condition is either a regular Expr OR a ConfidenceGate (D-11).
+    # Field type stays loose (Node) so the dataclass remains simple.
+    condition: Node
+    then_body: tuple[Stmt, ...]
+    else_body: tuple[Stmt, ...] | None = None
+
+@dataclass(frozen=True, slots=True)
+class MatchCase(Node):
+    pattern: Pattern
+    body: tuple[Stmt, ...]
+
+@dataclass(frozen=True, slots=True)
+class MatchStmt(Stmt):
+    scrutinee: Expr
+    cases: tuple[MatchCase, ...]
+    threshold: float | None = None    # set by @match_threshold (resolved question #2)
+
+@dataclass(frozen=True, slots=True)
+class CtxBlock(Stmt):
+    budget: BudgetArg                  # the (single) budget kwarg in ctx(budget: 4000 tokens)
+    body: tuple[Stmt, ...]
+
+@dataclass(frozen=True, slots=True)
+class WithinFallback(Stmt):
+    budget_args: tuple[BudgetArg, ...]
+    primary: tuple[Stmt, ...]
+    fallback: tuple[Stmt, ...] | None = None
+
+@dataclass(frozen=True, slots=True)
+class TryCatch(Stmt):
+    try_body: tuple[Stmt, ...]
+    exc_name: str | None
+    catch_body: tuple[Stmt, ...]
+
+@dataclass(frozen=True, slots=True)
+class ReturnStmt(Stmt):
+    value: Expr | None = None
+
+@dataclass(frozen=True, slots=True)
+class YieldStmt(Stmt):
+    value: Expr | None = None
+
+@dataclass(frozen=True, slots=True)
+class IncludeStmt(Stmt):
+    value: Expr
