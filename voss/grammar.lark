@@ -96,7 +96,9 @@ stmt: let_stmt
     | match_threshold_stmt
     | expr_stmt
 
-let_stmt: "let" IDENT (":" type_expr)? ("=" expr)?
+let_stmt: "let" IDENT let_type? let_value?
+let_type: ":" type_expr
+let_value: "=" expr
 
 if_stmt: "if" if_condition "{" block "}" ("else" "{" block "}")?
 if_condition: confidence_gate | expr

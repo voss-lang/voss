@@ -411,11 +411,20 @@ class _Transformer(Transformer):
         return children[0]
 
     def let_stmt(self, meta, children):
-        # children: [IDENT, type_expr|None, expr|None] with maybe_placeholders=True
+        # children: [IDENT, let_type|None, let_value|None] with maybe_placeholders=True.
+        # let_type and let_value are wrapper rules so optional slots stay positionally
+        # distinct (without them, `let x = 42` collapses to [IDENT, expr] and the value
+        # masquerades as a type annotation).
         name = str(children[0])
         type_annot = children[1] if len(children) > 1 and children[1] is not None else None
         value = children[2] if len(children) > 2 and children[2] is not None else None
         return LetStmt(span=_span(meta, self.file), name=name, type_annot=type_annot, value=value)
+
+    def let_type(self, meta, children):
+        return children[0]
+
+    def let_value(self, meta, children):
+        return children[0]
 
     def if_condition(self, meta, children):
         return children[0]
