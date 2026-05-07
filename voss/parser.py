@@ -9,6 +9,8 @@ from .ast_nodes import (
     QualName, TypeKwarg, TypeRef,
     Arg, BinOp, UnaryOp, Call, Member, Index, ListLit, DictLit,
     Param, Lambda, SpawnExpr, ConfidenceGate,
+    LetStmt, IfStmt, MatchStmt, MatchCase, SimilarPattern, WildcardPattern, ExprPattern,
+    CtxBlock, WithinFallback, TryCatch, ReturnStmt, YieldStmt, IncludeStmt,
 )
 from .exceptions import VossParseError
 
@@ -403,6 +405,131 @@ class _Transformer(Transformer):
         if hasattr(c, "type") and c.type == "FLOAT":
             return FloatLit(span=_span(meta, self.file), value=float(c))
         return IntLit(span=_span(meta, self.file), value=int(c))
+
+    # --- statements + patterns ---
+    def stmt(self, meta, children):
+        return children[0]
+
+    def let_stmt(self, meta, children):
+        # children: [IDENT, type_expr|None, expr|None] with maybe_placeholders=True
+        name = str(children[0])
+        type_annot = children[1] if len(children) > 1 and children[1] is not None else None
+        value = children[2] if len(children) > 2 and children[2] is not None else None
+        return LetStmt(span=_span(meta, self.file), name=name, type_annot=type_annot, value=value)
+
+    def if_condition(self, meta, children):
+        return children[0]
+
+    def if_stmt(self, meta, children):
+        # children: [if_condition, block(then), block(else)|None]
+        cond = children[0]
+        then_body = children[1]
+        else_body = children[2] if len(children) > 2 and children[2] is not None else None
+        return IfStmt(
+            span=_span(meta, self.file),
+            condition=cond,
+            then_body=tuple(then_body),
+            else_body=tuple(else_body) if else_body is not None else None,
+        )
+
+    def block(self, meta, children):
+        # _NL is underscore-prefixed in the grammar so Lark filters newlines automatically;
+        # still defensively drop NEWLINE tokens in case any leak through.
+        return tuple(c for c in children if not (hasattr(c, "type") and c.type == "NEWLINE"))
+
+    def match_stmt(self, meta, children):
+        scrutinee = children[0]
+        cases = tuple(c for c in children[1:] if isinstance(c, MatchCase))
+        return MatchStmt(span=_span(meta, self.file), scrutinee=scrutinee, cases=cases, threshold=None)
+
+    def match_case(self, meta, children):
+        pattern, body = children[0], children[1]
+        if isinstance(body, tuple):
+            body_tuple = body
+        else:
+            body_tuple = (ExprStmt(span=_span(meta, self.file), expr=body),)
+        return MatchCase(span=_span(meta, self.file), pattern=pattern, body=body_tuple)
+
+    def match_case_body(self, meta, children):
+        # Returns either a tuple (block) or a bare Expr; match_case wraps the bare Expr.
+        return children[0]
+
+    def pattern(self, meta, children):
+        return children[0]
+
+    def similar_pattern(self, meta, children):
+        raw = str(children[0])
+        return SimilarPattern(span=_span(meta, self.file), text=_decode_string_literal(raw))
+
+    def wildcard_pattern(self, meta, children):
+        return WildcardPattern(span=_span(meta, self.file))
+
+    def expr_pattern(self, meta, children):
+        return ExprPattern(span=_span(meta, self.file), expr=children[0])
+
+    def match_threshold_stmt(self, meta, children):
+        # children: [number_literal, MatchStmt]
+        from dataclasses import replace
+        threshold_node = children[0]
+        match_stmt = children[1]
+        threshold = float(threshold_node.value)
+        return replace(match_stmt, threshold=threshold)
+
+    def ctx_stmt(self, meta, children):
+        budget = children[0]   # budget_kwarg → BudgetArg
+        body = children[1]     # block → tuple
+        return CtxBlock(span=_span(meta, self.file), budget=budget, body=tuple(body))
+
+    def within_stmt(self, meta, children):
+        budget_args = []
+        blocks = []
+        for c in children:
+            if isinstance(c, BudgetArg):
+                budget_args.append(c)
+            elif isinstance(c, tuple):
+                blocks.append(c)
+        primary = tuple(blocks[0]) if blocks else ()
+        fallback = tuple(blocks[1]) if len(blocks) > 1 else None
+        return WithinFallback(
+            span=_span(meta, self.file),
+            budget_args=tuple(budget_args),
+            primary=primary,
+            fallback=fallback,
+        )
+
+    def budget_kwarg(self, meta, children):
+        from dataclasses import replace
+        name = str(children[0])
+        inner = children[1]   # BudgetArg from budget_literal — name is ""
+        return replace(inner, name=name, span=_span(meta, self.file))
+
+    def try_stmt(self, meta, children):
+        # children: [block(try), IDENT|None, block(catch)] (maybe_placeholders=True)
+        try_body = children[0]
+        if len(children) == 3:
+            exc_name_tok = children[1]
+            exc_name = str(exc_name_tok) if exc_name_tok is not None else None
+            catch_body = children[2]
+        else:
+            exc_name = None
+            catch_body = children[1]
+        return TryCatch(
+            span=_span(meta, self.file),
+            try_body=tuple(try_body),
+            exc_name=exc_name,
+            catch_body=tuple(catch_body),
+        )
+
+    def return_stmt(self, meta, children):
+        value = children[0] if children and children[0] is not None else None
+        return ReturnStmt(span=_span(meta, self.file), value=value)
+
+    def yield_stmt(self, meta, children):
+        value = children[0] if children and children[0] is not None else None
+        return YieldStmt(span=_span(meta, self.file), value=value)
+
+    def include_stmt(self, meta, children):
+        return IncludeStmt(span=_span(meta, self.file), value=children[0])
 
     # --- expr_stmt / program ---
     def expr_stmt(self, meta, children):
