@@ -55,6 +55,23 @@
 2. A `ctx` block whose static token estimate exceeds its declared budget emits a warning at compile time
 3. Each `match` block's `similar(...)` cases are embedded once at compile time and stored in `.voss-cache/<program>.idx` for runtime lookup
 
+**Planned:** 2026-05-07 — 5 plans, waves 1-5
+
+**Wave 1:** `03-01` — analyzer diagnostics/result foundation plus a blocking Phase 2 AST/parser contract preflight.
+
+**Wave 2** *(blocked on Wave 1 completion)*: `03-02` — ANLY-01 probable type normalization, scope tracking, and confidence-gate warnings.
+
+**Wave 3** *(blocked on Wave 2 completion)*: `03-03` — ANLY-02 deterministic static token-budget estimation for `ctx` blocks.
+
+**Wave 4** *(blocked on Wave 3 completion)*: `03-04` — ANLY-03 compile-time `similar(...)` index manifest emission with hermetic fake-builder tests and project-local `.voss-cache` path safety.
+
+**Wave 5** *(blocked on Wave 4 completion)*: `03-05` — parser-backed example integration and public analyzer exports.
+
+**Cross-cutting constraints:**
+- Phase 3 execution must not proceed until `03-01-0` prints `phase2-contract-ok`.
+- Analyzer checks must walk AST dataclasses only; they must not execute user code or call external providers during default tests.
+- Default verification must stay hermetic; embeddings are fakeable in tests and token estimation is local/provider-free.
+
 ---
 
 ### Phase 4: Codegen
