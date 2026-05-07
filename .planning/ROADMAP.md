@@ -84,6 +84,26 @@
 2. Generated Python is human-readable (preserved structure, comments where useful, no minification)
 3. Voss `try/catch` and `use foo::bar` codegen to correct Python `try/except` and `import` statements; codegen test suite verifies semantic equivalence to Phase 1 hand-written variants
 
+**Planned:** 2026-05-07 — 6 plans, waves 1-6
+
+**Wave 1:** `04-01` — codegen contract gate, public API/result shape, writer, import collector, and initial readability/import tests.
+
+**Wave 2** *(blocked on Wave 1 completion)*: `04-02` — expression, function, basic statement, and async `main` lowering.
+
+**Wave 3** *(blocked on Wave 2 completion)*: `04-03` — runtime primitive lowering for `probable`, `ctx`, `within/fallback`, `try/catch`, and memory declarations.
+
+**Wave 4** *(blocked on Wave 3 completion)*: `04-04` — Phase 3 semantic-index manifest consumption and `use foo::bar` import lowering.
+
+**Wave 5** *(blocked on Wave 4 completion)*: `04-05` — agents, tools, prompts, classes, `spawn`, and `gather` lowering.
+
+**Wave 6** *(blocked on Wave 5 completion)*: `04-06` — PRD example compile/run verification, semantic-equivalence tests, and generated-source snapshots.
+
+**Cross-cutting constraints:**
+- Phase 4 execution must not proceed until `04-01-0` prints `phase4-codegen-contract-ok`.
+- Codegen must not implement parser/analyzer/runtime substitutes; it consumes Phase 2 ASTs and Phase 3 analyzer/index metadata.
+- Default verification must stay hermetic with `StubProvider`, fake manifests, no live providers, no network, and no model downloads.
+- Generated Python must avoid compiler imports and include only required stdlib modules, public `voss_runtime` names, Pydantic when needed, and declared `use` dependencies.
+
 ---
 
 ### Phase 5: CLI, Packaging & Linguist

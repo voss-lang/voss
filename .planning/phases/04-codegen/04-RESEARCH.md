@@ -123,7 +123,7 @@ Phase 4 should run only after Phase 3 provides:
 Phase 4 planning should include a gate similar to:
 
 ```bash
-python - <<'PY'
+python3 - <<'PY'
 from pathlib import Path
 import importlib
 
@@ -394,7 +394,7 @@ Verification commands for Phase 4 plans:
 ```bash
 pytest tests/codegen -q
 pytest tests/parser tests/analyzer tests/codegen -q
-python - <<'PY'
+python3 - <<'PY'
 from pathlib import Path
 import ast
 for path in Path("tests/codegen/snapshots").glob("*.py"):

@@ -32,12 +32,12 @@ Per-phase validation contract for Voss code generation.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 04-01-00 | 01 | 1 | GEN-01..05 | T-04-01 | Required Phase 2/3 contracts exist before codegen work starts | preflight | `python - <<'PY' ... PY` contract check from `04-01-PLAN.md` | No | pending |
+| 04-01-00 | 01 | 1 | GEN-01..05 | T-04-01 | Required Phase 2/3 contracts exist before codegen work starts | preflight | `python3 - <<'PY' ... PY` contract check from `04-01-PLAN.md` | No | pending |
 | 04-01-01 | 01 | 1 | GEN-01, GEN-02 | T-04-01 | Writer and imports produce deterministic readable Python | unit | `pytest tests/codegen/test_writer.py tests/codegen/test_imports.py -q` | No | pending |
 | 04-02-01 | 02 | 2 | GEN-01, GEN-02 | T-04-02 | Expression and basic statement lowering never executes user code | unit | `pytest tests/codegen/test_expressions.py tests/codegen/test_statements.py -q` | No | pending |
 | 04-03-01 | 03 | 3 | GEN-01, GEN-03 | T-04-03 | Runtime primitive lowering targets async runtime APIs correctly | unit | `pytest tests/codegen/test_runtime_constructs.py -q` | No | pending |
 | 04-04-01 | 04 | 4 | GEN-01, GEN-04 | T-04-04 | Semantic routing and user imports use declared/indexed dependencies only | unit | `pytest tests/codegen/test_semantic_match.py tests/codegen/test_imports.py -q` | No | pending |
-| 04-05-01 | 05 | 5 | GEN-01, GEN-05 | T-04-05 | Agents, tools, prompts, classes generate readable executable Python | unit | `pytest tests/codegen/test_agents_tools_prompts.py -q` | No | pending |
+| 04-05-01 | 05 | 5 | GEN-01, GEN-02 | T-04-05 | Agents, tools, prompts, classes generate readable executable Python | unit | `pytest tests/codegen/test_agents_tools_prompts.py -q` | No | pending |
 | 04-06-01 | 06 | 6 | GEN-01..05 | T-04-06 | PRD examples compile, parse as Python, and run with deterministic stubs | integration | `pytest tests/codegen/test_examples.py -q` | No | pending |
 
 ## Wave 0 Requirements

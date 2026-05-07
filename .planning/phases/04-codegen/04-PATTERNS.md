@@ -17,7 +17,7 @@
 Create `04-01-0` as a read-only executable gate before any codegen module/test work:
 
 ```bash
-python - <<'PY'
+python3 - <<'PY'
 from pathlib import Path
 import importlib
 
