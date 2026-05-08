@@ -376,7 +376,10 @@ class ExpressionEmitter:
             obj = self.emit(expr.obj, await_context=await_context)
             return f"{obj}.{expr.attr}"
         if isinstance(expr, Index):
-            obj = self.emit(expr.obj, await_context=await_context)
+            if await_context and self._is_gather_call(expr.obj):
+                obj = f"({self.emit(expr.obj, await_context=True)})"
+            else:
+                obj = self.emit(expr.obj, await_context=await_context)
             idx = self.emit(expr.index, await_context=await_context)
             return f"{obj}[{idx}]"
         if isinstance(expr, ListLit):
@@ -412,6 +415,11 @@ class ExpressionEmitter:
         return text
 
     def _emit_call(self, call: Call, *, await_context: bool) -> str:
+        if isinstance(call.callee, Member):
+            lowered = self._emit_member_call(call, await_context=await_context)
+            if lowered is not None:
+                return lowered
+
         if (
             isinstance(call.callee, Identifier)
             and call.callee.name == "ask"
@@ -437,6 +445,40 @@ class ExpressionEmitter:
         ):
             text = f"await {text}"
         return text
+
+    @staticmethod
+    def _is_gather_call(expr: Node) -> bool:
+        return (
+            isinstance(expr, Call)
+            and isinstance(expr.callee, Identifier)
+            and expr.callee.name == "gather"
+        )
+
+    def _emit_member_call(
+        self, call: Call, *, await_context: bool
+    ) -> str | None:
+        assert isinstance(call.callee, Member)
+        member = call.callee
+
+        if member.attr == "map" and len(call.args) == 1:
+            arg = call.args[0]
+            if arg.name is None and isinstance(arg.value, Lambda):
+                lam = arg.value
+                if len(lam.params) != 1:
+                    raise CodegenError("map lambda must have exactly one parameter")
+                param = _mangle(lam.params[0].name)
+                obj = self.emit(member.obj, await_context=False)
+                body = self.emit(lam.body, await_context=await_context)
+                return f"[{body} for {param} in {obj}]"
+
+        if member.attr == "join" and len(call.args) == 1:
+            arg = call.args[0]
+            if arg.name is None:
+                sep = self.emit(arg.value, await_context=False)
+                obj = self.emit(member.obj, await_context=False)
+                return f"{sep}.join({obj})"
+
+        return None
 
     def emit_arg(self, arg: Arg, *, await_context: bool) -> str:
         value = self.emit(arg.value, await_context=await_context)
