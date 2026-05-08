@@ -26,6 +26,20 @@ def load_module_from_path(path: Path, module_name: str) -> ModuleType:
     return module
 
 
+def load_module_with_globals(
+    path: Path, module_name: str, globals_: dict[str, object]
+) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    module.__dict__.update(globals_)
+    sys.modules.pop(module_name, None)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def assert_allowed_imports(
     source: str, declared_user_roots: set[str] = frozenset()
 ) -> None:

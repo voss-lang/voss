@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import asyncio
-import builtins
 import importlib
 import json
 import sys
@@ -16,6 +15,7 @@ from tests.codegen.helpers import (
     assert_allowed_imports,
     fake_analysis,
     load_module_from_path,
+    load_module_with_globals,
     write_generated_module,
 )
 
@@ -267,16 +267,10 @@ async def test_research_example_compiles_and_matches_raw_python_happy_path(tmp_p
 
     result = _compile_example(tmp_path, "research")
     ast.parse(result.source)
-    monkeypatch_attr = getattr(builtins, "webSearch", None)
-    builtins.webSearch = raw_research.web_search
-    try:
-        module = _load_generated(tmp_path, "research", result.source)
-    finally:
-        if monkeypatch_attr is None:
-            del builtins.webSearch
-        else:
-            builtins.webSearch = monkeypatch_attr
-    module.webSearch = raw_research.web_search
+    path = write_generated_module(tmp_path, "research", result.source)
+    module = load_module_with_globals(
+        path, "generated_research", {"webSearch": raw_research.web_search}
+    )
 
     _configure_stub("STUB SUMMARY")
     try:
@@ -300,9 +294,12 @@ async def test_research_example_timeout_fallback_matches_raw_python(
     from voss_runtime.budget import run_with_budget as orig_run_with_budget
 
     result = _compile_example(tmp_path, "research")
-    monkeypatch.setattr(builtins, "webSearch", raw_research.web_search, raising=False)
-    module = _load_generated(tmp_path, "research_timeout", result.source)
-    module.webSearch = raw_research.web_search
+    path = write_generated_module(tmp_path, "research_timeout", result.source)
+    module = load_module_with_globals(
+        path,
+        "generated_research_timeout",
+        {"webSearch": raw_research.web_search},
+    )
 
     async def slow_run(self, reports):
         await asyncio.sleep(1)
