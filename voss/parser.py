@@ -755,10 +755,21 @@ def _wrap_lark_error(exc: UnexpectedInput, source: str, file: str) -> VossParseE
         expected = sorted(_humanize(name) for name in (exc.allowed or set()))
         got = f"character {exc.char!r}"
     else:
-        line = getattr(exc, "line", 0) or 0
-        col = getattr(exc, "column", 0) or 0
-        expected = []
-        got = "<unknown>"
+        # Includes UnexpectedEOF: Lark reports line/col == -1 there. Fall back to
+        # the end of the source so callers always see a 1-indexed location.
+        raw_line = getattr(exc, "line", 0) or 0
+        raw_col = getattr(exc, "column", 0) or 0
+        if raw_line < 1 or raw_col < 1:
+            trimmed = source[:-1] if source.endswith("\n") else source
+            raw_line = trimmed.count("\n") + 1
+            last_nl = trimmed.rfind("\n")
+            raw_col = len(trimmed) - last_nl  # 1-indexed (col after last newline)
+            if raw_col < 1:
+                raw_col = 1
+        line, col = raw_line, raw_col
+        expected_names = getattr(exc, "expected", None) or []
+        expected = sorted({_humanize(name) for name in expected_names})
+        got = "end of input"
     try:
         excerpt = exc.get_context(source, span=40)
     except Exception:
