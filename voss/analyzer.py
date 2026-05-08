@@ -17,6 +17,7 @@ from .ast_nodes import (
     CtxBlock,
     DictLit,
     Expr,
+    ExprStmt,
     FloatLit,
     FnDecl,
     Identifier,
@@ -461,6 +462,16 @@ class Analyzer:
             return
         if isinstance(stmt, MatchStmt):
             self._visit_match_stmt(stmt)
+            return
+        if isinstance(stmt, ExprStmt):
+            self._infer_expr(stmt.expr)
+            return
+        if isinstance(stmt, YieldStmt):
+            if stmt.value is not None:
+                self._infer_expr(stmt.value)
+            return
+        if isinstance(stmt, IncludeStmt):
+            self._infer_expr(stmt.value)
             return
         # Fallback: walk children for nested expressions but ignore typing semantics.
         self._walk_children(stmt)
