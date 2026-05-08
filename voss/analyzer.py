@@ -1,10 +1,36 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, Sequence
 
-from .ast_nodes import Expr, Node, Program, Stmt
+from .ast_nodes import (
+    AgentDecl,
+    Arg,
+    BoolLit,
+    Call,
+    ConfidenceGate,
+    DictLit,
+    Expr,
+    FloatLit,
+    FnDecl,
+    Identifier,
+    IfStmt,
+    IntLit,
+    LetStmt,
+    ListLit,
+    Member,
+    Node,
+    NullLit,
+    Param,
+    Program,
+    QualName,
+    ReturnStmt,
+    Stmt,
+    StringLit,
+    TypeExpr,
+    TypeRef,
+)
 from .diagnostics import AnalysisResult, Diagnostic, EmittedIndex
 
 
@@ -21,9 +47,62 @@ class IndexBuilder(Protocol):
     ) -> list[dict[str, object]]: ...
 
 
+# ----- Internal type model (private to analyzer) -----
+
+
+class VossType:
+    """Base for the analyzer's minimal internal type model."""
+
+
+@dataclass(frozen=True, slots=True)
+class PrimitiveType(VossType):
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class NamedType(VossType):
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ListType(VossType):
+    item: VossType
+
+
+@dataclass(frozen=True, slots=True)
+class DictType(VossType):
+    key: VossType
+    value: VossType
+
+
+@dataclass(frozen=True, slots=True)
+class ProbableType(VossType):
+    inner: VossType
+
+
+class UnknownType(VossType):
+    _instance: "UnknownType | None" = None
+
+    def __new__(cls) -> "UnknownType":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+
+UNKNOWN = UnknownType()
+
+_PRIMITIVES = {"string", "int", "float", "bool", "null"}
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionSignature:
+    params: tuple[tuple[str, VossType], ...]
+    return_type: VossType
+
+
 @dataclass
 class Scope:
-    symbols: dict[str, object] = field(default_factory=dict)
+    symbols: dict[str, VossType] = field(default_factory=dict)
     estimates: dict[str, int] = field(default_factory=dict)
     gated: set[str] = field(default_factory=set)
 
@@ -46,8 +125,221 @@ class Analyzer:
         self.diagnostics: list[Diagnostic] = []
         self.indexes: list[EmittedIndex] = []
         self.scope_stack: list[Scope] = [Scope()]
+        self.signatures: dict[str, FunctionSignature] = {}
+        self._return_type: VossType = UNKNOWN
+
+    # -------- Scope helpers --------
+
+    @property
+    def _scope(self) -> Scope:
+        return self.scope_stack[-1]
+
+    def _bind(self, name: str, type_: VossType) -> None:
+        self._scope.symbols[name] = type_
+
+    def _lookup(self, name: str) -> VossType:
+        for scope in reversed(self.scope_stack):
+            if name in scope.symbols:
+                return scope.symbols[name]
+        return UNKNOWN
+
+    def _push_scope(self, scope: Scope) -> None:
+        self.scope_stack.append(scope)
+
+    def _pop_scope(self) -> None:
+        self.scope_stack.pop()
+
+    def _child_scope(self) -> Scope:
+        parent = self._scope
+        return Scope(
+            symbols=dict(parent.symbols),
+            estimates=dict(parent.estimates),
+            gated=set(parent.gated),
+        )
+
+    # -------- Type normalization --------
+
+    def _type_from_type_expr(self, type_expr: TypeExpr | None) -> VossType:
+        if type_expr is None:
+            return UNKNOWN
+        if not isinstance(type_expr, TypeRef):
+            return UNKNOWN
+        parts = type_expr.name.parts
+        if not parts:
+            return UNKNOWN
+        head = parts[0]
+        if len(parts) == 1 and head == "probable" and len(type_expr.generics) == 1:
+            return ProbableType(self._type_from_type_expr(type_expr.generics[0]))
+        if len(parts) == 1 and head == "list" and len(type_expr.generics) == 1:
+            return ListType(self._type_from_type_expr(type_expr.generics[0]))
+        if len(parts) == 1 and head == "dict" and len(type_expr.generics) == 2:
+            return DictType(
+                self._type_from_type_expr(type_expr.generics[0]),
+                self._type_from_type_expr(type_expr.generics[1]),
+            )
+        if len(parts) == 1 and head in _PRIMITIVES and not type_expr.generics:
+            return PrimitiveType(head)
+        return NamedType(".".join(parts))
+
+    def _type_display(self, type_: VossType) -> str:
+        if isinstance(type_, PrimitiveType):
+            return type_.name
+        if isinstance(type_, NamedType):
+            return type_.name
+        if isinstance(type_, ListType):
+            return f"list<{self._type_display(type_.item)}>"
+        if isinstance(type_, DictType):
+            return f"dict<{self._type_display(type_.key)}, {self._type_display(type_.value)}>"
+        if isinstance(type_, ProbableType):
+            return f"probable<{self._type_display(type_.inner)}>"
+        return "unknown"
+
+    def _types_equal(self, left: VossType, right: VossType) -> bool:
+        if isinstance(left, UnknownType) or isinstance(right, UnknownType):
+            return False
+        if isinstance(left, PrimitiveType) and isinstance(right, PrimitiveType):
+            return left.name == right.name
+        if isinstance(left, NamedType) and isinstance(right, NamedType):
+            return left.name == right.name
+        if isinstance(left, ListType) and isinstance(right, ListType):
+            return self._types_equal(left.item, right.item)
+        if isinstance(left, DictType) and isinstance(right, DictType):
+            return self._types_equal(left.key, right.key) and self._types_equal(
+                left.value, right.value
+            )
+        if isinstance(left, ProbableType) and isinstance(right, ProbableType):
+            return self._types_equal(left.inner, right.inner)
+        return False
+
+    # -------- Identity / gating --------
+
+    def _root_identifier(self, expr: Expr) -> str | None:
+        if isinstance(expr, Identifier):
+            return expr.name
+        if isinstance(expr, Member):
+            return self._root_identifier(expr.obj)
+        return None
+
+    def _is_gated(self, expr: Expr) -> bool:
+        root = self._root_identifier(expr)
+        if root is None:
+            return False
+        return root in self._scope.gated
+
+    # -------- Diagnostics --------
+
+    def _warn_unguarded_probable(
+        self, actual: ProbableType, expected: VossType, expr: Expr
+    ) -> None:
+        actual_display = self._type_display(actual)
+        expected_display = self._type_display(expected)
+        self.diagnostics.append(
+            Diagnostic(
+                severity="warning",
+                code="ANLY001",
+                message=(
+                    f"unguarded {actual_display} used where {expected_display} is expected"
+                ),
+                span=expr.span,
+                hint=(
+                    "Add a confidence gate such as if intent @ p >= 0.80 { ... } "
+                    "or pass intent.value only inside the gated branch."
+                ),
+            )
+        )
+
+    # -------- Type checking --------
+
+    def _check_expected(self, expr: Expr, expected: VossType) -> VossType:
+        actual = self._infer_expr(expr)
+        if isinstance(expected, UnknownType):
+            return actual
+        if (
+            isinstance(actual, ProbableType)
+            and not isinstance(expected, ProbableType)
+            and self._types_equal(actual.inner, expected)
+            and not self._is_gated(expr)
+        ):
+            self._warn_unguarded_probable(actual, expected, expr)
+        return actual
+
+    def _infer_expr(self, expr: Expr) -> VossType:
+        if isinstance(expr, Identifier):
+            return self._lookup(expr.name)
+        if isinstance(expr, StringLit):
+            return PrimitiveType("string")
+        if isinstance(expr, IntLit):
+            return PrimitiveType("int")
+        if isinstance(expr, FloatLit):
+            return PrimitiveType("float")
+        if isinstance(expr, BoolLit):
+            return PrimitiveType("bool")
+        if isinstance(expr, NullLit):
+            return PrimitiveType("null")
+        if isinstance(expr, Member):
+            obj_type = self._infer_expr(expr.obj)
+            if (
+                expr.attr == "value"
+                and isinstance(obj_type, ProbableType)
+            ):
+                if not self._is_gated(expr.obj):
+                    self._warn_unguarded_probable(obj_type, obj_type.inner, expr)
+                return obj_type.inner
+            return UNKNOWN
+        if isinstance(expr, Call):
+            self._check_call(expr)
+            sig = self._signature_for_call(expr)
+            if sig is not None:
+                return sig.return_type
+            return UNKNOWN
+        if isinstance(expr, ListLit):
+            return ListType(UNKNOWN)
+        if isinstance(expr, DictLit):
+            return DictType(UNKNOWN, UNKNOWN)
+        return UNKNOWN
+
+    def _signature_for_call(self, call: Call) -> FunctionSignature | None:
+        if isinstance(call.callee, Identifier):
+            return self.signatures.get(call.callee.name)
+        return None
+
+    def _check_call(self, call: Call) -> None:
+        sig = self._signature_for_call(call)
+        if sig is None:
+            for arg in call.args:
+                self._infer_expr(arg.value)
+            return
+        positional_index = 0
+        param_by_name = {name: t for name, t in sig.params}
+        for arg in call.args:
+            if arg.name is not None:
+                expected = param_by_name.get(arg.name, UNKNOWN)
+            else:
+                if positional_index < len(sig.params):
+                    expected = sig.params[positional_index][1]
+                else:
+                    expected = UNKNOWN
+                positional_index += 1
+            self._check_expected(arg.value, expected)
+
+    # -------- Predeclaration --------
+
+    def _predeclare_decls(self, body: tuple[Stmt, ...]) -> None:
+        for stmt in body:
+            if isinstance(stmt, (FnDecl, AgentDecl)):
+                params = tuple(
+                    (p.name, self._type_from_type_expr(p.type_annot))
+                    for p in stmt.params
+                )
+                ret_t = self._type_from_type_expr(stmt.return_type)
+                self.signatures[stmt.name] = FunctionSignature(
+                    params=params, return_type=ret_t
+                )
+
+    # -------- Top-level walk --------
 
     def analyze_program(self, program: Program) -> AnalysisResult:
+        self._predeclare_decls(program.body)
         for stmt in program.body:
             self._visit_stmt(stmt)
         return AnalysisResult(
@@ -55,13 +347,104 @@ class Analyzer:
             indexes=tuple(self.indexes),
         )
 
+    # -------- Statement visitors --------
+
     def _visit_stmt(self, stmt: Stmt) -> None:
-        self._walk(stmt)
+        if isinstance(stmt, LetStmt):
+            self._visit_let(stmt)
+            return
+        if isinstance(stmt, ReturnStmt):
+            self._visit_return(stmt)
+            return
+        if isinstance(stmt, IfStmt):
+            self._visit_if(stmt)
+            return
+        if isinstance(stmt, FnDecl):
+            self._visit_fn(stmt)
+            return
+        if isinstance(stmt, AgentDecl):
+            self._visit_agent(stmt)
+            return
+        # Fallback: walk children for nested expressions but ignore typing semantics.
+        self._walk_children(stmt)
 
-    def _visit_expr(self, expr: Expr) -> None:
-        self._walk(expr)
+    def _visit_let(self, stmt: LetStmt) -> None:
+        annotated = self._type_from_type_expr(stmt.type_annot)
+        if stmt.value is None:
+            self._bind(stmt.name, annotated)
+            return
+        if isinstance(annotated, UnknownType):
+            inferred = self._infer_expr(stmt.value)
+            self._bind(stmt.name, inferred)
+        else:
+            self._check_expected(stmt.value, annotated)
+            self._bind(stmt.name, annotated)
 
-    def _walk(self, node: Node) -> None:
+    def _visit_return(self, stmt: ReturnStmt) -> None:
+        if stmt.value is None:
+            return
+        if isinstance(self._return_type, UnknownType):
+            self._infer_expr(stmt.value)
+        else:
+            self._check_expected(stmt.value, self._return_type)
+
+    def _visit_if(self, stmt: IfStmt) -> None:
+        condition = stmt.condition
+        gated_name: str | None = None
+        if isinstance(condition, ConfidenceGate):
+            gated_name = self._root_identifier(condition.target)
+        else:
+            if isinstance(condition, Expr):
+                self._infer_expr(condition)
+
+        then_scope = self._child_scope()
+        if gated_name is not None and condition.op in (">=", ">"):
+            then_scope.gated.add(gated_name)
+        self._push_scope(then_scope)
+        for s in stmt.then_body:
+            self._visit_stmt(s)
+        self._pop_scope()
+
+        if stmt.else_body is not None:
+            else_scope = self._child_scope()
+            if gated_name is not None and condition.op in ("<", "<="):
+                else_scope.gated.add(gated_name)
+            self._push_scope(else_scope)
+            for s in stmt.else_body:
+                self._visit_stmt(s)
+            self._pop_scope()
+
+    def _visit_fn(self, decl: FnDecl) -> None:
+        self._enter_callable(decl.params, decl.return_type, decl.body)
+
+    def _visit_agent(self, decl: AgentDecl) -> None:
+        self._enter_callable(decl.params, decl.return_type, decl.body)
+
+    def _enter_callable(
+        self,
+        params: tuple[Param, ...],
+        return_type: TypeExpr | None,
+        body: tuple[Stmt, ...],
+    ) -> None:
+        scope = self._child_scope()
+        for p in params:
+            scope.symbols[p.name] = self._type_from_type_expr(p.type_annot)
+        prev_return = self._return_type
+        self._return_type = self._type_from_type_expr(return_type)
+        self._push_scope(scope)
+        try:
+            self._predeclare_decls(body)
+            for s in body:
+                self._visit_stmt(s)
+        finally:
+            self._pop_scope()
+            self._return_type = prev_return
+
+    # -------- Generic walker (read-only fallback) --------
+
+    def _walk_children(self, node: Node) -> None:
+        from dataclasses import fields, is_dataclass
+
         if not is_dataclass(node):
             return
         for f in fields(node):
@@ -72,7 +455,7 @@ class Analyzer:
 
     def _walk_value(self, value: object) -> None:
         if isinstance(value, Node):
-            self._walk(value)
+            self._walk_children(value)
             return
         if isinstance(value, (tuple, list)):
             for item in value:
