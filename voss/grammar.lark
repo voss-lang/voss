@@ -8,8 +8,9 @@ start: program
 program: _NL* (top_stmt (_NL+ top_stmt)*)? _NL*
 
 // Plan 02-03 promotes top_stmt to the full statement umbrella.
-// Plan 02-04 will extend it with top_decl (fn/agent/prompt/class/use/decorated).
-top_stmt: stmt
+// Plan 02-04 extends it with top_decl (fn/agent/prompt/class/use/decorated).
+top_stmt: top_decl | stmt
+top_decl: decorated_decl | fn_decl | agent_decl | prompt_decl | class_decl | use_stmt
 expr_stmt: expr
 
 // ---- Type expressions (D-08, D-09) ----
@@ -133,6 +134,40 @@ include_stmt: "include" expr
 // Block: a sequence of statements separated by NEWLINEs. _NL is underscore-prefixed
 // so Lark filters newline tokens out of the children automatically.
 block: _NL* (stmt (_NL+ stmt)*)? _NL*
+
+// ---- Declarations (plan 02-04) ----
+
+// Decorator on a declaration. Distinct from match_threshold_stmt (plan 02-03) which
+// already eats `@match_threshold(N) match ...` as a single rule. The decorated_decl
+// rule below only matches `@<name>(args?) <decl>` where <decl> is fn/agent/prompt/class —
+// `@match_threshold` followed by a `match` does not match decl_target, and Earley
+// prefers the longer match (match_threshold_stmt consumes the full
+// `@match_threshold(N) NL+ match_stmt` sequence).
+decorated_decl: decorator+ decl_target
+decorator:      "@" IDENT decorator_args? _NL+
+decorator_args: "(" _NL* (arg (_NL* "," _NL* arg)* _NL* ","?)? _NL* ")"
+decl_target:    fn_decl | agent_decl | prompt_decl | class_decl
+
+fn_decl: "fn" IDENT "(" _NL* param_list? _NL* ")" ("->" type_expr)? "{" block "}"
+
+param_list: param (_NL* "," _NL* param)* _NL* ","?
+param:      IDENT (":" type_expr)? ("=" expr)?
+
+agent_decl: "agent" IDENT "(" _NL* param_list? _NL* ")" ("->" type_expr)? "{" agent_body "}"
+agent_body: _NL* (agent_option (_NL+ agent_option)*)? _NL* (stmt (_NL+ stmt)*)? _NL*
+agent_option: AGENT_OPTION_KEY ":" expr
+AGENT_OPTION_KEY: "system" | "tools" | "model" | "retries" | "memory"
+
+prompt_decl: "prompt" IDENT ("extends" qual_name)? "{" prompt_body "}"
+prompt_body: _NL* prompt_string (_NL+ prompt_string)* _NL*
+prompt_string: STRING | TRIPLE_STRING
+
+class_decl: "class" IDENT "{" class_body "}"
+class_body: _NL* (class_field (_NL+ class_field)*)? _NL*
+class_field: IDENT ":" type_expr ("=" expr)?
+
+use_stmt: "use" use_path
+use_path: IDENT ("::" IDENT)*
 
 // ---------- Terminals ----------
 
