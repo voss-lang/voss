@@ -250,3 +250,66 @@ class YieldStmt(Stmt):
 @dataclass(frozen=True, slots=True)
 class IncludeStmt(Stmt):
     value: Expr
+
+
+# ----- Declarations (plan 02-04) -----
+@dataclass(frozen=True, slots=True)
+class Decorator(Node):
+    name: str
+    args: tuple[Arg, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class FnDecl(Decl):
+    name: str
+    params: tuple[Param, ...]
+    return_type: TypeExpr | None
+    body: tuple[Stmt, ...]
+    decorators: tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class AgentOptions(Node):
+    system: Expr | None = None
+    tools: ListLit | None = None
+    model: Expr | None = None
+    retries: Expr | None = None
+    memory: Expr | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AgentDecl(Decl):
+    name: str
+    params: tuple[Param, ...]
+    return_type: TypeExpr | None
+    options: AgentOptions
+    body: tuple[Stmt, ...]
+    decorators: tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PromptDecl(Decl):
+    name: str
+    extends: QualName | None
+    body: tuple[StringLit, ...]
+    decorators: tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ClassField(Node):
+    name: str
+    type_annot: TypeExpr
+    default: Expr | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ClassDecl(Decl):
+    name: str
+    fields: tuple[ClassField, ...]
+    decorators: tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class UseStmt(Stmt):
+    path: tuple[str, ...]            # `use foo::bar::baz` -> ("foo", "bar", "baz")
+    alias: str | None = None         # always None in v1 (resolved question #4)
