@@ -7,15 +7,19 @@ from typing import Protocol, Sequence
 from .ast_nodes import (
     AgentDecl,
     Arg,
+    BinOp,
     BoolLit,
+    BudgetArg,
     Call,
     ConfidenceGate,
+    CtxBlock,
     DictLit,
     Expr,
     FloatLit,
     FnDecl,
     Identifier,
     IfStmt,
+    IncludeStmt,
     IntLit,
     LetStmt,
     ListLit,
@@ -30,6 +34,7 @@ from .ast_nodes import (
     StringLit,
     TypeExpr,
     TypeRef,
+    YieldStmt,
 )
 from .diagnostics import AnalysisResult, Diagnostic, EmittedIndex
 
@@ -100,6 +105,58 @@ class FunctionSignature:
     return_type: VossType
 
 
+class DefaultTokenEstimator:
+    """Local, deterministic token estimator. No provider/network dependency."""
+
+    def estimate_expr(self, expr: Expr, scope: "Scope") -> int | None:
+        if isinstance(expr, StringLit):
+            return max(1, len(expr.value) // 4)
+        if isinstance(expr, (IntLit, FloatLit, BoolLit, NullLit)):
+            return 1
+        if isinstance(expr, Identifier):
+            return scope.estimates.get(expr.name)
+        if isinstance(expr, BinOp) and expr.op == "+":
+            left = self.estimate_expr(expr.left, scope)
+            right = self.estimate_expr(expr.right, scope)
+            if left is None or right is None:
+                return None
+            return left + right
+        if isinstance(expr, ListLit):
+            total = len(expr.items)
+            for item in expr.items:
+                est = self.estimate_expr(item, scope)
+                if est is None:
+                    return None
+                total += est
+            return total
+        if isinstance(expr, DictLit):
+            total = len(expr.items)
+            for k, v in expr.items:
+                k_est = self.estimate_expr(k, scope)
+                v_est = self.estimate_expr(v, scope)
+                if k_est is None or v_est is None:
+                    return None
+                total += k_est + v_est
+            return total
+        if isinstance(expr, Call):
+            if (
+                isinstance(expr.callee, Identifier)
+                and expr.callee.name == "ask"
+                and expr.args
+                and expr.args[0].name is None
+            ):
+                return self.estimate_expr(expr.args[0].value, scope)
+            return None
+        return None
+
+    def estimate_stmt(self, stmt: Stmt, scope: "Scope") -> int | None:
+        if isinstance(stmt, IncludeStmt):
+            return self.estimate_expr(stmt.value, scope)
+        if isinstance(stmt, YieldStmt) and stmt.value is not None:
+            return self.estimate_expr(stmt.value, scope)
+        return None
+
+
 @dataclass
 class Scope:
     symbols: dict[str, VossType] = field(default_factory=dict)
@@ -120,7 +177,7 @@ class Analyzer:
         self.source_path = Path(source_path) if source_path is not None else None
         self.cache_dir = Path(cache_dir)
         self.emit_indexes = emit_indexes
-        self.token_estimator = token_estimator
+        self.token_estimator: TokenEstimator = token_estimator or DefaultTokenEstimator()
         self.index_builder = index_builder
         self.diagnostics: list[Diagnostic] = []
         self.indexes: list[EmittedIndex] = []
@@ -365,8 +422,50 @@ class Analyzer:
         if isinstance(stmt, AgentDecl):
             self._visit_agent(stmt)
             return
+        if isinstance(stmt, CtxBlock):
+            self._visit_ctx_block(stmt)
+            return
         # Fallback: walk children for nested expressions but ignore typing semantics.
         self._walk_children(stmt)
+
+    def _ctx_token_budget(self, ctx: CtxBlock) -> int | None:
+        b = ctx.budget
+        if not isinstance(b, BudgetArg):
+            return None
+        if b.name == "budget" and b.unit == "tokens":
+            return int(b.value)
+        return None
+
+    def _estimate_ctx_body(self, ctx: CtxBlock) -> int:
+        total = 0
+        for s in ctx.body:
+            est = self.token_estimator.estimate_stmt(s, self._scope)
+            if est is not None:
+                total += est
+        return total
+
+    def _visit_ctx_block(self, ctx: CtxBlock) -> None:
+        budget = self._ctx_token_budget(ctx)
+        if budget is not None:
+            estimate = self._estimate_ctx_body(ctx)
+            if estimate > budget:
+                self.diagnostics.append(
+                    Diagnostic(
+                        severity="warning",
+                        code="ANLY002",
+                        message=(
+                            f"ctx block static token estimate {estimate:,} "
+                            f"exceeds declared budget {budget:,}"
+                        ),
+                        span=ctx.span,
+                        hint=(
+                            "Increase the ctx budget, include less context, "
+                            "or add a more aggressive compression strategy."
+                        ),
+                    )
+                )
+        for s in ctx.body:
+            self._visit_stmt(s)
 
     def _visit_let(self, stmt: LetStmt) -> None:
         annotated = self._type_from_type_expr(stmt.type_annot)
@@ -379,6 +478,9 @@ class Analyzer:
         else:
             self._check_expected(stmt.value, annotated)
             self._bind(stmt.name, annotated)
+        est = self.token_estimator.estimate_expr(stmt.value, self._scope)
+        if est is not None:
+            self._scope.estimates[stmt.name] = est
 
     def _visit_return(self, stmt: ReturnStmt) -> None:
         if stmt.value is None:
