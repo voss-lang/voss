@@ -1,0 +1,12 @@
+{
+  "files.associations": {
+    "*.voss": "python"
+  },
+  "python.analysis.exclude": ["**/*.voss"],
+  "python.analysis.ignore": ["**/*.voss"],
+  "pylint.ignorePatterns": ["**/*.voss"],
+  "ruff.lint.ignore": ["**/*.voss"],
+  "[python]": {
+    "editor.formatOnSave": false
+  }
+}
