@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, Sequence
@@ -23,6 +25,8 @@ from .ast_nodes import (
     IntLit,
     LetStmt,
     ListLit,
+    MatchCase,
+    MatchStmt,
     Member,
     Node,
     NullLit,
@@ -30,6 +34,7 @@ from .ast_nodes import (
     Program,
     QualName,
     ReturnStmt,
+    SimilarPattern,
     Stmt,
     StringLit,
     TypeExpr,
@@ -157,6 +162,30 @@ class DefaultTokenEstimator:
         return None
 
 
+def _default_local_model() -> str:
+    from voss_runtime.semantic import DEFAULT_LOCAL_MODEL
+
+    return DEFAULT_LOCAL_MODEL
+
+
+class SemanticMatcherIndexBuilder:
+    """Default index builder. Imports runtime semantic matcher lazily."""
+
+    def __init__(self, *, model: str | None = None) -> None:
+        self.model = model or _default_local_model()
+
+    def build_cases(
+        self, cases: Sequence[tuple[str, str]]
+    ) -> list[dict[str, object]]:
+        from voss_runtime.semantic import SemanticMatcher
+
+        matcher = SemanticMatcher(list(cases), threshold=0.75, model=self.model)
+        return matcher.to_index()["cases"]
+
+
+_PROGRAM_STEM_RE = re.compile(r"[A-Za-z0-9_.-]+")
+
+
 @dataclass
 class Scope:
     symbols: dict[str, VossType] = field(default_factory=dict)
@@ -169,21 +198,24 @@ class Analyzer:
         self,
         *,
         source_path: str | Path | None = None,
+        project_root: str | Path | None = None,
         cache_dir: str | Path = ".voss-cache",
         emit_indexes: bool = True,
         token_estimator: TokenEstimator | None = None,
         index_builder: IndexBuilder | None = None,
     ) -> None:
         self.source_path = Path(source_path) if source_path is not None else None
+        self.project_root = Path(project_root or Path.cwd()).resolve()
         self.cache_dir = Path(cache_dir)
         self.emit_indexes = emit_indexes
         self.token_estimator: TokenEstimator = token_estimator or DefaultTokenEstimator()
-        self.index_builder = index_builder
+        self.index_builder: IndexBuilder | None = index_builder
         self.diagnostics: list[Diagnostic] = []
         self.indexes: list[EmittedIndex] = []
         self.scope_stack: list[Scope] = [Scope()]
         self.signatures: dict[str, FunctionSignature] = {}
         self._return_type: VossType = UNKNOWN
+        self._match_entries: list[dict[str, object]] = []
 
     # -------- Scope helpers --------
 
@@ -399,6 +431,8 @@ class Analyzer:
         self._predeclare_decls(program.body)
         for stmt in program.body:
             self._visit_stmt(stmt)
+        if self.emit_indexes and self._match_entries:
+            self._emit_program_index(program)
         return AnalysisResult(
             diagnostics=tuple(self.diagnostics),
             indexes=tuple(self.indexes),
@@ -425,8 +459,35 @@ class Analyzer:
         if isinstance(stmt, CtxBlock):
             self._visit_ctx_block(stmt)
             return
+        if isinstance(stmt, MatchStmt):
+            self._visit_match_stmt(stmt)
+            return
         # Fallback: walk children for nested expressions but ignore typing semantics.
         self._walk_children(stmt)
+
+    def _visit_match_stmt(self, match: MatchStmt) -> None:
+        self._infer_expr(match.scrutinee)
+        similar_pairs: list[tuple[str, str]] = []
+        for ordinal, case in enumerate(match.cases):
+            if isinstance(case.pattern, SimilarPattern):
+                label = f"case_{ordinal}"
+                similar_pairs.append((case.pattern.text, label))
+            for s in case.body:
+                self._visit_stmt(s)
+        if not similar_pairs:
+            return
+        if self.index_builder is None:
+            self.index_builder = SemanticMatcherIndexBuilder()
+        built = self.index_builder.build_cases(similar_pairs)
+        threshold = match.threshold if match.threshold is not None else 0.75
+        match_id = f"match_{match.span.line_start}_{match.span.col_start}"
+        self._match_entries.append(
+            {
+                "match_id": match_id,
+                "threshold": threshold,
+                "cases": built,
+            }
+        )
 
     def _ctx_token_budget(self, ctx: CtxBlock) -> int | None:
         b = ctx.budget
@@ -542,6 +603,110 @@ class Analyzer:
             self._pop_scope()
             self._return_type = prev_return
 
+    # -------- Program index emission --------
+
+    def _program_stem(self) -> str:
+        if self.source_path is not None:
+            return Path(self.source_path).stem or ""
+        return "program"
+
+    def _resolve_cache_root(self) -> Path:
+        cache = self.cache_dir
+        if cache.is_absolute():
+            return cache.resolve()
+        return (self.project_root / cache).resolve()
+
+    def _stem_is_safe(self, stem: str) -> bool:
+        if not stem:
+            return False
+        if stem in (".", "..") or stem.startswith(".."):
+            return False
+        if "/" in stem or "\\" in stem:
+            return False
+        if not _PROGRAM_STEM_RE.fullmatch(stem):
+            return False
+        return True
+
+    def _emit_program_index(self, program: Program) -> None:
+        if self.index_builder is None:
+            self.index_builder = SemanticMatcherIndexBuilder()
+
+        stem = self._program_stem()
+        cache_root = self._resolve_cache_root()
+
+        def _refuse() -> None:
+            self.diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="ANLY003",
+                    message=(
+                        "refusing to write embedding index outside "
+                        "project-local .voss-cache"
+                    ),
+                    span=program.span,
+                    hint=(
+                        "Use cache_dir='.voss-cache' or another .voss-cache "
+                        "directory under project_root."
+                    ),
+                )
+            )
+
+        if not self._stem_is_safe(stem):
+            _refuse()
+            return
+
+        try:
+            cache_root.relative_to(self.project_root)
+        except ValueError:
+            _refuse()
+            return
+
+        if cache_root.name != ".voss-cache":
+            _refuse()
+            return
+
+        target = cache_root / f"{stem}.idx"
+        temp_target = target.with_name(target.name + ".tmp")
+
+        # Resolve safely: parents may not yet exist, so resolve their components.
+        def _under_cache(p: Path) -> bool:
+            try:
+                resolved = (
+                    p.resolve()
+                    if p.exists()
+                    else (cache_root / p.name).resolve()
+                )
+                resolved.relative_to(cache_root)
+                return True
+            except ValueError:
+                return False
+
+        if not _under_cache(target) or not _under_cache(temp_target):
+            _refuse()
+            return
+
+        manifest = {
+            "version": 1,
+            "program": stem,
+            "model": self.index_builder.model,
+            "matches": self._match_entries,
+        }
+
+        cache_root.mkdir(parents=True, exist_ok=True)
+        temp_target.write_text(json.dumps(manifest, indent=2, sort_keys=False))
+        temp_target.replace(target)
+
+        for entry in self._match_entries:
+            self.indexes.append(
+                EmittedIndex(
+                    match_id=str(entry["match_id"]),
+                    path=target,
+                    case_count=len(entry["cases"]),  # type: ignore[arg-type]
+                    threshold=float(entry["threshold"]),  # type: ignore[arg-type]
+                    model=self.index_builder.model,
+                )
+            )
+
     # -------- Generic walker (read-only fallback) --------
 
     def _walk_children(self, node: Node) -> None:
@@ -573,6 +738,7 @@ def analyze(
     program: Program,
     *,
     source_path: str | Path | None = None,
+    project_root: str | Path | None = None,
     cache_dir: str | Path = ".voss-cache",
     emit_indexes: bool = True,
     token_estimator: TokenEstimator | None = None,
@@ -580,6 +746,7 @@ def analyze(
 ) -> AnalysisResult:
     analyzer = Analyzer(
         source_path=source_path,
+        project_root=project_root,
         cache_dir=cache_dir,
         emit_indexes=emit_indexes,
         token_estimator=token_estimator,
