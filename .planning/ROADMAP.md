@@ -126,7 +126,7 @@
 
 **Success Criteria:**
 1. `voss run classify.voss`, `voss run support.voss`, and `voss run research.voss` each produce expected output against live model providers (or a deterministic stub provider in CI)
-2. The same three programs round-trip through `voss compile` then `python` with identical behavior, and `voss check` passes on each
+2. The same three programs round-trip through `voss compile` then `python3` with identical behavior, and `voss check` passes on each
 
 ---
 

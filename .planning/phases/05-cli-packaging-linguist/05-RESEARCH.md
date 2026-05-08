@@ -143,7 +143,7 @@ Use the stack already in the project:
 - PyPA `[project.scripts]` in `pyproject.toml` for the installed `voss` executable. PyPA specifies that `[project.scripts]` maps command names to object references for console scripts.
 - Setuptools package-data config for files bundled inside the Python package, such as scaffold templates if they live under `voss/templates/`.
 - `subprocess.run` for `voss run` generated Python execution and for CLI integration tests.
-- `pytest`, `tmp_path`, and isolated virtual environments or `python -m pip install -e .` checks for packaging validation.
+- `pytest`, `tmp_path`, and isolated virtual environments or `python3 -m pip install -e .` checks for packaging validation.
 
 External reference points verified on 2026-05-08:
 
@@ -295,7 +295,7 @@ my-project/
 
 Keep templates under `voss/templates/init/` if using package data, or inline constants if there are only 4-5 short files. Because `init` scaffolds multiple files and package-data testing is required anyway, templates are cleaner.
 
-Caveat: Linguist docs state languages not listed in `languages.yml` will not be included in language stats even with `linguist-language=Voss linguist-detectable`. The override still documents intent and should help once Voss is registered; until then, fallback highlighting may require `linguist-language=Python`, but that conflicts with the requirement's exact Voss language declaration. Recommendation: emit the required Voss override and document in research/plans that GitHub stats may not count Voss natively until upstream Linguist registration.
+Caveat: Linguist docs state languages not listed in `languages.yml` will not be included in language stats even with `linguist-language=Voss linguist-detectable`. The override still documents intent and should help once Voss is registered. Recommendation: emit the required Voss override, record Python parent/fallback metadata in `language-metadata/voss.yml`, and document that GitHub stats/highlighting may not treat Voss natively until upstream Linguist registration.
 
 ## Packaging Details
 
@@ -357,16 +357,16 @@ Top-level repo changes Phase 5 should plan:
     - `type: programming`
     - `extensions: [".voss"]`
     - `tm_scope: "source.voss"` if a grammar exists, otherwise `tm_scope: "none"` for the draft.
-    - `ace_mode: "text"` until an editor grammar exists.
+    - `ace_mode: "python"` as the nearest editor fallback until a Voss-specific editor grammar exists.
     - `color: "#4B8BBE"` or another deliberate non-conflicting color.
-    - `group: Python` as parent/fallback for stats grouping if that is the desired "compiles to Python" relationship.
+    - `group: Python` and `fallback_highlighting: Python` as parent/fallback metadata for the future Linguist PR.
     - `aliases: ["voss"]`.
 
 Important Linguist reality check:
 
 - `.gitattributes linguist-language=Voss` only classifies as a language known in Linguist `languages.yml`. The upstream docs say unknown languages will not be included in stats even if `linguist-detectable` is set.
 - Native GitHub syntax highlighting for Voss will require a future grammar and Linguist PR. Phase 5 can prepare metadata and samples, but it cannot guarantee native Voss highlighting on GitHub before upstream registration.
-- If immediate highlighting is more important than exact classification, a separate fallback line using `linguist-language=Python` would highlight as Python but violate TOOL-01's Voss declaration. Recommendation: satisfy TOOL-01 exactly and include metadata/samples for the future PR.
+- A separate `.gitattributes` line using `linguist-language=Python` would conflict with TOOL-01's exact Voss declaration. Recommendation: satisfy TOOL-01 exactly and include Python parent/fallback metadata plus samples for the future PR.
 
 ## Recommended Test Strategy
 
@@ -490,7 +490,7 @@ Nyquist-style validation is applicable because Phase 5 has multiple independent 
 Validate across these dimensions:
 
 - **Contract readiness:** Phase 5 cannot start until parser/analyzer/codegen public APIs and example fixtures exist.
-- **Command discovery:** installed `voss` executable and `python -m voss.cli` expose the same command group and help.
+- **Command discovery:** installed `voss` executable and `python3 -m voss.cli` expose the same command group and help.
 - **Pipeline integrity:** `compile`/`run` call parser, analyzer, and codegen once each through public APIs, without fallback implementations.
 - **Diagnostic fidelity:** `check` and `compile` display analyzer diagnostics with file path and line/column; warning/error exit behavior is deterministic.
 - **No side effects in check/ast:** `check` and `ast` do not write generated Python or `.voss-cache` artifacts.
@@ -512,7 +512,7 @@ Validate across these dimensions:
 
 ## Common Pitfalls
 
-- Missing `[project.scripts]`, causing `python -m voss.cli` to work but `voss` to be absent after install.
+- Missing `[project.scripts]`, causing `python3 -m voss.cli` to work but `voss` to be absent after install.
 - Forgetting package data for templates, so `voss init` works in the repo but fails from an installed wheel.
 - `check` creating `.voss-cache` indexes because it calls analyzer with default `emit_indexes=True`.
 - `compile` ignoring analyzer errors and emitting Python anyway.
