@@ -1,0 +1,18 @@
+# assistant.voss
+let history: memory.episodic(capacity: 20 turns)
+let kb: memory.semantic(source: "./knowledge_base/")
+
+fn chat(userMessage: string) -> string {
+    history.add(userMessage, role: "user")
+    
+    let relevant = kb.retrieve(userMessage, top_k: 3)
+    
+    ctx(budget: 4000 tokens) {
+        include history.last(6)
+        include relevant
+        
+        let response: probable<string> = ask(userMessage)
+        history.add(response.value, role: "assistant")
+        yield response.value
+    }
+}
