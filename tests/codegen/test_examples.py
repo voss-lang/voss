@@ -187,6 +187,9 @@ def _install_support_helpers(module):
 
 @pytest.mark.asyncio
 async def test_classify_example_compiles_and_matches_raw_python(tmp_path):
+    from examples.raw_python.classify import classify_intent
+    from voss_runtime import reset_config
+
     result = _compile_example(tmp_path, "classify")
     ast.parse(result.source)
     module = _load_generated(tmp_path, "classify", result.source)
@@ -204,6 +207,9 @@ async def test_classify_example_compiles_and_matches_raw_python(tmp_path):
 
 @pytest.mark.asyncio
 async def test_classify_low_confidence_matches_raw_python(tmp_path):
+    from examples.raw_python.classify import classify_intent
+    from voss_runtime import reset_config
+
     result = _compile_example(tmp_path, "classify")
     module = _load_generated(tmp_path, "classify_low_confidence", result.source)
 
@@ -222,6 +228,10 @@ async def test_classify_low_confidence_matches_raw_python(tmp_path):
 async def test_support_example_compiles_and_routes_with_fake_manifest(
     tmp_path, monkeypatch
 ):
+    import voss_runtime.semantic as semantic_module
+    from voss_runtime import reset_config
+    from voss_runtime.semantic import SemanticMatcher
+
     manifest_path = _write_support_manifest(tmp_path)
     result = _compile_example(
         tmp_path, "support", analysis=fake_analysis(manifest_path)
@@ -252,6 +262,9 @@ async def test_support_example_compiles_and_routes_with_fake_manifest(
 
 @pytest.mark.asyncio
 async def test_research_example_compiles_and_matches_raw_python_happy_path(tmp_path):
+    from examples.raw_python import research as raw_research
+    from voss_runtime import reset_config
+
     result = _compile_example(tmp_path, "research")
     ast.parse(result.source)
     monkeypatch_attr = getattr(builtins, "webSearch", None)
@@ -282,6 +295,10 @@ async def test_research_example_compiles_and_matches_raw_python_happy_path(tmp_p
 async def test_research_example_timeout_fallback_matches_raw_python(
     tmp_path, monkeypatch
 ):
+    from examples.raw_python import research as raw_research
+    from voss_runtime import reset_config
+    from voss_runtime.budget import run_with_budget as orig_run_with_budget
+
     result = _compile_example(tmp_path, "research")
     monkeypatch.setattr(builtins, "webSearch", raw_research.web_search, raising=False)
     module = _load_generated(tmp_path, "research_timeout", result.source)
