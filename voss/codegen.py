@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from keyword import iskeyword
@@ -14,9 +15,12 @@ from .ast_nodes import (
     BudgetArg,
     Call,
     ClassDecl,
+    ClassField,
     ConfidenceGate,
     CtxBlock,
+    Decorator,
     DictLit,
+    ExprPattern,
     ExprStmt,
     FloatLit,
     FnDecl,
@@ -28,6 +32,8 @@ from .ast_nodes import (
     Lambda,
     LetStmt,
     ListLit,
+    MatchCase,
+    MatchStmt,
     Member,
     NullLit,
     Node,
@@ -36,6 +42,7 @@ from .ast_nodes import (
     PromptDecl,
     QualName,
     ReturnStmt,
+    SimilarPattern,
     SpawnExpr,
     Stmt,
     StringLit,
@@ -45,10 +52,11 @@ from .ast_nodes import (
     TypeRef,
     UnaryOp,
     UseStmt,
+    WildcardPattern,
     WithinFallback,
     YieldStmt,
 )
-from .diagnostics import AnalysisResult
+from .diagnostics import AnalysisResult, EmittedIndex
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +186,127 @@ _MEMORY_CLASSES = {
 }
 
 
+def _format_number(value: int | float) -> str:
+    if isinstance(value, int):
+        return repr(value)
+    if value == int(value):
+        return repr(int(value))
+    return repr(value)
+
+
+def _string_literal(value: str) -> str:
+    return json.dumps(value)
+
+
+def _prompt_const_name(name: str) -> str:
+    chars: list[str] = []
+    for index, ch in enumerate(name):
+        if ch.isupper() and index > 0 and (not name[index - 1].isupper()):
+            chars.append("_")
+        chars.append(ch.upper())
+    return "".join(chars) + "_PROMPT"
+
+
+@dataclass(frozen=True, slots=True)
+class MatchIndex:
+    match_id: str
+    threshold: float
+    cases: tuple[tuple[str, str], ...]
+    embeddings: tuple[tuple[float, ...], ...]
+
+
+def _resolve_cache_root(
+    project_root: str | Path | None, cache_dir: str | Path
+) -> Path:
+    project_root_p = Path(project_root or Path.cwd()).resolve()
+    cd = Path(cache_dir)
+    if cd.is_absolute():
+        cache_root = cd.resolve()
+    else:
+        cache_root = (project_root_p / cd).resolve()
+    if not cache_root.is_relative_to(project_root_p):
+        raise CodegenError(
+            f"cache directory outside project root: {cache_root}"
+        )
+    if cache_root.name != ".voss-cache":
+        raise CodegenError(
+            f"cache directory must be named .voss-cache: {cache_root}"
+        )
+    return cache_root
+
+
+def _load_match_index(
+    match_id: str,
+    *,
+    source_path: str | Path | None,
+    analysis: AnalysisResult | None,
+    cache_root: Path,
+) -> MatchIndex:
+    manifest_path: Path | None = None
+    if analysis is not None:
+        for idx in analysis.indexes:
+            if idx.match_id == match_id:
+                resolved = Path(idx.path).resolve()
+                if not resolved.is_relative_to(cache_root):
+                    raise CodegenError(
+                        "semantic index path outside cache directory"
+                    )
+                manifest_path = resolved
+                break
+    if manifest_path is None:
+        stem = Path(source_path).stem if source_path else "program"
+        manifest_path = (cache_root / f"{stem}.idx").resolve()
+        if not manifest_path.is_relative_to(cache_root):
+            raise CodegenError(
+                "semantic index path outside cache directory"
+            )
+
+    if not manifest_path.exists():
+        raise CodegenError(f"missing semantic match index for {match_id}")
+
+    try:
+        data = json.loads(manifest_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise CodegenError(
+            f"invalid match manifest at {manifest_path}: {exc}"
+        ) from exc
+    if not isinstance(data, dict) or data.get("version") != 1:
+        raise CodegenError(
+            f"unsupported match manifest version: {data.get('version') if isinstance(data, dict) else None}"
+        )
+    matches = data.get("matches")
+    if not isinstance(matches, list):
+        raise CodegenError("match manifest 'matches' must be a list")
+
+    for entry in matches:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("match_id") == match_id:
+            raw_cases = entry.get("cases", [])
+            if not isinstance(raw_cases, list):
+                raise CodegenError(
+                    f"match manifest cases for {match_id} must be a list"
+                )
+            cases = tuple(
+                (
+                    str(c.get("description", "")),
+                    str(c.get("label", f"case_{i}")),
+                )
+                for i, c in enumerate(raw_cases)
+            )
+            embeddings = tuple(
+                tuple(float(x) for x in c.get("embedding", ()))
+                for c in raw_cases
+            )
+            return MatchIndex(
+                match_id=match_id,
+                threshold=float(entry.get("threshold", 0.75)),
+                cases=cases,
+                embeddings=embeddings,
+            )
+    raise CodegenError(f"missing semantic match index for {match_id}")
+
+
 class TypeEmitter:
     __slots__ = ("imports",)
 
@@ -216,6 +345,7 @@ class TypeEmitter:
 
 @dataclass(slots=True)
 class ExpressionEmitter:
+    imports: ImportCollector = field(default_factory=ImportCollector)
     generated_fns: frozenset[str] = field(default_factory=frozenset)
     current_ctx_name: str | None = None
 
@@ -290,6 +420,14 @@ class ExpressionEmitter:
             arg_texts = [self.emit_arg(a, await_context=await_context) for a in call.args]
             return f"await {self.current_ctx_name}.ask({', '.join(arg_texts)})"
 
+        if isinstance(call.callee, Identifier) and call.callee.name == "gather":
+            self.imports.add_runtime("gather")
+            arg_texts = [self._emit_gather_arg(a) for a in call.args]
+            text = f"gather({', '.join(arg_texts)})"
+            if await_context:
+                return f"await {text}"
+            return text
+
         callee_text = self.emit(call.callee, await_context=await_context)
         arg_texts = [self.emit_arg(a, await_context=await_context) for a in call.args]
         text = f"{callee_text}({', '.join(arg_texts)})"
@@ -306,6 +444,30 @@ class ExpressionEmitter:
         if arg.name is None:
             return value
         return f"{_mangle(arg.name)}={value}"
+
+    def _emit_gather_arg(self, arg: Arg) -> str:
+        if arg.name == "timeout":
+            value = self._emit_timeout_value(arg.value)
+        else:
+            value = self.emit(arg.value, await_context=False)
+        if arg.name is None:
+            return value
+        return f"{_mangle(arg.name)}={value}"
+
+    def _emit_timeout_value(self, value: Node) -> str:
+        if isinstance(value, BudgetArg):
+            if value.unit == "s":
+                return _format_number(value.value)
+            if value.unit == "ms":
+                return _format_number(value.value / 1000)
+            raise CodegenError(
+                f"unsupported gather timeout unit: {value.unit!r}"
+            )
+        if isinstance(value, IntLit):
+            return repr(value.value)
+        if isinstance(value, FloatLit):
+            return _format_number(value.value)
+        return self.emit(value, await_context=False)
 
 
 def _emit_kwarg_value(value: Node) -> str:
@@ -337,6 +499,12 @@ class StatementEmitter:
         "current_ctx_name",
         "_ctx_depth",
         "_within_count",
+        "_matcher_count",
+        "generated_classes",
+        "prompt_constants",
+        "source_path",
+        "analysis",
+        "cache_root",
     )
 
     def __init__(
@@ -345,6 +513,11 @@ class StatementEmitter:
         expr_emitter: ExpressionEmitter,
         type_emitter: TypeEmitter,
         imports: ImportCollector,
+        *,
+        generated_classes: frozenset[str] = frozenset(),
+        source_path: str | Path | None = None,
+        analysis: AnalysisResult | None = None,
+        cache_root: Path | None = None,
     ) -> None:
         self.writer = writer
         self.expr = expr_emitter
@@ -353,6 +526,12 @@ class StatementEmitter:
         self.current_ctx_name: str | None = None
         self._ctx_depth = 0
         self._within_count = 0
+        self._matcher_count = 0
+        self.generated_classes = generated_classes
+        self.prompt_constants: set[str] = set()
+        self.source_path = source_path
+        self.analysis = analysis
+        self.cache_root = cache_root
 
     def emit(self, stmt: Stmt) -> None:
         if isinstance(stmt, ExprStmt):
@@ -376,6 +555,15 @@ class StatementEmitter:
         if isinstance(stmt, FnDecl):
             self._emit_fn(stmt)
             return
+        if isinstance(stmt, AgentDecl):
+            self._emit_agent(stmt)
+            return
+        if isinstance(stmt, PromptDecl):
+            self._emit_prompt(stmt)
+            return
+        if isinstance(stmt, ClassDecl):
+            self._emit_class(stmt)
+            return
         if isinstance(stmt, CtxBlock):
             self._emit_ctx(stmt)
             return
@@ -384,6 +572,9 @@ class StatementEmitter:
             return
         if isinstance(stmt, TryCatch):
             self._emit_try(stmt)
+            return
+        if isinstance(stmt, MatchStmt):
+            self._emit_match(stmt)
             return
         raise CodegenError(
             f"unsupported AST node for codegen: {type(stmt).__name__}"
@@ -564,6 +755,7 @@ class StatementEmitter:
                     self.writer.write("pass")
 
     def _emit_fn(self, fn: FnDecl) -> None:
+        self._emit_decorators(fn.decorators)
         params = [self._emit_param(p) for p in fn.params]
         sig = f"async def {_mangle(fn.name)}({', '.join(params)})"
         if fn.return_type is not None:
@@ -577,6 +769,15 @@ class StatementEmitter:
             else:
                 self.writer.write("pass")
 
+    def _emit_decorators(self, decorators: tuple[Decorator, ...]) -> None:
+        for decorator in decorators:
+            if decorator.name != "tool":
+                raise CodegenError(
+                    f"unsupported decorator for codegen: {decorator.name}"
+                )
+            self.imports.add_runtime("tool")
+            self.writer.write("@tool")
+
     def _emit_param(self, param: Param) -> str:
         text = _mangle(param.name)
         if param.type_annot is not None:
@@ -584,6 +785,111 @@ class StatementEmitter:
         if param.default is not None:
             text += f" = {self.expr.emit(param.default, await_context=False)}"
         return text
+
+    def _emit_agent(self, agent: AgentDecl) -> None:
+        self.imports.add_runtime("VossAgent")
+        self.writer.write(f"class {_mangle(agent.name)}(VossAgent):")
+        with self.writer.indent():
+            wrote_attr = False
+            if agent.options.system is not None:
+                self.writer.write(
+                    f"system_prompt = {self._emit_class_attr(agent.options.system)}"
+                )
+                wrote_attr = True
+            if agent.options.tools is not None:
+                self.writer.write(f"tools = {self._emit_tools(agent.options.tools)}")
+                wrote_attr = True
+            if agent.options.model is not None:
+                self.writer.write(
+                    f"model = {self._emit_class_attr(agent.options.model)}"
+                )
+                wrote_attr = True
+            if agent.options.retries is not None:
+                self.writer.write(
+                    f"retries = {self._emit_class_attr(agent.options.retries)}"
+                )
+                wrote_attr = True
+            if self._returns_generated_class(agent.return_type):
+                assert isinstance(agent.return_type, TypeRef)
+                self.writer.write(f"return_type = {agent.return_type.name.parts[-1]}")
+                wrote_attr = True
+            if wrote_attr:
+                self.writer.blank()
+
+            params = ["self"] + [self._emit_param(p) for p in agent.params]
+            sig = f"async def run({', '.join(params)})"
+            if agent.return_type is not None:
+                sig += f" -> {self.type.emit(agent.return_type)}"
+            sig += ":"
+            self.writer.write(sig)
+            with self.writer.indent():
+                if agent.body:
+                    for inner in agent.body:
+                        self.emit(inner)
+                else:
+                    self.writer.write("pass")
+
+    def _emit_class_attr(self, value: Node) -> str:
+        if isinstance(value, StringLit):
+            return _string_literal(value.value)
+        if isinstance(value, IntLit):
+            return repr(value.value)
+        if isinstance(value, FloatLit):
+            return _format_number(value.value)
+        if isinstance(value, BoolLit):
+            return "True" if value.value else "False"
+        if isinstance(value, NullLit):
+            return "None"
+        return self.expr.emit(value, await_context=False)
+
+    def _emit_tools(self, tools: Node) -> str:
+        if not isinstance(tools, ListLit):
+            raise CodegenError(
+                f"unsupported AST node for codegen: {type(tools).__name__}"
+            )
+        items = [self.expr.emit(item, await_context=False) for item in tools.items]
+        if len(items) == 1:
+            return f"({items[0]},)"
+        return f"({', '.join(items)})"
+
+    def _returns_generated_class(self, type_expr: TypeExpr | None) -> bool:
+        return (
+            isinstance(type_expr, TypeRef)
+            and len(type_expr.name.parts) == 1
+            and type_expr.name.parts[0] in self.generated_classes
+        )
+
+    def _emit_prompt(self, prompt: PromptDecl) -> None:
+        const_name = _prompt_const_name(prompt.name)
+        body_text = "\n".join(part.value for part in prompt.body)
+        if prompt.extends is None:
+            self.writer.write(f"{const_name} = {_string_literal(body_text)}")
+        else:
+            parent_name = prompt.extends.parts[-1]
+            parent_const = _prompt_const_name(parent_name)
+            if parent_const not in self.prompt_constants:
+                raise CodegenError("prompt parent must be declared before child")
+            self.writer.write(
+                f"{const_name} = {parent_const} + {_string_literal(chr(10))} + "
+                f"{_string_literal(body_text)}"
+            )
+        self.prompt_constants.add(const_name)
+
+    def _emit_class(self, cls: ClassDecl) -> None:
+        self.imports.add_base_model()
+        self.writer.write(f"class {_mangle(cls.name)}(BaseModel):")
+        with self.writer.indent():
+            if cls.fields:
+                for field in cls.fields:
+                    self._emit_class_field(field)
+            else:
+                self.writer.write("pass")
+
+    def _emit_class_field(self, field: ClassField) -> None:
+        text = f"{_mangle(field.name)}: {self.type.emit(field.type_annot)}"
+        if field.default is not None:
+            text += f" = {self.expr.emit(field.default, await_context=False)}"
+        self.writer.write(text)
 
     def _emit_ctx(self, stmt: CtxBlock) -> None:
         self.imports.add_runtime("ContextScope")
@@ -657,6 +963,106 @@ class StatementEmitter:
                 )
         return result
 
+    def _allocate_matcher_name(self) -> str:
+        self._matcher_count += 1
+        return f"_matcher_{self._matcher_count}"
+
+    def _emit_match(self, stmt: MatchStmt) -> None:
+        has_similar = any(
+            isinstance(case.pattern, SimilarPattern) for case in stmt.cases
+        )
+        if has_similar:
+            self._emit_similar_match(stmt)
+        else:
+            self._emit_structural_match(stmt)
+
+    def _emit_similar_match(self, stmt: MatchStmt) -> None:
+        if self.cache_root is None:
+            raise CodegenError(
+                "semantic match codegen requires cache_root context"
+            )
+        match_id = f"match_{stmt.span.line_start}_{stmt.span.col_start}"
+        index = _load_match_index(
+            match_id,
+            source_path=self.source_path,
+            analysis=self.analysis,
+            cache_root=self.cache_root,
+        )
+        self.imports.add_runtime("SemanticMatcher")
+        matcher_name = self._allocate_matcher_name()
+
+        cases_repr = (
+            "["
+            + ", ".join(
+                f"({repr(desc)}, {repr(label)})" for desc, label in index.cases
+            )
+            + "]"
+        )
+        embeddings_repr = (
+            "["
+            + ", ".join(
+                "[" + ", ".join(repr(float(x)) for x in emb) + "]"
+                for emb in index.embeddings
+            )
+            + "]"
+        )
+
+        self.writer.write(f"{matcher_name} = SemanticMatcher(")
+        with self.writer.indent():
+            self.writer.write(f"cases={cases_repr},")
+            self.writer.write(f"threshold={index.threshold},")
+            self.writer.write(f"embeddings={embeddings_repr},")
+        self.writer.write(")")
+
+        scrut = self.expr.emit(stmt.scrutinee, await_context=False)
+        self.writer.write(f"match {matcher_name}.match({scrut}):")
+        with self.writer.indent():
+            similar_idx = 0
+            for case in stmt.cases:
+                if isinstance(case.pattern, SimilarPattern):
+                    if similar_idx < len(index.cases):
+                        label = index.cases[similar_idx][1]
+                    else:
+                        label = f"case_{similar_idx}"
+                    similar_idx += 1
+                    self.writer.write(f'case "{label}":')
+                elif isinstance(case.pattern, WildcardPattern):
+                    self.writer.write("case _:")
+                elif isinstance(case.pattern, ExprPattern):
+                    pat = self.expr.emit(case.pattern.expr, await_context=False)
+                    self.writer.write(f"case {pat}:")
+                else:
+                    raise CodegenError(
+                        f"unsupported AST node for codegen: {type(case.pattern).__name__}"
+                    )
+                with self.writer.indent():
+                    if case.body:
+                        for inner in case.body:
+                            self.emit(inner)
+                    else:
+                        self.writer.write("pass")
+
+    def _emit_structural_match(self, stmt: MatchStmt) -> None:
+        scrut = self.expr.emit(stmt.scrutinee, await_context=False)
+        self.writer.write(f"match {scrut}:")
+        with self.writer.indent():
+            for case in stmt.cases:
+                if isinstance(case.pattern, WildcardPattern):
+                    self.writer.write("case _:")
+                elif isinstance(case.pattern, ExprPattern):
+                    pat = self.expr.emit(case.pattern.expr, await_context=False)
+                    self.writer.write(f"case {pat}:")
+                else:
+                    raise CodegenError(
+                        f"unsupported AST node for codegen: {type(case.pattern).__name__}"
+                    )
+                with self.writer.indent():
+                    if case.body:
+                        for inner in case.body:
+                            self.emit(inner)
+                    else:
+                        self.writer.write("pass")
+
     def _emit_try(self, stmt: TryCatch) -> None:
         self.writer.write("try:")
         with self.writer.indent():
@@ -707,11 +1113,21 @@ _DECL_TYPES = (FnDecl, AgentDecl, PromptDecl, ClassDecl)
 
 
 class ProgramEmitter:
-    __slots__ = ("program", "imports")
+    __slots__ = ("program", "imports", "source_path", "analysis", "cache_root")
 
-    def __init__(self, program: Program) -> None:
+    def __init__(
+        self,
+        program: Program,
+        *,
+        source_path: str | Path | None = None,
+        analysis: AnalysisResult | None = None,
+        cache_root: Path | None = None,
+    ) -> None:
         self.program = program
         self.imports = ImportCollector()
+        self.source_path = source_path
+        self.analysis = analysis
+        self.cache_root = cache_root
 
     def emit(self) -> CodegenResult:
         for stmt in self.program.body:
@@ -737,10 +1153,20 @@ class ProgramEmitter:
             self.imports.add_stdlib("asyncio")
 
         type_emitter = TypeEmitter(self.imports)
-        expr_emitter = ExpressionEmitter(generated_fns=fn_names)
+        expr_emitter = ExpressionEmitter(self.imports, generated_fns=fn_names)
+        class_names = frozenset(
+            stmt.name for stmt in self.program.body if isinstance(stmt, ClassDecl)
+        )
         body_writer = PythonWriter()
         stmt_emitter = StatementEmitter(
-            body_writer, expr_emitter, type_emitter, self.imports
+            body_writer,
+            expr_emitter,
+            type_emitter,
+            self.imports,
+            generated_classes=class_names,
+            source_path=self.source_path,
+            analysis=self.analysis,
+            cache_root=self.cache_root,
         )
 
         for index, decl in enumerate(decls):
@@ -789,6 +1215,7 @@ def generate_python(
     source_path: str | Path | None = None,
     analysis: AnalysisResult | None = None,
     cache_dir: str | Path = ".voss-cache",
+    project_root: str | Path | None = None,
 ) -> CodegenResult:
     if analysis is None:
         from .analyzer import analyze
@@ -798,7 +1225,14 @@ def generate_python(
     if not analysis.ok:
         raise CodegenError("semantic analysis failed; refusing to generate Python")
 
-    emitter = ProgramEmitter(program)
+    cache_root = _resolve_cache_root(project_root, cache_dir)
+
+    emitter = ProgramEmitter(
+        program,
+        source_path=source_path,
+        analysis=analysis,
+        cache_root=cache_root,
+    )
     result = emitter.emit()
     return CodegenResult(
         source=result.source,
