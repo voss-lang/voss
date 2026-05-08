@@ -1,0 +1,7 @@
+.vscode/**
+.git/**
+.gitignore
+**/*.map
+**/.DS_Store
+node_modules/**
+*.vsix

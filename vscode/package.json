@@ -1,0 +1,50 @@
+{
+  "name": "voss",
+  "displayName": "Voss",
+  "description": "Voss language support: syntax highlighting and file icons.",
+  "version": "0.0.1",
+  "publisher": "voss-lang",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "voss",
+    "llm",
+    "agents",
+    "ai"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/voss-lang/voss"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "voss",
+        "aliases": [
+          "Voss",
+          "voss"
+        ],
+        "extensions": [
+          ".voss"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/voss-file.svg",
+          "dark": "./icons/voss-file-dark.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "voss",
+        "scopeName": "source.voss",
+        "path": "./syntaxes/voss.tmLanguage.json"
+      }
+    ]
+  }
+}

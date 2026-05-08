@@ -1,12 +1,31 @@
-# Local draft metadata for a future github-linguist PR.
-# Voss is not registered upstream yet.
+# Draft github-linguist metadata for Voss.
+# Status: not yet submitted upstream. Kept here so the eventual PR is mechanical.
+#
+# When ready to PR `github-linguist/linguist`:
+#   1. Append the YAML block below (without these comments) to
+#      `lib/linguist/languages.yml`, sorted alphabetically.
+#   2. Pick the next free `language_id` (run `script/next-id` in the linguist repo).
+#   3. Vendor the TextMate grammar from `vscode/syntaxes/voss.tmLanguage.json`
+#      as a submodule under `vendor/grammars/voss/` (or upload it to a
+#      standalone repo first — linguist requires a submodule, not a copy).
+#   4. Copy `samples/*.voss` (and any new ones) into `samples/Voss/` in linguist.
+#      Need at least 3 non-trivial samples; current `samples/` already provides
+#      `classify.voss`, `research.voss`, `support.voss`.
+#   5. Run `script/bootstrap && bundle exec rake samples && bundle exec rake test`.
+#   6. PR.
+#
+# Adoption gate: linguist maintainers want evidence the language is in real use
+# (rule of thumb: ~200 public repos with `*.voss` files, or a clearly active
+# ecosystem). Until then, the local override in `.gitattributes` gives Voss a
+# label and color on this repo without an upstream PR.
+
 name: Voss
 type: programming
 extensions:
   - ".voss"
 tm_scope: "source.voss"
 ace_mode: "python"
-color: "#4B8BBE"
+color: "#524AD8"
 group: Python
 fallback_highlighting: Python
 aliases:

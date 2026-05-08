@@ -1,0 +1,222 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Voss",
+  "scopeName": "source.voss",
+  "fileTypes": ["voss"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#operators" },
+    { "include": "#agent-options" },
+    { "include": "#confidence-gate" },
+    { "include": "#function-call" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.voss",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.voss",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.voss",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.voss",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.voss",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.duration.voss",
+          "match": "\\b[0-9]+(?:\\.[0-9]+)?(ms|s)\\b"
+        },
+        {
+          "name": "constant.numeric.tokens.voss",
+          "match": "\\b[0-9]+\\s+tokens?\\b"
+        },
+        {
+          "name": "constant.numeric.float.voss",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.voss",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.function.voss" },
+            "2": { "name": "entity.name.function.voss" }
+          }
+        },
+        {
+          "match": "\\b(agent)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.agent.voss" },
+            "2": { "name": "entity.name.type.agent.voss" }
+          }
+        },
+        {
+          "match": "\\b(prompt)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.prompt.voss" },
+            "2": { "name": "entity.name.type.prompt.voss" }
+          }
+        },
+        {
+          "match": "\\b(class)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.class.voss" },
+            "2": { "name": "entity.name.type.class.voss" }
+          }
+        },
+        {
+          "match": "\\b(let)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.let.voss" },
+            "2": { "name": "variable.other.voss" }
+          }
+        },
+        {
+          "match": "\\b(use)\\b",
+          "name": "keyword.control.import.voss"
+        },
+        {
+          "match": "\\b(extends)\\b",
+          "name": "storage.modifier.extends.voss"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.voss",
+          "match": "\\b(if|else|return|yield|match|case|try|catch|within|fallback|ctx|spawn|include)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.voss",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "keyword.other.budget.voss",
+          "match": "\\b(budget)\\b"
+        },
+        {
+          "name": "keyword.other.similar.voss",
+          "match": "\\b(similar)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.voss",
+          "match": "\\b(string|int|float|bool|list|dict|probable)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.voss",
+          "match": "\\b(true|false|null)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.voss",
+          "match": "->|=>"
+        },
+        {
+          "name": "keyword.operator.comparison.voss",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.assignment.voss",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.arithmetic.voss",
+          "match": "\\+|-|\\*|/|%"
+        },
+        {
+          "name": "punctuation.accessor.voss",
+          "match": "\\."
+        }
+      ]
+    },
+    "agent-options": {
+      "patterns": [
+        {
+          "match": "\\b(system|tools|model|retries|memory)\\s*:",
+          "captures": {
+            "1": { "name": "variable.parameter.agent-option.voss" }
+          }
+        }
+      ]
+    },
+    "confidence-gate": {
+      "patterns": [
+        {
+          "match": "@\\s*(p)\\b",
+          "captures": {
+            "0": { "name": "keyword.operator.confidence.voss" },
+            "1": { "name": "variable.language.confidence.voss" }
+          }
+        }
+      ]
+    },
+    "function-call": {
+      "patterns": [
+        {
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.call.voss" }
+          }
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.voss",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}
