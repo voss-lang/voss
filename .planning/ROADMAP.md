@@ -117,6 +117,27 @@
 3. `voss init my-project` produces a working scaffold including a `.gitattributes` declaring `*.voss linguist-language=Voss` and `linguist-detectable=true`, plus a hello-world program
 4. The Voss repo itself contains a top-level `.gitattributes`, a `samples/` directory of representative programs, and language metadata (extension, color suggestion, parent fallback) sufficient for a future github-linguist/linguist PR
 
+**Planned:** 2026-05-08 — 6 plans, waves 1-6
+
+**Wave 1:** `05-01` — Phase 2/3/4 compiler contract gate, Click command shell, and `[project.scripts]` entrypoint.
+
+**Wave 2** *(blocked on Wave 1 completion)*: `05-02` — read-only `voss ast` and `voss check` commands with diagnostic output and no `.voss-cache` writes.
+
+**Wave 3** *(blocked on Wave 2 completion)*: `05-03` — `voss compile` and subprocess-backed `voss run`.
+
+**Wave 4** *(blocked on Wave 3 completion)*: `05-04` — `voss init` project scaffold, templates, package data, and scaffold `.gitattributes`.
+
+**Wave 5** *(blocked on Wave 4 completion)*: `05-05` — repo-level `.gitattributes`, representative `samples/*.voss`, and draft local Linguist metadata with Python fallback fields.
+
+**Wave 6** *(blocked on Wave 5 completion)*: `05-06` — editable-install smoke, package-data checks, and full hermetic CLI/tooling integration.
+
+**Cross-cutting constraints:**
+- Phase 5 execution must not proceed until `05-01-0` prints `phase5-cli-contract-ok`.
+- CLI commands must stay thin wrappers over public parser, analyzer, and codegen APIs; no parser/analyzer/codegen/runtime/provider fallbacks belong in the CLI.
+- `check` and `ast` must be read-only; `check` uses `emit_indexes=False` and must not write `.voss-cache`.
+- `run` must execute generated Python through `subprocess.run([sys.executable, ...])`; no in-process `exec`/`eval` execution.
+- Linguist assets must preserve the exact Voss `.gitattributes` declaration while treating Python fallback/highlighting as draft metadata for future upstream registration, not current native GitHub support.
+
 ---
 
 ### Phase 6: Examples Validation

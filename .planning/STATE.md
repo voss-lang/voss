@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 4 planned
-last_updated: "2026-05-07T21:11:13Z"
+status: Phase 5 planned
+last_updated: "2026-05-08T01:07:09Z"
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 21
+  total_plans: 27
   completed_plans: 0
   percent: 0
 ---
@@ -19,13 +19,13 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-05-07)
 
 **Core value:** A program that takes 300 lines of Python boilerplate around an AI workflow takes ~40 lines of Voss, and the boilerplate semantics are enforced by the compiler.
-**Current focus:** Phase 4 — Codegen planning complete; execution remains gated on the Phase 2/3 compiler contracts.
+**Current focus:** Phase 5 — CLI, Packaging & Linguist planning complete; execution remains gated on the Phase 2/3/4 compiler contracts.
 
 ## Current Phase
 
-**Phase:** 4 — Codegen
-**Status:** Ready to execute (blocked until `04-01-0` verifies Phase 2 AST/parser symbols, parser examples, and Phase 3 analyzer exports)
-**Goal:** Translate the validated AST into readable Python source that imports `voss_runtime` and behaves identically to the hand-written Phase 1 examples.
+**Phase:** 5 — CLI, Packaging & Linguist
+**Status:** Ready to execute (blocked until `05-01-0` verifies Phase 2 AST/parser symbols, Phase 3 analyzer exports, Phase 4 codegen exports, parser examples, and codegen example tests)
+**Goal:** Ship `voss` as an installable CLI with project scaffolding plus GitHub/Linguist preparation assets.
 
 ## Phase Status
 
@@ -35,7 +35,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-07)
 | 2 | Parser & Grammar | Pending |
 | 3 | Semantic Analysis | Ready to execute |
 | 4 | Codegen | Ready to execute |
-| 5 | CLI, Packaging & Linguist | Pending |
+| 5 | CLI, Packaging & Linguist | Ready to execute |
 | 6 | Examples Validation | Pending |
 
 ## Recent Activity
@@ -50,6 +50,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-07)
 - 2026-05-07 — Phase 2 planned via `/gsd-plan-phase 2` → 5 plans, waves 1-5; checker passed (3 warnings, 0 blockers)
 - 2026-05-07 — Phase 3 researched, validation-mapped, pattern-mapped, and planned via `/gsd-plan-phase 3` → 5 plans, waves 1-5; checker passed after adding the Phase 2 contract gate and `.voss-cache` path-safety constraints
 - 2026-05-07 — Phase 4 researched, validation-mapped, pattern-mapped, and planned via `/gsd-plan-phase 4` → 6 plans, waves 1-6; checker passed after switching executable snippets to `python3`, tightening semantic-index read safety, and removing missing-example skips
+- 2026-05-08 — Phase 5 researched, validation-mapped, pattern-mapped, and planned via `/gsd-plan-phase 5` → 6 plans, waves 1-6; checker passed after tightening early-wave verification, downstream contract-marker checks, Linguist fallback metadata, validation task IDs, and integration files_modified scope
 
 ---
-*Last updated: 2026-05-07*
+*Last updated: 2026-05-08*
