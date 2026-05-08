@@ -109,8 +109,13 @@ match_case: "case" pattern "=>" match_case_body
 match_case_body: ("{" block "}") | expr
 
 pattern: similar_pattern | wildcard_pattern | expr_pattern
-similar_pattern:  "similar" "(" STRING ")"
-wildcard_pattern: "_"
+// Without a dedicated terminal, Earley + dynamic lexer parses `similar("...")` as
+// Call(IDENT="similar") and `_` as Identifier("_") under expr_pattern, producing a
+// true grammar ambiguity. Promoting `similar` and `_` to named terminals (with
+// priority > IDENT) makes them un-tokenize as IDENT, so expr_pattern simply cannot
+// match those forms. test_ambiguity guards this invariant.
+similar_pattern:  SIMILAR "(" STRING ")"
+wildcard_pattern: UNDERSCORE
 expr_pattern:     expr
 
 // @match_threshold(N) immediately preceding a match. Resolved question #2: lift into MatchStmt.threshold.
@@ -195,7 +200,14 @@ INT:   /\d+/
 TRIPLE_STRING: /"""([^"\\]|\\.|"(?!""))*?"""/
 STRING:        /"([^"\\\n]|\\.)*"/
 
-IDENT: /[a-zA-Z_][a-zA-Z0-9_]*/
+// SIMILAR and UNDERSCORE are pattern-only keywords. Without these, Earley sees
+// `similar(STRING)` as Call(IDENT="similar") under expr_pattern *and* as
+// similar_pattern, producing a true grammar ambiguity. We exclude `similar` and
+// bare `_` from IDENT via a negative lookahead so the lexer cannot tokenize them
+// as identifiers — `pattern` then has exactly one derivation.
+SIMILAR:    "similar"
+UNDERSCORE: "_"
+IDENT: /(?!similar\b)(?!_\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 NEWLINE: /(\r?\n)+/
 _NL: NEWLINE

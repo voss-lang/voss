@@ -473,7 +473,14 @@ class _Transformer(Transformer):
         return children[0]
 
     def similar_pattern(self, meta, children):
-        raw = str(children[0])
+        # children may include the SIMILAR keyword token (now a named terminal);
+        # the STRING token is the only one whose tokenized text begins with `"`.
+        for c in children:
+            if hasattr(c, "type") and c.type == "STRING":
+                raw = str(c)
+                break
+        else:
+            raw = str(children[-1])
         return SimilarPattern(span=_span(meta, self.file), text=_decode_string_literal(raw))
 
     def wildcard_pattern(self, meta, children):
