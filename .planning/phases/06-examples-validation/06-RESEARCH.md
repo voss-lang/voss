@@ -23,7 +23,7 @@ Success means each example passes `voss check`, runs through `voss run`, and als
 
 ## Current Repo Facts
 
-- Runtime exists and exports the expected Phase 1 public surface from `voss_runtime/__init__.py`, including `ProbableValue`, `ContextScope`, `BudgetScope`, `SemanticMatcher`, `VossAgent`, `gather`, memory classes, `tool`, provider config helpers, and `StubProvider`.
+- Runtime exists and exports the expected Phase 1 public surface from `voss_runtime/__init__.py`, including `ProbableValue`, `ContextScope`, `BudgetScope`, `SemanticMatcher`, `VossAgent`, `AgentHandle`, `gather`, memory classes, `tool`, provider config helpers, and `StubProvider`.
 - Raw Python semantic targets exist:
   - `examples/raw_python/classify.py`
   - `examples/raw_python/support.py`
@@ -70,7 +70,7 @@ import tomllib
 runtime = importlib.import_module("voss_runtime")
 runtime_exports = [
     "ProbableValue", "ContextScope", "BudgetScope", "BudgetExceededError",
-    "SemanticMatcher", "VossAgent", "gather", "EpisodicMemory",
+    "SemanticMatcher", "VossAgent", "AgentHandle", "gather", "EpisodicMemory",
     "SemanticMemory", "WorkingMemory", "tool", "StubProvider",
     "configure", "reset_config",
 ]

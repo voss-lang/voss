@@ -149,6 +149,23 @@
 1. `voss run classify.voss`, `voss run support.voss`, and `voss run research.voss` each produce expected output against live model providers (or a deterministic stub provider in CI)
 2. The same three programs round-trip through `voss compile` then `python3` with identical behavior, and `voss check` passes on each
 
+**Planned:** 2026-05-08 — 4 plans, waves 1-4
+
+**Wave 1:** `06-01` — Phase 1-5 runtime/compiler/CLI contract gate, shared example harness, and EX-01 `classify.voss` end-to-end validation.
+
+**Wave 2** *(blocked on Wave 1 completion)*: `06-02` — EX-02 `support.voss` semantic routing and ctx fallback validation with fake embeddings/indexes.
+
+**Wave 3** *(blocked on Wave 2 completion)*: `06-03` — EX-03 `research.voss` agent spawn/gather and within/fallback validation under deterministic stubs.
+
+**Wave 4** *(blocked on Wave 3 completion)*: `06-04` — full CLI matrix across all three examples, optional live-provider tests, full suite, install smoke, and artifact hygiene.
+
+**Cross-cutting constraints:**
+- Phase 6 execution must not proceed until `06-01-0` prints `phase6-examples-contract-ok`.
+- Phase 6 validates completed Phase 1-5 outputs; it must not introduce parser/analyzer/codegen/runtime/CLI fallback implementations.
+- Default verification must be hermetic with `StubProvider`, fake semantic indexes/embeddings, temp project roots, no live providers, no network, and no model downloads.
+- `voss check` must not write `.voss-cache`; `voss compile` and generated files must write only under temp project/output dirs during tests.
+- Optional live-provider tests must be marked `live`, skipped without explicit provider configuration, and excluded from default CI.
+
 ---
 
 ## Coverage
