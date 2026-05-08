@@ -1,0 +1,14 @@
+# Local draft metadata for a future github-linguist PR.
+# Voss is not registered upstream yet.
+name: Voss
+type: programming
+extensions:
+  - ".voss"
+tm_scope: "source.voss"
+ace_mode: "python"
+color: "#4B8BBE"
+group: Python
+fallback_highlighting: Python
+aliases:
+  - voss
+upstream_status: "draft-local"

@@ -1,0 +1,13 @@
+# classify.voss
+fn classifyIntent(input: string) -> string {
+    let intent: probable<string> = ask("Classify the intent: " + input)
+    
+    if intent @ p >= 0.80 {
+        return intent.value
+    } else {
+        return "unknown"
+    }
+}
+
+let result = classifyIntent("I want to cancel my subscription")
+print(result)

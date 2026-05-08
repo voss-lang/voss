@@ -1,0 +1,23 @@
+# support.voss
+prompt SupportAgent {
+    "You are a customer support agent for a SaaS product. Be empathetic and clear."
+}
+
+fn handleMessage(userMessage: string) -> string {
+    match userMessage {
+        case similar("angry, frustrated, or upset customer") => {
+            return escalate(userMessage)
+        }
+        case similar("refund, money back, cancel subscription") => {
+            return refundFlow(userMessage)
+        }
+        case similar("can't log in, password reset, account locked") => {
+            return authSupport(userMessage)
+        }
+        case _ => {
+            ctx(budget: 3000 tokens) {
+                yield ask(userMessage)
+            }
+        }
+    }
+}

@@ -1,0 +1,41 @@
+# research.voss
+agent Researcher(topic: string) -> string {
+    system: "You are a research analyst. Summarize key findings concisely."
+    tools: [webSearch]
+    
+    ctx(budget: 2000 tokens) {
+        let results = webSearch(topic, max_results: 5)
+        include results
+        yield ask("Summarize the key findings on: " + topic)
+    }
+}
+
+agent Synthesizer(reports: list<string>) -> string {
+    system: "You synthesize research into executive summaries."
+    
+    ctx(budget: 4000 tokens) {
+        include reports
+        yield ask("Write a unified executive summary of these research reports.")
+    }
+}
+
+fn runResearch(company: string) -> string {
+    let topics = [
+        company + " market position",
+        company + " recent news",
+        company + " competitors",
+        company + " financials"
+    ]
+    
+    let researchers = topics.map(t => spawn Researcher(t))
+    let reports: list<string> = gather(researchers, timeout: 60s)
+    
+    within budget(tokens: 5000, latency: 10s) {
+        let synth = spawn Synthesizer(reports)
+        return gather([synth])[0]
+    } fallback {
+        return reports.join("\n---\n")
+    }
+}
+
+print(runResearch("Anthropic"))
