@@ -1,16 +1,18 @@
 from __future__ import annotations
+from dataclasses import replace as _dc_replace
 from pathlib import Path
 from lark import Lark, Transformer, v_args
 from lark.exceptions import UnexpectedToken, UnexpectedCharacters, UnexpectedInput, VisitError
 
 from .ast_nodes import (
-    Span, Program, ExprStmt, IntLit, FloatLit, StringLit, BoolLit, NullLit,
+    Span, Stmt, Program, ExprStmt, IntLit, FloatLit, StringLit, BoolLit, NullLit,
     Identifier, BudgetArg,
     QualName, TypeKwarg, TypeRef,
     Arg, BinOp, UnaryOp, Call, Member, Index, ListLit, DictLit,
     Param, Lambda, SpawnExpr, ConfidenceGate,
     LetStmt, IfStmt, MatchStmt, MatchCase, SimilarPattern, WildcardPattern, ExprPattern,
     CtxBlock, WithinFallback, TryCatch, ReturnStmt, YieldStmt, IncludeStmt,
+    FnDecl, AgentDecl, AgentOptions, PromptDecl, ClassDecl, ClassField, UseStmt, Decorator,
 )
 from .exceptions import VossParseError
 
@@ -561,6 +563,172 @@ class _Transformer(Transformer):
     # --- expr_stmt / program ---
     def expr_stmt(self, meta, children):
         return ExprStmt(span=_span(meta, self.file), expr=children[0])
+
+    # --- declarations (plan 02-04) ---
+    def param_list(self, meta, children):
+        return tuple(c for c in children if isinstance(c, Param))
+
+    def param(self, meta, children):
+        name = str(children[0])
+        type_annot = None
+        default = None
+        rest = list(children[1:])
+        if rest and isinstance(rest[0], TypeRef):
+            type_annot = rest.pop(0)
+        if rest:
+            default = rest[0]
+        return Param(span=_span(meta, self.file), name=name, type_annot=type_annot, default=default)
+
+    def fn_decl(self, meta, children):
+        # children: [IDENT, params?, return_type?, block]
+        name = str(children[0])
+        params: tuple[Param, ...] = ()
+        return_type = None
+        body: tuple = ()
+        for c in children[1:]:
+            if isinstance(c, tuple) and c and isinstance(c[0], Param):
+                params = c
+            elif isinstance(c, TypeRef):
+                return_type = c
+            elif isinstance(c, tuple):
+                body = c
+        return FnDecl(
+            span=_span(meta, self.file),
+            name=name,
+            params=tuple(params),
+            return_type=return_type,
+            body=tuple(body),
+            decorators=(),
+        )
+
+    def agent_option(self, meta, children):
+        key = str(children[0])
+        value = children[1]
+        return (key, value)
+
+    def agent_body(self, meta, children):
+        options = AgentOptions(span=_span(meta, self.file))
+        body_stmts: list = []
+        for c in children:
+            if hasattr(c, "type") and c.type == "NEWLINE":
+                continue
+            if (
+                isinstance(c, tuple)
+                and len(c) == 2
+                and isinstance(c[0], str)
+                and c[0] in ("system", "tools", "model", "retries", "memory")
+            ):
+                key, value = c
+                options = _dc_replace(options, **{key: value})
+            elif isinstance(c, Stmt):
+                body_stmts.append(c)
+        return (options, tuple(body_stmts))
+
+    def agent_decl(self, meta, children):
+        name = str(children[0])
+        params: tuple[Param, ...] = ()
+        return_type = None
+        options = AgentOptions(span=_span(meta, self.file))
+        body: tuple = ()
+        for c in children[1:]:
+            if isinstance(c, tuple) and c and isinstance(c[0], Param):
+                params = c
+            elif isinstance(c, TypeRef):
+                return_type = c
+            elif isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], AgentOptions):
+                options, body = c
+        return AgentDecl(
+            span=_span(meta, self.file),
+            name=name,
+            params=tuple(params),
+            return_type=return_type,
+            options=options,
+            body=tuple(body),
+            decorators=(),
+        )
+
+    def prompt_string(self, meta, children):
+        raw = str(children[0])
+        if raw.startswith('"""'):
+            return StringLit(span=_span(meta, self.file), value=raw[3:-3], triple=True)
+        return StringLit(
+            span=_span(meta, self.file),
+            value=_decode_string_literal(raw),
+            triple=False,
+        )
+
+    def prompt_body(self, meta, children):
+        return tuple(c for c in children if isinstance(c, StringLit))
+
+    def prompt_decl(self, meta, children):
+        name = str(children[0])
+        extends = None
+        body: tuple = ()
+        for c in children[1:]:
+            if isinstance(c, QualName):
+                extends = c
+            elif isinstance(c, tuple):
+                body = c
+        return PromptDecl(
+            span=_span(meta, self.file),
+            name=name,
+            extends=extends,
+            body=body,
+            decorators=(),
+        )
+
+    def class_field(self, meta, children):
+        name = str(children[0])
+        type_annot = children[1]
+        default = children[2] if len(children) > 2 and children[2] is not None else None
+        return ClassField(
+            span=_span(meta, self.file),
+            name=name,
+            type_annot=type_annot,
+            default=default,
+        )
+
+    def class_body(self, meta, children):
+        return tuple(c for c in children if isinstance(c, ClassField))
+
+    def class_decl(self, meta, children):
+        name = str(children[0])
+        fields = children[1] if len(children) > 1 else ()
+        return ClassDecl(
+            span=_span(meta, self.file),
+            name=name,
+            fields=tuple(fields),
+            decorators=(),
+        )
+
+    def use_path(self, meta, children):
+        return tuple(str(t) for t in children)
+
+    def use_stmt(self, meta, children):
+        return UseStmt(span=_span(meta, self.file), path=children[0], alias=None)
+
+    def decorator(self, meta, children):
+        name = str(children[0])
+        args: tuple = ()
+        if len(children) > 1 and children[1] is not None:
+            args = children[1]
+        return Decorator(span=_span(meta, self.file), name=name, args=tuple(args))
+
+    def decorator_args(self, meta, children):
+        return tuple(c for c in children if isinstance(c, Arg))
+
+    def decl_target(self, meta, children):
+        return children[0]
+
+    def decorated_decl(self, meta, children):
+        *decorators, target = children
+        decorators = tuple(d for d in decorators if isinstance(d, Decorator))
+        if hasattr(target, "decorators"):
+            return _dc_replace(target, decorators=decorators)
+        return target
+
+    def top_decl(self, meta, children):
+        return children[0]
 
     def top_stmt(self, meta, children):
         return children[0]
