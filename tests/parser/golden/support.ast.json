@@ -1,0 +1,683 @@
+{
+  "_node": "Program",
+  "span": {
+    "file": "support.voss",
+    "lines": [
+      0,
+      0
+    ],
+    "cols": [
+      0,
+      0
+    ],
+    "synthetic": false
+  },
+  "body": [
+    {
+      "_node": "PromptDecl",
+      "span": {
+        "file": "support.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "SupportAgent",
+      "extends": null,
+      "body": [
+        {
+          "_node": "StringLit",
+          "span": {
+            "file": "support.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "value": "You are a customer support agent for a SaaS product. Be empathetic and clear.",
+          "triple": false
+        }
+      ],
+      "decorators": []
+    },
+    {
+      "_node": "FnDecl",
+      "span": {
+        "file": "support.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "handleMessage",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "support.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "userMessage",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "support.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "support.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "support.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "support.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "string"
+          ]
+        },
+        "generics": [],
+        "kwargs": []
+      },
+      "body": [
+        {
+          "_node": "MatchStmt",
+          "span": {
+            "file": "support.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "scrutinee": {
+            "_node": "Identifier",
+            "span": {
+              "file": "support.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "userMessage"
+          },
+          "cases": [
+            {
+              "_node": "MatchCase",
+              "span": {
+                "file": "support.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "pattern": {
+                "_node": "SimilarPattern",
+                "span": {
+                  "file": "support.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "text": "angry, frustrated, or upset customer"
+              },
+              "body": [
+                {
+                  "_node": "ReturnStmt",
+                  "span": {
+                    "file": "support.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": {
+                    "_node": "Call",
+                    "span": {
+                      "file": "support.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "callee": {
+                      "_node": "Identifier",
+                      "span": {
+                        "file": "support.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "name": "escalate"
+                    },
+                    "args": [
+                      {
+                        "_node": "Arg",
+                        "span": {
+                          "file": "support.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "name": null,
+                        "value": {
+                          "_node": "Identifier",
+                          "span": {
+                            "file": "support.voss",
+                            "lines": [
+                              0,
+                              0
+                            ],
+                            "cols": [
+                              0,
+                              0
+                            ],
+                            "synthetic": false
+                          },
+                          "name": "userMessage"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "_node": "MatchCase",
+              "span": {
+                "file": "support.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "pattern": {
+                "_node": "SimilarPattern",
+                "span": {
+                  "file": "support.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "text": "refund, money back, cancel subscription"
+              },
+              "body": [
+                {
+                  "_node": "ReturnStmt",
+                  "span": {
+                    "file": "support.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": {
+                    "_node": "Call",
+                    "span": {
+                      "file": "support.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "callee": {
+                      "_node": "Identifier",
+                      "span": {
+                        "file": "support.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "name": "refundFlow"
+                    },
+                    "args": [
+                      {
+                        "_node": "Arg",
+                        "span": {
+                          "file": "support.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "name": null,
+                        "value": {
+                          "_node": "Identifier",
+                          "span": {
+                            "file": "support.voss",
+                            "lines": [
+                              0,
+                              0
+                            ],
+                            "cols": [
+                              0,
+                              0
+                            ],
+                            "synthetic": false
+                          },
+                          "name": "userMessage"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "_node": "MatchCase",
+              "span": {
+                "file": "support.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "pattern": {
+                "_node": "SimilarPattern",
+                "span": {
+                  "file": "support.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "text": "can't log in, password reset, account locked"
+              },
+              "body": [
+                {
+                  "_node": "ReturnStmt",
+                  "span": {
+                    "file": "support.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": {
+                    "_node": "Call",
+                    "span": {
+                      "file": "support.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "callee": {
+                      "_node": "Identifier",
+                      "span": {
+                        "file": "support.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "name": "authSupport"
+                    },
+                    "args": [
+                      {
+                        "_node": "Arg",
+                        "span": {
+                          "file": "support.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "name": null,
+                        "value": {
+                          "_node": "Identifier",
+                          "span": {
+                            "file": "support.voss",
+                            "lines": [
+                              0,
+                              0
+                            ],
+                            "cols": [
+                              0,
+                              0
+                            ],
+                            "synthetic": false
+                          },
+                          "name": "userMessage"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "_node": "MatchCase",
+              "span": {
+                "file": "support.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "pattern": {
+                "_node": "WildcardPattern",
+                "span": {
+                  "file": "support.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                }
+              },
+              "body": [
+                {
+                  "_node": "CtxBlock",
+                  "span": {
+                    "file": "support.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "budget": {
+                    "_node": "BudgetArg",
+                    "span": {
+                      "file": "support.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "budget",
+                    "unit": "tokens",
+                    "value": 3000,
+                    "raw": "3000 tokens"
+                  },
+                  "body": [
+                    {
+                      "_node": "YieldStmt",
+                      "span": {
+                        "file": "support.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "value": {
+                        "_node": "Call",
+                        "span": {
+                          "file": "support.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "callee": {
+                          "_node": "Identifier",
+                          "span": {
+                            "file": "support.voss",
+                            "lines": [
+                              0,
+                              0
+                            ],
+                            "cols": [
+                              0,
+                              0
+                            ],
+                            "synthetic": false
+                          },
+                          "name": "ask"
+                        },
+                        "args": [
+                          {
+                            "_node": "Arg",
+                            "span": {
+                              "file": "support.voss",
+                              "lines": [
+                                0,
+                                0
+                              ],
+                              "cols": [
+                                0,
+                                0
+                              ],
+                              "synthetic": false
+                            },
+                            "name": null,
+                            "value": {
+                              "_node": "Identifier",
+                              "span": {
+                                "file": "support.voss",
+                                "lines": [
+                                  0,
+                                  0
+                                ],
+                                "cols": [
+                                  0,
+                                  0
+                                ],
+                                "synthetic": false
+                              },
+                              "name": "userMessage"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "threshold": null
+        }
+      ],
+      "decorators": []
+    }
+  ]
+}

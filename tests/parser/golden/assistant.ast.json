@@ -1,0 +1,1067 @@
+{
+  "_node": "Program",
+  "span": {
+    "file": "assistant.voss",
+    "lines": [
+      0,
+      0
+    ],
+    "cols": [
+      0,
+      0
+    ],
+    "synthetic": false
+  },
+  "body": [
+    {
+      "_node": "LetStmt",
+      "span": {
+        "file": "assistant.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "history",
+      "type_annot": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "assistant.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "assistant.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "memory",
+            "episodic"
+          ]
+        },
+        "generics": [],
+        "kwargs": [
+          {
+            "_node": "TypeKwarg",
+            "span": {
+              "file": "assistant.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "capacity",
+            "value": {
+              "_node": "BudgetArg",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "",
+              "unit": "turns",
+              "value": 20,
+              "raw": "20 turns"
+            }
+          }
+        ]
+      },
+      "value": null
+    },
+    {
+      "_node": "LetStmt",
+      "span": {
+        "file": "assistant.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "kb",
+      "type_annot": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "assistant.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "assistant.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "memory",
+            "semantic"
+          ]
+        },
+        "generics": [],
+        "kwargs": [
+          {
+            "_node": "TypeKwarg",
+            "span": {
+              "file": "assistant.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "source",
+            "value": {
+              "_node": "StringLit",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": "./knowledge_base/",
+              "triple": false
+            }
+          }
+        ]
+      },
+      "value": null
+    },
+    {
+      "_node": "FnDecl",
+      "span": {
+        "file": "assistant.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "chat",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "assistant.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "userMessage",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "assistant.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "assistant.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "assistant.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "string"
+          ]
+        },
+        "generics": [],
+        "kwargs": []
+      },
+      "body": [
+        {
+          "_node": "ExprStmt",
+          "span": {
+            "file": "assistant.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "expr": {
+            "_node": "Call",
+            "span": {
+              "file": "assistant.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "callee": {
+              "_node": "Member",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "obj": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "history"
+              },
+              "attr": "add"
+            },
+            "args": [
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": null,
+                "value": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "userMessage"
+                }
+              },
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "role",
+                "value": {
+                  "_node": "StringLit",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": "user",
+                  "triple": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "_node": "LetStmt",
+          "span": {
+            "file": "assistant.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "relevant",
+          "type_annot": null,
+          "value": {
+            "_node": "Call",
+            "span": {
+              "file": "assistant.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "callee": {
+              "_node": "Member",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "obj": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "kb"
+              },
+              "attr": "retrieve"
+            },
+            "args": [
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": null,
+                "value": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "userMessage"
+                }
+              },
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "top_k",
+                "value": {
+                  "_node": "IntLit",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": 3
+                }
+              }
+            ]
+          }
+        },
+        {
+          "_node": "CtxBlock",
+          "span": {
+            "file": "assistant.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "budget": {
+            "_node": "BudgetArg",
+            "span": {
+              "file": "assistant.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "budget",
+            "unit": "tokens",
+            "value": 4000,
+            "raw": "4000 tokens"
+          },
+          "body": [
+            {
+              "_node": "IncludeStmt",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Call",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "callee": {
+                  "_node": "Member",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "obj": {
+                    "_node": "Identifier",
+                    "span": {
+                      "file": "assistant.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "history"
+                  },
+                  "attr": "last"
+                },
+                "args": [
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "assistant.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": null,
+                    "value": {
+                      "_node": "IntLit",
+                      "span": {
+                        "file": "assistant.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "value": 6
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "_node": "IncludeStmt",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "relevant"
+              }
+            },
+            {
+              "_node": "LetStmt",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "response",
+              "type_annot": {
+                "_node": "TypeRef",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": {
+                  "_node": "QualName",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "parts": [
+                    "probable"
+                  ]
+                },
+                "generics": [
+                  {
+                    "_node": "TypeRef",
+                    "span": {
+                      "file": "assistant.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": {
+                      "_node": "QualName",
+                      "span": {
+                        "file": "assistant.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "parts": [
+                        "string"
+                      ]
+                    },
+                    "generics": [],
+                    "kwargs": []
+                  }
+                ],
+                "kwargs": []
+              },
+              "value": {
+                "_node": "Call",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "callee": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "ask"
+                },
+                "args": [
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "assistant.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": null,
+                    "value": {
+                      "_node": "Identifier",
+                      "span": {
+                        "file": "assistant.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "name": "userMessage"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "_node": "ExprStmt",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "expr": {
+                "_node": "Call",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "callee": {
+                  "_node": "Member",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "obj": {
+                    "_node": "Identifier",
+                    "span": {
+                      "file": "assistant.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "history"
+                  },
+                  "attr": "add"
+                },
+                "args": [
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "assistant.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": null,
+                    "value": {
+                      "_node": "Member",
+                      "span": {
+                        "file": "assistant.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "obj": {
+                        "_node": "Identifier",
+                        "span": {
+                          "file": "assistant.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "name": "response"
+                      },
+                      "attr": "value"
+                    }
+                  },
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "assistant.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "role",
+                    "value": {
+                      "_node": "StringLit",
+                      "span": {
+                        "file": "assistant.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "value": "assistant",
+                      "triple": false
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "_node": "YieldStmt",
+              "span": {
+                "file": "assistant.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Member",
+                "span": {
+                  "file": "assistant.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "obj": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "assistant.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "response"
+                },
+                "attr": "value"
+              }
+            }
+          ]
+        }
+      ],
+      "decorators": []
+    }
+  ]
+}

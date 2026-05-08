@@ -1,0 +1,2048 @@
+{
+  "_node": "Program",
+  "span": {
+    "file": "research.voss",
+    "lines": [
+      0,
+      0
+    ],
+    "cols": [
+      0,
+      0
+    ],
+    "synthetic": false
+  },
+  "body": [
+    {
+      "_node": "AgentDecl",
+      "span": {
+        "file": "research.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "Researcher",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "topic",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "research.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "string"
+          ]
+        },
+        "generics": [],
+        "kwargs": []
+      },
+      "options": {
+        "_node": "AgentOptions",
+        "span": {
+          "file": "research.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "system": {
+          "_node": "StringLit",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "value": "You are a research analyst. Summarize key findings concisely.",
+          "triple": false
+        },
+        "tools": {
+          "_node": "ListLit",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "items": [
+            {
+              "_node": "Identifier",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "webSearch"
+            }
+          ]
+        },
+        "model": null,
+        "retries": null,
+        "memory": null
+      },
+      "body": [
+        {
+          "_node": "CtxBlock",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "budget": {
+            "_node": "BudgetArg",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "budget",
+            "unit": "tokens",
+            "value": 2000,
+            "raw": "2000 tokens"
+          },
+          "body": [
+            {
+              "_node": "LetStmt",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "results",
+              "type_annot": null,
+              "value": {
+                "_node": "Call",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "callee": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "webSearch"
+                },
+                "args": [
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": null,
+                    "value": {
+                      "_node": "Identifier",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "name": "topic"
+                    }
+                  },
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "max_results",
+                    "value": {
+                      "_node": "IntLit",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "value": 5
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "_node": "IncludeStmt",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "results"
+              }
+            },
+            {
+              "_node": "YieldStmt",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Call",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "callee": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "ask"
+                },
+                "args": [
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": null,
+                    "value": {
+                      "_node": "BinOp",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "op": "+",
+                      "left": {
+                        "_node": "StringLit",
+                        "span": {
+                          "file": "research.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "value": "Summarize the key findings on: ",
+                        "triple": false
+                      },
+                      "right": {
+                        "_node": "Identifier",
+                        "span": {
+                          "file": "research.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "name": "topic"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "decorators": []
+    },
+    {
+      "_node": "AgentDecl",
+      "span": {
+        "file": "research.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "Synthesizer",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "reports",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "list"
+              ]
+            },
+            "generics": [
+              {
+                "_node": "TypeRef",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": {
+                  "_node": "QualName",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "parts": [
+                    "string"
+                  ]
+                },
+                "generics": [],
+                "kwargs": []
+              }
+            ],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "research.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "string"
+          ]
+        },
+        "generics": [],
+        "kwargs": []
+      },
+      "options": {
+        "_node": "AgentOptions",
+        "span": {
+          "file": "research.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "system": {
+          "_node": "StringLit",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "value": "You synthesize research into executive summaries.",
+          "triple": false
+        },
+        "tools": null,
+        "model": null,
+        "retries": null,
+        "memory": null
+      },
+      "body": [
+        {
+          "_node": "CtxBlock",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "budget": {
+            "_node": "BudgetArg",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "budget",
+            "unit": "tokens",
+            "value": 4000,
+            "raw": "4000 tokens"
+          },
+          "body": [
+            {
+              "_node": "IncludeStmt",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "reports"
+              }
+            },
+            {
+              "_node": "YieldStmt",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Call",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "callee": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "ask"
+                },
+                "args": [
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": null,
+                    "value": {
+                      "_node": "StringLit",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "value": "Write a unified executive summary of these research reports.",
+                      "triple": false
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "decorators": []
+    },
+    {
+      "_node": "FnDecl",
+      "span": {
+        "file": "research.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "runResearch",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "company",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "research.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "string"
+          ]
+        },
+        "generics": [],
+        "kwargs": []
+      },
+      "body": [
+        {
+          "_node": "LetStmt",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "topics",
+          "type_annot": null,
+          "value": {
+            "_node": "ListLit",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "items": [
+              {
+                "_node": "BinOp",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "op": "+",
+                "left": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "company"
+                },
+                "right": {
+                  "_node": "StringLit",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": " market position",
+                  "triple": false
+                }
+              },
+              {
+                "_node": "BinOp",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "op": "+",
+                "left": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "company"
+                },
+                "right": {
+                  "_node": "StringLit",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": " recent news",
+                  "triple": false
+                }
+              },
+              {
+                "_node": "BinOp",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "op": "+",
+                "left": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "company"
+                },
+                "right": {
+                  "_node": "StringLit",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": " competitors",
+                  "triple": false
+                }
+              },
+              {
+                "_node": "BinOp",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "op": "+",
+                "left": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "company"
+                },
+                "right": {
+                  "_node": "StringLit",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": " financials",
+                  "triple": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "_node": "LetStmt",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "researchers",
+          "type_annot": null,
+          "value": {
+            "_node": "Call",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "callee": {
+              "_node": "Member",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "obj": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "topics"
+              },
+              "attr": "map"
+            },
+            "args": [
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": null,
+                "value": {
+                  "_node": "Lambda",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "params": [
+                    {
+                      "_node": "Param",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "name": "t",
+                      "type_annot": null,
+                      "default": null
+                    }
+                  ],
+                  "body": {
+                    "_node": "SpawnExpr",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "agent": {
+                      "_node": "Call",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "callee": {
+                        "_node": "Identifier",
+                        "span": {
+                          "file": "research.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "name": "Researcher"
+                      },
+                      "args": [
+                        {
+                          "_node": "Arg",
+                          "span": {
+                            "file": "research.voss",
+                            "lines": [
+                              0,
+                              0
+                            ],
+                            "cols": [
+                              0,
+                              0
+                            ],
+                            "synthetic": false
+                          },
+                          "name": null,
+                          "value": {
+                            "_node": "Identifier",
+                            "span": {
+                              "file": "research.voss",
+                              "lines": [
+                                0,
+                                0
+                              ],
+                              "cols": [
+                                0,
+                                0
+                              ],
+                              "synthetic": false
+                            },
+                            "name": "t"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "_node": "LetStmt",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "reports",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "list"
+              ]
+            },
+            "generics": [
+              {
+                "_node": "TypeRef",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": {
+                  "_node": "QualName",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "parts": [
+                    "string"
+                  ]
+                },
+                "generics": [],
+                "kwargs": []
+              }
+            ],
+            "kwargs": []
+          },
+          "value": {
+            "_node": "Call",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "callee": {
+              "_node": "Identifier",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "gather"
+            },
+            "args": [
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": null,
+                "value": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "researchers"
+                }
+              },
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "timeout",
+                "value": {
+                  "_node": "BudgetArg",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "",
+                  "unit": "s",
+                  "value": 60,
+                  "raw": "60s"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "_node": "WithinFallback",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "budget_args": [
+            {
+              "_node": "BudgetArg",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "tokens",
+              "unit": "tokens",
+              "value": 5000,
+              "raw": "5000"
+            },
+            {
+              "_node": "BudgetArg",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "latency",
+              "unit": "s",
+              "value": 10,
+              "raw": "10s"
+            }
+          ],
+          "primary": [
+            {
+              "_node": "LetStmt",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "synth",
+              "type_annot": null,
+              "value": {
+                "_node": "SpawnExpr",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "agent": {
+                  "_node": "Call",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "callee": {
+                    "_node": "Identifier",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "Synthesizer"
+                  },
+                  "args": [
+                    {
+                      "_node": "Arg",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "name": null,
+                      "value": {
+                        "_node": "Identifier",
+                        "span": {
+                          "file": "research.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "name": "reports"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "_node": "ReturnStmt",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Index",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "obj": {
+                  "_node": "Call",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "callee": {
+                    "_node": "Identifier",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "gather"
+                  },
+                  "args": [
+                    {
+                      "_node": "Arg",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "name": null,
+                      "value": {
+                        "_node": "ListLit",
+                        "span": {
+                          "file": "research.voss",
+                          "lines": [
+                            0,
+                            0
+                          ],
+                          "cols": [
+                            0,
+                            0
+                          ],
+                          "synthetic": false
+                        },
+                        "items": [
+                          {
+                            "_node": "Identifier",
+                            "span": {
+                              "file": "research.voss",
+                              "lines": [
+                                0,
+                                0
+                              ],
+                              "cols": [
+                                0,
+                                0
+                              ],
+                              "synthetic": false
+                            },
+                            "name": "synth"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "index": {
+                  "_node": "IntLit",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": 0
+                }
+              }
+            }
+          ],
+          "fallback": [
+            {
+              "_node": "ReturnStmt",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Call",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "callee": {
+                  "_node": "Member",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "obj": {
+                    "_node": "Identifier",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "reports"
+                  },
+                  "attr": "join"
+                },
+                "args": [
+                  {
+                    "_node": "Arg",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": null,
+                    "value": {
+                      "_node": "StringLit",
+                      "span": {
+                        "file": "research.voss",
+                        "lines": [
+                          0,
+                          0
+                        ],
+                        "cols": [
+                          0,
+                          0
+                        ],
+                        "synthetic": false
+                      },
+                      "value": "\n---\n",
+                      "triple": false
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "decorators": []
+    },
+    {
+      "_node": "ExprStmt",
+      "span": {
+        "file": "research.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "expr": {
+        "_node": "Call",
+        "span": {
+          "file": "research.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "callee": {
+          "_node": "Identifier",
+          "span": {
+            "file": "research.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "print"
+        },
+        "args": [
+          {
+            "_node": "Arg",
+            "span": {
+              "file": "research.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": null,
+            "value": {
+              "_node": "Call",
+              "span": {
+                "file": "research.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "callee": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "research.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "runResearch"
+              },
+              "args": [
+                {
+                  "_node": "Arg",
+                  "span": {
+                    "file": "research.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": null,
+                  "value": {
+                    "_node": "StringLit",
+                    "span": {
+                      "file": "research.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "value": "Anthropic",
+                    "triple": false
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,604 @@
+{
+  "_node": "Program",
+  "span": {
+    "file": "classify.voss",
+    "lines": [
+      0,
+      0
+    ],
+    "cols": [
+      0,
+      0
+    ],
+    "synthetic": false
+  },
+  "body": [
+    {
+      "_node": "FnDecl",
+      "span": {
+        "file": "classify.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "classifyIntent",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "classify.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "input",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "classify.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "classify.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "classify.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "classify.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "string"
+          ]
+        },
+        "generics": [],
+        "kwargs": []
+      },
+      "body": [
+        {
+          "_node": "LetStmt",
+          "span": {
+            "file": "classify.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "intent",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "classify.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "classify.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "probable"
+              ]
+            },
+            "generics": [
+              {
+                "_node": "TypeRef",
+                "span": {
+                  "file": "classify.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": {
+                  "_node": "QualName",
+                  "span": {
+                    "file": "classify.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "parts": [
+                    "string"
+                  ]
+                },
+                "generics": [],
+                "kwargs": []
+              }
+            ],
+            "kwargs": []
+          },
+          "value": {
+            "_node": "Call",
+            "span": {
+              "file": "classify.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "callee": {
+              "_node": "Identifier",
+              "span": {
+                "file": "classify.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "ask"
+            },
+            "args": [
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "classify.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": null,
+                "value": {
+                  "_node": "BinOp",
+                  "span": {
+                    "file": "classify.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "op": "+",
+                  "left": {
+                    "_node": "StringLit",
+                    "span": {
+                      "file": "classify.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "value": "Classify the intent: ",
+                    "triple": false
+                  },
+                  "right": {
+                    "_node": "Identifier",
+                    "span": {
+                      "file": "classify.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "name": "input"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "_node": "IfStmt",
+          "span": {
+            "file": "classify.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "condition": {
+            "_node": "ConfidenceGate",
+            "span": {
+              "file": "classify.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "target": {
+              "_node": "Identifier",
+              "span": {
+                "file": "classify.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "intent"
+            },
+            "op": ">=",
+            "threshold": 0.8
+          },
+          "then_body": [
+            {
+              "_node": "ReturnStmt",
+              "span": {
+                "file": "classify.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "Member",
+                "span": {
+                  "file": "classify.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "obj": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "classify.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "intent"
+                },
+                "attr": "value"
+              }
+            }
+          ],
+          "else_body": [
+            {
+              "_node": "ReturnStmt",
+              "span": {
+                "file": "classify.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": {
+                "_node": "StringLit",
+                "span": {
+                  "file": "classify.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "value": "unknown",
+                "triple": false
+              }
+            }
+          ]
+        }
+      ],
+      "decorators": []
+    },
+    {
+      "_node": "LetStmt",
+      "span": {
+        "file": "classify.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "result",
+      "type_annot": null,
+      "value": {
+        "_node": "Call",
+        "span": {
+          "file": "classify.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "callee": {
+          "_node": "Identifier",
+          "span": {
+            "file": "classify.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "classifyIntent"
+        },
+        "args": [
+          {
+            "_node": "Arg",
+            "span": {
+              "file": "classify.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": null,
+            "value": {
+              "_node": "StringLit",
+              "span": {
+                "file": "classify.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": "I want to cancel my subscription",
+              "triple": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_node": "ExprStmt",
+      "span": {
+        "file": "classify.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "expr": {
+        "_node": "Call",
+        "span": {
+          "file": "classify.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "callee": {
+          "_node": "Identifier",
+          "span": {
+            "file": "classify.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "print"
+        },
+        "args": [
+          {
+            "_node": "Arg",
+            "span": {
+              "file": "classify.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": null,
+            "value": {
+              "_node": "Identifier",
+              "span": {
+                "file": "classify.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "result"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
