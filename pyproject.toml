@@ -34,7 +34,7 @@ voss = "voss.cli:main"
 
 [tool.setuptools]
 packages = ["voss_runtime", "voss"]
-package-data = { "voss" = ["grammar.lark", "py.typed"] }
+package-data = { "voss" = ["grammar.lark", "py.typed", "templates/init/*"] }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

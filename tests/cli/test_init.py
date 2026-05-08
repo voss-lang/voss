@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+import importlib.resources
+from pathlib import Path
+
+import pytest
+from click.testing import CliRunner
+
+from voss import parse
+from voss.cli import main
+
+
+_LINGUIST_LINE = "*.voss linguist-language=Voss linguist-detectable=true"
+_SCAFFOLD_FILES = (".gitattributes", ".gitignore", "pyproject.toml", "README.md", "hello.voss")
+
+
+def test_init_creates_minimal_project_scaffold():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(main, ["init", "my-project"])
+        assert result.exit_code == 0, result.output
+        target = Path("my-project")
+        for name in _SCAFFOLD_FILES:
+            assert (target / name).exists(), name
+        assert _LINGUIST_LINE in (target / ".gitattributes").read_text()
+
+
+def test_init_hello_voss_parses():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(main, ["init", "proj"])
+        assert result.exit_code == 0, result.output
+        hello = Path("proj/hello.voss")
+        parse(hello.read_text(), file=str(hello))
+
+
+def test_init_refuses_non_empty_directory_without_force():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        target = Path("target")
+        target.mkdir()
+        sentinel = target / "keep.txt"
+        sentinel.write_text("keep me")
+        result = runner.invoke(main, ["init", "target"])
+        assert result.exit_code != 0
+        assert sentinel.read_text() == "keep me"
+
+
+def test_init_force_allows_existing_directory_without_deleting_unrelated_files():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        target = Path("target")
+        target.mkdir()
+        unrelated = target / "keep.txt"
+        unrelated.write_text("keep me")
+        result = runner.invoke(main, ["init", "--force", "target"])
+        assert result.exit_code == 0, result.output
+        assert unrelated.read_text() == "keep me"
+        for name in _SCAFFOLD_FILES:
+            assert (target / name).exists(), name
+
+
+def test_init_writes_only_under_target_directory():
+    runner = CliRunner()
+    with runner.isolated_filesystem() as fs:
+        result = runner.invoke(main, ["init", "isolated"])
+        assert result.exit_code == 0, result.output
+        fs_root = Path(fs)
+        top = {p.name for p in fs_root.iterdir()}
+        # Only the target directory should appear at the runner root.
+        assert top == {"isolated"}, top
+
+
+def test_init_templates_are_package_resources():
+    template_root = importlib.resources.files("voss").joinpath("templates/init")
+    for name in _SCAFFOLD_FILES:
+        assert template_root.joinpath(name).is_file(), name

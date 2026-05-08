@@ -1,0 +1,8 @@
+[project]
+name = "my-voss-project"
+version = "0.1.0"
+description = "A Voss project."
+requires-python = ">=3.11"
+dependencies = [
+    "voss",
+]
