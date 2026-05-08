@@ -11,14 +11,18 @@ from .ast_nodes import (
     Arg,
     BinOp,
     BoolLit,
+    BudgetArg,
     Call,
     ClassDecl,
+    ConfidenceGate,
+    CtxBlock,
     DictLit,
     ExprStmt,
     FloatLit,
     FnDecl,
     Identifier,
     IfStmt,
+    IncludeStmt,
     Index,
     IntLit,
     Lambda,
@@ -35,10 +39,14 @@ from .ast_nodes import (
     SpawnExpr,
     Stmt,
     StringLit,
+    TryCatch,
     TypeExpr,
+    TypeKwarg,
     TypeRef,
     UnaryOp,
     UseStmt,
+    WithinFallback,
+    YieldStmt,
 )
 from .diagnostics import AnalysisResult
 
@@ -163,6 +171,13 @@ def _mangle(name: str) -> str:
     return _MANGLER.mangle(name)
 
 
+_MEMORY_CLASSES = {
+    "episodic": "EpisodicMemory",
+    "semantic": "SemanticMemory",
+    "working": "WorkingMemory",
+}
+
+
 class TypeEmitter:
     __slots__ = ("imports",)
 
@@ -202,6 +217,7 @@ class TypeEmitter:
 @dataclass(slots=True)
 class ExpressionEmitter:
     generated_fns: frozenset[str] = field(default_factory=frozenset)
+    current_ctx_name: str | None = None
 
     def emit(self, expr: Node, *, await_context: bool = False) -> str:
         if isinstance(expr, IntLit):
@@ -253,7 +269,7 @@ class ExpressionEmitter:
             return f"lambda: {body}"
         if isinstance(expr, SpawnExpr):
             agent_name = self.emit(expr.agent.callee, await_context=False)
-            args = [self._emit_arg(a, await_context=False) for a in expr.agent.args]
+            args = [self.emit_arg(a, await_context=False) for a in expr.agent.args]
             return f"{agent_name}().spawn({', '.join(args)})"
         raise CodegenError(
             f"unsupported AST node for codegen: {type(expr).__name__}"
@@ -266,8 +282,16 @@ class ExpressionEmitter:
         return text
 
     def _emit_call(self, call: Call, *, await_context: bool) -> str:
+        if (
+            isinstance(call.callee, Identifier)
+            and call.callee.name == "ask"
+            and self.current_ctx_name is not None
+        ):
+            arg_texts = [self.emit_arg(a, await_context=await_context) for a in call.args]
+            return f"await {self.current_ctx_name}.ask({', '.join(arg_texts)})"
+
         callee_text = self.emit(call.callee, await_context=await_context)
-        arg_texts = [self._emit_arg(a, await_context=await_context) for a in call.args]
+        arg_texts = [self.emit_arg(a, await_context=await_context) for a in call.args]
         text = f"{callee_text}({', '.join(arg_texts)})"
         if (
             await_context
@@ -277,29 +301,62 @@ class ExpressionEmitter:
             text = f"await {text}"
         return text
 
-    def _emit_arg(self, arg: Arg, *, await_context: bool) -> str:
+    def emit_arg(self, arg: Arg, *, await_context: bool) -> str:
         value = self.emit(arg.value, await_context=await_context)
         if arg.name is None:
             return value
         return f"{_mangle(arg.name)}={value}"
 
 
+def _emit_kwarg_value(value: Node) -> str:
+    if isinstance(value, BudgetArg):
+        return repr(value.value)
+    if isinstance(value, IntLit):
+        return repr(value.value)
+    if isinstance(value, FloatLit):
+        return repr(value.value)
+    if isinstance(value, StringLit):
+        return repr(value.value)
+    if isinstance(value, BoolLit):
+        return "True" if value.value else "False"
+    if isinstance(value, NullLit):
+        return "None"
+    if isinstance(value, QualName):
+        return ".".join(_mangle(part) for part in value.parts)
+    raise CodegenError(
+        f"unsupported AST node for codegen: {type(value).__name__}"
+    )
+
+
 class StatementEmitter:
-    __slots__ = ("writer", "expr", "type")
+    __slots__ = (
+        "writer",
+        "expr",
+        "type",
+        "imports",
+        "current_ctx_name",
+        "_ctx_depth",
+        "_within_count",
+    )
 
     def __init__(
         self,
         writer: PythonWriter,
         expr_emitter: ExpressionEmitter,
         type_emitter: TypeEmitter,
+        imports: ImportCollector,
     ) -> None:
         self.writer = writer
         self.expr = expr_emitter
         self.type = type_emitter
+        self.imports = imports
+        self.current_ctx_name: str | None = None
+        self._ctx_depth = 0
+        self._within_count = 0
 
     def emit(self, stmt: Stmt) -> None:
         if isinstance(stmt, ExprStmt):
-            self.writer.write(self.expr.emit(stmt.expr, await_context=True))
+            self._emit_expr_stmt(stmt)
             return
         if isinstance(stmt, LetStmt):
             self._emit_let(stmt)
@@ -307,17 +364,90 @@ class StatementEmitter:
         if isinstance(stmt, ReturnStmt):
             self._emit_return(stmt)
             return
+        if isinstance(stmt, YieldStmt):
+            self._emit_yield(stmt)
+            return
+        if isinstance(stmt, IncludeStmt):
+            self._emit_include(stmt)
+            return
         if isinstance(stmt, IfStmt):
             self._emit_if(stmt)
             return
         if isinstance(stmt, FnDecl):
             self._emit_fn(stmt)
             return
+        if isinstance(stmt, CtxBlock):
+            self._emit_ctx(stmt)
+            return
+        if isinstance(stmt, WithinFallback):
+            self._emit_within(stmt)
+            return
+        if isinstance(stmt, TryCatch):
+            self._emit_try(stmt)
+            return
         raise CodegenError(
             f"unsupported AST node for codegen: {type(stmt).__name__}"
         )
 
+    @staticmethod
+    def _is_global_ask(expr: Node) -> bool:
+        return (
+            isinstance(expr, Call)
+            and isinstance(expr.callee, Identifier)
+            and expr.callee.name == "ask"
+        )
+
+    @staticmethod
+    def _is_probable_type(t: TypeExpr | None) -> bool:
+        return (
+            isinstance(t, TypeRef)
+            and len(t.name.parts) == 1
+            and t.name.parts[0] == "probable"
+        )
+
+    @staticmethod
+    def _is_memory_type(t: TypeExpr | None) -> bool:
+        return (
+            isinstance(t, TypeRef)
+            and len(t.name.parts) >= 1
+            and t.name.parts[0] == "memory"
+        )
+
+    def _allocate_ctx_name(self) -> str:
+        self._ctx_depth += 1
+        return "ctx" if self._ctx_depth == 1 else f"ctx_{self._ctx_depth}"
+
+    def _release_ctx_name(self) -> None:
+        self._ctx_depth -= 1
+
+    def _allocate_within_name(self) -> str:
+        self._within_count += 1
+        return (
+            "_within_primary_"
+            if self._within_count == 1
+            else f"_within_primary_{self._within_count}"
+        )
+
+    def _emit_expr_stmt(self, stmt: ExprStmt) -> None:
+        if self._is_global_ask(stmt.expr) and self.current_ctx_name is None:
+            self._wrap_implicit_ctx(
+                lambda: self._write_implicit_ask_call(stmt.expr, prefix="")
+            )
+            return
+        self.writer.write(self.expr.emit(stmt.expr, await_context=True))
+
     def _emit_let(self, stmt: LetStmt) -> None:
+        if self._is_memory_type(stmt.type_annot) and stmt.value is None:
+            self._emit_memory_let(stmt)
+            return
+        if (
+            stmt.value is not None
+            and self._is_global_ask(stmt.value)
+            and self.current_ctx_name is None
+        ):
+            self._emit_implicit_ctx_let(stmt)
+            return
+
         text = _mangle(stmt.name)
         if stmt.type_annot is not None:
             text += f": {self.type.emit(stmt.type_annot)}"
@@ -325,20 +455,98 @@ class StatementEmitter:
             text += f" = {self.expr.emit(stmt.value, await_context=True)}"
         self.writer.write(text)
 
+    def _emit_memory_let(self, stmt: LetStmt) -> None:
+        type_ref = stmt.type_annot
+        assert isinstance(type_ref, TypeRef)
+        parts = type_ref.name.parts
+        kind = parts[1] if len(parts) > 1 else "working"
+        cls = _MEMORY_CLASSES.get(kind)
+        if cls is None:
+            raise CodegenError(f"unknown memory kind: {kind}")
+        self.imports.add_runtime(cls)
+        kwargs = [
+            f"{_mangle(kw.name)}={_emit_kwarg_value(kw.value)}"
+            for kw in type_ref.kwargs
+        ]
+        self.writer.write(
+            f"{_mangle(stmt.name)} = {cls}({', '.join(kwargs)})"
+        )
+
+    def _emit_implicit_ctx_let(self, stmt: LetStmt) -> None:
+        is_probable = self._is_probable_type(stmt.type_annot)
+        if is_probable:
+            self.imports.add_runtime("ProbableValue")
+
+        def write_body() -> None:
+            ask_call = stmt.value
+            assert isinstance(ask_call, Call)
+            arg_texts = [
+                self.expr.emit_arg(a, await_context=True) for a in ask_call.args
+            ]
+            if is_probable:
+                arg_texts.append("return_type=ProbableValue")
+            annot = ""
+            if is_probable:
+                annot = ": ProbableValue"
+            elif stmt.type_annot is not None:
+                annot = f": {self.type.emit(stmt.type_annot)}"
+            self.writer.write(
+                f"{_mangle(stmt.name)}{annot} = await ctx.ask({', '.join(arg_texts)})"
+            )
+
+        self._wrap_implicit_ctx(write_body)
+
     def _emit_return(self, stmt: ReturnStmt) -> None:
+        if (
+            stmt.value is not None
+            and self._is_global_ask(stmt.value)
+            and self.current_ctx_name is None
+        ):
+            def write_body() -> None:
+                arg_texts = [
+                    self.expr.emit_arg(a, await_context=True)
+                    for a in stmt.value.args  # type: ignore[union-attr]
+                ]
+                self.writer.write(
+                    f"return await ctx.ask({', '.join(arg_texts)})"
+                )
+
+            self._wrap_implicit_ctx(write_body)
+            return
+
         if stmt.value is None:
             self.writer.write("return")
+        else:
+            value = self.expr.emit(stmt.value, await_context=True)
+            self.writer.write(f"return {value}")
+
+    def _emit_yield(self, stmt: YieldStmt) -> None:
+        if self.current_ctx_name is not None:
+            if stmt.value is None:
+                self.writer.write("return")
+            else:
+                value = self.expr.emit(stmt.value, await_context=True)
+                self.writer.write(f"return {value}")
             return
-        value = self.expr.emit(stmt.value, await_context=True)
-        self.writer.write(f"return {value}")
+        if stmt.value is None:
+            self.writer.write("yield")
+        else:
+            value = self.expr.emit(stmt.value, await_context=True)
+            self.writer.write(f"yield {value}")
+
+    def _emit_include(self, stmt: IncludeStmt) -> None:
+        if self.current_ctx_name is None:
+            raise CodegenError("include statement outside ctx block")
+        value = self.expr.emit(stmt.value, await_context=False)
+        self.writer.write(f"await {self.current_ctx_name}.add({value})")
 
     def _emit_if(self, stmt: IfStmt) -> None:
         condition = stmt.condition
-        if not isinstance(condition, (Identifier, BinOp, UnaryOp, Call, Member, Index, BoolLit)):
-            raise CodegenError(
-                f"unsupported AST node for codegen: {type(condition).__name__}"
-            )
-        cond_text = self.expr.emit(condition, await_context=True)
+        if isinstance(condition, ConfidenceGate):
+            target = self.expr.emit(condition.target, await_context=True)
+            cond_text = f"{target}.confidence {condition.op} {condition.threshold}"
+        else:
+            cond_text = self.expr.emit(condition, await_context=True)
         self.writer.write(f"if {cond_text}:")
         with self.writer.indent():
             if stmt.then_body:
@@ -377,6 +585,123 @@ class StatementEmitter:
             text += f" = {self.expr.emit(param.default, await_context=False)}"
         return text
 
+    def _emit_ctx(self, stmt: CtxBlock) -> None:
+        self.imports.add_runtime("ContextScope")
+        name = self._allocate_ctx_name()
+        budget = stmt.budget.value
+        budget_text = repr(int(budget) if isinstance(budget, int) or budget == int(budget) else budget)
+        self.writer.write(
+            f"async with ContextScope(token_budget={budget_text}) as {name}:"
+        )
+        prev_ctx = self.current_ctx_name
+        prev_expr_ctx = self.expr.current_ctx_name
+        self.current_ctx_name = name
+        self.expr.current_ctx_name = name
+        try:
+            with self.writer.indent():
+                if stmt.body:
+                    for inner in stmt.body:
+                        self.emit(inner)
+                else:
+                    self.writer.write("pass")
+        finally:
+            self.current_ctx_name = prev_ctx
+            self.expr.current_ctx_name = prev_expr_ctx
+            self._release_ctx_name()
+
+    def _emit_within(self, stmt: WithinFallback) -> None:
+        self.imports.add_runtime("BudgetExceededError")
+        self.imports.add_runtime("run_with_budget")
+        helper_name = self._allocate_within_name()
+
+        self.writer.write(f"async def {helper_name}():")
+        with self.writer.indent():
+            if stmt.primary:
+                for inner in stmt.primary:
+                    self.emit(inner)
+            else:
+                self.writer.write("pass")
+
+        kwargs = self._normalize_within_kwargs(stmt.budget_args)
+        kwargs_text = ", ".join(f"{name}={value}" for name, value in kwargs)
+        self.writer.write("try:")
+        with self.writer.indent():
+            call = f"{helper_name}()"
+            args_text = f"{call}, {kwargs_text}" if kwargs_text else call
+            self.writer.write(f"return await run_with_budget({args_text})")
+        self.writer.write("except BudgetExceededError:")
+        with self.writer.indent():
+            if stmt.fallback:
+                for inner in stmt.fallback:
+                    self.emit(inner)
+            else:
+                self.writer.write("pass")
+
+    def _normalize_within_kwargs(
+        self, args: tuple[BudgetArg, ...]
+    ) -> list[tuple[str, str]]:
+        result: list[tuple[str, str]] = []
+        for arg in args:
+            unit = arg.unit
+            if unit == "tokens":
+                result.append(("token_limit", repr(int(arg.value))))
+            elif unit == "ms":
+                result.append(("latency_ms", repr(int(arg.value))))
+            elif unit == "s":
+                result.append(("latency_ms", repr(int(arg.value * 1000))))
+            elif unit == "usd":
+                result.append(("cost_usd", repr(arg.value)))
+            else:
+                raise CodegenError(
+                    f"unsupported within budget unit: {unit!r}"
+                )
+        return result
+
+    def _emit_try(self, stmt: TryCatch) -> None:
+        self.writer.write("try:")
+        with self.writer.indent():
+            if stmt.try_body:
+                for inner in stmt.try_body:
+                    self.emit(inner)
+            else:
+                self.writer.write("pass")
+        clause = (
+            "except Exception:"
+            if stmt.exc_name is None
+            else f"except Exception as {_mangle(stmt.exc_name)}:"
+        )
+        self.writer.write(clause)
+        with self.writer.indent():
+            if stmt.catch_body:
+                for inner in stmt.catch_body:
+                    self.emit(inner)
+            else:
+                self.writer.write("pass")
+
+    def _wrap_implicit_ctx(self, write_body) -> None:
+        self.imports.add_runtime("ContextScope")
+        name = self._allocate_ctx_name()
+        self.writer.write(
+            f"async with ContextScope(token_budget=4000) as {name}:"
+        )
+        prev_ctx = self.current_ctx_name
+        prev_expr_ctx = self.expr.current_ctx_name
+        self.current_ctx_name = name
+        self.expr.current_ctx_name = name
+        try:
+            with self.writer.indent():
+                write_body()
+        finally:
+            self.current_ctx_name = prev_ctx
+            self.expr.current_ctx_name = prev_expr_ctx
+            self._release_ctx_name()
+
+    def _write_implicit_ask_call(self, call: Call, *, prefix: str) -> None:
+        arg_texts = [self.expr.emit_arg(a, await_context=True) for a in call.args]
+        self.writer.write(
+            f"{prefix}await ctx.ask({', '.join(arg_texts)})"
+        )
+
 
 _DECL_TYPES = (FnDecl, AgentDecl, PromptDecl, ClassDecl)
 
@@ -414,7 +739,9 @@ class ProgramEmitter:
         type_emitter = TypeEmitter(self.imports)
         expr_emitter = ExpressionEmitter(generated_fns=fn_names)
         body_writer = PythonWriter()
-        stmt_emitter = StatementEmitter(body_writer, expr_emitter, type_emitter)
+        stmt_emitter = StatementEmitter(
+            body_writer, expr_emitter, type_emitter, self.imports
+        )
 
         for index, decl in enumerate(decls):
             if index > 0:
