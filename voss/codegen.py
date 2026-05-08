@@ -423,10 +423,9 @@ class ExpressionEmitter:
         if isinstance(call.callee, Identifier) and call.callee.name == "gather":
             self.imports.add_runtime("gather")
             arg_texts = [self._emit_gather_arg(a) for a in call.args]
-            text = f"gather({', '.join(arg_texts)})"
             if await_context:
-                return f"await {text}"
-            return text
+                return f"await gather({', '.join(arg_texts)})"
+            return f"gather({', '.join(arg_texts)})"
 
         callee_text = self.emit(call.callee, await_context=await_context)
         arg_texts = [self.emit_arg(a, await_context=await_context) for a in call.args]
