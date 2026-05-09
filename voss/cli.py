@@ -118,10 +118,23 @@ def _compile_source(
     return target
 
 
-@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.group(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    invoke_without_command=True,
+)
 @click.version_option(__version__, prog_name="voss")
-def main() -> None:
-    """Voss compiler command-line interface."""
+@click.pass_context
+def main(ctx: click.Context) -> None:
+    """voss — compiler and agent.
+
+    Compiler verbs : compile · run · check · init · ast
+    Agent verbs    : do · chat · doctor
+
+    Bare `voss` (no subcommand) drops into the agent REPL.
+    """
+    if ctx.invoked_subcommand is None:
+        from .harness.cli import chat_cmd
+        ctx.invoke(chat_cmd, model=None, cwd_str=".", json_mode=False)
 
 
 @main.command("compile")
@@ -262,6 +275,12 @@ def ast(source: Path, normalize_spans: bool, compact: bool) -> None:
         click.echo(json.dumps(data))
     else:
         click.echo(json.dumps(data, indent=2))
+
+
+# Register agent commands (do / chat / doctor) on the unified `voss` group.
+from .harness.cli import register as _register_agent_commands  # noqa: E402
+
+_register_agent_commands(main)
 
 
 if __name__ == "__main__":
