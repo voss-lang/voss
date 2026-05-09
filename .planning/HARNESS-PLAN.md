@@ -1,8 +1,8 @@
 # Voss Coding Harness — Plan
 
 **Created:** 2026-05-08
+**Updated:** 2026-05-09 — single `voss` binary; agent verbs added to compiler CLI
 **Status:** Proposal (post-v1.0 milestone work; prerequisites land in compiler phases 1-6)
-**Codename:** `vh` (Voss Harness)
 **One-liner:** A terminal-native coding agent whose own loop is written in Voss and whose output is Voss-first.
 
 ---
@@ -22,35 +22,52 @@ This is *not* a Voss IDE. It is a CLI-first agent — a peer to `codex`, `claude
 
 ## 2. Product Surface
 
-### 2.1 Binaries
+### 2.1 Binary
 
-`pyproject.toml` ships two entry points from one repo:
+One binary, `voss`. `pyproject.toml` ships a single entry point:
 
-| Binary | Purpose |
-|---|---|
-| `voss` | Compiler / linter / runner (already specified in PRD §6). |
-| `vh` | Agent harness. Shells out to `voss` as a tool. |
+```toml
+[project.scripts]
+voss = "voss.cli:main"
+```
+
+The CLI dispatches to compiler subcommands (PRD §6) or harness subcommands. Bare `voss` with no args launches the agent REPL — the most common entry path.
 
 ### 2.2 Top-level commands
 
-```
-vh                         # launch interactive REPL (default)
-vh run "<task>"            # one-shot, prints final answer to stdout, exits
-vh edit <path>             # scoped edit session against a single file
-vh resume [<session-id>]   # rehydrate prior session from episodic snapshot
-vh sessions                # list saved sessions with timestamps + first task
-vh tools                   # list registered tools and their permission tier
-vh config                  # open ~/.config/voss/harness.toml in $EDITOR
-vh doctor                  # diagnose env: provider keys, voss compiler, cache
-vh --version
-vh --help
-```
-
-`vh run` is pipe-aware:
+Compiler verbs (PRD §6, unchanged):
 
 ```
-git diff | vh run "summarize changes for a PR description"
-vh run "rename UserToken to AuthToken across the repo" --auto
+voss compile <file.voss>           # .voss → .py
+voss run <file.voss>               # compile + execute a Voss program
+voss check <path>                  # lint without compiling
+voss init <name>                   # scaffold a new Voss project
+voss ast <file.voss>               # debug: print AST
+```
+
+Agent verbs (new):
+
+```
+voss                               # launch interactive agent REPL (default)
+voss chat                          # explicit form of bare `voss`
+voss do "<task>"                   # one-shot agent turn; prints final answer; exits
+voss edit <path>                   # scoped edit session against a single file
+voss resume [<session-id>]         # rehydrate prior session from episodic snapshot
+voss sessions                      # list saved sessions with timestamps + first task
+voss tools                         # list registered tools and their permission tier
+voss config                        # open ~/.config/voss/config.toml in $EDITOR
+voss doctor                        # diagnose env: provider keys, compiler, cache
+voss --version
+voss --help
+```
+
+**Disambiguation rule.** `voss run` is reserved for the compiler (executes a `.voss` file). The agent's one-shot is `voss do`. This keeps `voss run foo.voss` unambiguous and avoids the trap where a string task could collide with a path.
+
+`voss do` is pipe-aware:
+
+```
+git diff | voss do "summarize changes for a PR description"
+voss do "rename UserToken to AuthToken across the repo" --auto
 ```
 
 ### 2.3 Flags (global)
@@ -203,7 +220,8 @@ When stdout is piped or `--json` is set:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  vh CLI (Python entry, Click)                            │
+│  voss CLI (Python entry, Click)                          │
+│   • dispatcher: compiler verbs vs agent verbs            │
 │   • TTY renderer (rich) ─┐                               │
 │   • NDJSON renderer ─────┼─ chosen by isatty / --json   │
 │   • permission gate      ┘                               │
@@ -232,8 +250,9 @@ When stdout is piped or `--json` is set:
 │   fs.{read,write,edit,glob,grep}                         │
 │   shell.run (allowlist + cwd jail)                       │
 │   git.{status,diff,log,branch,commit}                    │
-│   ast.{search,outline}        (tree-sitter, P3+)         │
-│   voss.{compile,check,run,ast}  (self-hosting hook)      │
+│   ast.{search,outline}        (tree-sitter, H4+)         │
+│   compiler.{compile,check,run,ast} (self-hosting hook —  │
+│       calls into voss.cli compiler verbs in-process)     │
 │   net.{fetch}                 (off by default)           │
 └──────────────────────────────────────────────────────────┘
                        │ talks to
@@ -246,37 +265,50 @@ When stdout is piped or `--json` is set:
 
 ### 4.1 Repo layout
 
+The harness lives under the existing `voss/` compiler package so a single `voss.cli:main` can route both worlds:
+
 ```
-harness/
-├── __init__.py
-├── cli.py                # Click entry; vh
-├── render/
-│   ├── tty.py            # rich-based renderer
-│   ├── ndjson.py         # machine output
-│   └── theme.py          # palette + glyphs
-├── permissions.py        # allowlist, prompts, persistence
-├── sandbox.py            # cwd jail, env scrub, shell allowlist
-├── session.py            # save/load episodic snapshots
-├── adapters/
-│   ├── fs.py
-│   ├── shell.py
-│   ├── git.py
-│   ├── ast.py
-│   ├── voss.py
-│   └── net.py
-├── voss/                 # agent loop authored in Voss
-│   ├── loop.voss
-│   ├── router.voss
-│   ├── planner.voss
-│   ├── executor.voss
-│   ├── reviewer.voss
-│   └── prompts/*.voss
-└── tests/
-    ├── test_cli.py
-    ├── test_permissions.py
-    ├── test_render.py
-    └── golden/           # eval tasks (see §9)
+voss/
+├── cli.py                # Click root: dispatches compile/run/check/init/ast
+│                         # AND chat/do/edit/resume/sessions/tools/doctor.
+│                         # Bare invocation → agent REPL.
+├── grammar.lark          # (existing) compiler
+├── parser.py             # (existing)
+├── analyzer.py           # (existing)
+├── codegen.py            # (existing)
+└── harness/
+    ├── __init__.py
+    ├── repl.py           # interactive loop (`voss`, `voss chat`)
+    ├── one_shot.py       # `voss do`, pipe handling
+    ├── render/
+    │   ├── tty.py        # rich-based renderer
+    │   ├── ndjson.py     # machine output
+    │   └── theme.py      # palette + glyphs
+    ├── permissions.py    # allowlist, prompts, persistence
+    ├── sandbox.py        # cwd jail, env scrub, shell allowlist
+    ├── session.py        # save/load episodic snapshots
+    ├── adapters/
+    │   ├── fs.py
+    │   ├── shell.py
+    │   ├── git.py
+    │   ├── ast.py
+    │   ├── compiler.py   # in-process bridge to voss.cli compile/check/run
+    │   └── net.py
+    ├── agent/            # agent loop authored in Voss
+    │   ├── loop.voss
+    │   ├── router.voss
+    │   ├── planner.voss
+    │   ├── executor.voss
+    │   ├── reviewer.voss
+    │   └── prompts/*.voss
+    └── tests/
+        ├── test_cli.py
+        ├── test_permissions.py
+        ├── test_render.py
+        └── golden/       # eval tasks (see §9)
 ```
+
+The agent's own `.voss` source lives under `voss/harness/agent/`. The compiler compiles its own harness — strongest possible dogfood loop.
 
 ### 4.2 Loop sketch (Voss)
 
@@ -340,8 +372,8 @@ Hard-wins this expresses that a Python harness has to re-derive every session: b
 
 - Episodic transcript persists to `~/.local/state/voss/sessions/<uuid>.json` on `/save` or `/exit`.
 - Semantic repo index lives in `<cwd>/.voss-cache/repo.idx` (chunked source + symbols, rebuilt on git head change).
-- `vh resume <id>` reloads episodic; semantic always rebuilds if stale.
-- `vh sessions` reads the dir, prints `id · started · model · first task line`.
+- `voss resume <id>` reloads episodic; semantic always rebuilds if stale.
+- `voss sessions` reads the dir, prints `id · started · model · first task line`.
 
 ---
 
@@ -397,8 +429,9 @@ Each phase ends with a runnable demo. Each phase is independently usable.
 
 ### Phase H1 — Skeleton CLI on raw runtime *(2 weeks)*
 
-- `vh run "<task>"` works against `voss_runtime` directly (Python loop, no `.voss` source yet — compiler not ready).
-- Adapters: `fs`, `shell` (allowlist), `git`, `voss.{check,compile,run}`.
+- `voss do "<task>"` works against `voss_runtime` directly (Python loop, no `.voss` source yet — compiler not ready).
+- Bare `voss` enters REPL.
+- Adapters: `fs`, `shell` (allowlist), `git`, `compiler.{check,compile,run}` (in-process call into existing compiler verbs).
 - TTY renderer with banner, streaming, tool boxes, status line.
 - Permission prompts (one-shot allow / always / deny).
 - Episodic memory in-process; no persistence yet.
@@ -407,7 +440,7 @@ Each phase ends with a runnable demo. Each phase is independently usable.
 
 ### Phase H2 — Sessions, semantic memory, REPL polish *(2 weeks)*
 
-- Persistent sessions (`/save`, `vh resume`, `vh sessions`).
+- Persistent sessions (`/save`, `voss resume`, `voss sessions`).
 - Semantic repo index (chromadb, rebuilt on git head change).
 - Slash commands (`/model`, `/budget`, `/mode`, `/diff`, `/apply`, `/discard`, `/cost`, `/why`).
 - Diff preview + apply flow.
@@ -415,13 +448,13 @@ Each phase ends with a runnable demo. Each phase is independently usable.
 
 ### Phase H3 — Loop port to Voss *(blocked on compiler ≥ Phase 4 codegen)*
 
-- Rewrite `loop.py` → `loop.voss` + `router.voss` + `planner.voss` + `executor.voss` + `reviewer.voss`.
-- CI gate: `voss check harness/voss/` runs on every PR. If the compiler regresses on its own harness, that's a P0.
-- Boot path: `vh` invokes `voss compile harness/voss/loop.voss` lazily, caches in `.voss-cache/harness/`.
+- Rewrite Python loop → `loop.voss` + `router.voss` + `planner.voss` + `executor.voss` + `reviewer.voss` under `voss/harness/agent/`.
+- CI gate: `voss check voss/harness/agent/` runs on every PR. If the compiler regresses on its own harness, that's a P0.
+- Boot path: agent CLI verbs lazily compile `voss/harness/agent/loop.voss`, cached under `.voss-cache/harness/`.
 
 ### Phase H4 — Voss-aware authoring *(after H3)*
 
-- Project scaffolds: `vh init <name>` produces a Voss project skeleton.
+- Project scaffolds: `voss init <name>` (existing compiler verb) extended with agent-aware templates.
 - `voss check` surfaced inline after every `.voss` edit; diagnostics fed back to the model on failure.
 - `ast.search` tool backed by tree-sitter Voss grammar (PRD Phase 6 dependency).
 - Templates: classifier, support bot, research swarm — each lifted from PRD §7.
@@ -433,10 +466,10 @@ Each phase ends with a runnable demo. Each phase is independently usable.
 
 ### Phase H6 — Distribution *(after H5)*
 
-- `pip install voss-harness` (or single combined `voss[harness]` extra).
-- Homebrew tap: `brew install voss/tap/vh`.
+- `pip install voss` ships compiler + harness as one package. Optional `voss[lite]` extra omits sentence-transformers/chromadb for users who only want the compiler.
+- Homebrew tap: `brew install voss/tap/voss`.
 - Single static binary via PyInstaller for users without Python 3.11 toolchain.
-- MCP bridge: `vh serve --mcp` exports Voss-defined `@tool`s to other harnesses (Claude Code, Cursor).
+- MCP bridge: `voss serve --mcp` exports Voss-defined `@tool`s to other harnesses (Claude Code, Cursor).
 
 ---
 
@@ -483,9 +516,9 @@ Track three numbers per nightly run: pass rate, mean cost-to-pass, mean reported
 
 ### Open questions (flag, do not silently decide)
 
-1. Should `vh` require a Voss project (presence of `voss.toml`), or work in any directory? Default: any directory. Voss-specific tools no-op gracefully outside a project.
+1. Should the agent require a Voss project (presence of `voss.toml`), or work in any directory? Default: any directory. Voss-specific tools no-op gracefully outside a project.
 2. Should we ship a built-in `web.search` tool? Pro: agents need facts. Con: every harness ships a different one; users have preferences. Default: off, document MCP integration as the path.
-3. How should multi-turn `vh edit <file>` differ from REPL? Proposal: same loop, but the file is auto-included in every `ctx` block and writes outside the file are denied unless promoted.
+3. How should multi-turn `voss edit <file>` differ from REPL? Proposal: same loop, but the file is auto-included in every `ctx` block and writes outside the file are denied unless promoted.
 4. Telemetry consent UX. Default off, but where does the prompt live? Proposal: first run only, single y/N, stored in config.
 
 ---
@@ -494,10 +527,10 @@ Track three numbers per nightly run: pass rate, mean cost-to-pass, mean reported
 
 The harness is shipping when:
 
-- A new user runs `pip install voss-harness && vh` and reaches a working agent in under 60 seconds (provider key already in env).
+- A new user runs `pip install voss && voss` and reaches a working agent in under 60 seconds (provider key already in env).
 - The agent loop is authored in `.voss`, compiled by the project's own compiler, and `voss check` is clean.
 - All five golden eval tasks pass at ≥ 80% success rate with mean cost < $0.05/task.
-- A non-trivial Voss program (the support bot from PRD §7.2 plus episodic memory plus an escalation agent) can be authored end-to-end through `vh` in a single session, in under 60 lines of Voss, with no manual edits afterward.
+- A non-trivial Voss program (the support bot from PRD §7.2 plus episodic memory plus an escalation agent) can be authored end-to-end through `voss` in a single session, in under 60 lines of Voss, with no manual edits afterward.
 - The CLI passes the "looks like Codex/Claude/Pi" smell test on a fresh terminal: clean banner, monochrome-friendly, single accent, no emoji clutter, status line that doesn't lie about cost.
 
 ---
@@ -535,7 +568,7 @@ Provider SDKs, sentence-transformers, and chromadb already come from the compile
 
 1. Land compiler Phase 1 runtime (already shipped).
 2. Land compiler Phases 2-5 (parser, analyzer, codegen, CLI) per existing roadmap.
-3. **H1** — skeleton CLI on raw runtime; `vh run` happy path.
+3. **H1** — skeleton CLI on raw runtime; `voss do` and bare-`voss` REPL happy path.
 4. **H2** — sessions, semantic memory, REPL polish.
 5. Land compiler Phase 6 examples validation; gate H3 on it.
 6. **H3** — port loop to `.voss`; CI gate locks dogfooding.
@@ -543,4 +576,4 @@ Provider SDKs, sentence-transformers, and chromadb already come from the compile
 8. **H5** — eval suite and telemetry.
 9. **H6** — distribution + MCP bridge.
 
-The harness becomes the compiler's hardest user. Every regression in the language shows up in `vh` first.
+The harness becomes the compiler's hardest user. Every regression in the language shows up in `voss` first.

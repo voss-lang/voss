@@ -3,7 +3,7 @@
   "displayName": "Voss",
   "description": "Voss language support: syntax highlighting and file icons.",
   "version": "0.0.1",
-  "publisher": "voss-lang",
+  "publisher": "bm9797",
   "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"
@@ -19,7 +19,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/voss-lang/voss"
+    "url": "https://github.com/bm9797/Voss"
   },
   "contributes": {
     "languages": [
