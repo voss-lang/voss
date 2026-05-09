@@ -1,0 +1,43 @@
+---
+source: crates/voss-providers/tests/anthropic_request_snapshot.rs
+expression: body
+---
+{
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "content": "what is 2+2?",
+      "role": "user"
+    }
+  ],
+  "model": "claude-sonnet-4-5",
+  "system": [
+    {
+      "text": "You are Claude Code, Anthropic's official CLI for Claude.",
+      "type": "text"
+    },
+    {
+      "text": "Be terse.",
+      "type": "text"
+    }
+  ],
+  "temperature": 0.20000000298023224,
+  "tool_choice": {
+    "name": "submit_response",
+    "type": "tool"
+  },
+  "tools": [
+    {
+      "description": "Return the final structured response.",
+      "input_schema": {
+        "properties": {
+          "x": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "name": "submit_response"
+    }
+  ]
+}
