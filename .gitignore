@@ -13,3 +13,12 @@ chroma/
 # Clipboard/screenshot artifacts dropped into workspace by tools.
 clipboard-*
 screenshot-*
+
+# NDJSON artifacts/logs.
+*.nd.json
+*.ndjson
+nd.json
+
+# Local Rust/insta NDJSON snapshots.
+crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap
+crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap.new
