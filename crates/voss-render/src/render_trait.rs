@@ -1,8 +1,8 @@
-//! Renderer trait shared by all 3 impls.
+//! Renderer trait shared by all 3 impls. Plan/ToolCall live in voss-agent
+//! and are passed through as primitive views (`PlanStepView`) so this crate
+//! does not need to depend on voss-agent (cycle prevention).
 
 use std::path::Path;
-
-use voss_agent::Plan;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ToolState {
@@ -21,11 +21,25 @@ impl ToolState {
     }
 }
 
+/// View into a single Plan step. Lives in voss-render so voss-render does
+/// not need to depend on voss-agent (where Plan/ToolCall are defined).
+pub struct PlanStepView<'a> {
+    pub name: &'a str,
+    pub args: &'a serde_json::Value,
+    pub why: &'a str,
+}
+
 pub trait Render: Send {
     fn banner(&mut self, model: &str, cwd: &Path, git_status: &str);
     fn show_user(&mut self, task: &str);
     fn show_thinking(&mut self, label: &str);
-    fn show_plan(&mut self, plan: &Plan, cost_usd: f64);
+    fn show_plan(
+        &mut self,
+        rationale: &str,
+        steps: &[PlanStepView<'_>],
+        confidence: f32,
+        cost_usd: f64,
+    );
     fn show_tool_call(
         &mut self,
         name: &str,
