@@ -9,7 +9,14 @@ license.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
+voss-agent = { path = "../voss-agent" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-thiserror = { workspace = true }
+crossterm = { workspace = true }
+is-terminal = { workspace = true }
 anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true, features = ["json"] }
+tempfile = { workspace = true }
