@@ -8,3 +8,9 @@ build/
 .voss-cache/
 chroma/
 .env
+
+# Clipboard/screenshot artifacts dropped into workspace by tools.
+clipboard-*.png
+clipboard-*.jpg
+clipboard-*.jpeg
+screenshot-*.png
