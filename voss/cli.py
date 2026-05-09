@@ -134,7 +134,7 @@ def main(ctx: click.Context) -> None:
     """
     if ctx.invoked_subcommand is None:
         from .harness.cli import chat_cmd
-        ctx.invoke(chat_cmd, model=None, cwd_str=".", json_mode=False)
+        ctx.invoke(chat_cmd, model=None, cwd_str=".", json_mode=False, mode="edit")
 
 
 @main.command("compile")

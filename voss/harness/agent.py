@@ -16,12 +16,15 @@ from pydantic import BaseModel, Field
 
 from voss_runtime import (
     ContextScope,
+    EpisodicMemory,
     ProbableValue,
     ToolDescriptor,
     get_config,
 )
 from voss_runtime.providers import get as get_provider
+from voss_runtime.providers.base import ModelProvider
 
+from .permissions import PermissionGate
 from .render import Renderer
 
 # ---------------------------------------------------------------------------
@@ -103,6 +106,9 @@ async def run_turn(
     confidence_threshold: float = 0.60,
     token_budget: int = 60_000,
     model: str | None = None,
+    provider: ModelProvider | None = None,
+    history: EpisodicMemory | None = None,
+    permissions: PermissionGate | None = None,
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -120,16 +126,30 @@ async def run_turn(
     """
     cfg = get_config()
     model = model or cfg.default_model
-    provider = get_provider(model)
+    if provider is None:
+        provider = get_provider(model)
+
+    history_block = ""
+    if history is not None:
+        recent = history.last(6)
+        if recent:
+            history_block = "\n\nRecent conversation:\n" + "\n".join(
+                f"{m.get('role', 'user')}: {m.get('content', '')}" for m in recent
+            )
 
     user_prompt = (
         f"Task:\n{task}\n\n"
         f"Working directory: {cwd}\n\n"
-        f"Available tools:\n{_format_tools(tools)}\n"
+        f"Available tools:\n{_format_tools(tools)}{history_block}\n"
     )
 
+    if history is not None:
+        history.add(task, role="user")
+
     renderer.show_thinking("planning")
-    async with ContextScope(token_budget=token_budget, model=model) as _ctx:
+    async with ContextScope(
+        token_budget=token_budget, model=model, provider=provider
+    ) as _ctx:
         resp = await provider.complete(
             messages=[
                 {"role": "system", "content": PLAN_SYSTEM},
@@ -159,12 +179,19 @@ async def run_turn(
         )
 
     # Execute steps sequentially. Phase H3 will lower this to `gather(spawn ...)`.
+    gate = permissions or PermissionGate(auto_yes=True)
     results: list[str] = []
     for i, step in enumerate(plan.steps):
         td = tools.get(step.name)
         if td is None:
             results.append(f"<error: unknown tool {step.name!r}>")
             renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
+            continue
+        allowed, why = gate.check(step.name, step.args)
+        if not allowed:
+            text = f"<denied: {why}>"
+            renderer.show_tool_call(step.name, step.args, text, "error")
+            results.append(text)
             continue
         renderer.show_tool_call(step.name, step.args, "running…", "pending")
         try:
@@ -181,6 +208,18 @@ async def run_turn(
     final = plan.final_when_done or "(no final answer)"
     for i, r in enumerate(results):
         final = final.replace(f"{{{{step_{i}}}}}", r)
+
+    if history is not None:
+        history.add(final, role="assistant")
+
+    total_tokens = resp.prompt_tokens + resp.completion_tokens
+    ctx_pct = total_tokens / token_budget if token_budget else 0.0
+    renderer.status(
+        model=model,
+        tokens=total_tokens,
+        cost_usd=resp.cost_usd,
+        ctx_pct=ctx_pct,
+    )
 
     return TurnResult(
         plan=plan,

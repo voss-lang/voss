@@ -103,10 +103,19 @@ class TtyRenderer:
         self.console.print(
             f"\n  [dim]confidence {confidence:.2f} · ${cost_usd:.4f}[/dim]"
         )
+        self.console.print()
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
-        line = f"─ {model} · {tokens:,} tok · ${cost_usd:.3f} · ctx {ctx_pct:.0%} "
-        line += "─" * max(0, self.console.width - len(line))
+        cost_color = "red" if cost_usd > 1.0 else "dim"
+        ctx_color = "yellow" if ctx_pct > 0.8 else "dim"
+        line = (
+            f"─ {model} · {tokens:,} tok · "
+            f"[{cost_color}]${cost_usd:.3f}[/{cost_color}] · "
+            f"[{ctx_color}]ctx {ctx_pct:.0%}[/{ctx_color}] "
+        )
+        # rich strip ansi for length calc -> use raw approximation
+        approx_len = sum(1 for _ in line)
+        line += "─" * max(0, self.console.width - approx_len)
         self.console.print(f"[dim]{line}[/dim]")
 
 
