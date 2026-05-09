@@ -103,16 +103,99 @@ def register_stub(default_response: str) -> Iterator[StubProvider]:
         reset_config()
 
 
-def _sitecustomize_source(default_response: str) -> str:
+def _sitecustomize_source(default_response: str, *, extra: str = "") -> str:
     """Return Python source for a sitecustomize that registers StubProvider."""
     escaped = default_response.replace("\\", "\\\\").replace('"', '\\"')
-    return (
+    base = (
         "import voss_runtime\n"
         "from voss_runtime import StubProvider, configure\n"
         f'_stub = StubProvider(default_response="{escaped}")\n'
         'voss_runtime.providers.register("__stub__", _stub)\n'
         'configure(default_model="__stub__")\n'
     )
+    if extra:
+        return base + "\n" + extra + "\n"
+    return base
+
+
+SUPPORT_FAKE_INDEX_SITECUSTOMIZE = """
+import numpy as _np
+import voss.analyzer as _voss_analyzer
+import voss_runtime.semantic as _voss_semantic
+
+
+class _SupportFakeIndexBuilder:
+    model = "fake-embedding-model"
+
+    def build_cases(self, cases):
+        embeds = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        return [
+            {"label": label, "description": desc, "embedding": list(embeds[i])}
+            for i, (desc, label) in enumerate(cases)
+        ]
+
+
+_voss_analyzer.SemanticMatcherIndexBuilder = _SupportFakeIndexBuilder
+
+
+def _support_text_to_vec(text):
+    t = (text or "").lower()
+    if any(k in t for k in ("angry", "frustrated", "upset", "furious", "fix it", "fix this")):
+        return [1.0, 0.0, 0.0]
+    if any(k in t for k in ("refund", "money back", "cancel subscription", "cancel")):
+        return [0.0, 1.0, 0.0]
+    if any(k in t for k in ("log in", "login", "password", "locked")):
+        return [0.0, 0.0, 1.0]
+    return [0.0, 0.0, 0.0]
+
+
+def _support_fake_encode(self, texts):
+    return _np.asarray([_support_text_to_vec(t) for t in texts], dtype=_np.float32)
+
+
+_voss_semantic.SemanticMatcher._encode = _support_fake_encode
+_voss_semantic.SemanticMatcher._ensure_encoder = lambda self: None
+"""
+
+
+def install_support_fake_encoder_in_process() -> None:
+    """Patch ``SemanticMatcher`` and ``SemanticMatcherIndexBuilder`` in this process.
+
+    Mirrors :data:`SUPPORT_FAKE_INDEX_SITECUSTOMIZE` so the in-process raw
+    Python oracle can run without downloading sentence-transformers models.
+    """
+    import numpy as np
+
+    import voss.analyzer as voss_analyzer
+    import voss_runtime.semantic as voss_semantic
+
+    class _Builder:
+        model = "fake-embedding-model"
+
+        def build_cases(self, cases):
+            embeds = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+            return [
+                {"label": label, "description": desc, "embedding": list(embeds[i])}
+                for i, (desc, label) in enumerate(cases)
+            ]
+
+    voss_analyzer.SemanticMatcherIndexBuilder = _Builder
+
+    def _vec(text: str) -> list[float]:
+        t = (text or "").lower()
+        if any(k in t for k in ("angry", "frustrated", "upset", "furious", "fix it", "fix this")):
+            return [1.0, 0.0, 0.0]
+        if any(k in t for k in ("refund", "money back", "cancel subscription", "cancel")):
+            return [0.0, 1.0, 0.0]
+        if any(k in t for k in ("log in", "login", "password", "locked")):
+            return [0.0, 0.0, 1.0]
+        return [0.0, 0.0, 0.0]
+
+    def _fake_encode(self, texts):
+        return np.asarray([_vec(t) for t in texts], dtype=np.float32)
+
+    voss_semantic.SemanticMatcher._encode = _fake_encode
+    voss_semantic.SemanticMatcher._ensure_encoder = lambda self: None
 
 
 def deterministic_subprocess_env(
@@ -120,6 +203,7 @@ def deterministic_subprocess_env(
     default_response: str,
     *,
     base_env: dict[str, str] | None = None,
+    extra_sitecustomize: str = "",
 ) -> dict[str, str]:
     """Build an env dict that forces child processes onto a StubProvider.
 
@@ -131,7 +215,9 @@ def deterministic_subprocess_env(
     """
     stub_dir = tmp_path / "_voss_stub"
     stub_dir.mkdir(parents=True, exist_ok=True)
-    (stub_dir / "sitecustomize.py").write_text(_sitecustomize_source(default_response))
+    (stub_dir / "sitecustomize.py").write_text(
+        _sitecustomize_source(default_response, extra=extra_sitecustomize)
+    )
 
     env = dict(base_env if base_env is not None else os.environ)
     existing = env.get("PYTHONPATH", "")
