@@ -1,0 +1,47 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/voss-cli",
+    "crates/voss-agent",
+    "crates/voss-providers",
+    "crates/voss-auth",
+    "crates/voss-tools",
+    "crates/voss-render",
+    "crates/voss-bridge",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "0.8"
+anyhow = "1"
+thiserror = "1"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+dirs = "5"
+directories = "5"
+is-terminal = "0.4"
+crossterm = "0.28"
+regex = "1"
+walkdir = "2"
+globset = "0.4"
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Dev-deps
+insta = "1"
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+wiremock = "0.6"

@@ -1,0 +1,32 @@
+[package]
+name = "voss-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "voss-cli"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+voss-agent = { path = "../voss-agent" }
+voss-providers = { path = "../voss-providers" }
+voss-auth = { path = "../voss-auth" }
+voss-tools = { path = "../voss-tools" }
+voss-render = { path = "../voss-render" }
+voss-bridge = { path = "../voss-bridge" }
+clap = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
+tempfile = { workspace = true }
