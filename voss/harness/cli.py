@@ -294,7 +294,49 @@ def _print_slash_help() -> None:
     )
 
 
-AGENT_COMMANDS = (do_cmd, chat_cmd, doctor_cmd)
+@click.command("sessions")
+def sessions_cmd() -> None:
+    """List saved agent sessions."""
+    records = session_store.list_sessions()
+    if not records:
+        click.echo("(no sessions)")
+        return
+    for r in records:
+        click.echo(
+            f"  {r.id[:8]}  {r.updated_at}  {r.model:<28}  {r.first_task()}"
+        )
+
+
+@click.command("resume")
+@click.argument("session_id_or_name")
+@click.option(
+    "--mode",
+    type=click.Choice(["plan", "edit", "auto"]),
+    default="edit",
+    help="Permission tier.",
+)
+@click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+def resume_cmd(session_id_or_name: str, mode: str, json_mode: bool) -> None:
+    """Resume a saved session by id-prefix or name."""
+    _detect_provider_or_die()
+    try:
+        record, history = session_store.load(session_id_or_name)
+    except (FileNotFoundError, ValueError) as e:
+        click.echo(f"resume failed: {e}", err=True)
+        sys.exit(1)
+    cwd = Path(record.cwd)
+    if record.model:
+        configure(default_model=record.model)
+    _run_repl(
+        cwd=cwd,
+        json_mode=json_mode,
+        mode=mode,
+        history=history,
+        record=record,
+    )
+
+
+AGENT_COMMANDS = (do_cmd, chat_cmd, doctor_cmd, sessions_cmd, resume_cmd)
 
 
 def register(group: click.Group) -> None:
