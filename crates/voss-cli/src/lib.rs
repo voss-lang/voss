@@ -87,6 +87,8 @@ pub async fn run<I: IntoIterator<Item = OsString>>(argv: I) -> ExitCode {
             }
         }
         Cmd::Doctor => cli::doctor::run_doctor(),
+        Cmd::Sessions => cli::sessions::run_sessions(),
+        Cmd::Resume { id } => cli::resume::run_resume(&id),
         _ => {
             eprintln!("voss-cli: unimplemented (later wave)");
             ExitCode::from(2)
