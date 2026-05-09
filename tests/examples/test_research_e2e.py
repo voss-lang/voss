@@ -44,27 +44,19 @@ _builtins.webSearch = webSearch
 
 
 def _import_generated_module(path: Path, *, name: str) -> object:
-    """Import a generated module, exposing ``webSearch`` via builtins first.
+    """Import a generated module with a ``webSearch`` ToolDescriptor in scope.
 
-    The generated research module references ``webSearch`` in a class body
-    (``tools = (webSearch,)``), so the name must resolve at module load time.
+    The generated research module references ``webSearch`` at module load time
+    (``tools = (webSearch,)``), so we seed the module dict before execution.
     """
-    import builtins
-
     from examples.raw_python.research import web_search
 
-    builtins.webSearch = web_search
-    try:
-        spec = importlib.util.spec_from_file_location(name, path)
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[name] = module
-        spec.loader.exec_module(module)
-    finally:
-        try:
-            del builtins.webSearch
-        except AttributeError:
-            pass
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    module.__dict__["webSearch"] = web_search
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
     return module
 
 
