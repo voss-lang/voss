@@ -9,7 +9,22 @@ license.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
+voss-bridge = { path = "../voss-bridge" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-thiserror = { workspace = true }
+schemars = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 anyhow = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+walkdir = { workspace = true }
+globset = { workspace = true }
+dirs = { workspace = true }
+shlex = "1"
+toml = "0.8"
+
+[dev-dependencies]
+voss-agent = { path = "../voss-agent" }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["full", "test-util"] }

@@ -1,2 +1,7 @@
-//! voss-tools — Phase 7 stub.
-pub fn version() -> &'static str { env!("CARGO_PKG_VERSION") }
+//! voss-tools — sandbox + tool registry.
+
+pub mod sandbox;
+
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
