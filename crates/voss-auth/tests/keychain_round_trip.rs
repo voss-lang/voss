@@ -21,6 +21,7 @@ mod mac {
     }
 
     #[test]
+    #[ignore = "writes to macOS Keychain — may prompt; run manually with `cargo test -- --ignored`"]
     fn keychain_round_trip() {
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let svc = unique_service();

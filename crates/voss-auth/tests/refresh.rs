@@ -24,9 +24,9 @@ fn with_temp_home<F: FnOnce()>(f: F) {
         Some(p) => std::env::set_var("HOME", p),
         None => std::env::remove_var("HOME"),
     }
-    match prev_svc {
-        Some(p) => std::env::set_var("VOSS_KEYCHAIN_SERVICE", p),
-        None => std::env::remove_var("VOSS_KEYCHAIN_SERVICE"),
+    match prev_dis {
+        Some(p) => std::env::set_var("VOSS_DISABLE_KEYCHAIN", p),
+        None => std::env::remove_var("VOSS_DISABLE_KEYCHAIN"),
     }
     if let Err(e) = res {
         std::panic::resume_unwind(e);
