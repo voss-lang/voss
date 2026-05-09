@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: Phase 6 planned
-last_updated: "2026-05-08T18:04:01Z"
+milestone: v1.1
+milestone_name: "| # | Phase | Goal | HARN IDs | Blocking Dependency |"
+status: verifying
+last_updated: "2026-05-09T19:50:15.375Z"
 progress:
-  total_phases: 6
-  completed_phases: 0
+  total_phases: 12
+  completed_phases: 1
   total_plans: 31
-  completed_plans: 0
-  percent: 0
+  completed_plans: 12
+  percent: 39
 ---
 
 # State: Voss
@@ -55,3 +55,5 @@ See: `.planning/PROJECT.md` (updated 2026-05-07)
 
 ---
 *Last updated: 2026-05-08*
+
+**Planned Phase:** 07 (rust-port) — 9 plans — 2026-05-09T19:50:15.365Z
