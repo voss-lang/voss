@@ -9,7 +9,20 @@ license.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
+voss-auth = { path = "../voss-auth" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-thiserror = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
 anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+voss-agent = { path = "../voss-agent" }
+schemars = { workspace = true }
+wiremock = { workspace = true }
+insta = { workspace = true, features = ["json"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["full", "test-util"] }
