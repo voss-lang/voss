@@ -1,11 +1,9 @@
-//! Plain renderer for non-TTY pipe targets. Mirrors `voss/harness/render.py::PlainRenderer`.
+//! Plain renderer. Mirrors `voss/harness/render.py::PlainRenderer`.
 
 use std::io::Write;
 use std::path::Path;
 
-use voss_agent::Plan;
-
-use crate::render_trait::{Render, ToolState};
+use crate::render_trait::{PlanStepView, Render, ToolState};
 
 pub struct PlainRender<W: Write + Send = std::io::Stderr, S: Write + Send = std::io::Stdout> {
     pub stderr: W,
@@ -32,12 +30,17 @@ impl<W: Write + Send, S: Write + Send> Render for PlainRender<W, S> {
         let _ = writeln!(self.stderr, "... {label}");
     }
 
-    fn show_plan(&mut self, plan: &Plan, _cost: f64) {
+    fn show_plan(
+        &mut self,
+        _rationale: &str,
+        steps: &[PlanStepView<'_>],
+        confidence: f32,
+        _cost: f64,
+    ) {
         let _ = writeln!(
             self.stderr,
-            "plan: {} steps, conf={:.2}",
-            plan.steps.len(),
-            plan.confidence
+            "plan: {} steps, conf={confidence:.2}",
+            steps.len()
         );
     }
 

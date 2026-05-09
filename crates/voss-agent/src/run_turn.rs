@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use voss_providers::{CompleteRequest, Message, ModelProvider};
-use voss_render::Render;
+use voss_render::{PlanStepView, Render};
 use voss_tools::Tool;
 
 use crate::episodic::EpisodicMemory;
@@ -165,7 +165,22 @@ pub async fn run_turn(
             &resp.text[..resp.text.len().min(300)]
         ),
     };
-    renderer.show_plan(&plan, resp.cost_usd);
+    let step_args: Vec<serde_json::Value> = plan
+        .steps
+        .iter()
+        .map(|s| serde_json::Value::Object(s.args.clone()))
+        .collect();
+    let step_views: Vec<PlanStepView> = plan
+        .steps
+        .iter()
+        .zip(step_args.iter())
+        .map(|(s, a)| PlanStepView {
+            name: &s.name,
+            args: a,
+            why: &s.why,
+        })
+        .collect();
+    renderer.show_plan(&plan.rationale, &step_views, plan.confidence, resp.cost_usd);
 
     let confidence = plan.confidence;
     if confidence < cfg.confidence_threshold {

@@ -1,7 +1,29 @@
 use std::path::PathBuf;
 
 use voss_agent::{Plan, ToolCall};
-use voss_render::{NdjsonRender, Render, ToolState};
+use voss_render::{NdjsonRender, PlanStepView, Render, ToolState};
+
+fn step_views<'a>(
+    steps: &'a [ToolCall],
+    args: &'a [serde_json::Value],
+) -> Vec<PlanStepView<'a>> {
+    steps
+        .iter()
+        .zip(args.iter())
+        .map(|(s, a)| PlanStepView {
+            name: &s.name,
+            args: a,
+            why: &s.why,
+        })
+        .collect()
+}
+
+fn plan_args(plan: &Plan) -> Vec<serde_json::Value> {
+    plan.steps
+        .iter()
+        .map(|s| serde_json::Value::Object(s.args.clone()))
+        .collect()
+}
 
 fn capture<F: FnOnce(&mut NdjsonRender<Vec<u8>>)>(f: F) -> String {
     let mut r = NdjsonRender { out: Vec::new() };
@@ -41,7 +63,9 @@ fn ndjson_plan() {
         open_question: None,
         final_when_done: "done".into(),
     };
-    insta::assert_snapshot!(capture(|r| r.show_plan(&plan, 0.0)));
+    let args = plan_args(&plan);
+    let views = step_views(&plan.steps, &args);
+    insta::assert_snapshot!(capture(|r| r.show_plan(&plan.rationale, &views, plan.confidence, 0.0)));
 }
 
 #[test]
@@ -83,7 +107,9 @@ fn every_event_has_v_field() {
             open_question: None,
             final_when_done: "".into(),
         };
-        r.show_plan(&plan, 0.0);
+        let args = plan_args(&plan);
+        let views = step_views(&plan.steps, &args);
+        r.show_plan(&plan.rationale, &views, plan.confidence, 0.0);
         r.show_tool_call("fs_read", &serde_json::json!({}), "ok", ToolState::Ok);
         r.show_clarify("q", 0.4);
         r.show_final("a", 0.9, 0.0);

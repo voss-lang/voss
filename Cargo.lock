@@ -2053,10 +2053,17 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "futures",
  "schemars",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "voss-providers",
+ "voss-render",
+ "voss-tools",
 ]
 
 [[package]]

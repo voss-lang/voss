@@ -1,13 +1,11 @@
-//! TTY renderer. Mirrors `voss/harness/render.py::TtyRenderer` shape, but
-//! outputs raw ANSI escapes via crossterm rather than going through `rich`.
+//! TTY renderer.
 
 use std::io::{Stdout, Write};
 use std::path::Path;
 
 use crossterm::terminal::size;
-use voss_agent::Plan;
 
-use crate::render_trait::{Render, ToolState};
+use crate::render_trait::{PlanStepView, Render, ToolState};
 use crate::status_line;
 
 pub struct TtyRender {
@@ -64,12 +62,18 @@ impl Render for TtyRender {
         let _ = writeln!(self.out, "  … {label}");
     }
 
-    fn show_plan(&mut self, plan: &Plan, _: f64) {
-        let _ = writeln!(self.out, "\n  Plan (confidence {:.2})", plan.confidence);
-        if !plan.rationale.is_empty() {
-            let _ = writeln!(self.out, "  {}", plan.rationale);
+    fn show_plan(
+        &mut self,
+        rationale: &str,
+        steps: &[PlanStepView<'_>],
+        confidence: f32,
+        _cost: f64,
+    ) {
+        let _ = writeln!(self.out, "\n  Plan (confidence {confidence:.2})");
+        if !rationale.is_empty() {
+            let _ = writeln!(self.out, "  {rationale}");
         }
-        for s in &plan.steps {
+        for s in steps {
             if s.why.is_empty() {
                 let _ = writeln!(self.out, "  • {}", s.name);
             } else {
@@ -109,8 +113,7 @@ impl Render for TtyRender {
     }
 
     fn status(&mut self, model: &str, tokens: usize, cost: f64, ctx_pct: f32) {
-        // D-08: end-of-turn only. The agent loop calls status() once after the
-        // final answer in TTY mode and never in --json mode.
+        // D-08: end-of-turn only.
         let line = status_line::format(model, tokens, cost, ctx_pct, term_width());
         let _ = writeln!(self.out, "{line}");
     }

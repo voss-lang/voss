@@ -8,7 +8,7 @@ pub mod tty;
 
 pub use ndjson::{NdjsonRender, PROTOCOL_VERSION};
 pub use plain::PlainRender;
-pub use render_trait::{Render, ToolState};
+pub use render_trait::{PlanStepView, Render, ToolState};
 pub use tty::TtyRender;
 
 pub fn version() -> &'static str {

@@ -5,9 +5,8 @@ use std::io::Write;
 use std::path::Path;
 
 use serde_json::json;
-use voss_agent::Plan;
 
-use crate::render_trait::{Render, ToolState};
+use crate::render_trait::{PlanStepView, Render, ToolState};
 
 pub const PROTOCOL_VERSION: u32 = 1;
 
@@ -51,16 +50,21 @@ impl<W: Write + Send> Render for NdjsonRender<W> {
         self.emit(json!({"type": "thinking", "label": label}));
     }
 
-    fn show_plan(&mut self, plan: &Plan, cost_usd: f64) {
-        let steps: Vec<_> = plan
-            .steps
+    fn show_plan(
+        &mut self,
+        _rationale: &str,
+        steps: &[PlanStepView<'_>],
+        confidence: f32,
+        cost_usd: f64,
+    ) {
+        let steps_json: Vec<_> = steps
             .iter()
             .map(|s| json!({"name": s.name, "args": s.args}))
             .collect();
         self.emit(json!({
             "type": "plan",
-            "confidence": plan.confidence,
-            "steps": steps,
+            "confidence": confidence,
+            "steps": steps_json,
             "cost_usd": cost_usd,
         }));
     }
