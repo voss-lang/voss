@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod permissions;
+pub mod session;
 
 use std::ffi::OsString;
 use std::path::PathBuf;
