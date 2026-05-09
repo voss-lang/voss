@@ -183,4 +183,151 @@
 All v1 requirements mapped. ✓
 
 ---
+
+# Milestone v1.1 — Coding Harness
+
+**Added:** 2026-05-09
+**Status:** Pending — gated on v1.0 close (Phase 6 in flight)
+**Reference:** `.planning/HARNESS-PLAN.md`
+**Codename:** none — single `voss` binary; agent verbs added to compiler CLI
+**Tracking IDs:** HARN-01..HARN-24
+
+The harness is the compiler's hardest user. The agent loop itself is authored in `.voss` and compiled by the project's own compiler. Every regression in the language shows up first in `voss` (the agent).
+
+## Phase Order — v1.1
+
+| # | Phase | Goal | HARN IDs | Blocking Dependency |
+|---|-------|------|----------|---------------------|
+| H1 | Skeleton CLI on Raw Runtime | `voss` REPL + `voss do "<task>"` one-shot working against `voss_runtime` directly (Python loop, no `.voss` source yet). TTY renderer, NDJSON mode, permission prompts, in-process episodic memory. | HARN-01..04 | v1.0 Phase 1 ✓ |
+| H2 | Sessions, Semantic Memory, REPL Polish | Persistent sessions (`voss resume`/`voss sessions`), repo semantic index (chromadb), slash commands, diff preview + apply flow. | HARN-05..09 | H1 |
+| H3 | Loop Port to Voss | Rewrite Python loop → `loop.voss` + `router.voss` + `planner.voss` + `executor.voss` + `reviewer.voss` under `voss/harness/agent/`. CI gate: `voss check voss/harness/agent/`. | HARN-10..13 | H2, v1.0 Phase 4 codegen complete |
+| H4 | Voss-Aware Authoring | `voss init` agent-aware templates, inline `voss check` after every `.voss` edit, `ast.search` tool. | HARN-14..17 | H3, v1.0 Phase 5 CLI ✓ |
+| H5 | Eval & Telemetry | Five golden tasks run nightly; track success rate, mean cost, mean confidence on success vs. fail; opt-in anonymous telemetry. | HARN-18..21 | H4 |
+| H6 | Distribution | `pip install voss` ships compiler + harness in one package; `voss[lite]` extra omits sentence-transformers/chromadb; Homebrew tap; PyInstaller binary; MCP bridge (`voss serve --mcp`). | HARN-22..24 | H5 |
+
+---
+
+### Phase H1: Skeleton CLI on Raw Runtime
+**Goal:** Bare `voss` enters interactive agent REPL; `voss do "<task>"` produces a one-shot answer; both run against `voss_runtime` directly with no `.voss` source for the loop.
+
+**Requirements:** HARN-01 (CLI entry + dispatcher), HARN-02 (TTY renderer + status line), HARN-03 (permission gate + sandbox), HARN-04 (NDJSON non-TTY mode)
+
+**Success Criteria:**
+1. `voss` (no args) launches REPL with banner; `Ctrl-D` or `/exit` quits cleanly
+2. `voss do "<task>"` runs one turn, prints final answer to stdout, exits with status 0
+3. Tool calls render as collapsed one-liners with `⏵` glyph; `--verbose` expands them
+4. Status line shows model · tokens · cost · ctx %; bell + accent flip at 90% budget
+5. `voss do --json` emits one NDJSON event per line (`text`, `tool_call`, `tool_result`, `final`) on a versioned envelope
+6. Shell allowlist + cwd jail enforced; allowlisted commands auto-approve in `edit` mode, others prompt
+
+**Cross-cutting constraints:**
+- Compiler verbs (`compile`, `run`, `check`, `init`, `ast`) must remain unchanged. Agent verbs are additions, not replacements.
+- `voss run <file.voss>` stays compiler. Agent one-shot is `voss do "<task>"`. No collision.
+- Provider abstraction reuses `voss_runtime/providers/*`; harness must not introduce a parallel provider stack.
+
+---
+
+### Phase H2: Sessions, Semantic Memory, REPL Polish
+**Goal:** Sessions persist across runs; the repo is queryable as a semantic memory; the REPL gains the slash-command surface defined in HARNESS-PLAN §2.4.
+
+**Requirements:** HARN-05 (session save/load), HARN-06 (semantic repo index), HARN-07 (slash commands), HARN-08 (diff preview + apply), HARN-09 (config file at `~/.config/voss/config.toml`)
+
+**Success Criteria:**
+1. `/save [name]` writes episodic transcript to `~/.local/state/voss/sessions/<id>.json`; `voss resume <id|name>` rehydrates it
+2. `voss sessions` lists saved sessions with `id · started · model · first task line`
+3. Semantic index lives at `<cwd>/.voss-cache/repo.idx`; rebuilds on git head change
+4. `/diff` previews pending edits in compact unified diff; `/apply` and `/discard` work
+5. `/model`, `/budget`, `/mode`, `/cost`, `/why`, `/tools`, `/clear` all work mid-session
+6. `voss config` opens config file in `$EDITOR`; project override at `.voss-cache/harness.toml`
+
+**Cross-cutting constraints:**
+- Session payloads must not contain provider API keys.
+- `.voss-cache/` is gitignored at scaffold time; never check sessions into git.
+- Semantic index rebuild must run in a background thread; cold REPL start is not blocked on it.
+
+---
+
+### Phase H3: Loop Port to Voss *(blocked on v1.0 Phase 4 codegen)*
+**Goal:** Rewrite the harness's own loop in Voss. The compiler compiles its own harness — strongest possible dogfood loop.
+
+**Requirements:** HARN-10 (`loop.voss` + `router.voss` + `planner.voss` + `executor.voss` + `reviewer.voss`), HARN-11 (`voss check` clean on `voss/harness/agent/`), HARN-12 (CI gate fails the build if compiler regresses on its own harness), HARN-13 (boot path lazily compiles `loop.voss` and caches under `.voss-cache/harness/`)
+
+**Success Criteria:**
+1. `voss/harness/agent/*.voss` exists; bare `voss` boots through compiled harness, not Python loop
+2. `voss check voss/harness/agent/` produces zero warnings on green CI
+3. CI job `harness-self-check` runs on every PR and is required to merge
+4. Cached compiled `.py` artifacts under `.voss-cache/harness/` are reused across runs; cache invalidates on `.voss` change
+
+**Cross-cutting constraints:**
+- Agent loop must use `ctx`, `BudgetScope`, `gather`, `match similar`, `ProbableValue` — no escape hatches that bypass the language.
+- Confidence calibration approach (model self-rating vs ensemble) decided in H1 spike; H3 ratifies the choice in code.
+
+---
+
+### Phase H4: Voss-Aware Authoring
+**Goal:** When the user is writing Voss, the harness uses the compiler as a real-time peer — checks every edit, surfaces diagnostics back to the model, scaffolds new projects.
+
+**Requirements:** HARN-14 (`voss init` agent-aware templates: classifier, support bot, research swarm), HARN-15 (post-edit `voss check` loop with diagnostics fed back to the model), HARN-16 (`ast.search` tool backed by tree-sitter Voss grammar), HARN-17 (templates lifted from PRD §7)
+
+**Success Criteria:**
+1. `voss init <name>` produces a working `.voss` project with sample agent + tests + `.gitattributes`
+2. After every `fs.edit` of a `.voss` file, `voss check` runs automatically; warnings injected into next model turn
+3. `ast.search(symbol="X")` returns AST positions across the project; falls back to `voss ast --json` until tree-sitter ships
+4. Three templates available at `voss init --template <classifier|support|research>`
+
+**Cross-cutting constraints:**
+- Tree-sitter grammar is post-v1 in compiler roadmap. H4 must work without it via `voss ast --json` fallback; tree-sitter upgrade is non-breaking.
+
+---
+
+### Phase H5: Eval & Telemetry
+**Goal:** Quantify the harness. Five golden tasks run nightly; track whether reported confidence correlates with success.
+
+**Requirements:** HARN-18 (golden eval suite), HARN-19 (nightly CI run), HARN-20 (cost + confidence tracking per run), HARN-21 (opt-in anonymous telemetry, off by default)
+
+**Success Criteria:**
+1. Five golden tasks (per HARNESS-PLAN §9) committed under `voss/harness/tests/golden/`
+2. Nightly GitHub Action runs evals against stub providers; pass rate ≥ 80%, mean cost-to-pass logged
+3. Correlation between reported confidence and pass/fail tracked per run; trend visible across runs
+4. Telemetry is off by default; first-run prompt asks consent; payload never includes user prompts or file contents
+
+**Cross-cutting constraints:**
+- No user content (prompts, file paths, source code) leaves the machine without explicit per-event consent.
+- Live-provider eval runs are opt-in via `--live`; default eval uses `StubProvider`.
+
+---
+
+### Phase H6: Distribution
+**Goal:** `pip install voss` works end-to-end; one binary, two extras, optional MCP bridge for cross-harness interop.
+
+**Requirements:** HARN-22 (`pip install voss` ships compiler + harness; `voss[lite]` extra omits ML deps), HARN-23 (Homebrew tap + PyInstaller single-binary), HARN-24 (`voss serve --mcp` exports `@tool`-decorated Voss functions as MCP server)
+
+**Success Criteria:**
+1. `pip install voss` from PyPI exposes both compiler verbs and agent verbs
+2. `pip install voss[lite]` works without sentence-transformers/chromadb; semantic memory + `match similar(...)` degrade gracefully
+3. `brew install voss/tap/voss` works on macOS arm64
+4. `voss serve --mcp` starts an MCP server that other harnesses (Claude Code, Cursor) can attach to and call Voss-defined tools
+
+**Cross-cutting constraints:**
+- One binary, no `vh`. CLI dispatcher in `voss.cli:main` routes both worlds.
+- Lite install must not import torch, sentence-transformers, chromadb, or transformers at import time. Lazy-load only.
+
+---
+
+## Coverage — v1.1
+
+| Phase | Requirements | Count |
+|-------|--------------|-------|
+| H1 | HARN-01..04 | 4 |
+| H2 | HARN-05..09 | 5 |
+| H3 | HARN-10..13 | 4 |
+| H4 | HARN-14..17 | 4 |
+| H5 | HARN-18..21 | 4 |
+| H6 | HARN-22..24 | 3 |
+| **Total** | HARN-01..24 | **24** |
+
+All v1.1 harness requirements mapped. Detailed design lives in `.planning/HARNESS-PLAN.md`.
+
+---
 *Roadmap created: 2026-05-07*
+*v1.1 harness milestone added: 2026-05-09*
