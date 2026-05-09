@@ -329,5 +329,72 @@ The harness is the compiler's hardest user. The agent loop itself is authored in
 All v1.1 harness requirements mapped. Detailed design lives in `.planning/HARNESS-PLAN.md`.
 
 ---
+
+# Milestone v1.2 — Rust Harness Shell
+
+**Added:** 2026-05-09
+**Status:** Planned — gated on v1.1 H1-H5 close
+**Reference:** `.planning/RUST-PORT-PLAN.md`
+**Codename:** none — single `voss` binary remains; Rust replaces Python harness shell while compiler stays Python
+**Tracking IDs:** RUST-01..RUST-32
+
+The Python harness shell (`voss/harness/`) ports to a Rust binary (`crates/voss-cli/`) for cold-start, distribution, and platform-API quality. The Voss compiler and `voss_runtime` stay Python forever; Rust subprocesses to them via a long-lived JSON-RPC bridge (`voss-bridge` crate ↔ `voss/bridge_server.py`).
+
+## Phase 7 — Rust Harness Shell
+
+**Goal:** Replace the Python harness shell with a Rust binary at parity, ship it as a single static install, and keep the Python compiler reachable through a stable bridge.
+
+**Requirements:** RUST-01..32
+
+**Success Criteria:**
+
+1. `voss --version` returns in ≤50ms cold on macOS arm64.
+2. Every Python harness test in `tests/harness/` has a Rust integration equivalent in `crates/voss-cli/tests/` and passes.
+3. Parity suite (`tests/parity/`) confirms byte-identical output between Python and Rust binaries for `--help`, `doctor`, `sessions`, and `--json` agent verbs.
+4. Live smokes pass against Anthropic OAuth and Codex OAuth subscriptions.
+5. `brew install voss/tap/voss` produces a working install where agent verbs work without Python visible to the user; compiler verbs require Python and fail with an actionable error if missing.
+6. `pip install voss` continues to work and auto-downloads the matching `voss-cli` binary on first agent verb invocation.
+7. `voss/harness/` (Python) deletable without breaking any user-visible feature; kept for one release as a fallback, then removed.
+
+**Plans:** 9 plans, waves R1-R9; full design in `.planning/RUST-PORT-PLAN.md`.
+
+| Wave | Plan | Goal | RUST IDs |
+|------|------|------|----------|
+| R1 | `07-01` | Cargo workspace, 7 crates scaffolded, `voss-bridge` ↔ `voss.bridge_server` round-trip working for `voss ast`. | RUST-01..04 |
+| R2 | `07-02` | `voss-auth` crate: Keychain (security-framework) + file fallback discovery, refresh for both Anthropic + Codex, doctor verb at parity. | RUST-05..08 |
+| R3 | `07-03` | `voss-providers`: Anthropic OAuth provider with Claude Code preamble, tool-use translation for response_format, refresh-on-401. Live smoke. | RUST-09..12 |
+| R4 | `07-04` | `voss-tools`: 9 tools ported (fs_*, shell_run, git_*, voss_*). Sandbox jail + allowlist mirror Python. | RUST-13..16 |
+| R5 | `07-05` | `voss-render` (Tty/Plain/Ndjson) + `permissions` interactive prompt + persisted always-allow. | RUST-17..20 |
+| R6 | `07-06` | `voss-cli sessions` / `voss-cli resume` + `/save` slash command; JSON wire-compatible with Python sessions. | RUST-21..23 |
+| R7 | `07-07` | `voss-agent::run_turn` parity with Python; chat REPL with line editing + slash commands + status line. | RUST-24..27 |
+| R8 | `07-08` | OpenAI OAuth provider with full Codex CLI wire format (depends on `.planning/CODEX-OAUTH-PLAN.md` Phase A fixtures). | RUST-28..30 |
+| R9 | `07-09` | Distribution: cargo-dist signed binaries, brew tap, pip dispatcher that auto-downloads + execs the Rust binary. | RUST-31..32 |
+
+**Cross-cutting constraints:**
+- The Rust binary never imports or links libpython. Compiler interaction is `std::process::Command` only.
+- Voss compiler (`voss/parser.py`, `analyzer.py`, `codegen.py`) and `voss_runtime/*` are read-only across this milestone.
+- Schema drift between Rust serde structs and Python pydantic models is a CI failure; snapshot tests enforce equivalence.
+- Anthropic / OpenAI request bodies are snapshot-tested per provider; live smokes are opt-in (`--live` / nightly) and never default in CI.
+- `voss/harness/` Python tree stays in the repo across this milestone; it is the fallback path that v1.2 keeps green and ships alongside the Rust binary.
+
+## Coverage — v1.2
+
+| Wave | Plan | RUST IDs | Count |
+|------|------|----------|-------|
+| R1 | 07-01 | RUST-01..04 | 4 |
+| R2 | 07-02 | RUST-05..08 | 4 |
+| R3 | 07-03 | RUST-09..12 | 4 |
+| R4 | 07-04 | RUST-13..16 | 4 |
+| R5 | 07-05 | RUST-17..20 | 4 |
+| R6 | 07-06 | RUST-21..23 | 3 |
+| R7 | 07-07 | RUST-24..27 | 4 |
+| R8 | 07-08 | RUST-28..30 | 3 |
+| R9 | 07-09 | RUST-31..32 | 2 |
+| **Total** | | RUST-01..32 | **32** |
+
+All v1.2 Rust port requirements mapped. Detailed design + dependency picks + risk register live in `.planning/RUST-PORT-PLAN.md`.
+
+---
 *Roadmap created: 2026-05-07*
 *v1.1 harness milestone added: 2026-05-09*
+*v1.2 Rust port milestone added: 2026-05-09*
