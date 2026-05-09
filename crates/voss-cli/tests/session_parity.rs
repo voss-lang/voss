@@ -30,6 +30,26 @@ fn pick_python() -> PathBuf {
     PathBuf::from("python3")
 }
 
+/// Format `s` as a Python single-quoted string literal with backslash + apostrophe escaped.
+fn py_str(s: &str) -> String {
+    let escaped: String = s
+        .chars()
+        .map(|c| match c {
+            '\\' => "\\\\".to_string(),
+            '\'' => "\\'".to_string(),
+            other => other.to_string(),
+        })
+        .collect();
+    format!("'{escaped}'")
+}
+
+fn restore_env(prev: Option<std::ffi::OsString>) {
+    match prev {
+        Some(p) => std::env::set_var("XDG_STATE_HOME", p),
+        None => std::env::remove_var("XDG_STATE_HOME"),
+    }
+}
+
 #[test]
 fn rust_writes_python_reads() {
     let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -37,11 +57,8 @@ fn rust_writes_python_reads() {
     let prev = std::env::var_os("XDG_STATE_HOME");
     std::env::set_var("XDG_STATE_HOME", tmp.path());
 
-    let mut rec = SessionRecord::new(
-        tmp.path(),
-        "claude-sonnet-4-5",
-        Some("rust-session"),
-    );
+    let mut rec =
+        SessionRecord::new(tmp.path(), "claude-sonnet-4-5", Some("rust-session"));
     rec.turns.push(Turn {
         role: "user".into(),
         content: "hello".into(),
@@ -55,19 +72,18 @@ fn rust_writes_python_reads() {
     let path = session::save(&mut rec).expect("save");
     assert!(path.exists());
 
+    let env_lit = py_str(&tmp.path().to_string_lossy());
+    let sid_lit = py_str(&rec.id);
     let py = format!(
-        r#"import os, sys
-os.environ['XDG_STATE_HOME'] = {env!r}
-from voss.harness import session as s
-rec, hist = s.load({sid!r})
-print(rec.id)
-print(rec.name)
-print(len(rec.turns))
-print(rec.model)
-print(rec.started_at)
-"#,
-        env = tmp.path().to_string_lossy(),
-        sid = rec.id,
+        "import os\n\
+         os.environ['XDG_STATE_HOME'] = {env_lit}\n\
+         from voss.harness import session as s\n\
+         rec, hist = s.load({sid_lit})\n\
+         print(rec.id)\n\
+         print(rec.name)\n\
+         print(len(rec.turns))\n\
+         print(rec.model)\n\
+         print(rec.started_at)\n"
     );
     let out = Command::new(pick_python())
         .args(["-c", &py])
@@ -111,20 +127,19 @@ fn python_writes_rust_reads() {
     let prev = std::env::var_os("XDG_STATE_HOME");
     std::env::set_var("XDG_STATE_HOME", tmp.path());
 
+    let env_lit = py_str(&tmp.path().to_string_lossy());
     let py = format!(
-        r#"import os
-os.environ['XDG_STATE_HOME'] = {env!r}
-from pathlib import Path
-from voss.harness import session as s
-from voss_runtime import EpisodicMemory
-rec = s.SessionRecord.new(cwd=Path('.'), model='claude-sonnet-4-5', name='py-session')
-mem = EpisodicMemory(capacity=40)
-mem.add('hi', role='user')
-mem.add('ok', role='assistant')
-s.save(rec, mem)
-print(rec.id)
-"#,
-        env = tmp.path().to_string_lossy(),
+        "import os\n\
+         os.environ['XDG_STATE_HOME'] = {env_lit}\n\
+         from pathlib import Path\n\
+         from voss.harness import session as s\n\
+         from voss_runtime import EpisodicMemory\n\
+         rec = s.SessionRecord.new(cwd=Path('.'), model='claude-sonnet-4-5', name='py-session')\n\
+         mem = EpisodicMemory(capacity=40)\n\
+         mem.add('hi', role='user')\n\
+         mem.add('ok', role='assistant')\n\
+         s.save(rec, mem)\n\
+         print(rec.id)\n"
     );
     let out = Command::new(pick_python())
         .args(["-c", &py])
@@ -157,11 +172,4 @@ print(rec.id)
     assert_eq!(rec.turns[1].content, "ok");
 
     restore_env(prev);
-}
-
-fn restore_env(prev: Option<std::ffi::OsString>) {
-    match prev {
-        Some(p) => std::env::set_var("XDG_STATE_HOME", p),
-        None => std::env::remove_var("XDG_STATE_HOME"),
-    }
 }
