@@ -15,11 +15,15 @@ from pathlib import Path
 import click
 
 from voss_runtime import EpisodicMemory, configure, get_config
+from voss_runtime.providers import LiteLLMProvider
+from voss_runtime.providers.base import ModelProvider
 
+from . import auth as auth_mod
+from . import session as session_store
 from .agent import run_turn
 from .permissions import PermissionGate, PermissionStore
+from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
-from . import session as session_store
 from .tools import make_toolset
 
 
@@ -28,13 +32,49 @@ from .tools import make_toolset
 # ---------------------------------------------------------------------------
 
 
-def _detect_provider_or_die() -> None:
-    if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")):
+AUTH_CHOICES = ("auto", "claude", "codex", "api", "none")
+
+
+def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelProvider]:
+    """Pick an auth path, build a provider for it, or exit 2."""
+    res = auth_mod.resolve(preference)
+    if res.source == "none":
         click.echo(
-            "no provider key in env. set ANTHROPIC_API_KEY or OPENAI_API_KEY.",
+            f"no usable credentials ({res.detail}). try one of:\n"
+            "  • export ANTHROPIC_API_KEY=... (or OPENAI_API_KEY)\n"
+            "  • run `claude login` (Claude Code, macOS Keychain)\n"
+            "  • run `codex login` (~/.codex/auth.json)\n"
+            "  • voss --auth=<auto|claude|codex|api>",
             err=True,
         )
         sys.exit(2)
+
+    if res.source == "claude-oauth":
+        provider: ModelProvider = AnthropicOAuthProvider(res.anthropic_oauth)  # type: ignore[arg-type]
+    elif res.source == "codex-oauth":
+        click.echo(
+            "  [warning: codex-oauth (ChatGPT subscription) is experimental — "
+            "chatgpt.com/backend-api/codex requires Codex-specific request shape "
+            "the harness doesn't fully match yet. Use --auth=api with "
+            "OPENAI_API_KEY for reliable OpenAI access.]",
+            err=True,
+        )
+        provider = OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
+        cfg = get_config()
+        if cfg.default_model.startswith("claude") or cfg.default_model == "gpt-5":
+            configure(default_model="gpt-5-codex")
+    elif res.source == "env-anthropic":
+        provider = LiteLLMProvider()
+    elif res.source in ("env-openai", "codex"):
+        if res.openai_api_key:
+            os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
+        cfg = get_config()
+        if cfg.default_model.startswith("claude"):
+            configure(default_model="gpt-4o")
+        provider = LiteLLMProvider()
+    else:
+        provider = LiteLLMProvider()
+    return res, provider
 
 
 def _git_status(cwd: Path) -> str:
@@ -76,6 +116,13 @@ def _git_status(cwd: Path) -> str:
     help="Permission tier.",
 )
 @click.option("--yes", "yes_to_all", is_flag=True, help="Skip permission prompts.")
+@click.option(
+    "--auth",
+    "auth_pref",
+    type=click.Choice(AUTH_CHOICES),
+    default="auto",
+    help="Credential source.",
+)
 def do_cmd(
     task: tuple[str, ...],
     model: str | None,
@@ -83,15 +130,16 @@ def do_cmd(
     json_mode: bool,
     mode: str,
     yes_to_all: bool,
+    auth_pref: str,
 ) -> None:
     """Run a one-shot agent task and print the final answer.
 
     Stdin (when piped) is appended to the task as additional context.
     """
-    _detect_provider_or_die()
     cwd = Path(cwd_str).resolve()
     if model:
         configure(default_model=model)
+    res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
     parts = list(task)
@@ -112,6 +160,7 @@ def do_cmd(
     )
 
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
+    click.echo(f"  [auth: {res.source} — {res.detail}]")
     renderer.show_user(text)
 
     result = asyncio.run(
@@ -121,6 +170,7 @@ def do_cmd(
             cwd=cwd,
             renderer=renderer,
             model=cfg.default_model,
+            provider=provider,
             permissions=gate,
         )
     )
@@ -142,12 +192,25 @@ def do_cmd(
     default="edit",
     help="Permission tier.",
 )
-def chat_cmd(model: str | None, cwd_str: str, json_mode: bool, mode: str) -> None:
+@click.option(
+    "--auth",
+    "auth_pref",
+    type=click.Choice(AUTH_CHOICES),
+    default="auto",
+    help="Credential source.",
+)
+def chat_cmd(
+    model: str | None,
+    cwd_str: str,
+    json_mode: bool,
+    mode: str,
+    auth_pref: str,
+) -> None:
     """Interactive agent REPL. Ctrl-D or /exit to quit."""
-    _detect_provider_or_die()
     cwd = Path(cwd_str).resolve()
     if model:
         configure(default_model=model)
+    res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
     _run_repl(
@@ -156,6 +219,8 @@ def chat_cmd(model: str | None, cwd_str: str, json_mode: bool, mode: str) -> Non
         mode=mode,
         history=EpisodicMemory(capacity=40),
         record=session_store.SessionRecord.new(cwd=cwd, model=cfg.default_model),
+        provider=provider,
+        auth_detail=f"{res.source} — {res.detail}",
     )
 
 
@@ -166,6 +231,8 @@ def _run_repl(
     mode: str,
     history: EpisodicMemory,
     record: session_store.SessionRecord,
+    provider: ModelProvider,
+    auth_detail: str = "",
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode)
@@ -176,6 +243,8 @@ def _run_repl(
     )
     total_cost = record.total_cost_usd
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
+    if auth_detail:
+        click.echo(f"  [auth: {auth_detail}]")
     if record.turns:
         click.echo(f"resumed: {record.name} ({len(record.turns)} prior turns)")
 
@@ -244,6 +313,7 @@ def _run_repl(
                     model=cfg.default_model,
                     history=history,
                     permissions=gate,
+                    provider=provider,
                 )
             )
         except Exception as e:  # noqa: BLE001
@@ -262,19 +332,41 @@ def _run_repl(
 
 @click.command("doctor")
 def doctor_cmd() -> None:
-    """Diagnose env: provider keys, runtime imports."""
-    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    has_openai = bool(os.environ.get("OPENAI_API_KEY"))
+    """Diagnose env: credentials, runtime imports, picked auth path."""
     cfg = get_config()
-    click.echo(f"default model      : {cfg.default_model}")
-    click.echo(f"ANTHROPIC_API_KEY  : {'set' if has_anthropic else 'unset'}")
-    click.echo(f"OPENAI_API_KEY     : {'set' if has_openai else 'unset'}")
+    click.echo(f"default model       : {cfg.default_model}")
+    click.echo(f"ANTHROPIC_API_KEY   : {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'unset'}")
+    click.echo(f"OPENAI_API_KEY      : {'set' if os.environ.get('OPENAI_API_KEY') else 'unset'}")
+
+    claude = auth_mod.load_anthropic_oauth()
+    if claude:
+        click.echo(
+            f"Claude Code OAuth   : found ({claude.subscription_type}, "
+            f"expires in {claude.expires_in_seconds}s)"
+        )
+    else:
+        click.echo("Claude Code OAuth   : not found")
+
+    codex = auth_mod.load_codex()
+    if codex:
+        bits = []
+        if codex.api_key:
+            bits.append("OPENAI_API_KEY")
+        if codex.access_token:
+            bits.append("OAuth tokens")
+        click.echo(f"Codex creds         : found ({codex.auth_mode}; {', '.join(bits) or 'empty'})")
+    else:
+        click.echo("Codex creds         : not found")
+
+    res = auth_mod.resolve("auto")
+    click.echo(f"--auth=auto picks   : {res.source} — {res.detail}")
+
     try:
         import voss_runtime  # noqa: F401
 
-        click.echo("voss_runtime       : importable")
+        click.echo("voss_runtime        : importable")
     except Exception as e:  # noqa: BLE001
-        click.echo(f"voss_runtime       : FAIL {e}")
+        click.echo(f"voss_runtime        : FAIL {e}")
 
 
 def _print_slash_help() -> None:
@@ -316,9 +408,20 @@ def sessions_cmd() -> None:
     help="Permission tier.",
 )
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
-def resume_cmd(session_id_or_name: str, mode: str, json_mode: bool) -> None:
+@click.option(
+    "--auth",
+    "auth_pref",
+    type=click.Choice(AUTH_CHOICES),
+    default="auto",
+    help="Credential source.",
+)
+def resume_cmd(
+    session_id_or_name: str,
+    mode: str,
+    json_mode: bool,
+    auth_pref: str,
+) -> None:
     """Resume a saved session by id-prefix or name."""
-    _detect_provider_or_die()
     try:
         record, history = session_store.load(session_id_or_name)
     except (FileNotFoundError, ValueError) as e:
@@ -327,12 +430,15 @@ def resume_cmd(session_id_or_name: str, mode: str, json_mode: bool) -> None:
     cwd = Path(record.cwd)
     if record.model:
         configure(default_model=record.model)
+    res, provider = _resolve_auth_or_die(auth_pref)
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
         mode=mode,
         history=history,
         record=record,
+        provider=provider,
+        auth_detail=f"{res.source} — {res.detail}",
     )
 
 
@@ -361,7 +467,14 @@ def main(ctx: click.Context) -> None:
     Usually invoked as `voss do` / `voss chat`. Bare invocation drops into chat.
     """
     if ctx.invoked_subcommand is None:
-        ctx.invoke(chat_cmd, model=None, cwd_str=".", json_mode=False, mode="edit")
+        ctx.invoke(
+            chat_cmd,
+            model=None,
+            cwd_str=".",
+            json_mode=False,
+            mode="edit",
+            auth_pref="auto",
+        )
 
 
 register(main)

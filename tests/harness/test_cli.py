@@ -38,9 +38,15 @@ class TestCli:
         assert "default model" in r.output
         assert "voss_runtime" in r.output
 
-    def test_do_without_provider_key_exits_2(self, monkeypatch) -> None:
+    def test_do_with_auth_none_exits_2(self, monkeypatch) -> None:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        r = CliRunner().invoke(main, ["do", "anything"])
+        r = CliRunner().invoke(main, ["do", "--auth", "none", "anything"])
         assert r.exit_code == 2
-        assert "no provider key" in r.output or "no provider key" in (r.stderr_bytes or b"").decode()
+        assert "no usable credentials" in r.output
+
+    def test_do_with_auth_api_no_env_exits_2(self, monkeypatch) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        r = CliRunner().invoke(main, ["do", "--auth", "api", "anything"])
+        assert r.exit_code == 2
