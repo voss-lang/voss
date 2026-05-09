@@ -52,24 +52,29 @@ pub fn jail_path(cwd: &Path, target: &str) -> Result<PathBuf, SandboxError> {
         Ok(c) => c,
         Err(_) => {
             // Path may not exist yet (e.g. fs_write target). Anchor to the
-            // nearest existing ancestor + remaining tail; reject if that
-            // ancestor is outside cwd.
+            // nearest existing ancestor; collect remaining components in
+            // reverse and re-append in order so we don't introduce trailing
+            // slashes (which would make `std::fs::write` think the target
+            // is a directory).
             let mut base = abs.clone();
-            let mut tail = PathBuf::new();
+            let mut tail_rev: Vec<std::ffi::OsString> = Vec::new();
             loop {
                 if base.exists() {
                     break;
                 }
                 match (base.parent(), base.file_name()) {
                     (Some(p), Some(name)) => {
-                        tail = PathBuf::from(name).join(&tail);
+                        tail_rev.push(name.to_os_string());
                         base = p.to_path_buf();
                     }
                     _ => break,
                 }
             }
-            let base_real = base.canonicalize().unwrap_or(base);
-            base_real.join(tail)
+            let mut joined = base.canonicalize().unwrap_or(base);
+            for comp in tail_rev.into_iter().rev() {
+                joined.push(comp);
+            }
+            joined
         }
     };
     if !resolved.starts_with(&cwd_real) {
