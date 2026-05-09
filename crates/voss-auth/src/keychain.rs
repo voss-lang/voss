@@ -17,10 +17,19 @@ fn account() -> String {
     std::env::var("USER").unwrap_or_else(|_| "voss".to_string())
 }
 
+/// When set to "1", all Keychain calls short-circuit. Tests use this to keep
+/// macOS from popping authentication dialogs during automated runs.
+fn disabled() -> bool {
+    std::env::var("VOSS_DISABLE_KEYCHAIN").map(|v| v == "1").unwrap_or(false)
+}
+
 #[cfg(target_os = "macos")]
 pub fn read_anthropic() -> Option<AnthropicOAuthCreds> {
     use security_framework::passwords::get_generic_password;
 
+    if disabled() {
+        return None;
+    }
     let bytes = get_generic_password(&service(), &account()).ok()?;
     parse_blob(&bytes)
 }
@@ -29,6 +38,12 @@ pub fn read_anthropic() -> Option<AnthropicOAuthCreds> {
 pub fn write_anthropic(creds: &AnthropicOAuthCreds) -> std::io::Result<()> {
     use security_framework::passwords::set_generic_password;
 
+    if disabled() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "keychain disabled by VOSS_DISABLE_KEYCHAIN",
+        ));
+    }
     let bytes = serde_json::to_vec(&serialize_blob(creds))?;
     set_generic_password(&service(), &account(), &bytes)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
@@ -37,6 +52,9 @@ pub fn write_anthropic(creds: &AnthropicOAuthCreds) -> std::io::Result<()> {
 #[cfg(target_os = "macos")]
 pub fn delete_anthropic() -> std::io::Result<()> {
     use security_framework::passwords::delete_generic_password;
+    if disabled() {
+        return Ok(());
+    }
     delete_generic_password(&service(), &account())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
 }

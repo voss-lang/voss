@@ -15,7 +15,7 @@ path = "src/lib.rs"
 [dependencies]
 voss-agent = { path = "../voss-agent" }
 voss-providers = { path = "../voss-providers" }
-voss-auth = { path = "../voss-auth" }
+voss-auth = { path = "../voss-auth", features = [] }
 voss-tools = { path = "../voss-tools" }
 voss-render = { path = "../voss-render" }
 voss-bridge = { path = "../voss-bridge" }

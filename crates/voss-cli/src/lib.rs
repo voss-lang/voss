@@ -1,3 +1,5 @@
+pub mod cli;
+
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -82,6 +84,7 @@ pub async fn run<I: IntoIterator<Item = OsString>>(argv: I) -> ExitCode {
                 }
             }
         }
+        Cmd::Doctor => cli::doctor::run_doctor(),
         _ => {
             eprintln!("voss-cli: unimplemented (later wave)");
             ExitCode::from(2)
