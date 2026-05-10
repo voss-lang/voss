@@ -19,7 +19,7 @@
 
 ---
 
-## M0: Scope Lock
+## Phase M0: Scope Lock
 
 **Goal:** Align repo and planning docs around harness-led v0.1 plus language control layer.
 
@@ -43,7 +43,7 @@
 
 ---
 
-## M1: Harness Happy Path
+## Phase M1: Harness Happy Path
 
 **Goal:** Make the harness usable on a real repo with minimal persistence.
 
@@ -81,7 +81,7 @@ voss edit <file>
 
 ---
 
-## M2: Project Cognition
+## Phase M2: Project Cognition
 
 **Goal:** Make Voss remember useful project facts.
 
@@ -120,7 +120,7 @@ voss sessions
 
 ---
 
-## M3: Language Validation
+## Phase M3: Language Validation
 
 **Goal:** Prove `.voss` is useful for real AI workflows.
 
@@ -156,7 +156,7 @@ voss run samples/classify.voss
 
 ---
 
-## M4: Voss-authored Harness Loop
+## Phase M4: Voss-authored Harness Loop
 
 **Goal:** Dogfood the language on the harness itself.
 
@@ -192,7 +192,7 @@ voss/harness/agent/
 
 ---
 
-## M5: Eval and Distribution Prep
+## Phase M5: Eval and Distribution Prep
 
 **Goal:** Measure quality and prepare shipping.
 
