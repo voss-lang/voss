@@ -10,7 +10,12 @@ ci = "github"
 # The installers to generate for each app
 installers = ["shell", "homebrew"]
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu"]
+targets = [
+  "aarch64-apple-darwin",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+]
 packages = ["voss-cli"]
 # A GitHub repo to push Homebrew formulas to
 tap = "voss-lang/homebrew-tap"
@@ -24,6 +29,13 @@ install-path = "~/.local/bin"
 install-updater = false
 # Checksums to generate for each App
 checksum = "sha256"
+# Whether to sign macOS executables
+macos-sign = true
+# cargo-dist 0.31.0 reads these GitHub secrets for macOS signing:
+# CODESIGN_CERTIFICATE, CODESIGN_CERTIFICATE_PASSWORD, CODESIGN_IDENTITY.
+# The 07-09 checkpoint also tracks the planned notarization inputs:
+# MACOS_SIGN_CERT_BASE64, MACOS_SIGN_CERT_PASSWORD, APPLE_NOTARY_USERNAME,
+# APPLE_NOTARY_PASSWORD.
 
 [dist.github-custom-runners]
 aarch64-apple-darwin = "macos-14"
