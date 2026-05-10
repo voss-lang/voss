@@ -61,6 +61,59 @@ export const features: readonly Feature[] = [
   },
 ];
 
+export const harness = {
+  tagline: "A coding harness for shipping AI.",
+  description:
+    "The Voss harness is an agent loop that lives in your terminal. Drop into any repo, give it a goal, watch it read, edit, run, and verify code. Built for AI-first developers who already pay for Claude Pro or ChatGPT — and want their subscription to do the work.",
+  pitch: [
+    "Use the Claude or ChatGPT subscription you already have. No second API bill.",
+    "Sandboxed by default. cwd jail, shell allowlist, no network surprises.",
+    "Built on the same runtime as Voss the language. Confidence-gated planning, token budgets, episodic memory — all first-class.",
+  ],
+} as const;
+
+export const harnessFeatures: readonly HarnessFeature[] = [
+  {
+    title: "Bring your own subscription",
+    body:
+      "OAuth into Claude Code or Codex CLI. The harness reuses those tokens — your Pro/Max plan covers the bill, no API key required.",
+  },
+  {
+    title: "Permission modes that match how you work",
+    body:
+      "plan (read-only), edit (read + scoped writes), or auto (allowlisted everything). Decisions persist per-project, so you grant once and ship.",
+  },
+  {
+    title: "Real tools, not toys",
+    body:
+      "fs_read, fs_glob, fs_grep, fs_write, fs_edit, shell_run with an allowlist, git_status, git_diff, and voss_check. Everything jailed to your cwd.",
+  },
+  {
+    title: "Confidence-gated planning",
+    body:
+      "Each turn produces a `ProbableValue<Plan>`. Low-confidence plans get rerolled, not executed. Same primitive Voss programs use — eat your own dog food.",
+  },
+  {
+    title: "Sessions you can resume",
+    body:
+      "Every chat persists to ~/.local/state/voss/sessions. Restart, switch machines, replay a transcript — the episodic memory comes with it.",
+  },
+  {
+    title: "Headless or interactive",
+    body:
+      "`voss do \"ship the login flow\"` for one-shots. `voss chat` for the REPL. Same agent loop either way — script it in CI or babysit it locally.",
+  },
+];
+
+export const harnessCommands: readonly CliCommand[] = [
+  { cmd: 'voss do "fix the failing tests in tests/auth/"', desc: "One-shot agent task" },
+  { cmd: "voss chat", desc: "Interactive REPL with persistent session" },
+  { cmd: "voss chat --resume <id>", desc: "Pick up where you left off" },
+  { cmd: "voss --auth=claude do ...", desc: "Force Claude Code OAuth" },
+  { cmd: "voss --auth=codex do ...", desc: "Force Codex (ChatGPT) OAuth" },
+  { cmd: "voss doctor", desc: "Verify credentials, tools, sandbox" },
+];
+
 export const cliCommands: readonly CliCommand[] = [
   { cmd: "voss init", desc: "Scaffold a new project" },
   { cmd: "voss run app.voss", desc: "Compile and execute" },
