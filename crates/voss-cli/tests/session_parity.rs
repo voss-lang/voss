@@ -57,8 +57,7 @@ fn rust_writes_python_reads() {
     let prev = std::env::var_os("XDG_STATE_HOME");
     std::env::set_var("XDG_STATE_HOME", tmp.path());
 
-    let mut rec =
-        SessionRecord::new(tmp.path(), "claude-sonnet-4-5", Some("rust-session"));
+    let mut rec = SessionRecord::new(tmp.path(), "claude-sonnet-4-5", Some("rust-session"));
     rec.turns.push(Turn {
         role: "user".into(),
         content: "hello".into(),
@@ -71,6 +70,11 @@ fn rust_writes_python_reads() {
     });
     let path = session::save(&mut rec).expect("save");
     assert!(path.exists());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(path.metadata().unwrap().permissions().mode() & 0o777, 0o600);
+    }
 
     let env_lit = py_str(&tmp.path().to_string_lossy());
     let sid_lit = py_str(&rec.id);

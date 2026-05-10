@@ -63,6 +63,7 @@ def save(record: SessionRecord, history: EpisodicMemory) -> Path:
     path = session_path(record.id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(asdict(record), indent=2))
+    path.chmod(0o600)
     return path
 
 

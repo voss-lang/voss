@@ -1,3 +1,4 @@
+import stat
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ class TestSessionRoundtrip:
         rec.total_cost_usd = 0.012
         path = ss.save(rec, history)
         assert path.exists()
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
         sessions = ss.list_sessions()
         assert len(sessions) == 1
         assert sessions[0].id == rec.id

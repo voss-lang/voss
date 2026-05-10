@@ -139,6 +139,7 @@ def _write_claude_credentials_file(blob: dict) -> bool:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(blob, indent=2))
+        path.chmod(0o600)
         return True
     except OSError:
         return False
@@ -246,6 +247,7 @@ def refresh_codex(creds: CodexCreds, *, client: Optional[httpx.Client] = None) -
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2))
+        path.chmod(0o600)
     except OSError:
         pass
     return new

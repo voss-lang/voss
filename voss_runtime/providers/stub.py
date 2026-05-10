@@ -46,6 +46,7 @@ class StubProvider:
                 "messages": messages,
                 "tools": tools,
                 "response_format": response_format,
+                "max_tokens": max_tokens,
             }
         )
         fp = self.fingerprint(messages)

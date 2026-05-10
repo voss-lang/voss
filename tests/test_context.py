@@ -45,6 +45,7 @@ async def test_ask_returns_str_by_default():
     result = await cs.ask("say hi")
     assert isinstance(result, str)
     assert result == "hello"
+    assert stub.calls[-1]["max_tokens"] == 4096
 
 
 @pytest.mark.asyncio

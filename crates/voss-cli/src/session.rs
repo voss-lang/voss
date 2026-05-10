@@ -72,7 +72,13 @@ impl SessionRecord {
         Self {
             id,
             name: name
-                .map(|n| if n.is_empty() { derived_name.clone() } else { n.to_string() })
+                .map(|n| {
+                    if n.is_empty() {
+                        derived_name.clone()
+                    } else {
+                        n.to_string()
+                    }
+                })
                 .unwrap_or(derived_name),
             cwd: resolved_cwd,
             model: model.into(),
@@ -108,7 +114,19 @@ pub fn save(record: &mut SessionRecord) -> std::io::Result<PathBuf> {
     }
     let bytes = serde_json::to_vec_pretty(record)?;
     std::fs::write(&path, bytes)?;
+    set_owner_only(&path)?;
     Ok(path)
+}
+
+#[cfg(unix)]
+fn set_owner_only(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(not(unix))]
+fn set_owner_only(_path: &Path) -> std::io::Result<()> {
+    Ok(())
 }
 
 /// Resolve by id-prefix OR exact name. Errors on ambiguity / not-found.

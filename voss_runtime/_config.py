@@ -12,6 +12,7 @@ class RuntimeConfig:
     match_threshold: float = 0.75
     cache_dir: str = ".voss-cache"
     timeout_seconds: float = 60.0
+    max_output_tokens: int = 4096
 
 
 _config = RuntimeConfig()

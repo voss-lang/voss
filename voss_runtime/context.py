@@ -14,7 +14,12 @@ Compressor = Callable[[str, int, ModelProvider], Awaitable[str]]
 async def _summarize_compress(text: str, target_tokens: int, provider: ModelProvider) -> str:
     """Default compression: ask the model to summarize down to target token count."""
     prompt = f"Summarize the following content to fit within {target_tokens} tokens, preserving key facts:\n\n{text}"
-    resp = await provider.complete(messages=[{"role": "user", "content": prompt}], model=get_config().default_model)
+    cfg = get_config()
+    resp = await provider.complete(
+        messages=[{"role": "user", "content": prompt}],
+        model=cfg.default_model,
+        max_tokens=cfg.max_output_tokens,
+    )
     return resp.text
 
 
@@ -82,7 +87,10 @@ class ContextScope:
         if return_type and not wants_probable and hasattr(return_type, "model_validate"):
             response_format = return_type
         resp = await self._provider.complete(
-            messages=messages, model=self._model, response_format=response_format
+            messages=messages,
+            model=self._model,
+            response_format=response_format,
+            max_tokens=get_config().max_output_tokens,
         )
         self.tokens_used += resp.completion_tokens
         bs = current_budget()

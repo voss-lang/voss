@@ -48,6 +48,7 @@ impl PermissionCheck for AlwaysAllow {
 pub struct TurnConfig {
     pub confidence_threshold: f32,
     pub token_budget: usize,
+    pub max_output_tokens: u32,
     pub model: String,
     pub parallel_cap: usize,
 }
@@ -57,6 +58,7 @@ impl Default for TurnConfig {
         Self {
             confidence_threshold: 0.60,
             token_budget: 60_000,
+            max_output_tokens: 4096,
             model: "claude-sonnet-4-5".into(),
             parallel_cap: 8,
         }
@@ -82,10 +84,7 @@ fn format_tools(tools: &[Arc<dyn Tool>]) -> String {
                 .map(|m| {
                     m.iter()
                         .map(|(k, v)| {
-                            let typ = v
-                                .get("type")
-                                .and_then(|x| x.as_str())
-                                .unwrap_or("any");
+                            let typ = v.get("type").and_then(|x| x.as_str()).unwrap_or("any");
                             format!("{k}: {typ}")
                         })
                         .collect::<Vec<_>>()
@@ -152,7 +151,7 @@ pub async fn run_turn(
         ],
         model: cfg.model.clone(),
         temperature: 0.2,
-        max_tokens: None,
+        max_tokens: Some(cfg.max_output_tokens),
         response_schema: Some(plan_schema),
         response_schema_name: Some("Plan".into()),
         tools: None,
@@ -198,9 +197,14 @@ pub async fn run_turn(
         });
     }
 
-    let results =
-        crate::dispatch::dispatch_steps(&plan.steps, tools, renderer, permissions, cfg.parallel_cap)
-            .await;
+    let results = crate::dispatch::dispatch_steps(
+        &plan.steps,
+        tools,
+        renderer,
+        permissions,
+        cfg.parallel_cap,
+    )
+    .await;
 
     let mut final_text = if plan.final_when_done.is_empty() {
         "(no final answer)".into()

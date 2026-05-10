@@ -158,6 +158,7 @@ async def run_turn(
             model=model,
             response_format=Plan,
             temperature=0.2,
+            max_tokens=cfg.max_output_tokens,
         )
 
     if resp.parsed is None:

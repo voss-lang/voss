@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -47,18 +48,33 @@ def _diag_to_dict(d: Any) -> dict:
     return dataclasses.asdict(d) if dataclasses.is_dataclass(d) else dict(d.__dict__)
 
 
+def _project_root(params: dict) -> Path:
+    return Path(params.get("project_root") or os.getcwd()).resolve()
+
+
+def _resolve_inside(root: Path, raw: str) -> Path:
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(root):
+        raise ValueError(f"path escapes project root: {raw}")
+    return resolved
+
+
 def _handle(req: dict) -> dict:
     method = req.get("method")
     params = req.get("params") or {}
     rid = req.get("id")
     try:
+        root = _project_root(params)
         if method == "ast":
             from voss.parser import parse
             from voss.ast_serializer import to_dict
 
-            path = params["path"]
-            src = Path(path).read_text()
-            program = parse(src, file=path)
+            path = _resolve_inside(root, params["path"])
+            src = path.read_text()
+            program = parse(src, file=str(path))
             result = {
                 "v": PROTOCOL_VERSION,
                 "program": to_dict(program, normalize_spans=bool(params.get("normalize_spans", False))),
@@ -67,10 +83,10 @@ def _handle(req: dict) -> dict:
             from voss.parser import parse
             from voss.analyzer import analyze
 
-            path = params["path"]
-            src = Path(path).read_text()
-            program = parse(src, file=path)
-            report = analyze(program, source_path=path)
+            path = _resolve_inside(root, params["path"])
+            src = path.read_text()
+            program = parse(src, file=str(path))
+            report = analyze(program, source_path=str(path))
             result = {
                 "v": PROTOCOL_VERSION,
                 "ok": report.ok,
@@ -80,14 +96,14 @@ def _handle(req: dict) -> dict:
             from voss.parser import parse
             from voss.codegen import generate_python
 
-            src_path = Path(params["path"])
+            src_path = _resolve_inside(root, params["path"])
             program = parse(src_path.read_text(), file=str(src_path))
             cg = generate_python(program, source_path=str(src_path))
-            out = params.get("output") or str(src_path.with_suffix(".py"))
-            Path(out).write_text(cg.source)
+            out_path = _resolve_inside(root, params.get("output") or str(src_path.with_suffix(".py")))
+            out_path.write_text(cg.source)
             result = {
                 "v": PROTOCOL_VERSION,
-                "output": out,
+                "output": str(out_path),
                 "ok": True,
             }
         elif method == "run":

@@ -14,7 +14,8 @@ struct CannedProvider {
 
 #[async_trait]
 impl ModelProvider for CannedProvider {
-    async fn complete(&mut self, _req: CompleteRequest) -> anyhow::Result<ProviderResponse> {
+    async fn complete(&mut self, req: CompleteRequest) -> anyhow::Result<ProviderResponse> {
+        assert_eq!(req.max_tokens, Some(4096));
         let plan_json = serde_json::to_value(&self.plan)?;
         Ok(ProviderResponse {
             text: plan_json.to_string(),
@@ -38,10 +39,7 @@ async fn high_confidence_plan_executes_steps() {
         rationale: "list files".into(),
         steps: vec![voss_agent::ToolCall {
             name: "fs_glob".into(),
-            args: serde_json::Map::from_iter([(
-                "pattern".to_string(),
-                serde_json::json!("*.txt"),
-            )]),
+            args: serde_json::Map::from_iter([("pattern".to_string(), serde_json::json!("*.txt"))]),
             why: "see files".into(),
         }],
         confidence: 0.9,
@@ -49,7 +47,9 @@ async fn high_confidence_plan_executes_steps() {
         final_when_done: "Result: {{step_0}}".into(),
     };
     let mut provider = CannedProvider { plan: plan.clone() };
-    let mut renderer = NdjsonRender { out: Vec::<u8>::new() };
+    let mut renderer = NdjsonRender {
+        out: Vec::<u8>::new(),
+    };
     let mut perms = AlwaysAllow;
     let mut history = EpisodicMemory::new(40);
 
@@ -88,7 +88,9 @@ async fn low_confidence_emits_clarify() {
         final_when_done: "".into(),
     };
     let mut provider = CannedProvider { plan: plan.clone() };
-    let mut renderer = NdjsonRender { out: Vec::<u8>::new() };
+    let mut renderer = NdjsonRender {
+        out: Vec::<u8>::new(),
+    };
     let mut perms = AlwaysAllow;
     let result = run_turn(
         "vague task",

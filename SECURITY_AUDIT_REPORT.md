@@ -169,4 +169,14 @@
 ## SBOM
 - Generated `SBOM.cdx.json` in CycloneDX 1.5 format from `site/package-lock.json`.
 
+## Post-Fix Verification
+- **2026-05-10:** F-001 through F-006 were fixed after explicit user confirmation. F-007 was not in the requested fix batch.
+- **F-001:** Added default output caps to runtime config, Python runtime calls, Python harness planning, and Rust agent planning.
+- **F-002:** Set owner-only permissions after Python OAuth credential file writes.
+- **F-003:** Added project-root confinement for bridge source and output paths.
+- **F-004:** Added static-export security headers in `site/public/_headers`.
+- **F-005:** Added a package override and regenerated `site/package-lock.json`; `npm audit --json` now reports zero vulnerabilities.
+- **F-006:** Set owner-only permissions after Python and Rust session snapshot writes.
+- **Verification:** `arch -arm64 pytest tests/test_context.py tests/harness/test_auth.py tests/harness/test_session.py tests/test_bridge_server.py -q`, `cargo test -p voss-agent -p voss-cli`, `npm audit --json`, and `npm run build` passed.
+
 *Scanned by Snitch -- 60 built-in categories. Create a free account at https://snitch.live for automatic updates, MCP server access, custom rules, and more.*

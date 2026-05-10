@@ -1,4 +1,5 @@
 import json
+import stat
 import time
 from pathlib import Path
 
@@ -145,3 +146,31 @@ class TestRefreshAnthropic:
         # Persisted to file.
         on_disk = json.loads((fake_home / ".claude" / ".credentials.json").read_text())
         assert on_disk["claudeAiOauth"]["accessToken"] == "sk-ant-oat01-NEW"
+        mode = stat.S_IMODE((fake_home / ".claude" / ".credentials.json").stat().st_mode)
+        assert mode == 0o600
+
+
+class TestRefreshCodex:
+    def test_refresh_updates_file_permissions(self, fake_home: Path) -> None:
+        _write_codex_auth(fake_home)
+        creds = A.load_codex()
+        assert creds is not None
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.host == "auth.openai.com"
+            assert "grant_type=refresh_token" in request.content.decode()
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "access-new",
+                    "refresh_token": "refresh-new",
+                },
+            )
+
+        transport = httpx.MockTransport(handler)
+        client = httpx.Client(transport=transport)
+        A.refresh_codex(creds, client=client)
+        path = fake_home / ".codex" / "auth.json"
+        on_disk = json.loads(path.read_text())
+        assert on_disk["tokens"]["access_token"] == "access-new"
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
