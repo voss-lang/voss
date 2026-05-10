@@ -13,6 +13,9 @@ export default function Nav() {
           </span>
         </Link>
         <nav className="flex items-center gap-6 text-sm text-[var(--muted)]">
+          <Link href="/harness" className="transition hover:text-[var(--foreground)]">
+            Harness
+          </Link>
           <Link href="/docs" className="transition hover:text-[var(--foreground)]">
             Docs
           </Link>
