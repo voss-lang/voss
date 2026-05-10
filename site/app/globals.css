@@ -22,7 +22,6 @@
   --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-display);
 }
 
 html {
@@ -81,16 +80,17 @@ pre.shiki {
 }
 
 .display {
-  font-family: var(--font-display), ui-serif, Georgia, serif;
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  line-height: 1.02;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  text-wrap: balance;
 }
 .display em,
 .display .em {
-  font-style: italic;
+  font-style: normal;
   color: var(--accent);
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .glow {
