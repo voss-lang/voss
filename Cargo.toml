@@ -15,6 +15,13 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 license = "MIT"
+repository = "https://github.com/bm9797/Voss"
+homepage = "https://github.com/bm9797/Voss"
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
+strip = true
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["full"] }

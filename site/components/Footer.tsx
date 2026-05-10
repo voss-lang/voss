@@ -12,6 +12,9 @@ export default function Footer() {
           </p>
         </div>
         <div className="flex items-center gap-6 text-sm text-[var(--muted)]">
+          <Link href="/harness" className="hover:text-[var(--foreground)]">
+            Harness
+          </Link>
           <Link href="/docs" className="hover:text-[var(--foreground)]">
             Docs
           </Link>

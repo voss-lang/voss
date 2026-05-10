@@ -17,10 +17,47 @@ export default function Home() {
         <CliShowcase />
         <CommandList />
         <InstallTabs />
+        <HarnessTeaser />
         <DocsTeaser />
       </main>
       <Footer />
     </>
+  );
+}
+
+function HarnessTeaser() {
+  return (
+    <section className="border-b border-[var(--border)]">
+      <div className="mx-auto max-w-6xl px-6 py-20">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 sm:p-14">
+          <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+            Harness
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            A coding agent that runs on your subscription.
+          </h2>
+          <p className="mt-4 max-w-2xl text-[var(--muted)]">
+            For AI-first developers shipping AI in their products. The Voss harness reuses your
+            Claude Pro or ChatGPT login, runs sandboxed in your repo, and ships features without a
+            second API bill.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/harness"
+              className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+            >
+              Meet the harness
+            </Link>
+            <Link
+              href="/harness#install"
+              className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"
+            >
+              Install
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
