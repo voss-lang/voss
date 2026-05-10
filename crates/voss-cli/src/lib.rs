@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand};
 #[command(name = "voss-cli", version)]
 struct Cli {
     #[command(subcommand)]
-    cmd: Cmd,
+    cmd: Option<Cmd>,
 }
 
 #[derive(Subcommand)]
@@ -20,24 +20,37 @@ enum Cmd {
     /// Parse a Voss source file and print its AST as JSON.
     Ast {
         source: PathBuf,
-        /// Print JSON (currently always JSON; flag accepted for parity with the Python CLI).
         #[arg(long)]
         json: bool,
-        /// Print compact (single-line) JSON.
         #[arg(long)]
         compact: bool,
     },
-    /// Stub — implemented in a later wave.
+    /// Diagnose env: credentials, runtime imports, picked auth path.
     Doctor,
-    /// Stub — implemented in a later wave.
+    /// One-shot agent invocation: run a single task and exit.
     Do {
         task: Vec<String>,
+        #[arg(long)]
+        json: bool,
+        #[arg(long, default_value = "edit")]
+        mode: String,
+        #[arg(long)]
+        yes: bool,
+        #[arg(long, default_value = "auto")]
+        auth: String,
     },
-    /// Stub — implemented in a later wave.
-    Chat,
-    /// Stub — implemented in a later wave.
+    /// Drop into the chat REPL (also the default with no subcommand).
+    Chat {
+        #[arg(long)]
+        json: bool,
+        #[arg(long, default_value = "edit")]
+        mode: String,
+        #[arg(long, default_value = "auto")]
+        auth: String,
+    },
+    /// List saved agent sessions.
     Sessions,
-    /// Stub — implemented in a later wave.
+    /// Resume a saved session by id-prefix or name.
     Resume {
         id: String,
     },
@@ -48,7 +61,6 @@ pub async fn run<I: IntoIterator<Item = OsString>>(argv: I) -> ExitCode {
         Ok(c) => c,
         Err(e) => {
             let _ = e.print();
-            // clap exits 0 for --help/--version which is correct.
             return if e.use_stderr() {
                 ExitCode::from(2)
             } else {
@@ -57,12 +69,14 @@ pub async fn run<I: IntoIterator<Item = OsString>>(argv: I) -> ExitCode {
         }
     };
 
-    match cli.cmd {
-        Cmd::Ast {
-            source,
-            json: _,
-            compact,
-        } => {
+    let cmd = cli.cmd.unwrap_or(Cmd::Chat {
+        json: false,
+        mode: "edit".into(),
+        auth: "auto".into(),
+    });
+
+    match cmd {
+        Cmd::Ast { source, json: _, compact } => {
             let bridge = match voss_bridge::PyBridge::discover() {
                 Ok(b) => b,
                 Err(e) => {
@@ -89,9 +103,26 @@ pub async fn run<I: IntoIterator<Item = OsString>>(argv: I) -> ExitCode {
         Cmd::Doctor => cli::doctor::run_doctor(),
         Cmd::Sessions => cli::sessions::run_sessions(),
         Cmd::Resume { id } => cli::resume::run_resume(&id),
-        _ => {
-            eprintln!("voss-cli: unimplemented (later wave)");
-            ExitCode::from(2)
+        Cmd::Do { task, json, mode, yes, auth } => {
+            let task_text = task.join(" ");
+            if task_text.is_empty() {
+                eprintln!("no task. usage: voss-cli do \"<task>\"");
+                return ExitCode::from(2);
+            }
+            cli::do_cmd::run_do(&task_text, json, &mode, yes, &auth).await
+        }
+        Cmd::Chat { json, mode, auth } => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let res = voss_auth::resolve(voss_auth::AuthPref::parse(&auth));
+            let mut provider = match cli::auth_to_provider::build(res) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("auth failed: {e}");
+                    return ExitCode::from(2);
+                }
+            };
+            let parsed_mode = permissions::Mode::parse(&mode).unwrap_or(permissions::Mode::Edit);
+            cli::repl::run_repl(&cwd, json, parsed_mode, provider.as_mut(), None).await
         }
     }
 }
