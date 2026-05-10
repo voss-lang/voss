@@ -15,6 +15,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 license = "MIT"
+description = "Voss compiler and agent CLI"
 repository = "https://github.com/bm9797/Voss"
 homepage = "https://github.com/bm9797/Voss"
 
