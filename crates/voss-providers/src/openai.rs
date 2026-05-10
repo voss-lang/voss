@@ -62,7 +62,9 @@ impl OpenAIOAuthProvider {
         if let Some(token) = creds.access_token.as_ref().or(creds.api_key.as_ref()) {
             h.insert(
                 "authorization",
-                format!("Bearer {token}").parse().expect("authorization header"),
+                format!("Bearer {token}")
+                    .parse()
+                    .expect("authorization header"),
             );
         }
         h.insert("accept", "text/event-stream".parse().unwrap());
@@ -177,7 +179,12 @@ impl OpenAIOAuthProvider {
 
     async fn post_once(&self, url: &str, body: &Value) -> reqwest::Result<reqwest::Response> {
         let headers = self.build_headers().await;
-        self.client.post(url).headers(headers).json(body).send().await
+        self.client
+            .post(url)
+            .headers(headers)
+            .json(body)
+            .send()
+            .await
     }
 }
 
@@ -266,9 +273,9 @@ impl ModelProvider for OpenAIOAuthProvider {
             );
         }
 
-        if content_type.starts_with("text/event-stream") {
-            let raw = resp.text().await?;
-            let (text, parsed, raw_value) = parse_sse_text(&raw);
+        let response_text = resp.text().await?;
+        if content_type.starts_with("text/event-stream") || response_text.starts_with("event: ") {
+            let (text, parsed, raw_value) = parse_sse_text(&response_text);
             return Ok(ProviderResponse {
                 text,
                 model: req.model,
@@ -280,7 +287,7 @@ impl ModelProvider for OpenAIOAuthProvider {
             });
         }
 
-        let data: Value = resp.json().await?;
+        let data: Value = serde_json::from_str(&response_text)?;
         let usage = data.get("usage").cloned().unwrap_or(Value::Null);
         let prompt_tokens = usage
             .get("input_tokens")
