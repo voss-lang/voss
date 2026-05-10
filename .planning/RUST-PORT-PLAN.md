@@ -506,6 +506,8 @@ CI matrix: macOS arm64 (primary), macOS x86_64, Linux x86_64, Linux arm64. Windo
 | `pip install voss` | PyPI | Python-only install — compiler + Python harness fallback. Detects + downloads `voss-cli` binary on first run if not present. |
 | `pipx install voss` | PyPI via pipx | Same as above; recommended for users who want isolated install. |
 
+Release signing policy: macOS signing is for Developer ID distribution outside the Mac App Store, not App Store submission. The purpose is to reduce Gatekeeper friction, bind public binaries to an identifiable Apple Developer account, and make tampering detectable alongside SHA256 release checksums. Early/internal releases may skip signing with known macOS warning friction, but public Rust-as-default releases should use Developer ID signing; notarization can be wired separately if the release channel requires Gatekeeper-clean first launch.
+
 ## 12. Performance targets
 
 | Metric | Python today | Rust target | Stretch |
@@ -530,7 +532,7 @@ If R7 closes outside these targets, profile before declaring done.
 | Anthropic / OpenAI wire formats drift | Snapshot fixtures against captured real traffic, refresh quarterly, surface clear error messages on 4xx so we notice fast. |
 | `security-framework` API surface changes between macOS versions | Pin crate version; CI runs on macOS 14, 15. |
 | Rust learning curve for contributors used to Python | Public API surface is small per crate; most contributions are tool/provider additions which follow simple patterns. README per crate. |
-| Single-binary distribution + signing | `cargo-dist` + Apple Developer ID + notarization. Document keychain setup once. |
+| Single-binary distribution + signing | `cargo-dist` + Apple Developer ID signing for public macOS binaries. This is outside-App-Store trust/integrity, not App Store submission. Notarization is separate and can be added when release channel policy requires Gatekeeper-clean first launch. Document keychain setup once. |
 
 ## 14. Effort
 
