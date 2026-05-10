@@ -1,147 +1,140 @@
-# Requirements: Voss
+# Requirements: Voss v0.1 Harness MVP
 
-**Defined:** 2026-05-07
-**Core Value:** A program that takes 300 lines of Python boilerplate around an AI workflow takes ~40 lines of Voss, and the boilerplate semantics (confidence gates, token budgets, fallbacks) are enforced by the compiler — not re-invented per project.
+**Defined:** 2026-05-10
+**Core Value:** A developer can give Voss a repo task and get bounded, inspectable, resumable AI coding work, while the most important agent logic is expressible as compiler-checkable `.voss` workflows instead of prompt soup.
+**Source:** `.vscode/voss_v_0_1_scope_lock.md`
 
-## v1 Requirements
+## v0.1 Requirements
 
-### Runtime
+### Scope Lock
 
-- [ ] **RUN-01**: `ProbableValue[T]` class with `value`, `confidence`, `gate(threshold)`, and `__matmul__` overload for `value @ 0.85` syntax
-- [ ] **RUN-02**: `ContextScope` context manager with token budget tracking, `add(content, compression)` and `ask(prompt, return_type)` methods
-- [ ] **RUN-03**: `BudgetScope` context manager enforcing token + latency + cost limits; raises `BudgetExceededError`
-- [ ] **RUN-04**: `SemanticMatcher` with sentence-transformers backend, configurable threshold, returns label of first case above threshold
-- [ ] **RUN-05**: `VossAgent` abstract base class + `AgentHandle` + async `gather(handles, timeout)` for concurrent agent execution
-- [ ] **RUN-06**: `EpisodicMemory` with capacity, `add(message, role)`, `last(n)`, auto-summarize when full
-- [ ] **RUN-07**: `SemanticMemory` backed by ChromaDB local, with `add(text, metadata)` and `retrieve(query, top_k)`
-- [ ] **RUN-08**: `WorkingMemory` scratchpad with `set/get/clear`, cleared after each ctx block
-- [ ] **RUN-09**: `@tool` decorator auto-generates JSON schema compatible with OpenAI and Anthropic tool-calling APIs
-- [ ] **RUN-10**: Multi-provider model abstraction supporting Anthropic, OpenAI, and Ollama via unified runtime interface
-- [ ] **RUN-11**: Runtime test suite covers all classes; PRD §7 examples can run as hand-written Python using runtime directly
+- [ ] **SCOPE-01**: Planning docs state that Voss v0.1 ships as an AI-native coding harness with `.voss` as the workflow control layer.
+- [ ] **SCOPE-02**: Roadmap uses M-prefixed phases (`M0` through `M5`) that match the v0.1 scope-lock document.
+- [ ] **SCOPE-03**: Planning docs clearly preserve compiler verbs separately from harness verbs.
+- [ ] **SCOPE-04**: Planning docs explicitly defer Rust, MCP bridge, tree-sitter, VSCode marketplace, Linguist upstream, and full telemetry until after the Python harness proves real usage.
 
-### Grammar
+### CLI Harness
 
-- [ ] **GRAM-01**: Lark grammar (`grammar.lark`) covers full syntax from PRD §3 (probable, ctx, within/fallback, match similar, agent, spawn/gather, memory types, @tool, prompt, try/catch, use)
-- [ ] **GRAM-02**: AST node dataclasses for every language construct
-- [ ] **GRAM-03**: Lark tree → Voss AST transformer
-- [ ] **GRAM-04**: Parser produces valid AST for all PRD §7 example programs without error
-- [ ] **GRAM-05**: Parser test suite (round-trip every example program)
+- [ ] **CLIH-01**: `voss` launches an interactive harness REPL.
+- [ ] **CLIH-02**: `voss chat` launches the same REPL explicitly.
+- [ ] **CLIH-03**: `voss do "<task>"` runs a one-shot natural-language agent task.
+- [ ] **CLIH-04**: `voss edit <path>` starts a scoped edit session for a requested path.
+- [ ] **CLIH-05**: `voss resume [id]` resumes a saved harness session.
+- [ ] **CLIH-06**: `voss sessions` lists saved sessions.
+- [ ] **CLIH-07**: `voss tools` lists registered harness tools.
+- [ ] **CLIH-08**: `voss doctor` diagnoses setup.
+- [ ] **CLIH-09**: `voss config` opens or reports harness configuration.
+- [ ] **CLIH-10**: `voss run <file.voss>` remains reserved for `.voss` programs and does not collide with natural-language task execution.
 
-### Analysis
+### Project Cognition
 
-- [ ] **ANLY-01**: Type checker emits warning when `probable<T>` is used in a context expecting `T` without an explicit confidence gate, with line numbers
-- [ ] **ANLY-02**: Token budget estimator statically warns when a `ctx` block code path likely exceeds declared budget
-- [ ] **ANLY-03**: Compile-time embedding index generator pre-computes embeddings for all `similar()` cases and stores indexes in `.voss-cache/`
+- [ ] **COG-01**: Voss creates and maintains `.voss/project.json`.
+- [ ] **COG-02**: Voss creates or updates `.voss/architecture.md` from repo analysis.
+- [ ] **COG-03**: Voss stores constraints, permissions, and validation config under `.voss/constraints.yml`, `.voss/permissions.yml`, and `.voss/validation.yml`.
+- [ ] **COG-04**: Voss stores plans under `.voss/plans/`.
+- [ ] **COG-05**: Voss stores sessions under `.voss/sessions/`.
+- [ ] **COG-06**: Voss stores decisions under `.voss/decisions/`.
+- [ ] **COG-07**: Voss uses `.voss-cache/` only for rebuildable state such as repo indexes, generated harness artifacts, and temporary files.
+- [ ] **COG-08**: Every agent run records task goal, plan, inspected files, changed files, avoided files, assumptions, decisions, risks, validation commands, failures, final diff summary, and follow-up recommendations.
 
-### Codegen
+### Controlled Execution
 
-- [ ] **GEN-01**: Codegen emits Python for every language construct (probable, ctx, within/fallback, match similar, agent, spawn/gather, memory types, @tool, prompt, try/catch, use)
-- [ ] **GEN-02**: Generated Python is readable and debuggable (not minified)
-- [ ] **GEN-03**: Voss `try/catch` codegens to Python `try/except`
-- [ ] **GEN-04**: Voss `use foo::bar` codegens to Python `import` statements with correct module resolution
-- [ ] **GEN-05**: Codegen test suite (compile → run → verify output for all example programs)
+- [ ] **CTRL-01**: Harness exposes `fs_read`, `fs_glob`, `fs_grep`, `fs_write`, and `fs_edit`.
+- [ ] **CTRL-02**: Harness exposes `shell_run` with shell allowlist and timeout controls.
+- [ ] **CTRL-03**: Harness exposes `git_status` and `git_diff`.
+- [ ] **CTRL-04**: Harness exposes `voss_check`.
+- [ ] **CTRL-05**: Execution modes `plan`, `edit`, and `auto` are available and permissioned.
+- [ ] **CTRL-06**: Tool execution is jailed to `--cwd`.
+- [ ] **CTRL-07**: Risky operations require permission prompts with deny, allow once, and allow always choices.
+- [ ] **CTRL-08**: Voss shows a diff preview before applying edits.
+- [ ] **CTRL-09**: Session payloads never include provider API keys or equivalent secrets.
 
-### CLI
+### Language Control Layer
 
-- [ ] **CLI-01**: `voss compile myprogram.voss` produces a runnable `myprogram.py`
-- [ ] **CLI-02**: `voss run myprogram.voss` compiles and executes in one step
-- [ ] **CLI-03**: `voss check myprogram.voss` lints without compiling and reports unguarded `probable<T>` usage with line numbers
-- [ ] **CLI-04**: `voss init my-project` scaffolds a new Voss project
-- [ ] **CLI-05**: `voss ast myprogram.voss` prints the AST for debugging
-- [ ] **CLI-06**: `pyproject.toml` with correct dependencies; package installable via `pip install` (locally or from GitHub)
+- [ ] **LANG-01**: `.voss` is positioned and implemented as an AI workflow control language, not a general Python replacement.
+- [ ] **LANG-02**: Parser/analyzer/codegen preserve `probable<T>` and confidence gates.
+- [ ] **LANG-03**: Parser/analyzer/codegen preserve `ctx(budget: N tokens)`.
+- [ ] **LANG-04**: Parser/analyzer/codegen preserve `within budget(...) { } fallback { }`.
+- [ ] **LANG-05**: Parser/analyzer/codegen preserve `match similar(...)`.
+- [ ] **LANG-06**: Parser/analyzer/codegen preserve `agent`, `spawn`, and `gather`.
+- [ ] **LANG-07**: Parser/analyzer/codegen preserve `memory.episodic`, `memory.semantic`, and `memory.working`.
+- [ ] **LANG-08**: Parser/analyzer/codegen preserve `@tool`, `prompt`, `try/catch`, and `use`.
+- [ ] **LANG-09**: `voss check samples/classify.voss`, `samples/support.voss`, and `samples/research.voss` pass.
+- [ ] **LANG-10**: At least one representative sample runs through `voss run` and demonstrates that `.voss` makes AI workflow code materially shorter and readable.
 
-### Tooling
+### Dogfood
 
-- [ ] **TOOL-01**: Repo-level `.gitattributes` configures GitHub Linguist for `.voss` files (`linguist-language=Voss`, `linguist-detectable=true`); pending Linguist registration, falls back to a sensible parent (e.g. Python) so files render with highlighting on GitHub
-- [ ] **TOOL-02**: `voss init` scaffolds `.gitattributes` in new projects so user repos get correct Linguist behavior automatically
-- [ ] **TOOL-03**: Repo provides language metadata (file extension `.voss`, sample programs, language color) sufficient to support a future GitHub Linguist PR; sample sources live under `samples/` for upstream submission
+- [ ] **DOG-01**: `voss/harness/agent/loop.voss` exists.
+- [ ] **DOG-02**: `voss/harness/agent/router.voss` exists.
+- [ ] **DOG-03**: `voss/harness/agent/planner.voss` exists.
+- [ ] **DOG-04**: `voss/harness/agent/executor.voss` exists.
+- [ ] **DOG-05**: `voss/harness/agent/reviewer.voss` exists.
+- [ ] **DOG-06**: `voss check voss/harness/agent/` is a CI gate.
+- [ ] **DOG-07**: Bare `voss` can boot through compiled harness logic once the dogfood loop is enabled.
+- [ ] **DOG-08**: Compiled harness artifacts cache under `.voss-cache/harness/`.
 
-### Examples
+### Eval and Distribution Prep
 
-- [ ] **EX-01**: `classify.voss` (PRD §7.1) compiles and runs end-to-end (probabilistic classification with confidence gate)
-- [ ] **EX-02**: `support.voss` (PRD §7.2) compiles and runs end-to-end (semantic routing + ctx blocks + prompt classes)
-- [ ] **EX-03**: `research.voss` (PRD §7.3) compiles and runs end-to-end (agent spawn/gather + within/fallback)
+- [ ] **EVAL-01**: Golden repo tasks exist for the canonical v0.1 demo workflow.
+- [ ] **EVAL-02**: Evaluation tracks success rate.
+- [ ] **EVAL-03**: Evaluation tracks mean cost.
+- [ ] **EVAL-04**: Evaluation tracks confidence correlation against successful and failed runs.
+- [ ] **EVAL-05**: Package install polish is verified after the Python harness loop works.
 
-## v2 Requirements
+## Future Requirements
 
-### Editor
+### Deferred Distribution
 
-- **EDIT-01**: Tree-sitter grammar for syntax highlighting
-- **EDIT-02**: VSCode extension (highlighting + snippets)
-- **EDIT-03**: LSP server for inline type errors
+- **DIST-01**: Rust harness shell for startup performance and single-binary distribution.
+- **DIST-02**: Homebrew distribution after Python harness usage is proven.
+- **DIST-03**: MCP bridge after the harness product loop is proven.
 
-### Linguist Upstream
+### Deferred Editor and Ecosystem
 
-- **LING-01**: Submit Voss to github-linguist/linguist registry (languages.yml entry + sample) for native GitHub support
-- **LING-02**: Once accepted, drop `.gitattributes` override and rely on native detection
+- **EDIT-01**: Tree-sitter grammar.
+- **EDIT-02**: VSCode marketplace release.
+- **LING-01**: GitHub Linguist upstream PR.
 
-### Distribution
+### Deferred Product Surface
 
-- **DIST-01**: Public PyPI release with marketing/onboarding polish
-- **DIST-02**: Public README with quickstart targeting external users
-
-### Memory-augmented Examples
-
-- **EX2-01**: `assistant.voss` (PRD §7.4) memory-augmented assistant compiles and runs
+- **TEAM-01**: Cloud sync.
+- **TEAM-02**: Team collaboration.
+- **TEAM-03**: Account system.
+- **WEB-01**: Web UI.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Native compilation (LLVM, Wasm) | Python target sufficient for v1; AI ecosystem lives in Python |
-| Targets other than Python (TypeScript, etc.) | Same as above |
-| Standard library beyond AI primitives | Use Python interop |
-| Package manager | Use pip |
-| Debugger | Generated Python is readable; debug via standard Python tools |
-| Multi-process / distributed agents | v1 is asyncio only |
-| Fine-tuning / training integrations | v1 is inference only |
+| Full Python language parity | v0.1 is a harness plus AI workflow control layer, not a Python replacement |
+| Native LLVM/Wasm compilation | Python target is sufficient for current AI workflow ecosystem |
+| TypeScript target | Defer until Python-targeted control layer proves usage |
+| Package manager | Use Python packaging and repo-local state first |
+| Debugger or full LSP | Generated Python, diagnostics, and harness validation are enough for v0.1 |
+| Distributed or multi-machine agents | Local bounded execution first |
+| Fine-tuning or training loops | v0.1 is inference and workflow control only |
+| Cloud sync, teams, accounts, marketplace | Not needed for the repo-centric MVP |
+| Web UI or split-pane TUI | CLI-first product surface |
+| Windows support | Defer until core loop works |
+| Broad OSS launch campaign | Behavior must be proven first |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RUN-01 | Phase 1 | Pending |
-| RUN-02 | Phase 1 | Pending |
-| RUN-03 | Phase 1 | Pending |
-| RUN-04 | Phase 1 | Pending |
-| RUN-05 | Phase 1 | Pending |
-| RUN-06 | Phase 1 | Pending |
-| RUN-07 | Phase 1 | Pending |
-| RUN-08 | Phase 1 | Pending |
-| RUN-09 | Phase 1 | Pending |
-| RUN-10 | Phase 1 | Pending |
-| RUN-11 | Phase 1 | Pending |
-| GRAM-01 | Phase 2 | Pending |
-| GRAM-02 | Phase 2 | Pending |
-| GRAM-03 | Phase 2 | Pending |
-| GRAM-04 | Phase 2 | Pending |
-| GRAM-05 | Phase 2 | Pending |
-| ANLY-01 | Phase 3 | Pending |
-| ANLY-02 | Phase 3 | Pending |
-| ANLY-03 | Phase 3 | Pending |
-| GEN-01 | Phase 4 | Pending |
-| GEN-02 | Phase 4 | Pending |
-| GEN-03 | Phase 4 | Pending |
-| GEN-04 | Phase 4 | Pending |
-| GEN-05 | Phase 4 | Pending |
-| CLI-01 | Phase 5 | Pending |
-| CLI-02 | Phase 5 | Pending |
-| CLI-03 | Phase 5 | Pending |
-| CLI-04 | Phase 5 | Pending |
-| CLI-05 | Phase 5 | Pending |
-| CLI-06 | Phase 5 | Pending |
-| TOOL-01 | Phase 5 | Pending |
-| TOOL-02 | Phase 5 | Pending |
-| TOOL-03 | Phase 5 | Pending |
-| EX-01 | Phase 6 | Pending |
-| EX-02 | Phase 6 | Pending |
-| EX-03 | Phase 6 | Pending |
+| SCOPE-01..04 | M0 | Pending |
+| CLIH-01..10 | M1 | Pending |
+| CTRL-01..09 | M1 | Pending |
+| COG-01..08 | M2 | Pending |
+| LANG-01..10 | M3 | Pending |
+| DOG-01..08 | M4 | Pending |
+| EVAL-01..05 | M5 | Pending |
 
 **Coverage:**
-- v1 requirements: 36 total
-- Mapped to phases: 36
-- Unmapped: 0 ✓
+- v0.1 requirements: 54 total
+- Mapped to phases: 54
+- Unmapped: 0
 
 ---
-*Requirements defined: 2026-05-07*
-*Last updated: 2026-05-07 after initial definition*
+*Requirements defined: 2026-05-10*
+*Last updated: 2026-05-10 after v0.1 scope lock rebaseline*

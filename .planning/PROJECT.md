@@ -2,11 +2,23 @@
 
 ## What This Is
 
-Voss is an AI-native programming language that compiles to Python. It makes the patterns every AI app currently re-implements by hand — confidence checking, token budget management, prompt construction, semantic routing, agent lifecycle — into first-class language constructs. v1 is for the author and early adopters dogfooding it on real AI projects.
+Voss is an AI-native coding harness and programming language for controlled agentic software development. The harness is the first product surface: it helps developers plan, execute, inspect, and resume AI-assisted code work in real repositories. The `.voss` language remains the durable control layer for workflows that need explicit confidence gates, context budgets, semantic routing, tools, memory, agents, and fallbacks.
 
 ## Core Value
 
-A program that takes 300 lines of Python boilerplate around an AI workflow takes ~40 lines of Voss, and the boilerplate semantics (confidence gates, token budgets, fallbacks) are enforced by the compiler — not re-invented per project.
+A developer can give Voss a repo task and get bounded, inspectable, resumable AI coding work, while the most important agent logic is expressible as compiler-checkable `.voss` workflows instead of prompt soup.
+
+## Current Milestone: v0.1 Harness MVP
+
+**Goal:** Ship a tight vertical slice where `voss` can safely plan, execute, inspect, and resume AI-assisted code work in a real repository, with `.voss` preserved as the workflow-control language.
+
+**Target features:**
+- M0 Scope Lock: align planning docs around harness-led v0.1 plus language control layer.
+- M1 Harness Happy Path: make `voss doctor`, `voss do`, and `voss edit` usable against a real repo.
+- M2 Project Cognition: persist project-local memory, plans, decisions, sessions, and validation state.
+- M3 Language Validation: prove `.voss` workflows parse, check, compile, and run as the control layer.
+- M4 Voss-authored Harness Loop: dogfood the harness loop under `voss/harness/agent/*.voss`.
+- M5 Eval and Distribution Prep: measure quality and prepare packaging after Python harness usage is proven.
 
 ## Requirements
 
@@ -16,83 +28,82 @@ A program that takes 300 lines of Python boilerplate around an AI workflow takes
 
 ### Active
 
-- [ ] `.voss` files compile to readable Python that imports `voss_runtime`
-- [ ] `probable<T>` type with `@ p >= n` confidence gates and unguarded-use compiler warnings
-- [ ] `ctx(budget: N tokens)` blocks with auto-compression and `yield`
-- [ ] `within budget(...) { } fallback { }` runtime-monitored execution
-- [ ] `match` with `similar("...")` semantic predicates; embedding index built at compile time
-- [ ] Agent primitives: `agent` definitions, `spawn`, `gather`, channels
-- [ ] Memory primitives: `memory.episodic`, `memory.semantic` (chromadb), `memory.working`
-- [ ] `@tool` annotation auto-generates OpenAI/Anthropic tool schema
-- [ ] `prompt` classes with inheritance
-- [ ] `try/catch` native Voss error handling, codegens to Python `try/except`
-- [ ] `use foo::bar` import syntax for multi-file Voss programs
-- [ ] Multi-provider model abstraction (Anthropic + OpenAI + Ollama) via unified runtime interface
-- [ ] CLI: `voss compile`, `voss run`, `voss check`, `voss init`, `voss ast`
-- [ ] GitHub Linguist / Git support for `.voss` files (`.gitattributes`, language metadata, samples ready for upstream Linguist PR)
-- [ ] Three example programs (PRD §7) compile and run end-to-end
+- [ ] `voss` launches an interactive harness REPL and `voss chat` remains an explicit alias.
+- [ ] `voss do "<task>"` runs natural-language agent tasks; `voss run <file.voss>` remains reserved for `.voss` programs.
+- [ ] `voss edit <path>` starts a scoped edit session with approval before risky changes.
+- [ ] `voss doctor`, `voss tools`, `voss config`, `voss sessions`, and `voss resume [id]` support the core harness loop.
+- [ ] Project-local durable state lives under `.voss/`; rebuildable machine state lives under `.voss-cache/`.
+- [ ] Every agent run records task goal, plan, inspected files, changed files, avoided files, assumptions, decisions, risks, validation, failures, diff summary, and follow-ups.
+- [ ] Controlled execution exposes a small safe tool registry: `fs_read`, `fs_glob`, `fs_grep`, `fs_write`, `fs_edit`, `shell_run`, `git_status`, `git_diff`, and `voss_check`.
+- [ ] Execution modes `plan`, `edit`, and `auto` enforce cwd path jail, permission prompts, allow/deny/always choices, diff preview, shell allowlist, timeouts, and no secrets in session payloads.
+- [ ] `.voss` remains scoped to AI workflow control, not general Python replacement.
+- [ ] Core language constructs remain supported: `probable<T>`, confidence gates, `ctx`, `within budget/fallback`, `match similar`, `agent`, `spawn`, `gather`, memory primitives, `@tool`, `prompt`, `try/catch`, and `use`.
+- [ ] Canonical repo-centric demo works: `voss doctor`, analyze repo, plan a change, apply approved plan, `voss check .`, and `voss resume`.
+- [ ] Language demo works: `voss init support-bot`, `voss check samples/support.voss`, and `voss run samples/support.voss`.
+- [ ] Harness loop can be dogfooded through `voss/harness/agent/loop.voss`, `router.voss`, `planner.voss`, `executor.voss`, and `reviewer.voss`.
+- [ ] Eval and packaging work tracks golden tasks, cost, success rate, confidence correlation, and install polish.
 
 ### Out of Scope
 
-- Native compilation (LLVM, Wasm) — Python target is sufficient for v1; AI ecosystem lives in Python
-- Targets other than Python (TypeScript, etc.) — same reason
-- Standard library beyond AI primitives — use Python interop
-- Package manager — use pip
-- Debugger / LSP / language server — post-v1
-- Multi-process or distributed agents — v1 is asyncio-only
-- Fine-tuning / training integrations — v1 is inference-only
-- Public PyPI launch / OSS marketing — v1 is for author + early adopters; broader release is post-v1
-- Editor support (Tree-sitter, VSCode ext) — Phase 6, post-v1
+- Full Python language parity — v0.1 is a harness plus AI workflow control language, not a Python replacement.
+- Native LLVM/Wasm compilation — Python target is sufficient for the current AI ecosystem.
+- TypeScript target — defer until the Python-targeted control layer proves usage.
+- Package manager — use Python packaging for now.
+- Debugger or full LSP — generated Python and compiler diagnostics are enough for v0.1.
+- Distributed or multi-machine agents — local bounded execution first.
+- Fine-tuning or training loops — inference and workflow control only.
+- Cloud sync, accounts, teams, marketplace, or web UI — not needed for the first repo-centric loop.
+- Split-pane TUI — terminal-native CLI is enough.
+- Windows support — defer.
+- Broad OSS launch campaign — behavior must be proven first.
+- Rust harness shell, MCP bridge, tree-sitter grammar, VSCode marketplace release, GitHub Linguist upstream PR, and full telemetry system — strategically relevant but deferred until the Python harness proves real usage.
 
 ## Context
 
-- **Author + early adopter audience.** v1 ships to a narrow loop. Feedback comes from dogfooding on real AI workflows, not from external users. This justifies cutting OSS launch polish from v1 scope.
-- **Python-as-target is a forcing function for ecosystem leverage.** LangChain, OpenAI/Anthropic SDKs, vector DBs, sentence-transformers — all available immediately. Voss is typed syntax sugar over a powerful runtime library.
-- **Runtime-first build order.** Per PRD §13: build `voss_runtime` and exercise it with hand-written Python before writing any compiler. Locks in semantics before syntax.
-- **The five constructs are the pitch.** `probable<T>`, `ctx`, `within/fallback`, semantic `match`, agent primitives. If these don't feel right when used, nothing else matters.
+- **Scope lock source:** `.vscode/voss_v_0_1_scope_lock.md` is the source of truth for v0.1.
+- **Product framing:** Voss should lead with "AI-native coding harness" and "programming language for agent workflows," not "Python fork" or "Python replacement."
+- **Primary user:** technically capable builders using AI coding tools who want less babysitting, safer edits, persistent context, and inspectable decisions.
+- **Harness-first order:** `voss/harness/` is the near-term product focus because it is the fastest path to a felt product loop.
+- **Language role:** `.voss` is still central, but specifically as a compact, inspectable language for AI workflow control.
+- **Rust role:** `crates/` stays in the repo as later distribution work, but must not pull focus from the Python harness before the product loop works.
+- **Docs and marketing:** `site/` remains minimal until v0.1 behavior is locked.
 
 ## Constraints
 
-- **Tech stack**: Python 3.11+ — `match` statement support required; matches modern AI lib floor
-- **Parser**: Lark — pure-Python, fast to prototype, good error messages
-- **Embedding model (compile-time)**: sentence-transformers `all-MiniLM-L6-v2` — local, no API key at compile time
-- **Vector store (semantic memory)**: ChromaDB local — zero-config, upgradeable
-- **Default LLM**: claude-sonnet-4-5 — best capability/cost ratio at PRD time; user-configurable
-- **Concurrency**: asyncio only — no multi-process, no distributed agents in v1
-- **Codegen target**: readable, debuggable Python (not minified) — debugging Voss = reading the .py output
-- **Audience**: author + early adopters — v1 doesn't need PyPI publication, marketing, or polished onboarding
+- **CLI naming:** `voss run` executes `.voss` programs; `voss do` executes natural-language agent tasks.
+- **Project state:** `.voss/` is durable project knowledge; `.voss-cache/` is rebuildable machine state.
+- **Security:** controlled execution must enforce cwd path jail, permission prompts, shell allowlist, command timeouts, and no provider API keys in sessions.
+- **Runtime:** Python remains the runtime/compiler target because the AI ecosystem is Python-first.
+- **Compiler output:** generated Python must stay readable and import `voss_runtime`.
+- **Phase naming:** v0.1 roadmap phases use `M` prefixes (`M0` through `M5`) to match the scope-lock document.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Compile to Python (not native) | AI ecosystem lives in Python; no new runtime needed | — Pending |
-| Lark parser generator | Pure Python, fast prototyping, good error messages | — Pending |
-| Multi-provider model abstraction in v1 | Lock-in risk if Anthropic-only; abstraction now is cheap | — Pending |
-| Compile-time embedding indexes in `.voss-cache/` | Separate gitignored dir, multiple files OK, easy to nuke | — Pending |
-| Native Voss `try/catch` syntax (not Python interop only) | First-class error handling matches the language's "constructs not patterns" philosophy; codegens to Python `try/except` | — Pending |
-| `use foo::bar` import keyword (not Python-style `import`) | Distinct Voss syntax signals Voss-aware module resolution; compiles to Python imports under the hood | — Pending |
-| Ship `.gitattributes` + Linguist metadata in v1 | Voss files render as code (not "Other") on GitHub from day one; sample/metadata work also seeds future Linguist registry PR | — Pending |
-| Build runtime library before compiler | Locks in runtime semantics before syntax; lets us validate the design with hand-written Python | — Pending |
-| Audience = author + early adopters for v1 | Lets v1 ship faster; PyPI/OSS launch deferred post-v1 | — Pending |
-| Success metric = three PRD §7 examples run end-to-end | Concrete, testable, covers all five core constructs | — Pending |
+| v0.1 is harness-led | The harness is the product surface users feel first | Active |
+| `.voss` is the control layer | The language is strongest when it makes AI workflow decisions explicit and checkable | Active |
+| Keep compiler and harness verbs separate | Avoids ambiguity and preserves the language as a real layer | Active |
+| Python harness first, Rust later | Python is fastest for proving the product loop; Rust is distribution/performance work after usage is proven | Active |
+| `.voss/` durable, `.voss-cache/` rebuildable | Separates project knowledge from generated indexes/cache | Active |
+| M-prefixed phase naming | Mirrors the v0.1 scope-lock milestone structure | Active |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
 
-**After each phase transition** (via `/gsd-transition`):
+**After each phase transition**:
 1. Requirements invalidated? → Move to Out of Scope with reason
 2. Requirements validated? → Move to Validated with phase reference
 3. New requirements emerged? → Add to Active
 4. Decisions to log? → Add to Key Decisions
 5. "What This Is" still accurate? → Update if drifted
 
-**After each milestone** (via `/gsd-complete-milestone`):
+**After each milestone**:
 1. Full review of all sections
 2. Core Value check — still the right priority?
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-07 after initialization*
+*Last updated: 2026-05-10 after v0.1 scope lock rebaseline*

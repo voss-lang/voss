@@ -1,9 +1,42 @@
 # Voss Coding Harness — Plan
 
 **Created:** 2026-05-08
-**Updated:** 2026-05-09 — single `voss` binary; agent verbs added to compiler CLI
-**Status:** Proposal (post-v1.0 milestone work; prerequisites land in compiler phases 1-6)
-**One-liner:** A terminal-native coding agent whose own loop is written in Voss and whose output is Voss-first.
+**Updated:** 2026-05-10 — v0.1 scope lock rebaseline; harness-led MVP with `.voss` as control layer
+**Status:** Active v0.1 planning reference
+**One-liner:** A terminal-native coding harness for bounded, inspectable, resumable AI-assisted repo work, with `.voss` as the durable workflow control layer.
+
+---
+
+## 0. v0.1 Scope Lock
+
+Source of truth: `.vscode/voss_v_0_1_scope_lock.md`.
+
+Voss v0.1 should ship as an AI-native coding harness first and a programming language where it matters: defining, checking, and running AI-native development workflows. The immediate proof point is not a full Python fork or a general-purpose Python replacement. The proof point is:
+
+> A developer can use Voss to safely plan, execute, inspect, and resume AI-assisted code work in a real repository, while the most important agent logic is expressible in Voss syntax.
+
+The harness is the product surface. The language is the durable control plane.
+
+### 0.1 M-prefixed roadmap
+
+The v0.1 roadmap uses the scope-lock milestone names:
+
+| Phase | Name | Purpose |
+|---|---|---|
+| M0 | Scope Lock | Align planning docs and naming around harness-led v0.1 |
+| M1 | Harness Happy Path | `voss doctor`, `voss do`, `voss edit`, basic tools, permissions, session snapshot |
+| M2 | Project Cognition | `.voss/` durable project brain and `.voss-cache/` rebuildable indexes/cache |
+| M3 | Language Validation | `.voss` examples check/run as AI workflow control programs |
+| M4 | Voss-authored Harness Loop | `voss/harness/agent/*.voss` dogfoods the language |
+| M5 | Eval and Distribution Prep | Golden tasks, cost/success/confidence tracking, install polish |
+
+### 0.2 Deferred work
+
+Rust remains strategically relevant for distribution and startup performance, but it is deferred until the Python harness proves real usage. MCP bridge, tree-sitter, VSCode marketplace, GitHub Linguist upstream, broad telemetry, public marketplace, team features, and web UI are also deferred from v0.1.
+
+### 0.3 Naming rule
+
+`voss run <file.voss>` executes `.voss` programs. `voss do "<task>"` executes natural-language agent tasks. Do not overload either command.
 
 ---
 
@@ -239,7 +272,7 @@ When stdout is piped or `--json` is set:
                        │ uses
                        ▼
 ┌──────────────────────────────────────────────────────────┐
-│  voss_runtime  (already shipped in Phase 1)              │
+│  voss_runtime  (Python runtime primitives)               │
 │   ContextScope · BudgetScope · ProbableValue ·           │
 │   SemanticMatcher · VossAgent · gather · memory.*        │
 └──────────────────────────────────────────────────────────┘
@@ -250,7 +283,8 @@ When stdout is piped or `--json` is set:
 │   fs.{read,write,edit,glob,grep}                         │
 │   shell.run (allowlist + cwd jail)                       │
 │   git.{status,diff,log,branch,commit}                    │
-│   ast.{search,outline}        (tree-sitter, H4+)         │
+│   ast.{search,outline}        (voss ast --json first;    │
+│                                tree-sitter later)        │
 │   compiler.{compile,check,run,ast} (self-hosting hook —  │
 │       calls into voss.cli compiler verbs in-process)     │
 │   net.{fetch}                 (off by default)           │
@@ -427,7 +461,7 @@ Project override at `.voss-cache/harness.toml` (gitignored by default; promotabl
 
 Each phase ends with a runnable demo. Each phase is independently usable.
 
-### Phase H1 — Skeleton CLI on raw runtime *(2 weeks)*
+### M1 — Harness Happy Path
 
 - `voss do "<task>"` works against `voss_runtime` directly (Python loop, no `.voss` source yet — compiler not ready).
 - Bare `voss` enters REPL.
@@ -438,7 +472,7 @@ Each phase ends with a runnable demo. Each phase is independently usable.
 - `--json` NDJSON output path.
 - Smoke test: "summarize this PRD section."
 
-### Phase H2 — Sessions, semantic memory, REPL polish *(2 weeks)*
+### M2 — Project Cognition
 
 - Persistent sessions (`/save`, `voss resume`, `voss sessions`).
 - Semantic repo index (chromadb, rebuilt on git head change).
@@ -446,34 +480,29 @@ Each phase ends with a runnable demo. Each phase is independently usable.
 - Diff preview + apply flow.
 - Cross-platform: macOS, Linux. Windows deferred.
 
-### Phase H3 — Loop port to Voss *(blocked on compiler ≥ Phase 4 codegen)*
+### M3 — Language Validation
+
+- `voss check samples/classify.voss`, `samples/support.voss`, and `samples/research.voss` pass.
+- At least one representative sample runs through `voss run`.
+- Generated Python is readable and imports `voss_runtime`.
+- Docs and samples frame `.voss` as AI workflow control, not Python replacement.
+
+### M4 — Voss-authored Harness Loop
 
 - Rewrite Python loop → `loop.voss` + `router.voss` + `planner.voss` + `executor.voss` + `reviewer.voss` under `voss/harness/agent/`.
 - CI gate: `voss check voss/harness/agent/` runs on every PR. If the compiler regresses on its own harness, that's a P0.
 - Boot path: agent CLI verbs lazily compile `voss/harness/agent/loop.voss`, cached under `.voss-cache/harness/`.
 
-### Phase H4 — Voss-aware authoring *(after H3)*
-
-- Project scaffolds: `voss init <name>` (existing compiler verb) extended with agent-aware templates.
-- `voss check` surfaced inline after every `.voss` edit; diagnostics fed back to the model on failure.
-- `ast.search` tool backed by tree-sitter Voss grammar (PRD Phase 6 dependency).
-- Templates: classifier, support bot, research swarm — each lifted from PRD §7.
-
-### Phase H5 — Eval & telemetry *(after H4)*
+### M5 — Eval and Distribution Prep
 
 - Golden tasks (see §9) run nightly; track success rate, mean cost, mean confidence on success vs. failure.
-- Anonymous opt-in telemetry: tool latency histograms, model selection, budget exhaustion frequency. Off by default, single config flag, no prompt content ever.
-
-### Phase H6 — Distribution *(after H5)*
-
-- `pip install voss` ships compiler + harness as one package. Optional `voss[lite]` extra omits sentence-transformers/chromadb for users who only want the compiler.
-- Homebrew tap: `brew install voss/tap/voss`.
-- Single static binary via PyInstaller for users without Python 3.11 toolchain.
-- MCP bridge: `voss serve --mcp` exports Voss-defined `@tool`s to other harnesses (Claude Code, Cursor).
+- Package install polish verifies compiler and harness commands ship together.
+- Local eval outputs track success rate, mean cost, and confidence correlation.
+- Rust/Homebrew/MCP distribution work stays deferred unless Python harness usage proves the need.
 
 ---
 
-## 8. Tooling Decisions (commit now)
+## 8. Tooling Decisions
 
 | Decision | Choice | Rationale |
 |---|---|---|
@@ -485,8 +514,8 @@ Each phase ends with a runnable demo. Each phase is independently usable.
 | Memory backend | chromadb local for semantic; JSON for episodic | Already a runtime dep; zero-config. |
 | Diff format | unified diff via `difflib`; apply with `patch` | Standard, reviewable, undo-able with `git`. |
 | Edit primitive | `fs.edit(path, anchor, replacement)` | Anchor-based, no line numbers in prompt; matches what models reliably emit. |
-| Auth | env vars only (no OAuth) for v1 | Lowest friction; secrets stay in shell. |
-| Update channel | `pip install -U` for v1; auto-update gated behind config flag in H6 | Avoid surprise mutations. |
+| Auth | env vars first | Lowest friction; secrets stay in shell. |
+| Update channel | `pip install -U` first; auto-update deferred | Avoid surprise mutations. |
 
 ---
 
@@ -508,11 +537,11 @@ Track three numbers per nightly run: pass rate, mean cost-to-pass, mean reported
 
 ### Risks
 
-- **Compiler debt blocks H3.** Mitigation: H1+H2 ship on raw `voss_runtime`. Migration to `.voss` is contained to one phase.
+- **Compiler debt blocks M4.** Mitigation: M1+M2 ship on raw `voss_runtime`. Migration to `.voss` is contained to one phase.
 - **Calibrated confidence is hard.** Anthropic doesn't expose logprobs. Plan: model-self-reported confidence wrapped in `ProbableValue`, validated against eval suite. If correlation between reported confidence and success rate < 0.5, fall back to ensemble agreement.
 - **Embedding boot cost.** sentence-transformers ~80MB and slow first call. Lazy-load in a background thread on REPL start; first `match similar(...)` may block for ~1s on cold cache. Cache to `~/.cache/voss/embeddings/`.
-- **Tree-sitter grammar is post-v1 in the compiler roadmap.** H4's `ast.search` falls back to `voss ast --json` until then.
-- **Windows.** Deferred to post-H6. Path canonicalization, ANSI, and shell allowlist all need rework.
+- **Tree-sitter grammar is deferred.** `ast.search` falls back to `voss ast --json` until then.
+- **Windows.** Deferred. Path canonicalization, ANSI, and shell allowlist all need rework.
 
 ### Open questions (flag, do not silently decide)
 
@@ -535,10 +564,10 @@ The harness is shipping when:
 
 ---
 
-## 12. Out of Scope (v1 of the harness)
+## 12. Out of Scope (v0.1 Harness)
 
 - Web UI / TUI panes / split views.
-- IDE integration (VSCode, JetBrains). MCP bridge in H6 covers the bridge case.
+- IDE integration (VSCode, JetBrains). MCP bridge is deferred.
 - Multi-machine / distributed agents. `gather` stays local.
 - Fine-tuning, training data collection, RLHF loops.
 - Account system, cloud sync, team-shared sessions.
@@ -566,14 +595,11 @@ Provider SDKs, sentence-transformers, and chromadb already come from the compile
 
 ## 14. Build Order Summary
 
-1. Land compiler Phase 1 runtime (already shipped).
-2. Land compiler Phases 2-5 (parser, analyzer, codegen, CLI) per existing roadmap.
-3. **H1** — skeleton CLI on raw runtime; `voss do` and bare-`voss` REPL happy path.
-4. **H2** — sessions, semantic memory, REPL polish.
-5. Land compiler Phase 6 examples validation; gate H3 on it.
-6. **H3** — port loop to `.voss`; CI gate locks dogfooding.
-7. **H4** — Voss-aware authoring + tree-sitter when ready.
-8. **H5** — eval suite and telemetry.
-9. **H6** — distribution + MCP bridge.
+1. **M0** — scope lock and planning realignment.
+2. **M1** — harness happy path; `voss do`, `voss edit`, and bare-`voss` REPL.
+3. **M2** — project cognition; `.voss/` durable state and `.voss-cache/` rebuildable state.
+4. **M3** — language validation; representative `.voss` examples check and run as workflow programs.
+5. **M4** — port harness loop to `.voss`; CI gate locks dogfooding.
+6. **M5** — eval suite and packaging polish.
 
 The harness becomes the compiler's hardest user. Every regression in the language shows up in `voss` first.
