@@ -3,14 +3,21 @@
 import { useState } from "react";
 import CopyButton from "./CopyButton";
 
-const TABS = [
+type InstallTab = {
+  id: "pip" | "cargo" | "brew";
+  label: string;
+  cmd: string;
+  active: boolean;
+};
+
+const TABS: InstallTab[] = [
   { id: "pip", label: "pip", cmd: 'pip install -e ".[dev]"', active: true },
   { id: "cargo", label: "cargo", cmd: "cargo install voss   # coming with v1", active: false },
   { id: "brew", label: "brew", cmd: "brew install voss      # coming with v1", active: false },
 ];
 
 export default function InstallTabs() {
-  const [active, setActive] = useState("pip");
+  const [active, setActive] = useState<InstallTab["id"]>("pip");
   const tab = TABS.find((t) => t.id === active);
 
   return (

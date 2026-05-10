@@ -1,3 +1,14 @@
+export type Feature = {
+  name: string;
+  title: string;
+  body: string;
+};
+
+export type CliCommand = {
+  cmd: string;
+  desc: string;
+};
+
 export const site = {
   name: "Voss",
   tagline: "A language for AI workflows.",
@@ -10,9 +21,9 @@ export const site = {
     primary: 'pip install -e ".[dev]"',
     primaryNote: "From the cloned repo. PyPI release with v1.",
   },
-};
+} as const;
 
-export const features = [
+export const features: readonly Feature[] = [
   {
     name: "probable<T>",
     title: "Confidence as a type",
@@ -45,7 +56,7 @@ export const features = [
   },
 ];
 
-export const cliCommands = [
+export const cliCommands: readonly CliCommand[] = [
   { cmd: "voss init", desc: "Scaffold a new project" },
   { cmd: "voss run app.voss", desc: "Compile and execute" },
   { cmd: "voss compile app.voss", desc: "Emit readable Python" },

@@ -1,10 +1,10 @@
 import { codeToHtml } from "shiki";
-import { cliExamples } from "@/content/cli-examples";
-import CliShowcaseTabs from "./CliShowcaseTabs";
+import { cliExamples, type CliExample } from "@/content/cli-examples";
+import CliShowcaseTabs, { type RenderedExample } from "./CliShowcaseTabs";
 
 export default async function CliShowcase() {
-  const rendered = await Promise.all(
-    cliExamples.map(async (ex) => ({
+  const rendered: RenderedExample[] = await Promise.all(
+    cliExamples.map(async (ex: CliExample) => ({
       ...ex,
       html: await codeToHtml(ex.code.trimEnd(), {
         lang: ex.lang,

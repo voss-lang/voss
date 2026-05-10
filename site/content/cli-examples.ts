@@ -1,7 +1,16 @@
 // Hero examples mirrored from /Voss/examples/raw_python/.
 // Once the Voss compiler ships, swap these for the .voss source.
 
-export const cliExamples = [
+export type CliExample = {
+  id: string;
+  label: string;
+  blurb: string;
+  command: string;
+  code: string;
+  lang: "python";
+};
+
+export const cliExamples: CliExample[] = [
   {
     id: "classify",
     label: "Classify",

@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import CopyButton from "./CopyButton";
+import type { CliExample } from "@/content/cli-examples";
 
-export default function CliShowcaseTabs({ examples }) {
-  const [activeId, setActiveId] = useState(examples[0]?.id);
+export type RenderedExample = CliExample & { html: string };
+
+export default function CliShowcaseTabs({ examples }: { examples: RenderedExample[] }) {
+  const [activeId, setActiveId] = useState<string | undefined>(examples[0]?.id);
   const active = examples.find((e) => e.id === activeId) ?? examples[0];
   if (!active) return null;
 

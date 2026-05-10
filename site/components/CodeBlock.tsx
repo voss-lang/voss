@@ -1,7 +1,17 @@
-import { codeToHtml } from "shiki";
+import { codeToHtml, type BundledLanguage } from "shiki";
+
+type Props = {
+  code: string;
+  lang?: BundledLanguage;
+  className?: string;
+};
 
 // Server component — shiki runs at build time, ships zero JS.
-export default async function CodeBlock({ code, lang = "python", className = "" }) {
+export default async function CodeBlock({
+  code,
+  lang = "python",
+  className = "",
+}: Props) {
   const html = await codeToHtml(code.trimEnd(), {
     lang,
     theme: "github-dark-default",

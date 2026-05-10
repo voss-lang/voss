@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Voss Marketing Site
 
-## Getting Started
+Developer-facing marketing landing page + docs shell for [Voss](../README.md).
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Next.js 16** (App Router, Turbopack) — JavaScript, no TypeScript
+- **Tailwind CSS v4**
+- **Shiki** — build-time syntax highlighting (zero runtime JS)
+- **Static export** (`output: "export"`) — deploys anywhere, intended for **Cloudflare Pages**
+
+## Layout
+
+```
+site/
+├── app/
+│   ├── layout.jsx          # Root: fonts, metadata, dark theme
+│   ├── page.jsx            # Landing page composition
+│   ├── docs/page.jsx       # Docs placeholder (planned TOC)
+│   └── globals.css         # Tailwind + accent CSS variables
+├── components/
+│   ├── Nav.jsx             # Wordmark + nav
+│   ├── Hero.jsx            # H1, install snippet, PRD CTA
+│   ├── FeatureGrid.jsx     # 5 first-class constructs
+│   ├── CliShowcase.jsx     # Server: shiki-render examples
+│   ├── CliShowcaseTabs.jsx # Client: tab switcher
+│   ├── CommandList.jsx     # CLI verb reference
+│   ├── InstallTabs.jsx     # pip / cargo / brew tabs
+│   ├── CodeBlock.jsx       # Reusable shiki block
+│   ├── CopyButton.jsx      # Clipboard helper
+│   └── Footer.jsx
+├── content/cli-examples.js # Hero examples (mirrors examples/raw_python/)
+├── lib/site.js             # Strings: tagline, repo URL, version
+├── public/logo.svg         # Placeholder wordmark
+└── next.config.mjs         # static export config
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Develop
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cd site
+npm install
+npm run dev          # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Build
 
-## Learn More
+```bash
+npm run build        # static export to ./out
+npx serve out        # smoke-test the static bundle
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy (Cloudflare Pages)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Build command: `npm run build`
+- Output directory: `out`
+- Root directory: `site`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Open items
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Logo / final color scheme — accent currently `#7c5cff`, themed via `app/globals.css` (`--accent`)
+- Final repo URL — placeholder `https://github.com/your-org/voss` in `lib/site.js`
+- Docs content — `app/docs/page.jsx` is a placeholder with planned section list
+- Replace `examples/raw_python/*.py` snippets in `content/cli-examples.js` with `.voss` source once the compiler ships
