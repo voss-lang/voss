@@ -7,24 +7,28 @@ class Voss < Formula
   on_macos do
     on_arm do
       url "https://github.com/bm9797/Voss/releases/download/v#{version}/voss-cli-aarch64-apple-darwin.tar.xz"
-      sha256 "<filled-by-cargo-dist>"
+      # Filled by cargo-dist on release.
+      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
     end
 
     on_intel do
       url "https://github.com/bm9797/Voss/releases/download/v#{version}/voss-cli-x86_64-apple-darwin.tar.xz"
-      sha256 "<filled-by-cargo-dist>"
+      # Filled by cargo-dist on release.
+      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
     end
   end
 
   on_linux do
     on_arm do
       url "https://github.com/bm9797/Voss/releases/download/v#{version}/voss-cli-aarch64-unknown-linux-gnu.tar.xz"
-      sha256 "<filled-by-cargo-dist>"
+      # Filled by cargo-dist on release.
+      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
     end
 
     on_intel do
       url "https://github.com/bm9797/Voss/releases/download/v#{version}/voss-cli-x86_64-unknown-linux-gnu.tar.xz"
-      sha256 "<filled-by-cargo-dist>"
+      # Filled by cargo-dist on release.
+      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
     end
   end
 
