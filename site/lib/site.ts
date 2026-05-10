@@ -9,6 +9,11 @@ export type CliCommand = {
   desc: string;
 };
 
+export type HarnessFeature = {
+  title: string;
+  body: string;
+};
+
 export const site = {
   name: "Voss",
   tagline: "A language for AI workflows.",
