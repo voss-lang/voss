@@ -59,6 +59,12 @@ export const features: readonly Feature[] = [
     body:
       "One runtime, swappable providers. Your Voss program doesn't care which model is behind it — switch with a config flag, not a rewrite.",
   },
+  {
+    name: "compile",
+    title: "Readable Python out",
+    body:
+      "Voss compiles to debuggable Python you can read, diff, and own. No black-box runtime, no magic — your generated code is shippable on its own.",
+  },
 ];
 
 export const harness = {
