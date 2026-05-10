@@ -33,8 +33,8 @@ function HarnessTeaser() {
           <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
             Harness
           </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            A coding agent that runs on your subscription.
+          <h2 className="display mt-3 text-4xl sm:text-5xl">
+            A coding agent that runs on <span className="em">your subscription</span>.
           </h2>
           <p className="mt-4 max-w-2xl text-[var(--muted)]">
             For AI-first developers shipping AI in their products. The Voss harness reuses your
@@ -67,8 +67,8 @@ function DocsTeaser() {
       <div className="mx-auto max-w-6xl px-6 py-20">
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 sm:p-14">
           <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">Docs</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            The full reference is coming.
+          <h2 className="display mt-3 text-4xl sm:text-5xl">
+            The full reference is <span className="em">coming</span>.
           </h2>
           <p className="mt-4 max-w-2xl text-[var(--muted)]">
             Language reference, runtime API, CLI deep-dive, and migration guides from raw Python.

@@ -24,7 +24,9 @@ export default function InstallTabs() {
     <section className="border-b border-[var(--border)]">
       <div className="mx-auto max-w-6xl px-6 py-20">
         <div className="mb-10 max-w-2xl">
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Install</h2>
+          <h2 className="display text-4xl sm:text-5xl">
+            <span className="em">Install</span>.
+          </h2>
           <p className="mt-4 text-[var(--muted)]">
             Voss runs on Python 3.11+. Native binaries are on the roadmap.
           </p>
