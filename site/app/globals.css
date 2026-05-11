@@ -20,7 +20,8 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-accent: var(--accent);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-poppins);
+  --font-secondary: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -32,7 +33,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans), var(--font-secondary), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -82,7 +83,7 @@ pre.shiki {
 .display {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.03em;
   line-height: 1.05;
   text-wrap: balance;
 }
