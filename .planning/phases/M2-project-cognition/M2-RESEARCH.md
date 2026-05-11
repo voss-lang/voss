@@ -766,22 +766,22 @@ async def run_turn(task, *, tools, cwd, renderer, cognition=None, ...) -> TurnRe
 
 **Assumptions A1, A4 are the load-bearing ones.** A1 is a Claude's-discretion area in CONTEXT.md; A4 is a sequencing dependency the planner must respect.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`record_run` cost & reliability across providers**
    - What we know: privileged closing call costs ≤ 800 output tokens at temperature 0 with structured response_format. With Claude Sonnet 4.5 (~$0.003/1k out) that's ≤ $0.0024/turn.
    - What's unclear: whether all providers reliably honor `response_format=RunSemantics` with their OAuth flows. M1 ships Anthropic OAuth and Codex OAuth; reliability difference unknown until tested.
-   - Recommendation: implement with provider-agnostic `response_format`; fall back to plain-text + post-parse JSON if `resp.parsed is None`. Add a test that injects a stub provider returning malformed JSON, asserts RunRecord persists with `goal="(record_run failed)"` and mechanical fields intact.
+   - **Resolution:** Implement with provider-agnostic `response_format=RunSemantics`. Wrap the closing `provider.complete` call in `try/except Exception`; if it raises OR `resp.parsed is None`, set `rec.goal = "(record_run failed)"`, `rec.plan = plan.model_dump()`, and proceed to finalize with mechanical-only fields. The turn MUST complete normally (Pitfall 1). M2-03 Task 1b implements this with `_record_run_call(...) -> RunSemantics | None`; M2-03 Task 2 ships `FakeProviderFailingSemantics` covering both the exception path and the `parsed=None` path. No plain-text JSON post-parse fallback in M2 — keep the failure mode simple and the sentinel observable. If real-world telemetry shows >5% of turns hitting the sentinel on any provider, revisit in a follow-up phase.
 
 2. **Plan persistence trigger**
    - What we know: plans are persisted on user-accept or agent explicit save (deferred ideas item). M2 must ship at least the write helper.
    - What's unclear: whether M2 ships a `/save-plan` slash command or relies on agent-driven persistence via `fs_write` against a `cognition.plan_path(slug)` helper.
-   - Recommendation: ship the helper, expose to the agent via the cognition bootstrap prompt ("use the provided `cognition.plan_path()` for filenames"); skip the `/save-plan` slash command until dogfood demands it. Planner can choose.
+   - **Resolution:** Ship BOTH the helper (`cognition.write_plan_md`) AND a `/save-plan` slash command in M2-04. The slash command is the M2 trigger for COG-04 — chosen over auto-persist-on-confidence because it is deterministic and trivially testable with a stub provider (the auto-on-confidence path would need a stable confidence-threshold contract that M2 has not pinned). `/save-plan` reads a REPL-scope `last_plan` variable populated by each `TurnResult` and calls `write_plan_md(cwd, last_plan, session_id=record.id, title=optional_remainder)`. Agent-driven persistence via fs_write is left as a future path — out of scope until dogfood demands it. M2-04 Task 3 implements this; the stub-provider integration test asserts `.voss/plans/YYYY-MM-DD-<slug>.md` exists with the COG-04 frontmatter shape after one `/save-plan`.
 
 3. **`.voss/permissions.yml` layering precedence with M1 `PermissionGate`**
    - What we know: CONTEXT.md flags this as Claude's-discretion: "design so project rules layer additively (deny wins over allow); spell out conflict precedence when implementing."
    - What's unclear: does `permissions.yml` deny override session-level `--mode auto`?
-   - Recommendation: deny-from-yml always wins; allow-from-yml is additive (cannot expand session permissions). Document in `permissions.py` module docstring. Test pattern: yml says `deny: [shell_run]`; session is `auto`; assert `shell_run` denied.
+   - **Resolution:** Deny-from-yml always wins; allow-from-yml is additive (it MAY narrow but cannot expand session permissions). Document explicitly in `voss/harness/permissions.py` module docstring. M2's plans do not modify `permissions.py` directly (the layering enforcement lands when the cognition bundle is consumed in M2-05; the gate change itself is a M2-follow-up issue tracked outside this phase). Test pattern locked in for the follow-up: yml says `deny: [shell_run]`; session is `--mode auto`; assert `shell_run` denied. M2-05 wiring exposes the loaded `PermissionsConfig` through the cognition bundle so the follow-up has a clean handoff.
 
 ## Environment Availability
 

@@ -2,8 +2,8 @@
 phase: M2
 slug: project-cognition
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-05-10
 ---
 
@@ -70,7 +70,7 @@ created: 2026-05-10
 | COG-08 | Privileged `record_run` closing call populates semantic fields | integration | `pytest tests/harness/test_agent_integration.py::test_record_run_populates_semantic_fields -x` | ✅ extend | ⬜ |
 | COG-08 | `record_run` failure persists mechanical-only RunRecord | integration | `pytest tests/harness/test_agent_integration.py::test_record_run_failure_persists_mechanical -x` | ✅ extend | ⬜ |
 | COG-08 | RunRecord redaction: 6 secret patterns absent | unit | `pytest tests/harness/test_session_redaction.py::test_run_record_no_secret_patterns -x` | ✅ extend | ⬜ |
-| COG-08 | RunRecord schema-allowlist: exactly 17 declared keys | unit | `pytest tests/harness/test_session_redaction.py::test_run_record_top_level_keys -x` | ✅ extend | ⬜ |
+| COG-08 | RunRecord schema-allowlist: exactly 16 declared keys | unit | `pytest tests/harness/test_session_redaction.py::test_run_record_top_level_keys -x` | ✅ extend | ⬜ |
 | Auto-inject | architecture + constraints prepended every turn | integration | `pytest tests/harness/test_agent_integration.py::test_turn_injects_cognition -x` | ✅ extend | ⬜ |
 | Auto-inject | `cognition_overflow` truncates constraints over 6k | unit | `pytest tests/harness/test_repl_cognition.py::test_cognition_overflow_truncates_constraints -x` | ❌ W0 | ⬜ |
 | Status line | Tty prints `cognition: architecture (Xk) + N constraints` | unit | `pytest tests/harness/test_repl_cognition.py::test_cognition_status_line_tty -x` | ❌ W0 | ⬜ |
@@ -115,4 +115,4 @@ created: 2026-05-10
 - [ ] Feedback latency < 60s (full suite)
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** 2026-05-10
