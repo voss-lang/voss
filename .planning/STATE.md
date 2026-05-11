@@ -24,9 +24,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ## Current Position
 
 **Phase:** M3 — Language Validation
-**Status:** Context gathered — ready to plan
+**Status:** Planned — ready to execute (6 plans across 4 waves; plan-checker passed after 1 revision)
 **Goal:** Prove `.voss` is useful for real AI workflows.
-**Last activity:** 2026-05-11 — Phase M3 context gathered (4 decision areas: hermetic run + check speed, LANG-07/08 sample coverage, test surface, framing surface).
+**Last activity:** 2026-05-11 — Phase M3 planned (6 plans, 17 tasks, waves 0..3; revision cleared 3 warnings).
 
 ## Phase Status
 
@@ -35,7 +35,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M0 | Scope Lock | Ready to plan |
 | M1 | Harness Happy Path | Ready to execute (7 plans) |
 | M2 | Project Cognition | Ready to execute (7 plans) |
-| M3 | Language Validation | Context gathered — ready to plan |
+| M3 | Language Validation | Ready to execute (6 plans, 4 waves) |
 | M4 | Voss-authored Harness Loop | Pending |
 | M5 | Eval and Distribution Prep | Pending |
 
@@ -51,6 +51,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-10 — Phase M2 context gathered (4 decision areas: analyze + index lifecycle, cognition file schemas, session move + per-run ledger, context injection on resume).
 - 2026-05-11 — Phase M2 planned: 7 plans across 6 waves (M2-00 scaffold + M2-01..06); plan-checker passed after 1 revision (4 blockers + 5 warnings cleared).
 - 2026-05-11 — Phase M3 context gathered (4 decision areas: hermetic run + check speed via auto-StubProvider + static check, sample coverage via support memory.episodic + research try/catch + use, slimmed legacy-06 test plan under tests/examples/, framing via README section + sample headers + docs/voss-vs-python.md).
+- 2026-05-11 — Phase M3 planned: 6 plans across 4 waves (M3-01 analyzer guard + M3-02 auto-stub + M3-03 coverage fixtures parallel in W0; M3-04 sample extensions W1; M3-05 e2e suite repoint W2; M3-06 speed gate + framing docs W3); plan-checker passed iteration 2 after 1 revision (3 warnings cleared: M3-04 promoted to W1 for M3-02 hook ordering; M3-02 must_haves 4-test alignment; M3-06 D-14 negation phrasing audit).
 
 ## Notes
 
