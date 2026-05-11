@@ -358,3 +358,342 @@ def reserve_filename(dir_: Path, base: str, ext: str = ".md") -> Path:
         p = dir_ / f"{today}-{base}-{n}{ext}"
         n += 1
     return p
+
+
+# ---------------------------------------------------------------------------
+# M2-04: hybrid bootstrap helpers
+# ---------------------------------------------------------------------------
+
+
+_LANG_BY_EXT = {
+    "py": "python",
+    "ts": "typescript",
+    "tsx": "typescript",
+    "js": "javascript",
+    "jsx": "javascript",
+    "swift": "swift",
+    "rs": "rust",
+    "go": "go",
+    "rb": "ruby",
+    "java": "java",
+    "kt": "kotlin",
+    "cs": "csharp",
+    "cpp": "c-or-cpp",
+    "cc": "c-or-cpp",
+    "cxx": "c-or-cpp",
+    "c": "c-or-cpp",
+    "m": "objective-c",
+    "mm": "objective-c",
+    "php": "php",
+}
+
+_VENDORED = {"node_modules", ".venv", ".git", "dist", "build", "target", ".voss-cache"}
+
+_MANIFEST_CANDIDATES = (
+    "pyproject.toml",
+    "package.json",
+    "Cargo.toml",
+    "Package.swift",
+    "go.mod",
+    "Gemfile",
+)
+
+
+def _git_rev_parse_head(cwd: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip() or "UNKNOWN"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return "UNKNOWN"
+
+
+def _git_ls_files(cwd: Path) -> list[str] | None:
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+        return [ln for ln in result.stdout.splitlines() if ln.strip()]
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _walk_files_fallback(cwd: Path) -> list[str]:
+    files: list[str] = []
+    for p in cwd.rglob("*"):
+        if not p.is_file():
+            continue
+        if any(part in _VENDORED for part in p.parts):
+            continue
+        try:
+            files.append(p.relative_to(cwd).as_posix())
+        except ValueError:
+            continue
+    return files
+
+
+def detect_primary_language(cwd: Path) -> str:
+    """Return the primary language for cwd, or 'unknown'."""
+    rels = _git_ls_files(cwd)
+    if rels is None:
+        rels = _walk_files_fallback(cwd)
+
+    counts: dict[str, int] = {}
+    for rel in rels:
+        name = rel.rsplit("/", 1)[-1]
+        if name.startswith("."):
+            continue
+        parts = rel.split("/")
+        if any(p in _VENDORED for p in parts):
+            continue
+        if "." not in name:
+            continue
+        ext = name.rsplit(".", 1)[-1].lower()
+        lang = _LANG_BY_EXT.get(ext)
+        if lang is None:
+            continue
+        counts[lang] = counts.get(lang, 0) + 1
+
+    if not counts:
+        return "unknown"
+    return max(counts.items(), key=lambda kv: kv[1])[0]
+
+
+def _read_head(path: Path, limit: int = 4096) -> str:
+    if not path.exists() or not path.is_file():
+        return ""
+    try:
+        return path.read_text(errors="replace")[:limit]
+    except OSError:
+        return ""
+
+
+def _find_manifest(cwd: Path) -> tuple[str | None, str]:
+    for cand in _MANIFEST_CANDIDATES:
+        p = cwd / cand
+        if p.exists() and p.is_file():
+            return cand, _read_head(p)
+    return None, ""
+
+
+def _dir_tree(cwd: Path, limit: int = 12) -> list[tuple[str, int]]:
+    entries: list[tuple[str, int]] = []
+    try:
+        children = sorted(cwd.iterdir())
+    except OSError:
+        return entries
+    for child in children:
+        if not child.is_dir():
+            continue
+        if child.name.startswith(".") or child.name in _VENDORED:
+            continue
+        try:
+            count = sum(1 for _ in child.rglob("*") if _.is_file())
+        except OSError:
+            count = 0
+        entries.append((child.name, count))
+        if len(entries) >= limit:
+            break
+    return entries
+
+
+def build_bootstrap_inventory(cwd: Path) -> dict:
+    """Pre-compute the inventory injected into the bootstrap LLM prompt."""
+    rels = _git_ls_files(cwd)
+    if rels is None:
+        rels = _walk_files_fallback(cwd)
+    manifest_path, manifest_head = _find_manifest(cwd)
+    readme_head = _read_head(cwd / "README.md")
+    return {
+        "name": cwd.name,
+        "git_head": _git_rev_parse_head(cwd),
+        "file_count": len(rels),
+        "analyzed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "primary_language": detect_primary_language(cwd),
+        "dir_tree": _dir_tree(cwd),
+        "manifest_path": manifest_path,
+        "manifest_head": manifest_head,
+        "readme_head": readme_head,
+    }
+
+
+def init_voss_stubs(cwd: Path, *, inventory: dict) -> dict[str, bool]:
+    """Write the 4 deterministic cognition files preserve-if-exists.
+
+    Returns a dict mapping filename -> True if newly written, False if preserved.
+    """
+    voss_dir(cwd).mkdir(parents=True, exist_ok=True)
+
+    project_meta = ProjectMeta(
+        name=inventory["name"],
+        primary_language=inventory["primary_language"],
+    )
+
+    targets: list[tuple[str, callable]] = [
+        (
+            "project.json",
+            lambda: json.dumps(project_meta.model_dump(), indent=2) + "\n",
+        ),
+        (
+            "constraints.yml",
+            lambda: yaml.safe_dump(ConstraintsConfig().model_dump(), sort_keys=False),
+        ),
+        (
+            "permissions.yml",
+            lambda: yaml.safe_dump(PermissionsConfig().model_dump(), sort_keys=False),
+        ),
+        (
+            "validation.yml",
+            lambda: yaml.safe_dump(ValidationConfig().model_dump(), sort_keys=False),
+        ),
+    ]
+
+    results: dict[str, bool] = {}
+    for name, build in targets:
+        path = voss_dir(cwd) / name
+        if path.exists():
+            results[name] = False
+            continue
+        path.write_text(build())
+        results[name] = True
+    return results
+
+
+def write_voss_gitignore(cwd: Path) -> bool:
+    """Write `.voss/.gitignore` preserve-if-exists."""
+    target = voss_dir(cwd) / ".gitignore"
+    voss_dir(cwd).mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        return False
+    target.write_text("# voss session state and rebuildable cache\nsessions/\n")
+    return True
+
+
+def bootstrap_prompt(inventory: dict) -> str:
+    """Single-turn prompt: agent emits ONE fs_write to .voss/architecture.md."""
+    dir_tree_lines = "\n".join(
+        f"  - {name}/ ({count} files)" for name, count in inventory["dir_tree"]
+    ) or "  (none)"
+
+    manifest_block = (
+        f"### Manifest: `{inventory['manifest_path']}`\n```\n{inventory['manifest_head']}\n```\n"
+        if inventory["manifest_path"]
+        else "### Manifest: (none detected)\n"
+    )
+    readme_block = (
+        f"### README.md (head)\n```\n{inventory['readme_head']}\n```\n"
+        if inventory["readme_head"]
+        else "### README.md: (missing)\n"
+    )
+
+    return f"""You are running the Voss bootstrap turn for project `{inventory['name']}`.
+
+Your ONLY job: produce a Plan with EXACTLY ONE fs_write step targeting
+`.voss/architecture.md`. The harness has already pre-computed all inventory
+you need. do not use fs_glob, do not use fs_read, do not use shell_run,
+do not use git_status. All required facts are in this prompt.
+
+## Inventory (pre-computed by harness — use these values verbatim)
+
+- name: {inventory['name']}
+- git_head: {inventory['git_head']}
+- analyzed_at: {inventory['analyzed_at']}
+- file_count: {inventory['file_count']}
+- primary_language: {inventory['primary_language']}
+
+### Top-level directory tree
+{dir_tree_lines}
+
+{manifest_block}
+{readme_block}
+
+## architecture.md contract
+
+The fs_write content MUST begin with this YAML frontmatter, values verbatim:
+
+```
+---
+git_head: {inventory['git_head']}
+analyzed_at: {inventory['analyzed_at']}
+file_count: {inventory['file_count']}
+analyzer_version: 1
+---
+```
+
+Body sections in order (Markdown):
+1. `# Project` — one-paragraph summary.
+2. `## Primary language` — one line.
+3. `## Entry points` — bullet list (or "(none detected)").
+4. `## Module map` — 5-10 directories, one line each.
+5. `## Key dependencies` — extracted from manifest above.
+6. `## Testing approach` — inferred from layout.
+
+Total length: ≤ 150 lines.
+
+Set `final_when_done` to a one-line summary of what you wrote.
+Set confidence high (≥ 0.85) — the inventory is authoritative.
+"""
+
+
+def _render_steps_for_plan_md(steps) -> str:
+    lines: list[str] = []
+    for step in steps:
+        args = getattr(step, "args", {}) or {}
+        kwargs_str = ", ".join(
+            f"{k}={json.dumps(v, separators=(',', ':'))}" for k, v in args.items()
+        )
+        why = getattr(step, "why", "") or ""
+        lines.append(f"- {step.name}({kwargs_str}) — {why}")
+    return "\n".join(lines)
+
+
+def write_plan_md(
+    cwd: Path,
+    plan,
+    *,
+    session_id: str,
+    model: str,
+    title: str | None = None,
+) -> Path:
+    """Persist a Plan to .voss/plans/YYYY-MM-DD-<slug>.md."""
+    plans_dir = voss_dir(cwd) / "plans"
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    base_source = title or (plan.rationale[:40] if plan.rationale else "plan")
+    base = slug(base_source)
+    path = reserve_filename(plans_dir, base)
+    id_str = path.stem
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    confidence = float(getattr(plan, "confidence", 0.0))
+    rationale = getattr(plan, "rationale", "") or ""
+    steps_block = _render_steps_for_plan_md(getattr(plan, "steps", []) or [])
+    heading = title or "Plan"
+    content = (
+        "---\n"
+        f"id: {id_str}\n"
+        "status: open\n"
+        f"related_session: {session_id}\n"
+        f"model: {model}\n"
+        f"confidence: {confidence:.2f}\n"
+        f"created_at: {created_at}\n"
+        "---\n\n"
+        f"# {heading}\n\n"
+        "## Rationale\n\n"
+        f"{rationale}\n\n"
+        "## Steps\n\n"
+        f"{steps_block}\n"
+    )
+    path.write_text(content)
+    return path

@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "docs:dev": "cd docs && mint dev",
+    "docs:validate": "cd docs && mint validate",
+    "docs:links": "cd docs && mint broken-links --check-anchors --check-external",
+    "docs:a11y": "cd docs && mint a11y"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",

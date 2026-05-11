@@ -20,12 +20,82 @@ from voss_runtime.providers import LiteLLMProvider
 from voss_runtime.providers.base import ModelProvider
 
 from . import auth as auth_mod
+from . import cognition as cognition_mod
 from . import session as session_store
-from .agent import run_turn
+from .agent import Plan, run_turn
 from .permissions import PermissionGate, PermissionStore
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
 from .tools import make_toolset
+
+
+_INTENT_ALLOWLIST = frozenset(
+    {
+        "analyze repo",
+        "analyze this repo",
+        "analyze this project",
+        "update project memory",
+        "refresh cognition",
+        "rebuild cognition",
+    }
+)
+
+
+def _classify_intent(line: str) -> str | None:
+    """Literal-match natural-language router. No LLM. Returns intent name or None."""
+    return "analyze" if line.lower().strip() in _INTENT_ALLOWLIST else None
+
+
+def _handle_analyze(
+    *,
+    cwd: Path,
+    provider: ModelProvider,
+    history: EpisodicMemory,
+    record: session_store.SessionRecord,
+    renderer,
+    tools,
+    gate: PermissionGate,
+) -> None:
+    from .skills.analyze import run as analyze_run
+
+    analyze_run(
+        cwd=cwd,
+        provider=provider,
+        history=history,
+        record=record,
+        renderer=renderer,
+        tools=tools,
+        gate=gate,
+    )
+
+
+def _handle_save_plan(
+    *,
+    cwd: Path,
+    last_plan: "Plan | None",
+    record: session_store.SessionRecord,
+    line: str,
+) -> None:
+    if last_plan is None:
+        click.echo("no plan to save yet — run a turn first", err=True)
+        return
+    remainder = line[len("/save-plan") :].strip()
+    title = remainder or None
+    try:
+        path = cognition_mod.write_plan_md(
+            cwd,
+            last_plan,
+            session_id=record.id,
+            model=record.model,
+            title=title,
+        )
+        try:
+            shown = path.relative_to(cwd)
+        except ValueError:
+            shown = path
+        click.echo(f"plan saved: {shown}")
+    except OSError as exc:
+        click.echo(f"warning: failed to save plan: {exc}", err=True)
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +448,7 @@ def _run_repl(
         edit_scope=edit_scope,
     )
     total_cost = record.total_cost_usd
+    last_plan: "Plan | None" = None
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     if auth_detail:
         click.echo(f"  [auth: {auth_detail}]")
@@ -410,6 +481,22 @@ def _run_repl(
         if line == "/tools":
             for name, td in tools.items():
                 click.echo(f"  {name} — {td.description}")
+            continue
+        if line == "/analyze":
+            _handle_analyze(
+                cwd=cwd,
+                provider=provider,
+                history=history,
+                record=record,
+                renderer=renderer,
+                tools=tools,
+                gate=gate,
+            )
+            continue
+        if line.startswith("/save-plan"):
+            _handle_save_plan(
+                cwd=cwd, last_plan=last_plan, record=record, line=line
+            )
             continue
         if line == "/model" or line.startswith("/model "):
             parts = line.split(maxsplit=1)
@@ -467,6 +554,18 @@ def _run_repl(
             click.echo(f"unknown command: {line}. /help for list.", err=True)
             continue
 
+        if _classify_intent(line) == "analyze":
+            _handle_analyze(
+                cwd=cwd,
+                provider=provider,
+                history=history,
+                record=record,
+                renderer=renderer,
+                tools=tools,
+                gate=gate,
+            )
+            continue
+
         renderer.show_user(line)
         try:
             result = asyncio.run(
@@ -485,6 +584,7 @@ def _run_repl(
         except Exception as e:  # noqa: BLE001
             click.echo(f"error: {e}", err=True)
             continue
+        last_plan = result.plan
         if result.run is not None:
             record.runs.append(asdict(result.run))
         total_cost += result.cost_usd
@@ -553,6 +653,8 @@ def _print_slash_help() -> None:
                 "/model [name]          list providers or switch (persists to config.toml)",
                 "/mode <m> [--confirm]  plan | edit | auto; auto requires --confirm",
                 "/save [name]           persist session snapshot",
+                "/analyze               refresh project cognition (.voss/ + .voss-cache/)",
+                "/save-plan [title]     persist the most recent plan to .voss/plans/",
             ]
         )
     )

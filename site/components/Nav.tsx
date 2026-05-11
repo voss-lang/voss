@@ -29,7 +29,7 @@ export default function Nav() {
             </Link>
           </Button>
           <Button asChild variant="ghost" size="lg">
-            <Link href="/docs">
+            <Link href={site.docsUrl}>
               <BookOpenText />
               Docs
             </Link>
