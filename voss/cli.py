@@ -139,7 +139,7 @@ def main(ctx: click.Context) -> None:
             model=None,
             cwd_str=".",
             json_mode=False,
-            mode="edit",
+            mode="plan",  # D-07: bare voss defaults to plan
             auth_pref="auto",
         )
 

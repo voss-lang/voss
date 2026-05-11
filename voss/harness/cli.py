@@ -182,7 +182,7 @@ def _git_status(cwd: Path) -> str:
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
-    default="edit",
+    default="plan",  # D-07: do defaults to plan
     help="Permission tier.",
 )
 @click.option("--yes", "yes_to_all", is_flag=True, help="Skip permission prompts.")
@@ -258,7 +258,7 @@ def do_cmd(
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
-    default="edit",
+    default="plan",  # D-07: chat defaults to plan
     help="Permission tier.",
 )
 @click.option(
@@ -725,7 +725,7 @@ def main(ctx: click.Context) -> None:
             model=None,
             cwd_str=".",
             json_mode=False,
-            mode="edit",
+            mode="plan",  # D-07: bare voss defaults to plan
             auth_pref="auto",
         )
 
