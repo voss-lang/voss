@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: planning
-last_updated: "2026-05-11T01:12:02.026Z"
-last_activity: "2026-05-10 — Phase M1 planned (7 plans, ready to execute)."
+status: executing
+last_updated: "2026-05-11T01:40:50.373Z"
+last_activity: "2026-05-10 — Phase M2 context gathered. Resume file: `.planning/phases/M2-project-cognition/M2-CONTEXT.md`."
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 7
+  total_plans: 0
   completed_plans: 0
 ---
 
@@ -23,10 +23,10 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** M1 — Harness Happy Path
-**Status:** Ready to execute (7 plans, 3 waves)
-**Goal:** Make the Python harness usable on a real repo with minimal persistence.
-**Last activity:** 2026-05-10 — Phase M1 planned (7 plans across 3 waves, all checker gates passed). Resume file: `.planning/phases/M1-harness-happy-path/`.
+**Phase:** M2 — Project Cognition
+**Status:** Context gathered, ready for planning
+**Goal:** Make Voss remember useful project facts across sessions.
+**Last activity:** 2026-05-10 — Phase M2 context gathered. Resume file: `.planning/phases/M2-project-cognition/M2-CONTEXT.md`.
 
 ## Phase Status
 
@@ -34,7 +34,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 |---|---|---|
 | M0 | Scope Lock | Ready to plan |
 | M1 | Harness Happy Path | Ready to execute (7 plans) |
-| M2 | Project Cognition | Pending |
+| M2 | Project Cognition | Context gathered |
 | M3 | Language Validation | Pending |
 | M4 | Voss-authored Harness Loop | Pending |
 | M5 | Eval and Distribution Prep | Pending |
@@ -48,9 +48,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-10 — Roadmap rebaselined to M-prefixed phases M0-M5; Rust deferred until Python harness usage is proven.
 - 2026-05-10 — Phase M1 context gathered (4 decision areas: voss edit scope, permission modes, voss doctor, session redaction).
 - 2026-05-10 — Phase M1 planned: 7 plans across 3 waves; plan-checker passed after 1 revision (3 blockers + 4 warnings cleared).
+- 2026-05-10 — Phase M2 context gathered (4 decision areas: analyze + index lifecycle, cognition file schemas, session move + per-run ledger, context injection on resume).
 
 ## Notes
 
 - Existing `.planning/phases/01-*` through `07-*` directories remain historical planning artifacts unless explicitly archived.
 - Next operational step after this rebaseline is to plan M0, then M1.
-
