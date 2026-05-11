@@ -1,5 +1,13 @@
 import Link from "next/link";
-import { ArrowUpRight, BookOpenText, Github, TerminalSquare } from "lucide-react";
+import {
+  ArrowUpRight,
+  BookOpenText,
+  Code2,
+  GitBranch,
+  Map,
+  ShieldCheck,
+  TerminalSquare,
+} from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +20,7 @@ export default function Footer() {
         <div className="max-w-xl">
           <Link href="/" className="group inline-flex items-center gap-4">
             <span className="flex h-16 w-16 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--background)] transition-colors group-hover:border-[var(--accent)]">
-              <LogoMark className="h-13 w-13" />
+              <LogoMark className="h-12 w-12" />
             </span>
             <span>
               <span className="block font-mono text-3xl font-semibold leading-none tracking-tight">{site.name}</span>
@@ -32,7 +40,7 @@ export default function Footer() {
             </Button>
           </div>
         </div>
-        <div className="grid gap-8 sm:grid-cols-2 md:justify-self-end">
+        <div className="grid gap-8 sm:grid-cols-3 md:justify-self-end">
           <div>
             <h2 className="font-mono text-sm uppercase tracking-widest text-[var(--foreground)]">Product</h2>
             <div className="mt-4 flex flex-col items-start gap-2">
@@ -48,6 +56,29 @@ export default function Footer() {
                   Docs
                 </Link>
               </Button>
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/language">
+                  <Code2 />
+                  Language
+                </Link>
+              </Button>
+            </div>
+          </div>
+          <div>
+            <h2 className="font-mono text-sm uppercase tracking-widest text-[var(--foreground)]">Trust</h2>
+            <div className="mt-4 flex flex-col items-start gap-2">
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/security">
+                  <ShieldCheck />
+                  Security
+                </Link>
+              </Button>
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/roadmap">
+                  <Map />
+                  Roadmap
+                </Link>
+              </Button>
             </div>
           </div>
           <div>
@@ -55,7 +86,7 @@ export default function Footer() {
             <div className="mt-4 flex flex-col items-start gap-2">
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
                 <Link href={site.repoUrl} target="_blank" rel="noreferrer">
-                  <Github />
+                  <GitBranch />
                   GitHub
                   <ArrowUpRight />
                 </Link>

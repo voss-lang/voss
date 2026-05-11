@@ -88,10 +88,10 @@ class TestSessionsLifecycle:
         path = session_store.save(record, history)
         assert path.exists()
 
-        records = session_store.list_sessions()
+        records = session_store.list_sessions(cwd=tmp_path)
         assert any(r.id == record.id for r in records)
 
-        loaded_record, loaded_history = session_store.load(record.id[:8])
+        loaded_record, loaded_history = session_store.load(record.id[:8], cwd=tmp_path)
         assert loaded_record.id == record.id
         assert loaded_record.cwd == str(tmp_path.resolve())
         assert loaded_history.last(2)[0]["content"] == "summarize"
@@ -111,13 +111,15 @@ class TestSessionsLifecycle:
 
 
 class TestSessionsCmd:
-    def test_sessions_lists_saved(self, isolated_env, tmp_path):
+    def test_sessions_lists_saved(self, isolated_env, tmp_path, monkeypatch):
         from voss_runtime import EpisodicMemory
 
         record = session_store.SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")
         history = EpisodicMemory(capacity=10)
         session_store.save(record, history)
 
+        # sessions_cmd reads from Path.cwd() — chdir into the project dir.
+        monkeypatch.chdir(tmp_path)
         result = CliRunner().invoke(sessions_cmd, [])
         assert result.exit_code == 0
         assert record.id[:8] in result.output

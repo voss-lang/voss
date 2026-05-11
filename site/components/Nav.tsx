@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, BookOpenText, Github, TerminalSquare } from "lucide-react";
+import { ArrowUpRight, BookOpenText, Code2, GitBranch, TerminalSquare } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,15 @@ export default function Nav() {
               Docs
             </Link>
           </Button>
+          <Button asChild variant="ghost" size="lg">
+            <Link href="/language">
+              <Code2 />
+              Language
+            </Link>
+          </Button>
           <Button asChild variant="outline" size="lg">
             <Link href={site.repoUrl} target="_blank" rel="noreferrer">
-              <Github />
+              <GitBranch />
               GitHub
               <ArrowUpRight />
             </Link>

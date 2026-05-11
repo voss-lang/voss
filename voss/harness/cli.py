@@ -557,7 +557,7 @@ def _print_slash_help() -> None:
 @click.command("sessions")
 def sessions_cmd() -> None:
     """List saved agent sessions."""
-    records = session_store.list_sessions()
+    records = session_store.list_sessions(cwd=Path.cwd())
     if not records:
         click.echo("(no sessions)")
         return
@@ -591,7 +591,7 @@ def resume_cmd(
 ) -> None:
     """Resume a saved session by id-prefix or name."""
     try:
-        record, history = session_store.load(session_id_or_name)
+        record, history = session_store.load(session_id_or_name, cwd=Path.cwd())
     except (FileNotFoundError, ValueError) as e:
         click.echo(f"resume failed: {e}", err=True)
         sys.exit(1)

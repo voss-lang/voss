@@ -5,7 +5,9 @@ adds a serialization path that bypasses the dataclass, these tests fail.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -13,6 +15,7 @@ import pytest
 from voss_runtime import EpisodicMemory
 
 from voss.harness import session as session_store
+from voss.harness.session import RunRecord, SessionRecord
 
 
 @pytest.fixture
@@ -30,7 +33,7 @@ class TestSchemaAllowlist:
         data = json.loads(path.read_text())
         expected = {
             "id", "name", "cwd", "model", "started_at", "updated_at",
-            "total_cost_usd", "turns",
+            "total_cost_usd", "turns", "runs",
         }
         assert set(data.keys()) == expected
 
@@ -80,3 +83,53 @@ class TestDocstringFreezesGuarantee:
     def test_module_docstring_mentions_redaction_guarantee(self):
         assert session_store.__doc__ is not None
         assert "Redaction guarantee" in session_store.__doc__
+
+
+class TestRunRecordRedaction:
+    def test_run_record_top_level_keys(self):
+        rec = RunRecord(id="t", started_at="t0", ended_at="t1")
+        expected = {
+            "id",
+            "started_at",
+            "ended_at",
+            "goal",
+            "plan",
+            "inspected",
+            "changed",
+            "avoided",
+            "assumptions",
+            "decisions",
+            "risks",
+            "validation",
+            "failures",
+            "diff_summary",
+            "follow_ups",
+            "cost_usd",
+        }
+        assert set(asdict(rec).keys()) == expected
+        assert len(dataclasses.fields(RunRecord)) == 16
+
+    def test_run_record_no_secret_patterns(self, state_dir, tmp_path):
+        record = SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")
+        history = EpisodicMemory(capacity=10)
+        history.add("summarize", role="user")
+        run = RunRecord(
+            id="t1",
+            started_at="t0",
+            ended_at="t1",
+            goal="summarize",
+            inspected=["src/a.py"],
+        )
+        record.runs.append(asdict(run))
+        path = session_store.save(record, history)
+        text = path.read_text()
+        secret_patterns = (
+            "sk-ant-",
+            "sk-proj-",
+            "Bearer ",
+            "oauth_token",
+            "access_token",
+            "Authorization",
+        )
+        for pat in secret_patterns:
+            assert pat not in text, f"secret pattern leaked: {pat!r}"
