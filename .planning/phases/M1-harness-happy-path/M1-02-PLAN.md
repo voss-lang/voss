@@ -21,16 +21,16 @@ must_haves:
     - "`voss doctor` runs 7 checks in the documented display order."
     - "Each check row shows one of ✓ / ⚠ / ✗ plus a one-line reason or fix suggestion."
     - "Doctor never executes a fix — it only prints the command to run."
-    - "Exit code is 0 if all ✓ or only ⚠; 1 if any ✗."
+    - "Exit code is 0 if all ✓; 1 if any ✗; 0 with a non-zero stderr summary line if only ⚠ (informational misses, per D-14 full text)."
   artifacts:
     - path: "voss/harness/diagnostics.py"
       provides: "Check registry + pure-function checks (Python version, git, cwd writable, dirs creatable, voss import)"
       contains: "class Check"
     - path: "voss/harness/cli.py"
-      provides: "doctor_cmd that drives the check registry and renders a traffic-light table"
+      provides: "doctor_cmd that drives the check registry and renders a traffic-light table; emits a stderr summary for WARN-only runs (D-14)"
       contains: "def doctor_cmd"
     - path: "tests/harness/test_diagnostics.py"
-      provides: "Per-check pass/fail coverage + exit code logic"
+      provides: "Per-check pass/fail coverage + exit code logic + WARN-only stderr surface"
   key_links:
     - from: "voss/harness/cli.py::doctor_cmd"
       to: "voss/harness/diagnostics.py::run_all_checks"
@@ -43,14 +43,14 @@ must_haves:
 ---
 
 <objective>
-Rewrite `voss doctor` to use a check registry that runs 7 minimal-essentials checks in display order, produces a traffic-light table, and exits with the documented code semantics.
+Rewrite `voss doctor` to use a check registry that runs 7 minimal-essentials checks in display order, produces a traffic-light table, and exits with the documented code semantics. Per D-14 full text: WARN-only runs exit 0 but emit a summary line to stderr so CI / shell prompts can still notice informational misses without failing the build.
 
 Purpose: Today's `doctor_cmd` is a flat dump. The locked decisions (D-11..D-14) require a structured, diagnose-only doctor with predictable exit codes for CI use. Covers CLIH-08.
 
 Output:
 - New module `voss/harness/diagnostics.py` defining `Check` dataclass, `CheckResult` enum (✓/⚠/✗), and pure check functions.
-- Updated `doctor_cmd` in `voss/harness/cli.py` that runs the registry, prints a table, exits 0/1 per D-14.
-- `tests/harness/test_diagnostics.py` with deterministic coverage of each check + exit code branches.
+- Updated `doctor_cmd` in `voss/harness/cli.py` that runs the registry, prints a table, exits 0/1 per D-14, AND emits a stderr summary line when results contain only WARNs and no FAILs.
+- `tests/harness/test_diagnostics.py` with deterministic coverage of each check + exit code branches + the WARN-only stderr branch.
 </objective>
 
 <execution_context>
@@ -79,6 +79,14 @@ Minimal-essentials check set per D-11 (display order):
   5. cwd writable                          — ✓ / ✗
   6. ~/.config/voss/ + ~/.local/state/voss/sessions/ creatable — ✓ / ✗
   7. .voss/ and .voss-cache/ creatable in cwd — informational ✓ / ⚠
+
+D-14 full text (per CONTEXT.md):
+  "Exit code: 0 if all ✓, 1 if any ✗, 0 with non-zero stderr message if only ⚠
+   (informational misses)."
+
+That stderr message is what W2 in the revision context adds — the prior draft
+of this plan only wrote to stderr when code != 0, which silently dropped the
+WARN-only nuance.
 </interfaces>
 </context>
 
@@ -285,7 +293,7 @@ def aggregate_exit_code(results: list[Check]) -> int:
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 2: Rewrite doctor_cmd to use the registry and render a traffic-light table</name>
+  <name>Task 2: Rewrite doctor_cmd to use the registry, render a traffic-light table, and surface WARN-only summary to stderr</name>
   <files>voss/harness/cli.py, tests/harness/test_diagnostics.py</files>
   <read_first>
     - voss/harness/cli.py:333-369 (existing doctor_cmd)
@@ -300,8 +308,12 @@ def aggregate_exit_code(results: list[Check]) -> int:
     - Test 4 (output): table rows contain "✓", "⚠", or "✗" glyphs, one per check.
     - Test 5 (output): when a check FAILs and has a fix string, the output contains the fix text.
     - Test 6 (no fix execution): the test FAIL case does NOT mutate any state — verified by checking that doctor's invocation does not call any subprocess except via `check_voss_import` (import) and `shutil.which("git")`.
+    - Test 7 (NEW per W2 — WARN-only stderr surface): when results contain at least one WARN and NO FAIL, the CLI exits 0 AND a summary line is written to stderr that mentions the WARN count (e.g. "doctor: 1 warning"). Specifically: a doctor run where `check_provider_auth` is monkeypatched to return WARN and every other check returns OK must have `result.exit_code == 0` AND `result.stderr` (when CliRunner is invoked with `mix_stderr=False`) contains "warning" (case-insensitive).
+    - Test 8 (NEW per W2 — all-OK no stderr): when ALL checks return OK, no stderr summary is emitted (stderr is empty).
   </behavior>
   <action>
+**Fix W2:** D-14 full text says doctor exits 0 with a non-zero stderr message if only ⚠. The prior draft only wrote to stderr when `code != 0`, silently dropping the WARN-only nuance. The fix: after computing the exit code, if `code == 0` AND any result is WARN, emit a one-line summary to stderr listing the WARN count and check names. CI scripts that capture stderr can then surface informational misses without failing the build.
+
 1. Replace the body of `doctor_cmd` in `voss/harness/cli.py` (lines 333-369). Add `--cwd` option (default ".") for testability:
 ```python
 @click.command("doctor")
@@ -327,8 +339,17 @@ def doctor_cmd(cwd_str: str) -> None:
             click.echo(f"     → {c.fix}")
 
     code = diag.aggregate_exit_code(results)
+
+    # D-14 full text: WARN-only runs exit 0 but emit a stderr summary line.
+    warns = [c for c in results if c.result is diag.CheckResult.WARN]
+    fails = [c for c in results if c.result is diag.CheckResult.FAIL]
     if code != 0:
         click.echo("\nfailed checks. fix above and re-run.", err=True)
+    elif warns and not fails:
+        # WARN-only: exit 0 but surface the count + names to stderr (D-14).
+        names = ", ".join(c.name for c in warns)
+        plural = "warning" if len(warns) == 1 else "warnings"
+        click.echo(f"doctor: {len(warns)} {plural} ({names})", err=True)
     sys.exit(code)
 ```
 
@@ -356,11 +377,52 @@ class TestDoctorCmd:
         assert "claude /login" in result.output
 
     def test_only_warn_exits_zero(self, monkeypatch, tmp_path):
+        # Make every check return OK except provider_auth, which WARNs.
+        for check_name in ("check_python_version", "check_voss_import",
+                           "check_git_on_path", "check_config_dirs_creatable"):
+            monkeypatch.setattr(diag, check_name,
+                                lambda name=check_name: diag.Check(name, diag.CheckResult.OK))
         monkeypatch.setattr(diag, "check_provider_auth",
                             lambda: diag.Check("provider auth", diag.CheckResult.WARN,
                                                detail="only codex"))
         result = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path)])
         assert result.exit_code == 0
+
+    def test_warn_only_surfaces_stderr_summary(self, monkeypatch, tmp_path):
+        """W2: D-14 says WARN-only runs exit 0 with a non-zero stderr message.
+
+        CliRunner is invoked with mix_stderr=False so we can read stderr
+        separately and assert the summary line exists.
+        """
+        # Force the provider check to WARN; let other checks run normally.
+        monkeypatch.setattr(diag, "check_provider_auth",
+                            lambda: diag.Check("provider auth", diag.CheckResult.WARN,
+                                               detail="only codex"))
+        runner = CliRunner(mix_stderr=False)
+        result = runner.invoke(doctor_cmd, ["--cwd", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "warning" in result.stderr.lower(), (
+            f"WARN-only doctor must surface a stderr summary (D-14); got stderr: {result.stderr!r}"
+        )
+        # The summary should also name the warning check(s).
+        assert "provider auth" in result.stderr.lower()
+
+    def test_all_ok_no_stderr_summary(self, monkeypatch, tmp_path):
+        """W2 negative: all-OK runs must NOT emit a stderr summary."""
+        for check_name in ("check_python_version", "check_voss_import",
+                           "check_provider_auth", "check_git_on_path",
+                           "check_config_dirs_creatable", "check_project_dirs"):
+            monkeypatch.setattr(diag, check_name,
+                                lambda name=check_name: diag.Check(name, diag.CheckResult.OK))
+        # check_cwd_writable takes cwd; wrap to ignore.
+        monkeypatch.setattr(diag, "check_cwd_writable",
+                            lambda cwd: diag.Check("cwd writable", diag.CheckResult.OK))
+        runner = CliRunner(mix_stderr=False)
+        result = runner.invoke(doctor_cmd, ["--cwd", str(tmp_path)])
+        assert result.exit_code == 0
+        assert result.stderr.strip() == "", (
+            f"all-OK doctor must NOT emit stderr; got: {result.stderr!r}"
+        )
 
     def test_output_contains_glyphs(self, tmp_path):
         result = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path)])
@@ -378,11 +440,15 @@ class TestDoctorCmd:
     - `grep -c "run_all_checks" voss/harness/cli.py` returns 1.
     - `grep -c "aggregate_exit_code" voss/harness/cli.py` returns 1.
     - `grep -c "TestDoctorCmd" tests/harness/test_diagnostics.py` returns 1.
+    - `grep -c "test_warn_only_surfaces_stderr_summary" tests/harness/test_diagnostics.py` returns 1.
+    - `grep -c "test_all_ok_no_stderr_summary" tests/harness/test_diagnostics.py` returns 1.
+    - `grep -E 'elif warns and not fails' voss/harness/cli.py` returns at least 1 hit (the WARN-only branch).
     - `pytest tests/harness/test_diagnostics.py -x` exits 0.
     - `pytest tests/harness/test_cli.py -x` exits 0 (existing doctor CLI test must still pass — update it if needed to match the new output, but do NOT delete it).
     - Manual: `python -m voss doctor` prints a table with glyphs and exits 0 or 1.
+    - Manual (WARN-only): with Anthropic creds present but Codex absent (or vice versa producing WARN), `python -m voss doctor; echo "exit=$?"` shows exit=0 AND stderr line "doctor: N warning(s) (...)".
   </acceptance_criteria>
-  <done>doctor_cmd is registry-driven, prints traffic-light rows + fix suggestions, exits per D-14, all tests pass.</done>
+  <done>doctor_cmd is registry-driven, prints traffic-light rows + fix suggestions, exits per D-14, AND surfaces a stderr summary for WARN-only runs. All tests pass.</done>
 </task>
 
 </tasks>
@@ -391,6 +457,7 @@ class TestDoctorCmd:
 - `pytest tests/harness/test_diagnostics.py tests/harness/test_cli.py -x` exits 0.
 - Manual end-to-end: `python -m voss doctor` produces a readable table in a TTY; in `--cwd=/tmp` exits cleanly.
 - Manual FAIL path: `python -m voss doctor --cwd=/nonexistent` exits non-zero (cwd writable check fails).
+- Manual WARN-only path: in an env where only Codex creds exist, `python -m voss doctor 2>warn.log; echo "exit=$?"` shows exit=0 and `warn.log` contains "warning".
 </verification>
 
 <success_criteria>
@@ -398,10 +465,11 @@ class TestDoctorCmd:
 - Output uses ✓/⚠/✗ glyphs (D-12).
 - Failed/warned rows print a one-line fix command (D-13).
 - Exit code: 0 on all-OK or only-WARN, 1 on any FAIL (D-14).
+- D-14 stderr nuance: WARN-only runs emit a one-line stderr summary so CI can surface informational misses without failing the build.
 - Doctor never executes a fix — it only suggests (D-13). Grep `voss/harness/diagnostics.py` for `subprocess.run\|os.system` returns 0.
 - Provider auth uses existing `auth.load_anthropic_oauth` and `auth.load_codex` (no new credential resolution path introduced — D-10 boundary preserved).
 </success_criteria>
 
 <output>
-After completion, create `.planning/phases/M1-harness-happy-path/M1-02-SUMMARY.md` documenting the check registry shape, exit-code semantics, and how Plan 05 (`/login` slash) integrates with the provider-auth check.
+After completion, create `.planning/phases/M1-harness-happy-path/M1-02-SUMMARY.md` documenting the check registry shape, exit-code semantics (including the D-14 WARN-only stderr nuance), and how Plan 05 (`/login` slash) integrates with the provider-auth check.
 </output>

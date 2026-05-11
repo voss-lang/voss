@@ -88,6 +88,7 @@ Output:
 @voss/cli.py
 @voss/harness/cli.py
 @voss/harness/agent.py
+@voss_runtime/providers/base.py
 @tests/harness/test_agent_integration.py
 
 <interfaces>
@@ -98,6 +99,22 @@ After all prior M1 plans land:
                                   mode_allows(mode, name, is_mutating)
   - voss/harness/cli.py: AGENT_COMMANDS = (do, chat, doctor, sessions, resume, edit, tools, config)
   - voss/harness/session.py: SessionRecord schema unchanged; redaction test in place
+
+Provider response class (from voss_runtime/providers/base.py):
+  ```python
+  @dataclass
+  class ProviderResponse:
+      text: str
+      model: str                          # REQUIRED — positional, no default
+      prompt_tokens: int                  # REQUIRED
+      completion_tokens: int              # REQUIRED
+      cost_usd: float                     # REQUIRED
+      raw: dict = field(default_factory=dict)
+      parsed: Optional[Any] = None
+  ```
+  NOTE: The class is `ProviderResponse`, NOT `ModelResponse`. The `model` field is required.
+  Any mock/fixture constructing one MUST pass `text`, `model`, `prompt_tokens`,
+  `completion_tokens`, `cost_usd` at minimum.
 
 D-07 per-command defaults:
   - voss do     → plan
@@ -228,9 +245,14 @@ class TestRunIsCompilerVerb:
     - voss/harness/agent.py (run_turn signature)
     - voss/harness/session.py (save / load / list_sessions)
     - voss/harness/cli.py (do_cmd, sessions_cmd, resume_cmd)
+    - voss_runtime/providers/base.py (ProviderResponse — the actual class name + required fields)
     - .planning/phases/M1-harness-happy-path/M1-CONTEXT.md (§decisions D-15..D-18)
   </read_first>
   <action>
+**Import correction (resolves B1):** The provider response class in `voss_runtime/providers/base.py` is named `ProviderResponse`, NOT `ModelResponse`. Earlier drafts of this plan referenced `ModelResponse`; that name does not exist. Use `ProviderResponse`.
+
+**Constructor signature (resolves B2):** `ProviderResponse` requires `text`, `model`, `prompt_tokens`, `completion_tokens`, `cost_usd` (positional/required; `raw` and `parsed` have defaults). Any fixture instantiating one MUST pass the `model` argument.
+
 1. Create `tests/harness/test_happy_path_integration.py`:
 ```python
 """End-to-end happy path for M1.
@@ -269,9 +291,13 @@ def isolated_env(monkeypatch, tmp_path):
 
 @pytest.fixture
 def mock_provider(monkeypatch):
-    """Stub out the provider so no real network call happens."""
+    """Stub out the provider so no real network call happens.
+
+    NOTE: ProviderResponse (NOT ModelResponse) is the actual class name in
+    voss_runtime.providers.base. The `model` field is required (no default).
+    """
     from voss.harness.agent import Plan, ToolCall
-    from voss_runtime.providers.base import ModelResponse
+    from voss_runtime.providers.base import ProviderResponse  # NOT ModelResponse
 
     plan = Plan(
         rationale="trivial summary",
@@ -279,8 +305,13 @@ def mock_provider(monkeypatch):
         confidence=0.9,
         final_when_done="repo summary: {{step_0}}",
     )
-    resp = ModelResponse(
-        text="", parsed=plan, prompt_tokens=10, completion_tokens=10, cost_usd=0.001,
+    resp = ProviderResponse(
+        text="",
+        model="claude-sonnet-4-20250514",   # REQUIRED — no default
+        prompt_tokens=10,
+        completion_tokens=10,
+        cost_usd=0.001,
+        parsed=plan,
     )
 
     async def fake_complete(*args, **kwargs):
@@ -363,6 +394,9 @@ class TestSessionsCmd:
     - `grep -c "class TestSessionsLifecycle" tests/harness/test_happy_path_integration.py` returns 1.
     - `grep -c "class TestSessionsCmd" tests/harness/test_happy_path_integration.py` returns 1.
     - `grep -c "test_session_json_has_no_creds" tests/harness/test_happy_path_integration.py` returns 1.
+    - `grep -c "ProviderResponse" tests/harness/test_happy_path_integration.py` returns at least 2 (import + construction).
+    - `grep -c "ModelResponse" tests/harness/test_happy_path_integration.py` returns 0 (the wrong name must not appear).
+    - `grep -E 'ProviderResponse\(' tests/harness/test_happy_path_integration.py` shows a call site that includes `model=`.
     - `pytest tests/harness/test_happy_path_integration.py -x` exits 0.
     - `pytest tests/harness/ -x` exits 0 (full M1 suite green, no regressions across Plans 01-07).
   </acceptance_criteria>

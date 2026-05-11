@@ -10,6 +10,7 @@ files_modified:
   - voss/harness/cli.py
   - tests/harness/test_harness_config.py
   - tests/harness/test_repl_slash.py
+  - tests/harness/test_model_persistence.py
 autonomous: true
 requirements:
   - CLIH-01
@@ -26,19 +27,25 @@ must_haves:
     - "/model with no arg lists detected providers and the active model; with a name switches and persists to ~/.config/voss/config.toml under [harness] preferred_model."
     - "/mode plan|edit|auto switches mid-session; /mode auto without --confirm refuses to escalate (D-07)."
     - "Slash help (/help) lists /login, /model, /mode with their flag forms."
-    - "Resolution order for default model: ~/.config/voss/config.toml [harness] preferred_model → existing auth.resolve('auto') default."
+    - "Resolution order for default model: --model flag (user explicit) → ~/.config/voss/config.toml [harness] preferred_model → existing auth.resolve('auto') default. The persisted preferred_model is loaded BEFORE SessionRecord.new(...) in each command so the session record carries the resolved model."
   artifacts:
     - path: "voss/harness/config.py"
       provides: "Read/write ~/.config/voss/config.toml [harness] section"
       contains: "def load_harness_config"
     - path: "voss/harness/cli.py"
-      provides: "_run_repl handles /login, /model, /mode with --confirm"
+      provides: "do_cmd / chat_cmd / edit_cmd resolve preferred_model BEFORE SessionRecord.new; _run_repl handles /login, /model, /mode with --confirm"
       contains: "/login"
     - path: "tests/harness/test_harness_config.py"
       provides: "Round-trip + missing-file coverage for config.toml"
     - path: "tests/harness/test_repl_slash.py"
       provides: "Parser-level tests for each slash command's parsing + side effect"
+    - path: "tests/harness/test_model_persistence.py"
+      provides: "End-to-end test that persisted preferred_model overrides the hard-coded default when --model is not passed"
   key_links:
+    - from: "voss/harness/cli.py::do_cmd, chat_cmd, edit_cmd"
+      to: "voss/harness/config.py::load_harness_config"
+      via: "called BEFORE SessionRecord.new(...) when model arg is None"
+      pattern: "load_harness_config\\("
     - from: "voss/harness/cli.py::_run_repl"
       to: "voss/harness/config.py::set_preferred_model"
       via: "set_preferred_model(name) on /model <name>"
@@ -50,18 +57,13 @@ must_haves:
 ---
 
 <objective>
-Add REPL slash commands `/login`, `/model`, `/mode` (with the `--confirm` escalation gate), plus a tiny `~/.config/voss/config.toml` reader/writer for `[harness] preferred_model` persistence.
+Add REPL slash commands `/login`, `/model`, `/mode` (with the `--confirm` escalation gate), plus a tiny `~/.config/voss/config.toml` reader/writer for `[harness] preferred_model` persistence. Wire the persisted preferred_model into command entry points (`do_cmd`, `chat_cmd`, `edit_cmd`) so it takes effect BEFORE the session record is constructed.
 
-Purpose: Implements D-08, D-09, D-10, and the runtime half of D-07 (mode escalation gate). The bare `voss` REPL (CLIH-01) and `voss chat` (CLIH-02) become genuinely usable without leaving the shell to fix auth or model selection.
+Purpose: Implements D-08, D-09, D-10, and the runtime half of D-07 (mode escalation gate). The bare `voss` REPL (CLIH-01) and `voss chat` (CLIH-02) become genuinely usable without leaving the shell to fix auth or model selection. D-09's documented resolution order (config.toml → default) must actually take effect — the prior draft of this plan loaded preferred_model inside `_run_repl` AFTER each caller already built a SessionRecord with the hard-coded `cfg.default_model`, which silently broke the override. This revision moves the lookup into the commands themselves.
 
-Output:
-- New `voss/harness/config.py` module with `load_harness_config()`, `set_preferred_model(name)`.
-- `_run_repl` extended with `/login`, `/model`, `/mode` handlers (replaces the current bare `/model <id>` and `/mode <m>` handlers in cli.py).
-- `_print_slash_help` updated.
-- Test coverage for config round-trip and slash-command parsing.
-
-Out of scope for this plan:
-- New OAuth flow code in `voss/harness/providers.py`. `/login` for the missing-creds case prints the upstream command (`claude /login`, `codex login`) per D-13 doctor philosophy applied to login: diagnose and suggest, don't drive a third-party OAuth flow ourselves. (D-08 says "kicks the OAuth flow"; the M1 implementation interprets this as: if creds present → refresh via existing `refresh_anthropic`/`refresh_codex` in auth.py; if missing → print exact upstream command. Bespoke OAuth UI is out of scope.)
+Out of scope for this plan (deliberate M1 narrowing of D-08, see W3 in revision context):
+- New OAuth flow code in `voss/harness/providers.py`. D-08 says `/login` "kicks the OAuth flow"; M1 narrows this to: if creds present → refresh via existing `refresh_anthropic`/`refresh_codex` in auth.py; if missing → print exact upstream command (`claude /login`, `codex login`). Bespoke OAuth UI is deferred to a later phase.
+- Rationale for the narrowing: D-10 locks us OUT of new credential stores, and driving a full OAuth handshake without our own store is borderline pointless (we'd hand the token to the upstream CLI's store anyway). Surfacing existing-creds status + delegating re-auth to the upstream CLI is the safer M1 move and preserves D-10's boundary cleanly. The CONTEXT.md does not explicitly authorize this narrowing — we are documenting it here as a deliberate M1 decision. If the user disagrees, this plan should be rerouted through `/gsd-discuss-phase` to expand D-08.
 </objective>
 
 <execution_context>
@@ -93,6 +95,22 @@ Python 3.10 stdlib does NOT include tomllib read OR write. Plan: use stdlib
 `tomllib` (3.11+) for read where available with a fallback parser, and
 hand-write TOML for the single key (it's just one line). Acceptable because
 the file only has one section, one key in M1.
+
+CURRENT command flow (the bug being fixed by B3):
+  do_cmd:
+    if model: configure(default_model=model)        # user-explicit wins
+    cfg = get_config()
+    record = SessionRecord.new(..., model=cfg.default_model)   # <-- locks model BEFORE persisted load
+    _run_repl(..., record=record, ...)                          # <-- too late to override
+
+  Same shape for chat_cmd and edit_cmd. The previous draft tried to load
+  preferred_model inside _run_repl after record was already built; the check
+  `if persisted and not record.model:` is always False because record.model
+  is always populated by the caller. So persisted preferred_model never wins.
+
+FIX: load preferred_model in each command BEFORE configure/SessionRecord, only
+when --model was NOT explicitly passed (model is None — that's already the
+Click sentinel default in all three commands).
 </interfaces>
 </context>
 
@@ -195,9 +213,11 @@ def set_preferred_model(name: str) -> Path:
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 2: REPL slash commands /login, /model, /mode (with --confirm escalation gate)</name>
-  <files>voss/harness/cli.py, tests/harness/test_repl_slash.py</files>
+  <name>Task 2: REPL slash commands /login, /model, /mode + preferred_model resolution at command entry</name>
+  <files>voss/harness/cli.py, tests/harness/test_repl_slash.py, tests/harness/test_model_persistence.py</files>
   <read_first>
+    - voss/harness/cli.py:107-178 (do_cmd) — modify the model-resolution prelude
+    - voss/harness/cli.py:185-224 (chat_cmd) — modify the model-resolution prelude
     - voss/harness/cli.py:227-386 (the _run_repl body + _print_slash_help)
     - voss/harness/auth.py (load_anthropic_oauth, load_codex, refresh_anthropic, refresh_codex)
     - voss/harness/config.py (from Task 1)
@@ -216,13 +236,84 @@ def set_preferred_model(name: str) -> Path:
     - Test 9 (`/mode auto` without --confirm): prints `escalating to auto requires --confirm` to stderr, does NOT change mode.
     - Test 10 (`/mode auto --confirm`): switches gate.mode to "auto".
     - Test 11 (`/help` includes the new commands): output contains "/login", "/model", "/mode", "--confirm".
+    - Test 12 (NEW — persistence end-to-end): with `XDG_CONFIG_HOME=tmp_path` and a pre-written `config.toml` containing `[harness]\npreferred_model = "claude-opus-4-7"`, invoking `voss chat` (or `voss do`) WITHOUT `--model` results in the SessionRecord saved to disk having `model == "claude-opus-4-7"`, NOT the hard-coded `cfg.default_model`.
+    - Test 13 (NEW — --model overrides persisted): with the same `config.toml`, invoking `voss chat --model gpt-4o` results in `cfg.default_model == "gpt-4o"` (user-explicit beats persisted).
   </behavior>
   <action>
-1. Refactor the slash-command body inside `_run_repl` in `voss/harness/cli.py` into a small dispatcher. The cleanest path: extract a helper `_handle_slash(line, *, gate, cfg, total_cost, history, record, tools) -> str | None` that returns None if it consumed the line or returns the line unchanged if it didn't recognize a slash command. Then `_run_repl` calls it before falling through to `renderer.show_user(line)`.
+**Fix B3 — model resolution moves into each command, BEFORE SessionRecord.new(...)**:
 
-   But to keep this PR small, the **minimum change** is to replace the existing `/model ...` and `/mode ...` handlers and add `/login` inside the existing `while True` loop. Keep behavior identical for `/exit`, `/quit`, `/help`, `/clear`, `/cost`, `/tools`, `/save`.
+The previous draft put a `if persisted and not record.model:` block inside `_run_repl`. Every caller passes a SessionRecord whose `.model` was already set from `cfg.default_model`, so the conditional was always False. Result: persisted `preferred_model` never took effect. Fix: do the lookup in `do_cmd`, `chat_cmd`, and `edit_cmd` (added in Plan 04) — at that point we can also distinguish "user explicit" (model arg is a string) from "fell through to default" (model arg is None — Click's existing default).
 
-   Replace the existing `/model` handler:
+1. Add a module-level helper in `voss/harness/cli.py` near the other helpers:
+```python
+def _resolve_default_model(user_explicit: str | None) -> None:
+    """Resolve the global default model per D-09:
+       1. user_explicit (--model flag) wins
+       2. else ~/.config/voss/config.toml [harness] preferred_model
+       3. else leave the existing get_config().default_model untouched.
+
+    Side effect: calls configure(default_model=...) when (1) or (2) applies.
+    Must be called BEFORE SessionRecord.new(...) so the record carries the
+    resolved model on disk.
+    """
+    from . import config as harness_config
+    if user_explicit:
+        configure(default_model=user_explicit)
+        return
+    persisted = harness_config.load_harness_config().get("preferred_model")
+    if persisted:
+        configure(default_model=persisted)
+```
+
+2. Update `do_cmd` (voss/harness/cli.py:107-178). Replace:
+```python
+    cwd = Path(cwd_str).resolve()
+    if model:
+        configure(default_model=model)
+    res, provider = _resolve_auth_or_die(auth_pref)
+    cfg = get_config()
+```
+   with:
+```python
+    cwd = Path(cwd_str).resolve()
+    _resolve_default_model(model)        # NEW — D-09 resolution order
+    res, provider = _resolve_auth_or_die(auth_pref)
+    cfg = get_config()
+```
+
+3. Update `chat_cmd` (voss/harness/cli.py:185-224) the same way. Replace:
+```python
+    cwd = Path(cwd_str).resolve()
+    if model:
+        configure(default_model=model)
+    res, provider = _resolve_auth_or_die(auth_pref)
+    cfg = get_config()
+
+    _run_repl(
+        ...,
+        record=session_store.SessionRecord.new(cwd=cwd, model=cfg.default_model),
+        ...
+    )
+```
+   with:
+```python
+    cwd = Path(cwd_str).resolve()
+    _resolve_default_model(model)        # NEW
+    res, provider = _resolve_auth_or_die(auth_pref)
+    cfg = get_config()
+
+    _run_repl(
+        ...,
+        record=session_store.SessionRecord.new(cwd=cwd, model=cfg.default_model),
+        ...
+    )
+```
+
+4. Coordinate with Plan 04's `edit_cmd`: Plan 04 introduces `edit_cmd` with the same `--model` (default None) option. Add the same `_resolve_default_model(model)` call BEFORE `SessionRecord.new(...)` in `edit_cmd`. If Plans 04 and 05 are merged in either order, the executor of whichever lands second must verify the helper is called in `edit_cmd`. (Reflect this dependency by keeping `wave: 2` for both plans; they don't conflict on files since 04 owns the `edit_cmd` definition and 05 just adds one line inside it. The `files_modified` for 05 still includes `voss/harness/cli.py`, which is shared, but the inserted line is small and easy to merge.)
+
+5. REMOVE the broken `if persisted and not record.model:` block previously placed in `_run_repl` — it's a no-op given the new resolution order, and leaving it in would mask the contract.
+
+6. Refactor the slash-command body inside `_run_repl` to add `/login` and replace the bare `/model <id>` and `/mode <m>` handlers. Replace the existing `/model` handler:
 ```python
 if line == "/model" or line.startswith("/model "):
     parts = line.split(maxsplit=1)
@@ -271,10 +362,19 @@ if line == "/login" or line.startswith("/login "):
     continue
 ```
 
-   Add module-level helper:
+   Add module-level helper (note the explicit contract comment per W3):
 ```python
 def _handle_login(provider: str | None) -> None:
-    """Status + refresh for existing creds; for missing, print the upstream command."""
+    """Status + refresh for existing creds; for missing, print the upstream command.
+
+    M1 contract (narrowing of D-08 — see Plan 05 Objective for rationale):
+    we do NOT drive a bespoke OAuth flow. D-10 forbids new credential stores,
+    so re-auth must go through the upstream CLI (`claude /login`, `codex login`).
+    This function:
+      - refreshes EXISTING tokens via auth.refresh_anthropic / auth.refresh_codex
+      - prints upstream commands for MISSING tokens
+    Full OAuth flow drive is deferred to a later phase.
+    """
     if provider in (None, "anthropic"):
         claude = auth_mod.load_anthropic_oauth()
         if claude is None:
@@ -303,7 +403,7 @@ def _handle_login(provider: str | None) -> None:
         click.echo(f"unknown provider: {provider}. use anthropic | openai", err=True)
 ```
 
-2. Update `_print_slash_help`:
+7. Update `_print_slash_help`:
 ```python
 def _print_slash_help() -> None:
     click.echo(
@@ -323,20 +423,7 @@ def _print_slash_help() -> None:
     )
 ```
 
-3. On `_run_repl` start, load the persisted preferred_model so the REPL respects it:
-```python
-def _run_repl(*, cwd, json_mode, mode, history, record, provider, auth_detail="", edit_scope=None):
-    cfg = get_config()
-    from . import config as harness_config
-    persisted = harness_config.load_harness_config().get("preferred_model")
-    if persisted and not record.model:
-        configure(default_model=persisted)
-        cfg = get_config()
-    # ... rest unchanged
-```
-   Note: `edit_scope` parameter was added in Plan 04 — this task just preserves it. If Plan 04 hasn't merged yet at execution time, the executor should add the kwarg in this plan and Plan 04 will simply use it.
-
-4. Create `tests/harness/test_repl_slash.py`:
+8. Create `tests/harness/test_repl_slash.py`:
 ```python
 """Tests for REPL slash command handlers extracted from _run_repl.
 
@@ -441,42 +528,146 @@ class TestModelPersistence:
         assert harness_config.load_harness_config().get("preferred_model") == "claude-sonnet-4-20250514"
 ```
 
-5. Run `pytest tests/harness/test_repl_slash.py tests/harness/test_harness_config.py tests/harness/test_cli.py -x`.
+9. Create `tests/harness/test_model_persistence.py` — the end-to-end resolution-order test that catches B3:
+```python
+"""D-09 resolution order: persisted preferred_model overrides hard-coded default.
+
+Catches the B3 regression where _run_repl's `if persisted and not record.model:`
+guard was always False because callers built SessionRecord with cfg.default_model
+already populated. The fix moves the lookup into the command (do/chat/edit)
+BEFORE SessionRecord.new(...). These tests pin that behavior.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+from click.testing import CliRunner
+
+from voss.harness import session as session_store
+from voss.harness import config as harness_config
+from voss.harness.cli import _resolve_default_model
+from voss_runtime import configure, get_config
+
+
+@pytest.fixture
+def isolated_xdg(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    return tmp_path
+
+
+class TestResolutionOrder:
+    def test_persisted_wins_when_no_explicit(self, isolated_xdg):
+        # 1. Write the persisted config.
+        harness_config.set_preferred_model("claude-opus-4-7")
+
+        # 2. Snapshot the prior default so we can detect the change.
+        prior = get_config().default_model
+
+        # 3. Call the resolver with user_explicit=None (simulates no --model).
+        _resolve_default_model(None)
+
+        # 4. The active default model must now be the persisted value.
+        assert get_config().default_model == "claude-opus-4-7"
+        assert get_config().default_model != prior  # actually changed
+
+    def test_explicit_overrides_persisted(self, isolated_xdg):
+        harness_config.set_preferred_model("claude-opus-4-7")
+        _resolve_default_model("gpt-4o")
+        assert get_config().default_model == "gpt-4o"  # explicit wins
+
+    def test_no_persisted_no_explicit_is_noop(self, isolated_xdg):
+        # No config file written. _resolve_default_model(None) should not
+        # mutate get_config().default_model.
+        prior = get_config().default_model
+        _resolve_default_model(None)
+        assert get_config().default_model == prior
+
+
+class TestSessionRecordCarriesResolvedModel:
+    """End-to-end: SessionRecord saved by chat/do reflects the persisted model.
+
+    This is the specific assertion from B3: after invoking `voss chat` (mocked)
+    against an env where preferred_model is persisted but --model is NOT passed,
+    the saved SessionRecord on disk has model == persisted, NOT the hard-coded
+    default.
+    """
+
+    def test_chat_no_model_flag_uses_persisted(self, isolated_xdg, monkeypatch):
+        from voss.harness.cli import chat_cmd
+
+        harness_config.set_preferred_model("claude-opus-4-7")
+
+        # Mock auth + provider so chat_cmd doesn't try real network/Keychain.
+        fake_provider = MagicMock()
+        monkeypatch.setattr(
+            "voss.harness.cli._resolve_auth_or_die",
+            lambda pref: (MagicMock(source="env-anthropic", detail="test"), fake_provider),
+        )
+
+        # Drive chat through one slash-save and immediate /quit. We use the
+        # input-injection approach: feed lines through stdin via CliRunner.
+        result = CliRunner().invoke(
+            chat_cmd,
+            ["--cwd", str(isolated_xdg), "--auth", "env-anthropic"],
+            input="/save persisted-model-test\n/quit\n",
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, f"chat_cmd failed: {result.output}"
+
+        # Read back the saved session and assert it carries the persisted model.
+        records = session_store.list_sessions()
+        target = next((r for r in records if r.name == "persisted-model-test"), None)
+        assert target is not None, "saved session not found"
+        assert target.model == "claude-opus-4-7", (
+            f"SessionRecord.model should reflect persisted preferred_model, "
+            f"got {target.model!r}"
+        )
+```
+
+10. Run `pytest tests/harness/test_repl_slash.py tests/harness/test_harness_config.py tests/harness/test_model_persistence.py tests/harness/test_cli.py -x`.
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; pytest tests/harness/test_repl_slash.py tests/harness/test_harness_config.py tests/harness/test_cli.py -x</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; pytest tests/harness/test_repl_slash.py tests/harness/test_harness_config.py tests/harness/test_model_persistence.py tests/harness/test_cli.py -x</automated>
   </verify>
   <acceptance_criteria>
     - `grep -c "/login" voss/harness/cli.py` returns at least 2 (handler + help text).
     - `grep -c "def _handle_login" voss/harness/cli.py` returns 1.
+    - `grep -c "def _resolve_default_model" voss/harness/cli.py` returns 1.
+    - `grep -c "_resolve_default_model(model)" voss/harness/cli.py` returns at least 2 (do_cmd + chat_cmd; plus edit_cmd once Plan 04 coordinates).
     - `grep -c "--confirm" voss/harness/cli.py` returns at least 2 (gate logic + help).
     - `grep -c "set_preferred_model" voss/harness/cli.py` returns at least 1.
-    - `grep -c "load_harness_config" voss/harness/cli.py` returns at least 1.
+    - `grep -c "load_harness_config" voss/harness/cli.py` returns at least 1 (inside _resolve_default_model).
+    - `grep -E "if persisted and not record\.model" voss/harness/cli.py` returns 0 (the broken guard from the prior draft must NOT appear).
     - `pytest tests/harness/test_repl_slash.py -x` exits 0.
     - `pytest tests/harness/test_harness_config.py -x` exits 0.
+    - `pytest tests/harness/test_model_persistence.py -x` exits 0.
     - `pytest tests/harness/test_cli.py -x` exits 0 (existing CLI tests still pass).
     - Slash help output contains all of: `/login`, `/model`, `/mode`, `--confirm` (verified by TestSlashHelp).
   </acceptance_criteria>
-  <done>/login, /model, /mode handlers in place; escalation to auto requires --confirm; preferred_model persists across REPL invocations; slash help reflects new commands.</done>
+  <done>/login, /model, /mode handlers in place; escalation to auto requires --confirm; preferred_model resolution order matches D-09 end-to-end (persisted overrides hard-coded default when --model is not passed; --model still wins); slash help reflects new commands.</done>
 </task>
 
 </tasks>
 
 <verification>
-- `pytest tests/harness/test_repl_slash.py tests/harness/test_harness_config.py tests/harness/test_cli.py -x` exits 0.
-- Manual: launch `python -m voss chat`, type `/login` → see Claude + Codex status. Type `/model gpt-4o` → see "persisted", then quit and re-launch → cfg.default_model is "gpt-4o".
+- `pytest tests/harness/test_repl_slash.py tests/harness/test_harness_config.py tests/harness/test_model_persistence.py tests/harness/test_cli.py -x` exits 0.
+- Manual: launch `python -m voss chat`, type `/login` → see Claude + Codex status. Type `/model gpt-4o` → see "persisted", then quit and re-launch → cfg.default_model is "gpt-4o" AND the SessionRecord saved by /save carries `model: "gpt-4o"`.
 - Manual: in `python -m voss chat`, type `/mode auto` → refused. Type `/mode auto --confirm` → accepted.
+- Manual: write `~/.config/voss/config.toml` with `[harness]\npreferred_model = "claude-opus-4-7"`. Run `voss chat`. The banner shows `model: claude-opus-4-7`, not the hard-coded default.
 </verification>
 
 <success_criteria>
 - D-07: `/mode auto` mid-session requires `--confirm`. Verified by test + manual.
-- D-08: `/login [provider]` and `/model [name]` are first-class REPL commands. `/login` reports status and triggers refresh for existing-but-expired creds; for missing creds it prints the exact upstream command (claude /login, codex login).
-- D-09: When no `/model` override is set, default model comes from `~/.config/voss/config.toml` first, then existing `auth.resolve('auto')` default — wired by loading preferred_model at `_run_repl` entry.
+- D-08 (narrowed for M1 per Out-of-scope above): `/login [provider]` and `/model [name]` are first-class REPL commands. `/login` reports status and triggers refresh for existing-but-expired creds; for missing creds it prints the exact upstream command (claude /login, codex login). Bespoke OAuth flow is deferred — narrowing is documented in the plan Objective and surfaced via comment in `voss/harness/cli.py::_handle_login`.
+- D-09: When no `--model` override is set, default model comes from `~/.config/voss/config.toml` first, then existing `auth.resolve('auto')` default. Resolution happens in the command (do/chat/edit) BEFORE SessionRecord.new(...) so the saved record reflects it.
 - D-10: No new credential stores. Reads/writes go to the existing Keychain / `~/.claude/.credentials.json` / `~/.codex/auth.json` paths via existing `auth.py` functions.
 - CLIH-01/02: Bare `voss` and `voss chat` get the new slash commands automatically because they share `_run_repl`.
 - CTRL-05: The mode-tier system has its REPL surface — combined with Plan 01's structural enforcement, all three modes are now both available and permissioned.
 </success_criteria>
 
 <output>
-After completion, create `.planning/phases/M1-harness-happy-path/M1-05-SUMMARY.md` documenting config.toml shape, the /login UX contract (status + refresh, not bespoke OAuth), and the --confirm escalation gate.
+After completion, create `.planning/phases/M1-harness-happy-path/M1-05-SUMMARY.md` documenting config.toml shape, the /login UX contract (status + refresh, not bespoke OAuth — and that this is a deliberate M1 narrowing of D-08), the --confirm escalation gate, and the resolution-order fix (B3): preferred_model is resolved in the command, NOT inside _run_repl.
 </output>
