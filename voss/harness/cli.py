@@ -35,6 +35,76 @@ from .tools import make_toolset
 AUTH_CHOICES = ("auto", "claude", "codex", "api", "none")
 
 
+def _resolve_default_model(user_explicit: str | None) -> None:
+    """Resolve the global default model per D-09.
+
+       1. user_explicit (--model flag) wins
+       2. else ~/.config/voss/config.toml [harness] preferred_model
+       3. else leave the existing get_config().default_model untouched.
+
+    Side effect: calls configure(default_model=...) when (1) or (2) applies.
+    Must be called BEFORE SessionRecord.new(...) so the record carries the
+    resolved model on disk.
+    """
+    from . import config as harness_config
+
+    if user_explicit:
+        configure(default_model=user_explicit)
+        return
+    persisted = harness_config.load_harness_config().get("preferred_model")
+    if persisted:
+        configure(default_model=persisted)
+
+
+def _handle_login(provider: str | None) -> None:
+    """Status + refresh for existing creds; for missing, print upstream commands.
+
+    M1 contract (deliberate narrowing of D-08): we do NOT drive a bespoke
+    OAuth flow. D-10 forbids new credential stores, so re-auth must go
+    through the upstream CLI (`claude /login`, `codex login`). This function:
+      - refreshes EXISTING tokens via auth.refresh_anthropic / auth.refresh_codex
+      - prints upstream commands for MISSING tokens
+    Full OAuth flow drive is deferred to a later phase.
+    """
+    if provider in (None, "anthropic"):
+        claude = auth_mod.load_anthropic_oauth()
+        if claude is None:
+            click.echo("  Claude: no creds found. Run: claude /login")
+        elif claude.expired:
+            click.echo("  Claude: tokens expired, refreshing...")
+            try:
+                auth_mod.refresh_anthropic(claude)
+                click.echo("  Claude: refreshed")
+            except Exception as e:  # noqa: BLE001
+                click.echo(
+                    f"  Claude: refresh failed ({e}). Run: claude /login",
+                    err=True,
+                )
+        else:
+            click.echo(
+                f"  Claude: OK (expires in {claude.expires_in_seconds}s, "
+                f"{claude.subscription_type})"
+            )
+    if provider in (None, "openai", "codex"):
+        codex = auth_mod.load_codex()
+        if codex is None:
+            click.echo("  Codex:  no creds found. Run: codex login")
+        else:
+            bits: list[str] = []
+            if codex.api_key:
+                bits.append("OPENAI_API_KEY")
+            if codex.has_oauth:
+                bits.append("OAuth tokens")
+            click.echo(
+                f"  Codex:  OK ({codex.auth_mode}; {', '.join(bits) or 'empty'})"
+            )
+    if provider is not None and provider not in ("anthropic", "openai", "codex"):
+        click.echo(
+            f"unknown provider: {provider}. use anthropic | openai",
+            err=True,
+        )
+
+
 def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelProvider]:
     """Pick an auth path, build a provider for it, or exit 2."""
     res = auth_mod.resolve(preference)
@@ -137,8 +207,7 @@ def do_cmd(
     Stdin (when piped) is appended to the task as additional context.
     """
     cwd = Path(cwd_str).resolve()
-    if model:
-        configure(default_model=model)
+    _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
@@ -208,8 +277,7 @@ def chat_cmd(
 ) -> None:
     """Interactive agent REPL. Ctrl-D or /exit to quit."""
     cwd = Path(cwd_str).resolve()
-    if model:
-        configure(default_model=model)
+    _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
@@ -264,8 +332,7 @@ def edit_cmd(
     from .edit_scope import EditScope
 
     cwd = Path(cwd_str).resolve()
-    if model:
-        configure(default_model=model)
+    _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
@@ -343,19 +410,48 @@ def _run_repl(
             for name, td in tools.items():
                 click.echo(f"  {name} — {td.description}")
             continue
-        if line.startswith("/model "):
-            new_model = line.split(" ", 1)[1].strip()
-            configure(default_model=new_model)
-            cfg = get_config()
-            click.echo(f"model: {cfg.default_model}")
+        if line == "/model" or line.startswith("/model "):
+            parts = line.split(maxsplit=1)
+            if len(parts) == 1:
+                claude = auth_mod.load_anthropic_oauth()
+                codex = auth_mod.load_codex()
+                click.echo(f"  active: {cfg.default_model}")
+                claude_ok = bool(claude and not claude.expired)
+                codex_ok = bool(codex and (codex.api_key or codex.has_oauth))
+                click.echo(f"  Claude: {'available' if claude_ok else 'unavailable'}")
+                click.echo(f"  Codex:  {'available' if codex_ok else 'unavailable'}")
+            else:
+                from . import config as harness_config
+
+                new_model = parts[1].strip()
+                configure(default_model=new_model)
+                cfg = get_config()
+                harness_config.set_preferred_model(new_model)
+                click.echo(f"  model: {cfg.default_model} (persisted)")
             continue
-        if line.startswith("/mode "):
-            new_mode = line.split(" ", 1)[1].strip()
+        if line == "/mode" or line.startswith("/mode "):
+            mparts = line.split()
+            if len(mparts) == 1:
+                click.echo(f"  mode: {gate.mode}")
+                continue
+            new_mode = mparts[1].strip()
             if new_mode not in ("plan", "edit", "auto"):
                 click.echo("mode must be plan|edit|auto", err=True)
                 continue
+            if new_mode == "auto" and "--confirm" not in mparts:
+                click.echo(
+                    "escalating to auto requires --confirm "
+                    "(e.g. /mode auto --confirm)",
+                    err=True,
+                )
+                continue
             gate.mode = new_mode  # type: ignore[assignment]
-            click.echo(f"mode: {new_mode}")
+            click.echo(f"  mode: {new_mode}")
+            continue
+        if line == "/login" or line.startswith("/login "):
+            lparts = line.split(maxsplit=1)
+            login_provider = lparts[1].strip() if len(lparts) == 2 else None
+            _handle_login(login_provider)
             continue
         if line.startswith("/save"):
             parts = line.split(" ", 1)
@@ -444,14 +540,15 @@ def _print_slash_help() -> None:
     click.echo(
         "\n".join(
             [
-                "/help          show this list",
-                "/exit /quit    leave the REPL (also Ctrl-D)",
-                "/clear         drop episodic memory",
-                "/cost          session cost so far",
-                "/tools         list registered tools",
-                "/model <id>    switch model",
-                "/mode <m>      plan | edit | auto",
-                "/save [name]   persist session snapshot",
+                "/help                  show this list",
+                "/exit /quit            leave the REPL (also Ctrl-D)",
+                "/clear                 drop episodic memory",
+                "/cost                  session cost so far",
+                "/tools                 list registered tools",
+                "/login [provider]      anthropic | openai — status + refresh",
+                "/model [name]          list providers or switch (persists to config.toml)",
+                "/mode <m> [--confirm]  plan | edit | auto; auto requires --confirm",
+                "/save [name]           persist session snapshot",
             ]
         )
     )
