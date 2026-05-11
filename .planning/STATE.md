@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-11T18:00:00.000Z"
-last_activity: 2026-05-11 — Phase M3 context gathered (4 decision areas: hermetic run + check speed, LANG-07/08 sample coverage, test surface, framing surface).
+last_updated: "2026-05-11T20:00:00.000Z"
+last_activity: 2026-05-11 — Phase M4 context gathered (5 decision areas: pipeline split + thin .voss + Python-imports-compiled, voss check dir walking, VOSS_HARNESS env-flag opt-in + parity oracle, per-file sha-keyed cache, stub-provider real-turn scope bound).
 progress:
   total_phases: 6
   completed_phases: 0
@@ -23,10 +23,10 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** M3 — Language Validation
-**Status:** Planned — ready to execute (6 plans across 4 waves; plan-checker passed after 1 revision)
-**Goal:** Prove `.voss` is useful for real AI workflows.
-**Last activity:** 2026-05-11 — Phase M3 planned (6 plans, 17 tasks, waves 0..3; revision cleared 3 warnings).
+**Phase:** M4 — Voss-authored Harness Loop
+**Status:** Context gathered — ready to plan
+**Goal:** Dogfood `.voss` on the harness itself.
+**Last activity:** 2026-05-11 — Phase M4 context gathered (5 decision areas: pipeline split + thin .voss + Python-imports-compiled, voss check dir walking, VOSS_HARNESS env-flag opt-in + parity oracle, per-file sha-keyed cache, stub-provider real-turn scope bound).
 
 ## Phase Status
 
@@ -36,7 +36,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M1 | Harness Happy Path | Ready to execute (7 plans) |
 | M2 | Project Cognition | Ready to execute (7 plans) |
 | M3 | Language Validation | Ready to execute (6 plans, 4 waves) |
-| M4 | Voss-authored Harness Loop | Pending |
+| M4 | Voss-authored Harness Loop | Context gathered — ready to plan |
 | M5 | Eval and Distribution Prep | Pending |
 
 ## Recent Activity
@@ -52,6 +52,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-11 — Phase M2 planned: 7 plans across 6 waves (M2-00 scaffold + M2-01..06); plan-checker passed after 1 revision (4 blockers + 5 warnings cleared).
 - 2026-05-11 — Phase M3 context gathered (4 decision areas: hermetic run + check speed via auto-StubProvider + static check, sample coverage via support memory.episodic + research try/catch + use, slimmed legacy-06 test plan under tests/examples/, framing via README section + sample headers + docs/voss-vs-python.md).
 - 2026-05-11 — Phase M3 planned: 6 plans across 4 waves (M3-01 analyzer guard + M3-02 auto-stub + M3-03 coverage fixtures parallel in W0; M3-04 sample extensions W1; M3-05 e2e suite repoint W2; M3-06 speed gate + framing docs W3); plan-checker passed iteration 2 after 1 revision (3 warnings cleared: M3-04 promoted to W1 for M3-02 hook ordering; M3-02 must_haves 4-test alignment; M3-06 D-14 negation phrasing audit).
+- 2026-05-11 — Phase M4 context gathered (5 decision areas: pipeline split across loop/router/planner/executor/reviewer.voss with thin .voss control flow only and Python imports compiled functions; voss check + compile extended to walk directories static-only; VOSS_HARNESS=compiled env-flag opt-in with voss/harness/agent.py kept as parity oracle and loud stale-cache failure; per-file `.voss-cache/harness/*.py` artifacts sha-keyed via _manifest.json; M4 success bar = stub-provider real turn end-to-end, live-provider parity deferred to M5).
 
 ## Notes
 
