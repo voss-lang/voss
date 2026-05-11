@@ -29,9 +29,10 @@ site/
 │   ├── CodeBlock.tsx       # Reusable shiki block
 │   ├── CopyButton.tsx      # Clipboard helper
 │   └── Footer.tsx
+├── branding/voss-mark-ignite-2048.png # Transparent Voss mark
 ├── content/cli-examples.ts # Hero examples (mirrors examples/raw_python/)
 ├── lib/site.ts             # Strings: tagline, repo URL, version
-├── public/logo.svg         # Placeholder wordmark
+├── public/logo.svg         # Fallback Voss mark
 └── next.config.ts          # static export config
 ```
 
@@ -58,7 +59,6 @@ npx serve out        # smoke-test the static bundle
 
 ## Open items
 
-- Logo / final color scheme — accent currently `#7c5cff`, themed via `app/globals.css` (`--accent`)
 - Final repo URL — placeholder `https://github.com/your-org/voss` in `lib/site.ts`
 - Docs content — `app/docs/page.tsx` is a placeholder with planned section list
 - Replace `examples/raw_python/*.py` snippets in `content/cli-examples.ts` with `.voss` source once the compiler ships

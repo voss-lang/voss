@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" fill="none">
-  <path d="M4 6l10 20 10-20" stroke="#7c5cff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="34" y="23" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" font-weight="600" fill="#e9e9ec">Voss</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 2048" fill="none">
+  <path d="M332 471h278l566 908-136 226L332 471Z" fill="#ff5b1f"/>
+  <path d="M1432 470h308l-503 724-144-197 339-527Z" fill="#ff5b1f"/>
 </svg>

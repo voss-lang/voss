@@ -1,12 +1,13 @@
 import Link from "next/link";
+import { LogoMark } from "@/components/Logo";
 import { site } from "@/lib/site";
 
 export default function Nav() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--border)] bg-[color-mix(in_oklab,var(--background)_85%,transparent)] backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-2 font-mono text-lg font-semibold tracking-tight">
-          <Logomark />
+        <Link href="/" className="flex items-center gap-3 font-mono text-lg font-semibold tracking-tight">
+          <LogoMark className="h-8 w-8" />
           <span>{site.name}</span>
           <span className="ml-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wider text-[var(--muted)]">
             {site.version}
@@ -30,23 +31,5 @@ export default function Nav() {
         </nav>
       </div>
     </header>
-  );
-}
-
-function Logomark() {
-  return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 4l9 16 9-16" />
-    </svg>
   );
 }

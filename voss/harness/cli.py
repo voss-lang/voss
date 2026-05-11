@@ -331,42 +331,45 @@ def _run_repl(
 
 
 @click.command("doctor")
-def doctor_cmd() -> None:
-    """Diagnose env: credentials, runtime imports, picked auth path."""
-    cfg = get_config()
-    click.echo(f"default model       : {cfg.default_model}")
-    click.echo(f"ANTHROPIC_API_KEY   : {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'unset'}")
-    click.echo(f"OPENAI_API_KEY      : {'set' if os.environ.get('OPENAI_API_KEY') else 'unset'}")
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root to check.",
+)
+def doctor_cmd(cwd_str: str) -> None:
+    """Diagnose harness setup. Diagnose-only; never executes fixes (D-13)."""
+    from . import diagnostics as diag
 
-    claude = auth_mod.load_anthropic_oauth()
-    if claude:
-        click.echo(
-            f"Claude Code OAuth   : found ({claude.subscription_type}, "
-            f"expires in {claude.expires_in_seconds}s)"
-        )
-    else:
-        click.echo("Claude Code OAuth   : not found")
+    cwd = Path(cwd_str).resolve()
+    results = diag.run_all_checks(cwd)
 
-    codex = auth_mod.load_codex()
-    if codex:
-        bits = []
-        if codex.api_key:
-            bits.append("OPENAI_API_KEY")
-        if codex.access_token:
-            bits.append("OAuth tokens")
-        click.echo(f"Codex creds         : found ({codex.auth_mode}; {', '.join(bits) or 'empty'})")
-    else:
-        click.echo("Codex creds         : not found")
+    glyph = {
+        diag.CheckResult.OK: ("✓", "green"),
+        diag.CheckResult.WARN: ("⚠", "yellow"),
+        diag.CheckResult.FAIL: ("✗", "red"),
+    }
+    name_width = max(len(c.name) for c in results) + 2
+    for c in results:
+        g, color = glyph[c.result]
+        click.echo(f"  {click.style(g, fg=color)}  {c.name:<{name_width}} {c.detail}")
+        if c.fix and c.result is not diag.CheckResult.OK:
+            click.echo(f"     → {c.fix}")
 
-    res = auth_mod.resolve("auto")
-    click.echo(f"--auth=auto picks   : {res.source} — {res.detail}")
+    code = diag.aggregate_exit_code(results)
 
-    try:
-        import voss_runtime  # noqa: F401
-
-        click.echo("voss_runtime        : importable")
-    except Exception as e:  # noqa: BLE001
-        click.echo(f"voss_runtime        : FAIL {e}")
+    warns = [c for c in results if c.result is diag.CheckResult.WARN]
+    fails = [c for c in results if c.result is diag.CheckResult.FAIL]
+    if code != 0:
+        click.echo("\nfailed checks. fix above and re-run.", err=True)
+    elif warns and not fails:
+        # D-14: WARN-only runs exit 0 but surface a one-line stderr summary
+        # so CI / shell prompts can notice informational misses.
+        names = ", ".join(c.name for c in warns)
+        plural = "warning" if len(warns) == 1 else "warnings"
+        click.echo(f"doctor: {len(warns)} {plural} ({names})", err=True)
+    sys.exit(code)
 
 
 def _print_slash_help() -> None:

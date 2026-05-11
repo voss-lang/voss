@@ -16,12 +16,28 @@ class TestUnifiedVossCli:
         for verb in ("compile", "run", "check", "init", "ast"):
             assert verb in r.output, f"missing compiler verb: {verb}"
 
-    def test_voss_doctor_works(self) -> None:
+    def test_voss_doctor_works(self, monkeypatch) -> None:
+        # Force all checks OK so exit code is deterministic in CI without creds.
+        from voss.harness import diagnostics as diag
+
+        monkeypatch.setattr(
+            diag, "run_all_checks",
+            lambda _cwd: [
+                diag.Check("python", diag.CheckResult.OK),
+                diag.Check("voss import", diag.CheckResult.OK),
+                diag.Check("provider auth", diag.CheckResult.OK),
+                diag.Check("git", diag.CheckResult.OK),
+                diag.Check("cwd writable", diag.CheckResult.OK),
+                diag.Check("config dirs", diag.CheckResult.OK),
+                diag.Check("project dirs", diag.CheckResult.OK),
+            ],
+        )
+
         from voss.cli import main as voss_main
 
         r = CliRunner().invoke(voss_main, ["doctor"])
         assert r.exit_code == 0
-        assert "voss_runtime" in r.output
+        assert "voss import" in r.output
 
 
 class TestCli:
@@ -32,11 +48,25 @@ class TestCli:
         assert "do" in r.output
         assert "chat" in r.output
 
-    def test_doctor(self) -> None:
+    def test_doctor(self, monkeypatch) -> None:
+        from voss.harness import diagnostics as diag
+
+        monkeypatch.setattr(
+            diag, "run_all_checks",
+            lambda _cwd: [
+                diag.Check("python", diag.CheckResult.OK),
+                diag.Check("voss import", diag.CheckResult.OK),
+                diag.Check("provider auth", diag.CheckResult.OK),
+                diag.Check("git", diag.CheckResult.OK),
+                diag.Check("cwd writable", diag.CheckResult.OK),
+                diag.Check("config dirs", diag.CheckResult.OK),
+                diag.Check("project dirs", diag.CheckResult.OK),
+            ],
+        )
         r = CliRunner().invoke(main, ["doctor"])
         assert r.exit_code == 0
-        assert "default model" in r.output
-        assert "voss_runtime" in r.output
+        assert "voss import" in r.output
+        assert "✓" in r.output
 
     def test_do_with_auth_none_exits_2(self, monkeypatch) -> None:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
