@@ -6,6 +6,7 @@ Developer-facing marketing landing page + docs shell for [Voss](../README.md).
 
 - **Next.ts 16** (App Router, Turbopack) — TypeScript
 - **Tailwind CSS v4**
+- **shadcn/ui primitives** — local Button/Badge components in `components/ui/`
 - **Shiki** — build-time syntax highlighting (zero runtime JS)
 - **Static export** (`output: "export"`) — deploys anywhere, intended for **Cloudflare Pages**
 
@@ -26,6 +27,7 @@ site/
 │   ├── CliShowcaseTabs.tsx # Client: tab switcher
 │   ├── CommandList.tsx     # CLI verb reference
 │   ├── InstallTabs.tsx     # pip / cargo / brew tabs
+│   ├── ui/                 # shadcn/ui primitives
 │   ├── CodeBlock.tsx       # Reusable shiki block
 │   ├── CopyButton.tsx      # Clipboard helper
 │   └── Footer.tsx
