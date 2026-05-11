@@ -1007,37 +1007,37 @@ def compile(source, output, cache_dir, project_root, verbose):
 
 **Summary:** 6 entries. A1 is the only real assumption (the codegen patch sizes); all others are verified or are non-issues marked for documentation.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Q-1: Should the `use ... as` grammar extension land in M4 or be deferred?**
    - What we know: NAME imports (`use voss::harness::run_turn`) work today + Pattern 1b auto-await. ALIAS-style (`use voss::harness as h`) is a cosmetic nicety.
    - What's unclear: Whether dropping the alias clause makes `.voss` files less readable enough to justify the grammar work.
-   - Recommendation: **Land the alias clause in Wave 0 anyway.** It's ~30 LOC of grammar+parser+1 test, and CONTEXT D-02 + Claude's Discretion section both anticipate it. Skipping leaves a known footgun for any future `.voss` that wants to import a module rather than names.
+   - RESOLVED: Recommendation: **Land the alias clause in Wave 0 anyway.** It's ~30 LOC of grammar+parser+1 test, and CONTEXT D-02 + Claude's Discretion section both anticipate it. Skipping leaves a known footgun for any future `.voss` that wants to import a module rather than names.
 
 2. **Q-2: How does `executor.voss` iterate `plan.steps` without a `for` construct?**
    - What we know: `.voss` has `.map(lambda)` (codegen.py:463-472 lowers to list comp) and `match`/`case`. No `for`.
    - What's unclear: A list comprehension of `tools[s.name].invoke(**s.args)` would create coroutines without awaiting them (list comps don't auto-await elements). Pattern 1b extension would help only if the callee is a bare `Identifier`, which a list-comp inner expression isn't typically.
-   - Recommendation: Add a Python-side helper `async def run_steps(plan_steps: list, tools: dict, permissions: ...) -> list[str]` to `voss/harness/agent.py` (next to the existing `run_turn`); executor.voss imports and calls it as `let results = run_steps(plan.steps, tools, permissions, renderer)`. **This is the smallest unblock**: the Python helper does the awaiting loop (existing logic at agent.py:184-207 lifted into a helper); `.voss` provides only the control-flow shell. Alternative: introduce a `for` construct (compiler work — out of scope for M4).
+   - RESOLVED: Recommendation: Add a Python-side helper `async def run_steps(plan_steps: list, tools: dict, permissions: ...) -> list[str]` to `voss/harness/agent.py` (next to the existing `run_turn`); executor.voss imports and calls it as `let results = run_steps(plan.steps, tools, permissions, renderer)`. **This is the smallest unblock**: the Python helper does the awaiting loop (existing logic at agent.py:184-207 lifted into a helper); `.voss` provides only the control-flow shell. Alternative: introduce a `for` construct (compiler work — out of scope for M4).
 
 3. **Q-3: Where exactly does the env-var vs config.toml resolution live?**
    - What we know: `voss/harness/config.py:load_harness_config()` already reads `[harness]` section (cli.py:42-56 calls it for `preferred_model`).
    - What's unclear: Should `_resolve_run_turn` (Pattern 5) read env-var directly, or should `load_harness_config` itself return a merged dict?
-   - Recommendation: Direct env-var read in `_resolve_run_turn` (mirrors `os.environ.get("VOSS_HERMETIC")` pattern). Config.toml read via existing `load_harness_config`. Two-step resolution is clearest at the call site.
+   - RESOLVED: Recommendation: Direct env-var read in `_resolve_run_turn` (mirrors `os.environ.get("VOSS_HERMETIC")` pattern). Config.toml read via existing `load_harness_config`. Two-step resolution is clearest at the call site.
 
 4. **Q-4: Where does `voss compile voss/harness/agent/` get the project_root from when invoked from CI?**
    - What we know: `voss compile` has `--project-root` flag (voss/cli.py:151). Default is `None`, which `_resolve_cache_root` (codegen.py:218-235) treats as `Path.cwd()`.
    - What's unclear: For the CI gate `voss check voss/harness/agent/`, project_root is implicitly cwd of the GH Actions runner. For `voss compile`, manifest writer needs project_root explicitly to know where `.voss-cache/harness/` goes.
-   - Recommendation: Default to `Path.cwd()` (matches existing behavior). Document in install one-liner `cd <project> && voss compile voss/harness/agent/`. No new flag.
+   - RESOLVED: Recommendation: Default to `Path.cwd()` (matches existing behavior). Document in install one-liner `cd <project> && voss compile voss/harness/agent/`. No new flag.
 
 5. **Q-5: Should the parity test pre-compile in a session fixture, or rely on a separate `pytest --voss-compile-harness` step before running?**
    - What we know: pytest fixtures can run subprocess steps in `conftest.py`. Pre-compiling once per test session is standard.
    - What's unclear: Whether to make compilation a tested artifact (run via a pytest fixture so it's exercised in CI) or a separate Makefile/CI step.
-   - Recommendation: Session-scoped pytest fixture in `tests/harness/conftest.py` that runs `python -m voss.cli compile voss/harness/agent/ --project-root=<tmp_path>` once. This dual-purpose-tests the compile path too. CI calls `pytest` only; no separate compile step needed.
+   - RESOLVED: Recommendation: Session-scoped pytest fixture in `tests/harness/conftest.py` that runs `python -m voss.cli compile voss/harness/agent/ --project-root=<tmp_path>` once. This dual-purpose-tests the compile path too. CI calls `pytest` only; no separate compile step needed.
 
 6. **Q-6: Should `voss/harness/agent.py` get a `run_turn_async_helpers` extraction so executor.voss can reuse the existing tool-loop logic?**
    - What we know: agent.py:184-207 is the tool-execution loop with permission gate + result aggregation + summarize. ~25 LOC, async.
    - What's unclear: Whether the planner authors executor.voss to re-express this in `.voss` (dogfood-maximalist) or to import it from Python (dogfood-pragmatist).
-   - Recommendation: Per Q-2, lift the loop into a Python helper `_run_step_loop(plan_steps, tools, permissions, renderer) -> list[str]` and have executor.voss call it. This is exactly what D-04 anticipates ("`.voss` does not gain a privileged tool-call path"). Pure-`.voss` re-expression of the loop is a future hardening pass.
+   - RESOLVED: Recommendation: Per Q-2, lift the loop into a Python helper `_run_step_loop(plan_steps, tools, permissions, renderer) -> list[str]` and have executor.voss call it. This is exactly what D-04 anticipates ("`.voss` does not gain a privileged tool-call path"). Pure-`.voss` re-expression of the loop is a future hardening pass.
 
 ## Environment Availability
 

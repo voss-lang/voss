@@ -91,7 +91,7 @@ created: 2026-05-11
 - [ ] `voss/harness/agent.py` — extract `_run_step_loop(plan_steps, tools, permissions, renderer)` helper
 - [ ] `voss/harness/tools.py:ToolEntry.invoke_dict(args: dict)` helper
 - [ ] `voss/harness/cli.py:_resolve_run_turn()` — env → config → default dispatch
-- [ ] `voss/harness/config.py` — read `backend` key from `[harness]` section
+- [ ] `voss/harness/config.py` — *(no code change required: existing `load_harness_config` already returns the `backend` key when present in `[harness]`; `_resolve_run_turn` reads it via `.get("backend")`)*
 - [ ] `tests/harness/test_boot_dispatch.py` (NEW)
 
 **Wave 3 (parity + DOG-07 smoke):**
