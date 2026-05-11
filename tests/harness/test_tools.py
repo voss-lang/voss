@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from voss.harness.tools import make_toolset
+from voss.harness.tools import ToolEntry, make_toolset
 
 
 @pytest.fixture
@@ -68,3 +68,32 @@ class TestShellRun:
         tools = make_toolset(project)
         out = _run(tools["shell_run"].invoke(cmd="evilbinary --pwn"))
         assert "denied" in out
+
+
+class TestToolEntryClassification:
+    def test_registry_values_are_tool_entries(self, tmp_path: Path) -> None:
+        tools = make_toolset(tmp_path)
+        for name, entry in tools.items():
+            assert isinstance(entry, ToolEntry), name
+            assert entry.descriptor.name == name
+            assert isinstance(entry.is_mutating, bool)
+
+    def test_read_only_tools_are_non_mutating(self, tmp_path: Path) -> None:
+        tools = make_toolset(tmp_path)
+        for name in ("fs_read", "fs_glob", "fs_grep", "git_status", "git_diff", "voss_check"):
+            assert tools[name].is_mutating is False, name
+
+    def test_mutating_tools_flagged(self, tmp_path: Path) -> None:
+        tools = make_toolset(tmp_path)
+        for name in ("fs_write", "fs_edit", "shell_run"):
+            assert tools[name].is_mutating is True, name
+
+    def test_descriptor_invoke_still_works(self, project: Path) -> None:
+        tools = make_toolset(project)
+        out = _run(tools["fs_read"].descriptor.invoke(path="src/a.py"))
+        assert "hello" in out
+
+    def test_mutating_count(self, tmp_path: Path) -> None:
+        tools = make_toolset(tmp_path)
+        assert sum(1 for e in tools.values() if e.is_mutating) == 3
+        assert sum(1 for e in tools.values() if not e.is_mutating) == 6

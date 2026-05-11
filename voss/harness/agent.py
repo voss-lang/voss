@@ -18,7 +18,6 @@ from voss_runtime import (
     ContextScope,
     EpisodicMemory,
     ProbableValue,
-    ToolDescriptor,
     get_config,
 )
 from voss_runtime.providers import get as get_provider
@@ -26,6 +25,7 @@ from voss_runtime.providers.base import ModelProvider
 
 from .permissions import PermissionGate
 from .render import Renderer
+from .tools import ToolEntry
 
 # ---------------------------------------------------------------------------
 # Plan schema — what the model must return
@@ -88,7 +88,7 @@ class TurnResult:
     cost_usd: float
 
 
-def _format_tools(tools: dict[str, ToolDescriptor]) -> str:
+def _format_tools(tools: dict[str, ToolEntry]) -> str:
     lines = []
     for name, td in tools.items():
         params = td.parameters.get("properties", {})
@@ -100,7 +100,7 @@ def _format_tools(tools: dict[str, ToolDescriptor]) -> str:
 async def run_turn(
     task: str,
     *,
-    tools: dict[str, ToolDescriptor],
+    tools: dict[str, ToolEntry],
     cwd: Path,
     renderer: Renderer,
     confidence_threshold: float = 0.60,
@@ -183,12 +183,12 @@ async def run_turn(
     gate = permissions or PermissionGate(auto_yes=True)
     results: list[str] = []
     for i, step in enumerate(plan.steps):
-        td = tools.get(step.name)
-        if td is None:
+        entry = tools.get(step.name)
+        if entry is None:
             results.append(f"<error: unknown tool {step.name!r}>")
             renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
             continue
-        allowed, why = gate.check(step.name, step.args)
+        allowed, why = gate.check(step.name, step.args, is_mutating=entry.is_mutating)
         if not allowed:
             text = f"<denied: {why}>"
             renderer.show_tool_call(step.name, step.args, text, "error")
@@ -196,7 +196,7 @@ async def run_turn(
             continue
         renderer.show_tool_call(step.name, step.args, "running…", "pending")
         try:
-            res = await td.invoke(**step.args)
+            res = await entry.invoke(**step.args)
             text = str(res)
         except Exception as e:  # noqa: BLE001 — catch all to surface, not crash
             text = f"<error: {e}>"

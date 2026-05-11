@@ -2,18 +2,47 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from voss_runtime import tool
+from voss_runtime import ToolDescriptor, tool
 
 from .sandbox import jail_path, shell_allowed, SandboxError
 
 
-def make_toolset(cwd: Path) -> dict[str, Any]:
+@dataclass(frozen=True)
+class ToolEntry:
+    """Registry entry pairing a ToolDescriptor with structural classification.
+
+    `is_mutating` drives mode-tier denial in PermissionGate (see D-06):
+    classification is data at registration, not name-pattern matching.
+    """
+
+    descriptor: ToolDescriptor
+    is_mutating: bool
+
+    @property
+    def name(self) -> str:
+        return self.descriptor.name
+
+    @property
+    def description(self) -> str:
+        return self.descriptor.description
+
+    @property
+    def parameters(self) -> dict:
+        return self.descriptor.parameters
+
+    def invoke(self, **kwargs: Any) -> Any:
+        return self.descriptor.invoke(**kwargs)
+
+
+def make_toolset(cwd: Path) -> dict[str, ToolEntry]:
     """Build the harness toolset bound to a project cwd.
 
-    Returns a dict of tool name -> async callable.
+    Returns a dict of tool name -> ToolEntry. Each entry carries an
+    explicit `is_mutating` boolean used by PermissionGate.
     """
 
     @tool(name="fs_read", description="Read a UTF-8 text file from the project. Path must be inside cwd.")
@@ -137,15 +166,15 @@ def make_toolset(cwd: Path) -> dict[str, Any]:
         return await _shell_capture(cwd, ["voss", "check", str(p)])
 
     return {
-        "fs_read": fs_read,
-        "fs_glob": fs_glob,
-        "fs_grep": fs_grep,
-        "fs_write": fs_write,
-        "fs_edit": fs_edit,
-        "shell_run": shell_run,
-        "git_status": git_status,
-        "git_diff": git_diff,
-        "voss_check": voss_check,
+        "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False),
+        "fs_glob": ToolEntry(descriptor=fs_glob, is_mutating=False),
+        "fs_grep": ToolEntry(descriptor=fs_grep, is_mutating=False),
+        "fs_write": ToolEntry(descriptor=fs_write, is_mutating=True),
+        "fs_edit": ToolEntry(descriptor=fs_edit, is_mutating=True),
+        "shell_run": ToolEntry(descriptor=shell_run, is_mutating=True),
+        "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
+        "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
+        "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),
     }
 
 

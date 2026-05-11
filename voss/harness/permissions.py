@@ -23,6 +23,24 @@ WRITE = {"fs_write", "fs_edit"}
 SHELL = {"shell_run"}
 
 
+def mode_allows(mode: Mode, tool_name: str, is_mutating: bool) -> tuple[bool, str]:
+    """Strict tier check. Returns (allowed_by_mode, reason).
+
+    plan : read-only — denies all mutating tools.
+    edit : reads + fs_write/fs_edit — explicitly denies shell_run.
+    auto : everything — caller still enforces allowlist/timeouts downstream.
+    """
+    if mode == "plan":
+        if is_mutating:
+            return False, "denied by mode plan"
+        return True, "ok"
+    if mode == "edit":
+        if tool_name == "shell_run":
+            return False, "denied by mode edit"
+        return True, "ok"
+    return True, "ok"
+
+
 def _config_path() -> Path:
     base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     return base / "voss" / "permissions.json"
@@ -86,8 +104,15 @@ class PermissionGate:
             return f"shell_run:{args.get('cmd', '').split()[0] if args.get('cmd') else ''}"
         return tool_name
 
-    def check(self, tool_name: str, args: dict) -> tuple[bool, str]:
-        """Return (allowed, reason)."""
+    def check(self, tool_name: str, args: dict, *, is_mutating: bool = False) -> tuple[bool, str]:
+        """Return (allowed, reason).
+
+        Structural mode-tier denial fires FIRST (skips prompt entirely).
+        Within-mode prompts still gate mutating tools per D-07.
+        """
+        allowed, why = mode_allows(self.mode, tool_name, is_mutating)
+        if not allowed:
+            return False, why
         if not self.needs_prompt(tool_name):
             return True, "auto"
         if self.store is not None:
