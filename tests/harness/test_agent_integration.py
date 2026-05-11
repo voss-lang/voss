@@ -53,6 +53,86 @@ class FakeProvider:
         return max(len(text) // 4, 1)
 
 
+class FakeProviderWithSemantics(FakeProvider):
+    """Returns parsed Plan first, then parsed RunSemantics on subsequent calls."""
+
+    def __init__(self, plan, semantics, cost: float = 0.001):
+        super().__init__(plan, cost=cost)
+        self.semantics = semantics
+
+    async def complete(
+        self,
+        *,
+        messages,
+        model,
+        response_format=None,
+        tools=None,
+        temperature=1.0,
+        max_tokens=None,
+        timeout=None,
+    ):
+        self.calls.append({"model": model, "messages": messages, "schema": response_format})
+        # Decide which canned response to return based on the requested schema.
+        from voss.harness.agent import Plan as _Plan
+        from voss.harness.agent import RunSemantics as _RunSemantics
+
+        if response_format is _Plan:
+            parsed = self.plan
+            text = self.plan.model_dump_json()
+        elif response_format is _RunSemantics:
+            parsed = self.semantics
+            text = self.semantics.model_dump_json()
+        else:
+            parsed = None
+            text = ""
+
+        return ProviderResponse(
+            text=text,
+            model=model,
+            prompt_tokens=50,
+            completion_tokens=50,
+            cost_usd=self.cost,
+            raw={"fake": True},
+            parsed=parsed,
+        )
+
+
+class FakeProviderFailingSemantics(FakeProvider):
+    """First call returns Plan; second call raises RuntimeError."""
+
+    async def complete(
+        self,
+        *,
+        messages,
+        model,
+        response_format=None,
+        tools=None,
+        temperature=1.0,
+        max_tokens=None,
+        timeout=None,
+    ):
+        self.calls.append({"model": model, "schema": response_format})
+        from voss.harness.agent import Plan as _Plan
+        from voss.harness.agent import RunSemantics as _RunSemantics
+
+        if response_format is _Plan:
+            return ProviderResponse(
+                text=self.plan.model_dump_json(),
+                model=model,
+                prompt_tokens=50,
+                completion_tokens=50,
+                cost_usd=self.cost,
+                raw={"fake": True},
+                parsed=self.plan,
+            )
+        if response_format is _RunSemantics:
+            raise RuntimeError("simulated record_run provider failure")
+        return ProviderResponse(
+            text="", model=model, prompt_tokens=0, completion_tokens=0,
+            cost_usd=0.0, raw={}, parsed=None,
+        )
+
+
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
     (tmp_path / "src").mkdir()
@@ -266,3 +346,109 @@ class TestEditTools:
             )
         )
         assert "matches 2" in result.tool_results[0] or "must be unique" in result.tool_results[0]
+
+
+class TestRecordRunIntegration:
+    def test_record_run_populates_semantic_fields(self, project: Path) -> None:
+        from voss.harness.agent import RunSemantics
+
+        plan = Plan(
+            rationale="read the readme",
+            steps=[ToolCall(name="fs_read", args={"path": "README.md"})],
+            confidence=0.95,
+            final_when_done="done: {{step_0}}",
+        )
+        semantics = RunSemantics(
+            goal="summarize repo",
+            decisions=[
+                {"title": "use markdown", "body": "clear format", "confidence": 0.9}
+            ],
+            assumptions=["repo is small"],
+            risks=[],
+            follow_ups=["add tests"],
+        )
+        provider = FakeProviderWithSemantics(plan, semantics)
+        result = _run(
+            run_turn(
+                "summarize",
+                tools=make_toolset(project),
+                cwd=project,
+                renderer=PlainRenderer(),
+                provider=provider,
+                permissions=PermissionGate(auto_yes=True),
+                session_id="testsess1",
+            )
+        )
+        assert result.run is not None
+        assert result.run.goal == "summarize repo"
+        assert result.run.decisions and result.run.decisions[0]["title"] == "use markdown"
+        assert result.run.assumptions == ["repo is small"]
+        assert result.run.follow_ups == ["add tests"]
+        # Mechanical capture still works alongside semantics.
+        assert "README.md" in result.run.inspected
+
+    def test_record_run_failure_persists_mechanical(self, project: Path) -> None:
+        plan = Plan(
+            rationale="read the readme",
+            steps=[ToolCall(name="fs_read", args={"path": "README.md"})],
+            confidence=0.95,
+            final_when_done="done",
+        )
+        provider = FakeProviderFailingSemantics(plan)
+        result = _run(
+            run_turn(
+                "summarize",
+                tools=make_toolset(project),
+                cwd=project,
+                renderer=PlainRenderer(),
+                provider=provider,
+                permissions=PermissionGate(auto_yes=True),
+                session_id="testsess2",
+            )
+        )
+        assert result.run is not None
+        assert result.run.goal == "(record_run failed)"
+        assert "README.md" in result.run.inspected
+        # plan dict still stored as fallback.
+        assert result.run.plan is not None
+
+    def test_decisions_written_to_disk(self, project: Path) -> None:
+        """When decisions are present, .voss/decisions/*.md files appear."""
+        from voss.harness.agent import RunSemantics
+
+        plan = Plan(
+            rationale="trivial",
+            steps=[],
+            confidence=0.95,
+            final_when_done="ok",
+        )
+        semantics = RunSemantics(
+            goal="trial",
+            decisions=[
+                {"title": "pick strict schema", "body": "fail loud", "confidence": 0.85}
+            ],
+        )
+        provider = FakeProviderWithSemantics(plan, semantics)
+        _run(
+            run_turn(
+                "go",
+                tools=make_toolset(project),
+                cwd=project,
+                renderer=PlainRenderer(),
+                provider=provider,
+                permissions=PermissionGate(auto_yes=True),
+                session_id="testsess3",
+            )
+        )
+        decisions_dir = project / ".voss" / "decisions"
+        assert decisions_dir.exists()
+        files = list(decisions_dir.glob("*.md"))
+        assert files, "no decision markdown files written"
+        text = files[0].read_text()
+        assert "related_session: testsess3" in text
+        assert "pick strict schema" in text
+
+
+@pytest.mark.skip(reason="Wave 3 — pending plan M2-05 (cognition injection)")
+def test_turn_injects_cognition() -> None:
+    pass

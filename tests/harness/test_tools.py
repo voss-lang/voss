@@ -95,5 +95,5 @@ class TestToolEntryClassification:
 
     def test_mutating_count(self, tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
-        assert sum(1 for e in tools.values() if e.is_mutating) == 3
+        assert sum(1 for e in tools.values() if e.is_mutating) == 4
         assert sum(1 for e in tools.values() if not e.is_mutating) == 6

@@ -165,6 +165,23 @@ def make_toolset(cwd: Path) -> dict[str, ToolEntry]:
         p = jail_path(cwd, path)
         return await _shell_capture(cwd, ["voss", "check", str(p)])
 
+    @tool(
+        name="record_run",
+        description=(
+            "(privileged) Close the current turn with semantic fields. "
+            "Dispatched by the harness; never include in plan steps."
+        ),
+    )
+    async def record_run(
+        goal: str = "",
+        avoided: list | None = None,
+        assumptions: list | None = None,
+        decisions: list | None = None,
+        risks: list | None = None,
+        follow_ups: list | None = None,
+    ) -> str:
+        return "ok"
+
     return {
         "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False),
         "fs_glob": ToolEntry(descriptor=fs_glob, is_mutating=False),
@@ -175,6 +192,7 @@ def make_toolset(cwd: Path) -> dict[str, ToolEntry]:
         "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
         "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
         "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),
+        "record_run": ToolEntry(descriptor=record_run, is_mutating=True),
     }
 
 

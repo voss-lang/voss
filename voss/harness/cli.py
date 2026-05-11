@@ -10,6 +10,7 @@ import asyncio
 import os
 import subprocess
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import click
@@ -478,11 +479,14 @@ def _run_repl(
                     history=history,
                     permissions=gate,
                     provider=provider,
+                    session_id=record.id,
                 )
             )
         except Exception as e:  # noqa: BLE001
             click.echo(f"error: {e}", err=True)
             continue
+        if result.run is not None:
+            record.runs.append(asdict(result.run))
         total_cost += result.cost_usd
         renderer.show_final(
             result.final, confidence=result.confidence, cost_usd=result.cost_usd

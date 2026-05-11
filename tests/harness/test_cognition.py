@@ -185,9 +185,34 @@ def test_reserve_filename_collision(tmp_path: Path) -> None:
     assert p3.name == f"{today}-{base}-3.md"
 
 
-@pytest.mark.skip(reason="Wave 2 — pending plan M2-03")
-def test_decision_frontmatter() -> None:
-    pass
+def test_decision_frontmatter(tmp_path: Path) -> None:
+    """COG-06: decisions/*.md frontmatter has the 5 required keys."""
+    import yaml as _yaml
+    from voss.harness.recorder import write_decisions_md
+    from voss.harness.session import RunRecord
+
+    run = RunRecord(
+        id="r1",
+        started_at="t0",
+        ended_at="t1",
+        decisions=[{"title": "choose X", "body": "because Y", "confidence": 0.85}],
+    )
+    paths = write_decisions_md(tmp_path, run, session_id="abc123")
+    assert len(paths) == 1
+    text = paths[0].read_text()
+
+    assert text.startswith("---\n")
+    end = text.index("\n---\n", 4)
+    fm_block = text[4:end]
+    fm = _yaml.safe_load(fm_block)
+
+    expected_keys = {"id", "status", "related_session", "confidence", "created_at"}
+    assert set(fm.keys()) == expected_keys
+    assert fm["status"] == "active"
+    assert fm["related_session"] == "abc123"
+    assert 0.0 <= float(fm["confidence"]) <= 1.0
+    # id matches the file stem.
+    assert fm["id"] == paths[0].stem
 
 
 def test_repo_idx_schema(git_repo: Path) -> None:

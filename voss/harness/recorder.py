@@ -78,12 +78,15 @@ class RunRecorder:
             )
 
     def absorb(self, semantics: Any, plan: Any = None) -> None:
-        """Stub for M2-03 privileged closing call.
+        """Copy semantic fields from a duck-typed semantics object.
 
-        Copies semantics.{goal,avoided,assumptions,decisions,risks,follow_ups}
-        and plan.model_dump() (pydantic v2) onto self. M2-03 wires the actual
-        provider call; this signature is the contract.
+        Tolerates SimpleNamespace stubs and pydantic BaseModel instances via
+        getattr. `semantics is None` is a no-op (mechanical-only persistence).
         """
+        if semantics is None:
+            if plan is not None:
+                self.plan = plan.model_dump() if hasattr(plan, "model_dump") else plan
+            return
         self.goal = getattr(semantics, "goal", self.goal)
         self.avoided = getattr(semantics, "avoided", self.avoided)
         self.assumptions = getattr(semantics, "assumptions", self.assumptions)
@@ -127,6 +130,41 @@ def _parse_exit(result: str) -> int:
         return int(result[6:close])
     except ValueError:
         return 0
+
+
+def write_decisions_md(cwd: Path, run, session_id: str) -> list[Path]:
+    """Mirror each decision to .voss/decisions/YYYY-MM-DD-<slug>.md (D-08, COG-06)."""
+    from .cognition import reserve_filename, slug
+
+    if not run.decisions:
+        return []
+    decisions_dir = cwd / ".voss" / "decisions"
+    decisions_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for d in run.decisions:
+        title = d.get("title") or "untitled"
+        body = d.get("body", "")
+        try:
+            conf = float(d.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            conf = 0.0
+        path = reserve_filename(decisions_dir, slug(title))
+        id_str = path.stem
+        created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        content = (
+            "---\n"
+            f"id: {id_str}\n"
+            "status: active\n"
+            f"related_session: {session_id}\n"
+            f"confidence: {conf:.2f}\n"
+            f"created_at: {created_at}\n"
+            "---\n\n"
+            f"# {title}\n\n"
+            f"{body}\n"
+        )
+        path.write_text(content)
+        paths.append(path)
+    return paths
 
 
 def _git_diff_stat(cwd: Path) -> str:

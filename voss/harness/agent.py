@@ -24,7 +24,9 @@ from voss_runtime.providers import get as get_provider
 from voss_runtime.providers.base import ModelProvider
 
 from .permissions import PermissionGate
+from .recorder import RunRecorder, write_decisions_md
 from .render import Renderer
+from .session import RunRecord
 from .tools import ToolEntry
 
 # ---------------------------------------------------------------------------
@@ -56,6 +58,23 @@ class Plan(BaseModel):
     )
 
 
+class RunSemantics(BaseModel):
+    """Closing-turn semantics produced by the privileged record_run call.
+
+    `extra="ignore"` is LENIENT (unlike cognition_schemas STRICT) because the
+    LLM may hallucinate fields; we silently drop them rather than crashing
+    the turn close.
+    """
+    model_config = {"extra": "ignore"}
+
+    goal: str = ""
+    avoided: list[dict] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    decisions: list[dict] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    follow_ups: list[str] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
@@ -79,6 +98,14 @@ on them. Keep `final_when_done` short — under 200 words.
 """
 
 
+RECORD_RUN_SYSTEM = """You are closing out an agent turn. Summarize it as a
+RunSemantics object capturing the user-visible goal, decisions you made and
+why, assumptions made, risks introduced, and follow-up work. Keep each
+decision title under 8 words; body under 3 sentences. If a field has no
+content, return an empty list — do not invent.
+"""
+
+
 @dataclass
 class TurnResult:
     plan: Plan
@@ -86,6 +113,7 @@ class TurnResult:
     final: str
     tool_results: list[str]
     cost_usd: float
+    run: RunRecord | None = None
 
 
 def _format_tools(tools: dict[str, ToolEntry]) -> str:
@@ -109,6 +137,8 @@ async def run_turn(
     provider: ModelProvider | None = None,
     history: EpisodicMemory | None = None,
     permissions: PermissionGate | None = None,
+    session_id: str | None = None,
+    cognition=None,
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -146,6 +176,7 @@ async def run_turn(
     if history is not None:
         history.add(task, role="user")
 
+    rec = RunRecorder.start()
     renderer.show_thinking("planning")
     async with ContextScope(
         token_budget=token_budget, model=model, provider=provider
@@ -177,6 +208,7 @@ async def run_turn(
             final=question,
             tool_results=[],
             cost_usd=resp.cost_usd,
+            run=None,
         )
 
     # Execute steps sequentially. Phase H3 will lower this to `gather(spawn ...)`.
@@ -187,12 +219,14 @@ async def run_turn(
         if entry is None:
             results.append(f"<error: unknown tool {step.name!r}>")
             renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
+            rec.observe(step.name, step.args, "<unknown tool>", ok=False)
             continue
         allowed, why = gate.check(step.name, step.args, is_mutating=entry.is_mutating)
         if not allowed:
             text = f"<denied: {why}>"
             renderer.show_tool_call(step.name, step.args, text, "error")
             results.append(text)
+            rec.observe(step.name, step.args, text, ok=False)
             continue
         renderer.show_tool_call(step.name, step.args, "running…", "pending")
         try:
@@ -202,9 +236,26 @@ async def run_turn(
             text = f"<error: {e}>"
             renderer.show_tool_call(step.name, step.args, text, "error")
             results.append(text)
+            rec.observe(step.name, step.args, text, ok=False)
             continue
         renderer.show_tool_call(step.name, step.args, _summarize(text), "ok")
         results.append(text)
+        rec.observe(step.name, step.args, text, ok=True)
+
+    transcript = _compose_run_transcript(task, plan, results, rec)
+    semantics = await _record_run_call(provider, model, transcript)
+    if semantics is not None:
+        rec.absorb(semantics, plan)
+    else:
+        rec.goal = "(record_run failed)"
+        rec.plan = plan.model_dump()
+    run = rec.finalize(cwd, cost_usd=resp.cost_usd)
+    if run.decisions:
+        try:
+            write_decisions_md(cwd, run, session_id or "(no-session)")
+        except OSError as exc:
+            import click as _click
+            _click.echo(f"warning: failed to mirror decisions: {exc}", err=True)
 
     final = plan.final_when_done or "(no final answer)"
     for i, r in enumerate(results):
@@ -228,6 +279,7 @@ async def run_turn(
         final=final,
         tool_results=results,
         cost_usd=resp.cost_usd,
+        run=run,
     )
 
 
@@ -236,3 +288,39 @@ def _summarize(text: str, limit: int = 80) -> str:
     if len(first) > limit:
         return first[: limit - 1] + "…"
     return first or f"({len(text)}B)"
+
+
+def _compose_run_transcript(task: str, plan, results: list[str], rec) -> str:
+    parts = [f"Task: {task}", f"Plan rationale: {plan.rationale}"]
+    for i, step in enumerate(plan.steps):
+        result_snippet = (results[i] if i < len(results) else "")[:200]
+        parts.append(f"Step {i}: {step.name}({step.args}) -> {result_snippet}")
+    if rec.inspected:
+        parts.append(f"Inspected: {', '.join(rec.inspected[:20])}")
+    if rec.changed:
+        parts.append(f"Changed: {', '.join(rec.changed[:20])}")
+    text = "\n".join(parts)
+    return text[:3000]
+
+
+async def _record_run_call(provider, model: str, transcript: str):
+    """Privileged closing call. Returns RunSemantics or None on any failure.
+
+    Never raises — Pitfall 1 mitigation. Turn must continue if this fails.
+    """
+    try:
+        resp = await provider.complete(
+            messages=[
+                {"role": "system", "content": RECORD_RUN_SYSTEM},
+                {"role": "user", "content": transcript},
+            ],
+            model=model,
+            response_format=RunSemantics,
+            temperature=0.0,
+            max_tokens=800,
+        )
+    except Exception:  # noqa: BLE001 — sentinel-return is the contract
+        return None
+    if resp.parsed is None:
+        return None
+    return resp.parsed

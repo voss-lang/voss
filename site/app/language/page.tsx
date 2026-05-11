@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Boxes, CircleDollarSign, Code2, Network, Workflow } from "lucide-react";
+import { codeToHtml } from "shiki";
 import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +58,12 @@ const SAMPLE = `agent Classifier {
   }
 }`;
 
-export default function LanguagePage() {
+export default async function LanguagePage() {
+  const sampleHtml = await codeToHtml(SAMPLE.trimEnd(), {
+    lang: "python",
+    theme: "github-dark-default",
+  });
+
   return (
     <>
       <Nav />
@@ -92,9 +98,10 @@ export default function LanguagePage() {
                 </Button>
               </div>
             </div>
-            <pre className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 font-mono text-sm leading-7 text-[var(--foreground)]">
-              <code>{SAMPLE}</code>
-            </pre>
+            <div
+              className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 font-mono text-sm leading-7 [&_code]:font-mono [&_pre]:!bg-transparent [&_pre]:text-sm [&_pre]:leading-7"
+              dangerouslySetInnerHTML={{ __html: sampleHtml }}
+            />
           </div>
         </section>
 
