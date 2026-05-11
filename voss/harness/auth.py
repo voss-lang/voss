@@ -58,6 +58,29 @@ class AnthropicOAuthCreds:
         return max(0, int((self.expires_at_ms - time.time() * 1000) / 1000))
 
 
+def _login_keychain_path() -> Optional[str]:
+    """Resolve the user's login keychain (for explicit -k targeting on writes).
+
+    Returns None if `security default-keychain` fails or this isn't macOS.
+    """
+    if platform.system() != "Darwin":
+        return None
+    try:
+        out = subprocess.run(
+            ["security", "default-keychain", "-d", "user"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    # Output is quoted: e.g. `    "/Users/x/Library/Keychains/login.keychain-db"`
+    line = out.stdout.strip().strip('"')
+    return line or None
+
+
 def _read_macos_keychain() -> Optional[dict]:
     if platform.system() != "Darwin":
         return None
@@ -109,22 +132,35 @@ def load_anthropic_oauth() -> Optional[AnthropicOAuthCreds]:
 
 
 def _write_macos_keychain(blob: dict) -> bool:
+    """Write the credential blob into the login keychain.
+
+    Targets the login keychain explicitly via `-k` so macOS doesn't fall back
+    to its "no keychain to store" notification when the default isn't
+    reachable from the current subprocess context. Caller is responsible for
+    falling back to file write if this returns False.
+    """
     if platform.system() != "Darwin":
         return False
+    if os.environ.get("VOSS_NO_KEYCHAIN_WRITE") == "1":
+        return False
     payload = json.dumps(blob)
+    cmd = [
+        "security",
+        "add-generic-password",
+        "-U",  # update if exists
+        "-s",
+        "Claude Code-credentials",
+        "-a",
+        os.environ.get("USER", "voss"),
+        "-w",
+        payload,
+    ]
+    keychain = _login_keychain_path()
+    if keychain:
+        cmd.append(keychain)
     try:
         subprocess.run(
-            [
-                "security",
-                "add-generic-password",
-                "-U",  # update if exists
-                "-s",
-                "Claude Code-credentials",
-                "-a",
-                os.environ.get("USER", "voss"),
-                "-w",
-                payload,
-            ],
+            cmd,
             check=True,
             timeout=5,
             capture_output=True,
@@ -174,13 +210,21 @@ def refresh_anthropic(creds: AnthropicOAuthCreds, *, client: Optional[httpx.Clie
         expires_at_ms=int((time.time() + body.get("expires_in", 3600)) * 1000),
         subscription_type=creds.subscription_type,
     )
-    # Persist back. Macos keychain first, then file.
-    blob = _read_macos_keychain() or _read_claude_credentials_file() or {}
+    # Persist back to the SAME source the creds came from.
+    # If creds originated in the keychain, update there; otherwise stay in the
+    # file. This prevents triggering macOS "no keychain to store" notifications
+    # for users whose tokens live in ~/.claude/.credentials.json.
+    keychain_blob = _read_macos_keychain()
+    file_blob = _read_claude_credentials_file() if keychain_blob is None else None
+    blob = keychain_blob or file_blob or {}
     blob.setdefault("claudeAiOauth", {})
     blob["claudeAiOauth"]["accessToken"] = new.access_token
     blob["claudeAiOauth"]["refreshToken"] = new.refresh_token
     blob["claudeAiOauth"]["expiresAt"] = new.expires_at_ms
-    if not _write_macos_keychain(blob):
+    if keychain_blob is not None:
+        if not _write_macos_keychain(blob):
+            _write_claude_credentials_file(blob)
+    else:
         _write_claude_credentials_file(blob)
     return new
 
