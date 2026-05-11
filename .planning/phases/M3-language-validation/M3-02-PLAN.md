@@ -24,6 +24,7 @@ must_haves:
     - "The subprocess that exec's the generated Python inherits VOSS_HERMETIC=1 so voss_runtime.providers.get() routes its default to __stub__."
     - "voss_runtime.providers.get(name=None) returns the registered __stub__ provider when VOSS_HERMETIC=1 is set; explicit `get('some-other-name')` still wins (no override of explicit names)."
     - "Live-cred path is unchanged: when auth.resolve() returns source != 'none' AND VOSS_HERMETIC is not set, subprocess.run is invoked with env=None (inherit) and no banner fires."
+    - "tests/cli/test_run_stub_fallback.py contains exactly 4 test functions: auto_register_stub_when_no_creds, stub_fallback_banner_on_stderr, voss_hermetic_env_var_path, AND live_cred_path_no_banner (the regression guard for the live-cred path)."
   artifacts:
     - path: "voss_runtime/providers/__init__.py"
       provides: "get() with VOSS_HERMETIC=1 → __stub__ short-circuit (D-01 runtime hook)"
@@ -32,7 +33,7 @@ must_haves:
       provides: "run() invokes voss.harness.auth.resolve, emits D-02 banner, passes hermetic env to subprocess.run"
       contains: "no provider creds detected"
     - path: "tests/cli/test_run_stub_fallback.py"
-      provides: "tests covering auto-register (no creds), banner on stderr, VOSS_HERMETIC env path"
+      provides: "4 tests covering auto-register (no creds), banner on stderr, VOSS_HERMETIC env-var path, AND live-cred-no-banner regression guard"
       contains: "def test_auto_register_stub_when_no_creds"
   key_links:
     - from: "voss/cli.py::run"

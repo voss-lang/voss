@@ -2,7 +2,7 @@
 phase: M3
 plan: 06
 type: execute
-wave: 2
+wave: 3
 depends_on: [M3-01, M3-04, M3-05]
 files_modified:
   - tests/examples/test_check_speed.py
@@ -22,7 +22,7 @@ must_haves:
   truths:
     - "tests/examples/test_check_speed.py adds a parametrized test_check_speed_under_ceiling(sample) that runs `voss check samples/<sample>.voss` twice (warmup + measured), asserts the measured wall-clock is below CHECK_CEILING_SECONDS, and asserts exit code 0."
     - "test_check_speed_under_ceiling parametrizes over [\"classify\", \"support\", \"research\"] and runs all three (after M3-01 + M3-04 land, the warm wall-clock per sample is comfortably under 2s)."
-    - "README.md adds a 'What is .voss' H2 section between H1 and Install; the section uses the EXACT phrase 'AI workflow control' and explicitly states .voss is NOT a Python replacement (e.g., the substring 'not a Python replacement' or 'not a general Python replacement' appears)."
+    - "README.md adds a 'What is .voss' H2 section between H1 and Install; the section uses the EXACT phrase 'AI workflow control' and explicitly states .voss is NOT a Python replacement. The exact negation phrasing chosen (to satisfy both D-14 'explicitly states' intent AND the M3-VALIDATION grep contract that forbids the substring 'Python replacement') is recorded verbatim in M3-06-SUMMARY.md so reviewers can audit intent preservation per D-14."
     - "README.md links to docs/voss-vs-python.md from BOTH the new 'What is .voss' section AND the existing Project Docs list (RESEARCH Q-5 two-link-to-one-doc recommendation)."
     - "README.md no longer contains the outdated 'Phase 1 status' blockquote (deleted or replaced)."
     - "docs/voss-vs-python.md exists at repo root; contains H1 + 3 H2 sample sections (classify/support/research) each pairing samples/*.voss with examples/raw_python/*.py via side-by-side fenced code blocks + a one-paragraph commentary explaining what .voss makes explicit."
@@ -32,7 +32,7 @@ must_haves:
       provides: "parametrized wall-clock gate + retained M3-01 sentinel (D-03 + D-13)"
       contains: "test_check_speed_under_ceiling"
     - path: "README.md"
-      provides: "What is .voss section + docs/voss-vs-python.md link + outdated banner removed (D-14)"
+      provides: "What is .voss section + docs/voss-vs-python.md link + outdated banner removed (D-14); the exact negation phrase chosen (no literal substring 'Python replacement') MUST be quoted verbatim in M3-06-SUMMARY.md for D-14 intent-preservation audit"
       contains: "AI workflow control"
     - path: "docs/voss-vs-python.md"
       provides: "side-by-side .voss vs raw Python with LOC + commentary (D-15)"
@@ -198,22 +198,7 @@ M3-VALIDATION grep contracts for the framing surface:
        - The "## Install" header.
        - The "## Project Docs" header at the bottom.
     2. DELETE the "Phase 1 status:" blockquote line (and its surrounding blank lines).
-    3. AFTER the opening paragraph (which currently ends "...auditable and predictable instead of vibes-based.") and BEFORE the "## Install" section, INSERT a new H2 section. Suggested content (Claude's discretion on exact prose per CONTEXT — pick what reads well; the grep contracts below are hard constraints):
-       ```
-       ## What is .voss
-       
-       .voss is an AI workflow control layer that compiles to readable Python. It is not a general Python replacement — instead, it makes the moving parts of LLM programs first-class so that AI-augmented code is auditable instead of vibes-based:
-       
-       - **Probable values + confidence gates** — model outputs carry a `probable<T>` type with a per-call confidence; downstream branches must opt in via `@ p >= 0.80`.
-       - **Context budgets** — `ctx(budget: N tokens)` and `within budget(...) fallback { ... }` make token spend explicit and bounded.
-       - **Semantic routing** — `match similar(...)` dispatches on natural-language phrasing without writing classifier glue.
-       - **Agents, `spawn`, `gather`** — multi-agent workflows are language constructs, not framework boilerplate.
-       - **Memory primitives** — `memory.episodic`, `memory.semantic`, and `memory.working` capture distinct memory regimes.
-       - **Recovery** — `try/catch` for tool calls; `use voss_runtime::tools::tool` for explicit decorator imports.
-       
-       See the three canonical samples under [`samples/`](samples/) and the side-by-side comparison in [`docs/voss-vs-python.md`](docs/voss-vs-python.md).
-       ```
-       Adjust prose freely; the constraints are: contains the exact phrase "AI workflow control", explicitly negates "Python replacement", and includes a link to docs/voss-vs-python.md.
+    3. AFTER the opening paragraph (which currently ends "...auditable and predictable instead of vibes-based.") and BEFORE the "## Install" section, INSERT a new H2 section. The H2 header is `## What is .voss`. Section body should contain: (a) an opening sentence describing .voss as an AI workflow control layer that compiles to readable Python AND explicitly stating it is not a general Python replacement (the exact phrase "AI workflow control" must appear at least once); (b) a bulleted list of the primitives — probable values + confidence gates with `probable<T>` and `@ p >= 0.80`; context budgets with `ctx(budget: N tokens)` and `within budget fallback`; semantic routing with `match similar`; agents with `spawn` and `gather`; memory primitives `memory.episodic` / `memory.semantic` / `memory.working`; recovery with `try/catch` and `use voss_runtime::tools::tool`; (c) a closing sentence linking to `samples/` (markdown link to `samples/`) and to `docs/voss-vs-python.md` (markdown link). Hard constraints (per the grep contracts in acceptance criteria): the literal substring "AI workflow control" appears at least once; the literal substring "docs/voss-vs-python.md" appears at least once in this section; and the section never contains the literal substring "Python replacement" (use phrasing like "complement to Python" or "not intended to replace Python" — see action step 8). Claude's discretion on exact prose otherwise.
     4. In the existing "## Project Docs" list at the bottom, ADD a new bullet (preserve list ordering — likely append at the end or place alphabetically): `- [docs/voss-vs-python.md](docs/voss-vs-python.md) — side-by-side .voss vs raw Python with LOC counts`.
     5. Confirm the Quickstart code block referencing `examples/raw_python/classify.py` etc. (current lines 17-21 list) is preserved — it doubles as a Quickstart navigation aid. The new "What is .voss" section can also reference these via the samples/ link.
     6. Do NOT remove the existing PRD.md or .planning/* references in Project Docs.
@@ -350,5 +335,5 @@ M3-VALIDATION grep contracts for the framing surface:
 </threat_model>
 
 <output>
-After completion, create `.planning/phases/M3-language-validation/M3-06-SUMMARY.md` documenting: (1) the final CHECK_CEILING_SECONDS value used (2.0 default, or higher with rationale), (2) the three measured warm wall-clock times for classify/support/research (paste-from-test-output), (3) the README.md diff summary (what was removed, what was added, the two link locations), (4) the docs/voss-vs-python.md table (paste-from-file), (5) confirmation that all M3-VALIDATION rows are now green (paste the verification grep results), (6) the M3 phase-verification handoff: `/gsd-verify-work` target command and the success criterion grid (every LANG-01..10 has an automated test).
+After completion, create `.planning/phases/M3-language-validation/M3-06-SUMMARY.md` documenting: (1) the final CHECK_CEILING_SECONDS value used (2.0 default, or higher with rationale), (2) the three measured warm wall-clock times for classify/support/research (paste-from-test-output), (3) the README.md diff summary (what was removed, what was added, the two link locations) INCLUDING the exact verbatim sentence chosen for the D-14 negation (the phrase that explicitly states .voss is not a Python replacement WITHOUT containing the substring "Python replacement" per the M3-VALIDATION grep contract) — this is the D-14 intent-preservation audit record, (4) the docs/voss-vs-python.md table (paste-from-file), (5) confirmation that all M3-VALIDATION rows are now green (paste the verification grep results), (6) the M3 phase-verification handoff: `/gsd-verify-work` target command and the success criterion grid (every LANG-01..10 has an automated test).
 </output>

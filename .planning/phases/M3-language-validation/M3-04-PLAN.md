@@ -2,8 +2,8 @@
 phase: M3
 plan: 04
 type: execute
-wave: 0
-depends_on: [M1, M2]
+wave: 1
+depends_on: [M1, M2, M3-02]
 files_modified:
   - samples/classify.voss
   - samples/support.voss
@@ -14,6 +14,8 @@ autonomous: true
 requirements:
   - LANG-01
   - LANG-02
+  - LANG-04
+  - LANG-06
   - LANG-07
   - LANG-08
 tags:
@@ -29,7 +31,7 @@ must_haves:
     - "voss check samples/{classify,support,research}.voss exits 0 against the extended samples (parser/analyzer/codegen all support the constructs per RESEARCH §Summary; no compiler changes are required in this plan)."
     - "examples/raw_python/support.py imports EpisodicMemory and constructs a module-scope tickets = EpisodicMemory(capacity=50); handle_message calls tickets.add(user_message, role=\"user\") and adds tickets.render() (last 6 turns) to the ContextScope in the fallback branch."
     - "examples/raw_python/research.py wraps the web_search call inside Researcher.run with a try/except Exception that falls back to adding 'web search unavailable' to the context."
-    - "voss run samples/classify.voss under VOSS_HERMETIC=1 (requires M3-02 to have landed for the auto-stub path) exits 0 with non-empty stdout — the LANG-10 contract per D-04."
+    - "voss run samples/classify.voss under VOSS_HERMETIC=1 (depends on M3-02's providers.get hook landed in Wave 0) exits 0 with non-empty stdout — the LANG-10 contract per D-04."
   artifacts:
     - path: "samples/classify.voss"
       provides: "header comment line + unchanged body (LANG-02 demo)"
@@ -66,9 +68,11 @@ must_haves:
 ---
 
 <objective>
-Extend the three canonical samples and their raw-python parity oracles per D-05, D-06, D-14, and bundled D-12 (same-PR sample ↔ raw-parity coupling). After this plan, `voss check samples/{classify,support,research}.voss` continues to exit 0; `voss run samples/classify.voss` works hermetically (because M3-02 landed); the e2e test repoint in M3-05 will validate the extensions end-to-end against the raw_python oracles.
+Extend the three canonical samples and their raw-python parity oracles per D-05, D-06, D-14, and bundled D-12 (same-PR sample ↔ raw-parity coupling). After this plan, `voss check samples/{classify,support,research}.voss` continues to exit 0; `voss run samples/classify.voss` works hermetically (because M3-02 landed in Wave 0); the e2e test repoint in M3-05 will validate the extensions end-to-end against the raw_python oracles.
 
-Purpose: D-05 (`memory.episodic` in support) + D-06 (`try/catch` + `use` in research) are the LANG-07 + LANG-08 runnable-sample coverage. D-14 sample headers are the per-sample LANG-01 framing surface. D-12 requires the raw-python files to stay in lockstep with the .voss source, so this plan bundles the matching edits into the same tasks per RESEARCH §Pitfall 7.
+Purpose: D-05 (`memory.episodic` in support) + D-06 (`try/catch` + `use` in research) are the LANG-07 + LANG-08 runnable-sample coverage. D-14 sample headers are the per-sample LANG-01 framing surface. D-12 requires the raw-python files to stay in lockstep with the .voss source, so this plan bundles the matching edits into the same tasks per RESEARCH §Pitfall 7. D-08 (`prompt` + `@tool` coverage) is intentionally a no-op: the existing `prompt SupportAgent { ... }` block in samples/support.voss and the implicit `@tool` surface via `tools: [webSearch]` in samples/research.voss already satisfy LANG-08 for those two constructs; this plan preserves those existing lines unchanged, completing D-08 by non-edit.
+
+Wave note: this plan was promoted from Wave 0 to Wave 1 to honor a soft dependency on M3-02. The Task-2 and Task-3 verify steps invoke `VOSS_HERMETIC=1 python3 examples/raw_python/{support,research}.py`, which depends on M3-02 Task 1's `voss_runtime/providers/__init__.py` env-var short-circuit being committed first. M3-04 cannot run in parallel with M3-02.
 
 Output:
 - `samples/classify.voss` — header comment line added; body unchanged.
@@ -228,7 +232,7 @@ print('OK')"</automated>
        b. After the `SUPPORT_SYSTEM_PROMPT = (...)` block (current lines 6-8), and before the `matcher = SemanticMatcher(...)` block, insert: `tickets = EpisodicMemory(capacity=50)`. One blank line above and below.
        c. In the `async def handle_message(user_message: str) -> str:` function body (current line 28+), add as the very first statement after the def: `tickets.add(user_message, role="user")`.
        d. Inside the `async with ContextScope(token_budget=3000) as ctx:` branch (current lines 33-35), before `await ctx.add(f"system: {SUPPORT_SYSTEM_PROMPT}")` (or before `return await ctx.ask(...)`), add a line that mirrors how codegen renders `include tickets.last(6)`. Use whichever shape matches: typically `for turn in tickets.last(6): await ctx.add(f"{turn['role']}: {turn['content']}")`. If codegen output (Step 6) uses `tickets.render()` instead, mirror that.
-    8. Run `python3 examples/raw_python/support.py` — must exit 0. If it errors with provider/cred issues, set VOSS_HERMETIC=1 in env (relies on M3-02 having landed for the providers.get hook).
+    8. Run `VOSS_HERMETIC=1 python3 examples/raw_python/support.py` — must exit 0. The VOSS_HERMETIC short-circuit is provided by M3-02 Task 1 (Wave 0); this plan is in Wave 1 so the hook is guaranteed present.
     9. Do NOT change any other behavior in either file. Do NOT introduce model: annotations to the .voss source (RESEARCH Q-4 forbids — would force CI to pre-register a model name).
     10. Per RESEARCH §Pitfall 7, the .voss + .py edits MUST land in the same task — do not split into separate tasks.
   </action>
@@ -271,7 +275,7 @@ print('OK')"</automated>
     - The rest of samples/research.voss (Synthesizer, runResearch, within/fallback, print) is unchanged.
     - examples/raw_python/research.py adds a `try: results = web_search(topic, max_results=5); await ctx.add("\n".join(results))` / `except Exception: await ctx.add("web search unavailable")` block inside Researcher.run (current lines 27-30). The existing `try/except BudgetExceededError` at lines 54-60 is untouched.
     - `voss check samples/research.voss` exits 0.
-    - `VOSS_HERMETIC=1 python3 examples/raw_python/research.py` exits 0 with non-empty stdout (relies on M3-02 having landed).
+    - `VOSS_HERMETIC=1 python3 examples/raw_python/research.py` exits 0 with non-empty stdout. The VOSS_HERMETIC short-circuit is provided by M3-02 Task 1 (Wave 0); this plan is in Wave 1 so the hook is guaranteed present.
   </behavior>
   <action>
     1. Read samples/research.voss after Task 1 to find current line offsets.
@@ -282,33 +286,10 @@ print('OK')"</automated>
        Line 4: `use voss_runtime::tools::tool`
        Line 5: blank
        Line 6: `agent Researcher(topic: string) -> string {`
-    3. Inside `agent Researcher`'s `ctx(budget: 2000 tokens) { ... }` block, wrap the existing two-line sequence:
-       ```
-       let results = webSearch(topic, max_results: 5)
-       include results
-       ```
-       in a `try { ... } catch e { include "web search unavailable" }` block. Result (8-space indented inside the agent's ctx block):
-       ```
-       try {
-           let results = webSearch(topic, max_results: 5)
-           include results
-       } catch e {
-           include "web search unavailable"
-       }
-       yield ask("Summarize the key findings on: " + topic)
-       ```
-       Preserve original 4 or 8 space indentation matching the existing ctx block. Verify indentation is consistent with the rest of the file (look at how `include results` is indented today — match that for the `try {` opening brace, then nest 4 more spaces for the body inside try).
+    3. Inside `agent Researcher`'s existing `ctx(budget: 2000 tokens) { ... }` block, wrap the existing two-line sequence (the `let results = webSearch(topic, max_results: 5)` declaration immediately followed by `include results`) in a `try { ... } catch e { ... }` block. After the edit, the ctx body contains, in order: a `try {` opening brace at the same indent as the original `let results` line; the two original lines re-indented 4 spaces deeper inside the try-block; a `} catch e {` line at the original indent; a single statement `include "web search unavailable"` indented 4 spaces deeper inside the catch-block; a closing `}` at the original indent; then the original `yield ask("Summarize the key findings on: " + topic)` line unchanged at the original indent. Verify indentation matches the existing ctx block by inspecting how `include results` is indented today and using that as the indent baseline for the try and catch opening braces.
     4. Run `python3 -m voss.cli check samples/research.voss`. Must exit 0. If parser errors on `use voss_runtime::tools::tool`, re-read voss/grammar.lark:174-175 — the `::` separator and 3-segment path are documented as supported. If the error is on `try { ... } catch e { ... }`, re-read parser.py:542-557.
     5. Edit examples/raw_python/research.py:
-       a. Inside `class Researcher(VossAgent)` method `run` (currently lines 26-30), replace the two-line sequence `results = web_search(topic, max_results=5)` + `await ctx.add("\n".join(results))` with a try/except block:
-          ```
-          try:
-              results = web_search(topic, max_results=5)
-              await ctx.add("\n".join(results))
-          except Exception:
-              await ctx.add("web search unavailable")
-          ```
-          Indentation: matches existing async-with body (8 spaces typically). The `return await ctx.ask(...)` line follows the except block, unchanged.
+       a. Inside `class Researcher(VossAgent)` method `run` (currently lines 26-30), replace the two-line sequence `results = web_search(topic, max_results=5)` followed by `await ctx.add("\n".join(results))` with a try/except block. After the edit, the async-with body contains, in order: a `try:` line at the existing 8-space indent; the two original statements re-indented to 12 spaces inside the try; an `except Exception:` line at 8 spaces; a single statement `await ctx.add("web search unavailable")` at 12 spaces inside the except; followed by the existing `return await ctx.ask(...)` line unchanged at 8 spaces.
        b. Do NOT touch the existing try/except BudgetExceededError block at lines 54-60. Do NOT add any new imports — `Exception` is a builtin.
     6. Run `VOSS_HERMETIC=1 python3 examples/raw_python/research.py` — must exit 0. The script prints a synthesizer result (or the fallback join, under StubProvider).
     7. Per RESEARCH §Pitfall 7, the .voss + .py edits MUST land in the same task.
@@ -336,7 +317,7 @@ print('OK')"</automated>
 
 <verification>
 - `python3 -m voss.cli check samples/classify.voss && python3 -m voss.cli check samples/support.voss && python3 -m voss.cli check samples/research.voss` exits 0.
-- `VOSS_HERMETIC=1 python3 examples/raw_python/classify.py && VOSS_HERMETIC=1 python3 examples/raw_python/support.py && VOSS_HERMETIC=1 python3 examples/raw_python/research.py` each exit 0 with non-empty stdout (classify is unchanged in this plan; the run is a smoke check).
+- `VOSS_HERMETIC=1 python3 examples/raw_python/classify.py && VOSS_HERMETIC=1 python3 examples/raw_python/support.py && VOSS_HERMETIC=1 python3 examples/raw_python/research.py` each exit 0 with non-empty stdout (classify is unchanged in this plan; the run is a smoke check). VOSS_HERMETIC short-circuit is provided by M3-02 (Wave 0 dependency).
 - `pytest tests/integration/test_support_example.py tests/integration/test_research_example.py -q` exits 0 (existing integration tests targeting the raw_python files — they will catch regressions in the .py side).
 - `python -c "from voss_runtime import EpisodicMemory; t = EpisodicMemory(capacity=50); t.add('x', role='user'); t.add('y', role='assistant'); assert t.last(6) == [{'role':'user','content':'x'}, {'role':'assistant','content':'y'}]"` exits 0.
 </verification>
@@ -371,4 +352,5 @@ print('OK')"</automated>
 
 <output>
 After completion, create `.planning/phases/M3-language-validation/M3-04-SUMMARY.md` documenting: (1) before/after line counts for each of the 5 modified files, (2) the exact header text used for each sample (with em-dash byte sequence confirmation), (3) the codegen output snippet showing EpisodicMemory(capacity=50) and the try/except lowering, (4) confirmation that voss check + raw_python scripts both exit 0, (5) the hand-off to M3-05: the e2e tests now need to be repointed to samples/ (helpers.py PARSER_EXAMPLES → SAMPLES_DIR) and extended to assert raw-parity against the updated raw_python files, (6) confirmation that no integration test under tests/integration/ regressed.
+</output>
 </output>

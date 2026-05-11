@@ -176,6 +176,16 @@ voss run samples/classify.voss
 - Default verification should stay hermetic with stub providers/fake indexes where possible.
 - `voss check` should be fast enough to run after edits.
 
+**Plans:** 6 plans
+
+Plans:
+- [ ] M3-01-PLAN.md — Analyzer D-03 static-only check guard + sentinel test
+- [ ] M3-02-PLAN.md — Auto-StubProvider fallback + stderr banner + hermetic env propagation
+- [ ] M3-03-PLAN.md — D-07 coverage fixtures for memory.semantic + memory.working (parser/analyzer/codegen)
+- [ ] M3-04-PLAN.md — Sample extensions (support memory.episodic; research try/catch + use) + raw_python parity + D-14 headers
+- [ ] M3-05-PLAN.md — tests/examples repoint to samples/ + slim legacy + extend support/research e2e for raw-parity
+- [ ] M3-06-PLAN.md — D-13 per-sample speed gate + README "What is .voss" + docs/voss-vs-python.md
+
 ---
 
 ## Phase M4: Voss-authored Harness Loop

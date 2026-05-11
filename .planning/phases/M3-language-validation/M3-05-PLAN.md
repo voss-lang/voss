@@ -2,7 +2,7 @@
 phase: M3
 plan: 05
 type: execute
-wave: 1
+wave: 2
 depends_on: [M3-01, M3-02, M3-04]
 files_modified:
   - tests/examples/helpers.py
@@ -13,6 +13,8 @@ files_modified:
 autonomous: true
 requirements:
   - LANG-03
+  - LANG-04
+  - LANG-06
   - LANG-09
   - LANG-10
 
