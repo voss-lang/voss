@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-11T20:00:00.000Z"
-last_activity: 2026-05-11 — Phase M4 context gathered (5 decision areas: pipeline split + thin .voss + Python-imports-compiled, voss check dir walking, VOSS_HARNESS env-flag opt-in + parity oracle, per-file sha-keyed cache, stub-provider real-turn scope bound).
+last_updated: "2026-05-11T20:30:00.000Z"
+last_activity: 2026-05-11 — Phase M5 context gathered (7 decision areas: voss eval CLI + JSONL/Markdown artifact under .voss/eval/, 5 golden tasks with per-task temp git fixtures, LLM-as-judge with rubric per task.toml, live-by-default + --stub for hermetic smoke at k=3, wheel-in-tempvenv packaging smoke, measurement-only ship posture).
 progress:
   total_phases: 6
   completed_phases: 0
@@ -23,10 +23,10 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** M4 — Voss-authored Harness Loop
+**Phase:** M5 — Eval and Distribution Prep
 **Status:** Context gathered — ready to plan
-**Goal:** Dogfood `.voss` on the harness itself.
-**Last activity:** 2026-05-11 — Phase M4 context gathered (5 decision areas: pipeline split + thin .voss + Python-imports-compiled, voss check dir walking, VOSS_HARNESS env-flag opt-in + parity oracle, per-file sha-keyed cache, stub-provider real-turn scope bound).
+**Goal:** Measure v0.1 quality and prep package install.
+**Last activity:** 2026-05-11 — Phase M5 context gathered (7 decision areas: voss eval CLI + JSONL/Markdown artifact under .voss/eval/, 5 golden tasks with per-task temp git fixtures, LLM-as-judge with rubric per task.toml, live-by-default + --stub for hermetic smoke at k=3, wheel-in-tempvenv packaging smoke, measurement-only ship posture).
 
 ## Phase Status
 
@@ -37,7 +37,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M2 | Project Cognition | Ready to execute (7 plans) |
 | M3 | Language Validation | Ready to execute (6 plans, 4 waves) |
 | M4 | Voss-authored Harness Loop | Context gathered — ready to plan |
-| M5 | Eval and Distribution Prep | Pending |
+| M5 | Eval and Distribution Prep | Context gathered — ready to plan |
 
 ## Recent Activity
 
@@ -53,6 +53,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-11 — Phase M3 context gathered (4 decision areas: hermetic run + check speed via auto-StubProvider + static check, sample coverage via support memory.episodic + research try/catch + use, slimmed legacy-06 test plan under tests/examples/, framing via README section + sample headers + docs/voss-vs-python.md).
 - 2026-05-11 — Phase M3 planned: 6 plans across 4 waves (M3-01 analyzer guard + M3-02 auto-stub + M3-03 coverage fixtures parallel in W0; M3-04 sample extensions W1; M3-05 e2e suite repoint W2; M3-06 speed gate + framing docs W3); plan-checker passed iteration 2 after 1 revision (3 warnings cleared: M3-04 promoted to W1 for M3-02 hook ordering; M3-02 must_haves 4-test alignment; M3-06 D-14 negation phrasing audit).
 - 2026-05-11 — Phase M4 context gathered (5 decision areas: pipeline split across loop/router/planner/executor/reviewer.voss with thin .voss control flow only and Python imports compiled functions; voss check + compile extended to walk directories static-only; VOSS_HARNESS=compiled env-flag opt-in with voss/harness/agent.py kept as parity oracle and loud stale-cache failure; per-file `.voss-cache/harness/*.py` artifacts sha-keyed via _manifest.json; M4 success bar = stub-provider real turn end-to-end, live-provider parity deferred to M5).
+- 2026-05-11 — Phase M5 context gathered (7 decision areas: `voss eval` CLI subcommand emitting JSONL + Markdown under `.voss/eval/<timestamp>/`; five golden task fixtures under `tests/eval/golden/NN-slug/` with per-task `task.toml` + isolated temp git repos; LLM-as-judge scorer with rubric per task and JSON-mode `Verdict {verdict, confidence, rationale}`; live-by-default with `--stub` for hermetic smoke at k=3 runs per task; cost from `RunRecord.cost_usd`, confidence from `Plan.confidence`, Pearson r reported; wheel-in-tempvenv packaging smoke in `tests/packaging/` with PyPI publish deferred and README install polish; measurement-only ship posture — no CI threshold gate, human reads report).
 
 ## Notes
 
