@@ -128,7 +128,7 @@ def main(ctx: click.Context) -> None:
     """voss — compiler and agent.
 
     Compiler verbs : compile · run · check · init · ast
-    Agent verbs    : do · chat · edit · doctor
+    Agent verbs    : do · chat · edit · doctor · tools · config
 
     Bare `voss` (no subcommand) drops into the agent REPL.
     """

@@ -610,7 +610,92 @@ def resume_cmd(
     )
 
 
-AGENT_COMMANDS = (do_cmd, chat_cmd, edit_cmd, doctor_cmd, sessions_cmd, resume_cmd)
+# ---------------------------------------------------------------------------
+# tools — registry table
+# ---------------------------------------------------------------------------
+
+
+@click.command("tools")
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root.",
+)
+def tools_cmd(cwd_str: str) -> None:
+    """List registered harness tools."""
+    cwd = Path(cwd_str).resolve()
+    tools = make_toolset(cwd)
+    name_w = max(len(n) for n in tools)
+    click.echo(f"  {'name':<{name_w}}  {'mut':<5}  description")
+    click.echo(f"  {'-' * name_w}  {'-' * 5}  {'-' * 40}")
+    for name in sorted(tools):
+        entry = tools[name]
+        mut = "yes" if entry.is_mutating else "no"
+        desc = entry.description
+        if len(desc) > 60:
+            desc = desc[:59] + "…"
+        click.echo(f"  {name:<{name_w}}  {mut:<5}  {desc}")
+
+
+# ---------------------------------------------------------------------------
+# config — open/show ~/.config/voss/config.toml
+# ---------------------------------------------------------------------------
+
+
+def _config_toml_path() -> Path:
+    base = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+    return base / "voss" / "config.toml"
+
+
+@click.command("config")
+@click.option(
+    "--show",
+    is_flag=True,
+    help="Print config to stdout instead of opening editor.",
+)
+@click.option(
+    "--config-path",
+    "config_path_override",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Override config.toml location (testing).",
+)
+def config_cmd(show: bool, config_path_override: Path | None) -> None:
+    """Open or show ~/.config/voss/config.toml."""
+    path = config_path_override if config_path_override else _config_toml_path()
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("[harness]\n")
+        path.chmod(0o600)
+
+    if show:
+        text = path.read_text()
+        if text.strip():
+            click.echo(text, nl=False)
+        else:
+            click.echo("(empty)")
+        return
+
+    editor = os.environ.get("EDITOR", "vi")
+    try:
+        subprocess.run([editor, str(path)], check=False)
+    except OSError as e:
+        click.echo(f"failed to launch editor {editor!r}: {e}", err=True)
+        sys.exit(1)
+
+
+AGENT_COMMANDS = (
+    do_cmd,
+    chat_cmd,
+    edit_cmd,
+    doctor_cmd,
+    sessions_cmd,
+    resume_cmd,
+    tools_cmd,
+    config_cmd,
+)
 
 
 def register(group: click.Group) -> None:
