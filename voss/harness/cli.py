@@ -224,6 +224,72 @@ def chat_cmd(
     )
 
 
+@click.command("edit")
+@click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root.",
+)
+@click.option("--model", default=None, help="Override default model.")
+@click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option(
+    "--mode",
+    type=click.Choice(["plan", "edit", "auto"]),
+    default="edit",
+    help="Permission tier (default edit per D-07).",
+)
+@click.option(
+    "--auth",
+    "auth_pref",
+    type=click.Choice(AUTH_CHOICES),
+    default="auto",
+    help="Credential source.",
+)
+def edit_cmd(
+    path: str,
+    cwd_str: str,
+    model: str | None,
+    json_mode: bool,
+    mode: str,
+    auth_pref: str,
+) -> None:
+    """Scoped edit REPL. Writes restricted to <PATH> + sibling test mirror (D-02).
+
+    Out-of-scope writes prompt to expand the scope for this session only.
+    Reads stay free under the cwd path jail.
+    """
+    from .edit_scope import EditScope
+
+    cwd = Path(cwd_str).resolve()
+    if model:
+        configure(default_model=model)
+    res, provider = _resolve_auth_or_die(auth_pref)
+    cfg = get_config()
+
+    scope = EditScope.resolve(cwd, path)
+    record = session_store.SessionRecord.new(
+        cwd=cwd,
+        model=cfg.default_model,
+        name=f"edit-{Path(path).name}",
+    )
+
+    click.echo(f"  edit scope: {', '.join(scope.summary()) or path}")
+
+    _run_repl(
+        cwd=cwd,
+        json_mode=json_mode,
+        mode=mode,
+        history=EpisodicMemory(capacity=40),
+        record=record,
+        provider=provider,
+        auth_detail=f"{res.source} — {res.detail}",
+        edit_scope=scope,
+    )
+
+
 def _run_repl(
     *,
     cwd: Path,
@@ -233,6 +299,7 @@ def _run_repl(
     record: session_store.SessionRecord,
     provider: ModelProvider,
     auth_detail: str = "",
+    edit_scope=None,
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode)
@@ -240,6 +307,7 @@ def _run_repl(
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
         store=PermissionStore.load(cwd),
+        edit_scope=edit_scope,
     )
     total_cost = record.total_cost_usd
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
@@ -445,7 +513,7 @@ def resume_cmd(
     )
 
 
-AGENT_COMMANDS = (do_cmd, chat_cmd, doctor_cmd, sessions_cmd, resume_cmd)
+AGENT_COMMANDS = (do_cmd, chat_cmd, edit_cmd, doctor_cmd, sessions_cmd, resume_cmd)
 
 
 def register(group: click.Group) -> None:
