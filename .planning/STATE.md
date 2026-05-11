@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.1
-milestone_name: Harness MVP
+milestone_name: milestone
 status: planning
-last_updated: "2026-05-10"
+last_updated: "2026-05-11T00:34:06.495Z"
+last_activity: 2026-05-10 — Phase M1 context gathered.
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # State: Voss
@@ -23,17 +23,17 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** M0 — Scope Lock
-**Status:** Defining and aligning planning artifacts
-**Goal:** Align repo and planning docs around harness-led v0.1 plus `.voss` as workflow control layer.
-**Last activity:** 2026-05-10 — Milestone v0.1 Harness MVP started with M-prefixed phases.
+**Phase:** M1 — Harness Happy Path
+**Status:** Context gathered, ready for planning
+**Goal:** Make the Python harness usable on a real repo with minimal persistence.
+**Last activity:** 2026-05-10 — Phase M1 context gathered. Resume file: `.planning/phases/M1-harness-happy-path/M1-CONTEXT.md`.
 
 ## Phase Status
 
 | Phase | Name | Status |
 |---|---|---|
 | M0 | Scope Lock | Ready to plan |
-| M1 | Harness Happy Path | Pending |
+| M1 | Harness Happy Path | Context gathered |
 | M2 | Project Cognition | Pending |
 | M3 | Language Validation | Pending |
 | M4 | Voss-authored Harness Loop | Pending |
@@ -46,6 +46,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-09 — Harness and Rust planning added, including a later Rust port.
 - 2026-05-10 — Scope lock reframed v0.1 around a harness-led MVP with `.voss` as workflow control layer.
 - 2026-05-10 — Roadmap rebaselined to M-prefixed phases M0-M5; Rust deferred until Python harness usage is proven.
+- 2026-05-10 — Phase M1 context gathered (4 decision areas: voss edit scope, permission modes, voss doctor, session redaction).
 
 ## Notes
 
