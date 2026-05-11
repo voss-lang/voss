@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-11T01:40:50.373Z"
-last_activity: "2026-05-10 — Phase M2 context gathered. Resume file: `.planning/phases/M2-project-cognition/M2-CONTEXT.md`."
+last_updated: "2026-05-11T02:30:00.000Z"
+last_activity: "2026-05-11 — Phase M2 planned (7 plans across 6 waves; plan-checker passed after 1 revision)."
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
+  total_plans: 14
   completed_plans: 0
 ---
 
@@ -24,9 +24,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ## Current Position
 
 **Phase:** M2 — Project Cognition
-**Status:** Context gathered, ready for planning
+**Status:** Planned — ready to execute (after M1 lands)
 **Goal:** Make Voss remember useful project facts across sessions.
-**Last activity:** 2026-05-10 — Phase M2 context gathered. Resume file: `.planning/phases/M2-project-cognition/M2-CONTEXT.md`.
+**Last activity:** 2026-05-11 — Phase M2 planned (7 plans across 6 waves; plan-checker passed after 1 revision).
 
 ## Phase Status
 
@@ -34,7 +34,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 |---|---|---|
 | M0 | Scope Lock | Ready to plan |
 | M1 | Harness Happy Path | Ready to execute (7 plans) |
-| M2 | Project Cognition | Context gathered |
+| M2 | Project Cognition | Ready to execute (7 plans) |
 | M3 | Language Validation | Pending |
 | M4 | Voss-authored Harness Loop | Pending |
 | M5 | Eval and Distribution Prep | Pending |
@@ -49,6 +49,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-10 — Phase M1 context gathered (4 decision areas: voss edit scope, permission modes, voss doctor, session redaction).
 - 2026-05-10 — Phase M1 planned: 7 plans across 3 waves; plan-checker passed after 1 revision (3 blockers + 4 warnings cleared).
 - 2026-05-10 — Phase M2 context gathered (4 decision areas: analyze + index lifecycle, cognition file schemas, session move + per-run ledger, context injection on resume).
+- 2026-05-11 — Phase M2 planned: 7 plans across 6 waves (M2-00 scaffold + M2-01..06); plan-checker passed after 1 revision (4 blockers + 5 warnings cleared).
 
 ## Notes
 
