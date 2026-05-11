@@ -2,7 +2,27 @@
 
 Sessions live at $XDG_STATE_HOME/voss/sessions/<id>.json (default
 ~/.local/state/voss/sessions). Each snapshot stores the episodic transcript,
-cwd, model, and total cost. Provider keys are never serialized.
+cwd, model, and total cost.
+
+Redaction guarantee
+-------------------
+SessionRecord is a fixed-field dataclass. Save serializes via dataclasses.asdict,
+which means nothing outside the schema gets written. Provider credentials
+(API keys, OAuth access/refresh tokens, Bearer headers, anthropic-beta marker)
+are NEVER fields on this record and therefore cannot be saved.
+
+User-provided prompt text is allowed to contain anything — including strings
+that look like secrets — because EpisodicMemory.content is part of the
+allowlist by design (the user typed it). The guarantee is specifically about
+what the harness itself attaches to the record (it attaches nothing
+secret-shaped).
+
+This invariant is enforced at build time by tests/harness/test_session_redaction.py.
+Adding a new SessionRecord field that could carry creds is a breaking change
+and must be paired with an explicit redaction step.
+
+Storage location stays at ~/.local/state/voss/sessions/ for M1.
+The move to .voss/sessions/ happens in M2.
 """
 from __future__ import annotations
 
