@@ -79,6 +79,17 @@ voss edit <file>
 - Compiler commands remain available.
 - No provider API keys or equivalent secrets may be written into session payloads.
 
+**Plans:** 7 plans
+
+Plans:
+- [ ] M1-01-PLAN.md — Permission tiers + tool descriptors (is_mutating, mode_allows)
+- [ ] M1-02-PLAN.md — voss doctor check registry + traffic-light table
+- [ ] M1-03-PLAN.md — Session redaction guarantee + CI test
+- [ ] M1-04-PLAN.md — voss edit scoped REPL + diff preview
+- [ ] M1-05-PLAN.md — REPL /login, /model, /mode (+ --confirm) + config.toml
+- [ ] M1-06-PLAN.md — voss tools + voss config commands
+- [ ] M1-07-PLAN.md — Per-command mode defaults + happy-path integration + voss run guard
+
 ---
 
 ## Phase M2: Project Cognition
