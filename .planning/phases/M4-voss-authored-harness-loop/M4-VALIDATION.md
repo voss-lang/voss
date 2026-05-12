@@ -1,11 +1,13 @@
 ---
 phase: M4
 slug: voss-authored-harness-loop
-status: executing
+status: complete
 nyquist_compliant: true
 wave_0_complete: true
 wave_1_complete: true
 wave_2_complete: true
+wave_3_complete: true
+wave_4_complete: true
 created: 2026-05-11
 ---
 
@@ -24,7 +26,7 @@ created: 2026-05-11
 | **Config file** | `pyproject.toml` `[tool.pytest.ini_options]` |
 | **Quick run command** | `pytest tests/harness/test_voss_loop_parity.py tests/harness/test_voss_check_dir.py tests/harness/test_voss_compile_dir.py tests/harness/test_cache_freshness.py -q` |
 | **Per-test run** | `pytest tests/harness/test_voss_loop_parity.py -q` |
-| **Full M4 suite** | `pytest tests/harness/ tests/codegen/test_use_alias.py tests/codegen/test_await_use_import.py tests/parser/test_use_alias.py -q -m "not live"` |
+| **Full M4 suite** | `pytest tests/harness/ tests/codegen/test_imports.py tests/codegen/test_await_use_import.py tests/parser/test_use_alias.py -q -m "not live"` |
 | **Subprocess CLI** | `python -m voss.cli {check,compile,do} ...` |
 | **Compiler sub-plan check** | `pytest tests/parser/test_use_alias.py tests/codegen/test_imports.py tests/parser/test_use_decorators.py tests/codegen/test_await_use_import.py -q` |
 | **Estimated runtime** | ~60s quick, ~120s full M4 suite |
@@ -33,7 +35,7 @@ created: 2026-05-11
 
 ## Sampling Rate
 
-- **After every task commit:** `pytest tests/harness/ tests/codegen/test_use_alias.py tests/codegen/test_await_use_import.py tests/parser/test_use_alias.py -q -m "not live"` (~30s)
+- **After every task commit:** `pytest tests/harness/ tests/codegen/test_imports.py tests/codegen/test_await_use_import.py tests/parser/test_use_alias.py -q -m "not live"` (~30s)
 - **After every plan wave:** quick run + `voss check voss/harness/agent/` + `voss compile voss/harness/agent/` + `VOSS_HARNESS=compiled voss do "<fixture>"` smoke (~60s)
 - **Before `/gsd-verify-work`:** All four D-12 success criteria green — `voss check` exit 0 + `voss compile` produces 5 .py + `_manifest.json` + `VOSS_HARNESS=compiled voss do "<fixture>"` exit 0 + non-empty `TurnResult.final` + parity test passes. Full pytest suite passes `-m "not live"`.
 - **Max feedback latency:** 60s quick / 180s full
@@ -61,9 +63,9 @@ created: 2026-05-11
 | boot-dispatch | 03 | 2 | D-08 / DOG-07 | T-M4-boot-spoof | `voss/harness/cli.py:_resolve_run_turn()` reads `VOSS_HARNESS` env → `[harness] backend` config → default `"python"`; swaps `run_turn` import accordingly; no silent fallback | unit | `pytest tests/harness/test_boot_dispatch.py -q` | ✓ | ✓ green |
 | parity-test | 04 | 3 | D-11 / DOG-07 | T-M4-parity-divergence | `tests/harness/test_voss_loop_parity.py` runs fixture task under both backends with `FakeProvider`; asserts `python_result.final == voss_result.final` AND tool-call sequence identical | integration | `pytest tests/harness/test_voss_loop_parity.py -q` | ✓ | ✓ green |
 | dog-07-smoke | 04 | 3 | DOG-07 / D-12 | — | `VOSS_HARNESS=compiled python -m voss.cli do "noop summary of fixture.md"` exits 0 through the real CLI dispatch path with non-empty stdout under `VOSS_HERMETIC=1` | integration | `pytest tests/harness/test_dog07_smoke.py -q` | ✓ | ✓ green |
-| ci-gate | 05 | 4 | DOG-06 | — | `.github/workflows/ci.yml` includes step `python -m voss.cli check voss/harness/agent/`; step fails CI on any error | grep | `grep -F "voss.cli check voss/harness/agent/" .github/workflows/ci.yml` | ❌ W4 | ⬜ pending |
-| install-doc | 05 | 4 | D-16 | — | README install section mentions `voss compile voss/harness/agent/` as one-liner | grep | `grep -F "voss compile voss/harness/agent/" README.md` | ❌ W4 | ⬜ pending |
-| doctor-cache-row | 05 | 4 | D-16 | — | `voss doctor` output includes a row for harness-cache freshness (informational; never blocking) | unit | `pytest tests/harness/test_doctor.py -q -k harness_cache` | ❌ W4 | ⬜ pending |
+| ci-gate | 05 | 4 | DOG-06 | — | `.github/workflows/ci.yml` includes step `python -m voss.cli check voss/harness/agent/`; step fails CI on any error | grep | `grep -F "voss.cli check voss/harness/agent/" .github/workflows/ci.yml` | ✓ | ✓ green |
+| install-doc | 05 | 4 | D-16 | — | README install section mentions `voss compile voss/harness/agent/` as one-liner | grep | `grep -F "voss compile voss/harness/agent/" README.md` | ✓ | ✓ green |
+| doctor-cache-row | 05 | 4 | D-16 | — | `voss doctor` output includes a row for harness-cache freshness (informational; never blocking) | unit | `pytest tests/harness/test_doctor.py -q` | ✓ | ✓ green |
 
 *Status: ⬜ pending · ✓ green · ❌ red · ⚠ flaky*
 
@@ -101,10 +103,10 @@ created: 2026-05-11
 - [x] `tests/harness/test_dog07_smoke.py` (NEW)
 
 **Wave 4 (CI gate + docs):**
-- [ ] `.github/workflows/ci.yml` — add `voss check voss/harness/agent/` step
-- [ ] `README.md` — install one-liner `voss compile voss/harness/agent/`
-- [ ] `voss/harness/diagnostics.py` — harness-cache freshness row in `run_all_checks`
-- [ ] `tests/harness/test_doctor.py` (MODIFY) — assert cache-freshness row appears
+- [x] `.github/workflows/ci.yml` — add `voss check voss/harness/agent/` step
+- [x] `README.md` — install one-liner `voss compile voss/harness/agent/`
+- [x] `voss/harness/diagnostics.py` — harness-cache freshness row in `run_all_checks`
+- [x] `tests/harness/test_doctor.py` (MODIFY) — assert cache-freshness row appears
 
 *(No framework install needed — pytest + pytest-asyncio already pinned in `[project.optional-dependencies].dev`.)*
 
