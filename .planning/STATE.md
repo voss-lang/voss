@@ -39,8 +39,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M2 | Project Cognition | Ready to execute (7 plans) |
 | M3 | Language Validation | Ready to execute (6 plans, 4 waves) |
 | M4 | Voss-authored Harness Loop | Complete (5 plans, 5 waves) |
-| M5 | Eval and Distribution Prep | Context gathered — ready to plan |
-| M6 | npm Wrapper | Pending — added 2026-05-12 |
+| M5 | Eval and Distribution Prep | 5/6 plans summarized (M5-01..M5-05). M5-06 wheel-smoke + README install polish outstanding. |
+| M6 | npm Wrapper | Pending — added 2026-05-12. Enter `/gsd-discuss-phase` once M5-06 lands. |
 
 ## Recent Activity
 
