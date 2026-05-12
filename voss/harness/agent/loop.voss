@@ -6,12 +6,59 @@ use voss::harness::agent::Plan
 use voss::harness::agent::TurnResult
 use voss::harness::agent::_make_turn_result
 use voss::harness::agent::_run_step_loop
-use voss::harness::agent::planner::plan_task
-use voss::harness::agent::reviewer::review
-use voss::harness::agent::router::route_intent
+use voss::harness::agent::_substitute_placeholders
 use voss::harness::permissions::PermissionGate
 use voss::harness::render::Renderer
 use voss::harness::tools::ToolEntry
+
+fn route_intent(task: string) -> string {
+    ctx(budget: 1000 tokens) {
+        let prompt = "Classify this coding task as edit, inspect, explain, test, or general: " + task
+        let route: probable<string> = ask(prompt)
+
+        if route @ p >= 0.80 {
+            return route.value
+        } else {
+            return "general"
+        }
+    }
+}
+
+fn plan_task(task: string, route: string, tools: dict<string, ToolEntry>, cwd: Path, renderer: Renderer, model = null, provider = null, history = null, cognition = null, prior_context = null) -> Plan {
+    let make_plan = Plan
+
+    ctx(budget: 6000 tokens) {
+        include tools
+        include cwd
+        let prompt = "Plan a " + route + " harness turn for this task: " + task
+        let plan: probable<Plan> = ask(prompt)
+
+        if plan @ p >= 0.60 {
+            return plan.value
+        } else {
+            let question = "I need clarification before planning this task."
+            return make_plan(rationale: "Planner confidence was below the execution threshold.", steps: [], confidence: 0.0, open_question: question, final_when_done: question)
+        }
+    }
+}
+
+fn review(plan: Plan, results: list<string>, cost_usd: float = 0.0) -> TurnResult {
+    let make_result = _make_turn_result
+    let substitute = _substitute_placeholders
+
+    try {
+        let template = plan.final_when_done or "(no final answer)"
+        let final = substitute(template, results)
+        let confidence = plan.confidence
+        let tool_results = results
+        return make_result(plan, confidence, final, tool_results, cost_usd)
+    } catch e {
+        let fallback = "I completed the planned steps, but final synthesis failed."
+        let confidence = plan.confidence
+        let tool_results = results
+        return make_result(plan, confidence, fallback, tool_results, cost_usd)
+    }
+}
 
 fn clarify(plan: Plan, confidence_threshold: float) -> TurnResult {
     let make_result = _make_turn_result
