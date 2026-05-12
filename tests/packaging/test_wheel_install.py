@@ -116,15 +116,25 @@ def test_smoke_asserts(tmp_path):
     )
     assert r.returncode == 0, r.stderr
 
-    # voss compile samples/classify.voss (cwd=repo so the relative path resolves)
+    # voss compile samples/classify.voss → tmp_path/classify.py
+    # (cwd=repo so the source path resolves; -o keeps the generated .py out of
+    # the repo tree so other repo-purity tests stay green).
+    out_py = tmp_path / "classify.py"
     r = subprocess.run(
-        [str(voss_bin), "compile", "samples/classify.voss"],
+        [
+            str(voss_bin),
+            "compile",
+            "samples/classify.voss",
+            "-o",
+            str(out_py),
+        ],
         capture_output=True,
         text=True,
         timeout=60,
         cwd=repo,
     )
     assert r.returncode == 0, r.stderr
+    assert out_py.is_file()
 
     # voss check samples/classify.voss
     r = subprocess.run(

@@ -267,7 +267,7 @@ Plans:
 - [ ] M5-03-PLAN.md — Wave 2 voss eval CLI + runner + JSONL writer
 - [ ] M5-04-PLAN.md — Wave 3 summary.md + stdlib Pearson + .voss/.gitignore guard
 - [ ] M5-05-PLAN.md — Wave 4 five golden task fixtures (01-analyze..05-resume)
-- [ ] M5-06-PLAN.md — Wave 5 wheel-in-tempvenv smoke + README install polish
+- [x] M5-06-PLAN.md — Wave 5 wheel-in-tempvenv smoke + README install polish
 
 ---
 
