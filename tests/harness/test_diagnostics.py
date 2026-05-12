@@ -162,9 +162,9 @@ class TestCheckProviderAuth:
 
 
 class TestRunAllChecks:
-    def test_returns_seven_in_display_order(self, tmp_path: Path):
+    def test_returns_checks_in_display_order(self, tmp_path: Path):
         results = diag.run_all_checks(tmp_path)
-        assert len(results) == 7
+        assert len(results) == 8
         names = [c.name for c in results]
         assert names == [
             "python",
@@ -174,6 +174,7 @@ class TestRunAllChecks:
             "cwd writable",
             "config dirs",
             "project dirs",
+            "harness cache",
         ]
 
 
@@ -224,6 +225,10 @@ def _patch_all_ok(monkeypatch):
     monkeypatch.setattr(
         diag, "check_project_dirs",
         lambda _cwd: diag.Check("project dirs", diag.CheckResult.OK, detail="ok"),
+    )
+    monkeypatch.setattr(
+        diag, "check_harness_cache",
+        lambda _cwd: diag.Check("harness cache", diag.CheckResult.OK, detail="ok"),
     )
 
 

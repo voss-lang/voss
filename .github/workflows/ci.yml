@@ -23,6 +23,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
+      - name: voss check harness sources (M4 DOG-06)
+        run: python -m voss.cli check voss/harness/agent/
       - run: python -m voss.cli check voss-demos/
       - run: pytest -q -m "not live" --cov=voss_runtime --cov-report=term-missing
 

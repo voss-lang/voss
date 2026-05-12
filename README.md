@@ -25,6 +25,12 @@ pip install -e ".[dev]"
 
 Not on PyPI yet. Python 3.11+ required.
 
+If you want to opt into the compiled harness with `VOSS_HARNESS=compiled`, eagerly populate the local harness cache after install. The default Python harness path works without this step.
+
+```bash
+voss compile voss/harness/agent/
+```
+
 ## Quickstart
 
 The runtime exposes `ProbableValue`, `ContextScope`, `BudgetScope`, `SemanticMatcher`, `VossAgent`, `gather`, `@tool`, and the three memory primitives. See:

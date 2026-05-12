@@ -184,6 +184,25 @@ def check_project_dirs(cwd: Path) -> Check:
     return Check("project dirs", CheckResult.OK, detail=".voss/, .voss-cache/ creatable")
 
 
+def check_harness_cache(cwd: Path) -> Check:
+    source_dir = cwd / "voss" / "harness" / "agent"
+    if not source_dir.exists():
+        return Check("harness cache", CheckResult.OK, detail="no harness sources")
+
+    from . import cache as harness_cache
+
+    try:
+        harness_cache.assert_fresh(cwd)
+    except StaleHarnessCacheError:
+        return Check(
+            "harness cache",
+            CheckResult.WARN,
+            detail="stale — compiled artifacts out of sync with .voss sources",
+            fix="voss compile voss/harness/agent/",
+        )
+    return Check("harness cache", CheckResult.OK, detail=".voss-cache/harness/ fresh")
+
+
 def run_all_checks(cwd: Path) -> list[Check]:
     """Run checks in documented display order (D-11)."""
     return [
@@ -194,6 +213,7 @@ def run_all_checks(cwd: Path) -> list[Check]:
         check_cwd_writable(cwd),
         check_config_dirs_creatable(),
         check_project_dirs(cwd),
+        check_harness_cache(cwd),
     ]
 
 
