@@ -5,6 +5,7 @@ status: executing
 nyquist_compliant: true
 wave_0_complete: true
 wave_1_complete: true
+wave_2_complete: true
 created: 2026-05-11
 ---
 
@@ -48,11 +49,11 @@ created: 2026-05-11
 | verdict-model | 02 | 1 | EVAL-02 / D-08 | — | `Verdict` pydantic model `{verdict: "pass"|"fail", confidence: float, rationale: str}`; `judge_run` calls providers with `response_format=Verdict` JSON-mode | unit | `pytest tests/eval/test_judge_verdict.py -q` | ✓ | ✓ green |
 | judge-skipped-on-crash | 02 | 1 | EVAL-02 / D-08 | — | `judge_run` returns `(None, "skipped")` on `ParseError`; non-ParseError provider failures propagate for the runner crash path | unit | `pytest tests/eval/test_judge_skipped.py -q` | ✓ | ✓ green |
 | auth-resolve-role | 02 | 1 | D-08 (judge) | — | `voss/harness/auth.py:resolve(role: str \| None = None)` added; defaults pass-through; judge uses same provider when no `role="judge"` creds | unit | `pytest tests/harness/test_auth.py -q -k role` | ✓ | ✓ green |
-| cli-eval-command | 03 | 2 | EVAL-01..05 / D-01 | T-M5-cli-options-drift | `voss eval` Click subcommand registers via `AGENT_COMMANDS` tuple in `voss/harness/cli.py`; supports `--suite golden`, `--stub`, `--live`, `-k N`, `--out <path>`, `--judge-model <name>`, `--task <id>` | unit | `pytest tests/eval/test_cli_options.py -q` | ❌ W2 | ⬜ pending |
-| stub-eval-smoke | 03 | 2 | EVAL-02 / D-04 | — | `voss eval --stub --task 02-plan-only -k 1 --out <tmp>` produces `<tmp>/runs.jsonl` with 1 row whose schema matches D-04 (task_id, run_idx, success, cost_usd=null, confidence, duration_s, judge_verdict, judge_confidence, judge_rationale, provider, model, judge_model, seed, voss_version, started_at) | integration | `pytest tests/eval/test_voss_eval_stub.py -q` | ❌ W2 | ⬜ pending |
-| jsonl-cost-stub-null | 03 | 2 | EVAL-03 | T-M5-fake-cost | Under `--stub`, JSONL `cost_usd` is JSON `null` — NOT a token-count estimate, NOT 0.0 | unit | `pytest tests/eval/test_voss_eval_stub.py::test_cost_field_null_under_stub -q` | ❌ W2 | ⬜ pending |
-| cost-extraction-live | 03 | 2 | EVAL-03 | — | Live run: JSONL `cost_usd` populated from `RunRecord.cost_usd` (voss/harness/session.py:77) | live | `pytest -m live tests/eval/test_live_signals.py::test_cost -q` | ❌ W2 | ⬜ pending |
-| confidence-extraction | 03 | 2 | EVAL-04 | — | JSONL `confidence` populated from `Plan.confidence` (voss/harness/agent.py:46); single value per run | live | `pytest -m live tests/eval/test_live_signals.py::test_confidence -q` | ❌ W2 | ⬜ pending |
+| cli-eval-command | 03 | 2 | EVAL-01..05 / D-01 | T-M5-cli-options-drift | `voss eval` Click subcommand registers via `AGENT_COMMANDS` tuple in `voss/harness/cli.py`; supports `--suite golden`, `--stub`, `--live`, `-k N`, `--out <path>`, `--judge-model <name>`, `--task <id>` | unit | `pytest tests/eval/test_cli_options.py -q` | ✓ | ✓ green |
+| stub-eval-smoke | 03 | 2 | EVAL-02 / D-04 | — | `voss eval --stub --task 02-plan-only -k 1 --out <tmp>` produces `<tmp>/runs.jsonl` with 1 row whose schema matches D-04 (task_id, run_idx, success, cost_usd=null, confidence, duration_s, judge_verdict, judge_confidence, judge_rationale, provider, model, judge_model, seed, voss_version, started_at) | integration | `pytest tests/eval/test_voss_eval_stub.py -q` | ✓ | ✓ green |
+| jsonl-cost-stub-null | 03 | 2 | EVAL-03 | T-M5-fake-cost | Under `--stub`, JSONL `cost_usd` is JSON `null` — NOT a token-count estimate, NOT 0.0 | unit | `pytest tests/eval/test_voss_eval_stub.py::test_cost_field_null_under_stub -q` | ✓ | ✓ green |
+| cost-extraction-live | 03 | 2 | EVAL-03 | — | Live run: JSONL `cost_usd` populated from `RunRecord.cost_usd` (voss/harness/session.py:77) | live | `pytest -m live tests/eval/test_live_signals.py::test_cost -q` | ✓ | ✓ gated |
+| confidence-extraction | 03 | 2 | EVAL-04 | — | JSONL `confidence` populated from `Plan.confidence` (voss/harness/agent.py:46); single value per run | live | `pytest -m live tests/eval/test_live_signals.py::test_confidence -q` | ✓ | ✓ gated |
 | pearson-correlation | 04 | 3 | EVAL-04 | T-M5-pearson-wrong | `summary.md` includes `conf_corr_r` line computed via `statistics.correlation(confidences, successes_as_01)`; matches manual reference on fixture rows | unit | `pytest tests/eval/test_pearson.py -q` | ❌ W3 | ⬜ pending |
 | markdown-summary-shape | 04 | 3 | EVAL-02..04 / D-02 | — | `summary.md` aggregates JSONL: overall success rate + per-task success rate + mean cost (overall + per-task) + Pearson r + provider/model + run count + total elapsed; linked from `runs.jsonl` via `_summary.md` filename pair | unit | `pytest tests/eval/test_summary_md.py -q` | ❌ W3 | ⬜ pending |
 | voss-eval-gitignore | 04 | 3 | D-03 / M2 D-09 | T-M5-eval-gitignored | `.voss/.gitignore` (cognition.py:581) does NOT add `eval/`; `.voss/eval/<timestamp>/` artifacts stay git-tracked | unit | `pytest tests/eval/test_gitignore.py -q -k eval_tracked` | ❌ W3 | ⬜ pending |
@@ -88,11 +89,11 @@ created: 2026-05-11
 - [x] `tests/harness/test_auth.py` — role-kwarg cases
 
 **Wave 2 (CLI + runner + JSONL):**
-- [ ] `voss/eval/runner.py` — orchestrates suite × k runs; collects RunRecord.cost_usd + Plan.confidence; writes JSONL row per run
-- [ ] `voss/harness/cli.py` AGENT_COMMANDS — register `eval_cmd` (mirror check/compile entry shape)
-- [ ] `tests/eval/test_cli_options.py`
-- [ ] `tests/eval/test_voss_eval_stub.py` (stub smoke + cost-null assertion)
-- [ ] `tests/eval/test_live_signals.py` (@pytest.mark.live)
+- [x] `voss/eval/runner.py` — orchestrates suite × k runs; collects RunRecord.cost_usd + Plan.confidence; writes JSONL row per run
+- [x] `voss/harness/cli.py` AGENT_COMMANDS — register `eval_cmd` (mirror check/compile entry shape)
+- [x] `tests/eval/test_cli_options.py`
+- [x] `tests/eval/test_voss_eval_stub.py` (stub smoke + cost-null assertion)
+- [x] `tests/eval/test_live_signals.py` (@pytest.mark.live)
 
 **Wave 3 (summary + Pearson + gitignore guard):**
 - [ ] `voss/eval/summary.py` — Markdown generator; statistics.correlation Pearson (no scipy)
