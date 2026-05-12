@@ -437,6 +437,7 @@ class Analyzer:
         return AnalysisResult(
             diagnostics=tuple(self.diagnostics),
             indexes=tuple(self.indexes),
+            match_entries=tuple(self._match_entries),
         )
 
     # -------- Statement visitors --------
@@ -485,13 +486,19 @@ class Analyzer:
                 similar_pairs.append((case.pattern.text, label))
             for s in case.body:
                 self._visit_stmt(s)
-        if not similar_pairs or not self.emit_indexes:
+        if not similar_pairs:
+            return
+        threshold = match.threshold if match.threshold is not None else 0.75
+        match_id = f"match_{match.span.line_start}_{match.span.col_start}"
+        # D-03: static-only check — skip embedding build, keep static signature validation.
+        if not self.emit_indexes:
+            self._match_entries.append(
+                {"match_id": match_id, "threshold": threshold, "cases": []}
+            )
             return
         if self.index_builder is None:
             self.index_builder = SemanticMatcherIndexBuilder()
         built = self.index_builder.build_cases(similar_pairs)
-        threshold = match.threshold if match.threshold is not None else 0.75
-        match_id = f"match_{match.span.line_start}_{match.span.col_start}"
         self._match_entries.append(
             {
                 "match_id": match_id,

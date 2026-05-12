@@ -40,6 +40,7 @@ class EmittedIndex:
 class AnalysisResult:
     diagnostics: tuple[Diagnostic, ...] = ()
     indexes: tuple[EmittedIndex, ...] = ()
+    match_entries: tuple[dict, ...] = ()
 
     @property
     def warnings(self) -> tuple[Diagnostic, ...]:
