@@ -47,3 +47,15 @@ def shell_allowed(cmd: str, allowlist: set[str] = DEFAULT_SHELL_ALLOWLIST) -> tu
     if binary not in allowlist:
         return False, f"binary not in allowlist: {binary}"
     return True, "ok"
+
+
+def write_cache(project_root: Path, relpath: str | os.PathLike, text: str) -> Path:
+    """Write inside project_root/.voss-cache using the sandbox path jail."""
+    cache_root = jail_path(project_root, ".voss-cache")
+    cache_root.mkdir(parents=True, exist_ok=True)
+    target = jail_path(cache_root, relpath)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(text)
+    tmp.replace(target)
+    return target

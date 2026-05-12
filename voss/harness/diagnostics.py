@@ -15,7 +15,13 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from voss.exceptions import VossError
+
 from . import auth as auth_mod
+
+
+class StaleHarnessCacheError(VossError):
+    """D-10: compiled harness cache is missing or stale."""
 
 
 class CheckResult(Enum):

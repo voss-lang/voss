@@ -43,10 +43,12 @@ def _print_diagnostics(diagnostics: Iterable[Diagnostic]) -> None:
         click.echo(str(diag))
 
 
-def _iter_voss_sources(path: Path) -> list[Path]:
-    if path.is_dir():
-        return sorted(p for p in path.rglob("*.voss") if p.is_file())
-    return [path]
+def _walk_voss_sources(source: Path) -> list[Path]:
+    if source.is_file():
+        return [source]
+    if source.is_dir():
+        return sorted(p for p in source.rglob("*.voss") if p.is_file())
+    raise click.ClickException(f"not a file or directory: {source}")
 
 
 def _exit_for_diagnostics(result: AnalysisResult, *, warnings_fail: bool) -> None:
@@ -119,6 +121,19 @@ def _compile_source(
         raise click.ClickException(str(exc))
 
     target = output_path if output_path is not None else _default_output_path(source_path)
+    if project_root is not None:
+        cache_root = (project_root / ".voss-cache").resolve()
+        try:
+            relpath = target.resolve().relative_to(cache_root)
+        except ValueError:
+            pass
+        else:
+            from .harness.sandbox import write_cache
+
+            target = write_cache(project_root, relpath, result.source)
+            if verbose:
+                click.echo(f"wrote {target}")
+            return target
     _write_text_atomic(target, result.source)
     if verbose:
         click.echo(f"wrote {target}")
@@ -164,14 +179,41 @@ def compile(
     project_root: Path | None,
     verbose: bool,
 ) -> None:
-    """Compile a Voss source file to Python."""
-    _compile_source(
-        source,
-        output_path=output,
-        project_root=project_root,
-        cache_dir=cache_dir,
-        verbose=verbose,
-    )
+    """Compile a Voss source file or directory to Python."""
+    files = _walk_voss_sources(source)
+    if not files:
+        raise click.ClickException(f"no .voss files found in {source}")
+
+    if source.is_file():
+        _compile_source(
+            source,
+            output_path=output,
+            project_root=project_root,
+            cache_dir=cache_dir,
+            verbose=verbose,
+        )
+        return
+
+    if output is not None:
+        raise click.ClickException("--output is only supported when compiling one file")
+
+    proj = Path(project_root or Path.cwd())
+    for path in files:
+        target = proj / cache_dir / "harness" / path.with_suffix(".py").name
+        _compile_source(
+            path,
+            output_path=target,
+            project_root=proj,
+            cache_dir=cache_dir,
+            verbose=verbose,
+        )
+    if source.name == "agent":
+        from .harness import cache as harness_cache
+
+        entries = harness_cache.compute_source_shas(proj)
+        harness_cache.write_manifest(proj, entries)
+        if verbose:
+            click.echo(f"wrote manifest with {len(entries)} sources")
 
 
 @main.command("run")
@@ -234,13 +276,19 @@ def check(
     project_root: Path | None,
 ) -> None:
     """Parse and analyze a Voss source file or directory without emitting code."""
-    sources = _iter_voss_sources(source)
+    sources = _walk_voss_sources(source)
     if not sources:
         raise click.ClickException(f"no .voss files found in {source}")
 
-    all_diagnostics: list[Diagnostic] = []
+    error_count = 0
+    warning_count = 0
     for path in sources:
-        program = _parse_file(path)
+        try:
+            program = _parse_file(path)
+        except click.ClickException as exc:
+            click.echo(exc.message)
+            error_count += 1
+            continue
         try:
             result = analyze(
                 program,
@@ -251,11 +299,16 @@ def check(
             )
         except VossError as exc:
             raise click.ClickException(str(exc))
-        all_diagnostics.extend(result.diagnostics)
+        _print_diagnostics(result.diagnostics)
+        error_count += len(result.errors)
+        warning_count += len(result.warnings)
 
-    combined = AnalysisResult(diagnostics=tuple(all_diagnostics), indexes=())
-    _print_diagnostics(combined.diagnostics)
-    _exit_for_diagnostics(combined, warnings_fail=warnings_as_errors)
+    if len(sources) > 1:
+        click.echo(f"{error_count} errors, {warning_count} warnings across {len(sources)} files")
+    if error_count:
+        raise click.exceptions.Exit(code=1)
+    if warnings_as_errors and warning_count:
+        raise click.exceptions.Exit(code=1)
 
 
 _INIT_TEMPLATE_NAMES = (

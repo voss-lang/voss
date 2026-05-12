@@ -4,6 +4,7 @@ slug: voss-authored-harness-loop
 status: executing
 nyquist_compliant: true
 wave_0_complete: true
+wave_1_complete: true
 created: 2026-05-11
 ---
 
@@ -44,12 +45,12 @@ created: 2026-05-11
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | grammar-use-alias | 01 | 0 | Pattern 1a / D-02 | — | Parser accepts `use foo::bar as alias` and emits `Use(path=["foo","bar"], alias="alias")` | unit | `pytest tests/parser/test_use_alias.py -q` | ✓ | ✓ green |
 | codegen-await-use | 01 | 0 | Pattern 1b / D-02 | — | Codegen emits `await` before calls to `use`-imported identifiers that resolve to coroutines | unit | `pytest tests/codegen/test_await_use_import.py -q` | ✓ | ✓ green |
-| sandbox-write-cache | 02 | 1 | D-15 | — | `voss/harness/sandbox.py:write_cache(project_root, relpath, text)` writes through `jail_path`; rejects paths outside cwd jail | unit | `pytest tests/harness/test_sandbox.py -q -k write_cache` | ❌ W1 | ⬜ pending |
-| cli-check-dir-walk | 02 | 1 | D-05 / D-07 / DOG-06 | — | `voss check <dir>` rglobs `*.voss`, parses + analyzes each, aggregates `<file>:<line>:<col>: <severity> <msg>` grouped by file, prints `N errors, M warnings across K files` summary, exit non-zero on any error | unit | `pytest tests/harness/test_voss_check_dir.py -q` | ❌ W1 | ⬜ pending |
-| cli-compile-dir-walk | 02 | 1 | D-05 / DOG-08 | — | `voss compile <dir>` emits one `.py` per `.voss` source under `.voss-cache/harness/`, writes `_manifest.json` per D-13 schema | unit | `pytest tests/harness/test_voss_compile_dir.py -q` | ❌ W1 | ⬜ pending |
-| manifest-shape | 02 | 1 | D-13 / D-14 | — | `_manifest.json` matches `{ "version": 1, "voss_version": str, "compiled_at": iso, "sources": { "<rel>.voss": {"sha256": hex, "lines": int}, ... } }`; cache key derived from sha256 + voss_version (not git-head, not mtime) | unit | `pytest tests/harness/test_voss_compile_dir.py::test_manifest_schema -q` | ❌ W1 | ⬜ pending |
-| stale-cache-error | 02 | 1 | D-10 / D-14 | T-M4-stale-silent | `StaleHarnessCacheError` raised on sha mismatch OR missing manifest; message exactly `compiled harness cache stale — run: voss compile voss/harness/agent/`; NO silent fallback to Python | unit | `pytest tests/harness/test_cache_freshness.py -q` | ❌ W1 | ⬜ pending |
-| check-dir-static-only | 02 | 1 | D-06 / M3 D-03 | T-M4-hf-load | `voss check voss/harness/agent/` does NOT load `sentence_transformers` (carry-forward of M3 D-03) | unit | `pytest tests/harness/test_voss_check_dir.py::test_check_dir_does_not_load_hf_encoder -q` | ❌ W1 | ⬜ pending |
+| sandbox-write-cache | 02 | 1 | D-15 | — | `voss/harness/sandbox.py:write_cache(project_root, relpath, text)` writes through `jail_path`; rejects paths outside cwd jail | unit | `pytest tests/harness/test_cache_freshness.py -q -k write_cache` | ✓ | ✓ green |
+| cli-check-dir-walk | 02 | 1 | D-05 / D-07 / DOG-06 | — | `voss check <dir>` rglobs `*.voss`, parses + analyzes each, aggregates `<file>:<line>:<col>: <severity> <msg>` grouped by file, prints `N errors, M warnings across K files` summary, exit non-zero on any error | unit | `pytest tests/harness/test_voss_check_dir.py -q` | ✓ | ✓ green |
+| cli-compile-dir-walk | 02 | 1 | D-05 / DOG-08 | — | `voss compile <dir>` emits one `.py` per `.voss` source under `.voss-cache/harness/`, writes `_manifest.json` per D-13 schema | unit | `pytest tests/harness/test_voss_compile_dir.py -q` | ✓ | ✓ green |
+| manifest-shape | 02 | 1 | D-13 / D-14 | — | `_manifest.json` matches `{ "version": 1, "voss_version": str, "compiled_at": iso, "sources": { "<rel>.voss": {"sha256": hex, "lines": int}, ... } }`; cache key derived from sha256 + voss_version (not git-head, not mtime) | unit | `pytest tests/harness/test_voss_compile_dir.py::test_manifest_schema -q` | ✓ | ✓ green |
+| stale-cache-error | 02 | 1 | D-10 / D-14 | T-M4-stale-silent | `StaleHarnessCacheError` raised on sha mismatch OR missing manifest; message exactly `compiled harness cache stale — run: voss compile voss/harness/agent/`; NO silent fallback to Python | unit | `pytest tests/harness/test_cache_freshness.py -q` | ✓ | ✓ green |
+| check-dir-static-only | 02 | 1 | D-06 / M3 D-03 | T-M4-hf-load | `voss check voss/harness/agent/` does NOT load `sentence_transformers` (carry-forward of M3 D-03) | unit | `pytest tests/harness/test_voss_check_dir.py::test_check_dir_does_not_load_hf_encoder -q` | ✓ | ✓ green |
 | loop-voss-file | 03 | 2 | DOG-01 | — | `voss/harness/agent/loop.voss` exists; contains `ctx(budget:` + control flow only; parses + analyzes via dir walker | file + unit | `test -f voss/harness/agent/loop.voss && python -m voss.cli check voss/harness/agent/loop.voss` | ❌ W2 | ⬜ pending |
 | router-voss-file | 03 | 2 | DOG-02 | — | `router.voss` exists; uses `probable<Intent>` for slash-vs-natural classification | file + unit | `python -m voss.cli check voss/harness/agent/router.voss` | ❌ W2 | ⬜ pending |
 | planner-voss-file | 03 | 2 | DOG-03 | — | `planner.voss` exists; uses `probable<Plan>` ask + confidence gate; `try/catch` or `fallback` branch when below threshold | file + unit | `python -m voss.cli check voss/harness/agent/planner.voss` | ❌ W2 | ⬜ pending |
@@ -77,14 +78,14 @@ created: 2026-05-11
 - [x] `voss/codegen.py:441-446` — extend auto-await to also cover `use`-imported names
 
 **Wave 1 (CLI dir-walk + cache infra):**
-- [ ] `voss/harness/cache.py` (NEW, ~80 LOC) — manifest helpers (read/write/sha256/check_fresh)
-- [ ] `voss/harness/sandbox.py` (MODIFY, +15 LOC) — `write_cache(project_root, relpath, text)`
-- [ ] `voss/harness/diagnostics.py` (MODIFY) — `StaleHarnessCacheError` + cache-freshness doctor row
-- [ ] `voss/cli.py:check` (~line 209) — dir-walk mode with `rglob("*.voss")`
-- [ ] `voss/cli.py:compile` (~line 147) — dir-walk mode + manifest emission
-- [ ] `tests/harness/test_voss_check_dir.py` (NEW)
-- [ ] `tests/harness/test_voss_compile_dir.py` (NEW)
-- [ ] `tests/harness/test_cache_freshness.py` (NEW)
+- [x] `voss/harness/cache.py` (NEW, ~80 LOC) — manifest helpers (read/write/sha256/check_fresh)
+- [x] `voss/harness/sandbox.py` (MODIFY, +15 LOC) — `write_cache(project_root, relpath, text)`
+- [x] `voss/harness/diagnostics.py` (MODIFY) — `StaleHarnessCacheError` (doctor row deferred to M4-05)
+- [x] `voss/cli.py:check` (~line 209) — dir-walk mode with `rglob("*.voss")`
+- [x] `voss/cli.py:compile` (~line 147) — dir-walk mode + manifest emission
+- [x] `tests/harness/test_voss_check_dir.py` (NEW)
+- [x] `tests/harness/test_voss_compile_dir.py` (NEW)
+- [x] `tests/harness/test_cache_freshness.py` (NEW)
 
 **Wave 2 (.voss authoring + boot dispatch):**
 - [ ] `voss/harness/agent/{loop,router,planner,executor,reviewer}.voss` (5 NEW files, 20-40 LOC each)
