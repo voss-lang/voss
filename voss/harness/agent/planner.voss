@@ -7,6 +7,8 @@ use voss::harness::tools::ToolEntry
 use voss::harness::render::Renderer
 
 fn plan_task(task: string, route: string, tools: dict<string, ToolEntry>, cwd: Path, renderer: Renderer, model = null, provider = null, history = null, cognition = null, prior_context = null) -> Plan {
+    let make_plan = Plan
+
     ctx(budget: 6000 tokens) {
         include tools
         include cwd
@@ -16,9 +18,8 @@ fn plan_task(task: string, route: string, tools: dict<string, ToolEntry>, cwd: P
         if plan @ p >= 0.60 {
             return plan.value
         } else {
-            if plan @ p < 0.60 {
-                return plan.value
-            }
+            let question = "I need clarification before planning this task."
+            return make_plan(rationale: "Planner confidence was below the execution threshold.", steps: [], confidence: 0.0, open_question: question, final_when_done: question)
         }
     }
 }

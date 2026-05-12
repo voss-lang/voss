@@ -5,6 +5,7 @@ status: executing
 nyquist_compliant: true
 wave_0_complete: true
 wave_1_complete: true
+wave_2_complete: true
 created: 2026-05-11
 ---
 
@@ -51,13 +52,13 @@ created: 2026-05-11
 | manifest-shape | 02 | 1 | D-13 / D-14 | — | `_manifest.json` matches `{ "version": 1, "voss_version": str, "compiled_at": iso, "sources": { "<rel>.voss": {"sha256": hex, "lines": int}, ... } }`; cache key derived from sha256 + voss_version (not git-head, not mtime) | unit | `pytest tests/harness/test_voss_compile_dir.py::test_manifest_schema -q` | ✓ | ✓ green |
 | stale-cache-error | 02 | 1 | D-10 / D-14 | T-M4-stale-silent | `StaleHarnessCacheError` raised on sha mismatch OR missing manifest; message exactly `compiled harness cache stale — run: voss compile voss/harness/agent/`; NO silent fallback to Python | unit | `pytest tests/harness/test_cache_freshness.py -q` | ✓ | ✓ green |
 | check-dir-static-only | 02 | 1 | D-06 / M3 D-03 | T-M4-hf-load | `voss check voss/harness/agent/` does NOT load `sentence_transformers` (carry-forward of M3 D-03) | unit | `pytest tests/harness/test_voss_check_dir.py::test_check_dir_does_not_load_hf_encoder -q` | ✓ | ✓ green |
-| loop-voss-file | 03 | 2 | DOG-01 | — | `voss/harness/agent/loop.voss` exists; contains `ctx(budget:` + control flow only; parses + analyzes via dir walker | file + unit | `test -f voss/harness/agent/loop.voss && python -m voss.cli check voss/harness/agent/loop.voss` | ❌ W2 | ⬜ pending |
-| router-voss-file | 03 | 2 | DOG-02 | — | `router.voss` exists; uses `probable<Intent>` for slash-vs-natural classification | file + unit | `python -m voss.cli check voss/harness/agent/router.voss` | ❌ W2 | ⬜ pending |
-| planner-voss-file | 03 | 2 | DOG-03 | — | `planner.voss` exists; uses `probable<Plan>` ask + confidence gate; `try/catch` or `fallback` branch when below threshold | file + unit | `python -m voss.cli check voss/harness/agent/planner.voss` | ❌ W2 | ⬜ pending |
-| executor-voss-file | 03 | 2 | DOG-04 | — | `executor.voss` exists; dispatches `plan.steps` through Python helper (no `for` loop in .voss); codegen emits `await` for tool invocations | file + unit | `python -m voss.cli compile voss/harness/agent/executor.voss && grep -q "await " .voss-cache/harness/executor.py` | ❌ W2 | ⬜ pending |
-| reviewer-voss-file | 03 | 2 | DOG-05 | — | `reviewer.voss` exists; synthesizes `final_when_done` from tool results | file + unit | `python -m voss.cli check voss/harness/agent/reviewer.voss` | ❌ W2 | ⬜ pending |
-| run-step-loop-helper | 03 | 2 | D-04 / Q-2 | — | `voss/harness/agent.py:_run_step_loop(plan_steps, tools, permissions, renderer)` exists; `ToolEntry.invoke_dict(args: dict)` exists | unit | `pytest tests/harness/test_agent_integration.py -q -k run_step_loop` | ❌ W2 | ⬜ pending |
-| boot-dispatch | 03 | 2 | D-08 / DOG-07 | T-M4-boot-spoof | `voss/harness/cli.py:_resolve_run_turn()` reads `VOSS_HARNESS` env → `[harness] backend` config → default `"python"`; swaps `run_turn` import accordingly; no silent fallback | unit | `pytest tests/harness/test_boot_dispatch.py -q` | ❌ W2 | ⬜ pending |
+| loop-voss-file | 03 | 2 | DOG-01 | — | `voss/harness/agent/loop.voss` exists; contains `ctx(budget:` + control flow only; parses + analyzes via dir walker | file + unit | `test -f voss/harness/agent/loop.voss && python3 -m voss.cli check voss/harness/agent/` | ✓ | ✓ green |
+| router-voss-file | 03 | 2 | DOG-02 | — | `router.voss` exists; uses `probable<Intent>` for slash-vs-natural classification | file + unit | `python3 -m voss.cli check voss/harness/agent/` | ✓ | ✓ green |
+| planner-voss-file | 03 | 2 | DOG-03 | — | `planner.voss` exists; uses `probable<Plan>` ask + confidence gate; fallback branch when below threshold | file + unit | `python3 -m voss.cli check voss/harness/agent/` | ✓ | ✓ green |
+| executor-voss-file | 03 | 2 | DOG-04 | — | `executor.voss` exists; dispatches `plan.steps` through Python helper (no `for` loop in .voss); codegen emits `await` for tool invocations | file + unit | `python3 -m voss.cli compile voss/harness/agent/ --project-root . && grep -q "await _run_step_loop" .voss-cache/harness/executor.py` | ✓ | ✓ green |
+| reviewer-voss-file | 03 | 2 | DOG-05 | — | `reviewer.voss` exists; synthesizes `final_when_done` from tool results | file + unit | `python3 -m voss.cli check voss/harness/agent/` | ✓ | ✓ green |
+| run-step-loop-helper | 03 | 2 | D-04 / Q-2 | — | `voss/harness/agent.py:_run_step_loop(plan_steps, tools, permissions, renderer)` exists; `ToolEntry.invoke_dict(args: dict)` exists | unit | `pytest tests/harness/test_agent_integration.py -q` | ✓ | ✓ green |
+| boot-dispatch | 03 | 2 | D-08 / DOG-07 | T-M4-boot-spoof | `voss/harness/cli.py:_resolve_run_turn()` reads `VOSS_HARNESS` env → `[harness] backend` config → default `"python"`; swaps `run_turn` import accordingly; no silent fallback | unit | `pytest tests/harness/test_boot_dispatch.py -q` | ✓ | ✓ green |
 | parity-test | 04 | 3 | D-11 / DOG-07 | T-M4-parity-divergence | `tests/harness/test_voss_loop_parity.py` runs fixture task under both backends with `StubProvider`; asserts `python_result.final == voss_result.final` AND tool-call sequence identical | integration | `pytest tests/harness/test_voss_loop_parity.py -q` | ❌ W3 | ⬜ pending |
 | dog-07-smoke | 04 | 3 | DOG-07 / D-12 | — | `VOSS_HARNESS=compiled python -m voss.cli do "noop summary of fixture.md"` exits 0; non-empty `TurnResult.final`; tool-call sequence matches Python path | integration | bash smoke test in `tests/harness/test_dog07_smoke.py` | ❌ W3 | ⬜ pending |
 | ci-gate | 05 | 4 | DOG-06 | — | `.github/workflows/ci.yml` includes step `python -m voss.cli check voss/harness/agent/`; step fails CI on any error | grep | `grep -F "voss.cli check voss/harness/agent/" .github/workflows/ci.yml` | ❌ W4 | ⬜ pending |
@@ -88,12 +89,12 @@ created: 2026-05-11
 - [x] `tests/harness/test_cache_freshness.py` (NEW)
 
 **Wave 2 (.voss authoring + boot dispatch):**
-- [ ] `voss/harness/agent/{loop,router,planner,executor,reviewer}.voss` (5 NEW files, 20-40 LOC each)
-- [ ] `voss/harness/agent.py` — extract `_run_step_loop(plan_steps, tools, permissions, renderer)` helper
-- [ ] `voss/harness/tools.py:ToolEntry.invoke_dict(args: dict)` helper
-- [ ] `voss/harness/cli.py:_resolve_run_turn()` — env → config → default dispatch
-- [ ] `voss/harness/config.py` — *(no code change required: existing `load_harness_config` already returns the `backend` key when present in `[harness]`; `_resolve_run_turn` reads it via `.get("backend")`)*
-- [ ] `tests/harness/test_boot_dispatch.py` (NEW)
+- [x] `voss/harness/agent/{loop,router,planner,executor,reviewer}.voss` (5 NEW files, 20-40 LOC each)
+- [x] `voss/harness/agent.py` — extract `_run_step_loop(plan_steps, tools, permissions, renderer)` helper
+- [x] `voss/harness/tools.py:ToolEntry.invoke_dict(args: dict)` helper
+- [x] `voss/harness/cli.py:_resolve_run_turn()` — env → config → default dispatch
+- [x] `voss/harness/config.py` — *(no code change required: existing `load_harness_config` already returns the `backend` key when present in `[harness]`; `_resolve_run_turn` reads it via `.get("backend")`)*
+- [x] `tests/harness/test_boot_dispatch.py` (NEW)
 
 **Wave 3 (parity + DOG-07 smoke):**
 - [ ] `tests/harness/test_voss_loop_parity.py` (NEW)
