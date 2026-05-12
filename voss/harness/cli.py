@@ -438,6 +438,7 @@ def _run_repl(
     provider: ModelProvider,
     auth_detail: str = "",
     edit_scope=None,
+    prior_context: dict | None = None,
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode)
@@ -449,6 +450,20 @@ def _run_repl(
     )
     total_cost = record.total_cost_usd
     last_plan: "Plan | None" = None
+
+    def _tok_count(text: str) -> int:
+        try:
+            import litellm  # type: ignore
+
+            return int(litellm.token_counter(model=cfg.default_model, text=text))
+        except Exception:  # noqa: BLE001
+            return max(len(text) // 4, 1)
+
+    bundle = cognition_mod.load(cwd, token_count=_tok_count)
+    if bundle.load_errors:
+        for err in bundle.load_errors:
+            click.echo(f"cognition error: {err}", err=True)
+
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     if auth_detail:
         click.echo(f"  [auth: {auth_detail}]")
@@ -579,8 +594,12 @@ def _run_repl(
                     permissions=gate,
                     provider=provider,
                     session_id=record.id,
+                    cognition=bundle,
+                    prior_context=prior_context,
                 )
             )
+            # prior_context is one-shot: only the first turn rehydrates it.
+            prior_context = None
         except Exception as e:  # noqa: BLE001
             click.echo(f"error: {e}", err=True)
             continue
@@ -705,6 +724,7 @@ def resume_cmd(
     if record.model:
         configure(default_model=record.model)
     res, provider = _resolve_auth_or_die(auth_pref)
+    prior = record.runs[-1] if record.runs else None
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
@@ -713,6 +733,7 @@ def resume_cmd(
         record=record,
         provider=provider,
         auth_detail=f"{res.source} — {res.detail}",
+        prior_context=prior,
     )
 
 

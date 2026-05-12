@@ -449,6 +449,93 @@ class TestRecordRunIntegration:
         assert "pick strict schema" in text
 
 
-@pytest.mark.skip(reason="Wave 3 — pending plan M2-05 (cognition injection)")
-def test_turn_injects_cognition() -> None:
-    pass
+def test_turn_injects_cognition(tmp_path: Path) -> None:
+    """When cognition.load returns initialized=True, run_turn prepends
+    architecture.md + constraints bullets BEFORE PLAN_SYSTEM."""
+    from voss.harness import cognition as cognition_mod
+
+    voss = tmp_path / ".voss"
+    voss.mkdir()
+    (voss / "architecture.md").write_text(
+        "---\n"
+        "git_head: abc123\n"
+        "analyzed_at: 2026-05-10T00:00:00+00:00\n"
+        "file_count: 1\n"
+        "analyzer_version: 1\n"
+        "---\n"
+        "# Arch\n\nMODULE MAP HERE\n"
+    )
+    (voss / "constraints.yml").write_text(
+        "rules:\n  - forbid: [eval]\n"
+    )
+
+    bundle = cognition_mod.load(tmp_path)
+    assert bundle.initialized
+
+    plan = Plan(
+        rationale="trivial",
+        steps=[],
+        confidence=0.99,
+        final_when_done="hello",
+    )
+    provider = FakeProvider(plan)
+    _run(
+        run_turn(
+            "do thing",
+            tools=make_toolset(tmp_path),
+            cwd=tmp_path,
+            renderer=PlainRenderer(),
+            provider=provider,
+            permissions=PermissionGate(auto_yes=True),
+            cognition=bundle,
+        )
+    )
+    sys_msg = provider.calls[0]["messages"][0]
+    assert sys_msg["role"] == "system"
+    content = sys_msg["content"]
+    arch_idx = content.find("MODULE MAP HERE")
+    constraint_idx = content.find("forbid: eval")
+    plan_idx = content.find("You are Voss")
+    assert arch_idx != -1, "architecture body missing from system prompt"
+    assert constraint_idx != -1, "constraints bullet missing from system prompt"
+    assert plan_idx != -1, "PLAN_SYSTEM missing"
+    assert arch_idx < plan_idx, "architecture must precede PLAN_SYSTEM"
+    assert constraint_idx < plan_idx, "constraints must precede PLAN_SYSTEM"
+
+
+def test_resume_injects_prior_run_context(tmp_path: Path) -> None:
+    """run_turn(..., prior_context=<dict>) inlines a 'Prior context' block."""
+    plan = Plan(
+        rationale="trivial",
+        steps=[],
+        confidence=0.99,
+        final_when_done="hello",
+    )
+    provider = FakeProvider(plan)
+    prior = {
+        "goal": "prev goal",
+        "plan": {"rationale": "prev rationale"},
+        "decisions": [
+            {"title": "chose X", "body": "b", "confidence": 0.9}
+        ],
+        "follow_ups": ["next: y"],
+        "risks": ["r1"],
+    }
+    _run(
+        run_turn(
+            "continue",
+            tools=make_toolset(tmp_path),
+            cwd=tmp_path,
+            renderer=PlainRenderer(),
+            provider=provider,
+            permissions=PermissionGate(auto_yes=True),
+            prior_context=prior,
+        )
+    )
+    sys_msg = provider.calls[0]["messages"][0]
+    content = sys_msg["content"]
+    assert "Prior context" in content
+    assert "prev goal" in content
+    assert "chose X" in content
+    assert "next: y" in content
+    assert "r1" in content

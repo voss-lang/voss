@@ -23,11 +23,114 @@ from voss_runtime import (
 from voss_runtime.providers import get as get_provider
 from voss_runtime.providers.base import ModelProvider
 
+from . import cognition as cognition_mod
 from .permissions import PermissionGate
 from .recorder import RunRecorder, write_decisions_md
 from .render import Renderer
 from .session import RunRecord
 from .tools import ToolEntry
+
+
+COGNITION_BUDGET_TOKENS = 6000
+
+
+def _default_token_count(text: str, *, model: str) -> int:
+    try:
+        import litellm  # type: ignore
+
+        return int(litellm.token_counter(model=model, text=text))
+    except Exception:  # noqa: BLE001 — never crash a turn over a token count
+        # Fallback to a 4-chars-per-token approximation.
+        return max(len(text) // 4, 1)
+
+
+def _compose_cognition_prompt(
+    bundle,
+    *,
+    model: str,
+    token_count_fn=None,
+    renderer: Renderer | None = None,
+) -> str:
+    """Render the cognition prepend block, enforcing the 6k token budget.
+
+    Truncates constraints first on overflow; architecture stays intact.
+    Emits `cognition_overflow` via the renderer if provided.
+    """
+    if bundle is None or not getattr(bundle, "initialized", False):
+        return ""
+
+    arch = bundle.architecture_md or ""
+    constraints_bullets = cognition_mod.render_constraints_bullets(bundle.constraints)
+
+    def _render(with_constraints: bool) -> str:
+        parts = ["# Project cognition", "", "## Architecture", "", arch]
+        if with_constraints and constraints_bullets:
+            parts.extend(["", "## Constraints", "", constraints_bullets])
+        return "\n".join(parts)
+
+    body = _render(with_constraints=True)
+
+    if token_count_fn is None:
+        return body
+
+    try:
+        measured = int(token_count_fn(body, model=model))
+    except Exception:  # noqa: BLE001 — T-M2-20: never block over a count
+        if renderer is not None:
+            try:
+                renderer.show_warning(
+                    "cognition token-count unavailable; budget unchecked"
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        return body
+
+    if measured <= COGNITION_BUDGET_TOKENS:
+        return body
+
+    if renderer is not None:
+        try:
+            renderer.show_cognition_overflow(
+                architecture_tokens=measured, budget=COGNITION_BUDGET_TOKENS
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    truncated = _render(with_constraints=False)
+    return truncated + "\n\n(constraints truncated due to budget)"
+
+
+def _compose_prior_context_block(run_dict: dict | None) -> str:
+    if not run_dict:
+        return ""
+
+    def _bullets(items, key: str | None = None) -> str:
+        if not items:
+            return "(none)"
+        lines: list[str] = []
+        for it in items:
+            if key and isinstance(it, dict):
+                v = it.get(key) or it.get("title") or ""
+                lines.append(f"  - {v}")
+            else:
+                lines.append(f"  - {it}")
+        return "\n".join(lines) or "(none)"
+
+    goal = run_dict.get("goal", "") or ""
+    plan_obj = run_dict.get("plan") or {}
+    plan_rationale = plan_obj.get("rationale", "") if isinstance(plan_obj, dict) else ""
+    decisions = run_dict.get("decisions") or []
+    follow_ups = run_dict.get("follow_ups") or []
+    risks = run_dict.get("risks") or []
+
+    return (
+        "Prior context (most-recent turn):\n"
+        f"- goal: {goal}\n"
+        f"- plan rationale: {plan_rationale}\n"
+        f"- decisions:\n{_bullets(decisions, key='title')}\n"
+        f"- follow_ups:\n{_bullets(follow_ups)}\n"
+        f"- risks:\n{_bullets(risks)}"
+    )
 
 # ---------------------------------------------------------------------------
 # Plan schema — what the model must return
@@ -139,6 +242,7 @@ async def run_turn(
     permissions: PermissionGate | None = None,
     session_id: str | None = None,
     cognition=None,
+    prior_context: dict | None = None,
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -177,13 +281,39 @@ async def run_turn(
         history.add(task, role="user")
 
     rec = RunRecorder.start()
+
+    cognition_text = _compose_cognition_prompt(
+        cognition,
+        model=model,
+        token_count_fn=_default_token_count,
+        renderer=renderer,
+    )
+    prior_context_text = _compose_prior_context_block(prior_context)
+    sys_prompt = "\n\n".join(
+        s for s in (cognition_text, prior_context_text, PLAN_SYSTEM) if s
+    )
+
+    if cognition is not None and getattr(cognition, "initialized", False):
+        c_count = (
+            len(cognition.constraints.rules)
+            if cognition.constraints and cognition.constraints.rules
+            else 0
+        )
+        try:
+            renderer.show_cognition(
+                architecture_tokens=cognition.architecture_tokens,
+                constraints_count=c_count,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
     renderer.show_thinking("planning")
     async with ContextScope(
         token_budget=token_budget, model=model, provider=provider
     ) as _ctx:
         resp = await provider.complete(
             messages=[
-                {"role": "system", "content": PLAN_SYSTEM},
+                {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             model=model,

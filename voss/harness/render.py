@@ -265,3 +265,31 @@ class JsonRenderer:
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         self._emit(type="status", model=model, tokens=tokens, cost_usd=cost_usd, ctx_pct=ctx_pct)
+
+    def show_cognition(
+        self,
+        *,
+        architecture_tokens: int,
+        constraints_count: int,
+        plans_loaded: int = 0,
+        decisions_loaded: int = 0,
+    ) -> None:
+        self._emit(
+            type="cognition_loaded",
+            architecture_tokens=architecture_tokens,
+            constraints_count=constraints_count,
+            plans_loaded=plans_loaded,
+            decisions_loaded=decisions_loaded,
+        )
+
+    def show_cognition_overflow(
+        self, *, architecture_tokens: int, budget: int = 6000
+    ) -> None:
+        self._emit(
+            type="cognition_overflow",
+            architecture_tokens=architecture_tokens,
+            budget=budget,
+        )
+
+    def show_warning(self, msg: str) -> None:
+        self._emit(type="warning", message=msg)
