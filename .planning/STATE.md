@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-12T17:12:19Z"
-last_activity: 2026-05-12 — Phase M4 completed all five waves; DOG-01..08 are covered by `.voss` harness files, directory check/compile cache, compiled backend smoke/parity, CI gate, README compile one-liner, and doctor cache row.
+last_updated: "2026-05-12T18:00:00Z"
+last_activity: 2026-05-12 — Roadmap extended with M6 npm Wrapper phase (NPM-01..05). Total v0.1 requirements 54 → 59. M6 vendors Python + the v0.1 wheel (bundled-Python pattern, pyright-style); no JS reimplementation. DIST-01 (Rust shell) stays deferred.
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -38,6 +38,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M3 | Language Validation | Ready to execute (6 plans, 4 waves) |
 | M4 | Voss-authored Harness Loop | Complete (5 plans, 5 waves) |
 | M5 | Eval and Distribution Prep | Context gathered — ready to plan |
+| M6 | npm Wrapper | Pending — added 2026-05-12 |
 
 ## Recent Activity
 
@@ -56,6 +57,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-11 — Phase M4 planned: 5 plans across 5 waves (M4-01 compiler sub-plan grammar use..as + codegen auto-await W0; M4-02 dir-walk + cache.py + StaleHarnessCacheError + sandbox.write_cache W1; M4-03 5 .voss files + _run_step_loop + ToolEntry.invoke_dict + _resolve_run_turn W2; M4-04 parity test FakeProvider + DOG-07 smoke W3; M4-05 CI gate + README one-liner + doctor cache row W4); plan-checker passed iteration 2 after 1 revision (3 warnings cleared: Open Questions RESOLVED markers, M4-03 stub fallback removed with LOC-floor enforcement 20/8/8/6/12, VALIDATION config.py mismatch reconciled).
 - 2026-05-12 — Phase M4 completed all five waves. DOG-01..08 are covered by the five authored `.voss` harness files, `voss check/compile voss/harness/agent/`, cache freshness validation, compiled backend parity/smoke tests, CI gate, README eager-compile one-liner, and `voss doctor` harness-cache row.
 - 2026-05-11 — Phase M5 context gathered (7 decision areas: `voss eval` CLI subcommand emitting JSONL + Markdown under `.voss/eval/<timestamp>/`; five golden task fixtures under `tests/eval/golden/NN-slug/` with per-task `task.toml` + isolated temp git repos; LLM-as-judge scorer with rubric per task and JSON-mode `Verdict {verdict, confidence, rationale}`; live-by-default with `--stub` for hermetic smoke at k=3 runs per task; cost from `RunRecord.cost_usd`, confidence from `Plan.confidence`, Pearson r reported; wheel-in-tempvenv packaging smoke in `tests/packaging/` with PyPI publish deferred and README install polish; measurement-only ship posture — no CI threshold gate, human reads report).
+- 2026-05-12 — Roadmap extended with M6 npm Wrapper phase. Goal: publish `voss` as an npm package that vendors a pinned Python interpreter + the v0.1 wheel so JS-ecosystem developers can `npm i -g voss` (or `npx voss`) without managing Python. Pattern: pyright-style bundled-Python distribution; npm package vendors the same wheel M5 verifies — no JS reimplementation. NPM-01..05 added to REQUIREMENTS.md (total v0.1 reqs 54 → 59). Cross-cutting: Python source unchanged, DIST-01 stays deferred, Windows enters v0.1 only via npm with optional drop to mac+linux if vendoring proves expensive.
 
 ## Notes
 
