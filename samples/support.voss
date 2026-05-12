@@ -1,9 +1,13 @@
 # support.voss
+# support.voss — prompt block, match similar (semantic routing), ctx(budget: N tokens), memory.episodic.
 prompt SupportAgent {
     "You are a customer support agent for a SaaS product. Be empathetic and clear."
 }
 
+let tickets: memory.episodic(capacity: 50 turns)
+
 fn handleMessage(userMessage: string) -> string {
+    tickets.add(userMessage, role: "user")
     match userMessage {
         case similar("angry, frustrated, or upset customer") => {
             return escalate(userMessage)
@@ -16,6 +20,7 @@ fn handleMessage(userMessage: string) -> string {
         }
         case _ => {
             ctx(budget: 3000 tokens) {
+                include tickets.last(6)
                 yield ask(userMessage)
             }
         }

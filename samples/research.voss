@@ -1,4 +1,5 @@
 # research.voss
+# research.voss — agent, spawn, gather, ctx(budget: N tokens), within/fallback, try/catch, use.
 agent Researcher(topic: string) -> string {
     system: "You are a research analyst. Summarize key findings concisely."
     tools: [webSearch]
