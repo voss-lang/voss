@@ -81,6 +81,14 @@
 - [ ] **EVAL-04**: Evaluation tracks confidence correlation against successful and failed runs.
 - [ ] **EVAL-05**: Package install polish is verified after the Python harness loop works.
 
+### npm Distribution
+
+- [ ] **NPM-01**: An npm package named `voss` (or `@voss/cli`) is publishable and installable via `npm i -g voss` / `npx voss`.
+- [ ] **NPM-02**: The npm package vendors a pinned Python interpreter + the v0.1 voss wheel per supported platform (darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64) via postinstall or per-platform optionalDependencies.
+- [ ] **NPM-03**: The `voss` bin shim forwards all CLI arguments to the vendored `python -m voss.cli`, preserving exit codes, stdin/stdout/stderr, and signal forwarding.
+- [ ] **NPM-04**: A packaging smoke test verifies that, in a fresh Node project, `npm install voss` then `npx voss --help`, `npx voss doctor`, `npx voss check <sample.voss>`, and `npx voss compile <sample.voss>` all exit 0.
+- [ ] **NPM-05**: README primary install path is `npm i -g voss`; `pip install voss` is listed as the secondary path. v0.1 framing remains "Python harness; Rust shell later" — npm wrapper is distribution, not reimplementation.
+
 ## Future Requirements
 
 ### Deferred Distribution
@@ -129,12 +137,13 @@
 | LANG-01..10 | M3 | Pending |
 | DOG-01..08 | M4 | Pending |
 | EVAL-01..05 | M5 | Pending |
+| NPM-01..05 | M6 | Pending |
 
 **Coverage:**
-- v0.1 requirements: 54 total
-- Mapped to phases: 54
+- v0.1 requirements: 59 total (54 original + 5 NPM-* added for npm distribution wrapper)
+- Mapped to phases: 59
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-10*
-*Last updated: 2026-05-10 after v0.1 scope lock rebaseline*
+*Last updated: 2026-05-12 — added NPM-01..05 for M6 npm wrapper phase*

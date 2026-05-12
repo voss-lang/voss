@@ -3,8 +3,9 @@
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice
 **Granularity:** M-prefixed milestone phases
-**Requirements covered:** 54 / 54
+**Requirements covered:** 59 / 59
 **Source:** `.vscode/voss_v_0_1_scope_lock.md`
+**Last updated:** 2026-05-12 — added M6 npm wrapper phase
 
 ## Phase Order
 
@@ -16,6 +17,7 @@
 | M3 | Language Validation | Prove `.voss` is useful for real AI workflow control | LANG-01..10 | 5 |
 | M4 | Voss-authored Harness Loop | Dogfood the language on the harness itself | DOG-01..08 | 4 |
 | M5 | Eval and Distribution Prep | Measure quality and prepare packaging after the Python loop works | EVAL-01..05 | 4 |
+| M6 | npm Wrapper | Publish `voss` as an npm package that vendors Python + the v0.1 wheel | NPM-01..05 | 5 |
 
 ---
 
@@ -269,6 +271,47 @@ Plans:
 
 ---
 
+## Phase M6: npm Wrapper
+
+**Goal:** Publish `voss` as an npm package that vendors a pinned Python interpreter + the v0.1 wheel so JS-ecosystem developers can `npm i -g voss` (or `npx voss`) and run the harness without managing Python themselves.
+
+**Requirements:** NPM-01..05
+
+**Required commands (post-install):**
+
+```bash
+npx voss --help
+npx voss doctor
+npx voss check <file-or-dir>
+npx voss compile <file>
+npx voss do "<task>"
+```
+
+**Capabilities:**
+- npm package named `voss` (or `@voss/cli`) — naming locked during M6 discuss.
+- Bundled-Python distribution pattern (mirrors pyright). Per-platform Python interpreter vendored via postinstall download OR per-platform optionalDependencies subpackages.
+- Supported platforms in v0.1: darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64.
+- Node-side `bin/voss.js` shim forwards all argv to the vendored `python -m voss.cli` with full exit-code, stdio, and signal passthrough.
+- v0.1 wheel from M5 is the source of truth — npm package vendors the same wheel; no parallel implementation.
+- Smoke test in a fresh Node project verifies the post-install command surface (see "Required commands").
+
+**Success Criteria:**
+1. `npm i -g voss` installs the CLI on at least the five supported platforms.
+2. `npx voss --help`, `npx voss doctor`, `npx voss check <sample>`, and `npx voss compile <sample>` all exit 0 immediately after install in a fresh Node project, with no manual Python setup.
+3. `voss` bin shim is signal-safe (Ctrl-C interrupts the underlying Python process) and exit-code-faithful.
+4. README primary install path is `npm i -g voss`; `pip install voss` is listed as the secondary path.
+5. npm package version tracks the Python wheel version 1:1 — publishing `voss@0.1.0` requires `voss==0.1.0` on PyPI (or vendored at the same git tag).
+
+**Cross-cutting constraints:**
+- This is distribution work, NOT reimplementation. Python code under `voss/`, `voss_runtime/`, and `voss/harness/` is unchanged by M6.
+- DIST-01 (Rust harness shell) stays deferred — M6 buys npm distribution without it. If startup latency under bundled-Python proves painful in M6 dogfood, that's the signal to revisit DIST-01.
+- M5 wheel smoke is a prerequisite — M6 vendors the same wheel M5 verifies.
+- Windows support enters v0.1 ONLY through npm (REQUIREMENTS "Out of Scope" lists Windows defer for core, but npm wrapper inherits cross-platform Node assumptions). If win32 vendoring proves expensive, drop to mac+linux in v0.1 and document.
+- npm publish credentials and `@voss` org reservation happen during M6 — not before.
+- No JS reimplementation of the harness, compiler, or runtime in M6. Pure wrapper.
+
+---
+
 ## Coverage
 
 | Phase | Requirements | Count |
@@ -279,6 +322,7 @@ Plans:
 | M3 | LANG-01..10 | 10 |
 | M4 | DOG-01..08 | 8 |
 | M5 | EVAL-01..05 | 5 |
-| **Total** |  | **54 / 54** |
+| M6 | NPM-01..05 | 5 |
+| **Total** |  | **59 / 59** |
 
 All v0.1 requirements mapped.
