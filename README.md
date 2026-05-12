@@ -79,7 +79,8 @@ Live mode runs nightly in CI; stub mode runs on every PR.
 ## Project Docs
 
 - [PRD.md](PRD.md) — full language specification
+- [docs/sdk.md](docs/sdk.md) — embedding Voss in Python apps: `voss_runtime` + `voss.harness` public API contract
 - [docs/voss-vs-python.md](docs/voss-vs-python.md) — side-by-side .voss vs raw Python with LOC counts
 - [.planning/PROJECT.md](.planning/PROJECT.md) — core value, constraints
 - [.planning/REQUIREMENTS.md](.planning/REQUIREMENTS.md) — RUN/GRAM/ANLY/GEN/CLI requirements
-- [.planning/ROADMAP.md](.planning/ROADMAP.md) — six-phase delivery plan
+- [.planning/ROADMAP.md](.planning/ROADMAP.md) — seven-phase delivery plan (M0–M6)
