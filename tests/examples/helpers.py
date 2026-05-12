@@ -1,4 +1,4 @@
-"""Shared helpers for Phase 6 example end-to-end tests.
+"""Shared helpers for tests/examples e2e tests, sourcing samples from samples/.
 
 These helpers run the real Voss CLI from temp project roots and execute
 generated Python in subprocesses with deterministic provider configuration.
@@ -20,19 +20,19 @@ from voss_runtime import StubProvider, configure, reset_config
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PARSER_EXAMPLES = REPO_ROOT / "tests" / "parser" / "examples"
+SAMPLES_DIR = REPO_ROOT / "samples"
 
 
 def example_source(name: str) -> Path:
-    """Return path to a canonical parser example .voss source."""
-    path = PARSER_EXAMPLES / f"{name}.voss"
+    """Return path to a canonical sample .voss source (samples/<name>.voss)."""
+    path = SAMPLES_DIR / f"{name}.voss"
     if not path.exists():
-        raise FileNotFoundError(f"parser example missing: {path}")
+        raise FileNotFoundError(f"canonical sample missing: {path}")
     return path
 
 
 def copy_example(tmp_path: Path, name: str) -> Path:
-    """Copy a parser example into ``tmp_path`` and return the destination."""
+    """Copy a canonical sample into ``tmp_path`` and return the destination."""
     src = example_source(name)
     dest = tmp_path / src.name
     shutil.copyfile(src, dest)

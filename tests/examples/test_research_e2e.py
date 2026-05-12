@@ -164,6 +164,17 @@ def test_research_timeout_fallback_matches_raw(tmp_path: Path, monkeypatch):
     assert generated_value == raw_value
 
 
+def test_research_generated_contains_use_and_try_catch_lowerings(tmp_path: Path):
+    """D-06: generated Python contains the use lowering AND try/except + fallback string."""
+    out_path = _compile_research_in_process(tmp_path)
+    generated_source = out_path.read_text()
+
+    assert "from voss_runtime.tools import tool" in generated_source, generated_source[:500]
+    assert "try:" in generated_source
+    assert "except" in generated_source
+    assert "web search unavailable" in generated_source
+
+
 def test_research_voss_run_matches_compile_python(tmp_path: Path):
     copy_example(tmp_path, "research")
 

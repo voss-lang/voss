@@ -44,10 +44,13 @@ def _import_generated_module(path: Path, *, name: str = "voss_generated_support"
 
 
 def _inject_support_helpers(module) -> None:
-    """Provide escalate/refundFlow/authSupport helpers to a generated module."""
+    """Provide escalate/refundFlow/authSupport helpers + tickets to a generated module."""
+    from voss_runtime import EpisodicMemory
+
     module.escalate = lambda msg: f"[escalated] {msg}"
     module.refundFlow = lambda msg: f"[refund flow] {msg}"
     module.authSupport = lambda msg: f"[auth support] {msg}"
+    module.tickets = EpisodicMemory(capacity=50)
 
 
 def test_support_check_has_no_errors_and_no_cache(tmp_path: Path):
@@ -189,6 +192,63 @@ def test_support_generic_falls_through_to_stub(tmp_path: Path):
 
     assert generated_value == expected_stub
     assert raw_value == expected_stub
+
+
+def test_support_tickets_memory_records_user_messages(tmp_path: Path):
+    """D-05 + D-12: memory.episodic tickets accumulate across handleMessage calls."""
+    from voss import analyze, generate_python, parse
+    from voss_runtime import EpisodicMemory
+
+    copy_example(tmp_path, "support")
+    src_path = tmp_path / "support.voss"
+    program = parse(src_path.read_text(), file=str(src_path))
+    analysis = analyze(
+        program,
+        source_path=str(src_path),
+        project_root=tmp_path,
+        cache_dir=Path(".voss-cache"),
+        emit_indexes=True,
+    )
+    result = generate_python(
+        program,
+        source_path=str(src_path),
+        analysis=analysis,
+        project_root=tmp_path,
+        cache_dir=Path(".voss-cache"),
+    )
+    out_path = tmp_path / "out" / "support.py"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(result.source)
+
+    module = _import_generated_module(out_path, name="voss_generated_support_tickets")
+    _inject_support_helpers(module)
+
+    from examples.raw_python.support import handle_message as raw_handle_message
+    from examples.raw_python.support import tickets as raw_tickets
+
+    assert isinstance(module.tickets, EpisodicMemory)
+    assert module.tickets.capacity == 50
+
+    module.tickets.turns.clear()
+    raw_tickets.turns.clear()
+
+    msg1 = "First user message — please help."
+    msg2 = "Second user message — still stuck."
+
+    with register_stub("stubbed-response"):
+        asyncio.run(module.handleMessage(msg1))
+        asyncio.run(module.handleMessage(msg2))
+        asyncio.run(raw_handle_message(msg1))
+        asyncio.run(raw_handle_message(msg2))
+
+    assert len(module.tickets.turns) >= 2
+    user_turns = [t for t in module.tickets.turns if t.role == "user"]
+    assert len(user_turns) >= 2
+    assert any("user message" in t.content for t in user_turns)
+
+    assert len(raw_tickets.turns) >= 2
+    raw_user_turns = [t for t in raw_tickets.turns if t.role == "user"]
+    assert len(raw_user_turns) >= 2
 
 
 def test_support_voss_run_matches_compile_python(tmp_path: Path):
