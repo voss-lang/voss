@@ -326,3 +326,56 @@ npx voss do "<task>"
 | **Total** |  | **59 / 59** |
 
 All v0.1 requirements mapped.
+
+---
+
+## v0.2 Candidate Phases
+
+Identified but **not committed to a milestone**. Each lands when its trigger
+condition fires — usually real-user demand surfacing during v0.1 dogfood.
+
+### M7 (candidate) — SDK Polish
+
+**Trigger:** Embedders reach into private paths (`voss.harness.render`,
+`voss.harness.session`, etc.) often enough that drift risk becomes real.
+
+**Goal:** Close the four known public-API gaps from `docs/sdk.md` so
+embedders stop binding to internals.
+
+**Requirements:** SDK-01..05 (see `REQUIREMENTS.md` §"v0.2 Candidate — SDK
+Polish").
+
+**Sketch:**
+- Renderer protocol + NullRenderer promoted to `voss.harness.__all__`.
+- `tool_entry_from_callable` factory added.
+- Read-only `SessionView` type for embedder introspection.
+- `RuntimeConfig.from_toml` + `RuntimeConfig.default()`.
+- Stable provider registration entry point.
+
+**Cross-cutting constraints:**
+- Each promoted name pinned by `tests/packaging/test_public_api.py`.
+- `docs/sdk.md` "Known gaps" list shrinks accordingly.
+- No new private surface introduced as a side effect.
+
+**Not included:** TS/JS SDK, HTTP/remote SDK, formal plug-in framework with
+entry-points and sandboxing. Those are separate v0.2+ candidates with their
+own triggers.
+
+### Other v0.2 candidates (not yet phased)
+
+- **DIST-01** Rust harness shell — trigger: bundled-Python (M6) startup
+  latency or wheel size proves painful in real use.
+- **DIST-02** Homebrew distribution — trigger: macOS install friction
+  surfaces despite npm wrapper.
+- **DIST-03** MCP bridge — trigger: harness loop proves stable + external
+  agent runtimes want to invoke Voss tools.
+- **EDIT-01/02** Tree-sitter + VSCode marketplace — trigger: language users
+  ask for editor support beyond the existing scratch extension.
+- **LING-01** GitHub Linguist upstream PR — trigger: enough public `.voss`
+  code exists for syntax recognition to matter.
+- **JS-SDK** TS/JS library — trigger: real JS-side embedders ask for a
+  library API (not just `npx voss`).
+- **TEAM-*** / **WEB-*** — far post-v0.1.
+
+These do NOT block v0.1 ship. Listed so the roadmap has a memory of what's
+next without forcing premature commitment.

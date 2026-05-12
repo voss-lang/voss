@@ -91,6 +91,39 @@
 
 ## Future Requirements
 
+### v0.2 Candidate — SDK Polish
+
+Identified during 2026-05-12 SDK contract pass (`docs/sdk.md`). These are
+public-API-shaped holes in v0.1 — embedders can work around them via private
+paths today, but doing so binds them to internals that may shift. Lift into a
+v0.2 SDK Polish phase when embedder demand surfaces (real users reaching into
+private modules). Not v0.1 blockers; not committed to a milestone.
+
+- **SDK-01**: Promote a `Renderer` protocol + `NullRenderer` implementation
+  into `voss.harness.__all__`. Embedders that want silent or custom rendering
+  currently import from the private `voss.harness.render` module.
+- **SDK-02**: Add a `tool_entry_from_callable(fn, *, is_mutating, name=None,
+  description=None)` factory to `voss.harness.__all__`. Wraps a plain Python
+  callable as a `ToolEntry` without forcing embedders to author descriptors
+  by hand.
+- **SDK-03**: Promote a read-only session view type (`SessionView` / similar)
+  that exposes session id, cwd, runs (timestamps, cost, confidence) without
+  binding callers to the on-disk `SessionRecord` / `RunRecord` schema. The
+  internal schema stays free to change; the embedder view stays stable.
+- **SDK-04**: Add `RuntimeConfig.from_toml(path)` (and ideally
+  `RuntimeConfig.default()` that resolves `~/.config/voss/config.toml` plus
+  env overrides) so embedders share the harness config file rather than
+  reconstructing it field by field.
+- **SDK-05**: Document and stabilize the provider registration entry point
+  (`voss_runtime.providers.register`) so third-party providers can be added
+  without reaching into the private `voss_runtime.providers` submodule.
+
+**Acceptance shape (when this phase lands):**
+- Each new public name has a stability docstring + a regression entry in
+  `tests/packaging/test_public_api.py`.
+- `docs/sdk.md` "Known gaps" list shrinks by the items shipped.
+- No private-path embedder workaround examples remain in `docs/sdk.md`.
+
 ### Deferred Distribution
 
 - **DIST-01**: Rust harness shell for startup performance and single-binary distribution.

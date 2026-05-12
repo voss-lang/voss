@@ -194,7 +194,10 @@ Tool descriptors carry `is_mutating: bool`. Anything mutating is gated.
 ## Known gaps (v0.1 → v0.2 candidates)
 
 These are public-API-shaped holes today. Mention them when filing an issue
-that bumps into a private path.
+that bumps into a private path. Tracked as **M7 (candidate) — SDK Polish**
+in `.planning/ROADMAP.md` with requirement IDs **SDK-01..05** in
+`.planning/REQUIREMENTS.md`. Not committed to a v0.1 milestone — lands when
+real-user demand surfaces.
 
 - **`Renderer` interface** is private. Embedding callers that want silent
   runs or custom rendering currently reach into `voss.harness.render` for a
