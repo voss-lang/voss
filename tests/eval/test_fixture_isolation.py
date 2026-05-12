@@ -1,33 +1,9 @@
 """M5 D-06: each run gets a fresh git-initialized fixture cwd."""
 from __future__ import annotations
 
-import shutil
-import subprocess
 from pathlib import Path
 
-
-# TODO Wave 2: replace inline helper with `from voss.eval.runner import _prepare_fixture`.
-def _prepare_fixture(task_dir: Path, tmp: Path) -> Path:
-    cwd = tmp / "fixture"
-    shutil.copytree(task_dir / "fixture", cwd)
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=cwd, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=cwd, check=True)
-    subprocess.run(
-        [
-            "git",
-            "-c",
-            "user.email=eval@voss",
-            "-c",
-            "user.name=eval",
-            "commit",
-            "-q",
-            "-m",
-            "init",
-        ],
-        cwd=cwd,
-        check=True,
-    )
-    return cwd
+from voss.eval.runner import _prepare_fixture
 
 
 def test_prepare_fixture_creates_git_repo(tmp_path: Path) -> None:

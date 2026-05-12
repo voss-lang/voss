@@ -913,6 +913,54 @@ def config_cmd(show: bool, config_path_override: Path | None) -> None:
         sys.exit(1)
 
 
+@click.command("eval")
+@click.option("--suite", default="golden", show_default=True, help="Evaluation suite name.")
+@click.option("--stub", is_flag=True, help="Use deterministic stub provider.")
+@click.option("--live", is_flag=True, help="Mark run as live provider evaluation.")
+@click.option("-k", "k", default=1, show_default=True, type=int, help="Runs per task.")
+@click.option(
+    "--out",
+    "out_path",
+    default=Path("eval-out"),
+    show_default=True,
+    type=click.Path(path_type=Path, file_okay=False),
+    help="Output directory.",
+)
+@click.option("--judge-model", default=None, help="Override judge model.")
+@click.option("--task", default=None, help="Run a single task id.")
+@click.option(
+    "--auth",
+    "auth_pref",
+    type=click.Choice(AUTH_CHOICES),
+    default="auto",
+    show_default=True,
+    help="Credential source.",
+)
+def eval_cmd(
+    suite: str,
+    stub: bool,
+    live: bool,
+    k: int,
+    out_path: Path,
+    judge_model: str | None,
+    task: str | None,
+    auth_pref: str,
+) -> None:
+    """Run the golden evaluation suite."""
+    from voss.eval.runner import run_suite
+
+    run_suite(
+        suite=suite,
+        stub=stub,
+        live=live,
+        k=k,
+        out=out_path,
+        judge_model=judge_model,
+        task=task,
+        auth_pref=auth_pref,
+    )
+
+
 AGENT_COMMANDS = (
     do_cmd,
     chat_cmd,
@@ -922,6 +970,7 @@ AGENT_COMMANDS = (
     resume_cmd,
     tools_cmd,
     config_cmd,
+    eval_cmd,
 )
 
 
