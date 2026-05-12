@@ -2,6 +2,7 @@
 //! but partitions tool execution per D-11..D-14 (parallel-by-default).
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use voss_providers::{CompleteRequest, Message, ModelProvider};
@@ -51,6 +52,10 @@ pub struct TurnConfig {
     pub max_output_tokens: u32,
     pub model: String,
     pub parallel_cap: usize,
+    /// Ctrl-C cancel signal. When set to `true`, `run_turn` aborts at the
+    /// next checkpoint (before LLM call, before dispatch, between steps).
+    /// `None` = uncancellable (test/headless default).
+    pub cancel: Option<Arc<AtomicBool>>,
 }
 
 impl Default for TurnConfig {
@@ -61,8 +66,16 @@ impl Default for TurnConfig {
             max_output_tokens: 4096,
             model: "claude-sonnet-4-5".into(),
             parallel_cap: 8,
+            cancel: None,
         }
     }
+}
+
+/// True if a cancel token is set and tripped.
+pub(crate) fn cancelled(tok: &Option<Arc<AtomicBool>>) -> bool {
+    tok.as_ref()
+        .map(|t| t.load(Ordering::Relaxed))
+        .unwrap_or(false)
 }
 
 #[derive(Debug)]
@@ -135,6 +148,9 @@ pub async fn run_turn(
         h.add(task, "user");
     }
 
+    if cancelled(&cfg.cancel) {
+        anyhow::bail!("cancelled");
+    }
     renderer.show_thinking("planning");
 
     let plan_schema = serde_json::to_value(schemars::schema_for!(Plan))?;
@@ -197,12 +213,16 @@ pub async fn run_turn(
         });
     }
 
+    if cancelled(&cfg.cancel) {
+        anyhow::bail!("cancelled");
+    }
     let results = crate::dispatch::dispatch_steps(
         &plan.steps,
         tools,
         renderer,
         permissions,
         cfg.parallel_cap,
+        cfg.cancel.clone(),
     )
     .await;
 

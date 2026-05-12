@@ -33,7 +33,9 @@ toml = "0.8"
 chrono = { workspace = true }
 uuid = { workspace = true }
 is-terminal = { workspace = true }
-rustyline = "14"
+crossterm = { workspace = true }
+reedline = "0.36"
+nu-ansi-term = "0.50"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

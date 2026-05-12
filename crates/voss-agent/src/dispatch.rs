@@ -2,13 +2,14 @@
 //! mutating tools execute serially in plan order. Permission gate consulted
 //! per step before scheduling. Denial of one step does not block siblings.
 
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use futures::future::join_all;
 use voss_render::{Render, ToolState};
 use voss_tools::Tool;
 
-use crate::run_turn::PermissionCheck;
+use crate::run_turn::{cancelled, PermissionCheck};
 use crate::ToolCall;
 
 struct Resolved {
@@ -25,6 +26,7 @@ pub(crate) async fn dispatch_steps(
     renderer: &mut dyn Render,
     perms: &mut dyn PermissionCheck,
     parallel_cap: usize,
+    cancel: Option<Arc<AtomicBool>>,
 ) -> Vec<String> {
     let mut results: Vec<Option<String>> = vec![None; steps.len()];
 
