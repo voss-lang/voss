@@ -65,7 +65,7 @@ A developer can give Voss a repo task and get bounded, inspectable, resumable AI
 - **Primary user:** technically capable builders using AI coding tools who want less babysitting, safer edits, persistent context, and inspectable decisions.
 - **Harness-first order:** `voss/harness/` is the near-term product focus because it is the fastest path to a felt product loop.
 - **Language role:** `.voss` is still central, but specifically as a compact, inspectable language for AI workflow control.
-- **Rust role:** `crates/` stays in the repo as later distribution work, but must not pull focus from the Python harness before the product loop works.
+- **Rust role:** `crates/` is a **frozen spike** — preserved in source control, not on the v0.1 ship path. v0.1 distributes the Python harness via npm (M6, pyright bundled-Python pattern). Resurrect Rust only on a concrete dogfood signal (startup latency or wheel size proves painful in real use). Do not edit `crates/` or invest in keeping it building against current Python; leave it where it is until the trigger arrives.
 - **Docs and marketing:** `site/` remains minimal until v0.1 behavior is locked.
 
 ## Constraints
@@ -84,7 +84,7 @@ A developer can give Voss a repo task and get bounded, inspectable, resumable AI
 | v0.1 is harness-led | The harness is the product surface users feel first | Active |
 | `.voss` is the control layer | The language is strongest when it makes AI workflow decisions explicit and checkable | Active |
 | Keep compiler and harness verbs separate | Avoids ambiguity and preserves the language as a real layer | Active |
-| Python harness first, Rust later | Python is fastest for proving the product loop; Rust is distribution/performance work after usage is proven | Active |
+| Python harness first, Rust frozen | v0.1 ships Python via npm (M6 pyright pattern). Rust `crates/` preserved in source control as a frozen spike but explicitly not on the ship path. Resurrect only on real dogfood signal (latency / wheel size). | Active |
 | `.voss/` durable, `.voss-cache/` rebuildable | Separates project knowledge from generated indexes/cache | Active |
 | M-prefixed phase naming | Mirrors the v0.1 scope-lock milestone structure | Active |
 

@@ -32,7 +32,7 @@ The v0.1 roadmap uses the scope-lock milestone names:
 
 ### 0.2 Deferred work
 
-Rust remains strategically relevant for distribution and startup performance, but it is deferred until the Python harness proves real usage. MCP bridge, tree-sitter, VSCode marketplace, GitHub Linguist upstream, broad telemetry, public marketplace, team features, and web UI are also deferred from v0.1.
+Rust `crates/` is a **frozen spike** preserved in source control — not deleted, not active. v0.1 distribution is npm-wrapped Python (M6, pyright bundled-Python pattern). The Rust path resurrects only on a concrete dogfood signal: real startup-latency complaints or wheel-size friction. Until then, do not edit `crates/` or chase Python-API drift in it; leave it intact for future reactivation. MCP bridge, tree-sitter, VSCode marketplace, GitHub Linguist upstream, broad telemetry, public marketplace, team features, and web UI are also deferred from v0.1.
 
 ### 0.3 Naming rule
 

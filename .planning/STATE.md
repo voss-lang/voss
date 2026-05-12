@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-12T18:00:00Z"
-last_activity: 2026-05-12 — Roadmap extended with M6 npm Wrapper phase (NPM-01..05). Total v0.1 requirements 54 → 59. M6 vendors Python + the v0.1 wheel (bundled-Python pattern, pyright-style); no JS reimplementation. DIST-01 (Rust shell) stays deferred.
+last_updated: "2026-05-12T22:00:00Z"
+last_activity: 2026-05-12 — Rust `crates/` reframed as **frozen spike** (preserved in source control, not on v0.1 ship path). Python harness is sole active implementation. v0.1 distribution = npm wrapper around bundled Python (M6, pyright pattern). Resurrect Rust only on real dogfood signal (startup latency / wheel size). M5 5/6 plans summarized; M5-06 wheel-smoke + README polish outstanding as M6 prerequisite.
 progress:
   total_phases: 7
   completed_phases: 0
@@ -24,9 +24,11 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ## Current Position
 
 **Phase:** M5 — Eval and Distribution Prep
-**Status:** Context gathered — ready to plan
+**Status:** 5/6 plans summarized (M5-01..M5-05). **M5-06 outstanding** — wheel-in-tempvenv smoke + README install polish. M5-06 is a prerequisite for M6 (npm wraps the same wheel).
 **Goal:** Measure v0.1 quality and prep package install.
-**Last activity:** 2026-05-12 — Phase M4 completed all five waves; DOG-01..08 are covered by `.voss` harness files, directory check/compile cache, compiled backend smoke/parity, CI gate, README compile one-liner, and doctor cache row.
+**Next move:** Finish M5-06, then `/gsd-discuss-phase M6`.
+**Rust status:** `crates/` frozen-spike — kept in source control, not on v0.1 ship path. Do not edit. Resurrect on dogfood signal only.
+**Last activity:** 2026-05-12 — Rust reframed as frozen spike; Python is sole active implementation. Ready to finish M5 and enter M6 discuss.
 
 ## Phase Status
 
