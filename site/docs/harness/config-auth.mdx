@@ -1,0 +1,48 @@
+---
+title: "Config and auth"
+description: "Configure model selection and provider access for the Voss harness."
+---
+
+Voss keeps harness configuration narrow in v0.1. The most important setting is the preferred model.
+
+## Show or edit config
+
+```bash
+voss config --show
+voss config
+```
+
+The default config path is:
+
+```text
+~/.config/voss/config.toml
+```
+
+## Switch model in a session
+
+Inside the REPL:
+
+```text
+/model
+/model <model-id>
+```
+
+The selected model can be persisted to config.
+
+## Login flow
+
+Inside the REPL:
+
+```text
+/login
+```
+
+Use this when the selected provider requires authentication setup.
+
+## Provider safety
+
+Session persistence must not store provider credentials. Credentials should remain in provider-specific auth storage or environment configuration.
+
+<Tip>
+Run `voss doctor` after changing provider or model settings.
+</Tip>

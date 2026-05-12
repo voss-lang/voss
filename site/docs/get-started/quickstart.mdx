@@ -1,0 +1,57 @@
+---
+title: "Quickstart"
+description: "Use Voss to inspect a repo, make a scoped edit, and validate the result."
+---
+
+This quickstart shows the v0.1 harness loop: inspect, plan, edit, validate, and resume.
+
+<Steps>
+  <Step title="Open a repository">
+    Run Voss from the repository you want to inspect.
+
+    ```bash
+    cd path/to/your/repo
+    voss doctor
+    ```
+  </Step>
+
+  <Step title="Ask for a read-only summary">
+    `voss do` defaults to plan mode, so mutating tools are denied unless you choose a different mode.
+
+    ```bash
+    voss do "summarize this repo and name the highest-risk areas"
+    ```
+  </Step>
+
+  <Step title="Open a scoped edit session">
+    Name the file or directory Voss may edit.
+
+    ```bash
+    voss edit src/example.py
+    ```
+
+    Voss can write the target and existing nearby test mirrors. Other writes require explicit scope expansion.
+  </Step>
+
+  <Step title="Validate work">
+    Use the repo's normal checks. For Voss language files, use `voss check`.
+
+    ```bash
+    voss check .
+    pytest -q
+    ```
+  </Step>
+
+  <Step title="Resume later">
+    Sessions are persisted so you can list and resume prior work.
+
+    ```bash
+    voss sessions
+    voss resume
+    ```
+  </Step>
+</Steps>
+
+<Check>
+You have completed the core harness loop when Voss can inspect the repo, make a scoped change, run validation, and resume the session.
+</Check>

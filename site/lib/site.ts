@@ -19,8 +19,8 @@ export const site = {
   tagline: "A language for AI workflows.",
   description:
     "Voss makes confidence checking, token budgets, prompt construction, semantic routing, and agent lifecycle first-class language constructs — not boilerplate you write in every project.",
-  repoUrl: "https://github.com/your-org/voss",
-  prdUrl: "https://github.com/your-org/voss/blob/main/PRD.md",
+  repoUrl: "https://github.com/bm9797/Voss",
+  prdUrl: "https://github.com/bm9797/Voss/blob/main/PRD.md",
   docsUrl: "https://docs.voss.dev",
   version: "0.1.0-pre",
   install: {

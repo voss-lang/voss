@@ -1,0 +1,34 @@
+---
+title: ".voss overview"
+description: "Understand .voss as the workflow-control language behind the Voss harness."
+---
+
+`.voss` is the workflow-control language for AI programs and agent loops.
+
+It is not trying to replace Python as a general-purpose language. It gives names and structure to patterns that AI apps and coding agents rebuild by hand:
+
+- Confidence checks
+- Context budgets
+- Budget fallbacks
+- Semantic routing
+- Tool use
+- Memory
+- Agent lifecycle
+
+## Relationship to the harness
+
+The harness proves workflows interactively first. The language makes stable workflows durable, reviewable, and checkable.
+
+For v0.1, `.voss` should map back to actual harness behavior and runtime primitives.
+
+## Relationship to Python
+
+Voss compiles to readable Python and imports `voss_runtime`.
+
+Python remains the runtime target because the AI ecosystem already lives there.
+
+## Next
+
+- Learn the core constructs: [Core constructs](/language/core-constructs)
+- Understand compiler/runtime flow: [Compiler and runtime](/language/compiler-runtime)
+- See examples: [Examples](/language/examples)

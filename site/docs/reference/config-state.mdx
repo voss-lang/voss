@@ -1,0 +1,56 @@
+---
+title: "Config and state reference"
+description: "Where Voss stores user config, durable project cognition, sessions, and rebuildable cache."
+---
+
+## User config
+
+Harness config lives under the user's config directory:
+
+```text
+~/.config/voss/config.toml
+```
+
+Use:
+
+```bash
+voss config
+voss config --show
+```
+
+## Project state
+
+Durable project state is planned under `.voss/`:
+
+```text
+.voss/
+  architecture.md
+  constraints.yml
+  permissions.yml
+  validation.yml
+  plans/
+  sessions/
+  decisions/
+```
+
+This state should be reviewable and useful across sessions.
+
+## Cache state
+
+Rebuildable state belongs under `.voss-cache/`:
+
+```text
+.voss-cache/
+  repo.idx
+  harness/
+```
+
+You should be able to delete cache state and rebuild it.
+
+## Session state
+
+Current sessions may use local Voss state storage while project cognition moves toward `.voss/sessions/`.
+
+<Note>
+Docs should describe `.voss/` as the direction for durable project-local knowledge and avoid promising behavior before it ships.
+</Note>

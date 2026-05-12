@@ -1,6 +1,6 @@
 # Voss Marketing Site
 
-Developer-facing marketing landing page + docs shell for [Voss](../README.md).
+Developer-facing marketing landing page plus a separate Mintlify docs project for [Voss](../README.md).
 
 ## Stack
 
@@ -9,6 +9,7 @@ Developer-facing marketing landing page + docs shell for [Voss](../README.md).
 - **shadcn/ui primitives** — local Button/Badge components in `components/ui/`
 - **Shiki** — build-time syntax highlighting (zero runtime JS)
 - **Static export** (`output: "export"`) — deploys anywhere, intended for **Cloudflare Pages**
+- **Mintlify** — public developer docs under `site/docs/`
 
 ## Layout
 
@@ -17,7 +18,7 @@ site/
 ├── app/
 │   ├── layout.tsx          # Root: fonts, metadata, dark theme
 │   ├── page.tsx            # Landing page composition
-│   ├── docs/page.tsx       # Docs placeholder (planned TOC)
+│   ├── docs/page.tsx       # Handoff page to Mintlify docs
 │   └── globals.css         # Tailwind + accent CSS variables
 ├── components/
 │   ├── Nav.tsx             # Wordmark + nav
@@ -33,6 +34,16 @@ site/
 │   └── Footer.tsx
 ├── branding/voss-mark-ignite-2048.png # Transparent Voss mark
 ├── content/cli-examples.ts # Hero examples (mirrors examples/raw_python/)
+├── docs/                   # Mintlify docs project
+│   ├── docs.json           # Mintlify site config and navigation
+│   ├── index.mdx           # Docs landing page
+│   ├── get-started/        # Install, quickstart, first task/edit
+│   ├── harness/            # Harness concepts, commands, modes, tools
+│   ├── language/           # .voss workflow-control docs
+│   ├── guides/             # Task-oriented workflows
+│   ├── reference/          # CLI/config/troubleshooting reference
+│   ├── security/           # Trust and execution model
+│   └── roadmap/            # v0.1 M-phase roadmap
 ├── lib/site.ts             # Strings: tagline, repo URL, version
 ├── public/logo.svg         # Fallback Voss mark
 └── next.config.ts          # static export config
@@ -46,11 +57,31 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
+## Develop Docs
+
+Mintlify expects commands to run from the directory containing `docs.json`. The package scripts handle that.
+
+```bash
+npm i -g mint
+cd site
+npm run docs:dev
+```
+
+The marketing site points Docs links at `site.docsUrl` in `lib/site.ts` (`https://docs.voss.dev` by default).
+
 ## Build
 
 ```bash
 npm run build        # static export to ./out
 npx serve out        # smoke-test the static bundle
+```
+
+## Validate Docs
+
+```bash
+npm run docs:validate
+npm run docs:links
+npm run docs:a11y
 ```
 
 ## Deploy (Cloudflare Pages)
@@ -59,8 +90,14 @@ npx serve out        # smoke-test the static bundle
 - Output directory: `out`
 - Root directory: `site`
 
+## Deploy Docs (Mintlify)
+
+- Docs root directory: `site/docs`
+- Config file: `site/docs/docs.json`
+- Intended public URL: `https://docs.voss.dev`
+- Keep docs deployment separate from the Next static export.
+
 ## Open items
 
-- Final repo URL — placeholder `https://github.com/your-org/voss` in `lib/site.ts`
-- Docs content — `app/docs/page.tsx` is a placeholder with planned section list
+- Docs domain wiring — `site.docsUrl` currently points to `https://docs.voss.dev`
 - Replace `examples/raw_python/*.py` snippets in `content/cli-examples.ts` with `.voss` source once the compiler ships

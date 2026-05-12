@@ -1,0 +1,40 @@
+---
+title: "Compiler and runtime"
+description: "How .voss source moves through parser, analyzer, codegen, and voss_runtime."
+---
+
+The `.voss` pipeline emits readable Python.
+
+```text
+.voss source
+  -> parser
+  -> AST
+  -> analyzer
+  -> codegen
+  -> Python + voss_runtime
+```
+
+## Pipeline stages
+
+| Stage | Purpose |
+| --- | --- |
+| Parser | Turn `.voss` syntax into AST dataclasses |
+| Analyzer | Check language semantics such as confidence gates and budgets |
+| Codegen | Emit readable Python |
+| Runtime | Provide primitives used by generated Python |
+
+## CLI commands
+
+```bash
+voss check samples/support.voss
+voss compile samples/support.voss
+voss run samples/support.voss
+```
+
+## Generated Python
+
+Generated Python should be readable, diffable, and debuggable. Voss should not hide behavior in an opaque runtime.
+
+## Harness connection
+
+The harness command surface shares the `voss` binary, but it is separate from compiler commands. Use `voss do` for agent tasks and `voss run` for `.voss` programs.

@@ -1,0 +1,49 @@
+---
+title: "CLI reference"
+description: "Reference for Voss harness and compiler commands."
+---
+
+## Harness commands
+
+```bash
+voss
+voss chat
+voss do "<task>"
+voss edit <path>
+voss doctor
+voss tools
+voss config
+voss sessions
+voss resume [session-id]
+```
+
+## Compiler commands
+
+```bash
+voss check <path>
+voss compile <file.voss>
+voss run <file.voss>
+voss init <name>
+voss ast <file.voss>
+```
+
+## Command boundary
+
+| Need | Use |
+| --- | --- |
+| Natural-language repo task | `voss do` |
+| Interactive agent session | `voss chat` or bare `voss` |
+| Scoped file edit | `voss edit <path>` |
+| Execute a `.voss` file | `voss run <file.voss>` |
+| Check `.voss` files | `voss check <path>` |
+
+## Mode flags
+
+Commands that run the harness may accept mode selection:
+
+```bash
+voss do "inspect this repo" --mode plan
+voss edit src/app.py --mode edit
+```
+
+Default modes are conservative: plan for general harness commands and edit for scoped edit sessions.

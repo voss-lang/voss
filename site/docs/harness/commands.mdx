@@ -1,0 +1,47 @@
+---
+title: "Harness commands"
+description: "Use the Voss harness command surface for planning, editing, diagnostics, sessions, tools, and config."
+---
+
+Voss uses one binary with two command families:
+
+- Harness commands for natural-language agent work
+- Compiler commands for `.voss` programs
+
+## Harness commands
+
+| Command | Purpose | Default mode |
+| --- | --- | --- |
+| `voss` | Start the interactive harness REPL | `plan` |
+| `voss chat` | Explicit REPL command | `plan` |
+| `voss do "<task>"` | Run one task and exit | `plan` |
+| `voss edit <path>` | Start a scoped edit session | `edit` |
+| `voss doctor` | Diagnose provider, config, compiler, and tool setup | n/a |
+| `voss tools` | List tool registry entries and mutability | n/a |
+| `voss config` | Open or show harness configuration | n/a |
+| `voss sessions` | List saved sessions | n/a |
+| `voss resume [id]` | Resume a prior session | session mode |
+
+## Compiler commands
+
+| Command | Purpose |
+| --- | --- |
+| `voss check <path>` | Check `.voss` files without running them |
+| `voss compile <file.voss>` | Emit readable Python |
+| `voss run <file.voss>` | Compile and execute a `.voss` program |
+| `voss init <name>` | Scaffold a Voss project |
+| `voss ast <file.voss>` | Print parser output for debugging |
+
+<Warning>
+`voss run` is not an agent command. Natural-language tasks use `voss do`.
+</Warning>
+
+## Common flows
+
+```bash
+voss doctor
+voss do "summarize this repo"
+voss edit src/app.py
+voss sessions
+voss resume
+```

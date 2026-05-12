@@ -1,0 +1,44 @@
+---
+title: "Voss documentation"
+description: "Start here for the Voss coding harness and .voss workflow-control language."
+---
+
+Voss is an AI-native coding harness and workflow-control language for controlled agentic software development.
+
+The harness is the first product surface. It helps you plan, execute, inspect, and resume AI-assisted code work in real repositories. The `.voss` language is the durable control layer for workflows that need explicit confidence gates, context budgets, semantic routing, tools, memory, agents, and fallbacks.
+
+<CardGroup cols={2}>
+  <Card title="Run your first task" icon="terminal" href="/get-started/first-task">
+    Use `voss do` for a bounded one-shot repo task.
+  </Card>
+  <Card title="Make a scoped edit" icon="file-pen-line" href="/get-started/first-edit">
+    Use `voss edit` to constrain writes to a target and related tests.
+  </Card>
+  <Card title="Understand modes" icon="shield-check" href="/harness/modes">
+    Learn the difference between plan, edit, and auto.
+  </Card>
+  <Card title="Learn .voss" icon="code-2" href="/language/overview">
+    See how the language expresses AI workflow control.
+  </Card>
+</CardGroup>
+
+## What Voss is for
+
+Voss is for developers who already use AI coding tools and want stronger boundaries:
+
+- Clear separation between planning and mutation
+- Permission prompts for risky operations
+- Scoped file writes for edit sessions
+- Resumable project context
+- Workflow rules that can move from prompts into `.voss` code
+
+<Note>
+Voss v0.1 is harness-led. Rust, editor marketplace work, and broad launch polish remain deferred until the Python harness proves real usage.
+</Note>
+
+## What to read first
+
+1. Install Voss in editable mode: [Install Voss](/get-started/install)
+2. Run a read-only one-shot task: [First task](/get-started/first-task)
+3. Try a scoped edit session: [First edit](/get-started/first-edit)
+4. Learn the safety model: [Modes](/harness/modes) and [Security](/security/overview)

@@ -1,0 +1,36 @@
+---
+title: "Tool registry"
+description: "The controlled tool surface Voss exposes to the harness agent."
+---
+
+The harness exposes a small local tool registry. Each tool is classified as read-only or mutating so permission modes can make reliable decisions.
+
+## Tool classes
+
+| Tool | Class | Purpose |
+| --- | --- | --- |
+| `fs_read` | Read-only | Read files and directory summaries |
+| `fs_glob` | Read-only | Find files by glob pattern |
+| `fs_grep` | Read-only | Search file contents |
+| `git_status` | Read-only | Inspect working tree state |
+| `git_diff` | Read-only | Inspect diffs |
+| `voss_check` | Read-only | Run Voss checks |
+| `fs_write` | Mutating | Write a file |
+| `fs_edit` | Mutating | Patch an existing file |
+| `shell_run` | Mutating | Run an allowlisted shell command |
+
+## Diff previews
+
+File write tools produce a diff preview before permission decisions. This keeps risky changes inspectable before approval.
+
+## View tools locally
+
+```bash
+voss tools
+```
+
+The command shows registered tools and whether each one mutates state.
+
+<Tip>
+Tool mutability is data in the registry. Voss should not infer safety from a tool name alone.
+</Tip>

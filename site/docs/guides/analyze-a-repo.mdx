@@ -1,0 +1,31 @@
+---
+title: "Analyze a repository"
+description: "Use Voss to inspect a repository without mutating it."
+---
+
+Use `voss do` in plan mode when you want an architecture summary or risk assessment.
+
+## Run the analysis
+
+```bash
+cd path/to/repo
+voss do "analyze this repo: summarize architecture, entry points, tests, and risks"
+```
+
+## Ask for specific outputs
+
+```bash
+voss do "find the authentication flow and explain which files own it"
+```
+
+```bash
+voss do "summarize this diff and identify missing tests"
+```
+
+## Expected behavior
+
+In plan mode, Voss can inspect files and git state but cannot write files or run mutating tools.
+
+## Save useful context
+
+As project cognition lands, repo analysis should update `.voss/architecture.md` and related project memory. Until then, treat the answer as a session artifact.

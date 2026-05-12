@@ -1,0 +1,72 @@
+---
+title: "Troubleshooting"
+description: "Common Voss setup, command, permission, and docs issues."
+---
+
+## `voss` is not found
+
+Install Voss from the repo:
+
+```bash
+pip install -e ".[dev]"
+```
+
+Then verify:
+
+```bash
+voss --help
+```
+
+## Provider or model setup fails
+
+Run diagnostics:
+
+```bash
+voss doctor
+```
+
+Then inspect config:
+
+```bash
+voss config --show
+```
+
+## The agent will not edit a file
+
+Check the current mode and scope.
+
+- `plan` mode denies mutating tools.
+- `edit` mode only allows scoped file writes.
+- `shell_run` is denied in edit mode.
+
+Use `voss edit <path>` for bounded edits, or explicitly approve scope expansion when Voss asks.
+
+## A `.voss` file does not run
+
+Check it first:
+
+```bash
+voss check path/to/file.voss
+```
+
+Then run:
+
+```bash
+voss run path/to/file.voss
+```
+
+## Docs commands fail
+
+Install the Mintlify CLI globally:
+
+```bash
+npm i -g mint
+```
+
+Run docs commands from the site package:
+
+```bash
+cd site
+npm run docs:dev
+npm run docs:validate
+```

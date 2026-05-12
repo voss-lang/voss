@@ -1,0 +1,48 @@
+---
+title: "Examples"
+description: "Canonical .voss examples for classification, support routing, and research agents."
+---
+
+The language layer has three canonical example families.
+
+## Confidence-gated classification
+
+Demonstrates:
+
+- `probable<T>`
+- Confidence gates
+- `ctx`
+
+The workflow classifies a message, then returns the label only when confidence clears the gate.
+
+## Semantic support routing
+
+Demonstrates:
+
+- `match similar`
+- `within budget`
+- Fallback control flow
+- Context budgeting
+
+The workflow routes customer messages by meaning and falls back when budget limits are exceeded.
+
+## Parallel research
+
+Demonstrates:
+
+- `agent`
+- `spawn`
+- `gather`
+- `@tool`
+- `memory`
+- Budget fallback
+
+The workflow launches one researcher per topic, gathers findings, and degrades to a simpler summary if needed.
+
+## Success criterion
+
+For the language layer, the examples should pass `voss check`, compile to readable Python, and run with hermetic defaults where possible.
+
+<Warning>
+Do not use these examples to imply Voss is a Python replacement. They exist to validate AI workflow control.
+</Warning>

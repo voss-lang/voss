@@ -1,0 +1,40 @@
+---
+title: "Install Voss"
+description: "Install the Voss CLI from the repository for local harness and language development."
+---
+
+Voss is pre-release software. The current install path is an editable checkout from the repository.
+
+## Prerequisites
+
+- Python 3.11 or newer
+- Node.js if you want to work on the marketing site or docs
+- Git
+- A terminal environment where Voss can run inside a repository
+
+## Install from source
+
+```bash
+git clone https://github.com/bm9797/Voss.git
+cd voss
+pip install -e ".[dev]"
+```
+
+## Verify the CLI
+
+```bash
+voss --help
+voss doctor
+```
+
+`voss doctor` checks local harness prerequisites such as config directories, provider setup, compiler availability, and tool readiness.
+
+<Tip>
+Use editable install while Voss is moving quickly. Packaging and public release polish are part of the v0.1 distribution prep path.
+</Tip>
+
+## Next steps
+
+- Run a one-shot harness task: [First task](/get-started/first-task)
+- Start a scoped edit session: [First edit](/get-started/first-edit)
+- Review command reference: [CLI reference](/reference/cli)

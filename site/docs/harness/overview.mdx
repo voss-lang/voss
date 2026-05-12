@@ -1,0 +1,50 @@
+---
+title: "Harness overview"
+description: "Understand the Voss terminal harness and how it differs from open-ended AI chat."
+---
+
+The Voss harness is a terminal-native agent loop for bounded, inspectable, resumable repo work.
+
+It is not a general chat box. Each turn goes through a small set of explicit systems:
+
+```text
+user task
+  -> provider plan
+  -> confidence gate
+  -> permission gate
+  -> tool execution
+  -> session record
+```
+
+## Why it exists
+
+AI coding tools are useful, but many hide important decisions in prompts:
+
+- What can the agent edit?
+- Which commands can it run?
+- What context did it inspect?
+- Which files did it avoid?
+- Can the session be resumed later?
+
+Voss makes those decisions explicit through commands, modes, tool classification, permission prompts, and persistent project context.
+
+## Main commands
+
+<CardGroup cols={2}>
+  <Card title="voss do" icon="terminal" href="/harness/commands">
+    Run one natural-language task and exit.
+  </Card>
+  <Card title="voss chat" icon="messages-square" href="/harness/commands">
+    Start an interactive harness REPL.
+  </Card>
+  <Card title="voss edit" icon="file-pen-line" href="/harness/scoped-editing">
+    Open a scoped edit session around explicit targets.
+  </Card>
+  <Card title="voss sessions" icon="history" href="/harness/sessions">
+    List and resume prior harness work.
+  </Card>
+</CardGroup>
+
+## Product shape
+
+Voss v0.1 is harness-led. The Python harness is the current behavior source. The `.voss` language remains central as the workflow-control layer for confidence, context budgets, semantic routing, memory, tools, agents, and fallbacks.

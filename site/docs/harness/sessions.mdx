@@ -1,0 +1,38 @@
+---
+title: "Sessions"
+description: "List and resume Voss harness sessions."
+---
+
+Voss records harness sessions so work can be resumed and audited.
+
+## List sessions
+
+```bash
+voss sessions
+```
+
+The session list shows saved work with enough context to choose what to resume.
+
+## Resume a session
+
+```bash
+voss resume
+voss resume <session-id>
+```
+
+Resume restores prior conversation context and model/session metadata.
+
+## What sessions are for
+
+- Continuing multi-step repo work
+- Preserving task goals and assumptions
+- Auditing tool use and decisions
+- Avoiding repeated context reconstruction
+
+## Redaction rule
+
+Provider credentials and API keys must not be written into session payloads.
+
+<Warning>
+Do not paste secrets into natural-language prompts. Voss avoids storing provider credentials, but user-provided text can still become part of a transcript.
+</Warning>

@@ -1,0 +1,76 @@
+---
+title: "Core constructs"
+description: "The .voss language constructs for confidence, context, budgets, routing, agents, memory, tools, and errors."
+---
+
+The language exists because AI workflows repeat the same control patterns.
+
+## Confidence
+
+`probable<T>` represents a value with confidence metadata.
+
+```voss
+let intent: probable<string> = classify(message)
+
+if intent @ 0.80 {
+  return intent.value
+}
+
+return "unknown"
+```
+
+## Context budgets
+
+`ctx` makes token windows explicit.
+
+```voss
+ctx (budget: 3000 tokens) {
+  let answer = ask(model, prompt)
+  return answer
+}
+```
+
+## Budget fallback
+
+`within budget` expresses controlled degradation.
+
+```voss
+within budget(tokens: 4000, latency: 10s) {
+  return deep_research(topic)
+} fallback {
+  return quick_summary(topic)
+}
+```
+
+## Semantic routing
+
+`match similar` routes by meaning rather than keywords.
+
+```voss
+match message {
+  similar("refund request") -> route_refund(message)
+  similar("technical support") -> route_support(message)
+  _ -> route_generic(message)
+}
+```
+
+## Agents
+
+Agent primitives express lifecycle directly.
+
+```voss
+agent Researcher(topic: string) -> Finding {
+  return search_and_summarize(topic)
+}
+
+let handles = topics.map(t => spawn Researcher(t))
+let findings = gather(handles)
+```
+
+## Memory, tools, and errors
+
+Voss also includes memory primitives, `@tool` definitions, prompt classes, `try/catch`, and `use` imports.
+
+<Note>
+The goal is AI workflow control, not Python syntax parity.
+</Note>

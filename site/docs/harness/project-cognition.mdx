@@ -1,0 +1,57 @@
+---
+title: "Project cognition"
+description: "How Voss plans to persist project-local knowledge under .voss."
+---
+
+Project cognition is the v0.1 M2 goal: make Voss remember useful project facts across sessions.
+
+## Durable state
+
+Planned durable project knowledge lives under `.voss/`:
+
+```text
+.voss/
+  project.json
+  architecture.md
+  constraints.yml
+  permissions.yml
+  validation.yml
+  plans/
+  sessions/
+  decisions/
+```
+
+This state is meant to be reviewable project knowledge.
+
+## Rebuildable state
+
+Machine-generated indexes and cache files live under `.voss-cache/`:
+
+```text
+.voss-cache/
+  repo.idx
+  harness/
+```
+
+This state should be safe to delete and rebuild.
+
+## What Voss records
+
+The v0.1 plan calls for agent runs to record:
+
+- Task goal
+- Plan
+- Inspected files
+- Changed files
+- Avoided files
+- Assumptions
+- Decisions
+- Risks
+- Validation
+- Failures
+- Diff summary
+- Follow-ups
+
+<Note>
+Project cognition is active roadmap work. Docs should distinguish implemented behavior from planned M2 behavior.
+</Note>

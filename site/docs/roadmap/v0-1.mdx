@@ -1,0 +1,38 @@
+---
+title: "v0.1 roadmap"
+description: "The harness-led Voss v0.1 roadmap from M0 through M5."
+---
+
+Voss v0.1 is a harness-led milestone with `.voss` preserved as the workflow-control language.
+
+## Phase order
+
+| Phase | Name | Goal |
+| --- | --- | --- |
+| M0 | Scope Lock | Align planning docs around harness-led v0.1 |
+| M1 | Harness Happy Path | Make `voss doctor`, `voss do`, and `voss edit` usable on a real repo |
+| M2 | Project Cognition | Persist project-local memory, plans, decisions, sessions, and validation state |
+| M3 | Language Validation | Prove `.voss` workflows check, compile, and run as AI workflow control |
+| M4 | Voss-authored Harness Loop | Dogfood the harness loop through `.voss` files |
+| M5 | Eval and Distribution Prep | Track quality and prepare packaging after Python harness usage is proven |
+
+## Current direction
+
+The harness is the product surface users feel first. The language is the durable control layer. Python remains the canonical implementation path until the harness loop is proven.
+
+## Deferred work
+
+The following work is strategically relevant but deferred from the first proof loop:
+
+- Rust as the canonical harness shell
+- MCP bridge
+- Tree-sitter grammar
+- VS Code marketplace release
+- GitHub Linguist upstream PR
+- Broad telemetry
+- Hosted team features
+- Web UI
+
+<Note>
+Distribution work should not claim more safety, maturity, or language completeness than the harness currently proves.
+</Note>

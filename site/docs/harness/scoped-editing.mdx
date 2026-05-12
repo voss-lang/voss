@@ -1,0 +1,51 @@
+---
+title: "Scoped editing"
+description: "How voss edit limits write access to explicit targets and nearby tests."
+---
+
+`voss edit` is the main safety primitive for bounded code changes.
+
+When you run:
+
+```bash
+voss edit voss/harness/edit_scope.py
+```
+
+Voss creates a write scope for that target. The agent can read within the cwd jail, but writes are limited to the target scope unless you approve an expansion.
+
+## Allowed writes
+
+For a file target, the edit scope allows writes to:
+
+- The target file itself
+- Existing sibling test mirrors:
+  - `test_name.py`
+  - `name_test.py`
+  - `tests/<relative-path>/test_name.py`
+  - `tests/<relative-path>/name_test.py`
+
+For a directory target, the scope allows writes under the target directory and existing mirrored test directories.
+
+## Source and test mapping
+
+Voss strips common `src/` and `lib/` prefixes when looking for mirrored tests. This lets a file such as:
+
+```text
+src/foo/bar.py
+```
+
+map to:
+
+```text
+tests/foo/test_bar.py
+```
+
+without granting broad repo write access.
+
+## Scope expansion
+
+If Voss needs to write outside scope, it must show a diff preview and ask for approval. Expansions are session-local and do not become durable allow rules.
+
+<Note>
+Scoped editing is a write boundary. Read access is still controlled by the cwd path jail.
+</Note>

@@ -1,0 +1,38 @@
+---
+title: "Security model"
+description: "How Voss constrains local agent work through modes, scope, prompts, and session redaction."
+---
+
+Voss is local-first and repo-scoped. The security model is built around explicit boundaries.
+
+## Boundaries
+
+| Boundary | Purpose |
+| --- | --- |
+| Permission modes | Separate read-only planning from editing and automation |
+| Cwd jail | Keep file access rooted in the selected repository |
+| Edit scope | Limit writes during `voss edit` |
+| Tool classification | Distinguish read-only and mutating tools |
+| Diff preview | Show file changes before risky approvals |
+| Shell allowlist | Limit command execution |
+| Session redaction | Avoid storing provider credentials |
+
+## Scoped writes
+
+`voss edit` grants write access only to explicit targets and relevant existing tests. Other writes require approval after a diff preview.
+
+## Shell execution
+
+Shell execution is mutating and potentially risky. It is denied in edit mode and remains subject to lower-level allowlist behavior in broader modes.
+
+## Secrets
+
+Voss sessions must not store provider credentials or API keys.
+
+<Warning>
+Do not paste secrets into prompts. Treat user-provided prompt text as session content.
+</Warning>
+
+## Trust goal
+
+The goal is not to make AI work risk-free. The goal is to make risk visible, bounded, and reviewable before it changes your repo.

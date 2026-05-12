@@ -1,0 +1,48 @@
+---
+title: "Validate and resume work"
+description: "Close the loop after a Voss harness session."
+---
+
+A Voss session is not done until the result is validated and resumable.
+
+## Validate code
+
+Use the project's normal commands:
+
+```bash
+pytest -q
+npm test
+cargo test
+```
+
+For Voss language files:
+
+```bash
+voss check .
+```
+
+## Inspect git state
+
+```bash
+git status --short
+git diff
+```
+
+## Capture follow-ups
+
+Ask Voss to summarize what changed and what remains:
+
+```bash
+voss do "summarize the current diff, validation run, risks, and follow-ups"
+```
+
+## Resume work
+
+```bash
+voss sessions
+voss resume
+```
+
+<Tip>
+When project cognition is enabled, prefer recording decisions and validation under `.voss/` rather than relying only on chat history.
+</Tip>

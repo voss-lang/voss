@@ -401,22 +401,22 @@ def append_row(path: Path, row: dict) -> None:
 | A5 | `LiteLLMProvider`'s `response_format=<Pydantic>` works against the judge model regardless of which provider serves it | Pattern 2 | Some models lack JSON-mode; `ParseError` path + skip is the documented fallback |
 | A6 | Stub provider returns a stable `Plan.confidence` value so eval doesn't crash on stub | D-11 | If stub returns None or omits confidence, eval marks row `confidence: null` and Pearson computation drops it |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `voss eval` register under the agent group (`voss/harness/cli.py:AGENT_COMMANDS`) or directly on `main` in `voss/cli.py`?**
    - What we know: both work; existing agent verbs live in `harness/cli.py` and register via the `register()` helper.
    - What's unclear: whether `eval` is conceptually agent or compiler — it drives agent runs over a fixed suite.
-   - Recommendation: register in `voss/harness/cli.py` for cohesion (eval imports agent, recorder, session). The plan can flip this with a one-line move.
+   - RESOLVED: register in `voss/harness/cli.py` for cohesion (eval imports agent, recorder, session). Implemented in M5-03 task 2 — `eval_cmd` appended to AGENT_COMMANDS tuple (voss/harness/cli.py:~795).
 
 2. **Task 01 (analyze): use `run_turn` directly with an "analyze this repo" prompt, or invoke the existing `_handle_analyze` skill path (voss/harness/cli.py:49)?**
    - What we know: M1 ships a deterministic `/analyze` skill that writes `.voss/architecture.md`.
    - What's unclear: whether the eval should measure the skill (deterministic, less informative) or the LLM agent doing the same task via planning.
-   - Recommendation: measure the LLM agent path — that's what EVAL-01 actually tests. Skill is a separate code path.
+   - RESOLVED: measure the LLM agent path. Implemented in M5-05 task 1 — `01-analyze/task.toml` uses `mode = "edit"` (not "auto"), which routes through `run_turn` rather than the `_handle_analyze` skill.
 
 3. **`docs/release.md` runbook — land in M5 or defer?**
    - What we know: CONTEXT marks it Claude's discretion / lightweight.
    - What's unclear: whether the team has appetite for a runbook page now.
-   - Recommendation: defer. M5 is measurement; release-prep is its own micro-phase post-greenlight.
+   - RESOLVED: deferred. CONTEXT D-19 defers PyPI publish to a post-M5 micro-phase; with no PyPI publish in M5 there is no release runbook to write yet. No `docs/release.md` is planned in M5; the deferral is recorded in CONTEXT D-19 and surfaced by M5-06's README polish (which frames v0.1 as a Python harness install).
 
 ## Sources
 

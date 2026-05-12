@@ -1,0 +1,43 @@
+---
+title: "Make a scoped edit"
+description: "Use voss edit to make bounded file changes with test mirrors."
+---
+
+Use `voss edit` when you know the target area.
+
+## Start with a target
+
+```bash
+voss edit src/auth/session.py
+```
+
+Tell Voss the change:
+
+```text
+Add validation for expired sessions and update the focused tests.
+```
+
+## Review scope
+
+Voss may write the target and existing nearby test mirrors. If it needs another file, it must ask.
+
+## Validate
+
+Run focused checks:
+
+```bash
+pytest -q tests/auth/test_session.py
+```
+
+Then run broader checks if the change touches shared behavior:
+
+```bash
+pytest -q
+```
+
+## Resume if needed
+
+```bash
+voss sessions
+voss resume <session-id>
+```

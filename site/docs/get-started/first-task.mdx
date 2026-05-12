@@ -1,0 +1,43 @@
+---
+title: "Run your first task"
+description: "Use voss do for a bounded one-shot task against a repository."
+---
+
+`voss do` runs one natural-language harness turn and exits. It is the right command when you want a focused answer or plan without entering a REPL.
+
+## Run a read-only repo task
+
+```bash
+voss do "summarize this repository and identify the main entry points"
+```
+
+By default, `voss do` runs in `plan` mode. Voss may inspect files and git state, but mutating tools are denied.
+
+## Use it with git diffs
+
+```bash
+git diff | voss do "summarize these changes for a pull request"
+```
+
+Voss should treat piped input as task context and return a concise answer.
+
+## When to use `voss do`
+
+- Summarize a repository or diff
+- Ask for a plan before editing
+- Inspect architecture
+- Prepare a pull request description
+- Run a single, bounded task in a script
+
+<Warning>
+Do not use `voss run` for natural-language work. `voss run <file.voss>` is reserved for executing `.voss` programs.
+</Warning>
+
+## Related commands
+
+```bash
+voss chat
+voss edit <path>
+voss sessions
+voss resume
+```

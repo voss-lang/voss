@@ -1,0 +1,43 @@
+---
+title: "Make your first scoped edit"
+description: "Use voss edit to let the harness write only inside an explicit target scope."
+---
+
+`voss edit` starts an interactive edit session around the files or directories you name. It defaults to edit mode and creates a write scope.
+
+## Start with one file
+
+```bash
+voss edit voss/harness/edit_scope.py
+```
+
+Inside the session, describe the change you want. Voss can inspect the repo, propose edits, and write only where the edit scope allows.
+
+## What the edit scope allows
+
+For file targets, Voss may write:
+
+- The target file
+- Existing sibling test files such as `test_name.py` or `name_test.py`
+- Existing mirrored tests under `tests/`
+
+For directory targets, Voss may write inside the target directory and existing mirrored test directories.
+
+<Note>
+Edit scope controls writes, not reads. File reads are governed by the current working directory jail.
+</Note>
+
+## Expand scope only when needed
+
+If Voss needs to write outside the active scope, it must show a diff preview and ask for approval. Scope expansion is session-local; it is not saved as a permanent permission.
+
+## Validate the edit
+
+After a scoped edit, run focused checks:
+
+```bash
+pytest -q tests/harness/test_edit_scope.py
+voss check .
+```
+
+Use the repo's own test commands when working outside Voss itself.

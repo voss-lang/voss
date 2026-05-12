@@ -1,30 +1,316 @@
-"""Wave 1 tests for voss/harness/cognition.py (COG-01, COG-02, COG-07)."""
+"""Wave 1 + Wave 3 tests for voss/harness/cognition.py.
+
+Wave 1: COG-01, COG-02, COG-07 (load, drift, repo.idx, gitignore).
+Wave 3 (M2-04): hybrid bootstrap helpers, /save-plan, analyze skill.
+"""
 from __future__ import annotations
 
+import json
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import yaml as _yaml
+from voss_runtime.providers.base import ProviderResponse
 
+from voss.harness.agent import Plan, ToolCall
 from voss.harness.cognition import (
     ArchitectureFrontmatter,
+    FRONTMATTER_RE,
+    _render_steps_for_plan_md,
     append_gitignore_line_idempotent,
+    build_bootstrap_inventory,
     build_repo_idx,
+    detect_primary_language,
     drift_check,
+    init_voss_stubs,
     load,
     reserve_filename,
     slug,
+    write_plan_md,
+    write_voss_gitignore,
 )
+from voss.harness.cognition_schemas import (
+    ConstraintsConfig,
+    PermissionsConfig,
+    ProjectMeta,
+    ValidationConfig,
+)
+
+
+def _arch_content(inventory: dict) -> str:
+    """Build well-formed architecture.md matching inventory frontmatter."""
+    return (
+        "---\n"
+        f"git_head: {inventory['git_head']}\n"
+        f"analyzed_at: {inventory['analyzed_at']}\n"
+        f"file_count: {inventory['file_count']}\n"
+        "analyzer_version: 1\n"
+        "---\n\n"
+        "# Project\n\nsmall test project.\n\n"
+        "## Primary language\n\npython\n\n"
+        "## Entry points\n\n- (none)\n\n"
+        "## Module map\n\n- src/\n\n"
+        "## Key dependencies\n\n- none\n\n"
+        "## Testing approach\n\npytest\n"
+    )
+
+
+class _StubAnalyzeProvider:
+    """Two-call stub: first returns Plan with fs_write of architecture_content,
+    second returns minimal RunSemantics for the record_run closing call."""
+
+    def __init__(self, architecture_content: str):
+        self.architecture_content = architecture_content
+        self.calls: list[dict] = []
+
+    async def complete(
+        self,
+        *,
+        messages,
+        model,
+        response_format=None,
+        tools=None,
+        temperature=1.0,
+        max_tokens=None,
+        timeout=None,
+    ) -> ProviderResponse:
+        from voss.harness.agent import Plan as _Plan
+        from voss.harness.agent import RunSemantics as _RunSemantics
+
+        self.calls.append({"schema": response_format})
+
+        if response_format is _Plan:
+            plan = _Plan(
+                rationale="bootstrap architecture.md",
+                steps=[
+                    ToolCall(
+                        name="fs_write",
+                        args={
+                            "path": ".voss/architecture.md",
+                            "content": self.architecture_content,
+                        },
+                        why="bootstrap",
+                    )
+                ],
+                confidence=0.95,
+                final_when_done="wrote .voss/architecture.md",
+            )
+            return ProviderResponse(
+                text=plan.model_dump_json(),
+                model=model,
+                prompt_tokens=10,
+                completion_tokens=10,
+                cost_usd=0.0,
+                raw={"stub": True},
+                parsed=plan,
+            )
+        if response_format is _RunSemantics:
+            sem = _RunSemantics(goal="bootstrap", decisions=[])
+            return ProviderResponse(
+                text=sem.model_dump_json(),
+                model=model,
+                prompt_tokens=5,
+                completion_tokens=5,
+                cost_usd=0.0,
+                raw={"stub": True},
+                parsed=sem,
+            )
+        return ProviderResponse(
+            text="", model=model, prompt_tokens=0, completion_tokens=0,
+            cost_usd=0.0, raw={}, parsed=None,
+        )
+
+    def count_tokens(self, *, text: str, model: str) -> int:
+        return max(len(text) // 4, 1)
+
+
+def _run_analyze(cwd: Path, inventory: dict) -> None:
+    from voss_runtime import EpisodicMemory
+
+    from voss.harness import session as session_store
+    from voss.harness.permissions import PermissionGate
+    from voss.harness.render import PlainRenderer
+    from voss.harness.skills.analyze import run as analyze_run
+    from voss.harness.tools import make_toolset
+
+    record = session_store.SessionRecord.new(cwd=cwd, model="claude-test")
+    analyze_run(
+        cwd=cwd,
+        provider=_StubAnalyzeProvider(_arch_content(inventory)),
+        history=EpisodicMemory(capacity=10),
+        record=record,
+        renderer=PlainRenderer(),
+        tools=make_toolset(cwd),
+        gate=PermissionGate(auto_yes=True),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Hybrid bootstrap helpers (Wave 3 / M2-04)
+# ---------------------------------------------------------------------------
+
+
+def test_detect_primary_language_python(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("x = 1\n")
+    (tmp_path / "b.py").write_text("y = 2\n")
+    (tmp_path / "c.py").write_text("z = 3\n")
+    (tmp_path / "notes.md").write_text("hi\n")
+    assert detect_primary_language(tmp_path) == "python"
+
+
+def test_init_voss_stubs_creates_valid_files(tmp_path: Path) -> None:
+    inv = build_bootstrap_inventory(tmp_path)
+    results = init_voss_stubs(tmp_path, inventory=inv)
+    assert set(results.keys()) == {
+        "project.json",
+        "constraints.yml",
+        "permissions.yml",
+        "validation.yml",
+    }
+    assert all(results.values())
+
+    pj = json.loads((tmp_path / ".voss" / "project.json").read_text())
+    ProjectMeta.model_validate(pj)
+    ConstraintsConfig.model_validate(_yaml.safe_load((tmp_path / ".voss" / "constraints.yml").read_text()) or {})
+    PermissionsConfig.model_validate(_yaml.safe_load((tmp_path / ".voss" / "permissions.yml").read_text()) or {})
+    ValidationConfig.model_validate(_yaml.safe_load((tmp_path / ".voss" / "validation.yml").read_text()) or {})
+
+
+def test_init_voss_stubs_preserve_if_exists(tmp_path: Path) -> None:
+    (tmp_path / ".voss").mkdir()
+    pre = "rules:\n  - forbid: [foo]\n"
+    (tmp_path / ".voss" / "constraints.yml").write_text(pre)
+
+    inv = build_bootstrap_inventory(tmp_path)
+    results = init_voss_stubs(tmp_path, inventory=inv)
+
+    assert results["constraints.yml"] is False
+    assert results["project.json"] is True
+    assert (tmp_path / ".voss" / "constraints.yml").read_text() == pre
+
+
+def test_voss_gitignore_autogenerated(tmp_path: Path) -> None:
+    assert write_voss_gitignore(tmp_path) is True
+    body = (tmp_path / ".voss" / ".gitignore").read_text()
+    assert "sessions/" in body
+    assert write_voss_gitignore(tmp_path) is False
+
+
+# ---------------------------------------------------------------------------
+# /analyze end-to-end via stub provider
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_writes_architecture_md(git_repo: Path) -> None:
+    inv = build_bootstrap_inventory(git_repo)
+    _run_analyze(git_repo, inv)
+
+    arch = git_repo / ".voss" / "architecture.md"
+    assert arch.exists()
+    text = arch.read_text()
+    assert "# Project" in text
+    assert "## Module map" in text
+
+
+def test_architecture_md_frontmatter_well_formed(git_repo: Path) -> None:
+    inv = build_bootstrap_inventory(git_repo)
+    _run_analyze(git_repo, inv)
+
+    text = (git_repo / ".voss" / "architecture.md").read_text()
+    m = FRONTMATTER_RE.match(text)
+    assert m, "frontmatter did not match"
+    fm = _yaml.safe_load(m.group(1))
+    assert set(fm.keys()) == {"git_head", "analyzed_at", "file_count", "analyzer_version"}
+    assert fm["analyzer_version"] == 1
+
+
+def test_analyze_emits_project_root_gitignore_append(tmp_path: Path) -> None:
+    g = tmp_path / ".gitignore"
+    g.write_text("# existing\nbuild/\n")
+    assert append_gitignore_line_idempotent(g, ".voss-cache/") is True
+    assert append_gitignore_line_idempotent(g, ".voss-cache/") is False
+    body = g.read_text()
+    assert body.count(".voss-cache/") == 1
+    assert "build/" in body
+
+
+# ---------------------------------------------------------------------------
+# /save-plan (COG-04)
+# ---------------------------------------------------------------------------
+
+
+def _sample_plan(rationale: str = "refactor X for clarity") -> Plan:
+    return Plan(
+        rationale=rationale,
+        steps=[
+            ToolCall(
+                name="fs_read",
+                args={"path": "cli.py", "limit": 10},
+                why="locate symbol",
+            )
+        ],
+        confidence=0.9,
+        final_when_done="done",
+    )
+
+
+def test_save_plan_writes_plan_md(tmp_path: Path) -> None:
+    plan = _sample_plan()
+    path = write_plan_md(
+        tmp_path, plan, session_id="sess-1", model="claude-opus-4-7"
+    )
+    assert path.parent == tmp_path / ".voss" / "plans"
+    text = path.read_text()
+    assert text.startswith("---\n")
+    end = text.index("\n---\n", 4)
+    fm = _yaml.safe_load(text[4:end])
+    assert set(fm.keys()) == {
+        "id", "status", "related_session", "model", "confidence", "created_at",
+    }
+    assert fm["status"] == "open"
+    assert fm["related_session"] == "sess-1"
+    assert fm["model"] == "claude-opus-4-7"
+    assert f"{float(fm['confidence']):.2f}" == "0.90"
+    assert fm["id"] == path.stem
+
+
+def test_save_plan_no_op_when_no_prior_plan(tmp_path: Path, capsys) -> None:
+    from voss.harness import session as session_store
+    from voss.harness.cli import _handle_save_plan
+
+    record = session_store.SessionRecord.new(cwd=tmp_path, model="claude-test")
+    _handle_save_plan(cwd=tmp_path, last_plan=None, record=record, line="/save-plan")
+    out = capsys.readouterr()
+    assert "no plan to save yet" in out.err
+    assert not (tmp_path / ".voss" / "plans").exists()
+
+
+def test_save_plan_collision_appends_suffix(tmp_path: Path) -> None:
+    plan = _sample_plan()
+    p1 = write_plan_md(tmp_path, plan, session_id="s", model="m")
+    p2 = write_plan_md(tmp_path, plan, session_id="s", model="m")
+    assert p1 != p2
+    assert p2.stem.endswith("-2")
+
+
+def test_save_plan_step_serialization_kwargs_style(tmp_path: Path) -> None:
+    plan = _sample_plan()
+    path = write_plan_md(tmp_path, plan, session_id="s", model="m")
+    body = path.read_text()
+    # JSON-compact via json.dumps separators=(',', ':')
+    assert '- fs_read(path="cli.py", limit=10) — locate symbol' in body
+
+
+def test_render_steps_kwargs_style_unit() -> None:
+    plan = _sample_plan()
+    out = _render_steps_for_plan_md(plan.steps)
+    assert out == '- fs_read(path="cli.py", limit=10) — locate symbol'
 
 
 @pytest.mark.skip(reason="Wave 2 — pending plan M2-04")
 def test_analyze_writes_project_json() -> None:
-    pass
-
-
-@pytest.mark.skip(reason="Wave 2 — pending plan M2-04")
-def test_architecture_md_frontmatter_well_formed() -> None:
     pass
 
 
@@ -235,16 +521,3 @@ def test_gitignore_idempotent(tmp_path: Path) -> None:
     assert g.read_text().count(".voss-cache/") == 1
 
 
-@pytest.mark.skip(reason="Wave 2 — pending plan M2-04")
-def test_voss_gitignore_autogenerated() -> None:
-    pass
-
-
-@pytest.mark.skip(reason="Wave 2 — pending plan M2-04")
-def test_analyze_invokes_natural_language_route() -> None:
-    pass
-
-
-@pytest.mark.skip(reason="Wave 2 — pending plan M2-04")
-def test_analyze_emits_project_root_gitignore_append() -> None:
-    pass

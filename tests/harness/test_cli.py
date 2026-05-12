@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import pytest
 from click.testing import CliRunner
 
 from voss.harness.cli import main
@@ -80,3 +83,66 @@ class TestCli:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         r = CliRunner().invoke(main, ["do", "--auth", "api", "anything"])
         assert r.exit_code == 2
+
+
+class TestAnalyzeRouting:
+    """/analyze slash + natural-language route both invoke _handle_analyze."""
+
+    def _patch_analyze_skill(self, monkeypatch) -> list[dict]:
+        calls: list[dict] = []
+
+        def fake_run(*, cwd, provider, history, record, renderer, tools, gate):
+            calls.append({"cwd": cwd, "record_id": record.id})
+
+        import voss.harness.skills.analyze as analyze_mod
+
+        monkeypatch.setattr(analyze_mod, "run", fake_run)
+        return calls
+
+    def _drive_repl(self, monkeypatch, tmp_path: Path, input_text: str):
+        from voss_runtime import EpisodicMemory
+
+        from voss.harness import session as session_store
+        from voss.harness.cli import _run_repl
+        from voss.harness.providers import AnthropicOAuthProvider  # noqa: F401
+
+        # Build a no-op provider — analyze.run is stubbed so it's unused.
+        class _NoopProvider:
+            async def complete(self, **_):
+                raise AssertionError("provider.complete should not be called")
+
+            def count_tokens(self, **_):
+                return 1
+
+        record = session_store.SessionRecord.new(
+            cwd=tmp_path, model="claude-test"
+        )
+        # Feed lines via monkeypatched input() so the REPL exits after one cmd.
+        lines = iter(input_text.splitlines())
+        monkeypatch.setattr("builtins.input", lambda *_: next(lines))
+
+        _run_repl(
+            cwd=tmp_path,
+            json_mode=False,
+            mode="plan",
+            history=EpisodicMemory(capacity=10),
+            record=record,
+            provider=_NoopProvider(),
+            auth_detail="stub",
+        )
+
+    def test_slash_analyze_routes(self, monkeypatch, tmp_path: Path) -> None:
+        calls = self._patch_analyze_skill(monkeypatch)
+        self._drive_repl(monkeypatch, tmp_path, "/analyze\n/exit\n")
+        assert len(calls) == 1
+        assert calls[0]["cwd"] == tmp_path
+
+    def test_natural_analyze_routes(self, monkeypatch, tmp_path: Path) -> None:
+        calls = self._patch_analyze_skill(monkeypatch)
+        self._drive_repl(monkeypatch, tmp_path, "analyze this repo\n/exit\n")
+        assert len(calls) == 1
+
+
+@pytest.mark.skip(reason="Wave 4 — pending plan M2-06")
+def test_doctor_cognition_rows() -> None:
+    pass

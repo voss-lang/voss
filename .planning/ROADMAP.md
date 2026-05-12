@@ -257,6 +257,16 @@ Plans:
 - Distribution work should not pull focus from harness behavior.
 - Any public-facing docs should reflect the harness-first positioning.
 
+**Plans:** 6 plans
+
+Plans:
+- [ ] M5-01-PLAN.md — Wave 0 suite loader + TaskSpec pydantic + fixture isolation helper
+- [ ] M5-02-PLAN.md — Wave 1 Verdict + judge_run + auth.resolve role kwarg
+- [ ] M5-03-PLAN.md — Wave 2 voss eval CLI + runner + JSONL writer
+- [ ] M5-04-PLAN.md — Wave 3 summary.md + stdlib Pearson + .voss/.gitignore guard
+- [ ] M5-05-PLAN.md — Wave 4 five golden task fixtures (01-analyze..05-resume)
+- [ ] M5-06-PLAN.md — Wave 5 wheel-in-tempvenv smoke + README install polish
+
 ---
 
 ## Coverage
