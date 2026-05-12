@@ -81,9 +81,53 @@ def test_cognition_overflow_truncates_constraints(capsys) -> None:
     assert evt["budget"] == COGNITION_BUDGET_TOKENS
 
 
-@pytest.mark.skip(reason="Wave 4 — pending plan M2-06")
-def test_drift_hint_printed_non_blocking() -> None:
-    pass
+def test_drift_hint_printed_non_blocking(monkeypatch, tmp_path, capsys) -> None:
+    """Stale frontmatter → REPL banner prints drift hint + exits cleanly on /exit."""
+    from datetime import datetime, timedelta, timezone
+
+    from voss_runtime import EpisodicMemory
+
+    from voss.harness import session as session_store
+    from voss.harness.cli import _run_repl
+
+    # Build a "stale" cognition: analyzed 30 days ago, current HEAD, file count
+    # left at 0 so file delta won't dominate the reason.
+    voss = tmp_path / ".voss"
+    voss.mkdir()
+    stale_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    (voss / "architecture.md").write_text(
+        "---\n"
+        "git_head: deadbeef\n"
+        f"analyzed_at: {stale_iso}\n"
+        "file_count: 0\n"
+        "analyzer_version: 1\n"
+        "---\n"
+        "# Arch\n"
+    )
+
+    class _NoopProvider:
+        async def complete(self, **_):
+            raise AssertionError("provider.complete should not be called")
+
+        def count_tokens(self, **_):
+            return 1
+
+    record = session_store.SessionRecord.new(cwd=tmp_path, model="claude-test")
+    lines = iter(["/exit"])
+    monkeypatch.setattr("builtins.input", lambda *_: next(lines))
+
+    _run_repl(
+        cwd=tmp_path,
+        json_mode=False,
+        mode="plan",
+        history=EpisodicMemory(capacity=10),
+        record=record,
+        provider=_NoopProvider(),
+        auth_detail="stub",
+    )
+    out = capsys.readouterr().out
+    assert "cognition stale" in out
+    assert "/analyze to refresh" in out
 
 
 def test_bad_yaml_loud_failure(git_repo) -> None:

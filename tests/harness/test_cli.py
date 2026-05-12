@@ -143,6 +143,112 @@ class TestAnalyzeRouting:
         assert len(calls) == 1
 
 
-@pytest.mark.skip(reason="Wave 4 — pending plan M2-06")
-def test_doctor_cognition_rows() -> None:
-    pass
+class TestSessionsListing:
+    """`voss sessions` is cwd-scoped; --all merges legacy XDG sessions."""
+
+    def _write_session(self, dir_path: Path, sid: str, name: str) -> None:
+        dir_path.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "id": sid,
+            "name": name,
+            "cwd": str(dir_path.parent.parent),
+            "model": "claude-test",
+            "started_at": "2026-05-10T00:00:00+00:00",
+            "updated_at": "2026-05-10T00:00:00+00:00",
+            "total_cost_usd": 0.0,
+            "turns": [],
+            "runs": [],
+        }
+        (dir_path / f"{sid}.json").write_text(__import__("json").dumps(payload))
+
+    def test_sessions_cwd_scoped(self, monkeypatch, tmp_path: Path) -> None:
+        legacy_state = tmp_path / "xdg-state"
+        monkeypatch.setenv("XDG_STATE_HOME", str(legacy_state))
+        self._write_session(tmp_path / ".voss" / "sessions", "abc12345aaaa", "cwd1")
+        self._write_session(tmp_path / ".voss" / "sessions", "def67890aaaa", "cwd2")
+        self._write_session(legacy_state / "voss" / "sessions", "999aaaaaaaaa", "legacy1")
+
+        monkeypatch.chdir(tmp_path)
+        r = CliRunner().invoke(main, ["sessions"])
+        assert r.exit_code == 0
+        assert "abc12345" in r.output
+        assert "def67890" in r.output
+        assert "999aaaaa" not in r.output
+        assert "[legacy]" not in r.output
+
+    def test_sessions_all_includes_legacy(self, monkeypatch, tmp_path: Path) -> None:
+        legacy_state = tmp_path / "xdg-state"
+        monkeypatch.setenv("XDG_STATE_HOME", str(legacy_state))
+        self._write_session(tmp_path / ".voss" / "sessions", "abc12345aaaa", "cwd1")
+        self._write_session(legacy_state / "voss" / "sessions", "999aaaaaaaaa", "legacy1")
+
+        monkeypatch.chdir(tmp_path)
+        r = CliRunner().invoke(main, ["sessions", "--all"])
+        assert r.exit_code == 0
+        assert "abc12345" in r.output
+        assert "999aaaaa" in r.output
+        assert "[legacy]" in r.output
+
+
+class TestDoctorCognitionRows:
+    def test_doctor_cognition_rows(self, monkeypatch, tmp_path: Path) -> None:
+        from voss.harness import diagnostics as diag
+
+        monkeypatch.setattr(
+            diag, "run_all_checks",
+            lambda _cwd: [
+                diag.Check("python", diag.CheckResult.OK),
+                diag.Check("voss import", diag.CheckResult.OK),
+                diag.Check("provider auth", diag.CheckResult.OK),
+                diag.Check("git", diag.CheckResult.OK),
+                diag.Check("cwd writable", diag.CheckResult.OK),
+                diag.Check("config dirs", diag.CheckResult.OK),
+                diag.Check("project dirs", diag.CheckResult.OK),
+            ],
+        )
+        r = CliRunner().invoke(main, ["doctor", "--cwd", str(tmp_path)])
+        assert r.exit_code == 0
+        assert ".voss/ initialized" in r.output
+        assert "cognition staleness" in r.output
+        assert "legacy sessions" in r.output
+
+
+class TestProjectPolicyLayering:
+    def test_project_policy_deny_wins(self) -> None:
+        from voss.harness.cognition_schemas import PermissionsConfig, ToolPolicy
+        from voss.harness.permissions import PermissionGate
+
+        gate = PermissionGate(
+            mode="auto",
+            project_policy=PermissionsConfig(
+                tool_policy=ToolPolicy(deny=["shell_run"])
+            ),
+        )
+        allowed, reason = gate.check("shell_run", {"cmd": "ls"})
+        assert allowed is False
+        assert "denied by .voss/permissions.yml" in reason
+
+    def test_project_policy_allow_does_not_expand(self) -> None:
+        """Project allow MUST NOT auto-approve a tool that mode would prompt for."""
+        from voss.harness.cognition_schemas import PermissionsConfig, ToolPolicy
+        from voss.harness.permissions import PermissionGate
+
+        gate = PermissionGate(
+            mode="plan",
+            project_policy=PermissionsConfig(
+                tool_policy=ToolPolicy(allow=["shell_run"])
+            ),
+        )
+        # shell_run is mutating; mode=plan structurally denies all mutating tools
+        # regardless of project allow.
+        allowed, reason = gate.check("shell_run", {"cmd": "ls"}, is_mutating=True)
+        assert allowed is False
+        assert reason == "denied by mode plan"
+
+    def test_no_project_policy_unchanged(self) -> None:
+        """M1-style behavior preserved when project_policy is None."""
+        from voss.harness.permissions import PermissionGate
+
+        gate = PermissionGate(mode="auto", project_policy=None, auto_yes=True)
+        allowed, _ = gate.check("shell_run", {"cmd": "ls"})
+        assert allowed is True

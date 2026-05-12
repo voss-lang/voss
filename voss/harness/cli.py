@@ -293,10 +293,12 @@ def do_cmd(
 
     renderer = make_renderer(json_mode=json_mode)
     tools = make_toolset(cwd)
+    do_bundle = cognition_mod.load(cwd)
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
         store=PermissionStore.load(cwd),
         auto_yes=yes_to_all or json_mode,
+        project_policy=do_bundle.permissions if do_bundle.initialized else None,
     )
 
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
@@ -443,11 +445,6 @@ def _run_repl(
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode)
     tools = make_toolset(cwd)
-    gate = PermissionGate(
-        mode=mode,  # type: ignore[arg-type]
-        store=PermissionStore.load(cwd),
-        edit_scope=edit_scope,
-    )
     total_cost = record.total_cost_usd
     last_plan: "Plan | None" = None
 
@@ -464,11 +461,31 @@ def _run_repl(
         for err in bundle.load_errors:
             click.echo(f"cognition error: {err}", err=True)
 
+    gate = PermissionGate(
+        mode=mode,  # type: ignore[arg-type]
+        store=PermissionStore.load(cwd),
+        edit_scope=edit_scope,
+        project_policy=bundle.permissions if bundle.initialized else None,
+    )
+
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     if auth_detail:
         click.echo(f"  [auth: {auth_detail}]")
     if record.turns:
         click.echo(f"resumed: {record.name} ({len(record.turns)} prior turns)")
+
+    # D-04: non-blocking drift hint. T-M2-22: wrap in try/except so a
+    # malformed frontmatter can never crash REPL boot.
+    if bundle.initialized and bundle.architecture_frontmatter:
+        try:
+            drift = cognition_mod.drift_check(cwd, bundle.architecture_frontmatter)
+        except (OSError, ValueError) as exc:
+            click.echo(f"drift check failed: {exc}", err=True)
+        else:
+            if drift.is_stale:
+                click.echo(
+                    f"  cognition stale ({drift.reason}) — /analyze to refresh"
+                )
 
     while True:
         try:
@@ -644,6 +661,34 @@ def doctor_cmd(cwd_str: str) -> None:
         if c.fix and c.result is not diag.CheckResult.OK:
             click.echo(f"     → {c.fix}")
 
+    # M2-06: appended cognition rows (D-11 #8/#9, D-12).
+    bundle = cognition_mod.load(cwd)
+    click.echo(f"  {'.voss/ initialized':<20}: {'yes' if bundle.initialized else 'no'}")
+    if bundle.initialized and bundle.architecture_frontmatter:
+        try:
+            drift = cognition_mod.drift_check(cwd, bundle.architecture_frontmatter)
+        except (OSError, ValueError) as exc:
+            click.echo(f"  {'cognition staleness':<20}: error ({exc})")
+        else:
+            if drift.is_stale:
+                click.echo(
+                    f"  {'cognition staleness':<20}: stale ({drift.reason})"
+                )
+            else:
+                click.echo(f"  {'cognition staleness':<20}: fresh")
+    else:
+        click.echo(f"  {'cognition staleness':<20}: n/a")
+    legacy_dir = session_store._legacy_state_dir()
+    legacy_count = (
+        len(list(legacy_dir.glob("*.json"))) if legacy_dir.exists() else 0
+    )
+    if legacy_count:
+        click.echo(
+            f"  {'legacy sessions':<20}: {legacy_count} (read-only via voss sessions --all)"
+        )
+    else:
+        click.echo(f"  {'legacy sessions':<20}: 0")
+
     code = diag.aggregate_exit_code(results)
 
     warns = [c for c in results if c.result is diag.CheckResult.WARN]
@@ -680,15 +725,24 @@ def _print_slash_help() -> None:
 
 
 @click.command("sessions")
-def sessions_cmd() -> None:
-    """List saved agent sessions."""
-    records = session_store.list_sessions(cwd=Path.cwd())
+@click.option(
+    "--all",
+    "--global",
+    "include_legacy",
+    is_flag=True,
+    help="Include legacy sessions from ~/.local/state/voss/sessions/.",
+)
+def sessions_cmd(include_legacy: bool) -> None:
+    """List saved agent sessions (cwd-scoped; --all merges legacy XDG dir)."""
+    cwd = Path.cwd()
+    records = session_store.list_sessions(cwd=cwd, include_legacy=include_legacy)
     if not records:
         click.echo("(no sessions)")
         return
     for r in records:
+        tag = "[legacy] " if getattr(r, "_legacy", False) else ""
         click.echo(
-            f"  {r.id[:8]}  {r.updated_at}  {r.model:<28}  {r.first_task()}"
+            f"  {tag}{r.id[:8]}  {r.updated_at}  {r.model:<28}  {r.first_task()}"
         )
 
 

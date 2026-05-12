@@ -11,6 +11,18 @@ CTRL-08: every `fs_write` / `fs_edit` call renders a unified diff preview to
 stderr BEFORE the call is allowed to proceed. This is scope-independent — it
 fires whether or not an EditScope is attached, so `voss do --mode=edit` and
 `voss chat --mode=edit` writes get the same preview as `voss edit`.
+
+Project-level layering (.voss/permissions.yml, added in M2)
+-----------------------------------------------------------
+When .voss/permissions.yml is loaded into a PermissionsConfig and attached
+to the gate, its rules layer on top of the session mode:
+
+  - deny (project) ALWAYS wins, even in mode=auto.
+  - allow (project) is recorded but does NOT expand session-mode
+    permissions (a project allow does not auto-approve a tool that the
+    session mode would have prompted for).
+
+This mirrors M1's "least-privilege wins" stance.
 """
 from __future__ import annotations
 
@@ -21,6 +33,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Literal, Optional
+
+from .cognition_schemas import PermissionsConfig
 
 if TYPE_CHECKING:
     from .edit_scope import EditScope
@@ -99,6 +113,7 @@ class PermissionGate:
     prompt_fn: Optional[Callable] = None  # injected for tests
     edit_scope: Optional["EditScope"] = None  # set by voss edit; None for do/chat
     scope_prompt_fn: Optional[Callable] = None  # injected for tests
+    project_policy: Optional[PermissionsConfig] = None  # .voss/permissions.yml
 
     def needs_prompt(self, tool_name: str) -> bool:
         if self.auto_yes:
@@ -119,12 +134,19 @@ class PermissionGate:
         """Return (allowed, reason).
 
         Order of operations:
+          0. Project-policy deny (`.voss/permissions.yml`) — deny wins over
+             allow and over session-mode auto. Project allow does NOT expand
+             mode (recorded but not short-circuiting).
           1. Mode-tier structural denial (skips everything else).
           2. CTRL-08 diff preview for any fs_write/fs_edit (scope-independent).
           3. Scope check (only if edit_scope set) — expand-prompt fires AFTER
              the diff render, so user sees the diff before deciding.
           4. Within-mode interactive prompt or auto-yes path.
         """
+        if self.project_policy is not None:
+            if tool_name in self.project_policy.tool_policy.deny:
+                return False, "denied by .voss/permissions.yml"
+
         allowed, why = mode_allows(self.mode, tool_name, is_mutating)
         if not allowed:
             return False, why
