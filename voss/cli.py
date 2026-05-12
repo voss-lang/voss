@@ -196,10 +196,24 @@ def run(
             cache_dir=cache_dir,
             verbose=verbose,
         )
+        hermetic_env_set = os.environ.get("VOSS_HERMETIC") == "1"
+        res = auth_mod.resolve(preference="auto")
+        should_stub = hermetic_env_set or res.source == "none"
+        if should_stub:
+            # D-02: banner is hard-coded; never interpolate user input.
+            click.echo(
+                "voss: no provider creds detected — using __stub__ (deterministic fake responses)",
+                err=True,
+            )
+            env = os.environ.copy()
+            env["VOSS_HERMETIC"] = "1"
+        else:
+            env = None
         completed = subprocess.run(
             [sys.executable, str(generated)],
             capture_output=True,
             text=True,
+            env=env,
         )
         if completed.stdout:
             click.echo(completed.stdout, nl=False)
