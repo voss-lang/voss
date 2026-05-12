@@ -485,7 +485,7 @@ class Analyzer:
                 similar_pairs.append((case.pattern.text, label))
             for s in case.body:
                 self._visit_stmt(s)
-        if not similar_pairs:
+        if not similar_pairs or not self.emit_indexes:
             return
         if self.index_builder is None:
             self.index_builder = SemanticMatcherIndexBuilder()

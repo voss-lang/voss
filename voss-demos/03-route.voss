@@ -1,0 +1,17 @@
+# 03-route.voss
+fn route(message: string) -> string {
+    @match_threshold(0.70)
+    match message {
+        case similar("refund, cancel, billing, invoice") => {
+            return "billing"
+        }
+        case similar("bug, crash, error, broken") => {
+            return "support"
+        }
+        case _ => {
+            return "general"
+        }
+    }
+}
+
+print(route("please cancel my account"))

@@ -1,0 +1,13 @@
+# 06-rag.voss
+let kb: memory.semantic(source: "./voss-demos/knowledge")
+
+fn answer(question: string) -> string {
+    let passages = kb.retrieve(question, top_k: 1)
+
+    ctx(budget: 1000 tokens) {
+        include passages
+        yield ask("Answer from the retrieved passage: " + question)
+    }
+}
+
+print(answer("What does Voss make explicit?"))

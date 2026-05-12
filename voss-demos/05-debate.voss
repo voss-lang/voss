@@ -1,0 +1,18 @@
+# 05-debate.voss
+agent Advocate(topic: string) -> string {
+    system: "Argue for the proposal in one sentence."
+    yield ask(topic)
+}
+
+agent Skeptic(topic: string) -> string {
+    system: "Challenge the proposal in one sentence."
+    yield ask(topic)
+}
+
+fn debate(topic: string) -> string {
+    let handles = [spawn Advocate(topic), spawn Skeptic(topic)]
+    let replies: list<string> = gather(handles, timeout: 1s)
+    return replies.join(" | ")
+}
+
+print(debate("typed agent workflows"))

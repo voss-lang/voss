@@ -1,0 +1,8 @@
+# 01-sentiment.voss
+let sentiment: probable<string> = ProbableValue("positive", 0.87)
+
+if sentiment @ p >= 0.80 {
+    print(sentiment.value + " (" + str(sentiment.confidence) + ")")
+} else {
+    print("unsure")
+}

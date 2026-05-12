@@ -42,6 +42,12 @@ def _print_diagnostics(diagnostics: Iterable[Diagnostic]) -> None:
         click.echo(str(diag))
 
 
+def _iter_voss_sources(path: Path) -> list[Path]:
+    if path.is_dir():
+        return sorted(p for p in path.rglob("*.voss") if p.is_file())
+    return [path]
+
+
 def _exit_for_diagnostics(result: AnalysisResult, *, warnings_fail: bool) -> None:
     if result.errors:
         raise click.exceptions.Exit(code=1)
@@ -212,20 +218,29 @@ def check(
     cache_dir: Path,
     project_root: Path | None,
 ) -> None:
-    """Parse and analyze a Voss source file without emitting code."""
-    program = _parse_file(source)
-    try:
-        result = analyze(
-            program,
-            source_path=str(source),
-            project_root=project_root,
-            cache_dir=cache_dir,
-            emit_indexes=False,
-        )
-    except VossError as exc:
-        raise click.ClickException(str(exc))
-    _print_diagnostics(result.diagnostics)
-    _exit_for_diagnostics(result, warnings_fail=warnings_as_errors)
+    """Parse and analyze a Voss source file or directory without emitting code."""
+    sources = _iter_voss_sources(source)
+    if not sources:
+        raise click.ClickException(f"no .voss files found in {source}")
+
+    all_diagnostics: list[Diagnostic] = []
+    for path in sources:
+        program = _parse_file(path)
+        try:
+            result = analyze(
+                program,
+                source_path=str(path),
+                project_root=project_root,
+                cache_dir=cache_dir,
+                emit_indexes=False,
+            )
+        except VossError as exc:
+            raise click.ClickException(str(exc))
+        all_diagnostics.extend(result.diagnostics)
+
+    combined = AnalysisResult(diagnostics=tuple(all_diagnostics), indexes=())
+    _print_diagnostics(combined.diagnostics)
+    _exit_for_diagnostics(combined, warnings_fail=warnings_as_errors)
 
 
 _INIT_TEMPLATE_NAMES = (

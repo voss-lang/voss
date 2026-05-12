@@ -1,0 +1,14 @@
+# 02-translate.voss
+fn translate(text: string) -> string {
+    within budget(tokens: 1) {
+        ctx(budget: 12 tokens) {
+            include "Translate to Spanish."
+            include text
+            yield ask("Return only the translation.")
+        }
+    } fallback {
+        return "fallback: hola"
+    }
+}
+
+print(translate("hello"))

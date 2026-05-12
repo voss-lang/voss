@@ -1,0 +1,16 @@
+# 04-fact-check.voss
+use voss_runtime::ToolDescriptor
+
+@tool
+fn webSearch(query: string) -> list<string> {
+    return ["source: local stub result for " + query]
+}
+
+fn factCheck(claim: string) -> string {
+    ctx(budget: 2000 tokens) {
+        include webSearch.schema()
+        yield ask("Check this claim against sources: " + claim)
+    }
+}
+
+print(factCheck("Voss has confidence gates."))
