@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -55,7 +56,7 @@ def _run_voss(
     timeout: float = 120.0,
 ):
     return run_cmd(
-        ["python3", "-m", "voss.cli", *args],
+        [sys.executable, "-m", "voss.cli", *args],
         cwd=cwd,
         env=env,
         timeout=timeout,
