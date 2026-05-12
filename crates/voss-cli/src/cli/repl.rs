@@ -312,29 +312,29 @@ struct VossPrompt {
 }
 
 impl Prompt for VossPrompt {
-    fn render_prompt_left(&self) -> Cow<str> {
+    fn render_prompt_left(&self) -> Cow<'_, str> {
         Cow::Borrowed("▌ ")
     }
 
-    fn render_prompt_right(&self) -> Cow<str> {
+    fn render_prompt_right(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "{} · {} · ${:.3} · {}",
             self.model, self.mode, self.cost, self.git
         ))
     }
 
-    fn render_prompt_indicator(&self, _mode: PromptEditMode) -> Cow<str> {
+    fn render_prompt_indicator(&self, _mode: PromptEditMode) -> Cow<'_, str> {
         Cow::Borrowed("")
     }
 
-    fn render_prompt_multiline_indicator(&self) -> Cow<str> {
+    fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
         Cow::Borrowed("· ")
     }
 
     fn render_prompt_history_search_indicator(
         &self,
         history_search: PromptHistorySearch,
-    ) -> Cow<str> {
+    ) -> Cow<'_, str> {
         let prefix = match history_search.status {
             PromptHistorySearchStatus::Passing => "",
             PromptHistorySearchStatus::Failing => "failing ",
