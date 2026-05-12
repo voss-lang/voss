@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -222,14 +223,18 @@ def run_suite(
     stub: bool = False,
     live: bool = False,
     k: int = 1,
-    out: Path = Path("eval-out"),
+    out: Path | None = None,
+    out_dir: Path | None = None,
     judge_model: str | None = None,
     task: str | None = None,
+    task_id: str | None = None,
     auth_pref: str = "auto",
     model: str | None = None,
 ) -> Path:
     del live
     project_root = Path.cwd()
+    out = out or out_dir or project_root / ".voss" / "eval" / _now_iso().replace(":", "")
+    task = task or task_id
     suite_root = project_root / SUITE_ROOT / suite
     tasks = load_suite(suite_root, suite=suite)
     if task is not None:
@@ -248,6 +253,7 @@ def run_suite(
     for task_id, spec in tasks:
         for run_idx in range(k):
             started_at = _now_iso()
+            start = time.monotonic()
             with tempfile.TemporaryDirectory(prefix=f"voss-eval-{task_id}-") as tmp:
                 cwd = _prepare_fixture(suite_root / task_id, Path(tmp))
                 record, final, crashed = asyncio.run(
@@ -282,10 +288,12 @@ def run_suite(
                     "success": False if crashed else (verdict.verdict == "pass" if verdict else None),
                     "cost_usd": cost_usd,
                     "confidence": confidence,
-                    "duration_s": None,
+                    "duration_s": round(time.monotonic() - start, 3),
                     "judge_verdict": judge_verdict,
                     "judge_confidence": verdict.confidence if verdict else 0.0,
-                    "judge_rationale": verdict.rationale if verdict else "",
+                    "judge_rationale": (
+                        verdict.rationale if verdict else ("agent crashed" if crashed else "")
+                    ),
                     "provider": provider.__class__.__name__,
                     "model": model_eff,
                     "judge_model": judge_model_eff,
@@ -297,4 +305,4 @@ def run_suite(
                 _append_row(runs_path, row)
 
     _write_summary_if_available(out, rows)
-    return runs_path
+    return out

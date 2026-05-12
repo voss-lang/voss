@@ -921,8 +921,7 @@ def config_cmd(show: bool, config_path_override: Path | None) -> None:
 @click.option(
     "--out",
     "out_path",
-    default=Path("eval-out"),
-    show_default=True,
+    default=None,
     type=click.Path(path_type=Path, file_okay=False),
     help="Output directory.",
 )
