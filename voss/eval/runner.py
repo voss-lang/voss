@@ -28,6 +28,7 @@ from voss_runtime.providers.base import ModelProvider
 
 from .judge import judge_run
 from .suite import TaskSpec, load_suite
+from .summary import write_summary
 
 SUITE_ROOT = Path("tests/eval")
 RESUME_CANCEL_DELAY_S = float(os.environ.get("EVAL_RESUME_CANCEL_DELAY_S", "0.05"))
@@ -209,14 +210,6 @@ def _judge_provider_for_eval(*, auth_pref: str) -> ModelProvider | None:
     return get_provider()
 
 
-def _write_summary_if_available(out: Path, rows: list[dict[str, Any]]) -> None:
-    try:
-        from .summary import write_summary  # type: ignore
-    except ImportError:
-        return
-    write_summary(out, rows)
-
-
 def run_suite(
     *,
     suite: str = "golden",
@@ -304,5 +297,5 @@ def run_suite(
                 rows.append(row)
                 _append_row(runs_path, row)
 
-    _write_summary_if_available(out, rows)
+    write_summary(runs_path, out / "summary.md")
     return out

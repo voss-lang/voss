@@ -6,6 +6,7 @@ nyquist_compliant: true
 wave_0_complete: true
 wave_1_complete: true
 wave_2_complete: true
+wave_3_complete: true
 created: 2026-05-11
 ---
 
@@ -54,9 +55,9 @@ created: 2026-05-11
 | jsonl-cost-stub-null | 03 | 2 | EVAL-03 | T-M5-fake-cost | Under `--stub`, JSONL `cost_usd` is JSON `null` — NOT a token-count estimate, NOT 0.0 | unit | `pytest tests/eval/test_voss_eval_stub.py::test_cost_field_null_under_stub -q` | ✓ | ✓ green |
 | cost-extraction-live | 03 | 2 | EVAL-03 | — | Live run: JSONL `cost_usd` populated from `RunRecord.cost_usd` (voss/harness/session.py:77) | live | `pytest -m live tests/eval/test_live_signals.py::test_cost -q` | ✓ | ✓ gated |
 | confidence-extraction | 03 | 2 | EVAL-04 | — | JSONL `confidence` populated from `Plan.confidence` (voss/harness/agent.py:46); single value per run | live | `pytest -m live tests/eval/test_live_signals.py::test_confidence -q` | ✓ | ✓ gated |
-| pearson-correlation | 04 | 3 | EVAL-04 | T-M5-pearson-wrong | `summary.md` includes `conf_corr_r` line computed via `statistics.correlation(confidences, successes_as_01)`; matches manual reference on fixture rows | unit | `pytest tests/eval/test_pearson.py -q` | ❌ W3 | ⬜ pending |
-| markdown-summary-shape | 04 | 3 | EVAL-02..04 / D-02 | — | `summary.md` aggregates JSONL: overall success rate + per-task success rate + mean cost (overall + per-task) + Pearson r + provider/model + run count + total elapsed; linked from `runs.jsonl` via `_summary.md` filename pair | unit | `pytest tests/eval/test_summary_md.py -q` | ❌ W3 | ⬜ pending |
-| voss-eval-gitignore | 04 | 3 | D-03 / M2 D-09 | T-M5-eval-gitignored | `.voss/.gitignore` (cognition.py:581) does NOT add `eval/`; `.voss/eval/<timestamp>/` artifacts stay git-tracked | unit | `pytest tests/eval/test_gitignore.py -q -k eval_tracked` | ❌ W3 | ⬜ pending |
+| pearson-correlation | 04 | 3 | EVAL-04 | T-M5-pearson-wrong | `summary.md` includes `conf_corr_r` line computed via `statistics.correlation(confidences, successes_as_01)`; matches manual reference on fixture rows | unit | `pytest tests/eval/test_pearson.py -q` | ✓ | ✓ green |
+| markdown-summary-shape | 04 | 3 | EVAL-02..04 / D-02 | — | `summary.md` aggregates JSONL: overall success rate + per-task success rate + mean cost (overall + per-task) + Pearson r + provider/model + run count + total elapsed; linked from `runs.jsonl` via `_summary.md` filename pair | unit | `pytest tests/eval/test_summary_md.py -q` | ✓ | ✓ green |
+| voss-eval-gitignore | 04 | 3 | D-03 / M2 D-09 | T-M5-eval-gitignored | `.voss/.gitignore` (cognition.py:581) does NOT add `eval/`; `.voss/eval/<timestamp>/` artifacts stay git-tracked | unit | `pytest tests/eval/test_gitignore.py -q -k eval_tracked` | ✓ | ✓ green |
 | task-01-analyze | 05 | 4 | EVAL-01 | — | `tests/eval/golden/01-analyze/` exists; fixture contains seed repo; task.toml prompt analyzes repo; rubric: PASS if `.voss/architecture.md` produced | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_01` | ❌ W4 | ⬜ pending |
 | task-02-plan-only | 05 | 4 | EVAL-01 | — | `tests/eval/golden/02-plan-only/` exists; mode=plan; rubric PASS if no writes + non-empty plan | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_02` | ❌ W4 | ⬜ pending |
 | task-03-approved-edit | 05 | 4 | EVAL-01 / D-07 auto_approve | — | `tests/eval/golden/03-approved-edit/` exists; mode=edit; `auto_approve_edits=true` wires into `PermissionGate(auto_yes=True)` (voss/harness/permissions.py:98-104); rubric PASS if target file modified | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_03` | ❌ W4 | ⬜ pending |
@@ -96,10 +97,10 @@ created: 2026-05-11
 - [x] `tests/eval/test_live_signals.py` (@pytest.mark.live)
 
 **Wave 3 (summary + Pearson + gitignore guard):**
-- [ ] `voss/eval/summary.py` — Markdown generator; statistics.correlation Pearson (no scipy)
-- [ ] `tests/eval/test_pearson.py`
-- [ ] `tests/eval/test_summary_md.py`
-- [ ] `tests/eval/test_gitignore.py` — confirms `.voss/.gitignore` does NOT add `eval/`
+- [x] `voss/eval/summary.py` — Markdown generator; statistics.correlation Pearson (no scipy)
+- [x] `tests/eval/test_pearson.py`
+- [x] `tests/eval/test_summary_md.py`
+- [x] `tests/eval/test_gitignore.py` — confirms `.voss/.gitignore` does NOT add `eval/`
 
 **Wave 4 (5 golden task fixtures):**
 - [ ] `tests/eval/golden/01-analyze/{task.toml,fixture/}` — seed repo, expect `.voss/architecture.md`
