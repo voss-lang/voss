@@ -25,8 +25,11 @@ class Researcher(VossAgent):
 
     async def run(self, topic: str) -> str:
         async with ContextScope(token_budget=2000) as ctx:
-            results = web_search(topic, max_results=5)
-            await ctx.add("\n".join(results))
+            try:
+                results = web_search(topic, max_results=5)
+                await ctx.add("\n".join(results))
+            except Exception:
+                await ctx.add("web search unavailable")
             return await ctx.ask(f"Summarize the key findings on: {topic}")
 
 

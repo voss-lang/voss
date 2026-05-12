@@ -12,8 +12,10 @@ def register(name: str, provider: ModelProvider) -> None:
 
 
 def get(name: str | None = None) -> ModelProvider:
-    # D-01: hermetic env → force stub regardless of default_model.
-    if name is None and os.environ.get("VOSS_HERMETIC") == "1":
+    # D-01: hermetic env → force stub unless caller asked for a registered name explicitly.
+    if os.environ.get("VOSS_HERMETIC") == "1":
+        if name is not None and name in _registry:
+            return _registry[name]
         return _registry["__stub__"]
     from voss_runtime._config import get_config
 
