@@ -30,6 +30,18 @@ class Renderer(Protocol):
     def show_clarify(self, question: str, confidence: float) -> None: ...
     def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None: ...
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None: ...
+    def show_cognition(
+        self,
+        *,
+        architecture_tokens: int,
+        constraints_count: int,
+        plans_loaded: int = 0,
+        decisions_loaded: int = 0,
+    ) -> None: ...
+    def show_cognition_overflow(
+        self, *, architecture_tokens: int, budget: int = 6000
+    ) -> None: ...
+    def show_warning(self, msg: str) -> None: ...
 
 
 def make_renderer(*, json_mode: bool) -> Renderer:
@@ -51,6 +63,7 @@ GLYPH_PROMPT = "▌"
 @dataclass
 class TtyRenderer:
     console: Console = None  # type: ignore[assignment]
+    quiet: bool = False
 
     def __post_init__(self) -> None:
         if self.console is None:
@@ -118,6 +131,34 @@ class TtyRenderer:
         line += "─" * max(0, self.console.width - approx_len)
         self.console.print(f"[dim]{line}[/dim]")
 
+    def show_cognition(
+        self,
+        *,
+        architecture_tokens: int,
+        constraints_count: int,
+        plans_loaded: int = 0,
+        decisions_loaded: int = 0,
+    ) -> None:
+        if self.quiet:
+            return
+        kilo = architecture_tokens / 1000
+        msg = f"cognition: architecture ({kilo:.1f}k) + {constraints_count} constraints"
+        if plans_loaded or decisions_loaded:
+            msg += f" + {plans_loaded} plans + {decisions_loaded} decisions"
+        self.console.print(f"[dim]  {msg}[/dim]")
+
+    def show_cognition_overflow(
+        self, *, architecture_tokens: int, budget: int = 6000
+    ) -> None:
+        self.console.print(
+            f"[yellow]{GLYPH_WARN} architecture.md is {architecture_tokens} "
+            f"tokens (over {budget} budget) — /analyze can rewrite a tighter "
+            f"digest[/yellow]"
+        )
+
+    def show_warning(self, msg: str) -> None:
+        self.console.print(f"[yellow]{GLYPH_WARN} {msg}[/yellow]")
+
 
 def _short(v: Any, limit: int = 40) -> str:
     s = str(v)
@@ -157,6 +198,30 @@ class PlainRenderer:
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         pass
+
+    def show_cognition(
+        self,
+        *,
+        architecture_tokens: int,
+        constraints_count: int,
+        plans_loaded: int = 0,
+        decisions_loaded: int = 0,
+    ) -> None:
+        print(
+            f"cognition: arch={architecture_tokens}tok constraints={constraints_count}",
+            file=sys.stderr,
+        )
+
+    def show_cognition_overflow(
+        self, *, architecture_tokens: int, budget: int = 6000
+    ) -> None:
+        print(
+            f"cognition overflow: {architecture_tokens} > {budget}",
+            file=sys.stderr,
+        )
+
+    def show_warning(self, msg: str) -> None:
+        print(f"warning: {msg}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
