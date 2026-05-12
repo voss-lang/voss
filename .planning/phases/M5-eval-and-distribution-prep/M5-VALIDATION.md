@@ -1,9 +1,10 @@
 ---
 phase: M5
 slug: eval-and-distribution-prep
-status: draft
+status: executing
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
+wave_1_complete: true
 created: 2026-05-11
 ---
 
@@ -41,12 +42,12 @@ created: 2026-05-11
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| task-spec-model | 01 | 0 | EVAL-01 | — | `TaskSpec` pydantic model validates `task.toml` schema (prompt/mode/rubric/judge_inputs/optional provider/model/auto_approve_edits) | unit | `pytest tests/eval/test_task_spec.py -q` | ❌ W0 | ⬜ pending |
-| suite-loads | 01 | 0 | EVAL-01 | — | Suite loader walks `tests/eval/golden/` and finds exactly 5 fixtures (01-analyze, 02-plan-only, 03-approved-edit, 04-validation, 05-resume), each parseable | unit | `pytest tests/eval/test_suite_loads.py -q` | ❌ W0 | ⬜ pending |
-| fixture-isolation | 01 | 0 | EVAL-01 / D-06 | T-M5-fixture-leak | Per-run fixture isolation: each run copies `fixture/` to fresh `tempfile.TemporaryDirectory()`, runs `git init -q && git commit --allow-empty -m initial`, runs task with `--cwd=<tmp>`; tmp dir cleaned up after | unit | `pytest tests/eval/test_fixture_isolation.py -q` | ❌ W0 | ⬜ pending |
-| verdict-model | 02 | 1 | EVAL-02 / D-08 | — | `Verdict` pydantic model `{verdict: "pass"|"fail", confidence: float, rationale: str}`; LiteLLMProvider.complete uses `response_format=Verdict` JSON-mode | unit | `pytest tests/eval/test_judge_verdict.py -q` | ❌ W1 | ⬜ pending |
-| judge-skipped-on-crash | 02 | 1 | EVAL-02 / D-08 | — | When agent run raises (non-zero), record `success=false, judge_verdict="skipped"`, judge never invoked | unit | `pytest tests/eval/test_judge_skipped.py -q` | ❌ W1 | ⬜ pending |
-| auth-resolve-role | 02 | 1 | D-08 (judge) | — | `voss/harness/auth.py:resolve(role: str \| None = None)` added; defaults pass-through; judge uses same provider when no `role="judge"` creds | unit | `pytest tests/harness/test_auth.py -q -k role` | ❌ W1 | ⬜ pending |
+| task-spec-model | 01 | 0 | EVAL-01 | — | `TaskSpec` pydantic model validates `task.toml` schema (prompt/mode/rubric/judge_inputs/optional provider/model/auto_approve_edits) | unit | `pytest tests/eval/test_task_spec.py -q` | ✓ | ✓ green |
+| suite-loads | 01 | 0 | EVAL-01 | — | Suite loader walks task directories in stable order, skips non-directories and dirs without `task.toml`, and returns `(task_id, TaskSpec)` pairs | unit | `pytest tests/eval/test_suite_loads.py -q` | ✓ | ✓ green |
+| fixture-isolation | 01 | 0 | EVAL-01 / D-06 | T-M5-fixture-leak | Per-run fixture isolation helper copies `fixture/` to a fresh git-initialized cwd and two invocations do not share state | unit | `pytest tests/eval/test_fixture_isolation.py -q` | ✓ | ✓ green |
+| verdict-model | 02 | 1 | EVAL-02 / D-08 | — | `Verdict` pydantic model `{verdict: "pass"|"fail", confidence: float, rationale: str}`; `judge_run` calls providers with `response_format=Verdict` JSON-mode | unit | `pytest tests/eval/test_judge_verdict.py -q` | ✓ | ✓ green |
+| judge-skipped-on-crash | 02 | 1 | EVAL-02 / D-08 | — | `judge_run` returns `(None, "skipped")` on `ParseError`; non-ParseError provider failures propagate for the runner crash path | unit | `pytest tests/eval/test_judge_skipped.py -q` | ✓ | ✓ green |
+| auth-resolve-role | 02 | 1 | D-08 (judge) | — | `voss/harness/auth.py:resolve(role: str \| None = None)` added; defaults pass-through; judge uses same provider when no `role="judge"` creds | unit | `pytest tests/harness/test_auth.py -q -k role` | ✓ | ✓ green |
 | cli-eval-command | 03 | 2 | EVAL-01..05 / D-01 | T-M5-cli-options-drift | `voss eval` Click subcommand registers via `AGENT_COMMANDS` tuple in `voss/harness/cli.py`; supports `--suite golden`, `--stub`, `--live`, `-k N`, `--out <path>`, `--judge-model <name>`, `--task <id>` | unit | `pytest tests/eval/test_cli_options.py -q` | ❌ W2 | ⬜ pending |
 | stub-eval-smoke | 03 | 2 | EVAL-02 / D-04 | — | `voss eval --stub --task 02-plan-only -k 1 --out <tmp>` produces `<tmp>/runs.jsonl` with 1 row whose schema matches D-04 (task_id, run_idx, success, cost_usd=null, confidence, duration_s, judge_verdict, judge_confidence, judge_rationale, provider, model, judge_model, seed, voss_version, started_at) | integration | `pytest tests/eval/test_voss_eval_stub.py -q` | ❌ W2 | ⬜ pending |
 | jsonl-cost-stub-null | 03 | 2 | EVAL-03 | T-M5-fake-cost | Under `--stub`, JSONL `cost_usd` is JSON `null` — NOT a token-count estimate, NOT 0.0 | unit | `pytest tests/eval/test_voss_eval_stub.py::test_cost_field_null_under_stub -q` | ❌ W2 | ⬜ pending |
@@ -72,18 +73,19 @@ created: 2026-05-11
 ## Wave 0 Requirements
 
 **Wave 0 (suite loader + fixture isolation):**
-- [ ] `tests/eval/__init__.py` — package marker
-- [ ] `tests/eval/test_suite_loads.py` — 5 fixtures
-- [ ] `tests/eval/test_task_spec.py` — pydantic validation
-- [ ] `tests/eval/test_fixture_isolation.py` — tempdir + git init pattern
-- [ ] `voss/eval/__init__.py` (NEW package) — suite loader + TaskSpec pydantic model
+- [x] `tests/eval/__init__.py` — package marker
+- [x] `tests/eval/test_suite_loads.py` — inline suite loader fixtures
+- [x] `tests/eval/test_task_spec.py` — pydantic validation
+- [x] `tests/eval/test_fixture_isolation.py` — tempdir + git init pattern
+- [x] `voss/eval/__init__.py` (NEW package) — package marker
+- [x] `voss/eval/suite.py` (NEW) — suite loader + TaskSpec pydantic model
 
 **Wave 1 (judge + auth role):**
-- [ ] `voss/harness/auth.py` — `role` kwarg extension (5-line)
-- [ ] `voss/eval/judge.py` — Verdict pydantic + LiteLLMProvider JSON-mode call (response_format=Verdict)
-- [ ] `tests/eval/test_judge_verdict.py`
-- [ ] `tests/eval/test_judge_skipped.py`
-- [ ] `tests/harness/test_auth.py` — role-kwarg cases
+- [x] `voss/harness/auth.py` — `role` kwarg extension (5-line)
+- [x] `voss/eval/judge.py` — Verdict pydantic + LiteLLMProvider JSON-mode call (response_format=Verdict)
+- [x] `tests/eval/test_judge_verdict.py`
+- [x] `tests/eval/test_judge_skipped.py`
+- [x] `tests/harness/test_auth.py` — role-kwarg cases
 
 **Wave 2 (CLI + runner + JSONL):**
 - [ ] `voss/eval/runner.py` — orchestrates suite × k runs; collects RunRecord.cost_usd + Plan.confidence; writes JSONL row per run

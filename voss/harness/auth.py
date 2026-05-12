@@ -329,10 +329,12 @@ class Resolution:
     codex_oauth: Optional[CodexCreds] = None
 
 
-def resolve(preference: str = "auto") -> Resolution:
+def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     """Decide which auth path to use.
 
     preference: auto | claude | codex | api | none
+    role: optional logical role (e.g. "judge"); v0.1 pass-through, future
+          versions may resolve a separate creds bucket per role. Today ignored.
     """
     if preference == "none":
         return Resolution(source="none", detail="forced none")

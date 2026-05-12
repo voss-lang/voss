@@ -174,3 +174,22 @@ class TestRefreshCodex:
         on_disk = json.loads(path.read_text())
         assert on_disk["tokens"]["access_token"] == "access-new"
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_resolve_accepts_role_kwarg(monkeypatch):
+    """M5 D-10: role kwarg accepted, ignored in v0.1."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    from voss.harness.auth import resolve
+
+    r_default = resolve()
+    r_judge = resolve(role="judge")
+    assert r_default.source == r_judge.source
+    assert r_default.detail == r_judge.detail
+
+
+def test_resolve_role_with_none_preference():
+    """role is ignored when preference='none'."""
+    from voss.harness.auth import resolve
+
+    r = resolve(preference="none", role="judge")
+    assert r.source == "none"
