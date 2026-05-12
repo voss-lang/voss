@@ -59,8 +59,8 @@ created: 2026-05-11
 | reviewer-voss-file | 03 | 2 | DOG-05 | — | `reviewer.voss` exists; synthesizes `final_when_done` from tool results | file + unit | `python3 -m voss.cli check voss/harness/agent/` | ✓ | ✓ green |
 | run-step-loop-helper | 03 | 2 | D-04 / Q-2 | — | `voss/harness/agent.py:_run_step_loop(plan_steps, tools, permissions, renderer)` exists; `ToolEntry.invoke_dict(args: dict)` exists | unit | `pytest tests/harness/test_agent_integration.py -q` | ✓ | ✓ green |
 | boot-dispatch | 03 | 2 | D-08 / DOG-07 | T-M4-boot-spoof | `voss/harness/cli.py:_resolve_run_turn()` reads `VOSS_HARNESS` env → `[harness] backend` config → default `"python"`; swaps `run_turn` import accordingly; no silent fallback | unit | `pytest tests/harness/test_boot_dispatch.py -q` | ✓ | ✓ green |
-| parity-test | 04 | 3 | D-11 / DOG-07 | T-M4-parity-divergence | `tests/harness/test_voss_loop_parity.py` runs fixture task under both backends with `StubProvider`; asserts `python_result.final == voss_result.final` AND tool-call sequence identical | integration | `pytest tests/harness/test_voss_loop_parity.py -q` | ❌ W3 | ⬜ pending |
-| dog-07-smoke | 04 | 3 | DOG-07 / D-12 | — | `VOSS_HARNESS=compiled python -m voss.cli do "noop summary of fixture.md"` exits 0; non-empty `TurnResult.final`; tool-call sequence matches Python path | integration | bash smoke test in `tests/harness/test_dog07_smoke.py` | ❌ W3 | ⬜ pending |
+| parity-test | 04 | 3 | D-11 / DOG-07 | T-M4-parity-divergence | `tests/harness/test_voss_loop_parity.py` runs fixture task under both backends with `FakeProvider`; asserts `python_result.final == voss_result.final` AND tool-call sequence identical | integration | `pytest tests/harness/test_voss_loop_parity.py -q` | ✓ | ✓ green |
+| dog-07-smoke | 04 | 3 | DOG-07 / D-12 | — | `VOSS_HARNESS=compiled python -m voss.cli do "noop summary of fixture.md"` exits 0 through the real CLI dispatch path with non-empty stdout under `VOSS_HERMETIC=1` | integration | `pytest tests/harness/test_dog07_smoke.py -q` | ✓ | ✓ green |
 | ci-gate | 05 | 4 | DOG-06 | — | `.github/workflows/ci.yml` includes step `python -m voss.cli check voss/harness/agent/`; step fails CI on any error | grep | `grep -F "voss.cli check voss/harness/agent/" .github/workflows/ci.yml` | ❌ W4 | ⬜ pending |
 | install-doc | 05 | 4 | D-16 | — | README install section mentions `voss compile voss/harness/agent/` as one-liner | grep | `grep -F "voss compile voss/harness/agent/" README.md` | ❌ W4 | ⬜ pending |
 | doctor-cache-row | 05 | 4 | D-16 | — | `voss doctor` output includes a row for harness-cache freshness (informational; never blocking) | unit | `pytest tests/harness/test_doctor.py -q -k harness_cache` | ❌ W4 | ⬜ pending |
@@ -97,8 +97,8 @@ created: 2026-05-11
 - [x] `tests/harness/test_boot_dispatch.py` (NEW)
 
 **Wave 3 (parity + DOG-07 smoke):**
-- [ ] `tests/harness/test_voss_loop_parity.py` (NEW)
-- [ ] `tests/harness/test_dog07_smoke.py` (NEW)
+- [x] `tests/harness/test_voss_loop_parity.py` (NEW)
+- [x] `tests/harness/test_dog07_smoke.py` (NEW)
 
 **Wave 4 (CI gate + docs):**
 - [ ] `.github/workflows/ci.yml` — add `voss check voss/harness/agent/` step
