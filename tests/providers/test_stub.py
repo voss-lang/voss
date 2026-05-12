@@ -10,6 +10,13 @@ class _Person(BaseModel):
     age: int
 
 
+class _PlanLike(BaseModel):
+    rationale: str
+    steps: list[dict]
+    confidence: float
+    final_when_done: str
+
+
 async def test_default_response_when_no_match():
     p = StubProvider(default_response="hi-default")
     out = await p.complete(messages=[{"role": "user", "content": "anything"}], model="m")
@@ -36,6 +43,18 @@ async def test_pydantic_response_format_roundtrip():
     assert out.parsed.age == 36
     # text is the JSON form of the parsed model
     assert _Person.model_validate_json(out.text) == out.parsed
+
+
+async def test_plan_like_schema_gets_deterministic_fallback():
+    p = StubProvider(default_response="stub final")
+    out = await p.complete(
+        messages=[{"role": "user", "content": "plan"}],
+        model="m",
+        response_format=_PlanLike,
+    )
+    assert isinstance(out.parsed, _PlanLike)
+    assert out.parsed.confidence == 0.95
+    assert out.parsed.final_when_done == "stub final"
 
 
 async def test_calls_capture_history():

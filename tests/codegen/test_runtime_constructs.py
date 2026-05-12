@@ -110,6 +110,39 @@ def test_ctx_block_uses_async_context_and_awaits_include_and_ask():
     assert_no_compiler_imports(source)
 
 
+def test_probable_ask_binding_inside_ctx_wraps_value():
+    let = LetStmt(
+        span=span(),
+        name="intent",
+        type_annot=_type("probable", generics=(_type("string"),)),
+        value=Call(
+            span=span(),
+            callee=_ident("ask"),
+            args=(Arg(span=span(), name=None, value=StringLit(span=span(), value="Classify")),),
+        ),
+    )
+    ctx = CtxBlock(
+        span=span(),
+        budget=_budget("budget", "tokens", 3000, "3000 tokens"),
+        body=(let, ReturnStmt(span=span(), value=_ident("intent"))),
+    )
+    fn = FnDecl(
+        span=span(),
+        name="classify",
+        params=(),
+        return_type=_type("probable", generics=(_type("string"),)),
+        body=(ctx,),
+    )
+
+    result = generate_python(program(fn))
+    source = result.source
+
+    assert "_intent_value = await ctx.ask('Classify', return_type=str)" in source
+    assert "intent: ProbableValue = ProbableValue(" in source
+    assert_python_parses(source)
+    assert_no_compiler_imports(source)
+
+
 def test_within_fallback_uses_run_with_budget_and_budget_exception():
     primary = (ReturnStmt(span=span(), value=StringLit(span=span(), value="primary")),)
     fallback = (ReturnStmt(span=span(), value=StringLit(span=span(), value="fallback")),)
