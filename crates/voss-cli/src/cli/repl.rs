@@ -1,14 +1,49 @@
-//! Chat REPL with rustyline line editing + slash commands.
+//! Chat REPL with reedline line editing, slash commands, and Ctrl-C
+//! turn-cancel.
+//!
+//! Input layer: `reedline` (multi-line, history, menu completion, custom
+//! prompt with right-side status). Replaces the legacy `rustyline` impl.
 
-use std::path::Path;
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
-use rustyline::DefaultEditor;
+use crossterm::style::Stylize;
+use nu_ansi_term::{Color, Style};
+use reedline::{
+    default_emacs_keybindings, ColumnarMenu, Completer, DefaultHinter, EditCommand,
+    Emacs, FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder, Prompt,
+    PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, Reedline,
+    ReedlineEvent, ReedlineMenu, Signal, Span, Suggestion,
+};
+
 use voss_agent::{run_turn, EpisodicMemory, TurnConfig};
 use voss_providers::ModelProvider;
 use voss_render::{NdjsonRender, PlainRender, Render, TtyRender};
 
 use crate::permissions::{Mode, PermissionGate, PermissionStore};
 use crate::session::{self, SessionRecord, Turn};
+
+const SLASH_COMMANDS: &[&str] = &[
+    "/help",
+    "/exit",
+    "/quit",
+    "/clear",
+    "/cost",
+    "/tools",
+    "/sessions",
+    "/save",
+];
+
+/// History file location. `~/.local/state/voss/history` (single global; per-cwd
+/// scoping deferred — reedline filters duplicates on read).
+fn history_path() -> PathBuf {
+    let base = dirs::state_dir()
+        .or_else(dirs::data_local_dir)
+        .unwrap_or_else(|| PathBuf::from("."));
+    base.join("voss").join("history")
+}
 
 pub async fn run_repl(
     cwd: &Path,
@@ -45,27 +80,57 @@ pub async fn run_repl(
         println!("resumed: {} ({} prior turns)", record.name, record.turns.len());
     }
 
-    let mut rl = match DefaultEditor::new() {
+    // SIGINT → cancel current turn (not exit). reedline traps Ctrl-C in raw
+    // mode during read_line; this handler only fires while run_turn owns the
+    // terminal.
+    let cancel = Arc::new(AtomicBool::new(false));
+    {
+        let c = cancel.clone();
+        tokio::spawn(async move {
+            loop {
+                if tokio::signal::ctrl_c().await.is_ok() {
+                    c.store(true, Ordering::Relaxed);
+                }
+            }
+        });
+    }
+
+    let mut rl = match build_reedline() {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("rustyline init failed: {e}");
+            eprintln!("reedline init failed: {e}");
             return std::process::ExitCode::from(1);
         }
     };
 
     loop {
-        let line = match rl.readline("▌ ") {
-            Ok(l) => l,
-            Err(_) => {
+        let prompt = VossPrompt {
+            model: record.model.clone(),
+            mode: mode_label(mode),
+            cost: total_cost,
+            git: git_status(cwd),
+        };
+        let sig = rl.read_line(&prompt);
+        let line = match sig {
+            Ok(Signal::Success(l)) => l,
+            Ok(Signal::CtrlC) => {
+                // Empty buffer Ctrl-C → noop. Reedline already cleared the
+                // current edit. Continue to next prompt.
+                continue;
+            }
+            Ok(Signal::CtrlD) => {
                 println!();
                 return std::process::ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("read error: {e}");
+                return std::process::ExitCode::from(1);
             }
         };
         let line = line.trim().to_string();
         if line.is_empty() {
             continue;
         }
-        let _ = rl.add_history_entry(&line);
 
         match line.as_str() {
             "/exit" | "/quit" => return std::process::ExitCode::SUCCESS,
@@ -127,7 +192,14 @@ pub async fn run_repl(
         }
 
         renderer.show_user(&line);
+
+        // Reset cancel for this turn. SIGINT handler above will flip it.
+        cancel.store(false, Ordering::Relaxed);
+
         let mut adapter = GateAdapter { gate: &mut gate };
+        let mut cfg = TurnConfig::default();
+        cfg.cancel = Some(cancel.clone());
+
         let result = match run_turn(
             &line,
             &tools,
@@ -136,14 +208,18 @@ pub async fn run_repl(
             provider,
             Some(&mut history),
             &mut adapter,
-            TurnConfig::default(),
+            cfg,
             json_mode,
         )
         .await
         {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("error: {e}");
+                if cancel.load(Ordering::Relaxed) {
+                    eprintln!("{}", "cancelled (Ctrl-C)".yellow());
+                } else {
+                    eprintln!("error: {e}");
+                }
                 continue;
             }
         };
@@ -151,6 +227,127 @@ pub async fn run_repl(
         if !json_mode {
             renderer.show_final(&result.final_text, result.confidence, result.cost_usd);
         }
+    }
+}
+
+fn build_reedline() -> std::io::Result<Reedline> {
+    let path = history_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let history = Box::new(
+        FileBackedHistory::with_file(2_000, path)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?,
+    );
+
+    // Emacs keybindings + Tab opens the completion menu.
+    let mut kb = default_emacs_keybindings();
+    kb.add_binding(
+        KeyModifiers::NONE,
+        KeyCode::Tab,
+        ReedlineEvent::UntilFound(vec![
+            ReedlineEvent::Menu("completion_menu".into()),
+            ReedlineEvent::MenuNext,
+        ]),
+    );
+    // Shift-Enter inserts newline (multi-line input).
+    kb.add_binding(
+        KeyModifiers::SHIFT,
+        KeyCode::Enter,
+        ReedlineEvent::Edit(vec![EditCommand::InsertNewline]),
+    );
+
+    let menu = ReedlineMenu::EngineCompleter(Box::new(
+        ColumnarMenu::default().with_name("completion_menu"),
+    ));
+
+    let completer = Box::new(SlashCompleter);
+    let hinter = Box::new(
+        DefaultHinter::default().with_style(Style::new().fg(Color::DarkGray).italic()),
+    );
+
+    let rl = Reedline::create()
+        .with_history(history)
+        .with_completer(completer)
+        .with_menu(menu)
+        .with_edit_mode(Box::new(Emacs::new(kb)))
+        .with_hinter(hinter)
+        .with_quick_completions(false)
+        .with_partial_completions(true);
+
+    Ok(rl)
+}
+
+/// Slash-command completer. Suggests `/help`, `/cost`, etc. when the buffer
+/// starts with `/`. Falls back to empty (no noise on regular prompts).
+struct SlashCompleter;
+
+impl Completer for SlashCompleter {
+    fn complete(&mut self, line: &str, pos: usize) -> Vec<Suggestion> {
+        let head = &line[..pos.min(line.len())];
+        if !head.starts_with('/') {
+            return Vec::new();
+        }
+        let start = 0;
+        SLASH_COMMANDS
+            .iter()
+            .filter(|c| c.starts_with(head))
+            .map(|c| Suggestion {
+                value: (*c).to_string(),
+                description: None,
+                style: None,
+                extra: None,
+                span: Span::new(start, pos),
+                append_whitespace: false,
+            })
+            .collect()
+    }
+}
+
+struct VossPrompt {
+    model: String,
+    mode: &'static str,
+    cost: f64,
+    git: String,
+}
+
+impl Prompt for VossPrompt {
+    fn render_prompt_left(&self) -> Cow<str> {
+        Cow::Borrowed("▌ ")
+    }
+
+    fn render_prompt_right(&self) -> Cow<str> {
+        Cow::Owned(format!(
+            "{} · {} · ${:.3} · {}",
+            self.model, self.mode, self.cost, self.git
+        ))
+    }
+
+    fn render_prompt_indicator(&self, _mode: PromptEditMode) -> Cow<str> {
+        Cow::Borrowed("")
+    }
+
+    fn render_prompt_multiline_indicator(&self) -> Cow<str> {
+        Cow::Borrowed("· ")
+    }
+
+    fn render_prompt_history_search_indicator(
+        &self,
+        history_search: PromptHistorySearch,
+    ) -> Cow<str> {
+        let prefix = match history_search.status {
+            PromptHistorySearchStatus::Passing => "",
+            PromptHistorySearchStatus::Failing => "failing ",
+        };
+        Cow::Owned(format!("({}reverse-search: {}) ", prefix, history_search.term))
+    }
+}
+
+fn mode_label(mode: Mode) -> &'static str {
+    match mode {
+        Mode::Plan => "plan",
+        Mode::Edit => "edit",
+        Mode::Auto => "auto",
     }
 }
 
@@ -162,7 +359,13 @@ fn print_slash_help() {
          /cost          session cost so far\n\
          /tools         list registered tools\n\
          /sessions      list saved sessions\n\
-         /save [name]   persist session snapshot"
+         /save [name]   persist session snapshot\n\
+         \n\
+         Tab            complete slash command\n\
+         Shift-Enter    insert newline\n\
+         Ctrl-C         cancel current turn (or clear buffer)\n\
+         Ctrl-R         reverse-search history\n\
+         Ctrl-D         exit"
     );
 }
 
@@ -193,7 +396,7 @@ fn git_status(cwd: &Path) -> String {
                 format!("+{plus} ~{m} -{minus}")
             }
         }
-        _ => "not a git repo".into(),
+        _ => "no git".into(),
     }
 }
 

@@ -80,6 +80,14 @@ pub(crate) async fn dispatch_steps(
     // for the chunk, await all, then print final state per-step in plan order.
     let cap = parallel_cap.max(1);
     for chunk in parallel.chunks(cap) {
+        if cancelled(&cancel) {
+            for r in chunk {
+                if results[r.idx].is_none() {
+                    results[r.idx] = Some("<cancelled>".into());
+                }
+            }
+            break;
+        }
         for r in chunk {
             renderer.show_tool_call(&r.name, &r.args, "running…", ToolState::Pending);
         }
@@ -115,6 +123,10 @@ pub(crate) async fn dispatch_steps(
 
     // Mutating: serial in plan order.
     for r in serial {
+        if cancelled(&cancel) {
+            results[r.idx] = Some("<cancelled>".into());
+            continue;
+        }
         renderer.show_tool_call(&r.name, &r.args, "running…", ToolState::Pending);
         let t = r.tool.clone().unwrap();
         let res = t.invoke(r.args.clone()).await;
