@@ -1,0 +1,24 @@
+# planner.voss
+# Probable Plan generation for one harness turn.
+
+use pathlib::Path
+use voss::harness::agent::Plan
+use voss::harness::tools::ToolEntry
+use voss::harness::render::Renderer
+
+fn plan_task(task: string, route: string, tools: dict<string, ToolEntry>, cwd: Path, renderer: Renderer, model = null, provider = null, history = null, cognition = null, prior_context = null) -> Plan {
+    ctx(budget: 6000 tokens) {
+        include tools
+        include cwd
+        let prompt = "Plan a " + route + " harness turn for this task: " + task
+        let plan: probable<Plan> = ask(prompt)
+
+        if plan @ p >= 0.60 {
+            return plan.value
+        } else {
+            if plan @ p < 0.60 {
+                return plan.value
+            }
+        }
+    }
+}

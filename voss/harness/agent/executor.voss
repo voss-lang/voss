@@ -1,0 +1,15 @@
+# executor.voss
+# Thin executor forwarding a Plan's steps to the Python step loop.
+
+use voss::harness::agent::Plan
+use voss::harness::agent::_run_step_loop
+use voss::harness::permissions::PermissionGate
+use voss::harness::render::Renderer
+use voss::harness::tools::ToolEntry
+
+fn execute_plan(plan: Plan, tools: dict<string, ToolEntry>, renderer: Renderer, permissions: PermissionGate = null) -> list<string> {
+    let steps = plan.steps
+    let gate = permissions
+    let results = _run_step_loop(steps, tools, gate, renderer)
+    return results
+}

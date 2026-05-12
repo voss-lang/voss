@@ -1,0 +1,37 @@
+# loop.voss
+# Orchestrates one harness turn through route, plan, execute, review, and clarify.
+
+use pathlib::Path
+use voss::harness::agent::Plan
+use voss::harness::agent::TurnResult
+use voss::harness::agent::_make_turn_result
+use voss::harness::agent::_run_step_loop
+use voss::harness::agent::planner::plan_task
+use voss::harness::agent::reviewer::review
+use voss::harness::agent::router::route_intent
+use voss::harness::permissions::PermissionGate
+use voss::harness::render::Renderer
+use voss::harness::tools::ToolEntry
+
+fn clarify(plan: Plan, confidence_threshold: float) -> TurnResult {
+    let make_result = _make_turn_result
+    let question = plan.open_question or "I'm not confident enough to proceed; please clarify the task."
+    let results: list<string> = []
+    return make_result(plan, plan.confidence, question, results, 0.0)
+}
+
+fn run_turn(task: string, tools: dict<string, ToolEntry>, cwd: Path, renderer: Renderer, confidence_threshold: float = 0.60, token_budget: int = 60000, model = null, provider = null, history = null, permissions: PermissionGate = null, session_id: string = null, cognition = null, prior_context = null) -> TurnResult {
+    ctx(budget: 60000 tokens) {
+        let route = route_intent(task)
+        let plan = plan_task(task, route, tools, cwd, renderer, model, provider, history, cognition, prior_context)
+
+        if plan.confidence >= confidence_threshold {
+            renderer.show_plan(plan, cost_usd: 0.0)
+            let results = _run_step_loop(plan.steps, tools, permissions, renderer)
+            return review(plan, results, 0.0)
+        } else {
+            renderer.show_clarify(plan.open_question, plan.confidence)
+            return clarify(plan, confidence_threshold)
+        }
+    }
+}

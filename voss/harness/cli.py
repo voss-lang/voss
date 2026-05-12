@@ -22,7 +22,7 @@ from voss_runtime.providers.base import ModelProvider
 from . import auth as auth_mod
 from . import cognition as cognition_mod
 from . import session as session_store
-from .agent import Plan, run_turn
+from .agent import Plan
 from .permissions import PermissionGate, PermissionStore
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
@@ -130,6 +130,43 @@ def _resolve_default_model(user_explicit: str | None) -> None:
     persisted = harness_config.load_harness_config().get("preferred_model")
     if persisted:
         configure(default_model=persisted)
+
+
+def _resolve_run_turn(cwd: Path | None = None):
+    from . import config as harness_config
+
+    backend = os.environ.get("VOSS_HARNESS")
+    if backend is None:
+        backend = harness_config.load_harness_config().get("backend")
+    backend = backend or "python"
+
+    if backend not in ("python", "compiled"):
+        raise click.ClickException(
+            f"invalid VOSS_HARNESS={backend!r}: expected 'python' or 'compiled'"
+        )
+
+    if backend == "python":
+        from .agent import run_turn
+
+        return run_turn
+
+    from . import cache as harness_cache
+
+    project_root = (cwd or Path.cwd()).resolve()
+    harness_cache.assert_fresh(project_root)
+
+    import importlib.util
+
+    loop_py = project_root / harness_cache.CACHE_HARNESS_DIR / "loop.py"
+    spec = importlib.util.spec_from_file_location(
+        "voss_compiled_harness_loop",
+        loop_py,
+    )
+    if spec is None or spec.loader is None:
+        raise click.ClickException(f"failed to load compiled harness: {loop_py}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.run_turn
 
 
 def _handle_login(provider: str | None) -> None:
@@ -310,6 +347,7 @@ def do_cmd(
     click.echo(f"  [auth: {res.source} — {res.detail}]")
     renderer.show_user(text)
 
+    run_turn = _resolve_run_turn(cwd)
     result = asyncio.run(
         run_turn(
             text,
@@ -607,6 +645,7 @@ def _run_repl(
 
         renderer.show_user(line)
         try:
+            run_turn = _resolve_run_turn(cwd)
             result = asyncio.run(
                 run_turn(
                     line,
