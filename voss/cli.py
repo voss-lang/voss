@@ -17,6 +17,7 @@ from .ast_serializer import to_dict
 from .codegen import CodegenError, generate_python
 from .diagnostics import AnalysisResult, Diagnostic
 from .exceptions import VossError
+from .harness import auth as auth_mod
 from .parser import VossParseError, parse
 
 

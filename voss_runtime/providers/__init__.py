@@ -1,3 +1,5 @@
+import os
+
 from .base import ModelProvider, ProviderResponse
 from .litellm_provider import LiteLLMProvider
 from .stub import StubProvider
@@ -10,6 +12,9 @@ def register(name: str, provider: ModelProvider) -> None:
 
 
 def get(name: str | None = None) -> ModelProvider:
+    # D-01: hermetic env → force stub regardless of default_model.
+    if name is None and os.environ.get("VOSS_HERMETIC") == "1":
+        return _registry["__stub__"]
     from voss_runtime._config import get_config
 
     key = name or get_config().default_model
