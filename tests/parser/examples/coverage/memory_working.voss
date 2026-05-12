@@ -1,0 +1,7 @@
+# memory_working.voss — D-07 coverage fixture for memory.working
+
+let scratchpad: memory.working(capacity: 8)
+
+fn note(content: string) {
+    scratchpad.add(content)
+}

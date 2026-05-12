@@ -6,12 +6,20 @@ from voss import parse, to_dict
 EXAMPLES_DIR = Path(__file__).parent / "examples"
 GOLDEN_DIR = Path(__file__).parent / "golden"
 NAMES = ("classify", "support", "research", "assistant")
+COVERAGE_NAMES = ("coverage/memory_semantic", "coverage/memory_working")
 
 @pytest.mark.parametrize("name", NAMES)
 def test_example_parses(name):
     src = (EXAMPLES_DIR / f"{name}.voss").read_text()
     program = parse(src, file=f"{name}.voss")
     assert program is not None
+
+
+@pytest.mark.parametrize("name", COVERAGE_NAMES)
+def test_coverage_example_parses(name):
+    src = (EXAMPLES_DIR / f"{name}.voss").read_text()
+    program = parse(src, file=f"{name}.voss")
+    assert program.body
 
 @pytest.mark.parametrize("name", NAMES)
 def test_example_matches_golden(name):

@@ -82,3 +82,31 @@ def test_assistant_example_response_value_warns_until_gated():
     warns = [d for d in result.diagnostics if d.code == "ANLY001"]
     assert len(warns) >= 1
     assert any("probable<string>" in d.message for d in warns)
+
+
+# D-07 coverage: memory.semantic (test-only fixture).
+def test_memory_semantic_coverage_analyzes_clean():
+    program = _load("coverage/memory_semantic.voss")
+    result = analyze(
+        program,
+        source_path="coverage/memory_semantic.voss",
+        emit_indexes=False,
+        index_builder=FakeIndexBuilder(),
+    )
+    assert result.ok, [d.message for d in result.diagnostics]
+    errors = [d for d in result.diagnostics if str(getattr(d, "severity", "error")).lower() == "error"]
+    assert errors == [], errors
+
+
+# D-07 coverage: memory.working (test-only fixture).
+def test_memory_working_coverage_analyzes_clean():
+    program = _load("coverage/memory_working.voss")
+    result = analyze(
+        program,
+        source_path="coverage/memory_working.voss",
+        emit_indexes=False,
+        index_builder=FakeIndexBuilder(),
+    )
+    assert result.ok, [d.message for d in result.diagnostics]
+    errors = [d for d in result.diagnostics if str(getattr(d, "severity", "error")).lower() == "error"]
+    assert errors == [], errors

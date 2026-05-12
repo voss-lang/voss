@@ -1,0 +1,7 @@
+# memory_semantic.voss — D-07 coverage fixture for memory.semantic
+
+let kb: memory.semantic(source: "./knowledge_base/")
+
+fn lookup(q: string) -> list<string> {
+    return kb.retrieve(q, top_k: 3)
+}
