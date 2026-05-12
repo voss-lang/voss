@@ -347,6 +347,7 @@ class TypeEmitter:
 class ExpressionEmitter:
     imports: ImportCollector = field(default_factory=ImportCollector)
     generated_fns: frozenset[str] = field(default_factory=frozenset)
+    use_imported_names: frozenset[str] = field(default_factory=frozenset)
     current_ctx_name: str | None = None
 
     def emit(self, expr: Node, *, await_context: bool = False) -> str:
@@ -441,7 +442,10 @@ class ExpressionEmitter:
         if (
             await_context
             and isinstance(call.callee, Identifier)
-            and call.callee.name in self.generated_fns
+            and (
+                call.callee.name in self.generated_fns
+                or call.callee.name in self.use_imported_names
+            )
         ):
             text = f"await {text}"
         return text
@@ -1178,6 +1182,11 @@ class ProgramEmitter:
         fn_names = frozenset(
             stmt.name for stmt in self.program.body if isinstance(stmt, FnDecl)
         )
+        use_imported_names = frozenset(
+            stmt.alias or stmt.path[-1]
+            for stmt in self.program.body
+            if isinstance(stmt, UseStmt)
+        )
 
         decls: list[Stmt] = []
         execs: list[Stmt] = []
@@ -1194,7 +1203,11 @@ class ProgramEmitter:
             self.imports.add_stdlib("asyncio")
 
         type_emitter = TypeEmitter(self.imports)
-        expr_emitter = ExpressionEmitter(self.imports, generated_fns=fn_names)
+        expr_emitter = ExpressionEmitter(
+            self.imports,
+            generated_fns=fn_names,
+            use_imported_names=use_imported_names,
+        )
         class_names = frozenset(
             stmt.name for stmt in self.program.body if isinstance(stmt, ClassDecl)
         )

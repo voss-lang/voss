@@ -712,7 +712,11 @@ class _Transformer(Transformer):
         return tuple(str(t) for t in children)
 
     def use_stmt(self, meta, children):
-        return UseStmt(span=_span(meta, self.file), path=children[0], alias=None)
+        path = children[0]
+        alias = None
+        if len(children) > 1 and children[1] is not None:
+            alias = str(children[1])
+        return UseStmt(span=_span(meta, self.file), path=path, alias=alias)
 
     def decorator(self, meta, children):
         name = str(children[0])

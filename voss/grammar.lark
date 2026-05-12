@@ -171,7 +171,7 @@ class_decl: "class" IDENT "{" class_body "}"
 class_body: _NL* (class_field (_NL+ class_field)*)? _NL*
 class_field: IDENT ":" type_expr ("=" expr)?
 
-use_stmt: "use" use_path
+use_stmt: "use" use_path ("as" IDENT)?
 use_path: IDENT ("::" IDENT)*
 
 // ---------- Terminals ----------
