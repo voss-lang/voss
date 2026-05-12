@@ -642,6 +642,13 @@ class StatementEmitter:
         )
 
     @staticmethod
+    def _probable_inner_type(t: TypeExpr | None) -> TypeExpr | None:
+        if not StatementEmitter._is_probable_type(t):
+            return None
+        assert isinstance(t, TypeRef)
+        return t.generics[0] if t.generics else None
+
+    @staticmethod
     def _is_memory_type(t: TypeExpr | None) -> bool:
         return (
             isinstance(t, TypeRef)
@@ -679,6 +686,14 @@ class StatementEmitter:
         if (
             stmt.value is not None
             and self._is_global_ask(stmt.value)
+            and self.current_ctx_name is not None
+            and self._is_probable_type(stmt.type_annot)
+        ):
+            self._emit_ctx_probable_let(stmt)
+            return
+        if (
+            stmt.value is not None
+            and self._is_global_ask(stmt.value)
             and self.current_ctx_name is None
         ):
             self._emit_implicit_ctx_let(stmt)
@@ -690,6 +705,32 @@ class StatementEmitter:
         if stmt.value is not None:
             text += f" = {self.expr.emit(stmt.value, await_context=True)}"
         self.writer.write(text)
+
+    def _emit_ctx_probable_let(self, stmt: LetStmt) -> None:
+        self.imports.add_runtime("ProbableValue")
+        ask_call = stmt.value
+        assert isinstance(ask_call, Call)
+        arg_texts = [
+            self.expr.emit_arg(a, await_context=True) for a in ask_call.args
+        ]
+        inner_type = self._probable_inner_type(stmt.type_annot)
+        if inner_type is not None:
+            arg_texts.append(f"return_type={self.type.emit(inner_type)}")
+        else:
+            arg_texts.append("return_type=ProbableValue")
+
+        name = _mangle(stmt.name)
+        value_name = f"_{name}_value"
+        self.writer.write(
+            f"{value_name} = await {self.current_ctx_name}.ask({', '.join(arg_texts)})"
+        )
+        self.writer.write(
+            f"{name}: ProbableValue = ProbableValue("
+            f"value={value_name}, "
+            f"confidence=getattr({value_name}, 'confidence', "
+            f"0.9 if {value_name} is not None else 0.0)"
+            f")"
+        )
 
     def _emit_memory_let(self, stmt: LetStmt) -> None:
         type_ref = stmt.type_annot

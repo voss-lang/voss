@@ -7,6 +7,19 @@ from typing import Any, Callable, Optional
 from .base import ProviderResponse
 
 
+def _fallback_payload_for_schema(response_format: type, value: Any) -> dict[str, Any] | None:
+    fields = getattr(response_format, "model_fields", {})
+    required = {"rationale", "steps", "confidence", "final_when_done"}
+    if not required.issubset(set(fields)):
+        return None
+    return {
+        "rationale": "stub plan",
+        "steps": [],
+        "confidence": 0.95,
+        "final_when_done": str(value),
+    }
+
+
 class StubProvider:
     """Deterministic in-memory provider for tests.
 
@@ -55,7 +68,13 @@ class StubProvider:
         parsed = None
         if response_format is not None:
             payload = entry if isinstance(entry, dict) else {"value": entry}
-            parsed = response_format.model_validate(payload)
+            try:
+                parsed = response_format.model_validate(payload)
+            except Exception:  # noqa: BLE001 - deterministic fallback for Plan-like schemas
+                fallback = _fallback_payload_for_schema(response_format, entry)
+                if fallback is None:
+                    raise
+                parsed = response_format.model_validate(fallback)
             text = parsed.model_dump_json()
         prompt_tokens = sum(len(m["content"]) for m in messages) // 4 or 1
         completion_tokens = max(len(text) // 4, 1)
