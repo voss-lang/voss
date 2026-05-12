@@ -1,0 +1,14 @@
+# 04-validation - invoke `voss check` on a .voss sample inside the fixture; expect exit 0.
+prompt = "Run `voss check sample.voss` in this directory and report the exit code."
+mode = "edit"
+rubric = """
+PASS if:
+- The agent's final answer indicates `voss check` exited 0.
+- No errors or warnings reported.
+
+FAIL if:
+- The final answer indicates a non-zero exit code.
+- The agent did not actually invoke voss check.
+"""
+judge_inputs = ["final"]
+auto_approve_edits = true

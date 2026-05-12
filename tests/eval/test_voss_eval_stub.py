@@ -149,7 +149,7 @@ def test_voss_eval_without_creds_points_to_stub(
 
 @pytest.mark.parametrize(
     "task_id",
-    ["01-smoke", "02-plan-only", "03-edit-diff", "04-low-confidence", "05-resume"],
+    ["01-analyze", "02-plan-only", "03-approved-edit", "04-validation", "05-resume"],
     ids=["task_01", "task_02", "task_03", "task_04", "task_05"],
 )
 def test_existing_golden_tasks_stub(task_id: str, tmp_path: Path) -> None:

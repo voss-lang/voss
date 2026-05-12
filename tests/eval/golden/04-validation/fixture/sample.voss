@@ -1,0 +1,14 @@
+# classify.voss
+# classify.voss — probable<T>, confidence gate (@ p >= 0.80), implicit ctx fallback.
+fn classifyIntent(input: string) -> string {
+    let intent: probable<string> = ask("Classify the intent: " + input)
+    
+    if intent @ p >= 0.80 {
+        return intent.value
+    } else {
+        return "unknown"
+    }
+}
+
+let result = classifyIntent("I want to cancel my subscription")
+print(result)

@@ -1,0 +1,15 @@
+# 05-resume - spawn a session, kill mid-turn, resume; expect prior-context surfaces.
+prompt = "Summarize the contents of notes.txt."
+mode = "plan"
+rubric = """
+PASS if:
+- After resume, the agent's final answer summarizes notes.txt (not a fresh question).
+- The summary references content present in notes.txt.
+- The session record shows two turns (initial + resumed).
+
+FAIL if:
+- The agent restarts the task from scratch after resume.
+- The session record shows only one turn.
+- The summary references content not present in notes.txt.
+"""
+judge_inputs = ["final"]

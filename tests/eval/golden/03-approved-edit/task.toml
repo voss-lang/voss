@@ -1,0 +1,15 @@
+# 03-approved-edit - apply an edit in edit mode with auto-approve; expect target file modified.
+prompt = "Rename the function add() to sum_two() in calc.py and update its single call site in main.py."
+mode = "edit"
+rubric = """
+PASS if:
+- calc.py defines sum_two() (not add()).
+- main.py imports and calls sum_two() (not add()).
+- Both files were modified.
+
+FAIL if:
+- Either file is unchanged.
+- The rename is incomplete (one file updated, the other not).
+"""
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true

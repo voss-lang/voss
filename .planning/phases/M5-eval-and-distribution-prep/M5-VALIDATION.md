@@ -7,6 +7,7 @@ wave_0_complete: true
 wave_1_complete: true
 wave_2_complete: true
 wave_3_complete: true
+wave_4_complete: true
 created: 2026-05-11
 ---
 
@@ -58,11 +59,11 @@ created: 2026-05-11
 | pearson-correlation | 04 | 3 | EVAL-04 | T-M5-pearson-wrong | `summary.md` includes `conf_corr_r` line computed via `statistics.correlation(confidences, successes_as_01)`; matches manual reference on fixture rows | unit | `pytest tests/eval/test_pearson.py -q` | ✓ | ✓ green |
 | markdown-summary-shape | 04 | 3 | EVAL-02..04 / D-02 | — | `summary.md` aggregates JSONL: overall success rate + per-task success rate + mean cost (overall + per-task) + Pearson r + provider/model + run count + total elapsed; linked from `runs.jsonl` via `_summary.md` filename pair | unit | `pytest tests/eval/test_summary_md.py -q` | ✓ | ✓ green |
 | voss-eval-gitignore | 04 | 3 | D-03 / M2 D-09 | T-M5-eval-gitignored | `.voss/.gitignore` (cognition.py:581) does NOT add `eval/`; `.voss/eval/<timestamp>/` artifacts stay git-tracked | unit | `pytest tests/eval/test_gitignore.py -q -k eval_tracked` | ✓ | ✓ green |
-| task-01-analyze | 05 | 4 | EVAL-01 | — | `tests/eval/golden/01-analyze/` exists; fixture contains seed repo; task.toml prompt analyzes repo; rubric: PASS if `.voss/architecture.md` produced | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_01` | ❌ W4 | ⬜ pending |
-| task-02-plan-only | 05 | 4 | EVAL-01 | — | `tests/eval/golden/02-plan-only/` exists; mode=plan; rubric PASS if no writes + non-empty plan | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_02` | ❌ W4 | ⬜ pending |
-| task-03-approved-edit | 05 | 4 | EVAL-01 / D-07 auto_approve | — | `tests/eval/golden/03-approved-edit/` exists; mode=edit; `auto_approve_edits=true` wires into `PermissionGate(auto_yes=True)` (voss/harness/permissions.py:98-104); rubric PASS if target file modified | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_03` | ❌ W4 | ⬜ pending |
-| task-04-validation | 05 | 4 | EVAL-01 | — | `tests/eval/golden/04-validation/` exists; fixture contains a `.voss` sample; task invokes `voss check`; rubric PASS if exit 0 | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_04` | ❌ W4 | ⬜ pending |
-| task-05-resume | 05 | 4 | EVAL-01 | T-M5-resume-flake | `tests/eval/golden/05-resume/` exists; runner spawns turn, asyncio.Task.cancel() after first tool call, `voss resume` from SessionRecord; rubric PASS if prior-context surfaces AND turn completes | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_05` | ❌ W4 | ⬜ pending |
+| task-01-analyze | 05 | 4 | EVAL-01 | — | `tests/eval/golden/01-analyze/` exists; fixture contains seed repo; task.toml prompt analyzes repo; rubric: PASS if `.voss/architecture.md` produced | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_01` | ✓ | ✓ green |
+| task-02-plan-only | 05 | 4 | EVAL-01 | — | `tests/eval/golden/02-plan-only/` exists; mode=plan; rubric PASS if no writes + non-empty plan | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_02` | ✓ | ✓ green |
+| task-03-approved-edit | 05 | 4 | EVAL-01 / D-07 auto_approve | — | `tests/eval/golden/03-approved-edit/` exists; mode=edit; `auto_approve_edits=true` wires into `PermissionGate(auto_yes=True)` (voss/harness/permissions.py:98-104); rubric PASS if target file modified | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_03` | ✓ | ✓ green |
+| task-04-validation | 05 | 4 | EVAL-01 | — | `tests/eval/golden/04-validation/` exists; fixture contains a `.voss` sample; task invokes `voss check`; rubric PASS if exit 0 | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_04` | ✓ | ✓ green |
+| task-05-resume | 05 | 4 | EVAL-01 | T-M5-resume-flake | `tests/eval/golden/05-resume/` exists; runner spawns turn, asyncio.Task.cancel() after first tool call, `voss resume` from SessionRecord; rubric PASS if prior-context surfaces AND turn completes | fixture | `pytest tests/eval/test_voss_eval_stub.py -q -k task_05` | ✓ | ✓ green |
 | wheel-build | 06 | 5 | EVAL-05 | — | `python -m build --wheel` produces `dist/voss-*.whl` (build 1.5.0 already available; pyproject [project.scripts] declares `voss` console script) | slow | `pytest -m slow tests/packaging/test_wheel_install.py::test_wheel_builds -q` | ❌ W5 | ⬜ pending |
 | wheel-tempvenv-install | 06 | 5 | EVAL-05 | T-M5-wheel-deps-leak | `venv.create(<tmp>)` + `<tmp>/bin/pip install <wheel>` (with deps, unlike existing editable-install test) succeeds | slow | `pytest -m slow tests/packaging/test_wheel_install.py::test_install -q` | ❌ W5 | ⬜ pending |
 | wheel-smoke-asserts | 06 | 5 | EVAL-05 | — | In tempvenv: `voss --help` exit 0; `voss compile samples/classify.voss` exit 0; `voss check samples/classify.voss` exit 0; `voss doctor` honors M1 D-13 exit-code contract; `import voss_runtime` works | slow | `pytest -m slow tests/packaging/test_wheel_install.py::test_smoke_asserts -q` | ❌ W5 | ⬜ pending |
@@ -103,11 +104,11 @@ created: 2026-05-11
 - [x] `tests/eval/test_gitignore.py` — confirms `.voss/.gitignore` does NOT add `eval/`
 
 **Wave 4 (5 golden task fixtures):**
-- [ ] `tests/eval/golden/01-analyze/{task.toml,fixture/}` — seed repo, expect `.voss/architecture.md`
-- [ ] `tests/eval/golden/02-plan-only/{task.toml,fixture/}` — mode=plan, no writes
-- [ ] `tests/eval/golden/03-approved-edit/{task.toml,fixture/}` — mode=edit, auto_approve_edits=true
-- [ ] `tests/eval/golden/04-validation/{task.toml,fixture/}` — sample.voss inside fixture
-- [ ] `tests/eval/golden/05-resume/{task.toml,fixture/}` — spawn-cancel-resume runner shape
+- [x] `tests/eval/golden/01-analyze/{task.toml,fixture/}` — seed repo, expect `.voss/architecture.md`
+- [x] `tests/eval/golden/02-plan-only/{task.toml,fixture/}` — mode=plan, no writes
+- [x] `tests/eval/golden/03-approved-edit/{task.toml,fixture/}` — mode=edit, auto_approve_edits=true
+- [x] `tests/eval/golden/04-validation/{task.toml,fixture/}` — sample.voss inside fixture
+- [x] `tests/eval/golden/05-resume/{task.toml,fixture/}` — spawn-cancel-resume runner shape
 
 **Wave 5 (packaging + README):**
 - [ ] `tests/packaging/test_wheel_install.py` (@pytest.mark.slow) — wheel build + tempvenv install + smoke asserts
