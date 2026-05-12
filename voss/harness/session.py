@@ -57,6 +57,10 @@ def _legacy_state_dir() -> Path:
     return base / "voss" / "sessions"
 
 
+# Public alias for callers outside this module (cli.doctor_cmd).
+legacy_state_dir = _legacy_state_dir
+
+
 @dataclass
 class RunRecord:
     id: str

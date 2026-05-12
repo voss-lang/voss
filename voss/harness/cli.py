@@ -685,7 +685,7 @@ def doctor_cmd(cwd_str: str) -> None:
                 click.echo(f"  {'cognition staleness':<20}: fresh")
     else:
         click.echo(f"  {'cognition staleness':<20}: n/a")
-    legacy_dir = session_store._legacy_state_dir()
+    legacy_dir = session_store.legacy_state_dir()
     legacy_count = (
         len(list(legacy_dir.glob("*.json"))) if legacy_dir.exists() else 0
     )
