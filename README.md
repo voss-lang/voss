@@ -2,6 +2,8 @@
 
 A language for confidence-aware, budget-bounded LLM programs. Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
 
+Voss v0.1 ships as a Python harness plus the `.voss` workflow-control language. A native Rust shell is preserved in `crates/` as a frozen spike and stays out of the v0.1 ship path — npm (M6) distributes the same Python harness with a vendored interpreter.
+
 ## What is .voss
 
 .voss is an **AI workflow control** layer that compiles to readable Python. It is a complement to Python, not a replacement: write your data structures, business logic, and integrations in Python as usual, and reach for .voss when you need first-class control over LLM-shaped concerns.
@@ -19,17 +21,43 @@ See the [`samples/`](samples/) directory for the three canonical programs, and [
 
 ## Install
 
+Python 3.11+ required.
+
 ```bash
-pip install -e ".[dev]"
+pip install voss
 ```
 
-Not on PyPI yet. Python 3.11+ required.
+First run — verify the install and check provider auth, git, and config paths:
 
-If you want to opt into the compiled harness with `VOSS_HARNESS=compiled`, eagerly populate the local harness cache after install. The default Python harness path works without this step.
+```bash
+voss doctor
+```
+
+Explore the canonical programs in [`samples/`](samples/) and run a representative harness command:
+
+```bash
+voss check samples/classify.voss
+voss compile samples/classify.voss
+voss do "summarize this repo"
+```
+
+Core harness commands: `voss doctor`, `voss do`, `voss chat`, `voss edit`, `voss sessions`, `voss resume` (see [.planning/HARNESS-PLAN.md](.planning/HARNESS-PLAN.md) §2.2 for the full surface).
+
+Optionally opt into the compiled harness with `VOSS_HARNESS=compiled` by populating the local harness cache after install. The default Python harness path works without this step.
 
 ```bash
 voss compile voss/harness/agent/
 ```
+
+### Development install
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Roadmap notes
+
+`npm i -g voss` arrives with M6 (npm wrapper bundles a pinned Python + the v0.1 wheel; `pip install voss` remains supported). A native Rust shell and Homebrew distribution stay deferred until dogfood signals demand them.
 
 ## Quickstart
 

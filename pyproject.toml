@@ -35,8 +35,19 @@ voss = "voss.cli:main"
 
 [tool.setuptools]
 include-package-data = false
-packages = ["voss_runtime", "voss"]
-package-data = { "voss" = ["grammar.lark", "py.typed", "templates/init/*"] }
+
+[tool.setuptools.packages.find]
+include = ["voss*", "voss_runtime*"]
+exclude = ["tests*", "build*", "dist*"]
+
+[tool.setuptools.package-data]
+voss = [
+    "grammar.lark",
+    "py.typed",
+    "templates/init/*",
+    "harness/agent/*.voss",
+]
+voss_runtime = ["py.typed"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
