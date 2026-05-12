@@ -9,9 +9,9 @@ date: 2026-05-12
 
 ## Layout
 
-M4-03 uses the planned cross-file split under `voss/harness/agent/`:
+M4-03 uses five checkable `.voss` files under `voss/harness/agent/`.
 
-- `loop.voss` — orchestration entry with `ctx(budget: 60000 tokens)`, routing, planning, execution, review, and clarification branches.
+- `loop.voss` — orchestration entry with `ctx(budget: 60000 tokens)`, routing, planning, execution, review, and clarification branches. It is self-contained for the compiled backend entry path.
 - `router.voss` — `probable<string>` intent routing.
 - `planner.voss` — `probable<Plan>` planning with confidence gate and fallback `Plan` construction for low confidence.
 - `executor.voss` — thin forwarder to Python `_run_step_loop`.
@@ -19,7 +19,7 @@ M4-03 uses the planned cross-file split under `voss/harness/agent/`:
 
 Comment-stripped line counts:
 
-- `loop.voss`: 35
+- `loop.voss`: 82
 - `router.voss`: 13
 - `planner.voss`: 23
 - `executor.voss`: 13
@@ -62,7 +62,7 @@ The compiled manifest contains all five sources:
   "voss_version": "0.1.0",
   "sources": {
     "executor.voss": {"sha256": "...", "lines": 16},
-    "loop.voss": {"sha256": "...", "lines": 38},
+    "loop.voss": {"sha256": "...", "lines": 85},
     "planner.voss": {"sha256": "...", "lines": 26},
     "reviewer.voss": {"sha256": "...", "lines": 26},
     "router.voss": {"sha256": "...", "lines": 16}
@@ -80,11 +80,20 @@ Result: `0 errors, 0 warnings across 5 files`.
 
 ```bash
 python3 -m voss.cli compile voss/harness/agent/ --project-root .
+python3 - <<'PY'
+import importlib.util
+from pathlib import Path
+p = Path('.voss-cache/harness/loop.py').resolve()
+spec = importlib.util.spec_from_file_location('voss_compiled_harness_loop', p)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+assert mod.run_turn.__name__ == 'run_turn'
+PY
 grep -n 'await _run_step_loop' .voss-cache/harness/executor.py
 python3 -c "import json; m=json.load(open('.voss-cache/harness/_manifest.json')); assert m['version']==1; assert len(m['sources'])==5"
 ```
 
-Result: all passed; `executor.py` contains `await _run_step_loop(...)`.
+Result: all passed; `loop.py` imports as a standalone compiled backend entry and `executor.py` contains `await _run_step_loop(...)`.
 
 ```bash
 pytest tests/harness/test_agent_integration.py tests/harness/test_boot_dispatch.py -q
@@ -102,4 +111,5 @@ Result: passed with existing skips.
 
 - Worker subagents landed the helper extraction, boot dispatch, and initial cross-file `.voss` split. The final local integration adjusted `planner.voss` so the directory check is warning-free.
 - `planner.voss` constructs a fallback `Plan` on the low-confidence path instead of returning `plan.value` outside the confidence gate.
+- `loop.voss` was made self-contained because generated sibling imports such as `voss.harness.agent.planner` conflict with the existing Python module `voss/harness/agent.py`. This keeps `.voss-cache/harness/loop.py` directly importable for M4-04 while the sibling stage files remain checkable/compilable dogfood sources.
 - M4-04 can now add the parity and DOG-07 smoke tests.
