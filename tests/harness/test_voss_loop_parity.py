@@ -11,7 +11,7 @@ from voss.harness.agent import Plan, ToolCall
 from voss.harness.permissions import PermissionGate
 from voss.harness.render import PlainRenderer
 from voss.harness.tools import make_toolset
-from voss_runtime import ProbableValue, get_config
+from voss_runtime import get_config
 from voss_runtime.providers.base import ProviderResponse
 
 
@@ -32,7 +32,6 @@ class FakeProvider:
         timeout=None,
     ) -> ProviderResponse:
         self.calls.append({"model": model, "messages": messages, "schema": response_format})
-        prompt = messages[-1]["content"] if messages else ""
         if response_format is Plan:
             return ProviderResponse(
                 text=self.plan.model_dump_json(),
@@ -43,14 +42,8 @@ class FakeProvider:
                 raw={"fake": True},
                 parsed=self.plan,
             )
-        if prompt.startswith("Classify this coding task"):
-            text = ProbableValue(value="inspect", confidence=0.95)
-        elif "harness turn for this task" in prompt:
-            text = ProbableValue(value=self.plan, confidence=self.plan.confidence)
-        else:
-            text = ""
         return ProviderResponse(
-            text=text,
+            text="inspect",
             model=model,
             prompt_tokens=10,
             completion_tokens=10,
