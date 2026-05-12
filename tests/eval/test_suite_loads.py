@@ -1,35 +1,47 @@
-"""M5 D-05: suite loader finds expected fixtures and skips unrelated entries."""
+"""M5 D-05: suite loader walks task directories in stable order."""
+from __future__ import annotations
+
+from pathlib import Path
+
 from voss.eval.suite import load_suite
 
 
-def _write_task(root, task_id, *, mode="plan"):
+EXPECTED = {"01-foo", "02-bar", "03-baz"}
+
+
+def _write_task(root: Path, task_id: str, *, mode: str = "plan") -> None:
     task_dir = root / task_id
     task_dir.mkdir()
     (task_dir / "task.toml").write_text(
-        f'prompt = "Do {task_id}"\n'
-        f'mode = "{mode}"\n'
-        f'rubric = "PASS if {task_id} succeeds"\n'
+        "\n".join(
+            [
+                f'prompt = "Prompt for {task_id}"',
+                f'mode = "{mode}"',
+                f'rubric = "PASS if {task_id} works"',
+                "",
+            ]
+        )
     )
 
 
-def test_suite_finds_expected_fixtures(tmp_path):
-    expected = {"01-foo", "02-bar", "03-baz"}
-    for task_id in expected:
-        _write_task(tmp_path, task_id)
+def _suite_root(tmp_path: Path) -> Path:
+    _write_task(tmp_path, "02-bar")
+    _write_task(tmp_path, "01-foo")
+    _write_task(tmp_path, "03-baz")
     (tmp_path / "README.md").write_text("# ignored\n")
     (tmp_path / "empty").mkdir()
+    return tmp_path
 
-    tasks = load_suite(tmp_path, suite="")
+
+def test_suite_finds_expected_fixtures(tmp_path: Path) -> None:
+    tasks = load_suite(_suite_root(tmp_path), suite="")
     ids = [task_id for task_id, _ in tasks]
 
-    assert ids == sorted(expected)
+    assert ids == sorted(EXPECTED)
 
 
-def test_each_task_parses(tmp_path):
-    for task_id in ("01-foo", "02-bar", "03-baz"):
-        _write_task(tmp_path, task_id)
-
-    tasks = load_suite(tmp_path, suite="")
+def test_each_task_parses(tmp_path: Path) -> None:
+    tasks = load_suite(_suite_root(tmp_path), suite="")
 
     for _, spec in tasks:
         assert spec.prompt
