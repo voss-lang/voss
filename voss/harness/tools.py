@@ -37,6 +37,9 @@ class ToolEntry:
     def invoke(self, **kwargs: Any) -> Any:
         return self.descriptor.invoke(**kwargs)
 
+    def invoke_dict(self, args: dict) -> Any:
+        return self.descriptor.invoke(**args)
+
 
 def make_toolset(cwd: Path) -> dict[str, ToolEntry]:
     """Build the harness toolset bound to a project cwd.

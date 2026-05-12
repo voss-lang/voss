@@ -344,35 +344,13 @@ async def run_turn(
         )
 
     # Execute steps sequentially. Phase H3 will lower this to `gather(spawn ...)`.
-    gate = permissions or PermissionGate(auto_yes=True)
-    results: list[str] = []
-    for i, step in enumerate(plan.steps):
-        entry = tools.get(step.name)
-        if entry is None:
-            results.append(f"<error: unknown tool {step.name!r}>")
-            renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
-            rec.observe(step.name, step.args, "<unknown tool>", ok=False)
-            continue
-        allowed, why = gate.check(step.name, step.args, is_mutating=entry.is_mutating)
-        if not allowed:
-            text = f"<denied: {why}>"
-            renderer.show_tool_call(step.name, step.args, text, "error")
-            results.append(text)
-            rec.observe(step.name, step.args, text, ok=False)
-            continue
-        renderer.show_tool_call(step.name, step.args, "running…", "pending")
-        try:
-            res = await entry.invoke(**step.args)
-            text = str(res)
-        except Exception as e:  # noqa: BLE001 — catch all to surface, not crash
-            text = f"<error: {e}>"
-            renderer.show_tool_call(step.name, step.args, text, "error")
-            results.append(text)
-            rec.observe(step.name, step.args, text, ok=False)
-            continue
-        renderer.show_tool_call(step.name, step.args, _summarize(text), "ok")
-        results.append(text)
-        rec.observe(step.name, step.args, text, ok=True)
+    results = await _run_step_loop(
+        plan.steps,
+        tools,
+        permissions,
+        renderer,
+        recorder=rec,
+    )
 
     transcript = _compose_run_transcript(task, plan, results, rec)
     semantics = await _record_run_call(provider, model, transcript)
@@ -390,8 +368,7 @@ async def run_turn(
             _click.echo(f"warning: failed to mirror decisions: {exc}", err=True)
 
     final = plan.final_when_done or "(no final answer)"
-    for i, r in enumerate(results):
-        final = final.replace(f"{{{{step_{i}}}}}", r)
+    final = _substitute_placeholders(final, results)
 
     if history is not None:
         history.add(final, role="assistant")
@@ -420,6 +397,72 @@ def _summarize(text: str, limit: int = 80) -> str:
     if len(first) > limit:
         return first[: limit - 1] + "…"
     return first or f"({len(text)}B)"
+
+
+async def _run_step_loop(
+    plan_steps,
+    tools: dict[str, ToolEntry],
+    permissions: PermissionGate | None,
+    renderer: Renderer,
+    *,
+    recorder: RunRecorder | None = None,
+) -> list[str]:
+    gate = permissions or PermissionGate(auto_yes=True)
+    results: list[str] = []
+    for step in plan_steps:
+        entry = tools.get(step.name)
+        if entry is None:
+            results.append(f"<error: unknown tool {step.name!r}>")
+            renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
+            if recorder is not None:
+                recorder.observe(step.name, step.args, "<unknown tool>", ok=False)
+            continue
+        allowed, why = gate.check(step.name, step.args, is_mutating=entry.is_mutating)
+        if not allowed:
+            text = f"<denied: {why}>"
+            renderer.show_tool_call(step.name, step.args, text, "error")
+            results.append(text)
+            if recorder is not None:
+                recorder.observe(step.name, step.args, text, ok=False)
+            continue
+        renderer.show_tool_call(step.name, step.args, "running…", "pending")
+        try:
+            res = await entry.invoke(**step.args)
+            text = str(res)
+        except Exception as e:  # noqa: BLE001 — catch all to surface, not crash
+            text = f"<error: {e}>"
+            renderer.show_tool_call(step.name, step.args, text, "error")
+            results.append(text)
+            if recorder is not None:
+                recorder.observe(step.name, step.args, text, ok=False)
+            continue
+        renderer.show_tool_call(step.name, step.args, _summarize(text), "ok")
+        results.append(text)
+        if recorder is not None:
+            recorder.observe(step.name, step.args, text, ok=True)
+    return results
+
+
+def _substitute_placeholders(template: str, results: list[str]) -> str:
+    for i, r in enumerate(results):
+        template = template.replace(f"{{{{step_{i}}}}}", r)
+    return template
+
+
+def _make_turn_result(
+    plan: Plan,
+    confidence: float,
+    final: str,
+    tool_results: list[str],
+    cost_usd: float = 0.0,
+) -> TurnResult:
+    return TurnResult(
+        plan=plan,
+        confidence=confidence,
+        final=final,
+        tool_results=tool_results,
+        cost_usd=cost_usd,
+    )
 
 
 def _compose_run_transcript(task: str, plan, results: list[str], rec) -> str:
