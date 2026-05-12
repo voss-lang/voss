@@ -13,6 +13,13 @@ def test_dog07_voss_do_through_compiled_harness(precompiled_harness: Path) -> No
     env = os.environ.copy()
     env["VOSS_HARNESS"] = "compiled"
     env["VOSS_HERMETIC"] = "1"
+    repo_root = Path(__file__).resolve().parents[2]
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        str(repo_root)
+        if not existing_pythonpath
+        else os.pathsep.join([str(repo_root), existing_pythonpath])
+    )
 
     result = subprocess.run(
         [sys.executable, "-m", "voss.cli", "do", "noop summary of fixture.md"],
