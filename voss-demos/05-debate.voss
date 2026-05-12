@@ -1,12 +1,12 @@
 # 05-debate.voss
 agent Advocate(topic: string) -> string {
     system: "Argue for the proposal in one sentence."
-    yield ask(topic)
+    return ask(topic)
 }
 
 agent Skeptic(topic: string) -> string {
     system: "Challenge the proposal in one sentence."
-    yield ask(topic)
+    return ask(topic)
 }
 
 fn debate(topic: string) -> string {

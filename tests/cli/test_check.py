@@ -18,6 +18,18 @@ _PROBABLE_WARNING_SOURCE = (
 )
 
 _CLEAN_SOURCE = "let x = 1\n"
+_SEMANTIC_MATCH_SOURCE = (
+    "fn route(x: string) -> string {\n"
+    "    match x {\n"
+    "        case similar(\"billing\") => {\n"
+    "            return \"billing\"\n"
+    "        }\n"
+    "        case _ => {\n"
+    "            return \"general\"\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+)
 
 
 def _write(name: str, body: str) -> Path:
@@ -94,3 +106,34 @@ def test_check_passes_emit_indexes_false_to_analyzer(monkeypatch):
         result = runner.invoke(main, ["check", str(path)])
         assert result.exit_code == 0, result.output
         assert captured.get("emit_indexes") is False
+
+
+def test_check_directory_walks_voss_files():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        Path("demo").mkdir()
+        _write("demo/a.voss", _CLEAN_SOURCE)
+        _write("demo/b.voss", _CLEAN_SOURCE)
+        result = runner.invoke(main, ["check", "demo"])
+        assert result.exit_code == 0, result.output
+
+
+def test_check_directory_errors_when_no_voss_files():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        Path("empty").mkdir()
+        result = runner.invoke(main, ["check", "empty"])
+        assert result.exit_code != 0
+        assert "no .voss files found" in result.output
+
+
+def test_check_semantic_match_does_not_build_embedding_index(monkeypatch):
+    def fail_builder(*args, **kwargs):
+        raise AssertionError("check should not build semantic indexes")
+
+    monkeypatch.setattr("voss.analyzer.SemanticMatcherIndexBuilder", fail_builder)
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        path = _write("route.voss", _SEMANTIC_MATCH_SOURCE)
+        result = runner.invoke(main, ["check", str(path)])
+        assert result.exit_code == 0, result.output

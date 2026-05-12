@@ -1,7 +1,6 @@
 # 06-rag.voss
-let kb: memory.semantic(source: "./voss-demos/knowledge")
-
 fn answer(question: string) -> string {
+    let kb: memory.semantic(source: "./voss-demos/knowledge")
     let passages = kb.retrieve(question, top_k: 1)
 
     ctx(budget: 1000 tokens) {

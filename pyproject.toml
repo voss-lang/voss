@@ -34,6 +34,7 @@ dev = [
 voss = "voss.cli:main"
 
 [tool.setuptools]
+include-package-data = false
 packages = ["voss_runtime", "voss"]
 package-data = { "voss" = ["grammar.lark", "py.typed", "templates/init/*"] }
 

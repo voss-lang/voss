@@ -23,6 +23,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
+      - run: python -m voss.cli check voss-demos/
       - run: pytest -q -m "not live" --cov=voss_runtime --cov-report=term-missing
 
   live:
