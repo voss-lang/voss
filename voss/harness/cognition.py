@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +30,8 @@ from .cognition_schemas import (
 
 ANALYZER_VERSION = 1
 DRIFT_COMMITS = 20
+HEAD_CAP_BYTES = 4096
+README_CANDIDATES = ("README.md", "readme.md", "Readme.md", "README", "readme")
 DRIFT_FILE_PCT = 0.10
 DRIFT_DAYS = 7
 
@@ -472,7 +476,7 @@ def detect_primary_language(cwd: Path) -> str:
     return max(counts.items(), key=lambda kv: kv[1])[0]
 
 
-def _read_head(path: Path, limit: int = 4096) -> str:
+def _read_head(path: Path, limit: int = HEAD_CAP_BYTES) -> str:
     if not path.exists() or not path.is_file():
         return ""
     try:
@@ -489,6 +493,20 @@ def _find_manifest(cwd: Path) -> tuple[str | None, str]:
     return None, ""
 
 
+def _count_files_pruned(d: Path) -> int:
+    """Recursively count files under d, pruning vendored + hidden dirs."""
+    total = 0
+    try:
+        for _, dirs, files in os.walk(d):
+            dirs[:] = [
+                x for x in dirs if x not in _VENDORED and not x.startswith(".")
+            ]
+            total += len(files)
+    except OSError:
+        return 0
+    return total
+
+
 def _dir_tree(cwd: Path, limit: int = 12) -> list[tuple[str, int]]:
     entries: list[tuple[str, int]] = []
     try:
@@ -500,11 +518,7 @@ def _dir_tree(cwd: Path, limit: int = 12) -> list[tuple[str, int]]:
             continue
         if child.name.startswith(".") or child.name in _VENDORED:
             continue
-        try:
-            count = sum(1 for _ in child.rglob("*") if _.is_file())
-        except OSError:
-            count = 0
-        entries.append((child.name, count))
+        entries.append((child.name, _count_files_pruned(child)))
         if len(entries) >= limit:
             break
     return entries
@@ -516,7 +530,12 @@ def build_bootstrap_inventory(cwd: Path) -> dict:
     if rels is None:
         rels = _walk_files_fallback(cwd)
     manifest_path, manifest_head = _find_manifest(cwd)
-    readme_head = _read_head(cwd / "README.md")
+    readme_head = ""
+    for name in README_CANDIDATES:
+        p = cwd / name
+        if p.exists() and p.is_file():
+            readme_head = _read_head(p)
+            break
     return {
         "name": cwd.name,
         "git_head": _git_rev_parse_head(cwd),
@@ -542,7 +561,7 @@ def init_voss_stubs(cwd: Path, *, inventory: dict) -> dict[str, bool]:
         primary_language=inventory["primary_language"],
     )
 
-    targets: list[tuple[str, callable]] = [
+    targets: list[tuple[str, Callable[[], str]]] = [
         (
             "project.json",
             lambda: json.dumps(project_meta.model_dump(), indent=2) + "\n",
@@ -657,6 +676,8 @@ def _render_steps_for_plan_md(steps) -> str:
         )
         why = getattr(step, "why", "") or ""
         lines.append(f"- {step.name}({kwargs_str}) — {why}")
+    if not lines:
+        return "- (no steps)"
     return "\n".join(lines)
 
 

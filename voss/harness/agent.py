@@ -30,18 +30,23 @@ from .render import Renderer
 from .session import RunRecord
 from .tools import ToolEntry
 
+try:
+    import litellm as _litellm  # type: ignore
+except Exception:  # noqa: BLE001 — litellm absence must not break import
+    _litellm = None  # type: ignore[assignment]
+
 
 COGNITION_BUDGET_TOKENS = 6000
 
 
 def _default_token_count(text: str, *, model: str) -> int:
-    try:
-        import litellm  # type: ignore
-
-        return int(litellm.token_counter(model=model, text=text))
-    except Exception:  # noqa: BLE001 — never crash a turn over a token count
-        # Fallback to a 4-chars-per-token approximation.
-        return max(len(text) // 4, 1)
+    if _litellm is not None:
+        try:
+            return int(_litellm.token_counter(model=model, text=text))
+        except Exception:  # noqa: BLE001 — never crash a turn over a token count
+            pass
+    # Fallback to a 4-chars-per-token approximation.
+    return max(len(text) // 4, 1)
 
 
 def _compose_cognition_prompt(
@@ -299,13 +304,10 @@ async def run_turn(
             if cognition.constraints and cognition.constraints.rules
             else 0
         )
-        try:
-            renderer.show_cognition(
-                architecture_tokens=cognition.architecture_tokens,
-                constraints_count=c_count,
-            )
-        except Exception:  # noqa: BLE001
-            pass
+        renderer.show_cognition(
+            architecture_tokens=cognition.architecture_tokens,
+            constraints_count=c_count,
+        )
 
     renderer.show_thinking("planning")
     async with ContextScope(

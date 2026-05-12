@@ -34,7 +34,12 @@ def run(
 
     prompt = cognition.bootstrap_prompt(inventory)
     arch_path = cognition.voss_dir(cwd) / "architecture.md"
-    arch_backup = arch_path.read_text() if arch_path.exists() else None
+    arch_backup: str | None = None
+    if arch_path.exists():
+        try:
+            arch_backup = arch_path.read_text()
+        except (OSError, UnicodeDecodeError):
+            arch_backup = None
 
     asyncio.run(
         run_turn(

@@ -28,6 +28,11 @@ from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
 from .tools import make_toolset
 
+try:
+    import litellm as _litellm  # type: ignore
+except Exception:  # noqa: BLE001
+    _litellm = None  # type: ignore[assignment]
+
 
 _INTENT_ALLOWLIST = frozenset(
     {
@@ -446,15 +451,17 @@ def _run_repl(
     renderer = make_renderer(json_mode=json_mode)
     tools = make_toolset(cwd)
     total_cost = record.total_cost_usd
-    last_plan: "Plan | None" = None
+    last_plan: Plan | None = None
 
     def _tok_count(text: str) -> int:
-        try:
-            import litellm  # type: ignore
-
-            return int(litellm.token_counter(model=cfg.default_model, text=text))
-        except Exception:  # noqa: BLE001
-            return max(len(text) // 4, 1)
+        if _litellm is not None:
+            try:
+                return int(
+                    _litellm.token_counter(model=cfg.default_model, text=text)
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        return max(len(text) // 4, 1)
 
     bundle = cognition_mod.load(cwd, token_count=_tok_count)
     if bundle.load_errors:
