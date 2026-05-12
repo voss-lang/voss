@@ -1,5 +1,3 @@
-import pytest
-from voss import VossParseError
 from voss.ast_nodes import UseStmt, FnDecl, ClassDecl, Decorator, Arg, FloatLit
 
 def test_use_simple(parse_source):
@@ -13,9 +11,12 @@ def test_use_deep(parse_source):
     p = parse_source("use a::b::c::d")
     assert p.body[0].path == ("a", "b", "c", "d")
 
-def test_use_with_as_rejected(parse_source):
-    with pytest.raises(VossParseError):
-        parse_source("use foo::bar as baz")
+def test_use_with_as_alias(parse_source):
+    p = parse_source("use foo::bar as baz")
+    u = p.body[0]
+    assert isinstance(u, UseStmt)
+    assert u.path == ("foo", "bar")
+    assert u.alias == "baz"
 
 def test_decorator_on_fn(parse_source):
     src = """

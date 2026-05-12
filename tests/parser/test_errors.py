@@ -9,8 +9,6 @@ from voss.exceptions import VossParseError
     ("fn f() { return 1\n", None),
     # Bare @ with nothing after it.
     ("@\nfn f() {}\n", None),
-    # use ... as ... (rejected per resolved question #4).
-    ("use foo::bar as baz\n", "as"),
     # Invalid character.
     ("let x = ?\n", "?"),
 ])

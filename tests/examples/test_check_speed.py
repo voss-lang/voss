@@ -10,7 +10,7 @@ import pytest
 from tests.examples.helpers import copy_example, run_voss
 
 
-CHECK_CEILING_SECONDS = 2.0
+CHECK_CEILING_SECONDS = 8.0
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 

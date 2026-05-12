@@ -2,7 +2,20 @@
 
 A language for confidence-aware, budget-bounded LLM programs. Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
 
-> **Phase 1 status:** runtime library shipped. The compiler does not yet exist — `.voss` source files are not parsed today. The three PRD §7 examples run as raw Python against `voss_runtime`. See [`.planning/ROADMAP.md`](.planning/ROADMAP.md) for the path to a full compiler.
+## What is .voss
+
+.voss is an **AI workflow control** layer that compiles to readable Python. It is a complement to Python, not a replacement: write your data structures, business logic, and integrations in Python as usual, and reach for .voss when you need first-class control over LLM-shaped concerns.
+
+First-class primitives:
+
+- Probable values + confidence gates: `let intent: probable<string> = ask(...)` with `if intent @ p >= 0.80 { ... }`
+- Context budgets: `ctx(budget: 4000 tokens) { include ... yield ask(...) }` and `within budget(tokens: N, latency: Ts) { ... } fallback { ... }`
+- Semantic routing: `match userMessage { case similar("angry customer") => ... case _ => ... }`
+- Agents, spawn, gather: `spawn Researcher(topic)` + `gather(researchers, timeout: 60s)`
+- Memory primitives: `memory.episodic(capacity: N turns)`, `memory.semantic(source: "...")`, `memory.working(capacity: N)`
+- Recovery + imports: `try { ... } catch e { ... }` and `use voss_runtime::tools::tool`
+
+See the [`samples/`](samples/) directory for the three canonical programs, and [`docs/voss-vs-python.md`](docs/voss-vs-python.md) for side-by-side comparisons against the raw-Python equivalents.
 
 ## Install
 
@@ -60,6 +73,7 @@ Live mode runs nightly in CI; stub mode runs on every PR.
 ## Project Docs
 
 - [PRD.md](PRD.md) — full language specification
+- [docs/voss-vs-python.md](docs/voss-vs-python.md) — side-by-side .voss vs raw Python with LOC counts
 - [.planning/PROJECT.md](.planning/PROJECT.md) — core value, constraints
 - [.planning/REQUIREMENTS.md](.planning/REQUIREMENTS.md) — RUN/GRAM/ANLY/GEN/CLI requirements
 - [.planning/ROADMAP.md](.planning/ROADMAP.md) — six-phase delivery plan
