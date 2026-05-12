@@ -18,7 +18,18 @@ def _has_live_creds() -> bool:
 
 
 @pytest.mark.live
-def test_live_eval_records_signals(tmp_path: Path) -> None:
+def test_cost(tmp_path: Path) -> None:
+    row = _run_live_eval(tmp_path)
+    assert row["cost_usd"] is None or row["cost_usd"] >= 0
+
+
+@pytest.mark.live
+def test_confidence(tmp_path: Path) -> None:
+    row = _run_live_eval(tmp_path)
+    assert row["confidence"] is None or 0.0 <= row["confidence"] <= 1.0
+
+
+def _run_live_eval(tmp_path: Path) -> dict:
     repo = _repo_root()
     task_id = "02-plan-only"
     if not _has_live_creds():
@@ -48,6 +59,4 @@ def test_live_eval_records_signals(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    row = json.loads((out / "runs.jsonl").read_text().splitlines()[0])
-    assert row["cost_usd"] is None or row["cost_usd"] >= 0
-    assert row["confidence"] is None or 0.0 <= row["confidence"] <= 1.0
+    return json.loads((out / "runs.jsonl").read_text().splitlines()[0])
