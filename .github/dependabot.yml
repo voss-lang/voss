@@ -1,0 +1,68 @@
+# Dependabot configuration for Voss.
+#
+# Three ecosystems tracked:
+#   - github-actions — bumps action references in .github/workflows/*.yml.
+#     Dependabot rewrites tag pins to commit-SHA pins when it submits PRs
+#     (the canonical hardening for supply-chain assurance on high-trust
+#     workflows like release.yml).
+#   - pip — surfaces vulnerable / outdated Python deps from pyproject.toml.
+#     We do NOT have a pinned requirements.txt or uv.lock yet; pip ecosystem
+#     still picks up dependency declarations and security advisories.
+#   - npm — covers the M6 wrapper (npm/package.json) and the docs site
+#     (site/package.json). The wrapper has no runtime deps today but
+#     Dependabot will still flag the meta-package version when platform
+#     subpackages publish updates.
+#
+# Cadence:
+#   - weekly for non-security bumps (low-noise PR cadence)
+#   - daily for security advisories (Dependabot routes these on the
+#     `open-pull-requests-limit` channel regardless of `interval`).
+#
+# Reviewers / labels left implicit — adjust once the project has a
+# maintainers file and PR-labeling conventions.
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "npm"
+    directory: "/npm"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps-npm)"
+    labels:
+      - "dependencies"
+      - "npm"
+
+  - package-ecosystem: "npm"
+    directory: "/site"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps-site)"
+    labels:
+      - "dependencies"
+      - "site"

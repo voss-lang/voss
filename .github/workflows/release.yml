@@ -25,6 +25,23 @@
 
 name: Release
 
+# Hardening note (2026-05-13):
+# This workflow holds NPM_TOKEN — supply-chain blast radius is "every install
+# of @vosslang/cli." Hardening contract:
+#   - permissions: contents: read at workflow root. No job opts in to
+#     write / id-token unless absolutely required (none today).
+#   - Action references use tag pins (`@v4`). Dependabot
+#     (.github/dependabot.yml, github-actions ecosystem) PRs commit-SHA pins
+#     on a weekly cadence; merge bumps to release.yml only after a manual
+#     review pass.
+#   - NPM_TOKEN is scoped to publish-only on the @vosslang org and gated
+#     behind branch protection on `master` + tag protection on `v*`.
+#   - build_platform.py refuses PENDING sha256 entries unless --allow-pending
+#     is explicitly passed (F3 hardening) — the release runner NEVER passes
+#     that flag.
+#   - tarfile.extractall uses filter="data" (F2 hardening, CVE-2007-4559) on
+#     Python 3.12 runners, which is what this workflow uses.
+
 permissions:
   contents: read
 

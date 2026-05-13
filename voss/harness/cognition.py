@@ -299,7 +299,10 @@ def build_repo_idx(cwd: Path) -> dict:
         try:
             stat = fp.stat()
             raw = fp.read_bytes()
-            sha = hashlib.sha1(raw).hexdigest()
+            # Truncated SHA-256 for repo-index fingerprinting. Not security-
+            # critical (local cache invalidation only) but SHA-1 is prohibited
+            # for new code by NIST/BSI/ANSSI regardless of intent.
+            sha = hashlib.sha256(raw).hexdigest()[:40]
             files.append(
                 {
                     "path": fp.relative_to(cwd).as_posix(),

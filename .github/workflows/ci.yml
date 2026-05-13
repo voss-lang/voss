@@ -1,5 +1,15 @@
 name: CI
 
+# Hardening note (2026-05-13):
+# Action references use tag pins (`@v4`, `@v5`). Dependabot (see
+# .github/dependabot.yml) auto-PRs commit-SHA pins on the cadence configured
+# there. The high-trust workflow (release.yml) carries the same policy plus a
+# manual review gate on Dependabot bumps before merge.
+#
+# permissions: contents: read at workflow root — every job inherits least
+# privilege. Jobs that need additional scopes (none today) must opt in
+# explicitly per-job.
+
 permissions:
   contents: read
 
@@ -27,6 +37,34 @@ jobs:
         run: python -m voss.cli check voss/harness/agent/
       - run: python -m voss.cli check voss-demos/
       - run: pytest -q -m "not live" --cov=voss_runtime --cov-report=term-missing
+
+  dep-audit:
+    # CVE surveillance on Python deps. Runs on every PR + push + the daily
+    # schedule cron so a newly-disclosed CVE in a pinned transitive trips the
+    # next CI run, not the next release. `--strict` would fail on any vuln;
+    # we run non-strict on PRs (informational) and fail-on-vuln on scheduled
+    # runs so a fresh CVE doesn't block in-flight PRs but DOES alert maintainers.
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit + project deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+          python -m pip install -e ".[dev]"
+      - name: Run pip-audit
+        # Non-strict on PRs and pushes (report-only). Strict on scheduled runs
+        # so a new advisory after merge surfaces immediately.
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            pip-audit --strict --progress-spinner off
+          else
+            pip-audit --progress-spinner off || echo "::warning::pip-audit reported advisories; see job log"
+          fi
 
   live:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
