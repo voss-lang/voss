@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import click
+import pytest
+
 from voss.eval import runner
 from voss.eval.suite import TaskSpec
 from voss_runtime.providers import StubProvider, register
@@ -67,6 +70,22 @@ def test_task_provider_selects_registered_provider() -> None:
     )
 
     assert selected is task_provider
+
+
+def test_task_provider_rejects_unknown_provider() -> None:
+    spec = TaskSpec(
+        prompt="x",
+        mode="plan",
+        rubric="...",
+        provider="missing-provider",
+    )
+
+    with pytest.raises(click.UsageError, match="unknown eval provider 'missing-provider'"):
+        runner._provider_for_task(
+            default_provider=StubProvider(),
+            spec=spec,
+            stub=False,
+        )
 
 
 def test_stub_mode_ignores_task_provider_and_model(monkeypatch, tmp_path: Path) -> None:
@@ -150,3 +169,10 @@ def test_live_flag_is_recorded(monkeypatch, tmp_path: Path) -> None:
 
     row = _read_rows(out / "runs.jsonl")[0]
     assert row["live"] is True
+
+
+def test_missing_suite_fails_before_summary(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(click.UsageError, match="eval suite not found: 'missing'"):
+        runner.run_suite(suite="missing", stub=True, auth_pref="none")
