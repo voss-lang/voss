@@ -48,3 +48,26 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OLLAMA_HOST: http://localhost:11434
+
+  npm-version-sync:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Verify pyproject.toml and npm/package.json versions match
+        shell: bash
+        run: |
+          PYVER=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          NPMVER=$(node -e "console.log(require('./npm/package.json').version)")
+          if [ "$PYVER" != "$NPMVER" ]; then
+            echo "VERSION MISMATCH: pyproject.toml=$PYVER npm/package.json=$NPMVER"
+            echo "Run: python3 npm/scripts/bump_version.py"
+            exit 1
+          fi
+          echo "Version sync OK: $PYVER"

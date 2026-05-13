@@ -1,0 +1,149 @@
+# M6-04 release workflow.
+#
+# Replaces the cargo-dist release.yml deleted in M6-01. Trigger: pushing a
+# `v*` git tag (or manual workflow_dispatch for re-runs). Each push:
+#   1. Fans out across 5 GitHub-hosted runners (one per supported triple).
+#   2. Each runner downloads + verifies the pinned PBS Python, prunes it,
+#      pip-installs the voss wheel into the vendored interpreter, and
+#      publishes @vosslang/cli-<triple> to the npm registry.
+#   3. After all 5 platform publishes succeed, publish-main publishes the
+#      meta @vosslang/cli package whose optionalDependencies pin the 5
+#      platform packages to the same version.
+#
+# Required org/secret state (claimed in M6-01):
+#   - @vosslang npm org exists and is owned by the project.
+#   - NPM_TOKEN GitHub Actions secret is a Bypass-2FA Automation token
+#     for that org. The secret is read into NODE_AUTH_TOKEN on each
+#     publish step; actions/setup-node@v4 writes the .npmrc line.
+#
+# Build budget enforced by npm/scripts/build_platform.py:SIZE_BUDGET_MB
+# (1500 MB per M6-03 Task 4 decision; raised from 300 to ship v0.1 with
+# the full torch+transformers chain).
+#
+# Note: scope `@vosslang` was substituted for the original `@voss` per
+# M6-01 D-1 (org `voss` was already claimed on npmjs.com).
+
+name: Release
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - npm-platform: darwin-arm64
+            runner: macos-latest
+            pbs-triple: aarch64-apple-darwin
+            python-bin: python/bin/python3
+          - npm-platform: darwin-x64
+            runner: macos-13
+            pbs-triple: x86_64-apple-darwin
+            python-bin: python/bin/python3
+          - npm-platform: linux-x64
+            runner: ubuntu-24.04
+            pbs-triple: x86_64-unknown-linux-gnu
+            python-bin: python/bin/python3
+          - npm-platform: linux-arm64
+            runner: ubuntu-24.04-arm
+            pbs-triple: aarch64-unknown-linux-gnu
+            python-bin: python/bin/python3
+          - npm-platform: win32-x64
+            runner: windows-latest
+            pbs-triple: x86_64-pc-windows-msvc
+            python-bin: python/python.exe
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@vosslang'
+
+      - name: Install Python build deps
+        run: python -m pip install --upgrade pip build
+
+      - name: Sync version (main + this platform)
+        run: |
+          python3 npm/scripts/bump_version.py main
+          python3 npm/scripts/bump_version.py ${{ matrix.npm-platform }}
+
+      - name: Verify version sync
+        shell: bash
+        run: |
+          PYVER=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          NPMVER=$(node -e "console.log(require('./npm/package.json').version)")
+          if [ "$PYVER" != "$NPMVER" ]; then
+            echo "VERSION MISMATCH: pyproject.toml=$PYVER npm/package.json=$NPMVER"
+            echo "Run: python3 npm/scripts/bump_version.py"
+            exit 1
+          fi
+          echo "Version sync OK: $PYVER"
+
+      - name: Build platform artifact
+        run: python3 npm/scripts/build_platform.py ${{ matrix.npm-platform }} --out npm/platforms/${{ matrix.npm-platform }}/python
+
+      - name: npm pack dry-run (audit size)
+        shell: bash
+        run: |
+          cd npm/platforms/${{ matrix.npm-platform }}
+          npm pack --dry-run 2>&1 | tee /tmp/pack.log || true
+          grep -E 'unpacked size|package size' /tmp/pack.log || true
+
+      - name: Publish platform package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd npm/platforms/${{ matrix.npm-platform }}
+          npm publish --access public
+
+  publish-main:
+    needs: build-platform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@vosslang'
+
+      - name: Sync version (main)
+        run: python3 npm/scripts/bump_version.py main
+
+      - name: Verify version sync
+        shell: bash
+        run: |
+          PYVER=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          NPMVER=$(node -e "console.log(require('./npm/package.json').version)")
+          if [ "$PYVER" != "$NPMVER" ]; then
+            echo "VERSION MISMATCH: pyproject.toml=$PYVER npm/package.json=$NPMVER"
+            exit 1
+          fi
+          echo "Version sync OK: $PYVER"
+
+      - name: Publish @vosslang/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd npm
+          npm publish --access public
