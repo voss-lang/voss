@@ -65,8 +65,9 @@ fn plan_and_toolcall_schemas_match_python() {
         .current_dir(repo_root())
         .output();
     let py_json: Value = match dump {
-        Ok(o) if o.status.success() => serde_json::from_slice(&o.stdout)
-            .expect("python schema dump should be valid JSON"),
+        Ok(o) if o.status.success() => {
+            serde_json::from_slice(&o.stdout).expect("python schema dump should be valid JSON")
+        }
         Ok(o) => {
             eprintln!(
                 "skipping schema_parity: python dump failed (status={}): {}",

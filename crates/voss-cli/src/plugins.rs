@@ -156,7 +156,10 @@ pub fn load_plugins(
                 })
                 .collect();
             manifests.push(PluginManifest {
-                enabled: overrides.get(&id).copied().unwrap_or(raw.enabled.unwrap_or(false)),
+                enabled: overrides
+                    .get(&id)
+                    .copied()
+                    .unwrap_or(raw.enabled.unwrap_or(false)),
                 name: raw.name.unwrap_or_else(|| id.clone()),
                 description: raw.description.unwrap_or_default(),
                 id,

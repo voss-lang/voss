@@ -35,7 +35,11 @@ async fn ast_round_trip() {
         .ast(Path::new(&fixture))
         .await
         .expect("ast call should succeed");
-    assert_eq!(v.get("v").and_then(|x| x.as_i64()), Some(1), "envelope version mismatch: {v}");
+    assert_eq!(
+        v.get("v").and_then(|x| x.as_i64()),
+        Some(1),
+        "envelope version mismatch: {v}"
+    );
     let prog = v.get("program").expect("program key");
     assert_eq!(
         prog.get("_node").and_then(|x| x.as_str()),

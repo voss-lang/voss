@@ -1,0 +1,20 @@
+{
+  "id": "07f019230d4b",
+  "name": "py-session",
+  "cwd": "/Users/benjaminmarks/Projects/Voss",
+  "model": "claude-sonnet-4-5",
+  "started_at": "2026-05-13T19:48:58+00:00",
+  "updated_at": "2026-05-13T19:48:58+00:00",
+  "total_cost_usd": 0.0,
+  "turns": [
+    {
+      "role": "user",
+      "content": "hi"
+    },
+    {
+      "role": "assistant",
+      "content": "ok"
+    }
+  ],
+  "runs": []
+}

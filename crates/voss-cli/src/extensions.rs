@@ -106,7 +106,15 @@ impl Tool for SubagentRunTool {
             .get("task")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("missing task"))?;
-        run_subagent(agent, task, &self.cwd, self.provider.clone(), self.mode, &self.model).await
+        run_subagent(
+            agent,
+            task,
+            &self.cwd,
+            self.provider.clone(),
+            self.mode,
+            &self.model,
+        )
+        .await
     }
 }
 

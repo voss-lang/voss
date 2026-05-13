@@ -25,6 +25,15 @@ fn state_dir() -> PathBuf {
     base.join("voss").join("sessions")
 }
 
+fn cwd_session_dirs() -> Vec<PathBuf> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut dirs = Vec::new();
+    for ancestor in cwd.ancestors() {
+        dirs.push(ancestor.join(".voss").join("sessions"));
+    }
+    dirs
+}
+
 pub fn session_path(id: &str) -> PathBuf {
     state_dir().join(format!("{id}.json"))
 }
@@ -131,26 +140,26 @@ fn set_owner_only(_path: &Path) -> std::io::Result<()> {
 
 /// Resolve by id-prefix OR exact name. Errors on ambiguity / not-found.
 pub fn load(id_or_name: &str) -> std::io::Result<SessionRecord> {
-    let dir = state_dir();
-    if !dir.exists() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!("no session: {id_or_name}"),
-        ));
-    }
     let mut matches: Vec<SessionRecord> = Vec::new();
-    for entry in std::fs::read_dir(&dir)? {
-        let entry = entry?;
-        if !entry.path().extension().map_or(false, |e| e == "json") {
+    let mut dirs = cwd_session_dirs();
+    dirs.push(state_dir());
+    for dir in dirs {
+        if !dir.exists() {
             continue;
         }
-        let bytes = std::fs::read(entry.path())?;
-        let rec: SessionRecord = match serde_json::from_slice(&bytes) {
-            Ok(r) => r,
-            Err(_) => continue,
-        };
-        if rec.id.starts_with(id_or_name) || rec.name == id_or_name {
-            matches.push(rec);
+        for entry in std::fs::read_dir(&dir)? {
+            let entry = entry?;
+            if !entry.path().extension().map_or(false, |e| e == "json") {
+                continue;
+            }
+            let bytes = std::fs::read(entry.path())?;
+            let rec: SessionRecord = match serde_json::from_slice(&bytes) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+            if rec.id.starts_with(id_or_name) || rec.name == id_or_name {
+                matches.push(rec);
+            }
         }
     }
     match matches.len() {

@@ -144,7 +144,12 @@ impl PermissionGate {
 
     /// Run permission check. `prompt` is a closure called only when the
     /// gate cannot decide autonomously. Returns `(allowed, reason)`.
-    pub fn check<F>(&mut self, tool_name: &str, args: &serde_json::Value, prompt: F) -> (bool, &'static str)
+    pub fn check<F>(
+        &mut self,
+        tool_name: &str,
+        args: &serde_json::Value,
+        prompt: F,
+    ) -> (bool, &'static str)
     where
         F: FnOnce(&str, &serde_json::Value) -> char,
     {

@@ -35,10 +35,7 @@ pub fn format(
         model,
         format_thousands(tokens),
         paint(&format!("${:.3}", cost_usd), cost_paint),
-        paint(
-            &format!("{:.0}%", (ctx_pct * 100.0).round()),
-            ctx_paint,
-        ),
+        paint(&format!("{:.0}%", (ctx_pct * 100.0).round()), ctx_paint,),
     );
     let approx_visible = visible_len(&core);
     let dashes = "─".repeat(term_width.saturating_sub(approx_visible));

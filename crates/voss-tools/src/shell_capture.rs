@@ -32,10 +32,7 @@ pub async fn shell_capture(cwd: &Path, argv: &[&str], timeout_secs: u64) -> Stri
     let total = combined.len();
     let text = String::from_utf8_lossy(&combined).into_owned();
     let body = if text.len() > TRUNCATE_AT {
-        format!(
-            "{}\n<truncated, total {total} bytes>",
-            &text[..TRUNCATE_AT]
-        )
+        format!("{}\n<truncated, total {total} bytes>", &text[..TRUNCATE_AT])
     } else {
         text
     };

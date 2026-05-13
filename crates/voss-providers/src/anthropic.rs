@@ -20,8 +20,7 @@ use voss_auth::{AnthropicOAuthCreds, ANTHROPIC_API_BASE, ANTHROPIC_OAUTH_BETA};
 /// Verbatim per `voss/harness/providers.py:38`. Anthropic OAuth tokens REJECT
 /// requests whose system block does not begin with this exact string.
 /// Do not paraphrase.
-pub const CLAUDE_CODE_PREAMBLE: &str =
-    "You are Claude Code, Anthropic's official CLI for Claude.";
+pub const CLAUDE_CODE_PREAMBLE: &str = "You are Claude Code, Anthropic's official CLI for Claude.";
 
 /// Conservative model alias map matching providers.py:27-32.
 fn resolve_model(model: &str) -> &str {

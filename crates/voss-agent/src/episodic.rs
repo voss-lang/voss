@@ -36,7 +36,11 @@ impl EpisodicMemory {
 
     pub fn last(&self, n: usize) -> Vec<EpisodicEntry> {
         let take = n.min(self.entries.len());
-        self.entries.iter().skip(self.entries.len() - take).cloned().collect()
+        self.entries
+            .iter()
+            .skip(self.entries.len() - take)
+            .cloned()
+            .collect()
     }
 
     pub fn len(&self) -> usize {

@@ -6,7 +6,7 @@
 //! Content-Length is rejected.
 
 use std::io;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, AsyncBufRead};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 /// Read one LSP-framed message from `r` and return its body bytes.
 ///
@@ -51,9 +51,8 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(r: &mut R) -> io::Result<Vec<u8
         // Lines without ':' are ignored (defensive).
     }
 
-    let n = content_length.ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidData, "missing Content-Length")
-    })?;
+    let n = content_length
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing Content-Length"))?;
     let mut body = vec![0u8; n as usize];
     r.read_exact(&mut body).await?;
     Ok(body)

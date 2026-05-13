@@ -1,8 +1,7 @@
 use std::sync::Mutex;
 
 use voss_tools::sandbox::{
-    default_allowlist, jail_path, load_allowlist, save_allowlist_extra, shell_allowed,
-    SandboxError,
+    default_allowlist, jail_path, load_allowlist, save_allowlist_extra, shell_allowed, SandboxError,
 };
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());

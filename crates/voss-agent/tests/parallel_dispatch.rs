@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
-use voss_agent::{run_turn, AlwaysAllow, Plan, PermissionCheck, ToolCall, TurnConfig};
+use voss_agent::{run_turn, AlwaysAllow, PermissionCheck, Plan, ToolCall, TurnConfig};
 use voss_providers::{CompleteRequest, ModelProvider, ProviderResponse};
 use voss_render::NdjsonRender;
 use voss_tools::Tool;
@@ -156,13 +156,27 @@ fn cwd() -> PathBuf {
 async fn read_only_runs_concurrently() {
     let rec = Arc::new(Recorder::default());
     let tools: Vec<Arc<dyn Tool>> = vec![
-        Arc::new(ReadOnlyTool { label: "ro1", sleep_ms: 60, rec: rec.clone() }),
-        Arc::new(ReadOnlyTool { label: "ro2", sleep_ms: 60, rec: rec.clone() }),
-        Arc::new(ReadOnlyTool { label: "ro3", sleep_ms: 60, rec: rec.clone() }),
+        Arc::new(ReadOnlyTool {
+            label: "ro1",
+            sleep_ms: 60,
+            rec: rec.clone(),
+        }),
+        Arc::new(ReadOnlyTool {
+            label: "ro2",
+            sleep_ms: 60,
+            rec: rec.clone(),
+        }),
+        Arc::new(ReadOnlyTool {
+            label: "ro3",
+            sleep_ms: 60,
+            rec: rec.clone(),
+        }),
     ];
     let plan = build_plan(vec![step("ro1"), step("ro2"), step("ro3")]);
     let mut provider = CannedProvider { plan };
-    let mut renderer = NdjsonRender { out: Vec::<u8>::new() };
+    let mut renderer = NdjsonRender {
+        out: Vec::<u8>::new(),
+    };
     let mut perms = AlwaysAllow;
 
     run_turn(
@@ -202,12 +216,22 @@ async fn read_only_runs_concurrently() {
 async fn mutating_runs_serially_in_order() {
     let rec = Arc::new(Recorder::default());
     let tools: Vec<Arc<dyn Tool>> = vec![
-        Arc::new(MutatingTool { label: "mut1", sleep_ms: 30, rec: rec.clone() }),
-        Arc::new(MutatingTool { label: "mut2", sleep_ms: 30, rec: rec.clone() }),
+        Arc::new(MutatingTool {
+            label: "mut1",
+            sleep_ms: 30,
+            rec: rec.clone(),
+        }),
+        Arc::new(MutatingTool {
+            label: "mut2",
+            sleep_ms: 30,
+            rec: rec.clone(),
+        }),
     ];
     let plan = build_plan(vec![step("mut1"), step("mut2")]);
     let mut provider = CannedProvider { plan };
-    let mut renderer = NdjsonRender { out: Vec::<u8>::new() };
+    let mut renderer = NdjsonRender {
+        out: Vec::<u8>::new(),
+    };
     let mut perms = AlwaysAllow;
 
     run_turn(
@@ -257,14 +281,31 @@ impl PermissionCheck for DenyIdx {
 async fn denied_step_does_not_block_siblings() {
     let rec = Arc::new(Recorder::default());
     let tools: Vec<Arc<dyn Tool>> = vec![
-        Arc::new(ReadOnlyTool { label: "ro1", sleep_ms: 10, rec: rec.clone() }),
-        Arc::new(ReadOnlyTool { label: "ro2", sleep_ms: 10, rec: rec.clone() }),
-        Arc::new(ReadOnlyTool { label: "ro3", sleep_ms: 10, rec: rec.clone() }),
+        Arc::new(ReadOnlyTool {
+            label: "ro1",
+            sleep_ms: 10,
+            rec: rec.clone(),
+        }),
+        Arc::new(ReadOnlyTool {
+            label: "ro2",
+            sleep_ms: 10,
+            rec: rec.clone(),
+        }),
+        Arc::new(ReadOnlyTool {
+            label: "ro3",
+            sleep_ms: 10,
+            rec: rec.clone(),
+        }),
     ];
     let plan = build_plan(vec![step("ro1"), step("ro2"), step("ro3")]);
     let mut provider = CannedProvider { plan };
-    let mut renderer = NdjsonRender { out: Vec::<u8>::new() };
-    let mut perms = DenyIdx { deny_step_idx: 1, counter: AtomicUsize::new(0) };
+    let mut renderer = NdjsonRender {
+        out: Vec::<u8>::new(),
+    };
+    let mut perms = DenyIdx {
+        deny_step_idx: 1,
+        counter: AtomicUsize::new(0),
+    };
 
     let result = run_turn(
         "task",
@@ -299,7 +340,9 @@ async fn unknown_tool_is_error() {
     })];
     let plan = build_plan(vec![step("ro1"), step("does_not_exist")]);
     let mut provider = CannedProvider { plan };
-    let mut renderer = NdjsonRender { out: Vec::<u8>::new() };
+    let mut renderer = NdjsonRender {
+        out: Vec::<u8>::new(),
+    };
     let mut perms = AlwaysAllow;
 
     let result = run_turn(
@@ -338,7 +381,9 @@ async fn parallel_cap_respected() {
             .collect(),
     );
     let mut provider = CannedProvider { plan };
-    let mut renderer = NdjsonRender { out: Vec::<u8>::new() };
+    let mut renderer = NdjsonRender {
+        out: Vec::<u8>::new(),
+    };
     let mut perms = AlwaysAllow;
 
     let cfg = TurnConfig {

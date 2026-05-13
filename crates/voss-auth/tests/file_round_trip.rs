@@ -45,7 +45,11 @@ fn anthropic_file_round_trip() {
                 .join(".claude")
                 .join(".credentials.json");
             let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-            assert_eq!(mode, 0o600, "credentials file should be 0600, got {:o}", mode);
+            assert_eq!(
+                mode, 0o600,
+                "credentials file should be 0600, got {:o}",
+                mode
+            );
         }
     });
 }

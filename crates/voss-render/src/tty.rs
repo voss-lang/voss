@@ -62,9 +62,7 @@ fn args_inline(args: &serde_json::Value) -> String {
 fn confidence_bar(confidence: f32) -> String {
     let conf = confidence.clamp(0.0, 1.0);
     let filled = (conf * 8.0).round() as usize;
-    let bar: String = (0..8)
-        .map(|i| if i < filled { '▰' } else { '▱' })
-        .collect();
+    let bar: String = (0..8).map(|i| if i < filled { '▰' } else { '▱' }).collect();
     let color = if conf >= 0.80 {
         GREEN
     } else if conf >= 0.60 {
@@ -81,9 +79,7 @@ fn open_card(out: &mut Stdout, title_left: &str, title_right: &str) {
     let w = term_width();
     let left_visible = title_left.chars().count();
     let right_visible = title_right.chars().count();
-    let pad = w
-        .saturating_sub(left_visible + right_visible + 4)
-        .max(1);
+    let pad = w.saturating_sub(left_visible + right_visible + 4).max(1);
     let dashes = "─".repeat(pad);
     let _ = writeln!(
         out,

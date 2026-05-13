@@ -12,17 +12,19 @@ use std::sync::Arc;
 use crossterm::style::Stylize;
 use nu_ansi_term::{Color, Style};
 use reedline::{
-    default_emacs_keybindings, ColumnarMenu, Completer, DefaultHinter, EditCommand,
-    Emacs, FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder, Prompt,
-    PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, Reedline,
-    ReedlineEvent, ReedlineMenu, Signal, Span, Suggestion,
+    default_emacs_keybindings, ColumnarMenu, Completer, DefaultHinter, EditCommand, Emacs,
+    FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder, Prompt, PromptEditMode,
+    PromptHistorySearch, PromptHistorySearchStatus, Reedline, ReedlineEvent, ReedlineMenu, Signal,
+    Span, Suggestion,
 };
 
 use voss_agent::{run_turn, EpisodicMemory, TurnConfig};
 use voss_providers::ModelProvider;
 use voss_render::{NdjsonRender, PlainRender, Render, TtyRender};
 
-use crate::extensions::{agent_ids, run_subagent, skill_ids, tools_with_subagent, AGENTS, SKILLS, SharedProviderAdapter};
+use crate::extensions::{
+    agent_ids, run_subagent, skill_ids, tools_with_subagent, SharedProviderAdapter, AGENTS, SKILLS,
+};
 use crate::permissions::{Mode, PermissionGate, PermissionStore};
 use crate::plugins::{load_plugins, set_plugin_enabled};
 use crate::session::{self, SessionRecord, Turn};
@@ -61,8 +63,8 @@ pub async fn run_repl(
     starting_record: Option<SessionRecord>,
 ) -> std::process::ExitCode {
     let mut history = EpisodicMemory::new(40);
-    let mut record = starting_record
-        .unwrap_or_else(|| SessionRecord::new(cwd, "claude-sonnet-4-5", None));
+    let mut record =
+        starting_record.unwrap_or_else(|| SessionRecord::new(cwd, "claude-sonnet-4-5", None));
     for t in &record.turns {
         history.add(t.content.clone(), t.role.clone());
     }
@@ -87,7 +89,11 @@ pub async fn run_repl(
 
     renderer.banner(&record.model, cwd, &git_status(cwd));
     if !record.turns.is_empty() {
-        println!("resumed: {} ({} prior turns)", record.name, record.turns.len());
+        println!(
+            "resumed: {} ({} prior turns)",
+            record.name,
+            record.turns.len()
+        );
     }
 
     // SIGINT → cancel current turn (not exit). reedline traps Ctrl-C in raw
@@ -194,7 +200,11 @@ pub async fn run_repl(
                     Ok(path) => println!(
                         "plugin {} {}: {}",
                         parts[1],
-                        if parts[0] == "enable" { "enabled" } else { "disabled" },
+                        if parts[0] == "enable" {
+                            "enabled"
+                        } else {
+                            "disabled"
+                        },
                         path.display()
                     ),
                     Err(e) => eprintln!("plugin update failed: {e}"),
@@ -332,9 +342,8 @@ fn build_reedline() -> std::io::Result<Reedline> {
     ));
 
     let completer = Box::new(SlashCompleter);
-    let hinter = Box::new(
-        DefaultHinter::default().with_style(Style::new().fg(Color::DarkGray).italic()),
-    );
+    let hinter =
+        Box::new(DefaultHinter::default().with_style(Style::new().fg(Color::DarkGray).italic()));
 
     let rl = Reedline::create()
         .with_history(history)
@@ -409,7 +418,10 @@ impl Prompt for VossPrompt {
             PromptHistorySearchStatus::Passing => "",
             PromptHistorySearchStatus::Failing => "failing ",
         };
-        Cow::Owned(format!("({}reverse-search: {}) ", prefix, history_search.term))
+        Cow::Owned(format!(
+            "({}reverse-search: {}) ",
+            prefix, history_search.term
+        ))
     }
 }
 
@@ -454,7 +466,11 @@ fn print_plugins(cwd: &Path) {
         return;
     }
     for plugin in plugins {
-        let status = if plugin.enabled { "enabled" } else { "disabled" };
+        let status = if plugin.enabled {
+            "enabled"
+        } else {
+            "disabled"
+        };
         println!("  {:<20} {:<8} {}", plugin.id, status, plugin.name);
         for warning in plugin.warnings {
             eprintln!("    warning: {warning}");
@@ -514,9 +530,9 @@ pub struct GateAdapter<'a> {
 
 impl<'a> voss_agent::PermissionCheck for GateAdapter<'a> {
     fn check(&mut self, name: &str, args: &serde_json::Value) -> (bool, String) {
-        let (allowed, reason) =
-            self.gate
-                .check(name, args, crate::permissions::interactive_prompt);
+        let (allowed, reason) = self
+            .gate
+            .check(name, args, crate::permissions::interactive_prompt);
         (allowed, reason.to_string())
     }
 }

@@ -47,8 +47,12 @@ fn rust_and_python_ast_agree() {
         py_out.status,
         String::from_utf8_lossy(&py_out.stderr)
     );
-    let py_json: serde_json::Value = serde_json::from_slice(&py_out.stdout)
-        .unwrap_or_else(|e| panic!("python stdout was not JSON: {e}\n{}", String::from_utf8_lossy(&py_out.stdout)));
+    let py_json: serde_json::Value = serde_json::from_slice(&py_out.stdout).unwrap_or_else(|e| {
+        panic!(
+            "python stdout was not JSON: {e}\n{}",
+            String::from_utf8_lossy(&py_out.stdout)
+        )
+    });
 
     // Rust: cargo-built voss-cli binary.
     let bin = assert_cmd::cargo::cargo_bin("voss-cli");
@@ -63,8 +67,12 @@ fn rust_and_python_ast_agree() {
         rs_out.status,
         String::from_utf8_lossy(&rs_out.stderr)
     );
-    let rs_json: serde_json::Value = serde_json::from_slice(&rs_out.stdout)
-        .unwrap_or_else(|e| panic!("rust stdout was not JSON: {e}\n{}", String::from_utf8_lossy(&rs_out.stdout)));
+    let rs_json: serde_json::Value = serde_json::from_slice(&rs_out.stdout).unwrap_or_else(|e| {
+        panic!(
+            "rust stdout was not JSON: {e}\n{}",
+            String::from_utf8_lossy(&rs_out.stdout)
+        )
+    });
 
     // The Rust path wraps Python's program in a versioned envelope:
     //   { "v": 1, "program": <to_dict(program)> }
@@ -87,14 +95,32 @@ fn rust_and_python_ast_agree() {
     );
 
     // Top-level structure (body) shape matches: same number of top-level decls.
-    let rs_body = rs_program.get("body").and_then(|v| v.as_array()).unwrap_or(&Vec::new()).len();
-    let py_body = py_json.get("body").and_then(|v| v.as_array()).unwrap_or(&Vec::new()).len();
-    assert_eq!(rs_body, py_body, "body length mismatch: rust={rs_body}, python={py_body}");
+    let rs_body = rs_program
+        .get("body")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&Vec::new())
+        .len();
+    let py_body = py_json
+        .get("body")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&Vec::new())
+        .len();
+    assert_eq!(
+        rs_body, py_body,
+        "body length mismatch: rust={rs_body}, python={py_body}"
+    );
 
     // First-node parity (kind only — spans differ trivially across runs in theory).
     if rs_body > 0 {
-        let rs_first_kind = rs_program.get("body").unwrap()[0].get("_node").and_then(|v| v.as_str());
-        let py_first_kind = py_json.get("body").unwrap()[0].get("_node").and_then(|v| v.as_str());
-        assert_eq!(rs_first_kind, py_first_kind, "first body node kind mismatch");
+        let rs_first_kind = rs_program.get("body").unwrap()[0]
+            .get("_node")
+            .and_then(|v| v.as_str());
+        let py_first_kind = py_json.get("body").unwrap()[0]
+            .get("_node")
+            .and_then(|v| v.as_str());
+        assert_eq!(
+            rs_first_kind, py_first_kind,
+            "first body node kind mismatch"
+        );
     }
 }

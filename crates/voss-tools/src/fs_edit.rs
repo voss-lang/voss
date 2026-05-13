@@ -59,8 +59,7 @@ impl Tool for FsEdit {
         if let Err(e) = std::fs::write(&p, &new_text) {
             return Ok(format!("<error: {e}>"));
         }
-        let delta =
-            (new_text.matches('\n').count() as i64) - (text.matches('\n').count() as i64);
+        let delta = (new_text.matches('\n').count() as i64) - (text.matches('\n').count() as i64);
         let sign = if delta >= 0 { "+" } else { "" };
         Ok(format!("edited {} ({sign}{delta} lines)", args.path))
     }

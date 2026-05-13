@@ -6,4 +6,6 @@ pub mod jsonrpc;
 pub use framing::{read_frame, write_frame};
 pub use jsonrpc::PyBridge;
 
-pub fn version() -> &'static str { env!("CARGO_PKG_VERSION") }
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}

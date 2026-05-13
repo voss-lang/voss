@@ -26,10 +26,7 @@ async fn shell_run_denied_token() {
 async fn shell_run_unknown_binary() {
     let tmp = tempfile::tempdir().unwrap();
     let runner = ShellRun::new(tmp.path().to_path_buf());
-    let res = runner
-        .invoke(json!({"cmd": "badbin --x"}))
-        .await
-        .unwrap();
+    let res = runner.invoke(json!({"cmd": "badbin --x"})).await.unwrap();
     assert!(res.contains("<denied:"), "got: {res}");
 }
 

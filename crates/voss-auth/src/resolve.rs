@@ -27,12 +27,28 @@ impl AuthPref {
 
 #[derive(Clone, Debug)]
 pub enum Resolution {
-    EnvAnthropic { detail: String },
-    EnvOpenAI { api_key: String, detail: String },
-    ClaudeOAuth { creds: AnthropicOAuthCreds, detail: String },
-    Codex { api_key: String, detail: String },
-    CodexOAuth { creds: CodexCreds, detail: String },
-    None { detail: String },
+    EnvAnthropic {
+        detail: String,
+    },
+    EnvOpenAI {
+        api_key: String,
+        detail: String,
+    },
+    ClaudeOAuth {
+        creds: AnthropicOAuthCreds,
+        detail: String,
+    },
+    Codex {
+        api_key: String,
+        detail: String,
+    },
+    CodexOAuth {
+        creds: CodexCreds,
+        detail: String,
+    },
+    None {
+        detail: String,
+    },
 }
 
 impl Resolution {
@@ -129,9 +145,7 @@ mod tests {
         // Verify the exact string identifiers Python uses.
         let cases: &[(Resolution, &str)] = &[
             (
-                Resolution::EnvAnthropic {
-                    detail: "x".into(),
-                },
+                Resolution::EnvAnthropic { detail: "x".into() },
                 "env-anthropic",
             ),
             (

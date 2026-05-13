@@ -30,10 +30,7 @@ pub fn read_anthropic() -> Option<AnthropicOAuthCreds> {
     Some(AnthropicOAuthCreds {
         access_token: access,
         refresh_token: refresh,
-        expires_at_ms: oauth
-            .get("expiresAt")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0),
+        expires_at_ms: oauth.get("expiresAt").and_then(|v| v.as_i64()).unwrap_or(0),
         subscription_type: oauth
             .get("subscriptionType")
             .and_then(|v| v.as_str())
@@ -126,13 +123,13 @@ pub fn write_codex(creds: &CodexCreds) -> std::io::Result<()> {
         );
     }
     if let Some(acct) = &creds.account_id {
-        tobj.insert(
-            "account_id".into(),
-            serde_json::Value::String(acct.clone()),
-        );
+        tobj.insert("account_id".into(), serde_json::Value::String(acct.clone()));
     }
     if let Some(k) = &creds.api_key {
-        obj.insert("OPENAI_API_KEY".into(), serde_json::Value::String(k.clone()));
+        obj.insert(
+            "OPENAI_API_KEY".into(),
+            serde_json::Value::String(k.clone()),
+        );
     }
     if !creds.auth_mode.is_empty() {
         obj.insert(

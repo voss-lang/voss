@@ -54,7 +54,10 @@ pub fn to_ansi(src: &str) -> String {
                     };
                     out.push('\n');
                     out.push_str(DIM);
-                    out.push_str(&format!("┌─ {} ", if lang.is_empty() { "code" } else { lang }));
+                    out.push_str(&format!(
+                        "┌─ {} ",
+                        if lang.is_empty() { "code" } else { lang }
+                    ));
                     out.push_str(RESET);
                     out.push('\n');
                     out.push_str(GREEN);

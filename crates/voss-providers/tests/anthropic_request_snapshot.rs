@@ -60,9 +60,13 @@ async fn anthropic_request_body_with_response_schema() {
     let _resp = provider.complete(req).await.expect("complete ok");
 
     let received = server.received_requests().await.expect("requests recorded");
-    assert_eq!(received.len(), 1, "expected 1 request, got {}", received.len());
-    let body: serde_json::Value =
-        serde_json::from_slice(&received[0].body).expect("body is JSON");
+    assert_eq!(
+        received.len(),
+        1,
+        "expected 1 request, got {}",
+        received.len()
+    );
+    let body: serde_json::Value = serde_json::from_slice(&received[0].body).expect("body is JSON");
 
     insta::assert_json_snapshot!(body);
 }

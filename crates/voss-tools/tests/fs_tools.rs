@@ -1,8 +1,6 @@
 use serde_json::json;
 
-use voss_tools::{
-    fs_edit::FsEdit, fs_glob::FsGlob, fs_read::FsRead, fs_write::FsWrite, Tool,
-};
+use voss_tools::{fs_edit::FsEdit, fs_glob::FsGlob, fs_read::FsRead, fs_write::FsWrite, Tool};
 
 #[tokio::test]
 async fn fs_write_then_read() {
@@ -38,7 +36,10 @@ async fn fs_edit_unique_match() {
         .await
         .unwrap();
     assert!(res.contains("edited f.txt"), "got: {res}");
-    assert_eq!(reader.invoke(json!({"path": "f.txt"})).await.unwrap(), "bar");
+    assert_eq!(
+        reader.invoke(json!({"path": "f.txt"})).await.unwrap(),
+        "bar"
+    );
 }
 
 #[tokio::test]

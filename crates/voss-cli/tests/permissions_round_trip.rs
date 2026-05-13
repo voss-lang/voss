@@ -42,8 +42,10 @@ fn store_round_trip() {
 
 #[test]
 fn signature_shell_run_uses_first_word() {
-    let sig =
-        PermissionGate::signature("shell_run", &serde_json::json!({"cmd": "git status --porcelain"}));
+    let sig = PermissionGate::signature(
+        "shell_run",
+        &serde_json::json!({"cmd": "git status --porcelain"}),
+    );
     assert_eq!(sig, "shell_run:git");
 }
 

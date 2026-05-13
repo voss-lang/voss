@@ -11,13 +11,10 @@ fn voss_help_lists_all_verbs() {
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout);
     for verb in &[
-        "doctor", "sessions", "resume", "ast", "do", "chat", "plugins", "plugin",
-        "skills", "skill", "agents", "agent",
+        "doctor", "sessions", "resume", "ast", "do", "chat", "plugins", "plugin", "skills",
+        "skill", "agents", "agent",
     ] {
-        assert!(
-            s.contains(verb),
-            "missing verb '{verb}' in --help: {s}"
-        );
+        assert!(s.contains(verb), "missing verb '{verb}' in --help: {s}");
     }
 }
 

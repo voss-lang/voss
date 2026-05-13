@@ -43,7 +43,11 @@ fn required(schema: &Value) -> BTreeSet<String> {
     schema
         .get("required")
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -54,8 +58,9 @@ fn all_9_tool_schemas_match_python() {
         .current_dir(repo_root())
         .output();
     let py: Value = match dump {
-        Ok(o) if o.status.success() => serde_json::from_slice(&o.stdout)
-            .expect("python tool dump should be valid JSON"),
+        Ok(o) if o.status.success() => {
+            serde_json::from_slice(&o.stdout).expect("python tool dump should be valid JSON")
+        }
         Ok(o) => {
             eprintln!(
                 "skipping schema_parity: python dump failed: {}",

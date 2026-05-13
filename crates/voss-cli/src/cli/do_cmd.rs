@@ -7,8 +7,8 @@ use voss_auth::{resolve, AuthPref};
 use voss_render::{NdjsonRender, PlainRender, Render, TtyRender};
 
 use crate::cli::auth_to_provider;
-use crate::extensions::{tools_with_subagent, SharedProviderAdapter};
 use crate::cli::repl::GateAdapter;
+use crate::extensions::{tools_with_subagent, SharedProviderAdapter};
 use crate::permissions::{Mode, PermissionGate, PermissionStore};
 
 pub async fn run_do(

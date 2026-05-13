@@ -3,10 +3,7 @@ use std::path::PathBuf;
 use voss_agent::{Plan, ToolCall};
 use voss_render::{NdjsonRender, PlanStepView, Render, ToolState};
 
-fn step_views<'a>(
-    steps: &'a [ToolCall],
-    args: &'a [serde_json::Value],
-) -> Vec<PlanStepView<'a>> {
+fn step_views<'a>(steps: &'a [ToolCall], args: &'a [serde_json::Value]) -> Vec<PlanStepView<'a>> {
     steps
         .iter()
         .zip(args.iter())
@@ -65,7 +62,12 @@ fn ndjson_plan() {
     };
     let args = plan_args(&plan);
     let views = step_views(&plan.steps, &args);
-    insta::assert_snapshot!(capture(|r| r.show_plan(&plan.rationale, &views, plan.confidence, 0.0)));
+    insta::assert_snapshot!(capture(|r| r.show_plan(
+        &plan.rationale,
+        &views,
+        plan.confidence,
+        0.0
+    )));
 }
 
 #[test]

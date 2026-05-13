@@ -4,7 +4,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::tool_trait::Tool;
-use crate::{fs_edit, fs_glob, fs_grep, fs_read, fs_write, git_diff, git_status, shell_run, voss_check};
+use crate::{
+    fs_edit, fs_glob, fs_grep, fs_read, fs_write, git_diff, git_status, shell_run, voss_check,
+};
 
 pub fn default_toolset(cwd: &Path) -> Vec<Arc<dyn Tool>> {
     let cwd = cwd.to_path_buf();

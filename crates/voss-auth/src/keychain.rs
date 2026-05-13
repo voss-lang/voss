@@ -20,7 +20,9 @@ fn account() -> String {
 /// When set to "1", all Keychain calls short-circuit. Tests use this to keep
 /// macOS from popping authentication dialogs during automated runs.
 fn disabled() -> bool {
-    std::env::var("VOSS_DISABLE_KEYCHAIN").map(|v| v == "1").unwrap_or(false)
+    std::env::var("VOSS_DISABLE_KEYCHAIN")
+        .map(|v| v == "1")
+        .unwrap_or(false)
 }
 
 #[cfg(target_os = "macos")]
@@ -82,10 +84,7 @@ fn parse_blob(bytes: &[u8]) -> Option<AnthropicOAuthCreds> {
     let oauth = blob.get("claudeAiOauth")?.as_object()?;
     let access = oauth.get("accessToken")?.as_str()?.to_string();
     let refresh = oauth.get("refreshToken")?.as_str()?.to_string();
-    let expires_at = oauth
-        .get("expiresAt")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
+    let expires_at = oauth.get("expiresAt").and_then(|v| v.as_i64()).unwrap_or(0);
     let subscription_type = oauth
         .get("subscriptionType")
         .and_then(|v| v.as_str())
