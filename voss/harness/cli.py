@@ -544,6 +544,16 @@ def do_cmd(
         auto_yes=yes_to_all or json_mode,
         project_policy=do_bundle.permissions if do_bundle.initialized else None,
     )
+    attach_subagent_tool(
+        tools,
+        registry=default_subagent_registry(),
+        cwd=cwd,
+        renderer=renderer,
+        provider=provider,
+        model=lambda: get_config().default_model,
+        gate=gate,
+        cognition=do_bundle,
+    )
 
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     click.echo(f"  [auth: {res.source} — {res.detail}]")
@@ -1000,6 +1010,162 @@ def tools_cmd(cwd_str: str) -> None:
         click.echo(f"  {name:<{name_w}}  {mut:<5}  {desc}")
 
 
+def _extension_context(
+    *,
+    cwd: Path,
+    provider: ModelProvider | None = None,
+    renderer=None,
+    gate: PermissionGate | None = None,
+) -> SimpleNamespace:
+    skill_registry = default_skill_registry()
+    subagent_registry = default_subagent_registry()
+    slash_registry = _build_slash_registry()
+    tools = make_toolset(cwd)
+    renderer = renderer or make_renderer(json_mode=False)
+    gate = gate or PermissionGate(mode="edit", store=PermissionStore.load(cwd))
+    ctx = SimpleNamespace(
+        cwd=cwd,
+        renderer=renderer,
+        tools=tools,
+        gate=gate,
+        history=EpisodicMemory(capacity=40),
+        record=session_store.SessionRecord.new(cwd=cwd, model=get_config().default_model),
+        provider=provider,
+        skill_registry=skill_registry,
+        subagent_registry=subagent_registry,
+        slash_registry=slash_registry,
+        cognition=cognition_mod.load(cwd),
+        prior_context=None,
+        last_plan=None,
+        total_cost=0.0,
+    )
+    if provider is not None:
+        attach_subagent_tool(
+            tools,
+            registry=subagent_registry,
+            cwd=cwd,
+            renderer=renderer,
+            provider=provider,
+            model=lambda: get_config().default_model,
+            gate=gate,
+            cognition=ctx.cognition,
+        )
+    return ctx
+
+
+@click.command("plugins")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def plugins_cmd(cwd_str: str) -> None:
+    """List plugin manifests."""
+    ctx = _extension_context(cwd=Path(cwd_str).resolve())
+    _print_plugins(ctx)  # type: ignore[arg-type]
+
+
+@click.group("plugin")
+def plugin_group() -> None:
+    """Manage plugin manifest enablement."""
+
+
+@plugin_group.command("enable")
+@click.argument("plugin_id")
+def plugin_enable_cmd(plugin_id: str) -> None:
+    path = set_plugin_enabled(plugin_id, True)
+    click.echo(f"plugin {plugin_id} enabled: {path}")
+
+
+@plugin_group.command("disable")
+@click.argument("plugin_id")
+def plugin_disable_cmd(plugin_id: str) -> None:
+    path = set_plugin_enabled(plugin_id, False)
+    click.echo(f"plugin {plugin_id} disabled: {path}")
+
+
+@click.command("skills")
+def skills_cmd() -> None:
+    """List registered skills."""
+    ctx = _extension_context(cwd=Path.cwd())
+    _print_skills(ctx)  # type: ignore[arg-type]
+
+
+@click.group("skill")
+def skill_group() -> None:
+    """Run registered skills."""
+
+
+@skill_group.command("run")
+@click.argument("skill_id")
+@click.argument("args", nargs=-1)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--model", default=None)
+@click.option("--auth", "auth_pref", type=click.Choice(AUTH_CHOICES), default="auto")
+def skill_run_cmd(
+    skill_id: str,
+    args: tuple[str, ...],
+    cwd_str: str,
+    model: str | None,
+    auth_pref: str,
+) -> None:
+    """Run a registered skill."""
+    cwd = Path(cwd_str).resolve()
+    _resolve_default_model(model)
+    _res, provider = _resolve_auth_or_die(auth_pref)
+    ctx = _extension_context(cwd=cwd, provider=provider)
+    entry = ctx.skill_registry.get(skill_id)
+    if entry is None:
+        raise click.ClickException(f"unknown skill: {skill_id}")
+    entry.handler(ctx, list(args))
+
+
+@click.command("agents")
+def agents_cmd() -> None:
+    """List registered subagents."""
+    ctx = _extension_context(cwd=Path.cwd())
+    _print_agents(ctx)  # type: ignore[arg-type]
+
+
+@click.group("agent")
+def agent_group() -> None:
+    """Run registered subagents."""
+
+
+@agent_group.command("spawn")
+@click.argument("agent_id")
+@click.argument("task", nargs=-1, required=True)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--model", default=None)
+@click.option("--auth", "auth_pref", type=click.Choice(AUTH_CHOICES), default="auto")
+@click.option("--mode", type=click.Choice(["plan", "edit", "auto"]), default="edit")
+def agent_spawn_cmd(
+    agent_id: str,
+    task: tuple[str, ...],
+    cwd_str: str,
+    model: str | None,
+    auth_pref: str,
+    mode: str,
+) -> None:
+    """Spawn a registered subagent for one task."""
+    cwd = Path(cwd_str).resolve()
+    _resolve_default_model(model)
+    _res, provider = _resolve_auth_or_die(auth_pref)
+    renderer = make_renderer(json_mode=False)
+    gate = PermissionGate(mode=mode, store=PermissionStore.load(cwd), auto_yes=True)  # type: ignore[arg-type]
+    registry = default_subagent_registry()
+    result = asyncio.run(
+        run_subagent(
+            agent_id=agent_id,
+            task=" ".join(task),
+            registry=registry,
+            cwd=cwd,
+            renderer=renderer,
+            provider=provider,
+            model=get_config().default_model,
+            gate=gate,
+            cognition=cognition_mod.load(cwd),
+        )
+    )
+    click.echo(result)
+
+
 # ---------------------------------------------------------------------------
 # config — open/show ~/.config/voss/config.toml
 # ---------------------------------------------------------------------------
@@ -1102,6 +1268,12 @@ AGENT_COMMANDS = (
     sessions_cmd,
     resume_cmd,
     tools_cmd,
+    plugins_cmd,
+    plugin_group,
+    skills_cmd,
+    skill_group,
+    agents_cmd,
+    agent_group,
     config_cmd,
     eval_cmd,
 )
