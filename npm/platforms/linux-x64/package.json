@@ -1,6 +1,6 @@
 {
   "name": "@vosslang/cli-linux-x64",
-  "version": "0.1.0",
+  "version": "0.1.0rc1",
   "description": "Voss CLI platform package: Linux x64 (placeholder)",
   "keywords": [
     "voss",

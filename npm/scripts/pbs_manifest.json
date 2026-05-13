@@ -6,9 +6,9 @@
   "url_template": "https://github.com/astral-sh/python-build-standalone/releases/download/{pbs_release}/cpython-{python_version}+{pbs_release}-{pbs_triple}-install_only_stripped.tar.gz",
   "triples": {
     "darwin-arm64": {"pbs_triple": "aarch64-apple-darwin", "sha256": "55bc1a5edbc8ac4da0081f4f5731ed2d1ed10c57cb37a820b2a0dbc7cad742e9"},
-    "darwin-x64":   {"pbs_triple": "x86_64-apple-darwin",  "sha256": "PENDING"},
-    "linux-x64":    {"pbs_triple": "x86_64-unknown-linux-gnu", "sha256": "PENDING"},
-    "linux-arm64":  {"pbs_triple": "aarch64-unknown-linux-gnu","sha256": "PENDING"},
-    "win32-x64":    {"pbs_triple": "x86_64-pc-windows-msvc",   "sha256": "PENDING"}
+    "darwin-x64":   {"pbs_triple": "x86_64-apple-darwin",  "sha256": "6bab7fa97d4f2ddba86da0e05acff66c53b5edaca1df8edcf00ddca785a9c59b"},
+    "linux-x64":    {"pbs_triple": "x86_64-unknown-linux-gnu", "sha256": "d480f5d5878910ecbae212bf23bd7c25d7b209eb8cf5e98823c977384d272e88"},
+    "linux-arm64":  {"pbs_triple": "aarch64-unknown-linux-gnu","sha256": "8e2907baca8b08ae43f366e65f09fda6337d3543f322c399d8800cf689c79973"},
+    "win32-x64":    {"pbs_triple": "x86_64-pc-windows-msvc",   "sha256": "24168aff2e7d93784c6a436124c4ebb79b076a4e289bde4902c08333507b71d0"}
   }
 }
