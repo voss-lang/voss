@@ -310,6 +310,15 @@ npx voss do "<task>"
 - npm publish credentials and `@voss` org reservation happen during M6 — not before.
 - No JS reimplementation of the harness, compiler, or runtime in M6. Pure wrapper.
 
+**Plans:** 5 plans
+
+Plans:
+- [ ] M6-01-PLAN.md — Wave 1 npm name reservation (@voss org + 6 placeholders at 0.0.0) + delete cargo-dist release.yml + freeze rust.yml + scaffold npm/ directory tree
+- [ ] M6-02-PLAN.md — Wave 2 Node bin shim (npm/bin/voss.js) per Biome pattern + per-platform package.json amendments + fast pytest pinning shim invariants
+- [ ] M6-03-PLAN.md — Wave 2 build scripts (prune_pbs.py, build_platform.py, bump_version.py) + pbs_manifest.json + unit tests + [BLOCKING] host-platform size-budget verification before M6-04 fan-out
+- [ ] M6-04-PLAN.md — Wave 3 release.yml (5-platform GHA matrix + npm publish) + ci.yml version-sync gate + 0.1.0 version bump + [BLOCKING] test-tag exercise of the workflow
+- [ ] M6-05-PLAN.md — Wave 4 NPM-04 packaging smoke (tests/packaging/test_npm_install.py) + README.md npm-primary install (NPM-05) + test_readme.py invariants + [BLOCKING] final v0.1.0 release approval
+
 ---
 
 ## Coverage

@@ -24,11 +24,12 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ## Current Position
 
 **Phase:** M6 — npm Wrapper
-**Status:** Context gathered — 14 decisions captured across 4 gray areas (bundling, Python runtime, wheel source + version sync, platform matrix + naming). Ready to `/gsd-plan-phase M6`.
+**Status:** Plans ready to execute. 5 PLAN.md files across 4 waves verified by gsd-plan-checker (iteration 2 of 3, all blockers + warning resolved). RESEARCH.md, PATTERNS.md, VALIDATION.md all in place.
 **Goal:** Publish `voss` as an npm package vendoring pinned Python 3.12 (python-build-standalone) + the v0.1 wheel via esbuild-pattern optionalDependencies across 5 platforms.
-**Next move:** `/gsd-plan-phase M6` — research + plans for M6-01..M6-05 (NPM-01..05).
+**Critical research finding:** Unscoped `voss` npm name is TAKEN (registered April 2023). D-12 fallback OPERATIVE — main package = `@voss/cli`. M6-01 must create `@voss` org as first BLOCKING human task.
+**Next move:** `/gsd-execute-phase M6` (Wave 1 = M6-01 pauses at Task 0 human-action checkpoint for npm org + token creation). `/clear` recommended before execute for fresh context window.
 **Rust status:** `crates/` frozen-spike — kept in source control, not on v0.1 ship path. Do not edit. Resurrect on dogfood signal only.
-**Last activity:** 2026-05-13 — M6 context captured. Bundling = optionalDependencies (esbuild pattern), bin shim = Node JS, Python source = python-build-standalone @ 3.12, wheel built-in-CI vendored into platform subpackages, package name = unscoped `voss` + scoped `@voss/cli-<platform>-<arch>` subpackages, full 5-platform matrix (darwin/linux x arm64/x64 + win32-x64), npm names reserved immediately as first M6 task.
+**Last activity:** 2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval).
 
 ## Phase Status
 
@@ -40,7 +41,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M3 | Language Validation | Ready to execute (6 plans, 4 waves) |
 | M4 | Voss-authored Harness Loop | Complete (5 plans, 5 waves) |
 | M5 | Eval and Distribution Prep | 6/6 plans summarized (M5-01..M5-06). |
-| M6 | npm Wrapper | Context gathered 2026-05-13 (14 decisions, 4 gray areas). Ready to `/gsd-plan-phase`. |
+| M6 | npm Wrapper | Plans ready to execute (5 plans, 4 waves, verified iteration 2/3). |
 
 ## Recent Activity
 

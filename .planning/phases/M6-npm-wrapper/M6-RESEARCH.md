@@ -838,38 +838,44 @@ dist-workspace.toml                 # cargo-dist config; safe to delete or leave
 
 ---
 
-## 14. Open Questions
+## 14. Open Questions (RESOLVED)
 
 1. **PyTorch transitive dependency from sentence-transformers**
    - What we know: `sentence-transformers==5.5.0` is pure-Python. But it depends on `torch` transitively (via its optional extras).
    - What's unclear: Does `pip install voss-0.1.0.whl` pull in PyTorch? If so, the npm subpackage would be ~800MB+ — impractical.
    - Recommendation: In M6-02's build script, print `du -sh python/lib/python3.12/site-packages/` after install. If >300MB, pin `sentence-transformers` without the `torch` extra or use `pip install --no-deps` for sentence-transformers and manually install its non-torch deps.
    - [ASSUMED: sentence-transformers does NOT pull torch by default for inference-only usage; verify in W1]
+   - **RESOLVED:** M6-03 Task 3 (host build) and Task 4 (cross-platform CI build via M6-04) BLOCK on `du -sh python/lib/python3.12/site-packages/` size verification; an >300MB result halts the build and surfaces the failure before publish. Assumption stays ASSUMED until the size gate runs green; the gate itself is the resolution mechanism.
 
 2. **npm package file size after compression**
    - What we know: Uncompressed PBS (~87-120MB) + site-packages (unknown, likely 200-500MB).
    - What's unclear: Compressed tarball size for npm publish. npm compresses with gzip.
    - Recommendation: Run `npm pack --dry-run` in M6-04 to see the package size before committing to publish.
+   - **RESOLVED:** M6-04 release workflow runs `npm pack --dry-run` per platform subpackage and surfaces tarball size in the workflow log before any `npm publish` step. Registry rejection at publish time is a non-silent failure mode.
 
 3. **`file:` permissions on npm-published Python binary**
    - What we know: npm may strip execute bits from non-JS files.
    - What's unclear: Does current npm (v10) preserve the executable bit on `python/bin/python3`?
    - Recommendation: Test in M6-04 by installing the packed tarball on macOS/Linux and running `ls -la python/bin/python3`. If stripped, add postinstall chmod.
+   - **RESOLVED:** M6-01 Task 2 ships a `postinstall` chmod script in all 4 Unix platform package.json manifests (darwin-arm64/x64, linux-arm64/x64). M6-04 verification step packs the tarball and asserts the executable bit survives. The chmod is unconditional — runs whether npm strips the bit or not, so the question's answer (whether npm v10 preserves the bit) becomes irrelevant to correctness.
 
 4. **`@voss` org creation logistics**
    - What we know: Requires a manual npmjs.com account + org creation step.
    - What's unclear: Does Ben have an npm account? Is `voss` the right org name?
    - Recommendation: M6-01 is blocked until the npm account + org exist. This is a human task, not an automated one.
+   - **RESOLVED:** M6-01 Task 0 is a [BLOCKING] `checkpoint:human-action` that pauses the entire phase until the user confirms the `@voss` org exists, the Automation token is generated, and `NPM_TOKEN` is set as a GitHub Actions secret. No automated task in M6 runs until this lands.
 
 5. **`ubuntu-24.04-arm` billing for private repos**
    - What we know: The Voss GitHub repo is currently public (`bm9797/Voss` in `Cargo.toml`).
    - What's unclear: If the repo is ever made private, arm64 runners may count double against GitHub Actions minutes.
    - Recommendation: No action for v0.1 (repo is public). Note for future.
+   - **RESOLVED:** No action needed for v0.1. The Voss repo is public (`bm9797/Voss`), so arm64 runner minutes do not double-bill. If the repo is later made private, M6-04's workflow can be revisited; out of scope for M6.
 
 6. **`dist-workspace.toml` and `Cargo.lock` / `Cargo.toml` fate**
    - What we know: These are cargo-dist and Rust workspace config files, no longer needed.
    - What's unclear: Whether deleting them causes any non-Rust tooling to break (e.g., does any CI job reference them?).
    - Recommendation: Delete `dist-workspace.toml`. Leave `Cargo.toml` and `Cargo.lock` in place (they define the frozen spike workspace; deleting them is fine but a separate decision from M6's scope).
+   - **RESOLVED:** M6-01 Task 1 deletes `.github/workflows/release.yml` (the cargo-dist file). `dist-workspace.toml`, `Cargo.toml`, and `Cargo.lock` stay untouched per PROJECT.md's frozen-Rust-spike decision. M6-01 Task 1's acceptance criteria explicitly forbid touching them.
 
 ---
 
