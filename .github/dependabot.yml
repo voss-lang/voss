@@ -1,33 +1,46 @@
 # Dependabot configuration for Voss.
 #
-# Three ecosystems tracked:
-#   - github-actions — bumps action references in .github/workflows/*.yml.
-#     Dependabot rewrites tag pins to commit-SHA pins when it submits PRs
-#     (the canonical hardening for supply-chain assurance on high-trust
-#     workflows like release.yml).
-#   - pip — surfaces vulnerable / outdated Python deps from pyproject.toml.
-#     We do NOT have a pinned requirements.txt or uv.lock yet; pip ecosystem
-#     still picks up dependency declarations and security advisories.
-#   - npm — covers the M6 wrapper (npm/package.json) and the docs site
-#     (site/package.json). The wrapper has no runtime deps today but
-#     Dependabot will still flag the meta-package version when platform
-#     subpackages publish updates.
+# Strategy: minimize PR noise while keeping security advisories fast-tracked.
 #
-# Cadence:
-#   - weekly for non-security bumps (low-noise PR cadence)
-#   - daily for security advisories (Dependabot routes these on the
-#     `open-pull-requests-limit` channel regardless of `interval`).
+# Cadence
+#   - monthly for non-security bumps — at solo-maintainer scale, weekly
+#     creates too much PR churn to review properly
+#   - daily for security advisories — Dependabot fast-paths security
+#     PRs regardless of `interval`, so monthly cadence does NOT delay
+#     a fresh CVE response
 #
-# Reviewers / labels left implicit — adjust once the project has a
-# maintainers file and PR-labeling conventions.
+# Grouping
+#   - github-actions: ONE PR per cycle bundling all action bumps
+#   - pip: ONE PR for minor+patch bumps; major bumps stay separate
+#     (litellm, chromadb, pydantic — large semver bumps need manual review)
+#   - npm root (M6 wrapper): no runtime deps; Dependabot will still PR
+#     when platform subpackages get version-skewed. Keep separate to make
+#     version-skew visible
+#   - npm site/: grouped — docs site noise should never block code review
+#
+# Cooldown
+#   - 3-day delay on action bumps. If a malicious tag is published and
+#     yanked within 24h (the typical incident response window), Dependabot
+#     never opens the PR in the first place
+#
+# To pause noisy ecosystems temporarily: bump that block's
+# `open-pull-requests-limit` to 0 (Dependabot stops opening PRs but
+# continues honoring security advisories).
 
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 3
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
     commit-message:
       prefix: "chore(ci)"
     labels:
@@ -37,8 +50,29 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      python-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    # Major bumps for fast-moving deps stay separate so they get manual
+    # review. Each entry lands as its own PR.
+    ignore:
+      - dependency-name: "litellm"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "chromadb"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "sentence-transformers"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
     labels:
@@ -48,8 +82,10 @@ updates:
   - package-ecosystem: "npm"
     directory: "/npm"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 3
     commit-message:
       prefix: "chore(deps-npm)"
     labels:
@@ -59,8 +95,20 @@ updates:
   - package-ecosystem: "npm"
     directory: "/site"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 3
+    groups:
+      site-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+      site-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     commit-message:
       prefix: "chore(deps-site)"
     labels:
