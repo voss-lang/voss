@@ -14,7 +14,7 @@
 #   - @vosslang npm org exists and is owned by the project.
 #   - NPM_TOKEN GitHub Actions secret is a Bypass-2FA Automation token
 #     for that org. The secret is read into NODE_AUTH_TOKEN on each
-#     publish step; actions/setup-node@v4 writes the .npmrc line.
+#     publish step; actions/setup-node@v6 writes the .npmrc line.
 #
 # Build budget enforced by npm/scripts/build_platform.py:SIZE_BUDGET_MB
 # (1500 MB per M6-03 Task 4 decision; raised from 300 to ship v0.1 with
@@ -85,7 +85,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           registry-url: 'https://registry.npmjs.org'
@@ -138,7 +138,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           registry-url: 'https://registry.npmjs.org'
