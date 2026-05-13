@@ -1,0 +1,64 @@
+name: publish-placeholders
+on:
+  workflow_dispatch:
+
+# Ephemeral one-shot workflow. Publishes the six @vosslang/cli* placeholders
+# at 0.0.0 to claim the npm names (M6-01 Task 4). Delete this file after a
+# single successful run.
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Validate placeholder manifests
+        run: |
+          set -euo pipefail
+          node -e "const m=require('./npm/package.json'); if(m.name!=='@vosslang/cli'||m.version!=='0.0.0') process.exit(1); for(const p of ['darwin-arm64','darwin-x64','linux-x64','linux-arm64','win32-x64']){const s=require('./npm/platforms/'+p+'/package.json'); if(s.name!=='@vosslang/cli-'+p||s.version!=='0.0.0') process.exit(1);} console.log('manifests ok');"
+
+      - name: Publish platform subpackages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/publish-out
+          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            echo "::group::publish @vosslang/cli-$p"
+            (cd npm/platforms/$p && npm publish --access public --json > /tmp/publish-out/$p.json)
+            cat /tmp/publish-out/$p.json
+            echo "::endgroup::"
+          done
+
+      - name: Publish main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::group::publish @vosslang/cli"
+          (cd npm && npm publish --access public --json > /tmp/publish-out/main.json)
+          cat /tmp/publish-out/main.json
+          echo "::endgroup::"
+
+      - name: Verify publishes resolved
+        run: |
+          set -euo pipefail
+          for n in '@vosslang/cli' '@vosslang/cli-darwin-arm64' '@vosslang/cli-darwin-x64' '@vosslang/cli-linux-x64' '@vosslang/cli-linux-arm64' '@vosslang/cli-win32-x64'; do
+            v=$(npm view "$n" version)
+            echo "$n => $v"
+            [ "$v" = "0.0.0" ] || { echo "FAIL: $n version is $v not 0.0.0"; exit 1; }
+          done
+
+      - name: Upload publish manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-manifests
+          path: /tmp/publish-out/
+          retention-days: 7
