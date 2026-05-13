@@ -1,6 +1,6 @@
 {
   "name": "@vosslang/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Voss runtime library and CLI (placeholder; real release ships at >= 0.1.0)",
   "bin": {
     "voss": "bin/voss.js"
@@ -19,10 +19,10 @@
     "README.md"
   ],
   "optionalDependencies": {
-    "@vosslang/cli-darwin-arm64": "0.0.0",
-    "@vosslang/cli-darwin-x64": "0.0.0",
-    "@vosslang/cli-linux-x64": "0.0.0",
-    "@vosslang/cli-linux-arm64": "0.0.0",
-    "@vosslang/cli-win32-x64": "0.0.0"
+    "@vosslang/cli-darwin-arm64": "0.1.0",
+    "@vosslang/cli-darwin-x64": "0.1.0",
+    "@vosslang/cli-linux-x64": "0.1.0",
+    "@vosslang/cli-linux-arm64": "0.1.0",
+    "@vosslang/cli-win32-x64": "0.1.0"
   }
 }

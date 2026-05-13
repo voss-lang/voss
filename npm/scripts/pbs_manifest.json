@@ -1,0 +1,14 @@
+{
+  "_README": "Edit sha256 values from PENDING to actual digests as build_platform.py prints them. Each triple's sha is pinned the first time that triple's runner builds in CI; flip from PENDING to a real hex string and commit.",
+  "pbs_release": "20260510",
+  "python_version": "3.12.13",
+  "source": "https://github.com/astral-sh/python-build-standalone",
+  "url_template": "https://github.com/astral-sh/python-build-standalone/releases/download/{pbs_release}/cpython-{python_version}+{pbs_release}-{pbs_triple}-install_only_stripped.tar.gz",
+  "triples": {
+    "darwin-arm64": {"pbs_triple": "aarch64-apple-darwin", "sha256": "55bc1a5edbc8ac4da0081f4f5731ed2d1ed10c57cb37a820b2a0dbc7cad742e9"},
+    "darwin-x64":   {"pbs_triple": "x86_64-apple-darwin",  "sha256": "PENDING"},
+    "linux-x64":    {"pbs_triple": "x86_64-unknown-linux-gnu", "sha256": "PENDING"},
+    "linux-arm64":  {"pbs_triple": "aarch64-unknown-linux-gnu","sha256": "PENDING"},
+    "win32-x64":    {"pbs_triple": "x86_64-pc-windows-msvc",   "sha256": "PENDING"}
+  }
+}
