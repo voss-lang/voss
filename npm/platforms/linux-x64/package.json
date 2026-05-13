@@ -2,6 +2,8 @@
   "name": "@vosslang/cli-linux-x64",
   "version": "0.0.0",
   "description": "Voss CLI platform package: Linux x64 (placeholder)",
+  "keywords": ["voss", "cli", "ai", "coding"],
+  "author": "Ben Marks <benjaminmarks99@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",

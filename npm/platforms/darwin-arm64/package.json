@@ -2,6 +2,8 @@
   "name": "@vosslang/cli-darwin-arm64",
   "version": "0.0.0",
   "description": "Voss CLI platform package: macOS arm64 (placeholder)",
+  "keywords": ["voss", "cli", "ai", "coding"],
+  "author": "Ben Marks <benjaminmarks99@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
