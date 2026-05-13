@@ -12,6 +12,7 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import click
 
@@ -310,6 +311,179 @@ def _git_status(cwd: Path) -> str:
     return f"+{plus} ~{mod} -{minus}"
 
 
+def _print_plugins(ctx: ReplContext) -> None:
+    plugins = load_plugins(
+        ctx.cwd,
+        command_ids=ctx.slash_registry.ids(),
+        skill_ids=ctx.skill_registry.ids(),
+        agent_ids=ctx.subagent_registry.ids(),
+    )
+    if not plugins:
+        click.echo("(no plugins)")
+        return
+    for plugin in plugins:
+        status = "enabled" if plugin.enabled else "disabled"
+        click.echo(f"  {plugin.id:<20} {status:<8} {plugin.name}")
+        for warning in plugin.warnings:
+            click.echo(f"    warning: {warning}", err=True)
+
+
+def _print_skills(ctx: ReplContext) -> None:
+    for entry in ctx.skill_registry.entries():
+        mut = "mut" if entry.mutating else "read"
+        click.echo(f"  {entry.id:<16} {mut:<4} {entry.description}")
+
+
+def _print_agents(ctx: ReplContext) -> None:
+    for spec in ctx.subagent_registry.entries():
+        click.echo(f"  {spec.id:<16} {spec.description}")
+
+
+def _build_slash_registry() -> SlashRegistry:
+    registry = SlashRegistry()
+
+    def _exit(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        ctx.should_exit = True
+
+    def _help(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        _print_slash_help(ctx.slash_registry)
+
+    def _clear(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        ctx.history = EpisodicMemory(capacity=40)
+        click.echo("episodic memory cleared.")
+
+    def _cost(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        click.echo(f"session cost: ${ctx.total_cost:.4f}")
+
+    def _tools(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        for name, td in ctx.tools.items():
+            click.echo(f"  {name} — {td.description}")
+
+    def _analyze(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        skill = ctx.skill_registry.get("analyze")
+        if skill is not None:
+            skill.handler(ctx, [])
+
+    def _save_plan(ctx: ReplContext, _args: list[str], line: str) -> None:
+        _handle_save_plan(
+            cwd=ctx.cwd, last_plan=ctx.last_plan, record=ctx.record, line=line
+        )
+
+    def _model(ctx: ReplContext, args: list[str], _line: str) -> None:
+        cfg = get_config()
+        if not args:
+            claude = auth_mod.load_anthropic_oauth()
+            codex = auth_mod.load_codex()
+            click.echo(f"  active: {cfg.default_model}")
+            claude_ok = bool(claude and not claude.expired)
+            codex_ok = bool(codex and (codex.api_key or codex.has_oauth))
+            click.echo(f"  Claude: {'available' if claude_ok else 'unavailable'}")
+            click.echo(f"  Codex:  {'available' if codex_ok else 'unavailable'}")
+            return
+        from . import config as harness_config
+
+        new_model = " ".join(args).strip()
+        configure(default_model=new_model)
+        harness_config.set_preferred_model(new_model)
+        click.echo(f"  model: {get_config().default_model} (persisted)")
+
+    def _mode(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if not args:
+            click.echo(f"  mode: {ctx.gate.mode}")
+            return
+        new_mode = args[0].strip()
+        if new_mode not in ("plan", "edit", "auto"):
+            click.echo("mode must be plan|edit|auto", err=True)
+            return
+        if new_mode == "auto" and "--confirm" not in args:
+            click.echo(
+                "escalating to auto requires --confirm "
+                "(e.g. /mode auto --confirm)",
+                err=True,
+            )
+            return
+        ctx.gate.mode = new_mode  # type: ignore[assignment]
+        click.echo(f"  mode: {new_mode}")
+
+    def _login(_ctx: ReplContext, args: list[str], _line: str) -> None:
+        _handle_login(args[0] if args else None)
+
+    def _save(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if args:
+            ctx.record.name = " ".join(args).strip()
+        ctx.record.total_cost_usd = ctx.total_cost
+        ctx.record.model = get_config().default_model
+        path = session_store.save(ctx.record, ctx.history)
+        click.echo(f"saved: {path}")
+
+    def _plugins(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        _print_plugins(ctx)
+
+    def _plugin(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if len(args) != 2 or args[0] not in ("enable", "disable"):
+            click.echo("usage: /plugin enable|disable <id>", err=True)
+            return
+        path = set_plugin_enabled(args[1], args[0] == "enable")
+        click.echo(f"plugin {args[1]} {'enabled' if args[0] == 'enable' else 'disabled'}: {path}")
+
+    def _skills(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        _print_skills(ctx)
+
+    def _skill(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if not args:
+            click.echo("usage: /skill <id> [args...]", err=True)
+            return
+        entry = ctx.skill_registry.get(args[0])
+        if entry is None:
+            click.echo(f"unknown skill: {args[0]}", err=True)
+            return
+        entry.handler(ctx, args[1:])
+
+    def _agents(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        _print_agents(ctx)
+
+    def _agent(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if len(args) < 3 or args[0] != "spawn":
+            click.echo("usage: /agent spawn <id> <task>", err=True)
+            return
+        result = asyncio.run(
+            run_subagent(
+                agent_id=args[1],
+                task=" ".join(args[2:]),
+                registry=ctx.subagent_registry,
+                cwd=ctx.cwd,
+                renderer=ctx.renderer,
+                provider=ctx.provider,
+                model=get_config().default_model,
+                gate=ctx.gate,
+                cognition=ctx.cognition,
+            )
+        )
+        click.echo(result)
+
+    for command in (
+        SlashCommand("/help", "show this list", _help),
+        SlashCommand("/exit", "leave the REPL (also Ctrl-D)", _exit, aliases=("/quit",)),
+        SlashCommand("/clear", "drop episodic memory", _clear),
+        SlashCommand("/cost", "session cost so far", _cost),
+        SlashCommand("/tools", "list registered tools", _tools),
+        SlashCommand("/login", "anthropic | openai — status + refresh", _login),
+        SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
+        SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
+        SlashCommand("/save", "persist session snapshot", _save, mutating=True),
+        SlashCommand("/analyze", "refresh project cognition (.voss/ + .voss-cache/)", _analyze, mutating=True),
+        SlashCommand("/save-plan", "persist the most recent plan to .voss/plans/", _save_plan, mutating=True),
+        SlashCommand("/plugins", "list plugin manifests", _plugins),
+        SlashCommand("/plugin", "enable|disable a plugin manifest", _plugin, mutating=True),
+        SlashCommand("/skills", "list registered skills", _skills),
+        SlashCommand("/skill", "run a registered skill", _skill, mutating=True),
+        SlashCommand("/agents", "list registered subagents", _agents),
+        SlashCommand("/agent", "spawn a registered subagent", _agent, mutating=True),
+    ):
+        registry.register(command)
+    return registry
+
+
 # ---------------------------------------------------------------------------
 # do — one-shot
 # ---------------------------------------------------------------------------
@@ -516,8 +690,9 @@ def _run_repl(
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode)
     tools = make_toolset(cwd)
-    total_cost = record.total_cost_usd
-    last_plan: Plan | None = None
+    skill_registry = default_skill_registry()
+    subagent_registry = default_subagent_registry()
+    slash_registry = _build_slash_registry()
 
     def _tok_count(text: str) -> int:
         if _litellm is not None:
@@ -539,6 +714,31 @@ def _run_repl(
         store=PermissionStore.load(cwd),
         edit_scope=edit_scope,
         project_policy=bundle.permissions if bundle.initialized else None,
+    )
+    ctx = ReplContext(
+        cwd=cwd,
+        renderer=renderer,
+        tools=tools,
+        gate=gate,
+        history=history,
+        record=record,
+        provider=provider,
+        skill_registry=skill_registry,
+        subagent_registry=subagent_registry,
+        slash_registry=slash_registry,
+        cognition=bundle,
+        prior_context=prior_context,
+        total_cost=record.total_cost_usd,
+    )
+    attach_subagent_tool(
+        tools,
+        registry=subagent_registry,
+        cwd=cwd,
+        renderer=renderer,
+        provider=provider,
+        model=lambda: get_config().default_model,
+        gate=gate,
+        cognition=bundle,
     )
 
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
@@ -571,104 +771,25 @@ def _run_repl(
             continue
 
         # Slash commands.
-        if line in ("/exit", "/quit"):
-            return
-        if line == "/help":
-            _print_slash_help()
-            continue
-        if line == "/clear":
-            history = EpisodicMemory(capacity=40)
-            click.echo("episodic memory cleared.")
-            continue
-        if line == "/cost":
-            click.echo(f"session cost: ${total_cost:.4f}")
-            continue
-        if line == "/tools":
-            for name, td in tools.items():
-                click.echo(f"  {name} — {td.description}")
-            continue
-        if line == "/analyze":
-            _handle_analyze(
-                cwd=cwd,
-                provider=provider,
-                history=history,
-                record=record,
-                renderer=renderer,
-                tools=tools,
-                gate=gate,
-            )
-            continue
-        if line.startswith("/save-plan"):
-            _handle_save_plan(
-                cwd=cwd, last_plan=last_plan, record=record, line=line
-            )
-            continue
-        if line == "/model" or line.startswith("/model "):
-            parts = line.split(maxsplit=1)
-            if len(parts) == 1:
-                claude = auth_mod.load_anthropic_oauth()
-                codex = auth_mod.load_codex()
-                click.echo(f"  active: {cfg.default_model}")
-                claude_ok = bool(claude and not claude.expired)
-                codex_ok = bool(codex and (codex.api_key or codex.has_oauth))
-                click.echo(f"  Claude: {'available' if claude_ok else 'unavailable'}")
-                click.echo(f"  Codex:  {'available' if codex_ok else 'unavailable'}")
-            else:
-                from . import config as harness_config
-
-                new_model = parts[1].strip()
-                configure(default_model=new_model)
+        if line.startswith("/"):
+            try:
+                handled = slash_registry.dispatch(ctx, line)
+            except ValueError as exc:
+                click.echo(str(exc), err=True)
+                continue
+            if ctx.should_exit:
+                return
+            if handled:
                 cfg = get_config()
-                harness_config.set_preferred_model(new_model)
-                click.echo(f"  model: {cfg.default_model} (persisted)")
-            continue
-        if line == "/mode" or line.startswith("/mode "):
-            mparts = line.split()
-            if len(mparts) == 1:
-                click.echo(f"  mode: {gate.mode}")
                 continue
-            new_mode = mparts[1].strip()
-            if new_mode not in ("plan", "edit", "auto"):
-                click.echo("mode must be plan|edit|auto", err=True)
-                continue
-            if new_mode == "auto" and "--confirm" not in mparts:
-                click.echo(
-                    "escalating to auto requires --confirm "
-                    "(e.g. /mode auto --confirm)",
-                    err=True,
-                )
-                continue
-            gate.mode = new_mode  # type: ignore[assignment]
-            click.echo(f"  mode: {new_mode}")
-            continue
-        if line == "/login" or line.startswith("/login "):
-            lparts = line.split(maxsplit=1)
-            login_provider = lparts[1].strip() if len(lparts) == 2 else None
-            _handle_login(login_provider)
-            continue
-        if line.startswith("/save"):
-            parts = line.split(" ", 1)
-            if len(parts) == 2 and parts[1].strip():
-                record.name = parts[1].strip()
-            record.total_cost_usd = total_cost
-            record.model = cfg.default_model
-            path = session_store.save(record, history)
-            click.echo(f"saved: {path}")
-            continue
         if line.startswith("/"):
             click.echo(f"unknown command: {line}. /help for list.", err=True)
             continue
 
         if _classify_intent(line) == "analyze":
-            _handle_analyze(
-                cwd=cwd,
-                provider=provider,
-                history=history,
-                record=record,
-                renderer=renderer,
-                tools=tools,
-                gate=gate,
-            )
+            skill = skill_registry.get("analyze")
+            if skill is not None:
+                skill.handler(ctx, [])
             continue
 
         renderer.show_user(line)
@@ -681,23 +802,23 @@ def _run_repl(
                     cwd=cwd,
                     renderer=renderer,
                     model=cfg.default_model,
-                    history=history,
+                    history=ctx.history,
                     permissions=gate,
                     provider=provider,
                     session_id=record.id,
                     cognition=bundle,
-                    prior_context=prior_context,
+                    prior_context=ctx.prior_context,
                 )
             )
             # prior_context is one-shot: only the first turn rehydrates it.
-            prior_context = None
+            ctx.prior_context = None
         except Exception as e:  # noqa: BLE001
             click.echo(f"error: {e}", err=True)
             continue
-        last_plan = result.plan
+        ctx.last_plan = result.plan
         if result.run is not None:
             record.runs.append(asdict(result.run))
-        total_cost += result.cost_usd
+        ctx.total_cost += result.cost_usd
         renderer.show_final(
             result.final, confidence=result.confidence, cost_usd=result.cost_usd
         )
@@ -778,24 +899,9 @@ def doctor_cmd(cwd_str: str) -> None:
     sys.exit(code)
 
 
-def _print_slash_help() -> None:
-    click.echo(
-        "\n".join(
-            [
-                "/help                  show this list",
-                "/exit /quit            leave the REPL (also Ctrl-D)",
-                "/clear                 drop episodic memory",
-                "/cost                  session cost so far",
-                "/tools                 list registered tools",
-                "/login [provider]      anthropic | openai — status + refresh",
-                "/model [name]          list providers or switch (persists to config.toml)",
-                "/mode <m> [--confirm]  plan | edit | auto; auto requires --confirm",
-                "/save [name]           persist session snapshot",
-                "/analyze               refresh project cognition (.voss/ + .voss-cache/)",
-                "/save-plan [title]     persist the most recent plan to .voss/plans/",
-            ]
-        )
-    )
+def _print_slash_help(registry: SlashRegistry | None = None) -> None:
+    registry = registry or _build_slash_registry()
+    click.echo("\n".join(registry.help_lines()))
 
 
 @click.command("sessions")

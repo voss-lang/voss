@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from voss_runtime import EpisodicMemory, tool
 
@@ -103,7 +103,7 @@ def attach_subagent_tool(
     cwd: Path,
     renderer: Renderer,
     provider: Any,
-    model: str,
+    model: str | Callable[[], str],
     gate: PermissionGate,
     cognition: Any = None,
 ) -> None:
@@ -112,6 +112,7 @@ def attach_subagent_tool(
         description="Run a registered Voss subagent on a bounded task.",
     )
     async def subagent_run(agent: str, task: str) -> str:
+        picked_model = model() if callable(model) else model
         return await run_subagent(
             agent_id=agent,
             task=task,
@@ -119,7 +120,7 @@ def attach_subagent_tool(
             cwd=cwd,
             renderer=renderer,
             provider=provider,
-            model=model,
+            model=picked_model,
             gate=gate,
             cognition=cognition,
         )
