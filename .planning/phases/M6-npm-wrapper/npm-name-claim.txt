@@ -1,0 +1,50 @@
+M6-01 Task 4 — npm placeholder publishes
+Date: 2026-05-13
+Operator: Claude Code (M6-01 execute-plan, local publish path)
+
+Scope deviation: @voss unavailable; substituted to @vosslang per plan's
+resume-signal "different scope" path. See npm-name-claim-precheck.txt.
+
+Auth path: user generated Granular Access Token at npmjs.com with
+Bypass 2FA enabled, pasted to operator for local ~/.npmrc, publish,
+then ~/.npmrc was restored to pre-existing web-login state. The
+bypass-2FA token was used only in-memory of the publish session;
+user is responsible for revoking it at npmjs.com (recommended after
+this manifest is committed) and re-enabling "Require 2FA for write
+actions" on the npm account.
+
+Tarball metadata (from `npm view <pkg> dist.{integrity,shasum}` post-publish):
+
+  @vosslang/cli
+    version    = 0.0.0
+    shasum     = 176ba5ee64ff555e0f84754c73579f44653011c3
+    integrity  = sha512-/8vrF4PT+Kb7z1uDXpYNwUPnEUvR9BTCR0xyEle0meMLeEbp84K1WwGUbADrI447OLdXcrCRCHyCnItOQuE/VQ==
+
+  @vosslang/cli-darwin-arm64
+    version    = 0.0.0
+    shasum     = 09c438ed4d1ad5ae84819a2488ed9bf8da5fe8eb
+    integrity  = sha512-Jw0+acBztnpM+kD1tN29unThi54oF1XRxtbban4Vn9Xd8B0lsrk1uH9MGRaF1oALV1/l9DxzQ+GVYXZaINJ/LQ==
+
+  @vosslang/cli-darwin-x64
+    version    = 0.0.0
+    shasum     = a9cee1041fcdbb0254cb833d1ab9dcb8d1dedbba
+    integrity  = sha512-2nyUKOPeDoH9CQnzP/0Xr2ZgsqTSofcjGpcYAIMx4TSiWYAf7FG5NN9X007KuIbHNSsbwhHpSKTaJxVDoCAKUg==
+
+  @vosslang/cli-linux-x64
+    version    = 0.0.0
+    shasum     = 101dc7aca54d203068ee411a9583f656360f975c
+    integrity  = sha512-tv4tvNzk0Q1+rQykV96MShk0tTt01XdwXWobQWEIENOqXRA9TT+eEDKIKKnIBqijDMpsgnwnMZGVYV+Wql4i9A==
+
+  @vosslang/cli-linux-arm64
+    version    = 0.0.0
+    shasum     = 23bc5cdd7eedbd0d41a7172f102ec6c0b6339fe1
+    integrity  = sha512-ye0wjJoayCmb07mSPDTNpILZqCPGqFM1mq+8Th4WfY2vKNvRDdwGAL/jsIlz7USNSKOLEegc45nP8TmmqwtAOQ==
+
+  @vosslang/cli-win32-x64
+    version    = 0.0.0
+    shasum     = f3dcd953a12cd8eb7b8020157d7c849bc55ef7dc
+    integrity  = sha512-MfPf3i8aRN/YTToRUHcqOclCMIDqc+j4MV4vocEf9kCyVVKN7rWMRB5SDQjYqpQM3hQOKFRgI/8mBv6u95do1g==
+
+All 6 names are now owned by the @vosslang organization and cannot
+be squatted. M6-04's release workflow can later publish real 0.1.0
+artifacts under these reserved names.
