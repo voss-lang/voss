@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -36,6 +37,37 @@ pub fn agent_ids() -> Vec<&'static str> {
 
 pub fn skill_ids() -> Vec<&'static str> {
     SKILLS.iter().map(|(id, _)| *id).collect()
+}
+
+pub fn pick_python() -> PathBuf {
+    if let Some(path) = std::env::var_os("VOSS_PYTHON") {
+        return PathBuf::from(path);
+    }
+    let venv = std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join(".venv/bin/python");
+    if venv.exists() {
+        return venv;
+    }
+    PathBuf::from("python3")
+}
+
+pub fn run_python_skill(skill_id: &str, args: &[String]) -> std::process::ExitCode {
+    if !SKILLS.iter().any(|(id, _)| *id == skill_id) {
+        eprintln!("unknown skill: {skill_id}");
+        return std::process::ExitCode::from(1);
+    }
+    let mut cmd = Command::new(pick_python());
+    cmd.args(["-m", "voss.harness", "skill", "run", skill_id]);
+    cmd.args(args);
+    match cmd.status() {
+        Ok(status) if status.success() => std::process::ExitCode::SUCCESS,
+        Ok(status) => std::process::ExitCode::from(status.code().unwrap_or(1) as u8),
+        Err(e) => {
+            eprintln!("skill {skill_id} failed to start Python harness: {e}");
+            std::process::ExitCode::from(1)
+        }
+    }
 }
 
 pub type SharedProvider = Arc<Mutex<Box<dyn ModelProvider>>>;

@@ -23,7 +23,8 @@ use voss_providers::ModelProvider;
 use voss_render::{NdjsonRender, PlainRender, Render, TtyRender};
 
 use crate::extensions::{
-    agent_ids, run_subagent, skill_ids, tools_with_subagent, SharedProviderAdapter, AGENTS, SKILLS,
+    agent_ids, run_python_skill, run_subagent, skill_ids, tools_with_subagent,
+    SharedProviderAdapter, AGENTS, SKILLS,
 };
 use crate::permissions::{Mode, PermissionGate, PermissionStore};
 use crate::plugins::{load_plugins, set_plugin_enabled};
@@ -216,10 +217,14 @@ pub async fn run_repl(
         }
         if let Some(rest) = line.strip_prefix("/skill ") {
             let parts: Vec<&str> = rest.split_whitespace().collect();
-            if parts.first().copied() == Some("analyze") {
-                eprintln!("skill 'analyze' is not implemented in the Rust CLI yet");
+            if let Some(skill_id) = parts.first() {
+                let args: Vec<String> = parts[1..].iter().map(|s| (*s).to_string()).collect();
+                let code = run_python_skill(skill_id, &args);
+                if code != std::process::ExitCode::SUCCESS {
+                    eprintln!("skill {skill_id} failed");
+                }
             } else {
-                eprintln!("unknown skill: {}", parts.first().copied().unwrap_or(""));
+                eprintln!("usage: /skill <id> [args...]");
             }
             continue;
         }

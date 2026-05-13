@@ -210,14 +210,7 @@ pub async fn run<I: IntoIterator<Item = OsString>>(argv: I) -> ExitCode {
             ExitCode::SUCCESS
         }
         Cmd::Skill { cmd } => match cmd {
-            SkillCmd::Run { id, args: _ } if id == "analyze" => {
-                eprintln!("skill 'analyze' is not implemented in the Rust CLI yet");
-                ExitCode::from(1)
-            }
-            SkillCmd::Run { id, .. } => {
-                eprintln!("unknown skill: {id}");
-                ExitCode::from(1)
-            }
+            SkillCmd::Run { id, args } => extensions::run_python_skill(&id, &args),
         },
         Cmd::Agents => {
             for (id, desc, _) in extensions::AGENTS {
