@@ -28,7 +28,7 @@ from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
-from .skills import SkillRegistry, default_skill_registry
+from .skill_registry import SkillRegistry, default_skill_registry
 from .slash import SlashCommand, SlashRegistry
 from .subagents import (
     SubagentRegistry,

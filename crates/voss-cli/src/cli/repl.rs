@@ -22,7 +22,9 @@ use voss_agent::{run_turn, EpisodicMemory, TurnConfig};
 use voss_providers::ModelProvider;
 use voss_render::{NdjsonRender, PlainRender, Render, TtyRender};
 
+use crate::extensions::{agent_ids, run_subagent, skill_ids, tools_with_subagent, AGENTS, SKILLS, SharedProviderAdapter};
 use crate::permissions::{Mode, PermissionGate, PermissionStore};
+use crate::plugins::{load_plugins, set_plugin_enabled};
 use crate::session::{self, SessionRecord, Turn};
 
 const SLASH_COMMANDS: &[&str] = &[
@@ -34,6 +36,12 @@ const SLASH_COMMANDS: &[&str] = &[
     "/tools",
     "/sessions",
     "/save",
+    "/plugins",
+    "/plugin",
+    "/skills",
+    "/skill",
+    "/agents",
+    "/agent",
 ];
 
 /// History file location. `~/.local/state/voss/history` (single global; per-cwd
@@ -49,7 +57,7 @@ pub async fn run_repl(
     cwd: &Path,
     json_mode: bool,
     mode: Mode,
-    provider: &mut dyn ModelProvider,
+    provider: Box<dyn ModelProvider>,
     starting_record: Option<SessionRecord>,
 ) -> std::process::ExitCode {
     let mut history = EpisodicMemory::new(40);
@@ -72,7 +80,9 @@ pub async fn run_repl(
         store: Some(PermissionStore::load(cwd)),
         auto_yes: false,
     };
-    let tools = voss_tools::default_toolset(cwd);
+    let shared_provider = Arc::new(tokio::sync::Mutex::new(provider));
+    let mut provider_adapter = SharedProviderAdapter::new(shared_provider.clone());
+    let tools = tools_with_subagent(cwd, shared_provider.clone(), mode, &record.model);
     let mut total_cost = record.total_cost_usd;
 
     renderer.banner(&record.model, cwd, &git_status(cwd));
@@ -162,7 +172,67 @@ pub async fn run_repl(
                 }
                 continue;
             }
+            "/plugins" => {
+                print_plugins(cwd);
+                continue;
+            }
+            "/skills" => {
+                print_skills();
+                continue;
+            }
+            "/agents" => {
+                print_agents();
+                continue;
+            }
             _ => {}
+        }
+
+        if let Some(rest) = line.strip_prefix("/plugin ") {
+            let parts: Vec<&str> = rest.split_whitespace().collect();
+            if parts.len() == 2 && (parts[0] == "enable" || parts[0] == "disable") {
+                match set_plugin_enabled(parts[1], parts[0] == "enable") {
+                    Ok(path) => println!(
+                        "plugin {} {}: {}",
+                        parts[1],
+                        if parts[0] == "enable" { "enabled" } else { "disabled" },
+                        path.display()
+                    ),
+                    Err(e) => eprintln!("plugin update failed: {e}"),
+                }
+            } else {
+                eprintln!("usage: /plugin enable|disable <id>");
+            }
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("/skill ") {
+            let parts: Vec<&str> = rest.split_whitespace().collect();
+            if parts.first().copied() == Some("analyze") {
+                eprintln!("skill 'analyze' is not implemented in the Rust CLI yet");
+            } else {
+                eprintln!("unknown skill: {}", parts.first().copied().unwrap_or(""));
+            }
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("/agent ") {
+            let parts: Vec<&str> = rest.split_whitespace().collect();
+            if parts.len() >= 3 && parts[0] == "spawn" {
+                match run_subagent(
+                    parts[1],
+                    &parts[2..].join(" "),
+                    cwd,
+                    shared_provider.clone(),
+                    mode,
+                    &record.model,
+                )
+                .await
+                {
+                    Ok(text) => println!("{text}"),
+                    Err(e) => eprintln!("agent spawn failed: {e}"),
+                }
+            } else {
+                eprintln!("usage: /agent spawn <id> <task>");
+            }
+            continue;
         }
 
         if let Some(rest) = line.strip_prefix("/save") {
@@ -205,7 +275,7 @@ pub async fn run_repl(
             &tools,
             cwd,
             renderer.as_mut(),
-            provider,
+            &mut provider_adapter,
             Some(&mut history),
             &mut adapter,
             cfg,
@@ -360,6 +430,12 @@ fn print_slash_help() {
          /tools         list registered tools\n\
          /sessions      list saved sessions\n\
          /save [name]   persist session snapshot\n\
+         /plugins       list plugin manifests\n\
+         /plugin        enable|disable a plugin manifest\n\
+         /skills        list registered skills\n\
+         /skill         run a registered skill\n\
+         /agents        list registered subagents\n\
+         /agent         spawn a registered subagent\n\
          \n\
          Tab            complete slash command\n\
          Shift-Enter    insert newline\n\
@@ -367,6 +443,35 @@ fn print_slash_help() {
          Ctrl-R         reverse-search history\n\
          Ctrl-D         exit"
     );
+}
+
+fn print_plugins(cwd: &Path) {
+    let skills = skill_ids();
+    let agents = agent_ids();
+    let plugins = load_plugins(cwd, SLASH_COMMANDS, &skills, &agents);
+    if plugins.is_empty() {
+        println!("(no plugins)");
+        return;
+    }
+    for plugin in plugins {
+        let status = if plugin.enabled { "enabled" } else { "disabled" };
+        println!("  {:<20} {:<8} {}", plugin.id, status, plugin.name);
+        for warning in plugin.warnings {
+            eprintln!("    warning: {warning}");
+        }
+    }
+}
+
+fn print_skills() {
+    for (id, desc) in SKILLS {
+        println!("  {id:<16} {desc}");
+    }
+}
+
+fn print_agents() {
+    for (id, desc, _) in AGENTS {
+        println!("  {id:<16} {desc}");
+    }
 }
 
 fn git_status(cwd: &Path) -> String {

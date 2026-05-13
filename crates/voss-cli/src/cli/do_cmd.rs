@@ -7,6 +7,7 @@ use voss_auth::{resolve, AuthPref};
 use voss_render::{NdjsonRender, PlainRender, Render, TtyRender};
 
 use crate::cli::auth_to_provider;
+use crate::extensions::{tools_with_subagent, SharedProviderAdapter};
 use crate::cli::repl::GateAdapter;
 use crate::permissions::{Mode, PermissionGate, PermissionStore};
 
@@ -20,13 +21,15 @@ pub async fn run_do(
     let cwd = std::env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
 
     let res = resolve(AuthPref::parse(auth_pref));
-    let mut provider = match auth_to_provider::build(res) {
+    let provider = match auth_to_provider::build(res) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("auth failed: {e}");
             return std::process::ExitCode::from(2);
         }
     };
+    let shared_provider = std::sync::Arc::new(tokio::sync::Mutex::new(provider));
+    let mut provider_adapter = SharedProviderAdapter::new(shared_provider.clone());
 
     let mode = Mode::parse(mode_str).unwrap_or(Mode::Edit);
     let mut gate = PermissionGate {
@@ -44,7 +47,7 @@ pub async fn run_do(
         Box::new(PlainRender::default())
     };
 
-    let tools = voss_tools::default_toolset(&cwd);
+    let tools = tools_with_subagent(&cwd, shared_provider, mode, "claude-sonnet-4-5");
     let mut history = EpisodicMemory::new(40);
 
     match run_turn(
@@ -52,7 +55,7 @@ pub async fn run_do(
         &tools,
         &cwd,
         renderer.as_mut(),
-        provider.as_mut(),
+        &mut provider_adapter,
         Some(&mut history),
         &mut adapter,
         TurnConfig::default(),

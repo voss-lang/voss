@@ -10,12 +10,40 @@ fn voss_help_lists_all_verbs() {
         .output()
         .unwrap();
     let s = String::from_utf8_lossy(&out.stdout);
-    for verb in &["doctor", "sessions", "resume", "ast", "do", "chat"] {
+    for verb in &[
+        "doctor", "sessions", "resume", "ast", "do", "chat", "plugins", "plugin",
+        "skills", "skill", "agents", "agent",
+    ] {
         assert!(
             s.contains(verb),
             "missing verb '{verb}' in --help: {s}"
         );
     }
+}
+
+#[test]
+fn extension_list_commands_work_without_auth() {
+    for verb in ["plugins", "skills", "agents"] {
+        Command::cargo_bin("voss-cli")
+            .unwrap()
+            .arg(verb)
+            .assert()
+            .success();
+    }
+}
+
+#[test]
+fn plugin_enable_persists() {
+    let tmp = tempfile::tempdir().unwrap();
+    Command::cargo_bin("voss-cli")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", tmp.path().join(".config"))
+        .args(["plugin", "enable", "demo"])
+        .assert()
+        .success();
+    let text = std::fs::read_to_string(tmp.path().join(".config/voss/plugins.toml")).unwrap();
+    assert!(text.contains("demo"));
+    assert!(text.contains("enabled = true"));
 }
 
 #[test]
