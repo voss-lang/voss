@@ -204,7 +204,57 @@ M7 promotes five existing internals to the public surface (`voss.harness.__all__
 
 </deferred>
 
+<refinements>
+## Decisions Refined Post-Research (2026-05-13)
+
+`M7-RESEARCH.md` surfaced 7 corrections to upstream assumptions and 5 open questions. The following decisions REPLACE or AUGMENT the originals listed above. Where a refinement (R-NN) conflicts with the upstream decision (D-NN), the refinement WINS.
+
+### Renderer method count (corrects D-01)
+- **R-01:** `Renderer` Protocol has 11 methods, not 9. Existing methods at `voss/harness/render.py:24-44`: `banner`, `show_user`, `show_thinking`, `show_plan`, `show_tool_call`, `show_clarify`, `show_final`, `status`, `show_cognition`, `show_cognition_overflow`, `show_warning`. `NullRenderer` (D-02) must implement all 11 as no-ops. `test_public_api.py` extension list (D-23) is unchanged — symbol count is what's pinned, not method count.
+
+### Tool factory delegation (refines D-04, D-05, replaces D-06)
+- **R-02:** `tool_entry_from_callable` DELEGATES to the existing `@tool` decorator in `voss_runtime/tools.py:65-102` rather than re-implementing inference. The factory becomes ~10 LOC: call the existing decorator, wrap returned `ToolDescriptor` in a `ToolEntry(descriptor=..., is_mutating=...)`. Single source of truth for inference; no schema-dialect drift.
+- **R-03:** Optional[T] / T | None dialect: match the existing `@tool` decorator's `nullable: True` shape (Research Q1 + Risk 5). Drop the D-05 "remove from required" rule. Whatever the existing decorator emits is what the factory emits — by delegation, this is automatic.
+- **R-04:** Sync-callable handling: WRAP. If `inspect.iscoroutinefunction(fn)` is `False`, the factory wraps `fn` in an async shim before constructing the descriptor. The executor at `voss/harness/agent.py:430` always awaits `entry.invoke(...)`, so sync callables passed without the shim crash at runtime. Wrapping is the cheapest fix and preserves the embedder ergonomic ("any callable works").
+
+### SessionView projects from dicts (refines D-11)
+- **R-05:** `SessionRecord.runs` is `list[dict]` (raw), not `list[RunRecord]` (per `voss/harness/session.py:94` + `voss/harness/cli.py:830` usage). `view_session` projects each run dict via defensive `.get()` reads with sensible defaults: `id = r.get("id", "")`, `started_at = r.get("started_at", "")`, `ended_at = r.get("ended_at", "")`, `goal = r.get("goal", "")`, `cost_usd = float(r.get("cost_usd", 0.0))`, `diff_summary = r.get("diff_summary", "")`. Confidence extraction stays as documented (`r.get("plan", {}).get("confidence")` → `float | None`).
+- **R-06:** `view_session` accepts only `SessionRecord` input in M7 (per D-12). A future `view_session(dict)` overload is v0.2 polish; Research Q3 deferred.
+
+### ModelProvider already runtime_checkable (corrects D-22)
+- **R-07:** `ModelProvider` Protocol at `voss_runtime/providers/base.py:22` ALREADY has `@runtime_checkable`. D-22's "add decorator if missing" is a no-op. SDK-05 just adds the `isinstance(provider, ModelProvider)` validation call inside `register` — no Protocol modification needed.
+
+### register_provider naming + audit (refines D-19, D-21)
+- **R-08:** Re-export as `register_provider` (not bare `register`) per D-19 — Research Risk 6 confirms bare `register` would shadow the `voss_runtime.providers.register` symbol unhelpfully. Long name disambiguates.
+- **R-09:** 10 in-tree call sites of `voss_runtime.providers.register` must pass `replace=True` in the SAME wave as the SDK-05 default-flip (Research Risk 3). Splitting across waves breaks CI on the intermediate commit. The single highest-leverage fix is `tests/examples/helpers.py:98` (the `register_stub` context manager) — covers most downstream tests. Planner: scope SDK-05 as a single atomic wave.
+
+### docs/sdk.md scope (refines D-25)
+- **R-10:** `docs/sdk.md` has FOUR items in "Known gaps (closing in M7)", plus SDK-05 referenced in the "Plugin authoring (informal in v0.1)" paragraph at line 224. M7 wave-final task updates BOTH locations: known-gaps section shrinks to zero, plugin-authoring para gets rewritten to point at the new `register_provider` public entry point.
+
+### Version posture (locks Research Q5)
+- **R-11:** `pyproject.toml` stays at `0.1.0` during M7 execution. The version bump (to 0.2.0 if M7 ships post-M6, or stays at 0.1.0 if pre-M6) is deferred to the publish wave. M7 PRs do not touch `pyproject.toml [project] version`.
+
+### Wave structure (locks Research §Wave Recommendations)
+- **R-12:** Six waves, mostly parallel:
+  - **Wave 1 (SDK-01)** — `NullRenderer` + Renderer promotion. Independent. Files: `voss/harness/render.py`, `voss/harness/__init__.py`.
+  - **Wave 2 (SDK-02)** — `tool_entry_from_callable` factory delegating to `@tool`. Independent. Files: `voss/harness/tools.py`, `voss/harness/__init__.py`.
+  - **Wave 3 (SDK-03)** — `SessionView` / `RunView` / `view_session` in new `voss/harness/views.py`. Independent. Files: `voss/harness/views.py` (new), `voss/harness/__init__.py`.
+  - **Wave 4 (SDK-04)** — `RuntimeConfig.from_toml` + `default()`. Independent. Files: `voss_runtime/_config.py`.
+  - **Wave 5 (SDK-05) — ATOMIC** — `register` gains `replace=False` kwarg + `isinstance(provider, ModelProvider)` validation + re-export as `register_provider` + audit/update all 10 in-tree call sites + `voss_runtime/__init__.py` `__all__` extension. Must NOT split.
+  - **Wave 6 (Integration + tests + docs)** — Depends on waves 1–5. `tests/packaging/test_public_api.py` `EXPECTED_*_PUBLIC_API` extension; new `tests/packaging/test_sdk_embedding.py` end-to-end test (the M7 success contract per D-24); stability docstring updates on both `__init__.py` files; `docs/sdk.md` known-gaps + plugin-authoring rewrite.
+- **R-13:** Waves 1–4 parallelize cleanly — disjoint files, no shared symbols. Wave 5 is sequential after wave 4 only to avoid `voss_runtime/__init__.py` merge conflicts with wave 4's `RuntimeConfig.from_toml` import addition (both touch the same file). Wave 6 depends on all prior waves landing.
+
+### Open questions resolved
+- Q1 (sync callable): WRAP — see R-04.
+- Q2 (Optional dialect): match existing `nullable:True` — see R-03.
+- Q3 (view_session dict overload): v0.2 — see R-06.
+- Q4 (sdk.md update scope): both locations — see R-10.
+- Q5 (version bump): defer to publish wave — see R-11.
+
+</refinements>
+
 ---
 
 *Phase: M7-sdk-polish*
 *Context gathered: 2026-05-13*
+*Refined post-research: 2026-05-13*
