@@ -68,3 +68,30 @@ def test_summary_handles_all_null_cost(tmp_path: Path) -> None:
     text = write_summary(jsonl, tmp_path / "summary.md").read_text()
 
     assert "mean cost: n/a" in text
+
+
+def test_summary_marks_mixed_provider_and_model(tmp_path: Path) -> None:
+    jsonl = tmp_path / "runs.jsonl"
+    rows = [
+        {
+            "task_id": "01-analyze",
+            "success": True,
+            "cost_usd": None,
+            "confidence": 0.9,
+            "provider": "ProviderA",
+            "model": "model-a",
+        },
+        {
+            "task_id": "02-plan-only",
+            "success": True,
+            "cost_usd": None,
+            "confidence": 0.8,
+            "provider": "ProviderB",
+            "model": "model-b",
+        },
+    ]
+    _write_rows(jsonl, rows)
+
+    text = write_summary(jsonl, tmp_path / "summary.md").read_text()
+
+    assert "provider: `mixed` · model: `mixed`" in text

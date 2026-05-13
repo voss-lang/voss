@@ -11,6 +11,10 @@ def register(name: str, provider: ModelProvider) -> None:
     _registry[name] = provider
 
 
+def has(name: str) -> bool:
+    return name in _registry
+
+
 def get(name: str | None = None) -> ModelProvider:
     # D-01: hermetic env → force stub unless caller asked for a registered name explicitly.
     if os.environ.get("VOSS_HERMETIC") == "1":
@@ -34,5 +38,6 @@ __all__ = [
     "ProviderResponse",
     "StubProvider",
     "get",
+    "has",
     "register",
 ]

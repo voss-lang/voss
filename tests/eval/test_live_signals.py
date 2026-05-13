@@ -29,6 +29,12 @@ def test_confidence(tmp_path: Path) -> None:
     assert row["confidence"] is None or 0.0 <= row["confidence"] <= 1.0
 
 
+@pytest.mark.live
+def test_live_flag(tmp_path: Path) -> None:
+    row = _run_live_eval(tmp_path)
+    assert row["live"] is True
+
+
 def _run_live_eval(tmp_path: Path) -> dict:
     repo = _repo_root()
     task_id = "02-plan-only"

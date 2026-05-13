@@ -35,6 +35,15 @@ def _mean_cost(rows: list[dict]) -> float | None:
     return sum(costs) / len(costs) if costs else None
 
 
+def _common_value(rows: list[dict], key: str) -> str:
+    values = {row.get(key) for row in rows}
+    if not values:
+        return "n/a"
+    if len(values) == 1:
+        return str(next(iter(values)))
+    return "mixed"
+
+
 def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
     rows = _read_rows(jsonl_path)
     by_task: defaultdict[str, list[dict]] = defaultdict(list)
@@ -47,8 +56,8 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
     overall_rate = passes / len(scored) if scored else 0.0
     mean_cost = _mean_cost(rows)
     corr, n = _pearson(rows)
-    provider = rows[0]["provider"] if rows else "n/a"
-    model = rows[0]["model"] if rows else "n/a"
+    provider = _common_value(rows, "provider")
+    model = _common_value(rows, "model")
 
     lines = [
         f"# voss eval — {jsonl_path.parent.name}",

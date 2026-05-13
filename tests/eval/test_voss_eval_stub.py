@@ -21,6 +21,7 @@ REQUIRED_FIELDS = {
     "provider",
     "model",
     "judge_model",
+    "live",
     "seed",
     "voss_version",
     "started_at",
@@ -89,6 +90,7 @@ def test_voss_eval_stub_writes_single_jsonl_row(
     assert row["cost_usd"] is None
     assert row["judge_verdict"] == "skipped"
     assert row["success"] is None
+    assert row["live"] is False
 
 
 def test_cost_field_null_under_stub(
@@ -145,6 +147,58 @@ def test_voss_eval_without_creds_points_to_stub(
 
     assert result.returncode == 2
     assert result.stderr.strip() == "voss eval: no provider creds — pass --stub for hermetic smoke or run /login"
+
+
+def test_voss_eval_unknown_task_fails_without_traceback(
+    golden_repo_root: Path,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "eval-out"
+
+    result = _run_eval(
+        ["--stub", "--auth", "none", "--task", "missing", "--out", str(out)],
+        cwd=golden_repo_root,
+    )
+
+    assert result.returncode == 2
+    assert "no eval tasks found for task 'missing'" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not (out / "runs.jsonl").exists()
+
+
+@pytest.mark.parametrize("k", ["0", "-1"])
+def test_voss_eval_rejects_non_positive_k(
+    golden_repo_root: Path,
+    tmp_path: Path,
+    k: str,
+) -> None:
+    out = tmp_path / "eval-out"
+
+    result = _run_eval(
+        ["--stub", "--auth", "none", "--task", "02-plan-only", "-k", k, "--out", str(out)],
+        cwd=golden_repo_root,
+    )
+
+    assert result.returncode == 2
+    assert "-k must be at least 1" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not (out / "runs.jsonl").exists()
+
+
+def test_voss_eval_rejects_live_stub_combo(
+    golden_repo_root: Path,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "eval-out"
+
+    result = _run_eval(
+        ["--live", "--stub", "--auth", "none", "--task", "02-plan-only", "--out", str(out)],
+        cwd=golden_repo_root,
+    )
+
+    assert result.returncode == 2
+    assert "--live cannot be combined with --stub" in result.stderr
+    assert "Traceback" not in result.stderr
 
 
 @pytest.mark.parametrize(
