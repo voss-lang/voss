@@ -72,7 +72,14 @@ def download_pbs(triple: str, manifest: dict, dest: Path) -> Path:
     return out
 
 
-def verify_sha256(tarball: Path, expected: str) -> str:
+def verify_sha256(tarball: Path, expected: str, *, allow_pending: bool = False) -> str:
+    """Verify the PBS tarball matches its pinned sha256.
+
+    `expected == "PENDING"` is a developer convenience for capturing a hash on a
+    new platform. It REQUIRES the caller to pass `allow_pending=True` (the
+    --allow-pending CLI flag). CI and release runs MUST never pass this flag,
+    so a manifest pin that drifts back to PENDING is loud-failed (F3 hardening).
+    """
     h = hashlib.sha256()
     with tarball.open("rb") as f:
         while True:
@@ -82,9 +89,18 @@ def verify_sha256(tarball: Path, expected: str) -> str:
             h.update(chunk)
     digest = h.hexdigest()
     if expected == "PENDING":
+        if not allow_pending:
+            sys.stderr.write(
+                f"pbs_manifest.json contains PENDING for {tarball.name}\n"
+                f"Refusing to extract an unverified tarball under release/CI rules.\n"
+                f"To capture and pin this hash locally, re-run with --allow-pending.\n"
+                f"Captured sha256 was: {digest}\n"
+            )
+            sys.exit(2)
         print(f"SHA256({tarball.name})={digest}")
         print(
-            f"Update pbs_manifest.json for this triple with this digest, then commit."
+            f"--allow-pending: capturing hash. Update pbs_manifest.json with"
+            f" this digest and commit before merging."
         )
         return digest
     if digest != expected:
@@ -97,8 +113,24 @@ def verify_sha256(tarball: Path, expected: str) -> str:
 
 
 def extract_pbs(tarball: Path, dest: Path) -> Path:
+    """Extract a PBS tarball into `dest`.
+
+    F2 hardening: `filter="data"` strips absolute paths, normalizes "..",
+    drops device/setuid/setgid/symlink entries (CVE-2007-4559 / Trojan-Tar).
+    The tarball is already sha256-pinned via verify_sha256, but defense in
+    depth is cheap. Python 3.12+ semantics; voss requires 3.11+.
+    """
     with tarfile.open(tarball, "r:gz") as t:
-        t.extractall(dest)
+        # `filter="data"` is the documented safe-extraction filter introduced
+        # in Python 3.12. On 3.11 the keyword is silently ignored — acceptable
+        # because the sha256 pin is the primary trust boundary; release CI
+        # uses 3.12 (see .github/workflows/release.yml).
+        try:
+            t.extractall(dest, filter="data")
+        except TypeError:
+            # Python < 3.12 fallback (no `filter` kwarg). sha256 pin already
+            # guarantees the tarball came from an audited PBS release.
+            t.extractall(dest)
     extract_root = dest / "python"
     unix_py = extract_root / "bin" / "python3"
     win_py = extract_root / "python.exe"
@@ -182,6 +214,15 @@ def main() -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--wheel", default=None)
     parser.add_argument("--keep-tarball", action="store_true")
+    parser.add_argument(
+        "--allow-pending",
+        action="store_true",
+        help=(
+            "Allow PENDING sha256 entries in pbs_manifest.json. Use only when "
+            "capturing a hash on a new platform locally; CI/release runs MUST "
+            "NOT pass this flag (F3 hardening)."
+        ),
+    )
     args = parser.parse_args()
 
     manifest = load_manifest()
@@ -191,7 +232,11 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="voss-pbs-") as tmp_s:
         tmp = Path(tmp_s)
         tarball = download_pbs(args.triple, manifest, tmp)
-        verify_sha256(tarball, manifest["triples"][args.triple]["sha256"])
+        verify_sha256(
+            tarball,
+            manifest["triples"][args.triple]["sha256"],
+            allow_pending=args.allow_pending,
+        )
         extract_root = extract_pbs(tarball, tmp)
         run_prune(extract_root)
         install_wheel(extract_root, wheel)

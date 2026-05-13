@@ -8,7 +8,7 @@ from typing import Any
 
 from voss_runtime import ToolDescriptor, tool
 
-from .sandbox import jail_path, shell_allowed, SandboxError
+from .sandbox import jail_path, shell_allowed, split_command, SandboxError
 
 
 @dataclass(frozen=True)
@@ -65,14 +65,22 @@ def make_toolset(cwd: Path) -> dict[str, ToolEntry]:
         results = sorted(str(p.relative_to(cwd)) for p in cwd.glob(pattern) if p.is_file())
         return "\n".join(results) if results else "<no matches>"
 
-    @tool(name="shell_run", description="Run a shell command from the allowlist. Output truncated to 4KB.")
+    @tool(name="shell_run", description="Run an allowlisted command (no shell). Output truncated to 4KB.")
     async def shell_run(cmd: str) -> str:
+        # Allowlist + metacharacter check first. shell_allowed rejects pipelines,
+        # redirection, command substitution, chaining — anything that requires a
+        # shell to interpret. The actual invocation uses `create_subprocess_exec`
+        # so the binary is executed directly, never via `/bin/sh -c`.
         ok, reason = shell_allowed(cmd)
         if not ok:
             return f"<denied: {reason}>"
         try:
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
+            argv = split_command(cmd)
+        except SandboxError as e:
+            return f"<denied: {e}>"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
                 cwd=str(cwd),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

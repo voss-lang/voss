@@ -12,6 +12,15 @@ DEFAULT_SHELL_ALLOWLIST = {
 
 DENY_TOKENS = ("rm -rf", "sudo", "curl http", "nc ", " > /", "shutdown", "reboot", "mkfs")
 
+# Shell metacharacters that change command-flow semantics. Even though Voss
+# invokes the allowlisted binary directly via `create_subprocess_exec` (not
+# `_shell`), we still reject these tokens at allowlist time so a misuse of
+# the API by a future caller can't accidentally re-enable shell parsing.
+# These cover: command chaining (`;`, `&&`, `||`, `&`), pipelines (`|`),
+# redirection (`>`, `<`, `>>`, `<<`), command substitution (`$(`, backtick),
+# and process substitution (`<(`, `>(`).
+SHELL_METACHARS = (";", "|", "&&", "||", "&", "$(", "`", ">", "<", ">>", "<<", "<(", ">(")
+
 
 class SandboxError(RuntimeError):
     pass
@@ -32,21 +41,53 @@ def jail_path(cwd: Path, target: str | os.PathLike) -> Path:
 
 
 def shell_allowed(cmd: str, allowlist: set[str] = DEFAULT_SHELL_ALLOWLIST) -> tuple[bool, str]:
-    """Return (allowed, reason)."""
+    """Return (allowed, reason).
+
+    Hardening contract:
+    1. Lowercase deny-token scan covers historically-dangerous patterns.
+    2. Reject any shell metacharacter — pipelines/chaining/redirection/substitution
+       are unambiguous shell features with no legitimate use under a strict
+       binary allowlist. The caller (`shell_run`) executes via
+       `create_subprocess_exec` (no shell), so a metacharacter in the cmd
+       would either be passed as a literal argument (surprising) or indicate
+       intent to invoke `_shell` (forbidden). Reject either way.
+    3. Allowlist check is case-insensitive on the binary name so legitimate
+       commands work on case-insensitive filesystems (macOS APFS).
+    """
     lowered = cmd.lower()
     for bad in DENY_TOKENS:
         if bad in lowered:
             return False, f"denied token: {bad!r}"
+    for meta in SHELL_METACHARS:
+        if meta in cmd:
+            return False, f"shell metacharacter not allowed: {meta!r}"
     try:
         parts = shlex.split(cmd)
     except ValueError as e:
         return False, f"unparseable: {e}"
     if not parts:
         return False, "empty command"
-    binary = Path(parts[0]).name
+    binary = Path(parts[0]).name.lower()
     if binary not in allowlist:
         return False, f"binary not in allowlist: {binary}"
     return True, "ok"
+
+
+def split_command(cmd: str) -> list[str]:
+    """Split an allowlist-approved command into argv for `create_subprocess_exec`.
+
+    Caller MUST have already validated `cmd` via `shell_allowed` and gotten
+    `(True, "ok")`. Returns the argv list ready for execvp-style invocation.
+    Empty input raises SandboxError — `shell_allowed` already rejects this
+    case, so reaching it here is a programmer error.
+    """
+    try:
+        parts = shlex.split(cmd)
+    except ValueError as e:
+        raise SandboxError(f"unparseable command: {e}") from e
+    if not parts:
+        raise SandboxError("empty command")
+    return parts
 
 
 def write_cache(project_root: Path, relpath: str | os.PathLike, text: str) -> Path:
