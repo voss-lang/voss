@@ -11,9 +11,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bm9797/Voss.git"
+    "url": "git+https://github.com/Wineberry-io/Voss.git"
   },
-  "homepage": "https://github.com/bm9797/Voss#readme",
+  "homepage": "https://github.com/Wineberry-io/Voss#readme",
   "files": [
     "bin/",
     "README.md"
