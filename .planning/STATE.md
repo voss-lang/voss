@@ -23,12 +23,12 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** M5 — Eval and Distribution Prep
-**Status:** 5/6 plans summarized (M5-01..M5-05). **M5-06 outstanding** — wheel-in-tempvenv smoke + README install polish. M5-06 is a prerequisite for M6 (npm wraps the same wheel).
-**Goal:** Measure v0.1 quality and prep package install.
-**Next move:** Finish M5-06, then `/gsd-discuss-phase M6`.
+**Phase:** M6 — npm Wrapper
+**Status:** Context gathered — 14 decisions captured across 4 gray areas (bundling, Python runtime, wheel source + version sync, platform matrix + naming). Ready to `/gsd-plan-phase M6`.
+**Goal:** Publish `voss` as an npm package vendoring pinned Python 3.12 (python-build-standalone) + the v0.1 wheel via esbuild-pattern optionalDependencies across 5 platforms.
+**Next move:** `/gsd-plan-phase M6` — research + plans for M6-01..M6-05 (NPM-01..05).
 **Rust status:** `crates/` frozen-spike — kept in source control, not on v0.1 ship path. Do not edit. Resurrect on dogfood signal only.
-**Last activity:** 2026-05-12 — Rust reframed as frozen spike; Python is sole active implementation. Ready to finish M5 and enter M6 discuss.
+**Last activity:** 2026-05-13 — M6 context captured. Bundling = optionalDependencies (esbuild pattern), bin shim = Node JS, Python source = python-build-standalone @ 3.12, wheel built-in-CI vendored into platform subpackages, package name = unscoped `voss` + scoped `@voss/cli-<platform>-<arch>` subpackages, full 5-platform matrix (darwin/linux x arm64/x64 + win32-x64), npm names reserved immediately as first M6 task.
 
 ## Phase Status
 
@@ -39,8 +39,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M2 | Project Cognition | Ready to execute (7 plans) |
 | M3 | Language Validation | Ready to execute (6 plans, 4 waves) |
 | M4 | Voss-authored Harness Loop | Complete (5 plans, 5 waves) |
-| M5 | Eval and Distribution Prep | 5/6 plans summarized (M5-01..M5-05). M5-06 wheel-smoke + README install polish outstanding. |
-| M6 | npm Wrapper | Pending — added 2026-05-12. Enter `/gsd-discuss-phase` once M5-06 lands. |
+| M5 | Eval and Distribution Prep | 6/6 plans summarized (M5-01..M5-06). |
+| M6 | npm Wrapper | Context gathered 2026-05-13 (14 decisions, 4 gray areas). Ready to `/gsd-plan-phase`. |
 
 ## Recent Activity
 
