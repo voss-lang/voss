@@ -191,13 +191,13 @@ Tool descriptors carry `is_mutating: bool`. Anything mutating is gated.
 
 ---
 
-## Known gaps (v0.1 → v0.2 candidates)
+## Known gaps (closing in M7)
 
-These are public-API-shaped holes today. Mention them when filing an issue
-that bumps into a private path. Tracked as **M7 (candidate) — SDK Polish**
-in `.planning/ROADMAP.md` with requirement IDs **SDK-01..05** in
-`.planning/REQUIREMENTS.md`. Not committed to a v0.1 milestone — lands when
-real-user demand surfaces.
+These are public-API-shaped holes today. They are scoped to formal v0.1
+phase **M7 — SDK Polish** (see `.planning/ROADMAP.md` §"Phase M7: SDK
+Polish" and `.planning/REQUIREMENTS.md` SDK-01..05). When M7 ships, the
+items below will be promoted into `voss.harness.__all__` /
+`voss_runtime.__all__` and this list will shrink to zero.
 
 - **`Renderer` interface** is private. Embedding callers that want silent
   runs or custom rendering currently reach into `voss.harness.render` for a

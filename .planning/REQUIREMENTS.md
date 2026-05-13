@@ -89,40 +89,34 @@
 - [ ] **NPM-04**: A packaging smoke test verifies that, in a fresh Node project, `npm install voss` then `npx voss --help`, `npx voss doctor`, `npx voss check <sample.voss>`, and `npx voss compile <sample.voss>` all exit 0.
 - [ ] **NPM-05**: README primary install path is `npm i -g voss`; `pip install voss` is listed as the secondary path. v0.1 framing remains "Python harness; Rust shell later" — npm wrapper is distribution, not reimplementation.
 
-## Future Requirements
+### SDK Polish
 
-### v0.2 Candidate — SDK Polish
+Promoted from v0.2 candidate to formal M7 phase on 2026-05-13. Closes the
+four public-API-shaped holes identified during the 2026-05-12 SDK contract
+pass (`docs/sdk.md`) plus a stable provider registration entry point.
+Embedders currently work around these by reaching into private paths
+(`voss.harness.render`, `voss.harness.session`, `voss_runtime.providers`);
+M7 promotes the missing names so private-path drift stops binding callers.
 
-Identified during 2026-05-12 SDK contract pass (`docs/sdk.md`). These are
-public-API-shaped holes in v0.1 — embedders can work around them via private
-paths today, but doing so binds them to internals that may shift. Lift into a
-v0.2 SDK Polish phase when embedder demand surfaces (real users reaching into
-private modules). Not v0.1 blockers; not committed to a milestone.
-
-- **SDK-01**: Promote a `Renderer` protocol + `NullRenderer` implementation
+- [ ] **SDK-01**: Promote a `Renderer` protocol + `NullRenderer` implementation
   into `voss.harness.__all__`. Embedders that want silent or custom rendering
   currently import from the private `voss.harness.render` module.
-- **SDK-02**: Add a `tool_entry_from_callable(fn, *, is_mutating, name=None,
+- [ ] **SDK-02**: Add a `tool_entry_from_callable(fn, *, is_mutating, name=None,
   description=None)` factory to `voss.harness.__all__`. Wraps a plain Python
   callable as a `ToolEntry` without forcing embedders to author descriptors
   by hand.
-- **SDK-03**: Promote a read-only session view type (`SessionView` / similar)
+- [ ] **SDK-03**: Promote a read-only session view type (`SessionView` / similar)
   that exposes session id, cwd, runs (timestamps, cost, confidence) without
   binding callers to the on-disk `SessionRecord` / `RunRecord` schema. The
   internal schema stays free to change; the embedder view stays stable.
-- **SDK-04**: Add `RuntimeConfig.from_toml(path)` (and ideally
-  `RuntimeConfig.default()` that resolves `~/.config/voss/config.toml` plus
-  env overrides) so embedders share the harness config file rather than
-  reconstructing it field by field.
-- **SDK-05**: Document and stabilize the provider registration entry point
+- [ ] **SDK-04**: Add `RuntimeConfig.from_toml(path)` plus a `RuntimeConfig.default()`
+  that resolves `~/.config/voss/config.toml` and env overrides, so embedders
+  share the harness config file rather than reconstructing it field by field.
+- [ ] **SDK-05**: Document and stabilize the provider registration entry point
   (`voss_runtime.providers.register`) so third-party providers can be added
   without reaching into the private `voss_runtime.providers` submodule.
 
-**Acceptance shape (when this phase lands):**
-- Each new public name has a stability docstring + a regression entry in
-  `tests/packaging/test_public_api.py`.
-- `docs/sdk.md` "Known gaps" list shrinks by the items shipped.
-- No private-path embedder workaround examples remain in `docs/sdk.md`.
+## Future Requirements
 
 ### Deferred Distribution
 
@@ -171,12 +165,13 @@ private modules). Not v0.1 blockers; not committed to a milestone.
 | DOG-01..08 | M4 | Pending |
 | EVAL-01..05 | M5 | Pending |
 | NPM-01..05 | M6 | Pending |
+| SDK-01..05 | M7 | Pending |
 
 **Coverage:**
-- v0.1 requirements: 59 total (54 original + 5 NPM-* added for npm distribution wrapper)
-- Mapped to phases: 59
+- v0.1 requirements: 64 total (54 original + 5 NPM-* M6 + 5 SDK-* M7)
+- Mapped to phases: 64
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-10*
-*Last updated: 2026-05-12 — added NPM-01..05 for M6 npm wrapper phase*
+*Last updated: 2026-05-13 — promoted SDK-01..05 from v0.2 candidate to M7 SDK Polish phase*

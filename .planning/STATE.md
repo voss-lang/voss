@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-12T22:00:00Z"
-last_activity: 2026-05-12 — Rust `crates/` reframed as **frozen spike** (preserved in source control, not on v0.1 ship path). Python harness is sole active implementation. v0.1 distribution = npm wrapper around bundled Python (M6, pyright pattern). Resurrect Rust only on real dogfood signal (startup latency / wheel size). M5 5/6 plans summarized; M5-06 wheel-smoke + README polish outstanding as M6 prerequisite.
+last_updated: "2026-05-13T18:00:00Z"
+last_activity: 2026-05-13 — M7 SDK Polish promoted from v0.2 candidate to formal v0.1 phase (SDK-01..05). Total v0.1 reqs 59 → 64. M7 promotes existing internals to public surface — no new behavior, pure rename + re-export + docstrings + regression test entries. Ideal ordering: M7 before v0.1.0 PyPI/npm publish so external pins lock against the stabilized surface; if M6 ships first, M7 lands as 0.1.1 minor bump per docs/sdk.md pre-1.0 carve-out.
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -42,6 +42,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M4 | Voss-authored Harness Loop | Complete (5 plans, 5 waves) |
 | M5 | Eval and Distribution Prep | 6/6 plans summarized (M5-01..M5-06). |
 | M6 | npm Wrapper | Plans ready to execute (5 plans, 4 waves, verified iteration 2/3). |
+| M7 | SDK Polish | Phase added 2026-05-13 — context + plans not yet generated. |
 
 ## Recent Activity
 
@@ -62,6 +63,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-11 — Phase M5 context gathered (7 decision areas: `voss eval` CLI subcommand emitting JSONL + Markdown under `.voss/eval/<timestamp>/`; five golden task fixtures under `tests/eval/golden/NN-slug/` with per-task `task.toml` + isolated temp git repos; LLM-as-judge scorer with rubric per task and JSON-mode `Verdict {verdict, confidence, rationale}`; live-by-default with `--stub` for hermetic smoke at k=3 runs per task; cost from `RunRecord.cost_usd`, confidence from `Plan.confidence`, Pearson r reported; wheel-in-tempvenv packaging smoke in `tests/packaging/` with PyPI publish deferred and README install polish; measurement-only ship posture — no CI threshold gate, human reads report).
 - 2026-05-12 — Roadmap extended with M6 npm Wrapper phase. Goal: publish `voss` as an npm package that vendors a pinned Python interpreter + the v0.1 wheel so JS-ecosystem developers can `npm i -g voss` (or `npx voss`) without managing Python. Pattern: pyright-style bundled-Python distribution; npm package vendors the same wheel M5 verifies — no JS reimplementation. NPM-01..05 added to REQUIREMENTS.md (total v0.1 reqs 54 → 59). Cross-cutting: Python source unchanged, DIST-01 stays deferred, Windows enters v0.1 only via npm with optional drop to mac+linux if vendoring proves expensive.
 - 2026-05-12 — SDK contract landed: `docs/sdk.md` + expanded `voss.harness.__all__` (8 symbols) + stability docstrings on `voss_runtime` and `voss.harness` + `tests/packaging/test_public_api.py` pinning both `__all__` sets against drift. Four known public-API gaps filed as v0.2 candidate phase M7 — SDK Polish (SDK-01 Renderer protocol, SDK-02 tool_entry_from_callable, SDK-03 read-only SessionView, SDK-04 RuntimeConfig.from_toml, SDK-05 stable provider registration). Not committed to a v0.1 milestone; lands when embedder demand surfaces.
+- 2026-05-13 — M7 SDK Polish promoted from v0.2 candidate to formal v0.1 phase. SDK-01..05 moved into REQUIREMENTS.md active section + traceability row; ROADMAP.md gets full M7 phase block (goal, required surface sketch, capabilities, 5 success criteria, cross-cutting constraints). Total v0.1 reqs 59 → 64. Phase is pure promote-existing-internals — no new behavior, only renames + re-exports + docstrings + test_public_api.py regression entries. Ordering preference: M7 before v0.1.0 publish for surface stability; falls back to 0.1.1 minor bump if M6 ships first (pre-1.0 minor breaks allowed per docs/sdk.md).
 
 ## Notes
 

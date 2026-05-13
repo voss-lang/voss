@@ -3,9 +3,9 @@
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice
 **Granularity:** M-prefixed milestone phases
-**Requirements covered:** 59 / 59
+**Requirements covered:** 64 / 64
 **Source:** `.vscode/voss_v_0_1_scope_lock.md`
-**Last updated:** 2026-05-12 — added M6 npm wrapper phase
+**Last updated:** 2026-05-13 — promoted SDK-01..05 to formal M7 SDK Polish phase
 
 ## Phase Order
 
@@ -18,6 +18,7 @@
 | M4 | Voss-authored Harness Loop | Dogfood the language on the harness itself | DOG-01..08 | 4 |
 | M5 | Eval and Distribution Prep | Measure quality and prepare packaging after the Python loop works | EVAL-01..05 | 4 |
 | M6 | npm Wrapper | Publish `voss` as an npm package that vendors Python + the v0.1 wheel | NPM-01..05 | 5 |
+| M7 | SDK Polish | Close the four known public-API holes + stabilize provider registration | SDK-01..05 | 5 |
 
 ---
 
@@ -321,6 +322,53 @@ Plans:
 
 ---
 
+## Phase M7: SDK Polish
+
+**Goal:** Close the four known public-API holes documented in `docs/sdk.md` (Known gaps) plus stabilize the provider-registration entry point so third-party embedders and providers can use Voss without reaching into private modules.
+
+**Requirements:** SDK-01..05
+
+**Required surface (post-phase):**
+
+```python
+# voss.harness public additions
+from voss.harness import (
+    Renderer,                    # SDK-01: protocol
+    NullRenderer,                # SDK-01: silent default
+    tool_entry_from_callable,    # SDK-02: factory
+    SessionView,                 # SDK-03: read-only embedder view
+)
+
+# voss_runtime public additions
+from voss_runtime import (
+    RuntimeConfig,               # gains .from_toml(path) and .default() — SDK-04
+)
+from voss_runtime.providers import register as register_provider  # SDK-05
+```
+
+**Capabilities:**
+- Embedders can author silent or custom rendering without importing from `voss.harness.render`.
+- Embedders can wrap a plain Python callable as a `ToolEntry` with a single factory call — no manual descriptor authoring.
+- Embedders can introspect sessions (id, cwd, per-run timestamps/cost/confidence) via a stable read-only view without binding to the on-disk `SessionRecord`/`RunRecord` schema.
+- Embedders can load harness config from `~/.config/voss/config.toml` (or a custom path) and overlay env overrides in one call.
+- Third-party providers can be registered via a public, documented entry point.
+
+**Success Criteria:**
+1. Each new public name appears in the relevant package `__all__` AND in `tests/packaging/test_public_api.py` EXPECTED_*_PUBLIC_API set.
+2. `docs/sdk.md` "Known gaps" list shrinks by exactly the five items shipped (SDK-01..05). No private-path workaround examples remain for those five.
+3. A new test file exercises the embedding surface end-to-end: build a fake tool from a callable, drive a turn with `NullRenderer`, introspect resulting session via `SessionView`, configure via `RuntimeConfig.from_toml`, register a custom provider — all from `voss.harness.__all__` / `voss_runtime.__all__` symbols only.
+4. The on-disk `SessionRecord`/`RunRecord` schemas remain private (not promoted by accident).
+5. Stability docstrings updated on `voss.harness/__init__.py` and `voss_runtime/__init__.py` to reflect the expanded public surface.
+
+**Cross-cutting constraints:**
+- M7 promotes existing internals; it does not invent new behavior. If a feature isn't shippable as a pure rename + re-export + docstring + test, it doesn't belong in M7.
+- No new private surface introduced as a side effect. Every helper added must be either covered by `__all__` or marked `_private` from day one.
+- Pre-1.0 versioning carve-out (docs/sdk.md §Versioning) allows shipping M7 in a 0.x minor release without a major bump.
+- Ordering: M7 ideally lands BEFORE the first `voss==0.1.0` PyPI publish + `voss@0.1.0` npm publish so the public surface stabilizes before any external caller pins it. If M6 ships first, M7 lands as `0.1.1` and `docs/sdk.md` "Versioning" rules still hold (minor pre-1.0 may break; this would be a minor bump). Plan against both orderings.
+- TS/JS SDK, HTTP/remote SDK, formal plug-in framework with entry-points and sandboxing remain explicitly OUT of M7 — those are independent v0.2+ candidates with their own triggers.
+
+---
+
 ## Coverage
 
 | Phase | Requirements | Count |
@@ -332,7 +380,8 @@ Plans:
 | M4 | DOG-01..08 | 8 |
 | M5 | EVAL-01..05 | 5 |
 | M6 | NPM-01..05 | 5 |
-| **Total** |  | **59 / 59** |
+| M7 | SDK-01..05 | 5 |
+| **Total** |  | **64 / 64** |
 
 All v0.1 requirements mapped.
 
@@ -343,32 +392,9 @@ All v0.1 requirements mapped.
 Identified but **not committed to a milestone**. Each lands when its trigger
 condition fires — usually real-user demand surfacing during v0.1 dogfood.
 
-### M7 (candidate) — SDK Polish
-
-**Trigger:** Embedders reach into private paths (`voss.harness.render`,
-`voss.harness.session`, etc.) often enough that drift risk becomes real.
-
-**Goal:** Close the four known public-API gaps from `docs/sdk.md` so
-embedders stop binding to internals.
-
-**Requirements:** SDK-01..05 (see `REQUIREMENTS.md` §"v0.2 Candidate — SDK
-Polish").
-
-**Sketch:**
-- Renderer protocol + NullRenderer promoted to `voss.harness.__all__`.
-- `tool_entry_from_callable` factory added.
-- Read-only `SessionView` type for embedder introspection.
-- `RuntimeConfig.from_toml` + `RuntimeConfig.default()`.
-- Stable provider registration entry point.
-
-**Cross-cutting constraints:**
-- Each promoted name pinned by `tests/packaging/test_public_api.py`.
-- `docs/sdk.md` "Known gaps" list shrinks accordingly.
-- No new private surface introduced as a side effect.
-
-**Not included:** TS/JS SDK, HTTP/remote SDK, formal plug-in framework with
-entry-points and sandboxing. Those are separate v0.2+ candidates with their
-own triggers.
+> **Note:** M7 (SDK Polish) was originally listed here as a v0.2 candidate
+> on 2026-05-12; it was promoted to a formal v0.1 phase on 2026-05-13. See
+> "Phase M7: SDK Polish" above.
 
 ### Other v0.2 candidates (not yet phased)
 
