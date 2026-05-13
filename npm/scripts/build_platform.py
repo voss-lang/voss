@@ -11,9 +11,11 @@ Steps (per RESEARCH §3-§5):
   6. pip-install the voss wheel into the vendored interpreter (no
      --target / --prefix — RESEARCH §5).
   7. Measure site-packages size, print SITE_PACKAGES_SIZE_MB=<N>, and
-     gate on SIZE_BUDGET_MB. SIZE_BUDGET_MB = 300 is the hard cap from
-     RESEARCH §5 Risk 2 — published npm tarballs above this are
-     considered unusable for first-install UX.
+     gate on SIZE_BUDGET_MB. SIZE_BUDGET_MB = 1500 is the v0.1 cap raised
+     from RESEARCH §5 Risk 2's original 300 MB target per the M6-03 Task 4
+     decision (see .planning/phases/M6-npm-wrapper/M6-03-host-build-log.txt
+     §DECISION). v0.1 ships with the full torch+transformers chain; v0.2
+     should optionalize semantic-memory deps and reset the cap.
 """
 
 from __future__ import annotations
@@ -35,7 +37,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "npm" / "scripts" / "pbs_manifest.json"
 PRUNE_SCRIPT = ROOT / "npm" / "scripts" / "prune_pbs.py"
-SIZE_BUDGET_MB = 300
+SIZE_BUDGET_MB = 1500  # raised from 300 per M6-03 Task 4 decision (v0.1): the
+# v0.1 voss wheel transitively pulls torch (436 MB) + transformers (97 MB) +
+# scipy (97 MB) + litellm (81 MB) + onnxruntime (71 MB) for semantic memory.
+# Measured darwin-arm64 site-packages = 1133 MB. 1500 leaves headroom; revisit
+# when optionalizing semantic-memory deps in v0.2 (RESEARCH §5 Risk 2).
 
 PLATFORMS = ["darwin-arm64", "darwin-x64", "linux-x64", "linux-arm64", "win32-x64"]
 
