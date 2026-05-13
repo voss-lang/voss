@@ -1,0 +1,24 @@
+M6-01 Task 3 — npm name availability precheck
+Date: 2026-05-13
+Operator: Claude Code (M6-01 execute-plan)
+
+DEVIATION FROM PLAN: scope `@voss` was unavailable on publish day.
+The `voss` npm organization was already claimed (org creation at npmjs.com
+returned "already taken"). Per plan resume-signal "different scope", the
+user selected `@vosslang` as the substitute scope. All references to
+`@voss/cli*` in the plan are interpreted as `@vosslang/cli*` for the
+remainder of M6-01.
+
+Unscoped `voss` package: TAKEN (npm view voss version => 0.1.1)
+  This confirms the D-12 fallback path is still operative; the unscoped
+  name continues to be unavailable as documented in RESEARCH §1.
+
+Names verified available (npm view => E404 / Not found):
+  @vosslang/cli              E404
+  @vosslang/cli-darwin-arm64 E404
+  @vosslang/cli-darwin-x64   E404
+  @vosslang/cli-linux-x64    E404
+  @vosslang/cli-linux-arm64  E404
+  @vosslang/cli-win32-x64    E404
+
+All 6 names are clear for placeholder publish in Task 4.

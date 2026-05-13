@@ -1,0 +1,19 @@
+{
+  "name": "@vosslang/cli-win32-x64",
+  "version": "0.0.0",
+  "description": "Voss CLI platform package: Windows x64 (placeholder)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bm9797/Voss.git"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "python/"
+  ]
+}
