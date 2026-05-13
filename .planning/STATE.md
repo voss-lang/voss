@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-13T18:00:00Z"
-last_activity: 2026-05-13 — M7 SDK Polish promoted from v0.2 candidate to formal v0.1 phase (SDK-01..05). Total v0.1 reqs 59 → 64. M7 promotes existing internals to public surface — no new behavior, pure rename + re-export + docstrings + regression test entries. Ideal ordering: M7 before v0.1.0 PyPI/npm publish so external pins lock against the stabilized surface; if M6 ships first, M7 lands as 0.1.1 minor bump per docs/sdk.md pre-1.0 carve-out.
+last_updated: "2026-05-13T22:00:00Z"
+last_activity: 2026-05-13 — M7 plans complete (6 plans, 6 waves, gsd-plan-checker iter 2/3 PASS clean). 4 iter-1 blockers + 5 warnings all resolved on revision pass. Ready for /gsd-execute-phase M7.
 progress:
   total_phases: 8
   completed_phases: 0
@@ -42,7 +42,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M4 | Voss-authored Harness Loop | Complete (5 plans, 5 waves) |
 | M5 | Eval and Distribution Prep | 6/6 plans summarized (M5-01..M5-06). |
 | M6 | npm Wrapper | Plans ready to execute (5 plans, 4 waves, verified iteration 2/3). |
-| M7 | SDK Polish | Phase added 2026-05-13 — context + plans not yet generated. |
+| M7 | SDK Polish | Plans ready to execute (6 plans, 6 waves, verified iter 2/3 PASS clean). |
 
 ## Recent Activity
 
@@ -64,6 +64,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - 2026-05-12 — Roadmap extended with M6 npm Wrapper phase. Goal: publish `voss` as an npm package that vendors a pinned Python interpreter + the v0.1 wheel so JS-ecosystem developers can `npm i -g voss` (or `npx voss`) without managing Python. Pattern: pyright-style bundled-Python distribution; npm package vendors the same wheel M5 verifies — no JS reimplementation. NPM-01..05 added to REQUIREMENTS.md (total v0.1 reqs 54 → 59). Cross-cutting: Python source unchanged, DIST-01 stays deferred, Windows enters v0.1 only via npm with optional drop to mac+linux if vendoring proves expensive.
 - 2026-05-12 — SDK contract landed: `docs/sdk.md` + expanded `voss.harness.__all__` (8 symbols) + stability docstrings on `voss_runtime` and `voss.harness` + `tests/packaging/test_public_api.py` pinning both `__all__` sets against drift. Four known public-API gaps filed as v0.2 candidate phase M7 — SDK Polish (SDK-01 Renderer protocol, SDK-02 tool_entry_from_callable, SDK-03 read-only SessionView, SDK-04 RuntimeConfig.from_toml, SDK-05 stable provider registration). Not committed to a v0.1 milestone; lands when embedder demand surfaces.
 - 2026-05-13 — M7 SDK Polish promoted from v0.2 candidate to formal v0.1 phase. SDK-01..05 moved into REQUIREMENTS.md active section + traceability row; ROADMAP.md gets full M7 phase block (goal, required surface sketch, capabilities, 5 success criteria, cross-cutting constraints). Total v0.1 reqs 59 → 64. Phase is pure promote-existing-internals — no new behavior, only renames + re-exports + docstrings + test_public_api.py regression entries. Ordering preference: M7 before v0.1.0 publish for surface stability; falls back to 0.1.1 minor bump if M6 ships first (pre-1.0 minor breaks allowed per docs/sdk.md).
+- 2026-05-13 — M7 context + plans landed. CONTEXT.md captures 26 base decisions D-01..D-26 (synthesized from ROADMAP M7 block + REQUIREMENTS SDK-01..05 + scouted internals; user declined interactive discuss-phase given scope tightness). RESEARCH.md (gsd-phase-researcher HIGH confidence) surfaced 7 corrections + 5 resolved open questions; CONTEXT refined with R-01..R-13 lock-in (notably: Renderer has 11 methods not 9; factory delegates to existing @tool decorator; sync callables get async-shim wrap; SessionRecord.runs is list[dict] so view_session uses defensive .get(); SDK-05 is ATOMIC — kwarg + ModelProvider isinstance validation + register_provider re-export + 10-callsite audit all in one wave; 6-wave structure with waves 1-4 parallel, wave 5 sequential after 4, wave 6 integration depends on all). 6 PLAN.md files + M7-PATTERNS.md (10 reusable patterns). gsd-plan-checker iter 2/3 PASS clean — iter 1 raised 4 blockers (all in M7-06 Task 2 — the M7 success contract test_sdk_embedding.py) + 5 warnings; planner revision resolved all with deterministic FORBIDDEN_PRIVATE_PATHS allowlist replacing comment-scanning, UUID-fixture provider names replacing hardcoded names, noqa-pinned public-API imports + live-imports test defending against linter strip, positive-registration evidence cross-linked between test 5 (raise-on-duplicate) and test 7 (end-to-end embedding), and a checkpoint:phase-final wrapper on the pytest -x acceptance gate.
 
 ## Notes
 
