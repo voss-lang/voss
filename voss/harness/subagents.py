@@ -1,0 +1,127 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from voss_runtime import EpisodicMemory, tool
+
+from .agent import run_turn
+from .permissions import PermissionGate
+from .render import Renderer
+from .tools import ToolEntry, make_toolset
+
+
+@dataclass(frozen=True)
+class SubagentSpec:
+    id: str
+    description: str
+    role_prompt: str
+
+
+class SubagentRegistry:
+    def __init__(self) -> None:
+        self._entries: dict[str, SubagentSpec] = {}
+
+    def register(self, spec: SubagentSpec) -> None:
+        self._entries[spec.id] = spec
+
+    def get(self, agent_id: str) -> SubagentSpec | None:
+        return self._entries.get(agent_id)
+
+    def ids(self) -> list[str]:
+        return sorted(self._entries)
+
+    def entries(self) -> list[SubagentSpec]:
+        return [self._entries[k] for k in self.ids()]
+
+
+def default_subagent_registry() -> SubagentRegistry:
+    registry = SubagentRegistry()
+    registry.register(
+        SubagentSpec(
+            id="explorer",
+            description="Inspect code and return concise findings.",
+            role_prompt="You are a read-heavy code explorer. Inspect first, avoid edits unless explicitly required.",
+        )
+    )
+    registry.register(
+        SubagentSpec(
+            id="worker",
+            description="Carry out a bounded implementation task.",
+            role_prompt="You are an implementation worker. Keep changes scoped and verify the result.",
+        )
+    )
+    registry.register(
+        SubagentSpec(
+            id="reviewer",
+            description="Review code for bugs, regressions, and missing tests.",
+            role_prompt="You are a code reviewer. Prioritize concrete findings over summaries.",
+        )
+    )
+    return registry
+
+
+def agent_task(spec: SubagentSpec, task: str) -> str:
+    return f"Subagent role:\n{spec.role_prompt}\n\nTask:\n{task}"
+
+
+async def run_subagent(
+    *,
+    agent_id: str,
+    task: str,
+    registry: SubagentRegistry,
+    cwd: Path,
+    renderer: Renderer,
+    provider: Any,
+    model: str,
+    gate: PermissionGate,
+    cognition: Any = None,
+) -> str:
+    spec = registry.get(agent_id)
+    if spec is None:
+        return f"<error: unknown subagent {agent_id!r}>"
+    child_tools = make_toolset(cwd)
+    result = await run_turn(
+        agent_task(spec, task),
+        tools=child_tools,
+        cwd=cwd,
+        renderer=renderer,
+        model=model,
+        provider=provider,
+        history=EpisodicMemory(capacity=20),
+        permissions=gate,
+        cognition=cognition,
+    )
+    return result.final
+
+
+def attach_subagent_tool(
+    tools: dict[str, ToolEntry],
+    *,
+    registry: SubagentRegistry,
+    cwd: Path,
+    renderer: Renderer,
+    provider: Any,
+    model: str,
+    gate: PermissionGate,
+    cognition: Any = None,
+) -> None:
+    @tool(
+        name="subagent_run",
+        description="Run a registered Voss subagent on a bounded task.",
+    )
+    async def subagent_run(agent: str, task: str) -> str:
+        return await run_subagent(
+            agent_id=agent,
+            task=task,
+            registry=registry,
+            cwd=cwd,
+            renderer=renderer,
+            provider=provider,
+            model=model,
+            gate=gate,
+            cognition=cognition,
+        )
+
+    tools["subagent_run"] = ToolEntry(descriptor=subagent_run, is_mutating=True)

@@ -10,7 +10,7 @@ import asyncio
 import os
 import subprocess
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import click
@@ -24,8 +24,17 @@ from . import cognition as cognition_mod
 from . import session as session_store
 from .agent import Plan
 from .permissions import PermissionGate, PermissionStore
+from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
+from .skills import SkillRegistry, default_skill_registry
+from .slash import SlashCommand, SlashRegistry
+from .subagents import (
+    SubagentRegistry,
+    attach_subagent_tool,
+    default_subagent_registry,
+    run_subagent,
+)
 from .tools import make_toolset
 
 try:
@@ -109,6 +118,25 @@ def _handle_save_plan(
 
 
 AUTH_CHOICES = ("auto", "claude", "codex", "api", "none")
+
+
+@dataclass
+class ReplContext:
+    cwd: Path
+    renderer: object
+    tools: dict
+    gate: PermissionGate
+    history: EpisodicMemory
+    record: session_store.SessionRecord
+    provider: ModelProvider
+    skill_registry: SkillRegistry
+    subagent_registry: SubagentRegistry
+    slash_registry: SlashRegistry
+    cognition: object | None = None
+    prior_context: dict | None = None
+    last_plan: Plan | None = None
+    total_cost: float = 0.0
+    should_exit: bool = False
 
 
 def _resolve_default_model(user_explicit: str | None) -> None:
