@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-13T22:00:00Z"
-last_activity: 2026-05-13 — M7 plans complete (6 plans, 6 waves, gsd-plan-checker iter 2/3 PASS clean). 4 iter-1 blockers + 5 warnings all resolved on revision pass. Ready for /gsd-execute-phase M7.
+last_updated: "2026-05-14T00:00:00Z"
+last_activity: 2026-05-14 — M8 CONTEXT.md captured. 16 implementation decisions across 4 areas (memory layout/chroma, VOSS.md sections/COG-02 rewrite, conventions extraction UX, concurrency/eviction). SPEC.md (7 reqs) + CONTEXT.md both locked. Ready for /gsd-plan-phase M8.
 progress:
   total_phases: 8
   completed_phases: 0
