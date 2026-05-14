@@ -48,9 +48,28 @@ function findPlatformPackage() {
 
 const { pkg, pkgDir } = findPlatformPackage();
 const isWindows = process.platform === 'win32';
-const pythonBin = isWindows
-  ? path.join(pkgDir, 'python', 'python.exe')
-  : path.join(pkgDir, 'python', 'bin/python3');
+
+function resolvePythonBin() {
+  if (isWindows) {
+    return path.join(pkgDir, 'python', 'python.exe');
+  }
+  // npm publish drops symlinks, so the canonical `bin/python3` is missing
+  // from the published tarball even though PBS extracts contain it as a
+  // symlink to python3.12. Try the canonical name first (works for
+  // dev / `npm link` flows), then fall back to python3.12.
+  const candidates = [
+    path.join(pkgDir, 'python', 'bin/python3'),
+    path.join(pkgDir, 'python', 'bin/python3.12'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return candidates[0];
+}
+
+const pythonBin = resolvePythonBin();
 
 if (!fs.existsSync(pythonBin)) {
   process.stderr.write(
