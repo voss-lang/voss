@@ -131,6 +131,24 @@ class PermissionGate:
         return tool_name
 
     def check(self, tool_name: str, args: dict, *, is_mutating: bool = False) -> tuple[bool, str]:
+        allowed, why = self._check_impl(tool_name, args, is_mutating=is_mutating)
+        from . import telemetry
+
+        if telemetry.enabled():
+            telemetry.emit(
+                "permission.result",
+                "info",
+                data={
+                    "tool": tool_name,
+                    "allowed": allowed,
+                    "why": why,
+                    "mode": self.mode,
+                    "args": telemetry.redact_tool_args(dict(args)),
+                },
+            )
+        return allowed, why
+
+    def _check_impl(self, tool_name: str, args: dict, *, is_mutating: bool = False) -> tuple[bool, str]:
         """Return (allowed, reason).
 
         Order of operations:

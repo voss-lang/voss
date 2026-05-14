@@ -206,6 +206,21 @@ def _resolve_run_turn(cwd: Path | None = None):
     return mod.run_turn
 
 
+def _emit_harness_boot_telemetry(cwd: Path, model: str | None) -> None:
+    """Emit session lifecycle when agent commands start (only if VOSS_LOG is enabled)."""
+    from . import config as harness_config
+    from . import telemetry as tel_mod
+
+    if not tel_mod.enabled():
+        return
+    backend = os.environ.get("VOSS_HARNESS")
+    if backend is None:
+        backend = harness_config.load_harness_config().get("backend")
+    backend_str = str(backend or "python").strip()
+    tel_mod.ensure_trace_id()
+    tel_mod.emit_harness_start(backend=backend_str, cwd=str(cwd.resolve()), model=model)
+
+
 def _handle_login(provider: str | None) -> None:
     """Status + refresh for existing creds; for missing, print upstream commands.
 
@@ -600,6 +615,7 @@ def _build_slash_registry() -> SlashRegistry:
 @click.option("--model", default=None, help="Override default model.")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
@@ -619,6 +635,7 @@ def do_cmd(
     model: str | None,
     cwd_str: str,
     json_mode: bool,
+    plain: bool,
     mode: str,
     yes_to_all: bool,
     auth_pref: str,
@@ -632,6 +649,8 @@ def do_cmd(
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
+    _emit_harness_boot_telemetry(cwd, cfg.default_model)
+
     parts = list(task)
     if not sys.stdin.isatty():
         parts.append("\n--- piped stdin ---\n")
@@ -641,7 +660,7 @@ def do_cmd(
         click.echo("no task. usage: voss do \"<task>\"", err=True)
         sys.exit(2)
 
-    renderer = make_renderer(json_mode=json_mode)
+    renderer = make_renderer(json_mode=json_mode, plain=plain)
     tools = make_toolset(cwd)
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
@@ -721,6 +740,7 @@ def do_cmd(
 @click.option("--model", default=None, help="Override default model.")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
@@ -738,6 +758,7 @@ def chat_cmd(
     model: str | None,
     cwd_str: str,
     json_mode: bool,
+    plain: bool,
     mode: str,
     auth_pref: str,
 ) -> None:
@@ -747,9 +768,12 @@ def chat_cmd(
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
+    _emit_harness_boot_telemetry(cwd, cfg.default_model)
+
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
+        plain=plain,
         mode=mode,
         history=EpisodicMemory(capacity=40),
         record=session_store.SessionRecord.new(cwd=cwd, model=cfg.default_model),
@@ -769,6 +793,7 @@ def chat_cmd(
 )
 @click.option("--model", default=None, help="Override default model.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
@@ -787,6 +812,7 @@ def edit_cmd(
     cwd_str: str,
     model: str | None,
     json_mode: bool,
+    plain: bool,
     mode: str,
     auth_pref: str,
 ) -> None:
@@ -802,6 +828,8 @@ def edit_cmd(
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
+    _emit_harness_boot_telemetry(cwd, cfg.default_model)
+
     scope = EditScope.resolve(cwd, path)
     record = session_store.SessionRecord.new(
         cwd=cwd,
@@ -814,6 +842,7 @@ def edit_cmd(
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
+        plain=plain,
         mode=mode,
         history=EpisodicMemory(capacity=40),
         record=record,
@@ -834,9 +863,10 @@ def _run_repl(
     auth_detail: str = "",
     edit_scope=None,
     prior_context: dict | None = None,
+    plain: bool = False,
 ) -> None:
     cfg = get_config()
-    renderer = make_renderer(json_mode=json_mode)
+    renderer = make_renderer(json_mode=json_mode, plain=plain)
     tools = make_toolset(cwd)
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
@@ -1098,6 +1128,7 @@ def sessions_cmd(include_legacy: bool) -> None:
     help="Permission tier.",
 )
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
     "--auth",
     "auth_pref",
@@ -1109,6 +1140,7 @@ def resume_cmd(
     session_id_or_name: str,
     mode: str,
     json_mode: bool,
+    plain: bool,
     auth_pref: str,
 ) -> None:
     """Resume a saved session by id-prefix or name."""
@@ -1125,6 +1157,7 @@ def resume_cmd(
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
+        plain=plain,
         mode=mode,
         history=history,
         record=record,
@@ -1300,6 +1333,7 @@ def agent_spawn_cmd(
     cwd = Path(cwd_str).resolve()
     _resolve_default_model(model)
     _res, provider = _resolve_auth_or_die(auth_pref)
+    _emit_harness_boot_telemetry(cwd, get_config().default_model)
     renderer = make_renderer(json_mode=False)
     gate = PermissionGate(mode=mode, store=PermissionStore.load(cwd), auto_yes=True)  # type: ignore[arg-type]
     registry = default_subagent_registry()
@@ -1413,6 +1447,45 @@ def eval_cmd(
     )
 
 
+@click.group("logs")
+def logs_group() -> None:
+    """Tail NDJSON harness telemetry (written when VOSS_LOG=1 and VOSS_LOG_PATH is set)."""
+
+
+@logs_group.command("watch")
+@click.argument(
+    "path",
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+)
+@click.option(
+    "--poll-interval",
+    default=0.15,
+    type=float,
+    show_default=True,
+    help="Sleep interval when no new lines are available.",
+)
+def logs_watch_cmd(path: Path, poll_interval: float) -> None:
+    """Follow a log file while another process appends JSON lines (Ctrl-C to stop).
+
+    Example — terminal A: VOSS_LOG=1 VOSS_LOG_PATH=.voss-cache/harness.ndjson voss chat
+
+    Terminal B: voss logs watch .voss-cache/harness.ndjson
+    """
+    import time
+
+    with path.open(encoding="utf-8") as fh:
+        fh.seek(0, os.SEEK_END)
+        try:
+            while True:
+                line = fh.readline()
+                if line:
+                    click.echo(line.rstrip("\n"))
+                else:
+                    time.sleep(max(poll_interval, 0.05))
+        except KeyboardInterrupt:
+            click.echo("", err=True)
+
+
 AGENT_COMMANDS = (
     do_cmd,
     chat_cmd,
@@ -1429,6 +1502,7 @@ AGENT_COMMANDS = (
     agent_group,
     memory_group,
     config_cmd,
+    logs_group,
     eval_cmd,
 )
 

@@ -6,6 +6,8 @@ TTY mode = rich Live updates. Non-TTY = plain text on stdout, traces on stderr.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,9 +46,46 @@ class Renderer(Protocol):
     def show_warning(self, msg: str) -> None: ...
 
 
-def make_renderer(*, json_mode: bool) -> Renderer:
-    if json_mode or not sys.stdout.isatty():
-        return JsonRenderer() if json_mode else PlainRenderer()
+def make_renderer(
+    *,
+    json_mode: bool,
+    plain: bool = False,
+    force_tui: bool = False,
+) -> Renderer:
+    """Renderer factory honoring TUI capability rules (M9-01).
+
+    Decision order:
+      1. json_mode=True → JsonRenderer (NDJSON on stdout; unchanged).
+      2. plain=True or VOSS_PLAIN=1 → PlainRenderer.
+      3. force_tui=True (or VOSS_FORCE_TUI=1) + size < 80x24 → stderr + exit(2).
+      4. Otherwise: TtyRenderer for TTY, PlainRenderer for non-TTY.
+         (TextualRenderer lands in M9-02.)
+    """
+    if json_mode:
+        return JsonRenderer()
+
+    if not force_tui and os.environ.get("VOSS_FORCE_TUI") == "1":
+        force_tui = True
+
+    from .tui.capability import min_size_guard, tui_should_activate
+
+    decision = tui_should_activate(json_mode=False)
+    if plain or decision.reason in ("--plain flag", "VOSS_PLAIN env"):
+        return PlainRenderer()
+
+    if force_tui:
+        if decision.reason == "terminal below 80x24":
+            size = shutil.get_terminal_size(fallback=(80, 24))
+            sys.stderr.write(min_size_guard((size.columns, size.lines)) + "\n")
+            sys.stderr.flush()
+            sys.exit(2)
+        # TextualRenderer lands in M9-02; for M9-01 the flag plumbing is the
+        # contract — exercising force_tui at activate=True is a no-op pass-through
+        # to the existing TtyRenderer so dev workflows keep working.
+        return TtyRenderer()
+
+    if not sys.stdout.isatty():
+        return PlainRenderer()
     return TtyRenderer()
 
 
