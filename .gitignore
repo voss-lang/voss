@@ -22,3 +22,5 @@ nd.json
 # Local Rust/insta NDJSON snapshots.
 crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap
 crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap.new
+.vercel
+.env*.local

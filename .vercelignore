@@ -1,0 +1,43 @@
+# Vercel only builds `site/`. Skip everything else so the upload stays under
+# the 15k-file limit.
+
+# Python source + caches
+voss/
+voss_runtime/
+voss-demos/
+samples/
+examples/
+tests/
+scripts/
+.venv/
+.venv*/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# Rust workspace (frozen spike, not v0.1 ship path)
+crates/
+target/
+
+# Build artifacts
+.voss-cache/
+dist/
+build/
+**/*.egg-info/
+
+# Planning + docs that don't ship to the marketing site
+.planning/
+.claude/
+.cursor/
+.serena/
+.vscode/
+vscode/
+npm/
+
+# Misc
+.DS_Store
+*.log
+.env
+.env.local
+SBOM.cdx.json
+SECURITY_AUDIT_REPORT.md

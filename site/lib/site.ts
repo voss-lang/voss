@@ -21,7 +21,9 @@ export const site = {
     "Voss makes confidence checking, token budgets, prompt construction, semantic routing, and agent lifecycle first-class language constructs — not boilerplate you write in every project.",
   repoUrl: "https://github.com/bm9797/Voss",
   prdUrl: "https://github.com/bm9797/Voss/blob/main/PRD.md",
-  docsUrl: "https://docs.voss.dev",
+  // Local /docs route until docs.voss.dev DNS lands. Swap back when the
+  // subdomain points at this Vercel project (or a separate Mintlify deploy).
+  docsUrl: "/docs/",
   version: "0.1.0-pre",
   install: {
     primary: 'pip install -e ".[dev]"',
