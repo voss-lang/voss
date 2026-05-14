@@ -408,7 +408,7 @@ from voss_runtime.providers import register as register_provider  # SDK-05
 
 **Goal:** Replace the current `rich`-based line-streamed CLI for `voss chat` / `voss do` with a full-screen TUI (Textual or equivalent). Match Claude Code / Aider interaction depth and expose Voss's language primitives — probable values, budgets, spawn/gather — directly in the UI.
 
-**Requirements:** TUI-01..0N — TBD by `09-SPEC.md`.
+**Requirements:** TUI-01, TUI-02, TUI-03, TUI-04, TUI-05, TUI-06, TUI-07, TUI-08, TUI-09, TUI-10
 
 **Seed source:** [`seeds/tui-shell-textual.md`](seeds/tui-shell-textual.md)
 
@@ -432,6 +432,16 @@ from voss_runtime.providers import register as register_provider  # SDK-05
 - Editor / VSCode integration (EDIT-01/02 track).
 - Web UI.
 - New runtime hooks — TUI reads from the existing recorder. If hooks need extending, that lands in a follow-up phase.
+
+**Plans:** 6 plans
+
+Plans:
+- [ ] M9-01-PLAN.md — Library-choice gate + Textual dep + --plain plumbing + pre-M9 stdout byte baseline
+- [ ] M9-02-PLAN.md — Textual app shell (region grid) + TextualRenderer (Renderer-protocol) + locked glyph + locked color stylesheet + ConfidenceBar/BudgetMeter widgets
+- [ ] M9-03-PLAN.md — SlashPalette + HelpOverlay + KEYMAP table + reserved slash names for M8 (/recall, /forget, /memory)
+- [ ] M9-04-PLAN.md — Live workflow visualization: SubAgentPanel + RecorderBridge (read-only) + runtime-surface hash baseline regression test
+- [ ] M9-05-PLAN.md — DiffModal (per-hunk) + PermissionModal + BudgetExhaustedModal + permissions_bridge (injects modal-driven prompt_fn)
+- [ ] M9-06-PLAN.md — Fork-from-turn (additive SessionRecord fields) + cli.py default-path flip + accent allow-list + --no-unicode + Windows console strategy + phase-final human-verify checkpoint
 
 ---
 
@@ -480,7 +490,7 @@ from voss_runtime.providers import register as register_provider  # SDK-05
 | M7 | SDK-01..05 | 5 |
 | **v0.1 Total** |  | **64 / 64** |
 | M8 | MEM-01..0N | TBD by `08-SPEC.md` |
-| M9 | TUI-01..0N | TBD by `09-SPEC.md` |
+| M9 | TUI-01..10 | 10 |
 | M10 | CAPS-01..0N | TBD by `10-SPEC.md` |
 
 All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase.
