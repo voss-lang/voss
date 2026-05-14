@@ -1,0 +1,140 @@
+"""M9-03 SlashPalette + rank_commands tests."""
+from __future__ import annotations
+
+import pytest
+
+from voss.harness.slash import SlashCommand, SlashRegistry
+from voss.harness.tui.app import VossTUIApp
+from voss.harness.tui.reserved_slash_names import RESERVED_SLASH_NAMES
+from voss.harness.tui.widgets import SlashPalette, rank_commands
+
+
+# ----------------------------------------------------------------------
+# rank_commands — pure logic
+# ----------------------------------------------------------------------
+
+
+def test_rank_substring_match_first() -> None:
+    out = rank_commands("he", ["/help", "/cost", "/exit", "/agents"])
+    assert out[0] == "/help"
+
+
+def test_rank_substring_mid_match() -> None:
+    out = rank_commands("cl", ["/help", "/clear", "/cost"])
+    assert out[0] == "/clear"
+
+
+def test_rank_empty_query_uses_recency_then_alpha() -> None:
+    out = rank_commands(
+        "",
+        ["/agents", "/clear", "/cost", "/exit", "/help"],
+        recency=["/help", "/cost"],
+    )
+    assert out[:2] == ["/help", "/cost"]
+    assert out[2:] == ["/agents", "/clear", "/exit"]
+
+
+def test_rank_filters_reserved_m8_names() -> None:
+    out = rank_commands(
+        "recall",
+        ["/recall", "/help"],
+        reserved=RESERVED_SLASH_NAMES,
+    )
+    assert "/recall" not in out
+
+
+def test_rank_filters_forget_and_memory() -> None:
+    for q, name in (("forget", "/forget"), ("mem", "/memory")):
+        out = rank_commands(q, [name, "/help"], reserved=RESERVED_SLASH_NAMES)
+        assert name not in out
+
+
+def test_rank_keeps_save_alive() -> None:
+    out = rank_commands(
+        "sa",
+        ["/save", "/save-session", "/help"],
+        reserved=RESERVED_SLASH_NAMES,
+    )
+    assert "/save" in out
+    assert "/save-session" in out
+
+
+def test_rank_caps_results_at_eight() -> None:
+    names = [f"/cmd{i:02d}" for i in range(50)]
+    out = rank_commands("cmd", names)
+    assert len(out) <= 8
+
+
+# ----------------------------------------------------------------------
+# SlashPalette widget — DOM behavior
+# ----------------------------------------------------------------------
+
+
+def _registry_with(*entries: tuple[str, str]) -> SlashRegistry:
+    reg = SlashRegistry()
+    for name, help_text in entries:
+        reg.register(SlashCommand(name, help_text, lambda *a: None))
+    return reg
+
+
+@pytest.mark.asyncio
+async def test_palette_mount_shows_filtered_results() -> None:
+    registry = _registry_with(
+        ("/help", "show this list"),
+        ("/cost", "session cost so far"),
+        ("/clear", "drop episodic memory"),
+        ("/save-session", "persist session snapshot"),
+    )
+    app = VossTUIApp(slash_registry=registry)
+    async with app.run_test() as pilot:
+        palette = SlashPalette(registry)
+        await pilot.app.mount(palette)
+        palette.update_query("he")
+        labels = [
+            str(item.children[0].renderable) if item.children else ""
+            for item in palette.children
+        ]
+        assert any("/help" in label for label in labels)
+        assert all("/cost" not in label for label in labels)
+
+
+@pytest.mark.asyncio
+async def test_palette_empty_state_copy() -> None:
+    registry = _registry_with(("/help", "show help"))
+    app = VossTUIApp(slash_registry=registry)
+    async with app.run_test() as pilot:
+        palette = SlashPalette(registry)
+        await pilot.app.mount(palette)
+        palette.update_query("zzzzz")
+        labels = [
+            str(item.children[0].renderable) if item.children else ""
+            for item in palette.children
+        ]
+        assert any("no matching commands" in label for label in labels)
+
+
+@pytest.mark.asyncio
+async def test_input_bar_open_palette_only_when_empty() -> None:
+    registry = _registry_with(("/help", "show help"))
+    app = VossTUIApp(slash_registry=registry)
+    async with app.run_test() as pilot:
+        from voss.harness.tui.widgets import InputBar
+
+        input_bar = pilot.app.query_one("#input", InputBar)
+        input_bar.value = ""
+        input_bar.focus()
+        await pilot.press("/")
+        await pilot.pause()
+        try:
+            pilot.app.query_one(SlashPalette)
+            opened = True
+        except Exception:
+            opened = False
+        assert opened, "palette did not open on `/` with empty input"
+
+
+def test_app_bindings_populated_from_keymap() -> None:
+    assert VossTUIApp.BINDINGS, "VossTUIApp.BINDINGS must not be empty"
+    keys = {b[0] if isinstance(b, tuple) else b.key for b in VossTUIApp.BINDINGS}
+    for required in ("escape", "question_mark", "ctrl+c", "ctrl+l", "tab", "shift+tab"):
+        assert required in keys, f"missing binding for {required!r}"

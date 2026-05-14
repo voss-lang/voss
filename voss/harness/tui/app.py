@@ -10,12 +10,19 @@ from __future__ import annotations
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 
-from .widgets import HeaderBar, InputBar, StatusLine, SubAgentPanel, TurnView
+from voss.harness.slash import SlashRegistry
+
+from .keymap import KEYMAP
+from .widgets import HeaderBar, HelpOverlay, InputBar, StatusLine, SubAgentPanel, TurnView
 
 
 class VossTUIApp(App):
     CSS_PATH = "styles.tcss"
-    BINDINGS: list = []  # M9-03 fills via KEYMAP.
+    BINDINGS = [
+        (b.key, b.action, b.description)
+        for b in KEYMAP
+        if b.context in ("global", "input")
+    ]
 
     def __init__(
         self,
@@ -23,12 +30,36 @@ class VossTUIApp(App):
         session_id: str = "",
         model: str = "",
         budget_total: int = 0,
+        slash_registry: SlashRegistry | None = None,
         **kw,
     ) -> None:
         super().__init__(**kw)
         self.session_id = session_id
         self.model = model
         self.budget_total = budget_total
+        self.slash_registry = slash_registry or SlashRegistry()
+
+    def action_open_help(self) -> None:
+        self.push_screen(HelpOverlay(KEYMAP, self.slash_registry))
+
+    def action_dismiss_modal(self) -> None:
+        try:
+            self.pop_screen()
+        except Exception:  # noqa: BLE001 — no screen to pop
+            pass
+
+    def action_redraw(self) -> None:
+        self.refresh()
+
+    def action_interrupt(self) -> None:
+        # M9-04 wires interrupt to the running turn; M9-03 stub is a no-op.
+        pass
+
+    def action_focus_next(self) -> None:
+        super().action_focus_next()
+
+    def action_focus_previous(self) -> None:
+        super().action_focus_previous()
 
     def compose(self) -> ComposeResult:
         yield HeaderBar(id="header")
