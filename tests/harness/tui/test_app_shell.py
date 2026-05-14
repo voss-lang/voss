@@ -7,8 +7,8 @@ from voss.harness.tui.app import VossTUIApp
 from voss.harness.tui.widgets import (
     HeaderBar,
     InputBar,
+    SideRegion,
     StatusLine,
-    SubAgentPanel,
     TurnView,
 )
 
@@ -21,8 +21,8 @@ async def test_app_mounts_all_regions() -> None:
         assert pilot.app.query_one("#main", TurnView) is not None
         assert pilot.app.query_one("#status", StatusLine) is not None
         assert pilot.app.query_one("#input", InputBar) is not None
-        # side panel exists but is hidden via display: none in styles.tcss
-        assert pilot.app.query_one("#side", SubAgentPanel) is not None
+        # side region exists but is hidden via display: none in styles.tcss
+        assert pilot.app.query_one("#side", SideRegion) is not None
 
 
 @pytest.mark.asyncio

@@ -54,8 +54,12 @@ class TurnView(RichLog):
         self.write(Text(body, no_wrap=False))
 
 
-class SubAgentPanel(RichLog):
-    """Side panel placeholder. M9-04 fills with spawn/gather state."""
+class SideRegion(RichLog):
+    """Side region container — M9-04 mounts real SubAgentPanels inside.
+
+    Kept as a RichLog so the M9-02 layout test's `query_one("#side")` still
+    finds a widget; SubAgentPanels are mounted as children when spawn fires.
+    """
 
     DEFAULT_CLASSES = ""
 

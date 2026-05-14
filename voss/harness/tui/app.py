@@ -13,7 +13,15 @@ from textual.containers import Horizontal
 from voss.harness.slash import SlashRegistry
 
 from .keymap import KEYMAP
-from .widgets import HeaderBar, HelpOverlay, InputBar, StatusLine, SubAgentPanel, TurnView
+from .widgets import (
+    HeaderBar,
+    HelpOverlay,
+    InputBar,
+    SideRegion,
+    StatusLine,
+    SubAgentPanel,
+    TurnView,
+)
 
 
 class VossTUIApp(App):
@@ -65,7 +73,7 @@ class VossTUIApp(App):
         yield HeaderBar(id="header")
         with Horizontal():
             yield TurnView(id="main")
-            yield SubAgentPanel(id="side")
+            yield SideRegion(id="side")
         yield StatusLine(id="status")
         yield InputBar(id="input")
 

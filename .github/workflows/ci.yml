@@ -14,15 +14,23 @@ permissions:
   contents: read
 
 on:
+  push:
+    branches: [master]
   pull_request:
     branches: [master]
+  release:
+    types: [published]
   workflow_dispatch:
   schedule:
     - cron: '0 6 * * *'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   stub:
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -32,6 +40,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - run: pip install -e ".[dev]"
       - name: voss check harness sources (M4 DOG-06)
         run: python -m voss.cli check voss/harness/agent/
@@ -52,13 +62,15 @@ jobs:
     # `--strict` would fail on any vuln; we run non-strict on PRs (report-only,
     # warning surfaced via ::warning::) and strict on scheduled runs so a fresh
     # CVE post-merge alerts maintainers without blocking in-flight PRs.
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule' || github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - name: Install pip-audit
         run: |
           python -m pip install --upgrade pip
@@ -93,7 +105,7 @@ jobs:
             echo "::warning::dep resolution produced no file; skipping pip-audit"
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "release" ]; then
             pip-audit --strict --progress-spinner off -r /tmp/requirements-resolved.txt
           else
             pip-audit --progress-spinner off -r /tmp/requirements-resolved.txt || echo "::warning::pip-audit reported advisories; see job log"
