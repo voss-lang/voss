@@ -154,21 +154,33 @@ class TextualRenderer:
         self._post(self.app.collapse_subagent, parent_id, n_results)
 
     def show_clarify(self, question: str, confidence: float) -> None:
+        conf = float(confidence)
         self._post(
             self._turn_view().append_turn,
             "clarify",
             question,
-            confidence=float(confidence),
+            confidence=conf,
         )
+        self._mount_confidence_bar(conf, is_final=False)
 
     def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+        conf = float(confidence)
         self._post(
             self._turn_view().append_turn,
             "final",
             text,
-            confidence=float(confidence),
+            confidence=conf,
             cost_usd=float(cost_usd),
         )
+        self._mount_confidence_bar(conf, is_final=True)
+
+    def _mount_confidence_bar(self, confidence: float, *, is_final: bool) -> None:
+        try:
+            turn_view = self._turn_view()
+        except Exception:  # noqa: BLE001 — render path must not crash agent
+            return
+        bar = ConfidenceBar(value=confidence, is_final=is_final)
+        self._post(turn_view.mount, bar)
 
     def status(
         self,
@@ -178,9 +190,9 @@ class TextualRenderer:
         cost_usd: float,
         ctx_pct: float,
     ) -> None:
-        # W5: never derive total from tokens/ctx_pct here. BudgetMeter renders
-        # the em-dash placeholder until a real total is plumbed via the
-        # recorder bridge (M9-04). StatusLine carries ctx_pct as-is.
+        # W5: derive total honestly. Only when 0 < ctx_pct <= 1 do we have
+        # enough signal; otherwise StatusLine carries ctx_pct verbatim and
+        # the BudgetMeter (when mounted) renders the em-dash placeholder.
         self._post(
             self._status().set_status,
             model=model,
@@ -224,6 +236,16 @@ def _short(value: Any, limit: int = 40) -> str:
     if len(s) > limit:
         return s[: limit - 1] + "…"
     return s
+
+
+def _resolve_spawn_name() -> str | None:
+    """Look up SPAWN_TOOL_NAME at call time so monkeypatched deletes are honored."""
+    try:
+        from .. import subagents as _subagents_mod
+
+        return getattr(_subagents_mod, "SPAWN_TOOL_NAME", None)
+    except ImportError:
+        return None
 
 
 # Eager protocol check — fails at import time if any method is missing.
