@@ -206,6 +206,21 @@ def _resolve_run_turn(cwd: Path | None = None):
     return mod.run_turn
 
 
+def _emit_harness_boot_telemetry(cwd: Path, model: str | None) -> None:
+    """Emit session lifecycle when agent commands start (only if VOSS_LOG is enabled)."""
+    from . import config as harness_config
+    from . import telemetry as tel_mod
+
+    if not tel_mod.enabled():
+        return
+    backend = os.environ.get("VOSS_HARNESS")
+    if backend is None:
+        backend = harness_config.load_harness_config().get("backend")
+    backend_str = str(backend or "python").strip()
+    tel_mod.ensure_trace_id()
+    tel_mod.emit_harness_start(backend=backend_str, cwd=str(cwd.resolve()), model=model)
+
+
 def _handle_login(provider: str | None) -> None:
     """Status + refresh for existing creds; for missing, print upstream commands.
 
@@ -634,6 +649,8 @@ def do_cmd(
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
+    _emit_harness_boot_telemetry(cwd, cfg.default_model)
+
     parts = list(task)
     if not sys.stdin.isatty():
         parts.append("\n--- piped stdin ---\n")
@@ -751,6 +768,8 @@ def chat_cmd(
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
+    _emit_harness_boot_telemetry(cwd, cfg.default_model)
+
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
@@ -808,6 +827,8 @@ def edit_cmd(
     _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
+
+    _emit_harness_boot_telemetry(cwd, cfg.default_model)
 
     scope = EditScope.resolve(cwd, path)
     record = session_store.SessionRecord.new(
@@ -1312,6 +1333,7 @@ def agent_spawn_cmd(
     cwd = Path(cwd_str).resolve()
     _resolve_default_model(model)
     _res, provider = _resolve_auth_or_die(auth_pref)
+    _emit_harness_boot_telemetry(cwd, get_config().default_model)
     renderer = make_renderer(json_mode=False)
     gate = PermissionGate(mode=mode, store=PermissionStore.load(cwd), auto_yes=True)  # type: ignore[arg-type]
     registry = default_subagent_registry()
@@ -1425,6 +1447,45 @@ def eval_cmd(
     )
 
 
+@click.group("logs")
+def logs_group() -> None:
+    """Tail NDJSON harness telemetry (written when VOSS_LOG=1 and VOSS_LOG_PATH is set)."""
+
+
+@logs_group.command("watch")
+@click.argument(
+    "path",
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+)
+@click.option(
+    "--poll-interval",
+    default=0.15,
+    type=float,
+    show_default=True,
+    help="Sleep interval when no new lines are available.",
+)
+def logs_watch_cmd(path: Path, poll_interval: float) -> None:
+    """Follow a log file while another process appends JSON lines (Ctrl-C to stop).
+
+    Example — terminal A: VOSS_LOG=1 VOSS_LOG_PATH=.voss-cache/harness.ndjson voss chat
+
+    Terminal B: voss logs watch .voss-cache/harness.ndjson
+    """
+    import time
+
+    with path.open(encoding="utf-8") as fh:
+        fh.seek(0, os.SEEK_END)
+        try:
+            while True:
+                line = fh.readline()
+                if line:
+                    click.echo(line.rstrip("\n"))
+                else:
+                    time.sleep(max(poll_interval, 0.05))
+        except KeyboardInterrupt:
+            click.echo("", err=True)
+
+
 AGENT_COMMANDS = (
     do_cmd,
     chat_cmd,
@@ -1441,6 +1502,7 @@ AGENT_COMMANDS = (
     agent_group,
     memory_group,
     config_cmd,
+    logs_group,
     eval_cmd,
 )
 

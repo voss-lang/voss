@@ -519,6 +519,16 @@ async def _run_step_loop(
         if entry is None:
             results.append(f"<error: unknown tool {step.name!r}>")
             renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
+            telemetry.emit(
+                "tool.result",
+                "warn",
+                data={
+                    "tool": step.name,
+                    "ok": False,
+                    "error": "unknown_tool",
+                    "args": telemetry.redact_tool_args(dict(step.args)),
+                },
+            )
             if recorder is not None:
                 recorder.observe(step.name, step.args, "<unknown tool>", ok=False)
             continue
@@ -526,22 +536,62 @@ async def _run_step_loop(
         if not allowed:
             text = f"<denied: {why}>"
             renderer.show_tool_call(step.name, step.args, text, "error")
+            telemetry.emit(
+                "tool.result",
+                "info",
+                data={
+                    "tool": step.name,
+                    "ok": False,
+                    "error": "denied",
+                    "why": why,
+                    "args": telemetry.redact_tool_args(dict(step.args)),
+                },
+            )
             results.append(text)
             if recorder is not None:
                 recorder.observe(step.name, step.args, text, ok=False)
             continue
+        telemetry.emit(
+            "tool.call",
+            "info",
+            data={
+                "tool": step.name,
+                "args": telemetry.redact_tool_args(dict(step.args)),
+            },
+        )
         renderer.show_tool_call(step.name, step.args, "running…", "pending")
+        _tool_t0 = time.monotonic()
         try:
             res = await entry.invoke(**step.args)
             text = str(res)
         except Exception as e:  # noqa: BLE001 — catch all to surface, not crash
             text = f"<error: {e}>"
             renderer.show_tool_call(step.name, step.args, text, "error")
+            telemetry.emit(
+                "tool.result",
+                "warn",
+                data={
+                    "tool": step.name,
+                    "ok": False,
+                    "latency_ms": int((time.monotonic() - _tool_t0) * 1000),
+                    "error": str(e)[:300],
+                },
+            )
             results.append(text)
             if recorder is not None:
                 recorder.observe(step.name, step.args, text, ok=False)
             continue
         renderer.show_tool_call(step.name, step.args, _summarize(text), "ok")
+        telemetry.emit(
+            "tool.result",
+            "info",
+            data={
+                "tool": step.name,
+                "ok": True,
+                "latency_ms": int((time.monotonic() - _tool_t0) * 1000),
+                "summary": _summarize(text, 120),
+            },
+        )
         results.append(text)
         if recorder is not None:
             recorder.observe(step.name, step.args, text, ok=True)
@@ -588,6 +638,12 @@ async def _record_run_call(provider, model: str, transcript: str):
 
     Never raises — Pitfall 1 mitigation. Turn must continue if this fails.
     """
+    telemetry.emit(
+        "provider.request",
+        "info",
+        data={"phase": "record_run", "model": model},
+    )
+    _rr_t0 = time.monotonic()
     try:
         resp = await provider.complete(
             messages=[
@@ -600,7 +656,30 @@ async def _record_run_call(provider, model: str, transcript: str):
             max_tokens=800,
         )
     except Exception:  # noqa: BLE001 — sentinel-return is the contract
+        telemetry.emit(
+            "provider.response",
+            "warn",
+            data={
+                "phase": "record_run",
+                "model": model,
+                "latency_ms": int((time.monotonic() - _rr_t0) * 1000),
+                "ok": False,
+            },
+        )
         return None
+    telemetry.emit(
+        "provider.response",
+        "info",
+        data={
+            "phase": "record_run",
+            "model": resp.model,
+            "latency_ms": int((time.monotonic() - _rr_t0) * 1000),
+            "prompt_tokens": resp.prompt_tokens,
+            "completion_tokens": resp.completion_tokens,
+            "cost_usd": resp.cost_usd,
+            "parsed_ok": resp.parsed is not None,
+        },
+    )
     if resp.parsed is None:
         return None
     return resp.parsed
