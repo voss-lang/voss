@@ -1,0 +1,74 @@
+/* Voss TUI stylesheet — M9-02 locked color contract.
+ *
+ * Five palette entries only. Auditor greps this file:
+ *   - exactly 5 hex colors must appear (one per locked role)
+ *   - no emoji
+ *   - .accent class binds only to the 6 UI-SPEC allow-list elements
+ */
+
+/* UI-SPEC Color Contract row "Accent" — used ONLY for the 6 allow-list items. */
+$accent: #5FAFFF;
+
+/* UI-SPEC Color Contract row "Secondary (30%)" — borders, dim metadata. */
+$dim: #888888;
+
+/* UI-SPEC Color Contract row "Signal-good" — tool success, conf >= 0.85. */
+$good: #5FD75F;
+
+/* UI-SPEC Color Contract row "Signal-warn" — conf 0.50..0.84, budget 75..99%. */
+$warn: #FFD75F;
+
+/* UI-SPEC Color Contract row "Signal-error" — tool failure, budget 100%. */
+$error: #FF5F5F;
+
+/* UI-SPEC Region grid (locked from CONTEXT.md). */
+#header {
+    dock: top;
+    height: 1;
+}
+
+#main {
+    width: 60%;
+    min-width: 60;
+}
+
+/* Side panel — hidden when no active spawn. M9-04 toggles display: block. */
+#side {
+    width: 40%;
+    min-width: 28;
+    max-width: 50;
+    display: none;
+}
+
+#status {
+    dock: bottom;
+    height: 1;
+    background: $dim 20%;
+}
+
+#input {
+    dock: bottom;
+    height: 1;
+    min-height: 1;
+    max-height: 5;
+}
+
+.accent {
+    color: $accent;
+}
+
+.signal-good {
+    color: $good;
+}
+
+.signal-warn {
+    color: $warn;
+}
+
+.signal-error {
+    color: $error;
+}
+
+.dim {
+    color: $dim;
+}
