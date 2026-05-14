@@ -723,6 +723,7 @@ def do_cmd(
 @click.option("--model", default=None, help="Override default model.")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
@@ -740,6 +741,7 @@ def chat_cmd(
     model: str | None,
     cwd_str: str,
     json_mode: bool,
+    plain: bool,
     mode: str,
     auth_pref: str,
 ) -> None:
@@ -752,6 +754,7 @@ def chat_cmd(
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
+        plain=plain,
         mode=mode,
         history=EpisodicMemory(capacity=40),
         record=session_store.SessionRecord.new(cwd=cwd, model=cfg.default_model),
@@ -771,6 +774,7 @@ def chat_cmd(
 )
 @click.option("--model", default=None, help="Override default model.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
@@ -789,6 +793,7 @@ def edit_cmd(
     cwd_str: str,
     model: str | None,
     json_mode: bool,
+    plain: bool,
     mode: str,
     auth_pref: str,
 ) -> None:
@@ -816,6 +821,7 @@ def edit_cmd(
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
+        plain=plain,
         mode=mode,
         history=EpisodicMemory(capacity=40),
         record=record,
@@ -836,9 +842,10 @@ def _run_repl(
     auth_detail: str = "",
     edit_scope=None,
     prior_context: dict | None = None,
+    plain: bool = False,
 ) -> None:
     cfg = get_config()
-    renderer = make_renderer(json_mode=json_mode)
+    renderer = make_renderer(json_mode=json_mode, plain=plain)
     tools = make_toolset(cwd)
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
@@ -1100,6 +1107,7 @@ def sessions_cmd(include_legacy: bool) -> None:
     help="Permission tier.",
 )
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
     "--auth",
     "auth_pref",
@@ -1111,6 +1119,7 @@ def resume_cmd(
     session_id_or_name: str,
     mode: str,
     json_mode: bool,
+    plain: bool,
     auth_pref: str,
 ) -> None:
     """Resume a saved session by id-prefix or name."""
@@ -1127,6 +1136,7 @@ def resume_cmd(
     _run_repl(
         cwd=cwd,
         json_mode=json_mode,
+        plain=plain,
         mode=mode,
         history=history,
         record=record,
