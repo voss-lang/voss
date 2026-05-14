@@ -50,6 +50,15 @@ class VossTUIApp(App):
     def action_open_help(self) -> None:
         self.push_screen(HelpOverlay(KEYMAP, self.slash_registry))
 
+    def push_modal_and_wait(self, modal, on_decision_callback) -> None:
+        """Push a modal screen and wire its dismiss result to a callback.
+
+        Used by the M9-05 permissions bridge to drive PermissionModal /
+        ScopeExpandModal / DiffModal / BudgetExhaustedModal from worker
+        threads via `call_from_thread(self.push_modal_and_wait, ...)`.
+        """
+        self.push_screen(modal, on_decision_callback)
+
     def action_dismiss_modal(self) -> None:
         try:
             self.pop_screen()
