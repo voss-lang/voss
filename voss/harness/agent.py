@@ -248,6 +248,7 @@ async def run_turn(
     session_id: str | None = None,
     cognition=None,
     prior_context: dict | None = None,
+    voss_md_text: str | None = None,
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -294,8 +295,9 @@ async def run_turn(
         renderer=renderer,
     )
     prior_context_text = _compose_prior_context_block(prior_context)
+    voss_md_block = f"# VOSS.md\n{voss_md_text}" if voss_md_text else ""
     sys_prompt = "\n\n".join(
-        s for s in (cognition_text, prior_context_text, PLAN_SYSTEM) if s
+        s for s in (voss_md_block, cognition_text, prior_context_text, PLAN_SYSTEM) if s
     )
 
     if cognition is not None and getattr(cognition, "initialized", False):

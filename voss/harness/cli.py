@@ -23,6 +23,7 @@ from voss_runtime.providers.base import ModelProvider
 from . import auth as auth_mod
 from . import cognition as cognition_mod
 from . import session as session_store
+from . import voss_md
 from .agent import Plan
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
@@ -138,6 +139,7 @@ class ReplContext:
     last_plan: Plan | None = None
     total_cost: float = 0.0
     should_exit: bool = False
+    voss_md_text: str | None = None
 
 
 def _resolve_default_model(user_explicit: str | None) -> None:
@@ -538,6 +540,7 @@ def do_cmd(
     renderer = make_renderer(json_mode=json_mode)
     tools = make_toolset(cwd)
     do_bundle = cognition_mod.load(cwd)
+    voss_md_text = voss_md.read_and_inject(cwd)
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
         store=PermissionStore.load(cwd),
@@ -569,6 +572,7 @@ def do_cmd(
             model=cfg.default_model,
             provider=provider,
             permissions=gate,
+            voss_md_text=voss_md_text,
         )
     )
     renderer.show_final(result.final, confidence=result.confidence, cost_usd=result.cost_usd)
@@ -718,6 +722,7 @@ def _run_repl(
     if bundle.load_errors:
         for err in bundle.load_errors:
             click.echo(f"cognition error: {err}", err=True)
+    voss_md_text = voss_md.read_and_inject(cwd)
 
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
@@ -739,6 +744,7 @@ def _run_repl(
         cognition=bundle,
         prior_context=prior_context,
         total_cost=record.total_cost_usd,
+        voss_md_text=voss_md_text,
     )
     attach_subagent_tool(
         tools,
@@ -818,6 +824,7 @@ def _run_repl(
                     session_id=record.id,
                     cognition=bundle,
                     prior_context=ctx.prior_context,
+                    voss_md_text=ctx.voss_md_text,
                 )
             )
             # prior_context is one-shot: only the first turn rehydrates it.
