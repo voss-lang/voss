@@ -15,6 +15,8 @@ from .. import glyphs
 class InputBar(Input):
     """Text input with locked prompt glyph + Submitted message contract."""
 
+    BINDINGS = [("slash", "open_palette", "Open slash palette")]
+
     class Submitted(Message):
         """Posted when user presses Enter on a non-empty input."""
 
@@ -39,3 +41,27 @@ class InputBar(Input):
         await super().action_submit()
         if value.strip():
             self.post_message(self.Submitted(value))
+
+    def action_open_palette(self) -> None:
+        """Open the slash palette only when the input is empty.
+
+        Non-empty `value` falls through to default Input handling so `/` is
+        inserted as a literal character.
+        """
+        if self.value:
+            # Insert literal `/` and bail.
+            self.insert_text_at_cursor("/")
+            return
+        from .slash_palette import SlashPalette
+
+        registry = getattr(self.app, "slash_registry", None)
+        if registry is None:
+            return
+        try:
+            existing = self.app.query_one(SlashPalette)
+        except Exception:  # noqa: BLE001
+            existing = None
+        if existing is not None:
+            return
+        palette = SlashPalette(registry)
+        self.app.mount(palette, before=self)

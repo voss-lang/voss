@@ -75,7 +75,10 @@ class SlashPalette(ListView):
 
     def update_query(self, query: str) -> None:
         self.query_text = query
-        self.clear()
+        # Synchronously remove existing items so subsequent appends don't
+        # collide on stale ListItem ids.
+        for child in list(self.children):
+            child.remove()
         ranked = rank_commands(query, self.registry.ids(), recency=self.recency)
         if not ranked:
             self.append(ListItem(Static("no matching commands"), id="_empty"))
