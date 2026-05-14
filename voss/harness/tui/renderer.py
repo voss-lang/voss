@@ -18,9 +18,13 @@ from rich.text import Text
 from .. import render as render_mod
 from .app import VossTUIApp
 from .widgets import (
+    BudgetExhaustedModal,
     BudgetMeter,
     ConfidenceBar,
+    DiffDecision,
+    DiffModal,
     HeaderBar,
+    Hunk,
     InputBar,
     StatusLine,
     SubAgentPanel,
@@ -229,6 +233,51 @@ class TextualRenderer:
 
     def show_warning(self, msg: str) -> None:
         self._post(self._turn_view().append_turn, "warning", f"⚠ {msg}")
+
+    # ------------------------------------------------------------------
+    # M9-05 modal hooks. Called from worker threads via the permissions
+    # bridge. Each blocks on a Future until the user dismisses the modal.
+    # ------------------------------------------------------------------
+
+    def show_diff_modal(
+        self, hunks: list[Hunk], *, timeout_s: float = 300.0
+    ) -> list[DiffDecision]:
+        from concurrent.futures import Future
+
+        fut: Future[list[DiffDecision]] = Future()
+
+        def _on_result(decisions):
+            if not fut.done():
+                fut.set_result(list(decisions or []))
+
+        self.app.call_from_thread(
+            self.app.push_modal_and_wait, DiffModal(hunks), _on_result
+        )
+        try:
+            return fut.result(timeout=timeout_s)
+        except TimeoutError:
+            return []
+
+    def show_budget_modal(
+        self, used: int, limit: int, *, timeout_s: float = 300.0
+    ) -> str:
+        from concurrent.futures import Future
+
+        fut: Future[str] = Future()
+
+        def _on_result(choice):
+            if not fut.done():
+                fut.set_result(str(choice or "cancel"))
+
+        self.app.call_from_thread(
+            self.app.push_modal_and_wait,
+            BudgetExhaustedModal(used, limit),
+            _on_result,
+        )
+        try:
+            return fut.result(timeout=timeout_s)
+        except TimeoutError:
+            return "cancel"
 
 
 def _short(value: Any, limit: int = 40) -> str:
