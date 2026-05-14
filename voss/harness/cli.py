@@ -22,8 +22,10 @@ from voss_runtime.providers.base import ModelProvider
 
 from . import auth as auth_mod
 from . import cognition as cognition_mod
+from . import conventions
 from . import session as session_store
 from . import voss_md
+from .memory_store import MemoryStore
 from .agent import Plan
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
@@ -140,6 +142,9 @@ class ReplContext:
     total_cost: float = 0.0
     should_exit: bool = False
     voss_md_text: str | None = None
+    memory_store: object | None = None
+    model: str | None = None
+    persist_conventions_selection: str | None = None
 
 
 def _resolve_default_model(user_explicit: str | None) -> None:
@@ -747,6 +752,8 @@ def _run_repl(
         prior_context=prior_context,
         total_cost=record.total_cost_usd,
         voss_md_text=voss_md_text,
+        memory_store=MemoryStore(cwd).bind(session_id=record.id),
+        model=cfg.default_model,
     )
     attach_subagent_tool(
         tools,

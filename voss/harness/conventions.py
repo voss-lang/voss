@@ -225,7 +225,70 @@ def run_on_clean_exit(ctx, *, history, record, memory_store) -> int:
     True) and `memory.extraction_timeout_seconds` (default 8.0). Wraps all
     work in a top-level try/except so the REPL exit is never blocked.
     """
-    raise NotImplementedError("M8-04")
+    from pathlib import Path
+
+    try:
+        cwd = getattr(ctx, "cwd", None) or Path(".")
+        cfg = _load_memory_config(Path(cwd))
+        if not cfg.get("extract_conventions", True):
+            return 0
+        timeout = float(cfg.get("extraction_timeout_seconds", DEFAULT_EXTRACTION_TIMEOUT_SECONDS))
+
+        turns = list(getattr(history, "turns", history) or [])
+        runs = list(getattr(record, "runs", []) or [])
+        if not has_signal(turns, runs=runs):
+            return 0
+
+        provider = getattr(ctx, "provider", None)
+        model = getattr(ctx, "model", None) or getattr(ctx, "default_model", None)
+        if provider is None or model is None:
+            click.echo("conventions extraction skipped: no provider/model on ctx", err=True)
+            return 0
+
+        candidates = asyncio.run(
+            extract_conventions(history, provider, model, timeout=timeout)
+        )
+        if not candidates:
+            return 0
+
+        interactive = sys.stdin.isatty()
+        selected = review_candidates(
+            candidates,
+            interactive=interactive,
+            selection=getattr(ctx, "persist_conventions_selection", None),
+        )
+
+        persisted = 0
+        for idx in selected:
+            try:
+                memory_store.write_convention(candidates[idx], session_id=record.id)
+                persisted += 1
+            except Exception as exc:  # noqa: BLE001
+                click.echo(
+                    f"conventions write failed for [{idx + 1}]: {exc}",
+                    err=True,
+                )
+        return persisted
+    except Exception as exc:  # noqa: BLE001
+        click.echo(f"conventions extraction skipped: {exc}", err=True)
+        return 0
+
+
+def _load_memory_config(cwd) -> dict:
+    """Load the optional `.voss/config.yml` memory section; never raises."""
+    from pathlib import Path
+
+    config_path = Path(cwd) / ".voss" / "config.yml"
+    if not config_path.exists():
+        return {}
+    try:
+        import yaml
+
+        data = yaml.safe_load(config_path.read_text()) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+    memory = data.get("memory") if isinstance(data, dict) else None
+    return memory if isinstance(memory, dict) else {}
 
 
 __all__ = [
