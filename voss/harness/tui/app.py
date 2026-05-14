@@ -21,7 +21,7 @@ class VossTUIApp(App):
     BINDINGS = [
         (b.key, b.action, b.description)
         for b in KEYMAP
-        if b.context in ("global", "input")
+        if b.context in ("global", "input", "modal")
     ]
 
     def __init__(

@@ -17,6 +17,16 @@ class InputBar(Input):
 
     BINDINGS = [("slash", "open_palette", "Open slash palette")]
 
+    async def _on_key(self, event) -> None:
+        # Intercept `/` ONLY when the input is currently empty so the palette
+        # opens before Input's printable-character handler inserts a literal.
+        if event.key == "slash" and not self.value:
+            event.prevent_default()
+            event.stop()
+            self.action_open_palette()
+            return
+        await super()._on_key(event)
+
     class Submitted(Message):
         """Posted when user presses Enter on a non-empty input."""
 
