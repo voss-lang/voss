@@ -403,7 +403,9 @@ condition fires — usually real-user demand surfacing during v0.1 dogfood.
 - **DIST-02** Homebrew distribution — trigger: macOS install friction
   surfaces despite npm wrapper.
 - **DIST-03** MCP bridge — trigger: harness loop proves stable + external
-  agent runtimes want to invoke Voss tools.
+  agent runtimes want to invoke Voss tools. *(See also
+  [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md)
+  — MCP is one capability among several waiting on the TUI shell.)*
 - **EDIT-01/02** Tree-sitter + VSCode marketplace — trigger: language users
   ask for editor support beyond the existing scratch extension.
 - **LING-01** GitHub Linguist upstream PR — trigger: enough public `.voss`
@@ -411,6 +413,31 @@ condition fires — usually real-user demand surfacing during v0.1 dogfood.
 - **JS-SDK** TS/JS library — trigger: real JS-side embedders ask for a
   library API (not just `npx voss`).
 - **TEAM-*** / **WEB-*** — far post-v0.1.
+
+### Coding-agent v0.2 candidates *(planted 2026-05-14 via /gsd-explore)*
+
+These four artifacts came out of a brainstorm on what makes Voss a real
+daily-driver coding agent. Seeds + thesis note live in `.planning/seeds/`
+and `.planning/notes/`. Each promotes to a full phase via
+`/gsd-spec-phase` when its trigger fires — **do not pre-plan**.
+
+- **TUI-01** TUI shell (Textual) — see
+  [`seeds/tui-shell-textual.md`](seeds/tui-shell-textual.md). Trigger:
+  v0.1 daily-driver feedback surfaces UX friction with the line-streamed
+  CLI. Likely first v0.2 phase.
+- **MEM-01** VOSS.md + cross-session recall — see
+  [`seeds/project-memory-voss-md.md`](seeds/project-memory-voss-md.md).
+  Trigger: first dogfood session where context loss hurts. May land
+  before TUI if dogfood demand fires first.
+- **CAPS-01** Agent capability surface (codebase intel, Voss-aware tools,
+  MCP, multi-agent in chat, long-running tasks, skill marketplace) — see
+  [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md).
+  Trigger: TUI shell lands and exposes a plugin/skill API. Splits into
+  per-capability sub-phases at promotion.
+- **Thesis note** (not a phase) — Voss agent unfair advantage. See
+  [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md).
+  Frames the "why" for the three seeds above. Re-read before scoping any
+  of them.
 
 These do NOT block v0.1 ship. Listed so the roadmap has a memory of what's
 next without forcing premature commitment.
