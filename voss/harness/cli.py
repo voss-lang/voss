@@ -346,6 +346,100 @@ def _print_agents(ctx: ReplContext) -> None:
         click.echo(f"  {spec.id:<16} {spec.description}")
 
 
+_RECALL_USAGE = "usage: /recall <query> [--top N] [--source turn|decision|convention|ledger|note]"
+
+
+def _pop_flag_value(args: list[str], flag: str) -> tuple[list[str], str | None]:
+    """Return (args_without_flag, flag_value or None)."""
+    if flag not in args:
+        return args, None
+    idx = args.index(flag)
+    if idx + 1 >= len(args):
+        return args[:idx], None
+    value = args[idx + 1]
+    return args[:idx] + args[idx + 2 :], value
+
+
+def _recall(ctx, args: list[str], _line: str) -> None:
+    if not args:
+        click.echo(_RECALL_USAGE, err=True)
+        return
+    args, top_raw = _pop_flag_value(list(args), "--top")
+    args, source = _pop_flag_value(args, "--source")
+    try:
+        top_k = int(top_raw) if top_raw is not None else 5
+    except ValueError:
+        click.echo(_RECALL_USAGE, err=True)
+        return
+    query = " ".join(args).strip()
+    if not query:
+        click.echo(_RECALL_USAGE, err=True)
+        return
+    store = getattr(ctx, "memory_store", None)
+    if store is None:
+        click.echo("/recall unavailable: memory store not bound", err=True)
+        return
+    hits = store.recall(query, top_k=top_k, source=source)
+    if not hits:
+        click.echo("(no hits)")
+        return
+    for h in hits:
+        click.echo(f"[{h.source}] {h.locator}  (score {h.score:.2f})")
+        excerpt = (h.excerpt or "").replace("\n", " ")[:160]
+        if excerpt:
+            click.echo(f"  {excerpt}")
+
+
+def _forget(ctx, args: list[str], _line: str) -> None:
+    if not args:
+        click.echo("usage: /forget <pattern> [--yes]", err=True)
+        return
+    pattern = args[0]
+    confirm = "--yes" in args[1:]
+    non_interactive = not sys.stdin.isatty()
+    if non_interactive and not confirm:
+        click.echo("/forget requires --yes in non-interactive mode", err=True)
+        return
+    store = getattr(ctx, "memory_store", None)
+    if store is None:
+        click.echo("/forget unavailable: memory store not bound", err=True)
+        return
+    n = store.forget(pattern, confirm=confirm)
+    click.echo(f"tombstoned: {n} entries")
+
+
+def _memory(ctx, args: list[str], _line: str) -> None:
+    args, source = _pop_flag_value(list(args), "--source")
+    store = getattr(ctx, "memory_store", None)
+    if store is None:
+        click.echo("/memory unavailable: memory store not bound", err=True)
+        return
+    click.echo(store.summary(source=source))
+
+
+def _save_note(ctx, args: list[str], _line: str) -> None:
+    # Pitfall 1 invariant: do NOT mutate ctx.record.name — that is /save-session's job.
+    text = " ".join(args).strip()
+    if not text:
+        click.echo("usage: /save <note text>", err=True)
+        return
+    store = getattr(ctx, "memory_store", None)
+    if store is None:
+        click.echo("/save unavailable: memory store not bound", err=True)
+        return
+    try:
+        path = store.write_note(text, session_id=ctx.record.id)
+    except Exception as exc:  # noqa: BLE001
+        click.echo(f"failed: {exc}", err=True)
+        return
+    cwd = getattr(ctx, "cwd", None)
+    try:
+        display = path.relative_to(cwd) if cwd else path
+    except ValueError:
+        display = path
+    click.echo(f"note saved: {display}")
+
+
 def _build_slash_registry() -> SlashRegistry:
     registry = SlashRegistry()
 
@@ -478,6 +572,10 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
         SlashCommand("/save-session", "persist session snapshot", _save_session, mutating=True),
+        SlashCommand("/recall", "search memory (top-N hits across sources)", _recall),
+        SlashCommand("/forget", "delete memory entries matching <pattern>", _forget, mutating=True),
+        SlashCommand("/memory", "summarize current memory store", _memory),
+        SlashCommand("/save", "append a manual note to memory", _save_note, mutating=True),
         SlashCommand("/analyze", "refresh project cognition (.voss/ + .voss-cache/)", _analyze, mutating=True),
         SlashCommand("/save-plan", "persist the most recent plan to .voss/plans/", _save_plan, mutating=True),
         SlashCommand("/plugins", "list plugin manifests", _plugins),

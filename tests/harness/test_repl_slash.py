@@ -107,6 +107,9 @@ class TestModelPersistence:
         assert cfg.get("preferred_model") == "claude-sonnet-4-20250514"
 
 
-@pytest.mark.skip(reason="M8-06 — will assert /recall, /forget, /memory, /save are registered")
-def test_memory_commands_not_yet_registered() -> None:
-    pass
+def test_memory_commands_registered() -> None:
+    from voss.harness.cli import _build_slash_registry
+
+    registry = _build_slash_registry()
+    for name in ("/recall", "/forget", "/memory", "/save", "/save-session"):
+        assert registry.lookup(name) is not None, f"slash {name} not registered"
