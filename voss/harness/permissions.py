@@ -69,6 +69,42 @@ def _config_path() -> Path:
     return base / "voss" / "permissions.json"
 
 
+def compute_diff_text(tool_name: str, args: dict, base_dir: Path) -> str:
+    """Compute the unified diff text for an fs_write / fs_edit call.
+
+    Returns the diff string (may be empty). Pure: does not write to stderr.
+    Used by both the stderr-preview path (PermissionGate._render_diff_preview)
+    and the TUI modal-bridge path. Failure (file unreadable, encoding) yields
+    an empty string — diff preview is best-effort.
+    """
+    try:
+        path = args.get("path", "")
+        if not path:
+            return ""
+        base = Path(base_dir).resolve()
+        p = (base / path).resolve()
+        current = p.read_text() if p.exists() else ""
+        if tool_name == "fs_write":
+            new = args.get("content", "")
+        elif tool_name == "fs_edit":
+            old = args.get("old", "")
+            replacement = args.get("new", "")
+            new = current.replace(old, replacement, 1) if old in current else current
+        else:
+            return ""
+        return "".join(
+            difflib.unified_diff(
+                current.splitlines(keepends=True),
+                new.splitlines(keepends=True),
+                fromfile=f"a/{path}",
+                tofile=f"b/{path}",
+                n=3,
+            )
+        )
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
 @dataclass
 class PermissionStore:
     """Persisted always-allow decisions per cwd."""
@@ -200,38 +236,14 @@ class PermissionGate:
         Failure (file unreadable, encoding error) is swallowed silently —
         diff preview is best-effort and must not block the gate.
         """
-        try:
-            path = args.get("path", "")
-            if not path:
-                return
-            base_dir = self.edit_scope.cwd if self.edit_scope is not None else Path(".")
-            base = Path(base_dir).resolve()
-            p = (base / path).resolve()
-            current = p.read_text() if p.exists() else ""
-            if tool_name == "fs_write":
-                new = args.get("content", "")
-            elif tool_name == "fs_edit":
-                old = args.get("old", "")
-                replacement = args.get("new", "")
-                new = current.replace(old, replacement, 1) if old in current else current
-            else:
-                return
-            diff = "".join(
-                difflib.unified_diff(
-                    current.splitlines(keepends=True),
-                    new.splitlines(keepends=True),
-                    fromfile=f"a/{path}",
-                    tofile=f"b/{path}",
-                    n=3,
-                )
-            )
-            if diff:
-                sys.stderr.write("\n  diff preview:\n")
-                for line in diff.splitlines():
-                    sys.stderr.write(f"    {line}\n")
-                sys.stderr.flush()
-        except (OSError, UnicodeDecodeError):
+        base_dir = self.edit_scope.cwd if self.edit_scope is not None else Path(".")
+        diff = compute_diff_text(tool_name, args, base_dir)
+        if not diff:
             return
+        sys.stderr.write("\n  diff preview:\n")
+        for line in diff.splitlines():
+            sys.stderr.write(f"    {line}\n")
+        sys.stderr.flush()
 
     def _prompt_expand(self, target: str) -> tuple[bool, str]:
         """Prompt: expand scope to include <target>? [y/once/always/n]."""
