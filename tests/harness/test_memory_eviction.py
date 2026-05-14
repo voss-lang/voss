@@ -9,6 +9,17 @@ import pytest
 from voss.harness.memory_store import MemoryStore
 
 
+@pytest.fixture(autouse=True)
+def _no_chroma(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip chroma init so disk accounting reflects user-content only.
+
+    Chroma's persist_dir holds an opaque SQLite DB + embedding model files
+    (several MB); eviction is a user-content policy, not a chroma reclaim
+    policy. Tests focus on the source-dir size invariant.
+    """
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", lambda self: None)
+
+
 def _turns_dir(repo: Path) -> Path:
     return repo / ".voss" / "memory" / "turns"
 
@@ -52,12 +63,13 @@ def test_post_write_size_under_cap(tmp_voss_repo: Path) -> None:
 
     store.write_turn(role="user", content="new turn", session_id="s1", turn_idx=0)
 
-    total = sum(
-        p.stat().st_size
-        for p in (tmp_voss_repo / ".voss" / "memory").rglob("*")
-        if p.is_file()
-    )
-    assert total <= cap, f"post-write total {total} > cap {cap}"
+    total = 0
+    for src in ("turns", "ledgers", "decisions", "conventions", "notes"):
+        src_dir = tmp_voss_repo / ".voss" / "memory" / src
+        if not src_dir.exists():
+            continue
+        total += sum(p.stat().st_size for p in src_dir.rglob("*") if p.is_file())
+    assert total <= cap, f"post-write user-content total {total} > cap {cap}"
 
 
 def test_oldest_evicted_first_within_source(tmp_voss_repo: Path) -> None:

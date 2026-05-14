@@ -8,6 +8,7 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import json
+import os
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass

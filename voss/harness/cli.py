@@ -25,6 +25,7 @@ from . import cognition as cognition_mod
 from . import conventions
 from . import session as session_store
 from . import voss_md
+from .memory_cli import memory_group
 from .memory_store import MemoryStore
 from .agent import Plan
 from .permissions import PermissionGate, PermissionStore
@@ -1426,6 +1427,7 @@ AGENT_COMMANDS = (
     skill_group,
     agents_cmd,
     agent_group,
+    memory_group,
     config_cmd,
     eval_cmd,
 )
