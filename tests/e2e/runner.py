@@ -184,11 +184,13 @@ class CliRunner:
     ) -> Result:
         """Run `voss <args>` and return a Result."""
         argv = [sys.executable, "-m", "voss.cli", *args]
+        # Default to empty-string stdin so the harness's "piped stdin" branch
+        # (sys.stdin.isatty() == False under subprocess) appends nothing.
         proc = subprocess.run(
             argv,
             cwd=str(cwd or self.project_root),
             env=self.env(**(env_overrides or {})),
-            input=stdin,
+            input="" if stdin is None else stdin,
             capture_output=True,
             text=True,
             timeout=timeout,
