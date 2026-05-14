@@ -69,6 +69,64 @@ class VossTUIApp(App):
     def action_focus_previous(self) -> None:
         super().action_focus_previous()
 
+    # ------------------------------------------------------------------
+    # M9-04 mutators called by TextualRenderer + RecorderBridge.
+    # ------------------------------------------------------------------
+
+    def mount_subagent_panel(self, panel: "SubAgentPanel") -> None:
+        side = self.query_one("#side")
+        side.mount(panel)
+        side.display = True
+        side.styles.display = "block"
+
+    def update_subagent(self, parent_id: str, body_line: str, used: int = 0) -> None:
+        for panel in self.query(SubAgentPanel):
+            if getattr(panel, "parent_id", None) == parent_id:
+                panel.append_body(body_line)
+                if used:
+                    panel.update_budget(used)
+                return
+
+    def collapse_subagent(self, parent_id: str, n_results: int = 0) -> None:
+        for panel in list(self.query(SubAgentPanel)):
+            if getattr(panel, "parent_id", None) == parent_id:
+                panel.remove()
+        # Hide side region when empty.
+        side = self.query_one("#side")
+        if not list(side.query(SubAgentPanel)):
+            side.display = False
+            side.styles.display = "none"
+        try:
+            self.query_one("#main", TurnView).append_turn(
+                "gather", f"✓ gathered · {n_results} results"
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    def update_inspected(self, paths: list[str]) -> None:
+        try:
+            tv = self.query_one("#main", TurnView)
+        except Exception:  # noqa: BLE001
+            return
+        for path in paths:
+            tv.append_turn("inspect", path)
+
+    def update_changed(self, paths: list[str]) -> None:
+        try:
+            tv = self.query_one("#main", TurnView)
+        except Exception:  # noqa: BLE001
+            return
+        for path in paths:
+            tv.append_turn("change", path)
+
+    def append_tool_line(self, summary: str, *, state: str = "ok") -> None:
+        try:
+            tv = self.query_one("#main", TurnView)
+        except Exception:  # noqa: BLE001
+            return
+        prefix = "✓" if state == "ok" else "✗"
+        tv.append_turn("tool", f"{prefix} {summary}")
+
     def compose(self) -> ComposeResult:
         yield HeaderBar(id="header")
         with Horizontal():
