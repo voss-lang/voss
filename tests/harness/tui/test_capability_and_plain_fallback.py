@@ -92,19 +92,18 @@ def test_min_size_guard_locked_string() -> None:
     )
 
 
-def test_capability_import_does_not_eager_import_textual(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`from voss.harness.tui import capability` must NOT pull in textual at import time."""
-    for mod_name in list(sys.modules):
-        if mod_name == "textual" or mod_name.startswith("textual."):
-            monkeypatch.delitem(sys.modules, mod_name, raising=False)
-    for mod_name in list(sys.modules):
-        if mod_name == "voss.harness.tui.capability":
-            monkeypatch.delitem(sys.modules, mod_name, raising=False)
+def test_capability_module_has_no_top_level_textual_import() -> None:
+    """`capability.py` must NOT import textual at module top level.
 
-    monkeypatch.setattr("voss.harness.tui.capability._AVAILABLE", None, raising=False)
+    Static check on the source file so we don't have to mutate sys.modules
+    at runtime (which would leak monkeypatched module bindings across tests).
+    Top-level means column 0 (no indentation).
+    """
+    import voss.harness.tui.capability as cap_mod
 
-    cap = importlib.import_module("voss.harness.tui.capability")
-    assert hasattr(cap, "tui_should_activate")
-    assert "textual" not in sys.modules, (
-        "importing capability.py must not eagerly import textual"
-    )
+    source = open(cap_mod.__file__).read()
+    for line in source.splitlines():
+        if line.startswith("#"):
+            continue
+        if line.startswith("import textual") or line.startswith("from textual"):
+            pytest.fail(f"top-level textual import found: {line!r}")

@@ -8,6 +8,7 @@ sub-agents), within/fallback (later, model tier-down).
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -24,6 +25,7 @@ from voss_runtime.providers import get as get_provider
 from voss_runtime.providers.base import ModelProvider
 
 from . import cognition as cognition_mod
+from . import telemetry
 from .permissions import PermissionGate
 from .recorder import RunRecorder, write_decisions_md
 from .render import Renderer
@@ -264,6 +266,59 @@ async def run_turn(
             }
         }
     """
+    _tel_ok = True
+    _tel_err: str | None = None
+    preview = task.replace("\n", " ").strip()
+    if len(preview) > 200:
+        preview = preview[:199] + "…"
+    telemetry.begin_turn()
+    telemetry.emit(
+        "turn.start",
+        "info",
+        data={"task_preview": preview, "cwd": str(cwd.resolve())},
+    )
+    try:
+        return await _run_turn_exec(
+            task,
+            tools=tools,
+            cwd=cwd,
+            renderer=renderer,
+            confidence_threshold=confidence_threshold,
+            token_budget=token_budget,
+            model=model,
+            provider=provider,
+            history=history,
+            permissions=permissions,
+            session_id=session_id,
+            cognition=cognition,
+            prior_context=prior_context,
+            voss_md_text=voss_md_text,
+        )
+    except BaseException as e:
+        _tel_ok = False
+        _tel_err = str(e)[:500]
+        raise
+    finally:
+        telemetry.finalize_turn(_tel_ok, _tel_err)
+
+
+async def _run_turn_exec(
+    task: str,
+    *,
+    tools: dict[str, ToolEntry],
+    cwd: Path,
+    renderer: Renderer,
+    confidence_threshold: float = 0.60,
+    token_budget: int = 60_000,
+    model: str | None = None,
+    provider: ModelProvider | None = None,
+    history: EpisodicMemory | None = None,
+    permissions: PermissionGate | None = None,
+    session_id: str | None = None,
+    cognition=None,
+    prior_context: dict | None = None,
+    voss_md_text: str | None = None,
+) -> TurnResult:
     cfg = get_config()
     model = model or cfg.default_model
     if provider is None:
@@ -310,8 +365,22 @@ async def run_turn(
             architecture_tokens=cognition.architecture_tokens,
             constraints_count=c_count,
         )
+        telemetry.emit(
+            "cognition.snapshot",
+            "info",
+            data={
+                "architecture_tokens": cognition.architecture_tokens,
+                "constraints_count": c_count,
+            },
+        )
 
     renderer.show_thinking("planning")
+    telemetry.emit(
+        "provider.request",
+        "info",
+        data={"phase": "plan", "model": model},
+    )
+    _plan_t0 = time.monotonic()
     async with ContextScope(
         token_budget=token_budget, model=model, provider=provider
     ) as _ctx:
@@ -325,17 +394,43 @@ async def run_turn(
             temperature=0.2,
             max_tokens=cfg.max_output_tokens,
         )
+    telemetry.emit(
+        "provider.response",
+        "info",
+        data={
+            "phase": "plan",
+            "model": resp.model,
+            "latency_ms": int((time.monotonic() - _plan_t0) * 1000),
+            "prompt_tokens": resp.prompt_tokens,
+            "completion_tokens": resp.completion_tokens,
+            "cost_usd": resp.cost_usd,
+        },
+    )
 
     if resp.parsed is None:
         raise RuntimeError(f"provider returned no parsed Plan; raw text: {resp.text[:300]}")
     plan: Plan = resp.parsed
     probable_plan = ProbableValue(value=plan, confidence=plan.confidence)
     renderer.show_plan(plan, cost_usd=resp.cost_usd)
+    telemetry.emit(
+        "plan.parsed",
+        "info",
+        data={
+            "confidence": plan.confidence,
+            "steps": len(plan.steps),
+            "rationale_len": len(plan.rationale),
+        },
+    )
 
     # Confidence gate. Mirrors `if plan @ p >= threshold` in .voss.
     if probable_plan.confidence < confidence_threshold:
         question = plan.open_question or "I'm not confident enough — can you clarify the task?"
         renderer.show_clarify(question, plan.confidence)
+        telemetry.note_turn(
+            cost_usd=resp.cost_usd,
+            outcome="clarify",
+            confidence=plan.confidence,
+        )
         return TurnResult(
             plan=plan,
             confidence=plan.confidence,
@@ -382,6 +477,14 @@ async def run_turn(
         tokens=total_tokens,
         cost_usd=resp.cost_usd,
         ctx_pct=ctx_pct,
+    )
+
+    telemetry.note_turn(
+        cost_usd=resp.cost_usd,
+        outcome="complete",
+        step_count=len(plan.steps),
+        tool_calls=len(results),
+        total_tokens=total_tokens,
     )
 
     return TurnResult(
