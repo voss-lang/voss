@@ -10,6 +10,7 @@ files_modified:
   - tests/harness/test_memory_store.py
   - tests/harness/test_recall_eval.py
   - tests/harness/test_memory_runtime_reuse.py
+  - tests/harness/test_session.py
 autonomous: true
 requirements: [MEM-03, MEM-07]
 tags: [memory, recall, chroma, keyword-fallback, runtime-reuse]
@@ -24,6 +25,7 @@ must_haves:
     - "Req 3 acceptance — over a 5-session fake corpus, recall@top-3 ≥ 80% with chroma and ≥ 60% on keyword fallback"
     - "Req 7 acceptance — `grep -E '^class [A-Za-z_]+Memory\\b' voss/harness/` (excluding 'Store' suffix) returns zero matches outside voss_runtime/memory/"
     - "MemoryStore.write_turn / write_ledger / write_note / write_convention persist on-disk under .voss/memory/<source>/ AND add to chroma when available; each respects the per-source lockfile via portalocker"
+    - "Pre-M8 SessionRecord JSON files (no memory_* fields) rehydrate via voss.harness.session.load + bind via record.id only; no AttributeError/KeyError on resume (Pitfall 6)"
   artifacts:
     - path: "voss/harness/memory_store.py"
       provides: "MemoryStore class with bind / recall / forget / write_turn / write_ledger / write_note / write_convention / vacuum / summary implementations; lazy chroma; keyword fallback; portalocker advisory locking; composite IDs"
@@ -205,6 +207,48 @@ Output: Working memory_store.py with full method surface; 5-session fake corpus 
   </acceptance_criteria>
   <done>
     MEM-03 acceptance hit-rate floors verified. MEM-07 grep-gate locked and runtime-reuse provably exercised via mock-patched __init__. recall/forget/summary all live; vacuum stubbed for M8-06.
+  </done>
+</task>
+
+<task type="auto" tdd="true">
+  <name>Task 3: Pre-M8 session backward-compat — resume must not crash on a v0.1 SessionRecord JSON (Pitfall 6)</name>
+  <files>tests/harness/test_session.py, voss/harness/memory_store.py</files>
+  <read_first>
+    - tests/harness/test_session.py (existing — extend, do not replace)
+    - tests/harness/conftest.py (M8-00 added the `pre_m8_session_json` fixture — verify it writes a v0.1 SessionRecord with NO memory_* fields)
+    - voss/harness/session.py lines 110-200 (_hydrate + load — backward-compat reader: filters unknown fields and reads via getattr with defaults)
+    - voss/harness/memory_store.py (Task 1 of this plan — MemoryStore.bind(session_id=record.id) — must derive session_id from record.id ONLY, never expect new fields)
+    - .planning/phases/M8-project-memory-mem-01/M8-RESEARCH.md §Pitfall 6 (backward-compat trap on `voss resume <pre-M8-id>`)
+    - voss/harness/cli.py resume_cmd path (find via `grep -n "def resume_cmd" voss/harness/cli.py`) — pre-M8 session ids must rehydrate without crash
+  </read_first>
+  <behavior>
+    - Loading a pre-M8 SessionRecord JSON (no memory_* fields) via voss.harness.session.load(session_id, cwd) returns a SessionRecord without raising AttributeError or KeyError.
+    - Binding a MemoryStore to that rehydrated record via `MemoryStore(cwd).bind(session_id=record.id)` succeeds; MemoryStore reads ONLY `record.id` from the SessionRecord — never `record.memory_session_id` or any other M8-only field.
+    - `voss resume <pre-M8-session-id>` executed programmatically (subprocess.run on `python -m voss.cli resume <id> --cwd <tmp_voss_repo>` with a stub provider, OR direct invocation of resume_cmd's callback with a Click runner) exits cleanly OR enters the REPL stub without raising; specifically asserts no AttributeError/KeyError surfaces during boot.
+    - The MemoryStore is correctly bound and writeable post-resume — write_turn(role="user", content="post-resume turn", session_id=record.id, turn_idx=0) succeeds and produces the .voss/memory/turns/<session_id>.jsonl file.
+  </behavior>
+  <action>
+    (a) In voss/harness/memory_store.py: review MemoryStore.bind and all write methods to confirm session_id is ALWAYS passed in explicitly by the caller — NEVER read from record.<m8-only-field>. If any defensive `getattr(record, "memory_session_id", record.id)` style read exists anywhere in the module after Task 1+2, remove it; session_id flows in only via the bind(session_id=...) keyword and the write_*(session_id=...) keyword. Add a one-line comment near the bind() docstring: "# Pitfall 6: session_id is supplied by the caller from record.id; no SessionRecord field dependency."
+
+    (b) In tests/harness/test_session.py (EXISTING file — extend, do not replace): add a new test `test_resume_pre_m8_no_crash` using the `pre_m8_session_json` fixture (provided by M8-00 conftest). Outline:
+    - Use the fixture to obtain a path to a .voss/sessions/<uuid>.json file containing a v0.1 SessionRecord with NO memory_* fields. Extract the session id (uuid stem).
+    - Call voss.harness.session.load(session_id, cwd=tmp_voss_repo) — this is the public rehydrate path. Assert no exception; assert returned record has .id == session_id; assert record.runs == [].
+    - Construct a MemoryStore(tmp_voss_repo) and call .bind(session_id=record.id) — assert no AttributeError/KeyError; assert store._session_id == record.id.
+    - Write a turn: store.write_turn(role="user", content="post-resume turn", session_id=record.id, turn_idx=0). Assert (tmp_voss_repo / ".voss/memory/turns" / f"{record.id}.jsonl").exists().
+    - For full coverage of the CLI-entry path, ALSO invoke resume_cmd via click.testing.CliRunner: `from click.testing import CliRunner; from voss.harness.cli import resume_cmd; runner = CliRunner(); result = runner.invoke(resume_cmd, [record.id, "--cwd", str(tmp_voss_repo)], input="/exit\n", catch_exceptions=False)`. Assert result.exit_code in (0, None) (Click sometimes returns None for clean stdin EOF); the critical assertion is `assert "AttributeError" not in result.output and "KeyError" not in result.output`. Wrap the CliRunner invocation in a try/except that pytest.skip's the CLI half if the resume_cmd needs a real provider login (the fixture doesn't set up auth) — the in-process load+bind+write_turn assertions above are the canonical Pitfall 6 acceptance and run unconditionally.
+  </action>
+  <verify>
+    <automated>pytest tests/harness/test_session.py::test_resume_pre_m8_no_crash -x -q && pytest tests/harness/test_session.py tests/harness/test_memory_store.py tests/harness/test_memory_runtime_reuse.py -x -q</automated>
+  </verify>
+  <acceptance_criteria>
+    - test_resume_pre_m8_no_crash is GREEN.
+    - The fixture-driven load + bind + write_turn chain succeeds with NO AttributeError, NO KeyError.
+    - `grep -nE "getattr\(record, [\"\']memory_" voss/harness/memory_store.py` returns 0 matches (no defensive read of M8-only SessionRecord fields exists).
+    - Pre-existing tests in test_session.py still GREEN (no regression).
+    - Full harness suite still green: `pytest tests/harness/ -x --timeout=120`.
+  </acceptance_criteria>
+  <done>
+    Pitfall 6 closed. Pre-M8 SessionRecord JSON files rehydrate cleanly; MemoryStore binds via record.id alone; downstream writes succeed without any M8-only field on the record.
   </done>
 </task>
 

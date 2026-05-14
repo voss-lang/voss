@@ -16,10 +16,11 @@ tags: [memory, cap, eviction, vacuum, cli-group]
 must_haves:
   truths:
     - "MemoryStore inline eviction (_maybe_evict) replaces the no-op stub from M8-03 with the D-16 per-source quota check: on every write, if current_source_bytes + est_bytes > source_quota_bytes, evict oldest entries by source-tagged timestamp until under quota"
+    - "_maybe_evict SKIPS source=\"decisions\" entirely: mirror under .voss/memory/decisions/ is read-only from eviction; canonical source under .voss/decisions/ is COG-06's domain (Warning 5 reconciliation)"
     - "Eviction quotas follow D-14 defaults: turns 60% / ledgers 20% / decisions 10% / conventions 10% of cap_bytes (100MB default)"
     - "Quotas are configurable via .voss/config.yml memory.quota_pct.{turns,ledgers,decisions,conventions} keys"
     - "Post-write store size <= cap (Req 6 acceptance — Seeding to 110% triggers eviction before write returns)"
-    - "voss memory vacuum CLI subcommand: physically deletes tombstoned chroma rows + tombstoned on-disk files; reports bytes reclaimed"
+    - "voss memory vacuum CLI subcommand: physically deletes tombstoned chroma rows + tombstoned on-disk whole-files (notes/conventions) + per-line JSONL compaction for turns/ledgers (atomic tmp + os.replace inside per-source portalocker lock); reports bytes reclaimed"
     - "voss memory adopt --id <slug> CLI subcommand: reads on-disk fence body of VOSS.md, recomputes hash, rewrites the hash header to match (D-07 user-accepts-human-edits flow)"
     - "voss memory size CLI subcommand: prints per-source byte counts + total + cap remaining"
     - "memory_group is registered into the main CLI group at cli.py:1263 AGENT_COMMANDS tuple"
@@ -105,15 +106,21 @@ Output: 3 CLI subcommands working, eviction policy active on every write, vacuum
     - When current_bytes + est_bytes > quota_bytes, _maybe_evict iterates the source's on-disk files sorted by mtime ascending (oldest first), deletes one at a time, refreshes the size cache, and continues until current_bytes + est_bytes <= quota_bytes OR no files remain.
     - For turns/ledgers (JSONL format): eviction operates at file granularity (one .jsonl file = one session's turns or one run's ledger; oldest session/run evicted first).
     - For conventions/notes (one .md file = one entry): eviction also at file granularity.
-    - For decisions/: decisions are a pointer/mirror — eviction does NOT delete the source under .voss/decisions/ (which is COG-06's domain), only the chroma rows tagged source_type="decision" with oldest ts. The on-disk pointer remains; the chroma row goes.
+    - For decisions/: SKIPPED entirely by _maybe_evict. The on-disk mirror under .voss/memory/decisions/ is treated as read-only by eviction; the canonical source under .voss/decisions/ is COG-06's domain (recorder.py owns those writes). Chroma rows tagged source_type="decision" are NOT evicted by inline _maybe_evict — they are pruned only by `voss memory vacuum` when explicitly tombstoned via /forget. This protects M2's COG-06 invariants from being silently mutated by chatty turn-log growth pressure.
     - If chroma is available, each evicted file also triggers chroma_obj._collection.delete(where={"path": str(evicted_path)}) to drop matching index rows.
     - est_bytes can be estimated as len(content.encode()) for the upcoming write; if unknown pass est_bytes=0 (still triggers eviction when current >= quota even without the new write).
-    - vacuum() returns int bytes_reclaimed = (bytes_before_vacuum - bytes_after_vacuum); reads .voss/memory/.tombstones.jsonl for the set of tombstoned composite IDs; physically deletes the matching on-disk files (where determinable from the composite ID locator) AND calls chroma_obj._collection.delete(where={"tombstoned": True}) on the collection if chroma is available; truncates the tombstones jsonl after successful vacuum.
+    - vacuum() returns int bytes_reclaimed = (bytes_before_vacuum - bytes_after_vacuum). Vacuum performs THREE physical-delete passes inside a per-source advisory lock:
+      (i) JSONL line-level compaction for turns/ and ledgers/ — for each .jsonl file, acquire portalocker _lock("turns") (resp. "ledgers"); read all lines; parse each line as JSON; filter out lines whose composite id (computed via make_id("turn", session_id, seq=turn_idx) for turns, or make_id("ledger", run_id, seq=turn_idx) for ledgers) is in the tombstoned set; write surviving lines to a `<file>.tmp` sibling; atomic os.replace(tmp, final) to swap; chmod 0o600 on the new file. If after compaction the file is empty, unlink it.
+      (ii) Whole-file deletion for notes/ and conventions/ — for each tombstoned composite id matching `note:<filename>` or `convention:<filename>`, resolve path = self.root / source / "<filename>" (with .md suffix when applicable) and call path.unlink(missing_ok=True).
+      (iii) Chroma row deletion — chroma_obj._collection.delete(where={"tombstoned": True}) (best-effort try/except; log to stderr on failure).
+    - After all three passes, truncate .voss/memory/.tombstones.jsonl (write empty string; do not delete the file — keeps the dir layout stable).
+    - bytes_reclaimed counter = bytes_before - bytes_after across the entire .voss/memory/ subtree (covers JSONL line compaction shrinkage + whole-file deletion + tombstones file truncation). Chroma row reclaim is NOT counted in bytes_reclaimed (chroma file accounting is opaque); document this in the docstring.
     - vacuum is idempotent: calling twice with no new tombstones returns 0 on the second call.
   </behavior>
   <action>
     (a) In voss/harness/memory_store.py replace the no-op _maybe_evict stub:
-    - Read config: try cwd / ".voss/config.yml"; defensive yaml.safe_load -> {}; quota_pct_map = cfg.get("memory", {}).get("quota_pct", {}); quota_pct = quota_pct_map.get(source, SOURCE_QUOTAS.get(source, 0.0)); if quota_pct <= 0: return (decisions has 0.10 quota — small but nonzero; if user zeroes it via config, skip eviction for that source).
+    - Defensive guard FIRST: `if source == "decisions": return` — eviction never touches decisions/ (Warning 5 reconciliation: mirror is read-only from eviction's perspective; canonical decisions live under .voss/decisions/ owned by COG-06/recorder.py). Document inline: `# decisions/ is a mirror of COG-06 output; eviction stays out — see M8-06 plan Warning 5.`
+    - Read config: try cwd / ".voss/config.yml"; defensive yaml.safe_load -> {}; quota_pct_map = cfg.get("memory", {}).get("quota_pct", {}); quota_pct = quota_pct_map.get(source, SOURCE_QUOTAS.get(source, 0.0)); if quota_pct <= 0: return.
     - quota_bytes = int(self.cap_bytes * quota_pct).
     - source_dir = self.root / source; if not source_dir.exists(): return.
     - current_bytes = sum(p.stat().st_size for p in source_dir.rglob("*") if p.is_file()).
@@ -124,15 +131,35 @@ Output: 3 CLI subcommands working, eviction policy active on every write, vacuum
 
     (b) Update each write_* method in memory_store.py to pass est_bytes into _maybe_evict before writing.
 
-    (c) Replace vacuum stub with full implementation:
+    (c) Replace vacuum stub with full implementation per the THREE-pass contract above:
     - bytes_before = sum(p.stat().st_size for p in self.root.rglob("*") if p.is_file()).
-    - Read tombstones_path = self.root / ".tombstones.jsonl"; if exists: tombstoned_ids = {json.loads(line)["id"] for line in tombstones_path.read_text().splitlines() if line.strip()}; else tombstoned_ids = set().
-    - For each tombstoned id: parse composite per D-04 to determine source + locator; if source == "turn" and locator looks like a session id: candidate file = self.root / "turns" / f"{locator.split(':')[0]}.jsonl" — this gets tricky for per-turn granularity since one JSONL file holds many turns; resolution: vacuum DOES NOT rewrite JSONL files line-by-line for tombstoned turns in v0.1 (would require expensive rewrites + locking); INSTEAD vacuum only physically deletes whole-file source types (notes, conventions, ledgers) and only deletes the chroma rows for turn entries. Document this limitation as an in-source comment with reference to a future M8.x for per-line JSONL compaction.
-    - For sources where the locator IS a file path (note, convention, ledger by run_id): resolve path = self.root / source / "<filename>" and call path.unlink(missing_ok=True).
-    - chroma_obj = self._maybe_chroma(); if chroma_obj is not None: chroma_obj._collection.delete(where={"tombstoned": True}) (best-effort try/except; log to stderr on failure).
-    - tombstones_path.write_text("") (truncate; do not delete the file — keeps the dir layout stable).
-    - bytes_after = sum(...); return max(0, bytes_before - bytes_after).
-    - Also refresh self._size_cache for all sources after vacuum (sum once per source).
+    - Read tombstones_path = self.root / ".tombstones.jsonl"; if exists: tombstoned_ids = {json.loads(line)["id"] for line in tombstones_path.read_text().splitlines() if line.strip()}; else tombstoned_ids = set(). Convert to a frozenset for O(1) membership.
+    - Partition tombstoned_ids by source via parsing each composite id (split on first ":"): turn_ids, ledger_ids, note_ids, convention_ids.
+
+    Pass (i) — JSONL compaction for turns/ and ledgers/:
+    - For each (source, id_set, id_factory) in [("turns", turn_ids, lambda session_id, turn_idx: make_id("turn", session_id, seq=turn_idx)), ("ledgers", ledger_ids, lambda run_id, turn_idx: make_id("ledger", run_id, seq=turn_idx))]:
+      - if not id_set: continue.
+      - Enter `with self._lock(source) as lock:` (portalocker per-source advisory). If lock is None (contention): emit stderr warning "vacuum: <source> busy; skipping JSONL compaction this pass" and continue to next source.
+      - For each jsonl_path in (self.root / source).rglob("*.jsonl"):
+        - lines = jsonl_path.read_text().splitlines().
+        - Identify the file's owning session/run by stem: session_id_or_run_id = jsonl_path.stem.
+        - kept = []. For each line: try entry = json.loads(line); turn_idx = entry.get("turn_idx", 0); composite = id_factory(session_id_or_run_id, turn_idx); if composite not in id_set: kept.append(line); except json.JSONDecodeError: kept.append(line) (preserve malformed lines defensively — do not silently drop).
+        - if len(kept) == len(lines): continue (no changes for this file; skip the write).
+        - if not kept: jsonl_path.unlink(); continue.
+        - tmp_path = jsonl_path.with_suffix(jsonl_path.suffix + ".tmp"); tmp_path.write_text("\n".join(kept) + ("\n" if kept else "")); tmp_path.chmod(0o600); os.replace(tmp_path, jsonl_path).
+
+    Pass (ii) — Whole-file deletion for notes/ and conventions/:
+    - For each id in note_ids | convention_ids: parse via composite split → source = "note" or "convention", locator = the filename stem. Resolve path = self.root / (source + "s") / f"{locator}.md" (notes/ + conventions/ store .md files). If path.exists(): path.unlink(missing_ok=True).
+
+    Pass (iii) — Chroma row deletion:
+    - chroma_obj = self._maybe_chroma(); if chroma_obj is not None: try: chroma_obj._collection.delete(where={"tombstoned": True}); except Exception as exc: click.echo(f"vacuum: chroma delete failed: {exc}", err=True) (or sys.stderr.write — match existing stderr idiom in memory_store.py).
+
+    Finally:
+    - tombstones_path.write_text("") (truncate; do not unlink — keeps layout stable).
+    - Refresh self._size_cache for all sources after vacuum (sum once per source dir).
+    - bytes_after = sum(p.stat().st_size for p in self.root.rglob("*") if p.is_file()); return max(0, bytes_before - bytes_after).
+
+    Atomic-write invariants: every tmp+replace pair is the only path that mutates an existing jsonl file. No partial writes possible (matches voss_md.write_fence_body atomic idiom from M8-01).
 
     (d) In tests/harness/test_memory_eviction.py remove module-level pytestmark.skip. Implement 3 tests:
     - test_inline_evict_when_source_over_quota: use tmp_voss_repo with a MemoryStore with cap_bytes=4096 (small for test); fill turns dir with files until total > quota (turns quota = 0.60 * 4096 = ~2457 bytes); call write_turn one more time; assert oldest file is gone after the write returns AND post-write total bytes <= turns_quota.
@@ -140,22 +167,27 @@ Output: 3 CLI subcommands working, eviction policy active on every write, vacuum
     - test_oldest_evicted_first_within_source: write 3 files via write_turn to different session ids over 3 mtimes (use os.utime to backdate file 1); fill until quota exceeded; assert file 1 (oldest mtime) is deleted FIRST while file 2 and file 3 remain.
 
     (e) In tests/harness/test_memory_vacuum.py remove module-level pytestmark.skip. Implement 2 tests:
-    - test_vacuum_reclaims_tombstoned_bytes: seed memory store with 3 notes; call store.forget("note:*", confirm=True) (Pitfall: this requires M8-03's forget to be solid — verify the test calls it correctly); assert .tombstones.jsonl contains 3 entries; call store.vacuum(); assert returned bytes_reclaimed > 0; assert post-vacuum notes/ has 0 files (or fewer than 3 — depending on forget's glob semantics, all 3 should match).
+    - test_vacuum_reclaims_tombstoned_bytes: seed memory store with 3 notes; call store.forget("note:*", confirm=True); assert .tombstones.jsonl contains 3 entries; call store.vacuum(); assert returned bytes_reclaimed > 0; assert post-vacuum notes/ has 0 files.
     - test_vacuum_deletes_tombstoned_files: same setup; after vacuum, .voss/memory/notes/ should be empty; .tombstones.jsonl should be empty (truncated).
+    - test_vacuum_compacts_jsonl_turn_lines (NEW — Blocker 2 acceptance): bind store with session_id="s1"; write 5 turns via write_turn (turn_idx 0..4); manually inspect .voss/memory/turns/s1.jsonl has 5 lines; call store.forget("turn:s1:002", confirm=True) to tombstone the middle turn only; call store.vacuum(); re-read .voss/memory/turns/s1.jsonl; assert it has exactly 4 lines; assert NONE of the remaining lines has turn_idx == 2; assert all four other turn_idx values (0, 1, 3, 4) are still present; assert the file's mode is 0o600 (preserved across atomic replace).
+    - test_vacuum_removes_empty_jsonl_after_full_tombstone (NEW — Blocker 2 acceptance): bind store with session_id="s2"; write 2 turns; forget("turn:s2:*", confirm=True); vacuum(); assert .voss/memory/turns/s2.jsonl does NOT exist (file unlinked after all lines removed).
   </action>
   <verify>
     <automated>pytest tests/harness/test_memory_eviction.py tests/harness/test_memory_vacuum.py -x -q && pytest tests/harness/ -x --timeout=120 -q</automated>
   </verify>
   <acceptance_criteria>
-    - All 3 eviction tests + 2 vacuum tests GREEN.
+    - All 3 eviction tests + 4 vacuum tests GREEN (2 existing + 2 NEW per-line JSONL compaction tests per Blocker 2).
     - `grep -v '^#' voss/harness/memory_store.py | grep -c "NotImplementedError"` returns 0 (final stub eliminated).
     - `grep -nE "self\\._maybe_evict\\(" voss/harness/memory_store.py` returns ≥ 4 matches (one per write_* method).
+    - `grep -nE 'if source == ["\\']decisions["\\']: return' voss/harness/memory_store.py` returns ≥ 1 match in _maybe_evict body (Warning 5 decisions-skip guard in place).
     - `grep -nE "bytes_reclaimed" voss/harness/memory_store.py` returns ≥ 1 match (vacuum returns this).
     - `grep -nE "where=\\{\"tombstoned\": True\\}" voss/harness/memory_store.py` returns ≥ 1 (chroma vacuum integration).
+    - `grep -nE "os\\.replace|\\.with_suffix\\([\"\']\\..+\\.tmp[\"\']" voss/harness/memory_store.py` returns ≥ 1 match in vacuum (per-line JSONL compaction uses tmp + os.replace atomic swap).
+    - `grep -nE "self\\._lock\\([\"\']turns[\"\']|self\\._lock\\([\"\']ledgers[\"\']" voss/harness/memory_store.py` returns ≥ 1 (vacuum acquires per-source lock during JSONL compaction).
     - Full harness suite green: `pytest tests/harness/ -x --timeout=120`.
   </acceptance_criteria>
   <done>
-    Inline eviction lands on every write; vacuum reclaims tombstoned bytes; chroma where-filter delete used (no hand-rolled scan). Post-write size <= cap invariant holds (Req 6 main acceptance). Per-line JSONL compaction documented as deferred to M8.x.
+    Inline eviction lands on every write; vacuum reclaims tombstoned bytes via per-line JSONL compaction (turns + ledgers) PLUS whole-file deletion (notes + conventions) PLUS chroma where-filter delete — all three passes wrapped in per-source portalocker locks with atomic tmp+os.replace. Post-write size <= cap invariant holds (Req 6 main acceptance).
   </done>
 </task>
 
@@ -241,7 +273,7 @@ Output: 3 CLI subcommands working, eviction policy active on every write, vacuum
 |-----------|----------|-----------|-------------|-----------------|
 | T-M8-06-01 | Tampering | adopt without explicit fence_id wipes the wrong baseline | mitigate | --id is a required Click option (M8-00 skeleton); subcommand exits non-zero if fence_id not found; user must name the fence explicitly |
 | T-M8-06-02 | Denial of Service | eviction loop deletes a file that's currently locked by a concurrent session | mitigate | per-source advisory lock (M8-03 portalocker) wraps the write path; eviction runs INSIDE the lock; concurrent sessions degrade-not-die per D-13 |
-| T-M8-06-03 | Information Disclosure | vacuum doesn't physically delete turn-level tombstones (JSONL line not removed) | accept | documented limitation in v0.1; chroma row IS removed; on-disk JSONL line remains until full session-file eviction; future M8.x can add per-line compaction |
+| T-M8-06-03 | Information Disclosure | turn/ledger tombstoned lines remain on disk until vacuum runs | mitigate | vacuum performs per-line JSONL compaction inside per-source portalocker lock via atomic tmp + os.replace; tombstoned lines physically absent after vacuum; tests test_vacuum_compacts_jsonl_turn_lines + test_vacuum_removes_empty_jsonl_after_full_tombstone pin the invariant |
 | T-M8-06-04 | Tampering | adopt accepts a fence body that was maliciously edited by a third party with disk access | accept | local disk integrity is outside Voss's threat model; matches existing trust posture for .voss/ contents |
 | T-M8-06-05 | DoS | eviction with cap_bytes=0 deletes everything | mitigate | _maybe_evict returns early when quota_pct <= 0 OR cap_bytes <= 0; defensive guard added |
 | T-M8-06-06 | Repudiation | bytes_reclaimed value disagrees with on-disk reality | accept | reclaim_bytes is computed by stat diff before/after; chroma deletion is best-effort try/except; documented as estimate |
@@ -268,7 +300,7 @@ Output: 3 CLI subcommands working, eviction policy active on every write, vacuum
 <output>
 After completion, create `.planning/phases/M8-project-memory-mem-01/M8-06-SUMMARY.md` summarizing:
 - _maybe_evict implementation (per-source quota + oldest-first + chroma where-filter delete on eviction)
-- vacuum semantics (reclaim bytes for whole-file source types + chroma tombstoned delete; turn-level per-line compaction deferred)
+- vacuum semantics (per-line JSONL compaction for turns+ledgers via tmp+os.replace under portalocker; whole-file deletion for notes+conventions; chroma where=tombstoned delete; all three passes serialized)
 - 3 CLI subcommands (vacuum, adopt, size) with --cwd flag
 - memory_group registered into AGENT_COMMANDS tuple
 - voss_md.write_fence_body gains adopt=True opt-in

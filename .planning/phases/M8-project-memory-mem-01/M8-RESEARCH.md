@@ -568,32 +568,32 @@ This is a phase-internal capability with no rapidly-changing external state. The
 | A7 | `portalocker` is acceptable as a new core dep | Don't Hand-Roll table | If the planner rejects new deps, fall back to the `fcntl`/`msvcrt` guarded import. Pure Pitfall-3 cost question. |
 | A8 | Frontmatter inside the `id=architecture` fence body still parses through existing `FRONTMATTER_RE` | Pitfall 2 | If the fence header (`<!-- voss:begin -->\n<!-- voss:hash -->`) is followed by `---\n` frontmatter, regex matches starting at body line 0. Verified by reading regex: `re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)` — works as long as fence body starts with `---`. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `/forget` glob match against composite IDs OR file paths?**
    - What we know: D-15 says "composite IDs (D-04) and on-disk file paths (glob)" — both.
    - What's unclear: When a user types `/forget turn:*session*` does that delete *only* the chroma index entries for those turns, OR also `.voss/memory/turns/<session>.jsonl`?
-   - Recommendation: Both. The on-disk JSONL file is the source of truth per D-01; tombstoning means an in-memory "skip this ID" filter applied on read PLUS a tombstone marker file (e.g. `turns/<session>.tombstone`). Vacuum physically removes both.
+   - RESOLVED: Both. The on-disk JSONL file is the source of truth per D-01; tombstoning means an in-memory "skip this ID" filter applied on read PLUS a tombstone marker file (e.g. `turns/<session>.tombstone`). Vacuum physically removes both.
 
 2. **What's the chroma metadata schema mapping for `decisions` source?**
    - What we know: D-01 says decisions/ is a "pointer or symlink" to `.voss/decisions/*.md` — no duplication.
    - What's unclear: But chroma needs the document content to embed. Does the indexer READ `.voss/decisions/*.md` and write the body into chroma with metadata `{source_type: "decision", path: "<absolute>", ts: <mtime>}`?
-   - Recommendation: Yes — chroma stores the body for vector search, the `path` metadata points back to the canonical file. `/forget decision:.voss/decisions/foo.md` tombstones the chroma row but does NOT delete the underlying decision file (which is a COG-06 artifact owned by recorder.py, not memory_store).
+   - RESOLVED: Yes — chroma stores the body for vector search, the `path` metadata points back to the canonical file. `/forget decision:.voss/decisions/foo.md` tombstones the chroma row but does NOT delete the underlying decision file (which is a COG-06 artifact owned by recorder.py, not memory_store).
 
 3. **Top-N=5 default for `/recall` — is there an existing surface to align with?**
    - What we know: `SemanticMemory.retrieve(query, top_k=5)` at semantic.py:88 — default 5 matches SPEC Req 5.
    - What's unclear: None — aligned.
-   - Recommendation: Use 5. Document the alignment in the M8 plan.
+   - RESOLVED: Use 5. Document the alignment in the M8 plan.
 
 4. **Where does the chroma collection live for the `voss memory vacuum` CLI subcommand when no session is active?**
    - What we know: CLI subcommand needs a `cwd` to find `.voss/memory/chroma/`.
    - What's unclear: Does `voss memory vacuum` accept `--cwd` (matching other Click commands) or default to `.`?
-   - Recommendation: `--cwd` flag with default `.`, matching the existing convention at chat_cmd / do_cmd / doctor_cmd.
+   - RESOLVED: `--cwd` flag with default `.`, matching the existing convention at chat_cmd / do_cmd / doctor_cmd.
 
 5. **Should conventions extraction run for `voss do` (one-shot, no REPL)?**
    - What we know: SPEC Req 4 says "any non-error termination of `voss chat` / `voss do`."
    - What's unclear: A `voss do "summarize"` call typically has 1 turn; the D-09 pre-filter would almost never fire.
-   - Recommendation: Hook BOTH paths. Pre-filter will correctly skip most `do` invocations. No additional logic needed.
+   - RESOLVED: Hook BOTH paths. Pre-filter will correctly skip most `do` invocations. No additional logic needed.
 
 ## Environment Availability
 
