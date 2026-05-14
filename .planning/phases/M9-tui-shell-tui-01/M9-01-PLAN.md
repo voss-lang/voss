@@ -22,8 +22,9 @@ must_haves:
     - "`--plain` flag is recognized by voss chat / voss do / voss resume / voss edit."
     - "When stdout is not a TTY, the harness uses PlainRenderer with zero TUI bootstrap cost."
     - "When VOSS_PLAIN=1 is set, the harness uses PlainRenderer regardless of TTY state."
-    - "Stdout byte-output for `voss do` on a canned task is byte-identical to the pre-M9 baseline."
+    - "Stdout byte-output for `voss do` on a canned task is byte-identical to the captured baseline, and the capture itself is deterministic (locked FakeProvider, locked cwd, locked env)."
     - "If terminal is below 80x24, voss exits 2 with the locked stderr message."
+    - "Baseline file is idempotent: first run with no baseline writes it; subsequent runs compare bytes; never overwrites silently."
   artifacts:
     - path: "voss/harness/tui/capability.py"
       provides: "tui_available(), tui_should_activate(argv,env,stdin,stdout,size), min_size_guard()"
@@ -33,9 +34,9 @@ must_haves:
     - path: "tests/harness/tui/test_capability_and_plain_fallback.py"
       provides: "Capability + --plain + VOSS_PLAIN + non-TTY auto-fallback + min-size guard tests"
     - path: "tests/harness/tui/baseline/plain_baseline.txt"
-      provides: "Pre-M9 stdout byte baseline for parity diff"
+      provides: "Locked-FakeProvider stdout byte baseline for parity diff"
     - path: "tests/harness/tui/test_plain_parity.py"
-      provides: "Stdout byte-diff acceptance gate"
+      provides: "Stdout byte-diff acceptance gate; idempotent capture step (writes baseline only if absent)"
   key_links:
     - from: "voss/harness/cli.py"
       to: "voss/harness/tui/capability.py"
@@ -48,7 +49,7 @@ must_haves:
 ---
 
 <objective>
-Foundation wave: lock the library choice (Textual), add it as a versioned dependency, scaffold the `voss/harness/tui/` subpackage, add a `--plain` flag + non-TTY auto-fallback + `VOSS_PLAIN=1` env override on all four interactive CLI commands, lock the 80x24 minimum-size guard, and freeze a pre-M9 stdout byte baseline so every subsequent plan can verify it has not regressed `--plain` parity.
+Foundation wave: lock the library choice (Textual), add it as a versioned dependency, scaffold the `voss/harness/tui/` subpackage, add a `--plain` flag + non-TTY auto-fallback + `VOSS_PLAIN=1` env override on all four interactive CLI commands, lock the 80x24 minimum-size guard, and freeze a pre-M9 stdout byte baseline so every subsequent plan can verify it has not regressed `--plain` parity. Baseline capture uses a locked FakeProvider (the one already in `tests/harness/test_voss_loop_parity.py`) and is idempotent.
 
 Purpose: TUI-10 (headless byte-parity + Windows fallback contract) and TUI-01 (library choice) are the only items every other plan in this phase depends on. They land first, in one plan, so Wave 2+ never has to re-litigate the library choice or re-baseline parity.
 
@@ -69,6 +70,7 @@ Output: pyproject dep, capability module, --plain plumbing, a captured stdout ba
 @voss/harness/render.py
 @voss/harness/cli.py
 @pyproject.toml
+@tests/harness/test_voss_loop_parity.py
 
 <interfaces>
 <!-- Renderer protocol the TUI must implement (extracted from voss/harness/render.py). -->
@@ -100,6 +102,15 @@ def make_renderer(*, json_mode: bool) -> Renderer:
 ```
 
 CLI commands that call make_renderer (voss/harness/cli.py): `do_cmd` (line 511), `chat_cmd` (599 via _run_repl), `edit_cmd` (647 via _run_repl), `resume_cmd` (955 via _run_repl), `_run_repl` (688). All FIVE call sites accept `--json` already; `--plain` is added in this plan symmetrically.
+
+Locked stub provider for baseline determinism (from tests/harness/test_voss_loop_parity.py line 18):
+```python
+class FakeProvider:
+    """Returns a canned sequence of agent steps. Already used by parity tests across the repo."""
+    def __init__(self, plan): self.plan = plan; self._i = 0
+    def __call__(self, *args, **kwargs): step = self.plan[self._i]; self._i += 1; return step
+```
+This plan's baseline test imports and reuses `FakeProvider` from `tests/harness/test_voss_loop_parity.py` — does NOT define a new fake. This guarantees the baseline byte-stream is reproducible from the same source class every other parity test in the repo uses.
 </interfaces>
 </context>
 
@@ -173,25 +184,26 @@ CLI commands that call make_renderer (voss/harness/cli.py): `do_cmd` (line 511),
     - `python -c "import textual; print(textual.__version__)"` exits 0 (dep installed).
     - `python -c "from voss.harness.tui.capability import tui_available, tui_should_activate, min_size_guard, TUIDecision; print('ok')"` prints `ok`.
     - All 8 behavior tests pass.
-    - `grep -n "import textual" voss/harness/tui/capability.py` shows the import is INSIDE a function body, not at module top.
-    - `grep -c "^textual" pyproject.toml` returns 0 AND `grep -c "textual>=0.58" pyproject.toml` returns >= 1 (dep in `[project] dependencies` list, properly formatted).
+    - `grep -v '^#' voss/harness/tui/capability.py | grep -c "^import textual"` returns 0 (no top-level textual import; deferred inside function body).
+    - `grep -c "textual>=0.58" pyproject.toml` returns >= 1 (dep in `[project] dependencies` list, properly formatted).
   </acceptance_criteria>
   <done>TUIDecision dataclass + 3 functions exported from `voss.harness.tui.capability`. textual is an installable dep. Capability module has zero textual import at top level so PlainRenderer path pays no Textual import cost.</done>
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 2: Wire --plain flag + auto-fallback + min-size guard into CLI, capture pre-M9 stdout baseline, lock parity test</name>
+  <name>Task 2: Wire --plain flag + auto-fallback + min-size guard into CLI, capture pre-M9 stdout baseline with locked FakeProvider (idempotent), lock parity test</name>
   <files>voss/harness/render.py, voss/harness/cli.py, tests/harness/tui/baseline/plain_baseline.txt, tests/harness/tui/test_plain_parity.py</files>
   <read_first>
     - /Users/benjaminmarks/Projects/Voss/voss/harness/render.py (lines 47-51, make_renderer factory — extend its signature, do not replace it)
     - /Users/benjaminmarks/Projects/Voss/voss/harness/cli.py (lines 496-510 for do_cmd options, 582-598 for chat_cmd, 633-647 for edit_cmd, 947-960 for resume_cmd — add `--plain` flag option block to each, mirror the existing `--json` placement exactly)
     - /Users/benjaminmarks/Projects/Voss/voss/harness/cli.py (lines 538, 614, 678, 974 — call sites that pass json_mode to _run_repl or to make_renderer; add plain= alongside)
     - /Users/benjaminmarks/Projects/Voss/voss/harness/cli.py (lines 688-705, _run_repl signature — accept plain bool, call capability.tui_should_activate, route to PlainRenderer if False or to TtyRenderer if True for THIS plan; TextualRenderer lands in M9-02)
-    - /Users/benjaminmarks/Projects/Voss/tests/harness/test_cli.py (any file, to confirm the click.testing.CliRunner pattern this repo already uses for byte-stdout assertions)
+    - /Users/benjaminmarks/Projects/Voss/tests/harness/test_voss_loop_parity.py (lines 18-67 — the FakeProvider class this plan reuses verbatim for the baseline; do NOT define a new one)
     - /Users/benjaminmarks/Projects/Voss/.planning/phases/M9-tui-shell-tui-01/M9-UI-SPEC.md ("Headless / `--plain` Contract" table — Stdout shape row, Auto-detect rule row, Verification row)
   </read_first>
   <behavior>
-    - Test: `CliRunner().invoke(do_cmd, ["--plain", "what is 2+2"], env={"VOSS_STUB":"1"})` stdout matches the captured baseline byte-for-byte (using a stub provider so the test is hermetic — if VOSS_STUB infra exists; otherwise mock _resolve_auth_or_die to return a FakeProvider that returns one canned final).
+    - Test: `CliRunner().invoke(do_cmd, ["--plain", "what is 2+2"])` with `_resolve_auth_or_die` monkeypatched to return `FakeProvider` (imported from tests/harness/test_voss_loop_parity.py) seeded with a fixed canned plan, fixed `cwd=tmp_path`, fixed env `{"VOSS_BASELINE":"1"}`, produces stdout byte-stream that matches `tests/harness/tui/baseline/plain_baseline.txt` exactly.
+    - Test (idempotent capture): when `plain_baseline.txt` does NOT exist on disk AND env `VOSS_CAPTURE_BASELINE=1` is set, the test writes the file from the current run output then skips. When the file DOES exist, the env flag is IGNORED — the test always compares bytes. This prevents accidental baseline overwrites.
     - Test: `do_cmd` invoked without `--plain` but with `stdout_isatty=False` (CliRunner default) produces identical stdout to the `--plain` invocation (auto-fallback).
     - Test: `do_cmd --json` still produces NDJSON on stdout (json_mode short-circuits before plain logic — regression guard for existing JsonRenderer behavior).
     - Test: invoking any of `do_cmd`, `chat_cmd`, `edit_cmd`, `resume_cmd` with a 79-column terminal (monkeypatch `shutil.get_terminal_size` to (79,24)) AND `--plain` not set AND TTY True still proceeds (because TTY check + size check both block TUI activation → falls back to PlainRenderer, never reaches the min-size guard's exit-2 path).
@@ -200,24 +212,45 @@ CLI commands that call make_renderer (voss/harness/cli.py): `do_cmd` (line 511),
   <action>
     Extend `make_renderer` in `voss/harness/render.py`:
       - New signature: `def make_renderer(*, json_mode: bool, plain: bool = False, force_tui: bool = False) -> Renderer:`
-      - Body: if `json_mode`: return `JsonRenderer()`. Else import `from .tui.capability import tui_should_activate` and call it with `argv=sys.argv[1:]`, `json_mode=False`, plain forwarded (when plain=True the decision is forced False regardless of env). If `force_tui` is True AND decision says False due to size: re-run min_size_guard, write to stderr, `sys.exit(2)`. Otherwise: if decision.activate AND force_tui-or-otherwise-ok: return a stub TextualRenderer (in THIS plan, raise NotImplementedError("TextualRenderer lands in M9-02"); behavior shipped means flag plumbing works without the renderer existing yet). Else return `TtyRenderer()` if `sys.stdout.isatty()` else `PlainRenderer()`. NOTE: keep current TtyRenderer path live for this wave — TUI swap-in happens in M9-03 Task wire-up. For M9-01 the only behavior change visible to users is: `--plain` forces PlainRenderer, `VOSS_PLAIN=1` forces PlainRenderer.
+      - Body: if `json_mode`: return `JsonRenderer()`. Else import `from .tui.capability import tui_should_activate` and call it with `argv=sys.argv[1:]`, `json_mode=False`, plain forwarded (when plain=True the decision is forced False regardless of env). If `force_tui` is True AND decision says False due to size: re-run min_size_guard, write to stderr, `sys.exit(2)`. Otherwise: if decision.activate AND force_tui-or-otherwise-ok: return a stub TextualRenderer (in THIS plan, raise NotImplementedError("TextualRenderer lands in M9-02"); behavior shipped means flag plumbing works without the renderer existing yet). Else return `TtyRenderer()` if `sys.stdout.isatty()` else `PlainRenderer()`. NOTE: keep current TtyRenderer path live for this wave — TUI swap-in happens in M9-07 wire-up. For M9-01 the only behavior change visible to users is: `--plain` forces PlainRenderer, `VOSS_PLAIN=1` forces PlainRenderer.
 
     Add `@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")` to `do_cmd` (after the existing `--json` option line ~496), `chat_cmd` (after line ~585), `edit_cmd` (after line ~633), `resume_cmd` (after line ~947). Thread `plain` through to `make_renderer(json_mode=json_mode, plain=plain)` and to `_run_repl(plain=plain, ...)`. Extend `_run_repl` signature with `plain: bool = False` and pass through.
 
-    Capture baseline: run `pytest tests/harness/tui/test_plain_parity.py::test_capture_baseline --capture-baseline` (a one-shot generator inside the test file gated by an env flag, e.g. `if os.environ.get("CAPTURE_BASELINE"): write file; pytest.skip(...)`). The captured file `tests/harness/tui/baseline/plain_baseline.txt` is byte-stdout of `voss do --plain "echo plan-baseline"` with a hermetic stub provider. Commit the captured bytes.
+    Idempotent baseline capture: `tests/harness/tui/test_plain_parity.py` contains a fixture/helper `_baseline_path() -> Path` and the parity test:
+      ```python
+      def test_plain_baseline_parity(tmp_path, monkeypatch):
+          from tests.harness.test_voss_loop_parity import FakeProvider
+          CANNED_PLAN = [...]  # locked literal in the test file; 3-5 steps producing one final answer
+          monkeypatch.setattr("voss.harness.cli._resolve_auth_or_die",
+                              lambda *_a, **_kw: FakeProvider(CANNED_PLAN))
+          monkeypatch.chdir(tmp_path)
+          monkeypatch.setenv("VOSS_BASELINE", "1")  # marker only; no behavior dep
+          result = CliRunner().invoke(do_cmd, ["--plain", "echo plan-baseline"])
+          baseline = _baseline_path()
+          if not baseline.exists():
+              if os.environ.get("VOSS_CAPTURE_BASELINE") == "1":
+                  baseline.parent.mkdir(parents=True, exist_ok=True)
+                  baseline.write_bytes(result.stdout_bytes)
+                  pytest.skip(f"wrote baseline: {baseline}")
+              pytest.fail(f"baseline missing at {baseline}; rerun with VOSS_CAPTURE_BASELINE=1")
+          assert result.stdout_bytes == baseline.read_bytes(), "stdout drift vs locked baseline"
+      ```
+      Key properties: (a) FakeProvider is the existing class — single source of truth; (b) tmp_path eliminates cwd-dependent strings; (c) the env marker `VOSS_BASELINE=1` is a no-op flag the test can grep for in stdout to confirm the env path went through, NOT a behavior switch; (d) when the baseline exists, `VOSS_CAPTURE_BASELINE` is ignored — bytes are always compared; (e) the first developer to run the test with `VOSS_CAPTURE_BASELINE=1` writes the file and commits it; subsequent runs are pure comparisons.
 
-    Create `tests/harness/tui/test_plain_parity.py` with five tests matching the behavior list above. Use `click.testing.CliRunner` + monkeypatch for `_resolve_auth_or_die` returning a deterministic `FakeProvider` that yields one canned plan + final ("plan-baseline ok"). Diff stdout against `plain_baseline.txt` using `assert actual == expected` over raw bytes.
+    Add the other 4 tests (auto-fallback, --json regression, 79-col with no force_tui, FORCE_TUI exit-2) to the same file.
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss && CAPTURE_BASELINE=1 pytest tests/harness/tui/test_plain_parity.py::test_capture_baseline -q 2>/dev/null || true; pytest tests/harness/tui/test_plain_parity.py tests/harness/tui/test_capability_and_plain_fallback.py -x -q</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss && VOSS_CAPTURE_BASELINE=1 pytest tests/harness/tui/test_plain_parity.py::test_plain_baseline_parity -q 2>/dev/null || true ; pytest tests/harness/tui/test_plain_parity.py tests/harness/tui/test_capability_and_plain_fallback.py -x -q</automated>
   </verify>
   <acceptance_criteria>
-    - `grep -n 'is_flag=True, help="Use line-streamed renderer' voss/harness/cli.py | grep -v "^#" | wc -l` returns >= 4 (one per interactive command).
-    - `grep -n "plain: bool = False" voss/harness/cli.py | grep -v "^#" | wc -l` returns >= 1 (_run_repl signature accepts plain).
+    - `grep -v '^#' voss/harness/cli.py | grep -c 'is_flag=True, help="Use line-streamed renderer'` returns >= 4 (one per interactive command).
+    - `grep -v '^#' voss/harness/cli.py | grep -c "plain: bool = False"` returns >= 1 (_run_repl signature accepts plain).
     - `wc -c tests/harness/tui/baseline/plain_baseline.txt` returns > 0 (baseline captured, not empty).
+    - `grep -c "from tests.harness.test_voss_loop_parity import FakeProvider" tests/harness/tui/test_plain_parity.py` returns 1 (locked stub source).
+    - `grep -c "VOSS_CAPTURE_BASELINE" tests/harness/tui/test_plain_parity.py` returns >= 2 (idempotent capture logic present).
     - All 5 parity tests pass and all 8 capability tests still pass.
     - Existing test suite green: `pytest tests/harness/test_cli.py tests/harness/test_happy_path_integration.py -x -q` — no regression in `--json` mode or in default TTY path (since TtyRenderer is still the live default in this wave).
-    - `grep -n "TextualRenderer" voss/harness/render.py` returns 0 lines OR returns ONLY a NotImplementedError placeholder (M9-02 ships the real one).
+    - `grep -v '^#' voss/harness/render.py | grep -c "class TextualRenderer"` returns 0 (M9-02 ships the real one).
   </acceptance_criteria>
   <done>--plain + VOSS_PLAIN + auto-non-TTY all route to PlainRenderer. Pre-M9 baseline bytes are checked in. test_plain_parity.py guards stdout bytes against regression. Every subsequent plan in M9 must keep this test green.</done>
 </task>
@@ -238,13 +271,16 @@ CLI commands that call make_renderer (voss/harness/cli.py): `do_cmd` (line 511),
 |-----------|----------|-----------|-------------|-----------------|
 | T-M9-01-01 | Tampering | VOSS_PLAIN env spoofing | accept | Env vars are user-controlled by definition — VOSS_PLAIN forcing PlainRenderer is the user's stated preference, not an attack. |
 | T-M9-01-02 | Denial-of-service | Tiny-terminal exit-2 loop | mitigate | min_size_guard exits 2 ONCE, does not loop or retry. Pytest verifies single SystemExit raised. |
-| T-M9-01-03 | Info disclosure | Baseline file leaks user paths | mitigate | Baseline test uses CliRunner with fixed cwd `/tmp/voss-baseline` (no PII paths). Stub provider response is canned literal string. |
+| T-M9-01-03 | Info disclosure | Baseline file leaks user paths | mitigate | Baseline test uses CliRunner with monkeypatched cwd=tmp_path. Stub provider is the locked FakeProvider with a canned literal plan. No PII paths can appear. |
 | T-M9-01-04 | Spoofing | Forged `--plain` byte output hiding errors | accept | PlainRenderer already exists pre-M9; this plan only re-routes to it. Stderr stays uncovered. |
+| T-M9-01-05 | Tampering | Baseline silently overwritten by accidental capture flag | mitigate | When baseline file exists, VOSS_CAPTURE_BASELINE is IGNORED; bytes are always compared. Writing requires both env flag AND no existing file. |
 </threat_model>
 
 <verification>
 - Capability module + flag plumbing covered by 13 tests across two files.
 - Baseline bytes committed; subsequent plans must keep parity test green.
+- Baseline capture is deterministic: FakeProvider is imported from a single locked source, cwd is tmp_path, plan is a literal in the test file.
+- Baseline capture is idempotent: existing file is never silently overwritten.
 - pyproject.toml shows textual as a regular (not optional) dep.
 </verification>
 
@@ -255,6 +291,7 @@ CLI commands that call make_renderer (voss/harness/cli.py): `do_cmd` (line 511),
 4. 79×24 terminal + FORCE_TUI=1 + no --plain exits 2 with the locked stderr string.
 5. tui_available(), tui_should_activate(), TUIDecision, min_size_guard exported from voss.harness.tui.capability.
 6. No other plan in M9 can land without keeping `test_plain_parity.py` green.
+7. Baseline cannot be silently overwritten by a stray env flag.
 </success_criteria>
 
 <output>
