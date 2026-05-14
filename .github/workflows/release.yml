@@ -49,10 +49,19 @@ on:
   push:
     tags:
       - 'v*'
+  release:
+    types: [published]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-platform:
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -94,6 +103,14 @@ jobs:
       - name: Install Python build deps
         run: python -m pip install --upgrade pip build
 
+      - name: Pre-publish smoke (resolve token + dry-run auth)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          test -n "$NODE_AUTH_TOKEN" || { echo "NPM_TOKEN missing"; exit 1; }
+          npm whoami --registry=https://registry.npmjs.org
+
       - name: Sync version (main + this platform)
         run: |
           python3 npm/scripts/bump_version.py main
@@ -114,6 +131,13 @@ jobs:
       - name: Build platform artifact
         run: python3 npm/scripts/build_platform.py ${{ matrix.npm-platform }} --out npm/platforms/${{ matrix.npm-platform }}/python
 
+      - name: Smoke-test built interpreter
+        shell: bash
+        run: |
+          BIN="npm/platforms/${{ matrix.npm-platform }}/python/${{ matrix.python-bin }}"
+          test -f "$BIN" || { echo "missing $BIN"; exit 1; }
+          "$BIN" -c "import voss_runtime; print('voss_runtime OK:', voss_runtime.__name__)"
+
       - name: npm pack dry-run (audit size)
         shell: bash
         run: |
@@ -126,10 +150,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd npm/platforms/${{ matrix.npm-platform }}
-          npm publish --access public
+          npm publish --access public --provenance
 
   publish-main:
     needs: build-platform
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -163,4 +190,4 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd npm
-          npm publish --access public
+          npm publish --access public --provenance

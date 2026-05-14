@@ -37,7 +37,7 @@ def test_validation_success_emits_ok_state() -> None:
     bridge.recorder.observe(
         "shell_run",
         {"cmd": "pytest -q"},
-        "exit=0\n1 passed",
+        "[exit 0]\n1 passed",
         ok=True,
     )
     bridge.flush()
@@ -52,7 +52,7 @@ def test_validation_nonzero_exit_emits_error_state() -> None:
     bridge.recorder.observe(
         "shell_run",
         {"cmd": "pytest -q"},
-        "exit=2\n1 failed",
+        "[exit 2]\n1 failed",
         ok=True,
     )
     bridge.flush()
