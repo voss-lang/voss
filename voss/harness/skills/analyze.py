@@ -1,9 +1,11 @@
 """`/analyze` skill: hybrid bootstrap of `.voss/` + `.voss-cache/`.
 
-Harness owns 4 cognition files (preserve-if-exists). LLM owns only
-`.voss/architecture.md` via a single fs_write driven from a prompt that
-carries all pre-computed inventory. Post-turn rebuilds repo.idx +
-`.voss/.gitignore` + appends `.voss-cache/` to project-root `.gitignore`.
+Harness owns 4 cognition files (preserve-if-exists). LLM owns the
+`id=architecture` fence body of `VOSS.md` (post-M8). The agent emits a
+single `fs_write` to a staging path; the harness folds the staged content
+into the fence atomically via `voss_md.write_fence_body`. Post-turn
+rebuilds `repo.idx` + `.voss/.gitignore` + appends `.voss-cache/` to the
+project-root `.gitignore`.
 """
 from __future__ import annotations
 
@@ -13,8 +15,11 @@ from pathlib import Path
 
 import click
 
-from .. import cognition
+from .. import cognition, voss_md
 from ..agent import run_turn
+
+
+STAGE_FILENAME = ".analyze.staging.md"
 
 
 def run(
@@ -32,14 +37,20 @@ def run(
     cognition.write_voss_gitignore(cwd)
     cognition.append_gitignore_line_idempotent(cwd / ".gitignore", ".voss-cache/")
 
-    prompt = cognition.bootstrap_prompt(inventory)
-    arch_path = cognition.voss_dir(cwd) / "architecture.md"
+    voss_md_path = cwd / "VOSS.md"
+    fence_id = "architecture"
+    stage_path = cognition.voss_dir(cwd) / STAGE_FILENAME
+
     arch_backup: str | None = None
-    if arch_path.exists():
-        try:
-            arch_backup = arch_path.read_text()
-        except (OSError, UnicodeDecodeError):
-            arch_backup = None
+    try:
+        arch_backup = voss_md.read_fence_body(voss_md_path, fence_id=fence_id)
+    except voss_md.HashMismatch as exc:
+        arch_backup = exc.on_disk
+    except (OSError, UnicodeDecodeError):
+        arch_backup = None
+
+    stage_path.unlink(missing_ok=True)
+    prompt = cognition.bootstrap_prompt(inventory, target_path=f".voss/{STAGE_FILENAME}")
 
     asyncio.run(
         run_turn(
@@ -56,28 +67,32 @@ def run(
         )
     )
 
-    arch_ok = False
-    if arch_path.exists():
+    staged: str | None = None
+    if stage_path.exists():
         try:
-            text = arch_path.read_text()
-        except OSError:
-            text = ""
-        if cognition.FRONTMATTER_RE.match(text):
-            arch_ok = True
+            staged = stage_path.read_text()
+        except (OSError, UnicodeDecodeError):
+            staged = None
 
-    if not arch_ok:
+    arch_ok = staged is not None and bool(cognition.FRONTMATTER_RE.match(staged))
+
+    if arch_ok:
+        voss_md.write_fence_body(voss_md_path, fence_id=fence_id, body=staged)
+    else:
         if arch_backup is not None:
-            arch_path.write_text(arch_backup)
+            voss_md.write_fence_body(voss_md_path, fence_id=fence_id, body=arch_backup)
             click.echo(
-                "warning: architecture.md regeneration failed schema check; "
+                "warning: architecture fence regeneration failed schema check; "
                 "rolled back to previous version",
                 err=True,
             )
         else:
             click.echo(
-                "warning: architecture.md not written by agent — re-run /analyze",
+                "warning: architecture fence not written by agent — re-run /analyze",
                 err=True,
             )
+
+    stage_path.unlink(missing_ok=True)
 
     idx = cognition.build_repo_idx(cwd)
     idx_path = cognition.cache_dir(cwd) / "repo.idx"
@@ -87,6 +102,6 @@ def run(
     new_stubs = sum(1 for v in stubs_result.values() if v)
     click.echo(
         f"cognition initialized: .voss/ ({new_stubs} new stubs, "
-        f"architecture.md refreshed) + .voss-cache/repo.idx "
+        f"architecture fence refreshed) + .voss-cache/repo.idx "
         f"({len(idx['files'])} files indexed)"
     )
