@@ -564,6 +564,14 @@ def do_cmd(
         cognition=do_bundle,
     )
 
+    # Conventions hook locals: do_record/do_history/do_memory_store — pinned by M8-04 plan.
+    do_cwd = cwd
+    do_provider = provider
+    do_model = cfg.default_model
+    do_record = session_store.SessionRecord.new(cwd=cwd, model=do_model)
+    do_history = EpisodicMemory(capacity=40)
+    do_memory_store = MemoryStore(cwd).bind(session_id=do_record.id)
+
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     click.echo(f"  [auth: {res.source} — {res.detail}]")
     renderer.show_user(text)
@@ -575,13 +583,34 @@ def do_cmd(
             tools=tools,
             cwd=cwd,
             renderer=renderer,
-            model=cfg.default_model,
-            provider=provider,
+            model=do_model,
+            provider=do_provider,
             permissions=gate,
+            history=do_history,
+            session_id=do_record.id,
             voss_md_text=voss_md_text,
         )
     )
     renderer.show_final(result.final, confidence=result.confidence, cost_usd=result.cost_usd)
+
+    if result.run is not None:
+        do_record.runs.append(asdict(result.run))
+
+    do_ctx = SimpleNamespace(
+        provider=do_provider,
+        model=do_model,
+        cwd=do_cwd,
+        persist_conventions_selection=None,
+    )
+    try:
+        conventions.run_on_clean_exit(
+            do_ctx,
+            history=do_history,
+            record=do_record,
+            memory_store=do_memory_store,
+        )
+    except Exception as exc:  # noqa: BLE001
+        click.echo(f"conventions extraction skipped: {exc}", err=True)
 
 
 # ---------------------------------------------------------------------------
@@ -790,6 +819,15 @@ def _run_repl(
             line = input("▌ ")
         except (EOFError, KeyboardInterrupt):
             click.echo()
+            try:
+                conventions.run_on_clean_exit(
+                    ctx,
+                    history=ctx.history,
+                    record=record,
+                    memory_store=ctx.memory_store,
+                )
+            except Exception as exc:  # noqa: BLE001
+                click.echo(f"conventions extraction skipped: {exc}", err=True)
             return
         line = line.strip()
         if not line:

@@ -115,6 +115,47 @@ def test_no_signal_skips_llm_entirely() -> None:
     assert fired["v"] is False
 
 
+def test_run_on_clean_exit_smoke(
+    tmp_voss_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from voss.harness import conventions as conv_mod
+
+    do_memory_store = MemoryStore(tmp_voss_repo).bind(session_id="test-session")
+    payload = json.dumps([
+        {
+            "statement": "Use 2-space indentation",
+            "confidence": 0.9,
+            "evidence_quote": "no use tabs",
+            "evidence_turn_idx": 0,
+        }
+    ])
+    provider = _provider_returning(payload)
+    do_ctx = SimpleNamespace(
+        provider=provider,
+        model="fake",
+        cwd=tmp_voss_repo,
+        persist_conventions_selection="1",
+    )
+    do_history = EpisodicMemory(capacity=40)
+    do_history.add("no use tabs", role="user")
+    do_history.add("always use 2 spaces", role="user")
+    do_record = SimpleNamespace(id="test-session", runs=[])
+
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+    persisted = conv_mod.run_on_clean_exit(
+        do_ctx,
+        history=do_history,
+        record=do_record,
+        memory_store=do_memory_store,
+    )
+    assert persisted == 1
+    conventions_dir = tmp_voss_repo / ".voss" / "memory" / "conventions"
+    files = list(conventions_dir.glob("*.md"))
+    assert len(files) == 1
+
+
 @pytest.mark.asyncio
 async def test_extraction_timeout_returns_empty() -> None:
     history = EpisodicMemory(capacity=40)
