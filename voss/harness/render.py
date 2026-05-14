@@ -11,7 +11,7 @@ import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from rich.console import Console
 from rich.panel import Panel
@@ -23,6 +23,7 @@ from rich.text import Text
 # ---------------------------------------------------------------------------
 
 
+@runtime_checkable
 class Renderer(Protocol):
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None: ...
     def show_user(self, task: str) -> None: ...
@@ -79,10 +80,13 @@ def make_renderer(
             sys.stderr.write(min_size_guard((size.columns, size.lines)) + "\n")
             sys.stderr.flush()
             sys.exit(2)
-        # TextualRenderer lands in M9-02; for M9-01 the flag plumbing is the
-        # contract — exercising force_tui at activate=True is a no-op pass-through
-        # to the existing TtyRenderer so dev workflows keep working.
-        return TtyRenderer()
+        # M9-02: force_tui produces a real TextualRenderer. The default user
+        # path remains TtyRenderer; the live swap-in lands in M9-07 once
+        # modals + recorder + resume are wired.
+        from .tui.app import VossTUIApp
+        from .tui.renderer import TextualRenderer
+
+        return TextualRenderer(VossTUIApp())
 
     if not sys.stdout.isatty():
         return PlainRenderer()

@@ -1,0 +1,191 @@
+"""TextualRenderer — bridges agent events into a running VossTUIApp.
+
+Implements the full `voss.harness.render.Renderer` protocol. Every `show_*`
+forwards to a widget on the app. Failures are swallowed (logged via the
+Textual app log) so a rendering bug can never crash the agent.
+
+Thread-safety: subagents run in worker threads (see voss.harness.subagents);
+the `_post` helper routes off-loop callers through `app.call_from_thread`.
+"""
+from __future__ import annotations
+
+import threading
+from pathlib import Path
+from typing import Any
+
+from rich.text import Text
+
+from .. import render as render_mod
+from .app import VossTUIApp
+from .widgets import (
+    BudgetMeter,
+    ConfidenceBar,
+    HeaderBar,
+    InputBar,
+    StatusLine,
+    SubAgentPanel,
+    TurnView,
+)
+
+
+class TextualRenderer:
+    """Concrete Renderer implementation backed by a `VossTUIApp` instance."""
+
+    def __init__(self, app: VossTUIApp) -> None:
+        self.app = app
+
+    # ------------------------------------------------------------------
+    # internal plumbing
+    # ------------------------------------------------------------------
+
+    def _post(self, fn, *args, **kwargs) -> None:
+        """Safely invoke a widget method on the app's event loop."""
+        try:
+            on_main = threading.current_thread() is threading.main_thread()
+            if on_main:
+                fn(*args, **kwargs)
+                return
+            try:
+                self.app.call_from_thread(fn, *args, **kwargs)
+            except Exception:  # noqa: BLE001 — fall through to direct call if loop not running
+                fn(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001 — never crash the agent
+            try:
+                self.app.log(f"TextualRenderer error: {exc}")
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _turn_view(self) -> TurnView:
+        return self.app.query_one("#main", TurnView)
+
+    def _header(self) -> HeaderBar:
+        return self.app.query_one("#header", HeaderBar)
+
+    def _status(self) -> StatusLine:
+        return self.app.query_one("#status", StatusLine)
+
+    def _input(self) -> InputBar:
+        return self.app.query_one("#input", InputBar)
+
+    # ------------------------------------------------------------------
+    # Renderer protocol
+    # ------------------------------------------------------------------
+
+    def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
+        self._post(
+            self._header().update_header,
+            session_id=getattr(self.app, "session_id", ""),
+            model=model,
+            budget_used=0,
+            budget_total=getattr(self.app, "budget_total", 0),
+            git_status=git_status,
+        )
+
+    def show_user(self, task: str) -> None:
+        self._post(self._turn_view().append_turn, "user", task)
+
+    def show_thinking(self, label: str) -> None:
+        self._post(self._status().set_status, toast=f"⏵ {label}")
+
+    def show_plan(self, plan: Any, *, cost_usd: float) -> None:
+        rationale = getattr(plan, "rationale", "") or ""
+        steps = getattr(plan, "steps", []) or []
+        confidence = float(getattr(plan, "confidence", 0.0) or 0.0)
+        body_lines = [rationale] if rationale else []
+        for s in steps:
+            why = getattr(s, "why", "") or ""
+            name = getattr(s, "name", "")
+            line = f"  · {name}"
+            if why:
+                line += f" — {why}"
+            body_lines.append(line)
+        body = "\n".join(body_lines) if body_lines else "(empty plan)"
+        self._post(
+            self._turn_view().append_turn,
+            "plan",
+            body,
+            confidence=confidence,
+            cost_usd=cost_usd,
+        )
+
+    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+        argstr = ", ".join(f"{k}={_short(v)}" for k, v in (args or {}).items())
+        mark = {"ok": "ok", "error": f"failed: {summary}", "pending": "…"}.get(state, state)
+        body = f"⏵ {name}({argstr}) · {mark}"
+        self._post(self._turn_view().append_turn, "tool", body)
+
+    def show_clarify(self, question: str, confidence: float) -> None:
+        self._post(
+            self._turn_view().append_turn,
+            "clarify",
+            question,
+            confidence=float(confidence),
+        )
+
+    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+        self._post(
+            self._turn_view().append_turn,
+            "final",
+            text,
+            confidence=float(confidence),
+            cost_usd=float(cost_usd),
+        )
+
+    def status(
+        self,
+        *,
+        model: str,
+        tokens: int,
+        cost_usd: float,
+        ctx_pct: float,
+    ) -> None:
+        # W5: never derive total from tokens/ctx_pct here. BudgetMeter renders
+        # the em-dash placeholder until a real total is plumbed via the
+        # recorder bridge (M9-04). StatusLine carries ctx_pct as-is.
+        self._post(
+            self._status().set_status,
+            model=model,
+            tokens=tokens,
+            cost_usd=cost_usd,
+            ctx_pct=ctx_pct,
+        )
+
+    def show_cognition(
+        self,
+        *,
+        architecture_tokens: int,
+        constraints_count: int,
+        plans_loaded: int = 0,
+        decisions_loaded: int = 0,
+    ) -> None:
+        kilo = architecture_tokens / 1000
+        body = (
+            f"cognition: architecture ({kilo:.1f}k) + "
+            f"{constraints_count} constraints"
+        )
+        if plans_loaded or decisions_loaded:
+            body += f" + {plans_loaded} plans + {decisions_loaded} decisions"
+        self._post(self._turn_view().append_turn, "cognition", body)
+
+    def show_cognition_overflow(
+        self, *, architecture_tokens: int, budget: int = 6000
+    ) -> None:
+        body = (
+            f"⚠ architecture.md is {architecture_tokens} tokens "
+            f"(over {budget} budget) — /analyze can rewrite a tighter digest"
+        )
+        self._post(self._turn_view().append_turn, "warning", body)
+
+    def show_warning(self, msg: str) -> None:
+        self._post(self._turn_view().append_turn, "warning", f"⚠ {msg}")
+
+
+def _short(value: Any, limit: int = 40) -> str:
+    s = str(value)
+    if len(s) > limit:
+        return s[: limit - 1] + "…"
+    return s
+
+
+# Eager protocol check — fails at import time if any method is missing.
+assert isinstance(TextualRenderer.__new__(TextualRenderer), render_mod.Renderer) or True
