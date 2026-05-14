@@ -98,26 +98,17 @@ def _load_json(path: Path, model, errors: list[str]):
         return None
 
 
-def _load_arch(path: Path, errors: list[str]):
-    """Return (body_str, ArchitectureFrontmatter | None). Never raises."""
-    if not path.exists():
-        return None, None
-    try:
-        text = path.read_text()
-    except OSError as e:
-        errors.append(f"{path}: read error: {e}")
-        return None, None
-
+def _parse_arch_text(path_label: str, text: str, errors: list[str]):
+    """Shared frontmatter parse — used by VOSS.md fence body + legacy architecture.md."""
     m = FRONTMATTER_RE.match(text)
     if not m:
-        # No frontmatter — return raw text as body
         return text, None
 
     fm_text, body = m.group(1), m.group(2)
     try:
         fm_data = yaml.safe_load(fm_text) or {}
     except yaml.YAMLError as e:
-        errors.append(f"{path}: invalid frontmatter YAML: {e}")
+        errors.append(f"{path_label}: invalid frontmatter YAML: {e}")
         return body, None
 
     try:
@@ -128,10 +119,58 @@ def _load_arch(path: Path, errors: list[str]):
             analyzer_version=int(fm_data.get("analyzer_version", ANALYZER_VERSION)),
         )
     except (TypeError, ValueError) as e:
-        errors.append(f"{path}: frontmatter field error: {e}")
+        errors.append(f"{path_label}: frontmatter field error: {e}")
         return body, None
 
     return body, arch_fm
+
+
+def _load_arch(path: Path, errors: list[str]):
+    """DEPRECATED post-M8: legacy read of `.voss/architecture.md`.
+
+    Retained as a fallback so M2-style direct-write tests still pass when
+    no VOSS.md is present. Production read path is
+    `_load_arch_from_voss_md` below.
+    """
+    if not path.exists():
+        return None, None
+    try:
+        text = path.read_text()
+    except OSError as e:
+        errors.append(f"{path}: read error: {e}")
+        return None, None
+    return _parse_arch_text(str(path), text, errors)
+
+
+def _load_arch_from_voss_md(cwd: Path, errors: list[str]):
+    """Read the id=architecture fence body from cwd/VOSS.md (Pitfall 2 read-path).
+
+    On HashMismatch (human-edited drift): use `exc.on_disk` as body — read
+    paths must keep working; `voss memory adopt` (M8-04) is the formal accept
+    flow for promoting the edit into a new recorded hash.
+
+    Falls back to legacy `.voss/architecture.md` via `_load_arch` when
+    cwd/VOSS.md does not exist (backward compat for tests that write the
+    legacy file directly).
+    """
+    from . import voss_md as _voss_md  # local import; voss_md may import cognition
+
+    voss_md_path = cwd / "VOSS.md"
+    if not voss_md_path.exists():
+        return _load_arch(voss_dir(cwd) / "architecture.md", errors)
+
+    try:
+        body = _voss_md.read_fence_body(voss_md_path, fence_id="architecture")
+    except _voss_md.HashMismatch as exc:
+        body = exc.on_disk
+    except (OSError, UnicodeDecodeError) as exc:
+        errors.append(f"{voss_md_path}: read error: {exc}")
+        return None, None
+
+    if body is None:
+        return _load_arch(voss_dir(cwd) / "architecture.md", errors)
+
+    return _parse_arch_text(str(voss_md_path), body, errors)
 
 
 def _load_yaml(path: Path, model, errors: list[str]):
@@ -206,12 +245,14 @@ def _days_since(analyzed_at: str) -> int:
 
 def load(cwd: Path, *, token_count: "callable | None" = None) -> CognitionBundle:
     root = voss_dir(cwd)
-    if not (root / "architecture.md").exists():
+    voss_md_path = cwd / "VOSS.md"
+    legacy_arch = root / "architecture.md"
+    if not voss_md_path.exists() and not legacy_arch.exists():
         return CognitionBundle(initialized=False)
 
     errors: list[str] = []
     proj = _load_json(root / "project.json", ProjectMeta, errors)
-    arch_body, arch_fm = _load_arch(root / "architecture.md", errors)
+    arch_body, arch_fm = _load_arch_from_voss_md(cwd, errors)
     constraints = _load_yaml(root / "constraints.yml", ConstraintsConfig, errors)
     permissions = _load_yaml(root / "permissions.yml", PermissionsConfig, errors)
     validation = _load_yaml(root / "validation.yml", ValidationConfig, errors)
