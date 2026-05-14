@@ -153,13 +153,125 @@ def pre_m8_session_json(tmp_voss_repo: Path) -> Path:
 
 @pytest.fixture
 def fake_session_corpus(tmp_voss_repo: Path) -> dict:
-    """Shape-only placeholder seeded by M8-02.
+    """Seed 5 sessions × (3 turns + 1 ledger + 1 convention + 1 note) + 5 decisions.
 
-    Wave 0 returns a minimal stub so test files can collect; M8-02 fills
-    body with real seeded turns/ledgers/decisions/conventions and the
-    recall queries that exercise the 80%/60% top-3 hit-rate gates.
+    Returns a dict {query: expected_locator} covering all four source types
+    (turn / decision / convention / note + ledger). Used by
+    `tests/harness/test_recall_eval.py` to verify Req 3 hit-rate floors.
     """
-    return {"q": "id", "_placeholder": "M8-02 fills this with real seeded content"}
+    from types import SimpleNamespace
+
+    from voss.harness.memory_store import MemoryStore, make_id
+
+    store = MemoryStore(tmp_voss_repo).bind(session_id="seed")
+
+    turn_seed = {
+        "s1": [
+            ("user", "always use snake_case identifiers in Python"),
+            ("assistant", "got it; renamed identifiers to snake_case"),
+            ("assistant", "tests still pass after rename"),
+        ],
+        "s2": [
+            ("user", "the auth bug was in jwt token refresh handler"),
+            ("assistant", "patched refresh handler"),
+            ("assistant", "added regression test for jwt"),
+        ],
+        "s3": [
+            ("user", "investigate rate limiter latency spike"),
+            ("assistant", "found redis hot key"),
+            ("assistant", "rebalanced rate limiter shards"),
+        ],
+        "s4": [
+            ("user", "migrate postgres analytics tables to partitioned schema"),
+            ("assistant", "wrote migration script"),
+            ("assistant", "rolled out partitioned tables"),
+        ],
+        "s5": [
+            ("user", "websocket reconnect loop is dropping idle clients"),
+            ("assistant", "added heartbeat ping every 30s"),
+            ("assistant", "verified websocket reconnect stable"),
+        ],
+    }
+    for sid, turns in turn_seed.items():
+        for idx, (role, content) in enumerate(turns):
+            store.write_turn(role=role, content=content, session_id=sid, turn_idx=idx)
+
+    ledger_blurbs = {
+        "s1": "renamed identifiers to snake_case across module",
+        "s2": "patched jwt refresh handler in auth.py",
+        "s3": "rebalanced redis rate limiter shards",
+        "s4": "applied partitioned schema migration to analytics db",
+        "s5": "added websocket heartbeat to gateway service",
+    }
+    for sid, blurb in ledger_blurbs.items():
+        run = {
+            "id": f"run-{sid}",
+            "changed": [f"src/{sid}.py"],
+            "diff_summary": blurb,
+        }
+        store.write_ledger(run, session_id=sid)
+
+    convention_seed = [
+        ("s1", "always run mypy before merging Python changes"),
+        ("s2", "never store jwt secrets in environment variables"),
+        ("s3", "prefer redis pipeline batching for rate limiter writes"),
+        ("s4", "use partitioned tables for time-series analytics data"),
+        ("s5", "send websocket heartbeat every 30 seconds"),
+    ]
+    convention_ids: dict[str, str] = {}
+    for sid, statement in convention_seed:
+        candidate = SimpleNamespace(
+            statement=statement,
+            confidence=0.9,
+            evidence_quote=statement,
+            evidence_turn_idx=0,
+        )
+        path = store.write_convention(candidate, session_id=sid)
+        convention_ids[sid] = make_id("convention", path.stem)
+
+    note_seed = {
+        "s1": "snake_case Python style note",
+        "s2": "jwt rotation runbook tip",
+        "s3": "rate limiter latency debug tip",
+        "s4": "postgres partitioning checklist",
+        "s5": "websocket idle timeout tip",
+    }
+    note_ids: dict[str, str] = {}
+    for sid, text in note_seed.items():
+        path = store.write_note(text, session_id=sid)
+        note_ids[sid] = make_id("note", path.stem)
+
+    decisions_dir = tmp_voss_repo / ".voss" / "memory" / "decisions"
+    decisions_dir.mkdir(parents=True, exist_ok=True)
+    decision_seed = {
+        "s1": "Adopt snake_case for all new Python identifiers",
+        "s2": "Use rotating jwt signing keys with 24h expiry",
+        "s3": "Cap redis rate limiter to 100 req/s per tenant",
+        "s4": "Partition postgres analytics tables by month",
+        "s5": "Drop websocket clients silent for 90 seconds",
+    }
+    for sid, body in decision_seed.items():
+        path = decisions_dir / f"{sid}-decision.md"
+        path.write_text(
+            "---\n"
+            f"id: {sid}-decision\n"
+            f"related_session: {sid}\n"
+            "---\n\n"
+            f"# Decision\n\n{body}\n"
+        )
+
+    return {
+        "always snake_case identifiers Python": make_id("turn", "s1", seq=0),
+        "jwt token refresh handler bug": make_id("turn", "s2", seq=0),
+        "rate limiter latency spike investigate": make_id("turn", "s3", seq=0),
+        "postgres partitioned schema migration analytics": make_id("turn", "s4", seq=0),
+        "websocket reconnect idle clients": make_id("turn", "s5", seq=0),
+        "mypy before merging Python": convention_ids["s1"],
+        "never store jwt secrets env": convention_ids["s2"],
+        "postgres partitioning checklist": note_ids["s4"],
+        "websocket idle timeout tip": note_ids["s5"],
+        "redis rate limiter shards rebalance": make_id("ledger", "run-s3", seq=0),
+    }
 
 
 @pytest.fixture

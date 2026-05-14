@@ -20,8 +20,13 @@
 | M6 | npm Wrapper | Publish `voss` as an npm package that vendors Python + the v0.1 wheel | NPM-01..05 | 5 |
 | M7 | SDK Polish | Close the four known public-API holes + stabilize provider registration | SDK-01..05 | 5 |
 | M8 | Project Memory (MEM-01) | VOSS.md + cross-session recall layer for the harness using Voss runtime memory primitives | MEM-01..07 | 7 |
-| M9 | TUI Shell (TUI-01) | Full-screen Textual interface — diff approval, slash palette, live workflow + budget view | TUI-01..0N (TBD by SPEC.md) | TBD |
-| M10 | Agent Capability Surface (CAPS-01) | Codebase intel, Voss-aware tools, MCP bridge, multi-agent in chat, long-running tasks, skill plugins | CAPS-01..0N (TBD by SPEC.md) | TBD |
+| M9 | TUI Shell (TUI-01) | Full-screen Textual interface — diff approval, slash palette, live workflow + budget view | TUI-01..10 | TBD |
+| M10 | Codebase Intelligence (CAPS-01a) | LSP polyglot + ast-grep + project index — tools, slash, auto-injection, M9 TUI panel | CODE-01..07 | TBD |
+| M11 | Voss-aware Tools (CAPS-01b) | Probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss`→Python diff viewer | VTOOL-01..0N (TBD by SPEC.md) | TBD |
+| M12 | MCP Bridge (CAPS-01c, promotes DIST-03) | Consume external MCP tools + expose harness skills as MCP server | MCP-01..0N (TBD by SPEC.md) | TBD |
+| M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..0N (TBD by SPEC.md) | TBD |
+| M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
+| M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..0N (TBD by SPEC.md) | TBD |
 
 ---
 
@@ -457,34 +462,166 @@ Plans:
 
 ---
 
-## Phase M10: Agent Capability Surface (CAPS-01)
+## Phase M10: Codebase Intelligence (CAPS-01a)
 
-**Goal:** Build out the capabilities sitting *above* the TUI shell — the tools and skills that let the Voss harness compete with Claude Code / Aider on day-to-day coding tasks. Track as one phase for sequencing; split into capability-by-capability sub-phases at planning time.
+**Goal:** Add a codebase-intelligence layer to the Voss harness — polyglot LSP-backed semantic operations + ast-grep-backed structural pattern search, exposed via harness tools, slash commands, system-context auto-injection, and an M9 TUI side panel. Originally the CAPS-01 seed bundled six capabilities; M10 SPEC scope-cut to codebase intel only. The other five capabilities are formal follow-on phases M11–M15.
 
-**Requirements:** CAPS-01..0N — TBD by `10-SPEC.md`.
+**Requirements:** CODE-01..07 (minted in `M10-SPEC.md`).
 
 **Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md)
+**SPEC:** [`phases/M10-agent-capability-surface-caps-01/M10-SPEC.md`](phases/M10-agent-capability-surface-caps-01/M10-SPEC.md)
 **Thesis context:** [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md)
 
-**Capability inventory (sub-phase candidates, order TBD by SPEC.md):**
-1. Codebase intelligence — LSP client, `ast-grep`/`tree-sitter` symbol search, project index refreshed on file watch.
-2. Voss-aware tools — `.voss` lint/type-check as a skill, probable-value inspector, budget tracer, `.voss` → Python diff viewer.
-3. MCP bridge — co-ordinates with existing v0.2 candidate **DIST-03**. Either promote DIST-03 here or keep DIST-03 separate and link.
-4. Multi-agent in chat — expose runtime `spawn`/`gather` as a chat capability with TUI sub-agent panels.
-5. Long-running / watch tasks — background job manager surfaced in TUI bottom pane.
-6. Skill / plugin marketplace — `voss skill add <name>`, signed manifests, sandbox boundary.
+**Headline deliverables (locked in SPEC):**
+- Project index — session-start scan + on-demand refresh, persisted under `.voss-cache/code/`. No file-watch (deferred to M14).
+- LSP client + server registry (Python via pyright, JS/TS via typescript-language-server, Rust via rust-analyzer, Go via gopls). Config-driven through `.voss/lsp.yml`.
+- ast-grep / tree-sitter structural-search backend with regex fallback when ast-grep absent.
+- Four new harness tools: `code_search`, `find_definition`, `find_references`, `code_refresh`.
+- Three new slash commands: `/symbol`, `/refs`, `/refresh`.
+- Auto-injection: `## Project Index` section in system context (≤ 1500 tokens).
+- M9 TUI amendment: `CodeIntelPanel` widget reserving the side region (mode-shares with `SubAgentPanel`).
 
 **Cross-cutting constraints:**
-- Depends on M9 TUI shell for surfaces (multi-agent panels, watch-task strip, capability discovery). Plan to split sub-phases such that the first sub-phase delivers value even before later TUI panels exist.
-- Coordinate explicitly with DIST-03 (MCP bridge) — do not duplicate.
-- Skill marketplace requires a trust/sandbox story before any third-party code runs — that work is a hard prerequisite for sub-phase 6.
+- M9 amendment (Req 7) MUST land + pass plan-checker BEFORE M10 execute. Schedule as `M9-08-PLAN.md` or amendment to `M9-02`.
+- ast-grep is a soft dependency via `voss[code]` extra. Tools must function without it via regex fallback.
+- LSP servers lazy-launched, reaped on session exit. No orphan processes.
+- Session-start scan latency budget: ≤ 5s @ 10K LoC; ≤ 30s @ 100K LoC (partial-index warning beyond).
+- Index storage under `.voss-cache/` (rebuildable), not `.voss/` (durable) — matches M2 COG-07.
 
-**Success Criteria:** TBD by `10-SPEC.md` — will define which capabilities must ship in the headline phase vs which spin off into their own follow-up phases.
+**Success Criteria:** 17 pass/fail criteria locked in `M10-SPEC.md`.
 
-**Out of scope (this phase):**
-- Cloud-hosted skills.
-- Cross-org skill registry (post-v0.2).
-- Editor integration.
+**Out of scope:** Voss-aware tools (M11), MCP bridge (M12 — promotes DIST-03), multi-agent in chat (M13), long-running/watch tasks (M14), skill marketplace (M15). File-watch-driven refresh, cross-repo search, LSP completion/hover/diagnostics, languages beyond the four headline servers.
+
+---
+
+## Phase M11: Voss-aware Tools (CAPS-01b)
+
+**Goal:** Build the Voss-language-aware tooling that turns the harness's own runtime primitives into visible product surfaces — probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss` → Python diff viewer. This is the "unfair advantage" axis per [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md): every feature exposes a runtime primitive to the user.
+
+**Requirements:** VTOOL-01..0N — TBD by `M11-SPEC.md`.
+
+**Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 2)
+**Thesis context:** [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md) (the primary "why" for this phase)
+
+**Headline deliverables (to be refined in SPEC):**
+- `.voss` lint/type-check exposed as a first-class agent skill (callable from `.voss` workflows, not just `voss check`).
+- Probable-value inspector — show confidence + propagation graph for a chosen value at a recorded runtime point.
+- Budget tracer — visualize `ctx(budget:)` token consumption across a workflow run, frame-by-frame.
+- `.voss` → Python diff viewer — when the agent edits a `.voss` file, user sees both sides synchronized.
+- M9 TUI panels for each (render in main pane or modal — M9 region grid permitting).
+
+**Cross-cutting constraints:**
+- Depends on M9 TUI shell for visual surfaces; can ship CLI-only first if M9 incomplete.
+- Reuses `voss_runtime/{probable,budget,agent}.py` read-only (M9-baselined; no new emit points).
+- Pairs with M4 dogfood compound — inspectors must work on the harness's OWN `.voss` workflows.
+
+**Success Criteria:** TBD by `M11-SPEC.md`.
+
+**Out of scope:** Languages other than `.voss` (Python ecosystem handled by M10). Editor extensions (separate EDIT track). Live-replay debugger.
+
+---
+
+## Phase M12: MCP Bridge (CAPS-01c, promotes DIST-03)
+
+**Goal:** Bridge Voss into the Model Context Protocol ecosystem — consume external MCP tools as harness tools, and expose harness skills as an MCP server so other agent runtimes can invoke Voss capabilities. Promotes the existing v0.2 candidate **DIST-03**.
+
+**Requirements:** MCP-01..0N — TBD by `M12-SPEC.md`.
+
+**Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 3)
+**Original candidate:** DIST-03 (see "Coding-agent v0.2 phases" section below; DIST-03 retired in favor of this formal phase).
+
+**Headline deliverables (to be refined in SPEC):**
+- MCP client — speak MCP over stdio + HTTP, surface remote tools through `voss/harness/tools.py` registry.
+- MCP server mode — expose a curated subset of harness tools (`code_search`, `fs_read`, `voss_check`, etc.) as MCP endpoints for external clients.
+- `.voss/mcp.yml` config — declare client connections + server-exposed surface.
+- Permission scope — MCP tools default to `plan` mode (read-only); upgrade to `edit`/`auto` requires explicit user opt-in per server.
+
+**Cross-cutting constraints:**
+- Lazy connect — MCP servers connected on first tool invocation, not session start.
+- Token/permission isolation — MCP tools execute in their own permission scope; never inherit unrestricted access.
+- Audit trail — every MCP invocation logged through M2 RunRecorder.
+
+**Success Criteria:** TBD by `M12-SPEC.md`.
+
+**Out of scope:** MCP UI for browsing remote tool catalogs (could be M9 TUI panel follow-up). Cross-org MCP service registry. Encrypted MCP transports beyond what the protocol mandates.
+
+---
+
+## Phase M13: Multi-agent in Chat (CAPS-01d)
+
+**Goal:** Expose the runtime `spawn`/`gather` primitives (`voss_runtime/agent.py`) to the user-facing chat session. A `voss chat` user can say "research X" → harness spawns sub-agent in a side panel (M9 `SubAgentPanel`), each sub-agent has its own budget meter, message bus is visible in the TUI.
+
+**Requirements:** MAG-01..0N — TBD by `M13-SPEC.md`.
+
+**Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 4)
+**Existing infra:** `voss/harness/subagents.py` (SubagentSpec/Registry, `attach_subagent_tool`); `voss_runtime/agent.py` (`VossAgent.spawn`, `AgentHandle`, `gather`).
+
+**Headline deliverables (to be refined in SPEC):**
+- Sub-agent invocation surface in `voss chat` — slash command + natural-language route.
+- M9 `SubAgentPanel` populated by live sub-agent state — running, budget remaining, latest tool call, exit status.
+- Cross-agent message bus visible in TUI.
+- Budget partitioning — parent agent's `ctx(budget:)` budget split across spawned children, accounted in real time.
+
+**Cross-cutting constraints:**
+- Depends on M9 `SubAgentPanel` region (already in M9 plans).
+- Compounds with M4 dogfood — the harness's own `.voss` workflows already use spawn/gather; this phase exposes that capability to USER `.voss` workflows + chat-initiated tasks.
+
+**Success Criteria:** TBD by `M13-SPEC.md`.
+
+**Out of scope:** Cross-machine distributed agents (deferred well beyond v0.2). Agent-to-agent direct messaging without harness mediation. Multi-agent memory partitioning beyond per-agent budgets.
+
+---
+
+## Phase M14: Long-running Tasks + Watch (CAPS-01e)
+
+**Goal:** Add a background-job manager to the harness — file-watch-driven re-checks, dev-server lifecycle, test watchers — surfaced in an M9 TUI bottom-pane status strip. Unblocks codebase-intel file-watch refresh (deferred from M10).
+
+**Requirements:** WATCH-01..0N — TBD by `M14-SPEC.md`.
+
+**Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 5)
+
+**Headline deliverables (to be refined in SPEC):**
+- Background job manager — start/stop/status of long-running processes with structured handles.
+- File-watch — register watchers on globs; emit events into the recorder stream for tool consumption.
+- Dev-server / test-watcher integrations — `voss watch <command>` keeps a process alive across session lifecycle.
+- M9 TUI bottom-pane status strip — running jobs, last-tick result, recent errors.
+- M10 hookback — `code_refresh` can subscribe to file-watch events for live index updates.
+
+**Cross-cutting constraints:**
+- Depends on M9 TUI shell for status strip; ships headless first if M9 incomplete.
+- Background jobs reaped on session exit unless explicitly daemonized via opt-in flag.
+- File-watch backend cross-platform: `watchdog` Python lib for macOS/Linux/Windows.
+
+**Success Criteria:** TBD by `M14-SPEC.md`.
+
+**Out of scope:** Distributed task scheduling. Cron-like recurring tasks (separate concern). Notification delivery (push/email/etc.).
+
+---
+
+## Phase M15: Skill / Plugin Marketplace (CAPS-01f)
+
+**Goal:** Make third-party `.voss` skills installable via a `voss skill add <name>` workflow with signed manifests, a sandbox boundary, and a permission scope per skill. Build atop the existing `voss/harness/plugins.py` scaffold.
+
+**Requirements:** SKILL-01..0N — TBD by `M15-SPEC.md`.
+
+**Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 6)
+**Existing infra:** `voss/harness/plugins.py` (`PluginManifest`, user/project plugin dirs, enablement TOML) — scaffold present, unused.
+
+**Headline deliverables (to be refined in SPEC):**
+- `voss skill add <name>` / `voss skill remove <name>` / `voss skill list` CLI surface.
+- Skill manifest schema — capabilities declared, permission scopes required, dependency declaration.
+- Sandbox boundary — third-party skill code runs with a restricted toolset (read-only by default; mutating tools require explicit user grant per skill).
+- Manifest signing — cryptographic signature verification before install; trust roots configurable.
+- Registry source — initial v0.2 ships GitHub-based registry (skills as repos with `voss-skill.yml` manifest); central registry is later.
+
+**Cross-cutting constraints:**
+- Hard prerequisite: sandbox + permission story BEFORE any third-party code runs. This is the highest-risk surface in the v0.2 cycle.
+- Coordinates with M1 permission tiers (`plan`/`edit`/`auto`) — skills declare which tier they need.
+- Audit trail — every skill invocation logged through M2 RunRecorder.
+
+**Success Criteria:** TBD by `M15-SPEC.md`.
+
+**Out of scope:** Paid skills. Cross-org skill discovery (post-v0.2). Hot-reload of skills mid-session. Skill GUIs beyond TUI palette registration.
 
 ---
 
@@ -501,9 +638,14 @@ Plans:
 | M6 | NPM-01..05 | 5 |
 | M7 | SDK-01..05 | 5 |
 | **v0.1 Total** |  | **64 / 64** |
-| M8 | MEM-01..0N | TBD by `08-SPEC.md` |
+| M8 | MEM-01..07 | 7 |
 | M9 | TUI-01..10 | 10 |
-| M10 | CAPS-01..0N | TBD by `10-SPEC.md` |
+| M10 | CODE-01..07 | 7 |
+| M11 | VTOOL-01..0N | TBD by `M11-SPEC.md` |
+| M12 | MCP-01..0N | TBD by `M12-SPEC.md` |
+| M13 | MAG-01..0N | TBD by `M13-SPEC.md` |
+| M14 | WATCH-01..0N | TBD by `M14-SPEC.md` |
+| M15 | SKILL-01..0N | TBD by `M15-SPEC.md` |
 
 All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase.
 
@@ -524,10 +666,8 @@ condition fires — usually real-user demand surfacing during v0.1 dogfood.
   latency or wheel size proves painful in real use.
 - **DIST-02** Homebrew distribution — trigger: macOS install friction
   surfaces despite npm wrapper.
-- **DIST-03** MCP bridge — trigger: harness loop proves stable + external
-  agent runtimes want to invoke Voss tools. *(See also
-  [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md)
-  — MCP is one capability among several waiting on the TUI shell.)*
+- **DIST-03** MCP bridge — **RETIRED 2026-05-14.** Promoted to formal phase
+  **M12 MCP Bridge (CAPS-01c)** — see "Phase M12" above.
 - **EDIT-01/02** Tree-sitter + VSCode marketplace — trigger: language users
   ask for editor support beyond the existing scratch extension.
 - **LING-01** GitHub Linguist upstream PR — trigger: enough public `.voss`
@@ -538,22 +678,29 @@ condition fires — usually real-user demand surfacing during v0.1 dogfood.
 
 ### Coding-agent v0.2 phases *(planted 2026-05-14 via /gsd-explore, promoted to formal phases same day)*
 
-The three seeds below were promoted to formal phases on 2026-05-14 — see
-"Phase M8 / M9 / M10" above for their canonical entries. Seed files
-remain in `.planning/seeds/` as the source brainstorm; the thesis note
-remains in `.planning/notes/` as cross-phase context.
+The three CAPS/TUI/MEM seeds were promoted to formal phases on 2026-05-14.
+After `M10-SPEC.md` scope-cut M10 to codebase intelligence only, the other
+five capabilities from the original CAPS-01 seed were also promoted to
+formal follow-on phases M11–M15. Seed files remain in `.planning/seeds/`
+as the source brainstorm; the thesis note remains in `.planning/notes/`
+as cross-phase context.
 
 - **MEM-01 → M8 Project Memory** — see
   [`seeds/project-memory-voss-md.md`](seeds/project-memory-voss-md.md).
 - **TUI-01 → M9 TUI Shell** — see
   [`seeds/tui-shell-textual.md`](seeds/tui-shell-textual.md).
-- **CAPS-01 → M10 Agent Capability Surface** — see
+- **CAPS-01 → M10–M15** — see
   [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md).
-  May split into per-capability sub-phases at SPEC.md time. Coordinate
-  with DIST-03 (MCP bridge) before planning.
+  Originally one bundled phase; split during M10-SPEC into:
+  - **M10 Codebase Intelligence (CAPS-01a)** — locked SPEC, ready to discuss.
+  - **M11 Voss-aware Tools (CAPS-01b)** — scaffolded, no SPEC yet.
+  - **M12 MCP Bridge (CAPS-01c)** — scaffolded, no SPEC yet; subsumes retired DIST-03.
+  - **M13 Multi-agent in Chat (CAPS-01d)** — scaffolded, no SPEC yet.
+  - **M14 Long-running Tasks + Watch (CAPS-01e)** — scaffolded, no SPEC yet.
+  - **M15 Skill / Plugin Marketplace (CAPS-01f)** — scaffolded, no SPEC yet.
 - **Thesis note** (not a phase) — Voss agent unfair advantage. See
   [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md).
-  Re-read before scoping M8 / M9 / M10.
+  Re-read before scoping M8 / M9 / M10–M15.
 
 These do NOT block v0.1 ship. Listed so the roadmap has a memory of what's
 next without forcing premature commitment.

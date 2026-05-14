@@ -182,3 +182,25 @@ class TestPerCwdStorage:
         legacy_hits = [r for r in sessions if getattr(r, "_legacy", False)]
         assert len(legacy_hits) == 1
         assert legacy_hits[0].id == legacy_id
+
+
+def test_resume_pre_m8_no_crash(pre_m8_session_json: Path, tmp_voss_repo: Path) -> None:
+    """Pitfall 6: pre-M8 SessionRecord JSON rehydrates and binds MemoryStore via record.id alone."""
+    from voss.harness.memory_store import MemoryStore
+
+    session_id = pre_m8_session_json.stem
+
+    record, _ = ss.load(session_id, cwd=tmp_voss_repo)
+    assert record.id == session_id
+    assert record.runs == []
+
+    store = MemoryStore(tmp_voss_repo).bind(session_id=record.id)
+    assert store._session_id == record.id
+
+    store.write_turn(
+        role="user",
+        content="post-resume turn",
+        session_id=record.id,
+        turn_idx=0,
+    )
+    assert (tmp_voss_repo / ".voss" / "memory" / "turns" / f"{record.id}.jsonl").exists()

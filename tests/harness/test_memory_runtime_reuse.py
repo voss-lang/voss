@@ -1,16 +1,18 @@
-"""M8 Req 7 grep gate + M8-02 SemanticMemory reuse assertions.
+"""M8 Req 7 grep gate + M8-03 SemanticMemory reuse assertions.
 
 The first test is a STATIC GREP GATE — runs green from Wave 0 onward to
 guarantee no `class *Memory` subclasses appear under voss/harness/. This
 pins the Req 7 invariant from day one.
 
-The second test (semantic init on recall) is M8-02 behavior and stays
-skipped until that wave lands.
+The second test asserts that `SemanticMemory.__init__` is invoked at least
+once on the first `recall` call (proves composition-not-rewrite of the
+runtime semantic store).
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -32,7 +34,6 @@ def test_no_harness_memory_class_definitions_outside_runtime() -> None:
         except (OSError, UnicodeDecodeError):
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
-            # Skip comment-only lines
             stripped = line.lstrip()
             if stripped.startswith("#"):
                 continue
@@ -45,6 +46,37 @@ def test_no_harness_memory_class_definitions_outside_runtime() -> None:
     )
 
 
-@pytest.mark.skip(reason="M8-02 — pending behavior implementation")
-def test_semantic_memory_init_called_on_recall() -> None:
-    pass
+def test_semantic_memory_init_called_on_recall(
+    tmp_voss_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """First recall must construct SemanticMemory exactly once (lazy probe contract)."""
+    from voss.harness import memory_store as ms_mod
+
+    init_calls: list[dict] = []
+
+    class FakeSemanticMemory:
+        def __init__(self, *, persist_dir: str, collection_name: str = "voss_memory") -> None:
+            init_calls.append({"persist_dir": persist_dir, "collection_name": collection_name})
+            self._collection = MagicMock()
+            self._collection.query.return_value = {
+                "ids": [[]],
+                "documents": [[]],
+                "metadatas": [[]],
+                "distances": [[]],
+            }
+
+        def add(self, *args, **kwargs) -> None:
+            self._collection.add(*args, **kwargs)
+
+    monkeypatch.setattr(ms_mod, "SemanticMemory", FakeSemanticMemory)
+
+    store = ms_mod.MemoryStore(tmp_voss_repo).bind(session_id="s1")
+    assert init_calls == [], "SemanticMemory must not be constructed before first recall/write"
+
+    store.recall("anything", top_k=3)
+    assert len(init_calls) == 1, f"expected exactly 1 SemanticMemory init; got {init_calls}"
+
+    # Second recall must reuse the cached instance — no new init.
+    store.recall("anything else", top_k=3)
+    assert len(init_calls) == 1, "SemanticMemory must be cached; second recall re-instantiated"

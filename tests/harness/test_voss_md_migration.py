@@ -78,6 +78,10 @@ def test_re_analyze_preserves_human_sections(tmp_voss_repo: Path) -> None:
     assert "hand-written content" in after
     assert voss_md.read_fence_body(voss_md_path, fence_id="architecture") == new_body
 
+    bundle = cognition.load(tmp_voss_repo)
+    assert bundle.architecture_md is not None
+    assert "UPDATED machine content" in bundle.architecture_md
+
 
 def test_ensure_migrated_idempotent_on_voss_md_present(tmp_voss_repo: Path) -> None:
     (tmp_voss_repo / "VOSS.md").write_text("# pre-existing\n")

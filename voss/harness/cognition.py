@@ -243,11 +243,16 @@ def _days_since(analyzed_at: str) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _is_initialized(cwd: Path) -> bool:
+    """Post-M8 initialization gate: VOSS.md present OR legacy architecture.md present."""
+    if (cwd / "VOSS.md").exists():
+        return True
+    return (voss_dir(cwd) / "architecture.md").exists()
+
+
 def load(cwd: Path, *, token_count: "callable | None" = None) -> CognitionBundle:
     root = voss_dir(cwd)
-    voss_md_path = cwd / "VOSS.md"
-    legacy_arch = root / "architecture.md"
-    if not voss_md_path.exists() and not legacy_arch.exists():
+    if not _is_initialized(cwd):
         return CognitionBundle(initialized=False)
 
     errors: list[str] = []
@@ -645,8 +650,12 @@ def write_voss_gitignore(cwd: Path) -> bool:
     return True
 
 
-def bootstrap_prompt(inventory: dict) -> str:
-    """Single-turn prompt: agent emits ONE fs_write to .voss/architecture.md."""
+def bootstrap_prompt(inventory: dict, *, target_path: str = ".voss/architecture.md") -> str:
+    """Single-turn prompt: agent emits ONE fs_write to target_path.
+
+    Post-M8: callers pass `.voss/.analyze.staging.md`; the harness folds the
+    staged file into VOSS.md's id=architecture fence via voss_md.write_fence_body.
+    """
     dir_tree_lines = "\n".join(
         f"  - {name}/ ({count} files)" for name, count in inventory["dir_tree"]
     ) or "  (none)"
@@ -665,7 +674,7 @@ def bootstrap_prompt(inventory: dict) -> str:
     return f"""You are running the Voss bootstrap turn for project `{inventory['name']}`.
 
 Your ONLY job: produce a Plan with EXACTLY ONE fs_write step targeting
-`.voss/architecture.md`. The harness has already pre-computed all inventory
+`{target_path}`. The harness has already pre-computed all inventory
 you need. do not use fs_glob, do not use fs_read, do not use shell_run,
 do not use git_status. All required facts are in this prompt.
 

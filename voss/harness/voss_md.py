@@ -203,13 +203,23 @@ def read_fence_body(path: Path, *, fence_id: str) -> str | None:
     return None
 
 
-def write_fence_body(path: Path, *, fence_id: str, body: str) -> None:
+def write_fence_body(
+    path: Path,
+    *,
+    fence_id: str,
+    body: str,
+    adopt: bool = False,
+) -> None:
     """Write body into id=<fence_id>; recompute hash; preserve human content.
 
     Atomic: writes to <path>.tmp then os.replace into place.
     Raises HashMismatch when the existing fence on disk fails its hash gate
     (D-07): caller must `voss memory adopt --id <fence_id>` to reset baseline.
     Appends a new fully-formed fence at EOF when fence id is absent.
+
+    adopt=True (used by `voss memory adopt`): bypasses the drift guard;
+    accepts on-disk edits as the new machine baseline by recomputing the
+    hash for `body` without comparing against the stored recorded_hash.
     """
     existing_text = ""
     if path.exists():
@@ -228,7 +238,7 @@ def write_fence_body(path: Path, *, fence_id: str, body: str) -> None:
     new_blocks: list[Block] = []
     for block in blocks:
         if block.kind == "machine" and block.id == fence_id:
-            if block.recorded_hash is not None:
+            if not adopt and block.recorded_hash is not None:
                 actual = hashlib.sha256(block.body.encode()).hexdigest()
                 if actual != block.recorded_hash:
                     raise HashMismatch(
