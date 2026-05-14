@@ -125,12 +125,72 @@ class MemoryStore:
             print(f"memory.{source} busy — skipping write", file=sys.stderr)
             yield None
 
-    def _maybe_evict(self, source: str) -> None:
-        """M8-06: per-source quota check + oldest-first eviction (D-14/D-16).
+    def _maybe_evict(self, source: str, *, est_bytes: int = 0) -> None:
+        """Per-source quota check + oldest-first eviction (D-14/D-16).
 
-        Currently a no-op; M8-03 establishes the call site contract.
+        On every write, compute current source bytes; if current + est_bytes
+        would exceed the source's quota, delete oldest files (by mtime) until
+        under quota OR the source has no more files.
+
+        decisions/ is a mirror of COG-06 output; eviction stays out — see
+        M8-06 plan Warning 5.
         """
-        return
+        if source == "decisions":
+            return
+        if self.cap_bytes <= 0:
+            return
+
+        cfg = self._load_memory_config()
+        quota_map = cfg.get("quota_pct", {}) or {}
+        quota_pct = quota_map.get(source, SOURCE_QUOTAS.get(source, 0.0))
+        if quota_pct <= 0:
+            return
+        quota_bytes = int(self.cap_bytes * quota_pct)
+
+        source_dir = self.root / source
+        if not source_dir.exists():
+            return
+
+        files = [p for p in source_dir.rglob("*") if p.is_file()]
+        current_bytes = sum(p.stat().st_size for p in files)
+        if current_bytes + est_bytes <= quota_bytes:
+            self._size_cache[source] = current_bytes
+            return
+
+        files.sort(key=lambda p: p.stat().st_mtime)
+        chroma = self._maybe_chroma()
+        for oldest in files:
+            try:
+                size = oldest.stat().st_size
+            except OSError:
+                size = 0
+            if chroma is not None:
+                try:
+                    chroma._collection.delete(where={"path": str(oldest)})
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                oldest.unlink(missing_ok=True)
+            except OSError:
+                continue
+            current_bytes -= size
+            if current_bytes + est_bytes <= quota_bytes:
+                break
+
+        self._size_cache[source] = max(0, current_bytes)
+
+    def _load_memory_config(self) -> dict:
+        config_path = self.cwd / ".voss" / "config.yml"
+        if not config_path.exists():
+            return {}
+        try:
+            import yaml
+
+            data = yaml.safe_load(config_path.read_text()) or {}
+        except Exception:  # noqa: BLE001
+            return {}
+        memory = data.get("memory") if isinstance(data, dict) else None
+        return memory if isinstance(memory, dict) else {}
 
     # ------------------------------------------------------------------
     # tombstones
@@ -175,13 +235,14 @@ class MemoryStore:
         path = self.root / "turns" / f"{session_id}.jsonl"
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
         composite_id = make_id("turn", session_id, seq=turn_idx)
+        line = json.dumps({"ts": ts, "role": role, "content": content, "turn_idx": turn_idx}) + "\n"
         with self._lock("turns") as lock:
             if lock is None:
                 return
-            self._maybe_evict("turns")
+            self._maybe_evict("turns", est_bytes=len(line.encode()))
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("a") as f:
-                f.write(json.dumps({"ts": ts, "role": role, "content": content, "turn_idx": turn_idx}) + "\n")
+                f.write(line)
             path.chmod(0o600)
         chroma = self._maybe_chroma()
         if chroma is not None:
@@ -217,13 +278,14 @@ class MemoryStore:
                 if hasattr(run, k)
             }
         text_blob = json.dumps(data, default=str)
+        line = json.dumps({"ts": ts, "session_id": session_id, "run": data}, default=str) + "\n"
         with self._lock("ledgers") as lock:
             if lock is None:
                 return
-            self._maybe_evict("ledgers")
+            self._maybe_evict("ledgers", est_bytes=len(line.encode()))
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("a") as f:
-                f.write(json.dumps({"ts": ts, "session_id": session_id, "run": data}, default=str) + "\n")
+                f.write(line)
             path.chmod(0o600)
         chroma = self._maybe_chroma()
         if chroma is not None:
@@ -258,7 +320,7 @@ class MemoryStore:
         with self._lock("notes") as lock:
             if lock is None:
                 return path
-            self._maybe_evict("notes")
+            self._maybe_evict("notes", est_bytes=len(body.encode()))
             path.write_text(body)
             path.chmod(0o600)
         chroma = self._maybe_chroma()
@@ -299,7 +361,7 @@ class MemoryStore:
         with self._lock("conventions") as lock:
             if lock is None:
                 return path
-            self._maybe_evict("conventions")
+            self._maybe_evict("conventions", est_bytes=len(body.encode()))
             path.write_text(body)
             path.chmod(0o600)
         chroma = self._maybe_chroma()
@@ -577,8 +639,134 @@ class MemoryStore:
         return "\n".join(lines) + "\n"
 
     def vacuum(self) -> int:
-        """Compact chroma + delete tombstoned entries; returns bytes reclaimed.
+        """Compact chroma + physically delete tombstoned entries; returns bytes reclaimed.
 
-        Owned by M8-06.
+        Three passes inside per-source advisory locks:
+          (i)  JSONL line-level compaction for turns/ and ledgers/ via
+               atomic tmp + os.replace.
+          (ii) Whole-file deletion for notes/ and conventions/.
+          (iii) Chroma row delete via where={"tombstoned": True} (best effort).
+
+        bytes_reclaimed counts only on-disk file shrinkage across .voss/memory/;
+        chroma persist_dir reclaim is opaque and excluded.
         """
-        raise NotImplementedError("M8-06")
+        bytes_before = self._tree_bytes()
+        tomb_ids = self._load_tombstones()
+        if not tomb_ids:
+            chroma = self._maybe_chroma()
+            if chroma is not None:
+                try:
+                    chroma._collection.delete(where={"tombstoned": True})
+                except Exception as exc:  # noqa: BLE001
+                    print(f"vacuum: chroma delete failed: {exc}", file=sys.stderr)
+            return 0
+
+        turn_ids: set[str] = set()
+        ledger_ids: set[str] = set()
+        note_ids: set[str] = set()
+        convention_ids: set[str] = set()
+        for cid in tomb_ids:
+            head, _, _ = cid.partition(":")
+            if head == "turn":
+                turn_ids.add(cid)
+            elif head == "ledger":
+                ledger_ids.add(cid)
+            elif head == "note":
+                note_ids.add(cid)
+            elif head == "convention":
+                convention_ids.add(cid)
+
+        # Pass (i): JSONL line-level compaction
+        self._vacuum_jsonl("turns", turn_ids, lambda stem, idx: make_id("turn", stem, seq=idx))
+        self._vacuum_jsonl("ledgers", ledger_ids, lambda stem, idx: make_id("ledger", stem, seq=idx))
+
+        # Pass (ii): whole-file deletion for notes + conventions
+        for cid in note_ids:
+            _, _, locator = cid.partition(":")
+            if not locator:
+                continue
+            path = self.root / "notes" / f"{locator}.md"
+            if path.exists():
+                path.unlink(missing_ok=True)
+        for cid in convention_ids:
+            _, _, locator = cid.partition(":")
+            if not locator:
+                continue
+            path = self.root / "conventions" / f"{locator}.md"
+            if path.exists():
+                path.unlink(missing_ok=True)
+
+        # Pass (iii): chroma where-filter delete
+        chroma = self._maybe_chroma()
+        if chroma is not None:
+            try:
+                chroma._collection.delete(where={"tombstoned": True})
+            except Exception as exc:  # noqa: BLE001
+                print(f"vacuum: chroma delete failed: {exc}", file=sys.stderr)
+
+        # Truncate tombstones index (do not unlink — keeps layout stable)
+        self._tombstones_path.write_text("")
+
+        # Refresh size cache
+        for src in _SOURCES:
+            src_dir = self.root / src
+            if not src_dir.exists():
+                self._size_cache[src] = 0
+                continue
+            self._size_cache[src] = sum(
+                p.stat().st_size for p in src_dir.rglob("*") if p.is_file()
+            )
+
+        bytes_after = self._tree_bytes()
+        return max(0, bytes_before - bytes_after)
+
+    def _vacuum_jsonl(self, source: str, id_set: set[str], id_factory) -> None:
+        if not id_set:
+            return
+        src_dir = self.root / source
+        if not src_dir.exists():
+            return
+        with self._lock(source) as lock:
+            if lock is None:
+                print(
+                    f"vacuum: {source} busy; skipping JSONL compaction this pass",
+                    file=sys.stderr,
+                )
+                return
+            for jsonl_path in src_dir.rglob("*.jsonl"):
+                stem = jsonl_path.stem
+                try:
+                    lines = jsonl_path.read_text().splitlines()
+                except OSError:
+                    continue
+                kept: list[str] = []
+                changed = False
+                for line in lines:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    try:
+                        entry = json.loads(stripped)
+                    except json.JSONDecodeError:
+                        kept.append(line)
+                        continue
+                    turn_idx = int(entry.get("turn_idx", 0))
+                    composite = id_factory(stem, turn_idx)
+                    if composite in id_set:
+                        changed = True
+                        continue
+                    kept.append(line)
+                if not changed:
+                    continue
+                if not kept:
+                    jsonl_path.unlink(missing_ok=True)
+                    continue
+                tmp_path = jsonl_path.with_suffix(jsonl_path.suffix + ".tmp")
+                tmp_path.write_text("\n".join(kept) + "\n")
+                tmp_path.chmod(0o600)
+                os.replace(tmp_path, jsonl_path)
+
+    def _tree_bytes(self) -> int:
+        if not self.root.exists():
+            return 0
+        return sum(p.stat().st_size for p in self.root.rglob("*") if p.is_file())
