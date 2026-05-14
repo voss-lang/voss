@@ -7,13 +7,17 @@ plans wire palette (M9-03), recorder (M9-04), modals (M9-05), resume
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 
+from voss.harness.session import SessionRecord
 from voss.harness.slash import SlashRegistry
 
 from .keymap import KEYMAP
 from .widgets import (
+    ForkConfirmModal,
     HeaderBar,
     HelpOverlay,
     InputBar,

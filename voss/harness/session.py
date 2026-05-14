@@ -32,6 +32,12 @@ that could carry creds is a breaking change and must be paired with an
 explicit redaction step. The invariant is enforced by
 tests/harness/test_session_redaction.py over both SessionRecord and RunRecord
 field values.
+
+M9-06 added two additive fields — `parent_id` (Optional[str], UUID-shaped)
+and `parent_turn_index` (Optional[int], non-negative). Neither can carry
+provider credentials. Backward compat: `_hydrate` already filters unknown
+keys, so old reader + new file silently drops them, and new reader + old
+file falls back to the None defaults.
 """
 from __future__ import annotations
 
@@ -92,6 +98,9 @@ class SessionRecord:
     total_cost_usd: float = 0.0
     turns: list[dict] = field(default_factory=list)
     runs: list[dict] = field(default_factory=list)
+    # M9-06 fork lineage. Additive Optional; pre-M9 sessions hydrate as None.
+    parent_id: Optional[str] = None
+    parent_turn_index: Optional[int] = None
 
     @classmethod
     def new(cls, *, cwd: Path, model: str, name: str = "") -> "SessionRecord":
