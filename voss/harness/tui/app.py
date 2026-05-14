@@ -50,6 +50,10 @@ class VossTUIApp(App):
         self.model = model
         self.budget_total = budget_total
         self.slash_registry = slash_registry or SlashRegistry()
+        # M9-06 fork wiring. cli.py (M9-07) sets `record` on the live app.
+        # `focused_turn_index` defaults to the most recent turn.
+        self.record: SessionRecord | None = None
+        self.focused_turn_index: int | None = None
 
     def action_open_help(self) -> None:
         self.push_screen(HelpOverlay(KEYMAP, self.slash_registry))
@@ -75,6 +79,44 @@ class VossTUIApp(App):
     def action_interrupt(self) -> None:
         # M9-04 wires interrupt to the running turn; M9-03 stub is a no-op.
         pass
+
+    # ------------------------------------------------------------------
+    # M9-06 fork-from-turn (TUI-08).
+    # ------------------------------------------------------------------
+
+    def _resolve_fork_index(self) -> int | None:
+        if self.record is None or not self.record.turns:
+            return None
+        if self.focused_turn_index is not None:
+            idx = self.focused_turn_index
+        else:
+            idx = len(self.record.turns) - 1
+        if idx < 0 or idx >= len(self.record.turns):
+            return None
+        return idx
+
+    def action_fork_turn(self) -> None:
+        idx = self._resolve_fork_index()
+        if idx is None:
+            return
+
+        def _on_confirm(confirmed) -> None:
+            if not confirmed:
+                return
+            # Local import — keeps fork.py UI-free (pure data) and avoids a
+            # circular import at module load.
+            from .fork import fork_session
+
+            assert self.record is not None  # _resolve_fork_index guards
+            new = fork_session(self.record, idx, Path(self.record.cwd))
+            try:
+                self.query_one("#status", StatusLine).set_status(
+                    toast=f"Resumed {new.id} · {len(new.turns)} turns"
+                )
+            except Exception:  # noqa: BLE001 — status widget may not be mounted in tests
+                pass
+
+        self.push_screen(ForkConfirmModal(idx), _on_confirm)
 
     def action_focus_next(self) -> None:
         super().action_focus_next()
