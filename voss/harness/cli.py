@@ -539,6 +539,7 @@ def do_cmd(
 
     renderer = make_renderer(json_mode=json_mode)
     tools = make_toolset(cwd)
+    voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
     voss_md_text = voss_md.read_and_inject(cwd)
     gate = PermissionGate(
@@ -718,6 +719,7 @@ def _run_repl(
                 pass
         return max(len(text) // 4, 1)
 
+    voss_md.ensure_migrated(cwd)
     bundle = cognition_mod.load(cwd, token_count=_tok_count)
     if bundle.load_errors:
         for err in bundle.load_errors:

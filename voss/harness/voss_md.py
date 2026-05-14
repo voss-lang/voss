@@ -19,7 +19,9 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -114,8 +116,62 @@ def read_and_inject(cwd: Path) -> str | None:
 
 
 def ensure_migrated(cwd: Path) -> bool:
-    """Idempotent migration of .voss/architecture.md into VOSS.md id=architecture fence; archive byte-identical per Req 2(a) sha256 gate."""
-    raise NotImplementedError("M8-02")
+    """Idempotent migration of .voss/architecture.md into VOSS.md id=architecture fence.
+
+    Contract (D-06 + Req 2):
+      - Idempotent: if cwd/VOSS.md already exists, return False without
+        touching any file. Second-run safety.
+      - Byte-identical archive: hashlib.sha256(archive bytes) ==
+        hashlib.sha256(pre-migration architecture.md bytes). Asserted before
+        the source file is unlinked; mismatch raises RuntimeError so the
+        original file survives.
+      - Verbatim fence body: the architecture.md frontmatter + body lands at
+        the head of the id=architecture fence body, so cognition.FRONTMATTER_RE
+        still matches without modification.
+    """
+    from . import cognition  # local import; cognition imports from voss_md
+
+    voss_md_path = cwd / "VOSS.md"
+    if voss_md_path.exists():
+        return False
+
+    arch_path = cognition.voss_dir(cwd) / "architecture.md"
+    if not arch_path.exists():
+        return False
+
+    arch_bytes = arch_path.read_bytes()
+    arch_sha = hashlib.sha256(arch_bytes).hexdigest()
+
+    archive_dir = cognition.voss_dir(cwd) / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    archive_path = archive_dir / f"architecture-{today}.md"
+    suffix = 2
+    while archive_path.exists():
+        archive_path = archive_dir / f"architecture-{today}-{suffix}.md"
+        suffix += 1
+
+    archive_path.write_bytes(arch_bytes)
+    if hashlib.sha256(archive_path.read_bytes()).hexdigest() != arch_sha:
+        raise RuntimeError(
+            f"VOSS.md migration archive sha256 mismatch at {archive_path}; "
+            "original architecture.md left intact"
+        )
+
+    try:
+        fence_body = arch_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        fence_body = arch_bytes.decode("utf-8", errors="replace")
+        print(
+            f"warning: {arch_path} contained non-UTF-8 bytes; "
+            "migrated with replacement characters",
+            file=sys.stderr,
+        )
+
+    write_fence_body(voss_md_path, fence_id="architecture", body=fence_body)
+    arch_path.unlink()
+    return True
 
 
 def read_fence_body(path: Path, *, fence_id: str) -> str | None:
