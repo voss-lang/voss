@@ -1,11 +1,11 @@
-# Roadmap: Voss v0.1 Harness MVP
+# Roadmap: Voss Harness — v0.1 MVP + v0.2 Coding-Agent Phases
 
 **Created:** 2026-05-10
-**Mode:** Harness-led vertical slice
+**Mode:** Harness-led vertical slice → coding-agent expansion
 **Granularity:** M-prefixed milestone phases
-**Requirements covered:** 64 / 64
-**Source:** `.vscode/voss_v_0_1_scope_lock.md`
-**Last updated:** 2026-05-13 — promoted SDK-01..05 to formal M7 SDK Polish phase
+**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M10 added 2026-05-14, requirement counts TBD by SPEC.md
+**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2)
+**Last updated:** 2026-05-14 — promoted MEM-01 / TUI-01 / CAPS-01 seeds to formal phases M8 / M9 / M10
 
 ## Phase Order
 
@@ -19,6 +19,9 @@
 | M5 | Eval and Distribution Prep | Measure quality and prepare packaging after the Python loop works | EVAL-01..05 | 4 |
 | M6 | npm Wrapper | Publish `voss` as an npm package that vendors Python + the v0.1 wheel | NPM-01..05 | 5 |
 | M7 | SDK Polish | Close the four known public-API holes + stabilize provider registration | SDK-01..05 | 5 |
+| M8 | Project Memory (MEM-01) | VOSS.md + cross-session recall layer for the harness using Voss runtime memory primitives | MEM-01..0N (TBD by SPEC.md) | TBD |
+| M9 | TUI Shell (TUI-01) | Full-screen Textual interface — diff approval, slash palette, live workflow + budget view | TUI-01..0N (TBD by SPEC.md) | TBD |
+| M10 | Agent Capability Surface (CAPS-01) | Codebase intel, Voss-aware tools, MCP bridge, multi-agent in chat, long-running tasks, skill plugins | CAPS-01..0N (TBD by SPEC.md) | TBD |
 
 ---
 
@@ -369,6 +372,100 @@ from voss_runtime.providers import register as register_provider  # SDK-05
 
 ---
 
+## Phase M8: Project Memory (MEM-01)
+
+**Goal:** Give the Voss harness a persistent project-memory layer so it stops re-learning the repo every session. Two tiers: a human-curated `VOSS.md` (analog to `CLAUDE.md`) and an agent-curated cross-session recall store built on Voss's own runtime memory primitives (`memory.episodic`, `memory.semantic`).
+
+**Requirements:** MEM-01..0N — TBD by `08-SPEC.md` (run `/gsd-spec-phase M8` to lock).
+
+**Seed source:** [`seeds/project-memory-voss-md.md`](seeds/project-memory-voss-md.md)
+**Thesis context:** [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md)
+
+**Headline deliverables (subject to SPEC.md refinement):**
+- `VOSS.md` loader — read at session start, inject into harness system context. Section conventions (project, build, style, do/don't). Hierarchical resolution (root + per-directory) decided in SPEC.
+- Cross-session recall store under `.voss/memory/` — episodic + semantic, file-backed, indexed. Reuses runtime memory primitives.
+- Slash command surfaces (`/recall <query>`, `/forget`) — minimal CLI form for v0.1; richer surface lands with [[tui-shell-textual]] (M9).
+- End-of-session prompt: agent extracts candidate decisions/conventions from the turn history; user picks what to persist.
+- Privacy-first defaults — nothing leaves the repo; no cloud sync in this phase.
+
+**Cross-cutting constraints:**
+- Must run with the existing v0.1 harness surface (`voss chat`, `voss resume`, `voss sessions`). No TUI dependency.
+- Reuse runtime memory primitives — do not build a parallel store. Phase doubles as proof that `memory.*` earns its keep.
+- Hard cap memory store size + provide a vacuum/forget path before shipping.
+- Integration with `voss sessions` / `voss resume` (CLIH-05/06/07) must remain backwards compatible — existing session files must continue to load.
+
+**Success Criteria:** TBD by `08-SPEC.md`. Spec-phase will produce pass/fail acceptance checkboxes.
+
+**Out of scope (this phase):**
+- Cross-project memory sharing.
+- Cloud-backed memory store.
+- TUI surfaces for browsing memory (lands in M9).
+- Multi-agent memory partitioning (lands in M10).
+
+---
+
+## Phase M9: TUI Shell (TUI-01)
+
+**Goal:** Replace the current `rich`-based line-streamed CLI for `voss chat` / `voss do` with a full-screen TUI (Textual or equivalent). Match Claude Code / Aider interaction depth and expose Voss's language primitives — probable values, budgets, spawn/gather — directly in the UI.
+
+**Requirements:** TUI-01..0N — TBD by `09-SPEC.md`.
+
+**Seed source:** [`seeds/tui-shell-textual.md`](seeds/tui-shell-textual.md)
+
+**Headline deliverables (subject to SPEC.md refinement):**
+- Textual app shell — header (session id, budget remaining), main turn-history pane, input bar with slash-command palette + autocomplete, modal pane for diff approval + permission prompts.
+- Per-hunk diff approval — user accept/reject individual hunks instead of blind apply.
+- Live workflow visualization — probable-value confidence bars, `ctx(budget:)` token meter, `spawn`/`gather` sub-agent panels rendered from the recorder stream (`voss/harness/recorder.py`).
+- Session resume UX — scroll prior turns, fork from any turn, branch sessions.
+- Keybindings — vim-ish navigation, `/` slash palette, `?` help overlay.
+- `--plain` flag — preserve current line mode for pipes / CI.
+
+**Cross-cutting constraints:**
+- Library choice (Textual vs prompt_toolkit vs hand-rolled) gated by SPEC.md and discuss-phase.
+- Must work over the M6 npm wrapper's vendored Python on macOS, Linux, and Windows console.
+- Must not regress headless (`--plain`) CLI exit codes, stdout shape, or pipe behavior.
+- M8 memory surfaces (`/recall`, memory browser) plug into TUI panels — TUI-01 reserves UI hooks but does not require M8 to ship.
+
+**Success Criteria:** TBD by `09-SPEC.md`.
+
+**Out of scope (this phase):**
+- Editor / VSCode integration (EDIT-01/02 track).
+- Web UI.
+- New runtime hooks — TUI reads from the existing recorder. If hooks need extending, that lands in a follow-up phase.
+
+---
+
+## Phase M10: Agent Capability Surface (CAPS-01)
+
+**Goal:** Build out the capabilities sitting *above* the TUI shell — the tools and skills that let the Voss harness compete with Claude Code / Aider on day-to-day coding tasks. Track as one phase for sequencing; split into capability-by-capability sub-phases at planning time.
+
+**Requirements:** CAPS-01..0N — TBD by `10-SPEC.md`.
+
+**Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md)
+**Thesis context:** [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md)
+
+**Capability inventory (sub-phase candidates, order TBD by SPEC.md):**
+1. Codebase intelligence — LSP client, `ast-grep`/`tree-sitter` symbol search, project index refreshed on file watch.
+2. Voss-aware tools — `.voss` lint/type-check as a skill, probable-value inspector, budget tracer, `.voss` → Python diff viewer.
+3. MCP bridge — co-ordinates with existing v0.2 candidate **DIST-03**. Either promote DIST-03 here or keep DIST-03 separate and link.
+4. Multi-agent in chat — expose runtime `spawn`/`gather` as a chat capability with TUI sub-agent panels.
+5. Long-running / watch tasks — background job manager surfaced in TUI bottom pane.
+6. Skill / plugin marketplace — `voss skill add <name>`, signed manifests, sandbox boundary.
+
+**Cross-cutting constraints:**
+- Depends on M9 TUI shell for surfaces (multi-agent panels, watch-task strip, capability discovery). Plan to split sub-phases such that the first sub-phase delivers value even before later TUI panels exist.
+- Coordinate explicitly with DIST-03 (MCP bridge) — do not duplicate.
+- Skill marketplace requires a trust/sandbox story before any third-party code runs — that work is a hard prerequisite for sub-phase 6.
+
+**Success Criteria:** TBD by `10-SPEC.md` — will define which capabilities must ship in the headline phase vs which spin off into their own follow-up phases.
+
+**Out of scope (this phase):**
+- Cloud-hosted skills.
+- Cross-org skill registry (post-v0.2).
+- Editor integration.
+
+---
+
 ## Coverage
 
 | Phase | Requirements | Count |
@@ -381,9 +478,12 @@ from voss_runtime.providers import register as register_provider  # SDK-05
 | M5 | EVAL-01..05 | 5 |
 | M6 | NPM-01..05 | 5 |
 | M7 | SDK-01..05 | 5 |
-| **Total** |  | **64 / 64** |
+| **v0.1 Total** |  | **64 / 64** |
+| M8 | MEM-01..0N | TBD by `08-SPEC.md` |
+| M9 | TUI-01..0N | TBD by `09-SPEC.md` |
+| M10 | CAPS-01..0N | TBD by `10-SPEC.md` |
 
-All v0.1 requirements mapped.
+All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase.
 
 ---
 
@@ -414,30 +514,24 @@ condition fires — usually real-user demand surfacing during v0.1 dogfood.
   library API (not just `npx voss`).
 - **TEAM-*** / **WEB-*** — far post-v0.1.
 
-### Coding-agent v0.2 candidates *(planted 2026-05-14 via /gsd-explore)*
+### Coding-agent v0.2 phases *(planted 2026-05-14 via /gsd-explore, promoted to formal phases same day)*
 
-These four artifacts came out of a brainstorm on what makes Voss a real
-daily-driver coding agent. Seeds + thesis note live in `.planning/seeds/`
-and `.planning/notes/`. Each promotes to a full phase via
-`/gsd-spec-phase` when its trigger fires — **do not pre-plan**.
+The three seeds below were promoted to formal phases on 2026-05-14 — see
+"Phase M8 / M9 / M10" above for their canonical entries. Seed files
+remain in `.planning/seeds/` as the source brainstorm; the thesis note
+remains in `.planning/notes/` as cross-phase context.
 
-- **TUI-01** TUI shell (Textual) — see
-  [`seeds/tui-shell-textual.md`](seeds/tui-shell-textual.md). Trigger:
-  v0.1 daily-driver feedback surfaces UX friction with the line-streamed
-  CLI. Likely first v0.2 phase.
-- **MEM-01** VOSS.md + cross-session recall — see
+- **MEM-01 → M8 Project Memory** — see
   [`seeds/project-memory-voss-md.md`](seeds/project-memory-voss-md.md).
-  Trigger: first dogfood session where context loss hurts. May land
-  before TUI if dogfood demand fires first.
-- **CAPS-01** Agent capability surface (codebase intel, Voss-aware tools,
-  MCP, multi-agent in chat, long-running tasks, skill marketplace) — see
+- **TUI-01 → M9 TUI Shell** — see
+  [`seeds/tui-shell-textual.md`](seeds/tui-shell-textual.md).
+- **CAPS-01 → M10 Agent Capability Surface** — see
   [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md).
-  Trigger: TUI shell lands and exposes a plugin/skill API. Splits into
-  per-capability sub-phases at promotion.
+  May split into per-capability sub-phases at SPEC.md time. Coordinate
+  with DIST-03 (MCP bridge) before planning.
 - **Thesis note** (not a phase) — Voss agent unfair advantage. See
   [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md).
-  Frames the "why" for the three seeds above. Re-read before scoping any
-  of them.
+  Re-read before scoping M8 / M9 / M10.
 
 These do NOT block v0.1 ship. Listed so the roadmap has a memory of what's
 next without forcing premature commitment.
