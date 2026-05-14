@@ -64,8 +64,8 @@ class DiffModal(ModalScreen):
                 yield Static(
                     f"{cursor} {h.file}:{h.start}", id=f"diff-hunk-header-{i}"
                 )
-                for line in h.lines:
-                    yield Static(f"  {line}", id=f"diff-hunk-line-{i}")
+                for j, line in enumerate(h.lines):
+                    yield Static(f"  {line}", id=f"diff-hunk-line-{i}-{j}")
             yield Static("")
             yield Static(
                 "[y] Accept · [n] Reject · [s] Skip · [a] Accept all · "
