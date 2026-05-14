@@ -408,7 +408,7 @@ def _build_slash_registry() -> SlashRegistry:
     def _login(_ctx: ReplContext, args: list[str], _line: str) -> None:
         _handle_login(args[0] if args else None)
 
-    def _save(ctx: ReplContext, args: list[str], _line: str) -> None:
+    def _save_session(ctx: ReplContext, args: list[str], _line: str) -> None:
         if args:
             ctx.record.name = " ".join(args).strip()
         ctx.record.total_cost_usd = ctx.total_cost
@@ -470,7 +470,7 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/login", "anthropic | openai — status + refresh", _login),
         SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
-        SlashCommand("/save", "persist session snapshot", _save, mutating=True),
+        SlashCommand("/save-session", "persist session snapshot", _save_session, mutating=True),
         SlashCommand("/analyze", "refresh project cognition (.voss/ + .voss-cache/)", _analyze, mutating=True),
         SlashCommand("/save-plan", "persist the most recent plan to .voss/plans/", _save_plan, mutating=True),
         SlashCommand("/plugins", "list plugin manifests", _plugins),

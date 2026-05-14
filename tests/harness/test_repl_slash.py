@@ -105,3 +105,8 @@ class TestModelPersistence:
         harness_config.set_preferred_model("claude-sonnet-4-20250514")
         cfg = harness_config.load_harness_config()
         assert cfg.get("preferred_model") == "claude-sonnet-4-20250514"
+
+
+@pytest.mark.skip(reason="M8-06 — will assert /recall, /forget, /memory, /save are registered")
+def test_memory_commands_not_yet_registered() -> None:
+    pass
