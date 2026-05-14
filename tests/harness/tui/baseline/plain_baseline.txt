@@ -1,7 +1,3 @@
   [auth: fake — fake]
-> echo plan-baseline 
---- piped stdin ---
-... planning
-plan: 0 steps, conf=0.30
 locked baseline question?
 locked baseline question?

@@ -62,7 +62,7 @@ def _invoke_do_plain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
         catch_exceptions=False,
     )
     assert result.exit_code == 0, f"non-zero exit: {result.output}"
-    return result.output
+    return result.stdout
 
 
 def test_plain_baseline_parity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -100,7 +100,7 @@ def test_auto_fallback_matches_plain(
     )
     assert result.exit_code == 0
     plain_output = _invoke_do_plain(tmp_path, monkeypatch)
-    assert result.output == plain_output
+    assert result.stdout == plain_output
 
 
 def test_json_mode_regression(
@@ -117,8 +117,8 @@ def test_json_mode_regression(
         catch_exceptions=False,
     )
     assert result.exit_code == 0
-    assert '"type":' in result.output
-    assert '"v":' in result.output
+    assert '"type":' in result.stdout
+    assert '"v":' in result.stdout
 
 
 def test_small_terminal_without_force_tui_does_not_exit(
@@ -155,17 +155,16 @@ def test_force_tui_small_terminal_exits_2(
         "shutil.get_terminal_size",
         lambda fallback=(80, 24): os.terminal_size((79, 24)),
     )
-    # CliRunner replaces stdout with a non-TTY pipe; bypass the TTY check by
-    # injecting a synthetic decision that surfaces the size failure.
+    # CliRunner stdout is non-TTY; inject a synthetic decision surfacing the size failure.
     monkeypatch.setattr(
         "voss.harness.tui.capability.tui_should_activate",
         lambda **_kw: TUIDecision(activate=False, reason="terminal below 80x24"),
     )
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(
         do_cmd,
         ["--cwd", str(tmp_path), "small-term"],
         catch_exceptions=False,
     )
     assert result.exit_code == 2
-    assert "terminal must be at least 80×24" in (result.stderr or "")
+    assert "terminal must be at least 80×24" in result.stderr
