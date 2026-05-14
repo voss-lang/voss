@@ -27,6 +27,14 @@ from .widgets import (
     TurnView,
 )
 
+# Defensive import: missing SPAWN_TOOL_NAME degrades show_tool_call to the
+# generic TurnView path (no panel mount). Tests exercise this via
+# monkeypatch.delattr(subagents, 'SPAWN_TOOL_NAME', raising=False).
+try:
+    from ..subagents import SPAWN_TOOL_NAME as _SPAWN_TOOL_NAME
+except (ImportError, AttributeError):
+    _SPAWN_TOOL_NAME = None
+
 
 class TextualRenderer:
     """Concrete Renderer implementation backed by a `VossTUIApp` instance."""
@@ -109,10 +117,41 @@ class TextualRenderer:
         )
 
     def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+        spawn_name = _resolve_spawn_name()
+        if spawn_name is not None and name == spawn_name:
+            parent_id = str((args or {}).get("parent_id") or (args or {}).get("agent_id") or "spawn")
+            if state == "pending":
+                agent_name = str((args or {}).get("agent_id") or (args or {}).get("name") or "subagent")
+                budget_total = int((args or {}).get("budget_total") or 0)
+                self.show_subagent_start(agent_name, parent_id, budget_total)
+                return
+            if state == "ok":
+                n_results = 1
+                self.show_subagent_end(parent_id, n_results)
+                return
         argstr = ", ".join(f"{k}={_short(v)}" for k, v in (args or {}).items())
         mark = {"ok": "ok", "error": f"failed: {summary}", "pending": "…"}.get(state, state)
         body = f"⏵ {name}({argstr}) · {mark}"
         self._post(self._turn_view().append_turn, "tool", body)
+
+    # ------------------------------------------------------------------
+    # Subagent visualization — private; NOT part of the Renderer protocol.
+    # ------------------------------------------------------------------
+
+    def show_subagent_start(self, name: str, parent_id: str, budget_total: int = 0) -> None:
+        panel = SubAgentPanel(
+            name=name,
+            parent_id=parent_id,
+            budget_used=0,
+            budget_total=budget_total,
+        )
+        self._post(self.app.mount_subagent_panel, panel)
+
+    def show_subagent_progress(self, parent_id: str, body_line: str, used: int = 0) -> None:
+        self._post(self.app.update_subagent, parent_id, body_line, used)
+
+    def show_subagent_end(self, parent_id: str, n_results: int = 0) -> None:
+        self._post(self.app.collapse_subagent, parent_id, n_results)
 
     def show_clarify(self, question: str, confidence: float) -> None:
         self._post(
