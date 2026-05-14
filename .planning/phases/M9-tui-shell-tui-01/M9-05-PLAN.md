@@ -2,8 +2,8 @@
 phase: M9
 plan: 05
 type: execute
-wave: 3
-depends_on: [M9-02]
+wave: 5
+depends_on: [M9-04]
 files_modified:
   - voss/harness/tui/widgets/diff_modal.py
   - voss/harness/tui/widgets/permission_modal.py
@@ -11,6 +11,7 @@ files_modified:
   - voss/harness/tui/widgets/__init__.py
   - voss/harness/tui/permissions_bridge.py
   - voss/harness/tui/renderer.py
+  - voss/harness/tui/app.py
   - voss/harness/permissions.py
   - tests/harness/tui/test_diff_modal.py
   - tests/harness/tui/test_permission_modal.py

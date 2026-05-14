@@ -433,15 +433,16 @@ from voss_runtime.providers import register as register_provider  # SDK-05
 - Web UI.
 - New runtime hooks — TUI reads from the existing recorder. If hooks need extending, that lands in a follow-up phase.
 
-**Plans:** 6 plans
+**Plans:** 7 plans
 
 Plans:
-- [ ] M9-01-PLAN.md — Library-choice gate + Textual dep + --plain plumbing + pre-M9 stdout byte baseline
-- [ ] M9-02-PLAN.md — Textual app shell (region grid) + TextualRenderer (Renderer-protocol) + locked glyph + locked color stylesheet + ConfidenceBar/BudgetMeter widgets
-- [ ] M9-03-PLAN.md — SlashPalette + HelpOverlay + KEYMAP table + reserved slash names for M8 (/recall, /forget, /memory)
-- [ ] M9-04-PLAN.md — Live workflow visualization: SubAgentPanel + RecorderBridge (read-only) + runtime-surface hash baseline regression test
+- [ ] M9-01-PLAN.md — Library-choice gate + Textual dep + --plain plumbing + pre-M9 stdout byte baseline (idempotent, locked FakeProvider)
+- [ ] M9-02-PLAN.md — Textual app shell (region grid) + TextualRenderer (Renderer-protocol) + locked glyph + locked color stylesheet + ConfidenceBar (16-cell locked) / BudgetMeter (em-dash on zero-total) widgets
+- [ ] M9-03-PLAN.md — SlashPalette + HelpOverlay + KEYMAP table + reserved slash names for M8 (4 names: /recall, /forget, /memory, /save) + live `/save` → `/snapshot` rename with deprecation alias
+- [ ] M9-04-PLAN.md — Live workflow visualization: SubAgentPanel + RecorderBridge (read-only) + SPAWN_TOOL_NAME constant + runtime-surface hash baseline regression test (4 files)
 - [ ] M9-05-PLAN.md — DiffModal (per-hunk) + PermissionModal + BudgetExhaustedModal + permissions_bridge (injects modal-driven prompt_fn)
-- [ ] M9-06-PLAN.md — Fork-from-turn (additive SessionRecord fields) + cli.py default-path flip + accent allow-list + --no-unicode + Windows console strategy + phase-final human-verify checkpoint
+- [ ] M9-06-PLAN.md — Fork-from-turn data model + backward-compat session schema (additive optional parent_id, parent_turn_index) + ForkConfirmModal + action_fork_turn handler
+- [ ] M9-07-PLAN.md — cli.py default-path flip to TextualRenderer + install_tui_permissions wire-up + accent allow-list audit + --no-unicode flag/env + Windows console strategy + phase-final human-verify checkpoint
 
 ---
 

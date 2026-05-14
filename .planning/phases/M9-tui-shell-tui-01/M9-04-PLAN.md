@@ -2,14 +2,15 @@
 phase: M9
 plan: 04
 type: execute
-wave: 3
-depends_on: [M9-02]
+wave: 4
+depends_on: [M9-03]
 files_modified:
   - voss/harness/tui/widgets/sub_agent_panel.py
   - voss/harness/tui/widgets/__init__.py
   - voss/harness/tui/renderer.py
   - voss/harness/tui/app.py
   - voss/harness/tui/recorder_bridge.py
+  - voss/harness/subagents.py
   - tests/harness/tui/test_recorder_bridge.py
   - tests/harness/tui/test_live_visualization.py
   - tests/harness/tui/test_no_new_runtime_hooks.py
@@ -23,6 +24,7 @@ must_haves:
     - "spawn opens a new SubAgentPanel in the side region; gather collapses panels with a one-line summary in the main pane."
     - "When the recorder lacks an event for a primitive, the TUI silently omits that visualization, does not crash, does not add a new runtime emit point."
     - "No new functions are added to voss/harness/recorder.py or voss_runtime/* in this plan; only consumers in voss/harness/tui/ are added."
+    - "voss/harness/subagents.py exports a single constant `SPAWN_TOOL_NAME: str` that the TUI uses to detect spawn tool calls. This is the only change to subagents.py — no behavioral logic added."
   artifacts:
     - path: "voss/harness/tui/widgets/sub_agent_panel.py"
       provides: "SubAgentPanel widget; replaces M9-02 placeholder; header banner + mini status + scrollable body per UI-SPEC"
@@ -30,8 +32,11 @@ must_haves:
     - path: "voss/harness/tui/recorder_bridge.py"
       provides: "RecorderBridge; consumes the RunRecorder shape (read-only) and translates observations into widget updates"
       exports: ["RecorderBridge"]
+    - path: "voss/harness/subagents.py"
+      provides: "Adds `SPAWN_TOOL_NAME` module-level constant — name of the spawn tool used by the TUI renderer to detect subagent dispatch in show_tool_call. No new behavior; pure constant export."
+      exports: ["SPAWN_TOOL_NAME"]
     - path: "tests/harness/tui/test_no_new_runtime_hooks.py"
-      provides: "Hash-pinned regression test that asserts voss/harness/recorder.py and voss_runtime/{probable,budget,agent}.py are byte-unchanged vs baseline"
+      provides: "Hash-pinned regression test that asserts voss/harness/recorder.py and voss_runtime/{probable,budget,agent}.py are byte-unchanged vs baseline (subagents.py is NOT in the baseline set per checker scope — see CONTEXT.md baseline scope)"
   key_links:
     - from: "voss/harness/tui/recorder_bridge.py"
       to: "voss/harness/recorder.py:RunRecorder"
@@ -41,14 +46,18 @@ must_haves:
       to: "voss/harness/tui/widgets/sub_agent_panel.py"
       via: "TextualRenderer.show_subagent_start / show_subagent_end (new PRIVATE methods on TextualRenderer only; NOT added to the Renderer protocol)"
       pattern: "def show_subagent"
+    - from: "voss/harness/tui/renderer.py"
+      to: "voss/harness/subagents.py:SPAWN_TOOL_NAME"
+      via: "renderer imports SPAWN_TOOL_NAME inside a try/except to keep graceful degradation behavior"
+      pattern: "SPAWN_TOOL_NAME"
 ---
 
 <objective>
-Wire the live workflow visualization that makes the TUI the product face of Voss's language primitives per the unfair-advantage thesis. ConfidenceBars next to probable values, live BudgetMeter in the status line, SubAgentPanels in the side region for spawn/gather. Read-only: no new runtime emit points; if a primitive lacks a recorder event, the visualization degrades.
+Wire the live workflow visualization that makes the TUI the product face of Voss's language primitives per the unfair-advantage thesis. ConfidenceBars next to probable values, live BudgetMeter in the status line, SubAgentPanels in the side region for spawn/gather. Read-only against the baseline runtime set (recorder.py + voss_runtime/{probable,budget,agent}.py); subagents.py gets one new module-level constant for spawn detection (resolves checker W3).
 
 Purpose: TUI-04. This is the highest-leverage product feature in the phase per CONTEXT specifics ("visible-primitives are the highest-leverage product feature, not a side panel").
 
-Output: SubAgentPanel widget + RecorderBridge consumer + extended TextualRenderer private methods + a regression test that pins the runtime surface so a future PR cannot quietly add a hook.
+Output: SubAgentPanel widget + RecorderBridge consumer + extended TextualRenderer private methods + SPAWN_TOOL_NAME constant + a regression test that pins the runtime baseline set so a future PR cannot quietly add a hook to recorder.py or voss_runtime/*.
 </objective>
 
 <execution_context>
@@ -63,6 +72,7 @@ Output: SubAgentPanel widget + RecorderBridge consumer + extended TextualRendere
 @.planning/phases/M9-tui-shell-tui-01/M9-UI-SPEC.md
 @voss/harness/recorder.py
 @voss/harness/render.py
+@voss/harness/subagents.py
 @voss_runtime/probable.py
 @voss_runtime/budget.py
 @voss_runtime/agent.py
@@ -80,7 +90,18 @@ RunRecorder.id, .started_at, .inspected: list[str], .changed: list[str],
 - status(*, model, tokens, cost_usd, ctx_pct)
 - show_tool_call(name, args, summary, state)
 
-<!-- Subagent indicator: read voss/harness/subagents.py to confirm the tool name string. The executor MUST grep for it rather than assume; if no marker exists, the spawn/gather visualization degrades to "no panel" and a status-line toast only. -->
+<!-- Subagent spawn detection (W3 fix): -->
+This plan adds ONE constant to voss/harness/subagents.py:
+```python
+# Module-level, top of file:
+SPAWN_TOOL_NAME: str = "spawn"   # The canonical tool name the agent uses to dispatch a subagent.
+# (Confirm the exact string by grepping subagents.py for the tool registration; if the
+# existing code uses a different string literal, use that string. The constant is the
+# single source of truth from this plan forward.)
+```
+This is the ONLY change to subagents.py. Per checker constraint, subagents.py is NOT in
+the SHA-256 runtime baseline set (which only includes recorder.py +
+voss_runtime/{probable,budget,agent}.py). Adding a constant is therefore safe.
 
 <!-- This plan adds NO methods to the Renderer Protocol. -->
 <!-- TextualRenderer-private methods (NOT in protocol): show_subagent_start, show_subagent_progress, show_subagent_end. -->
@@ -90,27 +111,37 @@ RunRecorder.id, .started_at, .inspected: list[str], .changed: list[str],
 <tasks>
 
 <task type="auto" tdd="true">
-  <name>Task 1: SubAgentPanel widget + RecorderBridge + runtime-surface hash baseline</name>
-  <files>voss/harness/tui/widgets/sub_agent_panel.py, voss/harness/tui/widgets/__init__.py, voss/harness/tui/recorder_bridge.py, tests/harness/tui/test_recorder_bridge.py, tests/harness/tui/test_no_new_runtime_hooks.py, tests/harness/tui/baseline/runtime_surface.sha256</files>
+  <name>Task 1: Add SPAWN_TOOL_NAME constant to subagents.py; SubAgentPanel widget + RecorderBridge + runtime-surface hash baseline</name>
+  <files>voss/harness/subagents.py, voss/harness/tui/widgets/sub_agent_panel.py, voss/harness/tui/widgets/__init__.py, voss/harness/tui/recorder_bridge.py, tests/harness/tui/test_recorder_bridge.py, tests/harness/tui/test_no_new_runtime_hooks.py, tests/harness/tui/baseline/runtime_surface.sha256</files>
   <read_first>
     - /Users/benjaminmarks/Projects/Voss/voss/harness/recorder.py (full file; every public attribute the bridge reads; observe() side effects we read AFTER it runs)
-    - /Users/benjaminmarks/Projects/Voss/voss/harness/subagents.py (find the spawn/gather tool name marker; if absent, the bridge degrades gracefully)
+    - /Users/benjaminmarks/Projects/Voss/voss/harness/subagents.py (full file; find the current spawn tool string — likely in a tool registration block or a constant; if a constant already exists with the right name, no new line needed; if a string literal `"spawn"` is used inline, hoist it to a `SPAWN_TOOL_NAME` module-level constant and replace inline uses with the constant. This is the W3 fix.)
     - /Users/benjaminmarks/Projects/Voss/voss_runtime/probable.py, budget.py, agent.py (confirm attrs the bridge reads; baseline hash captures the current bytes)
     - /Users/benjaminmarks/Projects/Voss/.planning/phases/M9-tui-shell-tui-01/M9-UI-SPEC.md ("Component Inventory" SubAgentPanel row; "Region grid" side-panel rules; "Live workflow visualization" table for spawn/gather visual treatment; "Empty side panel" copy = "Side panel hidden entirely (collapsed to 0 cols)")
-    - /Users/benjaminmarks/Projects/Voss/.planning/phases/M9-tui-shell-tui-01/M9-CONTEXT.md ("Recorder integration mechanics" locks no new emit points)
-    - /Users/benjaminmarks/Projects/Voss/voss/harness/tui/widgets/budget_meter.py (M9-02; reused inside SubAgentPanel)
-    - /Users/benjaminmarks/Projects/Voss/voss/harness/tui/app.py (M9-02; extend with mount_subagent_panel and friends in Task 2)
+    - /Users/benjaminmarks/Projects/Voss/.planning/phases/M9-tui-shell-tui-01/M9-CONTEXT.md ("Recorder integration mechanics" locks no new emit points; baseline scope is recorder.py + voss_runtime/{probable,budget,agent}.py)
+    - /Users/benjaminmarks/Projects/Voss/voss/harness/tui/widgets/budget_meter.py (M9-02; reused inside SubAgentPanel — and remember zero-total contract: total<=0 renders em-dash)
+    - /Users/benjaminmarks/Projects/Voss/voss/harness/tui/app.py (M9-02 + M9-03; extend with mount_subagent_panel and friends in Task 2)
   </read_first>
   <behavior>
-    - Test (test_no_new_runtime_hooks): the test reads voss/harness/recorder.py, voss_runtime/probable.py, voss_runtime/budget.py, voss_runtime/agent.py and asserts their SHA-256 hashes match `tests/harness/tui/baseline/runtime_surface.sha256`. Captured on first run via env `UPDATE_BASELINE=1`. A failing test message names the changed file and tells the developer to either revert or run with `UPDATE_BASELINE=1` AND document in the M9-04 SUMMARY.
+    - Test (test_no_new_runtime_hooks): the test reads voss/harness/recorder.py, voss_runtime/probable.py, voss_runtime/budget.py, voss_runtime/agent.py and asserts their SHA-256 hashes match `tests/harness/tui/baseline/runtime_surface.sha256`. Captured on first run via env `UPDATE_BASELINE=1`. A failing test message names the changed file and tells the developer to either revert or run with `UPDATE_BASELINE=1` AND document in the M9-04 SUMMARY. Note: subagents.py is NOT in the baseline set.
+    - Test (subagents.py constant): `from voss.harness.subagents import SPAWN_TOOL_NAME; assert isinstance(SPAWN_TOOL_NAME, str) and SPAWN_TOOL_NAME`. The constant is non-empty.
     - Test (test_recorder_bridge): given a RunRecorder, calling `recorder.observe("fs_read", {"path":"x"}, "ok", ok=True)` then `bridge.flush()` calls the app's `update_inspected(["x"])`. Bridge READS state; it does not patch RunRecorder.observe.
     - Test: a second flush with no new observations does NOT re-emit prior entries (idempotent; tracked by `_seen` indexes).
     - Test: when recorder records a validation row with `exit=0`, bridge calls `app.append_tool_line(summary, state="ok")` containing the cmd substring. With `exit != 0` → `state="error"`.
     - Test (SubAgentPanel mount): `SubAgentPanel(name="reviewer", parent_id="abc", budget_used=512, budget_total=2000)` renders header containing `reviewer` styled with class `agent-header` (which the TCSS binds to `$accent`), a BudgetMeter showing `0.5k / 2.0k`, empty body.
     - Test: SubAgentPanel.append_body("checked 3 files") adds one Static line inside the body container.
     - Test: SubAgentPanel.update_budget(1500) refreshes the embedded BudgetMeter to `1.5k / 2.0k` and re-renders.
+    - Test (zero-total contract regression): `SubAgentPanel(name="x", parent_id="y", budget_used=0, budget_total=0)` mounts without raising and the embedded BudgetMeter renders the em-dash placeholder (M9-02 W5 invariant carries through).
   </behavior>
   <action>
+    Edit `voss/harness/subagents.py` (W3 fix): add a single module-level constant near the top of the file:
+      ```python
+      # Single source of truth for the spawn tool name; consumed by the TUI renderer
+      # to detect spawn calls inside show_tool_call without hardcoding the string.
+      SPAWN_TOOL_NAME: str = "spawn"   # update to match the existing tool name literal
+      ```
+      Grep for the current literal first; whatever string is registered as the spawn tool name MUST be the value of this constant. If the existing code already uses an internal constant with a different name, ALSO export it under `SPAWN_TOOL_NAME` (a one-line rebinding is acceptable). Do NOT alter any spawn behavior; do NOT add or remove any other code in subagents.py. This is intentionally a one-line additive change so the auditor in M9-07 can grep for the rename.
+
     Create `voss/harness/tui/widgets/sub_agent_panel.py` with the SubAgentPanel class:
       - Inherits `textual.containers.Vertical`.
       - DEFAULT_CSS sets `border-left: $dim`, `padding: 1 2`, agent-header class colored `$accent` per UI-SPEC accent allow-list item 4.
@@ -127,31 +158,34 @@ RunRecorder.id, .started_at, .inspected: list[str], .changed: list[str],
       - `flush_subagents(self, subagent_state: dict) -> None` (optional path; only called if voss/harness/subagents.py exposes a queryable state — if it does not, this method is a no-op and the executor documents the degradation in the M9-04 SUMMARY).
       - Pure consumer — does not import or modify recorder.py beyond the RunRecorder type.
 
-    Capture the runtime baseline: write `tests/harness/tui/baseline/runtime_surface.sha256` with one `<hash> <relative-path>` line per file. Generated via `UPDATE_BASELINE=1` first run; committed bytes are the gate.
+    Capture the runtime baseline: write `tests/harness/tui/baseline/runtime_surface.sha256` with one `<hash> <relative-path>` line per file. Files in baseline: `voss/harness/recorder.py`, `voss_runtime/probable.py`, `voss_runtime/budget.py`, `voss_runtime/agent.py`. subagents.py is INTENTIONALLY excluded (constant-add is the agreed change per W3 resolution). Baseline generated via `UPDATE_BASELINE=1` first run; committed bytes are the gate.
 
-    Tests (5 in test_recorder_bridge.py, 1 in test_no_new_runtime_hooks.py, 3 SubAgentPanel mount tests in test_live_visualization.py per Task 2 — or split those into this task and Task 2 by widget vs renderer; keep widget tests here, renderer tests in Task 2).
+    Tests (5 in test_recorder_bridge.py, 2 in test_no_new_runtime_hooks.py — the file-hash check plus the SPAWN_TOOL_NAME presence check, 3 SubAgentPanel mount tests + zero-total in test_live_visualization.py per Task 2 — keep widget tests here, renderer tests in Task 2).
   </action>
   <verify>
     <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; UPDATE_BASELINE=1 pytest tests/harness/tui/test_no_new_runtime_hooks.py -q 2&gt;/dev/null || true ; pytest tests/harness/tui/test_recorder_bridge.py tests/harness/tui/test_no_new_runtime_hooks.py -x -q</automated>
   </verify>
   <acceptance_criteria>
+    - `python -c "from voss.harness.subagents import SPAWN_TOOL_NAME; assert isinstance(SPAWN_TOOL_NAME, str) and len(SPAWN_TOOL_NAME) > 0"` exits 0.
     - `python -c "from voss.harness.tui.widgets import SubAgentPanel; from voss.harness.tui.recorder_bridge import RecorderBridge; print('ok')"` exits 0.
-    - `wc -l tests/harness/tui/baseline/runtime_surface.sha256` returns >= 4 (one line per runtime file).
+    - `wc -l tests/harness/tui/baseline/runtime_surface.sha256` returns exactly 4 (one line per BASELINE runtime file; subagents.py is NOT listed).
+    - `grep -c "subagents.py" tests/harness/tui/baseline/runtime_surface.sha256` returns 0 (intentional exclusion per W3).
     - `grep -c "RunRecorder" voss/harness/tui/recorder_bridge.py` returns >= 1 (typed import).
     - `grep -rn "def observe\\|def absorb\\|def finalize" voss/harness/tui/` returns 0 lines (bridge does not duplicate or wrap the RunRecorder API; pure reader).
-    - `git diff --quiet voss/harness/recorder.py voss_runtime/probable.py voss_runtime/budget.py voss_runtime/agent.py` exits 0 (no runtime files changed in this task).
+    - `git diff --quiet voss/harness/recorder.py voss_runtime/probable.py voss_runtime/budget.py voss_runtime/agent.py` exits 0 (no baseline runtime files changed in this task).
+    - `git diff --stat voss/harness/subagents.py | grep insertion` shows a small additive change (only the new constant).
     - All tests pass; M9-01..03 tests still green.
   </acceptance_criteria>
-  <done>SubAgentPanel mounts the locked region treatment. RecorderBridge reads RunRecorder state without mutating it. Runtime surface hash baseline is committed; a future PR that touches the runtime hooks fails the regression test.</done>
+  <done>SubAgentPanel mounts the locked region treatment. RecorderBridge reads RunRecorder state without mutating it. Runtime baseline (4 files) hash is committed; future PR touching recorder.py or voss_runtime/* fails the regression test. `SPAWN_TOOL_NAME` lives in subagents.py as a one-line additive constant; checker W3 resolved.</done>
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 2: TextualRenderer private subagent methods + app DOM mutators + end-to-end visualization test</name>
+  <name>Task 2: TextualRenderer private subagent methods + app DOM mutators + end-to-end visualization test (uses SPAWN_TOOL_NAME)</name>
   <files>voss/harness/tui/renderer.py, voss/harness/tui/app.py, tests/harness/tui/test_live_visualization.py</files>
   <read_first>
     - /Users/benjaminmarks/Projects/Voss/voss/harness/tui/renderer.py (M9-02; TextualRenderer existing methods)
-    - /Users/benjaminmarks/Projects/Voss/voss/harness/tui/app.py (M9-02; VossTUIApp; add the mutator methods that recorder_bridge calls into via call_from_thread)
-    - /Users/benjaminmarks/Projects/Voss/voss/harness/subagents.py (find the tool name marker for spawn detection inside show_tool_call)
+    - /Users/benjaminmarks/Projects/Voss/voss/harness/tui/app.py (M9-02 + M9-03; VossTUIApp; add the mutator methods that recorder_bridge calls into via call_from_thread)
+    - /Users/benjaminmarks/Projects/Voss/voss/harness/subagents.py (Task 1 — SPAWN_TOOL_NAME constant; the renderer imports this inside try/except for graceful degradation if the file is somehow unimportable, though with W3 it should always be present)
     - /Users/benjaminmarks/Projects/Voss/voss/harness/render.py (the Renderer Protocol; confirm we do NOT add subagent methods to it — the existing protocol shape stays as-is so PlainRenderer / JsonRenderer / TtyRenderer remain unchanged)
     - /Users/benjaminmarks/Projects/Voss/.planning/phases/M9-tui-shell-tui-01/M9-UI-SPEC.md ("Live workflow visualization" full table; "Accent reserved for" allow-list — item 4 is the active sub-agent name banner)
   </read_first>
@@ -160,8 +194,9 @@ RunRecorder.id, .started_at, .inspected: list[str], .changed: list[str],
     - Test: calling `renderer.show_subagent_start("reviewer", "abc", 2000)` inside `app.run_test()` results in a SubAgentPanel mounted under `#side`; `app.query_one("#side").display` becomes truthy (side region revealed).
     - Test: calling `renderer.show_subagent_end("abc", 3)` removes the panel and adds a `✓ gathered · 3 results` line in TurnView. When the last panel collapses, `#side` returns to hidden display.
     - Test (probable<T> visualization): `renderer.show_clarify("are you sure?", confidence=0.42)` appends a TurnView block whose body contains a ConfidenceBar widget at value=0.42 with the signal-error tier class.
-    - Test (budget drain): `renderer.status(model="m", tokens=3000, cost_usd=0.5, ctx_pct=0.75)` updates the StatusLine; the embedded BudgetMeter reflects 75% drained with signal-warn class.
-    - Test (graceful degradation): if `voss/harness/subagents.py` does not export the expected spawn marker constant (caught at import time), TextualRenderer.show_tool_call still functions normally; spawn detection silently returns False and no panel mounts. The renderer never raises ImportError up to the agent.
+    - Test (budget drain): `renderer.status(model="m", tokens=3000, cost_usd=0.5, ctx_pct=0.75)` updates the StatusLine; the embedded BudgetMeter reflects 75% drained with signal-warn class. The total passed to BudgetMeter MUST be derived honestly: prefer recorder-supplied total when available; if `ctx_pct == 0` pass `total=0` to BudgetMeter (em-dash placeholder per M9-02 W5); only derive `total = round(tokens / ctx_pct)` when `0 < ctx_pct <= 1`. Never substitute `total=1` as a divide-by-zero workaround.
+    - Test (W5 regression): `renderer.status(model="m", tokens=10, cost_usd=0.0, ctx_pct=0.0)` does NOT raise; StatusLine BudgetMeter renders em-dash placeholder.
+    - Test (graceful degradation, W3 path): if `voss/harness/subagents.py` is patched to remove `SPAWN_TOOL_NAME` (use `monkeypatch.delattr(subagents, 'SPAWN_TOOL_NAME', raising=False)` then reload the renderer module), TextualRenderer.show_tool_call still functions normally; spawn detection silently returns False and no panel mounts. The renderer never raises AttributeError up to the agent. This is the symbol-missing-path test (checker W3 option b — kept alongside option a because it documents the graceful-degradation contract).
   </behavior>
   <action>
     Extend `voss/harness/tui/renderer.py` (TextualRenderer from M9-02) with three private methods that are NOT part of the Renderer protocol:
@@ -169,11 +204,29 @@ RunRecorder.id, .started_at, .inspected: list[str], .changed: list[str],
       - `show_subagent_progress(parent_id, body_line, used)` calls `self.app.call_from_thread(self.app.update_subagent, parent_id, body_line, used)`.
       - `show_subagent_end(parent_id, n_results)` calls `self.app.call_from_thread(self.app.collapse_subagent, parent_id, n_results)`.
 
-    Augment existing `show_tool_call(name, args, summary, state)`: if `name` equals the spawn marker imported from voss/harness/subagents.py (use `try: from voss.harness.subagents import SPAWN_TOOL_NAME except ImportError: SPAWN_TOOL_NAME = None` to satisfy the graceful-degradation behavior test), translate the call into `show_subagent_start` for `state=="pending"` or `show_subagent_end` for `state=="ok"`. Otherwise, fall through to the existing TurnView append.
+    Augment existing `show_tool_call(name, args, summary, state)`: import the SPAWN_TOOL_NAME constant defensively at module load time:
+      ```python
+      try:
+          from voss.harness.subagents import SPAWN_TOOL_NAME as _SPAWN_TOOL_NAME
+      except (ImportError, AttributeError):
+          _SPAWN_TOOL_NAME = None
+      ```
+      Then inside `show_tool_call`: if `_SPAWN_TOOL_NAME is not None and name == _SPAWN_TOOL_NAME`, translate the call into `show_subagent_start` for `state=="pending"` or `show_subagent_end` for `state=="ok"`. Otherwise, fall through to the existing TurnView append. This path is exercised by the graceful-degradation test which deletes the attribute and asserts no AttributeError surfaces.
 
     Augment existing `show_clarify(question, confidence)` and `show_final(text, *, confidence, cost_usd)`: append a ConfidenceBar widget alongside the body line. For show_final, pass `is_final=True` (UI-SPEC accent allow-list item 6); for show_clarify, pass `is_final=False`.
 
-    Augment existing `status(...)`: pass `tokens` and total (computed from `ctx_pct` if no explicit total exists — assume `total = tokens / ctx_pct if ctx_pct else 1`; this is the only place a derived number is acceptable because the recorder does not emit an explicit budget total) into BudgetMeter.
+    Augment existing `status(...)`: derive BudgetMeter total honestly. Logic:
+      ```python
+      def status(self, *, model, tokens, cost_usd, ctx_pct):
+          if ctx_pct and 0 < ctx_pct <= 1:
+              total = round(tokens / ctx_pct)
+          else:
+              total = 0          # em-dash placeholder per M9-02 W5
+          self._post(self.app.query_one("#status", StatusLine).set_status,
+                     model=model, tokens=tokens, cost_usd=cost_usd,
+                     ctx_pct=ctx_pct, total=total)
+      ```
+      The StatusLine internally passes `total` to its embedded BudgetMeter; BudgetMeter handles total<=0 per M9-02. NEVER substitute total=1.
 
     Add helper methods to `VossTUIApp`:
       - `mount_subagent_panel(panel: SubAgentPanel)` — `self.query_one("#side").mount(panel)`; toggles `#side.styles.display = "block"`.
@@ -181,19 +234,20 @@ RunRecorder.id, .started_at, .inspected: list[str], .changed: list[str],
       - `collapse_subagent(parent_id, n_results)` — remove the matching panel; if `#side` now has zero panels, set `display = "none"`; append `✓ gathered · {n} results` to TurnView.
       - `update_inspected(paths: list[str])`, `append_tool_line(summary, state)` — used by RecorderBridge.
 
-    Create `tests/harness/tui/test_live_visualization.py` with the 6 tests above. The graceful-degradation test uses `monkeypatch.delitem(sys.modules, "voss.harness.subagents", raising=False)` and reimports renderer to confirm no ImportError surfaces.
+    Create `tests/harness/tui/test_live_visualization.py` with the 7 tests above. The graceful-degradation test uses `monkeypatch.delattr(subagents_module, "SPAWN_TOOL_NAME", raising=False)` then reloads `voss.harness.tui.renderer` via `importlib.reload` to confirm no AttributeError surfaces and `show_tool_call` returns cleanly.
   </action>
   <verify>
     <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; pytest tests/harness/tui/test_live_visualization.py tests/harness/tui/test_textual_renderer_protocol.py tests/harness/tui/test_recorder_bridge.py tests/harness/tui/test_no_new_runtime_hooks.py tests/harness/tui/test_plain_parity.py -x -q</automated>
   </verify>
   <acceptance_criteria>
-    - `python -c "from voss.harness.tui.renderer import TextualRenderer; from voss.harness.render import Renderer; from typing import get_type_hints; import inspect; ms = {n for n,_ in inspect.getmembers(Renderer, predicate=inspect.isfunction)}; assert 'show_subagent_start' not in ms and 'show_subagent_end' not in ms"` exits 0 — confirms protocol shape unchanged.
+    - `python -c "from voss.harness.tui.renderer import TextualRenderer; from voss.harness.render import Renderer; import inspect; ms = {n for n,_ in inspect.getmembers(Renderer, predicate=inspect.isfunction)}; assert 'show_subagent_start' not in ms and 'show_subagent_end' not in ms"` exits 0 — confirms protocol shape unchanged.
     - `grep -c "show_subagent" voss/harness/tui/renderer.py` returns >= 3 (three new private methods).
     - `grep -c "show_subagent" voss/harness/render.py` returns 0 (protocol untouched).
-    - `git diff --quiet voss/harness/recorder.py voss_runtime/probable.py voss_runtime/budget.py voss_runtime/agent.py` exits 0 (runtime files still unchanged).
+    - `grep -c "SPAWN_TOOL_NAME" voss/harness/tui/renderer.py` returns >= 1 (renderer imports the constant).
+    - `git diff --quiet voss/harness/recorder.py voss_runtime/probable.py voss_runtime/budget.py voss_runtime/agent.py` exits 0 (baseline runtime files still unchanged).
     - All tests in this plan + prior plans pass.
   </acceptance_criteria>
-  <done>Spawn/gather render as SubAgentPanels; probable values render as ConfidenceBars in clarify/final; budget drains live in StatusLine. Renderer protocol shape is byte-unchanged. Subagents import is optional — missing module degrades to no-panel without crashing.</done>
+  <done>Spawn/gather render as SubAgentPanels; probable values render as ConfidenceBars in clarify/final; budget drains live in StatusLine (em-dash on zero-total per M9-02 W5). Renderer protocol shape is byte-unchanged. Subagents SPAWN_TOOL_NAME constant present (W3 option a); missing-attribute graceful degradation still verified (W3 option b).</done>
 </task>
 
 </tasks>
@@ -205,6 +259,7 @@ RunRecorder.id, .started_at, .inspected: list[str], .changed: list[str],
 |----------|-------------|
 | recorder.py → RecorderBridge | bridge reads dataclass state; no untrusted parsing of complex strings. |
 | LLM-generated tool result strings → SubAgentPanel.append_body | LLM controls the line; rendered as Text(markup=False). |
+| subagents.py → renderer | renderer imports SPAWN_TOOL_NAME defensively; missing attr degrades to no-panel. |
 
 ## STRIDE Threat Register
 
@@ -212,21 +267,24 @@ RunRecorder.id, .started_at, .inspected: list[str], .changed: list[str],
 |-----------|----------|-----------|-------------|-----------------|
 | T-M9-04-01 | Tampering | LLM-injected ANSI in subagent body lines | mitigate | append_body wraps the input via `Text(line, markup=False, end="\n")` before mounting; verified by test injecting `\x1b[31mred\x1b[0m` and asserting rendered cell content is the literal escape, not a colored cell. |
 | T-M9-04-02 | DoS | Recorder lists grow unbounded across long sessions | mitigate | RecorderBridge tracks `_seen` indexes; only iterates new entries. Memory grows linearly with session length, which is already true for RunRecord itself; no NEW memory pressure introduced. |
-| T-M9-04-03 | Confused-deputy | Hash baseline drift | mitigate | test_no_new_runtime_hooks fails loudly with the offending filename; UPDATE_BASELINE env requires intentional opt-in. CI must NOT set UPDATE_BASELINE. |
+| T-M9-04-03 | Confused-deputy | Hash baseline drift | mitigate | test_no_new_runtime_hooks fails loudly with the offending filename; UPDATE_BASELINE env requires intentional opt-in. CI must NOT set UPDATE_BASELINE. subagents.py is OUT of baseline scope (W3 resolution); only recorder.py + voss_runtime/{probable,budget,agent}.py are pinned. |
+| T-M9-04-04 | DoS | BudgetMeter division-by-zero on early status() call | mitigate | M9-02 W5 contract carried through: status() passes total=0 to BudgetMeter when ctx_pct=0; never substitutes total=1. |
 </threat_model>
 
 <verification>
-- 9 tests across 3 files green.
-- Hash baseline pins recorder.py + 3 runtime files.
+- 12+ tests across 3 files green.
+- Hash baseline pins recorder.py + 3 voss_runtime files (NOT subagents.py per W3).
 - Renderer protocol shape unchanged (grep confirmed).
+- SPAWN_TOOL_NAME is present in subagents.py AND the graceful-degradation path still works when the attribute is removed.
 </verification>
 
 <success_criteria>
 1. SubAgentPanel mounts in the side region with accent-colored header per UI-SPEC.
 2. ConfidenceBar appears in clarify/final blocks; tier color follows 0.85/0.50 thresholds.
-3. StatusLine BudgetMeter drains live as `status()` is called.
-4. test_no_new_runtime_hooks passes; runtime surface is byte-identical to baseline.
+3. StatusLine BudgetMeter drains live as `status()` is called; em-dash when ctx_pct=0.
+4. test_no_new_runtime_hooks passes; baseline runtime surface (4 files) is byte-identical to baseline.
 5. Renderer protocol in voss/harness/render.py is unchanged from M9-02.
+6. SPAWN_TOOL_NAME is a single-source constant in voss/harness/subagents.py.
 </success_criteria>
 
 <output>
