@@ -166,6 +166,10 @@ class CliRunner:
         env["VOSS_TEST_STUB_RESPONSE"] = self.default_response
         if self.responses:
             env["VOSS_TEST_STUB_RESPONSES"] = json.dumps(self.responses)
+        # Block accidental HF Hub / transformers downloads — they make
+        # vacuum / memory CLI tests hang for 30s and bloat CI traffic.
+        env["HF_HUB_OFFLINE"] = "1"
+        env["TRANSFORMERS_OFFLINE"] = "1"
         existing = env.get("PYTHONPATH", "")
         parts = [str(self._stub_dir), str(REPO_ROOT)]
         if existing:
