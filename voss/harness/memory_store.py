@@ -578,6 +578,6 @@ class MemoryStore:
     def vacuum(self) -> int:
         """Compact chroma + delete tombstoned entries; returns bytes reclaimed.
 
-        M8-06 owns the implementation. Stub raises NotImplementedError.
+        Owned by M8-06.
         """
         raise NotImplementedError("M8-06")
