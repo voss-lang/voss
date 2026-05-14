@@ -1,0 +1,36 @@
+{
+  "phase": "M8",
+  "phase_name": "Project Memory (MEM-01)",
+  "timestamp": "2026-05-14T00:00:00Z",
+  "areas_completed": ["Memory layout + chroma schema", "VOSS.md sections + COG-02 rewrite"],
+  "areas_remaining": ["Conventions extraction UX", "Concurrency + size cap eviction"],
+  "decisions": {
+    "Memory layout + chroma schema": [
+      {"question": ".voss/memory/ on-disk shape", "answer": "Per-source dirs of files (turns/<session>.jsonl, decisions/, conventions/*.md, ledgers/*.jsonl); chroma persists alongside as index, not source of truth", "options_presented": ["Per-source dirs of files", "Single SQLite db", "JSONL append-log per source"]},
+      {"question": "Chroma collection topology", "answer": "Claude discretion — default single collection voss_memory with source_type metadata; reconsider per-source only if Req 3 top-3 hit rate forces it", "options_presented": ["Single collection with source_type metadata", "Four collections per source", "You decide"]},
+      {"question": "Turn-content indexing granularity", "answer": "Per-turn (one chroma entry per user/assistant turn)", "options_presented": ["Per-turn", "Per-session rolling summary", "Per-turn-window"]},
+      {"question": "Entry ID convention", "answer": "Composite human-readable: <source>:<session_or_path>:<seq>", "options_presented": ["Composite source:locator:seq", "Content sha256", "ULID per entry"]}
+    ],
+    "VOSS.md sections + COG-02 rewrite": [
+      {"question": "Machine-vs-human section markers in VOSS.md", "answer": "HTML-comment fences: <!-- voss:begin id=<slug> --> ... <!-- voss:end id=<slug> -->. Multiple machine blocks supported by distinct ids.", "options_presented": ["HTML-comment fences", "Heading-anchor convention", "Single trailing machine region"]},
+      {"question": "Where pre-M8 architecture.md content lands in new VOSS.md", "answer": "Inside the `voss:begin id=architecture` machine fence so future COG-02 runs rewrite the same block. Archive original to .voss/archive/architecture-YYYY-MM-DD.md byte-identical (sha256 verified).", "options_presented": ["Inside machine fence", "Outside fences as human content", "Split summary + appendix"]},
+      {"question": "Conflict handling when machine fence has been touched", "answer": "Refuse + surface diff. Last-written hash stored in `<!-- voss:hash <sha> -->` line inside the fence; on rewrite, if on-disk hash differs, abort the write and tell user to run `voss memory adopt` (or equivalent) to accept the human edits as the new baseline.", "options_presented": ["Refuse + diff", "Silent overwrite", "Three-way merge"]},
+      {"question": "VOSS.md injection shape into system context", "answer": "Single labeled block injecting full file bytes verbatim (matches Req 1 acceptance). One block, no machine/human split at injection time.", "options_presented": ["Single labeled block, full bytes", "Two blocks (human + machine)", "Only machine section"]}
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": [
+    ".planning/phases/M8-project-memory-mem-01/M8-SPEC.md",
+    ".planning/ROADMAP.md",
+    ".planning/REQUIREMENTS.md",
+    "voss_runtime/memory/episodic.py",
+    "voss_runtime/memory/semantic.py",
+    "voss_runtime/memory/working.py",
+    "voss_runtime/memory/__init__.py",
+    "voss/harness/slash.py",
+    "voss/harness/session.py",
+    "voss/harness/cognition.py",
+    "voss/harness/skills/analyze.py",
+    "voss/harness/recorder.py"
+  ]
+}
