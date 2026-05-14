@@ -19,8 +19,16 @@ class SemanticMemory:
     _collection: object = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
-        import chromadb
-        from chromadb.config import Settings
+        try:
+            import chromadb
+            from chromadb.config import Settings
+        except ImportError as e:
+            raise ModuleNotFoundError(
+                "chromadb is not installed. Semantic memory is an optional "
+                "Voss feature. Install it with:\n"
+                "    pip install 'voss[search]'\n"
+                "(or, with the npm wrapper, `voss extras install search`)."
+            ) from e
 
         self._client = chromadb.PersistentClient(
             path=str(self.persist_dir),

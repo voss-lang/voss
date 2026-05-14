@@ -44,7 +44,15 @@ class SemanticMatcher:
 
     def _ensure_encoder(self):
         if self._encoder is None:
-            from sentence_transformers import SentenceTransformer
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ImportError as e:
+                raise ModuleNotFoundError(
+                    "sentence-transformers is not installed. Semantic memory is "
+                    "an optional Voss feature. Install it with:\n"
+                    "    pip install 'voss[search]'\n"
+                    "(or, with the npm wrapper, `voss extras install search`)."
+                ) from e
 
             self._encoder = SentenceTransformer(self.model_name)
         return self._encoder

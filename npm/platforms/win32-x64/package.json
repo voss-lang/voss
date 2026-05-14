@@ -1,6 +1,6 @@
 {
   "name": "@vosslang/cli-win32-x64",
-  "version": "0.1.0rc1",
+  "version": "0.1.0rc2",
   "description": "Voss CLI platform package: Windows x64 (placeholder)",
   "keywords": [
     "voss",

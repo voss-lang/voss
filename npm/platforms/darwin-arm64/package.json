@@ -1,6 +1,6 @@
 {
   "name": "@vosslang/cli-darwin-arm64",
-  "version": "0.1.0rc1",
+  "version": "0.1.0rc2",
   "description": "Voss CLI platform package: macOS arm64 (placeholder)",
   "keywords": [
     "voss",
