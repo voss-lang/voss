@@ -600,6 +600,7 @@ def _build_slash_registry() -> SlashRegistry:
 @click.option("--model", default=None, help="Override default model.")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
+@click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
@@ -619,6 +620,7 @@ def do_cmd(
     model: str | None,
     cwd_str: str,
     json_mode: bool,
+    plain: bool,
     mode: str,
     yes_to_all: bool,
     auth_pref: str,
@@ -641,7 +643,7 @@ def do_cmd(
         click.echo("no task. usage: voss do \"<task>\"", err=True)
         sys.exit(2)
 
-    renderer = make_renderer(json_mode=json_mode)
+    renderer = make_renderer(json_mode=json_mode, plain=plain)
     tools = make_toolset(cwd)
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
