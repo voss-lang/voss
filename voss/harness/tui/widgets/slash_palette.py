@@ -75,28 +75,30 @@ class SlashPalette(ListView):
 
     def update_query(self, query: str) -> None:
         self.query_text = query
-        # Synchronously remove existing items so subsequent appends don't
-        # collide on stale ListItem ids.
-        for child in list(self.children):
-            child.remove()
+        self._labels: list[str] = []
+        self._names: list[str] = []
+        # ListView.clear is async; remove children directly so the new
+        # appends never collide with stale ids.
+        self._nodes._clear()  # type: ignore[attr-defined]
         ranked = rank_commands(query, self.registry.ids(), recency=self.recency)
         if not ranked:
-            self.append(ListItem(Static("no matching commands"), id="_empty"))
+            self.append(ListItem(Static("no matching commands")))
             return
         for name in ranked:
             cmd = self.registry.lookup(name)
             label = f"{name:<16} {cmd.help if cmd else ''}"
-            # ListItem id cannot contain '/'; encode with stem only.
-            self.append(ListItem(Static(label), id=_id_for(name)))
+            self._labels.append(label)
+            self._names.append(name)
+            self.append(ListItem(Static(label)))
 
     def action_select_cursor(self) -> None:
         self._submit_current()
 
     def _submit_current(self) -> None:
-        item = self.highlighted_child
-        if item is None or item.id in (None, "_empty"):
+        idx = self.index
+        if idx is None or idx >= len(self._names):
             return
-        name = _name_for(item.id)
+        name = self._names[idx]
         self.recency.insert(0, name)
         self.recency = self.recency[:10]
         self.post_message(self.PaletteSubmitted(name))
@@ -104,11 +106,3 @@ class SlashPalette(ListView):
 
     def action_dismiss(self) -> None:
         self.remove()
-
-
-def _id_for(name: str) -> str:
-    return "cmd-" + name.lstrip("/").replace("-", "_")
-
-
-def _name_for(item_id: str) -> str:
-    return "/" + item_id.removeprefix("cmd-").replace("_", "-")

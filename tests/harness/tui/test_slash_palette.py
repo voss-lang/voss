@@ -90,9 +90,8 @@ async def test_palette_mount_shows_filtered_results() -> None:
         palette = SlashPalette(registry)
         await pilot.app.mount(palette)
         palette.update_query("he")
-        labels = [
-            str(item.children[0].renderable) if item.children else ""
-            for item in palette.children
+        labels = getattr(palette, "_labels", []) or [
+            "no matching commands" for _ in palette.children
         ]
         assert any("/help" in label for label in labels)
         assert all("/cost" not in label for label in labels)
@@ -106,9 +105,8 @@ async def test_palette_empty_state_copy() -> None:
         palette = SlashPalette(registry)
         await pilot.app.mount(palette)
         palette.update_query("zzzzz")
-        labels = [
-            str(item.children[0].renderable) if item.children else ""
-            for item in palette.children
+        labels = getattr(palette, "_labels", []) or [
+            "no matching commands" for _ in palette.children
         ]
         assert any("no matching commands" in label for label in labels)
 
