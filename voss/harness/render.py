@@ -76,7 +76,8 @@ def make_renderer(
     if force_tui:
         if decision.reason == "terminal below 80x24":
             size = shutil.get_terminal_size(fallback=(80, 24))
-            print(min_size_guard((size.columns, size.lines)), file=sys.stderr)
+            sys.stderr.write(min_size_guard((size.columns, size.lines)) + "\n")
+            sys.stderr.flush()
             sys.exit(2)
         # TextualRenderer lands in M9-02; for M9-01 the flag plumbing is the
         # contract — exercising force_tui at activate=True is a no-op pass-through
