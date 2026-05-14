@@ -67,9 +67,10 @@ class MemoryStore:
     def bind(self, *, session_id: str) -> "MemoryStore":
         """Attach a session id; ensures the .voss/memory/ layout exists.
 
-        Pitfall 6: session_id is supplied by the caller from record.id; no
-        SessionRecord field dependency. Pitfall 4: chromadb is NOT imported
-        here — first call to recall/write lazily probes.
+        # Pitfall 6: session_id is supplied by the caller from record.id; no
+        # SessionRecord field dependency.
+        Pitfall 4: chromadb is NOT imported here — first call to recall/write
+        lazily probes.
         """
         self._session_id = session_id
         self.root.mkdir(parents=True, exist_ok=True)
