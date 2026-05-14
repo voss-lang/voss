@@ -1,5 +1,13 @@
 # Voss
 
+[![CI](https://github.com/Wineberry-io/Voss/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Wineberry-io/Voss/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@vosslang/cli.svg)](https://www.npmjs.com/package/@vosslang/cli)
+[![npm downloads](https://img.shields.io/npm/dm/@vosslang/cli.svg)](https://www.npmjs.com/package/@vosslang/cli)
+[![PyPI version](https://img.shields.io/pypi/v/voss.svg)](https://pypi.org/project/voss/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Node 18+](https://img.shields.io/badge/node-18+-brightgreen.svg)](https://nodejs.org/)
+
 A language for confidence-aware, budget-bounded LLM programs. Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
 
 Voss v0.1 ships as a Python harness plus the `.voss` workflow-control language. A native Rust shell is preserved in `crates/` as a frozen spike and stays out of the v0.1 ship path — npm (M6) distributes the same Python harness with a vendored interpreter.
@@ -21,10 +29,26 @@ See the [`samples/`](samples/) directory for the three canonical programs, and [
 
 ## Install
 
-Python 3.11+ required.
+### Recommended: npm
+
+```bash
+npm i -g @vosslang/cli
+```
+
+Brings the Voss CLI with a vendored Python 3.12 + the v0.1 voss wheel + all dependencies. Zero manual Python setup. Works on macOS (arm64, x64), Linux (x64, arm64), and Windows (x64). After install run `voss doctor` to verify provider credentials, the vendored Python, and config paths.
+
+### Alternative: pip
+
+If you already manage Python 3.11+ yourself, install from PyPI:
 
 ```bash
 pip install voss
+```
+
+Semantic memory (`memory.semantic`, `match similar(...)`) is an optional extra — it pulls torch + sentence-transformers + chromadb:
+
+```bash
+pip install 'voss[search]'
 ```
 
 First run — verify the install and check provider auth, git, and config paths:
@@ -57,7 +81,7 @@ pip install -e ".[dev]"
 
 ### Roadmap notes
 
-`npm i -g voss` arrives with M6 (npm wrapper bundles a pinned Python + the v0.1 wheel; `pip install voss` remains supported). A native Rust shell and Homebrew distribution stay deferred until dogfood signals demand them.
+`npm i -g @vosslang/cli` ships v0.1 with M6 (the npm wrapper bundles a pinned Python 3.12 + the v0.1 wheel; `pip install voss` remains supported). A native Rust shell and Homebrew distribution stay deferred until dogfood signals demand them.
 
 ## Quickstart
 
