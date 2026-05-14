@@ -8,7 +8,8 @@ from .help_overlay import HelpOverlay
 from .input_bar import InputBar
 from .slash_palette import SlashPalette, rank_commands
 from .status_line import StatusLine
-from .turn_view import SubAgentPanel, TurnView
+from .sub_agent_panel import SubAgentPanel
+from .turn_view import SideRegion, TurnView
 
 __all__ = [
     "BudgetMeter",
@@ -16,6 +17,7 @@ __all__ = [
     "HeaderBar",
     "HelpOverlay",
     "InputBar",
+    "SideRegion",
     "SlashPalette",
     "StatusLine",
     "SubAgentPanel",

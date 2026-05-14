@@ -12,6 +12,13 @@ from .render import Renderer
 from .tools import ToolEntry, make_toolset
 
 
+# Single source of truth for the spawn tool name; consumed by the TUI
+# renderer (M9-04) to detect subagent dispatch in show_tool_call without
+# hardcoding the string. Must equal the literal passed to attach_subagent_tool
+# below.
+SPAWN_TOOL_NAME: str = "subagent_run"
+
+
 @dataclass(frozen=True)
 class SubagentSpec:
     id: str
