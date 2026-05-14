@@ -34,6 +34,8 @@ class TestSchemaAllowlist:
         expected = {
             "id", "name", "cwd", "model", "started_at", "updated_at",
             "total_cost_usd", "turns", "runs",
+            # M9-06 fork lineage (additive Optional, default None).
+            "parent_id", "parent_turn_index",
         }
         assert set(data.keys()) == expected
 

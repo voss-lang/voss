@@ -5,6 +5,7 @@ from .budget_meter import BudgetMeter
 from .budget_modal import BudgetChoice, BudgetExhaustedModal
 from .confidence_bar import ConfidenceBar
 from .diff_modal import DiffDecision, DiffModal, Hunk
+from .fork_modal import ForkConfirmModal
 from .header import HeaderBar
 from .help_overlay import HelpOverlay
 from .input_bar import InputBar
@@ -26,6 +27,7 @@ __all__ = [
     "ConfidenceBar",
     "DiffDecision",
     "DiffModal",
+    "ForkConfirmModal",
     "HeaderBar",
     "HelpOverlay",
     "Hunk",
