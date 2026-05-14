@@ -6,7 +6,6 @@ wave: 2
 depends_on: [M8-00]
 files_modified:
   - voss/harness/memory_store.py
-  - voss/harness/cognition.py
   - tests/harness/conftest.py
   - tests/harness/test_memory_store.py
   - tests/harness/test_recall_eval.py

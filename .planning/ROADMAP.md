@@ -19,7 +19,7 @@
 | M5 | Eval and Distribution Prep | Measure quality and prepare packaging after the Python loop works | EVAL-01..05 | 4 |
 | M6 | npm Wrapper | Publish `voss` as an npm package that vendors Python + the v0.1 wheel | NPM-01..05 | 5 |
 | M7 | SDK Polish | Close the four known public-API holes + stabilize provider registration | SDK-01..05 | 5 |
-| M8 | Project Memory (MEM-01) | VOSS.md + cross-session recall layer for the harness using Voss runtime memory primitives | MEM-01..0N (TBD by SPEC.md) | TBD |
+| M8 | Project Memory (MEM-01) | VOSS.md + cross-session recall layer for the harness using Voss runtime memory primitives | MEM-01..07 | 7 |
 | M9 | TUI Shell (TUI-01) | Full-screen Textual interface — diff approval, slash palette, live workflow + budget view | TUI-01..0N (TBD by SPEC.md) | TBD |
 | M10 | Agent Capability Surface (CAPS-01) | Codebase intel, Voss-aware tools, MCP bridge, multi-agent in chat, long-running tasks, skill plugins | CAPS-01..0N (TBD by SPEC.md) | TBD |
 
@@ -376,7 +376,7 @@ from voss_runtime.providers import register as register_provider  # SDK-05
 
 **Goal:** Give the Voss harness a persistent project-memory layer so it stops re-learning the repo every session. Two tiers: a human-curated `VOSS.md` (analog to `CLAUDE.md`) and an agent-curated cross-session recall store built on Voss's own runtime memory primitives (`memory.episodic`, `memory.semantic`).
 
-**Requirements:** MEM-01..0N — TBD by `08-SPEC.md` (run `/gsd-spec-phase M8` to lock).
+**Requirements:** MEM-01, MEM-02, MEM-03, MEM-04, MEM-05, MEM-06, MEM-07
 
 **Seed source:** [`seeds/project-memory-voss-md.md`](seeds/project-memory-voss-md.md)
 **Thesis context:** [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md)
@@ -401,6 +401,17 @@ from voss_runtime.providers import register as register_provider  # SDK-05
 - Cloud-backed memory store.
 - TUI surfaces for browsing memory (lands in M9).
 - Multi-agent memory partitioning (lands in M10).
+
+**Plans:** 7 plans
+
+Plans:
+- [ ] M8-00-PLAN.md — Wave 0 scaffold: /save -> /save-session rename, portalocker dep, 4 module skeletons (voss_md/memory_store/conventions/memory_cli), 13 test stubs + conftest fixtures, Req 7 grep-gate test live from day one
+- [ ] M8-01-PLAN.md — MEM-01 VOSS.md loader (parse/read_and_inject/read_fence_body/write_fence_body/HashMismatch) + system-context injection in _run_repl + do_cmd + run_turn sys_prompt
+- [ ] M8-02-PLAN.md — MEM-02 architecture.md→VOSS.md byte-identical migration + cognition._load_arch read-path rewire + skills/analyze.py write-path rewire (Pitfall 2 closed)
+- [ ] M8-03-PLAN.md — MEM-03 + MEM-07 MemoryStore (bind/recall/forget/write_turn/write_ledger/write_note/write_convention/summary) + chroma lazy init + keyword fallback + portalocker per-source locking + 80%/60% hit-rate eval + grep-gate runtime-reuse mock
+- [ ] M8-04-PLAN.md — MEM-04 conventions extraction (has_signal D-09 + Pitfall 5 quorum / extract_conventions D-10 strict-JSON / review_candidates D-11 / run_on_clean_exit D-12 8s timeout + config.yml toggle)
+- [ ] M8-05-PLAN.md — MEM-05 4 slash commands wired (/recall, /forget --yes gate, /memory, /save manual note + Pitfall 1 regression test) + ctx.memory_store boot binding
+- [ ] M8-06-PLAN.md — MEM-06 _maybe_evict per-source quotas D-14/D-16 + MemoryStore.vacuum + voss memory vacuum/adopt/size CLI subcommand group + memory_group registration in AGENT_COMMANDS + voss_md.write_fence_body adopt=True
 
 ---
 

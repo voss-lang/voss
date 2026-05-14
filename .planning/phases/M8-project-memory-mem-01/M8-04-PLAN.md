@@ -3,7 +3,7 @@ phase: M8
 plan: 04
 type: execute
 wave: 3
-depends_on: [M8-03]
+depends_on: [M8-01, M8-03]
 files_modified:
   - voss/harness/conventions.py
   - voss/harness/cli.py

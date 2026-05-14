@@ -2,8 +2,8 @@
 phase: M8
 plan: 05
 type: execute
-wave: 3
-depends_on: [M8-03]
+wave: 4
+depends_on: [M8-03, M8-04]
 files_modified:
   - voss/harness/cli.py
   - tests/harness/test_slash_recall.py
