@@ -1,4 +1,4 @@
-// Minimal Voss source used by e2e fixture project.
-// Kept tiny so `voss check` / `voss ast` complete in <100ms.
+# Minimal Voss source used by e2e fixture project.
+# Kept tiny so `voss check` / `voss ast` complete in <100ms.
 let greeting = "hello"
 print(greeting)
