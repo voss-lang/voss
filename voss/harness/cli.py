@@ -1180,6 +1180,12 @@ def sessions_cmd(include_legacy: bool) -> None:
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
 @click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
+    "--no-unicode",
+    "no_unicode",
+    is_flag=True,
+    help="Use ASCII fallback for TUI glyphs (sets VOSS_NO_UNICODE=1).",
+)
+@click.option(
     "--auth",
     "auth_pref",
     type=click.Choice(AUTH_CHOICES),
@@ -1191,9 +1197,11 @@ def resume_cmd(
     mode: str,
     json_mode: bool,
     plain: bool,
+    no_unicode: bool,
     auth_pref: str,
 ) -> None:
     """Resume a saved session by id-prefix or name."""
+    _apply_no_unicode_env(no_unicode)
     try:
         record, history = session_store.load(session_id_or_name, cwd=Path.cwd())
     except (FileNotFoundError, ValueError) as e:
