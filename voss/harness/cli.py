@@ -146,6 +146,8 @@ class ReplContext:
     memory_store: object | None = None
     model: str | None = None
     persist_conventions_selection: str | None = None
+    # T6 / SLASH-04 — session-scoped USD ceiling. None = unbounded.
+    budget_usd: float | None = None
 
 
 def _resolve_default_model(user_explicit: str | None) -> None:
@@ -488,8 +490,207 @@ def _build_slash_registry() -> SlashRegistry:
         ctx.history = EpisodicMemory(capacity=40)
         click.echo("episodic memory cleared.")
 
-    def _cost(ctx: ReplContext, _args: list[str], _line: str) -> None:
-        click.echo(f"session cost: ${ctx.total_cost:.4f}")
+    def _cost(ctx: ReplContext, args: list[str], _line: str) -> None:
+        # T6 / SLASH-07: support --by-model and --by-tool flags.
+        flags = {a.lstrip("-") for a in args}
+        if "by-tool" in flags:
+            click.echo(
+                "  /cost --by-tool: per-tool cost tracking lands with T4 "
+                "(prompt caching). Recorder doesn't yet attribute provider "
+                "cost to individual tool calls."
+            )
+            return
+        if "by-model" in flags:
+            # SessionRecord pins one model per session today. Group by
+            # record.model from each run; falls back to "unknown".
+            by_model: dict[str, float] = {}
+            for run in ctx.record.runs:
+                m = (
+                    ctx.record.model
+                    or get_config().default_model
+                    or "unknown"
+                )
+                by_model[m] = by_model.get(m, 0.0) + float(run.get("cost_usd", 0.0))
+            if not by_model:
+                click.echo(f"session cost: ${ctx.total_cost:.4f} (no runs yet)")
+                return
+            width = max(len(m) for m in by_model)
+            click.echo(f"session cost: ${ctx.total_cost:.4f}")
+            for m, c in sorted(by_model.items(), key=lambda kv: -kv[1]):
+                click.echo(f"  {m:<{width}}  ${c:.4f}")
+            return
+        # Default: flat total (existing behavior).
+        budget = ctx.budget_usd
+        if budget is not None:
+            pct = (ctx.total_cost / budget * 100.0) if budget > 0 else 0.0
+            click.echo(
+                f"session cost: ${ctx.total_cost:.4f} / ${budget:.2f} "
+                f"({pct:.1f}%)"
+            )
+        else:
+            click.echo(f"session cost: ${ctx.total_cost:.4f}")
+
+    def _budget(ctx: ReplContext, args: list[str], _line: str) -> None:
+        # T6 / SLASH-04. No args → show current. One arg → set USD ceiling.
+        if not args:
+            if ctx.budget_usd is None:
+                click.echo("  budget: unbounded")
+            else:
+                click.echo(
+                    f"  budget: ${ctx.budget_usd:.2f} "
+                    f"(used ${ctx.total_cost:.4f})"
+                )
+            return
+        try:
+            new_budget = float(args[0].lstrip("$"))
+        except ValueError:
+            click.echo("usage: /budget <usd>  (e.g. /budget 5.00)", err=True)
+            return
+        if new_budget < 0:
+            click.echo("budget must be non-negative", err=True)
+            return
+        ctx.budget_usd = new_budget
+        if new_budget == 0:
+            click.echo("  budget: cleared (unbounded)")
+            ctx.budget_usd = None
+            return
+        warn = (
+            "  ⚠ already over budget"
+            if ctx.total_cost > new_budget
+            else ""
+        )
+        click.echo(
+            f"  budget: ${new_budget:.2f} (used ${ctx.total_cost:.4f}){warn}"
+        )
+
+    def _why(ctx: ReplContext, _args: list[str], _line: str) -> None:
+        # T6 / SLASH-06. Render last plan's rationale + per-step why +
+        # confidence. No provider call — reads ctx.last_plan only.
+        plan = ctx.last_plan
+        if plan is None:
+            click.echo("no plan yet — run a turn first", err=True)
+            return
+        click.echo(f"  rationale: {plan.rationale}")
+        click.echo(f"  confidence: {plan.confidence:.2f}")
+        if plan.steps:
+            click.echo("  steps:")
+            for i, step in enumerate(plan.steps, 1):
+                why = (step.why or "").strip()
+                tag = f" — {why}" if why else ""
+                click.echo(f"    {i}. {step.name}{tag}")
+        if plan.open_question:
+            click.echo(f"  open question: {plan.open_question}")
+        if plan.final_when_done:
+            click.echo(f"  final-when-done: {plan.final_when_done}")
+
+    def _diff(ctx: ReplContext, args: list[str], _line: str) -> None:
+        # T6 / SLASH-01. v0.1 applies edits immediately (no queued-diff
+        # store yet — that lands with T1 iteration loop). Surface honest
+        # diff against the working tree via `git diff`.
+        cmd = ["git", "diff"]
+        if args and args[0] in ("--staged", "--cached"):
+            cmd.append("--cached")
+            args = args[1:]
+        cmd.extend(args)  # optional path filter
+        try:
+            out = subprocess.run(
+                cmd,
+                cwd=str(ctx.cwd),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            click.echo(f"/diff failed: {exc}", err=True)
+            return
+        if out.returncode != 0 and out.stderr:
+            click.echo(out.stderr.rstrip(), err=True)
+            return
+        body = out.stdout.rstrip()
+        if not body:
+            click.echo("  (no changes)")
+            return
+        click.echo(body)
+
+    def _apply(_ctx: ReplContext, _args: list[str], _line: str) -> None:
+        # T6 / SLASH-02. Honest stub: v0.1 has no pending-edit queue. Edits
+        # commit immediately under PermissionGate. Real queued-apply lands
+        # with T1 iteration loop (per ROADMAP). Surface this rather than
+        # silently no-op.
+        click.echo(
+            "  /apply: v0.1 applies edits immediately under PermissionGate. "
+            "Pending-edit queue + per-hunk approval lands with T1 + M9-05. "
+            "Use /mode plan to dry-run, then /mode edit to commit."
+        )
+
+    def _discard(ctx: ReplContext, args: list[str], _line: str) -> None:
+        # T6 / SLASH-03. v0.1 has no pending-edit queue; the meaningful
+        # action is reverting files the agent changed in the most recent
+        # run. Requires --confirm flag; lists files otherwise.
+        if not ctx.record.runs:
+            click.echo("  no runs yet — nothing to discard.")
+            return
+        last_run = ctx.record.runs[-1]
+        changed = list(last_run.get("changed") or [])
+        if not changed:
+            click.echo("  last run changed no files — nothing to discard.")
+            return
+        if "--confirm" not in args:
+            click.echo(
+                "  /discard would `git checkout --` against the last run's "
+                "changed files:"
+            )
+            for path in changed:
+                click.echo(f"    {path}")
+            click.echo("  re-run with --confirm to revert.")
+            return
+        try:
+            out = subprocess.run(
+                ["git", "checkout", "--", *changed],
+                cwd=str(ctx.cwd),
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            click.echo(f"/discard failed: {exc}", err=True)
+            return
+        if out.returncode != 0:
+            click.echo(
+                (out.stderr or "git checkout failed").rstrip(), err=True
+            )
+            return
+        click.echo(f"  reverted {len(changed)} file(s) via git checkout.")
+
+    def _resume(ctx: ReplContext, args: list[str], _line: str) -> None:
+        # T6 / SLASH-05. Live REPL resume: swap history + record without
+        # restarting the process. Gate/cognition/tools stay bound to the
+        # live cwd — cross-cwd resume still requires `voss resume <id>`.
+        if not args:
+            click.echo("usage: /resume <session-id-or-name>", err=True)
+            return
+        target = args[0]
+        try:
+            new_record, new_history = session_store.load(target, cwd=ctx.cwd)
+        except (FileNotFoundError, ValueError) as exc:
+            click.echo(f"/resume failed: {exc}", err=True)
+            return
+        if Path(new_record.cwd).resolve() != ctx.cwd.resolve():
+            click.echo(
+                f"  warning: session cwd is {new_record.cwd}; staying in "
+                f"{ctx.cwd}. Cross-cwd resume requires `voss resume`.",
+                err=True,
+            )
+        ctx.record = new_record
+        ctx.history = new_history
+        ctx.total_cost = new_record.total_cost_usd
+        ctx.last_plan = None
+        ctx.prior_context = new_record.runs[-1] if new_record.runs else None
+        click.echo(
+            f"  resumed: {new_record.name} "
+            f"({len(new_record.turns)} turns, "
+            f"${new_record.total_cost_usd:.4f})"
+        )
 
     def _tools(ctx: ReplContext, _args: list[str], _line: str) -> None:
         for name, td in ctx.tools.items():
@@ -612,7 +813,43 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/help", "show this list", _help),
         SlashCommand("/exit", "leave the REPL (also Ctrl-D)", _exit, aliases=("/quit",)),
         SlashCommand("/clear", "drop episodic memory", _clear),
-        SlashCommand("/cost", "session cost so far", _cost),
+        SlashCommand(
+            "/cost",
+            "session cost so far ([--by-model | --by-tool])",
+            _cost,
+        ),
+        SlashCommand(
+            "/budget",
+            "show or set session USD ceiling: /budget [<usd>]",
+            _budget,
+        ),
+        SlashCommand(
+            "/why",
+            "explain the last plan (rationale, confidence, step why)",
+            _why,
+        ),
+        SlashCommand(
+            "/diff",
+            "show working-tree diff: /diff [--staged] [<path>]",
+            _diff,
+        ),
+        SlashCommand(
+            "/apply",
+            "no-op stub — edits commit immediately in v0.1 (T1 will queue)",
+            _apply,
+        ),
+        SlashCommand(
+            "/discard",
+            "revert last run's changed files via `git checkout` (--confirm)",
+            _discard,
+            mutating=True,
+        ),
+        SlashCommand(
+            "/resume",
+            "live-resume a saved session by id/name (same cwd only)",
+            _resume,
+            mutating=True,
+        ),
         SlashCommand("/tools", "list registered tools", _tools),
         SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
         SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
