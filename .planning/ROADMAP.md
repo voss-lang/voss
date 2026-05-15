@@ -762,31 +762,71 @@ honestly including cache reads.
 
 ### Phase T2 — Parallel Tools + Multi-Edit Primitive *(v0.2)*
 
-**Goal:** Read-only steps execute in parallel. Mutations stay serialized.
-File edits can batch multiple replacements atomically.
+**Goal:** Read-only steps execute in parallel (bounded by
+`agent.max_parallel_reads`). Mutations stay strictly serialized. File
+edits can batch multiple replacements atomically through the M9-05
+DiffModal. Prove ≥40% wall-clock drop on a self-contained 6-read
+micro-benchmark (M5 eval baseline is empty — own benchmark replaces it).
 
-**Requirements (proposed):** PAR-01..04
+**Requirements (locked via T2-SPEC.md):** PAR-01..06
 
 - PAR-01 `_run_step_loop` partitions steps into read-only batches +
-  mutating singletons. Read-only batches run via `asyncio.gather`.
-- PAR-02 Permission gate enforces "no mutation in parallel batch" at the
-  step-classification layer.
-- PAR-03 New tool `fs_edit_many(path, edits=[{old, new}, ...])` — atomic
-  all-or-nothing.
-- PAR-04 New tool `fs_read_many(paths=[...])` — bundled response.
+  mutating singletons. Read-only batches run via `asyncio.gather`
+  bounded by `asyncio.Semaphore(agent.max_parallel_reads)`.
+- PAR-02 Partition-time invariant: every step in a multi-step batch has
+  `ToolEntry.is_mutating == False`; violation raises
+  `BatchInvariantError` (additive 5th exit_reason value).
+- PAR-03 New tool `fs_edit_many(path, edits=[{old, new}, ...])` —
+  validate-then-write-once atomicity through M9-05 DiffModal; reject-any
+  or skip-any → batch denied.
+- PAR-04 New tool `fs_read_many(paths=[...])` — bundled response
+  `=== {path} ===\n{content}\n` per slot, per-slot error envelopes,
+  30KB per-file cap, partial-result semantics.
+- PAR-05 `harness.toml [agent] max_parallel_reads = 8` (range 1-32,
+  out-of-range falls back with RuntimeWarning) + self-contained
+  micro-benchmark proving ≥40% wall-clock drop.
+- PAR-06 `batch.start` / `batch.end` telemetry events for multi-step
+  batches only; per-step `tool.call` / `tool.result` preserved
+  unchanged; `IterationRecord.batches: list[BatchRecord]` additive
+  M2-compatible schema.
 
-**Success Criteria (proposed):**
-1. Wall-clock latency of a 6-file plan-step drops ≥40% vs. serial baseline
-   (measured on M5 eval task #5).
+**Success Criteria:**
+1. `tests/perf/test_parallel_read_speedup.py` micro-benchmark passes:
+   parallel wall-clock ≤ 60% of serial baseline (≥40% drop) on a
+   stub-timed 6-read batch.
 2. `fs_edit_many` rejects entire batch if any `old` doesn't match
-   uniquely; recorder logs offending index.
-3. Mutation step in a read batch forces split-and-wait; property test
-   covers ordering.
+   uniquely; recorder logs offending index; file byte-for-byte unchanged
+   on disk after rejection.
+3. Mutation step in a read batch raises `BatchInvariantError`; partitioner
+   never produces such a batch from author-order input.
+4. Read-only steps from a real `voss do` invocation produce visible
+   `batch.start`/`batch.end` telemetry events and populate
+   `RunRecord.iterations[i].batches`.
 
 **Cross-cutting constraints:**
-- Diff modal (M9-05) handles multi-edit via per-hunk approval — decomposes
-  into N hunks at the modal layer.
-- Mutation classification checked at registration via `ToolEntry.is_mutating`.
+- Diff modal (M9-05) handles multi-edit via per-hunk approval — `fs_edit_many`
+  builds list[Hunk] itself and calls `renderer.show_diff_modal` directly;
+  PermissionGate stays single-edit (D-01).
+- Mutation classification checked at registration via `ToolEntry.is_mutating`
+  (M1 D-06 invariant); no tool-name pattern matching.
+- `RunRecord` schema additions are additive-only; pre-T2 records round-trip
+  unchanged (M2 + T1 invariant).
+- Author order non-negotiable: a read step never executes before a write
+  authored earlier in `plan.steps`; reads after a write run in the NEXT
+  batch, never hoisted.
+- `agent.max_parallel_reads` config knob co-locates with T1's
+  `agent.max_iterations` in the same `[agent]` block of
+  `~/.config/voss/config.toml`.
+
+**Plans:** 6 plans across 5 waves
+
+Plans:
+- [ ] T2-01-PLAN.md — Schema substrate: BatchRecord dataclass + IterationRecord.batches additive field + RunRecorder.begin_batch/end_batch capture API
+- [ ] T2-02-PLAN.md — Config knob: RuntimeConfig.max_parallel_reads + get_max_parallel_reads loader (range 1-32 + fallback warning) + cli.py bootstrap wire-in
+- [ ] T2-03-PLAN.md — Partition scheduler rewrite + BatchInvariantError + batch.start/end telemetry + recorder wiring + _run_turn_exec exit_reason="batch-invariant" handler
+- [ ] T2-04-PLAN.md — fs_edit_many tool (atomic validate-then-write-once, M9-05 DiffModal integration with strict skip-is-deny semantics)
+- [ ] T2-05-PLAN.md — fs_read_many tool (bundled response, per-slot error envelopes, 30KB per-file cap, partial-result semantics)
+- [ ] T2-06-PLAN.md — Self-contained micro-benchmark (≥40% wall-clock drop) + phase-final human-verify checkpoint
 
 ---
 
