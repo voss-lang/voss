@@ -1,27 +1,26 @@
 ---
-title: "Project cognition"
-description: "How Voss plans to persist project-local knowledge under .voss."
+title: "Project cognition and memory"
+description: "How Voss persists project-local instructions, sessions, plans, and recallable memory."
 ---
 
-Project cognition is the v0.1 M2 goal: make Voss remember useful project facts across sessions.
+Project cognition is the project-local state Voss uses to avoid starting from zero every session.
 
 ## Durable state
 
-Planned durable project knowledge lives under `.voss/`:
+Human-readable project context lives in `VOSS.md`. Machine-managed durable state lives under `.voss/`:
 
 ```text
+VOSS.md
 .voss/
-  project.json
-  architecture.md
-  constraints.yml
   permissions.yml
   validation.yml
+  memory/
   plans/
   sessions/
   decisions/
 ```
 
-This state is meant to be reviewable project knowledge.
+`VOSS.md` can include human prose plus machine-managed fenced sections such as architecture notes. Legacy `.voss/architecture.md` content is migrated into the `VOSS.md` architecture fence.
 
 ## Rebuildable state
 
@@ -37,7 +36,7 @@ This state should be safe to delete and rebuild.
 
 ## What Voss records
 
-The v0.1 plan calls for agent runs to record:
+Agent runs can record:
 
 - Task goal
 - Plan
@@ -52,6 +51,21 @@ The v0.1 plan calls for agent runs to record:
 - Diff summary
 - Follow-ups
 
-<Note>
-Project cognition is active roadmap work. Docs should distinguish implemented behavior from planned M2 behavior.
-</Note>
+## Memory commands
+
+Inside a harness session:
+
+```text
+/recall <query>
+/memory
+/save <note>
+/forget <pattern> --yes
+```
+
+From the CLI:
+
+```bash
+voss memory size
+voss memory vacuum
+voss memory adopt --id <fence-id>
+```

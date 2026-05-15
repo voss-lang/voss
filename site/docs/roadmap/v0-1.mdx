@@ -1,9 +1,9 @@
 ---
-title: "v0.1 roadmap"
-description: "The harness-led Voss v0.1 roadmap from M0 through M5."
+title: "Roadmap"
+description: "The Voss roadmap from harness-led v0.1 through TUI and codebase intelligence."
 ---
 
-Voss v0.1 is a harness-led milestone with `.voss` preserved as the workflow-control language.
+Voss v0.1 is harness-led, with `.voss` preserved as the workflow-control language. The current roadmap extends that base with memory, TUI, codebase intelligence, and richer agent capabilities.
 
 ## Phase order
 
@@ -15,23 +15,29 @@ Voss v0.1 is a harness-led milestone with `.voss` preserved as the workflow-cont
 | M3 | Language Validation | Prove `.voss` workflows check, compile, and run as AI workflow control |
 | M4 | Voss-authored Harness Loop | Dogfood the harness loop through `.voss` files |
 | M5 | Eval and Distribution Prep | Track quality and prepare packaging after Python harness usage is proven |
+| M6 | npm Wrapper | Ship `@vosslang/cli` with vendored Python 3.12 and the Voss wheel |
+| M7 | SDK Polish | Stabilize the public Python embedding surface |
+| M8 | Project Memory | Add `VOSS.md`, `.voss/memory`, recall, save, forget, and memory maintenance commands |
+| M9 | TUI Shell | Add the Textual interface, permission modals, slash palette, budget view, and session forking |
+| M10 | Codebase Intelligence | Add code search, symbol lookup, references, project index, and TUI code panel |
 
 ## Current direction
 
-The harness is the product surface users feel first. The language is the durable control layer. Python remains the canonical implementation path until the harness loop is proven.
+The harness is the product surface users feel first. The language is the durable control layer. Python remains the canonical implementation path; npm distribution vendors that Python harness rather than reimplementing it in JavaScript.
 
 ## Deferred work
 
 The following work is strategically relevant but deferred from the first proof loop:
 
 - Rust as the canonical harness shell
-- MCP bridge
+- MCP bridge before M12
 - Tree-sitter grammar
 - VS Code marketplace release
 - GitHub Linguist upstream PR
 - Broad telemetry
 - Hosted team features
 - Web UI
+- Homebrew distribution
 
 <Note>
 Distribution work should not claim more safety, maturity, or language completeness than the harness currently proves.

@@ -4,20 +4,19 @@ import { useState } from "react";
 import CopyButton from "./CopyButton";
 
 type InstallTab = {
-  id: "pip" | "cargo" | "brew";
+  id: "npm" | "pip" | "search";
   label: string;
   cmd: string;
-  active: boolean;
 };
 
 const TABS: InstallTab[] = [
-  { id: "pip", label: "pip", cmd: 'pip install -e ".[dev]"', active: true },
-  { id: "cargo", label: "cargo", cmd: "cargo install voss   # coming with v1", active: false },
-  { id: "brew", label: "brew", cmd: "brew install voss      # coming with v1", active: false },
+  { id: "npm", label: "npm", cmd: "npm i -g @vosslang/cli" },
+  { id: "pip", label: "pip", cmd: "pip install voss" },
+  { id: "search", label: "semantic memory", cmd: 'pip install "voss[search]"' },
 ];
 
 export default function InstallTabs() {
-  const [active, setActive] = useState<InstallTab["id"]>("pip");
+  const [active, setActive] = useState<InstallTab["id"]>("npm");
   const tab = TABS.find((t) => t.id === active);
 
   return (
@@ -28,7 +27,8 @@ export default function InstallTabs() {
             <span className="em">Install</span>.
           </h2>
           <p className="mt-4 text-[var(--muted)]">
-            Voss runs on Python 3.11+. Native binaries are on the roadmap.
+            The npm package vendors Python 3.12 and the Voss wheel. Use pip when you manage
+            Python 3.11+ yourself.
           </p>
         </div>
 
@@ -46,11 +46,6 @@ export default function InstallTabs() {
                 }`}
               >
                 {t.label}
-                {!t.active && (
-                  <span className="ml-2 rounded bg-[var(--background)] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                    soon
-                  </span>
-                )}
                 {t.id === active && (
                   <span className="absolute inset-x-2 -bottom-px h-px bg-[var(--accent)]" />
                 )}

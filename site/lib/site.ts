@@ -16,18 +16,18 @@ export type HarnessFeature = {
 
 export const site = {
   name: "Voss",
-  tagline: "A language for AI workflows.",
+  tagline: "A coding harness for bounded AI work.",
   description:
-    "Voss makes confidence checking, token budgets, prompt construction, semantic routing, and agent lifecycle first-class language constructs — not boilerplate you write in every project.",
+    "Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.",
   repoUrl: "https://github.com/bm9797/Voss",
   prdUrl: "https://github.com/bm9797/Voss/blob/main/PRD.md",
   // Local /docs route until docs.voss.dev DNS lands. Swap back when the
   // subdomain points at this Vercel project (or a separate Mintlify deploy).
   docsUrl: "/docs/",
-  version: "0.1.0-pre",
+  version: "0.1.0",
   install: {
-    primary: 'pip install -e ".[dev]"',
-    primaryNote: "From the cloned repo. PyPI release with v1.",
+    primary: "npm i -g @vosslang/cli",
+    primaryNote: "Bundles the Voss Python harness with vendored Python 3.12.",
   },
 } as const;
 
@@ -71,13 +71,13 @@ export const features: readonly Feature[] = [
 ];
 
 export const harness = {
-  tagline: "A coding harness for shipping AI.",
+  tagline: "A coding harness for bounded repo work.",
   description:
-    "The Voss harness is an agent loop that lives in your terminal. Drop into any repo, give it a goal, watch it read, edit, run, and verify code. Built for AI-first developers who already pay for Claude Pro or ChatGPT — and want their subscription to do the work.",
+    "The Voss harness is an agent loop that lives in your terminal. Drop into any repo, give it a goal, and keep reads, edits, shell commands, memory, and resumes inside explicit boundaries.",
   pitch: [
-    "Use the Claude or ChatGPT subscription you already have. No second API bill.",
-    "Sandboxed by default. cwd jail, shell allowlist, no network surprises.",
-    "Built on the same runtime as Voss the language. Confidence-gated planning, token budgets, episodic memory — all first-class.",
+    "Install through npm without managing Python yourself, or use pip when you want the Python package directly.",
+    "Modes are explicit: plan for read-only work, edit for scoped changes, auto for higher-trust local automation.",
+    "Project memory lives in VOSS.md and .voss/memory, so useful repo context can survive beyond one chat.",
   ],
 } as const;
 
@@ -85,12 +85,12 @@ export const harnessFeatures: readonly HarnessFeature[] = [
   {
     title: "Bring your own subscription",
     body:
-      "OAuth into Claude Code or Codex CLI. The harness reuses those tokens — your Pro/Max plan covers the bill, no API key required.",
+      "Use Claude Code or Codex CLI auth when available, or fall back to ANTHROPIC_API_KEY / OPENAI_API_KEY for CI and reliable provider access.",
   },
   {
     title: "Permission modes that match how you work",
     body:
-      "plan (read-only), edit (read + scoped writes), or auto (allowlisted everything). Decisions persist per-project, so you grant once and ship.",
+      "plan is read-only, edit supports scoped writes, and auto allows broader local automation through the lower-level safeguards.",
   },
   {
     title: "Real tools, not toys",
@@ -105,7 +105,7 @@ export const harnessFeatures: readonly HarnessFeature[] = [
   {
     title: "Sessions you can resume",
     body:
-      "Every chat persists to ~/.local/state/voss/sessions. Restart, switch machines, replay a transcript — the episodic memory comes with it.",
+      "Sessions are stored per project under .voss/sessions. List them, resume by id, and keep prior runs tied to the repo.",
   },
   {
     title: "Headless or interactive",
@@ -115,11 +115,12 @@ export const harnessFeatures: readonly HarnessFeature[] = [
 ];
 
 export const harnessCommands: readonly CliCommand[] = [
-  { cmd: 'voss do "fix the failing tests in tests/auth/"', desc: "One-shot agent task" },
+  { cmd: 'voss do "find the auth flow and name the risky files"', desc: "Read-only repo task" },
   { cmd: "voss chat", desc: "Interactive REPL with persistent session" },
-  { cmd: "voss chat --resume <id>", desc: "Pick up where you left off" },
-  { cmd: "voss --auth=claude do ...", desc: "Force Claude Code OAuth" },
-  { cmd: "voss --auth=codex do ...", desc: "Force Codex (ChatGPT) OAuth" },
+  { cmd: "voss sessions", desc: "List saved project sessions" },
+  { cmd: "voss resume <id>", desc: "Pick up where you left off" },
+  { cmd: "voss do --auth=claude ...", desc: "Prefer Claude Code auth" },
+  { cmd: "voss do --auth=api ...", desc: "Use API-key provider access" },
   { cmd: "voss doctor", desc: "Verify credentials, tools, sandbox" },
 ];
 

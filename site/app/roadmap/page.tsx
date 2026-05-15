@@ -9,40 +9,40 @@ import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: `Roadmap — ${site.name}`,
-  description: "The current Voss roadmap from harness-led MVP to language/compiler maturity.",
+  description: "The current Voss roadmap from the v0.1 harness to TUI, memory, and codebase intelligence.",
 };
 
 const ROADMAP = [
   {
-    phase: "Now",
+    phase: "Shipped",
     title: "Harness-led v0.1",
-    status: "In progress",
-    body: "Make the coding harness useful end-to-end: auth, sessions, permissions, tools, recorder, and reliable project cognition.",
+    status: "Built",
+    body: "The Python harness, .voss language path, project cognition, evals, npm wrapper, SDK polish, and project memory foundation are in place.",
+  },
+  {
+    phase: "Now",
+    title: "TUI shell",
+    status: "Final verify",
+    body: "Replace line-streamed chat with a Textual interface for turn history, slash commands, permission modals, budget views, and session forking.",
   },
   {
     phase: "Next",
-    title: "Voss-authored harness loop",
+    title: "Codebase intelligence",
     status: "Planned",
-    body: "Use Voss itself as the workflow control layer for planning, tool calls, validation, and agent memory.",
-  },
-  {
-    phase: "Then",
-    title: "Language reference and examples",
-    status: "Planned",
-    body: "Stabilize syntax for the core constructs and publish realistic examples that compile to readable Python.",
+    body: "Add a project index, LSP-backed symbol lookup, structural search, code_search/find_definition/find_references tools, and a TUI code panel.",
   },
   {
     phase: "Later",
-    title: "Distribution and launch",
-    status: "Deferred",
-    body: "Package binaries, Homebrew, docs, and OSS launch material after the harness and language surface are credible.",
+    title: "Agent capability surface",
+    status: "Sequenced",
+    body: "Layer in Voss-aware tools, MCP bridge, multi-agent chat, long-running watch tasks, and a signed skill/plugin marketplace.",
   },
 ] as const;
 
 const NOT_NOW = [
   "Hosted SaaS control plane",
   "Pricing or accounts",
-  "Marketplace integrations",
+  "Unsigned third-party plugins",
   "General-purpose workflow engine",
 ] as const;
 
@@ -59,11 +59,11 @@ export default function RoadmapPage() {
               Roadmap
             </Badge>
             <h1 className="display mt-5 max-w-4xl text-5xl sm:text-7xl">
-              Build the harness, then <span className="em">prove the language</span>.
+              Ship the harness, then <span className="em">raise the ceiling</span>.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
-              Voss is pre-release. The current roadmap prioritizes a useful local coding harness,
-              then folds the same control loop back into the Voss language.
+              Voss is early developer tooling. The roadmap now extends the local harness with a
+              full-screen TUI, persistent memory, codebase intelligence, and language-aware tools.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
@@ -88,7 +88,7 @@ export default function RoadmapPage() {
                     <span className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">
                       {item.phase}
                     </span>
-                    <Badge variant={item.status === "In progress" ? "default" : "secondary"}>{item.status}</Badge>
+                    <Badge variant={item.status === "Final verify" ? "default" : "secondary"}>{item.status}</Badge>
                   </div>
                   <h2 className="mt-5 text-2xl font-semibold tracking-tight">{item.title}</h2>
                   <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.body}</p>
@@ -101,8 +101,8 @@ export default function RoadmapPage() {
                 <h2 className="font-mono text-sm uppercase tracking-widest">Not now</h2>
               </div>
               <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-                The roadmap is intentionally narrow. These are deferred until the local developer
-                loop and language constructs are solid.
+                The roadmap stays local-first. These stay deferred while the repo loop, memory,
+                TUI, and code intelligence mature.
               </p>
               <ul className="mt-6 space-y-4">
                 {NOT_NOW.map((item) => (

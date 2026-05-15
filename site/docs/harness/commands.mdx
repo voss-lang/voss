@@ -20,7 +20,7 @@ Voss uses one binary with two command families:
 | `voss tools` | List tool registry entries and mutability | n/a |
 | `voss config` | Open or show harness configuration | n/a |
 | `voss sessions` | List saved sessions | n/a |
-| `voss resume [id]` | Resume a prior session | session mode |
+| `voss resume <id>` | Resume a prior session by id prefix or name | session mode |
 
 ## Compiler commands
 
@@ -43,5 +43,5 @@ voss doctor
 voss do "summarize this repo"
 voss edit src/app.py
 voss sessions
-voss resume
+voss resume <session-id>
 ```

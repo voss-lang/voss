@@ -1,18 +1,40 @@
 ---
 title: "Install Voss"
-description: "Install the Voss CLI from the repository for local harness and language development."
+description: "Install the Voss CLI with npm, pip, or an editable source checkout."
 ---
 
-Voss is pre-release software. The current install path is an editable checkout from the repository.
+The recommended install path is the npm CLI package. It vendors Python 3.12 and the Voss wheel, so you do not need to manage a Python environment just to run the harness.
 
 ## Prerequisites
 
-- Python 3.11 or newer
-- Node.js if you want to work on the marketing site or docs
+- Node.js 18 or newer for the npm package
+- Python 3.11 or newer if you install with pip or from source
 - Git
 - A terminal environment where Voss can run inside a repository
 
-## Install from source
+## Recommended: npm
+
+```bash
+npm i -g @vosslang/cli
+```
+
+## Alternative: pip
+
+If you already manage Python 3.11+ yourself:
+
+```bash
+pip install voss
+```
+
+Semantic memory/search dependencies are optional because they pull heavier vector-search packages:
+
+```bash
+pip install "voss[search]"
+```
+
+## Source checkout
+
+Use an editable checkout for Voss development:
 
 ```bash
 git clone https://github.com/bm9797/Voss.git
@@ -30,7 +52,7 @@ voss doctor
 `voss doctor` checks local harness prerequisites such as config directories, provider setup, compiler availability, and tool readiness.
 
 <Tip>
-Use editable install while Voss is moving quickly. Packaging and public release polish are part of the v0.1 distribution prep path.
+Use `npm i -g @vosslang/cli` for normal CLI use. Use `pip install -e ".[dev]"` when you are changing Voss itself.
 </Tip>
 
 ## Next steps

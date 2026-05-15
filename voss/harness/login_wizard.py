@@ -112,17 +112,23 @@ def run_login_wizard(
         poll_timeout=poll_timeout,
     )
 
+    _emit("wizard.started", "info", "login wizard opened", {"reason": reason})
+
     while True:
         _render_menu(deps, reason)
         choice = _prompt_menu(deps)
         if choice == "1":
+            _emit("wizard.branch", "info", "user picked claude", {"branch": "claude"})
             res = _branch_claude(deps)
         elif choice == "2":
+            _emit("wizard.branch", "info", "user picked codex", {"branch": "codex"})
             res = _branch_codex(deps)
         elif choice == "3":
+            _emit("wizard.branch", "info", "user picked api-key", {"branch": "apikey"})
             res = _branch_apikey(deps)
         elif choice in ("q", "Q", ""):
             deps.console.print("[dim]login cancelled[/dim]")
+            _emit("wizard.cancelled", "info", "user quit the wizard")
             return None
         else:
             deps.console.print(f"[yellow]unknown choice: {choice!r}[/yellow]")
@@ -130,8 +136,24 @@ def run_login_wizard(
 
         if res is not None:
             deps.console.print(f"[green]✓ signed in via {res.source}[/green] — {res.detail}")
+            _emit(
+                "wizard.completed",
+                "info",
+                f"signed in via {res.source}",
+                {"source": res.source},
+            )
             return res
         # Branch returned None (timeout / install missing / aborted) — loop.
+
+
+def _emit(kind: str, level: str, msg: str, data: Optional[dict] = None) -> None:
+    """Best-effort telemetry. Import is lazy to avoid circular-import risk."""
+    try:
+        from voss.harness import telemetry as tel_mod
+
+        tel_mod.emit(kind, level, msg, data=data or {})
+    except Exception:  # noqa: BLE001 — telemetry must never break login
+        pass
 
 
 # ---------------------------------------------------------------------------

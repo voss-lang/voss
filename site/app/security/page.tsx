@@ -26,8 +26,8 @@ const PRINCIPLES = [
     body: "Shell execution is treated as a separate permission surface instead of being bundled into ordinary file edits.",
   },
   {
-    title: "Subscription auth stays local",
-    body: "Claude Code and Codex login reuse local OAuth state; Voss does not need a second hosted credential service.",
+    title: "Auth stays local",
+    body: "Claude Code, Codex, and provider API keys are read from local auth stores or environment variables. Voss does not add a hosted credential service.",
   },
 ] as const;
 
@@ -36,7 +36,9 @@ const SURFACES = [
   "read-only planning mode",
   "scoped edit mode",
   "prompted shell commands",
-  "local session files",
+  "project-local session files",
+  "VOSS.md and .voss/memory",
+  "TUI permission modals",
   "redaction-aware transcripts",
 ] as const;
 
@@ -56,8 +58,8 @@ export default function SecurityPage() {
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
               Voss treats repository automation as a security-sensitive workflow. The harness is
-              built around scoped file access, explicit permission modes, local auth reuse, and
-              auditable sessions.
+              built around scoped file access, explicit permission modes, local auth, project
+              memory, and auditable sessions.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">

@@ -31,13 +31,16 @@ The selected model can be persisted to config.
 
 ## Login flow
 
-Inside the REPL:
+Use provider CLIs first, then tell Voss which auth source to prefer when needed:
 
-```text
-/login
+```bash
+claude login
+codex login
+voss do --auth=claude "summarize this repo"
+voss do --auth=api "summarize this repo"
 ```
 
-Use this when the selected provider requires authentication setup.
+Inside the REPL, `/login` shows local auth status and refreshes existing credentials when possible.
 
 ## Provider safety
 

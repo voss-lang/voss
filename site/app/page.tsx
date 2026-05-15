@@ -34,12 +34,11 @@ function HarnessTeaser() {
             Harness
           </p>
           <h2 className="display mt-3 text-4xl sm:text-5xl">
-            A coding agent that runs on <span className="em">your subscription</span>.
+            A coding agent with <span className="em">explicit boundaries</span>.
           </h2>
           <p className="mt-4 max-w-2xl text-[var(--muted)]">
-            For AI-first developers shipping AI in their products. The Voss harness reuses your
-            Claude Pro or ChatGPT login, runs sandboxed in your repo, and ships features without a
-            second API bill.
+            For developers who already use AI coding tools and want tighter control over what an
+            agent reads, edits, runs, remembers, and resumes.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -68,11 +67,11 @@ function DocsTeaser() {
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 sm:p-14">
           <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">Docs</p>
           <h2 className="display mt-3 text-4xl sm:text-5xl">
-            The full reference is <span className="em">coming</span>.
+            The docs track the <span className="em">current harness</span>.
           </h2>
           <p className="mt-4 max-w-2xl text-[var(--muted)]">
-            Language reference, runtime API, CLI deep-dive, and migration guides from raw Python.
-            For now the PRD is the source of truth.
+            Install paths, harness commands, permission modes, project memory, language reference,
+            and troubleshooting all live in the public docs.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -82,7 +81,7 @@ function DocsTeaser() {
               Browse docs
             </Link>
             <Link
-              href="https://github.com/your-org/voss/blob/main/PRD.md"
+              href="https://github.com/bm9797/Voss/blob/main/PRD.md"
               target="_blank"
               rel="noreferrer"
               className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"
