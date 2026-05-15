@@ -1,6 +1,6 @@
 # Voss
 
-[![CI](https://github.com/Wineberry-io/Voss/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Wineberry-io/Voss/actions/workflows/ci.yml)
+[![CI](https://github.com/voss-lang/voss/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/voss-lang/voss/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@vosslang/cli.svg)](https://www.npmjs.com/package/@vosslang/cli)
 [![npm downloads](https://img.shields.io/npm/dm/@vosslang/cli.svg)](https://www.npmjs.com/package/@vosslang/cli)
 [![PyPI version](https://img.shields.io/pypi/v/voss.svg)](https://pypi.org/project/voss/)
