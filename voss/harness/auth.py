@@ -323,7 +323,7 @@ def load_codex() -> Optional[CodexCreds]:
 
 @dataclass
 class Resolution:
-    source: str  # "env-anthropic" | "env-openai" | "claude-oauth" | "codex" | "codex-oauth" | "none"
+    source: str  # "voss-anthropic" | "voss-openai" | "env-anthropic" | "env-openai" | "claude-oauth" | "codex" | "codex-oauth" | "none"
     detail: str
     anthropic_oauth: Optional[AnthropicOAuthCreds] = None
     openai_api_key: Optional[str] = None
@@ -336,11 +336,28 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     preference: auto | claude | codex | api | none
     role: optional logical role (e.g. "judge"); v0.1 pass-through, future
           versions may resolve a separate creds bucket per role. Today ignored.
+
+    Priority under `auto` / `api`:
+      1. voss-stored API key (OS keychain via `keyring`) — set by the
+         login wizard. Wins over env vars so a forgotten shell export does
+         not silently shadow the wizard's choice.
+      2. Explicit env vars (ANTHROPIC_API_KEY / OPENAI_API_KEY).
+      3. Claude Code OAuth (~/.claude/.credentials.json).
+      4. Codex auth (~/.codex/auth.json).
     """
     if preference == "none":
         return Resolution(source="none", detail="forced none")
 
     if preference in ("auto", "api"):
+        if k := load_voss_creds("anthropic"):
+            # Inject into env so downstream providers (LiteLLM, anthropic SDK)
+            # that read ANTHROPIC_API_KEY directly continue to work without
+            # bespoke wiring.
+            os.environ["ANTHROPIC_API_KEY"] = k
+            return Resolution(source="voss-anthropic", detail="keyring", openai_api_key=None)
+        if k := load_voss_creds("openai"):
+            os.environ["OPENAI_API_KEY"] = k
+            return Resolution(source="voss-openai", detail="keyring", openai_api_key=k)
         if k := os.environ.get("ANTHROPIC_API_KEY"):
             return Resolution(source="env-anthropic", detail="ANTHROPIC_API_KEY", openai_api_key=None)
         if k := os.environ.get("OPENAI_API_KEY"):
