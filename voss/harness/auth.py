@@ -14,11 +14,12 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Literal, Optional
 
 import httpx
 
@@ -375,3 +376,67 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     if preference == "api":
         return Resolution(source="none", detail="no API key in env")
     return Resolution(source="none", detail="no creds found via any path")
+
+
+# ---------------------------------------------------------------------------
+# Login wizard helpers (Phase 1)
+# ---------------------------------------------------------------------------
+
+
+UpstreamCli = Literal["claude", "codex"]
+WizardProvider = Literal["claude", "codex"]
+
+
+def detect_upstream_cli(name: UpstreamCli) -> Optional[Path]:
+    """Return absolute path to an upstream credential-provider CLI, or None.
+
+    Used by the login wizard to decide whether to offer the "Claude Code OAuth"
+    or "Codex OAuth" branch. Wraps `shutil.which` only so the wizard can stub
+    it in tests without monkey-patching `shutil`.
+    """
+    path = shutil.which(name)
+    return Path(path) if path else None
+
+
+def wait_for_creds(
+    provider: WizardProvider,
+    *,
+    timeout: float = 120.0,
+    poll: float = 0.5,
+    now: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Optional[Resolution]:
+    """Poll for upstream creds appearing on disk; return Resolution or None.
+
+    Returns the same shape as `resolve(preference=provider)` so the wizard can
+    hand the result straight to `_resolve_auth_or_die`'s consumers. `now` and
+    `sleep` are injectable for deterministic tests.
+    """
+    deadline = now() + timeout
+    while True:
+        if provider == "claude":
+            creds = load_anthropic_oauth()
+            if creds is not None:
+                return Resolution(
+                    source="claude-oauth",
+                    detail=f"keychain ({creds.subscription_type}, expires {creds.expires_in_seconds}s)",
+                    anthropic_oauth=creds,
+                )
+        else:  # codex
+            codex = load_codex()
+            if codex is not None:
+                if codex.api_key:
+                    return Resolution(
+                        source="codex",
+                        detail=f"~/.codex/auth.json ({codex.auth_mode}, api key)",
+                        openai_api_key=codex.api_key,
+                    )
+                if codex.has_oauth:
+                    return Resolution(
+                        source="codex-oauth",
+                        detail=f"~/.codex/auth.json ({codex.auth_mode}, OAuth)",
+                        codex_oauth=codex,
+                    )
+        if now() >= deadline:
+            return None
+        sleep(poll)
