@@ -107,9 +107,15 @@ class TestRunRecordRedaction:
             "diff_summary",
             "follow_ups",
             "cost_usd",
+            # T1-01: additive iteration-loop fields. None carry credentials.
+            "iterations",
+            "iteration_count",
+            "exit_reason",
+            "iteration_total_prompt_tokens",
+            "iteration_total_completion_tokens",
         }
         assert set(asdict(rec).keys()) == expected
-        assert len(dataclasses.fields(RunRecord)) == 16
+        assert len(dataclasses.fields(RunRecord)) == 21
 
     def test_run_record_no_secret_patterns(self, state_dir, tmp_path):
         record = SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")
