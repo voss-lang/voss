@@ -83,6 +83,43 @@ pip install -e ".[dev]"
 
 `npm i -g @vosslang/cli` ships v0.1 with M6 (the npm wrapper bundles a pinned Python 3.12 + the v0.1 wheel; `pip install voss` remains supported). A native Rust shell and Homebrew distribution stay deferred until dogfood signals demand them.
 
+## First run · `voss login`
+
+The first time you run `voss` with no credentials configured, an interactive
+sign-in wizard launches automatically. You can also re-run it any time with
+`voss login` or `/login` inside the REPL.
+
+```text
+╭ voss · sign in ──────────────────────────────────────────╮
+│ reason: no credentials found                              │
+│                                                           │
+│   1  Claude Code OAuth      [ready]                       │
+│   2  Codex / ChatGPT OAuth  [needs `codex` CLI]           │
+│   3  Paste an API key       [Anthropic or OpenAI]         │
+│   q  Quit                                                 │
+╰───────────────────────────────────────────────────────────╯
+choice [1/2/3/q]:
+```
+
+Three paths:
+
+- **Claude Code OAuth** — spawns the `claude` CLI so you can run `/login` inside it,
+  then polls `~/.claude/.credentials.json` for the new tokens.
+- **Codex / ChatGPT OAuth** — runs `codex login`, then polls `~/.codex/auth.json`.
+- **Paste an API key** — Anthropic or OpenAI. The key is stored in the OS
+  keychain via [`keyring`](https://pypi.org/project/keyring/) (macOS Keychain,
+  Windows Credential Locker, Linux Secret Service). Remove it later with
+  `voss logout anthropic` or `voss logout openai`.
+
+Resolution order under `--auth=auto`: voss-stored keychain creds → env vars
+(`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`) → Claude Code OAuth → Codex auth.
+Keychain wins so a forgotten shell export does not silently shadow the key
+you set in the wizard.
+
+In non-interactive contexts (CI, piped stdin) the wizard is skipped and
+voss exits 2 with the original credential-missing error — set the env vars
+or pre-populate the keychain for scripted use.
+
 ## Quickstart
 
 The runtime exposes `ProbableValue`, `ContextScope`, `BudgetScope`, `SemanticMatcher`, `VossAgent`, `gather`, `@tool`, and the three memory primitives. See:
