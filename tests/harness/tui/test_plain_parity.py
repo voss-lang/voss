@@ -141,6 +141,31 @@ def test_small_terminal_without_force_tui_does_not_exit(
     assert result.exit_code == 0
 
 
+def test_default_path_after_flip_matches_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """M9-07 sanity gate: after the make_renderer default-path flip, the
+    NO-flag default invocation (CliRunner is non-TTY) is still byte-identical
+    to the M9-01 baseline. Locks the --plain contract through Wave 7.
+    """
+    _install_fake_provider(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        do_cmd,
+        ["--cwd", str(tmp_path), "echo", "plan-baseline"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    baseline = _baseline_path()
+    if not baseline.exists():
+        pytest.skip(f"baseline missing at {baseline}")
+    assert result.stdout == baseline.read_text(), (
+        "default-path stdout drifted from --plain baseline after the M9-07 flip"
+    )
+
+
 def test_force_tui_small_terminal_exits_2(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
