@@ -14,11 +14,12 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Literal, Optional
 
 import httpx
 
@@ -322,7 +323,7 @@ def load_codex() -> Optional[CodexCreds]:
 
 @dataclass
 class Resolution:
-    source: str  # "env-anthropic" | "env-openai" | "claude-oauth" | "codex" | "codex-oauth" | "none"
+    source: str  # "voss-anthropic" | "voss-openai" | "env-anthropic" | "env-openai" | "claude-oauth" | "codex" | "codex-oauth" | "none"
     detail: str
     anthropic_oauth: Optional[AnthropicOAuthCreds] = None
     openai_api_key: Optional[str] = None
@@ -335,11 +336,28 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     preference: auto | claude | codex | api | none
     role: optional logical role (e.g. "judge"); v0.1 pass-through, future
           versions may resolve a separate creds bucket per role. Today ignored.
+
+    Priority under `auto` / `api`:
+      1. voss-stored API key (OS keychain via `keyring`) — set by the
+         login wizard. Wins over env vars so a forgotten shell export does
+         not silently shadow the wizard's choice.
+      2. Explicit env vars (ANTHROPIC_API_KEY / OPENAI_API_KEY).
+      3. Claude Code OAuth (~/.claude/.credentials.json).
+      4. Codex auth (~/.codex/auth.json).
     """
     if preference == "none":
         return Resolution(source="none", detail="forced none")
 
     if preference in ("auto", "api"):
+        if k := load_voss_creds("anthropic"):
+            # Inject into env so downstream providers (LiteLLM, anthropic SDK)
+            # that read ANTHROPIC_API_KEY directly continue to work without
+            # bespoke wiring.
+            os.environ["ANTHROPIC_API_KEY"] = k
+            return Resolution(source="voss-anthropic", detail="keyring", openai_api_key=None)
+        if k := load_voss_creds("openai"):
+            os.environ["OPENAI_API_KEY"] = k
+            return Resolution(source="voss-openai", detail="keyring", openai_api_key=k)
         if k := os.environ.get("ANTHROPIC_API_KEY"):
             return Resolution(source="env-anthropic", detail="ANTHROPIC_API_KEY", openai_api_key=None)
         if k := os.environ.get("OPENAI_API_KEY"):
@@ -375,3 +393,146 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     if preference == "api":
         return Resolution(source="none", detail="no API key in env")
     return Resolution(source="none", detail="no creds found via any path")
+
+
+# ---------------------------------------------------------------------------
+# Login wizard helpers (Phase 1)
+# ---------------------------------------------------------------------------
+
+
+UpstreamCli = Literal["claude", "codex"]
+WizardProvider = Literal["claude", "codex"]
+
+
+def detect_upstream_cli(name: UpstreamCli) -> Optional[Path]:
+    """Return absolute path to an upstream credential-provider CLI, or None.
+
+    Used by the login wizard to decide whether to offer the "Claude Code OAuth"
+    or "Codex OAuth" branch. Wraps `shutil.which` only so the wizard can stub
+    it in tests without monkey-patching `shutil`.
+    """
+    path = shutil.which(name)
+    return Path(path) if path else None
+
+
+def wait_for_creds(
+    provider: WizardProvider,
+    *,
+    timeout: float = 120.0,
+    poll: float = 0.5,
+    now: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Optional[Resolution]:
+    """Poll for upstream creds appearing on disk; return Resolution or None.
+
+    Returns the same shape as `resolve(preference=provider)` so the wizard can
+    hand the result straight to `_resolve_auth_or_die`'s consumers. `now` and
+    `sleep` are injectable for deterministic tests.
+    """
+    deadline = now() + timeout
+    while True:
+        if provider == "claude":
+            creds = load_anthropic_oauth()
+            if creds is not None:
+                return Resolution(
+                    source="claude-oauth",
+                    detail=f"keychain ({creds.subscription_type}, expires {creds.expires_in_seconds}s)",
+                    anthropic_oauth=creds,
+                )
+        else:  # codex
+            codex = load_codex()
+            if codex is not None:
+                if codex.api_key:
+                    return Resolution(
+                        source="codex",
+                        detail=f"~/.codex/auth.json ({codex.auth_mode}, api key)",
+                        openai_api_key=codex.api_key,
+                    )
+                if codex.has_oauth:
+                    return Resolution(
+                        source="codex-oauth",
+                        detail=f"~/.codex/auth.json ({codex.auth_mode}, OAuth)",
+                        codex_oauth=codex,
+                    )
+        if now() >= deadline:
+            return None
+        sleep(poll)
+
+
+# ---------------------------------------------------------------------------
+# Voss-managed credential store (Phase 3)
+# ---------------------------------------------------------------------------
+#
+# Backed by the OS keychain via the `keyring` package: macOS Keychain on
+# Darwin, Windows Credential Locker on win32, Secret Service on Linux when
+# present. On hosts where keyring has no usable backend (e.g. headless Linux
+# without secretstorage / a session DBus), the load/save/delete calls
+# degrade to no-ops and log a warning to stderr. This keeps voss working in
+# CI / containers without dragging in plaintext file-store fallbacks.
+
+KEYRING_SERVICE = "voss"
+StoredProvider = Literal["anthropic", "openai"]
+
+
+def _keyring_module() -> Optional[object]:
+    """Import `keyring` lazily so a missing/broken install doesn't crash imports."""
+    try:
+        import keyring as _keyring  # type: ignore[import-not-found]
+
+        return _keyring
+    except Exception:  # noqa: BLE001 — keyring's import paths raise many things
+        return None
+
+
+def _keyring_available() -> bool:
+    """True when keyring imports AND has a backend we can actually call."""
+    kr = _keyring_module()
+    if kr is None:
+        return False
+    try:
+        backend = kr.get_keyring()  # type: ignore[attr-defined]
+        # The chainer / fail backends used as last resort are unusable; skip them.
+        name = type(backend).__name__.lower()
+        if "fail" in name:
+            return False
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def load_voss_creds(provider: StoredProvider) -> Optional[str]:
+    """Return the voss-stored API key for a provider, or None if absent / unavailable."""
+    kr = _keyring_module()
+    if kr is None:
+        return None
+    try:
+        value = kr.get_password(KEYRING_SERVICE, provider)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 — backend errors are non-fatal
+        return None
+    if not value:
+        return None
+    return value.strip() or None
+
+
+def save_voss_creds(provider: StoredProvider, key: str) -> bool:
+    """Persist an API key in the OS keychain. Returns True on success."""
+    kr = _keyring_module()
+    if kr is None or not _keyring_available():
+        return False
+    try:
+        kr.set_password(KEYRING_SERVICE, provider, key)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+def delete_voss_creds(provider: StoredProvider) -> bool:
+    """Remove a voss-stored credential. Returns True on success."""
+    kr = _keyring_module()
+    if kr is None:
+        return False
+    try:
+        kr.delete_password(KEYRING_SERVICE, provider)  # type: ignore[attr-defined]
+        return True
+    except Exception:  # noqa: BLE001
+        return False

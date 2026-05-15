@@ -18,12 +18,12 @@ export default async function CliShowcase() {
       <div className="mx-auto max-w-6xl px-6 py-20">
         <div className="mb-10 max-w-2xl">
           <h2 className="display text-4xl sm:text-5xl">
-            Three patterns. <span className="em">One CLI.</span>
+            Three workflows. <span className="em">One control layer.</span>
           </h2>
           <p className="mt-4 text-[var(--muted)]">
-            Run any example from the <code className="font-mono text-[var(--foreground)]">examples/</code>{" "}
-            folder. The compiler accepts <code className="font-mono">.voss</code> source; the runtime works with raw
-            Python today.
+            Run the canonical <code className="font-mono text-[var(--foreground)]">samples/</code>{" "}
+            programs with <code className="font-mono">voss run</code>, or compare them with the raw
+            Python equivalents in <code className="font-mono">examples/raw_python/</code>.
           </p>
         </div>
         <CliShowcaseTabs examples={rendered} />

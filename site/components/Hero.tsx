@@ -13,13 +13,13 @@ export default function Hero() {
         <Reveal>
           <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 font-mono text-xs text-[var(--muted)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-            A language for AI workflows
+            Terminal harness + .voss control language
           </p>
         </Reveal>
         <Reveal delay={0.05}>
           <h1 className="display text-balance text-6xl sm:text-7xl">
-            Stop reinventing<br />
-            <span className="em">the AI runtime.</span>
+            Bound AI coding work<br />
+            <span className="em">before it edits.</span>
           </h1>
         </Reveal>
         <Reveal delay={0.1}>

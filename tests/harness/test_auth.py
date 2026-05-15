@@ -193,3 +193,109 @@ def test_resolve_role_with_none_preference():
 
     r = resolve(preference="none", role="judge")
     assert r.source == "none"
+
+
+# ---------------------------------------------------------------------------
+# Phase 1: detect_upstream_cli + wait_for_creds
+# ---------------------------------------------------------------------------
+
+
+def test_detect_upstream_cli_present(tmp_path, monkeypatch):
+    """When the binary is on PATH, returns an absolute Path."""
+    fake_bin = tmp_path / "claude"
+    fake_bin.write_text("#!/bin/sh\nexit 0\n")
+    fake_bin.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    found = A.detect_upstream_cli("claude")
+    assert found is not None
+    assert found == fake_bin
+
+
+def test_detect_upstream_cli_absent(tmp_path, monkeypatch):
+    """When PATH has no `codex` binary, returns None."""
+    monkeypatch.setenv("PATH", str(tmp_path))  # empty dir
+    assert A.detect_upstream_cli("codex") is None
+
+
+def test_wait_for_creds_claude_appears(fake_home: Path):
+    """File written mid-poll resolves before timeout."""
+    calls = {"sleep": 0}
+
+    def fake_sleep(_: float) -> None:
+        # On the second sleep, materialize the creds file.
+        calls["sleep"] += 1
+        if calls["sleep"] == 2:
+            _write_claude_creds(fake_home)
+
+    # Monotonic clock that never crosses the deadline so the loop relies on
+    # the cred file appearing, not the timeout.
+    t = {"now": 0.0}
+
+    def fake_now() -> float:
+        t["now"] += 0.1
+        return t["now"]
+
+    res = A.wait_for_creds(
+        "claude",
+        timeout=60.0,
+        poll=0.01,
+        now=fake_now,
+        sleep=fake_sleep,
+    )
+    assert res is not None
+    assert res.source == "claude-oauth"
+    assert res.anthropic_oauth is not None
+
+
+def test_wait_for_creds_codex_appears(fake_home: Path):
+    """Codex auth.json appearing mid-poll yields a codex resolution."""
+    calls = {"sleep": 0}
+
+    def fake_sleep(_: float) -> None:
+        calls["sleep"] += 1
+        if calls["sleep"] == 1:
+            _write_codex_auth(fake_home, with_tokens=False)
+
+    t = {"now": 0.0}
+
+    def fake_now() -> float:
+        t["now"] += 0.1
+        return t["now"]
+
+    res = A.wait_for_creds(
+        "codex",
+        timeout=60.0,
+        poll=0.01,
+        now=fake_now,
+        sleep=fake_sleep,
+    )
+    assert res is not None
+    assert res.source == "codex"
+    assert res.openai_api_key == "sk-test-codex"
+
+
+def test_wait_for_creds_timeout(fake_home: Path):
+    """Returns None once the deadline passes without creds materializing."""
+    sleeps = {"n": 0}
+
+    def fake_sleep(_: float) -> None:
+        sleeps["n"] += 1
+
+    # Three calls to `now`: initial deadline calc, two loop checks. The second
+    # loop check trips the timeout.
+    sequence = iter([0.0, 0.5, 200.0])
+
+    def fake_now() -> float:
+        return next(sequence)
+
+    res = A.wait_for_creds(
+        "claude",
+        timeout=120.0,
+        poll=0.01,
+        now=fake_now,
+        sleep=fake_sleep,
+    )
+    assert res is None
+    # Slept at least once before noticing timeout.
+    assert sleeps["n"] >= 1

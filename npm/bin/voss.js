@@ -78,9 +78,13 @@ if (!fs.existsSync(pythonBin)) {
   process.exit(1);
 }
 
+// `-P` stops Python from prepending the script dir / cwd to `sys.path`,
+// which otherwise lets a same-named `voss/` directory in the user's cwd
+// (e.g. a Voss repo checkout) shadow the vendored `voss` package and
+// trigger ModuleNotFoundError for vendored-only deps like `portalocker`.
 const result = spawnSync(
   pythonBin,
-  ['-m', 'voss.cli', ...process.argv.slice(2)],
+  ['-P', '-m', 'voss.cli', ...process.argv.slice(2)],
   { shell: false, stdio: 'inherit', env: process.env }
 );
 

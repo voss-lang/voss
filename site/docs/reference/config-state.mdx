@@ -20,20 +20,21 @@ voss config --show
 
 ## Project state
 
-Durable project state is planned under `.voss/`:
+Durable project state is split between human-readable `VOSS.md` and machine-managed `.voss/` directories:
 
 ```text
+VOSS.md
 .voss/
-  architecture.md
   constraints.yml
   permissions.yml
   validation.yml
+  memory/
   plans/
   sessions/
   decisions/
 ```
 
-This state should be reviewable and useful across sessions.
+`VOSS.md` is injected into harness context at session start. Machine fences inside it let Voss update architecture notes without overwriting surrounding human prose.
 
 ## Cache state
 
@@ -43,14 +44,15 @@ Rebuildable state belongs under `.voss-cache/`:
 .voss-cache/
   repo.idx
   harness/
+  code/
 ```
 
 You should be able to delete cache state and rebuild it.
 
 ## Session state
 
-Current sessions may use local Voss state storage while project cognition moves toward `.voss/sessions/`.
+Current project sessions live under `.voss/sessions/`. Legacy sessions in the old user-state directory are read-only via `voss sessions --all`.
 
 <Note>
-Docs should describe `.voss/` as the direction for durable project-local knowledge and avoid promising behavior before it ships.
+Do not commit secrets to `VOSS.md`, `.voss/`, or `.voss-cache/`. Voss avoids storing provider credentials, but prompt text and project notes are still local files.
 </Note>

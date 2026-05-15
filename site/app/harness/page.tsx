@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: harness.description,
 };
 
-const SAMPLE_SESSION = `$ voss do "add a /healthz endpoint and a test for it"
+const SAMPLE_SESSION = `$ voss do --mode=auto "add a /healthz endpoint and a test for it"
 
 [plan]   confidence 0.92
   1. fs_grep "FastAPI\\(" → app/main.py
@@ -22,8 +22,8 @@ const SAMPLE_SESSION = `$ voss do "add a /healthz endpoint and a test for it"
   3. fs_write tests/test_health.py → pytest case
   4. shell_run pytest tests/test_health.py -q
 
-[edit]   app/main.py        +4 -0    ✓ allow (mode=edit)
-[write]  tests/test_health.py +12     ✓ allow (mode=edit)
+[edit]   app/main.py        +4 -0    ✓ allow (mode=auto)
+[write]  tests/test_health.py +12     ✓ allow (mode=auto)
 [shell]  pytest tests/test_health.py -q
          1 passed in 0.18s              ✓
 
@@ -38,21 +38,21 @@ type PermissionRow = {
 };
 
 const PERMISSION_MATRIX: PermissionRow[] = [
-  { mode: "plan", reads: "auto", writes: "prompt", shell: "prompt", desc: "Inspect a repo without touching it." },
-  { mode: "edit", reads: "auto", writes: "scoped", shell: "prompt", desc: "Default. Reads + writes inside cwd, ask before shell." },
+  { mode: "plan", reads: "auto", writes: "denied", shell: "denied", desc: "Inspect a repo without touching it." },
+  { mode: "edit", reads: "auto", writes: "scoped", shell: "denied", desc: "Default for voss edit. Scope expansions require approval." },
   { mode: "auto", reads: "auto", writes: "auto", shell: "auto", desc: "Allowlisted everything. Destructive patterns still prompt." },
 ];
 
 const AUTH_PATHS = [
   {
     name: "Claude Code OAuth",
-    detail: "Reuses your Claude Pro / Max subscription via the Claude Code login. macOS Keychain or ~/.claude/.credentials.json.",
-    cmd: "claude login    # then: voss --auth=claude do ...",
+    detail: "Uses local Claude Code auth when available. API-key access remains the reliable fallback for automation.",
+    cmd: "claude login    # then: voss do --auth=claude ...",
   },
   {
     name: "Codex / ChatGPT OAuth",
-    detail: "Reuses your ChatGPT subscription via the Codex CLI auth file. Tokens auto-refresh.",
-    cmd: "codex login     # then: voss --auth=codex do ...",
+    detail: "Uses the Codex CLI auth file when available. Codex OAuth is still marked experimental by the harness.",
+    cmd: "codex login     # then: voss do --auth=codex ...",
   },
   {
     name: "Plain API key",
@@ -104,9 +104,9 @@ export default async function HarnessPage() {
               <div className="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 font-mono text-sm">
                   <span className="text-[var(--accent)]">$</span>
-                  <span className="select-all">voss do &quot;ship the login flow&quot;</span>
+                  <span className="select-all">voss do &quot;plan the login flow&quot;</span>
                   <Cursor />
-                  <CopyButton text='voss do "ship the login flow"' />
+                  <CopyButton text='voss do "plan the login flow"' />
                 </div>
                 <Link
                   href="#install"
@@ -147,8 +147,8 @@ export default async function HarnessPage() {
                 Plan, edit, run, <span className="em">verify</span>.
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                Each turn is a confidence-gated plan, gated tool calls, and a verification step. You
-                see what it&apos;s going to do before it does it.
+                Each turn is a confidence-gated plan, permission-checked tool calls, and a
+                validation loop. In plan mode, mutating tools are denied before they run.
               </p>
             </div>
             <Terminal title="~/voss-app — voss do">
@@ -250,8 +250,8 @@ export default async function HarnessPage() {
                 Three ways in. <span className="em">Subscription-first.</span>
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                If you already pay Anthropic or OpenAI for a coding tool, you don&apos;t need to pay
-                them twice.
+                Use local OAuth where it fits, or set provider API keys when you need predictable
+                CI and automation behavior.
               </p>
             </div>
             <Stagger className="grid gap-4 sm:grid-cols-3">
@@ -307,13 +307,11 @@ export default async function HarnessPage() {
                 Try it <span className="em">in a repo</span>.
               </h2>
               <p className="mt-4 max-w-2xl text-[var(--muted)]">
-                Clone Voss, install in editable mode, log into your Claude or Codex account, and run{" "}
+                Install the npm CLI, log into a provider or set an API key, and run{" "}
                 <code className="font-mono text-[var(--foreground)]">voss doctor</code> to verify.
               </p>
               <pre className="mt-6 overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-5 font-mono text-sm text-[var(--foreground)]">
-{`git clone ${site.repoUrl}
-cd voss
-${site.install.primary}
+{`${site.install.primary}
 voss doctor`}
               </pre>
               <div className="mt-6 flex flex-wrap gap-3">

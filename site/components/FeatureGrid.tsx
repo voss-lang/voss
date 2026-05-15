@@ -7,12 +7,12 @@ export default function FeatureGrid() {
       <div className="mx-auto max-w-6xl px-6 py-20">
         <div className="mb-12 max-w-2xl">
           <h2 className="display text-4xl sm:text-5xl">
-            Five things every AI app reinvents.<br />
-            <span className="em">Plus one.</span>
+            The harness proves the loop.<br />
+            <span className="em">The language makes it durable.</span>
           </h2>
           <p className="mt-4 text-[var(--muted)]">
-            Voss makes them language constructs — checked by the compiler, owned by the runtime,
-            written once.
+            Voss keeps repo work bounded today while the .voss layer captures recurring AI
+            workflow rules as code.
           </p>
         </div>
         <Stagger className="grid gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] sm:grid-cols-2 lg:grid-cols-3">

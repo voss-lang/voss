@@ -108,7 +108,7 @@ def check_provider_auth() -> Check:
         "provider auth",
         CheckResult.FAIL,
         detail="no provider credentials found",
-        fix="Run: claude /login  # or: export ANTHROPIC_API_KEY=...",
+        fix="Run: voss login  # interactive setup wizard",
     )
 
 

@@ -67,25 +67,60 @@ class TextualRenderer:
             except Exception:  # noqa: BLE001
                 pass
 
-    def _turn_view(self) -> TurnView:
-        return self.app.query_one("#main", TurnView)
+    def _safe(self, widget_fn, attr: str, *args, **kwargs) -> None:
+        """Look up a widget lazily then forward to `_post`.
 
-    def _header(self) -> HeaderBar:
-        return self.app.query_one("#header", HeaderBar)
+        Wrapping the lookup in the same swallow-all guard keeps the agent
+        loop alive when the app isn't mounted (e.g. CLI happy-path tests
+        that exercise the renderer wiring without `app.run_async()`).
+        """
+        try:
+            widget = widget_fn()
+        except Exception as exc:  # noqa: BLE001 — never crash the agent
+            try:
+                self.app.log(f"TextualRenderer lookup miss for {attr}: {exc}")
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        method = getattr(widget, attr, None)
+        if method is None:
+            return
+        self._post(method, *args, **kwargs)
 
-    def _status(self) -> StatusLine:
-        return self.app.query_one("#status", StatusLine)
+    def _turn_view(self) -> TurnView | None:
+        try:
+            return self.app.query_one("#main", TurnView)
+        except Exception:  # noqa: BLE001
+            return None
 
-    def _input(self) -> InputBar:
-        return self.app.query_one("#input", InputBar)
+    def _header(self) -> HeaderBar | None:
+        try:
+            return self.app.query_one("#header", HeaderBar)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _status(self) -> StatusLine | None:
+        try:
+            return self.app.query_one("#status", StatusLine)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _input(self) -> InputBar | None:
+        try:
+            return self.app.query_one("#input", InputBar)
+        except Exception:  # noqa: BLE001
+            return None
 
     # ------------------------------------------------------------------
     # Renderer protocol
     # ------------------------------------------------------------------
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
+        header = self._header()
+        if header is None:
+            return
         self._post(
-            self._header().update_header,
+            header.update_header,
             session_id=getattr(self.app, "session_id", ""),
             model=model,
             budget_used=0,
@@ -94,10 +129,16 @@ class TextualRenderer:
         )
 
     def show_user(self, task: str) -> None:
-        self._post(self._turn_view().append_turn, "user", task)
+        tv = self._turn_view()
+        if tv is None:
+            return
+        self._post(tv.append_turn, "user", task)
 
     def show_thinking(self, label: str) -> None:
-        self._post(self._status().set_status, toast=f"⏵ {label}")
+        status = self._status()
+        if status is None:
+            return
+        self._post(status.set_status, toast=f"⏵ {label}")
 
     def show_plan(self, plan: Any, *, cost_usd: float) -> None:
         rationale = getattr(plan, "rationale", "") or ""
@@ -112,8 +153,11 @@ class TextualRenderer:
                 line += f" — {why}"
             body_lines.append(line)
         body = "\n".join(body_lines) if body_lines else "(empty plan)"
+        tv = self._turn_view()
+        if tv is None:
+            return
         self._post(
-            self._turn_view().append_turn,
+            tv.append_turn,
             "plan",
             body,
             confidence=confidence,
@@ -136,7 +180,10 @@ class TextualRenderer:
         argstr = ", ".join(f"{k}={_short(v)}" for k, v in (args or {}).items())
         mark = {"ok": "ok", "error": f"failed: {summary}", "pending": "…"}.get(state, state)
         body = f"⏵ {name}({argstr}) · {mark}"
-        self._post(self._turn_view().append_turn, "tool", body)
+        tv = self._turn_view()
+        if tv is None:
+            return
+        self._post(tv.append_turn, "tool", body)
 
     # ------------------------------------------------------------------
     # Subagent visualization — private; NOT part of the Renderer protocol.
@@ -159,8 +206,11 @@ class TextualRenderer:
 
     def show_clarify(self, question: str, confidence: float) -> None:
         conf = float(confidence)
+        tv = self._turn_view()
+        if tv is None:
+            return
         self._post(
-            self._turn_view().append_turn,
+            tv.append_turn,
             "clarify",
             question,
             confidence=conf,
@@ -169,8 +219,11 @@ class TextualRenderer:
 
     def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
         conf = float(confidence)
+        tv = self._turn_view()
+        if tv is None:
+            return
         self._post(
-            self._turn_view().append_turn,
+            tv.append_turn,
             "final",
             text,
             confidence=conf,
@@ -179,9 +232,8 @@ class TextualRenderer:
         self._mount_confidence_bar(conf, is_final=True)
 
     def _mount_confidence_bar(self, confidence: float, *, is_final: bool) -> None:
-        try:
-            turn_view = self._turn_view()
-        except Exception:  # noqa: BLE001 — render path must not crash agent
+        turn_view = self._turn_view()
+        if turn_view is None:
             return
         bar = ConfidenceBar(value=confidence, is_final=is_final)
         self._post(turn_view.mount, bar)
@@ -197,8 +249,11 @@ class TextualRenderer:
         # W5: derive total honestly. Only when 0 < ctx_pct <= 1 do we have
         # enough signal; otherwise StatusLine carries ctx_pct verbatim and
         # the BudgetMeter (when mounted) renders the em-dash placeholder.
+        status = self._status()
+        if status is None:
+            return
         self._post(
-            self._status().set_status,
+            status.set_status,
             model=model,
             tokens=tokens,
             cost_usd=cost_usd,
@@ -220,7 +275,10 @@ class TextualRenderer:
         )
         if plans_loaded or decisions_loaded:
             body += f" + {plans_loaded} plans + {decisions_loaded} decisions"
-        self._post(self._turn_view().append_turn, "cognition", body)
+        tv = self._turn_view()
+        if tv is None:
+            return
+        self._post(tv.append_turn, "cognition", body)
 
     def show_cognition_overflow(
         self, *, architecture_tokens: int, budget: int = 6000
@@ -229,10 +287,16 @@ class TextualRenderer:
             f"⚠ architecture.md is {architecture_tokens} tokens "
             f"(over {budget} budget) — /analyze can rewrite a tighter digest"
         )
-        self._post(self._turn_view().append_turn, "warning", body)
+        tv = self._turn_view()
+        if tv is None:
+            return
+        self._post(tv.append_turn, "warning", body)
 
     def show_warning(self, msg: str) -> None:
-        self._post(self._turn_view().append_turn, "warning", f"⚠ {msg}")
+        tv = self._turn_view()
+        if tv is None:
+            return
+        self._post(tv.append_turn, "warning", f"⚠ {msg}")
 
     # ------------------------------------------------------------------
     # M9-05 modal hooks. Called from worker threads via the permissions

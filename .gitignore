@@ -25,3 +25,6 @@ crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap.new
 .vercel
 .env*.local
 npm/platforms/*/python/
+
+# Node.
+node_modules/

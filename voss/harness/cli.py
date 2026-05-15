@@ -221,15 +221,13 @@ def _emit_harness_boot_telemetry(cwd: Path, model: str | None) -> None:
     tel_mod.emit_harness_start(backend=backend_str, cwd=str(cwd.resolve()), model=model)
 
 
-def _handle_login(provider: str | None) -> None:
+def _handle_login_status(provider: str | None) -> None:
     """Status + refresh for existing creds; for missing, print upstream commands.
 
-    M1 contract (deliberate narrowing of D-08): we do NOT drive a bespoke
-    OAuth flow. D-10 forbids new credential stores, so re-auth must go
-    through the upstream CLI (`claude /login`, `codex login`). This function:
-      - refreshes EXISTING tokens via auth.refresh_anthropic / auth.refresh_codex
-      - prints upstream commands for MISSING tokens
-    Full OAuth flow drive is deferred to a later phase.
+    M1 contract: re-auth flows go through the upstream CLI (`claude /login`,
+    `codex login`); this function only refreshes EXISTING tokens and prints
+    upstream commands for MISSING tokens. The interactive `voss login`
+    wizard (Phase 4) is the user-facing entry point for first-run setup.
     """
     if provider in (None, "anthropic"):
         claude = auth_mod.load_anthropic_oauth()
@@ -270,19 +268,38 @@ def _handle_login(provider: str | None) -> None:
         )
 
 
+_handle_login = _handle_login_status  # backward-compat alias for older callers
+
+
 def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelProvider]:
-    """Pick an auth path, build a provider for it, or exit 2."""
+    """Pick an auth path, build a provider for it, or exit 2.
+
+    First-run UX: on a TTY with no creds, launch the interactive login wizard
+    instead of failing out. Non-TTY callers (CI, pipes, `voss do < script`)
+    still get the original exit-2 error so scripted invocations stay
+    deterministic.
+    """
     res = auth_mod.resolve(preference)
     if res.source == "none":
-        click.echo(
-            f"no usable credentials ({res.detail}). try one of:\n"
-            "  • export ANTHROPIC_API_KEY=... (or OPENAI_API_KEY)\n"
-            "  • run `claude login` (Claude Code, macOS Keychain)\n"
-            "  • run `codex login` (~/.codex/auth.json)\n"
-            "  • voss --auth=<auto|claude|codex|api>",
-            err=True,
-        )
-        sys.exit(2)
+        from . import login_wizard
+
+        if login_wizard.stdin_is_interactive():
+            new_res = login_wizard.run_login_wizard(
+                reason=f"no credentials found ({res.detail})"
+            )
+            if new_res is not None:
+                res = new_res
+        if res.source == "none":
+            click.echo(
+                f"no usable credentials ({res.detail}). try one of:\n"
+                "  • run `voss login` to launch the interactive setup wizard\n"
+                "  • export ANTHROPIC_API_KEY=... (or OPENAI_API_KEY)\n"
+                "  • run `claude /login` (Claude Code, macOS Keychain)\n"
+                "  • run `codex login` (~/.codex/auth.json)\n"
+                "  • voss --auth=<auto|claude|codex|api>",
+                err=True,
+            )
+            sys.exit(2)
 
     if res.source == "claude-oauth":
         provider: ModelProvider = AnthropicOAuthProvider(res.anthropic_oauth)  # type: ignore[arg-type]
@@ -298,9 +315,11 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
         cfg = get_config()
         if cfg.default_model.startswith("claude") or cfg.default_model == "gpt-5":
             configure(default_model="gpt-5-codex")
-    elif res.source == "env-anthropic":
+    elif res.source in ("env-anthropic", "voss-anthropic"):
+        # `resolve()` already injected ANTHROPIC_API_KEY into env for the
+        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
         provider = LiteLLMProvider()
-    elif res.source in ("env-openai", "codex"):
+    elif res.source in ("env-openai", "voss-openai", "codex"):
         if res.openai_api_key:
             os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
         cfg = get_config()
@@ -523,7 +542,18 @@ def _build_slash_registry() -> SlashRegistry:
         click.echo(f"  mode: {new_mode}")
 
     def _login(_ctx: ReplContext, args: list[str], _line: str) -> None:
-        _handle_login(args[0] if args else None)
+        # /login              → interactive wizard (first-run setup)
+        # /login status [p]   → status + refresh for existing creds (legacy)
+        # /login anthropic|openai|codex → status for a single provider
+        if not args:
+            from . import login_wizard
+
+            login_wizard.run_login_wizard(reason="re-auth from REPL")
+            return
+        if args[0] == "status":
+            _handle_login_status(args[1] if len(args) > 1 else None)
+            return
+        _handle_login_status(args[0])
 
     def _save_session(ctx: ReplContext, args: list[str], _line: str) -> None:
         if args:
@@ -584,7 +614,7 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/clear", "drop episodic memory", _clear),
         SlashCommand("/cost", "session cost so far", _cost),
         SlashCommand("/tools", "list registered tools", _tools),
-        SlashCommand("/login", "anthropic | openai — status + refresh", _login),
+        SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
         SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
         SlashCommand("/save-session", "persist session snapshot", _save_session, mutating=True),
@@ -1068,6 +1098,52 @@ def _run_repl(
 
 
 # ---------------------------------------------------------------------------
+# login / logout — credential setup
+# ---------------------------------------------------------------------------
+
+
+@click.command("login")
+def login_cmd() -> None:
+    """Launch the interactive sign-in wizard.
+
+    Walks through Claude Code OAuth, Codex OAuth, or pasting an API key
+    (persisted to the OS keychain via `keyring`). Idempotent — running it
+    again over an existing credential just lets the user switch paths.
+    """
+    from . import login_wizard
+
+    if not login_wizard.stdin_is_interactive():
+        click.echo(
+            "voss login requires an interactive terminal. Set ANTHROPIC_API_KEY "
+            "or OPENAI_API_KEY for non-interactive use.",
+            err=True,
+        )
+        sys.exit(2)
+    res = login_wizard.run_login_wizard(reason="voss login")
+    if res is None:
+        sys.exit(2)
+
+
+@click.command("logout")
+@click.argument("provider", type=click.Choice(["anthropic", "openai"]))
+def logout_cmd(provider: str) -> None:
+    """Remove a voss-stored API key from the OS keychain.
+
+    Does NOT touch Claude Code (~/.claude/.credentials.json) or Codex
+    (~/.codex/auth.json) — manage those via their own CLIs.
+    """
+    removed = auth_mod.delete_voss_creds(provider)  # type: ignore[arg-type]
+    if removed:
+        click.echo(f"voss logout: cleared keyring entry for `{provider}`")
+    else:
+        click.echo(
+            f"voss logout: no `{provider}` entry in keyring (or backend unavailable)",
+            err=True,
+        )
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
 # doctor — diagnostics
 # ---------------------------------------------------------------------------
 
@@ -1548,6 +1624,8 @@ AGENT_COMMANDS = (
     do_cmd,
     chat_cmd,
     edit_cmd,
+    login_cmd,
+    logout_cmd,
     doctor_cmd,
     sessions_cmd,
     resume_cmd,

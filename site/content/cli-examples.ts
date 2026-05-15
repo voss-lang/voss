@@ -1,13 +1,10 @@
-// Hero examples mirrored from /Voss/examples/raw_python/.
-// Once the Voss compiler ships, swap these for the .voss source.
-
 export type CliExample = {
   id: string;
   label: string;
   blurb: string;
   command: string;
   code: string;
-  lang: "python";
+  lang: "text";
 };
 
 export const cliExamples: CliExample[] = [
@@ -15,75 +12,69 @@ export const cliExamples: CliExample[] = [
     id: "classify",
     label: "Classify",
     blurb: "Confidence-gated intent classification.",
-    command: "voss run classify.py",
-    lang: "python",
-    code: `from voss_runtime import ContextScope, ProbableValue
+    command: "voss run samples/classify.voss",
+    lang: "text",
+    code: `fn classifyIntent(input: string) -> string {
+    let intent: probable<string> = ask("Classify the intent: " + input)
 
-async def classify_intent(user_input: str) -> str:
-    async with ContextScope(token_budget=1000) as ctx:
-        await ctx.add(f"Classify the intent: {user_input}")
-        intent: ProbableValue = await ctx.ask(
-            "Return only the intent label.",
-            return_type=ProbableValue,
-        )
-        if intent @ 0.80:
-            return intent.value
+    if intent @ p >= 0.80 {
+        return intent.value
+    } else {
         return "unknown"
-`,
+    }
+}`,
   },
   {
     id: "support",
     label: "Support",
     blurb: "Semantic routing for a support inbox.",
-    command: "voss run support.py",
-    lang: "python",
-    code: `from voss_runtime import ContextScope, SemanticMatcher
+    command: "voss run samples/support.voss",
+    lang: "text",
+    code: `prompt SupportAgent {
+    "You are a customer support agent for a SaaS product."
+}
 
-matcher = SemanticMatcher(
-    cases=[
-        ("angry, frustrated, or upset customer", "escalate"),
-        ("refund, money back, cancel subscription", "refund"),
-        ("can't log in, password reset, account locked", "auth"),
-    ],
-    threshold=0.55,
-)
+let tickets: memory.episodic(capacity: 50 turns)
 
-async def handle_message(msg: str) -> str:
-    label = matcher.match(msg)
-    if label == "escalate": return await escalate(msg)
-    if label == "refund":   return await refund_flow(msg)
-    if label == "auth":     return await auth_support(msg)
-    async with ContextScope(token_budget=3000) as ctx:
-        await ctx.add("system: You are a customer support agent.")
-        return await ctx.ask(msg)
-`,
+fn handleMessage(userMessage: string) -> string {
+    tickets.add(userMessage, role: "user")
+    match userMessage {
+        case similar("refund, money back, cancel subscription") => {
+            return refundFlow(userMessage)
+        }
+        case _ => {
+            ctx(budget: 3000 tokens) {
+                include tickets.last(6)
+                yield ask(userMessage)
+            }
+        }
+    }
+}`,
   },
   {
     id: "research",
     label: "Research",
     blurb: "Parallel agents with timeout and graceful fallback.",
-    command: "voss run research.py",
-    lang: "python",
-    code: `from voss_runtime import ContextScope, VossAgent, gather, run_with_budget
-from voss_runtime.exceptions import BudgetExceededError
+    command: "voss run samples/research.voss",
+    lang: "text",
+    code: `agent Researcher(topic: string) -> string {
+    system: "You are a research analyst."
 
-class Researcher(VossAgent):
-    system_prompt = "You are a research analyst."
+    ctx(budget: 2000 tokens) {
+        yield ask("Summarize key findings on: " + topic)
+    }
+}
 
-    async def run(self, topic: str) -> str:
-        async with ContextScope(token_budget=2000) as ctx:
-            await ctx.add("\\n".join(web_search(topic, max_results=5)))
-            return await ctx.ask(f"Summarize key findings on: {topic}")
+fn runResearch(company: string) -> string {
+    let topics = [company + " market", company + " news"]
+    let researchers = topics.map(t => spawn Researcher(t))
+    let reports: list<string> = gather(researchers, timeout: 60s)
 
-async def run_research(company: str) -> str:
-    topics = [f"{company} market", f"{company} news", f"{company} comps"]
-    workers = [Researcher().spawn(t) for t in topics]
-    reports = [r for r in await gather(workers, timeout=60) if r]
-    try:
-        synth = Synthesizer().spawn(reports)
-        return await run_with_budget(synth.result(), token_limit=5000)
-    except BudgetExceededError:
-        return "\\n---\\n".join(reports)
-`,
+    within budget(tokens: 5000, latency: 10s) {
+        return reports.join("\\n---\\n")
+    } fallback {
+        return reports[0]
+    }
+}`,
   },
 ];

@@ -5,10 +5,10 @@ description: "Common Voss setup, command, permission, and docs issues."
 
 ## `voss` is not found
 
-Install Voss from the repo:
+Install the CLI package:
 
 ```bash
-pip install -e ".[dev]"
+npm i -g @vosslang/cli
 ```
 
 Then verify:
@@ -16,6 +16,8 @@ Then verify:
 ```bash
 voss --help
 ```
+
+If you manage Python yourself, `pip install voss` is the direct Python package path. For Voss development, use `pip install -e ".[dev]"` from a source checkout.
 
 ## Provider or model setup fails
 
