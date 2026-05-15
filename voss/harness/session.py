@@ -67,6 +67,26 @@ def _legacy_state_dir() -> Path:
 legacy_state_dir = _legacy_state_dir
 
 
+# T1-01: Exit reason vocabulary for the iteration loop (SPEC ITER-06).
+# Single source of truth — RunRecord __post_init__ enforces membership.
+EXIT_REASONS: frozenset[str] = frozenset({"done", "max-iter", "budget", "interrupt"})
+
+
+@dataclass
+class IterationRecord:
+    """One iteration of the agent loop. Persisted under RunRecord.iterations."""
+
+    index: int
+    plan: dict = field(default_factory=dict)
+    tool_results: list[dict] = field(default_factory=list)
+    cost_usd: float = 0.0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    started_at: str = ""
+    ended_at: str = ""
+    exit_reason: Optional[str] = None
+
+
 @dataclass
 class RunRecord:
     id: str
@@ -85,6 +105,20 @@ class RunRecord:
     diff_summary: str = ""
     follow_ups: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
+    # T1-01: additive iteration-loop fields. Defaults preserve pre-T1 JSON
+    # round-trip and `voss resume` behavior unchanged from v0.1.
+    iterations: list[IterationRecord] = field(default_factory=list)
+    iteration_count: int = 0
+    exit_reason: Optional[str] = None
+    iteration_total_prompt_tokens: int = 0
+    iteration_total_completion_tokens: int = 0
+
+    def __post_init__(self) -> None:
+        if self.exit_reason is not None and self.exit_reason not in EXIT_REASONS:
+            raise ValueError(
+                f"invalid exit_reason {self.exit_reason!r}; "
+                f"must be one of {sorted(EXIT_REASONS)}"
+            )
 
 
 @dataclass

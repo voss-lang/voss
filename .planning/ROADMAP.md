@@ -1,11 +1,11 @@
 # Roadmap: Voss Harness — v0.1 MVP + v0.2 Coding-Agent Phases
 
 **Created:** 2026-05-10
-**Mode:** Harness-led vertical slice → coding-agent expansion
-**Granularity:** M-prefixed milestone phases
-**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M10 added 2026-05-14, requirement counts TBD by SPEC.md
-**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2)
-**Last updated:** 2026-05-14 — promoted MEM-01 / TUI-01 / CAPS-01 seeds to formal phases M8 / M9 / M10
+**Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure
+**Granularity:** M-prefixed milestone phases + T-prefixed gap-closure phases
+**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md)
+**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases)
+**Last updated:** 2026-05-15 — added T1–T8 daily-driver gap-closure phases; T6 carved as v0.1.1 patch, T1–T5 + T7–T8 land in v0.2 alongside M8/M9/M10
 
 ## Phase Order
 
@@ -27,6 +27,14 @@
 | M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..0N (TBD by SPEC.md) | TBD |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..0N (TBD by SPEC.md) | TBD |
+| T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | TBD |
+| T1 | Iteration Loop + Streaming + Interrupt | Turn single-shot plan→exec→done into a real while-loop agent with streamed text + cancel | ITER-01..06 | TBD |
+| T4 | Prompt Caching + Cost Truthfulness | Cache cognition prefix; honest `/cost` including cache reads | CACHE-01..04 | TBD |
+| T2 | Parallel Tools + Multi-Edit | Read-only steps gather; `fs_edit_many` atomic batch | PAR-01..04 | TBD |
+| T3 | Network Surface (WebFetch + WebSearch + MCP client) | Live docs + MCP ecosystem, gated at the boundary | NET-01..05 | TBD |
+| T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
+| T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
+| T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | TBD |
 
 ---
 
@@ -625,6 +633,330 @@ Plans:
 
 ---
 
+## T-prefixed phases: Daily-Driver Gap Closure
+
+T-phases close known competitive gaps against Claude Code / Codex / Pi on
+the surface that already exists. They add no new product surface — they
+make `voss do` / `voss chat` feel like a coding agent users would reach
+for daily. Full audit, sequencing rationale, and per-phase requirements
+in [`notes/daily-driver-punch-list.md`](notes/daily-driver-punch-list.md).
+
+**Versioning split:**
+- **v0.1.1 patch** — T6 only. PRD §2.4 promised those slashes; shipping
+  them is closing a contract bug, not adding a feature.
+- **v0.2.0 minor** — T1–T5, T7, T8 (alongside M8 + M9 + M10). Daily-driver
+  table stakes complete.
+- **v0.3.0+** — M11–M15. Unfair-advantage features (Voss-aware tools,
+  MCP server, multi-agent in chat, watch, marketplace).
+- **v1.0.0** — API lock once dogfood signals public surface is stable.
+
+### Phase T6 — PRD §2.4 Slash Debt *(v0.1.1 patch)*
+
+**Goal:** Ship the slash commands the PRD promised and the user expects.
+Most are 20-line wrappers around existing data. Closes M1's PRD-conformance
+gap. Treated as a v0.1.1 patch rather than v0.2 minor because each missing
+slash is a documented contract bug from v0.1, not a new capability.
+
+**Requirements (proposed):** SLASH-01..07
+
+- SLASH-01 `/diff` — show pending unapplied edits.
+- SLASH-02 `/apply` — apply pending edits explicitly (plan mode).
+- SLASH-03 `/discard` — drop pending edits.
+- SLASH-04 `/budget <usd>` — adjust remaining session budget at runtime.
+- SLASH-05 `/resume <id|name>` — load a prior session into the live REPL.
+- SLASH-06 `/why` — render last plan's rationale + `ProbableValue`
+  confidence breakdown (PRD's "killer feature").
+- SLASH-07 `/cost --by-model` / `--by-tool` flags.
+
+**Success Criteria (proposed):**
+1. Each slash in PRD §2.4 registered in `_build_slash_registry` with at
+   least one integration test exercising the happy path.
+2. `/why` renders confidence + rationale from the most recent `Plan`
+   without a provider call.
+3. `voss --help` lists all v0.1 slashes; help discoverability matches Codex.
+
+**Cross-cutting constraints:**
+- No new persistence. Slashes operate on the live `ReplContext`.
+- M9 SlashPalette autocomplete includes all seven (M9-03 reserves slot
+  names already).
+
+---
+
+### Phase T1 — Iteration Loop + Streaming + Interrupt *(v0.2 lead)*
+
+**Goal:** Replace the single-shot plan→execute→done flow with a real agent
+loop that re-plans on tool results, streams text as it arrives, and
+cancels cleanly on user interrupt.
+
+**Requirements (proposed):** ITER-01..06
+
+- ITER-01 `_run_turn_exec` is a while-loop. Exits on agent-emitted `done`,
+  max-iteration cap, or budget exhaustion.
+- ITER-02 Tool results feed back into model context for next iteration.
+- ITER-03 Provider switches from `complete` to `stream`; TurnView renders
+  incremental deltas.
+- ITER-04 `action_interrupt` (`tui/app.py:79`) cancels the in-flight
+  asyncio task and surfaces "interrupted" in the recorder.
+- ITER-05 Confidence gate moves from per-turn to per-loop-exit. Mid-loop
+  low confidence triggers another iteration, not `/clarify`.
+- ITER-06 Telemetry records iteration count, per-iteration cost, exit
+  reason (done / max-iter / budget / interrupt).
+
+**Success Criteria (proposed):**
+1. M5 golden task #2 ("rename-symbol") completes in one `voss do` without
+   user re-prompting.
+2. First visible token in TurnView ≤ 500ms after provider acceptance.
+3. `action_interrupt` cancels an in-flight turn and produces a closed
+   recorder entry within 100ms.
+4. Default max iteration = 8, configurable via `harness.toml`. Hit-cap
+   produces structured "halted: max-iter" final, not a crash.
+
+**Cross-cutting constraints:**
+- Each iteration is a sub-record under one Turn (not N Turns) — preserves
+  M2 `RunRecord` schema for `voss resume` compatibility.
+- `_substitute_placeholders` is removed. Prior results flow via context.
+- This phase is the **breaking behavior change** that justifies v0.2.
+
+**Plans:** 7 plans across 5 waves
+
+Plans:
+- [ ] T1-01-PLAN.md — Schema substrate: IterationRecord + additive RunRecord fields + RunRecorder.begin_iteration/end_iteration
+- [ ] T1-02-PLAN.md — ProviderStreamEvent union + StreamingProvider Protocol + ParsedPlan terminal event (placeholder stream() bodies)
+- [ ] T1-03-PLAN.md — Concrete AnthropicOAuthProvider.stream() + OpenAIOAuthProvider.stream() with OAuth refresh + graceful httpx aclose + parity test
+- [ ] T1-04-PLAN.md — TurnView.stream_delta/finalize_stream + RuntimeConfig.max_iterations + [agent] section TOML loader
+- [ ] T1-05-PLAN.md — Rewrite _run_turn_exec as while-loop, delete _substitute_placeholders, PLAN_LOOP_SYSTEM + per-iter rider, per-iter telemetry
+- [ ] T1-06-PLAN.md — VossTUIApp.active_turn_task + action_interrupt body + CancelledError handler in _run_turn_exec + cli.py register_turn_task
+- [ ] T1-07-PLAN.md — SPEC 12-checkbox acceptance suite + grep gate + M5 golden #2 one-shot + CI workflow step
+
+---
+
+### Phase T4 — Prompt Caching + Cost Truthfulness *(v0.2)*
+
+**Goal:** Stop rebuilding the system prompt every turn. Track cost
+honestly including cache reads.
+
+**Requirements (proposed):** CACHE-01..04
+
+- CACHE-01 Anthropic provider adds `cache_control: {type: "ephemeral"}`
+  to the cognition block + VOSS.md block.
+- CACHE-02 Cost accounting reads `cache_creation_input_tokens` +
+  `cache_read_input_tokens` from response, prices at Anthropic rates.
+- CACHE-03 `/cost` gains `--by-model` / `--by-tool` (overlaps T6 SLASH-07;
+  ship whichever lands first).
+- CACHE-04 OpenAI provider adopts equivalent caching when model reports
+  eligibility.
+
+**Success Criteria (proposed):**
+1. Two consecutive turns in a `voss chat` session show
+   `cache_read_input_tokens > 0` on the second turn.
+2. `/cost --by-model` matches `sum(per-turn cost_usd by model)` to 4
+   decimals.
+3. Reported cost includes cache cost, not just non-cached input.
+
+**Cross-cutting constraints:**
+- Cache key stable across turns; VOSS.md drift invalidates the cache
+  (acceptable).
+- Cache TTL = 5 minutes (Anthropic default); documented in `harness.toml`.
+
+---
+
+### Phase T2 — Parallel Tools + Multi-Edit Primitive *(v0.2)*
+
+**Goal:** Read-only steps execute in parallel (bounded by
+`agent.max_parallel_reads`). Mutations stay strictly serialized. File
+edits can batch multiple replacements atomically through the M9-05
+DiffModal. Prove ≥40% wall-clock drop on a self-contained 6-read
+micro-benchmark (M5 eval baseline is empty — own benchmark replaces it).
+
+**Requirements (locked via T2-SPEC.md):** PAR-01..06
+
+- PAR-01 `_run_step_loop` partitions steps into read-only batches +
+  mutating singletons. Read-only batches run via `asyncio.gather`
+  bounded by `asyncio.Semaphore(agent.max_parallel_reads)`.
+- PAR-02 Partition-time invariant: every step in a multi-step batch has
+  `ToolEntry.is_mutating == False`; violation raises
+  `BatchInvariantError` (additive 5th exit_reason value).
+- PAR-03 New tool `fs_edit_many(path, edits=[{old, new}, ...])` —
+  validate-then-write-once atomicity through M9-05 DiffModal; reject-any
+  or skip-any → batch denied.
+- PAR-04 New tool `fs_read_many(paths=[...])` — bundled response
+  `=== {path} ===\n{content}\n` per slot, per-slot error envelopes,
+  30KB per-file cap, partial-result semantics.
+- PAR-05 `harness.toml [agent] max_parallel_reads = 8` (range 1-32,
+  out-of-range falls back with RuntimeWarning) + self-contained
+  micro-benchmark proving ≥40% wall-clock drop.
+- PAR-06 `batch.start` / `batch.end` telemetry events for multi-step
+  batches only; per-step `tool.call` / `tool.result` preserved
+  unchanged; `IterationRecord.batches: list[BatchRecord]` additive
+  M2-compatible schema.
+
+**Success Criteria:**
+1. `tests/perf/test_parallel_read_speedup.py` micro-benchmark passes:
+   parallel wall-clock ≤ 60% of serial baseline (≥40% drop) on a
+   stub-timed 6-read batch.
+2. `fs_edit_many` rejects entire batch if any `old` doesn't match
+   uniquely; recorder logs offending index; file byte-for-byte unchanged
+   on disk after rejection.
+3. Mutation step in a read batch raises `BatchInvariantError`; partitioner
+   never produces such a batch from author-order input.
+4. Read-only steps from a real `voss do` invocation produce visible
+   `batch.start`/`batch.end` telemetry events and populate
+   `RunRecord.iterations[i].batches`.
+
+**Cross-cutting constraints:**
+- Diff modal (M9-05) handles multi-edit via per-hunk approval — `fs_edit_many`
+  builds list[Hunk] itself and calls `renderer.show_diff_modal` directly;
+  PermissionGate stays single-edit (D-01).
+- Mutation classification checked at registration via `ToolEntry.is_mutating`
+  (M1 D-06 invariant); no tool-name pattern matching.
+- `RunRecord` schema additions are additive-only; pre-T2 records round-trip
+  unchanged (M2 + T1 invariant).
+- Author order non-negotiable: a read step never executes before a write
+  authored earlier in `plan.steps`; reads after a write run in the NEXT
+  batch, never hoisted.
+- `agent.max_parallel_reads` config knob co-locates with T1's
+  `agent.max_iterations` in the same `[agent]` block of
+  `~/.config/voss/config.toml`.
+
+**Plans:** 6 plans across 5 waves
+
+Plans:
+- [ ] T2-01-PLAN.md — Schema substrate: BatchRecord dataclass + IterationRecord.batches additive field + RunRecorder.begin_batch/end_batch capture API
+- [ ] T2-02-PLAN.md — Config knob: RuntimeConfig.max_parallel_reads + get_max_parallel_reads loader (range 1-32 + fallback warning) + cli.py bootstrap wire-in
+- [ ] T2-03-PLAN.md — Partition scheduler rewrite + BatchInvariantError + batch.start/end telemetry + recorder wiring + _run_turn_exec exit_reason="batch-invariant" handler
+- [ ] T2-04-PLAN.md — fs_edit_many tool (atomic validate-then-write-once, M9-05 DiffModal integration with strict skip-is-deny semantics)
+- [ ] T2-05-PLAN.md — fs_read_many tool (bundled response, per-slot error envelopes, 30KB per-file cap, partial-result semantics)
+- [ ] T2-06-PLAN.md — Self-contained micro-benchmark (≥40% wall-clock drop) + phase-final human-verify checkpoint
+
+---
+
+### Phase T3 — Network Surface (WebFetch + WebSearch + MCP client) *(v0.2)*
+
+**Goal:** Give the agent access to live documentation and external tools
+without inventing a new protocol. Gate network at the harness boundary.
+
+**Requirements (proposed):** NET-01..05
+
+- NET-01 New tool `web_fetch(url)` via `httpx`. Honors `tools.allow_net`
+  config flag (HARNESS-PLAN §6 — currently declared, unenforced).
+- NET-02 New tool `web_search(query)`. Default no built-in backend; opt-in
+  Brave / Tavily via API key. (DuckDuckGo HTML rejected — fragile +
+  rate-limited.)
+- NET-03 MCP client over stdio — lift Codex's launcher pattern. Configure
+  via `.voss/mcp.yml`.
+- NET-04 MCP tool permission scope defaults to `plan` (read-only).
+  Mutation requires explicit user opt-in per server in `permissions.yml`.
+- NET-05 Network tools off by default; `voss --allow-net` or
+  `tools.allow_net = true` opts in.
+
+**Required commands:**
+```
+voss mcp list                   # registered MCP servers
+voss mcp call <server> <tool>   # debug: invoke directly
+```
+
+**Success Criteria (proposed):**
+1. Default install has no network access; opt-in is one config line.
+2. `voss mcp call` works against the Anthropic reference MCP filesystem
+   server out of the box.
+3. M5 eval gains task #6 "fetch + summarize" requiring `web_fetch`.
+
+**Cross-cutting constraints:**
+- Path-jail + shell allowlist do not apply to network tools — sandbox is
+  per-tool-class.
+- MCP server processes reaped on session exit (mirror M10 LSP pattern).
+- Network telemetry events `net.request` / `net.response` with redacted URLs.
+- This phase reduces M12's scope to "expose harness as MCP server only" —
+  the client side ships here.
+
+---
+
+### Phase T5 — Shell Ergonomics *(v0.2)*
+
+**Goal:** Real builds and test runs survive the shell tool. Long-running
+tasks don't block the agent.
+
+**Requirements (proposed):** SHELL-01..05
+
+- SHELL-01 `shell_run` default output cap raised 4KB → 30KB.
+- SHELL-02 New `shell_run_background(cmd) -> handle` — detached process,
+  reaped on session exit.
+- SHELL-03 New `shell_monitor(handle, since_ms=0) -> chunk` — incremental
+  stream.
+- SHELL-04 New `shell_signal(handle, signal="INT"|"TERM")`.
+- SHELL-05 `voss jobs` CLI lists running background processes for the
+  current session.
+
+**Success Criteria (proposed):**
+1. A 20-second background job is observable via `shell_monitor` from a
+   second agent turn.
+2. Orphaned background jobs get SIGTERM within 2s, SIGKILL at 5s on
+   session exit.
+3. Per-process cap: 100MB memory, 30s no-output watchdog kills the job;
+   recorder logs.
+
+**Cross-cutting constraints:**
+- Shell allowlist still applies to background commands.
+- Background jobs do not inherit the agent's TTY.
+- This is the headless half of M14 (file-watch). M14 layers `watchdog`
+  on top.
+
+---
+
+### Phase T7 — Skills Bootstrap *(v0.2)*
+
+**Goal:** Ship 6 ready-to-use skills so the registry isn't just a hook.
+
+**Requirements (proposed):** SKL-01..06
+
+- SKL-01 `rename-symbol` — anchor + scope-aware rename across the repo.
+- SKL-02 `add-test` — locate a public function, generate a unit test.
+- SKL-03 `summarize-diff` — pipe `git diff` → PR description.
+- SKL-04 `port-py-to-voss` — Python → `.voss` for classify/support/research
+  sample shapes.
+- SKL-05 `audit-cognition` — re-run analyze against drift; propose a
+  paragraph update to `architecture.md`.
+- SKL-06 `voss-lint-as-skill` — wraps `voss check` with structured
+  diagnostic output. Foundation for M11.
+
+**Success Criteria (proposed):**
+1. Every skill invokable via `/skill <id>`, runs to completion on a
+   reference repo without permission escalation.
+2. Skills pair 1:1 with M5 eval tasks where applicable.
+
+**Cross-cutting constraints:**
+- Skills authored in `.voss` where the language expresses them; otherwise
+  Python with a `.voss` lint pass demonstrating composability.
+- Unblocks M15 (marketplace) but doesn't require it.
+
+---
+
+### Phase T8 — Input Bar Ergonomics *(v0.2)*
+
+**Goal:** The input bar stops being the slowest part of the loop.
+
+**Requirements (proposed):** INPUT-01..05
+
+- INPUT-01 Multi-line input via `Shift-Enter`; `Enter` submits.
+- INPUT-02 `!<cmd>` prefix runs an allowlisted shell command without
+  spawning a turn.
+- INPUT-03 `#<text>` prefix appends a memory note to `VOSS.md` without
+  spawning a turn.
+- INPUT-04 `Ctrl-R` reverse-search through episodic history.
+- INPUT-05 Paste-image detection — if clipboard has an image and the
+  model supports it, attach as a vision input.
+
+**Success Criteria (proposed):**
+1. All five behaviors covered by Textual snapshot tests.
+2. `!` and `#` shortcuts emit recorder events (`shell.local` /
+   `memory.note`) and bypass `run_turn`.
+
+**Cross-cutting constraints:**
+- M9 keymap (`tui/keymap.py`) is the source of truth — this phase only
+  adds bindings.
+
+---
+
 ## Coverage
 
 | Phase | Requirements | Count |
@@ -646,8 +978,18 @@ Plans:
 | M13 | MAG-01..0N | TBD by `M13-SPEC.md` |
 | M14 | WATCH-01..0N | TBD by `M14-SPEC.md` |
 | M15 | SKILL-01..0N | TBD by `M15-SPEC.md` |
+| **T-phases (daily-driver gap closure)** | | |
+| T6 (v0.1.1 patch) | SLASH-01..07 | 7 |
+| T1 | ITER-01..06 | 6 |
+| T4 | CACHE-01..04 | 4 |
+| T2 | PAR-01..04 | 4 |
+| T3 | NET-01..05 | 5 |
+| T5 | SHELL-01..05 | 5 |
+| T7 | SKL-01..06 | 6 |
+| T8 | INPUT-01..05 | 5 |
+| **T-total** | | **42** |
 
-All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase.
+All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`.
 
 ---
 

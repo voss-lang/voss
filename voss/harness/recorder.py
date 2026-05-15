@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from .session import RunRecord
+from .session import EXIT_REASONS, IterationRecord, RunRecord
 
 
 INSPECT_TOOLS = {"fs_read", "fs_glob", "fs_grep"}
@@ -42,6 +42,9 @@ class RunRecorder:
     decisions: list[dict] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
     follow_ups: list[str] = field(default_factory=list)
+    # T1-01: per-iteration sub-records appended via begin_iteration /
+    # end_iteration; forwarded to RunRecord.iterations on finalize.
+    _iterations: list[IterationRecord] = field(default_factory=list)
 
     @classmethod
     def start(cls) -> "RunRecorder":
@@ -96,9 +99,67 @@ class RunRecorder:
         if plan is not None:
             self.plan = plan.model_dump() if hasattr(plan, "model_dump") else plan
 
-    def finalize(self, cwd: Path, cost_usd: float) -> RunRecord:
+    def begin_iteration(self) -> IterationRecord:
+        """Open a new iteration sub-record (T1-01).
+
+        Appends an IterationRecord with index = current count, started_at set
+        to UTC ISO now, and other fields at defaults. Returns the record so
+        callers can attach fields incrementally before end_iteration.
+        """
+        record = IterationRecord(
+            index=len(self._iterations),
+            started_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        )
+        self._iterations.append(record)
+        return record
+
+    def end_iteration(
+        self,
+        *,
+        plan: Any,
+        tool_results: list[dict],
+        cost_usd: float,
+        prompt_tokens: int,
+        completion_tokens: int,
+        exit_reason: Optional[str] = None,
+    ) -> None:
+        """Close the most recently opened iteration (T1-01).
+
+        Writes the supplied fields onto the most recent open iteration (the
+        one with empty ended_at). Validates exit_reason against EXIT_REASONS
+        when not None — raises ValueError on mismatch.
+        """
+        if exit_reason is not None and exit_reason not in EXIT_REASONS:
+            raise ValueError(
+                f"invalid exit_reason {exit_reason!r}; "
+                f"must be one of {sorted(EXIT_REASONS)}"
+            )
+        target: Optional[IterationRecord] = None
+        for rec in reversed(self._iterations):
+            if not rec.ended_at:
+                target = rec
+                break
+        if target is None:
+            raise RuntimeError("end_iteration called without an open iteration")
+        target.plan = plan.model_dump() if hasattr(plan, "model_dump") else plan
+        target.tool_results = list(tool_results)
+        target.cost_usd = cost_usd
+        target.prompt_tokens = prompt_tokens
+        target.completion_tokens = completion_tokens
+        target.exit_reason = exit_reason
+        target.ended_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    def finalize(
+        self,
+        cwd: Path,
+        cost_usd: float,
+        *,
+        exit_reason: Optional[str] = None,
+    ) -> RunRecord:
         self.cost_usd = cost_usd
         self.diff_summary = _git_diff_stat(cwd)
+        total_prompt = sum(it.prompt_tokens for it in self._iterations)
+        total_completion = sum(it.completion_tokens for it in self._iterations)
         return RunRecord(
             id=self.id,
             started_at=self.started_at,
@@ -116,6 +177,11 @@ class RunRecorder:
             diff_summary=self.diff_summary,
             follow_ups=list(self.follow_ups),
             cost_usd=self.cost_usd,
+            iterations=list(self._iterations),
+            iteration_count=len(self._iterations),
+            exit_reason=exit_reason,
+            iteration_total_prompt_tokens=total_prompt,
+            iteration_total_completion_tokens=total_completion,
         )
 
 

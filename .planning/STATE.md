@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-last_updated: "2026-05-14T00:00:00Z"
-last_activity: 2026-05-14 — M8 CONTEXT.md captured. 16 implementation decisions across 4 areas (memory layout/chroma, VOSS.md sections/COG-02 rewrite, conventions extraction UX, concurrency/eviction). SPEC.md (7 reqs) + CONTEXT.md both locked. Ready for /gsd-plan-phase M8.
+last_updated: "2026-05-15T00:00:00Z"
+last_activity: 2026-05-15 — T2 CONTEXT.md captured. 8 implementation decisions across DiffModal wiring (tool-side hunks), gather error semantics (return_exceptions=True), BatchRecord nested under T1 IterationRecord, harness.toml `[agent]` section locked for T1+T2 co-location, fs_edit retained alongside fs_edit_many, fs_read_many 30KB per-file cap, mid-batch cancel via gather, batch.* telemetry symmetric with iteration.*. SPEC.md (6 reqs PAR-01..06) + CONTEXT.md both locked. Ready for /gsd-plan-phase T2.
 progress:
   total_phases: 8
   completed_phases: 0
