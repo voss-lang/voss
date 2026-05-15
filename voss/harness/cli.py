@@ -298,9 +298,11 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
         cfg = get_config()
         if cfg.default_model.startswith("claude") or cfg.default_model == "gpt-5":
             configure(default_model="gpt-5-codex")
-    elif res.source == "env-anthropic":
+    elif res.source in ("env-anthropic", "voss-anthropic"):
+        # `resolve()` already injected ANTHROPIC_API_KEY into env for the
+        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
         provider = LiteLLMProvider()
-    elif res.source in ("env-openai", "codex"):
+    elif res.source in ("env-openai", "voss-openai", "codex"):
         if res.openai_api_key:
             os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
         cfg = get_config()

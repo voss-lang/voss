@@ -457,3 +457,82 @@ def wait_for_creds(
         if now() >= deadline:
             return None
         sleep(poll)
+
+
+# ---------------------------------------------------------------------------
+# Voss-managed credential store (Phase 3)
+# ---------------------------------------------------------------------------
+#
+# Backed by the OS keychain via the `keyring` package: macOS Keychain on
+# Darwin, Windows Credential Locker on win32, Secret Service on Linux when
+# present. On hosts where keyring has no usable backend (e.g. headless Linux
+# without secretstorage / a session DBus), the load/save/delete calls
+# degrade to no-ops and log a warning to stderr. This keeps voss working in
+# CI / containers without dragging in plaintext file-store fallbacks.
+
+KEYRING_SERVICE = "voss"
+StoredProvider = Literal["anthropic", "openai"]
+
+
+def _keyring_module() -> Optional[object]:
+    """Import `keyring` lazily so a missing/broken install doesn't crash imports."""
+    try:
+        import keyring as _keyring  # type: ignore[import-not-found]
+
+        return _keyring
+    except Exception:  # noqa: BLE001 — keyring's import paths raise many things
+        return None
+
+
+def _keyring_available() -> bool:
+    """True when keyring imports AND has a backend we can actually call."""
+    kr = _keyring_module()
+    if kr is None:
+        return False
+    try:
+        backend = kr.get_keyring()  # type: ignore[attr-defined]
+        # The chainer / fail backends used as last resort are unusable; skip them.
+        name = type(backend).__name__.lower()
+        if "fail" in name:
+            return False
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def load_voss_creds(provider: StoredProvider) -> Optional[str]:
+    """Return the voss-stored API key for a provider, or None if absent / unavailable."""
+    kr = _keyring_module()
+    if kr is None:
+        return None
+    try:
+        value = kr.get_password(KEYRING_SERVICE, provider)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 — backend errors are non-fatal
+        return None
+    if not value:
+        return None
+    return value.strip() or None
+
+
+def save_voss_creds(provider: StoredProvider, key: str) -> bool:
+    """Persist an API key in the OS keychain. Returns True on success."""
+    kr = _keyring_module()
+    if kr is None or not _keyring_available():
+        return False
+    try:
+        kr.set_password(KEYRING_SERVICE, provider, key)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+def delete_voss_creds(provider: StoredProvider) -> bool:
+    """Remove a voss-stored credential. Returns True on success."""
+    kr = _keyring_module()
+    if kr is None:
+        return False
+    try:
+        kr.delete_password(KEYRING_SERVICE, provider)  # type: ignore[attr-defined]
+        return True
+    except Exception:  # noqa: BLE001
+        return False

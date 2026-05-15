@@ -234,16 +234,26 @@ def _branch_apikey(deps: _Deps) -> Optional[Resolution]:
             f"continuing anyway[/yellow]"
         )
 
-    # Phase 2: transient only — set in process env so this session resolves.
-    # Phase 3 will add durable persistence (keyring / ~/.voss/credentials.toml).
-    os.environ[env_var] = key
+    # Persist to the OS keychain so the key survives across sessions. If the
+    # keyring backend is unavailable (e.g. headless Linux), fall back to the
+    # transient env var path and warn — voss still works for this session.
+    persisted = auth_mod.save_voss_creds(provider, key)
+    if persisted:
+        deps.console.print(
+            f"[dim]saved to OS keychain (service=`{auth_mod.KEYRING_SERVICE}`, "
+            f"account=`{provider}`) — remove with `voss logout {provider}`[/dim]"
+        )
+    else:
+        os.environ[env_var] = key
+        deps.console.print(
+            "[yellow]keyring backend unavailable — key set for this session "
+            "only. Export it from your shell rc to persist.[/yellow]"
+        )
+
     res = auth_mod.resolve("api")
     if res.source == "none":
         deps.console.print("[red]api resolver still returns 'none' — investigate[/red]")
         return None
-    deps.console.print(
-        "[dim]key set for this session only — persistence ships in the next phase[/dim]"
-    )
     return res
 
 

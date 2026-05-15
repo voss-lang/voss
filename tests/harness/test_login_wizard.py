@@ -41,6 +41,28 @@ def _no_console() -> Console:
     return Console(file=io.StringIO(), force_terminal=False, no_color=True)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_keyring(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """Replace voss credential helpers with a per-test in-memory dict.
+
+    Avoids hitting the real OS keychain in tests; save/load stay coherent so
+    `resolve("api")` returns a `voss-*` source when the wizard's apikey branch
+    persists a key.
+    """
+    store: dict[str, str] = {}
+
+    def fake_save(provider: str, key: str) -> bool:
+        store[provider] = key
+        return True
+
+    def fake_load(provider: str):
+        return store.get(provider)
+
+    monkeypatch.setattr(A, "save_voss_creds", fake_save)
+    monkeypatch.setattr(A, "load_voss_creds", fake_load)
+    return store
+
+
 def _claude_resolution() -> A.Resolution:
     return A.Resolution(
         source="claude-oauth",
@@ -179,9 +201,17 @@ def test_codex_branch_success():
 # ---------------------------------------------------------------------------
 
 
-def test_apikey_anthropic_sets_env(monkeypatch: pytest.MonkeyPatch):
+def test_apikey_anthropic_persists_to_keyring(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    saved: dict[str, str] = {}
+    monkeypatch.setattr(
+        A,
+        "save_voss_creds",
+        lambda provider, key: saved.__setitem__(provider, key) or True,
+    )
+    monkeypatch.setattr(A, "load_voss_creds", lambda provider: saved.get(provider))
 
     inp = ScriptedInput(["3", "1"])  # menu → apikey → Anthropic
     secret = ScriptedInput(["sk-ant-test-key"])
@@ -195,15 +225,21 @@ def test_apikey_anthropic_sets_env(monkeypatch: pytest.MonkeyPatch):
         waiter=lambda _p, **_k: None,
     )
     assert res is not None
-    assert res.source == "env-anthropic"
-    import os
-
-    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-test-key"
+    assert res.source == "voss-anthropic"
+    assert saved == {"anthropic": "sk-ant-test-key"}
 
 
-def test_apikey_openai_sets_env(monkeypatch: pytest.MonkeyPatch):
+def test_apikey_openai_persists_to_keyring(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    saved: dict[str, str] = {}
+    monkeypatch.setattr(
+        A,
+        "save_voss_creds",
+        lambda provider, key: saved.__setitem__(provider, key) or True,
+    )
+    monkeypatch.setattr(A, "load_voss_creds", lambda provider: saved.get(provider))
 
     inp = ScriptedInput(["3", "2"])
     secret = ScriptedInput(["sk-openai-test-key"])
@@ -217,10 +253,33 @@ def test_apikey_openai_sets_env(monkeypatch: pytest.MonkeyPatch):
         waiter=lambda _p, **_k: None,
     )
     assert res is not None
-    assert res.source == "env-openai"
+    assert res.source == "voss-openai"
+    assert saved == {"openai": "sk-openai-test-key"}
+
+
+def test_apikey_keyring_unavailable_falls_back_to_env(monkeypatch: pytest.MonkeyPatch):
+    """No keyring backend → wizard sets env var, still returns a usable resolution."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(A, "save_voss_creds", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(A, "load_voss_creds", lambda _p: None)
+
+    inp = ScriptedInput(["3", "1"])
+    secret = ScriptedInput(["sk-ant-fallback"])
+
+    res = W.run_login_wizard(
+        console=_no_console(),
+        input_fn=inp,
+        secret_input_fn=secret,
+        detect=lambda _n: None,
+        spawn=lambda _a: 0,
+        waiter=lambda _p, **_k: None,
+    )
+    assert res is not None
+    assert res.source == "env-anthropic"
     import os
 
-    assert os.environ["OPENAI_API_KEY"] == "sk-openai-test-key"
+    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-fallback"
 
 
 def test_apikey_empty_loops_back(monkeypatch: pytest.MonkeyPatch):
@@ -258,4 +317,5 @@ def test_apikey_wrong_prefix_still_accepted(monkeypatch: pytest.MonkeyPatch):
         waiter=lambda _p, **_k: None,
     )
     assert res is not None
-    assert res.source == "env-anthropic"
+    # Stored via the autouse keyring stub → resolves as voss-anthropic.
+    assert res.source == "voss-anthropic"
