@@ -610,12 +610,42 @@ def _build_slash_registry() -> SlashRegistry:
 # ---------------------------------------------------------------------------
 
 
+def _apply_no_unicode_env(no_unicode: bool) -> None:
+    """Set VOSS_NO_UNICODE=1 BEFORE make_renderer/glyphs import.
+
+    The glyphs module reads the env var at import time and rewires its
+    module-level constants to ASCII fallbacks. Tests can also drive the
+    same code path by setting `VOSS_NO_UNICODE=1` directly.
+    """
+    if no_unicode:
+        os.environ["VOSS_NO_UNICODE"] = "1"
+
+
+def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
+    """If `renderer` is a TextualRenderer, install modal-driven permission prompts.
+
+    Deferred imports keep cli.py decoupled from the Textual import graph on
+    the plain / non-TTY paths.
+    """
+    from .tui.permissions_bridge import install_tui_permissions
+    from .tui.renderer import TextualRenderer
+
+    if isinstance(renderer, TextualRenderer):
+        install_tui_permissions(gate, renderer.app)
+
+
 @click.command("do")
 @click.argument("task", nargs=-1, required=False)
 @click.option("--model", default=None, help="Override default model.")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
 @click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
+@click.option(
+    "--no-unicode",
+    "no_unicode",
+    is_flag=True,
+    help="Use ASCII fallback for TUI glyphs (sets VOSS_NO_UNICODE=1).",
+)
 @click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
@@ -636,6 +666,7 @@ def do_cmd(
     cwd_str: str,
     json_mode: bool,
     plain: bool,
+    no_unicode: bool,
     mode: str,
     yes_to_all: bool,
     auth_pref: str,
@@ -645,6 +676,7 @@ def do_cmd(
     Stdin (when piped) is appended to the task as additional context.
     """
     cwd = Path(cwd_str).resolve()
+    _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
@@ -671,6 +703,7 @@ def do_cmd(
         auto_yes=yes_to_all or json_mode,
         project_policy=do_bundle.permissions if do_bundle.initialized else None,
     )
+    _wire_tui_permissions_if_textual(gate, renderer)
     attach_subagent_tool(
         tools,
         registry=default_subagent_registry(),
@@ -742,6 +775,12 @@ def do_cmd(
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
 @click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
+    "--no-unicode",
+    "no_unicode",
+    is_flag=True,
+    help="Use ASCII fallback for TUI glyphs (sets VOSS_NO_UNICODE=1).",
+)
+@click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
     default="plan",  # D-07: chat defaults to plan
@@ -759,11 +798,13 @@ def chat_cmd(
     cwd_str: str,
     json_mode: bool,
     plain: bool,
+    no_unicode: bool,
     mode: str,
     auth_pref: str,
 ) -> None:
     """Interactive agent REPL. Ctrl-D or /exit to quit."""
     cwd = Path(cwd_str).resolve()
+    _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
@@ -795,6 +836,12 @@ def chat_cmd(
 @click.option("--json", "json_mode", is_flag=True, help="Emit NDJSON events on stdout.")
 @click.option("--plain", "plain", is_flag=True, help="Use line-streamed renderer; bypass TUI.")
 @click.option(
+    "--no-unicode",
+    "no_unicode",
+    is_flag=True,
+    help="Use ASCII fallback for TUI glyphs (sets VOSS_NO_UNICODE=1).",
+)
+@click.option(
     "--mode",
     type=click.Choice(["plan", "edit", "auto"]),
     default="edit",
@@ -813,6 +860,7 @@ def edit_cmd(
     model: str | None,
     json_mode: bool,
     plain: bool,
+    no_unicode: bool,
     mode: str,
     auth_pref: str,
 ) -> None:
@@ -824,6 +872,7 @@ def edit_cmd(
     from .edit_scope import EditScope
 
     cwd = Path(cwd_str).resolve()
+    _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
@@ -895,6 +944,7 @@ def _run_repl(
         edit_scope=edit_scope,
         project_policy=bundle.permissions if bundle.initialized else None,
     )
+    _wire_tui_permissions_if_textual(gate, renderer)
     ctx = ReplContext(
         cwd=cwd,
         renderer=renderer,

@@ -82,6 +82,12 @@ def tui_should_activate(
         return TUIDecision(activate=False, reason="--json mode")
     if not stdout_isatty:
         return TUIDecision(activate=False, reason="non-TTY stdout")
+    # M9-07 Windows-console branch (planner decision: hard-block legacy
+    # cmd.exe / conhost; allow Windows Terminal which sets WT_SESSION).
+    # Fires BEFORE size + textual_available checks so the locked notice
+    # is emitted even if those would also fail.
+    if sys.platform == "win32" and not env.get("WT_SESSION"):
+        return TUIDecision(activate=False, reason="Windows console missing capability")
     if size[0] < _MIN_COLS or size[1] < _MIN_ROWS:
         return TUIDecision(activate=False, reason="terminal below 80x24")
     if not tui_available():
