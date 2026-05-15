@@ -20,10 +20,11 @@ must_haves:
     - "Exit-reason matrix test covers all four values: done, max-iter, budget, interrupt — each via a dedicated fixture"
     - "First-token + 100ms-finalize quantitative thresholds are asserted with time.monotonic() deltas"
     - "A CI workflow step runs the grep gate before pytest, failing the build if _substitute_placeholders re-appears"
+    - "test_permission_gate_fresh_per_iteration asserts the injected PermissionGate.prompt_fn is invoked exactly twice across a 2-iter run with identical fs_edit calls (per CONTEXT.md per-iter fresh check invariant)"
   artifacts:
     - path: "tests/harness/test_t1_acceptance.py"
-      provides: "Single file with one test function per SPEC acceptance checkbox + exit-reason matrix + latency thresholds"
-      contains: "def test_iter_01\\|def test_iter_02\\|def test_iter_03\\|def test_iter_04\\|def test_iter_05\\|def test_iter_06\\|def test_exit_reason_matrix"
+      provides: "Single file with one test function per SPEC acceptance checkbox + exit-reason matrix + latency thresholds + per-iter PermissionGate fresh-check regression"
+      contains: "def test_iter_01\\|def test_iter_02\\|def test_iter_03\\|def test_iter_04\\|def test_iter_05\\|def test_iter_06\\|def test_exit_reason_matrix\\|def test_permission_gate_fresh_per_iteration"
     - path: "tests/harness/test_substitute_placeholders_gone.py"
       provides: "Grep-gate test asserting zero matches in voss/"
       contains: "_substitute_placeholders"
@@ -177,6 +178,7 @@ mation actually proved phase completion.
     - voss/harness/session.py (after T1-01 — EXIT_REASONS frozenset)
     - voss/harness/providers.py (after T1-03 — both stream() impls)
     - tests/harness/test_agent_loop.py (T1-05 — reuse the FakeStreamingProvider fixture if exported; if it lives inside test_agent_loop.py, lift it into a conftest.py in this task)
+    - voss/harness/permissions.py (line 145 PermissionGate dataclass; line 149 `prompt_fn: Optional[Callable] = None  # injected for tests`; line 169 check() method — used by test_permission_gate_fresh_per_iteration)
   </read_first>
   <behavior>
     - test_iter_01_while_loop_exits_on_done: 2-iter scenario, run.exit_reason == "done"
@@ -196,6 +198,7 @@ mation actually proved phase completion.
     - test_exact_halted_max_iter_string: cap-exit scenario, "halted: max-iter" in TurnResult.final exactly (use `in` not `==`)
     - test_no_runtime_error_on_cap: cap scenario does NOT raise RuntimeError (pytest.raises with RuntimeError negated)
     - test_exit_reason_matrix_all_four_reachable: four scenarios in one test, asserting all four exit_reasons reach a finalized RunRecord
+    - test_permission_gate_fresh_per_iteration: 2-iteration run where iter 0 plan contains ToolCall(name="fs_edit", args={"path":"foo.py","old":"x","new":"y"}) (gate approves via injected prompt_fn that records call count and returns True) and iter 1 plan contains the IDENTICAL fs_edit call. Assert the injected prompt_fn was invoked EXACTLY TWICE (once per iteration). This proves no session-cached approvals — each iter sees a fresh PermissionGate.check() prompt. Source-of-truth: CONTEXT.md "per-iter fresh permission check stays" + SPEC.md ITER-04 "Permission gate per-iter behavior unchanged — each tool call still goes through PermissionGate fresh on every iteration (no session-cached approvals)".
   </behavior>
   <action>
     Create `tests/harness/conftest.py` if it doesn't exist (check via
@@ -232,21 +235,35 @@ mation actually proved phase completion.
     Keep this in its OWN file (not folded into test_t1_acceptance) so
     the grep gate can be run as a standalone selector in CI.
 
+    For test_permission_gate_fresh_per_iteration: instantiate PermissionGate
+    with `auto_yes=False, mode="edit"` and inject a Recording `prompt_fn`
+    via the `prompt_fn` field (see voss/harness/permissions.py:149 — the
+    dataclass exposes `prompt_fn: Optional[Callable] = None  # injected for tests`).
+    The Recording prompt_fn appends to a list each call and returns True
+    (approve). Wire the gate into the FakeStreamingProvider-backed
+    run_turn invocation via the `permissions=` kwarg. After the run
+    completes, assert `len(recorded_prompt_calls) == 2` AND that both
+    recorded calls reference the same tool name (`fs_edit`) and the same
+    args dict (proving each iter re-prompted rather than reusing a cached
+    approval). DO NOT modify PermissionGate source — this test is
+    pure regression against the unchanged per-iter behavior.
+
     Do NOT introduce new production code. Pure test additions.
   </action>
   <verify>
     <automated>uv run pytest tests/harness/test_t1_acceptance.py tests/harness/test_substitute_placeholders_gone.py -v 2>&amp;1 | tail -40</automated>
   </verify>
   <acceptance_criteria>
-    - file assertion: `wc -l tests/harness/test_t1_acceptance.py` > 200 (file should contain ~15+ test functions with setup/teardown)
+    - file assertion: `wc -l tests/harness/test_t1_acceptance.py` > 220 (file should contain ~17+ test functions with setup/teardown)
     - source assertion: `grep -cE "^def test_iter_0[1-6]" tests/harness/test_t1_acceptance.py` >= 6 (one per ITER req at minimum)
     - source assertion: `grep -F 'halted: max-iter' tests/harness/test_t1_acceptance.py` returns >= 1 match (exact-string check)
     - source assertion: `grep -F "0.1\|0.5\|100\|500" tests/harness/test_t1_acceptance.py` returns >= 2 matches (latency thresholds present)
     - source assertion: `grep -F "exit_reason" tests/harness/test_t1_acceptance.py | wc -l` >= 8 (matrix coverage)
+    - per-iter-permission assertion: `grep -n "test_permission_gate_fresh_per_iteration" tests/harness/test_t1_acceptance.py` returns 1 match; the test passes with `len(recorded_prompt_calls) == 2`
     - grep gate assertion: `grep -rn "_substitute_placeholders" voss/ ; test $? -eq 1` (in shell — returns 0 if grep found nothing)
     - behavior assertion: all tests in test_t1_acceptance.py pass; test_substitute_placeholders_gone passes
     - test command: `uv run pytest tests/harness/test_t1_acceptance.py tests/harness/test_substitute_placeholders_gone.py -v`
-    - CLI output: pytest exit code 0; all 15+ tests show PASSED
+    - CLI output: pytest exit code 0; all 17+ tests show PASSED
   </acceptance_criteria>
   <done>tests/harness/test_t1_acceptance.py exercises all 12 SPEC checkboxes + 4 quantitative thresholds + exit_reason matrix; tests/harness/test_substitute_placeholders_gone.py is a standalone grep gate; both pass.</done>
 </task>
