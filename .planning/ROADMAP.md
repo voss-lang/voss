@@ -717,6 +717,17 @@ cancels cleanly on user interrupt.
 - `_substitute_placeholders` is removed. Prior results flow via context.
 - This phase is the **breaking behavior change** that justifies v0.2.
 
+**Plans:** 7 plans across 5 waves
+
+Plans:
+- [ ] T1-01-PLAN.md — Schema substrate: IterationRecord + additive RunRecord fields + RunRecorder.begin_iteration/end_iteration
+- [ ] T1-02-PLAN.md — ProviderStreamEvent union + StreamingProvider Protocol + ParsedPlan terminal event (placeholder stream() bodies)
+- [ ] T1-03-PLAN.md — Concrete AnthropicOAuthProvider.stream() + OpenAIOAuthProvider.stream() with OAuth refresh + graceful httpx aclose + parity test
+- [ ] T1-04-PLAN.md — TurnView.stream_delta/finalize_stream + RuntimeConfig.max_iterations + [agent] section TOML loader
+- [ ] T1-05-PLAN.md — Rewrite _run_turn_exec as while-loop, delete _substitute_placeholders, PLAN_LOOP_SYSTEM + per-iter rider, per-iter telemetry
+- [ ] T1-06-PLAN.md — VossTUIApp.active_turn_task + action_interrupt body + CancelledError handler in _run_turn_exec + cli.py register_turn_task
+- [ ] T1-07-PLAN.md — SPEC 12-checkbox acceptance suite + grep gate + M5 golden #2 one-shot + CI workflow step
+
 ---
 
 ### Phase T4 — Prompt Caching + Cost Truthfulness *(v0.2)*
