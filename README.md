@@ -51,6 +51,21 @@ Semantic memory (`memory.semantic`, `match similar(...)`) is an optional extra â
 pip install 'voss[search]'
 ```
 
+### Container image
+
+Voss also publishes a CLI container image to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/voss-lang/voss:latest
+docker run --rm ghcr.io/voss-lang/voss:latest --help
+```
+
+Mount a repo into `/workspace` when running project-scoped commands:
+
+```bash
+docker run --rm -v "$PWD:/workspace" ghcr.io/voss-lang/voss:latest doctor
+```
+
 First run â€” verify the install and check provider auth, git, and config paths:
 
 ```bash
