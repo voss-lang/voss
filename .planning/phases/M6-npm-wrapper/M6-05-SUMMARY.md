@@ -88,3 +88,68 @@ Once Task 4 returns `publish 0.1.0` and the workflow goes green, M6 is complete 
 - `voss[search]` optional extra carries the heavy semantic-memory deps; default install is ~159 MB unpacked.
 - README's install instructions point users at the npm-first path; test_readme.py pins the docs invariants so drift breaks CI.
 - All M6 follow-ups are documented in the per-phase summaries (M6-01..M6-05) for v0.1.x and v0.2 work.
+
+## Task 4 Resolution — v0.1.0 SHIPPED
+
+**Date:** 2026-05-15
+**Decision:** Published
+
+### Publish path
+- 4/5 platforms published cleanly via CI workflow_dispatch run 25868604410 after NPM_TOKEN rotation to a properly-Bypass-2FA Granular token (3rd attempt; first two were Classic-form with the Bypass-2FA box accidentally off post-form-submit).
+- darwin-x64 + publish-main were dispatched twice but the macos-13 free-tier runner queue stalled both times. Cancelled the dispatch and published darwin-x64 + main locally from this dev host:
+  - `arch -x86_64 python3 npm/scripts/build_platform.py darwin-x64 --wheel dist/voss-0.1.0-py3-none-any.whl --out npm/platforms/darwin-x64/python` produced a 165 MB site-packages tree under Rosetta in 28.8 s.
+  - `cd npm/platforms/darwin-x64 && npm publish --access public` → `+ @vosslang/cli-darwin-x64@0.1.0` (74.5 MB compressed, 228.5 MB unpacked, 13706 files).
+  - `cd npm && npm publish --access public` → `+ @vosslang/cli@0.1.0` (1.6 kB).
+
+### Registry state at ship
+| Package | Version | Tarball size (gzip) |
+|---------|---------|-------|
+| @vosslang/cli | 0.1.0 | 1.6 kB |
+| @vosslang/cli-darwin-arm64 | 0.1.0 | ~75 MB |
+| @vosslang/cli-darwin-x64 | 0.1.0 | 74.5 MB |
+| @vosslang/cli-linux-x64 | 0.1.0 | ~75 MB |
+| @vosslang/cli-linux-arm64 | 0.1.0 | ~75 MB |
+| @vosslang/cli-win32-x64 | 0.1.0 | ~75 MB |
+
+### End-to-end install smoke (darwin-arm64, fresh /tmp project)
+```
+$ npm install @vosslang/cli@0.1.0
+added 2 packages, and audited 3 packages in 4s
+found 0 vulnerabilities
+
+$ node node_modules/@vosslang/cli/bin/voss.js --help
+Usage: python -m voss.cli [OPTIONS] COMMAND [ARGS]...
+  voss — compiler and agent.
+  Compiler verbs : compile · run · check · init · ast Agent verbs : do · chat · edit · doctor · tools · config
+  ...
+$ echo $?
+0
+
+$ node node_modules/@vosslang/cli/bin/voss.js doctor
+  ✓  project dirs    .voss/, .voss-cache/ creatable
+  ✓  harness cache   no harness sources
+  ...
+$ echo $?
+0
+```
+
+### Repo state at ship
+- Repo: voss-lang/voss (transferred from bm9797/Voss → Wineberry-io/Voss → voss-lang/voss during M6 execution)
+- 6 npm manifests have `repository.url = git+https://github.com/voss-lang/voss.git` and matching homepage.
+- Branch protection on master (PR required, required CI checks, no force-push, no delete).
+- Tag ruleset on v* (no force-push, no deletion; admin bypass).
+- LICENSE (MIT) added.
+- README badges point at voss-lang/voss (CI, npm version, npm downloads, PyPI version, Python 3.11+, Node 18+, MIT license).
+
+### M6 milestone close-out
+All five plans M6-01..M6-05 complete. Names claimed, build pipeline proven, release workflow exercised on rc1/rc2/rc3/v0.1.0 tags, README + tests pinned, real v0.1.0 published, end-to-end install smoke green.
+
+### Open follow-ups (v0.1.x or v0.2)
+1. **macos-13 darwin-x64 runner bottleneck**: free-tier queue stalled twice during rc2/v0.1.0 publishes; resolved by Rosetta-on-this-host local publish. Investigate cross-build via Rosetta-on-Linux (osxcross) or accept paid `macos-13-large` minutes for v0.2.
+2. **Token hygiene**: the bypass-2fa token used for darwin-x64 + main local publish entered the conversation transcript (90-day expiration). Consider rotating again now that v0.1 is shipped; the npm registry doesn't need it again until v0.1.1.
+3. **`latest` tag hygiene**: rc1/rc2/rc3 prereleases each advanced npm `latest`. v0.1.0 ship correctly takes `latest`. Future prereleases (v0.1.0-rc4, v0.2.0-beta1) should use `--tag next` in release.yml so they don't move `latest`.
+4. **dev → master merge**: this session's URL fixes + favicon assets + summaries live on `dev`. Merge to `master` via PR once branch protection's required-checks workflow finishes; eventually re-tag if a v0.1.1 cuts the merged history.
+5. **`voss extras install search` subcommand**: the friendly ModuleNotFoundError tells users to `pip install 'voss[search]'`, which is awkward on the npm-installed path. A v0.1.x feature to expose `voss extras install search` (uses the vendored pip to extend the vendored python) closes the UX gap.
+6. **Other URL references**: Cargo.toml + dist-workspace.toml + generated `site/out/__next._full.txt` still reference older repo URLs; update on the next Rust-spike unfreeze pass.
+
+🚢 v0.1 shipped to npm at @vosslang/cli@0.1.0. Users can now run `npm i -g @vosslang/cli` to get the full Voss CLI with vendored Python and zero manual setup.
