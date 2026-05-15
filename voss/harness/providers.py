@@ -8,7 +8,8 @@ For simple API-key flows we still use voss_runtime's LiteLLMProvider.
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any, AsyncIterator, Optional, Protocol, Union, runtime_checkable
 
 import httpx
 from pydantic import BaseModel
@@ -16,6 +17,99 @@ from pydantic import BaseModel
 from voss_runtime.providers.base import ProviderResponse
 
 from . import auth
+
+
+# ---------------------------------------------------------------------------
+# T1-02: Streaming event contract — typed union consumed by the agent loop
+# (T1-05/T1-06) and the iteration loop's terminating-Plan parse. Bodies of
+# stream() land in T1-03; this module ships only shapes + Protocol so
+# downstream waves can pin against a stable surface.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class TextDelta:
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolUseStart:
+    id: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolUseDelta:
+    id: str
+    partial_json: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolUseEnd:
+    id: str
+
+
+@dataclass(frozen=True, slots=True)
+class Usage:
+    prompt_tokens: int
+    completion_tokens: int
+    cost_usd: float
+
+
+@dataclass(frozen=True, slots=True)
+class Done:
+    stop_reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedPlan:
+    """Terminal event carrying the structured Plan parse.
+
+    Locked mechanism (CONTEXT.md "Claude's Discretion") for surfacing the
+    Plan instance: providers emit a synthetic terminal ParsedPlan event
+    rather than returning the Plan from the stream() coroutine. Keeps the
+    agent-loop consumer branching on a single shape.
+
+    `plan` is typed Any to avoid importing `voss.harness.agent.Plan` here
+    and creating a circular import; T1-03 / T1-05 pin the concrete type
+    at the call site.
+    """
+
+    plan: Any
+
+
+ProviderStreamEvent = Union[
+    TextDelta,
+    ToolUseStart,
+    ToolUseDelta,
+    ToolUseEnd,
+    Usage,
+    Done,
+    ParsedPlan,
+]
+
+
+@runtime_checkable
+class StreamingProvider(Protocol):
+    """Structural protocol both AnthropicOAuthProvider and OpenAIOAuthProvider satisfy.
+
+    T1-03 fills the stream() bodies; T1-05 consumes the events in the
+    agent iteration loop. Signature mirrors complete() arg-for-arg so
+    callers can swap call sites without re-threading kwargs.
+    """
+
+    async def stream(
+        self,
+        *,
+        messages: list[dict],
+        model: str,
+        response_format: Optional[type] = None,
+        tools: Optional[list[dict]] = None,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> AsyncIterator[ProviderStreamEvent]:
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +297,25 @@ class AnthropicOAuthProvider:
             raw=data,
             parsed=parsed,
         )
+
+    async def stream(
+        self,
+        *,
+        messages: list[dict],
+        model: str,
+        response_format: Optional[type] = None,
+        tools: Optional[list[dict]] = None,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> AsyncIterator[ProviderStreamEvent]:
+        # T1-02 placeholder. T1-03 replaces this body with the Anthropic SSE
+        # messages-streaming implementation. The unreachable yield keeps this
+        # method a valid async generator so it satisfies the StreamingProvider
+        # Protocol's AsyncIterator return type at runtime.
+        raise NotImplementedError("stream() body lands in T1-03")
+        if False:  # pragma: no cover - unreachable; required for async-gen typing
+            yield TextDelta("")
 
     def count_tokens(self, *, text: str, model: str) -> int:
         # Quick estimate. Anthropic's counter requires an extra API call;
@@ -396,6 +509,25 @@ class OpenAIOAuthProvider:
             raw=data,
             parsed=parsed,
         )
+
+    async def stream(
+        self,
+        *,
+        messages: list[dict],
+        model: str,
+        response_format: Optional[type] = None,
+        tools: Optional[list[dict]] = None,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> AsyncIterator[ProviderStreamEvent]:
+        # T1-02 placeholder. T1-03 replaces this with the OpenAI Responses-API
+        # streaming implementation. `tools` is accepted for signature symmetry
+        # with the Anthropic provider but stays unused — no OpenAI tool-use
+        # streaming in T1 (Plan parse comes from text.format structured output).
+        raise NotImplementedError("stream() body lands in T1-03")
+        if False:  # pragma: no cover - unreachable; required for async-gen typing
+            yield TextDelta("")
 
     def count_tokens(self, *, text: str, model: str) -> int:
         return max(len(text) // 4, 1)
