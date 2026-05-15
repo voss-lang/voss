@@ -53,14 +53,18 @@ def make_renderer(
     plain: bool = False,
     force_tui: bool = False,
 ) -> Renderer:
-    """Renderer factory honoring TUI capability rules (M9-01).
+    """Renderer factory honoring TUI capability rules.
 
-    Decision order:
+    Decision order (M9-07 — default-path flip):
       1. json_mode=True → JsonRenderer (NDJSON on stdout; unchanged).
       2. plain=True or VOSS_PLAIN=1 → PlainRenderer.
       3. force_tui=True (or VOSS_FORCE_TUI=1) + size < 80x24 → stderr + exit(2).
-      4. Otherwise: TtyRenderer for TTY, PlainRenderer for non-TTY.
-         (TextualRenderer lands in M9-02.)
+      4. capability.tui_should_activate says yes → TextualRenderer (new default).
+      5. capability rejected with Windows-console reason → emit locked stderr
+         notice + PlainRenderer.
+      6. non-TTY stdout → PlainRenderer.
+      7. TTY but capability rejected (e.g. textual import failed, terminal
+         too small without force_tui) → legacy TtyRenderer.
     """
     if json_mode:
         return JsonRenderer()
@@ -70,8 +74,11 @@ def make_renderer(
 
     from .tui.capability import min_size_guard, tui_should_activate
 
+    if plain:
+        return PlainRenderer()
+
     decision = tui_should_activate(json_mode=False)
-    if plain or decision.reason in ("--plain flag", "VOSS_PLAIN env"):
+    if decision.reason in ("--plain flag", "VOSS_PLAIN env"):
         return PlainRenderer()
 
     if force_tui:
@@ -80,13 +87,25 @@ def make_renderer(
             sys.stderr.write(min_size_guard((size.columns, size.lines)) + "\n")
             sys.stderr.flush()
             sys.exit(2)
-        # M9-02: force_tui produces a real TextualRenderer. The default user
-        # path remains TtyRenderer; the live swap-in lands in M9-07 once
-        # modals + recorder + resume are wired.
         from .tui.app import VossTUIApp
         from .tui.renderer import TextualRenderer
 
         return TextualRenderer(VossTUIApp())
+
+    if decision.activate:
+        from .tui.app import VossTUIApp
+        from .tui.renderer import TextualRenderer
+
+        return TextualRenderer(VossTUIApp())
+
+    # M9-07 Windows-console strategy: locked notice to stderr, PlainRenderer
+    # fallback. Fires whether stdout is a TTY or not.
+    if decision.reason.startswith("Windows console missing capability"):
+        sys.stderr.write(
+            "voss: Windows console missing capability · using --plain mode\n"
+        )
+        sys.stderr.flush()
+        return PlainRenderer()
 
     if not sys.stdout.isatty():
         return PlainRenderer()

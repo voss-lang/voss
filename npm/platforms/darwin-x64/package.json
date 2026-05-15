@@ -12,7 +12,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Wineberry-io/Voss.git"
+    "url": "git+https://github.com/voss-lang/voss.git"
   },
   "os": [
     "darwin"
