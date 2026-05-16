@@ -104,8 +104,8 @@ Reuse targets: `httpx.AsyncClient` lifecycle pattern at `voss/harness/providers.
 
 ## Acceptance Criteria
 
-- [ ] `pytest tests/harness/tools/test_web_fetch.py -x` passes (all NET-01 cases: registration, off-default error, truncation, timeout clamp, HTTP error envelope)
-- [ ] `pytest tests/harness/tools/test_web_search.py -x` passes (all NET-02 cases: no-key error, Brave-mocked happy path, count clamp, 429 handling)
+- [ ] `pytest tests/harness/test_web_fetch.py -x` passes (all NET-01 cases: registration, off-default error, truncation, timeout clamp, HTTP error envelope)
+- [ ] `pytest tests/harness/test_web_search.py -x` passes (all NET-02 cases: no-key error, Brave-mocked happy path, count clamp, 429 handling)
 - [ ] `pytest tests/harness/mcp/ -x` passes (NET-03 + NET-04: config load, lazy launch, namespaced registration, scope enforcement, SIGTERM reaping)
 - [ ] `pytest tests/harness/test_allow_net.py -x` passes (NET-05: default false, config load, CLI override precedence, gate denial, zero-socket invariant)
 - [ ] `pytest tests/harness/test_net_telemetry.py -x` passes (NET-06: `redact_url` unit, event emission, MCP variant, RunRecord round-trip)

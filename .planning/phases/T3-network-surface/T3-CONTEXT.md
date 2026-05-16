@@ -80,7 +80,7 @@ Downstream agents MUST read `T3-SPEC.md` before planning or implementing. Requir
 
 ### CLI + telemetry wiring
 
-- **D-13:** CLI surface = argparse subparser at `voss mcp {list,call}`, matching existing `voss check` / `voss compile` style.
+- **D-13:** CLI surface = click sub-group at `voss mcp {list,call}`, matching existing `voss check` / `voss compile` style. (Discuss-phase D-13 originally said argparse; corrected to click after PATTERNS.md confirmed cli.py is click-based — see cli.py:1621-1637.)
   - `voss mcp list` — pretty default (one server per block: name, command, advertised tools). `--json` flag emits machine-readable JSON.
   - `voss mcp call <server> <tool> [--arg key=value]...` — debug invocation. Bypasses `PermissionGate` (developer tool — implies explicit trust). Output printed to stdout, exit code 0 on success, 1 on protocol/transport error, 2 on server-side tool error.
 - **D-14:** Tool-call kwarg syntax = `--arg key=value` repeatable. Values parsed as JSON when they look like JSON (`true`, `42`, `["a","b"]`, `null`); otherwise treated as raw strings. Example: `voss mcp call filesystem read_file --arg path=./README.md --arg encoding=utf-8`. Matches `kubectl --from-literal` ergonomics. JSON typing is parser-best-effort, not strict — invalid JSON-looking values fall back to string.

@@ -23,7 +23,7 @@
 - **D-10** `PermissionGate.check` order: `auto_yes → net-check (before mode-tier) → mode-tier → deny-rules → prompt/diff`; net denial emits no telemetry
 - **D-11** MCP scope re-classification at registration time in `registry.py`; uses `destructiveHint` from tool descriptor; absent → `is_mutating=True` (safe default)
 - **D-12** Denial UX: `<error: net disabled: ...>` string in tool result; no new exception type
-- **D-13** CLI: argparse subparser `voss mcp {list,call}`; `list` defaults pretty, `--json` flag; `call` bypasses PermissionGate
+- **D-13** CLI: click sub-group `voss mcp {list,call}`; `list` defaults pretty, `--json` flag; `call` bypasses PermissionGate. *(Corrected from "argparse subparser" — PATTERNS.md confirms cli.py is click-based at lines 1621-1637.)*
 - **D-14** `--arg key=value` repeatable; JSON-typed when parseable, string fallback
 - **D-15** `redact_url(url: str) -> str` in `voss/harness/telemetry.py` alongside `redact_tool_args`
 - **D-16** `NetSession.acquire(tool_name)` → `AcquireResult`; defaults: web_fetch 30/min burst 30, web_search 10/min burst 10; MCP tools skip; per-`[net.rate_limits]` override
@@ -94,7 +94,7 @@ The existing `voss/harness/config.py` regex-based TOML parser is the exact patte
 | URL telemetry redaction | `voss/harness/telemetry.py` | — | Pure function alongside redact_tool_args |
 | Config loading | `voss/harness/config.py` | `voss_runtime/_config.py` | config.py: TOML parser for [tools]/[net.rate_limits]; _config.py: RuntimeConfig dataclass |
 | Subprocess lifecycle reap | `voss/harness/lifecycle.py` (greenfield) | — | Shared hook for MCP subprocesses + NetSession.aclose() |
-| CLI subcommands | `voss/harness/cli.py` | — | argparse subparser added to existing click/argparse group |
+| CLI subcommands | `voss/harness/cli.py` | — | click sub-group added to existing main cli group (see cli.py:1621-1637 analog) |
 
 ---
 
@@ -887,24 +887,28 @@ def make_toolset(cwd: Path, *, net: "NetSession | None" = None) -> dict[str, Too
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **pyyaml dependency presence**
+   **RESOLVED:** PATTERNS.md confirms cognition.py:21 imports `yaml`; T3-01 Task 2 verifies pyproject.toml main-deps inclusion of pyyaml as part of Wave 0 scaffolding.
    - What we know: `.voss/mcp.yml` loader requires YAML parsing; the project uses `.voss/` YAML files (constraints.yml, permissions.yml, validation.yml)
    - What's unclear: Whether `pyyaml` is already in `pyproject.toml` dependencies or only in dev deps
    - Recommendation: `grep pyyaml /Users/benjaminmarks/Projects/Voss/pyproject.toml` before Wave 0. If absent, add to main deps.
 
 2. **Exact tool names in server-filesystem 2026.1.14**
+   **RESOLVED:** T3-09 Task 1 is a blocking-human checkpoint that pins the exact read-tool name by calling `tools/list` against the pinned `@modelcontextprotocol/server-filesystem` npm dist; the resolved value is recorded as `READ_TOOL_NAME` and substituted into the CI workflow before merge.
    - What we know: README for the servers repo lists `read_text_file` (not `read_file`). NET-03 acceptance criteria uses `filesystem__read_file` as placeholder.
    - What's unclear: Whether the 2026.1.14 npm dist uses `read_text_file` or a different alias.
    - Recommendation: In Wave 0 or the CI job, run `npx -y @modelcontextprotocol/server-filesystem@2026.1.14 /tmp 2>/dev/null & sleep 2 && echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' | nc -q1 localhost <port>` — or simpler: run the integration test first, capture `tools/list` output, update test fixture. The planner should add a Wave 0 task to pin the actual tool names.
 
 3. **`PermissionGate.check` signature change scope**
+   **RESOLVED:** T3-02 Task 2 audits all `.check(` call sites via `grep -rn "\.check(" voss/harness/`; the signature extension is additive (new kwarg `is_network: bool = False` with safe default) — every existing caller continues to compile and pass without modification, and T3-05 wires `is_network=entry.is_network` at the agent-loop dispatch site.
    - What we know: Today `check(tool_name, args, *, is_mutating)`. T3 needs `is_network` too.
    - What's unclear: Whether callers pass `is_mutating` positionally or as kwarg; need to check all call sites.
    - Recommendation: Grep for `gate.check(` across the codebase before extending the signature. The call sites in `agent.py` must pass `is_network=entry.is_network`.
 
 4. **`.voss/mcp.yml` vs `harness.toml`**
+   **RESOLVED:** CONTEXT.md D-04 locks `.voss/mcp.yml` as the MCP server registry; the loader reads `{cwd}/.voss/mcp.yml` and the file is project-scoped (consistent with `.voss/permissions.yml`).
    - What we know: D-04 says `.voss/mcp.yml` is the schema. The existing TOML config lives at `~/.config/voss/config.toml`.
    - What's unclear: Is `.voss/mcp.yml` project-scoped (lives in the repo) or global? CONTEXT.md says project-scoped (`.voss/` is the project cognition directory per COG-03).
    - Recommendation: Project-scoped. The loader reads `{cwd}/.voss/mcp.yml`. This is consistent with `.voss/permissions.yml`.

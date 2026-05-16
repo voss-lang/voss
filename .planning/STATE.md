@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1
-milestone_name: milestone
-status: executing
-last_updated: "2026-05-15T00:00:00Z"
-last_activity: 2026-05-15 — T2 CONTEXT.md captured. 8 implementation decisions across DiffModal wiring (tool-side hunks), gather error semantics (return_exceptions=True), BatchRecord nested under T1 IterationRecord, harness.toml `[agent]` section locked for T1+T2 co-location, fs_edit retained alongside fs_edit_many, fs_read_many 30KB per-file cap, mid-batch cancel via gather, batch.* telemetry symmetric with iteration.*. SPEC.md (6 reqs PAR-01..06) + CONTEXT.md both locked. Ready for /gsd-plan-phase T2.
+milestone: v0.1.1
+milestone_name: patch)*
+status: verifying
+last_updated: "2026-05-16T02:20:30.519Z"
+last_activity: "2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval)."
 progress:
-  total_phases: 8
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -73,3 +73,5 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 - Existing `.planning/phases/01-*` through `07-*` directories remain historical planning artifacts unless explicitly archived.
 - Next operational step after this rebaseline is to plan M0, then M1.
+
+**Planned Phase:** T3 () — 0 plans — 2026-05-16T02:20:30.511Z

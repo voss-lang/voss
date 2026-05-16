@@ -31,7 +31,7 @@
 | T1 | Iteration Loop + Streaming + Interrupt | Turn single-shot plan→exec→done into a real while-loop agent with streamed text + cancel | ITER-01..06 | TBD |
 | T4 | Prompt Caching + Cost Truthfulness | Cache cognition prefix; honest `/cost` including cache reads | CACHE-01..04 | TBD |
 | T2 | Parallel Tools + Multi-Edit | Read-only steps gather; `fs_edit_many` atomic batch | PAR-01..04 | TBD |
-| T3 | Network Surface (WebFetch + WebSearch + MCP client) | Live docs + MCP ecosystem, gated at the boundary | NET-01..05 | TBD |
+| T3 | Network Surface (WebFetch + WebSearch + MCP client) | Live docs + MCP ecosystem, gated at the boundary | NET-01..07 | TBD |
 | T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
 | T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | TBD |
@@ -835,7 +835,7 @@ Plans:
 **Goal:** Give the agent access to live documentation and external tools
 without inventing a new protocol. Gate network at the harness boundary.
 
-**Requirements (proposed):** NET-01..05
+**Requirements (proposed):** NET-01..07
 
 - NET-01 New tool `web_fetch(url)` via `httpx`. Honors `tools.allow_net`
   config flag (HARNESS-PLAN §6 — currently declared, unenforced).
@@ -868,6 +868,20 @@ voss mcp call <server> <tool>   # debug: invoke directly
 - Network telemetry events `net.request` / `net.response` with redacted URLs.
 - This phase reduces M12's scope to "expose harness as MCP server only" —
   the client side ships here.
+
+
+**Plans:** 9 plans across 6 waves
+
+Plans:
+- [ ] T3-01-PLAN.md — Wave 0 scaffolding: lifecycle.py SIGTERM+5s+SIGKILL reap + 9 NET-XX placeholder test files (32 named test stubs)
+- [ ] T3-02-PLAN.md — Permission gate net-check + RuntimeConfig.allow_net + [tools] allow_net loader + --allow-net CLI flag (NET-05; ToolEntry.is_network axis)
+- [ ] T3-03-PLAN.md — telemetry.redact_url + net.request/response + mcp.request/response event-shape contract (NET-06)
+- [ ] T3-04-PLAN.md — rate_limit.py TokenBucket primitive + [net.rate_limits] TOML parser w/ escaped-dot regex (NET-07)
+- [ ] T3-05-PLAN.md — net.py NetSession + web_fetch tool (1 MB cap, timeout clamp, error envelopes) + transport-level zero-socket proof (NET-01)
+- [ ] T3-06-PLAN.md — web_search.py BraveBackend + NetSession.search + dedup-by-URL + count clamp + 429 handling (NET-02)
+- [ ] T3-07-PLAN.md — mcp/{__init__,config,client,registry}.py: ${VAR}/{cwd}/env-allowlist loader + 2025-11-25 handshake + lazy launch + destructiveHint scope mapping (NET-03, NET-04)
+- [ ] T3-08-PLAN.md — voss mcp {list,call} click group + --arg JSON-with-string-fallback parsing (NET-03 CLI surface)
+- [ ] T3-09-PLAN.md — .github/workflows/mcp-integration.yml CI job + M5 eval task #6 fetch+summarize + httpx MockTransport stub injection (BLOCKING human-verify checkpoint for npm version + read-tool-name pin)
 
 ---
 
@@ -983,7 +997,7 @@ tasks don't block the agent.
 | T1 | ITER-01..06 | 6 |
 | T4 | CACHE-01..04 | 4 |
 | T2 | PAR-01..04 | 4 |
-| T3 | NET-01..05 | 5 |
+| T3 | NET-01..07 | 7 |
 | T5 | SHELL-01..05 | 5 |
 | T7 | SKL-01..06 | 6 |
 | T8 | INPUT-01..05 | 5 |
