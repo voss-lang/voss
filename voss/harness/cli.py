@@ -48,6 +48,26 @@ except Exception:  # noqa: BLE001
     _litellm = None  # type: ignore[assignment]
 
 
+def _bootstrap_runtime_config() -> None:
+    """Wire on-disk [agent] config into the RuntimeConfig singleton.
+
+    Runs once at module import. Pulls max_iterations (T1-04) and
+    max_parallel_reads (T2-02 / PAR-05) from ~/.config/voss/config.toml
+    and pushes them into the runtime via a single configure() call.
+    Out-of-range / malformed values fall back to the dataclass defaults
+    with a RuntimeWarning (see voss.harness.config getters).
+    """
+    from .config import get_max_iterations, get_max_parallel_reads
+
+    configure(
+        max_iterations=get_max_iterations(),
+        max_parallel_reads=get_max_parallel_reads(),
+    )
+
+
+_bootstrap_runtime_config()
+
+
 _INTENT_ALLOWLIST = frozenset(
     {
         "analyze repo",
