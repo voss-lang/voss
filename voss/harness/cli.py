@@ -1029,7 +1029,7 @@ def do_cmd(
         sys.exit(2)
 
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    tools = make_toolset(cwd)
+    tools = make_toolset(cwd, renderer=renderer)
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
     voss_md_text = voss_md.read_and_inject(cwd)
@@ -1253,7 +1253,7 @@ def _run_repl(
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    tools = make_toolset(cwd)
+    tools = make_toolset(cwd, renderer=renderer)
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
@@ -1648,8 +1648,8 @@ def _extension_context(
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
-    tools = make_toolset(cwd)
     renderer = renderer or make_renderer(json_mode=False)
+    tools = make_toolset(cwd, renderer=renderer)
     gate = gate or PermissionGate(mode="edit", store=PermissionStore.load(cwd))
     ctx = SimpleNamespace(
         cwd=cwd,

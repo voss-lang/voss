@@ -95,5 +95,6 @@ class TestToolEntryClassification:
 
     def test_mutating_count(self, tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
-        assert sum(1 for e in tools.values() if e.is_mutating) == 4
+        # T2-04 added fs_edit_many (is_mutating=True), so 5 mutating tools.
+        assert sum(1 for e in tools.values() if e.is_mutating) == 5
         assert sum(1 for e in tools.values() if not e.is_mutating) == 6
