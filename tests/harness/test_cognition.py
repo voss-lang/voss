@@ -58,12 +58,31 @@ def _arch_content(inventory: dict) -> str:
 
 
 class _StubAnalyzeProvider:
-    """Two-call stub: first returns Plan with fs_write of architecture_content,
-    second returns minimal RunSemantics for the record_run closing call."""
+    """Stub with stream() (iteration-loop planning) + complete() (record_run)."""
 
     def __init__(self, architecture_content: str):
         self.architecture_content = architecture_content
         self.calls: list[dict] = []
+        self._stream_index = 0
+
+    def _build_plan(self):
+        from voss.harness.agent import Plan as _Plan
+
+        return _Plan(
+            rationale="bootstrap architecture.md",
+            steps=[
+                ToolCall(
+                    name="fs_write",
+                    args={
+                        "path": ".voss/architecture.md",
+                        "content": self.architecture_content,
+                    },
+                    why="bootstrap",
+                )
+            ],
+            confidence=0.95,
+            final_when_done="wrote .voss/architecture.md",
+        )
 
     async def complete(
         self,
@@ -82,21 +101,7 @@ class _StubAnalyzeProvider:
         self.calls.append({"schema": response_format})
 
         if response_format is _Plan:
-            plan = _Plan(
-                rationale="bootstrap architecture.md",
-                steps=[
-                    ToolCall(
-                        name="fs_write",
-                        args={
-                            "path": ".voss/architecture.md",
-                            "content": self.architecture_content,
-                        },
-                        why="bootstrap",
-                    )
-                ],
-                confidence=0.95,
-                final_when_done="wrote .voss/architecture.md",
-            )
+            plan = self._build_plan()
             return ProviderResponse(
                 text=plan.model_dump_json(),
                 model=model,
@@ -121,6 +126,31 @@ class _StubAnalyzeProvider:
             text="", model=model, prompt_tokens=0, completion_tokens=0,
             cost_usd=0.0, raw={}, parsed=None,
         )
+
+    def stream(self, **kwargs):
+        from voss.harness.agent import Plan as _Plan
+        from voss.harness.providers import Done, ParsedPlan, TextDelta, Usage
+
+        self.calls.append({"schema": kwargs.get("response_format")})
+        idx = self._stream_index
+        self._stream_index += 1
+        if idx == 0:
+            plan_to_emit = self._build_plan()
+        else:
+            plan_to_emit = _Plan(
+                rationale="(synthetic done)",
+                steps=[],
+                confidence=0.95,
+                final_when_done="wrote .voss/architecture.md",
+            )
+
+        async def _gen():
+            yield TextDelta(text="…")
+            yield ParsedPlan(plan=plan_to_emit)
+            yield Usage(prompt_tokens=10, completion_tokens=10, cost_usd=0.0)
+            yield Done(stop_reason="end_turn")
+
+        return _gen()
 
     def count_tokens(self, *, text: str, model: str) -> int:
         return max(len(text) // 4, 1)

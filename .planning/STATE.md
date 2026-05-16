@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1
-milestone_name: milestone
-status: executing
-last_updated: "2026-05-15T00:00:00Z"
-last_activity: 2026-05-15 — T2 CONTEXT.md captured. 8 implementation decisions across DiffModal wiring (tool-side hunks), gather error semantics (return_exceptions=True), BatchRecord nested under T1 IterationRecord, harness.toml `[agent]` section locked for T1+T2 co-location, fs_edit retained alongside fs_edit_many, fs_read_many 30KB per-file cap, mid-batch cancel via gather, batch.* telemetry symmetric with iteration.*. SPEC.md (6 reqs PAR-01..06) + CONTEXT.md both locked. Ready for /gsd-plan-phase T2.
+milestone: v0.1.1
+milestone_name: patch)*
+status: verifying
+last_updated: "2026-05-16T02:20:30.519Z"
+last_activity: "2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval)."
 progress:
-  total_phases: 8
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -46,6 +46,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Recent Activity
 
+- 2026-05-15 — Phase T3 context gathered (4 decision areas, 16 decisions D-01..D-16: MCP subsystem shape — 3-file layout + lazy-on-first-call + new `voss/harness/lifecycle.py` reap hook + mcp.yml schema with env-interp/{cwd}/timeout/env-allowlist; httpx + tool plumbing — single shared AsyncClient in new `voss/harness/net.py` NetSession + flat `web_search.py` BraveBackend + `make_toolset(cwd, *, net=None)` backward-compatible kwarg; permission gate — `is_network` stored on ToolEntry + net-check before mode-tier in `PermissionGate.check` + MCP scope applied at registration time + tool-result-string denial UX; CLI + telemetry — `voss mcp {list,call}` argparse subparser + `--arg key=value` JSON-typed + `redact_url` pure helper in telemetry.py wrapped by NetSession + `NetSession.acquire(tool_name)` rate-limit site). Open questions for researcher: locate existing teardown hook before adding lifecycle.py, pin MCP `destructiveHint` protocol version, source Codex launcher path.
+- 2026-05-15 — Phase T3 SPEC.md authored (7 reqs NET-01..NET-07, ambiguity 0.13, 13 acceptance criteria, 10-item out-of-scope list). 5 Socratic rounds: web_fetch (1MB cap, 30s timeout, HTTP GET only), web_search (Brave only, env-key opt-in), MCP stdio client (Codex pattern lift, filesystem ref server only in CI), allow_net gate, query-stripped URL telemetry, per-tool token bucket (web_fetch 30/min, web_search 10/min, MCP unlimited), streaming OUT.
+- 2026-05-15 — Phase T2 planned (6 plans across 5 waves: T2-01 BatchRecord + recorder API, T2-02 max_parallel_reads config, T2-03 partition scheduler + BatchInvariantError + telemetry, T2-04 fs_edit_many atomic multi-edit, T2-05 fs_read_many bundle, T2-06 micro-benchmark + human-verify checkpoint); plan-checker passed iter 1/3 with 1 blocker (VALIDATION map numbering misalignment — fixed by orchestrator) + 3 advisory warnings (T2-02 T1-04 hedging, 5-wave vs 4-wave, T2-06 Plan import path) shipped as-is.
 - 2026-05-07 — Project initialized via `/gsd-new-project`.
 - 2026-05-07 — Initial runtime/compiler/language roadmap created for phases 1-6.
 - 2026-05-09 — Harness and Rust planning added, including a later Rust port.
@@ -70,3 +73,5 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 - Existing `.planning/phases/01-*` through `07-*` directories remain historical planning artifacts unless explicitly archived.
 - Next operational step after this rebaseline is to plan M0, then M1.
+
+**Planned Phase:** T3 () — 0 plans — 2026-05-16T02:20:30.511Z

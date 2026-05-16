@@ -9,8 +9,6 @@ import inspect
 import time
 import typing
 
-import pytest
-
 from voss.harness import auth as A
 from voss.harness.providers import (
     AnthropicOAuthProvider,
@@ -133,17 +131,7 @@ class TestStreamingProviderProtocol:
             assert params == expected, f"{cls.__name__} stream() params: {params}"
 
 
-class TestPlaceholderBodiesRaise:
-    @pytest.mark.asyncio
-    async def test_anthropic_stream_raises_not_implemented(self) -> None:
-        p = AnthropicOAuthProvider(_anthropic_creds())
-        gen = p.stream(messages=[], model="claude-sonnet-4-5")
-        with pytest.raises(NotImplementedError):
-            await gen.__anext__()
-
-    @pytest.mark.asyncio
-    async def test_openai_stream_raises_not_implemented(self) -> None:
-        p = OpenAIOAuthProvider(_openai_creds())
-        gen = p.stream(messages=[], model="gpt-5")
-        with pytest.raises(NotImplementedError):
-            await gen.__anext__()
+# T1-03 removed the placeholder-body tests from T1-02: both stream() methods
+# are now concrete SSE/streaming implementations. End-to-end coverage lives
+# in test_anthropic_stream.py, test_openai_stream.py, and
+# test_provider_stream_parity.py.

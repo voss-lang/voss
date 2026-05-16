@@ -231,6 +231,28 @@ class TextualRenderer:
         )
         self._mount_confidence_bar(conf, is_final=True)
 
+    # T1-05: streaming entry points — forward to TurnView via the _safe
+    # lookup + _post forwarding pattern used by show_plan / show_final.
+    def stream_delta(self, text: str) -> None:
+        self._safe(self._turn_view, "stream_delta", text)
+
+    def finalize_stream(
+        self,
+        *,
+        role: str,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+    ) -> None:
+        self._safe(
+            self._turn_view,
+            "finalize_stream",
+            role=role,
+            confidence=confidence,
+            cost_usd=cost_usd,
+            timestamp=timestamp,
+        )
+
     def _mount_confidence_bar(self, confidence: float, *, is_final: bool) -> None:
         turn_view = self._turn_view()
         if turn_view is None:

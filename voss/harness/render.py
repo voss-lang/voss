@@ -32,6 +32,15 @@ class Renderer(Protocol):
     def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None: ...
     def show_clarify(self, question: str, confidence: float) -> None: ...
     def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None: ...
+    def stream_delta(self, text: str) -> None: ...
+    def finalize_stream(
+        self,
+        *,
+        role: str,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+    ) -> None: ...
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None: ...
     def show_cognition(
         self,
@@ -180,6 +189,27 @@ class TtyRenderer:
         )
         self.console.print()
 
+    def stream_delta(self, text: str) -> None:
+        self.console.print(text, end="", soft_wrap=True)
+
+    def finalize_stream(
+        self,
+        *,
+        role: str,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+    ) -> None:
+        self.console.print()
+        parts: list[str] = [role]
+        if timestamp is not None:
+            parts.append(timestamp)
+        if cost_usd is not None:
+            parts.append(f"${cost_usd:.4f}")
+        if confidence is not None:
+            parts.append(f"conf {confidence:.2f}")
+        self.console.print(f"  [dim]{' · '.join(parts)}[/dim]")
+
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         cost_color = "red" if cost_usd > 1.0 else "dim"
         ctx_color = "yellow" if ctx_pct > 0.8 else "dim"
@@ -258,6 +288,29 @@ class PlainRenderer:
     def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
         print(text)
 
+    def stream_delta(self, text: str) -> None:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+
+    def finalize_stream(
+        self,
+        *,
+        role: str,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+    ) -> None:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        parts: list[str] = [role]
+        if timestamp is not None:
+            parts.append(timestamp)
+        if cost_usd is not None:
+            parts.append(f"${cost_usd:.4f}")
+        if confidence is not None:
+            parts.append(f"conf {confidence:.2f}")
+        print(" · ".join(parts), file=sys.stderr)
+
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         pass
 
@@ -324,6 +377,25 @@ class JsonRenderer:
 
     def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
         self._emit(type="final", text=text, confidence=confidence, cost_usd=cost_usd)
+
+    def stream_delta(self, text: str) -> None:
+        self._emit(type="stream.delta", text=text)
+
+    def finalize_stream(
+        self,
+        *,
+        role: str,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+    ) -> None:
+        self._emit(
+            type="stream.finalize",
+            role=role,
+            confidence=confidence,
+            cost_usd=cost_usd,
+            timestamp=timestamp,
+        )
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         self._emit(type="status", model=model, tokens=tokens, cost_usd=cost_usd, ctx_pct=ctx_pct)

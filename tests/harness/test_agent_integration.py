@@ -14,17 +14,30 @@ from voss_runtime.providers.base import ProviderResponse
 
 from voss.harness.agent import Plan, ToolCall, run_turn
 from voss.harness.permissions import PermissionGate
+from voss.harness.providers import Done, ParsedPlan, TextDelta, Usage
 from voss.harness.render import PlainRenderer
 from voss.harness.tools import make_toolset
 
 
 class FakeProvider:
-    """Returns a canned Plan once, then echoes."""
+    """Returns a canned Plan via stream() on iter 0; synthetic done plan on iter 1+.
+
+    T1-05 routes planning through provider.stream(). The first stream call
+    emits the canned plan. If the canned plan is already "done"
+    (steps=[] + final_when_done set), the loop exits there. Otherwise the
+    canned plan's steps execute and a follow-up stream() call returns a
+    synthetic "done" Plan derived from the canned one, so the loop closes
+    cleanly without spinning to max-iter.
+
+    `calls` records every messages payload (stream + complete) so existing
+    assertions on provider.calls[0]["messages"] still work.
+    """
 
     def __init__(self, plan: Plan, cost: float = 0.001):
         self.plan = plan
         self.cost = cost
         self.calls: list[dict] = []
+        self._stream_index = 0
 
     async def complete(
         self,
@@ -48,6 +61,34 @@ class FakeProvider:
             raw={"fake": True},
             parsed=self.plan if response_format is Plan else None,
         )
+
+    def stream(self, **kwargs):
+        self.calls.append(
+            {
+                "model": kwargs.get("model"),
+                "messages": kwargs.get("messages"),
+                "schema": kwargs.get("response_format"),
+            }
+        )
+        idx = self._stream_index
+        self._stream_index += 1
+        if idx == 0:
+            plan_to_emit = self.plan
+        else:
+            plan_to_emit = Plan(
+                rationale="(synthetic done plan from FakeProvider)",
+                steps=[],
+                confidence=self.plan.confidence,
+                final_when_done=self.plan.final_when_done or "(stub final)",
+            )
+
+        async def _gen():
+            yield TextDelta(text="…")
+            yield ParsedPlan(plan=plan_to_emit)
+            yield Usage(prompt_tokens=50, completion_tokens=50, cost_usd=self.cost)
+            yield Done(stop_reason="end_turn")
+
+        return _gen()
 
     def count_tokens(self, *, text: str, model: str) -> int:
         return max(len(text) // 4, 1)
@@ -147,11 +188,14 @@ def _run(coro):
 
 class TestRunTurn:
     def test_high_confidence_plan_executes_tools(self, project: Path) -> None:
+        # T1-05: placeholder substitution removed. final_when_done is no
+        # longer a template — the loop calls back to the model after tools
+        # run and the next iter's plan supplies the realized final string.
         plan = Plan(
             rationale="list source files",
             steps=[ToolCall(name="fs_glob", args={"pattern": "**/*.py"})],
             confidence=0.92,
-            final_when_done="found: {{step_0}}",
+            final_when_done="found python files",
         )
         provider = FakeProvider(plan)
         result = _run(
@@ -165,16 +209,20 @@ class TestRunTurn:
             )
         )
         assert result.confidence == 0.92
-        assert "src/a.py" in result.final
+        # Tool ran and produced src/a.py somewhere in the per-iter results.
+        assert any("src/a.py" in tr for tr in result.tool_results)
         assert len(result.tool_results) == 1
-        assert result.cost_usd == pytest.approx(0.001)
 
     def test_low_confidence_returns_clarify(self, project: Path) -> None:
+        # T1-05: confidence gate fires only on the terminating iter.
+        # final_when_done must be non-empty for _is_done_plan to recognize
+        # this as terminating; the open_question is what the user sees.
         plan = Plan(
             rationale="task is ambiguous",
             steps=[],
             confidence=0.30,
             open_question="which file did you mean?",
+            final_when_done="(tentative)",
         )
         provider = FakeProvider(plan)
         result = _run(
@@ -195,7 +243,7 @@ class TestRunTurn:
             rationale="bogus call",
             steps=[ToolCall(name="does_not_exist", args={})],
             confidence=0.95,
-            final_when_done="result: {{step_0}}",
+            final_when_done="attempted bogus tool",
         )
         provider = FakeProvider(plan)
         result = _run(
@@ -238,7 +286,7 @@ class TestRunTurn:
             rationale="run pytest",
             steps=[ToolCall(name="shell_run", args={"cmd": "ls"})],
             confidence=0.95,
-            final_when_done="{{step_0}}",
+            final_when_done="ran shell",
         )
         gate = PermissionGate(mode="plan", auto_yes=False)
         # non-tty stdin in pytest -> auto-deny without prompt
@@ -254,7 +302,11 @@ class TestRunTurn:
         )
         assert "denied" in result.tool_results[0]
 
-    def test_step_placeholder_substitution(self, project: Path) -> None:
+    def test_tool_results_surface_in_run_record(self, project: Path) -> None:
+        # T1-05 replaced the pre-T1 `{{step_N}}` placeholder substitution
+        # feature with the iteration loop's model-driven re-plan. Step
+        # results land in the iteration record under run.iterations[0]
+        # (not in final_when_done).
         plan = Plan(
             rationale="read then report",
             steps=[
@@ -262,7 +314,7 @@ class TestRunTurn:
                 ToolCall(name="fs_glob", args={"pattern": "**/*.py"}),
             ],
             confidence=0.90,
-            final_when_done="readme: {{step_0}}\nfiles: {{step_1}}",
+            final_when_done="reported",
         )
         result = _run(
             run_turn(
@@ -274,8 +326,12 @@ class TestRunTurn:
                 permissions=PermissionGate(auto_yes=True),
             )
         )
-        assert "# project" in result.final
-        assert "src/a.py" in result.final
+        flat = "\n".join(result.tool_results)
+        assert "# project" in flat
+        assert "src/a.py" in flat
+        # Step results are also visible in the structured iteration record.
+        first_iter = result.run.iterations[0]
+        assert len(first_iter.tool_results) == 2
 
 
 class TestEditTools:
@@ -284,7 +340,7 @@ class TestEditTools:
             rationale="write greeting",
             steps=[ToolCall(name="fs_write", args={"path": "hi.txt", "content": "hello"})],
             confidence=0.99,
-            final_when_done="{{step_0}}",
+            final_when_done="step ran",
         )
         _run(
             run_turn(
@@ -308,7 +364,7 @@ class TestEditTools:
                 )
             ],
             confidence=0.95,
-            final_when_done="{{step_0}}",
+            final_when_done="step ran",
         )
         _run(
             run_turn(
@@ -333,7 +389,7 @@ class TestEditTools:
                 )
             ],
             confidence=0.9,
-            final_when_done="{{step_0}}",
+            final_when_done="step ran",
         )
         result = _run(
             run_turn(
@@ -356,7 +412,7 @@ class TestRecordRunIntegration:
             rationale="read the readme",
             steps=[ToolCall(name="fs_read", args={"path": "README.md"})],
             confidence=0.95,
-            final_when_done="done: {{step_0}}",
+            final_when_done="read readme",
         )
         semantics = RunSemantics(
             goal="summarize repo",

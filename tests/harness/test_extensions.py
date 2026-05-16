@@ -11,6 +11,7 @@ from voss.harness.agent import Plan
 from voss.harness.cli import main
 from voss.harness.permissions import PermissionGate
 from voss.harness.plugins import load_plugins, set_plugin_enabled
+from voss.harness.providers import Done, ParsedPlan, TextDelta, Usage
 from voss.harness.render import PlainRenderer
 from voss.harness.subagents import (
     attach_subagent_tool,
@@ -18,6 +19,14 @@ from voss.harness.subagents import (
     run_subagent,
 )
 from voss.harness.tools import make_toolset
+
+
+_FAKE_PLAN = Plan(
+    rationale="subagent done",
+    steps=[],
+    confidence=0.99,
+    final_when_done="child final",
+)
 
 
 class FakeProvider:
@@ -35,20 +44,14 @@ class FakeProvider:
         from voss.harness.agent import Plan as _Plan
 
         if response_format is _Plan:
-            plan = Plan(
-                rationale="subagent done",
-                steps=[],
-                confidence=0.99,
-                final_when_done="child final",
-            )
             return ProviderResponse(
-                text=plan.model_dump_json(),
+                text=_FAKE_PLAN.model_dump_json(),
                 model=model,
                 prompt_tokens=1,
                 completion_tokens=1,
                 cost_usd=0.0,
                 raw={},
-                parsed=plan,
+                parsed=_FAKE_PLAN,
             )
         return ProviderResponse(
             text="{}",
@@ -59,6 +62,15 @@ class FakeProvider:
             raw={},
             parsed=None,
         )
+
+    def stream(self, **kwargs):
+        async def _gen():
+            yield TextDelta(text="…")
+            yield ParsedPlan(plan=_FAKE_PLAN)
+            yield Usage(prompt_tokens=1, completion_tokens=1, cost_usd=0.0)
+            yield Done(stop_reason="end_turn")
+
+        return _gen()
 
 
 def test_plugin_manifest_filters_unknown_refs_and_enablement(monkeypatch, tmp_path: Path) -> None:

@@ -309,13 +309,123 @@ class AnthropicOAuthProvider:
         max_tokens: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> AsyncIterator[ProviderStreamEvent]:
-        # T1-02 placeholder. T1-03 replaces this body with the Anthropic SSE
-        # messages-streaming implementation. The unreachable yield keeps this
-        # method a valid async generator so it satisfies the StreamingProvider
-        # Protocol's AsyncIterator return type at runtime.
-        raise NotImplementedError("stream() body lands in T1-03")
-        if False:  # pragma: no cover - unreachable; required for async-gen typing
-            yield TextDelta("")
+        """Stream Anthropic Messages API SSE → ProviderStreamEvent (T1-03).
+
+        Preserves OAuth refresh-on-401, structured-output Plan extraction
+        (forced submit_response tool), and graceful httpx connection close
+        via async-context exit on CancelledError.
+        """
+        self._maybe_refresh()
+        body = self._payload(
+            messages=messages,
+            model=model,
+            response_format=response_format,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        body["stream"] = True
+        url = f"{self.base_url}/v1/messages"
+
+        # Try once with current creds; on 401 refresh + reopen in a second
+        # async-with. Cannot reopen inside the same context manager.
+        refreshed = False
+        while True:
+            client = self._http()
+            async with client.stream(
+                "POST", url, json=body, headers=self._headers(), timeout=timeout
+            ) as resp:
+                if resp.status_code == 401 and not refreshed:
+                    self.creds = auth.refresh_anthropic(self.creds)
+                    refreshed = True
+                    continue
+                if resp.status_code >= 400:
+                    body_text = await resp.aread()
+                    raise RuntimeError(
+                        f"Anthropic OAuth stream failed [{resp.status_code}]: "
+                        f"{body_text[:500]!r}"
+                    )
+
+                # SSE decode state.
+                current_tool_use_id: Optional[str] = None
+                tool_use_json: dict[str, list[str]] = {}
+                captured_stop_reason: str = "end_turn"
+                captured_usage: Optional[Usage] = None
+
+                async for line in resp.aiter_lines():
+                    if not line or line.startswith(":"):
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if not payload:
+                        continue
+                    try:
+                        data = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    ev_type = data.get("type", "")
+
+                    if ev_type == "content_block_start":
+                        cb = data.get("content_block", {}) or {}
+                        if cb.get("type") == "tool_use":
+                            tu_id = cb.get("id", "")
+                            tu_name = cb.get("name", "")
+                            current_tool_use_id = tu_id
+                            tool_use_json[tu_id] = []
+                            yield ToolUseStart(id=tu_id, name=tu_name)
+
+                    elif ev_type == "content_block_delta":
+                        d = data.get("delta", {}) or {}
+                        dtype = d.get("type", "")
+                        if dtype == "text_delta":
+                            yield TextDelta(text=d.get("text", ""))
+                        elif dtype == "input_json_delta" and current_tool_use_id:
+                            chunk = d.get("partial_json", "")
+                            tool_use_json[current_tool_use_id].append(chunk)
+                            yield ToolUseDelta(
+                                id=current_tool_use_id, partial_json=chunk
+                            )
+
+                    elif ev_type == "content_block_stop":
+                        if current_tool_use_id is not None:
+                            yield ToolUseEnd(id=current_tool_use_id)
+
+                    elif ev_type == "message_delta":
+                        d = data.get("delta", {}) or {}
+                        if d.get("stop_reason"):
+                            captured_stop_reason = d["stop_reason"]
+                        usage = data.get("usage")
+                        if usage:
+                            captured_usage = Usage(
+                                prompt_tokens=int(usage.get("input_tokens", 0)),
+                                completion_tokens=int(usage.get("output_tokens", 0)),
+                                cost_usd=0.0,
+                            )
+
+                    elif ev_type == "message_stop":
+                        if captured_usage is not None:
+                            yield captured_usage
+                        if (
+                            response_format is not None
+                            and current_tool_use_id is not None
+                        ):
+                            full_json = "".join(
+                                tool_use_json.get(current_tool_use_id, [])
+                            )
+                            try:
+                                plan_obj = response_format.model_validate_json(
+                                    full_json
+                                )
+                                yield ParsedPlan(plan=plan_obj)
+                            except Exception:
+                                pass
+                        yield Done(stop_reason=captured_stop_reason)
+                        return
+
+                # Server hangup without message_stop.
+                yield Done(stop_reason="incomplete")
+                return
 
     def count_tokens(self, *, text: str, model: str) -> int:
         # Quick estimate. Anthropic's counter requires an extra API call;
@@ -521,13 +631,97 @@ class OpenAIOAuthProvider:
         max_tokens: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> AsyncIterator[ProviderStreamEvent]:
-        # T1-02 placeholder. T1-03 replaces this with the OpenAI Responses-API
-        # streaming implementation. `tools` is accepted for signature symmetry
-        # with the Anthropic provider but stays unused — no OpenAI tool-use
-        # streaming in T1 (Plan parse comes from text.format structured output).
-        raise NotImplementedError("stream() body lands in T1-03")
-        if False:  # pragma: no cover - unreachable; required for async-gen typing
-            yield TextDelta("")
+        """Stream OpenAI Responses API SSE → ProviderStreamEvent (T1-03).
+
+        Preserves structured-output Plan extraction via `text.format`
+        json_schema, ChatGPT-mode 401 refresh, and graceful httpx close via
+        async-context exit on CancelledError. `tools` is accepted for
+        signature symmetry with Anthropic but unused — Plan comes from
+        accumulated output_text deltas, not tool-use streaming.
+        """
+        self._maybe_refresh()
+        body = self._payload(
+            messages=messages,
+            model=model,
+            response_format=response_format,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        body["stream"] = True
+        url = (
+            f"{self.base_url}/responses"
+            if self.base_url.endswith("/codex")
+            else f"{self.base_url}/v1/responses"
+        )
+
+        refreshed = False
+        while True:
+            client = self._http()
+            async with client.stream(
+                "POST", url, json=body, headers=self._headers(), timeout=timeout
+            ) as resp:
+                if (
+                    resp.status_code == 401
+                    and not refreshed
+                    and self.creds.refresh_token
+                ):
+                    self.creds = auth.refresh_codex(self.creds)
+                    refreshed = True
+                    continue
+                if resp.status_code >= 400:
+                    body_text = await resp.aread()
+                    raise RuntimeError(
+                        f"OpenAI OAuth stream failed [{resp.status_code}]: "
+                        f"{body_text[:500]!r}"
+                    )
+
+                text_acc: list[str] = []
+                async for line in resp.aiter_lines():
+                    if not line or line.startswith(":"):
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if not payload:
+                        continue
+                    try:
+                        data = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    ev_type = data.get("type", "")
+
+                    if ev_type == "response.output_text.delta":
+                        chunk = data.get("delta", "")
+                        text_acc.append(chunk)
+                        yield TextDelta(text=chunk)
+
+                    elif ev_type == "response.completed":
+                        response_obj = data.get("response", {}) or {}
+                        usage = response_obj.get("usage", {}) or {}
+                        yield Usage(
+                            prompt_tokens=int(usage.get("input_tokens", 0)),
+                            completion_tokens=int(usage.get("output_tokens", 0)),
+                            cost_usd=0.0,
+                        )
+                        if response_format is not None:
+                            full_text = (
+                                response_obj.get("output_text") or "".join(text_acc)
+                            )
+                            try:
+                                plan_obj = response_format.model_validate_json(
+                                    full_text
+                                )
+                                yield ParsedPlan(plan=plan_obj)
+                            except Exception:
+                                pass
+                        stop = response_obj.get("status", "completed")
+                        yield Done(stop_reason=stop)
+                        return
+                    # response.created / response.in_progress / output_item.*
+                    # / etc. are ignored — not load-bearing for the loop.
+
+                yield Done(stop_reason="incomplete")
+                return
 
     def count_tokens(self, *, text: str, model: str) -> int:
         return max(len(text) // 4, 1)

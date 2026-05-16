@@ -21,6 +21,7 @@ class TurnView(RichLog):
     def __init__(self, **kw) -> None:
         super().__init__(highlight=False, markup=False, wrap=True, **kw)
         self._turn_count = 0
+        self._streaming: bool = False
 
     def on_mount(self) -> None:
         if self._turn_count == 0:
@@ -52,6 +53,50 @@ class TurnView(RichLog):
         self.write(head)
         # `body` is untrusted (LLM output) — render via plain Text, no markup.
         self.write(Text(body, no_wrap=False))
+
+    # T1-04: streaming entry points consumed by the iteration loop (T1-05).
+    # CONTEXT.md locks "Append-only via RichLog.write on every TextDelta. No
+    # in-place edits, no scroll jumps." RichLog has no edit-previous-line
+    # API, so streaming writes one delta at a time and finalize_stream
+    # writes the role/cost/confidence header AFTER the streamed body. Header
+    # placement intentionally diverges from append_turn (which writes the
+    # header first); ITER-03's 500ms first-token target rules out waiting
+    # for cost/confidence before showing any text.
+
+    def stream_delta(self, text: str) -> None:
+        """Write one incremental text delta into the live streaming block."""
+        if self._turn_count == 0 and not self._streaming:
+            self.clear()
+        self._streaming = True
+        self.write(Text(text, no_wrap=False))
+
+    def finalize_stream(
+        self,
+        *,
+        role: str,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+    ) -> None:
+        """Seal the active streaming block by writing its trailing header.
+
+        Header lands BELOW the streamed body — RichLog is append-only, so
+        the role/cost/confidence row cannot be retro-prepended. Subsequent
+        stream_delta calls start a new block.
+        """
+        if not self._streaming:
+            return
+        self._turn_count += 1
+        head = Text()
+        head.append(role, style="bold")
+        if timestamp:
+            head.append(f"  · {timestamp}", style="dim")
+        if cost_usd is not None:
+            head.append(f"  · ${cost_usd:.4f}", style="dim")
+        if confidence is not None:
+            head.append(f"  · conf {confidence:.2f}", style="dim")
+        self.write(head)
+        self._streaming = False
 
 
 class SideRegion(RichLog):

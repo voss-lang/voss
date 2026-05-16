@@ -13,12 +13,13 @@ from voss_runtime.providers.base import ProviderResponse
 
 from voss.harness.agent import Plan, run_turn
 from voss.harness.permissions import PermissionGate
+from voss.harness.providers import Done, ParsedPlan, TextDelta, Usage
 from voss.harness.render import PlainRenderer
 from voss.harness.tools import make_toolset
 
 
 class CapturingProvider:
-    """Records every `provider.complete` call so tests can inspect sys_prompt."""
+    """Records every provider call (stream or complete) so tests can inspect sys_prompt."""
 
     def __init__(self, plan: Plan, cost: float = 0.0):
         self.plan = plan
@@ -47,6 +48,22 @@ class CapturingProvider:
             parsed=self.plan if response_format is Plan else None,
         )
 
+    def stream(self, **kwargs):
+        self.calls.append(
+            {
+                "messages": kwargs.get("messages"),
+                "schema": kwargs.get("response_format"),
+            }
+        )
+
+        async def _gen():
+            yield TextDelta(text="…")
+            yield ParsedPlan(plan=self.plan)
+            yield Usage(prompt_tokens=10, completion_tokens=10, cost_usd=self.cost)
+            yield Done(stop_reason="end_turn")
+
+        return _gen()
+
     def count_tokens(self, *, text: str, model: str) -> int:
         return max(len(text) // 4, 1)
 
@@ -67,6 +84,8 @@ def _trivial_plan() -> Plan:
         steps=[],
         confidence=0.30,
         open_question="ok?",
+        # T1-05: terminating-iter signal needs non-empty final_when_done.
+        final_when_done="(tentative)",
     )
 
 

@@ -13,6 +13,10 @@ class RuntimeConfig:
     cache_dir: str = ".voss-cache"
     timeout_seconds: float = 60.0
     max_output_tokens: int = 4096
+    # T1-04: agent iteration-loop cap. Default 8 per SPEC ITER-01; overridable
+    # via [agent] max_iterations in ~/.config/voss/config.toml. T1-05 reads
+    # this field at loop entry; cli boot wires the TOML override via configure.
+    max_iterations: int = 8
 
 
 _config = RuntimeConfig()
