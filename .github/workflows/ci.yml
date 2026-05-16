@@ -46,6 +46,12 @@ jobs:
       - name: voss check harness sources (M4 DOG-06)
         run: python -m voss.cli check voss/harness/agent/
       - run: python -m voss.cli check voss-demos/
+      - name: T1 grep gate — _substitute_placeholders is deleted (SPEC ITER-02)
+        run: |
+          if grep -rn "_substitute_placeholders" voss/ ; then
+            echo "::error::_substitute_placeholders re-introduced — forbidden by T1 ITER-02"
+            exit 1
+          fi
       - run: pytest -q -m "not live" --cov=voss_runtime --cov-report=term-missing
 
   dep-audit:
