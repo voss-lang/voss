@@ -39,10 +39,13 @@ async def test_three_readable_bundle_format(tmp_path: Path) -> None:
     (tmp_path / "c.txt").write_text("gamma\n")
     tools = make_toolset(tmp_path)
     result = await _call(tools, paths=["a.txt", "b.txt", "c.txt"])
+    # Each section: "=== {path} ===\n{body}\n"; sections joined by "\n".
+    # body for "a.txt" is "alpha\n", so section = "=== a.txt ===\nalpha\n\n"
+    # Final bundle: sec0 + "\n" + sec1 + "\n" + sec2
     expected = (
         "=== a.txt ===\nalpha\n\n"
         "\n=== b.txt ===\nbeta\n\n"
-        "\n=== c.txt ===\ngamma\n"
+        "\n=== c.txt ===\ngamma\n\n"
     )
     assert result == expected
 
