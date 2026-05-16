@@ -529,10 +529,12 @@ async def test_iter_06_note_turn_carries_iteration_count_and_exit_reason(
 def test_iter_06_runrecord_exit_reason_validated() -> None:
     with pytest.raises(ValueError):
         RunRecord(id="x", started_at="a", ended_at="b", exit_reason="quit")
-    # Valid values do not raise.
-    for reason in ("done", "max-iter", "budget", "interrupt"):
+    # Valid values do not raise. T2-03 added "batch-invariant" (5th additive).
+    for reason in ("done", "max-iter", "budget", "interrupt", "batch-invariant"):
         RunRecord(id="x", started_at="a", ended_at="b", exit_reason=reason)
-    assert EXIT_REASONS == frozenset({"done", "max-iter", "budget", "interrupt"})
+    assert EXIT_REASONS == frozenset(
+        {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
+    )
 
 
 # ===========================================================================
