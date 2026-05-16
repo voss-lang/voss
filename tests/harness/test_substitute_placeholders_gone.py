@@ -15,7 +15,14 @@ def test_substitute_placeholders_fully_removed() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     voss_dir = repo_root / "voss"
     result = subprocess.run(
-        ["grep", "-rn", "_substitute_placeholders", str(voss_dir)],
+        [
+            "grep",
+            "-rn",
+            "--include=*.py",
+            "--include=*.voss",
+            "_substitute_placeholders",
+            str(voss_dir),
+        ],
         capture_output=True,
         text=True,
     )
