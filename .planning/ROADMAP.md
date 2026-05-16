@@ -758,6 +758,17 @@ honestly including cache reads.
   (acceptable).
 - Cache TTL = 5 minutes (Anthropic default); documented in `harness.toml`.
 
+**Plans:** 6 plans
+
+Plans:
+- [ ] T4-01-test-scaffold-PLAN.md — Wave 0: 9 failing test stubs + cassette README + pyproject pin bumps (litellm>=1.74.0, vcrpy>=8,<9)
+- [ ] T4-02-extractor-and-non-streaming-PLAN.md — `_cache_tokens.extract_cache_tokens` + `ProviderResponse` additive fields + LiteLLMProvider wiring (CACHE-02 non-streaming)
+- [ ] T4-03-agent-composition-PLAN.md — `_compose_system_blocks` + multi-block `messages[0]` + four-drift invalidation tests (CACHE-01, CACHE-06)
+- [ ] T4-04-streaming-telemetry-recorder-PLAN.md — Usage variant + agent.py Usage consumer + provider.response telemetry payload + IterationRecord round-trip (CACHE-02 streaming, CACHE-07 telemetry/round-trip)
+- [ ] T4-05-cost-truth-and-cli-PLAN.md — D-09 placeholder edit + LiteLLM cost-differential test + /cost --by-model 4-decimal verification (CACHE-03, CACHE-04)
+- [ ] T4-06-cassette-integration-PLAN.md — [BLOCKING human-action] one-time live cassette recording + two-turn replay test (CACHE-05, CACHE-07 invariant)
+
+
 ---
 
 ### Phase T2 — Parallel Tools + Multi-Edit Primitive *(v0.2)*
