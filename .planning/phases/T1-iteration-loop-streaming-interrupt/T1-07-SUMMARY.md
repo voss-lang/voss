@@ -1,7 +1,8 @@
 ---
 phase: T1-iteration-loop-streaming-interrupt
 plan: 07
-status: pending-human-verify
+status: complete
+approved_at: 2026-05-16
 completed_at: 2026-05-16
 commits:
   - 527f8a0 — ci: add T1 grep gate to prevent re-introduction of _substitute_placeholders
@@ -81,6 +82,6 @@ grep -rn --include='*.py' --include='*.voss' \
      "_substitute_placeholders" voss/                    # no output, exit 1
 ```
 
-## Task 3 (human-verify) — PENDING USER APPROVAL
+## Task 3 (human-verify) — APPROVED 2026-05-16
 
-The phase-final `checkpoint:human-verify` gate from the plan is intentionally NOT auto-approved. Items 1–2 (pytest + grep) are green in this commit. Items 3–6 (live `voss do` smoke, telemetry JSONL inspection, Ctrl-C smoke, M5 follow-up tracking) need the developer's environment + eyeballs. Once approved by the user, this SUMMARY's `status` flips from `pending-human-verify` to `complete`.
+User approved the phase-final `checkpoint:human-verify` gate. Phase T1 is ship-ready.
