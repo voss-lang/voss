@@ -233,20 +233,25 @@ Spikes A–E = the differentiated demo. F–J = the table-stakes shell. Don't sh
 
 ## 10. Open Conceptual Questions
 
-Closed (this session): shell tech (Tauri), cell isolation (subprocess), demo (reviewer-as-pair-programmer-in-editor).
+Closed (this session):
+- Shell tech: **Tauri**
+- Cell isolation: **subprocess-per-cell**
+- v0 killer demo: **reviewer-as-pair-programmer inside the editor shell** (gutter pins + sidebar, not grid)
+- Reviewer trigger: **per-turn** (on main's `turn_end`)
+- Terminal philosophy: **plain xterm + promote-to-cell**
+- v0 AI scope: **minimal** (reviewer pins + ⌘K only; no ghost-text in v0)
+- Loop authoring: **curated defaults in `apps/voss-app/loops/`, opt-in fork to project `.voss/`**
 
-Still open — must close before spec phase:
+Still open — should close before spec phase:
 
-1. **Public name.** voss-app is the working name. Ship name candidates: Voss Studio · Voss · Voss Grid · Voss IDE · something fresh.
-2. **Reviewer trigger granularity.** Per-turn? Per-tool-call? Per-file-save? User-triggered (`⌘R`)? Each has cost/freshness/noise tradeoffs.
-3. **Authoring model for `.voss` loops.** Ship curated defaults + opt-in customize · users author from scratch · GUI builder that emits `.voss` · all three?
-4. **AI surface defaults.** Cursor users expect ghost-text autocomplete. v0 has none — is that a non-starter, or does reviewer-pins compensate?
-5. **Terminal philosophy.** Is the integrated terminal a generic xterm (Warp-like) or always-a-Voss-cell (every prompt becomes an agent)? Massive UX difference.
-6. **Cell crash policy.** Auto-restart on Voss process crash? Surface for user action? Reviewer should never auto-restart silently if user is mid-write.
-7. **Existing harness reuse.** `voss/harness/agent/loop.voss` already defines the default loop. Ship as `main.voss` default, or fork?
-8. **Session boundary.** Project-level shared session (cells share context) vs cell-level isolated. Affects memory/RAG primitives.
-9. **Distribution channel.** Direct DMG/AppImage/MSI · Homebrew cask · `@vosslang/cli` adds `voss app` subcommand that launches the GUI?
-10. **Telemetry & privacy.** Local-only by default. Opt-in anonymous usage data? Crash reports? Where's the line?
+1. **Public name.** voss-app is working name. Candidates: Voss Studio · Voss · Voss Grid · Voss IDE · fresh name.
+2. **Cell crash policy.** Auto-restart on Voss process crash? Surface for user action? Reviewer must never auto-restart silently mid-edit.
+3. **Existing harness reuse.** Does `apps/voss-app/loops/main.voss` derive from `voss/harness/agent/loop.voss` or fork? Sync strategy if shared.
+4. **Session boundary.** Project-level shared session (cells share context, memory primitives scoped to project) vs cell-level isolated.
+5. **Distribution channel.** Direct DMG/AppImage/MSI · Homebrew cask · `@vosslang/cli voss app` subcommand · all three?
+6. **Telemetry & privacy.** Local-only default. Opt-in anonymous usage? Crash reports?
+7. **`⌘K` cell lifecycle.** Spawn ad-hoc cell per ⌘K invocation (clean, slow) · long-lived `edit` cell reused across invocations (fast, context-bleed risk)?
+8. **Pin staleness.** When main cell edits a line that has a reviewer pin attached, does the pin migrate, invalidate, or stick?
 
 ## 11. Reference Artifacts
 
