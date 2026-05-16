@@ -107,10 +107,26 @@ def _done_plan() -> Plan:
 
 
 @pytest.mark.asyncio
-async def test_cancel_mid_stream_finalizes_with_interrupt(tmp_path: Path) -> None:
+async def test_cancel_mid_stream_finalizes_with_interrupt(
+    tmp_path: Path, monkeypatch
+) -> None:
     release = asyncio.Event()
     provider = HangingProvider(release_event=release, parsed_plan=_done_plan())
     renderer = RecordingRenderer()
+
+    # ContextVar in note_turn is task-local; spy via monkeypatch so the test
+    # can observe the handler's call from the parent context.
+    note_turn_calls: list[dict] = []
+    real_note_turn = telemetry.note_turn
+
+    def spy(**fields):
+        note_turn_calls.append(dict(fields))
+        return real_note_turn(**fields)
+
+    monkeypatch.setattr(telemetry, "note_turn", spy)
+    import voss.harness.agent as agent_mod
+
+    monkeypatch.setattr(agent_mod.telemetry, "note_turn", spy)
 
     task = asyncio.create_task(
         _run_turn_exec(
@@ -130,9 +146,10 @@ async def test_cancel_mid_stream_finalizes_with_interrupt(tmp_path: Path) -> Non
 
     assert task.cancelled()
     # Telemetry recorded interrupt outcome + exit_reason.
-    meta = telemetry._turn_meta.get() or {}
-    assert meta.get("outcome") == "interrupt"
-    assert meta.get("exit_reason") == "interrupt"
+    assert note_turn_calls, "note_turn never called"
+    last = note_turn_calls[-1]
+    assert last.get("outcome") == "interrupt"
+    assert last.get("exit_reason") == "interrupt"
 
 
 @pytest.mark.asyncio
@@ -243,6 +260,18 @@ async def test_cancel_between_iters_finalizes_clean(
 
     configure(max_iterations=2)
 
+    note_turn_calls: list[dict] = []
+    real_note_turn = telemetry.note_turn
+
+    def spy(**fields):
+        note_turn_calls.append(dict(fields))
+        return real_note_turn(**fields)
+
+    monkeypatch.setattr(telemetry, "note_turn", spy)
+    import voss.harness.agent as agent_mod
+
+    monkeypatch.setattr(agent_mod.telemetry, "note_turn", spy)
+
     # Provider that returns a non-done plan first, then hangs on iter 2.
     release = asyncio.Event()
 
@@ -306,5 +335,5 @@ async def test_cancel_between_iters_finalizes_clean(
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    meta = telemetry._turn_meta.get() or {}
-    assert meta.get("exit_reason") == "interrupt"
+    assert note_turn_calls, "note_turn never called"
+    assert note_turn_calls[-1].get("exit_reason") == "interrupt"
