@@ -53,6 +53,19 @@ except Exception:  # noqa: BLE001 — litellm absence must not break import
 COGNITION_BUDGET_TOKENS = 6000
 
 
+class BatchInvariantError(Exception):
+    """Raised when a multi-step batch contains a mutating or unknown step.
+
+    T2-03 / PAR-02. Indicates a planner bug or partitioner regression —
+    the partition scheduler must never dispatch a mutating tool inside a
+    parallel read batch. Surfaces in RunRecord.exit_reason='batch-invariant'
+    (5th additive enum value joining T1's done|max-iter|budget|interrupt).
+
+    Standalone Exception subclass per CONTEXT.md D-18 + RESEARCH.md A1
+    (no domain hierarchy; mirrors voss/harness/sandbox.py SandboxError).
+    """
+
+
 def _default_token_count(text: str, *, model: str) -> int:
     if _litellm is not None:
         try:

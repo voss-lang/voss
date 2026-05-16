@@ -69,7 +69,11 @@ legacy_state_dir = _legacy_state_dir
 
 # T1-01: Exit reason vocabulary for the iteration loop (SPEC ITER-06).
 # Single source of truth — RunRecord __post_init__ enforces membership.
-EXIT_REASONS: frozenset[str] = frozenset({"done", "max-iter", "budget", "interrupt"})
+# T2-03: extended with "batch-invariant" (PAR-02) — 5th additive value
+# surfaced when the partition scheduler raises BatchInvariantError.
+EXIT_REASONS: frozenset[str] = frozenset(
+    {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
+)
 
 
 @dataclass
