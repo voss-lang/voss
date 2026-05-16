@@ -2,7 +2,7 @@
 sketch: 001
 name: voss-grid-shell
 question: "What chrome density and visual structure feels right for a harness-native grid of agent cells?"
-winner: null
+winner: "B"
 tags: [layout, grid, terminal, ade, shell]
 ---
 
