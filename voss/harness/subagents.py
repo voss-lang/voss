@@ -88,7 +88,7 @@ async def run_subagent(
     spec = registry.get(agent_id)
     if spec is None:
         return f"<error: unknown subagent {agent_id!r}>"
-    child_tools = make_toolset(cwd)
+    child_tools = make_toolset(cwd, renderer=renderer)
     result = await run_turn(
         agent_task(spec, task),
         tools=child_tools,

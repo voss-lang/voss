@@ -69,7 +69,28 @@ legacy_state_dir = _legacy_state_dir
 
 # T1-01: Exit reason vocabulary for the iteration loop (SPEC ITER-06).
 # Single source of truth — RunRecord __post_init__ enforces membership.
-EXIT_REASONS: frozenset[str] = frozenset({"done", "max-iter", "budget", "interrupt"})
+# T2-03: extended with "batch-invariant" (PAR-02) — 5th additive value
+# surfaced when the partition scheduler raises BatchInvariantError.
+EXIT_REASONS: frozenset[str] = frozenset(
+    {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
+)
+
+
+@dataclass
+class BatchRecord:
+    """One parallel read-batch within an iteration (T2-01, PAR-06).
+
+    Mutating singletons emit no BatchRecord (SPEC PAR-06 line 67). Nested
+    inside IterationRecord.batches so each batch belongs to the iteration
+    that produced it (T2-CONTEXT D-08).
+    """
+
+    batch_index: int
+    step_indices: list[int] = field(default_factory=list)
+    parallel_count: int = 0
+    wall_clock_ms: int = 0
+    ok_count: int = 0
+    err_count: int = 0
 
 
 @dataclass
@@ -85,6 +106,7 @@ class IterationRecord:
     started_at: str = ""
     ended_at: str = ""
     exit_reason: Optional[str] = None
+    batches: list[BatchRecord] = field(default_factory=list)
 
 
 @dataclass

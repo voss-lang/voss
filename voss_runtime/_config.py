@@ -17,6 +17,11 @@ class RuntimeConfig:
     # via [agent] max_iterations in ~/.config/voss/config.toml. T1-05 reads
     # this field at loop entry; cli boot wires the TOML override via configure.
     max_iterations: int = 8
+    # T2-02: parallel read-batch semaphore cap (PAR-05). Default 8, range 1-32;
+    # overridable via [agent] max_parallel_reads in ~/.config/voss/config.toml.
+    # T2-03 scheduler reads this field at batch dispatch; cli boot wires the
+    # TOML override via configure alongside max_iterations.
+    max_parallel_reads: int = 8
 
 
 _config = RuntimeConfig()

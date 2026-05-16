@@ -64,3 +64,107 @@ def test_diff_summary_from_git(git_repo: Path) -> None:
 @pytest.mark.skip(reason="Wave 2 — pending plan M2-03")
 def test_decisions_mirror_to_markdown() -> None:
     pass
+
+
+# ---------------------------------------------------------------------------
+# T2-01: begin_batch / end_batch capture API.
+# ---------------------------------------------------------------------------
+
+
+def test_begin_batch_appends_and_returns_record() -> None:
+    rec = RunRecorder.start()
+    rec.begin_iteration()
+    br = rec.begin_batch(batch_index=0, step_indices=[0, 1, 2])
+    assert br.batch_index == 0
+    assert br.step_indices == [0, 1, 2]
+    assert br.parallel_count == 3
+    assert br.wall_clock_ms == 0
+    assert br.ok_count == 0
+    assert br.err_count == 0
+    assert rec._iterations[-1].batches[-1] is br
+
+
+def test_end_batch_patches_trailing_record() -> None:
+    rec = RunRecorder.start()
+    rec.begin_iteration()
+    rec.begin_batch(batch_index=0, step_indices=[0, 1, 2])
+    rec.end_batch(wall_clock_ms=125, ok_count=3, err_count=0)
+    br = rec._iterations[-1].batches[-1]
+    assert br.batch_index == 0
+    assert br.step_indices == [0, 1, 2]
+    assert br.parallel_count == 3
+    assert br.wall_clock_ms == 125
+    assert br.ok_count == 3
+    assert br.err_count == 0
+
+
+def test_begin_end_batch_full_state_after_cycle() -> None:
+    rec = RunRecorder.start()
+    rec.begin_iteration()
+    rec.begin_batch(batch_index=0, step_indices=[0])
+    rec.end_batch(wall_clock_ms=10, ok_count=1, err_count=0)
+    br = rec._iterations[-1].batches[-1]
+    assert (
+        br.batch_index == 0
+        and br.step_indices == [0]
+        and br.parallel_count == 1
+        and br.wall_clock_ms == 10
+        and br.ok_count == 1
+        and br.err_count == 0
+    )
+
+
+def test_multiple_sequential_batches_preserve_monotonic_index() -> None:
+    rec = RunRecorder.start()
+    rec.begin_iteration()
+    rec.begin_batch(batch_index=0, step_indices=[0, 1])
+    rec.end_batch(wall_clock_ms=50, ok_count=2, err_count=0)
+    rec.begin_batch(batch_index=1, step_indices=[3])
+    rec.end_batch(wall_clock_ms=30, ok_count=1, err_count=0)
+    batches = rec._iterations[-1].batches
+    assert [b.batch_index for b in batches] == [0, 1]
+
+
+def test_begin_batch_outside_iteration_raises() -> None:
+    rec = RunRecorder.start()
+    with pytest.raises(RuntimeError, match="outside an iteration scope"):
+        rec.begin_batch(batch_index=0, step_indices=[0])
+
+
+def test_end_batch_with_no_iteration_raises() -> None:
+    rec = RunRecorder.start()
+    with pytest.raises(RuntimeError, match="without a matching begin_batch"):
+        rec.end_batch(wall_clock_ms=0, ok_count=0, err_count=0)
+
+
+def test_end_batch_with_iteration_but_no_batch_raises() -> None:
+    rec = RunRecorder.start()
+    rec.begin_iteration()
+    with pytest.raises(RuntimeError, match="without a matching begin_batch"):
+        rec.end_batch(wall_clock_ms=0, ok_count=0, err_count=0)
+
+
+def test_step_indices_stored_as_defensive_copy() -> None:
+    rec = RunRecorder.start()
+    rec.begin_iteration()
+    indices = [0, 1, 2]
+    br = rec.begin_batch(batch_index=0, step_indices=indices)
+    indices.append(99)
+    indices[0] = -1
+    assert br.step_indices == [0, 1, 2]
+    assert rec._iterations[-1].batches[-1].step_indices == [0, 1, 2]
+
+
+def test_batches_nest_within_correct_iteration() -> None:
+    rec = RunRecorder.start()
+    rec.begin_iteration()
+    rec.begin_batch(batch_index=0, step_indices=[0, 1])
+    rec.end_batch(wall_clock_ms=10, ok_count=2, err_count=0)
+    rec.begin_iteration()
+    rec.begin_batch(batch_index=0, step_indices=[5])
+    rec.end_batch(wall_clock_ms=20, ok_count=1, err_count=0)
+    assert len(rec._iterations) == 2
+    assert len(rec._iterations[0].batches) == 1
+    assert len(rec._iterations[1].batches) == 1
+    assert rec._iterations[0].batches[0].step_indices == [0, 1]
+    assert rec._iterations[1].batches[0].step_indices == [5]
