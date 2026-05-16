@@ -42,11 +42,20 @@ class ToolEntry:
         return self.descriptor.invoke(**args)
 
 
-def make_toolset(cwd: Path) -> dict[str, ToolEntry]:
+def make_toolset(cwd: Path, *, renderer=None) -> dict[str, ToolEntry]:
     """Build the harness toolset bound to a project cwd.
 
     Returns a dict of tool name -> ToolEntry. Each entry carries an
     explicit `is_mutating` boolean used by PermissionGate.
+
+    T2-04: When `renderer` is provided AND exposes `show_diff_modal`,
+    `fs_edit_many` routes through the M9-05 DiffModal for per-hunk
+    approval. When `renderer is None` (test-friendly path) or the
+    renderer lacks `show_diff_modal` (e.g., JSON / plain renderers),
+    the modal step is skipped and the tool writes after validation.
+    The LLM agent never controls this kwarg — it is set by the
+    in-process harness construction site (cli.py, eval/runner.py,
+    subagents.py) at production startup.
     """
 
     @tool(name="fs_read", description="Read a UTF-8 text file from the project. Path must be inside cwd.")
