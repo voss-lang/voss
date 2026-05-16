@@ -7,7 +7,9 @@ plans wire palette (M9-03), recorder (M9-04), modals (M9-05), resume
 """
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from typing import Optional
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
@@ -54,6 +56,26 @@ class VossTUIApp(App):
         # `focused_turn_index` defaults to the most recent turn.
         self.record: SessionRecord | None = None
         self.focused_turn_index: int | None = None
+        # T1-06: tracks the in-flight agent turn task so action_interrupt
+        # can cancel it. Cleared via add_done_callback when the task ends.
+        self.active_turn_task: Optional[asyncio.Task] = None
+
+    def register_turn_task(self, task: asyncio.Task) -> None:
+        """Register the active agent-turn task (T1-06).
+
+        cli._run_turn_cancellable calls this once per turn so
+        action_interrupt has a handle to cancel. Raises on double-register
+        when a prior task is still running.
+        """
+        if self.active_turn_task is not None and not self.active_turn_task.done():
+            raise RuntimeError("active turn task already registered")
+        self.active_turn_task = task
+        task.add_done_callback(self._clear_turn_task)
+
+    def _clear_turn_task(self, task: asyncio.Task) -> None:
+        # done_callback fires whether the task completed naturally or was
+        # cancelled — either way the slot is now free for the next turn.
+        self.active_turn_task = None
 
     def action_open_help(self) -> None:
         self.push_screen(HelpOverlay(KEYMAP, self.slash_registry))
@@ -77,8 +99,12 @@ class VossTUIApp(App):
         self.refresh()
 
     def action_interrupt(self) -> None:
-        # M9-04 wires interrupt to the running turn; M9-03 stub is a no-op.
-        pass
+        # T1-06: cancel the in-flight turn task. The agent loop's
+        # CancelledError handler in _run_turn_exec finalizes the recorder
+        # with exit_reason="interrupt".
+        task = self.active_turn_task
+        if task is not None and not task.done():
+            task.cancel()
 
     # ------------------------------------------------------------------
     # M9-06 fork-from-turn (TUI-08).
