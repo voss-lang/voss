@@ -9,6 +9,7 @@ from typing import Any
 from voss_runtime import ToolDescriptor, tool
 
 from .sandbox import jail_path, shell_allowed, split_command, SandboxError
+from .tui.widgets.diff_modal import DiffDecision, Hunk
 
 
 @dataclass(frozen=True)

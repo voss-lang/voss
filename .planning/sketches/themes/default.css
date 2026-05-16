@@ -1,0 +1,90 @@
+/* Voss ADE — dark terminal aesthetic */
+:root {
+  --bg-0: #0a0b0e;
+  --bg-1: #11131a;
+  --bg-2: #171a23;
+  --bg-3: #1f232e;
+  --border: #262b38;
+  --border-bright: #353b4a;
+  --focus: #5a7cff;
+  --focus-glow: rgba(90, 124, 255, 0.18);
+
+  --fg-0: #e8eaf0;
+  --fg-1: #aab0c0;
+  --fg-2: #6a7080;
+  --fg-3: #444a5a;
+
+  --accent-green: #6fd28f;
+  --accent-amber: #e8b86c;
+  --accent-red: #e87b7b;
+  --accent-cyan: #6cc7d4;
+  --accent-magenta: #c084d4;
+  --accent-blue: #7aa2ff;
+
+  --user-msg: #8ab4ff;
+  --assistant: #b8c0d0;
+  --tool: #c084d4;
+  --reviewer: #e8b86c;
+
+  --font-mono: "JetBrains Mono", "SF Mono", "Menlo", ui-monospace, monospace;
+  --font-ui: "Inter", -apple-system, "SF Pro Text", system-ui, sans-serif;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-0);
+  background: var(--bg-0);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar — slim, dark */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+
+/* Streaming cursor */
+@keyframes blink { 50% { opacity: 0; } }
+.cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  background: var(--accent-green);
+  vertical-align: text-bottom;
+  animation: blink 1s steps(2) infinite;
+  margin-left: 1px;
+}
+
+/* Pulse for streaming/active */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--focus-glow); }
+  50% { box-shadow: 0 0 0 4px var(--focus-glow); }
+}
+.streaming-indicator {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent-green);
+  animation: pulse-glow 1.4s ease-in-out infinite;
+}
+
+/* Common */
+.mono { font-family: var(--font-mono); }
+.dim { color: var(--fg-2); }
+.dimmer { color: var(--fg-3); }
+.bright { color: var(--fg-0); }
+.green { color: var(--accent-green); }
+.amber { color: var(--accent-amber); }
+.red { color: var(--accent-red); }
+.cyan { color: var(--accent-cyan); }
+.magenta { color: var(--accent-magenta); }
+.blue { color: var(--accent-blue); }
+</content>
+</invoke>
