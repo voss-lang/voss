@@ -4,258 +4,190 @@
 
 ## 1. Mission
 
-**voss-app is a desktop code editor with the Voss harness as its agent substrate.** From the outside, it looks like Cursor / Zed / VSCode — file tree, tabbed editor, integrated terminal, source control, command palette, search. Inside, every AI surface is powered by Voss processes running in the background: not vendor-controlled chat, but user-programmable agent loops written in `.voss`, isolated per cell, replayable, auditable, budget-bounded.
+**voss-app is a desktop terminal-based ADE — a grid-native terminal first, an agent substrate second.** It looks and feels like a power-user terminal (Warp / Wezterm / iTerm lineage) with a grid layout as the primary metaphor (sketch 001 Variant B). The Voss harness and the `.voss` language are roadmap layers added *on top of* a working terminal app, not the v0 deliverable.
 
-**The bet:** a developer should be able to use voss-app like any modern editor and never need to know what a "harness cell" is — until the moment they want to program their own reviewer, spawn a parallel agent, or replay a turn. Then the substrate is right there.
+**The bet:** ship a great terminal grid app first. Earn the right to integrate agents underneath. Most "agentic IDE" attempts fail by trying to ship the agent stack before the chrome works. voss-app inverts that order.
 
-**Primary user (v0):** developers who already use Cursor/Zed and want the AI parts to be transparent, programmable, and not phoning home. Not "AI for non-devs," not "raw harness for Voss devs only."
+**Primary user:** developers who live in tmux/Warp/Wezterm and want a faster, grid-native terminal with optional agent powers waiting in the wings. v0 ships to that user with zero Voss exposure.
 
-**Core value prop:** "It's a real editor. The AI is yours. Every turn is on disk."
+**Three-layer build, in strict order:**
+
+| Layer | Goal | What ships |
+|---|---|---|
+| **L1 — Scaffold (v0)** | Terminal-grid ADE that holds its own against Warp | Tauri + Solid + xterm + PTY · grid layout · layout presets · command palette · settings · theme · session persistence. **Zero Voss.** |
+| **L2 — Voss substrate (v1)** | Any pane can become an agent cell | Promote-to-cell · subprocess-per-cell over JSONL · streaming token render · tool-call inspector · permission prompts · cost meter · reviewer-as-pair-programmer demo |
+| **L3 — `.voss` DSL features (v2)** | Users program their agents | Hot-reload `.voss` · inter-cell event wiring · curated loop library · DSL editor with syntax highlight (LSP optional later) |
+| **L4+ — Surfaces (deferred)** | Editor / file tree / SCM if demand exists | Monaco editor pane, file-tree pane, SCM pane, search pane — **not committed to**, evaluated post-L3 |
+
+**Core value prop (per layer):**
+- L1: "Grid-native terminal. Tmux ergonomics, modern UX."
+- L2: "Promote any pane to an agent. Watch it work, intervene, replay."
+- L3: "Your agents are your code. Wire them in `.voss`."
 
 **Anti-mission:**
-- Not a chat client (chat is one surface, not the product).
-- Not a terminal-first power tool (Warp/Wave own that lane).
-- Not a multi-agent orchestration dashboard with no editor (the grid is *inside* the editor, not the editor's replacement).
-- Not a vendor-locked AI loop (`.voss` is user code; harness is open).
+- ⛔ Not a code editor with AI bolted on (Cursor/Zed own that lane).
+- ⛔ Not a chat client.
+- ⛔ Not a vendor-locked agent loop.
+- ⛔ Not v0-with-Voss-bolted-on — the substrate is opt-in per pane forever.
 
-## 2. Product Shape — ADE Feature Surface
+## 2. v0 (Layer 1) — Terminal-Grid Scaffold
 
-voss-app is a **table-stakes IDE first**. The Voss substrate enables differentiated AI surfaces *on top of* that. v0 ships the table stakes plus exactly one differentiated AI surface (reviewer-as-pair-programmer).
+The whole app, v0, with **zero Voss code in the binary**.
 
-### 2.1 Table-stakes (must work like a normal editor)
+### 2.1 What v0 IS
 
-| Surface | v0 scope | Notes |
-|---|---|---|
-| Workspace | Open folder; recent workspaces list | Project = folder + `.voss/` config dir |
-| File explorer | Tree view, expand/collapse, new file/folder, rename, delete | Right-click context menu |
-| Editor | Monaco multi-tab, split view (vertical/horizontal) | Monaco LSP client (TS/Python/Rust day one) |
-| Integrated terminal | xterm.js + native PTY, multiple tabs | Same pane can be "promoted" to a Voss cell |
-| Source control | Git status, stage hunks, commit, branch switch, diff view | Reuse `git2` via Rust core, render in TS |
-| Global search | ripgrep-backed, replace-across-files, regex | Side panel |
-| Command palette | `⌘P` files · `⌘⇧P` commands | Voss commands live here too |
-| Settings | UI for theme, keybindings, models, providers, policies | JSON-backed, editable as file |
-| Status bar | Branch · errors · line/col · language · **Voss cell count · session $** | Cost meter persistent |
-| Keybindings | VSCode-default profile out of the box | Vim/Emacs profiles v1 |
-| Themes | Dark default (variant B sketch), light optional | User CSS overrides |
-| Notifications | Toast surface for agent events, cost thresholds, errors | Dismissable, queued |
+- Tauri shell (Rust core + Solid webview UI).
+- Grid of terminal panes. Each pane = xterm.js + native PTY (portable-pty crate).
+- Layout presets switcher in titlebar: `fanout · pipeline · swarm · watchers`. (In L1 these are pure layout templates — 1×N, N×1, 2×2, sidebar+main. They become semantically meaningful when L2 lands.)
+- Sketch 001 Variant B aesthetic: 22px headers, thin 1px borders, mono everywhere, glyph-prefix lines (`❯` user, `⏵` output), inset-shadow focus.
+- Project = folder. App opens a folder, all panes inherit that cwd. `.voss/` dir created (empty in v0, used later).
+- Session persistence: panes restore (cwd, shell, scrollback truncated) across relaunch.
+- Command palette `⌘⇧P`: split, focus, swap layout, open project, settings.
+- Status bar: project · branch (read from git) · pane count · cost meter (stub showing `$0.00` until L2).
+- Keybindings (VSCode-default profile + tmux-friendly additions): `⌘1-9` focus, `⌘\` split horizontal, `⌘⇧\` split vertical, `⌘D` fork pane (copy state), `⌘W` close, `⌘T` new pane.
+- Settings UI for theme, font, shell, keymap.
 
-This is the "boring" layer. It must feel right, or the differentiated surfaces never get used.
+### 2.2 What v0 is NOT
 
-### 2.2 Differentiated AI surfaces (where Voss shines)
+- ❌ No Voss harness subprocess code.
+- ❌ No JSONL IPC.
+- ❌ No agent UI (no "promote to cell", no streaming, no tool inspector).
+- ❌ No Monaco / file tree / SCM / search panes.
+- ❌ No `.voss` files mentioned in UI.
 
-| Surface | What it does | v0? |
-|---|---|---|
-| **Voss Sidebar Panel** | Default-shown right panel. Houses the main cell + reviewer cell. Replaces "AI chat sidebar" of Cursor/Zed. | ✅ v0 |
-| **Inline reviewer pins** | Reviewer critique surfaces as clickable margin pins in editor gutter, linked to specific lines | ✅ v0 |
-| **⌘K inline edit** | Select code → ⌘K → prompt → diff preview → accept/reject. Backed by a Voss cell spawned ad-hoc. | ✅ v0 |
-| **Ghost-text autocomplete** | Cursor-style inline completion. Backed by a Voss cell with `loop.completion.voss`. | ❌ v1 — needs LSP-level integration |
-| **Terminal-as-cell promotion** | Right-click terminal tab → "Promote to Voss cell" → runs an agent in that PTY context | ✅ v0 |
-| **Cell Grid mode** | Full-window 2×2/3×3 grid (sketch 001 design) — power users compose pipelines/swarms | ❌ v1 — backlog from sketch 001 |
-| **Diff-before-commit reviewer** | Pre-commit cell auto-reviews staged diff, blocks/warns/passes | ❌ v1 |
-| **File-tree agent badges** | Tree icons show which files agents touched in current session | ✅ v0 (basic, just colored badge) |
-| **Turn replay scrubber** | Scrub through past turns, see tool calls, branch from any point | ❌ v1 |
-| **Voss cost dashboard** | Per-project, per-cell, per-model spend over time | ❌ v1 |
-| **DSL editor with LSP** | `.voss` files get full LSP — completion, diagnostics, hover | ❌ v1 (basic syntax highlight v0) |
-| **Multi-model bench cell** | Same prompt → N models → vote/diff | ❌ v2 |
+The cost meter stub and `.voss/` dir are the only forward-references — they exist so L2 doesn't need a schema migration.
 
-### 2.3 v0 product surface, end-to-end
+### 2.3 v0 success criteria
 
-User opens voss-app. Looks like Cursor:
+A user can install voss-app and use it as their daily terminal for a week without ever seeing the word "Voss" in the UI beyond the app name. Tmux/Warp users prefer it for the grid ergonomics. That's the bar.
 
-- Left sidebar: file tree.
-- Center: tabbed Monaco editor.
-- Right sidebar: **Voss panel** (collapsible, default-open). Two stacked cells: `main` (the user's driver agent) + `reviewer` (Haiku-class, attached to `main`).
-- Bottom: integrated terminal pane (can be promoted to cell).
-- Top: command palette `⌘⇧P`.
-- Status bar: branch, errors, **session $0.42 · 2 cells**.
+## 3. v1 (Layer 2) — Voss Substrate
 
-User types in `main` cell, agent works, edits files, runs tools. Reviewer cell critiques after each turn-end. Critiques surface both inside reviewer cell *and* as margin pins in the relevant editor lines. User `⌘.` applies a reviewer fix, or clicks pin to navigate.
+Adds: every pane can be **promoted to a Voss cell**. Promotion = stop the shell, spawn `voss --ipc-mode jsonl --cwd ... --loop ...` in its place. Pane header changes to cell HUD (model · cwd · iter · cost). Pane body renders streaming turns. Tool calls inspectable. Permission prompts native.
 
-That's v0. Familiar shape, novel guts.
+v1 also lands:
+- Reviewer-as-pair-programmer demo (main cell + reviewer cell auto-attached, reviewer fires on `turn_end`).
+- Live cost meter (status bar comes alive).
+- Permissions UX (file write / shell exec dialogs).
+- Cell crash handling (red banner + restart).
 
-## 3. v0 Killer Demo — Reviewer-as-Pair-Programmer (Refined)
+Critically, v1 ships *as an opt-in feature*. Open a pane, type commands like always. Right-click → "Promote to Voss cell" when you want agent powers. The terminal user can ignore Voss forever and the app still serves them.
 
-The single thing v0 must do flawlessly *inside the editor shell*:
+## 4. v2 (Layer 3) — `.voss` DSL Features
 
-> User edits code in Monaco. Hits `⌘K`, asks `main` cell to refactor a function. Main cell streams tokens into the Voss panel and a diff into the editor. Reviewer cell watches each tool call, posts a critique pin in the editor gutter on line 47 ("LoopRunner ctor takes max_iterations but isn't passed through — breaks T1-04"). User clicks pin, sees critique, hits `⌘.`, reviewer's suggested edit applies as a new diff. Commit.
+Adds:
+- Hot-reload `.voss` files (save → next iteration uses new logic).
+- Inter-cell event wiring via DSL (`on_event(pane: "main", type: "turn_end") { ... }`).
+- Curated loop library shipped in `apps/voss-app/loops/` (`main.voss`, `reviewer.voss`, `executor.voss`).
+- Project-level overrides at `.voss/loops/`.
+- Basic syntax highlighting for `.voss` in any future editor pane (full LSP deferred).
 
-That's it. Two cells, one editor, reviewer-as-pair-programmer surfaced via *gutter pins + sidebar*, not via a grid.
+## 5. Layer 4+ — Deferred Surfaces
 
-**Why this demo (refined):**
-- Lives inside familiar editor UI — no "learn the grid" tax for v0 users.
-- Forces the hard infra anyway (subprocess isolation, event bus, streaming tokens, tool-call inspection, diff rendering, gutter decorations).
-- Reviewer pattern already lives in `voss/harness/agent/reviewer.voss` — reuses existing harness.
-- Story sells to a Cursor user in 30 seconds: "Same shape, but the AI is yours, programmable, replayable, and there's a second model watching every move."
+Tracked but uncommitted. Evaluate after L3 ships and we have real users.
 
-**Out of v0:** grid layouts, broadcast, swarm-on-worktrees, ghost-text autocomplete, replay scrubber, cost dashboard, multi-model bench. All in v1+ backlog.
+- Monaco editor pane (multi-tab, LSP, gutter pins for reviewer critique).
+- File tree pane (with agent-touched badges from L2 event bus).
+- SCM pane (git status, stage, commit, diff).
+- Global search pane (ripgrep).
+- ⌘K inline edit (selection → diff preview).
+- Pre-commit reviewer hook.
+- Turn replay scrubber.
 
-## 4. Locked Decisions
+These were prematurely committed in earlier concept rounds. They might land — or voss-app might stay pure terminal-grid + agent-substrate forever. Decide post-L3.
+
+## 6. Locked Decisions (cross-layer)
 
 | Layer | Decision |
 |---|---|
 | Shell | **Tauri** — Rust core + webview UI |
-| UI framework | **Solid** — signal-based, token-rate streaming friendly |
-| Styling | Tailwind. Dark theme = sketch 001 Variant B (Minimal Tile). |
-| Editor | **Monaco** — full LSP client, multi-tab, gutter decorations API (needed for reviewer pins) |
-| Terminal | **xterm.js** + native PTY via Tauri command bridge |
-| Source control | `git2` Rust crate in core, render diff/status in Solid UI |
-| Search | ripgrep subprocess, structured output streamed to UI |
-| Cell process model | **Subprocess per cell** — each cell = own `voss` Python subprocess over JSONL stdio |
-| Cell IPC | JSONL framed over stdio + Unix-socket event bus for cell-to-cell |
-| State ownership | Shell owns layout/bus/cell-registry. Each Voss process owns its session/turns/memory. |
-| Storage | SQLite per project (Voss harness already persists sessions); project metadata in `.voss/` |
-| Build | pnpm workspace at root + extend existing Cargo workspace |
-| Distribution | DMG / AppImage / MSI via Tauri updater. `@vosslang/cli` unchanged. |
-| Monorepo path | `apps/voss-app/` (TS+Tauri+Solid) + `crates/voss-app-core/` (Rust shell core) + `crates/voss-app-ipc/` (typed JSONL protocol) |
-| Reviewer trigger | **Per-turn** — fires once on main's `turn_end`. Sees full turn summary + tool calls. ~1 Haiku turn per main turn. |
-| Terminal default | **Plain xterm** — shell by default. Right-click → "Promote to Voss cell" converts. Voss is opt-in per pane. |
-| v0 AI scope | **Minimal** — reviewer pins + `⌘K` inline edit. No ghost-text autocomplete in v0 (v1 via LSP inline-completions). No chat-on-selection. |
-| Loop authoring | **Curated defaults shipped in `apps/voss-app/loops/`** (`main.voss`, `reviewer.voss`). User forks to project `.voss/` to customize. 95% of users never touch. |
+| UI framework | **Solid** — signal reactivity, token-streaming friendly |
+| Styling | Tailwind. Theme = sketch 001 Variant B tokens. |
+| Terminal emulator | xterm.js (vendored) |
+| PTY backend | `portable-pty` Rust crate |
+| Cell process model (L2) | Subprocess-per-cell — own `voss` Python subprocess over JSONL stdio |
+| Cell IPC (L2) | JSONL framed over stdio + Unix-socket event bus for cell-to-cell |
+| State ownership | Shell owns layout + bus + cell registry. Voss processes own their own session/turns/memory. |
+| Storage | SQLite per project under `.voss/sessions.sqlite` (managed by harness when L2 lands; empty in L1). |
+| Build | pnpm workspace at root + extend existing Cargo workspace. |
+| Distribution | DMG / AppImage / MSI via Tauri updater. |
+| Monorepo path | `apps/voss-app/` + `crates/voss-app-core/` + `crates/voss-app-ipc/` (last two empty until L2). |
+| Reviewer trigger (L2) | **Per-turn** — fires on main's `turn_end` |
+| Loop authoring (L3) | **Curated defaults in `apps/voss-app/loops/`** with opt-in fork to project `.voss/loops/` |
 
-## 5. Agent Substrate (How Voss Runs Underneath)
+## 7. Agent Substrate Spec (deferred until L2 design phase)
 
-A **cell** = single Voss harness subprocess. Owns: pid, cwd, env, model, provider, budget, `.voss` loop, session SQLite, JSONL stdio pipe, event-bus subscription.
-
-A cell is sovereign. The shell never reaches inside to mutate state. Cells communicate via the event bus only.
-
-**Event bus** (Unix socket, shell-brokered):
-```
-turn_start    {cell_id, turn_id, prompt}
-turn_token    {cell_id, turn_id, token, role}
-tool_call     {cell_id, turn_id, tool, args}
-tool_result   {cell_id, turn_id, tool, result, duration_ms}
-turn_end      {cell_id, turn_id, summary, cost_usd, tokens}
-error         {cell_id, type, message}
-dsl_reload    {cell_id, file, reason}
-file_touched  {cell_id, path, op}  # for file-tree badges
-```
-
-Other cells subscribe in `.voss`:
-```voss
-on_event(pane: "main", type: "turn_end") {
-  inject_context(pane.last_turn.summary)
-}
-```
-
-The editor shell *also* subscribes — that's how reviewer pins, file-tree badges, cost meters, toast notifications, and status bar updates flow into the UI.
-
-Cells outlive editor sessions: kill the app, reopen the project, cells resume from their last session state.
-
-## 6. Stack Detail
-
-### Frontend — `apps/voss-app/src/`
-- Solid (reactivity, signal updates per streamed token without React reconciler overhead)
-- Tailwind (variant B design tokens)
-- Monaco (vendored, lazy-loaded per workspace open)
-- xterm.js (terminal pane)
-- Existing Voss render logic ported to TS for cell views
-
-### Tauri shell — `apps/voss-app/src-tauri/`
-- Thin Rust binary, wraps `voss-app-core`
-- Window/menu/tray/OS-integration
-- Bridges Solid UI ↔ Rust core via Tauri commands + events
-- Auto-updater config
-
-### `crates/voss-app-core/`
-- **Workspace manager** — open folder, recent list, `.voss/` config read/write
-- **File system service** — watcher, atomic writes, conflict detection
-- **Cell supervisor** — spawn/kill `voss` subprocesses, restart-on-crash policy
-- **Event bus broker** — Unix socket server, pub/sub
-- **Git service** — `git2`-backed status/stage/commit/diff/branch
-- **Search service** — ripgrep subprocess wrapper, streaming results
-- **PTY service** — terminal pane backend (portable-pty)
-- **LSP host** — orchestrate language servers per workspace
-- **Settings + keybindings persistence**
-
-### `crates/voss-app-ipc/`
-- Typed JSONL schema for cell ↔ shell + cell ↔ cell events
-- Rust types ↔ TS types generated from same source (ts-rs or typeshare)
-- Versioned envelope
-
-### Voss harness — `voss/` (unchanged path)
-- voss-app spawns existing entry point with new `--ipc-mode jsonl` flag
-- Existing harness (`agent.py`, `tools.py`, `permissions.py`, `recorder.py`, `tui/renderer.py`) reused as-is
-- New `voss/harness/bridge_mode.py` emits events on the contract above
-
-## 7. Permission & Trust Model (v0)
-
-- Per-project policy in `.voss/policy.yaml`.
-- Default: read-only tools auto-approve · file writes prompt with diff preview · shell exec prompts with arg preview.
-- Reviewer cell is **policy-constrained read-only** — cannot edit files or run shell. Enforced at cell-config level.
-- Existing `voss/harness/permissions.py` handles enforcement; shell renders the prompt UX as a Tauri-native dialog.
-- Worktree-isolated agents (v1) can run on `auto-approve` policy since blast radius is bounded.
+Event bus contract, cell config schema, IPC envelope — all preserved in earlier concept revisions but explicitly out of scope for v0 scaffold. Will reopen at start of L2 spec phase.
 
 ## 8. Monorepo Layout
 
 ```
-voss/                            # python harness (unchanged)
+voss/                            # python harness (unchanged, used only in L2+)
 crates/
-  voss-app-core/                 # rust: workspace, cells, bus, git, search, pty
-  voss-app-ipc/                  # rust: typed JSONL protocol
+  voss-app-core/                 # rust: workspace, panes, PTY, layout, settings, palette
+                                 #       (cells supervisor + event bus added in L2)
+  voss-app-ipc/                  # empty in L1; lands in L2
   ...existing frozen rust spike  # reference only
 apps/
   voss-app/
     CONCEPT.md                   # this file
+    FEATURES.md                  # feature catalog mapped to L1/L2/L3
     src/                         # solid + tailwind UI
-      editor/                    # monaco wiring
-      terminal/                  # xterm + PTY bridge
-      sidebar/                   # voss panel, file tree, search, scm
-      grid/                      # v1 grid mode (stubbed v0)
+      grid/                      # pane layout engine
+      pane/                      # xterm-backed pane component
       command-palette/
       status-bar/
+      settings/
+      titlebar/                  # preset switcher, cost meter, project name
+      theme/                     # variant B tokens
     src-tauri/                   # tauri shell, depends on voss-app-core
-    loops/                       # ships default `.voss` loops
-      main.voss
-      reviewer.voss
-      completion.voss            # v1
+    loops/                       # L3 — empty in L1/L2
     package.json
     tailwind.config.ts
 shared/
-  voss-events/                   # ts+rust schema generation
+  voss-events/                   # empty in L1; lands in L2
 package.json                     # pnpm workspace root
-Cargo.toml                       # cargo workspace root (extend existing)
+Cargo.toml                       # cargo workspace root
 ```
 
-## 9. v0 Build Order (rough)
+## 9. v0 Build Order
 
-1. **Spike A**: Tauri + Solid + Monaco loads a file. Save works. Status bar shows branch.
-2. **Spike B**: Spawn one `voss` subprocess from Rust, render its streaming tokens in Solid panel.
-3. **Spike C**: Two cells (main + reviewer), event bus, reviewer subscribes to main's `turn_end`.
-4. **Spike D**: Reviewer critique → gutter pin in Monaco. Click pin → side panel detail.
-5. **Spike E**: `⌘K` selection-prompt → diff preview → apply.
-6. **Spike F**: Integrated terminal (xterm.js + PTY). Promote-to-cell command.
-7. **Spike G**: Git status/stage/commit UI.
-8. **Spike H**: Global search (ripgrep).
-9. **Spike I**: Command palette.
-10. **Spike J**: Settings UI + theming + keybindings persistence.
+Strict sequential. Each spike must pass acceptance before the next starts.
 
-Spikes A–E = the differentiated demo. F–J = the table-stakes shell. Don't ship v0 without both.
+1. **Spike L1-A**: Tauri + Solid shell loads. Empty window with titlebar. Builds DMG.
+2. **Spike L1-B**: One xterm pane wired to PTY. Type, see output. Resize. Scrollback.
+3. **Spike L1-C**: Grid engine. Split horizontal/vertical. Focus follows click + `⌘1-9`. Close pane.
+4. **Spike L1-D**: Layout presets. `⌘G` cycles fanout/pipeline/swarm/watchers (templates only).
+5. **Spike L1-E**: Project open. Folder picker. `.voss/` dir auto-created. cwd propagates.
+6. **Spike L1-F**: Session persistence — panes restore across relaunch.
+7. **Spike L1-G**: Command palette + keymap profile.
+8. **Spike L1-H**: Settings UI. Theme tokens applied. Font/shell config persists.
+9. **Spike L1-I**: Status bar live (branch from `git2`, pane count, cost meter stub).
+10. **Spike L1-J**: Variant B theme polish + onboarding flow.
+
+That's v0. No Voss yet.
 
 ## 10. Open Conceptual Questions
 
-Closed (this session):
-- Shell tech: **Tauri**
-- Cell isolation: **subprocess-per-cell**
-- v0 killer demo: **reviewer-as-pair-programmer inside the editor shell** (gutter pins + sidebar, not grid)
-- Reviewer trigger: **per-turn** (on main's `turn_end`)
-- Terminal philosophy: **plain xterm + promote-to-cell**
-- v0 AI scope: **minimal** (reviewer pins + ⌘K only; no ghost-text in v0)
-- Loop authoring: **curated defaults in `apps/voss-app/loops/`, opt-in fork to project `.voss/`**
+Closed:
+- Three-layer build order locked
+- Shell tech (Tauri), cell isolation (subprocess), reviewer trigger (per-turn), loop authoring (curated + opt-in fork) all preserved for L2/L3
 
-Still open — should close before spec phase:
+Still open — should close before L1 spec phase:
 
-1. **Public name.** voss-app is working name. Candidates: Voss Studio · Voss · Voss Grid · Voss IDE · fresh name.
-2. **Cell crash policy.** Auto-restart on Voss process crash? Surface for user action? Reviewer must never auto-restart silently mid-edit.
-3. **Existing harness reuse.** Does `apps/voss-app/loops/main.voss` derive from `voss/harness/agent/loop.voss` or fork? Sync strategy if shared.
-4. **Session boundary.** Project-level shared session (cells share context, memory primitives scoped to project) vs cell-level isolated.
-5. **Distribution channel.** Direct DMG/AppImage/MSI · Homebrew cask · `@vosslang/cli voss app` subcommand · all three?
-6. **Telemetry & privacy.** Local-only default. Opt-in anonymous usage? Crash reports?
-7. **`⌘K` cell lifecycle.** Spawn ad-hoc cell per ⌘K invocation (clean, slow) · long-lived `edit` cell reused across invocations (fast, context-bleed risk)?
-8. **Pin staleness.** When main cell edits a line that has a reviewer pin attached, does the pin migrate, invalidate, or stick?
+1. **Public name.** voss-app working name. Ship name candidates: Voss Grid · Voss Term · Voss · fresh name. Recommend **Voss Grid** for terminal-first positioning.
+2. **Default shell behavior on pane open.** Auto-launch `$SHELL` or empty pane awaiting user input?
+3. **Pane lifecycle on shell exit.** Close pane, keep open with "exited" indicator, or auto-restart shell?
+4. **Layout preset semantics in L1.** Just visual templates, or do they constrain future cell semantics (e.g., "swarm" assumes worktrees)?
+5. **Project-less mode.** Can voss-app open without a folder (like Warp's no-project mode)? Or always require a workspace folder?
+6. **Cost meter stub UX in L1.** Hide entirely, show `$0.00`, or show "no cells yet" placeholder?
+7. **`.voss/` dir creation timing.** On project open (always), on first L2 cell promotion (lazy), or user-prompted?
+8. **Distribution channel.** DMG/AppImage/MSI direct · Homebrew cask · `@vosslang/cli voss app` subcommand?
+9. **Telemetry & privacy.** Local-only default; opt-in toggles in settings.
 
 ## 11. Reference Artifacts
 
-- Sketch 001 (`.planning/sketches/001-voss-grid-shell/`) — Variant B (Minimal Tile) for design tokens, header conventions, glyph affordances. **NB:** sketch 001 was a grid-mode mockup. v0 ships the editor shell first; grid is v1. Design tokens still apply.
-- Existing harness: `voss/harness/agent/loop.voss`, `voss/harness/agent/reviewer.voss`, `voss/harness/render.py`, `voss/harness/tui/renderer.py`.
-- Frozen Rust spike: `crates/` — reference for IPC and PTY choices.
-- Competitor reference points: **Cursor** (chat-sidebar + ⌘K + ghost-text), **Zed** (native speed, AI panel, terminal), **Warp** (terminal blocks, AI mode), **VSCode** (extension surface, Monaco, debugger).
+- Sketch 001 (`.planning/sketches/001-voss-grid-shell/`) — Variant B (Minimal Tile) is the locked aesthetic. Cell rendering in sketch maps to L2+ when promoted; L1 panes use same chrome minus the agent HUD elements (no model/iter/cost-per-cell).
+- Existing harness: `voss/harness/...` — untouched in L1, integrated in L2.
+- Frozen Rust spike: `crates/` — reference for PTY and IPC choices when L2 starts.
+- Competitor reference: **Warp** (terminal blocks, AI mode), **Wezterm** (config-driven, fast), **tmux/Zellij** (multiplexer grid). voss-app is closer to Wezterm+grid than any of them at L1.
