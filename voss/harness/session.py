@@ -73,6 +73,23 @@ EXIT_REASONS: frozenset[str] = frozenset({"done", "max-iter", "budget", "interru
 
 
 @dataclass
+class BatchRecord:
+    """One parallel read-batch within an iteration (T2-01, PAR-06).
+
+    Mutating singletons emit no BatchRecord (SPEC PAR-06 line 67). Nested
+    inside IterationRecord.batches so each batch belongs to the iteration
+    that produced it (T2-CONTEXT D-08).
+    """
+
+    batch_index: int
+    step_indices: list[int] = field(default_factory=list)
+    parallel_count: int = 0
+    wall_clock_ms: int = 0
+    ok_count: int = 0
+    err_count: int = 0
+
+
+@dataclass
 class IterationRecord:
     """One iteration of the agent loop. Persisted under RunRecord.iterations."""
 
@@ -85,6 +102,7 @@ class IterationRecord:
     started_at: str = ""
     ended_at: str = ""
     exit_reason: Optional[str] = None
+    batches: list[BatchRecord] = field(default_factory=list)
 
 
 @dataclass
