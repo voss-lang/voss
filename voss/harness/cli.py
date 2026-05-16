@@ -208,6 +208,55 @@ def _resolve_run_turn(cwd: Path | None = None):
     return mod.run_turn
 
 
+def _run_turn_cancellable(coro, *, renderer):
+    """Run an agent-turn coroutine with cancel-on-Ctrl-C semantics (T1-06).
+
+    Replaces `asyncio.run(coro)` everywhere. Steps:
+      1. Create a new event loop and a Task wrapping the coro.
+      2. If `renderer.app` exists (TextualRenderer only — see
+         voss/harness/tui/renderer.py:47), register the Task on that app so
+         VossTUIApp.action_interrupt can cancel it.
+      3. Install a SIGINT handler so Ctrl-C in the headless path also
+         cancels the Task. On platforms where add_signal_handler raises
+         NotImplementedError (Windows) or RuntimeError (non-main thread),
+         fall back without raising.
+      4. Run the loop until the Task completes.
+      5. Return the result. Re-raise CancelledError as click.Abort so the
+         CLI exits with a non-zero status on user-initiated cancel.
+    """
+    import signal as _signal
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    task = loop.create_task(coro)
+
+    app = getattr(renderer, "app", None)
+    if app is not None and hasattr(app, "register_turn_task"):
+        app.register_turn_task(task)
+
+    handler_installed = False
+    try:
+        try:
+            loop.add_signal_handler(_signal.SIGINT, task.cancel)
+            handler_installed = True
+        except (NotImplementedError, RuntimeError):
+            # Windows / non-main-thread fallback; KeyboardInterrupt still
+            # reaches the loop via the default handler.
+            pass
+        try:
+            return loop.run_until_complete(task)
+        except asyncio.CancelledError:
+            raise click.Abort()
+    finally:
+        if handler_installed:
+            try:
+                loop.remove_signal_handler(_signal.SIGINT)
+            except Exception:  # noqa: BLE001
+                pass
+        loop.close()
+        asyncio.set_event_loop(None)
+
+
 def _emit_harness_boot_telemetry(cwd: Path, model: str | None) -> None:
     """Emit session lifecycle when agent commands start (only if VOSS_LOG is enabled)."""
     from . import config as harness_config
@@ -995,7 +1044,7 @@ def do_cmd(
     renderer.show_user(text)
 
     run_turn = _resolve_run_turn(cwd)
-    result = asyncio.run(
+    result = _run_turn_cancellable(
         run_turn(
             text,
             tools=tools,
@@ -1007,7 +1056,8 @@ def do_cmd(
             history=do_history,
             session_id=do_record.id,
             voss_md_text=voss_md_text,
-        )
+        ),
+        renderer=renderer,
     )
     renderer.show_final(result.final, confidence=result.confidence, cost_usd=result.cost_usd)
 
@@ -1304,7 +1354,7 @@ def _run_repl(
         renderer.show_user(line)
         try:
             run_turn = _resolve_run_turn(cwd)
-            result = asyncio.run(
+            result = _run_turn_cancellable(
                 run_turn(
                     line,
                     tools=tools,
@@ -1318,7 +1368,8 @@ def _run_repl(
                     cognition=bundle,
                     prior_context=ctx.prior_context,
                     voss_md_text=ctx.voss_md_text,
-                )
+                ),
+                renderer=renderer,
             )
             # prior_context is one-shot: only the first turn rehydrates it.
             ctx.prior_context = None
