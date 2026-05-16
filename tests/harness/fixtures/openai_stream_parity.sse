@@ -1,0 +1,18 @@
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_p","model":"gpt-5","status":"in_progress"}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"{\"rationale\":\"par"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"ity rationale\","}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"\"steps\":[],"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","delta":"\"confidence\":0.85,\"final_when_done\":\"parity\"}"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_p","model":"gpt-5","status":"completed","output_text":"{\"rationale\":\"parity rationale\",\"steps\":[],\"confidence\":0.85,\"final_when_done\":\"parity\"}","usage":{"input_tokens":120,"output_tokens":60}}}
+
