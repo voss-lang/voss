@@ -86,6 +86,42 @@ def get_max_iterations() -> int:
         return default
 
 
+def get_max_parallel_reads() -> int:
+    """Resolve [agent] max_parallel_reads with range validation (T2-02, PAR-05).
+
+    Range 1-32 inclusive. Missing key returns the RuntimeConfig default
+    silently. Out-of-range or non-int values fall back to the default
+    (get_config().max_parallel_reads) and emit a RuntimeWarning naming the
+    offending value.
+    """
+    from voss_runtime import get_config
+
+    default = get_config().max_parallel_reads
+    cfg = load_agent_config()
+    raw = cfg.get("max_parallel_reads")
+    if raw is None:
+        return default
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        warnings.warn(
+            f"[agent] max_parallel_reads = {raw!r} is not an integer; "
+            f"falling back to default {default}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return default
+    if not (1 <= n <= 32):
+        warnings.warn(
+            f"[agent] max_parallel_reads = {n} out of range 1-32; "
+            f"falling back to default {default}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return default
+    return n
+
+
 def set_preferred_model(name: str) -> Path:
     """Persist `[harness] preferred_model = "<name>"`. Preserves other sections."""
     p = config_path()
