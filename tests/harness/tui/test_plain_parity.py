@@ -32,6 +32,10 @@ CANNED_PLAN = Plan(
     steps=[],
     confidence=0.30,
     open_question="locked baseline question?",
+    # T1-05: iteration-loop done-signal requires final_when_done to be
+    # non-empty for _is_done_plan to recognize this as a terminating
+    # iteration. open_question is what the clarify path surfaces.
+    final_when_done="(tentative baseline)",
 )
 
 

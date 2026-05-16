@@ -8,8 +8,10 @@ sub-agents), within/fallback (later, model tier-down).
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -27,9 +29,19 @@ from voss_runtime.providers.base import ModelProvider
 from . import cognition as cognition_mod
 from . import telemetry
 from .permissions import PermissionGate
+from .providers import (
+    Done,
+    ParsedPlan,
+    ProviderStreamEvent,
+    TextDelta,
+    ToolUseDelta,
+    ToolUseEnd,
+    ToolUseStart,
+    Usage,
+)
 from .recorder import RunRecorder, write_decisions_md
 from .render import Renderer
-from .session import RunRecord
+from .session import IterationRecord, RunRecord
 from .tools import ToolEntry
 
 try:
@@ -216,6 +228,124 @@ content, return an empty list — do not invent.
 """
 
 
+# T1-05: PLAN_LOOP_SYSTEM is the iteration-loop system prompt. The
+# `{max_iterations}` token is filled by _compose_loop_system via str.replace
+# (NOT f-string) so the prefix stays cacheable across calls for future T4.
+PLAN_LOOP_SYSTEM = """You are Voss, a coding agent running in a terminal. You operate in an
+iterative plan-then-execute-then-re-plan loop.
+
+You receive a task and a list of tools. On each iteration:
+- Review prior iterations' plans and tool results (in messages above).
+- Produce a Plan: rationale, sequential tool calls for THIS iteration,
+  self-rated confidence (0.0-1.0), and the final answer ONCE you are
+  done.
+
+To signal "done", return a Plan with:
+  - steps: []  (empty list)
+  - final_when_done: <the user-facing answer, fully realized, NO
+    placeholders like {{step_0}}>
+
+If you still need tool calls, return a non-empty `steps` list and the
+loop will execute them and call you again on the next iteration.
+
+You have at most {max_iterations} iterations. Use them frugally.
+
+Confidence rubric:
+- 0.95+: trivial, deterministic, single-step
+- 0.80-0.94: clear path, normal risk
+- 0.60-0.79: ambiguity present; consider asking — but ONLY on the done
+  iteration. Mid-loop low confidence is fine; just keep iterating.
+- below 0.60 on the done iteration: populate open_question and leave
+  steps empty.
+
+Only call tools from the provided list.
+"""
+
+
+# T1-05: exact final-string sentinels for hit-cap and budget-exhaustion
+# exits. SPEC ITER-01 acceptance + CONTEXT.md "halted: max-iter" lock the
+# exact lowercase-hyphenated substring; tests grep for it.
+HALTED_MAX_ITER_FINAL = "halted: max-iter"
+HALTED_BUDGET_FINAL = "halted: budget"
+
+
+def _compose_loop_system(max_iterations: int) -> str:
+    """Fill the PLAN_LOOP_SYSTEM placeholder via str.replace (cache-stable)."""
+    return PLAN_LOOP_SYSTEM.replace("{max_iterations}", str(max_iterations))
+
+
+def _build_iter_rider(
+    *,
+    index: int,
+    max_iterations: int,
+    tokens_used: int,
+    token_budget: int,
+    prior_iters: list,
+) -> str:
+    """Build the per-iter rider system message.
+
+    Stays SEPARATE from the cacheable PLAN_LOOP_SYSTEM block so future T4
+    caching can mark the static prefix `cache_control: ephemeral` without
+    bouncing the cache on each iteration.
+    """
+    lines = [
+        f"Iteration {index + 1} of {max_iterations}.",
+        f"Token budget: {tokens_used}/{token_budget} used.",
+    ]
+    if prior_iters:
+        lines.append("Prior iterations:")
+        for ir in prior_iters:
+            plan = ir.plan or {}
+            step_count = len(plan.get("steps", []) or [])
+            tool_count = len(ir.tool_results or [])
+            snippet_src = plan.get("final_when_done") or plan.get("rationale") or ""
+            snippet = snippet_src.replace("\n", " ")[:60]
+            lines.append(
+                f"- Iter {ir.index}: {step_count} steps, {tool_count} tools, "
+                f"{snippet}"
+            )
+    return "\n".join(lines)
+
+
+def _serialize_iter_for_replay(iter_rec) -> tuple[dict, dict]:
+    """Render one prior iter as (assistant, user) messages for replay.
+
+    The assistant message carries the model's plan JSON; the user message
+    carries the tool-result summary. Args are redacted via
+    telemetry.redact_tool_args to keep secrets out of the message chain.
+    """
+    plan_dict = iter_rec.plan or {}
+    assistant_content = json.dumps(
+        {
+            "rationale": plan_dict.get("rationale", ""),
+            "steps": plan_dict.get("steps", []) or [],
+            "final_when_done": plan_dict.get("final_when_done", ""),
+        }
+    )
+    assistant_msg = {"role": "assistant", "content": assistant_content}
+
+    lines = [f"Tool results for iteration {iter_rec.index}:"]
+    for tr in iter_rec.tool_results or []:
+        name = tr.get("name", "")
+        args = tr.get("args", {}) or {}
+        if isinstance(args, dict):
+            args = telemetry.redact_tool_args(dict(args))
+        args_str = str(args)[:400]
+        result_str = str(tr.get("result", ""))[:400]
+        lines.append(f"- {name}({args_str}) -> {result_str}")
+    user_msg = {"role": "user", "content": "\n".join(lines)}
+    return assistant_msg, user_msg
+
+
+def _is_done_plan(plan) -> bool:
+    """Predicate: plan signals loop termination via empty steps + non-empty final."""
+    steps = getattr(plan, "steps", None)
+    if steps is None or len(steps) != 0:
+        return False
+    final = getattr(plan, "final_when_done", "") or ""
+    return bool(final.strip())
+
+
 @dataclass
 class TurnResult:
     plan: Plan
@@ -319,10 +449,19 @@ async def _run_turn_exec(
     prior_context: dict | None = None,
     voss_md_text: str | None = None,
 ) -> TurnResult:
+    """T1-05: iteration-loop turn driver.
+
+    Replaces the pre-T1 single-shot plan→exec→done flow with a while-loop
+    that streams plan tokens, re-plans on tool results, and exits on
+    done / max-iter / budget. Confidence gate fires only on the
+    terminating iteration. Per-iteration telemetry and IterationRecord
+    capture land in the RunRecorder. Pre-T1 placeholder substitution is gone.
+    """
     cfg = get_config()
     model = model or cfg.default_model
     if provider is None:
         provider = get_provider(model)
+    max_iterations: int = cfg.max_iterations
 
     history_block = ""
     if history is not None:
@@ -352,7 +491,14 @@ async def _run_turn_exec(
     prior_context_text = _compose_prior_context_block(prior_context)
     voss_md_block = f"# VOSS.md\n{voss_md_text}" if voss_md_text else ""
     sys_prompt = "\n\n".join(
-        s for s in (voss_md_block, cognition_text, prior_context_text, PLAN_SYSTEM) if s
+        s
+        for s in (
+            voss_md_block,
+            cognition_text,
+            prior_context_text,
+            _compose_loop_system(max_iterations),
+        )
+        if s
     )
 
     if cognition is not None and getattr(cognition, "initialized", False):
@@ -374,125 +520,354 @@ async def _run_turn_exec(
             },
         )
 
-    renderer.show_thinking("planning")
-    telemetry.emit(
-        "provider.request",
-        "info",
-        data={"phase": "plan", "model": model},
-    )
-    _plan_t0 = time.monotonic()
+    # Loop-scoped state.
+    iteration_index: int = 0
+    exit_reason: str | None = None
+    final_plan: Plan | None = None
+    total_cost_usd: float = 0.0
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    all_iter_records: list[IterationRecord] = []
+    this_iter_plan: Plan | None = None
+    this_iter_usage: Usage | None = None
+
     async with ContextScope(
         token_budget=token_budget, model=model, provider=provider
-    ) as _ctx:
-        resp = await provider.complete(
-            messages=[
+    ) as ctx:
+        while iteration_index < max_iterations:
+            iter_rec = rec.begin_iteration()
+            telemetry.emit(
+                "iteration.start",
+                "info",
+                data={
+                    "iteration_index": iteration_index,
+                    "max_iterations": max_iterations,
+                },
+            )
+
+            rider = _build_iter_rider(
+                index=iteration_index,
+                max_iterations=max_iterations,
+                tokens_used=total_prompt_tokens + total_completion_tokens,
+                token_budget=token_budget,
+                prior_iters=all_iter_records,
+            )
+            messages: list[dict] = [
                 {"role": "system", "content": sys_prompt},
+                {"role": "system", "content": rider},
                 {"role": "user", "content": user_prompt},
-            ],
-            model=model,
-            response_format=Plan,
-            temperature=0.2,
-            max_tokens=cfg.max_output_tokens,
-        )
-    telemetry.emit(
-        "provider.response",
-        "info",
-        data={
-            "phase": "plan",
-            "model": resp.model,
-            "latency_ms": int((time.monotonic() - _plan_t0) * 1000),
-            "prompt_tokens": resp.prompt_tokens,
-            "completion_tokens": resp.completion_tokens,
-            "cost_usd": resp.cost_usd,
-        },
+            ]
+            for prior in all_iter_records:
+                a_msg, u_msg = _serialize_iter_for_replay(prior)
+                messages.append(a_msg)
+                messages.append(u_msg)
+
+            renderer.show_thinking(
+                f"planning iter {iteration_index + 1}/{max_iterations}"
+            )
+            telemetry.emit(
+                "provider.request",
+                "info",
+                data={
+                    "phase": "plan",
+                    "model": model,
+                    "iteration_index": iteration_index,
+                },
+            )
+            iter_t0 = time.monotonic()
+            this_iter_plan = None
+            this_iter_usage = None
+            this_iter_stop = "end_turn"
+            accumulated_text_buffer: list[str] = []
+
+            async for event in provider.stream(
+                messages=messages,
+                model=model,
+                response_format=Plan,
+                temperature=0.2,
+                max_tokens=cfg.max_output_tokens,
+            ):
+                if isinstance(event, TextDelta):
+                    accumulated_text_buffer.append(event.text)
+                    renderer.stream_delta(event.text)
+                elif isinstance(event, ParsedPlan):
+                    this_iter_plan = event.plan
+                elif isinstance(event, Usage):
+                    this_iter_usage = event
+                elif isinstance(event, Done):
+                    this_iter_stop = event.stop_reason
+                # ToolUseStart / ToolUseDelta / ToolUseEnd are consumed
+                # internally by the provider into ParsedPlan.
+
+            iter_cost = this_iter_usage.cost_usd if this_iter_usage else 0.0
+            iter_prompt_tokens = (
+                this_iter_usage.prompt_tokens if this_iter_usage else 0
+            )
+            iter_completion_tokens = (
+                this_iter_usage.completion_tokens if this_iter_usage else 0
+            )
+
+            renderer.finalize_stream(
+                role="assistant",
+                confidence=(
+                    this_iter_plan.confidence if this_iter_plan else None
+                ),
+                cost_usd=iter_cost,
+                timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            )
+
+            if this_iter_plan is None:
+                final_text = (
+                    "".join(accumulated_text_buffer)[:1000]
+                    or "(provider returned no parsed plan)"
+                )
+                this_iter_plan = Plan(
+                    rationale="(unparsed)",
+                    steps=[],
+                    confidence=0.0,
+                    final_when_done=final_text,
+                )
+
+            telemetry.emit(
+                "provider.response",
+                "info",
+                data={
+                    "phase": "plan",
+                    "model": model,
+                    "iteration_index": iteration_index,
+                    "latency_ms": int((time.monotonic() - iter_t0) * 1000),
+                    "prompt_tokens": iter_prompt_tokens,
+                    "completion_tokens": iter_completion_tokens,
+                    "cost_usd": iter_cost,
+                    "stop_reason": this_iter_stop,
+                },
+            )
+            renderer.show_plan(this_iter_plan, cost_usd=iter_cost)
+            telemetry.emit(
+                "plan.parsed",
+                "info",
+                data={
+                    "iteration_index": iteration_index,
+                    "confidence": this_iter_plan.confidence,
+                    "steps": len(this_iter_plan.steps),
+                },
+            )
+
+            if _is_done_plan(this_iter_plan):
+                # Terminating iter — confidence gate fires HERE only.
+                if this_iter_plan.confidence < confidence_threshold:
+                    question = (
+                        this_iter_plan.open_question
+                        or "I'm not confident enough — can you clarify the task?"
+                    )
+                    renderer.show_clarify(question, this_iter_plan.confidence)
+                    rec.end_iteration(
+                        plan=this_iter_plan,
+                        tool_results=[],
+                        cost_usd=iter_cost,
+                        prompt_tokens=iter_prompt_tokens,
+                        completion_tokens=iter_completion_tokens,
+                        exit_reason="done",
+                    )
+                    telemetry.emit(
+                        "iteration.end",
+                        "info",
+                        data={
+                            "iteration_index": iteration_index,
+                            "cost_usd": iter_cost,
+                            "prompt_tokens": iter_prompt_tokens,
+                            "completion_tokens": iter_completion_tokens,
+                            "exit_reason": "done",
+                        },
+                    )
+                    telemetry.note_turn(
+                        cost_usd=total_cost_usd + iter_cost,
+                        outcome="clarify",
+                        confidence=this_iter_plan.confidence,
+                        iteration_count=iteration_index + 1,
+                        exit_reason="done",
+                    )
+                    return TurnResult(
+                        plan=this_iter_plan,
+                        confidence=this_iter_plan.confidence,
+                        final=question,
+                        tool_results=[],
+                        cost_usd=total_cost_usd + iter_cost,
+                        run=None,
+                    )
+
+                exit_reason = "done"
+                final_plan = this_iter_plan
+                rec.end_iteration(
+                    plan=this_iter_plan,
+                    tool_results=[],
+                    cost_usd=iter_cost,
+                    prompt_tokens=iter_prompt_tokens,
+                    completion_tokens=iter_completion_tokens,
+                    exit_reason="done",
+                )
+                telemetry.emit(
+                    "iteration.end",
+                    "info",
+                    data={
+                        "iteration_index": iteration_index,
+                        "cost_usd": iter_cost,
+                        "prompt_tokens": iter_prompt_tokens,
+                        "completion_tokens": iter_completion_tokens,
+                        "exit_reason": "done",
+                    },
+                )
+                total_cost_usd += iter_cost
+                total_prompt_tokens += iter_prompt_tokens
+                total_completion_tokens += iter_completion_tokens
+                all_iter_records.append(rec._iterations[-1])
+                break
+
+            # Non-terminating iter: execute the proposed steps and continue.
+            results = await _run_step_loop(
+                this_iter_plan.steps,
+                tools,
+                permissions,
+                renderer,
+                recorder=rec,
+            )
+            tool_results_for_iter = [
+                {
+                    "name": s.name,
+                    "args": telemetry.redact_tool_args(dict(s.args)),
+                    "result": str(r)[:4096],
+                }
+                for s, r in zip(this_iter_plan.steps, results)
+            ]
+            rec.end_iteration(
+                plan=this_iter_plan,
+                tool_results=tool_results_for_iter,
+                cost_usd=iter_cost,
+                prompt_tokens=iter_prompt_tokens,
+                completion_tokens=iter_completion_tokens,
+                exit_reason=None,
+            )
+            telemetry.emit(
+                "iteration.end",
+                "info",
+                data={
+                    "iteration_index": iteration_index,
+                    "cost_usd": iter_cost,
+                    "prompt_tokens": iter_prompt_tokens,
+                    "completion_tokens": iter_completion_tokens,
+                    "exit_reason": None,
+                },
+            )
+            total_cost_usd += iter_cost
+            total_prompt_tokens += iter_prompt_tokens
+            total_completion_tokens += iter_completion_tokens
+            all_iter_records.append(rec._iterations[-1])
+
+            if (
+                ctx.token_budget
+                and ctx.tokens_used >= ctx.token_budget
+            ):
+                exit_reason = "budget"
+                break
+
+            iteration_index += 1
+        # End while
+
+        if exit_reason is None:
+            exit_reason = "max-iter"
+    # End ContextScope async-with
+
+    # Resolve user-facing final string per exit_reason.
+    if exit_reason == "done":
+        final = (final_plan.final_when_done if final_plan else "") or "(no final answer)"
+    elif exit_reason == "max-iter":
+        final = HALTED_MAX_ITER_FINAL
+        if final_plan is None and all_iter_records:
+            last_plan_dict = all_iter_records[-1].plan or {}
+            # Build a synthetic Plan to keep TurnResult shape stable.
+            final_plan = Plan(
+                rationale=last_plan_dict.get("rationale", "") or "(max-iter)",
+                steps=[],
+                confidence=float(last_plan_dict.get("confidence", 0.0) or 0.0),
+                final_when_done=final,
+            )
+    elif exit_reason == "budget":
+        final = HALTED_BUDGET_FINAL
+        if final_plan is None and all_iter_records:
+            last_plan_dict = all_iter_records[-1].plan or {}
+            final_plan = Plan(
+                rationale=last_plan_dict.get("rationale", "") or "(budget)",
+                steps=[],
+                confidence=float(last_plan_dict.get("confidence", 0.0) or 0.0),
+                final_when_done=final,
+            )
+    else:
+        final = "(no final answer)"
+
+    # Closing record_run + finalize.
+    transcript_plan = final_plan if isinstance(final_plan, Plan) else this_iter_plan
+    transcript_results = (
+        [r["result"] for r in all_iter_records[-1].tool_results]
+        if all_iter_records
+        else []
     )
-
-    if resp.parsed is None:
-        raise RuntimeError(f"provider returned no parsed Plan; raw text: {resp.text[:300]}")
-    plan: Plan = resp.parsed
-    probable_plan = ProbableValue(value=plan, confidence=plan.confidence)
-    renderer.show_plan(plan, cost_usd=resp.cost_usd)
-    telemetry.emit(
-        "plan.parsed",
-        "info",
-        data={
-            "confidence": plan.confidence,
-            "steps": len(plan.steps),
-            "rationale_len": len(plan.rationale),
-        },
+    transcript = _compose_run_transcript(
+        task, transcript_plan, transcript_results, rec
     )
-
-    # Confidence gate. Mirrors `if plan @ p >= threshold` in .voss.
-    if probable_plan.confidence < confidence_threshold:
-        question = plan.open_question or "I'm not confident enough — can you clarify the task?"
-        renderer.show_clarify(question, plan.confidence)
-        telemetry.note_turn(
-            cost_usd=resp.cost_usd,
-            outcome="clarify",
-            confidence=plan.confidence,
-        )
-        return TurnResult(
-            plan=plan,
-            confidence=plan.confidence,
-            final=question,
-            tool_results=[],
-            cost_usd=resp.cost_usd,
-            run=None,
-        )
-
-    # Execute steps sequentially. Phase H3 will lower this to `gather(spawn ...)`.
-    results = await _run_step_loop(
-        plan.steps,
-        tools,
-        permissions,
-        renderer,
-        recorder=rec,
-    )
-
-    transcript = _compose_run_transcript(task, plan, results, rec)
     semantics = await _record_run_call(provider, model, transcript)
     if semantics is not None:
-        rec.absorb(semantics, plan)
+        rec.absorb(semantics, transcript_plan)
     else:
         rec.goal = "(record_run failed)"
-        rec.plan = plan.model_dump()
-    run = rec.finalize(cwd, cost_usd=resp.cost_usd)
+        rec.plan = (
+            transcript_plan.model_dump() if transcript_plan is not None else {}
+        )
+
+    run = rec.finalize(cwd, cost_usd=total_cost_usd, exit_reason=exit_reason)
     if run.decisions:
         try:
             write_decisions_md(cwd, run, session_id or "(no-session)")
         except OSError as exc:
             import click as _click
-            _click.echo(f"warning: failed to mirror decisions: {exc}", err=True)
 
-    final = plan.final_when_done or "(no final answer)"
-    final = _substitute_placeholders(final, results)
+            _click.echo(f"warning: failed to mirror decisions: {exc}", err=True)
 
     if history is not None:
         history.add(final, role="assistant")
 
-    total_tokens = resp.prompt_tokens + resp.completion_tokens
+    total_tokens = total_prompt_tokens + total_completion_tokens
     ctx_pct = total_tokens / token_budget if token_budget else 0.0
     renderer.status(
         model=model,
         tokens=total_tokens,
-        cost_usd=resp.cost_usd,
+        cost_usd=total_cost_usd,
         ctx_pct=ctx_pct,
     )
 
     telemetry.note_turn(
-        cost_usd=resp.cost_usd,
+        cost_usd=total_cost_usd,
         outcome="complete",
-        step_count=len(plan.steps),
-        tool_calls=len(results),
+        step_count=sum(
+            len((ir.plan or {}).get("steps", []) or []) for ir in all_iter_records
+        ),
+        tool_calls=sum(len(ir.tool_results or []) for ir in all_iter_records),
         total_tokens=total_tokens,
+        iteration_count=len(all_iter_records),
+        exit_reason=exit_reason,
     )
 
     return TurnResult(
-        plan=plan,
-        confidence=plan.confidence,
+        plan=transcript_plan if transcript_plan is not None else Plan(
+            rationale="(empty)", steps=[], confidence=0.0, final_when_done=final
+        ),
+        confidence=(
+            transcript_plan.confidence if transcript_plan is not None else 0.0
+        ),
         final=final,
-        tool_results=results,
-        cost_usd=resp.cost_usd,
+        tool_results=[
+            r["result"] for ir in all_iter_records for r in (ir.tool_results or [])
+        ],
+        cost_usd=total_cost_usd,
         run=run,
     )
 
@@ -596,12 +971,6 @@ async def _run_step_loop(
         if recorder is not None:
             recorder.observe(step.name, step.args, text, ok=True)
     return results
-
-
-def _substitute_placeholders(template: str, results: list[str]) -> str:
-    for i, r in enumerate(results):
-        template = template.replace(f"{{{{step_{i}}}}}", r)
-    return template
 
 
 def _make_turn_result(

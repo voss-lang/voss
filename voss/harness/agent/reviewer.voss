@@ -1,18 +1,20 @@
 # reviewer.voss
 # Final-answer synthesis and TurnResult construction.
+#
+# T1-05 removed pre-T1 placeholder substitution — the iteration loop now
+# feeds tool results back into the next plan call, so the terminating
+# plan's final_when_done is already fully realized (no `{step_N}` tokens
+# to expand). review() now passes the template through verbatim.
 
 use voss::harness::agent::Plan
 use voss::harness::agent::TurnResult
 use voss::harness::agent::_make_turn_result
-use voss::harness::agent::_substitute_placeholders
 
 fn review(plan: Plan, results: list<string>, cost_usd: float = 0.0) -> TurnResult {
     let make_result = _make_turn_result
-    let substitute = _substitute_placeholders
 
     try {
-        let template = plan.final_when_done or "(no final answer)"
-        let final = substitute(template, results)
+        let final = plan.final_when_done or "(no final answer)"
         let confidence = plan.confidence
         let tool_results = results
         return make_result(plan, confidence, final, tool_results, cost_usd)
