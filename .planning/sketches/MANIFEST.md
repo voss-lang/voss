@@ -27,3 +27,4 @@
 - **Focused cell = inset shadow + bg lift.** No heavy border ring. Subtle enough to stack 6+ cells without visual chaos.
 - **Tool calls = `⏵` prefix, dim color.** User = `❯` green. Reviewer = `※` amber. Glyph-as-affordance.
 
+i think 

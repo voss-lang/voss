@@ -42,6 +42,25 @@ class ToolEntry:
         return self.descriptor.invoke(**args)
 
 
+def _read_one_for_bundle(cwd: Path, path: str) -> str:
+    """Per-slot reader for fs_read_many. Never raises; returns content OR error envelope."""
+    try:
+        p = jail_path(cwd, path)
+    except SandboxError:
+        return f"<error: path outside cwd: {path}>"
+    if not p.exists():
+        return f"<error: not found: {path}>"
+    if p.is_dir():
+        return f"<error: is a directory: {path}>"
+    try:
+        text = p.read_text()
+    except UnicodeDecodeError:
+        return f"<error: binary file: {path}>"
+    if len(text) > 30720:  # 30KB cap (T2-CONTEXT.md D-13)
+        text = text[:30720] + f"\n<truncated, total {len(text)} bytes>"
+    return text
+
+
 def make_toolset(cwd: Path, *, renderer=None) -> dict[str, ToolEntry]:
     """Build the harness toolset bound to a project cwd.
 
@@ -69,6 +88,23 @@ def make_toolset(cwd: Path, *, renderer=None) -> dict[str, ToolEntry]:
             return p.read_text()
         except UnicodeDecodeError:
             return f"<error: binary file: {path}>"
+
+    @tool(
+        name="fs_read_many",
+        description=(
+            "Read N files as one bundle. Returns sections separated by "
+            "`=== {path} ===`. Per-path errors are inline (other paths "
+            "still readable). Each file capped at 30KB."
+        ),
+    )
+    async def fs_read_many(paths: list[str]) -> str:
+        if not paths:
+            return "<no paths requested>"
+        sections: list[str] = []
+        for path in paths:
+            body = _read_one_for_bundle(cwd, path)
+            sections.append(f"=== {path} ===\n{body}\n")
+        return "\n".join(sections)
 
     @tool(name="fs_glob", description="List files matching a glob pattern, relative to cwd.")
     async def fs_glob(pattern: str) -> str:
@@ -274,6 +310,7 @@ def make_toolset(cwd: Path, *, renderer=None) -> dict[str, ToolEntry]:
 
     return {
         "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False),
+        "fs_read_many": ToolEntry(descriptor=fs_read_many, is_mutating=False),
         "fs_glob": ToolEntry(descriptor=fs_glob, is_mutating=False),
         "fs_grep": ToolEntry(descriptor=fs_grep, is_mutating=False),
         "fs_write": ToolEntry(descriptor=fs_write, is_mutating=True),
