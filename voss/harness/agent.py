@@ -884,6 +884,52 @@ async def _run_turn_exec(
             cost_usd=total_cost_usd,
             run=run,
         )
+    except BatchInvariantError as e:
+        # T2-03 / PAR-02: partition-time invariant violation. Close any
+        # open iteration with exit_reason="batch-invariant", finalize the
+        # recorder, surface in the TurnView, emit telemetry, then re-raise.
+        open_iter = next(
+            (ir for ir in reversed(rec._iterations) if not ir.ended_at), None
+        )
+        if open_iter is not None:
+            rec.end_iteration(
+                plan=this_iter_plan
+                or Plan(
+                    rationale="(batch-invariant)",
+                    steps=[],
+                    confidence=0.0,
+                    final_when_done="",
+                ),
+                tool_results=[],
+                cost_usd=0.0,
+                prompt_tokens=0,
+                completion_tokens=0,
+                exit_reason="batch-invariant",
+            )
+        try:
+            renderer.stream_delta(f"\n[error: batch-invariant: {e}]\n")
+            renderer.finalize_stream(
+                role="system",
+                confidence=None,
+                cost_usd=None,
+                timestamp=None,
+            )
+        except Exception:  # noqa: BLE001 — renderer may not be mounted
+            pass
+        try:
+            rec.finalize(
+                cwd, cost_usd=total_cost_usd, exit_reason="batch-invariant"
+            )
+        except Exception:  # noqa: BLE001 — never block re-raise on finalize error
+            pass
+        telemetry.note_turn(
+            cost_usd=total_cost_usd,
+            outcome="batch-invariant",
+            iteration_count=len(all_iter_records),
+            exit_reason="batch-invariant",
+            total_tokens=total_prompt_tokens + total_completion_tokens,
+        )
+        raise
     except asyncio.CancelledError:
         # T1-06: interrupt handler. Close any open iteration with
         # exit_reason="interrupt", finalize the recorder, surface the
@@ -939,6 +985,207 @@ def _summarize(text: str, limit: int = 80) -> str:
     return first or f"({len(text)}B)"
 
 
+async def _invoke_step_with_gate(
+    step,
+    tools: dict[str, ToolEntry],
+    gate: PermissionGate,
+    renderer: Renderer,
+    recorder: RunRecorder | None,
+) -> str:
+    """Resolve, gate-check, and invoke a single step. Returns result string.
+
+    Lifted from the previous serial `_run_step_loop` body verbatim. Catches
+    `Exception` (not `BaseException`) so `asyncio.CancelledError` propagates
+    to the gather/scheduler for outer-cancel discipline (D-06/D-07).
+    """
+    entry = tools.get(step.name)
+    if entry is None:
+        text = f"<error: unknown tool {step.name!r}>"
+        renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
+        telemetry.emit(
+            "tool.result",
+            "warn",
+            data={
+                "tool": step.name,
+                "ok": False,
+                "error": "unknown_tool",
+                "args": telemetry.redact_tool_args(dict(step.args)),
+            },
+        )
+        if recorder is not None:
+            recorder.observe(step.name, step.args, "<unknown tool>", ok=False)
+        return text
+    allowed, why = gate.check(step.name, step.args, is_mutating=entry.is_mutating)
+    if not allowed:
+        text = f"<denied: {why}>"
+        renderer.show_tool_call(step.name, step.args, text, "error")
+        telemetry.emit(
+            "tool.result",
+            "info",
+            data={
+                "tool": step.name,
+                "ok": False,
+                "error": "denied",
+                "why": why,
+                "args": telemetry.redact_tool_args(dict(step.args)),
+            },
+        )
+        if recorder is not None:
+            recorder.observe(step.name, step.args, text, ok=False)
+        return text
+    telemetry.emit(
+        "tool.call",
+        "info",
+        data={
+            "tool": step.name,
+            "args": telemetry.redact_tool_args(dict(step.args)),
+        },
+    )
+    renderer.show_tool_call(step.name, step.args, "running…", "pending")
+    _tool_t0 = time.monotonic()
+    try:
+        res = await entry.invoke(**step.args)
+        text = str(res)
+    except Exception as e:  # noqa: BLE001 — catch all to surface, not crash
+        text = f"<error: {e}>"
+        renderer.show_tool_call(step.name, step.args, text, "error")
+        telemetry.emit(
+            "tool.result",
+            "warn",
+            data={
+                "tool": step.name,
+                "ok": False,
+                "latency_ms": int((time.monotonic() - _tool_t0) * 1000),
+                "error": str(e)[:300],
+            },
+        )
+        if recorder is not None:
+            recorder.observe(step.name, step.args, text, ok=False)
+        return text
+    renderer.show_tool_call(step.name, step.args, _summarize(text), "ok")
+    telemetry.emit(
+        "tool.result",
+        "info",
+        data={
+            "tool": step.name,
+            "ok": True,
+            "latency_ms": int((time.monotonic() - _tool_t0) * 1000),
+            "summary": _summarize(text, 120),
+        },
+    )
+    if recorder is not None:
+        recorder.observe(step.name, step.args, text, ok=True)
+    return text
+
+
+def _result_is_failure(text: str) -> bool:
+    return text.startswith("<error:") or text.startswith("<denied:")
+
+
+async def _dispatch_singleton(
+    *,
+    step,
+    step_index: int,
+    tools: dict[str, ToolEntry],
+    gate: PermissionGate,
+    renderer: Renderer,
+    recorder: RunRecorder | None,
+    results: list,
+) -> None:
+    """Run one step serially. NO batch.start/end. NO recorder.begin_batch."""
+    results[step_index] = await _invoke_step_with_gate(
+        step, tools, gate, renderer, recorder
+    )
+
+
+async def _dispatch_read_batch(
+    *,
+    steps: list,
+    step_indices: list[int],
+    tools: dict[str, ToolEntry],
+    gate: PermissionGate,
+    renderer: Renderer,
+    recorder: RunRecorder | None,
+    results: list,
+    cap: int,
+    batch_index: int | None,
+) -> None:
+    """Run a batch of (presumed read-only) steps under a per-batch semaphore.
+
+    `batch_index is None` means this dispatch is a singleton wrapper:
+    no batch.start/end events, no recorder.begin_batch call, and the
+    multi-step invariant is NOT enforced (single mutating step is allowed
+    to reach the tool through this path).
+
+    `batch_index is not None` AND len(steps) > 1 means a true parallel
+    batch: enforce the partition-time invariant (every step must be a
+    known, non-mutating tool) and emit batch.start/end + recorder
+    begin_batch/end_batch wrappers around the gather.
+    """
+    if batch_index is not None and len(steps) > 1:
+        for step in steps:
+            entry = tools.get(step.name)
+            if entry is None or entry.is_mutating:
+                raise BatchInvariantError(
+                    f"step {step.name!r} in multi-step batch is mutating or "
+                    f"unregistered (batch_index={batch_index})"
+                )
+
+    sem = asyncio.Semaphore(cap)
+    t0 = time.monotonic()
+
+    if batch_index is not None:
+        telemetry.emit(
+            "batch.start",
+            "info",
+            data={
+                "batch_index": batch_index,
+                "step_indices": list(step_indices),
+                "parallel_count": len(steps),
+            },
+        )
+        if recorder is not None:
+            recorder.begin_batch(
+                batch_index=batch_index, step_indices=list(step_indices)
+            )
+
+    async def _run_one(slot: int, step) -> None:
+        async with sem:
+            results[slot] = await _invoke_step_with_gate(
+                step, tools, gate, renderer, recorder
+            )
+
+    await asyncio.gather(
+        *(_run_one(slot, step) for slot, step in zip(step_indices, steps)),
+        return_exceptions=True,
+    )
+
+    if batch_index is not None:
+        wall_clock_ms = int((time.monotonic() - t0) * 1000)
+        ok_count = sum(
+            1
+            for slot in step_indices
+            if isinstance(results[slot], str) and not _result_is_failure(results[slot])
+        )
+        err_count = len(steps) - ok_count
+        telemetry.emit(
+            "batch.end",
+            "info",
+            data={
+                "batch_index": batch_index,
+                "wall_clock_ms": wall_clock_ms,
+                "ok_count": ok_count,
+                "err_count": err_count,
+            },
+        )
+        if recorder is not None:
+            recorder.end_batch(
+                wall_clock_ms=wall_clock_ms,
+                ok_count=ok_count,
+                err_count=err_count,
+            )
+
+
 async def _run_step_loop(
     plan_steps,
     tools: dict[str, ToolEntry],
@@ -947,90 +1194,59 @@ async def _run_step_loop(
     *,
     recorder: RunRecorder | None = None,
 ) -> list[str]:
+    """T2-03 PAR-01: one-pass author-order partition scheduler.
+
+    Walks plan_steps left-to-right grouping consecutive non-mutating
+    (and registered) steps into a parallel batch; mutating or unknown
+    steps flush as singletons. Read batches dispatch through
+    asyncio.gather under asyncio.Semaphore(get_config().max_parallel_reads).
+    Author order is preserved in the returned results list. The semaphore
+    is per-batch (created at batch entry, GC'd after gather returns) per
+    CONTEXT.md D-17.
+    """
     gate = permissions or PermissionGate(auto_yes=True)
-    results: list[str] = []
-    for step in plan_steps:
-        entry = tools.get(step.name)
-        if entry is None:
-            results.append(f"<error: unknown tool {step.name!r}>")
-            renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
-            telemetry.emit(
-                "tool.result",
-                "warn",
-                data={
-                    "tool": step.name,
-                    "ok": False,
-                    "error": "unknown_tool",
-                    "args": telemetry.redact_tool_args(dict(step.args)),
-                },
+    n = len(plan_steps)
+    results: list[str | None] = [None] * n
+    if n == 0:
+        return []
+    cap = get_config().max_parallel_reads
+    batch_index = 0
+    i = 0
+    while i < n:
+        j = i
+        while j < n:
+            entry = tools.get(plan_steps[j].name)
+            if entry is None or entry.is_mutating:
+                break
+            j += 1
+        if j > i:
+            multi_step = (j - i) > 1
+            await _dispatch_read_batch(
+                steps=list(plan_steps[i:j]),
+                step_indices=list(range(i, j)),
+                tools=tools,
+                gate=gate,
+                renderer=renderer,
+                recorder=recorder,
+                results=results,
+                cap=cap,
+                batch_index=batch_index if multi_step else None,
             )
-            if recorder is not None:
-                recorder.observe(step.name, step.args, "<unknown tool>", ok=False)
-            continue
-        allowed, why = gate.check(step.name, step.args, is_mutating=entry.is_mutating)
-        if not allowed:
-            text = f"<denied: {why}>"
-            renderer.show_tool_call(step.name, step.args, text, "error")
-            telemetry.emit(
-                "tool.result",
-                "info",
-                data={
-                    "tool": step.name,
-                    "ok": False,
-                    "error": "denied",
-                    "why": why,
-                    "args": telemetry.redact_tool_args(dict(step.args)),
-                },
+            if multi_step:
+                batch_index += 1
+            i = j
+        else:
+            await _dispatch_singleton(
+                step=plan_steps[i],
+                step_index=i,
+                tools=tools,
+                gate=gate,
+                renderer=renderer,
+                recorder=recorder,
+                results=results,
             )
-            results.append(text)
-            if recorder is not None:
-                recorder.observe(step.name, step.args, text, ok=False)
-            continue
-        telemetry.emit(
-            "tool.call",
-            "info",
-            data={
-                "tool": step.name,
-                "args": telemetry.redact_tool_args(dict(step.args)),
-            },
-        )
-        renderer.show_tool_call(step.name, step.args, "running…", "pending")
-        _tool_t0 = time.monotonic()
-        try:
-            res = await entry.invoke(**step.args)
-            text = str(res)
-        except Exception as e:  # noqa: BLE001 — catch all to surface, not crash
-            text = f"<error: {e}>"
-            renderer.show_tool_call(step.name, step.args, text, "error")
-            telemetry.emit(
-                "tool.result",
-                "warn",
-                data={
-                    "tool": step.name,
-                    "ok": False,
-                    "latency_ms": int((time.monotonic() - _tool_t0) * 1000),
-                    "error": str(e)[:300],
-                },
-            )
-            results.append(text)
-            if recorder is not None:
-                recorder.observe(step.name, step.args, text, ok=False)
-            continue
-        renderer.show_tool_call(step.name, step.args, _summarize(text), "ok")
-        telemetry.emit(
-            "tool.result",
-            "info",
-            data={
-                "tool": step.name,
-                "ok": True,
-                "latency_ms": int((time.monotonic() - _tool_t0) * 1000),
-                "summary": _summarize(text, 120),
-            },
-        )
-        results.append(text)
-        if recorder is not None:
-            recorder.observe(step.name, step.args, text, ok=True)
-    return results
+            i += 1
+    return [r if r is not None else "<error: missing result>" for r in results]
 
 
 def _make_turn_result(
