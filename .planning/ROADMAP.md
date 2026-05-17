@@ -35,7 +35,7 @@
 | T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
 | T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | TBD |
-| A1 | voss-app Tauri Shell | Tauri + Solid empty window on mac/linux/win, titlebar + theme tokens + dist pipeline | SHL-01..0N (TBD by SPEC.md) | TBD |
+| A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A10) | SHL-01..0N (TBD by SPEC.md) | TBD |
 | A2 | voss-app PTY Pane | One xterm pane wired to native PTY, full TTY support, scrollback, copy/paste | PTY-01..0N (TBD by SPEC.md) | TBD |
 | A3 | voss-app Grid Engine | Binary-split tree, splits/focus/resize/close, `⌘1-9` nav, save/load layout | GRD-01..0N (TBD by SPEC.md) | TBD |
 | A4 | voss-app Layout Presets | Fanout/pipeline/swarm/watchers visual templates, `⌘G` cycle, reorder w/o killing panes | LAY-01..0N (TBD by SPEC.md) | TBD |
@@ -44,7 +44,7 @@
 | A7 | voss-app Cmd Palette + Keymap | `⌘P`/`⌘⇧P`, VSCode-default profile + tmux additions, custom map via `.voss/keymap.json` | CMD-01..0N (TBD by SPEC.md) | TBD |
 | A8 | voss-app Settings + Theme | Two-pane settings UI, JSON-backed, Variant B token system, font/shell config | CFG-01..0N (TBD by SPEC.md) | TBD |
 | A9 | voss-app Status Bar | Project · branch · pane count · cost meter stub · notifications bell · click-to-popover | BAR-01..0N (TBD by SPEC.md) | TBD |
-| A10 | voss-app Onboarding + Polish | First-run wizard, empty state, keybind cheatsheet, 24hr soak test pass | OBD-01..0N (TBD by SPEC.md) | TBD |
+| A10 | voss-app Onboarding + Release Pipeline | First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update). v0 SHIP GATE | OBD-01..0N + REL-01..0N (TBD by SPEC.md) | TBD |
 
 ---
 
@@ -772,8 +772,8 @@ honestly including cache reads.
 
 Plans:
 - [x] T4-01-test-scaffold-PLAN.md — Wave 0: 9 failing test stubs + cassette README + pyproject pin bumps (litellm>=1.74.0, vcrpy>=8,<9)
-- [ ] T4-02-extractor-and-non-streaming-PLAN.md — `_cache_tokens.extract_cache_tokens` + `ProviderResponse` additive fields + LiteLLMProvider wiring (CACHE-02 non-streaming)
-- [ ] T4-03-agent-composition-PLAN.md — `_compose_system_blocks` + multi-block `messages[0]` + four-drift invalidation tests (CACHE-01, CACHE-06)
+- [x] T4-02-extractor-and-non-streaming-PLAN.md — `_cache_tokens.extract_cache_tokens` + `ProviderResponse` additive fields + LiteLLMProvider wiring (CACHE-02 non-streaming)
+- [x] T4-03-agent-composition-PLAN.md — `_compose_system_blocks` + multi-block `messages[0]` + four-drift invalidation tests (CACHE-01, CACHE-06)
 - [ ] T4-04-streaming-telemetry-recorder-PLAN.md — Usage variant + agent.py Usage consumer + provider.response telemetry payload + IterationRecord round-trip (CACHE-02 streaming, CACHE-07 telemetry/round-trip)
 - [ ] T4-05-cost-truth-and-cli-PLAN.md — D-09 placeholder edit + LiteLLM cost-differential test + /cost --by-model 4-decimal verification (CACHE-03, CACHE-04)
 - [ ] T4-06-cassette-integration-PLAN.md — [BLOCKING human-action] one-time live cassette recording + two-turn replay test (CACHE-05, CACHE-07 invariant)
@@ -1024,32 +1024,26 @@ Plans:
 
 ### Phase A1 — voss-app Tauri Shell
 
-**Goal:** Tauri + Solid empty window installs and launches on mac (arm64+x64), linux (x64+arm64), windows (x64) with custom titlebar, theme tokens applied, and a working dist pipeline.
+**Goal:** Tauri + Solid empty window builds and runs locally on the dev's platform with custom titlebar and theme tokens applied. **No release pipeline, no signing, no distribution channels** — that work is consolidated into A10 (release is a final gate; the app does not ship until A1–A9 are built).
 
 **Requirements (locked at SPEC):** SHL-01..0N
 - SHL-01 Tauri version pinned (2.x recommended; SPEC confirms).
 - SHL-02 Solid + Tailwind UI scaffolded with Variant B theme tokens.
-- SHL-03 Custom titlebar with project-name placeholder, layout-preset switcher (visual only, no behavior yet), cost-meter stub `$0.00`.
+- SHL-03 Custom titlebar with project-name placeholder, layout-preset switcher (visual only, no behavior yet). No cost-meter slot (Q6).
 - SHL-04 Window: traffic lights (mac) · standard close/min/max (linux/win) · zoom · fullscreen · multi-monitor.
-- SHL-05 Build pipeline: `pnpm build` produces signed DMG (mac arm64+x64), AppImage (linux x64+arm64), MSI (win x64).
-- SHL-06 Auto-updater wired against GitHub Releases (Tauri updater) for direct-download channel.
-- SHL-07 Code-signing certs procured / configured (mac Developer ID, win Authenticode).
-- SHL-08 CI matrix builds on push: mac-13 (arm + x64), ubuntu-22 (x64 + arm64), windows-2022.
-- SHL-09 Homebrew cask published (`brew install --cask voss-ade`); cask auto-bumped on release via separate tap repo.
-- SHL-10 `@vosslang/cli voss app` subcommand launches the GUI; npm wrapper bundles or downloads the platform binary on first invoke. Coordinates version-pin against M6 wrapper.
-- SHL-11 Three release channels version-synced from a single GitHub release tag; release-note generator produces channel-specific notes.
-- SHL-12 Window title, About dialog, and dist artifacts all use the **Voss ADE** ship name (Q1 decision); `voss-app` retained only as repo / npm-package slug.
+- SHL-05 `pnpm tauri dev` runs the app locally; `pnpm tauri build` produces an **unsigned local artifact** for the dev's own platform (smoke-test only — not a release artifact).
+- SHL-06 Window title + About dialog use the **Voss ADE** ship name (Q1); `voss-app` retained only as repo / npm-package slug.
 
 **Success Criteria (proposed):**
-1. `voss-app` launches as an empty Tauri window on all three platforms.
-2. Titlebar renders Variant B tokens; theme can be swapped via config file.
-3. CI produces unsigned artifacts per platform; signing stage gated on cert.
-4. Auto-updater pulls a fake newer release and prompts user.
+1. `voss-app` launches as an empty Tauri window on the dev's platform.
+2. Titlebar renders Variant B tokens; theme swappable via config file.
+3. `pnpm tauri build` produces a runnable unsigned local artifact.
 
 **Cross-cutting constraints:**
 - No xterm, no PTY, no grid in A1 — pure window scaffolding.
+- **No release/CI/signing/Homebrew/npm work in A1** — moved to A10.
 - Settings load from `~/.config/voss-app/settings.json` if present; else baked defaults.
-- `apps/voss-app/src-tauri/` is a new Rust crate consuming `crates/voss-app-core/` (which is created empty here, populated by later A phases).
+- `apps/voss-app/src-tauri/` is a new Rust crate consuming `crates/voss-app-core/` (created empty here, populated by later A phases).
 
 ---
 
@@ -1249,11 +1243,13 @@ Plans:
 
 ---
 
-### Phase A10 — voss-app Onboarding + Polish
+### Phase A10 — voss-app Onboarding + Release Pipeline (v0 SHIP GATE)
 
-**Goal:** First-run wizard, empty-state UI, keybind cheatsheet modal, soak-test hardening. v0 ship gate.
+**Goal:** First-run wizard, empty-state UI, soak-test hardening, AND the entire release pipeline (signing + 3 distribution channels + auto-update + version-sync). This is the final gate — the app does not release until A1–A9 are built and stable. All distribution work deferred from A1 lands here.
 
-**Requirements (locked at SPEC):** OBD-01..0N
+**Requirements (locked at SPEC):**
+
+*Onboarding + polish — OBD-01..0N:*
 - OBD-01 First-run wizard: welcome → pick theme → pick shell → done. No API keys requested (L1 has no Voss).
 - OBD-02 Empty-state UI for project-less new window: prompt "Open folder" or "Start without a project".
 - OBD-03 Empty pane area shows keyboard hint `⌘\` split / `⌘O` open project.
@@ -1263,25 +1259,40 @@ Plans:
 - OBD-07 24-hour soak test: 8 panes, mixed alt-screen + scrolling output, no PTY leaks, no memory growth > 100MB.
 - OBD-08 Bug-report flow: Help → "Report Issue" opens prefilled GitHub issue with app version + platform.
 
-**Success Criteria (proposed):** **THE v0 SHIP GATE** (mirrors FEATURES §L1 acceptance checklist 1–15):
-1. Install on mac/linux/win from signed artifact.
-2. Open app → empty state works.
-3. Open folder → status bar populates.
-4. 2×2 grid via 3 splits, all independent shells.
-5. `⌘1-4` focus + click focus works.
-6. Switch layout preset → reorder, no kill.
-7. Resize via mouse + keyboard.
-8. Save + reload layout via palette.
-9. `vim`/`htop`/`tmux` work inside a pane.
-10. Copy/paste across panes.
-11. Quit + reopen restores layout.
-12. Settings persist (theme + font + shell + keybind).
-13. 24hr soak with 8 panes — no crashes, no PTY leaks.
-14. Crash reporter activates if app panics (opt-in pipeline tested).
-15. Bug-report flow opens prefilled GH issue.
+*Release pipeline — REL-01..0N (deferred from A1 per 2026-05-16 decision):*
+- REL-01 CI matrix builds on tag: mac-13 (arm64 + x64), ubuntu-22 (x64 + arm64), windows-2022 (x64).
+- REL-02 Code-signing: mac Developer ID + notarization, win Authenticode. Certs procured (procurement is a blocking sub-task — start early).
+- REL-03 Direct-download channel: signed DMG / AppImage / MSI on GitHub Releases.
+- REL-04 Tauri auto-updater wired against GitHub Releases for the direct channel.
+- REL-05 Homebrew cask channel: `brew install --cask voss-ade`, auto-bumped on release via separate tap repo.
+- REL-06 npm channel: `@vosslang/cli voss app` subcommand launches the GUI; wrapper downloads/bundles the platform binary on first invoke; version-pinned against the M6 npm wrapper.
+- REL-07 Single GitHub release tag fans out to all three channels, version-synced; channel-specific release notes generated.
+- REL-08 All artifacts + store metadata use **Voss ADE** ship name (Q1).
+
+**Success Criteria (proposed):** **THE v0 SHIP GATE** (mirrors FEATURES §L1 acceptance checklist):
+1. Install on mac/linux/win from a **signed** artifact (direct channel).
+2. `brew install --cask voss-ade` works on mac.
+3. `npm i -g @vosslang/cli && voss app` launches the GUI.
+4. Auto-updater pulls a newer release and prompts user.
+5. All three channels resolve to the same version from one release tag.
+6. Open app → empty state works.
+7. Open folder → status bar populates.
+8. 2×2 grid via 3 splits, all independent shells.
+9. `⌘1-4` focus + click focus works.
+10. Switch layout preset → reorder, no kill.
+11. Resize via mouse + keyboard.
+12. Save + reload layout via palette.
+13. `vim`/`htop`/`tmux` work inside a pane.
+14. Copy/paste across panes.
+15. Quit + reopen restores layout.
+16. Settings persist (theme + font + shell + keybind).
+17. 24hr soak with 8 panes — no crashes, no PTY leaks.
+18. Crash reporter activates if app panics (opt-in pipeline tested).
+19. Bug-report flow opens prefilled GH issue.
 
 **Cross-cutting constraints:**
-- A10 is the integration phase — assumes A1–A9 complete and stable.
+- A10 is the integration + release phase — assumes A1–A9 complete and stable.
+- Cert procurement (REL-02) is the long-pole — kick off procurement during A1, even though the wiring lands in A10.
 - Failing any acceptance criterion = v0 doesn't ship.
 
 ---
@@ -1327,7 +1338,7 @@ Plans:
 | A7 | CMD-01..0N | TBD by `A7-SPEC.md` |
 | A8 | CFG-01..0N | TBD by `A8-SPEC.md` |
 | A9 | BAR-01..0N | TBD by `A9-SPEC.md` |
-| A10 | OBD-01..0N | TBD by `A10-SPEC.md` |
+| A10 | OBD-01..0N + REL-01..0N | TBD by `A10-SPEC.md` |
 | **A-total (Layer 1)** | | **TBD per SPEC** |
 
 All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`. A-phase requirement IDs are placeholder prefixes; per-phase SPEC locks the count + exact text.

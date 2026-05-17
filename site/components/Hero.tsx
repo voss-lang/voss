@@ -20,8 +20,8 @@ export default function Hero() {
           </Reveal>
           <Reveal delay={0.05}>
             <h1 className="display text-balance text-[clamp(2.5rem,6vw,4.5rem)]">
-              Bound AI coding work<br />
-              <span className="em">before it edits.</span>
+              AI coding agents<br />
+              <span className="em">that stay in their lane.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.1}>

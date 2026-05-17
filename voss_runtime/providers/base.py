@@ -11,6 +11,9 @@ class ProviderResponse:
     prompt_tokens: int
     completion_tokens: int
     cost_usd: float
+    # T4 CACHE-02 (D-01): symmetric with ProviderStreamEvent.Usage; additive defaults preserve pre-T4 fixtures
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
     raw: dict = field(default_factory=dict)
     parsed: Optional[Any] = None
 

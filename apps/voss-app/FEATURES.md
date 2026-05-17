@@ -28,10 +28,12 @@ The entire v0 binary. **Zero Voss code.** Ships as a competitive grid-native ter
 - Mono font: JetBrains Mono default, configurable.
 - Light theme deferred to L4+.
 
-### L1.1.3 Distribution
-- Tauri-built DMG (mac, arm64+x64), AppImage (linux x64+arm64), MSI (win x64).
-- Auto-updater via Tauri updater (GitHub Releases backend).
-- Code signing on mac/win (cert procurement = open question).
+### L1.1.3 Distribution → **delivered in A10, not A1**
+- Release pipeline is the **final gate** — app does not ship until A1–A9 built. All distribution work consolidated into phase **A10** (REL-01..0N).
+- Three channels (Q8): direct signed DMG/AppImage/MSI on GitHub Releases · Homebrew cask (`brew install --cask voss-ade`) · npm subcommand (`@vosslang/cli voss app`).
+- Auto-updater via Tauri updater (GitHub Releases backend, direct channel).
+- Code signing: mac Developer ID + notarization, win Authenticode. **Cert procurement is the long-pole — start during A1, wire in A10.**
+- A1 only ships an unsigned local `pnpm tauri build` smoke artifact.
 
 ## L1.2 Workspace & Project
 

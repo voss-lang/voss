@@ -3,6 +3,7 @@ from __future__ import annotations
 import litellm
 
 from ..exceptions import ParseError, ProviderError
+from ._cache_tokens import extract_cache_tokens
 from .base import ProviderResponse
 
 
@@ -41,6 +42,7 @@ class LiteLLMProvider:
         text = choice.content or ""
         usage = resp.usage
         cost = float(getattr(resp, "_hidden_params", {}).get("response_cost", 0.0) or 0.0)
+        cache_create, cache_read = extract_cache_tokens(usage)
 
         parsed = None
         if response_format is not None and text:
@@ -55,6 +57,8 @@ class LiteLLMProvider:
             prompt_tokens=usage.prompt_tokens,
             completion_tokens=usage.completion_tokens,
             cost_usd=cost,
+            cache_creation_input_tokens=cache_create,
+            cache_read_input_tokens=cache_read,
             raw=resp.model_dump() if hasattr(resp, "model_dump") else dict(resp),
             parsed=parsed,
         )

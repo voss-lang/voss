@@ -154,7 +154,7 @@ Cargo.toml                       # cargo workspace root
 
 Strict sequential dependencies (DAG enables some parallel work). Each phase passes its acceptance gate before downstream phases start. Phase IDs locked in root `.planning/ROADMAP.md` (A-prefix track).
 
-1. **A1 — Tauri Shell** — Tauri + Solid empty window, titlebar, theme tokens, dist pipeline (DMG/AppImage/MSI). Code signing wired.
+1. **A1 — Tauri Shell** — Tauri + Solid empty window, titlebar, theme tokens, local build only (`pnpm tauri dev` + unsigned smoke artifact). **No release pipeline** — deferred to A10.
 2. **A2 — PTY Pane** — One xterm pane wired to native PTY. Full TTY (vim/htop/tmux). Scrollback, copy/paste. (deps: A1)
 3. **A3 — Grid Engine** — Binary-split tree. Splits, focus, resize, close, `⌘1-9` nav. (deps: A2)
 4. **A4 — Layout Presets** — `fanout · pipeline · swarm · watchers`. `⌘G` cycle. Save/load. Pure visual templates in L1. (deps: A3)
@@ -163,7 +163,7 @@ Strict sequential dependencies (DAG enables some parallel work). Each phase pass
 7. **A7 — Cmd Palette + Keymap** — `⌘P`/`⌘⇧P`, VSCode default profile + tmux additions, custom map. (deps: A3)
 8. **A8 — Settings + Theme** — Two-pane UI, JSON-backed, Variant B token system, telemetry consent. (deps: A1, A7)
 9. **A9 — Status Bar** — Project · branch · pane count · cost stub · notifications. (deps: A5, A8)
-10. **A10 — Onboarding + Polish** — First-run wizard, empty state, keybind cheatsheet, 24hr soak. **v0 ship gate.** (deps: all)
+10. **A10 — Onboarding + Release Pipeline** — First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update, version-sync). **v0 ship gate.** (deps: all)
 
 That's v0. No Voss yet. L2 phases (Voss substrate) and L3 phases (`.voss` DSL) lock once A10 ships.
 
@@ -189,12 +189,14 @@ All L1 spec-blocking questions closed.
 | Q5 | Project-less mode | **Yes — first-class** | App launches w/o folder. Empty state offers "Open folder" or "Start without project". Project-less panes inherit `$HOME`. Affects A5, A6 (global-session.json). |
 | Q6 | Cost meter stub UX | **Hide entirely in L1** | No cost slot in status bar v0. L2 release adds the slot — minor status-bar reflow accepted. Preserves "zero Voss exposure in L1" goal. Affects A9 (BAR scope shrinks). |
 | Q7 | `.voss/` dir creation timing | **Lazy** | `.voss/` created on first action needing it (settings/layout write). Project open alone leaves filesystem untouched. Affects A5, A6. |
-| Q8 | Distribution channel | **All three: Direct DMG/AppImage/MSI + Homebrew cask + `@vosslang/cli voss app` subcommand** | Maximum availability. A1 scope **grows substantially** — 3 release pipelines, 3 release-note destinations, version-sync across channels. Acknowledged: heaviest ops burden among the options. |
+| Q8 | Distribution channel | **All three: Direct DMG/AppImage/MSI + Homebrew cask + `@vosslang/cli voss app` subcommand** | Maximum availability. **Release pipeline is a final gate, not an A1 concern** (2026-05-16 clarification) — all signing / channel / version-sync work moved out of A1 into **A10** (REL-01..0N). App does not release until A1–A9 built. Cert procurement (REL-02) is the long-pole — kick off during A1, wire in A10. |
 | Q9 | Telemetry & privacy | **OFF default, opt-in toggles** | Settings exposes two switches (anonymous crash reports, anonymous usage analytics), both clearly labelled, both OFF until consent. No first-run nag. No network call without consent. Affects A8 (CFG-06) + A10 (OBD-06). |
 
 **Scope alerts surfaced by these answers:**
 
-- **A1 grows significantly** — Q8 means three release pipelines (direct downloads + Homebrew tap + npm-wrapper subcommand). Code signing covers DMG + MSI for direct; Homebrew cask audit; npm payload sizing. SPEC must enumerate per-channel acceptance.
+- **A1 shrinks back to local-build-only** — release pipeline (signing, 3 channels, auto-update, version-sync) consolidated into **A10**. A1 only needs `pnpm tauri dev` + an unsigned local `pnpm tauri build` smoke artifact. Release = final gate (app ships only after A1–A9 done).
+- **A10 grows** — absorbs all distribution: OBD-* (onboarding) + REL-* (release pipeline). Three channels version-synced from one tag. A10 is the v0 ship gate.
+- **Cert procurement is the long-pole** — REL-02 (mac Developer ID + notarization, win Authenticode) has external lead time. Start procurement during A1 even though wiring lands in A10.
 - **A9 shrinks slightly** — Q6 removes the cost meter from L1 status bar entirely. Re-add planned in the L2 release that introduces cell promotion.
 - **Voss ADE branding** — Q1 means `Voss ADE` is the user-facing name everywhere it appears (window title, About, README, marketing). `voss-app` stays as internal slug (repo dir, package name, slug in URLs).
 

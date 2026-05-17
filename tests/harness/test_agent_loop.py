@@ -40,6 +40,14 @@ from voss.harness.providers import (
 )
 
 
+def _message_content_text(content) -> str:
+    if isinstance(content, list):
+        return "\n".join(
+            block.get("text", "") for block in content if isinstance(block, dict)
+        )
+    return str(content or "")
+
+
 # ---------------------------------------------------------------------------
 # Test doubles
 # ---------------------------------------------------------------------------
@@ -230,7 +238,7 @@ async def test_done_after_two_iters_with_tool_step(tmp_path: Path) -> None:
     assert result.run.exit_reason == "done"
     # Iter 1's messages replay iter 0's plan + tool results.
     iter1_msgs = provider.stream_calls[1]["messages"]
-    flat = "\n".join(m.get("content", "") for m in iter1_msgs)
+    flat = "\n".join(_message_content_text(m.get("content", "")) for m in iter1_msgs)
     assert "Tool results for iteration 0:" in flat
     # Assistant replay carries iter 0's rationale.
     assert "do thing" in flat or "look" in flat

@@ -1,36 +1,27 @@
-"""CACHE-02/CACHE-03: cache token extraction stubs for T4-02."""
+"""CACHE-02: cache token extraction for T4-02."""
 
 from types import SimpleNamespace
 
-import pytest
+from voss_runtime.providers._cache_tokens import extract_cache_tokens
 
 
 def test_anthropic_shape_returns_both_counts() -> None:
-    pytest.fail("T4-02 lands extract_cache_tokens")
-    usage = SimpleNamespace(cache_creation_input_tokens=11, cache_read_input_tokens=22)
-    expected = (usage.cache_creation_input_tokens, usage.cache_read_input_tokens)
-    assert expected == (11, 22)
+    usage = SimpleNamespace(cache_creation_input_tokens=120, cache_read_input_tokens=480)
+
+    assert extract_cache_tokens(usage) == (120, 480)
 
 
 def test_openai_shape_returns_read_only() -> None:
-    pytest.fail("T4-02 lands extract_cache_tokens")
-    usage = SimpleNamespace(prompt_tokens_details={"cached_tokens": 33})
-    expected = (0, usage.prompt_tokens_details["cached_tokens"])
-    assert expected == (0, 33)
+    usage = SimpleNamespace(prompt_tokens_details=SimpleNamespace(cached_tokens=300))
+
+    assert extract_cache_tokens(usage) == (0, 300)
 
 
 def test_missing_fields_default_to_zero() -> None:
-    pytest.fail("T4-02 lands extract_cache_tokens")
     usage = SimpleNamespace()
-    expected = (
-        getattr(usage, "cache_creation_input_tokens", 0),
-        getattr(usage, "cache_read_input_tokens", 0),
-    )
-    assert expected == (0, 0)
+
+    assert extract_cache_tokens(usage) == (0, 0)
 
 
 def test_none_usage_returns_zero() -> None:
-    pytest.fail("T4-02 lands extract_cache_tokens")
-    usage = None
-    expected = (0, 0) if usage is None else None
-    assert expected == (0, 0)
+    assert extract_cache_tokens(None) == (0, 0)
