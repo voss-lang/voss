@@ -1022,7 +1022,7 @@ Plans:
 
 ---
 
-### Phase A1 — voss-app Tauri Shell
+### Phase A1: voss-app Tauri Shell
 
 **Goal:** Tauri + Solid empty window builds and runs locally on the dev's platform with custom titlebar and theme tokens applied. **No release pipeline, no signing, no distribution channels** — that work is consolidated into A10 (release is a final gate; the app does not ship until A1–A9 are built).
 
@@ -1047,7 +1047,7 @@ Plans:
 
 ---
 
-### Phase A2 — voss-app PTY Pane
+### Phase A2: voss-app PTY Pane
 
 **Goal:** A single xterm.js pane wired to a native PTY (`portable-pty`) with full TTY support, scrollback, copy/paste, and OSC sequence handling. Replaces the empty window from A1 with one working terminal.
 
@@ -1073,7 +1073,7 @@ Plans:
 
 ---
 
-### Phase A3 — voss-app Grid Engine
+### Phase A3: voss-app Grid Engine
 
 **Goal:** Multi-pane grid layout — binary-split tree, splits/focus/resize/close, `⌘1-9` numeric nav, persisted layout file. Each pane is an independent PTY from A2.
 
@@ -1099,7 +1099,7 @@ Plans:
 
 ---
 
-### Phase A4 — voss-app Layout Presets
+### Phase A4: voss-app Layout Presets
 
 **Goal:** Visual layout templates — `fanout · pipeline · swarm · watchers`. `⌘G` cycles. Switching reorders existing panes, never kills them. Save/load named layouts.
 
@@ -1123,7 +1123,7 @@ Plans:
 
 ---
 
-### Phase A5 — voss-app Project Open
+### Phase A5: voss-app Project Open
 
 **Goal:** Folder picker, recent workspaces list, `.voss/` directory lazy creation, git branch detection, optional project-less mode.
 
@@ -1147,7 +1147,7 @@ Plans:
 
 ---
 
-### Phase A6 — voss-app Session Persist
+### Phase A6: voss-app Session Persist
 
 **Goal:** Pane tree, per-pane cwd + shell choice, and truncated scrollback restore across app restart. Live processes are NOT auto-relaunched in L1.
 
@@ -1170,7 +1170,7 @@ Plans:
 
 ---
 
-### Phase A7 — voss-app Command Palette + Keymap
+### Phase A7: voss-app Command Palette + Keymap
 
 **Goal:** Command palette (`⌘P` quick-open, `⌘⇧P` all commands), VSCode-default keymap profile with tmux-friendly additions, user custom-map override via `.voss/keymap.json`.
 
@@ -1194,7 +1194,7 @@ Plans:
 
 ---
 
-### Phase A8 — voss-app Settings + Theme
+### Phase A8: voss-app Settings + Theme
 
 **Goal:** Two-pane settings UI (search + categories left, form right) backed by JSON files. Variant B token system applied as theme. Font, shell, telemetry-consent UX all live here.
 
@@ -1218,7 +1218,7 @@ Plans:
 
 ---
 
-### Phase A9 — voss-app Status Bar
+### Phase A9: voss-app Status Bar
 
 **Goal:** Bottom status bar: project · branch · active pane info · pane count · cost-meter stub · notifications bell. Click any cluster for popover detail.
 
@@ -1243,7 +1243,7 @@ Plans:
 
 ---
 
-### Phase A10 — voss-app Onboarding + Release Pipeline (v0 SHIP GATE)
+### Phase A10: voss-app Onboarding + Release Pipeline (v0 SHIP GATE)
 
 **Goal:** First-run wizard, empty-state UI, soak-test hardening, AND the entire release pipeline (signing + 3 distribution channels + auto-update + version-sync). This is the final gate — the app does not release until A1–A9 are built and stable. All distribution work deferred from A1 lands here.
 
