@@ -57,8 +57,12 @@ in the SUMMARY.
 @.planning/ROADMAP.md
 @.planning/STATE.md
 @.planning/phases/T6-slash-debt/T6-CONTEXT.md
+@.planning/phases/T6-slash-debt/T6-PATTERNS.md
 @.planning/phases/T6-slash-debt/T6-01-SUMMARY.md
 @.planning/phases/T6-slash-debt/T6-02-SUMMARY.md
+
+<!-- ENV NOTE (W4): All verify/acceptance commands assume the project venv is
+     active (execute-plan activates it); otherwise prefix `.venv/bin/`. -->
 
 <interfaces>
 <!-- Extracted from codebase. No exploration required. -->
@@ -119,6 +123,7 @@ Registration-parity test to extend (tests/harness/test_repl_slash.py:118-125):
     - tests/harness/test_repl_slash.py:128-258 (the `TestT6Behaviors` class, the `fake_ctx` fixture, the existing `test_why_renders_rationale_and_steps` at 171-179 and `test_discard_dry_run_lists_files` at 233-240 as the closest analogs)
     - voss/harness/cli.py:675-702 (`_diff` — `git diff` subprocess with timeout + stderr surfacing; no-changes path echoes "  (no changes)")
     - voss/harness/cli.py:655-673 (`_why` — rationale + `confidence:.2f` + step why, NO provider call; the D-07 subject)
+    - T6-PATTERNS.md "Edit Site 4" (the per-slash coverage gaps: the /diff subprocess-monkeypatch-or-tmp_path-git approach + the /why D-07 audit-only note)
   </read_first>
   <action>
     In `tests/harness/test_repl_slash.py` `TestT6Behaviors`, add a `/diff`
@@ -142,7 +147,7 @@ Registration-parity test to extend (tests/harness/test_repl_slash.py:118-125):
     this action — copy the existing class's method shape.
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_repl_slash.py -q -k "diff or why" 2>&1 | tail -3</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_repl_slash.py -q -k "diff or why" --tb=short; echo "exit:$?"</automated>
   </verify>
   <acceptance_criteria>
     - `python -m pytest tests/harness/test_repl_slash.py -q -k "diff or why"` exits 0.
@@ -162,6 +167,7 @@ Registration-parity test to extend (tests/harness/test_repl_slash.py:118-125):
     - voss/harness/cli.py:26 (`from . import session as session_store` — the monkeypatch target is `voss.harness.cli.session_store.load`)
     - voss/harness/session.py:213-261 (`_scan_dir` SINGLE OR predicate at :222 + `load` raise-on-missing/ambiguous — the resolution order this test MUST NOT change)
     - tests/harness/test_repl_slash.py:128-258 (`TestT6Behaviors` + `fake_ctx`; the handler-direct + capsys + monkeypatch shape)
+    - T6-PATTERNS.md "Edit Site 4" /resume coverage note (assert both resolution arms + cross-cwd warning; NO code change to resolution order)
   </read_first>
   <action>
     In `TestT6Behaviors`, add three `/resume` happy-path tests (SLASH-05) that
@@ -183,7 +189,7 @@ Registration-parity test to extend (tests/harness/test_repl_slash.py:118-125):
     monkeypatch shape.
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_repl_slash.py -q -k "resume" 2>&1 | tail -3</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_repl_slash.py -q -k "resume" --tb=short; echo "exit:$?"</automated>
   </verify>
   <acceptance_criteria>
     - `python -m pytest tests/harness/test_repl_slash.py -q -k "resume"` exits 0 and collects at least 3 resume tests.
@@ -222,7 +228,7 @@ Registration-parity test to extend (tests/harness/test_repl_slash.py:118-125):
     `tests/harness/`. No fenced code in this action.
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_repl_slash.py -q 2>&1 | tail -3 && python -m pytest tests/harness/ -q 2>&1 | tail -3</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_repl_slash.py -q --tb=short; echo "slash-exit:$?"; python -m pytest tests/harness/ -q --tb=short; echo "harness-exit:$?"</automated>
   </verify>
   <acceptance_criteria>
     - `python -m pytest tests/harness/test_repl_slash.py -q` exits 0 (entire file green).
