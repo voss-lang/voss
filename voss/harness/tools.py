@@ -125,7 +125,7 @@ def make_toolset(
         results = sorted(str(p.relative_to(cwd)) for p in cwd.glob(pattern) if p.is_file())
         return "\n".join(results) if results else "<no matches>"
 
-    @tool(name="shell_run", description="Run an allowlisted command (no shell). Output truncated to 4KB.")
+    @tool(name="shell_run", description="Run an allowlisted command (no shell). Output truncated to 30KB.")
     async def shell_run(cmd: str) -> str:
         # Allowlist + metacharacter check first. shell_allowed rejects pipelines,
         # redirection, command substitution, chaining — anything that requires a
@@ -153,8 +153,8 @@ def make_toolset(
         except (OSError, SandboxError) as e:
             return f"<error: {e}>"
         text = out.decode("utf-8", errors="replace")
-        if len(text) > 4096:
-            text = text[:4096] + f"\n<truncated, total {len(out)} bytes>"
+        if len(text) > 30720:  # 30KB cap (T5 SHELL-01 / D-07; matches fs_read_many tools.py:68)
+            text = text[:30720] + f"\n<truncated, total {len(out)} bytes>"
         return f"[exit {proc.returncode}]\n{text}"
 
     @tool(name="fs_write", description="Write text to a file inside cwd. Creates parent dirs. Overwrites existing.")
@@ -395,8 +395,8 @@ async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> s
         proc.kill()
         return f"<timeout: {timeout}s>"
     text = out.decode("utf-8", errors="replace")
-    if len(text) > 4096:
-        text = text[:4096] + f"\n<truncated, total {len(out)} bytes>"
+    if len(text) > 30720:  # 30KB cap (T5 SHELL-01 / D-07; matches fs_read_many tools.py:68)
+        text = text[:30720] + f"\n<truncated, total {len(out)} bytes>"
     return f"[exit {proc.returncode}]\n{text}"
 
 
