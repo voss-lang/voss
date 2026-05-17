@@ -107,9 +107,13 @@ Toolchain confirmed present (no Wave 0 setup needed): Apple Silicon arm64,
 
 <task type="checkpoint:human-verify" gate="blocking-human">
   <name>Task 0: Package legitimacy gate (npm install authorization)</name>
+  <files>(none — review-only authorization gate; no files created or modified)</files>
   <read_first>
     - .planning/phases/A1-voss-app-tauri-shell/A1-RESEARCH.md ("## Package Legitimacy Audit" — all 8 packages marked [ASSUMED], slopcheck was unavailable)
   </read_first>
+  <action>Pause execution BEFORE Task 1 runs any `pnpm create tauri-app` / `pnpm add` / `cargo fetch`. The human reviews all 8 [ASSUMED] npm packages plus the 2 Tauri crates against their official registry pages (list in &lt;how-to-verify&gt;). No code is written in this task — it only authorizes the subsequent install wave. This gate is NOT auto-approvable: ignore workflow.auto_advance because every package is [ASSUMED] (slopcheck unavailable at research time).</action>
+  <verify>Human types "approved" (or names a package to remove/replace). Execution does not proceed to Task 1 until an explicit approval is recorded.</verify>
+  <done>Explicit "approved" recorded; Task 1 authorized to run pnpm create tauri-app + pnpm add + cargo fetch with the pinned versions.</done>
   <what-built>
     Nothing yet — this gate runs BEFORE any `pnpm create tauri-app` / `pnpm add` / `cargo` fetch in Task 1. RESEARCH.md Package Legitimacy Audit lists 8 npm packages all tagged [ASSUMED] (slopcheck unavailable at research time): @tauri-apps/cli, @tauri-apps/api, create-tauri-app, solid-js, vite-plugin-solid, vite, tailwindcss, @tailwindcss/vite. All are from official orgs (tauri-apps, solidjs, vitejs, tailwindlabs) but [ASSUMED] packages require a blocking human-verify before first install per the package legitimacy protocol.
   </what-built>
@@ -189,10 +193,14 @@ Toolchain confirmed present (no Wave 0 setup needed): Apple Silicon arm64,
 
 <task type="checkpoint:human-verify" gate="blocking">
   <name>Task 2: Verify empty Voss ADE window launches</name>
+  <files>(none — verification-only checkpoint; observes Task 1 output, modifies nothing)</files>
   <read_first>
     - .planning/phases/A1-voss-app-tauri-shell/A1-UI-SPEC.md ("Window Architecture Contract", "Empty Body Contract", "Copywriting Contract")
     - .planning/phases/A1-voss-app-tauri-shell/A1-RESEARCH.md ("Pitfall 2: decorations:false removes rounded corners — intentional", "Pitfall 3: Vite port conflict")
   </read_first>
+  <action>Pause for the human to launch `pnpm tauri dev` from `apps/voss-app/` and confirm the empty borderless "Voss ADE" window renders as described in &lt;how-to-verify&gt;. No code is written; this checkpoint observes Task 1's scaffold output.</action>
+  <verify>Human types "approved" after confirming the window launches with no native decorations, a uniform #0a0b0e body, and OS window title exactly "Voss ADE".</verify>
+  <done>Empty borderless Voss ADE window confirmed launching via pnpm tauri dev; explicit approval recorded.</done>
   <what-built>
     A runnable empty Tauri window. Task 1 scaffolded the app, wired the monorepo, and pinned versions. Running `pnpm tauri dev` from `apps/voss-app/` should open a borderless (no native title bar, sharp corners — intentional per Variant B 0-radius, RESEARCH Pitfall 2) 1280x800 window whose OS window title is "Voss ADE" and whose body is solid dark `#0a0b0e` with no content.
   </what-built>
