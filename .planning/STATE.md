@@ -3,14 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: verifying
-last_updated: "2026-05-17T20:35:43Z"
+last_updated: "2026-05-17T20:55:20.931Z"
 last_activity: "2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval)."
 progress:
-  total_phases: 26
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # State: Voss
@@ -86,4 +85,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - Existing `.planning/phases/01-*` through `07-*` directories remain historical planning artifacts unless explicitly archived.
 - Next operational step after this rebaseline is to plan M0, then M1.
 
-**Planned Phase:** T6 (PRD §2.4 Slash Debt) — 3 plans, 3 waves — 2026-05-16
+**Planned Phase:** A1 (voss-app-tauri-shell) — 4 plans — 2026-05-17T20:55:20.926Z
