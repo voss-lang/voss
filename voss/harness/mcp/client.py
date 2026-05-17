@@ -164,6 +164,11 @@ class McpClient:
             )
         return resp.get("result", {})
 
+    async def aclose(self) -> None:
+        for proc in list(self._procs.values()):
+            await self._stop_failed_launch(proc)
+        self._procs.clear()
+
     async def _handshake(
         self, proc: asyncio.subprocess.Process, timeout_s: float
     ) -> None:

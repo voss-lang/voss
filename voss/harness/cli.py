@@ -1997,11 +1997,14 @@ def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
     client.set_cwd(cwd)
 
     async def _populate() -> None:
-        for name in config.servers:
-            try:
-                await client.ensure_launched(name)
-            except Exception as ex:  # noqa: BLE001
-                click.echo(f"<warning: {name} launch failed: {ex}>", err=True)
+        try:
+            for name in config.servers:
+                try:
+                    await client.ensure_launched(name)
+                except Exception as ex:  # noqa: BLE001
+                    click.echo(f"<warning: {name} launch failed: {ex}>", err=True)
+        finally:
+            await client.aclose()
 
     asyncio.run(_populate())
     servers_payload = []
@@ -2084,6 +2087,8 @@ def mcp_call_cmd(
                 ],
                 "__transport_error": True,
             }
+        finally:
+            await client.aclose()
 
     result = asyncio.run(_invoke())
     if result.get("__transport_error"):
