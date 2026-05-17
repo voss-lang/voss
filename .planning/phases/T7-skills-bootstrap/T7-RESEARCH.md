@@ -813,27 +813,29 @@ Additionally, `tests/skills/test_skills_smoke.py` will be picked up automaticall
 
 ## Assumptions Log
 
+A1 and A2 were resolved during research:
+- A1 RESOLVED: `voss.parser.parse(source: str, file: str = "<string>") -> Program` is a public function at `voss/parser.py:791`. [VERIFIED: grep]
+- A2 RESOLVED: `SessionRecord.model: str` is a confirmed field at `voss/harness/session.py:154`. [VERIFIED: read]
+
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | `voss.parser.parse()` is a public API callable from skill handler code | SKL-06 Python API path | If `parse` is also private, SKL-06 must use subprocess `voss check` instead |
-| A2 | `record.model` is the correct attribute to pass as `model=` to `run_turn` in skill handlers (mirrors analyze.py) | Agentic skill pattern | If `record` doesn't have `.model`, handlers must use `get_config().default_model` |
 | A3 | `asyncio.run()` is safe to call from the skill `run()` function (no running event loop at call site) | Agentic skill pattern | If called from within an async context (unlikely for slash commands), would raise RuntimeError |
 
-**None of these assumptions change locked decisions.** If A1 fails, SKL-06 falls back to subprocess; if A2 fails, the `get_config()` fallback is already used elsewhere in cli.py.
+**If the table is empty of unresolved items:** A1/A2 verified above; only A3 remains as a low-probability assumption (slash commands are sync-called from the REPL; no running event loop at that call site).
 
 ---
 
 ## Open Questions
 
-1. **`voss.parser.parse()` public API signature**
-   - What we know: `voss/parser.py` defines functions including `_build_parser()`, `_span()`, etc. (underscore-prefixed = private). The public entry point needs confirmation.
-   - What's unclear: Is `parse()` (no underscore) exported from `voss.parser`? What are its arguments?
-   - Recommendation: Planner adds a Wave 0 task to `grep -n "^def parse\b" voss/parser.py` and confirm before implementing SKL-06.
+All open questions were resolved during research:
 
-2. **`record` object type in `voss skill run` (CLI path) vs. REPL path**
-   - What we know: In the REPL, `record` is a `session_store.SessionRecord` (from `_extension_context` line 1717). In `skill_run_cmd`, `_extension_context` is also called (line 1797) so same type.
-   - What's unclear: Does `SessionRecord` have a `.model` field? (analyze.py uses `record.model`)
-   - Recommendation: Planner confirms `session_store.SessionRecord` fields before implementing handlers.
+1. **`voss.parser.parse()` public API — RESOLVED**
+   - `voss/parser.py:791` defines `def parse(source: str, file: str = "<string>") -> Program:` — public function. [VERIFIED: grep]
+   - SKL-06 implementation: `from voss.parser import parse` is valid.
+
+2. **`SessionRecord.model` field — RESOLVED**
+   - `voss/harness/session.py:154` confirms `model: str` is a `SessionRecord` field. [VERIFIED: read]
+   - `record.model` in skill handlers is correct.
 
 ---
 
@@ -955,7 +957,7 @@ Additionally, `tests/skills/test_skills_smoke.py` will be picked up automaticall
 - Pitfalls: HIGH — landmines derived from reading actual code paths, not training data
 - `.voss` companion shapes: HIGH — all constructs verified against actual sample files
 - SKL-06 JSON schema: HIGH — `Diagnostic` fields confirmed via import test
-- Open Questions: MEDIUM — parser public API and `SessionRecord.model` field are the only unresolved items
+- Open Questions: RESOLVED — parser public API (`voss/parser.py:791`) and `SessionRecord.model` (`voss/harness/session.py:154`) both verified during research
 
 **Research date:** 2026-05-17
 **Valid until:** 2026-06-17 (30 days; stable internal codebase)
