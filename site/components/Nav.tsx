@@ -31,7 +31,7 @@ export default function Nav() {
             </Link>
           </Button>
           <Button asChild variant="ghost" size="lg">
-            <Link href={site.docsUrl}>
+            <Link href={site.docsUrl} target="_blank" rel="noreferrer">
               <BookOpenText />
               Docs
             </Link>

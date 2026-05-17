@@ -21,9 +21,8 @@ export const site = {
     "Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.",
   repoUrl: "https://github.com/bm9797/Voss",
   prdUrl: "https://github.com/bm9797/Voss/blob/main/PRD.md",
-  // Local /docs route until docs.voss.dev DNS lands. Swap back when the
-  // subdomain points at this Vercel project (or a separate Mintlify deploy).
-  docsUrl: "/docs/",
+  // Public Mintlify docs (repo voss-lang/voss, site/docs, branch master).
+  docsUrl: "https://docs.tryvoss.dev",
   version: "0.1.0",
   install: {
     primary: "npm i -g @vosslang/cli",

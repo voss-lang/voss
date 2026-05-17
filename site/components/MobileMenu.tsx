@@ -15,7 +15,7 @@ type Item = {
 
 const ITEMS: Item[] = [
   { href: "/harness", label: "Harness", icon: TerminalSquare },
-  { href: site.docsUrl, label: "Docs", icon: BookOpenText },
+  { href: site.docsUrl, label: "Docs", icon: BookOpenText, external: true },
   { href: "/language", label: "Language", icon: Code2 },
   { href: site.repoUrl, label: "GitHub", icon: GitBranch, external: true },
 ];

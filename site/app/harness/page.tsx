@@ -289,7 +289,9 @@ voss doctor`}
               </pre>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
-                  href="/docs"
+                  href={site.docsUrl}
+                  target="_blank"
+                  rel="noreferrer"
                   className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--background)] transition hover:opacity-90"
                 >
                   Read the docs

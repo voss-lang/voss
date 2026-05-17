@@ -82,7 +82,9 @@ export default function SecurityPage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/docs">Docs</Link>
+                <Link href={site.docsUrl} target="_blank" rel="noreferrer">
+                  Docs
+                </Link>
               </Button>
             </div>
           </div>

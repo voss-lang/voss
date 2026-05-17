@@ -86,7 +86,7 @@ export default async function LanguagePage() {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link href="/docs">
+                  <Link href={site.docsUrl} target="_blank" rel="noreferrer">
                     Read docs
                     <ArrowRight />
                   </Link>
