@@ -183,7 +183,7 @@ pytest markers available — pyproject.toml:67-71 (`slow`, `live`, `acceptance`;
     Extend `tests/harness/test_shell_timeout.py`: add a sibling `@pytest.mark.slow` source-inspection test (mirror `test_real_shell_run_timeout_contract_documented` at :116-128) asserting `"30720" in inspect.getsource(tools_mod.make_toolset)` — guards SHELL-01 against silent regression exactly like the existing `timeout=30.0` guard. The new test MUST be named `test_shell_run_30kb_cap_documented` (the substring `cap` is REQUIRED so the `pytest ... -k cap` selector in T5-VALIDATION.md / T5-02 actually matches a test — a name without `cap` would make the selector silently select zero tests = false green; WARNING 1 fix). Do not modify the existing test.
   </action>
   <verify>
-    <automated>python -m pytest tests/harness/test_t5_shell.py --co -q && python -m pytest "tests/harness/test_shell_timeout.py::test_shell_run_30kb_cap_documented" --co -q | grep -q "1 test" && python -m pytest tests/harness/test_t5_shell.py -q --no-header 2>&1 | tail -3</automated>
+    <automated>python -m pytest tests/harness/test_t5_shell.py --co -q && python -m pytest "tests/harness/test_shell_timeout.py::test_shell_run_30kb_cap_documented" --co -q >/dev/null && python -m pytest tests/harness/test_t5_shell.py -q --no-header 2>&1 | tail -3</automated>
     <requirement>SHELL-01..05, SC#1/#2/#3 (test surface exists, all red)</requirement>
     <expected>`pytest --co` collects all ~12 T5 stubs with zero collection errors; running them shows all failing (red) — none pass, none are skip-by-default. emit.py exists and is executable as a script.</expected>
   </verify>

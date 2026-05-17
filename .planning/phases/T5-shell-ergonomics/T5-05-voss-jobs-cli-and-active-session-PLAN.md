@@ -22,12 +22,12 @@ must_haves:
     - "jail_path is imported in cli.py (no NameError)"
   artifacts:
     - path: "voss/harness/cli.py"
-      provides: "make_toolset session_id wiring (1314+1071) + jail_path import + jobs_cmd + AGENT_COMMANDS + --keep-logs + .active-session try/finally lifecycle + reap_jobs on exit"
+      provides: "make_toolset session_id wiring (cli.py:1314 _run_repl only) + jail_path import + jobs_cmd + AGENT_COMMANDS + --keep-logs + .active-session try/finally lifecycle + reap_jobs on exit"
       contains: "def jobs_cmd"
   key_links:
     - from: "voss/harness/cli.py _run_repl / do_cmd make_toolset call"
       to: "shell_run_background -> register_job(session_id=record.id)"
-      via: "session_id=record.id / session_id=do_record.id kwarg"
+      via: "session_id=record.id kwarg (only the _run_repl site is wired)"
       pattern: "session_id=record\\.id"
     - from: "voss/harness/cli.py"
       to: "voss.harness.sandbox.jail_path"
@@ -50,7 +50,7 @@ must_haves:
 <objective>
 Ship `voss jobs` (SHELL-05): a click subcommand that, from a SEPARATE OS process, lists the current `voss chat` session's background jobs by reading the on-disk `<handle>.meta.json` sidecars (in-memory `_JOBS` is invisible to it — the headline cross-process constraint). Wire the `.active-session` pointer write/remove and the `--keep-logs` flag into `voss chat`, and fire `reap_jobs()` on clean REPL exit so the session jobs-dir is cleaned deterministically.
 
-Purpose: Without this the agent (and the human) cannot see what background work is in flight. The cross-process design (D-11, A4) is the load-bearing risk RESEARCH flagged: `voss jobs` is a fresh click invocation, not the running chat — it MUST read disk, never the heap. This plan ALSO closes the cross-process contract end-to-end: Task 1 wires the real `record.id` into `make_toolset` at the production call sites (cli.py:1314 `voss chat` + cli.py:1071 `voss do`) so `shell_run_background` sidecars land under `<record.id>/` (NOT `_nosession/`) — without it `voss jobs` would always be empty in real use even though every unit test passes (the exact false-green the gate caught).
+Purpose: Without this the agent (and the human) cannot see what background work is in flight. The cross-process design (D-11, A4) is the load-bearing risk RESEARCH flagged: `voss jobs` is a fresh click invocation, not the running chat — it MUST read disk, never the heap. This plan ALSO closes the cross-process contract end-to-end: Task 1 wires the real `record.id` into `make_toolset` at the one production call site that owns the `voss jobs` contract (cli.py:1314, the `voss chat` `_run_repl`) so `shell_run_background` sidecars land under `<record.id>/` (NOT `_nosession/`) — without it `voss jobs` would always be empty in real use even though every unit test passes (the exact false-green the gate caught). The other 5 make_toolset sites (incl. `voss do` cli.py:1071, where `do_record` is defined 26 lines after the call) are deliberate `_nosession`.
 Output: make_toolset `session_id` production wiring + `jail_path` import + `jobs_cmd` + `AGENT_COMMANDS` entry + `--keep-logs` + `.active-session` try/finally lifecycle + explicit `reap_jobs()` on exit, all in `voss/harness/cli.py` (3 tasks).
 </objective>
 
@@ -149,13 +149,18 @@ Sandbox jailing for the .voss-cache path — voss/harness/sandbox.py:95-101
 make_toolset session_id policy (BLOCKER 1 resolution) — DECISION pinned in
 Task 1: the additive keyword-only `session_id` kwarg lands in T5-03 (tools.py);
 the PRODUCTION wiring is owned + verified HERE (T5-05 Task 1), not deferred as an
-unplanned one-liner. Of the 6 make_toolset call sites: cli.py:1314 (`voss chat`
-_run_repl) and cli.py:1071 (`voss do`) pass the real `record.id`/`do_record.id`;
-cli.py:1686 (tools_cmd), cli.py:1710 (_extension_context), subagents.py:91, and
-eval/runner.py:127/149/185 DELIBERATELY accept the `_nosession` fallback
-(documented, the two cli.py ones with inline comments; subagents/eval are
-document-only and out of this plan's files_modified). A toolset-path test asserts
-a job spawned via make_toolset->shell_run_background lands under `<session_id>/`.
+unplanned one-liner. Of the 6 make_toolset call sites, EXACTLY ONE is wired:
+cli.py:1314 (`voss chat` _run_repl) passes the real `record.id` (`record` is in
+_run_repl's signature at cli.py:1305 — safe). The other 5 DELIBERATELY accept the
+`_nosession` fallback: cli.py:1071 (`voss do`) is unwired because `do_record` is
+first defined at cli.py:1097, 26 lines AFTER the call — `session_id=do_record.id`
+there would raise `UnboundLocalError` on every `voss do`; one-shot `voss do` bg
+jobs are reaped at process exit (no `voss jobs` contract). cli.py:1686
+(tools_cmd), cli.py:1710 (_extension_context) get inline `_nosession` comments;
+subagents.py:91 + eval/runner.py:127/149/185 are document-only (out of this
+plan's files_modified). A toolset-path test asserts a job spawned via
+make_toolset->shell_run_background lands under `<session_id>/`; the verify also
+asserts `do_cmd` is NOT wired (use-before-definition regression guard).
 
 Flag 3 (.active-session pointer, A4) — DECISION: pointer file
 `.voss-cache/jobs/.active-session` containing `record.id`, written by `_run_repl`
@@ -188,15 +193,14 @@ T5 scope (M14 territory, RESEARCH Runtime State Inventory).
   <behavior>
     - A background job spawned through the REAL toolset path (make_toolset -> shell_run_background -> register_job) during a `voss chat`/`_run_repl` session writes its sidecar under `.voss-cache/jobs/<record.id>/`, NOT `.voss-cache/jobs/_nosession/`.
     - `voss jobs` (which reads `.active-session` == `record.id`) therefore finds that job — the cross-process contract holds end-to-end (this is the false-green the gate caught: prior tests called register_job(session_id=...) directly and never exercised make_toolset->shell_run_background with the real record.id).
-    - `voss do` (cli.py:1071, has `do_record`) likewise spawns under `<do_record.id>/`.
-    - The other 4 make_toolset call sites deliberately accept the `_nosession` fallback (documented policy, asserted by a source-inspection check that those sites do NOT pass session_id).
+    - The 5 non-REPL make_toolset call sites deliberately accept the `_nosession` fallback (documented policy; the cli.py:1314 _run_repl site is the ONLY one wired with a real session id).
   </behavior>
   <action>
-    T5-03 Task 3 added the additive keyword-only `session_id: str | None = None` parameter to `make_toolset` (tools.py) + closure capture + `_nosession` fallback. THIS task wires the real session id at the production call sites in voss/harness/cli.py. There are exactly 6 `make_toolset` call sites (grep-verified: cli.py:1071, cli.py:1314, cli.py:1686, cli.py:1710; subagents.py:91; eval/runner.py:127/149/185). Per-site policy DECISION (pin this, do not leave implicit):
+    T5-03 Task 3 added the additive keyword-only `session_id: str | None = None` parameter to `make_toolset` (tools.py) + closure capture + `_nosession` fallback. THIS task wires the real session id at the ONE production call site that owns the cross-process `voss jobs` contract, and documents the other 5 as deliberate `_nosession`. There are exactly 6 `make_toolset` call sites (grep-verified: cli.py:1071, cli.py:1314, cli.py:1686, cli.py:1710; subagents.py:91; eval/runner.py:127/149/185). Per-site policy DECISION (pin this, do not leave implicit):
 
-    1. cli.py:1314 (`_run_repl`, the `voss chat` interactive REPL) — `record` is already in `_run_repl`'s signature/scope (cli.py:1305; `record.id` used at cli.py:1358). Change `tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())` to `tools = make_toolset(cwd, renderer=renderer, net=_get_net_session(), session_id=record.id)`. THIS is the headline fix — it makes shell_run_background sidecars land under `<record.id>/` so `voss jobs` (reading `.active-session=record.id`) finds them.
+    1. cli.py:1314 (`_run_repl`, the `voss chat` interactive REPL) — `record` is already in `_run_repl`'s signature/scope (cli.py:1305; `record.id` used at cli.py:1358). Change `tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())` to `tools = make_toolset(cwd, renderer=renderer, net=_get_net_session(), session_id=record.id)`. THIS is the headline fix and the ONLY code change to a make_toolset call in this task — it makes shell_run_background sidecars land under `<record.id>/` so `voss jobs` (reading `.active-session=record.id`) finds them.
 
-    2. cli.py:1071 (`do_cmd`, `voss do` single-shot) — `do_record` is in scope (`do_record.id` used at cli.py:1099/1116). Change to `make_toolset(cwd, renderer=renderer, net=_get_net_session(), session_id=do_record.id)` for consistency (a bg job in `voss do` is rare and reaped at process exit anyway, but a correct session dir keeps `voss jobs` honest if it is used).
+    2. cli.py:1071 (`do_cmd`, `voss do` single-shot) — DELIBERATELY NOT wired. `do_record` is FIRST defined at cli.py:1097, which is 26 lines AFTER the make_toolset call at cli.py:1071; passing `session_id=do_record.id` at 1071 would raise `UnboundLocalError` on every `voss do` (use-before-definition). Do NOT change line 1071 and do NOT reorder the call past 1097 (that reorder would touch gate/attach_subagent_tool ordering — out of scope, higher risk). Single-shot `voss do` background jobs accept the `_nosession` sidecar bucket: they are rare and reaped at process exit via the atexit/lifecycle net; there is no cross-process `voss jobs` contract for one-shot `voss do`. Add an inline `# T5: deliberate _nosession — do_record is defined later (cli.py:1097); one-shot voss do bg jobs are reaped at process exit, no voss jobs contract` comment at the cli.py:1071 call.
 
     3. cli.py:1686 (`tools_cmd`) — DELIBERATELY NOT wired: it only lists tool metadata and never invokes a tool; no session exists. Accept the `_nosession` fallback. Add an inline `# T5: no session_id — tools_cmd never invokes tools (deliberate _nosession)` comment.
 
@@ -206,16 +210,16 @@ T5 scope (M14 territory, RESEARCH Runtime State Inventory).
 
     6. eval/runner.py:127/149/185 — DELIBERATELY NOT wired (and OUT OF THIS PLAN'S files_modified — do NOT edit eval/runner.py). Hermetic eval runs in isolated temp repos and never inspects `voss jobs`. Document-only.
 
-    So this task edits ONLY cli.py:1314 and cli.py:1071. Do NOT add `session_id=` to the other cli.py sites (1686, 1710); leave them on the fallback with the explanatory comments.
+    So this task makes EXACTLY ONE make_toolset code change: cli.py:1314 -> add `session_id=record.id`. The other 5 sites get only inline `# T5: deliberate _nosession ...` comments (cli.py:1071, 1686, 1710) or are document-only (subagents.py:91, eval/runner.py). Do NOT add `session_id=` anywhere except cli.py:1314.
 
-    Add the test in tests/harness/test_t5_shell.py — `test_toolset_path_uses_real_session_id`: build `make_toolset(tmp_path, session_id="sess-abc")`, invoke the `shell_run_background` descriptor with a trivial allowlisted command (e.g. `echo hi` via the deterministic emitter or a short `python3 -c`), then assert a sidecar appeared under `tmp_path/.voss-cache/jobs/sess-abc/` and NOT under `.../jobs/_nosession/`. This exercises make_toolset->shell_run_background->register_job with a real session id (the path the unit-level tests bypassed). Also add a source-inspection guard asserting cli.py `_run_repl` source contains `session_id=record.id` and `do_cmd` source contains `session_id=do_record.id`.
+    Add the test in tests/harness/test_t5_shell.py — `test_toolset_path_uses_real_session_id`: build `make_toolset(tmp_path, session_id="sess-abc")`, invoke the `shell_run_background` descriptor with a trivial allowlisted command (e.g. `echo hi` via the deterministic emitter or a short `python3 -c`), then assert a sidecar appeared under `tmp_path/.voss-cache/jobs/sess-abc/` and NOT under `.../jobs/_nosession/`. This exercises make_toolset->shell_run_background->register_job with a real session id (the path the unit-level tests bypassed). Also add a source-inspection guard asserting cli.py `_run_repl` source contains `session_id=record.id` (do NOT assert anything about `do_cmd` — it is deliberately unwired).
   </action>
   <verify>
-    <automated>python -m pytest "tests/harness/test_t5_shell.py::test_toolset_path_uses_real_session_id" -x -q && python -c "import inspect; from voss.harness import cli; r=inspect.getsource(cli._run_repl); d=inspect.getsource(cli.do_cmd); assert 'session_id=record.id' in r, 'chat REPL not wired'; assert 'session_id=do_record.id' in d, 'do_cmd not wired'; print('toolset-session-wired')"</automated>
+    <automated>python -m pytest "tests/harness/test_t5_shell.py::test_toolset_path_uses_real_session_id" -x -q && python -c "import inspect; from voss.harness import cli; r=inspect.getsource(cli._run_repl); d=inspect.getsource(cli.do_cmd); assert 'session_id=record.id' in r, 'chat REPL not wired'; assert 'session_id=do_record.id' not in d, 'do_cmd must NOT be wired (use-before-def at cli.py:1071)'; print('toolset-session-wired')"</automated>
     <requirement>SHELL-02, SHELL-05 (D-09/D-11 cross-process contract)</requirement>
-    <expected>A job spawned via make_toolset->shell_run_background with a real session id lands under `<session_id>/` (never `_nosession/`); cli.py:1314 passes `session_id=record.id` and cli.py:1071 passes `session_id=do_record.id`; the other cli.py call sites deliberately omit it.</expected>
+    <expected>A job spawned via make_toolset->shell_run_background with a real session id lands under `<session_id>/` (never `_nosession/`); cli.py:1314 passes `session_id=record.id`; do_cmd is deliberately NOT wired (the verify asserts the absence to guard against the use-before-definition regression); the other call sites deliberately omit session_id.</expected>
   </verify>
-  <done>cli.py:1314 + cli.py:1071 pass the real session id into make_toolset; the toolset-path test proves sidecars land under `<record.id>/`; the 4 deliberate-`_nosession` sites are documented (2 with inline comments, 2 document-only out-of-files); the headline cross-process contract is verified end-to-end, not just at the direct register_job level.</done>
+  <done>cli.py:1314 (the ONLY wired site) passes `session_id=record.id` into make_toolset; the toolset-path test proves sidecars land under `<session_id>/`; the 5 non-REPL sites are deliberate `_nosession` (cli.py:1071/1686/1710 with inline comments — 1071 explicitly notes the use-before-definition rationale; subagents.py:91 + eval/runner.py document-only); the verify asserts `do_cmd` is NOT wired (regression guard); the headline cross-process contract is verified end-to-end, not just at the direct register_job level.</done>
 </task>
 
 <task type="auto" tdd="true">
