@@ -140,6 +140,8 @@ All text in Variant B uses the mono font stack. The non-terminal UI font (`--fon
 
 **Size set (4 sizes):** 10px · 11px · 11.5px · 12px. These are terminal-density sizes — below standard web body. This is intentional for the Variant B "max info per screen" aesthetic.
 
+> **HiDPI verification note (Dimension 4, non-blocking):** The 11px titlebar/header vs 11.5px body delta is 0.5px and may be imperceptible on non-HiDPI displays. Sizes are sourced verbatim from sketch 001 (`.b-head` 10px context, `.b-body` 11.5px) and are intentional — they are NOT to be changed. The planner/executor MUST add a visual verification checkpoint confirming these two roles render visually distinct on the target Apple Silicon Retina display before phase sign-off.
+
 Body line height: 1.5 (confirmed: `themes/default.css` `body { line-height: 1.5 }`).
 Heading/header line height: 1.0 (headers are fixed-height containers; line-height is irrelevant — height is set explicitly).
 
@@ -151,25 +153,36 @@ Source: sketch `.b-head { font-size: 10px }`, `.b-body { font-size: 11.5px; line
 
 ## Spacing Scale
 
-Variant B is a dense terminal aesthetic — spacing deviates from standard 8-point web scale in the small end. All values are multiples of 2px (terminal-grid convention) and multiples of 4px at lg and above.
+Variant B is a dense terminal aesthetic. The standard 4px grid applies at the larger end of the scale; small-end values are intentional 2px terminal-grid conventions locked verbatim by CONTEXT D-02 = sketch 001. Non-4-grid values are formally declared as named exceptions below — they are not "approximate" and must not be snapped to the 4px grid.
 
 | Token | Value | Usage |
 |-------|-------|-------|
 | xs | 4px | Icon-glyph gap, inline separator padding |
-| sm | 6px | Traffic-light button gap (6px between circles per sketch) |
+| sm | 6px | Traffic-light button gap (6px between circles per sketch) — **named exception, see below** |
 | md | 8px | Compact element spacing, scrollbar width |
-| base | 10px | Titlebar horizontal padding, cell header horizontal padding |
+| base | 10px | Titlebar / cell-header horizontal padding — **named exception, see below** |
 | lg | 12px | Titlebar left offset for traffic-light cluster (`padding-left: 12px`) |
 | xl | 16px | Gap between titlebar regions |
 | 2xl | 24px | Future section-level spacing (not used in A1 chrome) |
 
-**Exceptions and hard measurements:**
-- Titlebar height: **22px** (Variant B `.b-head { height: 22px }`) — locked, not derived from scale.
-- Traffic-light circles: **12px diameter, 6px gap** — locked from sketch `.traffic span { width: 12px; height: 12px }`, `.traffic { gap: 6px }`.
-- Traffic-light cluster left offset: **12px** from window left edge.
-- Scrollbar width: **8px** (confirmed: `themes/default.css ::-webkit-scrollbar { width: 8px }`).
-- Border: **1px** everywhere — no exceptions in A1.
-- Border radius: **0px** everywhere — Variant B locked. No rounding on any element in A1 (the preset-switcher in the sketch uses `var(--radius-md)` but that is sketch convenience CSS; A1 titlebar preset switcher uses 0 radius per D-02 Variant B spec).
+### Spacing Scale Rule
+
+The standard 4px grid (`{4, 8, 16, 24, 32, 48, 64}`) governs all spacing at `lg` / `xl` / `2xl` and above (12 / 16 / 24px — all multiples of 4). The small-end spacing tokens (`sm`, `base`) and the fixed titlebar height are **2px terminal-grid conventions locked verbatim by CONTEXT D-02 = sketch 001**. They are intentional, sourced, and MUST NOT be snapped to the 4px grid. Snapping them (the rejected Option B) would break macOS HIG traffic-light alignment and sketch fidelity. Each non-4-grid value is declared as a named exception below.
+
+### Named Spacing Exceptions (formally justified — Dimension 5)
+
+| Exception | Value | Source Reference (verbatim per CONTEXT D-02) | Rationale — why not snapped to 4px |
+|-----------|-------|----------------------------------------------|-------------------------------------|
+| `sm` — traffic-light gap | **6px** | sketch 001 `index.html` → `.traffic { gap: 6px }` | macOS HIG traffic-light cluster gap is 6px. Snapping to 4px or 8px breaks visual parity with the native macOS window-control cluster this design replicates pixel-for-pixel. Locked by D-02. |
+| `base` — header padding | **10px** | sketch 001 `index.html` → `.b-head { padding: 0 10px }` | Cell-header and titlebar horizontal inset in the locked Variant B sketch. Snapping to 8px or 12px shifts every header inset and breaks sketch fidelity. Locked by D-02. |
+| Titlebar height | **22px** | sketch 001 `index.html` → `.b-head { height: 22px }`; CONTEXT D-02 ("22px header height") | The defining density measurement of the "Minimal Tile" Variant B aesthetic. Snapping to 20px or 24px alters the locked chrome density. Locked, not derived from any scale. |
+| Traffic-light circle diameter | 12px | sketch 001 `index.html` → `.traffic span { width: 12px; height: 12px }` | OS-convention macOS circle size. Already a multiple of 4; listed as a fixed structural value (not a scale token) for completeness. |
+| Traffic-light cluster left offset | 12px | RESEARCH Pattern 2 → `padding-left: 12px` | Window-edge inset for the cluster. Multiple of 4; fixed structural value (not a scale token), listed for completeness. |
+| Scrollbar width | 8px | `themes/default.css` → `::-webkit-scrollbar { width: 8px }` | Multiple of 4; fixed structural value, listed for completeness. |
+
+**Other locked structural constants (not spacing-scale tokens):**
+- Border width: **1px** everywhere — no exceptions in A1.
+- Border radius: **0px** everywhere — Variant B locked. No rounding on any element in A1 (the preset-switcher in the sketch uses `var(--radius-md)`, but that is sketch convenience CSS; A1 titlebar preset switcher uses 0 radius per D-02 Variant B spec). Sole carve-outs: macOS traffic-light circles use `border-radius: 50%` (OS convention) and the scrollbar thumb uses `4px` (see Scrollbar Contract).
 
 Source: sketch `.b-head`, `.traffic`, `themes/default.css`, CONTEXT D-02.
 
@@ -479,23 +492,23 @@ These must NOT appear in A1 implementation:
 
 ---
 
-## Spacing Scale
+## Spacing Scale (condensed reference)
 
 | Token | Value | Usage |
 |-------|-------|-------|
 | xs | 4px | Icon-glyph inline gap, separator padding |
-| sm | 6px | Traffic-light gap between circles |
+| sm | 6px | Traffic-light gap between circles — **named exception (Dimension 5)** |
 | md | 8px | Compact element spacing, scrollbar width |
-| base | 10px | Titlebar and cell-header horizontal padding |
+| base | 10px | Titlebar and cell-header horizontal padding — **named exception (Dimension 5)** |
 | lg | 12px | Traffic-light left inset from window edge |
 | xl | 16px | Gap between titlebar regions |
 | 2xl | 24px | Reserved (not used in A1) |
 
-Exceptions: titlebar height = 22px (fixed, not derived from scale); traffic-light circle diameter = 12px (fixed by OS convention).
+Non-4-grid values (`sm` 6px, `base` 10px, titlebar height 22px) are formally declared and justified in the **Named Spacing Exceptions** table above (see the primary Spacing Scale section). They are locked verbatim by CONTEXT D-02 = sketch 001 and must NOT be snapped to the 4px grid. The 4px grid governs `lg`/`xl`/`2xl` and above.
 
 ---
 
-## Typography
+## Typography (condensed reference)
 
 | Role | Size | Weight | Line Height | Font |
 |------|------|--------|-------------|------|
@@ -503,6 +516,8 @@ Exceptions: titlebar height = 22px (fixed, not derived from scale); traffic-ligh
 | Body / stream | 11.5px | 400 | 1.5 | `--font-mono` |
 | Metadata / HUD | 10px | 400 | 1.0 | `--font-mono` |
 | Active label / name | 12px | 600 | 1.0 | `--font-mono` |
+
+The 11px vs 11.5px delta is a sourced, intentional 0.5px difference — see the HiDPI verification note in the primary Typography section. Planner/executor must add a visual-distinctness checkpoint on the target Apple Silicon Retina display.
 
 ---
 
