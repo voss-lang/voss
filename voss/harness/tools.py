@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -337,6 +338,24 @@ def make_toolset(
             )
         return await net.fetch(url, timeout_s=timeout_s)
 
+    @tool(
+        name="web_search",
+        description=(
+            "Search the web via Brave Search. Requires --allow-net and "
+            "BRAVE_SEARCH_API_KEY env var. Returns a numbered bundle of "
+            "{count} results."
+        ),
+    )
+    async def web_search(query: str, count: int = 10) -> str:
+        if not os.environ.get("BRAVE_SEARCH_API_KEY", "").strip():
+            return "<error: web_search disabled: set BRAVE_SEARCH_API_KEY env var>"
+        if net is None:
+            return (
+                "<error: net disabled: set tools.allow_net = true in "
+                "harness.toml or pass --allow-net>"
+            )
+        return await net.search(query, count)
+
     return {
         "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False),
         "fs_read_many": ToolEntry(descriptor=fs_read_many, is_mutating=False),
@@ -353,6 +372,7 @@ def make_toolset(
         "web_fetch": ToolEntry(
             descriptor=web_fetch, is_mutating=False, is_network=True
         ),
+        "web_search": ToolEntry(descriptor=web_search, is_mutating=False, is_network=True),
     }
 
 

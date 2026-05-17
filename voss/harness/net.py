@@ -11,6 +11,7 @@ socket.
 from __future__ import annotations
 
 import math
+import os
 import time
 import warnings
 
@@ -18,6 +19,7 @@ import httpx
 
 from voss.harness import lifecycle, telemetry
 from voss.harness.rate_limit import DEFAULT_SPECS, TokenBucket, make_default_bucket
+from voss.harness.web_search import BraveBackend, SearchResult, render_bundle
 
 MAX_BYTES = 1_048_576  # 1 MB cap per NET-01 SPEC
 MIN_TIMEOUT = 1.0
@@ -33,6 +35,8 @@ class NetSession:
         rate_overrides: dict[str, dict[str, int]] | None = None,
     ) -> None:
         self._client: httpx.AsyncClient | None = client
+        self._brave_backend: BraveBackend | None = None
+        self._brave_api_key: str | None = None
         self._buckets: dict[str, TokenBucket] = {}
         for tool_name in DEFAULT_SPECS:
             override = (rate_overrides or {}).get(tool_name)
@@ -167,3 +171,51 @@ class NetSession:
             "web_fetch", url, resp.status_code, len(body_bytes), duration_ms
         )
         return text + truncation_suffix
+
+    async def search(self, query: str, count: int) -> str:
+        """Search the web via Brave and return a rendered result bundle."""
+        api_key = os.environ.get("BRAVE_SEARCH_API_KEY", "").strip()
+        if not api_key:
+            return "<error: web_search disabled: set BRAVE_SEARCH_API_KEY env var>"
+
+        ok, retry_after = self.acquire("web_search")
+        if not ok:
+            return f"<error: rate limit: retry after {math.ceil(retry_after)}s>"
+
+        if count < 1 or count > 20:
+            warnings.warn(
+                f"web_search count={count} outside [1, 20]; clamping",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            count = max(1, min(20, count))
+
+        if self._brave_backend is None or self._brave_api_key != api_key:
+            self._brave_backend = BraveBackend(api_key, client=self._http())
+            self._brave_api_key = api_key
+
+        started = time.monotonic()
+        self.emit_request(
+            "web_search", BraveBackend.BASE_URL + f"?q={query}", "GET", started
+        )
+        result = await self._brave_backend.search(query, count)
+        duration_ms = int((time.monotonic() - started) * 1000)
+        if isinstance(result, str):
+            self.emit_response(
+                "web_search", BraveBackend.BASE_URL, -1, len(result), duration_ms
+            )
+            return result
+
+        seen: set[str] = set()
+        deduped: list[SearchResult] = []
+        for search_result in result:
+            if search_result.url in seen:
+                continue
+            seen.add(search_result.url)
+            deduped.append(search_result)
+
+        bundle = render_bundle(deduped)
+        self.emit_response(
+            "web_search", BraveBackend.BASE_URL, 200, len(bundle), duration_ms
+        )
+        return bundle
