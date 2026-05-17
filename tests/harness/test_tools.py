@@ -80,12 +80,20 @@ class TestToolEntryClassification:
 
     def test_read_only_tools_are_non_mutating(self, tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
-        for name in ("fs_read", "fs_glob", "fs_grep", "git_status", "git_diff", "voss_check"):
+        for name in (
+            "fs_read",
+            "fs_glob",
+            "fs_grep",
+            "shell_monitor",
+            "git_status",
+            "git_diff",
+            "voss_check",
+        ):
             assert tools[name].is_mutating is False, name
 
     def test_mutating_tools_flagged(self, tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
-        for name in ("fs_write", "fs_edit", "shell_run"):
+        for name in ("fs_write", "fs_edit", "shell_run", "shell_run_background"):
             assert tools[name].is_mutating is True, name
 
     def test_descriptor_invoke_still_works(self, project: Path) -> None:
@@ -96,6 +104,6 @@ class TestToolEntryClassification:
     def test_mutating_count(self, tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
         # T2-05 added fs_read_many; T3 added web_fetch + web_search.
-        # 5 mutating, 9 non-mutating.
-        assert sum(1 for e in tools.values() if e.is_mutating) == 5
-        assert sum(1 for e in tools.values() if not e.is_mutating) == 9
+        # T5 adds shell_run_background + shell_monitor.
+        assert sum(1 for e in tools.values() if e.is_mutating) == 6
+        assert sum(1 for e in tools.values() if not e.is_mutating) == 10
