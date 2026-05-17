@@ -771,7 +771,7 @@ honestly including cache reads.
 **Plans:** 6 plans
 
 Plans:
-- [ ] T4-01-test-scaffold-PLAN.md — Wave 0: 9 failing test stubs + cassette README + pyproject pin bumps (litellm>=1.74.0, vcrpy>=8,<9)
+- [x] T4-01-test-scaffold-PLAN.md — Wave 0: 9 failing test stubs + cassette README + pyproject pin bumps (litellm>=1.74.0, vcrpy>=8,<9)
 - [ ] T4-02-extractor-and-non-streaming-PLAN.md — `_cache_tokens.extract_cache_tokens` + `ProviderResponse` additive fields + LiteLLMProvider wiring (CACHE-02 non-streaming)
 - [ ] T4-03-agent-composition-PLAN.md — `_compose_system_blocks` + multi-block `messages[0]` + four-drift invalidation tests (CACHE-01, CACHE-06)
 - [ ] T4-04-streaming-telemetry-recorder-PLAN.md — Usage variant + agent.py Usage consumer + provider.response telemetry payload + IterationRecord round-trip (CACHE-02 streaming, CACHE-07 telemetry/round-trip)
@@ -935,6 +935,15 @@ tasks don't block the agent.
 - Background jobs do not inherit the agent's TTY.
 - This is the headless half of M14 (file-watch). M14 layers `watchdog`
   on top.
+
+**Plans:** 5 plans
+
+Plans:
+- [ ] T5-01-test-scaffold-and-psutil-dep-PLAN.md — Wave 1: failing test surface (SHELL-01..05 + SC#1/#2/#3) + emit.py fixture + `_JOBS` reset + `30720` source guard + [BLOCKING human-verify] psutil legitimacy gate then `psutil>=5.9,<8` dep add
+- [ ] T5-02-shell-run-cap-raise-PLAN.md — Wave 2: SHELL-01 cap 4096→30720 in both `shell_run` AND `_shell_capture` (Flag 1: raise both); envelope + 30s timeout untouched
+- [ ] T5-03-job-registry-and-background-spawn-PLAN.md — Wave 3: JobRecord + atomic `.meta.json` sidecar + `_JOBS` registry + `register_job`/`reap_jobs`/`signal_job` + single supervisor task (pump+30s+100MB) + `start_new_session`/killpg + `shell.background.reap` + `shell_run_background` (SHELL-02, SC#2/#3, D-01/02/05/08/09/10/11)
+- [ ] T5-04-monitor-signal-and-permissions-PLAN.md — Wave 4: `shell_monitor` cursor read + `shell_signal` INT/TERM + 2 ToolEntry regs + D-12 edit-mode deny (explicit name-set) + permissions_bridge verbs (SHELL-03/04, SC#1, D-03/06/12)
+- [ ] T5-05-voss-jobs-cli-and-active-session-PLAN.md — Wave 5: production `make_toolset(session_id=record.id)` wiring (cli.py:1314 `_run_repl` only — closes the cross-process contract; other 5 sites deliberate `_nosession`) + `jail_path` import + `voss jobs` table/`--json` sidecar read + AGENT_COMMANDS + `.active-session` try/finally lifecycle + `--keep-logs` + explicit `reap_jobs()` (SHELL-02/05, D-04/09/11, A4)
 
 ---
 

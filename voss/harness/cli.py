@@ -1947,6 +1947,174 @@ def eval_cmd(
     )
 
 
+def _parse_arg_kvs(args_kvs: tuple[str, ...]) -> dict[str, object]:
+    """Parse repeatable --arg key=value pairs for direct MCP calls."""
+    import json as json_lib
+
+    args_dict: dict[str, object] = {}
+    for kv in args_kvs:
+        if "=" not in kv:
+            raise click.ClickException(
+                f"invalid --arg {kv!r}: expected key=value"
+            )
+        key, raw_val = kv.split("=", 1)
+        try:
+            args_dict[key] = json_lib.loads(raw_val)
+        except (json_lib.JSONDecodeError, ValueError):
+            args_dict[key] = raw_val
+    return args_dict
+
+
+@click.group("mcp")
+def mcp_group() -> None:
+    """Inspect and debug MCP server connections."""
+
+
+@mcp_group.command("list")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
+    """List configured MCP servers and their advertised tools."""
+    import json as json_lib
+
+    from voss.harness.mcp import McpClient, McpConfigError, load_mcp_config
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        config = load_mcp_config(cwd)
+    except McpConfigError as e:
+        click.echo(f"<error: mcp config: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    if config is None or not config.servers:
+        if json_mode:
+            click.echo(json_lib.dumps({"servers": []}))
+        else:
+            click.echo("<no MCP servers configured>")
+        return
+
+    client = McpClient(config)
+    client.set_cwd(cwd)
+
+    async def _populate() -> None:
+        try:
+            for name in config.servers:
+                try:
+                    await client.ensure_launched(name)
+                except Exception as ex:  # noqa: BLE001
+                    click.echo(f"<warning: {name} launch failed: {ex}>", err=True)
+        finally:
+            await client.aclose()
+
+    asyncio.run(_populate())
+    servers_payload = []
+    for name, server in config.servers.items():
+        tools = client._tools_cache.get(name, [])
+        servers_payload.append(
+            {
+                "name": name,
+                "command": server.command + server.args,
+                "tools": [tool["name"] for tool in tools],
+            }
+        )
+
+    if json_mode:
+        click.echo(json_lib.dumps({"servers": servers_payload}, indent=2))
+    else:
+        for server_payload in servers_payload:
+            click.echo(f"{server_payload['name']}:")
+            click.echo(f"  command: {' '.join(server_payload['command'])}")
+            tools = server_payload["tools"]
+            click.echo(
+                f"  tools: {', '.join(tools) if tools else '<none discovered>'}"
+            )
+            click.echo("")
+
+
+@mcp_group.command("call")
+@click.argument("server")
+@click.argument("tool_name")
+@click.option(
+    "--arg",
+    "args_kvs",
+    multiple=True,
+    help=(
+        "key=value argument (repeatable). Values parsed as JSON when JSON-shaped; "
+        "raw string fallback."
+    ),
+)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def mcp_call_cmd(
+    server: str,
+    tool_name: str,
+    args_kvs: tuple[str, ...],
+    cwd_str: str,
+) -> None:
+    """Call an MCP tool directly. Bypasses PermissionGate (developer tool)."""
+    from voss.harness.mcp import McpClient, McpConfigError, load_mcp_config
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        config = load_mcp_config(cwd)
+    except McpConfigError as e:
+        click.echo(f"<error: mcp config: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    if config is None or server not in config.servers:
+        click.echo(f"<error: unknown server: {server!r}>", err=True)
+        raise click.exceptions.Exit(1)
+
+    try:
+        args_dict = _parse_arg_kvs(args_kvs)
+    except click.ClickException as e:
+        click.echo(f"<error: {e.message}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    client = McpClient(config)
+    client.set_cwd(cwd)
+
+    async def _invoke() -> dict[str, object]:
+        try:
+            return await client.call_tool(server, tool_name, args_dict)
+        except Exception as ex:  # noqa: BLE001
+            return {
+                "isError": True,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"<error: mcp transport: {ex}>",
+                    }
+                ],
+                "__transport_error": True,
+            }
+        finally:
+            await client.aclose()
+
+    result = asyncio.run(_invoke())
+    if result.get("__transport_error"):
+        content = result["content"]
+        if isinstance(content, list) and content:
+            first = content[0]
+            if isinstance(first, dict):
+                click.echo(first.get("text", ""), err=True)
+        raise click.exceptions.Exit(1)
+
+    transport_error = False
+    content = result.get("content", [])
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = str(item.get("text", ""))
+                if text.startswith("<error: mcp transport:"):
+                    transport_error = True
+                click.echo(text)
+
+    if result.get("isError"):
+        if transport_error:
+            raise click.exceptions.Exit(1)
+        raise click.exceptions.Exit(2)
+
+
 @click.group("logs")
 def logs_group() -> None:
     """Tail NDJSON harness telemetry (written when VOSS_LOG=1 and VOSS_LOG_PATH is set)."""
@@ -2004,6 +2172,7 @@ AGENT_COMMANDS = (
     agent_group,
     memory_group,
     config_cmd,
+    mcp_group,
     logs_group,
     eval_cmd,
 )

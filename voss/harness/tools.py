@@ -356,7 +356,7 @@ def make_toolset(
             )
         return await net.search(query, count)
 
-    return {
+    result = {
         "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False),
         "fs_read_many": ToolEntry(descriptor=fs_read_many, is_mutating=False),
         "fs_glob": ToolEntry(descriptor=fs_glob, is_mutating=False),
@@ -374,6 +374,9 @@ def make_toolset(
         ),
         "web_search": ToolEntry(descriptor=web_search, is_mutating=False, is_network=True),
     }
+    if net is not None:
+        _merge_mcp_tools(result, cwd)
+    return result
 
 
 async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> str:
@@ -395,3 +398,66 @@ async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> s
     if len(text) > 4096:
         text = text[:4096] + f"\n<truncated, total {len(out)} bytes>"
     return f"[exit {proc.returncode}]\n{text}"
+
+
+def _merge_mcp_tools(result: dict[str, ToolEntry], cwd: Path) -> None:
+    try:
+        from voss.harness import cognition as cognition_mod
+        from voss.harness import telemetry
+        from voss.harness.mcp import McpClient, load_mcp_config, register_mcp_tools
+    except Exception as exc:  # noqa: BLE001
+        _emit_mcp_boot_error("import", exc)
+        return
+
+    try:
+        mcp_config = load_mcp_config(cwd)
+        if mcp_config is None or not mcp_config.servers:
+            return
+
+        client = McpClient(mcp_config)
+        client.set_cwd(cwd)
+
+        async def launch_all() -> None:
+            for server_name in mcp_config.servers:
+                try:
+                    await client.ensure_launched(server_name)
+                except Exception as exc:  # noqa: BLE001
+                    if telemetry.enabled():
+                        telemetry.emit(
+                            "mcp.launch_error",
+                            "warn",
+                            data={
+                                "server": server_name,
+                                "error": f"{type(exc).__name__}: {exc}",
+                            },
+                        )
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(launch_all())
+        else:
+            if telemetry.enabled():
+                telemetry.emit(
+                    "mcp.boot_error",
+                    "warn",
+                    data={"error": "make_toolset called from running event loop"},
+                )
+            return
+
+        bundle = cognition_mod.load(cwd)
+        permissions_mcp = bundle.permissions.mcp if bundle.permissions else {}
+        result.update(register_mcp_tools(mcp_config, permissions_mcp, client))
+    except Exception as exc:  # noqa: BLE001
+        _emit_mcp_boot_error("boot", exc)
+
+
+def _emit_mcp_boot_error(stage: str, exc: Exception) -> None:
+    from voss.harness import telemetry
+
+    if telemetry.enabled():
+        telemetry.emit(
+            "mcp.boot_error",
+            "warn",
+            data={"stage": stage, "error": f"{type(exc).__name__}: {exc}"},
+        )

@@ -97,6 +97,16 @@ NO new event for start/normal-exit (the `tool.result` envelope already carries t
 
 `<session_id>` directory name is the existing `SessionRecord.session_id` (UUID4) already minted at `voss chat` start. Background jobs partition cleanly across concurrent sessions.
 
+### Post-research ratification (D-10..D-12, locked 2026-05-16)
+
+These three were NOT in the original discussion — surfaced by RESEARCH.md as planner-blocking and ratified by the user before planning.
+
+- **D-10 RSS cap mechanism:** Add `psutil >= 5.9,<8` as a runtime dependency (first new runtime dep since the harness was built). `resource.setrlimit(RLIMIT_RSS)` is a confirmed no-op on macOS/Darwin, so psutil polling is the only cross-platform mechanism. Enforcement: 1s poll tick, `psutil.Process(pid).children(recursive=True)` RSS tree-sum vs 100MB. Honors Success Criteria #3 on Linux + macOS + Windows. Package legitimacy: top-100 PyPI, 352M dl/mo, 16-yr history — planner adds a human-verify checkpoint for the dependency addition (slopcheck was unavailable at research time).
+
+- **D-11 `voss jobs` cross-process architecture:** `voss jobs` runs as a SEPARATE OS process from the `voss chat` session that owns the jobs — in-memory `_JOBS` is invisible to it. Mandatory design: each job writes a per-job `<handle>.meta.json` sidecar in `.voss-cache/jobs/<session_id>/` updated on every state transition (start, exit, signal, reap). `voss chat` writes `.voss-cache/jobs/.active-session` containing the current `session_id`. `voss jobs` reads `.active-session` → scans that session dir's `*.meta.json`. JobRecord gains disk persistence (the sidecar IS the JobRecord serialized). Sidecar schema = JobRecord dict verbatim (`{handle, pid, started_at, cmd, log_path, status, exit_code, runtime_ms}`).
+
+- **D-12 Edit-mode permission (security):** `permissions.py:61` hard-denies `shell_run` by literal name in `edit` mode. Extend `mode_allows` so `edit` mode ALSO denies `shell_run_background` and `shell_signal` (consistent invariant: edit mode = no shell execution of any kind). Closes the is_mutating=True slip-through. `shell_monitor` is read-only (pure file read) — planner decides if it stays allowed in edit mode (recommend: allow, it executes nothing).
+
 ### Claude's Discretion
 
 These were not explicitly asked but are implementation-natural:
