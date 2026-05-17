@@ -121,6 +121,8 @@ class RunRecorder:
         cost_usd: float,
         prompt_tokens: int,
         completion_tokens: int,
+        cache_creation_input_tokens: int = 0,
+        cache_read_input_tokens: int = 0,
         exit_reason: Optional[str] = None,
     ) -> None:
         """Close the most recently opened iteration (T1-01).
@@ -146,6 +148,8 @@ class RunRecorder:
         target.cost_usd = cost_usd
         target.prompt_tokens = prompt_tokens
         target.completion_tokens = completion_tokens
+        target.cache_creation_input_tokens = cache_creation_input_tokens
+        target.cache_read_input_tokens = cache_read_input_tokens
         target.exit_reason = exit_reason
         target.ended_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 

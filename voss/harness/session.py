@@ -103,6 +103,9 @@ class IterationRecord:
     cost_usd: float = 0.0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    # T4 CACHE-07 (Pitfall 8 / Open Question 3): additive defaults preserve pre-T4 session JSON round-trip.
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
     started_at: str = ""
     ended_at: str = ""
     exit_reason: Optional[str] = None
