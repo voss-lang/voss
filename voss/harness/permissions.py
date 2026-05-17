@@ -166,8 +166,17 @@ class PermissionGate:
             return f"shell_run:{args.get('cmd', '').split()[0] if args.get('cmd') else ''}"
         return tool_name
 
-    def check(self, tool_name: str, args: dict, *, is_mutating: bool = False) -> tuple[bool, str]:
-        allowed, why = self._check_impl(tool_name, args, is_mutating=is_mutating)
+    def check(
+        self,
+        tool_name: str,
+        args: dict,
+        *,
+        is_mutating: bool = False,
+        is_network: bool = False,
+    ) -> tuple[bool, str]:
+        allowed, why = self._check_impl(
+            tool_name, args, is_mutating=is_mutating, is_network=is_network
+        )
         from . import telemetry
 
         if telemetry.enabled():
@@ -184,13 +193,23 @@ class PermissionGate:
             )
         return allowed, why
 
-    def _check_impl(self, tool_name: str, args: dict, *, is_mutating: bool = False) -> tuple[bool, str]:
+    def _check_impl(
+        self,
+        tool_name: str,
+        args: dict,
+        *,
+        is_mutating: bool = False,
+        is_network: bool = False,
+    ) -> tuple[bool, str]:
         """Return (allowed, reason).
 
         Order of operations:
           0. Project-policy deny (`.voss/permissions.yml`) — deny wins over
              allow and over session-mode auto. Project allow does NOT expand
              mode (recorded but not short-circuiting).
+          0a. T3-02 net gate (D-10): when is_network=True and runtime
+              allow_net=False, deny BEFORE mode-tier evaluation. Net is a
+              separate safety axis from mutating writes.
           1. Mode-tier structural denial (skips everything else).
           2. CTRL-08 diff preview for any fs_write/fs_edit (scope-independent).
           3. Scope check (only if edit_scope set) — expand-prompt fires AFTER
@@ -200,6 +219,15 @@ class PermissionGate:
         if self.project_policy is not None:
             if tool_name in self.project_policy.tool_policy.deny:
                 return False, "denied by .voss/permissions.yml"
+
+        if is_network:
+            from voss_runtime._config import get_config
+
+            if not get_config().allow_net:
+                return False, (
+                    "net disabled: set tools.allow_net = true in "
+                    "harness.toml or pass --allow-net"
+                )
 
         allowed, why = mode_allows(self.mode, tool_name, is_mutating)
         if not allowed:

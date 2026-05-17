@@ -57,11 +57,12 @@ def _bootstrap_runtime_config() -> None:
     Out-of-range / malformed values fall back to the dataclass defaults
     with a RuntimeWarning (see voss.harness.config getters).
     """
-    from .config import get_max_iterations, get_max_parallel_reads
+    from .config import get_allow_net, get_max_iterations, get_max_parallel_reads
 
     configure(
         max_iterations=get_max_iterations(),
         max_parallel_reads=get_max_parallel_reads(),
+        allow_net=get_allow_net(),
     )
 
 
@@ -990,6 +991,19 @@ def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
 )
 @click.option("--yes", "yes_to_all", is_flag=True, help="Skip permission prompts.")
 @click.option(
+    "--allow-net/--no-allow-net",
+    "allow_net",
+    default=None,
+    help=(
+        "Enable (--allow-net) or disable (--no-allow-net) network tools "
+        "(web_fetch, web_search, MCP) for this session. When neither is "
+        "passed, falls back to [tools] allow_net in config.toml. NOTE: "
+        "SPEC NET-05d criterion `--allow-net=false` is satisfied via the "
+        "click-idiomatic `--no-allow-net` form (click flag pairs do not "
+        "accept `--flag=value` syntax)."
+    ),
+)
+@click.option(
     "--auth",
     "auth_pref",
     type=click.Choice(AUTH_CHOICES),
@@ -1005,6 +1019,7 @@ def do_cmd(
     no_unicode: bool,
     mode: str,
     yes_to_all: bool,
+    allow_net: bool | None,
     auth_pref: str,
 ) -> None:
     """Run a one-shot agent task and print the final answer.
@@ -1014,6 +1029,11 @@ def do_cmd(
     cwd = Path(cwd_str).resolve()
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
+    if allow_net is True:
+        configure(allow_net=True)
+    elif allow_net is False:
+        configure(allow_net=False)
+    # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
@@ -1124,6 +1144,19 @@ def do_cmd(
     help="Permission tier.",
 )
 @click.option(
+    "--allow-net/--no-allow-net",
+    "allow_net",
+    default=None,
+    help=(
+        "Enable (--allow-net) or disable (--no-allow-net) network tools "
+        "(web_fetch, web_search, MCP) for this session. When neither is "
+        "passed, falls back to [tools] allow_net in config.toml. NOTE: "
+        "SPEC NET-05d criterion `--allow-net=false` is satisfied via the "
+        "click-idiomatic `--no-allow-net` form (click flag pairs do not "
+        "accept `--flag=value` syntax)."
+    ),
+)
+@click.option(
     "--auth",
     "auth_pref",
     type=click.Choice(AUTH_CHOICES),
@@ -1137,12 +1170,18 @@ def chat_cmd(
     plain: bool,
     no_unicode: bool,
     mode: str,
+    allow_net: bool | None,
     auth_pref: str,
 ) -> None:
     """Interactive agent REPL. Ctrl-D or /exit to quit."""
     cwd = Path(cwd_str).resolve()
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
+    if allow_net is True:
+        configure(allow_net=True)
+    elif allow_net is False:
+        configure(allow_net=False)
+    # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
