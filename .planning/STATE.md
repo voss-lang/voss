@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: verifying
-last_updated: "2026-05-17T17:43:48Z"
+last_updated: "2026-05-17T17:46:44Z"
 last_activity: "2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval)."
 progress:
   total_phases: 26
@@ -47,6 +47,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Recent Activity
 
+- 2026-05-17 — Completed T5-02 SHELL-01 cap raise. Raised both `shell_run` and `_shell_capture` truncation caps from 4096 to 30720, updated the `shell_run` descriptor to 30KB, and preserved the 30s timeout plus existing `[exit N]` and `<truncated, total N bytes>` envelopes. Verified the cap and timeout source guards, the T5 truncation test, source inspection for two `30720` literals and no `_shell_capture` `4096`, py_compile, full `test_shell_timeout.py`, and `git diff --check`.
 - 2026-05-17 — Completed T5-01 shell ergonomics Wave 0 scaffold. Approved and added runtime `psutil>=5.9,<8`, added lifecycle `_JOBS` reset coverage, created deterministic `emit.py`, authored 13 collecting red T5 shell/background/job tests, and added the red `30720` source-inspection guard. Verified psutil import, lifecycle reset smoke, py_compile, collect-only checks, intentional red T5 failures, intentional red `-k cap` guard, emitter smoke, and `git diff --check`.
 - 2026-05-17 — Completed T4-06 cassette integration using Claude OAuth per operator direction. Added replay/record tests and `cache_two_turn_session.yaml`, preserved OAuth system block cache markers, extracted streaming cache usage from Anthropic `message_start`, and verified first-turn cache creation plus second-turn cache read in replay mode. Focused T4 cache tests passed; full `tests/harness/` now gets past the stale T1 block-list assertion and still fails on the known TUI `#budget-title` issue outside T4.
 - 2026-05-17 — Completed T4-05 cost truthfulness and CLI work: updated `/cost --by-tool` to cite `T6 SLASH-07`, updated the existing slash assertion, added `/cost --by-model` 4-decimal verification, and added a LiteLLM `cost_per_token` cache-creation differential test without introducing Voss-owned pricing constants. Verified focused T4-05 tests, combined cost/repl slash tests, py_compile, stale-placeholder greps, pricing-constant grep, and `git diff --check`.
