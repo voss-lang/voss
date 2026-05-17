@@ -25,6 +25,16 @@ def config_path() -> Path:
 _HARNESS_BLOCK = re.compile(r"^\[harness\][^\[]*", re.MULTILINE)
 _AGENT_BLOCK = re.compile(r"^\[agent\][^\[]*", re.MULTILINE)
 _TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
+# T3-04: PITFALL 6 — escape the dot. Un-escaped `r"^\[net.rate_limits\]"`
+# also matches `[netXrate_limits]` (any single char), corrupting the
+# bucket config. The escape is load-bearing.
+_NET_RATE_BLOCK = re.compile(r"^\[net\.rate_limits\][^\[]*", re.MULTILINE)
+# `web_fetch = "60/min"` — quoted string form.
+_RATE_STR = re.compile(r'^\s*(\w+)\s*=\s*"(\d+)/min"\s*$', re.MULTILINE)
+# `web_fetch = { rate = 60, burst = 120 }` — one-line inline-table form.
+_RATE_TABLE = re.compile(r"^\s*(\w+)\s*=\s*\{([^}]+)\}\s*$", re.MULTILINE)
+# Inside-braces kv (rate / burst only).
+_RATE_TABLE_KV = re.compile(r"\s*(rate|burst)\s*=\s*(\d+)\s*,?")
 _KV = re.compile(r'^\s*(\w+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*$', re.MULTILINE)
 # Bare (unquoted) right-hand values for [tools] keys like
 # `allow_net = true`. The existing _KV regex only matches double-quoted
@@ -101,6 +111,59 @@ def load_tools_config() -> dict[str, str]:
     except OSError:
         return {}
     return _parse_tools_section(text)
+
+
+def _parse_net_rate_limits_section(text: str) -> dict[str, dict[str, int]]:
+    """Parse `[net.rate_limits]` → ``{tool: {"rate": int, "burst": int}}``.
+
+    Accepts the SPEC's two forms:
+      - string: ``web_fetch = "60/min"`` (burst defaults to rate)
+      - table:  ``web_fetch = { rate = 60, burst = 120 }``
+
+    Bogus rows emit RuntimeWarning and are omitted (caller falls back to
+    rate_limit.DEFAULT_SPECS).
+    """
+    m = _NET_RATE_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    result: dict[str, dict[str, int]] = {}
+    for name, rate in _RATE_STR.findall(block):
+        try:
+            r = int(rate)
+            result[name] = {"rate": r, "burst": r}
+        except ValueError:
+            warnings.warn(
+                f"[net.rate_limits] {name} string form invalid: {rate!r}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+    for name, inner in _RATE_TABLE.findall(block):
+        kv = dict(_RATE_TABLE_KV.findall(inner))
+        try:
+            r = int(kv["rate"])
+            b = int(kv.get("burst", r))
+            result[name] = {"rate": r, "burst": b}
+        except (KeyError, ValueError):
+            warnings.warn(
+                f"[net.rate_limits] {name} table form invalid: {inner!r}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            result.pop(name, None)
+    return result
+
+
+def get_net_rate_limits() -> dict[str, dict[str, int]]:
+    """Resolve `[net.rate_limits]` overrides; missing file / section -> {}."""
+    p = config_path()
+    if not p.exists():
+        return {}
+    try:
+        text = p.read_text()
+    except OSError:
+        return {}
+    return _parse_net_rate_limits_section(text)
 
 
 def get_max_iterations() -> int:

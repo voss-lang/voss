@@ -176,23 +176,27 @@ That's v0. No Voss yet. L2 phases (Voss substrate) and L3 phases (`.voss` DSL) l
 - A8 unblocks A9
 - A10 integrates all
 
-## 10. Open Conceptual Questions
+## 10. Decisions Log (closed 2026-05-16)
 
-Closed:
-- Three-layer build order locked
-- Shell tech (Tauri), cell isolation (subprocess), reviewer trigger (per-turn), loop authoring (curated + opt-in fork) all preserved for L2/L3
+All L1 spec-blocking questions closed.
 
-Still open — should close before L1 spec phase:
+| # | Question | Decision | Impact |
+|---|---|---|---|
+| Q1 | Public ship name | **Voss ADE** | Branding lockstep across docs, marketing, dist channels. Internal slug `voss-app` retained as repo / package name. |
+| Q2 | Default shell on pane open | **Auto-launch `$SHELL` immediately** | New panes spawn user's shell instantly. Warp/iTerm parity. Affects A2. |
+| Q3 | Pane lifecycle on shell exit | **Banner + Restart button (pane stays open)** | `[exited N]` banner with restart action. Pane never auto-closes. Affects A2 (PTY-07). |
+| Q4 | Layout preset semantics in L1 | **Pure visual templates** | L1 presets reorder geometry only. L2 will overlay behavioral semantics. Clean layer boundary. Affects A4. |
+| Q5 | Project-less mode | **Yes — first-class** | App launches w/o folder. Empty state offers "Open folder" or "Start without project". Project-less panes inherit `$HOME`. Affects A5, A6 (global-session.json). |
+| Q6 | Cost meter stub UX | **Hide entirely in L1** | No cost slot in status bar v0. L2 release adds the slot — minor status-bar reflow accepted. Preserves "zero Voss exposure in L1" goal. Affects A9 (BAR scope shrinks). |
+| Q7 | `.voss/` dir creation timing | **Lazy** | `.voss/` created on first action needing it (settings/layout write). Project open alone leaves filesystem untouched. Affects A5, A6. |
+| Q8 | Distribution channel | **All three: Direct DMG/AppImage/MSI + Homebrew cask + `@vosslang/cli voss app` subcommand** | Maximum availability. A1 scope **grows substantially** — 3 release pipelines, 3 release-note destinations, version-sync across channels. Acknowledged: heaviest ops burden among the options. |
+| Q9 | Telemetry & privacy | **OFF default, opt-in toggles** | Settings exposes two switches (anonymous crash reports, anonymous usage analytics), both clearly labelled, both OFF until consent. No first-run nag. No network call without consent. Affects A8 (CFG-06) + A10 (OBD-06). |
 
-1. **Public name.** voss-app working name. Ship name candidates: Voss Grid · Voss Term · Voss · fresh name. Recommend **Voss Grid** for terminal-first positioning.
-2. **Default shell behavior on pane open.** Auto-launch `$SHELL` or empty pane awaiting user input?
-3. **Pane lifecycle on shell exit.** Close pane, keep open with "exited" indicator, or auto-restart shell?
-4. **Layout preset semantics in L1.** Just visual templates, or do they constrain future cell semantics (e.g., "swarm" assumes worktrees)?
-5. **Project-less mode.** Can voss-app open without a folder (like Warp's no-project mode)? Or always require a workspace folder?
-6. **Cost meter stub UX in L1.** Hide entirely, show `$0.00`, or show "no cells yet" placeholder?
-7. **`.voss/` dir creation timing.** On project open (always), on first L2 cell promotion (lazy), or user-prompted?
-8. **Distribution channel.** DMG/AppImage/MSI direct · Homebrew cask · `@vosslang/cli voss app` subcommand?
-9. **Telemetry & privacy.** Local-only default; opt-in toggles in settings.
+**Scope alerts surfaced by these answers:**
+
+- **A1 grows significantly** — Q8 means three release pipelines (direct downloads + Homebrew tap + npm-wrapper subcommand). Code signing covers DMG + MSI for direct; Homebrew cask audit; npm payload sizing. SPEC must enumerate per-channel acceptance.
+- **A9 shrinks slightly** — Q6 removes the cost meter from L1 status bar entirely. Re-add planned in the L2 release that introduces cell promotion.
+- **Voss ADE branding** — Q1 means `Voss ADE` is the user-facing name everywhere it appears (window title, About, README, marketing). `voss-app` stays as internal slug (repo dir, package name, slug in URLs).
 
 ## 11. Reference Artifacts
 

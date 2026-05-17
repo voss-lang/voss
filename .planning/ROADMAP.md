@@ -1022,10 +1022,14 @@ tasks don't block the agent.
 - SHL-02 Solid + Tailwind UI scaffolded with Variant B theme tokens.
 - SHL-03 Custom titlebar with project-name placeholder, layout-preset switcher (visual only, no behavior yet), cost-meter stub `$0.00`.
 - SHL-04 Window: traffic lights (mac) · standard close/min/max (linux/win) · zoom · fullscreen · multi-monitor.
-- SHL-05 Build pipeline: `pnpm build` produces signed DMG (mac), AppImage (linux), MSI (win).
-- SHL-06 Auto-updater wired against GitHub Releases (or chosen backend — SPEC closes).
+- SHL-05 Build pipeline: `pnpm build` produces signed DMG (mac arm64+x64), AppImage (linux x64+arm64), MSI (win x64).
+- SHL-06 Auto-updater wired against GitHub Releases (Tauri updater) for direct-download channel.
 - SHL-07 Code-signing certs procured / configured (mac Developer ID, win Authenticode).
-- SHL-08 CI matrix builds on push: mac-13, ubuntu-22, windows-2022.
+- SHL-08 CI matrix builds on push: mac-13 (arm + x64), ubuntu-22 (x64 + arm64), windows-2022.
+- SHL-09 Homebrew cask published (`brew install --cask voss-ade`); cask auto-bumped on release via separate tap repo.
+- SHL-10 `@vosslang/cli voss app` subcommand launches the GUI; npm wrapper bundles or downloads the platform binary on first invoke. Coordinates version-pin against M6 wrapper.
+- SHL-11 Three release channels version-synced from a single GitHub release tag; release-note generator produces channel-specific notes.
+- SHL-12 Window title, About dialog, and dist artifacts all use the **Voss ADE** ship name (Q1 decision); `voss-app` retained only as repo / npm-package slug.
 
 **Success Criteria (proposed):**
 1. `voss-app` launches as an empty Tauri window on all three platforms.
@@ -1218,20 +1222,21 @@ tasks don't block the agent.
 **Requirements (locked at SPEC):** BAR-01..0N
 - BAR-01 Left cluster: project name (click → recents), git branch (read-only display).
 - BAR-02 Center cluster: focused pane cwd · shell · pid.
-- BAR-03 Right cluster: pane count `▢ N`, cost meter stub `$0.00` (L2 makes it live), notifications bell with badge, settings cog.
+- BAR-03 Right cluster: pane count `▢ N`, notifications bell with badge, settings cog. **No cost meter slot in L1** (Q6 decision — added in L2 with cell promotion).
 - BAR-04 Click clusters → popovers with full detail (focus history, branch switcher placeholder, notification log).
 - BAR-05 Status bar height fixed (22px Variant B), single dense line, mono font.
 - BAR-06 Updates on every focus change + every git ref change (file watcher).
 - BAR-07 Notifications bell shows last 100 events, clearable.
+- BAR-08 Project-less mode: left cluster shows "no project · ⌘O to open" instead of name/branch.
 
 **Success Criteria (proposed):**
 1. Branch updates within 500ms of `git checkout` in any pane.
 2. Pane count updates instantly on split/close.
-3. Cost meter stub displays `$0.00` and tooltip "Voss substrate not active (L2)".
+3. Project-less status bar renders without branch/project clusters.
 4. Notification log persists across restart (last 50).
 
 **Cross-cutting constraints:**
-- CONCEPT §10 Q6 (cost meter stub UX) must close before SPEC.
+- Q6 closed: no cost meter in L1. L2 status bar work will add the slot (planned minor reflow accepted).
 
 ---
 

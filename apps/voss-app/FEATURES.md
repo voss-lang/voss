@@ -186,9 +186,9 @@ The entire v0 binary. **Zero Voss code.** Ships as a competitive grid-native ter
 
 ### L1.7.3 Right cluster
 - Pane count: `▢ 4`.
-- Cost meter stub: `$0.00` (active in L2).
 - Notification bell with badge.
 - Settings cog (click → settings).
+- **No cost meter in L1** (Q6 decision) — slot added in L2 release alongside cell promotion.
 
 ### L1.7.4 Click-to-detail
 - Each cluster expandable on click (popover).
