@@ -128,6 +128,7 @@ pytest markers available — pyproject.toml:67-71 (`slow`, `live`, `acceptance`;
 
 <task type="checkpoint:human-verify" gate="blocking-human">
   <name>Task 1: psutil dependency legitimacy verification (D-10, BLOCKING)</name>
+  <action>STOP. Do not run any command. This is a blocking human-verify legitimacy gate (not auto-approvable — workflow.auto_advance is ignored for package-legitimacy gates). Present the verification steps below to the user and wait for an explicit "approved" before Task 2 adds the psutil pin. No code is written in this task.</action>
   <what-built>Nothing yet — this checkpoint gates the psutil dependency addition in Task 2. RESEARCH §Package Legitimacy Audit tagged psutil `[ASSUMED]` because slopcheck was unavailable at research time. Per the package-legitimacy protocol a human must eyeball the dependency before it lands. This checkpoint is NOT auto-approvable (workflow.auto_advance is ignored for legitimacy gates).</what-built>
   <how-to-verify>
     1. Open https://pypi.org/project/psutil/ in a browser.

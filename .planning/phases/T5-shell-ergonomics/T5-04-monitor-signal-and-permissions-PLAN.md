@@ -14,15 +14,15 @@ user_setup: []
 
 must_haves:
   truths:
-    - "shell_monitor(handle, since_ms=0) is non-blocking and returns [cursor N][running|exit M]\\n<chunk>"
+    - "shell_monitor(handle, since_ms=0) is non-blocking and returns [cursor N][running|exit M] then the chunk"
     - "The returned cursor round-trips: passing it back as since_ms resumes exactly past it"
-    - "shell_monitor truncates at 30KB with <truncated, N more bytes — re-monitor with cursor M> and a fresh cursor"
-    - "shell_signal accepts ONLY INT/TERM; KILL and unknown → <denied: unsupported signal> (D-06)"
+    - "shell_monitor truncates at 30KB with the D-03 wording and a fresh cursor"
+    - "shell_signal accepts ONLY INT/TERM; KILL and unknown return <denied: unsupported signal> (D-06)"
     - "edit mode denies shell_run_background and shell_signal; shell_monitor stays allowed (D-12)"
-    - "the three new tools route through the same TUI approval bridge with sensible verbs/targets"
+    - "the new tools route through the same TUI approval bridge with sensible verbs/targets"
   artifacts:
     - path: "voss/harness/tools.py"
-      provides: "shell_monitor + shell_signal descriptors + 3 ToolEntry registrations"
+      provides: "shell_monitor + shell_signal descriptors + 2 ToolEntry registrations"
       contains: "shell_monitor"
     - path: "voss/harness/permissions.py"
       provides: "SHELL set extended + edit-mode deny for new mutating shell tools"
@@ -39,10 +39,10 @@ must_haves:
 ---
 
 <objective>
-Add the read side (`shell_monitor`, SHELL-03) and the control side (`shell_signal`, SHELL-04) of the background-job surface, register all three new tools, close the D-12 edit-mode security gap, and extend the TUI permission bridge so the new tools display correctly.
+Add the read side (`shell_monitor`, SHELL-03) and the control side (`shell_signal`, SHELL-04) of the background-job surface, register both new tools, close the D-12 edit-mode security gap, and extend the TUI permission bridge so the new tools display correctly.
 
 Purpose: T5-03 produced jobs + a disk log + the in-memory registry. This plan lets the agent OBSERVE that log incrementally across turns (the SC#1 capability) and STOP a job, while ensuring the new mutating shell tools cannot slip through `edit` mode (RESEARCH Security V4 / D-12 — `is_mutating=True` alone does NOT cover them; the edit-mode check is a literal-name check).
-Output: `shell_monitor` + `shell_signal` in `tools.py` + 3 registrations; `permissions.py` SHELL set + edit-mode deny; `permissions_bridge.py` verb/target maps.
+Output: `shell_monitor` + `shell_signal` in `tools.py` + 2 registrations; `permissions.py` SHELL set + edit-mode deny + signature; `permissions_bridge.py` verb/target maps.
 </objective>
 
 <execution_context>
@@ -61,7 +61,7 @@ From T5-03 (lifecycle):
 
 shell_monitor(handle, since_ms=0) -> str   (D-03):
   envelope: "[cursor N][running|exit M]\n<chunk bytes, possibly empty>"
-  since_ms == 0 → from start of log; since_ms is an OPAQUE BYTE OFFSET internally
+  since_ms == 0 -> from start of log; since_ms is an OPAQUE BYTE OFFSET internally
   (param name preserved per ROADMAP; no wall-clock map). Returned cursor N is the
   new byte offset; caller passes it back as since_ms=N.
   done signaled by "[exit M]" replacing "[running]".
@@ -69,9 +69,9 @@ shell_monitor(handle, since_ms=0) -> str   (D-03):
   and emit a cursor at the truncation point.
 
 shell_signal(handle, signal) -> str   (D-06):
-  signal ∈ {"INT","TERM"} only. "INT"→signal.SIGINT, "TERM"→signal.SIGTERM via
-  lifecycle.signal_job(handle, sig). "KILL"/anything else → "<denied: unsupported signal>".
-  Unknown handle → a clear "<error: unknown handle ...>"-style string (not a crash).
+  signal in {"INT","TERM"} only. "INT"->signal.SIGINT, "TERM"->signal.SIGTERM via
+  lifecycle.signal_job(handle, sig). "KILL"/anything else -> "<denied: unsupported signal>".
+  Unknown handle -> a clear "<error: unknown handle ...>"-style string (not a crash).
 </interfaces>
 
 <existing_patterns>
@@ -108,7 +108,7 @@ if mode == "edit":
 ```
 
 permissions needs_prompt — permissions.py:154-162 edit branch is
-`tool_name in WRITE or tool_name in SHELL` → extending the SHELL set auto-enrolls
+`tool_name in WRITE or tool_name in SHELL` -> extending the SHELL set auto-enrolls
 the new tools into the prompt path (no change needed there).
 
 permissions signature — permissions.py:164-167 special-cases shell_run
@@ -116,7 +116,23 @@ permissions signature — permissions.py:164-167 special-cases shell_run
 granularity); shell_signal/shell_monitor fall through to bare tool-name signature.
 
 TUI bridge — voss/harness/tui/permissions_bridge.py:27-44 `_verb_for`/`_short_target`
-(pure name→display maps; bridge logic unchanged).
+(pure name->display maps; bridge logic unchanged):
+```python
+def _verb_for(tool_name: str) -> str:
+    if tool_name == "shell_run":
+        return "run"
+    if tool_name in {"fs_write", "fs_edit"}:
+        return "modify"
+    return "use"
+
+def _short_target(tool_name: str, args: dict, limit: int = 60) -> str:
+    if tool_name == "shell_run":
+        raw = str(args.get("cmd", ""))
+    elif tool_name in {"fs_write", "fs_edit"}:
+        raw = str(args.get("path", ""))
+    else:
+        raw = ", ".join(f"{k}={v}" for k, v in (args or {}).items())
+```
 </existing_patterns>
 
 <source_audit_note>
@@ -135,64 +151,107 @@ nothing). The alternative `is_mutating and tool_name in SHELL` is equivalent
 <tasks>
 
 <task type="auto" tdd="true">
-  <name>Task 1: shell_monitor + shell_signal tools + 3 ToolEntry registrations</name>
+  <name>Task 1: shell_monitor + shell_signal tools + 2 ToolEntry registrations</name>
   <files>voss/harness/tools.py</files>
   <behavior>
     - shell_monitor(handle, since_ms=0) on a running job returns "[cursor N][running]\n<chunk>" where N == bytes read so far; passing N back as since_ms returns only NEW bytes (cursor round-trips) — test_monitor_cursor_progression.
-    - After the job EOFs, shell_monitor returns "[cursor M][exit K]\n<tail>" with K == exit_code; the log stays readable (test_monitor_cursor_progression / test_monitor_across_turns).
+    - After the job EOFs, shell_monitor returns "[cursor M][exit K]\n<tail>" with K == exit_code; the log stays readable (test_monitor_across_turns).
     - When >30KB is available past the cursor, the chunk is capped at 30720 and ends with "<truncated, N more bytes — re-monitor with cursor M>" and the [cursor ...] prefix is the truncation offset.
     - shell_monitor is non-blocking: it never awaits process completion; an empty chunk on a still-running job is valid ("[cursor N][running]\n").
     - shell_signal(handle, "INT") and (handle, "TERM") deliver the signal and return an ack; (handle, "KILL") and (handle, "FOO") return exactly "<denied: unsupported signal>" (test_signal_surface); on POSIX a TERM'd job actually exits (test_signal_terminates, posix-skipif).
-    - shell_run_background is_mutating=True; shell_monitor is_mutating=False; shell_signal is_mutating=True (registry).
+    - shell_monitor is_mutating=False; shell_signal is_mutating=True (registry).
   </behavior>
   <action>
     In voss/harness/tools.py:
 
-    1. `@tool(name="shell_monitor", description="Read incremental output from a background job by handle. since_ms is an opaque byte cursor (0 = from start); pass back the returned cursor to continue. Non-blocking. Returns [cursor N][running|exit M] then the new output.")` `async def shell_monitor(handle: str, since_ms: int = 0) -> str`. Lazy `from . import lifecycle`. `rec = lifecycle._JOBS.get(handle)`; if None → `return f"<error: unknown handle {handle}>"`. Open `rec.log_path` read-only short-lived (the Pitfall-5 discipline in <existing_patterns>): `f.seek(max(0, int(since_ms)))`, `chunk = f.read(30720)`. Determine new cursor = `since_ms + len(chunk)`. Status prefix: if `rec.status == "running"` → `[running]` else `[exit {rec.exit_code}]`. If the file had more bytes past the 30KB read (stat size > new cursor), append `\n<truncated, {remaining} more bytes — re-monitor with cursor {new_cursor}>`. Return `f"[cursor {new_cursor}][{status_token}]\n" + chunk.decode("utf-8", errors="replace")`. Tolerate a missing log file (job registered but no output yet) by treating it as an empty chunk at cursor 0. Pure file read — NO process interaction, NO await on proc.
+    1. Add `@tool(name="shell_monitor", description="Read incremental output from a background job by handle. since_ms is an opaque byte cursor (0 = from start); pass back the returned cursor to continue. Non-blocking. Returns [cursor N][running|exit M] then the new output.")` `async def shell_monitor(handle: str, since_ms: int = 0) -> str`. Lazy `from . import lifecycle`. `rec = lifecycle._JOBS.get(handle)`; if None return `f"<error: unknown handle {handle}>"`. Open `rec.log_path` read-only short-lived (the Pitfall-5 discipline in <existing_patterns>): `f.seek(max(0, int(since_ms)))`, `chunk = f.read(30720)`. Compute `new_cursor = max(0, int(since_ms)) + len(chunk)`. Status token: if `rec.status == "running"` then `running` else `exit {rec.exit_code}`. If the on-disk file size exceeds `new_cursor` (more bytes past the 30KB read), append `\n<truncated, {size - new_cursor} more bytes — re-monitor with cursor {new_cursor}>`. Return `f"[cursor {new_cursor}][{status_token}]\n" + chunk.decode("utf-8", errors="replace")`. Tolerate a missing log file (registered but no output yet) as an empty chunk at cursor 0. Pure file read — NO process interaction, NO await on proc.
 
-    2. `@tool(name="shell_signal", description="Send INT or TERM to a background job by handle. Only 'INT' and 'TERM' are accepted (KILL is internal-only).")` `async def shell_signal(handle: str, signal: str) -> str`. New module import `import signal as _signal` (alias to avoid shadowing the param; or accept the param name and reference the stdlib via the alias). Validate: if `signal not in {"INT", "TERM"}` → `return "<denied: unsupported signal>"` (covers KILL and everything else — D-06). Map `{"INT": _signal.SIGINT, "TERM": _signal.SIGTERM}`. Lazy `from . import lifecycle`; `ok = lifecycle.signal_job(handle, sig)`; if not ok → `return f"<error: unknown handle {handle}>"`; else return a short ack like `f"[signal {signal} -> {handle}]"`.
+    2. Add `@tool(name="shell_signal", description="Send INT or TERM to a background job by handle. Only 'INT' and 'TERM' are accepted (KILL is internal-only). Note: on Windows both INT and TERM map to TerminateProcess; graceful-shutdown semantics are not guaranteed there.")` `async def shell_signal(handle: str, signal: str) -> str`. Add module import `import signal as _signal` (alias so the stdlib is reachable without shadowing the `signal` parameter). Validate: if `signal not in {"INT", "TERM"}` return `"<denied: unsupported signal>"` (covers KILL and everything else — D-06). Map `{"INT": _signal.SIGINT, "TERM": _signal.SIGTERM}[signal]`. Lazy `from . import lifecycle`; `ok = lifecycle.signal_job(handle, sig)`; if not ok return `f"<error: unknown handle {handle}>"`; else return `f"[signal {signal} -> {handle}]"`.
 
-    3. Register all three beside tools.py:367 (shell_run / shell_run_background):
+    3. Register both beside tools.py:367 (shell_run / the shell_run_background line T5-03 added):
        `"shell_monitor": ToolEntry(descriptor=shell_monitor, is_mutating=False),`  # read-only file read
        `"shell_signal":  ToolEntry(descriptor=shell_signal, is_mutating=True),`
-       (shell_run_background was already added by T5-03.) Do NOT add any of these to recorder.VALIDATE_TOOLS (RESEARCH Open-Q3 / D-08 — `[cursor N]` envelope is incompatible with `_parse_exit`'s literal `[exit ` prefix; background jobs are not validation runs; forensic trail is the disk log + `shell.background.reap`).
+       Do NOT add either to recorder.VALIDATE_TOOLS (RESEARCH Open-Q3 / D-08 — the `[cursor N]` envelope is incompatible with `_parse_exit`'s literal `[exit ` prefix; background jobs are not validation runs; forensic trail is the disk log + `shell.background.reap`). Do NOT modify cognition.py (Flag 6 — bootstrap deny-list unreachable by T5 tools).
   </action>
   <verify>
     <automated>python -m pytest "tests/harness/test_t5_shell.py::test_monitor_cursor_progression" "tests/harness/test_t5_shell.py::test_monitor_across_turns" "tests/harness/test_t5_shell.py::test_signal_surface" "tests/harness/test_t5_shell.py::test_signal_terminates" -x -q</automated>
     <requirement>SHELL-03, SHELL-04</requirement>
-    <expected>Monitor envelope is "[cursor N][running|exit M]\n<chunk>", cursor round-trips, job observable from a second call; INT/TERM accepted, KILL/unknown → "<denied: unsupported signal>", POSIX TERM exits the job.</expected>
+    <expected>Monitor envelope is "[cursor N][running|exit M]\n<chunk>", cursor round-trips, job observable from a second call; INT/TERM accepted, KILL/unknown to "<denied: unsupported signal>", POSIX TERM exits the job.</expected>
   </verify>
-  <done>shell_monitor (non-blocking, cursor round-trip, 30KB D-03 truncation) and shell_signal (INT/TERM only) exist; 3 ToolEntry rows registered with correct is_mutating; recorder.VALIDATE_TOOLS untouched; the four SHELL-03/04 tests green.</done>
+  <done>shell_monitor (non-blocking, cursor round-trip, 30KB D-03 truncation) and shell_signal (INT/TERM only) exist; 2 ToolEntry rows registered with correct is_mutating; recorder.VALIDATE_TOOLS + cognition.py untouched; the four SHELL-03/04 tests green.</done>
 </task>
 
 <task type="auto" tdd="true">
   <name>Task 2: D-12 edit-mode security gap + SHELL set + signature + TUI bridge verbs</name>
   <files>voss/harness/permissions.py, voss/harness/tui/permissions_bridge.py</files>
   <behavior>
-    - mode_allows("edit", "shell_run_background", True) → (False, "denied by mode edit")
-    - mode_allows("edit", "shell_signal", True) → (False, "denied by mode edit")
-    - mode_allows("edit", "shell_monitor", False) → (True, "ok")  (read-only, stays allowed — D-12)
-    - mode_allows("edit", "shell_run", True) → still (False, ...) (unchanged)
-    - mode_allows("plan", "shell_monitor", False) → (True, "ok")  (is_mutating=False → READ tier)
+    - mode_allows("edit", "shell_run_background", True) -> (False, "denied by mode edit")
+    - mode_allows("edit", "shell_signal", True) -> (False, "denied by mode edit")
+    - mode_allows("edit", "shell_monitor", False) -> (True, "ok")  (read-only, stays allowed — D-12)
+    - mode_allows("edit", "shell_run", True) -> still (False, ...) (unchanged)
+    - mode_allows("plan", "shell_monitor", False) -> (True, "ok")  (is_mutating=False -> READ tier)
     - SHELL set contains all four shell tools (auto-enrolls them into the edit-mode prompt path at permissions.py:154-162).
-    - permissions_bridge._verb_for: shell_run_background→"run", shell_signal→"signal", shell_monitor→"use"; shell_run unchanged.
+    - permissions_bridge._verb_for: shell_run_background->"run", shell_signal->"signal", shell_monitor->"use"; shell_run unchanged.
   </behavior>
   <action>
     In voss/harness/permissions.py:
 
-    1. Line 46: `SHELL = {"shell_run"}` → `SHELL = {"shell_run", "shell_run_background", "shell_monitor", "shell_signal"}` (D-12 / RESEARCH Security V4 — also auto-enrolls the new tools into the `tool_name in SHELL` prompt branch at permissions.py:154-162, no change needed there).
+    1. Line 46: `SHELL = {"shell_run"}` -> `SHELL = {"shell_run", "shell_run_background", "shell_monitor", "shell_signal"}` (D-12 / RESEARCH Security V4 — also auto-enrolls the new tools into the `tool_name in SHELL` prompt branch at permissions.py:154-162, no change needed there).
 
     2. Lines 60-63, the `if mode == "edit":` branch — change `if tool_name == "shell_run":` to the explicit name-set per <source_audit_note> Flag 2 decision:
        `if tool_name in {"shell_run", "shell_run_background", "shell_signal"}:`
-       Keep `return False, "denied by mode edit"` and the trailing `return True, "ok"` (so `shell_monitor`, is_mutating=False, stays ALLOWED in edit mode — it executes nothing, D-12). Add a one-line comment: `# D-12: shell_monitor omitted deliberately — read-only, executes nothing`. The `plan` branch is unchanged (it already denies all `is_mutating=True`, and shell_monitor is_mutating=False so plan-mode allows it correctly).
+       Keep `return False, "denied by mode edit"` and the trailing `return True, "ok"` (so `shell_monitor`, is_mutating=False, stays ALLOWED in edit mode — it executes nothing, D-12). Add a one-line comment: `# D-12: shell_monitor omitted deliberately — read-only, executes nothing`. The `plan` branch is unchanged (it already denies all `is_mutating=True`; shell_monitor is_mutating=False so plan-mode allows it correctly).
 
     3. signature (permissions.py:164-167): it special-cases `shell_run` as `f"shell_run:{first_arg}"`. Mirror for `shell_run_background` (per-binary always-allow granularity parity with shell_run — keyed on cmd's first token). `shell_signal`/`shell_monitor` fall through to the existing bare tool-name signature (no special case). Keep the existing `shell_run` branch byte-identical; add the `shell_run_background` case beside it.
 
     In voss/harness/tui/permissions_bridge.py (additive, keep existing entries):
 
-    4. `_verb_for` (lines 27-32): `if tool_name == "shell_run":` → `if tool_name in {"shell_run", "shell_run_background"}: return "run"`; add `if tool_name == "shell_signal": return "signal"`. Keep the `fs_write/fs_edit → "modify"` and the `return "use"` fallback (shell_monitor → "use", and it won't prompt anyway — read-only).
+    4. `_verb_for` (lines 27-32): `if tool_name == "shell_run":` -> `if tool_name in {"shell_run", "shell_run_background"}: return "run"`; add `if tool_name == "shell_signal": return "signal"`. Keep the `fs_write/fs_edit -> "modify"` and the `return "use"` fallback (shell_monitor -> "use", and it won't prompt anyway — read-only).
 
     5. `_short_target` (lines 35-44): add `shell_run_background` to the `cmd`-extracting branch (`raw = str(args.get("cmd", ""))`); add a `shell_signal` branch extracting the `handle` arg (`raw = str(args.get("handle", ""))`). `shell_monitor` falls through to the generic kwargs join (cosmetic — never prompts).
   </action>
   <verify>
-    <automated>python -m pytest "tests/harness/test_t5_shell.py::test_edit_mode_denies_background_and_signal" -x -q && python -c "from voss.harness.permissions import mode_allows, SHELL; assert mode_allows('edit','shell_run_background',True)[0] is False; assert mode_allows('edit','shell_signal',True)[0] is False; assert mode_allows('edit','shell_monitor',False)[0] is True; assert mode_allows('edit','shell_run',True)[0] is False; assert {'shell_run','shell_run_background','shell_monitor','shell_signal'} <= SHELL; print('d12-ok')"
+    <automated>python -m pytest "tests/harness/test_t5_shell.py::test_edit_mode_denies_background_and_signal" -x -q && python -c "from voss.harness.permissions import mode_allows, SHELL; assert mode_allows('edit','shell_run_background',True)[0] is False; assert mode_allows('edit','shell_signal',True)[0] is False; assert mode_allows('edit','shell_monitor',False)[0] is True; assert mode_allows('edit','shell_run',True)[0] is False; assert {'shell_run','shell_run_background','shell_monitor','shell_signal'} <= SHELL; print('d12-ok')"</automated>
+    <requirement>SHELL-03, SHELL-04 (D-12 security)</requirement>
+    <expected>edit mode denies shell_run_background + shell_signal, allows shell_monitor, still denies shell_run; SHELL set holds all four; the D-12 security test is green.</expected>
+  </verify>
+  <done>SHELL set has all four tools; edit mode denies the two mutating new shell tools via the explicit name-set and keeps shell_monitor allowed; signature mirrors shell_run for shell_run_background; TUI bridge verbs/targets cover the new tools; D-12 test green.</done>
+</task>
+
+</tasks>
+
+<threat_model>
+## Trust Boundaries
+
+| Boundary | Description |
+|----------|-------------|
+| agent (edit mode) → shell tools | edit-mode policy must deny shell execution of any kind |
+| agent → signal delivery | LLM-supplied signal string controls process termination |
+| disk log → agent context | untrusted background output crosses into the model (capped 30KB) |
+
+## STRIDE Threat Register
+
+| Threat ID | Category | Component | Disposition | Mitigation Plan |
+|-----------|----------|-----------|-------------|-----------------|
+| T-T5-04a | EoP | `shell_run_background`/`shell_signal` edit-mode bypass | mitigate | D-12: `mode_allows` edit branch denies the explicit name-set `{shell_run, shell_run_background, shell_signal}`; closes the `is_mutating=True` literal-name slip-through (RESEARCH Security V4). Verified by `test_edit_mode_denies_background_and_signal`. |
+| T-T5-04b | Tampering | unsupported signal value | mitigate | `shell_signal` validates `signal in {"INT","TERM"}` before any delivery; KILL/unknown -> `<denied: unsupported signal>` (D-06). KILL never exposed (internal-only via reap). |
+| T-T5-04c | DoS (context bloat) | shell_monitor output | accept | Hard 30KB chunk cap with explicit cursor-resume affordance (D-03); non-blocking so it cannot stall a turn. |
+</threat_model>
+
+<verification>
+- `pytest tests/harness/test_t5_shell.py -k "monitor or signal or edit_mode" -x -q` green.
+- `pytest -q -m "not live"` (wave merge) green.
+- edit mode: shell_run_background + shell_signal denied, shell_monitor allowed, shell_run still denied.
+- recorder.VALIDATE_TOOLS + cognition.py + sandbox.py untouched.
+</verification>
+
+<success_criteria>
+- shell_monitor: non-blocking, cursor round-trips, D-03 truncation wording, [running]/[exit M] token.
+- shell_signal: INT/TERM only; KILL/unknown denied; POSIX delivery exits the job.
+- D-12 edit-mode gap closed via explicit name-set; SHELL set has all four tools.
+- TUI bridge displays new tools sensibly; additive only.
+</success_criteria>
+
+<output>
+Create `.planning/phases/T5-shell-ergonomics/T5-04-SUMMARY.md` when done.
+</output>
