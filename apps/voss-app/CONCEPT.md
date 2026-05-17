@@ -150,22 +150,31 @@ package.json                     # pnpm workspace root
 Cargo.toml                       # cargo workspace root
 ```
 
-## 9. v0 Build Order
+## 9. v0 Build Order — Phases A1–A10
 
-Strict sequential. Each spike must pass acceptance before the next starts.
+Strict sequential dependencies (DAG enables some parallel work). Each phase passes its acceptance gate before downstream phases start. Phase IDs locked in root `.planning/ROADMAP.md` (A-prefix track).
 
-1. **Spike L1-A**: Tauri + Solid shell loads. Empty window with titlebar. Builds DMG.
-2. **Spike L1-B**: One xterm pane wired to PTY. Type, see output. Resize. Scrollback.
-3. **Spike L1-C**: Grid engine. Split horizontal/vertical. Focus follows click + `⌘1-9`. Close pane.
-4. **Spike L1-D**: Layout presets. `⌘G` cycles fanout/pipeline/swarm/watchers (templates only).
-5. **Spike L1-E**: Project open. Folder picker. `.voss/` dir auto-created. cwd propagates.
-6. **Spike L1-F**: Session persistence — panes restore across relaunch.
-7. **Spike L1-G**: Command palette + keymap profile.
-8. **Spike L1-H**: Settings UI. Theme tokens applied. Font/shell config persists.
-9. **Spike L1-I**: Status bar live (branch from `git2`, pane count, cost meter stub).
-10. **Spike L1-J**: Variant B theme polish + onboarding flow.
+1. **A1 — Tauri Shell** — Tauri + Solid empty window, titlebar, theme tokens, dist pipeline (DMG/AppImage/MSI). Code signing wired.
+2. **A2 — PTY Pane** — One xterm pane wired to native PTY. Full TTY (vim/htop/tmux). Scrollback, copy/paste. (deps: A1)
+3. **A3 — Grid Engine** — Binary-split tree. Splits, focus, resize, close, `⌘1-9` nav. (deps: A2)
+4. **A4 — Layout Presets** — `fanout · pipeline · swarm · watchers`. `⌘G` cycle. Save/load. Pure visual templates in L1. (deps: A3)
+5. **A5 — Project Open** — Folder picker, recents, `.voss/` lazy create, git branch read, project-less mode. (deps: A1)
+6. **A6 — Session Persist** — Pane tree + cwds + scrollback restore. (deps: A3, A5)
+7. **A7 — Cmd Palette + Keymap** — `⌘P`/`⌘⇧P`, VSCode default profile + tmux additions, custom map. (deps: A3)
+8. **A8 — Settings + Theme** — Two-pane UI, JSON-backed, Variant B token system, telemetry consent. (deps: A1, A7)
+9. **A9 — Status Bar** — Project · branch · pane count · cost stub · notifications. (deps: A5, A8)
+10. **A10 — Onboarding + Polish** — First-run wizard, empty state, keybind cheatsheet, 24hr soak. **v0 ship gate.** (deps: all)
 
-That's v0. No Voss yet.
+That's v0. No Voss yet. L2 phases (Voss substrate) and L3 phases (`.voss` DSL) lock once A10 ships.
+
+**Dependency DAG** enables parallel work:
+- A1 unblocks A2, A5, A8
+- A2 unblocks A3
+- A3 unblocks A4, A6, A7
+- A5 unblocks A6, A9
+- A7 unblocks A8
+- A8 unblocks A9
+- A10 integrates all
 
 ## 10. Open Conceptual Questions
 
