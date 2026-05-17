@@ -25,16 +25,20 @@ DEFAULT_TIMEOUT_S: float = 300.0
 
 
 def _verb_for(tool_name: str) -> str:
-    if tool_name == "shell_run":
+    if tool_name in {"shell_run", "shell_run_background"}:
         return "run"
+    if tool_name == "shell_signal":
+        return "signal"
     if tool_name in {"fs_write", "fs_edit"}:
         return "modify"
     return "use"
 
 
 def _short_target(tool_name: str, args: dict, limit: int = 60) -> str:
-    if tool_name == "shell_run":
+    if tool_name in {"shell_run", "shell_run_background"}:
         raw = str(args.get("cmd", ""))
+    elif tool_name == "shell_signal":
+        raw = str(args.get("handle", ""))
     elif tool_name in {"fs_write", "fs_edit"}:
         raw = str(args.get("path", ""))
     else:
