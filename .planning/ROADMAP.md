@@ -771,7 +771,7 @@ honestly including cache reads.
 **Plans:** 6 plans
 
 Plans:
-- [ ] T4-01-test-scaffold-PLAN.md — Wave 0: 9 failing test stubs + cassette README + pyproject pin bumps (litellm>=1.74.0, vcrpy>=8,<9)
+- [x] T4-01-test-scaffold-PLAN.md — Wave 0: 9 failing test stubs + cassette README + pyproject pin bumps (litellm>=1.74.0, vcrpy>=8,<9)
 - [ ] T4-02-extractor-and-non-streaming-PLAN.md — `_cache_tokens.extract_cache_tokens` + `ProviderResponse` additive fields + LiteLLMProvider wiring (CACHE-02 non-streaming)
 - [ ] T4-03-agent-composition-PLAN.md — `_compose_system_blocks` + multi-block `messages[0]` + four-drift invalidation tests (CACHE-01, CACHE-06)
 - [ ] T4-04-streaming-telemetry-recorder-PLAN.md — Usage variant + agent.py Usage consumer + provider.response telemetry payload + IterationRecord round-trip (CACHE-02 streaming, CACHE-07 telemetry/round-trip)
