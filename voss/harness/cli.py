@@ -584,9 +584,8 @@ def _build_slash_registry() -> SlashRegistry:
         flags = {a.lstrip("-") for a in args}
         if "by-tool" in flags:
             click.echo(
-                "  /cost --by-tool: per-tool cost tracking lands with T4 "
-                "(prompt caching). Recorder doesn't yet attribute provider "
-                "cost to individual tool calls."
+                "  /cost --by-tool: per-tool cost tracking lands with T6 SLASH-07. "
+                "Recorder doesn't yet attribute provider cost to individual tool calls."
             )
             return
         if "by-model" in flags:

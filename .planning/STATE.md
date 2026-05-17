@@ -3,13 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: verifying
-last_updated: "2026-05-16T17:50:13.997Z"
+last_updated: "2026-05-17T17:54:08.971Z"
 last_activity: "2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval)."
 progress:
-  total_phases: 16
+  total_phases: 26
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
+  percent: 0
 ---
 
 # State: Voss
@@ -46,6 +47,11 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Recent Activity
 
+- 2026-05-17 — Completed T5-02 SHELL-01 cap raise. Raised both `shell_run` and `_shell_capture` truncation caps from 4096 to 30720, updated the `shell_run` descriptor to 30KB, and preserved the 30s timeout plus existing `[exit N]` and `<truncated, total N bytes>` envelopes. Verified the cap and timeout source guards, the T5 truncation test, source inspection for two `30720` literals and no `_shell_capture` `4096`, py_compile, full `test_shell_timeout.py`, and `git diff --check`.
+- 2026-05-17 — Completed T5-01 shell ergonomics Wave 0 scaffold. Approved and added runtime `psutil>=5.9,<8`, added lifecycle `_JOBS` reset coverage, created deterministic `emit.py`, authored 13 collecting red T5 shell/background/job tests, and added the red `30720` source-inspection guard. Verified psutil import, lifecycle reset smoke, py_compile, collect-only checks, intentional red T5 failures, intentional red `-k cap` guard, emitter smoke, and `git diff --check`.
+- 2026-05-17 — Completed T4-06 cassette integration using Claude OAuth per operator direction. Added replay/record tests and `cache_two_turn_session.yaml`, preserved OAuth system block cache markers, extracted streaming cache usage from Anthropic `message_start`, and verified first-turn cache creation plus second-turn cache read in replay mode. Focused T4 cache tests passed; full `tests/harness/` now gets past the stale T1 block-list assertion and still fails on the known TUI `#budget-title` issue outside T4.
+- 2026-05-17 — Completed T4-05 cost truthfulness and CLI work: updated `/cost --by-tool` to cite `T6 SLASH-07`, updated the existing slash assertion, added `/cost --by-model` 4-decimal verification, and added a LiteLLM `cost_per_token` cache-creation differential test without introducing Voss-owned pricing constants. Verified focused T4-05 tests, combined cost/repl slash tests, py_compile, stale-placeholder greps, pricing-constant grep, and `git diff --check`.
+- 2026-05-17 — Completed T4-04 streaming telemetry recorder work: added additive cache creation/read fields to streaming `Usage`, propagated them through `agent.py` into flat `provider.response` telemetry and `RunRecorder.end_iteration`, added matching default-zero `IterationRecord` fields, and turned the streaming/telemetry/round-trip stubs green. Verified focused T4-04 tests, session/OAuth/stream/agent regressions, py_compile, cache-field greps, flat telemetry grep, and `git diff --check`; OAuth-provider cache-token capture remains deferred per T4 research.
 - 2026-05-17 — Completed T4-03 agent composition work: added `_compose_system_blocks`, switched `run_turn` static system prefix to typed cached blocks in `messages[0]`, kept the rider uncached in `messages[1]`, and turned CACHE-01/CACHE-06 tests green. Updated existing system-prompt inspection tests for block-list content. Verified focused caching/invalidation tests, agent-loop/integration/VOSS.md regressions, provider T4-02 sanity tests, py_compile, grep checks, and `git diff --check`; OAuth-provider marker preservation remains out of T4 scope per research Pitfall 3.
 - 2026-05-17 — Completed T4-02 extractor and non-streaming provider response work: added stdlib-only `_cache_tokens.extract_cache_tokens`, extended `ProviderResponse` with additive cache creation/read fields, wired `LiteLLMProvider.complete`, and turned `test_cache_tokens.py` plus `test_provider_response.py` green. Verified focused T4 tests, provider hermetic regressions, selected harness integration regressions, py_compile, import/default-construction smokes, grep checks, and `git diff --check`; broader harness run still has an unrelated TUI budget-modal failure.
 - 2026-05-17 — Completed T4-01 Wave 0 test scaffold: pyproject pins raised for `litellm>=1.74.0` and `vcrpy>=8.0.0,<9`, nine CACHE red-test stub files added under `tests/harness/`, cassette README added under `tests/harness/fixtures/cassettes/`, and ROADMAP marked T4-01 complete. Required collect-only check found 22 tests; quick T4-02/T4-03 red check fails intentionally on `pytest.fail`.

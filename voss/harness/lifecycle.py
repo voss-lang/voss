@@ -23,6 +23,9 @@ import sys
 
 _SUBPROCESSES: list[asyncio.subprocess.Process] = []
 _SESSIONS: list[object] = []
+# _JOBS is separate because background jobs have distinct reap semantics:
+# watchdog timers, mid-life signals, and lifetimes beyond the 5s subprocess deadline.
+_JOBS: dict[str, "JobRecord"] = {}
 
 _TERM_DEADLINE_S = 5.0
 
@@ -75,6 +78,7 @@ async def reap_all() -> None:
 def reset_for_tests() -> None:
     _SUBPROCESSES.clear()
     _SESSIONS.clear()
+    _JOBS.clear()  # T5-03 will additionally cancel live supervisor tasks here.
 
 
 def _atexit_hook() -> None:

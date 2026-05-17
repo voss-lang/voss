@@ -648,6 +648,16 @@ async def _run_turn_exec(
                 iter_completion_tokens = (
                     this_iter_usage.completion_tokens if this_iter_usage else 0
                 )
+                iter_cache_creation = (
+                    getattr(this_iter_usage, "cache_creation_input_tokens", 0)
+                    if this_iter_usage
+                    else 0
+                )
+                iter_cache_read = (
+                    getattr(this_iter_usage, "cache_read_input_tokens", 0)
+                    if this_iter_usage
+                    else 0
+                )
 
                 renderer.finalize_stream(
                     role="assistant",
@@ -682,6 +692,10 @@ async def _run_turn_exec(
                         "completion_tokens": iter_completion_tokens,
                         "cost_usd": iter_cost,
                         "stop_reason": this_iter_stop,
+                        # T4 CACHE-07: flat additive keys, NO nested
+                        # cache: {...} sub-object.
+                        "cache_creation_input_tokens": iter_cache_creation,
+                        "cache_read_input_tokens": iter_cache_read,
                     },
                 )
                 renderer.show_plan(this_iter_plan, cost_usd=iter_cost)
@@ -709,6 +723,8 @@ async def _run_turn_exec(
                             cost_usd=iter_cost,
                             prompt_tokens=iter_prompt_tokens,
                             completion_tokens=iter_completion_tokens,
+                            cache_creation_input_tokens=iter_cache_creation,
+                            cache_read_input_tokens=iter_cache_read,
                             exit_reason="done",
                         )
                         telemetry.emit(
@@ -746,6 +762,8 @@ async def _run_turn_exec(
                         cost_usd=iter_cost,
                         prompt_tokens=iter_prompt_tokens,
                         completion_tokens=iter_completion_tokens,
+                        cache_creation_input_tokens=iter_cache_creation,
+                        cache_read_input_tokens=iter_cache_read,
                         exit_reason="done",
                     )
                     telemetry.emit(
@@ -787,6 +805,8 @@ async def _run_turn_exec(
                     cost_usd=iter_cost,
                     prompt_tokens=iter_prompt_tokens,
                     completion_tokens=iter_completion_tokens,
+                    cache_creation_input_tokens=iter_cache_creation,
+                    cache_read_input_tokens=iter_cache_read,
                     exit_reason=None,
                 )
                 telemetry.emit(

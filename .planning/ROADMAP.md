@@ -774,9 +774,9 @@ Plans:
 - [x] T4-01-test-scaffold-PLAN.md — Wave 0: 9 failing test stubs + cassette README + pyproject pin bumps (litellm>=1.74.0, vcrpy>=8,<9)
 - [x] T4-02-extractor-and-non-streaming-PLAN.md — `_cache_tokens.extract_cache_tokens` + `ProviderResponse` additive fields + LiteLLMProvider wiring (CACHE-02 non-streaming)
 - [x] T4-03-agent-composition-PLAN.md — `_compose_system_blocks` + multi-block `messages[0]` + four-drift invalidation tests (CACHE-01, CACHE-06)
-- [ ] T4-04-streaming-telemetry-recorder-PLAN.md — Usage variant + agent.py Usage consumer + provider.response telemetry payload + IterationRecord round-trip (CACHE-02 streaming, CACHE-07 telemetry/round-trip)
-- [ ] T4-05-cost-truth-and-cli-PLAN.md — D-09 placeholder edit + LiteLLM cost-differential test + /cost --by-model 4-decimal verification (CACHE-03, CACHE-04)
-- [ ] T4-06-cassette-integration-PLAN.md — [BLOCKING human-action] one-time live cassette recording + two-turn replay test (CACHE-05, CACHE-07 invariant)
+- [x] T4-04-streaming-telemetry-recorder-PLAN.md — Usage variant + agent.py Usage consumer + provider.response telemetry payload + IterationRecord round-trip (CACHE-02 streaming, CACHE-07 telemetry/round-trip)
+- [x] T4-05-cost-truth-and-cli-PLAN.md — D-09 placeholder edit + LiteLLM cost-differential test + /cost --by-model 4-decimal verification (CACHE-03, CACHE-04)
+- [x] T4-06-cassette-integration-PLAN.md — [BLOCKING human-action] one-time live cassette recording + two-turn replay test (CACHE-05, CACHE-07 invariant)
 
 
 ---
@@ -939,8 +939,8 @@ tasks don't block the agent.
 **Plans:** 5 plans
 
 Plans:
-- [ ] T5-01-test-scaffold-and-psutil-dep-PLAN.md — Wave 1: failing test surface (SHELL-01..05 + SC#1/#2/#3) + emit.py fixture + `_JOBS` reset + `30720` source guard + [BLOCKING human-verify] psutil legitimacy gate then `psutil>=5.9,<8` dep add
-- [ ] T5-02-shell-run-cap-raise-PLAN.md — Wave 2: SHELL-01 cap 4096→30720 in both `shell_run` AND `_shell_capture` (Flag 1: raise both); envelope + 30s timeout untouched
+- [x] T5-01-test-scaffold-and-psutil-dep-PLAN.md — Wave 1: failing test surface (SHELL-01..05 + SC#1/#2/#3) + emit.py fixture + `_JOBS` reset + `30720` source guard + [BLOCKING human-verify] psutil legitimacy gate then `psutil>=5.9,<8` dep add
+- [x] T5-02-shell-run-cap-raise-PLAN.md — Wave 2: SHELL-01 cap 4096→30720 in both `shell_run` AND `_shell_capture` (Flag 1: raise both); envelope + 30s timeout untouched
 - [ ] T5-03-job-registry-and-background-spawn-PLAN.md — Wave 3: JobRecord + atomic `.meta.json` sidecar + `_JOBS` registry + `register_job`/`reap_jobs`/`signal_job` + single supervisor task (pump+30s+100MB) + `start_new_session`/killpg + `shell.background.reap` + `shell_run_background` (SHELL-02, SC#2/#3, D-01/02/05/08/09/10/11)
 - [ ] T5-04-monitor-signal-and-permissions-PLAN.md — Wave 4: `shell_monitor` cursor read + `shell_signal` INT/TERM + 2 ToolEntry regs + D-12 edit-mode deny (explicit name-set) + permissions_bridge verbs (SHELL-03/04, SC#1, D-03/06/12)
 - [ ] T5-05-voss-jobs-cli-and-active-session-PLAN.md — Wave 5: production `make_toolset(session_id=record.id)` wiring (cli.py:1314 `_run_repl` only — closes the cross-process contract; other 5 sites deliberate `_nosession`) + `jail_path` import + `voss jobs` table/`--json` sidecar read + AGENT_COMMANDS + `.active-session` try/finally lifecycle + `--keep-logs` + explicit `reap_jobs()` (SHELL-02/05, D-04/09/11, A4)
@@ -1022,7 +1022,7 @@ Plans:
 
 ---
 
-### Phase A1 — voss-app Tauri Shell
+### Phase A1: voss-app Tauri Shell
 
 **Goal:** Tauri + Solid empty window builds and runs locally on the dev's platform with custom titlebar and theme tokens applied. **No release pipeline, no signing, no distribution channels** — that work is consolidated into A10 (release is a final gate; the app does not ship until A1–A9 are built).
 
@@ -1047,7 +1047,7 @@ Plans:
 
 ---
 
-### Phase A2 — voss-app PTY Pane
+### Phase A2: voss-app PTY Pane
 
 **Goal:** A single xterm.js pane wired to a native PTY (`portable-pty`) with full TTY support, scrollback, copy/paste, and OSC sequence handling. Replaces the empty window from A1 with one working terminal.
 
@@ -1073,7 +1073,7 @@ Plans:
 
 ---
 
-### Phase A3 — voss-app Grid Engine
+### Phase A3: voss-app Grid Engine
 
 **Goal:** Multi-pane grid layout — binary-split tree, splits/focus/resize/close, `⌘1-9` numeric nav, persisted layout file. Each pane is an independent PTY from A2.
 
@@ -1099,7 +1099,7 @@ Plans:
 
 ---
 
-### Phase A4 — voss-app Layout Presets
+### Phase A4: voss-app Layout Presets
 
 **Goal:** Visual layout templates — `fanout · pipeline · swarm · watchers`. `⌘G` cycles. Switching reorders existing panes, never kills them. Save/load named layouts.
 
@@ -1123,7 +1123,7 @@ Plans:
 
 ---
 
-### Phase A5 — voss-app Project Open
+### Phase A5: voss-app Project Open
 
 **Goal:** Folder picker, recent workspaces list, `.voss/` directory lazy creation, git branch detection, optional project-less mode.
 
@@ -1147,7 +1147,7 @@ Plans:
 
 ---
 
-### Phase A6 — voss-app Session Persist
+### Phase A6: voss-app Session Persist
 
 **Goal:** Pane tree, per-pane cwd + shell choice, and truncated scrollback restore across app restart. Live processes are NOT auto-relaunched in L1.
 
@@ -1170,7 +1170,7 @@ Plans:
 
 ---
 
-### Phase A7 — voss-app Command Palette + Keymap
+### Phase A7: voss-app Command Palette + Keymap
 
 **Goal:** Command palette (`⌘P` quick-open, `⌘⇧P` all commands), VSCode-default keymap profile with tmux-friendly additions, user custom-map override via `.voss/keymap.json`.
 
@@ -1194,7 +1194,7 @@ Plans:
 
 ---
 
-### Phase A8 — voss-app Settings + Theme
+### Phase A8: voss-app Settings + Theme
 
 **Goal:** Two-pane settings UI (search + categories left, form right) backed by JSON files. Variant B token system applied as theme. Font, shell, telemetry-consent UX all live here.
 
@@ -1218,7 +1218,7 @@ Plans:
 
 ---
 
-### Phase A9 — voss-app Status Bar
+### Phase A9: voss-app Status Bar
 
 **Goal:** Bottom status bar: project · branch · active pane info · pane count · cost-meter stub · notifications bell. Click any cluster for popover detail.
 
@@ -1243,7 +1243,7 @@ Plans:
 
 ---
 
-### Phase A10 — voss-app Onboarding + Release Pipeline (v0 SHIP GATE)
+### Phase A10: voss-app Onboarding + Release Pipeline (v0 SHIP GATE)
 
 **Goal:** First-run wizard, empty-state UI, soak-test hardening, AND the entire release pipeline (signing + 3 distribution channels + auto-update + version-sync). This is the final gate — the app does not release until A1–A9 are built and stable. All distribution work deferred from A1 lands here.
 
