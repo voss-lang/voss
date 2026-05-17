@@ -1,11 +1,11 @@
-# Roadmap: Voss Harness — v0.1 MVP + v0.2 Coding-Agent Phases
+# Roadmap: Voss Harness — v0.1 MVP + v0.2 Coding-Agent Phases + voss-app Desktop ADE
 
 **Created:** 2026-05-10
-**Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure
-**Granularity:** M-prefixed milestone phases + T-prefixed gap-closure phases
-**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md)
-**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases)
-**Last updated:** 2026-05-15 — added T1–T8 daily-driver gap-closure phases; T6 carved as v0.1.1 patch, T1–T5 + T7–T8 land in v0.2 alongside M8/M9/M10
+**Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure → desktop ADE scaffold
+**Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`)
+**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A10 (counts TBD by SPEC.md)
+**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
+**Last updated:** 2026-05-16 — added A1–A10 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -35,6 +35,16 @@
 | T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
 | T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | TBD |
+| A1 | voss-app Tauri Shell | Tauri + Solid empty window on mac/linux/win, titlebar + theme tokens + dist pipeline | SHL-01..0N (TBD by SPEC.md) | TBD |
+| A2 | voss-app PTY Pane | One xterm pane wired to native PTY, full TTY support, scrollback, copy/paste | PTY-01..0N (TBD by SPEC.md) | TBD |
+| A3 | voss-app Grid Engine | Binary-split tree, splits/focus/resize/close, `⌘1-9` nav, save/load layout | GRD-01..0N (TBD by SPEC.md) | TBD |
+| A4 | voss-app Layout Presets | Fanout/pipeline/swarm/watchers visual templates, `⌘G` cycle, reorder w/o killing panes | LAY-01..0N (TBD by SPEC.md) | TBD |
+| A5 | voss-app Project Open | Folder picker, recents, `.voss/` lazy create, git branch read, project-less mode | WS-01..0N (TBD by SPEC.md) | TBD |
+| A6 | voss-app Session Persist | Pane tree + cwd + truncated scrollback restore across restart | PER-01..0N (TBD by SPEC.md) | TBD |
+| A7 | voss-app Cmd Palette + Keymap | `⌘P`/`⌘⇧P`, VSCode-default profile + tmux additions, custom map via `.voss/keymap.json` | CMD-01..0N (TBD by SPEC.md) | TBD |
+| A8 | voss-app Settings + Theme | Two-pane settings UI, JSON-backed, Variant B token system, font/shell config | CFG-01..0N (TBD by SPEC.md) | TBD |
+| A9 | voss-app Status Bar | Project · branch · pane count · cost meter stub · notifications bell · click-to-popover | BAR-01..0N (TBD by SPEC.md) | TBD |
+| A10 | voss-app Onboarding + Polish | First-run wizard, empty state, keybind cheatsheet, 24hr soak test pass | OBD-01..0N (TBD by SPEC.md) | TBD |
 
 ---
 
@@ -758,6 +768,17 @@ honestly including cache reads.
   (acceptable).
 - Cache TTL = 5 minutes (Anthropic default); documented in `harness.toml`.
 
+**Plans:** 6 plans
+
+Plans:
+- [ ] T4-01-test-scaffold-PLAN.md — Wave 0: 9 failing test stubs + cassette README + pyproject pin bumps (litellm>=1.74.0, vcrpy>=8,<9)
+- [ ] T4-02-extractor-and-non-streaming-PLAN.md — `_cache_tokens.extract_cache_tokens` + `ProviderResponse` additive fields + LiteLLMProvider wiring (CACHE-02 non-streaming)
+- [ ] T4-03-agent-composition-PLAN.md — `_compose_system_blocks` + multi-block `messages[0]` + four-drift invalidation tests (CACHE-01, CACHE-06)
+- [ ] T4-04-streaming-telemetry-recorder-PLAN.md — Usage variant + agent.py Usage consumer + provider.response telemetry payload + IterationRecord round-trip (CACHE-02 streaming, CACHE-07 telemetry/round-trip)
+- [ ] T4-05-cost-truth-and-cli-PLAN.md — D-09 placeholder edit + LiteLLM cost-differential test + /cost --by-model 4-decimal verification (CACHE-03, CACHE-04)
+- [ ] T4-06-cassette-integration-PLAN.md — [BLOCKING human-action] one-time live cassette recording + two-turn replay test (CACHE-05, CACHE-07 invariant)
+
+
 ---
 
 ### Phase T2 — Parallel Tools + Multi-Edit Primitive *(v0.2)*
@@ -971,6 +992,291 @@ tasks don't block the agent.
 
 ---
 
+## A-prefixed phases: voss-app Desktop ADE
+
+**Track:** voss-app — terminal-grid desktop ADE in `apps/voss-app/`. Sibling deliverable to the Python harness. Tauri (Rust core) + Solid (webview UI) + xterm.js + `portable-pty`.
+
+**Layering** (full detail in `apps/voss-app/CONCEPT.md`):
+- **Layer 1 / v0 = A1–A10** — terminal-grid scaffold. **Zero Voss code in binary.** Ships as competitive Warp/Wezterm alternative.
+- **Layer 2 / v1 = A11+** — Voss harness substrate. Promote-to-cell, streaming render, permissions, reviewer-as-pair-programmer demo. Locks once L1 ships.
+- **Layer 3 / v2 = A20+** — `.voss` DSL features (hot-reload, inter-cell DSL wiring, curated loop library).
+- **Layer 4+ / deferred** — Monaco editor pane, file tree, SCM, search. Uncommitted; evaluate post-L3.
+
+**Reference design:** sketch 001 Variant B (Minimal Tile) — `.planning/sketches/001-voss-grid-shell/`. 22px headers, thin 1px borders, mono everywhere, glyph-prefix lines, inset-shadow focus.
+
+**Cross-A constraints:**
+- v0 must be usable as a daily terminal without the word "Voss" appearing in the UI beyond the app name.
+- `.voss/` directory is forward-compat only in L1 (empty unless user customizes settings) — schema versioned `{"version": 1}`.
+- Cost meter in status bar is stubbed `$0.00` in L1; comes alive in L2.
+- All A phases share the Variant B aesthetic tokens — no per-phase visual re-exploration.
+- Project-wide spec-blocking questions **closed 2026-05-16** — full decisions in `apps/voss-app/CONCEPT.md` §10. Highlights: ship name = **Voss ADE** (Q1); auto-`$SHELL` on pane open (Q2); banner + restart on exit (Q3); pure-visual presets in L1 (Q4); first-class project-less mode (Q5); no cost meter in L1 (Q6); lazy `.voss/` creation (Q7); three distribution channels — Direct + Homebrew + npm subcommand (Q8); telemetry OFF default, opt-in (Q9).
+
+---
+
+### Phase A1 — voss-app Tauri Shell
+
+**Goal:** Tauri + Solid empty window installs and launches on mac (arm64+x64), linux (x64+arm64), windows (x64) with custom titlebar, theme tokens applied, and a working dist pipeline.
+
+**Requirements (locked at SPEC):** SHL-01..0N
+- SHL-01 Tauri version pinned (2.x recommended; SPEC confirms).
+- SHL-02 Solid + Tailwind UI scaffolded with Variant B theme tokens.
+- SHL-03 Custom titlebar with project-name placeholder, layout-preset switcher (visual only, no behavior yet), cost-meter stub `$0.00`.
+- SHL-04 Window: traffic lights (mac) · standard close/min/max (linux/win) · zoom · fullscreen · multi-monitor.
+- SHL-05 Build pipeline: `pnpm build` produces signed DMG (mac arm64+x64), AppImage (linux x64+arm64), MSI (win x64).
+- SHL-06 Auto-updater wired against GitHub Releases (Tauri updater) for direct-download channel.
+- SHL-07 Code-signing certs procured / configured (mac Developer ID, win Authenticode).
+- SHL-08 CI matrix builds on push: mac-13 (arm + x64), ubuntu-22 (x64 + arm64), windows-2022.
+- SHL-09 Homebrew cask published (`brew install --cask voss-ade`); cask auto-bumped on release via separate tap repo.
+- SHL-10 `@vosslang/cli voss app` subcommand launches the GUI; npm wrapper bundles or downloads the platform binary on first invoke. Coordinates version-pin against M6 wrapper.
+- SHL-11 Three release channels version-synced from a single GitHub release tag; release-note generator produces channel-specific notes.
+- SHL-12 Window title, About dialog, and dist artifacts all use the **Voss ADE** ship name (Q1 decision); `voss-app` retained only as repo / npm-package slug.
+
+**Success Criteria (proposed):**
+1. `voss-app` launches as an empty Tauri window on all three platforms.
+2. Titlebar renders Variant B tokens; theme can be swapped via config file.
+3. CI produces unsigned artifacts per platform; signing stage gated on cert.
+4. Auto-updater pulls a fake newer release and prompts user.
+
+**Cross-cutting constraints:**
+- No xterm, no PTY, no grid in A1 — pure window scaffolding.
+- Settings load from `~/.config/voss-app/settings.json` if present; else baked defaults.
+- `apps/voss-app/src-tauri/` is a new Rust crate consuming `crates/voss-app-core/` (which is created empty here, populated by later A phases).
+
+---
+
+### Phase A2 — voss-app PTY Pane
+
+**Goal:** A single xterm.js pane wired to a native PTY (`portable-pty`) with full TTY support, scrollback, copy/paste, and OSC sequence handling. Replaces the empty window from A1 with one working terminal.
+
+**Requirements (locked at SPEC):** PTY-01..0N
+- PTY-01 `portable-pty` spawns user's `$SHELL` with `TERM=xterm-256color`, `COLORTERM=truecolor`.
+- PTY-02 xterm.js renders the PTY; bidirectional stream (stdin / stdout / stderr).
+- PTY-03 10k-line scrollback default, configurable. `⌘F` search in scrollback. `⌘⇧K` clear.
+- PTY-04 Copy/paste: `⌘C` selection or interrupt (configurable), `⌘V` w/ bracketed-paste safety, `⌘⇧V` literal.
+- PTY-05 OSC 8 hyperlinks (`⌘+click` opens URL). File-path auto-detection in output → `⌘+click` opens in OS.
+- PTY-06 Process indicator in pane header (foreground command parsed from OSC 0).
+- PTY-07 Shell exit behavior — pane shows `[exited N]` banner with "restart" button (assumes Q3 closes this way; SPEC reconfirms).
+- PTY-08 Alt-screen apps (`vim`, `htop`, `less`, `tmux`) render correctly inside the pane.
+
+**Success Criteria (proposed):**
+1. Run `vim`, `htop`, `tmux`, `less` inside the pane — alt-screen + TTY signals work.
+2. Scrollback persists across pane resize.
+3. Copy from one OS app, paste into pane (bracketed-paste warns on multi-line).
+4. Hyperlink click opens browser.
+
+**Cross-cutting constraints:**
+- Single pane only in A2 — multi-pane is A3.
+- Pane occupies the whole window minus titlebar + status bar (status bar stubbed; A9 finishes it).
+
+---
+
+### Phase A3 — voss-app Grid Engine
+
+**Goal:** Multi-pane grid layout — binary-split tree, splits/focus/resize/close, `⌘1-9` numeric nav, persisted layout file. Each pane is an independent PTY from A2.
+
+**Requirements (locked at SPEC):** GRD-01..0N
+- GRD-01 Pane tree model: binary splits (horizontal/vertical), tmux-style.
+- GRD-02 `⌘\` split horizontal, `⌘⇧\` split vertical, `⌘D` fork (duplicate cwd + shell), `⌘W` close (confirm if running).
+- GRD-03 Focus: `⌘1`-`⌘9` numeric, `⌘⌥` arrow directional, click-to-focus, `⌘[`/`⌘]` cycle.
+- GRD-04 Resize: drag border, `⌘⌥⇧` arrow 5% increments, `⌘=` equalize.
+- GRD-05 Per-pane min size (cols × rows) enforced.
+- GRD-06 22px Variant B pane header: `●` dot · index · cwd basename · shell · process indicator · `⋯` menu.
+- GRD-07 Focused pane indicated by inset shadow + bg lift (no border ring).
+- GRD-08 Layout state stored in Solid signals, mirrored to Rust core for persistence.
+
+**Success Criteria (proposed):**
+1. 2×2 grid created via 3 splits; each pane runs an independent shell.
+2. Focus follows click and `⌘1-4`. Directional focus works.
+3. Resize via drag and keyboard.
+4. Close pane: confirm if process running, no-confirm if idle.
+
+**Cross-cutting constraints:**
+- Grid model decision (binary-tree vs css-grid vs flex) closes at SPEC.
+- No layout presets in A3 — that's A4.
+
+---
+
+### Phase A4 — voss-app Layout Presets
+
+**Goal:** Visual layout templates — `fanout · pipeline · swarm · watchers`. `⌘G` cycles. Switching reorders existing panes, never kills them. Save/load named layouts.
+
+**Requirements (locked at SPEC):** LAY-01..0N
+- LAY-01 Four presets: fanout (1 source left, N receivers right column) · pipeline (left-to-right equal row) · swarm (N×N equal grid, default 2×2 up to 4×4) · watchers (main top, 2-3 thin watchers bottom).
+- LAY-02 Titlebar switcher widget (sketch 001 Variant B styling).
+- LAY-03 `⌘G` cycles presets in order.
+- LAY-04 Switching preset reorders existing pane tree; never destroys panes.
+- LAY-05 If pane count doesn't match preset capacity, panes added/preserved gracefully (no panes destroyed).
+- LAY-06 "Save layout as…" + "Load layout…" in command palette (palette delivered in A7; stub command exists earlier).
+- LAY-07 Layout file format: `.voss/layouts/<name>.json` with versioned schema.
+- LAY-08 L1 semantics: pure visual templates. Layer 2 will overlay behavior — L1 must not couple.
+
+**Success Criteria (proposed):**
+1. Switch between all 4 presets with `⌘G`; layout reorders predictably.
+2. Save a named layout, modify, reload — geometry restored.
+3. Open a project with a saved default layout in `.voss/layouts/default.json`.
+
+**Cross-cutting constraints:**
+- Preset semantics question (CONCEPT §10 Q4) must close before SPEC — L1 visual-only is the recommendation.
+
+---
+
+### Phase A5 — voss-app Project Open
+
+**Goal:** Folder picker, recent workspaces list, `.voss/` directory lazy creation, git branch detection, optional project-less mode.
+
+**Requirements (locked at SPEC):** WS-01..0N
+- WS-01 `⌘O` folder picker; drag-drop folder onto app icon to open.
+- WS-02 Recent workspaces list (last 10, pinned favorites). Stored at `~/.config/voss-app/recents.json`.
+- WS-03 `.voss/` dir lazily created on first action that needs it (settings write, layout save) — never auto on project open in L1.
+- WS-04 Git branch read via `git2` Rust crate (no shelling out). Surfaced in status bar (A9).
+- WS-05 Project-less mode supported — app launches and runs without any folder open.
+- WS-06 New panes inherit project cwd; project-less panes inherit `$HOME`.
+- WS-07 Switch project via palette ("Open recent", "Close project").
+
+**Success Criteria (proposed):**
+1. Open folder picker → select folder → panes inherit cwd.
+2. Quit + reopen most-recent project from start screen.
+3. Launch without a project → fully functional empty-pane workflow.
+4. `.voss/` doesn't appear until a setting changes or layout is saved.
+
+**Cross-cutting constraints:**
+- CONCEPT §10 Q5 (project-less) and Q7 (`.voss/` timing) must close before SPEC.
+
+---
+
+### Phase A6 — voss-app Session Persist
+
+**Goal:** Pane tree, per-pane cwd + shell choice, and truncated scrollback restore across app restart. Live processes are NOT auto-relaunched in L1.
+
+**Requirements (locked at SPEC):** PER-01..0N
+- PER-01 On quit: pane tree (geometry + cwds + shells), focused pane, active layout preset, last 2k scrollback lines per pane → `.voss/session.json`.
+- PER-02 On launch with project: read `session.json`, reconstruct panes with stored geometry. Each pane shows `[restored]` banner with scrollback truncated to 2k lines; user re-runs commands manually.
+- PER-03 Project-less mode persists at `~/.config/voss-app/global-session.json`.
+- PER-04 Schema versioned `{"version": 1}` with forward-migration policy (unknown future versions decline gracefully).
+- PER-05 Storage format: JSON in L1 (SQLite reserved for L2 cells.sqlite).
+- PER-06 Concurrent-app safety: portalocker or equivalent flock on session file write.
+
+**Success Criteria (proposed):**
+1. Quit app with 4 panes open across 2 splits → reopen → exact layout restored.
+2. Project-less session restores last-used pane on launch.
+3. Corrupted `session.json` falls back to default layout with non-fatal toast.
+
+**Cross-cutting constraints:**
+- Scrollback cap (2k lines) configurable in settings but locked default.
+- No live-process restart in L1 — that's an explicit non-feature.
+
+---
+
+### Phase A7 — voss-app Command Palette + Keymap
+
+**Goal:** Command palette (`⌘P` quick-open, `⌘⇧P` all commands), VSCode-default keymap profile with tmux-friendly additions, user custom-map override via `.voss/keymap.json`.
+
+**Requirements (locked at SPEC):** CMD-01..0N
+- CMD-01 `⌘P` opens fuzzy folder picker (file-open deferred to L4 editor pane). v0 stretch: jump-to-layout by name.
+- CMD-02 `⌘⇧P` opens command palette with all commands, fuzzy-matched.
+- CMD-03 v0 command catalog covers: Window · Pane · Layout · Project · Settings · Help.
+- CMD-04 Recent commands sticky in fuzzy ranking.
+- CMD-05 Keymap profiles: VSCode-default ships; tmux-friendly adds `⌘B` prefix mode; user override via `.voss/keymap.json`.
+- CMD-06 Keymap JSON validated on load; invalid entries surfaced as toast.
+- CMD-07 Palette renders Variant B aesthetic — mono, dim/bright, glyph affordances for command category.
+
+**Success Criteria (proposed):**
+1. Every v0 command (per FEATURES §L1.5.3 catalog) findable via palette.
+2. Customize one keybinding via `.voss/keymap.json` and reload → new binding active.
+3. Switch to tmux profile → `⌘B`-then-`%` splits vertically.
+
+**Cross-cutting constraints:**
+- Command implementation = web component (not Tauri-native menus) — decision locked at SPEC.
+- Native OS menus (mac menubar, win/linux menu) wrap the same command registry.
+
+---
+
+### Phase A8 — voss-app Settings + Theme
+
+**Goal:** Two-pane settings UI (search + categories left, form right) backed by JSON files. Variant B token system applied as theme. Font, shell, telemetry-consent UX all live here.
+
+**Requirements (locked at SPEC):** CFG-01..0N
+- CFG-01 User settings: `~/.config/voss-app/settings.json`. Workspace settings: `.voss/settings.json`. Workspace wins.
+- CFG-02 Two-pane UI: search + nav left (Appearance · Terminal · Layout · Keybindings · Project · Updates · Telemetry), form right.
+- CFG-03 Each form value has "Edit as JSON" link → opens raw settings file in OS default editor.
+- CFG-04 Theme tokens delivered as CSS variables (sketch 001 Variant B canonical set). Token override via `.voss/theme.css` or settings.
+- CFG-05 Font (family + size + line-height), cursor shape, scrollback size, default shell all configurable.
+- CFG-06 Telemetry section: all toggles OFF default. Crash reports + usage analytics opt-in, both clearly labelled.
+- CFG-07 Settings hot-reload: change → next pane open uses new defaults; live panes ask before retroactive changes.
+
+**Success Criteria (proposed):**
+1. Change theme tokens via UI → all panes + chrome update without restart.
+2. Change default shell via UI → next new pane uses it.
+3. Telemetry toggles persist; off-state prevents any network call.
+
+**Cross-cutting constraints:**
+- CONCEPT §10 Q9 (telemetry policy) must close before SPEC.
+- Settings schema validated by JSONSchema or similar (decision at SPEC).
+
+---
+
+### Phase A9 — voss-app Status Bar
+
+**Goal:** Bottom status bar: project · branch · active pane info · pane count · cost-meter stub · notifications bell. Click any cluster for popover detail.
+
+**Requirements (locked at SPEC):** BAR-01..0N
+- BAR-01 Left cluster: project name (click → recents), git branch (read-only display).
+- BAR-02 Center cluster: focused pane cwd · shell · pid.
+- BAR-03 Right cluster: pane count `▢ N`, notifications bell with badge, settings cog. **No cost meter slot in L1** (Q6 decision — added in L2 with cell promotion).
+- BAR-04 Click clusters → popovers with full detail (focus history, branch switcher placeholder, notification log).
+- BAR-05 Status bar height fixed (22px Variant B), single dense line, mono font.
+- BAR-06 Updates on every focus change + every git ref change (file watcher).
+- BAR-07 Notifications bell shows last 100 events, clearable.
+- BAR-08 Project-less mode: left cluster shows "no project · ⌘O to open" instead of name/branch.
+
+**Success Criteria (proposed):**
+1. Branch updates within 500ms of `git checkout` in any pane.
+2. Pane count updates instantly on split/close.
+3. Project-less status bar renders without branch/project clusters.
+4. Notification log persists across restart (last 50).
+
+**Cross-cutting constraints:**
+- Q6 closed: no cost meter in L1. L2 status bar work will add the slot (planned minor reflow accepted).
+
+---
+
+### Phase A10 — voss-app Onboarding + Polish
+
+**Goal:** First-run wizard, empty-state UI, keybind cheatsheet modal, soak-test hardening. v0 ship gate.
+
+**Requirements (locked at SPEC):** OBD-01..0N
+- OBD-01 First-run wizard: welcome → pick theme → pick shell → done. No API keys requested (L1 has no Voss).
+- OBD-02 Empty-state UI for project-less new window: prompt "Open folder" or "Start without a project".
+- OBD-03 Empty pane area shows keyboard hint `⌘\` split / `⌘O` open project.
+- OBD-04 Keybind cheatsheet modal via Help menu, scrollable, categorized.
+- OBD-05 In-app docs link to website docs; changelog modal.
+- OBD-06 Crash reporter pipeline (off by default; opt-in CFG-06): captures stderr + last 500 log lines + system info on panic, queues for upload.
+- OBD-07 24-hour soak test: 8 panes, mixed alt-screen + scrolling output, no PTY leaks, no memory growth > 100MB.
+- OBD-08 Bug-report flow: Help → "Report Issue" opens prefilled GitHub issue with app version + platform.
+
+**Success Criteria (proposed):** **THE v0 SHIP GATE** (mirrors FEATURES §L1 acceptance checklist 1–15):
+1. Install on mac/linux/win from signed artifact.
+2. Open app → empty state works.
+3. Open folder → status bar populates.
+4. 2×2 grid via 3 splits, all independent shells.
+5. `⌘1-4` focus + click focus works.
+6. Switch layout preset → reorder, no kill.
+7. Resize via mouse + keyboard.
+8. Save + reload layout via palette.
+9. `vim`/`htop`/`tmux` work inside a pane.
+10. Copy/paste across panes.
+11. Quit + reopen restores layout.
+12. Settings persist (theme + font + shell + keybind).
+13. 24hr soak with 8 panes — no crashes, no PTY leaks.
+14. Crash reporter activates if app panics (opt-in pipeline tested).
+15. Bug-report flow opens prefilled GH issue.
+
+**Cross-cutting constraints:**
+- A10 is the integration phase — assumes A1–A9 complete and stable.
+- Failing any acceptance criterion = v0 doesn't ship.
+
+---
+
 ## Coverage
 
 | Phase | Requirements | Count |
@@ -1002,8 +1308,20 @@ tasks don't block the agent.
 | T7 | SKL-01..06 | 6 |
 | T8 | INPUT-01..05 | 5 |
 | **T-total** | | **42** |
+| **A-phases (voss-app desktop ADE Layer 1)** | | |
+| A1 | SHL-01..0N | TBD by `A1-SPEC.md` |
+| A2 | PTY-01..0N | TBD by `A2-SPEC.md` |
+| A3 | GRD-01..0N | TBD by `A3-SPEC.md` |
+| A4 | LAY-01..0N | TBD by `A4-SPEC.md` |
+| A5 | WS-01..0N | TBD by `A5-SPEC.md` |
+| A6 | PER-01..0N | TBD by `A6-SPEC.md` |
+| A7 | CMD-01..0N | TBD by `A7-SPEC.md` |
+| A8 | CFG-01..0N | TBD by `A8-SPEC.md` |
+| A9 | BAR-01..0N | TBD by `A9-SPEC.md` |
+| A10 | OBD-01..0N | TBD by `A10-SPEC.md` |
+| **A-total (Layer 1)** | | **TBD per SPEC** |
 
-All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`.
+All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`. A-phase requirement IDs are placeholder prefixes; per-phase SPEC locks the count + exact text.
 
 ---
 

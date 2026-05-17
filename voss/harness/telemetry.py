@@ -5,6 +5,23 @@ If VOSS_LOG_PATH is unset, tries Unix fd 3 when open; otherwise writes VOSSLOG-p
 lines to stderr (grep-friendly).
 
 Schema tag: voss.log/v1 (field ``v`` == 1).
+
+Event Kinds (T3-03 contract — NET-06 / D-15)
+--------------------------------------------
+emit() is generic on `data: dict`; the schema below is documentation,
+enforced at the T3-05 / T3-06 / T3-07 call sites (no runtime validation
+here). Every `url` field MUST be passed through `redact_url` before
+emit. Pre-T3 records that lack these kinds round-trip unchanged.
+
+| kind          | required data fields                                                            |
+|---------------|---------------------------------------------------------------------------------|
+| net.request   | tool: str, url: <redacted>, method: str, started_at: float                      |
+| net.response  | tool: str, url: <redacted>, status: int, bytes: int, duration_ms: int           |
+| mcp.request   | server: str, tool: str, args: dict (redact_tool_args), started_at: float        |
+| mcp.response  | server: str, tool: str, status: "ok"|"error", duration_ms: int, error: str|None |
+
+Invariant (D-15): MCP stdio calls emit `mcp.*` events ONLY; HTTP/HTTPS
+calls emit `net.*` events ONLY. The two never overlap on a single hop.
 """
 from __future__ import annotations
 
@@ -15,6 +32,7 @@ import uuid
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, TextIO
+from urllib.parse import urlparse, urlunparse
 
 _V = 1
 _LINE_PREFIX = "VOSSLOG"
@@ -110,6 +128,28 @@ def redact_tool_args(args: dict[str, Any]) -> dict[str, Any]:
         else:
             out[k] = v
     return out
+
+
+def redact_url(url: str) -> str:
+    """Strip query string, fragment, and userinfo from a URL.
+
+    Preserves scheme, host, port, and path. Telemetry-safe: returns the
+    sentinel '<redacted-url>' on parse failure so emit sites never raise.
+
+    Userinfo (`user:pass@`) is dropped via `p.hostname`, which excludes
+    credentials by definition. Port is preserved when present.
+    """
+    if not isinstance(url, str):
+        return "<redacted-url>"
+    try:
+        p = urlparse(url)
+        host = p.hostname or ""
+        netloc = host if p.port is None else f"{host}:{p.port}"
+        clean = p._replace(query="", fragment="", netloc=netloc)
+        out = urlunparse(clean)
+        return out if isinstance(out, str) else "<redacted-url>"
+    except Exception:
+        return "<redacted-url>"
 
 
 def _open_sink() -> tuple[TextIO, str]:

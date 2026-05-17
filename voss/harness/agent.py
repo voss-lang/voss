@@ -1015,7 +1015,12 @@ async def _invoke_step_with_gate(
         if recorder is not None:
             recorder.observe(step.name, step.args, "<unknown tool>", ok=False)
         return text
-    allowed, why = gate.check(step.name, step.args, is_mutating=entry.is_mutating)
+    allowed, why = gate.check(
+        step.name,
+        step.args,
+        is_mutating=entry.is_mutating,
+        is_network=entry.is_network,
+    )
     if not allowed:
         text = f"<denied: {why}>"
         renderer.show_tool_call(step.name, step.args, text, "error")

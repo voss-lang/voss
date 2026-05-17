@@ -74,9 +74,9 @@ async def test_per_step_check_preserved_in_multi_step_read_batch() -> None:
     # Wrap gate.check so we can count invocations without altering decisions.
     original_check = gate.check
 
-    def _wrapped(tool_name, args, *, is_mutating=False):
+    def _wrapped(tool_name, args, *, is_mutating=False, is_network=False):
         _recorder(tool_name, args, is_mutating)
-        return original_check(tool_name, args, is_mutating=is_mutating)
+        return original_check(tool_name, args, is_mutating=is_mutating, is_network=is_network)
 
     gate.check = _wrapped  # type: ignore[method-assign]
 
@@ -94,9 +94,9 @@ async def test_per_step_check_preserved_for_write_singletons() -> None:
     gate = PermissionGate(auto_yes=True)
     original_check = gate.check
 
-    def _wrapped(tool_name, args, *, is_mutating=False):
+    def _wrapped(tool_name, args, *, is_mutating=False, is_network=False):
         invocations.append(tool_name)
-        return original_check(tool_name, args, is_mutating=is_mutating)
+        return original_check(tool_name, args, is_mutating=is_mutating, is_network=is_network)
 
     gate.check = _wrapped  # type: ignore[method-assign]
     tools = {n: _mk_tool(n, is_mutating=True) for n in ("w1", "w2")}
@@ -110,10 +110,10 @@ async def test_per_step_check_denies_one_step_in_batch_others_still_run() -> Non
     gate = PermissionGate(auto_yes=True)
     original_check = gate.check
 
-    def _wrapped(tool_name, args, *, is_mutating=False):
+    def _wrapped(tool_name, args, *, is_mutating=False, is_network=False):
         if tool_name == "b":
             return False, "test-denied"
-        return original_check(tool_name, args, is_mutating=is_mutating)
+        return original_check(tool_name, args, is_mutating=is_mutating, is_network=is_network)
 
     gate.check = _wrapped  # type: ignore[method-assign]
     tools = {n: _mk_tool(n, is_mutating=False) for n in ("a", "b", "c")}
