@@ -60,6 +60,9 @@ test_repl_slash.py.
 @.planning/phases/T6-slash-debt/T6-CONTEXT.md
 @.planning/phases/T6-slash-debt/T6-PATTERNS.md
 
+<!-- ENV NOTE (W4): All verify/acceptance commands assume the project venv is
+     active (execute-plan activates it); otherwise prefix `.venv/bin/`. -->
+
 <interfaces>
 <!-- Data shapes the executor needs. Extracted from codebase. No exploration required. -->
 
@@ -208,7 +211,7 @@ Obsoleted test, tests/harness/test_repl_slash.py:225-231:
     action — copy the `--by-model` test's structure from the same class.
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_repl_slash.py -q 2>&1 | tail -5</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_repl_slash.py -q --tb=short; echo "exit:$?"</automated>
   </verify>
   <acceptance_criteria>
     - `python -m pytest tests/harness/test_repl_slash.py -q` exits 0.
