@@ -11,7 +11,8 @@ def main(argv: list[str]) -> int:
 
     count = int(argv[1])
     for i in range(count):
-        print(f"line {i}", flush=True)
+        print(f"line {i}")
+        sys.stdout.flush()
         time.sleep(0.05)
     return 0
 
