@@ -1009,7 +1009,7 @@ tasks don't block the agent.
 - `.voss/` directory is forward-compat only in L1 (empty unless user customizes settings) — schema versioned `{"version": 1}`.
 - Cost meter in status bar is stubbed `$0.00` in L1; comes alive in L2.
 - All A phases share the Variant B aesthetic tokens — no per-phase visual re-exploration.
-- Open project-wide questions blocking spec for A-phases tracked in `apps/voss-app/CONCEPT.md` §10 (naming · shell default · pane-exit behavior · preset semantics · project-less mode · cost stub UX · `.voss/` timing · distribution · telemetry).
+- Project-wide spec-blocking questions **closed 2026-05-16** — full decisions in `apps/voss-app/CONCEPT.md` §10. Highlights: ship name = **Voss ADE** (Q1); auto-`$SHELL` on pane open (Q2); banner + restart on exit (Q3); pure-visual presets in L1 (Q4); first-class project-less mode (Q5); no cost meter in L1 (Q6); lazy `.voss/` creation (Q7); three distribution channels — Direct + Homebrew + npm subcommand (Q8); telemetry OFF default, opt-in (Q9).
 
 ---
 

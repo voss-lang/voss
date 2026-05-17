@@ -321,6 +321,22 @@ def make_toolset(
     ) -> str:
         return "ok"
 
+    @tool(
+        name="web_fetch",
+        description=(
+            "Fetch a URL via HTTP GET. Requires --allow-net. Body returned "
+            "as UTF-8 text; responses >1 MB truncate; timeout clamped to "
+            "[1, 120] seconds."
+        ),
+    )
+    async def web_fetch(url: str, timeout_s: float = 30.0) -> str:
+        if net is None:
+            return (
+                "<error: net disabled: set tools.allow_net = true in "
+                "harness.toml or pass --allow-net>"
+            )
+        return await net.fetch(url, timeout_s=timeout_s)
+
     return {
         "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False),
         "fs_read_many": ToolEntry(descriptor=fs_read_many, is_mutating=False),
@@ -334,6 +350,9 @@ def make_toolset(
         "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
         "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),
         "record_run": ToolEntry(descriptor=record_run, is_mutating=True),
+        "web_fetch": ToolEntry(
+            descriptor=web_fetch, is_mutating=False, is_network=True
+        ),
     }
 
 
