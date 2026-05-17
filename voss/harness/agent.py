@@ -287,6 +287,37 @@ def _compose_loop_system(max_iterations: int) -> str:
     return PLAN_LOOP_SYSTEM.replace("{max_iterations}", str(max_iterations))
 
 
+def _compose_system_blocks(
+    *,
+    voss_md_block: str,
+    cognition_text: str,
+    prior_context_text: str,
+    loop_system: str,
+) -> list[dict]:
+    """Render the CACHE-01 static prefix as cacheable text blocks.
+
+    Keeping the four D-08 slices as separate blocks preserves byte-level
+    invalidation checks for CACHE-06; collapsing them would blur the drift
+    surfaces back into one joined string.
+    """
+    blocks = [
+        {"type": "text", "text": text}
+        for text in (
+            voss_md_block,
+            cognition_text,
+            prior_context_text,
+            loop_system,
+        )
+        if text
+    ]
+    if blocks:
+        blocks[-1] = {
+            **blocks[-1],
+            "cache_control": {"type": "ephemeral"},
+        }
+    return blocks
+
+
 def _build_iter_rider(
     *,
     index: int,
@@ -504,15 +535,12 @@ async def _run_turn_exec(
         )
         prior_context_text = _compose_prior_context_block(prior_context)
         voss_md_block = f"# VOSS.md\n{voss_md_text}" if voss_md_text else ""
-        sys_prompt = "\n\n".join(
-            s
-            for s in (
-                voss_md_block,
-                cognition_text,
-                prior_context_text,
-                _compose_loop_system(max_iterations),
-            )
-            if s
+        # T4 CACHE-01: cached static prefix as block list; rider (below, per-iter) stays a string and remains uncached.
+        sys_blocks = _compose_system_blocks(
+            voss_md_block=voss_md_block,
+            cognition_text=cognition_text,
+            prior_context_text=prior_context_text,
+            loop_system=_compose_loop_system(max_iterations),
         )
 
         if cognition is not None and getattr(cognition, "initialized", False):
@@ -567,7 +595,7 @@ async def _run_turn_exec(
                     prior_iters=all_iter_records,
                 )
                 messages: list[dict] = [
-                    {"role": "system", "content": sys_prompt},
+                    {"role": "system", "content": sys_blocks},  # cached static prefix (CACHE-01)
                     {"role": "system", "content": rider},
                     {"role": "user", "content": user_prompt},
                 ]
