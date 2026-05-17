@@ -70,6 +70,14 @@ def _make_tool(name: str, result: str) -> ToolEntry:
     return ToolEntry(descriptor=desc, is_mutating=name in {"fs_edit", "fs_write"})
 
 
+def _message_content_text(content) -> str:
+    if isinstance(content, list):
+        return "\n".join(
+            block.get("text", "") for block in content if isinstance(block, dict)
+        )
+    return str(content or "")
+
+
 def _plan(
     *,
     steps: list[dict] | None = None,
@@ -276,7 +284,7 @@ async def test_iter_02_iter_n_plus_one_receives_prior_results(
     )
 
     iter1_msgs = provider.stream_calls[1]["messages"]
-    flat = "\n".join(m.get("content", "") for m in iter1_msgs)
+    flat = "\n".join(_message_content_text(m.get("content", "")) for m in iter1_msgs)
     assert "Tool results for iteration 0:" in flat
     assert "PRIOR-RESULT-XYZ" in flat
 
