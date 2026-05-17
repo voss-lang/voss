@@ -199,3 +199,50 @@ class TestBothAgentKeysRoundtrip:
         )
         assert harness_config.get_max_iterations() == 12
         assert harness_config.get_max_parallel_reads() == 16
+
+
+# ---------------------------------------------------------------------------
+# T3-02: [tools] allow_net loader (NET-05a/b).
+# ---------------------------------------------------------------------------
+
+
+class TestGetAllowNet:
+    def test_get_allow_net_default_false(self, xdg) -> None:
+        assert harness_config.get_allow_net() is False
+
+    def test_get_allow_net_toml_true(self, xdg) -> None:
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("[tools]\nallow_net = true\n")
+        assert harness_config.get_allow_net() is True
+
+    def test_get_allow_net_toml_false_explicit(self, xdg) -> None:
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("[tools]\nallow_net = false\n")
+        assert harness_config.get_allow_net() is False
+
+    def test_get_allow_net_bogus_warns(self, xdg) -> None:
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("[tools]\nallow_net = yes\n")
+        with pytest.warns(RuntimeWarning, match="allow_net"):
+            assert harness_config.get_allow_net() is False
+
+
+class TestThreeSectionsCoexist:
+    def test_three_keys_coexist(self, xdg) -> None:
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            '[harness]\npreferred_model = "foo"\n\n'
+            '[agent]\nmax_iterations = "12"\nmax_parallel_reads = "16"\n\n'
+            "[tools]\nallow_net = true\n"
+        )
+        assert harness_config.load_harness_config()["preferred_model"] == "foo"
+        assert harness_config.load_agent_config()["max_iterations"] == "12"
+        assert harness_config.load_agent_config()["max_parallel_reads"] == "16"
+        assert harness_config.load_tools_config()["allow_net"] == "true"
+        assert harness_config.get_max_iterations() == 12
+        assert harness_config.get_max_parallel_reads() == 16
+        assert harness_config.get_allow_net() is True

@@ -22,6 +22,11 @@ class RuntimeConfig:
     # T2-03 scheduler reads this field at batch dispatch; cli boot wires the
     # TOML override via configure alongside max_iterations.
     max_parallel_reads: int = 8
+    # T3-02: network access opt-in. CLI flag --allow-net or [tools]
+    # allow_net = true in ~/.config/voss/config.toml. PermissionGate reads
+    # via get_config().allow_net and denies any is_network=True tool when
+    # this field is False (NET-05). Default False = no outbound sockets.
+    allow_net: bool = False
 
 
 _config = RuntimeConfig()

@@ -1,477 +1,573 @@
-# voss-app — Feature Catalog
+# voss-app — Feature Catalog (Layer-Ordered)
 
-> Companion to `CONCEPT.md`. Concept defines the *why* and *how*. This doc defines the *what* — every user-facing surface, what it does, what ships in v0 vs later, and how it touches the Voss substrate.
+> Companion to `CONCEPT.md`. Concept defines *why* and *how*. This doc defines *what*, organized by the three-layer build order.
 >
-> **Legend:** ✅ v0 ships · ⏳ v1 backlog · 🔮 v2+ · ⛔ never
+> **L1** = Terminal-grid scaffold (v0) — zero Voss
+> **L2** = Voss harness substrate (v1) — promote-to-cell
+> **L3** = `.voss` DSL features (v2)
+> **L4+** = Deferred surfaces (editor / file tree / SCM / etc.)
+> **⛔** = Never
 
 ---
 
-## A. Workspace & Project
+# LAYER 1 — Terminal-Grid Scaffold (v0)
 
-### A1. Open / recent workspaces ✅
-- Open folder picker. Drag-drop folder onto app icon.
-- Recent workspaces list (last 10), pinned favorites.
-- "Workspace" = filesystem folder + `.voss/` config dir (auto-created on first open).
-- Multi-root workspaces ⏳ — v0 single root only.
+The entire v0 binary. **Zero Voss code.** Ships as a competitive grid-native terminal app.
 
-### A2. Project config (`.voss/`) ✅
-- `.voss/policy.yaml` — permission policy (read auto, write prompt, exec prompt).
-- `.voss/loops/*.voss` — project-specific loop overrides (fallback to `apps/voss-app/loops/`).
-- `.voss/sessions.sqlite` — per-cell session persistence (managed by Voss harness).
-- `.voss/secrets/` — gitignored, encrypted at rest. API keys per-project.
-- `.voss/cells.json` — saved cell layouts (main + reviewer config).
+## L1.1 Application Shell
 
-### A3. Workspace state restore ✅
-- Reopen project → cells resume from last session.
-- Editor tabs restore. Terminal tabs restore (shell only — cell terminals require user confirm to respawn).
-- Last focused pane restored.
+### L1.1.1 Window & chrome
+- Native window via Tauri (macOS, Linux, Windows).
+- Custom titlebar (traffic lights mac · close/min/max linux/win): project name · current layout preset switcher · cost meter stub (`$0.00`).
+- System tray icon (linux/win) · menu bar (mac).
+- Full-screen, zoom, multi-monitor support.
 
-### A4. Multi-window ⏳
-- One project per window v0. Multi-window v1.
+### L1.1.2 Themes
+- Dark default = sketch 001 Variant B tokens.
+- Color tokens: `--bg-0..3`, `--fg-0..3`, `--border`, `--focus`, accent colors (green/amber/red/cyan/magenta/blue).
+- Mono font: JetBrains Mono default, configurable.
+- Light theme deferred to L4+.
 
----
+### L1.1.3 Distribution
+- Tauri-built DMG (mac, arm64+x64), AppImage (linux x64+arm64), MSI (win x64).
+- Auto-updater via Tauri updater (GitHub Releases backend).
+- Code signing on mac/win (cert procurement = open question).
 
-## B. File Explorer
+## L1.2 Workspace & Project
 
-### B1. Tree view ✅
-- Standard expand/collapse tree.
-- Lazy load deep dirs.
-- Respects `.gitignore` (toggle to show hidden).
-- File icons by extension.
+### L1.2.1 Open folder
+- Folder picker via `⌘O` or empty-state button.
+- Drag-drop folder onto app icon to open.
+- App opens **with or without** a project — terminal panes work either way.
 
-### B2. File operations ✅
-- New file, new folder, rename, delete, duplicate, copy path, reveal in OS.
-- Right-click context menu.
-- Keyboard: `↑/↓` nav, `↵` open, `F2` rename, `⌫` delete (prompt).
+### L1.2.2 Recent workspaces
+- Last 10 folders. Pinned favorites. Cleared via command palette.
 
-### B3. Agent activity badges ✅
-- Files touched by a cell this session get a colored dot in tree.
-  - Green = clean edit applied
-  - Amber = pending reviewer pin
-  - Red = reviewer blocked
-- Hover → tooltip "modified by `main` · 14:02"
-- Dot clears on commit.
+### L1.2.3 `.voss/` directory
+- Created lazily on first action that needs it (settings write, layout save).
+- Empty in L1 except for `settings.json` if user customizes.
+- Forward-compat: schema versioned `{"version": 1}`.
 
-### B4. Drag to context ⏳
-- Drag file from tree → drop on Voss cell input → injects path as context.
+### L1.2.4 Project metadata
+- Project name = folder basename, editable.
+- Git branch auto-read via `git2` if `.git/` present.
+- No semantic "project type" detection in L1.
 
-### B5. Search & filter ✅
-- Filter box at top of tree (`⌘⇧F` from anywhere).
-- Filters by filename substring.
+## L1.3 Grid Layout Engine
 
----
+### L1.3.1 Pane model
+- Each pane = independent xterm + PTY.
+- Pane state: cwd, shell, scrollback, dimensions, focus.
+- Panes are rectangular tiles in a binary-split tree (same model as tmux/i3).
 
-## C. Editor (Monaco)
+### L1.3.2 Split operations
+- `⌘\` split horizontal (new pane right of focused).
+- `⌘⇧\` split vertical (new pane below focused).
+- `⌘D` fork pane (duplicate cwd + shell, fresh scrollback).
+- `⌘W` close pane (with confirm if shell is running a process).
 
-### C1. Multi-tab editor ✅
-- Tabs across top, drag to reorder, drag to split.
-- Unsaved indicator (dot in tab).
-- `⌘W` close, `⌘⇧T` reopen, `⌘P` quick open.
-- Pinned tabs.
+### L1.3.3 Navigation
+- `⌘1`-`⌘9` focus pane by index.
+- `⌘⌥←/→/↑/↓` focus directional neighbor.
+- Click anywhere in a pane = focus.
+- `⌘[`/`⌘]` cycle panes.
 
-### C2. Split view ✅
-- Vertical and horizontal splits, up to 4 panes.
-- Drag tab to edge to split.
+### L1.3.4 Resize
+- Drag pane border to resize.
+- `⌘⌥⇧←/→/↑/↓` resize focused pane in 5% increments.
+- `⌘=` equalize all panes.
 
-### C3. LSP integration ✅
-- Day-one languages: TypeScript, Python, Rust.
-- Hover, go-to-definition, find-references, rename symbol, completion (LSP-driven, not AI), diagnostics in gutter.
-- Format-on-save (configurable).
-- LSP servers managed by `voss-app-core` LSP host.
+### L1.3.5 Layout presets
+- Titlebar switcher: `fanout · pipeline · swarm · watchers`.
+- L1 semantics: pure visual templates.
+  - **fanout** = single source pane left, 2–4 panes right column
+  - **pipeline** = left-to-right row of equal panes
+  - **swarm** = N×N equal grid (2×2 default, up to 4×4)
+  - **watchers** = main pane top, 2–3 thin watcher panes bottom
+- `⌘G` cycles presets. Switching reorders existing panes, doesn't kill them.
+- L2 will overload presets with semantic meaning (e.g., "swarm" implies worktrees) — L1 ignores semantics.
 
-### C4. Gutter pins (reviewer surface) ✅
-- Reviewer turn_end produces critique → pin glyph `※` in gutter at target line.
-- Severity color: amber medium, red high, green positive (rare).
-- Click pin → reviewer detail in side panel (full critique + suggested fix preview).
-- Hover pin → tooltip.
-- Pin "staleness" — when the line is edited after pin created, pin is marked stale (dimmed, struck-through glyph). Stale pins auto-clear on next reviewer turn.
-- Multiple pins per line collapse to badge with count.
+### L1.3.6 Save layout
+- Current layout (pane tree + cwds + sizes) persisted to `.voss/layouts/<name>.json`.
+- "Save layout as…" + "Load layout…" in command palette.
 
-### C5. ⌘K inline edit ✅
-- Select code (or place caret) → `⌘K` → floating prompt input.
-- Prompt → ad-hoc Voss cell spawns with selection as context, streams diff.
-- Diff renders inline as ghost-text overlay on selection.
-- `⌘.` accept, `Esc` reject, `⌘⌫` reject + retry.
-- Cell tears down after accept/reject. (Lifecycle is "ephemeral" — fresh context each invocation.)
-- Cell selection: per-project default model (configurable; ships with `claude-sonnet-4-6`).
+## L1.4 Terminal Panes (xterm + PTY)
 
-### C6. Ghost-text autocomplete ⏳
-- v1. Wired via Monaco inline-completions API + dedicated low-latency completion cell (Haiku-class or local model).
+### L1.4.1 PTY backend
+- `portable-pty` Rust crate spawns shells natively.
+- Inherits user env, sets `TERM=xterm-256color`, `COLORTERM=truecolor`.
 
-### C7. Right-click → "Ask Voss" ⏳
-- v1. Right-click selection → opens ad-hoc cell in side panel pre-loaded with selection.
+### L1.4.2 Shell selection
+- Default = `$SHELL` env var.
+- Configurable per workspace + per pane (settings).
+- Supports zsh / bash / fish / sh / pwsh / nu / any binary on PATH.
 
-### C8. Code lens / inline actions ⏳
-- v1. Reviewer suggestions can render as code-lens above the line: "💡 reviewer: thread max_iterations through ctor · Apply".
+### L1.4.3 Pane chrome
+- 22px header (sketch 001 Variant B): `●` dot · pane index · cwd basename · shell name · process indicator.
+- Right side: pane menu `⋯` (close, fork, rename, save scrollback).
+- Inset-shadow + bg-lift on focus (no border ring).
 
-### C9. Themes ✅
-- Dark default (sketch 001 Variant B tokens).
-- Light theme ⏳.
-- User CSS override via `.voss/theme.css`.
+### L1.4.4 Scrollback
+- 10k lines default per pane (configurable).
+- `⌘F` find in scrollback.
+- `⌘⇧K` clear scrollback.
+- Scrollback persisted on quit (last 2k lines) for restore.
 
-### C10. Editor settings ✅
-- Font family, size, line height, tab size, indent guides, word wrap, render whitespace, ruler at N cols.
-- Configurable per workspace via `.voss/settings.json`.
+### L1.4.5 Copy / paste
+- `⌘C` copy selection (or interrupt if no selection — configurable).
+- `⌘V` paste with bracketed-paste safety (warn on multi-line paste with newlines).
+- `⌘⇧V` paste literal.
 
----
+### L1.4.6 Process indicator
+- Header shows current foreground command (parsed via PTY title sequence `OSC 0`).
+- Spinner dot when stdin-blocked or sleeping > 1s.
 
-## D. Integrated Terminal
+### L1.4.7 Exit behavior
+- Shell exits → pane shows `[exited 0]` banner with "restart" button. Doesn't auto-close. (Subject to open question Q3.)
 
-### D1. xterm + PTY ✅
-- Native PTY via `portable-pty` Rust crate.
-- xterm.js renders.
-- Default shell from `$SHELL` (zsh/bash/fish).
-- Inherits workspace cwd.
+### L1.4.8 Hyperlinks
+- `OSC 8` hyperlink support — `⌘+click` opens URL.
+- File-path detection in output → `⌘+click` opens in OS default app.
 
-### D2. Multi-tab terminal pane ✅
-- New tab `⌘T` (when terminal pane focused).
-- Splits `⌘\` horizontal, `⌘⇧\` vertical.
-- Tab names = cwd basename, editable.
+### L1.4.9 Images & sixel
+- L4+. Not in v0.
 
-### D3. Promote-to-cell ✅
-- Right-click terminal tab → "Promote to Voss cell".
-- Existing PTY snapshot becomes initial context.
-- Cell spawns w/ `tools: [bash, fs_read, fs_write, ...]`.
-- Visual indicator: tab gets `●` colored dot, header switches to cell HUD (model, cost, iter).
-- Demote back to plain shell via same menu.
+## L1.5 Command Palette
 
-### D4. Voss output rendering ✅
-- When promoted, output renders with B's glyph-prefix lines (`❯` user, `⏵` tool, `※` reviewer).
-- Plain shell mode = raw xterm.
+### L1.5.1 Quick-open
+- `⌘P` — opens folder/file picker. L1 picks folder only (no editor). v0 stretch: jump to layout by name.
 
-### D5. Send-to-cell pipe ⏳
-- Right-click selection in terminal output → "Send to Voss cell" → injects as context.
+### L1.5.2 All commands
+- `⌘⇧P` — every command, fuzzy match.
 
-### D6. Find in terminal ✅
-- `⌘F` searches scrollback.
+### L1.5.3 v0 command catalog
+- **Window:** new window, close window, toggle full-screen, zoom in/out, reset zoom.
+- **Pane:** split H, split V, close, fork, focus N, focus next/prev, resize, equalize, rename, save scrollback.
+- **Layout:** switch preset (fanout/pipeline/swarm/watchers), save layout, load layout, equalize.
+- **Project:** open folder, open recent, close project, reveal `.voss/` in finder.
+- **Settings:** open settings, edit settings JSON, switch theme, switch keymap profile.
+- **Help:** docs, keybindings cheatsheet, about, report issue.
 
----
+### L1.5.4 Recent commands
+- Recent commands sticky in fuzzy ranking.
 
-## E. Source Control (Git)
+## L1.6 Settings
 
-### E1. Status pane ✅
-- Sidebar tab showing: staged · unstaged · untracked · merge conflicts.
-- File-level diff stats (+N -M).
-- Click file → diff view in editor.
+### L1.6.1 Settings storage
+- User-level: `~/.config/voss-app/settings.json` (or platform equivalent).
+- Workspace-level: `.voss/settings.json` (workspace wins for overlapping keys).
 
-### E2. Stage / unstage ✅
-- Click ⊕ next to file (stage all) or specific hunks (stage hunk).
-- Drag hunks between staged/unstaged.
+### L1.6.2 Settings UI
+- Two-pane: search + category nav left, form right.
+- "Edit as JSON" link in every section → opens raw file in OS default editor (L4+ will offer in-app editor).
 
-### E3. Commit ✅
-- Inline message input (multi-line, conventional-commit syntax highlighting).
-- `⌘⏎` commit.
-- Signing config respected.
-- AI-suggest commit message ⏳ (v1, requires a small Voss cell call).
+### L1.6.3 Settings categories (L1)
+- **Appearance:** theme · font family · font size · line height · cursor shape.
+- **Terminal:** default shell · scrollback size · bracketed-paste warnings · cursor blink · bell.
+- **Layout:** default preset · pane border visibility · focus follows mouse.
+- **Keybindings:** profile (VSCode default, tmux additions) · custom map.
+- **Project:** auto-restore panes on open · default project folder.
+- **Updates:** auto-check · channel (stable/beta).
+- **Telemetry:** OFF default · crash reports opt-in · usage analytics opt-in.
 
-### E4. Branch ops ✅
-- Status bar shows current branch · click → switcher with search.
-- Create branch, checkout existing, delete (with confirm).
-- Pull / push / fetch — buttons + keybinds.
+### L1.6.4 Keybinding profiles
+- VSCode-default ships baseline.
+- "tmux-friendly" additions: `⌘B` prefix mode for nostalgic users.
+- Custom map via `.voss/keymap.json` — overrides any profile.
 
-### E5. Diff view ✅
-- Side-by-side or inline.
-- Reviewer pins overlay in diff view (so reviewer can flag staged hunks before commit).
+## L1.7 Status Bar
 
-### E6. Log / history ⏳
-- Commit graph view v1.
+### L1.7.1 Left cluster
+- Project name (clickable → recent workspaces).
+- Git branch (read-only display in L1, full SCM in L4+).
 
-### E7. Worktree manager ⏳
-- v1 for grid swarm mode. Spawn N worktrees from one branch, attach cells.
+### L1.7.2 Center cluster
+- Active pane: cwd · shell · pid.
 
-### E8. Pre-commit reviewer hook ⏳
-- v1. Auto-spawn reviewer cell on stage → critique pending commit → block / warn / pass.
+### L1.7.3 Right cluster
+- Pane count: `▢ 4`.
+- Cost meter stub: `$0.00` (active in L2).
+- Notification bell with badge.
+- Settings cog (click → settings).
 
----
+### L1.7.4 Click-to-detail
+- Each cluster expandable on click (popover).
 
-## F. Global Search
+## L1.8 Notifications
 
-### F1. Find in files ✅
-- `⌘⇧F` opens search panel.
-- ripgrep-backed, streaming results.
-- Regex, case, whole-word, file include/exclude globs.
+### L1.8.1 Toast surface
+- Bottom-right, stacked, 6s auto-dismiss (sticky errors).
+- Categories: info · success · warn · error.
 
-### F2. Replace in files ✅
-- Toggle to replace mode.
-- Preview before apply, per-occurrence accept/reject.
+### L1.8.2 v0 sources
+- Pane process exited non-zero.
+- Layout saved/loaded.
+- Settings reload.
+- Update available.
+- App-level errors.
 
-### F3. Ask Voss about results ⏳
-- v1. "Send all results to a Voss cell as context."
+### L1.8.3 Notification log
+- Bell icon → last 100 notifications.
+- Clear all.
 
-### F4. Search by symbol ✅
-- LSP-backed workspace symbol search (`⌘T`).
+## L1.9 Session Persistence
 
----
+### L1.9.1 What persists across restart
+- Open project.
+- Pane tree (layout) — geometry preserved.
+- Per-pane: cwd, shell, last 2k scrollback lines.
+- Focused pane.
+- Active layout preset.
 
-## G. Command Palette
+### L1.9.2 What does NOT persist
+- Running processes (panes restart with `[restored]` banner; user re-launches commands).
+- Live PTY state (signals, env mutations after spawn).
 
-### G1. Quick-open files ✅
-- `⌘P` — fuzzy file open.
+### L1.9.3 Storage
+- `.voss/session.json` per project.
+- `~/.config/voss-app/global-session.json` for project-less mode.
 
-### G2. All commands ✅
-- `⌘⇧P` — every command in the app, fuzzy.
-- Categories: View, Edit, Git, Voss, Cell, Terminal, Search, Settings, Help.
-- Recent commands stickier in ranking.
+## L1.10 Onboarding
 
-### G3. Voss-specific commands ✅
-Catalog (v0):
-- `Voss: Spawn new cell`
-- `Voss: Attach reviewer to active cell`
-- `Voss: Detach reviewer`
-- `Voss: Reload loop (`⌘L`)` — hot-reload cell's `.voss` file
-- `Voss: Switch model for active cell`
-- `Voss: Show session cost`
-- `Voss: Show event log` — debug stream of bus events
-- `Voss: Replay last turn` ⏳
-- `Voss: Open .voss policy`
-- `Voss: Fork loop to project` — copies default into `.voss/loops/`
+### L1.10.1 First-run wizard
+- Welcome screen → pick theme → pick shell → done.
+- No API keys requested in L1 (no Voss yet).
 
-### G4. Inline command args ⏳
-- Commands can accept inline args: `Voss: Spawn cell with model claude-haiku-4-5`.
+### L1.10.2 Empty-state UI
+- New window with no project: prompt to "Open folder" or "Start without a project".
+- Empty pane area: keyboard hint `⌘\` to split.
 
----
-
-## H. Voss Panel (the differentiated AI surface)
-
-### H1. Default layout ✅
-- Right side panel, collapsible (`⌘⇧V` toggle).
-- Top: `main` cell (full height by default).
-- Bottom (collapsed by default): `reviewer` cell — expands when first critique arrives.
-- Both render exactly like sketch 001 Variant B cells: 22px header, glyph-prefix lines, inset-shadow focus, monospace.
-
-### H2. Cell controls ✅
-- Header has: role label · model picker (dropdown) · cwd indicator · iter `N/M` · session cost · `⟳ loop.voss` hot-reload indicator.
-- Footer: prompt input (`❯`), broadcast hint dim.
-- `⌘L` reloads cell's `.voss` from disk.
-- `⌘.` applies highlighted reviewer suggestion.
-
-### H3. Cell persistence ✅
-- Cell state in `.voss/sessions.sqlite` (managed by Voss harness).
-- Surviving restart: turns, tool history, last model/loop.
-
-### H4. Cell crash handling ✅
-- If `voss` subprocess dies, cell shows red banner with stderr tail + "Restart" button.
-- **Reviewer cell:** never auto-restarts if main cell is mid-write (file lock held). Manual restart only.
-- Main cell auto-restarts on crash if last turn was idle > 30s; otherwise prompts.
-
-### H5. Swap loop / model live ✅
-- Header dropdown switches model — next turn uses new model.
-- File menu → "Edit cell's loop" opens `.voss` in editor. Save triggers hot-reload (event `dsl_reload`).
-
-### H6. Cell history navigation ✅
-- Scrollback in cell body. Jump to turn N via outline at top.
-- "Time-travel" ⏳ — branch from any past turn into a new cell.
-
-### H7. Multi-cell grid mode ⏳
-- v1. Full-window grid layout (sketch 001 Variant B). Layout presets: fanout · pipeline · swarm · watchers. Press `⌘G` to switch in/out.
-
-### H8. Cell config UI ✅
-- "Configure cell…" opens form: name, model, provider, max_iterations, max_cost_usd, loop file path, tools allowlist.
+### L1.10.3 In-app help
+- Help menu: keybindings cheatsheet (modal), docs link, changelog.
 
 ---
 
-## I. Status Bar
+## L1 Acceptance Criteria (v0 ship gate)
 
-### I1. Left cluster ✅
-- Git branch (clickable → branch switcher).
-- Errors `⊗ N` / warnings `△ N` (clickable → problems panel).
-- LSP status (`✓ pyright` / `⊘ no server`).
+ALL of these must work, repeatable, without bugs:
 
-### I2. Center cluster ✅
-- Current file: language · encoding · EOL · indent · line:col.
+1. Install voss-app on mac/linux/win from official artifact.
+2. Open app → empty state.
+3. Open a folder. Status bar shows project name + git branch.
+4. Split into 2×2 grid via 3 splits.
+5. Each pane runs an independent shell with project cwd.
+6. `⌘1-4` focus works. Click-to-focus works.
+7. Switch layout preset to `pipeline` → panes reorder, none killed.
+8. Resize pane via mouse drag and keyboard.
+9. Save layout as "build-watch". Reload layout from palette.
+10. Run `vim`, `htop`, `tmux` inside a pane — full TTY support including alt-screen.
+11. Copy text from one pane, paste into another.
+12. Quit app. Reopen. Project + panes restored (processes re-launched by user).
+13. Open settings, change theme, font size, shell. Persists across restart.
+14. Customize a keybinding. Persists.
+15. No crashes or PTY leaks over a 24-hour soak test with 8 active panes.
 
-### I3. Right cluster ✅
-- **Voss cells active:** `● 2 cells` (clickable → cells overview).
-- **Session cost:** `$0.42` (clickable → cost breakdown).
-- **Token bar:** thin gradient bar showing consumed / budget.
-- Notifications counter `🔔 N`.
-
-### I4. Click-to-detail ✅
-- All right-cluster items expand to popover with detail (per-cell cost, recent events, etc).
-
----
-
-## J. Settings
-
-### J1. Settings UI ✅
-- File: `.voss/settings.json` (workspace) and `~/.voss/settings.json` (user) — workspace wins.
-- JSON-backed, with GUI form. Two-pane: search + form on left, raw JSON on right (editable, validated).
-
-### J2. Categories ✅
-- Editor (font, theme, formatting)
-- Voss (default model, default loops, max iter, max cost)
-- Permissions (default policy)
-- Keybindings (profile selector + custom map)
-- Git (signing, commit template)
-- LSP (server paths)
-- Terminal (shell, font, scrollback)
-- Telemetry (off by default; opt-in toggles)
-
-### J3. Keybinding profiles ✅
-- Ships: VSCode (default), Vim-mode ⏳, Emacs ⏳.
-- Custom map via `.voss/keymap.json`.
-
-### J4. Provider/auth ✅
-- Manage API keys (Anthropic, OpenAI, others via litellm).
-- Stored via OS keychain (existing `voss/harness/auth.py` integration).
-- Per-project override.
-
-### J5. Sync settings ⏳
-- v1 — sync user settings via GitHub gist or own cloud.
+If any of 1–15 fails, L1/v0 doesn't ship.
 
 ---
 
-## K. Notifications
+# LAYER 2 — Voss Harness Substrate (v1)
 
-### K1. Toast surface ✅
-- Bottom-right corner, stacked, auto-dismiss after 6s (sticky for errors).
-- Categories: info, success, warn, error.
-- Click → optional detail action.
+Adds: any pane can be **promoted to a Voss cell**. Voss harness now in the binary or bundled. Agent UX enters the app.
 
-### K2. Sources ✅
-- Cell `turn_end` if cell not focused → "main: completed turn 5".
-- Reviewer critique posted (high severity only).
-- Cost threshold hit ($1, $5, $20 configurable).
-- Cell crashed.
-- File conflict on external change.
-- Git push/pull complete.
+## L2.1 Cell Promotion
 
-### K3. Notification log ✅
-- Status bar bell icon → history of last 100 notifications.
+### L2.1.1 Promote command
+- Pane menu (`⋯`) → "Promote to Voss cell".
+- Confirms: kill current shell? (Y/N — default N: shell hidden, kept alive for restore).
+- Spawns `voss --ipc-mode jsonl --cwd ... --loop main.voss` in place.
 
----
+### L2.1.2 Cell HUD (header replaces pane header)
+- `● role · model · cwd · iter N/M · cost · ⟳ loop.voss`
+- Identical to sketch 001 Variant B cell header.
 
-## L. Cells Lifecycle & Substrate
+### L2.1.3 Demote
+- "Demote to shell" reverses promotion. Cell session preserved in `.voss/sessions.sqlite`.
 
-### L1. Cell spawn ✅
-- Triggered by: app open (restore), user clicks "+ cell" in panel, command palette, ⌘K (ephemeral).
-- Spawn = fork `voss --ipc-mode jsonl --cell-id X --loop Y --cwd Z`.
-- Cold start ~300ms target.
+## L2.2 Cell Lifecycle
 
-### L2. Cell config schema ✅
-```json
-{
-  "id": "main",
-  "name": "main",
-  "role": "driver",
-  "model": "claude-sonnet-4-6",
-  "provider": "anthropic",
-  "loop": "main.voss",
-  "cwd": "${workspace}",
-  "max_iterations": 12,
-  "max_cost_usd": 5.00,
-  "tools": ["fs_read", "fs_write", "bash", "grep"],
-  "policy": "workspace-default"
-}
-```
+### L2.2.1 Spawn / kill / restart
+- Spawn: fork `voss` subprocess with cell config (JSON via stdin).
+- Kill: SIGTERM, fallback SIGKILL after 5s.
+- Restart: same config, fresh session OR resume from last (user choice).
 
-### L3. Cell-to-cell wiring ✅
-- Reviewer cell subscribes to main's events via `.voss`:
-  ```voss
-  on_event(pane: "main", type: "turn_end") {
-    critique(context: pane.last_turn)
-  }
-  ```
-- Subscriptions registered with shell broker on cell startup.
+### L2.2.2 Crash policy
+- Voss process exits non-zero → red banner with stderr tail.
+- Auto-restart only if cell was idle > 30s before crash.
+- Reviewer cell: never auto-restart while main is mid-write.
 
-### L4. Cell budgets ✅
-- Per-cell `max_cost_usd` enforced inside the harness (existing Voss feature).
-- Per-project budget aggregate in status bar.
-- Hard limit: cell suspends, surface in UI for user to raise or kill.
+### L2.2.3 Persistence
+- `.voss/sessions.sqlite` managed by harness — turns, tool calls, costs.
+- Layout file (`.voss/layouts/<name>.json`) lists cells with config refs.
 
-### L5. Replay ⏳
-- v1 — every event in `sessions.sqlite`, scrubber UI to step backward.
+## L2.3 Cell Render
 
-### L6. Cells overview pane ⏳
-- v1 — list all cells across all projects, kill/restart in bulk.
+### L2.3.1 Streaming tokens
+- Token-by-token append to pane body.
+- Inline cursor block during stream.
 
----
+### L2.3.2 Glyph-prefix line types
+- `❯` user message
+- `⏵` tool call (dim color)
+- `※` reviewer critique (amber)
+- `⊕` patch / diff
+- Plain (no glyph) = assistant text
 
-## M. Permissions UX
+### L2.3.3 Tool call cards
+- Expandable inline blocks showing tool name, args (truncated), result (truncated).
+- Click to expand full.
 
-### M1. Approval prompts ✅
-- File write: native dialog with diff preview · Accept / Reject / Accept always for this file / Open in editor.
-- Shell exec: dialog with full command + cwd · Accept / Reject / Accept always for this exact cmd.
-- Network fetch: domain + path · Accept / Reject / Accept always for domain.
+### L2.3.4 Diff rendering
+- File writes shown as `+/-` colored lines inline.
+- Click to open full diff in modal.
 
-### M2. Policy editor ✅
-- Settings → Permissions opens GUI for `.voss/policy.yaml`.
-- Rules: tool name + glob/regex + decision (auto / prompt / deny).
-- Reviewer cell policy locked to read-only (UI prevents elevation).
+## L2.4 Permissions UX
 
-### M3. Approval inbox ⏳
-- v1 — queue multiple prompts so user can batch-review.
+### L2.4.1 Approval prompts
+- Native Tauri dialog or in-app modal.
+- File write: filename + diff preview · Accept / Reject / Always-this-file.
+- Shell exec: command + cwd · Accept / Reject / Always-this-exact-cmd.
+- Network fetch: URL · Accept / Reject / Always-this-domain.
 
----
+### L2.4.2 Policy editor
+- Settings → Permissions → GUI for `.voss/policy.yaml`.
+- Rules: tool · glob/regex · decision.
 
-## N. Cost & Budgets
+### L2.4.3 Reviewer constraints
+- Reviewer cell locked to read-only tools — enforced at cell config, UI prevents promotion of reviewer with write tools.
 
-### N1. Live meter ✅
-- Status bar shows session total.
+## L2.5 Cost & Budgets
+
+### L2.5.1 Live meter
+- Status bar `$0.42` updates per token.
 - Click → popover with per-cell + per-model breakdown.
 
-### N2. Thresholds & alerts ✅
-- Configurable: $1, $5, $20 — toast on cross.
-- Hard ceiling per cell (`max_cost_usd`) suspends cell.
+### L2.5.2 Budgets
+- Per-cell `max_cost_usd` (cell suspends at limit).
+- Per-project session budget.
+- Toast on $1 / $5 / $20 thresholds (configurable).
 
-### N3. Historical dashboard ⏳
-- v1 — daily/weekly chart, per-project, per-model.
+## L2.6 Reviewer-as-Pair-Programmer (the L2 demo)
+
+### L2.6.1 Attach reviewer
+- Pane menu → "Attach reviewer". Spawns reviewer cell in a new pane (below or right of main, based on layout preset).
+- Reviewer config: `loop: reviewer.voss`, model defaults to haiku-class, read-only policy locked.
+
+### L2.6.2 Trigger
+- Reviewer subscribes to main cell's `turn_end` event.
+- Fires once per main turn. Sees full turn summary + tool history.
+
+### L2.6.3 Critique surface (L2 — terminal-grid only)
+- Critiques appear in reviewer's pane body, glyph-prefixed `※`.
+- Severity color (amber / red / green).
+- No editor gutter pins in L2 (no editor pane exists yet — pushed to L4+).
+
+### L2.6.4 Apply suggestion
+- Reviewer suggestion includes a proposed patch (when applicable).
+- `⌘.` applies the patch to filesystem (with permission prompt).
+
+## L2.7 Multi-Cell Wiring (basic)
+
+### L2.7.1 Event bus
+- Unix-socket broker in `voss-app-core`.
+- Events: `turn_start · turn_token · tool_call · tool_result · turn_end · error · dsl_reload · file_touched`.
+
+### L2.7.2 Subscribers (v1)
+- Reviewer cells subscribed to a named target cell.
+- Status bar subscribed to cost + cell-count.
+- Notifications subscribed to severity-high events.
+
+### L2.7.3 No DSL wiring yet
+- L2 hard-codes the reviewer subscription pattern.
+- General `.voss` event wiring is L3.
+
+## L2.8 Cell Configuration UI
+
+### L2.8.1 Config form
+- Pane menu → "Cell config…" opens form: name · role · model · provider · loop file · cwd · max_iterations · max_cost_usd · tools allowlist · policy ref.
+
+### L2.8.2 Inline model swap
+- Header model dropdown swaps model for next turn.
+
+### L2.8.3 Loop selector
+- Loop dropdown picks from `apps/voss-app/loops/` defaults + project `.voss/loops/` overrides (L3 fully utilizes the override path).
 
 ---
 
-## O. Replay & Audit ⏳ (v1)
+## L2 Acceptance Criteria
 
-- Turn timeline scrubber inside Voss panel.
-- Branch-from-turn — spawn a new cell with state at turn N.
-- Export session as JSONL for sharing/debugging.
-
----
-
-## P. Extensions / Plugins 🔮 (v2+)
-
-- `.voss` files as installable workflows (marketplace deferred indefinitely).
-- Theme packs.
-- Custom LSP additions.
-- Native ext API only if there's user demand.
+1. Promote any pane → spawns `voss` subprocess, header swaps to cell HUD.
+2. Type prompt in cell. Tokens stream. Tool calls appear inline. Files get written (with permission prompts).
+3. Attach reviewer to a cell. Reviewer fires after each main turn. Critique appears in reviewer pane.
+4. Reviewer suggests an edit. `⌘.` applies it. Permission prompt approves.
+5. Status bar cost meter updates live.
+6. Kill app mid-stream. Reopen. Cell session resumes from last completed turn.
+7. Cell crashes (forced). Red banner shown. Restart works.
+8. Demote cell back to shell. Cell session preserved.
 
 ---
 
-## Q. Onboarding ✅
+# LAYER 3 — `.voss` DSL Features (v2)
 
-- First-run wizard: pick a provider, paste API key, validate, pick default model.
-- Sample project: clone a small repo, open it, walk through ⌘K + reviewer demo.
-- "What's a cell?" tooltip on first sidebar interaction.
-- Help menu links to docs + Discord/GitHub.
+Adds: users program their own agents. Curated loop library shipped. Hot-reload. Inter-cell wiring via DSL.
+
+## L3.1 Curated Loop Library
+
+### L3.1.1 Shipped loops
+- `main.voss` — generic driver agent.
+- `reviewer.voss` — critique loop with severity rubric.
+- `executor.voss` — receives plans, applies changes.
+- `watcher.voss` — fs/git event triggers, no LLM by default.
+- `planner.voss` — high-level decomposition, hands off to executor.
+
+### L3.1.2 Loop discovery
+- "Loop gallery" command palette entry browses shipped + project-local loops with descriptions.
+
+### L3.1.3 Fork to project
+- "Fork loop to project" command copies shipped loop into `.voss/loops/<name>.voss` for editing.
+
+## L3.2 Hot-Reload
+
+### L3.2.1 Save → reload
+- Saving a `.voss` file triggers `dsl_reload` event for any cell using that file.
+- Next iteration uses new loop. Mid-iteration changes deferred.
+
+### L3.2.2 Hot-reload indicator
+- Cell header shows `⟳ loop.voss` magenta badge briefly after reload.
+
+### L3.2.3 Failure handling
+- Parse errors surface as toast + cell stays on old loop.
+
+## L3.3 Inter-Cell DSL Wiring
+
+### L3.3.1 Subscribe primitive
+```voss
+on_event(pane: "main", type: "turn_end") {
+  critique(context: pane.last_turn)
+}
+```
+Any cell can subscribe to any other cell's events.
+
+### L3.3.2 Inject primitive
+```voss
+inject_context(pane.last_turn.summary)
+```
+Pull data from another cell into this one's next turn.
+
+### L3.3.3 Spawn primitive
+```voss
+spawn(loop: "executor.voss", pane: "right") { plan: this.plan }
+```
+A cell can spawn another cell programmatically.
+
+### L3.3.4 Pane addressing
+- Named panes (`main`, `reviewer`, `executor`) declared in `.voss/layouts/<name>.json`.
+- Positional (`pane.right`, `pane.below`).
+- Tagged (`pane[role: "reviewer"]`).
+
+## L3.4 DSL Editor Surface
+
+### L3.4.1 Syntax highlighting
+- `.voss` files highlighted in pane scrollback (when shown via `cat` or similar).
+- Future Monaco editor pane (L4+) will get full LSP.
+
+### L3.4.2 In-app loop viewer
+- Cell header `⟳` indicator clickable → opens loop file in OS default editor.
+- Reload triggered automatically on file save (watched).
+
+## L3.5 Layout Preset Semantics
+
+L3 promotes presets from visual templates to behavioral templates.
+
+- **fanout** = source cell broadcasts to N receivers. Auto-wires `on_event(pane:"source", type:"turn_end") { ... }` in receivers.
+- **pipeline** = sequential context flow. Each cell injects predecessor's last turn.
+- **swarm** = N worktrees, same prompt, race semantics. Worktrees managed by L3 worktree service.
+- **watchers** = passive subscribers to a main cell. Auto-attach reviewer + test-watcher + lint-watcher.
+
+Selecting a preset offers "wire as preset" — user can decline and keep purely visual.
 
 ---
 
-## R. What's Explicitly Not in voss-app
+## L3 Acceptance Criteria
+
+1. Save a `.voss` file → cell hot-reloads, magenta indicator flashes.
+2. Write `on_event(pane:"main", type:"turn_end") { ... }` in reviewer.voss → reviewer wakes on main turn end.
+3. "Fork loop to project" creates editable copy. Edits persist.
+4. Select "fanout" layout preset → choose "wire as preset" → broadcast actually works (source turn end fans out to 3 receivers).
+5. Parse error in `.voss` shows toast, doesn't crash cell.
+
+---
+
+# LAYER 4+ — Deferred Surfaces
+
+**Status:** uncommitted. Evaluate after L3 ships. Not promised.
+
+## L4.A Editor Pane
+- Monaco multi-tab inside a pane slot.
+- LSP integration (TS, Python, Rust day one).
+- Gutter pins for reviewer critique (reviewer cell would need to know about the editor — adds coupling).
+- `⌘K` selection → diff preview → apply.
+- Ghost-text autocomplete via dedicated completion cell.
+
+## L4.B File Tree Pane
+- Sidebar tree, expand/collapse, ops.
+- Agent-touched badges (consumes `file_touched` events from L2).
+- Drag-to-context-inject.
+
+## L4.C Source Control Pane
+- Git status, stage hunks, commit, branch ops.
+- Diff viewer.
+- Pre-commit reviewer hook.
+- Worktree manager (powers L3 "swarm" preset properly).
+
+## L4.D Search Pane
+- ripgrep-backed find/replace.
+- Send-results-to-cell.
+
+## L4.E Replay & Audit
+- Turn timeline scrubber.
+- Branch-from-turn (fork a cell at turn N into a new cell).
+- Export session as JSONL.
+
+## L4.F Cells Overview
+- Cross-project cells dashboard. Bulk kill/restart.
+
+## L4.G Cost Dashboard
+- Historical charts. Per-project, per-model.
+
+## L4.H ⌘K Inline Edit (outside editor pane)
+- Even without Monaco, selection in terminal output could feed ⌘K. Possible L2 if scoped down.
+
+---
+
+# What voss-app is NOT (cross-layer)
 
 - ⛔ Cloud-hosted sessions — local-first only.
 - ⛔ Anonymous telemetry on by default.
 - ⛔ Vendor lock on agent loops — `.voss` is always editable.
 - ⛔ Chat-only mode as the primary surface.
-- ⛔ Built-in debugger UI (defer to LSP / DAP integration v2+).
-- ⛔ Visual builder for `.voss` (text-first; GUI builder is v2+ at earliest).
-- ⛔ Always-on agent rewrite of every keystroke (user owns the keyboard).
+- ⛔ Built-in debugger UI.
+- ⛔ Visual builder for `.voss` (text-first; defer indefinitely).
+- ⛔ Always-on agent rewrite of every keystroke.
+- ⛔ Voss exposed before user opts in — L1 user can ignore Voss forever.
 
 ---
 
-## v0 Feature Acceptance (the door to spec phase)
+# Spec-Phase Readiness Checklist
 
-For v0 to ship, ALL of these must be true in a real workspace:
+Before invoking `/gsd:spec-phase` for L1:
 
-1. Open a folder. Tabs persist across restart.
-2. Edit a Python file with LSP completion + diagnostics.
-3. Save the file. Watcher updates tree.
-4. Stage + commit via SCM pane.
-5. Open terminal, run `pytest`.
-6. Promote terminal to Voss cell.
-7. Type prompt in Voss panel `main` cell. Cell streams. Edits a file.
-8. Reviewer cell auto-runs on main's `turn_end`. Posts a pin in editor gutter.
-9. Click pin → see critique. `⌘.` applies suggested edit.
-10. Status bar shows live cost + cell count.
-11. `⌘K` on a selection → diff preview → accept.
-12. Quit + relaunch — everything resumes.
+- [ ] Layer ordering locked (✅ this doc)
+- [ ] L1 feature list complete (✅ this doc)
+- [ ] L1 acceptance criteria defined (✅ this doc)
+- [ ] Variant B aesthetic locked (✅ sketch 001)
+- [ ] Tauri + Solid + xterm + portable-pty stack confirmed (✅ CONCEPT §6)
+- [ ] Monorepo layout decided (✅ CONCEPT §8)
+- [ ] Open questions in CONCEPT §10 closed (⏳ 9 remaining)
+- [ ] Public ship name decided (⏳ working: voss-app)
+- [ ] Default shell behavior on pane open (⏳)
+- [ ] Pane lifecycle on shell exit (⏳)
+- [ ] Distribution channel + signing strategy (⏳)
+- [ ] Telemetry policy (⏳)
 
-If any of 1–12 fails, v0 doesn't ship.
+Once `⏳` rows close, spec-phase can lock the L1 contract.

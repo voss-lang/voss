@@ -4,12 +4,15 @@ import asyncio
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from voss_runtime import ToolDescriptor, tool
 
 from .sandbox import jail_path, shell_allowed, split_command, SandboxError
 from .tui.widgets.diff_modal import DiffDecision, Hunk
+
+if TYPE_CHECKING:
+    from voss.harness.net import NetSession
 
 
 @dataclass(frozen=True)
@@ -18,10 +21,15 @@ class ToolEntry:
 
     `is_mutating` drives mode-tier denial in PermissionGate (see D-06):
     classification is data at registration, not name-pattern matching.
+
+    `is_network` drives the allow_net gate in PermissionGate (T3-02). It is
+    independent of `is_mutating`: a network tool may be read-only
+    (web_fetch) yet still must clear the allow_net check.
     """
 
     descriptor: ToolDescriptor
     is_mutating: bool
+    is_network: bool = False
 
     @property
     def name(self) -> str:
@@ -61,7 +69,12 @@ def _read_one_for_bundle(cwd: Path, path: str) -> str:
     return text
 
 
-def make_toolset(cwd: Path, *, renderer=None) -> dict[str, ToolEntry]:
+def make_toolset(
+    cwd: Path,
+    *,
+    renderer=None,
+    net: "NetSession | None" = None,
+) -> dict[str, ToolEntry]:
     """Build the harness toolset bound to a project cwd.
 
     Returns a dict of tool name -> ToolEntry. Each entry carries an

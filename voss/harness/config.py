@@ -24,7 +24,14 @@ def config_path() -> Path:
 
 _HARNESS_BLOCK = re.compile(r"^\[harness\][^\[]*", re.MULTILINE)
 _AGENT_BLOCK = re.compile(r"^\[agent\][^\[]*", re.MULTILINE)
+_TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
 _KV = re.compile(r'^\s*(\w+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*$', re.MULTILINE)
+# Bare (unquoted) right-hand values for [tools] keys like
+# `allow_net = true`. The existing _KV regex only matches double-quoted
+# strings; TOML booleans are bare, so they need their own matcher.
+# The pattern captures any non-whitespace token after `=`; get_allow_net
+# validates 'true' / 'false' and warns on anything else.
+_KV_BARE = re.compile(r"^\s*(\w+)\s*=\s*([^\s\"#]+)\s*$", re.MULTILINE)
 
 
 def _parse_harness_section(text: str) -> dict[str, str]:
@@ -41,6 +48,23 @@ def _parse_agent_section(text: str) -> dict[str, str]:
         return {}
     block = m.group(0)
     return {k: v for k, v in _KV.findall(block)}
+
+
+def _parse_tools_section(text: str) -> dict[str, str]:
+    """Return `[tools]` keys. Booleans go through _KV_BOOL (no quotes);
+    quoted-string values would go through _KV. allow_net is boolean only."""
+    m = _TOOLS_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    out: dict[str, str] = {}
+    for k, v in _KV.findall(block):
+        out[k] = v
+    for k, v in _KV_BARE.findall(block):
+        # Don't overwrite a quoted-string match with a stray bare token
+        # (e.g. when a value coincidentally lacks quotes).
+        out.setdefault(k, v)
+    return out
 
 
 def load_harness_config() -> dict[str, str]:
@@ -65,6 +89,18 @@ def load_agent_config() -> dict[str, str]:
     except OSError:
         return {}
     return _parse_agent_section(text)
+
+
+def load_tools_config() -> dict[str, str]:
+    """Return the `[tools]` section as a dict. Missing file / section -> {}."""
+    p = config_path()
+    if not p.exists():
+        return {}
+    try:
+        text = p.read_text()
+    except OSError:
+        return {}
+    return _parse_tools_section(text)
 
 
 def get_max_iterations() -> int:
@@ -120,6 +156,31 @@ def get_max_parallel_reads() -> int:
         )
         return default
     return n
+
+
+def get_allow_net() -> bool:
+    """Resolve [tools] allow_net, falling back to RuntimeConfig default (False).
+
+    Accepts exact 'true' / 'false' (case-insensitive). Any other value emits
+    RuntimeWarning and falls back to the default. NET-05a/b acceptance.
+    """
+    default = RuntimeConfig().allow_net
+    cfg = load_tools_config()
+    raw = cfg.get("allow_net")
+    if raw is None:
+        return default
+    normalized = raw.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    warnings.warn(
+        f"[tools] allow_net = {raw!r} is not a boolean; "
+        f"falling back to default {default}",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    return default
 
 
 def set_preferred_model(name: str) -> Path:
