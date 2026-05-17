@@ -11,7 +11,7 @@ Landed the T4 Wave 0 red-test scaffold:
 - Raised the `litellm` floor to `>=1.74.0` and added `vcrpy>=8.0.0,<9` under dev dependencies.
 - Added nine harness pytest files covering CACHE-01 through CACHE-07 with hard-red `pytest.fail(...)` stubs.
 - Added the cassette fixture README documenting the `VOSS_RECORD=1` re-record workflow and `filter_headers` redaction contract.
-- Removed an unrelated T6 planning file that was accidentally introduced during subagent execution.
+- Removed unrelated T6 planning files that were accidentally introduced during subagent execution.
 
 ## Files Changed
 
@@ -39,6 +39,9 @@ Landed the T4 Wave 0 red-test scaffold:
 ## Deviations
 
 - Subagent execution created commits even though the worker prompts said not to commit. The final worktree was reconciled without history rewriting.
-- One unrelated file, `.planning/phases/T6-slash-debt/T6-PATTERNS.md`, was introduced by a subagent and removed during close-out.
+- Unrelated T6 planning files were introduced by a subagent and removed during close-out:
+  `.planning/phases/T6-slash-debt/T6-PATTERNS.md`,
+  `.planning/phases/T6-slash-debt/T6-01-cost-by-tool-approximation-PLAN.md`, and
+  `.planning/phases/T6-slash-debt/T6-02-grouped-help-and-cli-signpost-PLAN.md`.
 
 ## Self-Check: PASSED
