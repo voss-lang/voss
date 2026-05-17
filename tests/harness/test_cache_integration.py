@@ -1,24 +1,24 @@
-"""CACHE-05 + CACHE-07 cassette proof for Anthropic prompt caching.
+"""CACHE-05 + CACHE-07 cassette proof for Anthropic OAuth prompt caching.
 
-Replay-only in CI. Set VOSS_RECORD=1 with ANTHROPIC_API_KEY for the one-time
-recording run.
+Replay-only in CI. Set VOSS_RECORD=1 to record through Claude Code OAuth.
 """
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import pytest
 
 vcr = pytest.importorskip("vcr")
 
-from voss.harness.agent import Plan, run_turn
+from voss.harness import auth
+from voss.harness.agent import run_turn
 from voss.harness.permissions import PermissionGate
-from voss.harness.providers import Done, ParsedPlan, Usage
+from voss.harness.providers import AnthropicOAuthProvider
 from voss.harness.render import PlainRenderer
 from voss.harness.tools import make_toolset
 from voss_runtime.providers.base import ProviderResponse
-from voss_runtime.providers.litellm_provider import LiteLLMProvider
 
 
 _CASSETTE_DIR = Path(__file__).parent / "fixtures" / "cassettes"
@@ -27,8 +27,6 @@ _MODEL = "claude-sonnet-4-5"
 
 def _cassette(name: str):
     record_mode = "new_episodes" if os.environ.get("VOSS_RECORD") == "1" else "none"
-    if record_mode == "none":
-        os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-vcr-replay-placeholder")
     return vcr.use_cassette(
         str(_CASSETTE_DIR / f"{name}.yaml"),
         record_mode=record_mode,
@@ -39,7 +37,16 @@ def _cassette(name: str):
             "cookie",
             "set-cookie",
         ],
+        before_record_response=_redact_response_headers,
     )
+
+
+def _redact_response_headers(response):
+    headers = response.get("headers", {})
+    for key in list(headers):
+        if key.lower() in {"cookie", "set-cookie"}:
+            headers.pop(key, None)
+    return response
 
 
 def _cacheable_voss_md() -> str:
@@ -50,11 +57,23 @@ def _cacheable_voss_md() -> str:
     )
 
 
-class CassetteLiteLLMProvider:
-    """Streaming shim for run_turn that keeps the API hop on LiteLLM."""
+def _oauth_creds() -> auth.AnthropicOAuthCreds:
+    if os.environ.get("VOSS_RECORD") == "1":
+        resolved = auth.resolve("claude")
+        if resolved.anthropic_oauth is None:
+            pytest.skip(f"Claude OAuth unavailable for recording: {resolved.detail}")
+        return resolved.anthropic_oauth
 
-    def __init__(self) -> None:
-        self._delegate = LiteLLMProvider()
+    return auth.AnthropicOAuthCreds(
+        access_token="vcr-replay-token",
+        refresh_token="vcr-replay-refresh",
+        expires_at_ms=int((time.time() + 3600) * 1000),
+        subscription_type="replay",
+    )
+
+
+class CassetteOAuthProvider(AnthropicOAuthProvider):
+    """OAuth provider with local record_run close-out to keep cassette focused."""
 
     async def complete(
         self,
@@ -78,7 +97,7 @@ class CassetteLiteLLMProvider:
                 raw={"test_stub": "record_run"},
                 parsed=parsed,
             )
-        return await self._delegate.complete(
+        return await super().complete(
             messages=messages,
             model=model,
             response_format=response_format,
@@ -88,39 +107,9 @@ class CassetteLiteLLMProvider:
             timeout=timeout,
         )
 
-    async def stream(self, **kwargs):
-        response = await self._delegate.complete(
-            messages=kwargs["messages"],
-            model=kwargs["model"],
-            response_format=None,
-            tools=kwargs.get("tools"),
-            temperature=0.0,
-            max_tokens=64,
-            timeout=kwargs.get("timeout"),
-        )
-        yield ParsedPlan(
-            Plan(
-                rationale="cache integration cassette",
-                steps=[],
-                confidence=0.95,
-                final_when_done=(response.text or "cache probe complete")[:200],
-            )
-        )
-        yield Usage(
-            prompt_tokens=response.prompt_tokens,
-            completion_tokens=response.completion_tokens,
-            cost_usd=response.cost_usd,
-            cache_creation_input_tokens=response.cache_creation_input_tokens,
-            cache_read_input_tokens=response.cache_read_input_tokens,
-        )
-        yield Done(stop_reason="end_turn")
-
-    def count_tokens(self, *, text: str, model: str) -> int:
-        return self._delegate.count_tokens(text=text, model=model)
-
 
 async def _run_one_turn(
-    *, cwd: Path, provider: CassetteLiteLLMProvider, prompt: str
+    *, cwd: Path, provider: CassetteOAuthProvider, prompt: str
 ):
     result = await run_turn(
         prompt,
@@ -139,18 +128,21 @@ async def _run_one_turn(
 
 
 async def _run_two_turns(tmp_path: Path):
-    provider = CassetteLiteLLMProvider()
-    turn1 = await _run_one_turn(
-        cwd=tmp_path,
-        provider=provider,
-        prompt="Hello, identify yourself and the model you are.",
-    )
-    turn2 = await _run_one_turn(
-        cwd=tmp_path,
-        provider=provider,
-        prompt="Now describe one project you've helped with.",
-    )
-    return turn1, turn2
+    provider = CassetteOAuthProvider(_oauth_creds())
+    try:
+        turn1 = await _run_one_turn(
+            cwd=tmp_path,
+            provider=provider,
+            prompt="Hello, identify yourself and the model you are.",
+        )
+        turn2 = await _run_one_turn(
+            cwd=tmp_path,
+            provider=provider,
+            prompt="Now describe one project you've helped with.",
+        )
+        return turn1, turn2
+    finally:
+        await provider.aclose()
 
 
 @pytest.mark.asyncio

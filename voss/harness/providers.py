@@ -198,7 +198,7 @@ class AnthropicOAuthProvider:
         max_tokens: Optional[int],
     ) -> dict[str, Any]:
         # Split out system messages — Anthropic API takes them separately.
-        system_chunks: list[str] = []
+        system_chunks: list[Any] = []
         chat: list[dict] = []
         for m in messages:
             role = m.get("role", "user")
@@ -214,7 +214,13 @@ class AnthropicOAuthProvider:
         # harness's own system message.
         system_blocks = [{"type": "text", "text": CLAUDE_CODE_PREAMBLE}]
         for chunk in system_chunks:
-            if chunk:
+            if isinstance(chunk, list):
+                system_blocks.extend(
+                    block
+                    for block in chunk
+                    if isinstance(block, dict) and block.get("type") == "text"
+                )
+            elif chunk:
                 system_blocks.append({"type": "text", "text": chunk})
 
         body: dict[str, Any] = {
@@ -356,6 +362,9 @@ class AnthropicOAuthProvider:
                 tool_use_json: dict[str, list[str]] = {}
                 captured_stop_reason: str = "end_turn"
                 captured_usage: Optional[Usage] = None
+                message_start_input_tokens = 0
+                message_start_cache_creation = 0
+                message_start_cache_read = 0
 
                 async for line in resp.aiter_lines():
                     if not line or line.startswith(":"):
@@ -371,7 +380,20 @@ class AnthropicOAuthProvider:
                         continue
                     ev_type = data.get("type", "")
 
-                    if ev_type == "content_block_start":
+                    if ev_type == "message_start":
+                        msg = data.get("message", {}) or {}
+                        usage = msg.get("usage", {}) or {}
+                        message_start_input_tokens = int(
+                            usage.get("input_tokens", 0)
+                        )
+                        message_start_cache_creation = int(
+                            usage.get("cache_creation_input_tokens", 0)
+                        )
+                        message_start_cache_read = int(
+                            usage.get("cache_read_input_tokens", 0)
+                        )
+
+                    elif ev_type == "content_block_start":
                         cb = data.get("content_block", {}) or {}
                         if cb.get("type") == "tool_use":
                             tu_id = cb.get("id", "")
@@ -403,9 +425,12 @@ class AnthropicOAuthProvider:
                         usage = data.get("usage")
                         if usage:
                             captured_usage = Usage(
-                                prompt_tokens=int(usage.get("input_tokens", 0)),
+                                prompt_tokens=message_start_input_tokens
+                                or int(usage.get("input_tokens", 0)),
                                 completion_tokens=int(usage.get("output_tokens", 0)),
                                 cost_usd=0.0,
+                                cache_creation_input_tokens=message_start_cache_creation,
+                                cache_read_input_tokens=message_start_cache_read,
                             )
 
                     elif ev_type == "message_stop":
