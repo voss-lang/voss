@@ -5,7 +5,6 @@ import json
 import os
 import re
 import shutil
-import signal
 import time
 from pathlib import Path
 from typing import Any
@@ -114,7 +113,7 @@ def test_monitor_cursor_progression(tmp_path: Path) -> None:
         assert "[running]" in first_prefix
         assert first_cursor >= 0
 
-        time.sleep(0.4)
+        await asyncio.sleep(0.4)
         second = await _invoke(tools, "shell_monitor", handle=handle, since_ms=first_cursor)
         second_prefix, second_chunk = second.split("\n", 1)
         assert "[exit " in second_prefix
@@ -131,7 +130,7 @@ def test_monitor_across_turns(tmp_path: Path) -> None:
 
         first_turn = make_toolset(tmp_path)
         handle = await _invoke(first_turn, "shell_run_background", cmd=_emit_cmd(4))
-        time.sleep(0.12)
+        await asyncio.sleep(0.12)
 
         second_turn = make_toolset(tmp_path)
         monitor = await _invoke(second_turn, "shell_monitor", handle=handle, since_ms=0)
@@ -178,7 +177,7 @@ def test_signal_terminates(tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
         handle = await _invoke(tools, "shell_run_background", cmd=f"{_PYTHON_BIN} {script}")
         assert "<denied:" not in await _invoke(tools, "shell_signal", handle=handle, signal="TERM")
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         monitor = await _invoke(tools, "shell_monitor", handle=handle, since_ms=0)
         assert "[exit 0]" in monitor
 
@@ -277,7 +276,7 @@ def test_no_output_watchdog(tmp_path: Path) -> None:
             cmd=f"{_PYTHON_BIN} {quiet}",
             no_output_deadline_s=0.3,
         )
-        time.sleep(0.6)
+        await asyncio.sleep(0.6)
         monitor = await _invoke(tools, "shell_monitor", handle=handle, since_ms=0)
         assert "reason=\"watchdog_no_output\"" in monitor
         assert "shell.background.reap" in monitor
@@ -299,7 +298,7 @@ def test_rss_watchdog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         )
         tools = make_toolset(tmp_path)
         handle = await _invoke(tools, "shell_run_background", cmd=_emit_cmd(40))
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         monitor = await _invoke(tools, "shell_monitor", handle=handle, since_ms=0)
         assert "reason=\"watchdog_mem\"" in monitor
         assert "shell.background.reap" in monitor

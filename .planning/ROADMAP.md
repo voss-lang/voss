@@ -939,7 +939,7 @@ tasks don't block the agent.
 **Plans:** 5 plans
 
 Plans:
-- [ ] T5-01-test-scaffold-and-psutil-dep-PLAN.md — Wave 1: failing test surface (SHELL-01..05 + SC#1/#2/#3) + emit.py fixture + `_JOBS` reset + `30720` source guard + [BLOCKING human-verify] psutil legitimacy gate then `psutil>=5.9,<8` dep add
+- [x] T5-01-test-scaffold-and-psutil-dep-PLAN.md — Wave 1: failing test surface (SHELL-01..05 + SC#1/#2/#3) + emit.py fixture + `_JOBS` reset + `30720` source guard + [BLOCKING human-verify] psutil legitimacy gate then `psutil>=5.9,<8` dep add
 - [ ] T5-02-shell-run-cap-raise-PLAN.md — Wave 2: SHELL-01 cap 4096→30720 in both `shell_run` AND `_shell_capture` (Flag 1: raise both); envelope + 30s timeout untouched
 - [ ] T5-03-job-registry-and-background-spawn-PLAN.md — Wave 3: JobRecord + atomic `.meta.json` sidecar + `_JOBS` registry + `register_job`/`reap_jobs`/`signal_job` + single supervisor task (pump+30s+100MB) + `start_new_session`/killpg + `shell.background.reap` + `shell_run_background` (SHELL-02, SC#2/#3, D-01/02/05/08/09/10/11)
 - [ ] T5-04-monitor-signal-and-permissions-PLAN.md — Wave 4: `shell_monitor` cursor read + `shell_signal` INT/TERM + 2 ToolEntry regs + D-12 edit-mode deny (explicit name-set) + permissions_bridge verbs (SHELL-03/04, SC#1, D-03/06/12)
