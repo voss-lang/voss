@@ -9,7 +9,7 @@ description = "Voss runtime library"
 requires-python = ">=3.11"
 dependencies = [
     "lark>=1.1.9",
-    "litellm>=1.50.0",
+    "litellm>=1.74.0",  # T4 CACHE-03: cache-cost double-count fix (PR #9838, PR #25517)
     "pydantic>=2.6,<3.0",
     "portalocker>=2.8",
     "anthropic>=0.40.0",
@@ -38,6 +38,7 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-mock>=3.12",
     "respx>=0.21",
+    "vcrpy>=8.0.0,<9",  # T4 CACHE-05: cassette replay; v8 patches httpcore
     # `dev` includes `search` so the test suite can exercise semantic memory.
     "chromadb>=0.5.0",
     "sentence-transformers>=2.7.0",
