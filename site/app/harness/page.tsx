@@ -70,8 +70,8 @@ export default function HarnessPage() {
             </Reveal>
             <Reveal delay={0.05}>
               <h1 className="display text-balance text-[clamp(2.5rem,6vw,4.5rem)]">
-                Ship AI features<br />
-                <span className="em">without becoming an SRE.</span>
+                An agent loop that<br />
+                <span className="em">stays inside the lines.</span>
               </h1>
             </Reveal>
             <Reveal delay={0.1}>
