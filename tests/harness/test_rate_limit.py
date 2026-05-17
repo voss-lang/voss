@@ -186,4 +186,20 @@ def test_toml_warns_on_bad_table(xdg) -> None:
 
 
 def test_mcp_bypasses_bucket() -> None:
-    pytest.skip("pending T3-05 — NetSession.acquire + MCP-bypass invariant land in T3-05")
+    """NET-07e / D-16: MCP-namespaced names (server__tool) skip the bucket.
+
+    Exhaust the web_fetch bucket, then prove a `__`-namespaced tool name
+    still returns (True, 0.0) every time — MCP traffic is never throttled.
+    """
+    from voss.harness.net import NetSession
+
+    session = NetSession(rate_overrides={"web_fetch": {"rate": 1, "burst": 1}})
+    ok, _ = session.acquire("web_fetch")
+    assert ok is True
+    ok, _ = session.acquire("web_fetch")
+    assert ok is False  # bucket exhausted
+
+    for _ in range(100):
+        ok, retry = session.acquire("filesystem__read_text_file")
+        assert ok is True
+        assert retry == 0.0

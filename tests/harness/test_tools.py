@@ -95,6 +95,7 @@ class TestToolEntryClassification:
 
     def test_mutating_count(self, tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
-        # T2-05 added fs_read_many (is_mutating=False), so 5 mutating, 7 non-mutating.
+        # T2-05 added fs_read_many (is_mutating=False); T3-05 added web_fetch
+        # (is_mutating=False, is_network=True). 5 mutating, 8 non-mutating.
         assert sum(1 for e in tools.values() if e.is_mutating) == 5
-        assert sum(1 for e in tools.values() if not e.is_mutating) == 7
+        assert sum(1 for e in tools.values() if not e.is_mutating) == 8

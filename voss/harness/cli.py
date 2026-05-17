@@ -66,6 +66,25 @@ def _bootstrap_runtime_config() -> None:
     )
 
 
+_NET_SESSION: "NetSession | None" = None
+
+
+def _get_net_session() -> "NetSession":
+    """Lazily construct the process-wide NetSession.
+
+    Lazy so test-import never allocates an httpx client and the boot
+    configure() stays construct-free (matches T1-04/T2-02 pattern).
+    NetSession.__init__ registers itself with lifecycle for reap.
+    """
+    global _NET_SESSION
+    if _NET_SESSION is None:
+        from .config import get_net_rate_limits
+        from .net import NetSession
+
+        _NET_SESSION = NetSession(rate_overrides=get_net_rate_limits())
+    return _NET_SESSION
+
+
 _bootstrap_runtime_config()
 
 
@@ -1049,7 +1068,7 @@ def do_cmd(
         sys.exit(2)
 
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    tools = make_toolset(cwd, renderer=renderer)
+    tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
     voss_md_text = voss_md.read_and_inject(cwd)
@@ -1292,7 +1311,7 @@ def _run_repl(
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    tools = make_toolset(cwd, renderer=renderer)
+    tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
@@ -1688,7 +1707,7 @@ def _extension_context(
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
     renderer = renderer or make_renderer(json_mode=False)
-    tools = make_toolset(cwd, renderer=renderer)
+    tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     gate = gate or PermissionGate(mode="edit", store=PermissionStore.load(cwd))
     ctx = SimpleNamespace(
         cwd=cwd,
