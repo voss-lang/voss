@@ -17,7 +17,6 @@ from voss.harness.agent import run_turn
 from voss.harness.permissions import PermissionGate
 from voss.harness.providers import AnthropicOAuthProvider
 from voss.harness.render import PlainRenderer
-from voss.harness.tools import make_toolset
 from voss_runtime.providers.base import ProviderResponse
 
 
@@ -52,7 +51,7 @@ def _redact_response_headers(response):
 def _cacheable_voss_md() -> str:
     # Anthropic requires a cache breakpoint to cover at least 1024 tokens.
     return "\n".join(
-        f"Cache integration stable prefix line {idx}: Voss caches this context."
+        f"OAuth cache integration v2 stable prefix line {idx}: Voss caches this context."
         for idx in range(1300)
     )
 
@@ -113,7 +112,7 @@ async def _run_one_turn(
 ):
     result = await run_turn(
         prompt,
-        tools=make_toolset(cwd),
+        tools={},
         cwd=cwd,
         renderer=PlainRenderer(),
         model=_MODEL,
