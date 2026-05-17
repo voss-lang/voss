@@ -30,9 +30,29 @@ def fake_ctx(tmp_path):
     )
 
 
-def test_by_model_matches_per_run_sum_to_4_decimals(fake_ctx) -> None:
-    pytest.fail("T4-05 lands /cost --by-model verification and D-09 update")
+def test_by_model_matches_per_run_sum_to_4_decimals(fake_ctx, capsys) -> None:
+    from voss.harness.cli import _build_slash_registry
+
+    fake_ctx.record.runs = [
+        {"cost_usd": 0.0123, "changed": []},
+        {"cost_usd": 0.0456, "changed": []},
+    ]
+    fake_ctx.record.model = "claude-sonnet-4-7"
+    fake_ctx.total_cost = 0.0579
+
+    registry = _build_slash_registry()
+    registry.lookup("/cost").handler(fake_ctx, ["--by-model"], "/cost --by-model")
+    out = capsys.readouterr().out
+
+    assert "$0.0579" in out
+    assert "claude-sonnet-4-7" in out
 
 
-def test_by_tool_placeholder_cites_t6(fake_ctx) -> None:
-    pytest.fail("T4-05 lands /cost --by-model verification and D-09 update")
+def test_by_tool_placeholder_cites_t6(fake_ctx, capsys) -> None:
+    from voss.harness.cli import _build_slash_registry
+
+    registry = _build_slash_registry()
+    registry.lookup("/cost").handler(fake_ctx, ["--by-tool"], "/cost --by-tool")
+    out = capsys.readouterr().out
+
+    assert "T6 SLASH-07" in out
