@@ -177,16 +177,17 @@ pytest markers available — pyproject.toml:67-71 (`slow`, `live`, `acceptance`;
       - `test_no_output_watchdog` (SC#3) — inject a SMALL `no_output_deadline_s` (e.g. 0.3), never 30s; assert kill + `shell.background.reap` with `reason="watchdog_no_output"`.
       - `test_rss_watchdog` (SC#3) — monkeypatch the tree-RSS probe to return a synthetic >100MB int; NEVER allocate real memory; assert kill + `reason="watchdog_mem"`.
       - `test_edit_mode_denies_background_and_signal` (D-12) — `mode_allows("edit", "shell_run_background", True)` and `mode_allows("edit", "shell_signal", True)` both deny; `mode_allows("edit", "shell_monitor", False)` stays allowed.
+      - `test_toolset_path_uses_real_session_id` (SHELL-02/05 cross-process contract) — build `make_toolset(tmp_path, session_id="sess-abc")`, invoke the `shell_run_background` descriptor with a short allowlisted command, assert a sidecar appears under `tmp_path/.voss-cache/jobs/sess-abc/` and NOT under `.../jobs/_nosession/` (guards against the orphaned-wiring false-green the gate caught; implemented + made GREEN in T5-05 Task 1).
     Where a stub references an as-yet-unimplemented symbol, guard the import so the FUNCTION fails (red) rather than the MODULE failing to collect — collection must succeed so `pytest --co` lists every test.
 
-    Extend `tests/harness/test_shell_timeout.py`: add a sibling `@pytest.mark.slow` source-inspection test (mirror `test_real_shell_run_timeout_contract_documented` at :116-128) asserting `"30720" in inspect.getsource(tools_mod.make_toolset)` — guards SHELL-01 against silent regression exactly like the existing `timeout=30.0` guard. Do not modify the existing test.
+    Extend `tests/harness/test_shell_timeout.py`: add a sibling `@pytest.mark.slow` source-inspection test (mirror `test_real_shell_run_timeout_contract_documented` at :116-128) asserting `"30720" in inspect.getsource(tools_mod.make_toolset)` — guards SHELL-01 against silent regression exactly like the existing `timeout=30.0` guard. The new test MUST be named `test_shell_run_30kb_cap_documented` (the substring `cap` is REQUIRED so the `pytest ... -k cap` selector in T5-VALIDATION.md / T5-02 actually matches a test — a name without `cap` would make the selector silently select zero tests = false green; WARNING 1 fix). Do not modify the existing test.
   </action>
   <verify>
-    <automated>python -m pytest tests/harness/test_t5_shell.py --co -q && python -m pytest tests/harness/test_t5_shell.py -q --no-header 2>&1 | tail -3</automated>
+    <automated>python -m pytest tests/harness/test_t5_shell.py --co -q && python -m pytest "tests/harness/test_shell_timeout.py::test_shell_run_30kb_cap_documented" --co -q | grep -q "1 test" && python -m pytest tests/harness/test_t5_shell.py -q --no-header 2>&1 | tail -3</automated>
     <requirement>SHELL-01..05, SC#1/#2/#3 (test surface exists, all red)</requirement>
     <expected>`pytest --co` collects all ~12 T5 stubs with zero collection errors; running them shows all failing (red) — none pass, none are skip-by-default. emit.py exists and is executable as a script.</expected>
   </verify>
-  <done>`tests/harness/test_t5_shell.py` collects cleanly and every stub is RED; `tests/harness/fixtures/emit.py` prints N lines with flush+sleep; `test_shell_timeout.py` has a new failing `30720` source guard (red until T5-02); the `30720`-not-yet-present source guard fails for the right reason.</done>
+  <done>`tests/harness/test_t5_shell.py` collects cleanly and every stub is RED; `tests/harness/fixtures/emit.py` prints N lines with flush+sleep; `test_shell_timeout.py` has a new failing source guard named `test_shell_run_30kb_cap_documented` (name contains `cap` so `-k cap` matches it — WARNING 1 fix; RED until T5-02 raises the cap); the `30720`-not-yet-present guard fails for the right reason.</done>
 </task>
 
 </tasks>
@@ -210,7 +211,7 @@ pytest markers available — pyproject.toml:67-71 (`slow`, `live`, `acceptance`;
 - `pytest tests/harness/test_t5_shell.py --co -q` collects every stub, zero errors.
 - All T5 stubs RED (no implementation yet) — Nyquist precondition satisfied.
 - `import psutil` resolves; `lifecycle._JOBS` exists + cleared by `reset_for_tests()`.
-- `pytest tests/harness/test_shell_timeout.py -k cap -q` runs (the new `30720` guard is RED until T5-02 raises the cap).
+- `pytest tests/harness/test_shell_timeout.py -k cap -q` collects EXACTLY the new `test_shell_run_30kb_cap_documented` (RED until T5-02; the `cap` substring guarantees the selector is non-empty — WARNING 1 fix).
 </verification>
 
 <success_criteria>

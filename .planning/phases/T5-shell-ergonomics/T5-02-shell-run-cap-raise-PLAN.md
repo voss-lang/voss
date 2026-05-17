@@ -89,11 +89,11 @@ asserts `"30720" in inspect.getsource(tools_mod.make_toolset)`.
     Do NOT add new code paths, do NOT change the timeout, do NOT add a constant — match the inline-literal style already shipped at tools.py:68 (no module constant was introduced there).
   </action>
   <verify>
-    <automated>python -m pytest tests/harness/test_shell_timeout.py -k "cap or timeout_contract" -q && python -c "import inspect; from voss.harness import tools as t; s=inspect.getsource(t.make_toolset); assert s.count('30720')>=2, s.count('30720'); assert '4096' not in inspect.getsource(t._shell_capture), 'capture still 4096'"</automated>
+    <automated>python -m pytest "tests/harness/test_shell_timeout.py::test_shell_run_30kb_cap_documented" "tests/harness/test_shell_timeout.py::test_real_shell_run_timeout_contract_documented" -q && python -c "import inspect; from voss.harness import tools as t; s=inspect.getsource(t.make_toolset); assert s.count('30720')>=2, s.count('30720'); assert '4096' not in inspect.getsource(t._shell_capture), 'capture still 4096'"</automated>
     <requirement>SHELL-01</requirement>
     <expected>The new `30720` source guard (RED in T5-01) now passes; `make_toolset` source contains ≥2 occurrences of `30720`; `_shell_capture` no longer contains `4096`; the existing `timeout=30.0` guard still passes (timeout untouched).</expected>
   </verify>
-  <done>Both `4096` literals are `30720`; envelope text + 30s timeout unchanged; `@tool` description says `30KB`; the T5-01 `30720` source-inspection guard is GREEN; `test_shell_run_30kb_truncation` in test_t5_shell.py is GREEN.</done>
+  <done>Both `4096` literals are `30720`; envelope text + 30s timeout unchanged; `@tool` description says `30KB`; the T5-01 source guard `test_shell_run_30kb_cap_documented` is GREEN (referenced by exact node id, not `-k` — no false-green); `test_shell_run_30kb_truncation` in test_t5_shell.py is GREEN.</done>
 </task>
 
 </tasks>

@@ -52,7 +52,7 @@ created: 2026-05-16
 
 | Req | Behavior | Test Type | Command |
 |-----|----------|-----------|---------|
-| SHELL-01 | cap constant is 30720 | unit source-inspection | `pytest tests/harness/test_shell_timeout.py -k cap -q` |
+| SHELL-01 | cap constant is 30720 | unit source-inspection | `pytest tests/harness/test_shell_timeout.py::test_shell_run_30kb_cap_documented -q` |
 | SHELL-01 | >30KB truncates with `<truncated, total N bytes>` | unit | `test_t5_shell.py::test_shell_run_30kb_truncation` |
 | SHELL-02 | bg spawns, returns `bg-001`, no PID in result | unit (fast fake cmd) | `::test_background_returns_handle` |
 | SHELL-02 | counter monotonic + zero-padded per session | unit | `::test_handle_counter` |
