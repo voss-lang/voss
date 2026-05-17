@@ -51,7 +51,7 @@ export default function Footer() {
                 </Link>
               </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
-                <Link href={site.docsUrl}>
+                <Link href={site.docsUrl} target="_blank" rel="noreferrer">
                   <BookOpenText />
                   Docs
                 </Link>

@@ -71,7 +71,9 @@ class TestRunRecordAdditive:
             assert rec.exit_reason == reason
 
     def test_exit_reasons_constant_is_authoritative(self) -> None:
-        assert EXIT_REASONS == frozenset({"done", "max-iter", "budget", "interrupt"})
+        assert EXIT_REASONS == frozenset(
+            {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
+        )
 
 
 class TestRunRecordRejectsInvalidExitReason:

@@ -228,7 +228,7 @@ class TestT6Behaviors:
         reg = _build_slash_registry()
         reg.lookup("/cost").handler(fake_ctx, ["--by-tool"], "/cost --by-tool")
         out = capsys.readouterr().out
-        assert "T4" in out  # references the phase that closes this gap
+        assert "T6" in out  # T6 SLASH-07: per-tool cost tracking destination (post-T4 update)
 
     def test_discard_dry_run_lists_files(self, fake_ctx, capsys):
         from voss.harness.cli import _build_slash_registry

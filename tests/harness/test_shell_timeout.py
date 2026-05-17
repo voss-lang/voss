@@ -126,3 +126,12 @@ def test_real_shell_run_timeout_contract_documented(tmp_path: Path) -> None:
 
     src = inspect.getsource(tools_mod.make_toolset)
     assert "timeout=30.0" in src, "shell_run timeout constant changed — update _short_timeout_shell_run"
+
+
+@pytest.mark.slow
+def test_shell_run_30kb_cap_documented() -> None:
+    import inspect
+    from voss.harness import tools as tools_mod
+
+    src = inspect.getsource(tools_mod.make_toolset)
+    assert "30720" in src, "shell_run 30KB cap should stay documented in make_toolset source"

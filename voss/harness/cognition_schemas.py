@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 STRICT = {"extra": "forbid"}
+McpScope = Literal["plan", "edit", "auto"]
 
 
 # project.json
@@ -52,6 +53,7 @@ class PermissionsConfig(BaseModel):
     model_config = STRICT
     tool_policy: ToolPolicy = Field(default_factory=ToolPolicy)
     path_scopes: list[PathScope] = Field(default_factory=list)
+    mcp: dict[str, McpScope] = Field(default_factory=dict)
 
 
 # validation.yml

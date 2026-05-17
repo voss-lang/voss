@@ -19,6 +19,14 @@ from voss.harness.render import PlainRenderer
 from voss.harness.tools import make_toolset
 
 
+def _message_content_text(content) -> str:
+    if isinstance(content, list):
+        return "\n".join(
+            block.get("text", "") for block in content if isinstance(block, dict)
+        )
+    return str(content or "")
+
+
 class FakeProvider:
     """Returns a canned Plan via stream() on iter 0; synthetic done plan on iter 1+.
 
@@ -548,7 +556,7 @@ def test_turn_injects_cognition(tmp_path: Path) -> None:
     )
     sys_msg = provider.calls[0]["messages"][0]
     assert sys_msg["role"] == "system"
-    content = sys_msg["content"]
+    content = _message_content_text(sys_msg["content"])
     arch_idx = content.find("MODULE MAP HERE")
     constraint_idx = content.find("forbid: eval")
     plan_idx = content.find("You are Voss")
@@ -589,7 +597,7 @@ def test_resume_injects_prior_run_context(tmp_path: Path) -> None:
         )
     )
     sys_msg = provider.calls[0]["messages"][0]
-    content = sys_msg["content"]
+    content = _message_content_text(sys_msg["content"])
     assert "Prior context" in content
     assert "prev goal" in content
     assert "chose X" in content

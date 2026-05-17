@@ -76,7 +76,7 @@ export default async function LanguagePage() {
               <Badge variant="secondary" className="font-mono uppercase tracking-wider">
                 Language
               </Badge>
-              <h1 className="display mt-5 text-5xl sm:text-7xl">
+              <h1 className="display mt-5 text-[clamp(2.5rem,6vw,4.5rem)]">
                 AI patterns as <span className="em">syntax</span>.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
@@ -86,7 +86,7 @@ export default async function LanguagePage() {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link href="/docs">
+                  <Link href={site.docsUrl} target="_blank" rel="noreferrer">
                     Read docs
                     <ArrowRight />
                   </Link>

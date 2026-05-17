@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sketch 001 — Voss Grid Shell</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+  body { overflow: hidden; height: 100vh; }
+
+  /* ─── Sketch Toolbar ─────────────────────────────────── */
+  .sketch-toolbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 32px;
+    background: #000;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 12px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    color: var(--fg-2);
+    z-index: 1000;
+    gap: 16px;
+  }
+  .sketch-toolbar .label { color: var(--fg-3); }
+  .sketch-toolbar .tabs { display: flex; gap: 4px; }
+  .sketch-toolbar .tab {
+    padding: 4px 10px;
+    cursor: pointer;
+    color: var(--fg-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s;
+  }
+  .sketch-toolbar .tab:hover { color: var(--fg-0); background: var(--bg-2); }
+  .sketch-toolbar .tab.active {
+    color: var(--fg-0);
+    background: var(--bg-2);
+    border-color: var(--border-bright);
+  }
+  .sketch-toolbar .tab.winner::before { content: "★ "; color: var(--accent-amber); }
+
+  .stage { padding-top: 32px; height: 100vh; }
+  .variant { display: none; height: 100%; }
+  .variant.active { display: flex; flex-direction: column; }
+
+  /* ═══════════════════════════════════════════════════════
+     TITLEBAR — shared across variants
+     ═══════════════════════════════════════════════════════ */
+  .titlebar {
+    height: 36px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .traffic { display: flex; gap: 6px; }
+  .traffic span {
+    width: 12px; height: 12px; border-radius: 50%;
+    display: inline-block;
+  }
+  .traffic .r { background: #ff5f57; }
+  .traffic .y { background: #febc2e; }
+  .traffic .g { background: #28c840; }
+
+  .project {
+    color: var(--fg-1);
+    font-size: 12px;
+  }
+  .project .name { color: var(--fg-0); font-weight: 600; }
+  .project .branch { color: var(--accent-green); }
+
+  .titlebar-spacer { flex: 1; }
+
+  .preset-switcher {
+    display: flex;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    font-size: 11px;
+  }
+  .preset-switcher button {
+    background: transparent;
+    border: none;
+    color: var(--fg-2);
+    padding: 4px 10px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    transition: all 0.12s;
+  }
+  .preset-switcher button:hover { color: var(--fg-0); background: var(--bg-3); }
+  .preset-switcher button.on {
+    background: var(--focus);
+    color: white;
+  }
+
+  .cost-meter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--fg-1);
+    padding: 4px 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+  .cost-meter .bar {
+    width: 60px; height: 4px;
+    background: var(--bg-3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .cost-meter .bar > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-green), var(--accent-amber));
+    width: 38%;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     GRID — base
+     ═══════════════════════════════════════════════════════ */
+  .grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    overflow: hidden;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     VARIANT A — Warp-Block Heavy
+     ═══════════════════════════════════════════════════════ */
+  .a-grid {
+    gap: 8px;
+    padding: 8px;
+    background: var(--bg-0);
+  }
+  .a-cell {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .a-cell:hover { border-color: var(--border-bright); }
+  .a-cell.focused {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 1px var(--focus-glow), 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .a-head {
+    padding: 8px 12px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .a-head .role {
+    font-weight: 600;
+    color: var(--fg-0);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .a-head .role .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .a-head .model {
+    padding: 1px 6px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    color: var(--fg-1);
+  }
+  .a-head .cwd { color: var(--fg-2); }
+  .a-head-right { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--fg-2); }
+  .a-head .iter { color: var(--accent-cyan); }
+  .a-head .cost { color: var(--accent-amber); }
+  .a-head .dsl-hot {
+    display: flex; align-items: center; gap: 4px;
+    color: var(--accent-magenta);
+    padding: 1px 6px;
+    background: rgba(192,132,212,0.08);
+    border: 1px solid rgba(192,132,212,0.2);
+    border-radius: 3px;
+    font-size: 10px;
+  }
+
+  .a-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  /* Turn card */
+  .turn-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 10px;
+    background: var(--bg-0);
+    overflow: hidden;
+  }
+  .turn-card.streaming { border-color: var(--focus); }
+  .turn-card-head {
+    padding: 4px 10px;
+    font-size: 10px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    color: var(--fg-2);
+  }
+  .turn-card-head .who { font-weight: 600; }
+  .turn-card-head .who.user { color: var(--user-msg); }
+  .turn-card-head .who.assistant { color: var(--assistant); }
+  .turn-card-head .who.tool { color: var(--tool); }
+  .turn-card-head .who.reviewer { color: var(--reviewer); }
+  .turn-card-body {
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    color: var(--fg-0);
+  }
+  .turn-card-body .tool-line {
+    color: var(--tool);
+    font-size: 11px;
+    background: rgba(192,132,212,0.06);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin: 2px 0;
+    display: inline-block;
+  }
+  .turn-card-body .diff-add { color: var(--accent-green); }
+  .turn-card-body .diff-del { color: var(--accent-red); }
+
+  .a-foot {
+    padding: 8px 12px;
+    background: var(--bg-2);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .a-foot .prompt {
+    color: var(--accent-green);
+    font-weight: 600;
+  }
+  .a-foot input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--fg-0);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .a-foot input::placeholder { color: var(--fg-3); }
+  .a-foot .broadcast-hint {
+    color: var(--fg-3);
+    font-size: 10px;
+  }
+
+  /* Pipeline arrow between cells (A) */
+  .a-arrow {
+    position: absolute;
+    pointer-events: none;
+    color: var(--accent-cyan);
+    z-index: 5;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     VARIANT B — Minimal Tile (tmux density)
+     ═══════════════════════════════════════════════════════ */
+  .b-grid {
+    gap: 0;
+    background: var(--bg-0);
+  }
+  .b-cell {
+    background: var(--bg-0);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .b-cell:nth-child(2n) { border-right: none; }
+  .b-cell:nth-child(n+3) { border-bottom: none; }
+  .b-cell.focused {
+    background: var(--bg-1);
+    box-shadow: inset 0 0 0 1px var(--focus);
+  }
+
+  .b-head {
+    height: 22px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    color: var(--fg-2);
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .b-cell.focused .b-head { background: var(--bg-2); }
+  .b-head .pipe { color: var(--fg-3); }
+  .b-head .role { color: var(--fg-1); font-weight: 600; }
+  .b-head .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .b-head-right { margin-left: auto; }
+
+  .b-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+  .b-line { display: block; }
+  .b-line .who { width: 4px; display: inline-block; }
+  .b-line.user::before { content: "❯ "; color: var(--user-msg); }
+  .b-line.assist::before { content: "  "; }
+  .b-line.tool::before { content: "⏵ "; color: var(--tool); }
+  .b-line.reviewer::before { content: "※ "; color: var(--reviewer); }
+  .b-line.tool { color: var(--tool); font-size: 11px; }
+  .b-line.reviewer { color: var(--reviewer); }
+  .b-line.dim { color: var(--fg-2); }
+
+  .b-foot {
+    height: 24px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-1);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    flex-shrink: 0;
+    color: var(--fg-3);
+  }
+  .b-cell.focused .b-foot { background: var(--bg-2); }
+  .b-cell:not(.focused) .b-foot { opacity: 0.4; }
+  .b-foot input {
+    background: transparent; border: none; outline: none;
+    color: var(--fg-0); font-family: var(--font-mono); font-size: 11px;
+    flex: 1;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     VARIANT C — Floating Canvas
+     ═══════════════════════════════════════════════════════ */
+  .c-stage {
+    flex: 1;
+    position: relative;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(90,124,255,0.06), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(192,132,212,0.05), transparent 40%),
+      var(--bg-0);
+    background-image:
+      radial-gradient(circle at 30% 20%, rgba(90,124,255,0.06), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(192,132,212,0.05), transparent 40%),
+      linear-gradient(var(--bg-1) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bg-1) 1px, transparent 1px);
+    background-size: auto, auto, 32px 32px, 32px 32px;
+    overflow: hidden;
+  }
+  .c-canvas {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 28px;
+    padding: 28px;
+    height: 100%;
+    position: relative;
+  }
+  .c-cell {
+    background: rgba(17,19,26,0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 10px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    z-index: 2;
+  }
+  .c-cell.focused {
+    border-color: var(--focus);
+    box-shadow:
+      0 0 0 1px var(--focus-glow),
+      0 16px 48px rgba(90,124,255,0.18),
+      0 10px 32px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .c-head {
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+    flex-shrink: 0;
+  }
+  .c-head .role { font-weight: 600; color: var(--fg-0); display: flex; gap: 6px; align-items: center; }
+  .c-head .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .c-head .model { color: var(--fg-1); padding: 1px 6px; background: var(--bg-3); border-radius: 3px; }
+  .c-head .cwd { color: var(--fg-2); }
+  .c-head-right { margin-left: auto; display: flex; gap: 10px; color: var(--fg-2); align-items: center; }
+
+  .c-body {
+    flex: 1; overflow-y: auto;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .c-foot {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-2);
+    display: flex; align-items: center; gap: 8px;
+    flex-shrink: 0;
+    font-size: 12px;
+  }
+  .c-foot input { background: transparent; border: none; outline: none; color: var(--fg-0); font-family: var(--font-mono); font-size: 12px; flex: 1; }
+
+  /* SVG pipeline overlay */
+  .c-arrows {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Reviewer badge floating */
+  .reviewer-badge {
+    position: absolute;
+    top: -8px; right: 16px;
+    background: var(--bg-3);
+    border: 1px solid var(--reviewer);
+    color: var(--reviewer);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    z-index: 3;
+  }
+
+  /* shared bits */
+  .dot-planner { background: var(--accent-blue); }
+  .dot-executor { background: var(--accent-green); }
+  .dot-reviewer { background: var(--accent-amber); }
+  .dot-watcher { background: var(--accent-cyan); }
+
+  .kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-bright);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--fg-1);
+  }
+
+  .legend {
+    position: absolute;
+    bottom: 12px; left: 12px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 10px;
+    color: var(--fg-2);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+  .legend .row { display: flex; gap: 8px; align-items: center; }
+  .legend .row .kbd { font-size: 9px; }
+</style>
+</head>
+<body>
+
+<!-- Sketch toolbar -->
+<div class="sketch-toolbar">
+  <span class="label">Sketch 001 — Voss Grid Shell</span>
+  <span class="label">|</span>
+  <div class="tabs">
+    <div class="tab active" data-tab="a">Variant A: Warp-Block Heavy</div>
+    <div class="tab winner" data-tab="b">Variant B: Minimal Tile</div>
+    <div class="tab" data-tab="c">Variant C: Floating Canvas</div>
+  </div>
+</div>
+
+<div class="stage">
+
+  <!-- ════════════════════════════════════════════════════
+       VARIANT A — Warp-Block Heavy
+       ════════════════════════════════════════════════════ -->
+  <div class="variant active" data-variant="a">
+
+    <div class="titlebar">
+      <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="project"><span class="name">voss</span> <span class="dim">·</span> <span class="branch">dev</span> <span class="dim">·</span> <span class="dim">4 cells</span></div>
+      <div class="titlebar-spacer"></div>
+      <div class="preset-switcher" title="Layout preset">
+        <button>fanout</button>
+        <button class="on">pipeline</button>
+        <button>swarm</button>
+        <button>watchers</button>
+      </div>
+      <div class="cost-meter">
+        <span class="dim">session</span>
+        <span class="green">$0.42</span>
+        <div class="bar"><div></div></div>
+        <span class="dim">38k / 100k tok</span>
+      </div>
+    </div>
+
+    <div class="grid a-grid" style="position: relative;">
+
+      <!-- Cell 1: Planner (focused) -->
+      <div class="a-cell focused">
+        <div class="a-head">
+          <div class="role"><span class="dot dot-planner"></span>planner</div>
+          <span class="model">claude-opus-4-7</span>
+          <span class="cwd">~/voss</span>
+          <div class="a-head-right">
+            <span class="dsl-hot">⟳ loop.voss</span>
+            <span class="iter">iter 3/12</span>
+            <span class="cost">$0.18</span>
+            <span class="streaming-indicator"></span>
+          </div>
+        </div>
+        <div class="a-body">
+          <div class="turn-card">
+            <div class="turn-card-head"><span class="who user">user</span><span>turn 2 · 14:02:11</span></div>
+            <div class="turn-card-body">refactor harness/agent.py — split loop runner from provider streaming. Keep tests green.</div>
+          </div>
+          <div class="turn-card">
+            <div class="turn-card-head"><span class="who assistant">planner</span><span>turn 3 · 14:02:34</span></div>
+            <div class="turn-card-body">Reading agent.py, identifying coupling points.
+<span class="tool-line">⏵ read voss/harness/agent.py</span>
+<span class="tool-line">⏵ grep "stream_response" voss/harness/</span>
+Plan: extract <span class="cyan">LoopRunner</span> class, inject <span class="cyan">ProviderStream</span> via constructor. Routes:
+  • agent.py:120-180 → loop_runner.py
+  • agent.py:240-280 → provider_stream.py
+Dispatching to executor →</div>
+          </div>
+          <div class="turn-card streaming">
+            <div class="turn-card-head"><span class="who assistant">planner</span><span>turn 4 · streaming</span></div>
+            <div class="turn-card-body">Verifying executor diff before commit<span class="cursor"></span></div>
+          </div>
+        </div>
+        <div class="a-foot">
+          <span class="prompt">❯</span>
+          <input placeholder="prompt this cell · >> row · >>> grid" value=""/>
+          <span class="broadcast-hint"><span class="kbd">⌘</span><span class="kbd">⏎</span> send</span>
+        </div>
+      </div>
+
+      <!-- Cell 2: Executor (downstream) -->
+      <div class="a-cell">
+        <div class="a-head">
+          <div class="role"><span class="dot dot-executor"></span>executor</div>
+          <span class="model">claude-sonnet-4-6</span>
+          <span class="cwd">~/voss · wt/refactor</span>
+          <div class="a-head-right">
+            <span class="dim cyan">← planner.lastTurn</span>
+            <span class="iter">iter 1/8</span>
+            <span class="cost">$0.09</span>
+          </div>
+        </div>
+        <div class="a-body">
+          <div class="turn-card">
+            <div class="turn-card-head"><span class="who tool">edit</span><span>14:02:51</span></div>
+            <div class="turn-card-body"><span class="tool-line">⏵ write voss/harness/loop_runner.py (+92)</span>
+<span class="diff-add">+ class LoopRunner:</span>
+<span class="diff-add">+     def __init__(self, stream: ProviderStream, max_iterations: int = 12):</span>
+<span class="diff-add">+         self.stream = stream</span></div>
+          </div>
+          <div class="turn-card streaming">
+            <div class="turn-card-head"><span class="who tool">edit</span><span>streaming</span></div>
+            <div class="turn-card-body"><span class="tool-line">⏵ edit voss/harness/agent.py</span>
+<span class="diff-del">- def run_loop(self, prompt):</span>
+<span class="diff-add">+ def run_loop(self, prompt):</span>
+<span class="diff-add">+     return self.loop_runner.run(prompt)<span class="cursor"></span></span></div>
+          </div>
+        </div>
+        <div class="a-foot">
+          <span class="prompt dim">❯</span>
+          <input placeholder="paused — receiving from planner"/>
+        </div>
+      </div>
+
+      <!-- Cell 3: Reviewer -->
+      <div class="a-cell" style="position: relative;">
+        <div class="reviewer-badge" style="position:absolute; top:-1px; left:14px; transform: translateY(-50%); background: var(--bg-1); padding: 0 8px;">watching ↑ executor</div>
+        <div class="a-head">
+          <div class="role"><span class="dot dot-reviewer"></span>reviewer</div>
+          <span class="model">claude-haiku-4-5</span>
+          <span class="cwd">~/voss</span>
+          <div class="a-head-right">
+            <span class="dim magenta">reviewer.voss</span>
+            <span class="iter">iter 2</span>
+            <span class="cost">$0.03</span>
+          </div>
+        </div>
+        <div class="a-body">
+          <div class="turn-card">
+            <div class="turn-card-head"><span class="who reviewer">critique</span><span>on executor.turn[3]</span></div>
+            <div class="turn-card-body"><span class="amber">⚠ </span>LoopRunner constructor takes <span class="cyan">max_iterations</span> but agent.py:run_loop doesn't pass it. Will use default — breaks T1-04 streaming knob.
+
+<span class="green">✓ </span>Diff respects existing test surface. <span class="dim">tests/harness/test_agent_loop.py</span> imports unchanged.
+
+Severity: <span class="amber">medium</span> — fix before commit.</div>
+          </div>
+          <div class="turn-card">
+            <div class="turn-card-head"><span class="who reviewer">suggest</span><span>14:03:02</span></div>
+            <div class="turn-card-body">Edit agent.py:120 — thread <span class="cyan">max_iterations</span> through constructor. <span class="kbd">⌘.</span> apply</div>
+          </div>
+        </div>
+        <div class="a-foot">
+          <span class="prompt dim">❯</span>
+          <input placeholder="ask reviewer about a turn"/>
+        </div>
+      </div>
+
+      <!-- Cell 4: Watcher (tests) -->
+      <div class="a-cell">
+        <div class="a-head">
+          <div class="role"><span class="dot dot-watcher"></span>watcher · tests</div>
+          <span class="model dim">shell</span>
+          <span class="cwd">~/voss</span>
+          <div class="a-head-right">
+            <span class="dim">trigger: voss/**/*.py</span>
+            <span class="green">pytest</span>
+            <span class="cost dim">$0.00</span>
+          </div>
+        </div>
+        <div class="a-body">
+          <div class="turn-card">
+            <div class="turn-card-head"><span class="who tool">run</span><span>14:02:58 · debounced 800ms</span></div>
+            <div class="turn-card-body" style="font-size: 11px;">pytest tests/harness/ -x -q
+<span class="dim">...........................</span>
+<span class="green">27 passed</span> in 1.42s
+
+→ broadcast: <span class="cyan">grid.event("tests:pass")</span></div>
+          </div>
+          <div class="turn-card streaming">
+            <div class="turn-card-head"><span class="who tool">run</span><span>re-running on executor write…</span></div>
+            <div class="turn-card-body" style="font-size: 11px;">pytest tests/harness/ -x -q
+<span class="dim">..........</span><span class="cursor"></span></div>
+          </div>
+        </div>
+        <div class="a-foot">
+          <span class="dimmer">watch cell · subscribes to fs events</span>
+        </div>
+      </div>
+
+      <!-- Pipeline arrow planner → executor -->
+      <svg style="position:absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 30px; pointer-events: none; overflow: visible; z-index: 5;">
+        <defs>
+          <marker id="arrow-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-cyan)"/>
+          </marker>
+        </defs>
+        <line x1="-220" y1="-1" x2="20" y2="-1" stroke="var(--accent-cyan)" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrow-a)" opacity="0.7"/>
+      </svg>
+    </div>
+
+    <div class="legend">
+      <div class="row"><span class="kbd">⌘1-4</span> focus cell</div>
+      <div class="row"><span class="kbd">⌘B</span> broadcast row · <span class="kbd">⇧⌘B</span> grid</div>
+      <div class="row"><span class="kbd">⌘\</span> split · <span class="kbd">⌘D</span> fork (clone context)</div>
+      <div class="row"><span class="kbd">⌘L</span> reload loop.voss · <span class="magenta">hot</span></div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════
+       VARIANT B — Minimal Tile (tmux-dense)
+       ════════════════════════════════════════════════════ -->
+  <div class="variant" data-variant="b">
+
+    <div class="titlebar" style="height: 28px; background: var(--bg-0);">
+      <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="project" style="font-size: 11px;"><span class="name">voss</span><span class="dim">@</span><span class="branch">dev</span> <span class="dim">·</span> 4c <span class="dim">·</span> <span class="green">pipeline</span></div>
+      <div class="titlebar-spacer"></div>
+      <div class="preset-switcher" style="font-size: 10px;">
+        <button>fan</button><button class="on">pipe</button><button>swarm</button><button>watch</button>
+      </div>
+      <span class="cost-meter" style="padding: 2px 8px; font-size: 10px;">
+        <span class="green">$0.42</span><span class="dim">·</span><span class="dim">38k/100k</span>
+      </span>
+    </div>
+
+    <div class="grid b-grid">
+
+      <!-- Cell 1: planner -->
+      <div class="b-cell focused">
+        <div class="b-head">
+          <span class="dot dot-planner"></span>
+          <span class="role">planner</span>
+          <span class="dim">opus-4-7</span>
+          <span class="pipe">│</span>
+          <span class="dim">~/voss</span>
+          <span class="pipe">│</span>
+          <span class="cyan">i3/12</span>
+          <span class="amber">$0.18</span>
+          <span class="b-head-right magenta">⟳ loop.voss</span>
+        </div>
+        <div class="b-body">
+<span class="b-line user">refactor harness/agent.py — split loop runner from provider streaming. keep tests green.</span>
+<span class="b-line assist">Reading agent.py, identifying coupling points.</span>
+<span class="b-line tool">read voss/harness/agent.py</span>
+<span class="b-line tool">grep "stream_response" voss/harness/</span>
+<span class="b-line assist">Plan: extract <span class="cyan">LoopRunner</span> class. Routes:</span>
+<span class="b-line assist">  • agent.py:120-180 → loop_runner.py</span>
+<span class="b-line assist">  • agent.py:240-280 → provider_stream.py</span>
+<span class="b-line dim">→ executor[2] · context: planner.lastTurn</span>
+<span class="b-line assist">Verifying executor diff before commit<span class="cursor"></span></span>
+        </div>
+        <div class="b-foot">
+          <span class="green">❯</span>
+          <input placeholder=">> row  >>> grid"/>
+          <span class="kbd" style="font-size:9px;">⌘⏎</span>
+        </div>
+      </div>
+
+      <!-- Cell 2: executor -->
+      <div class="b-cell">
+        <div class="b-head">
+          <span class="dot dot-executor"></span>
+          <span class="role">executor</span>
+          <span class="dim">sonnet-4-6</span>
+          <span class="pipe">│</span>
+          <span class="dim">wt/refactor</span>
+          <span class="pipe">│</span>
+          <span class="cyan">i1/8</span>
+          <span class="amber">$0.09</span>
+          <span class="b-head-right cyan">← planner</span>
+        </div>
+        <div class="b-body">
+<span class="b-line tool">write voss/harness/loop_runner.py (+92)</span>
+<span class="b-line dim">  + class LoopRunner:</span>
+<span class="b-line dim">  +     def __init__(self, stream, max_iterations=12):</span>
+<span class="b-line tool">edit voss/harness/agent.py</span>
+<span class="b-line dim"><span class="red">  - def run_loop(self, prompt):</span></span>
+<span class="b-line dim"><span class="green">  + def run_loop(self, prompt):</span></span>
+<span class="b-line dim"><span class="green">  +     return self.loop_runner.run(prompt)<span class="cursor"></span></span></span>
+        </div>
+        <div class="b-foot">
+          <span class="dim">❯ paused · receiving</span>
+        </div>
+      </div>
+
+      <!-- Cell 3: reviewer -->
+      <div class="b-cell">
+        <div class="b-head">
+          <span class="dot dot-reviewer"></span>
+          <span class="role">reviewer</span>
+          <span class="dim">haiku-4-5</span>
+          <span class="pipe">│</span>
+          <span class="magenta">reviewer.voss</span>
+          <span class="pipe">│</span>
+          <span class="cyan">i2</span>
+          <span class="amber">$0.03</span>
+          <span class="b-head-right dim">watching ↑ exec</span>
+        </div>
+        <div class="b-body">
+<span class="b-line reviewer">⚠ medium — LoopRunner ctor takes max_iterations</span>
+<span class="b-line reviewer">  but agent.py:run_loop doesn't pass it.</span>
+<span class="b-line reviewer">  breaks T1-04 streaming knob.</span>
+<span class="b-line reviewer">✓ diff respects test surface.</span>
+<span class="b-line reviewer">  tests/harness/test_agent_loop.py unchanged.</span>
+<span class="b-line dim">  </span>
+<span class="b-line reviewer">→ suggest edit agent.py:120</span>
+<span class="b-line dim">  thread max_iterations through ctor · <span class="kbd" style="font-size:9px;">⌘.</span> apply</span>
+        </div>
+        <div class="b-foot">
+          <span class="dim">❯ ask reviewer</span>
+        </div>
+      </div>
+
+      <!-- Cell 4: watcher -->
+      <div class="b-cell">
+        <div class="b-head">
+          <span class="dot dot-watcher"></span>
+          <span class="role">watch · tests</span>
+          <span class="pipe">│</span>
+          <span class="dim">trigger: voss/**/*.py</span>
+          <span class="pipe">│</span>
+          <span class="green">pytest</span>
+          <span class="b-head-right dim">debounce 800</span>
+        </div>
+        <div class="b-body">
+<span class="b-line tool">pytest tests/harness/ -x -q</span>
+<span class="b-line dim">  ...........................</span>
+<span class="b-line"><span class="green">  27 passed in 1.42s</span></span>
+<span class="b-line dim">→ broadcast grid.event("tests:pass")</span>
+<span class="b-line dim">  </span>
+<span class="b-line dim">re-running on executor write…</span>
+<span class="b-line tool">pytest tests/harness/ -x -q</span>
+<span class="b-line dim">  ..........<span class="cursor"></span></span>
+        </div>
+        <div class="b-foot">
+          <span class="dimmer">watch · fs events</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="row"><span class="kbd">⌘1-4</span> focus · <span class="kbd">⌘B</span> bcast row</div>
+      <div class="row"><span class="kbd">⌘L</span> hot-reload <span class="magenta">.voss</span></div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════
+       VARIANT C — Floating Canvas
+       ════════════════════════════════════════════════════ -->
+  <div class="variant" data-variant="c">
+
+    <div class="titlebar">
+      <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="project"><span class="name">voss</span> <span class="dim">·</span> <span class="branch">dev</span> <span class="dim">·</span> <span class="dim">grid: pipeline</span></div>
+      <div class="titlebar-spacer"></div>
+      <div class="preset-switcher">
+        <button>fanout</button>
+        <button class="on">pipeline</button>
+        <button>swarm</button>
+        <button>watchers</button>
+      </div>
+      <div class="cost-meter">
+        <span class="dim">$</span>
+        <span class="green">0.42</span>
+        <div class="bar"><div></div></div>
+        <span class="dim">38k tok</span>
+      </div>
+    </div>
+
+    <div class="c-stage">
+
+      <!-- SVG pipeline arrows overlay -->
+      <svg class="c-arrows" viewBox="0 0 1000 600" preserveAspectRatio="none">
+        <defs>
+          <marker id="arrow-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#6cc7d4"/>
+          </marker>
+          <marker id="arrow-c2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#e8b86c"/>
+          </marker>
+        </defs>
+        <!-- planner → executor -->
+        <path d="M 480 150 Q 500 150 520 150" stroke="#6cc7d4" stroke-width="2" fill="none" marker-end="url(#arrow-c)" stroke-dasharray="4 4">
+          <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="0.8s" repeatCount="indefinite"/>
+        </path>
+        <!-- executor → reviewer (down) -->
+        <path d="M 750 300 Q 750 320 750 340" stroke="#e8b86c" stroke-width="2" fill="none" marker-end="url(#arrow-c2)" stroke-dasharray="4 4">
+          <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="0.8s" repeatCount="indefinite"/>
+        </path>
+        <!-- watcher → grid bus (subtle) -->
+        <path d="M 250 450 Q 480 480 720 450" stroke="#5a7cff" stroke-width="1" fill="none" stroke-dasharray="2 6" opacity="0.4"/>
+      </svg>
+
+      <div class="c-canvas">
+
+        <!-- planner -->
+        <div class="c-cell focused" style="grid-row: 1; grid-column: 1;">
+          <div class="c-head">
+            <div class="role"><span class="dot dot-planner"></span>planner</div>
+            <span class="model">opus-4-7</span>
+            <span class="cwd">~/voss</span>
+            <div class="c-head-right">
+              <span class="magenta" style="padding: 1px 6px; border: 1px solid rgba(192,132,212,0.3); border-radius: 3px; font-size: 10px;">⟳ loop.voss</span>
+              <span class="cyan">iter 3/12</span>
+              <span class="amber">$0.18</span>
+              <span class="streaming-indicator"></span>
+            </div>
+          </div>
+          <div class="c-body">
+            <div style="color: var(--user-msg); margin-bottom: 6px;">❯ refactor harness/agent.py — split loop runner from provider streaming.</div>
+            <div class="dim" style="margin: 4px 0;">turn 3 · streaming</div>
+            <div>Reading agent.py, identifying coupling points.</div>
+            <div style="color: var(--tool); font-size: 11px; margin: 4px 0;">⏵ read voss/harness/agent.py</div>
+            <div style="color: var(--tool); font-size: 11px; margin: 4px 0;">⏵ grep "stream_response" voss/harness/</div>
+            <div style="margin-top: 8px;">Plan: extract <span class="cyan">LoopRunner</span>. Dispatch executor →<span class="cursor"></span></div>
+          </div>
+          <div class="c-foot">
+            <span class="green">❯</span>
+            <input placeholder="prompt this cell · ⌘⏎"/>
+          </div>
+        </div>
+
+        <!-- executor -->
+        <div class="c-cell" style="grid-row: 1; grid-column: 2;">
+          <div class="c-head">
+            <div class="role"><span class="dot dot-executor"></span>executor</div>
+            <span class="model">sonnet-4-6</span>
+            <span class="cwd">wt/refactor</span>
+            <div class="c-head-right">
+              <span class="cyan">← planner</span>
+              <span class="amber">$0.09</span>
+            </div>
+          </div>
+          <div class="c-body">
+            <div style="color: var(--tool); font-size: 11px;">⏵ write loop_runner.py (+92)</div>
+            <div class="diff-add" style="margin-left: 8px;">+ class LoopRunner:</div>
+            <div class="diff-add" style="margin-left: 8px;">+   def __init__(self, stream, max_iterations=12):</div>
+            <div style="color: var(--tool); font-size: 11px; margin-top: 8px;">⏵ edit agent.py</div>
+            <div class="diff-del" style="margin-left: 8px;">- def run_loop(self, prompt):</div>
+            <div class="diff-add" style="margin-left: 8px;">+ def run_loop(self, prompt):</div>
+            <div class="diff-add" style="margin-left: 8px;">+   return self.loop_runner.run(prompt)<span class="cursor"></span></div>
+          </div>
+          <div class="c-foot">
+            <span class="dim">❯ paused — receiving</span>
+          </div>
+        </div>
+
+        <!-- reviewer -->
+        <div class="c-cell" style="grid-row: 2; grid-column: 2; position: relative;">
+          <div class="reviewer-badge">critiquing ↑ executor</div>
+          <div class="c-head">
+            <div class="role"><span class="dot dot-reviewer"></span>reviewer</div>
+            <span class="model">haiku-4-5</span>
+            <span class="cwd dim">reviewer.voss</span>
+            <div class="c-head-right">
+              <span class="cyan">iter 2</span>
+              <span class="amber">$0.03</span>
+            </div>
+          </div>
+          <div class="c-body">
+            <div style="color: var(--reviewer);">⚠ medium</div>
+            <div style="margin: 4px 0;">LoopRunner ctor takes <span class="cyan">max_iterations</span> but <span class="dim">agent.py:run_loop</span> doesn't pass it. Breaks T1-04 streaming knob.</div>
+            <div style="margin-top: 10px; color: var(--accent-green);">✓ diff respects test surface</div>
+            <div class="dim" style="font-size: 11px;">tests/harness/test_agent_loop.py imports unchanged.</div>
+            <div style="margin-top: 10px;">→ suggest edit agent.py:120 · <span class="kbd">⌘.</span> apply</div>
+          </div>
+          <div class="c-foot">
+            <span class="dim">❯ ask reviewer about a turn</span>
+          </div>
+        </div>
+
+        <!-- watcher -->
+        <div class="c-cell" style="grid-row: 2; grid-column: 1;">
+          <div class="c-head">
+            <div class="role"><span class="dot dot-watcher"></span>watch · tests</div>
+            <span class="model dim">shell</span>
+            <span class="cwd dim">voss/**/*.py</span>
+            <div class="c-head-right">
+              <span class="green">pytest</span>
+            </div>
+          </div>
+          <div class="c-body" style="font-size: 11px;">
+            <div style="color: var(--tool);">⏵ pytest tests/harness/ -x -q</div>
+            <div class="dim">...........................</div>
+            <div class="green">27 passed in 1.42s</div>
+            <div class="dim" style="margin-top: 6px;">→ broadcast grid.event("tests:pass")</div>
+            <div class="dim" style="margin-top: 10px;">re-running on executor write…</div>
+            <div style="color: var(--tool);">⏵ pytest tests/harness/ -x -q</div>
+            <div class="dim">..........<span class="cursor"></span></div>
+          </div>
+          <div class="c-foot">
+            <span class="dimmer">watch · fs events · debounce 800ms</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="row"><span class="kbd">⌘1-4</span> focus · <span class="kbd">⌘\</span> split · <span class="kbd">⌘D</span> fork</div>
+      <div class="row"><span class="kbd">⌘B</span> row · <span class="kbd">⇧⌘B</span> grid · <span class="kbd">⌘L</span> reload .voss</div>
+      <div class="row"><span class="cyan">━━▶</span> context pipe · <span class="amber">━━▶</span> review · <span style="color: var(--focus);">━ ━ ━</span> event bus</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.sketch-toolbar .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      document.querySelectorAll('.sketch-toolbar .tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.variant').forEach(v => v.classList.toggle('active', v.dataset.variant === target));
+    });
+  });
+
+  // Hotkeys 1/2/3 to switch variants
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    const map = { '1': 'a', '2': 'b', '3': 'c' };
+    if (map[e.key]) {
+      document.querySelector(`.sketch-toolbar .tab[data-tab="${map[e.key]}"]`).click();
+    }
+  });
+
+  // Preset switcher feedback
+  document.querySelectorAll('.preset-switcher').forEach(switcher => {
+    switcher.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') return;
+      switcher.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === e.target));
+    });
+  });
+
+  // Cell focus on click
+  document.querySelectorAll('.a-cell, .b-cell, .c-cell').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const variant = cell.closest('.variant');
+      const selector = cell.classList.contains('a-cell') ? '.a-cell' :
+                       cell.classList.contains('b-cell') ? '.b-cell' : '.c-cell';
+      variant.querySelectorAll(selector).forEach(c => c.classList.remove('focused'));
+      cell.classList.add('focused');
+      const input = cell.querySelector('input');
+      if (input) input.focus();
+    });
+  });
+</script>
+
+</body>
+</html>

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Callable, Optional
+from typing import Any, AsyncIterator, Callable, Optional
 
 from .base import ProviderResponse
 
@@ -87,6 +87,38 @@ class StubProvider:
             raw={"stub": True},
             parsed=parsed,
         )
+
+    async def stream(
+        self,
+        *,
+        messages,
+        model,
+        response_format=None,
+        tools=None,
+        temperature=1.0,
+        max_tokens=None,
+        timeout=None,
+    ) -> AsyncIterator[object]:
+        from voss.harness.providers import Done, ParsedPlan, TextDelta, Usage
+
+        response = await self.complete(
+            messages=messages,
+            model=model,
+            response_format=response_format,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+        )
+        yield TextDelta(response.text)
+        if response.parsed is not None:
+            yield ParsedPlan(response.parsed)
+        yield Usage(
+            prompt_tokens=response.prompt_tokens,
+            completion_tokens=response.completion_tokens,
+            cost_usd=response.cost_usd,
+        )
+        yield Done("end_turn")
 
     def count_tokens(self, *, text, model) -> int:
         return max(len(text) // 4, 1)

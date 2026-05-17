@@ -6,6 +6,7 @@ import CliShowcase from "@/components/CliShowcase";
 import CommandList from "@/components/CommandList";
 import InstallTabs from "@/components/InstallTabs";
 import Footer from "@/components/Footer";
+import { site } from "@/lib/site";
 
 export default function Home() {
   return (
@@ -75,7 +76,9 @@ function DocsTeaser() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              href="/docs"
+              href={site.docsUrl}
+              target="_blank"
+              rel="noreferrer"
               className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
             >
               Browse docs

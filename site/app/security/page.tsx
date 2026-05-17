@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, LockKeyhole, ShieldCheck, TerminalSquare } from "lucide-react";
+import {
+  CheckCircle2,
+  FolderLock,
+  KeyRound,
+  LockKeyhole,
+  SlidersHorizontal,
+  SquareTerminal,
+  TerminalSquare,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
 import { Badge } from "@/components/ui/badge";
@@ -12,24 +21,28 @@ export const metadata: Metadata = {
   description: "How Voss approaches harness permissions, local credentials, project boundaries, and agent execution safety.",
 };
 
-const PRINCIPLES = [
+const PRINCIPLES: { title: string; body: string; icon: LucideIcon }[] = [
   {
     title: "Permission modes are explicit",
     body: "`plan`, `edit`, and `auto` make the agent's authority visible. The default path favors inspection before mutation.",
+    icon: SlidersHorizontal,
   },
   {
     title: "Writes are scoped to the project",
     body: "Harness tools operate from the current working directory and keep file operations inside the project boundary.",
+    icon: FolderLock,
   },
   {
     title: "Shell access is gated",
     body: "Shell execution is treated as a separate permission surface instead of being bundled into ordinary file edits.",
+    icon: SquareTerminal,
   },
   {
     title: "Auth stays local",
     body: "Claude Code, Codex, and provider API keys are read from local auth stores or environment variables. Voss does not add a hosted credential service.",
+    icon: KeyRound,
   },
-] as const;
+];
 
 const SURFACES = [
   "cwd jail for file tools",
@@ -53,7 +66,7 @@ export default function SecurityPage() {
             <Badge variant="secondary" className="font-mono uppercase tracking-wider">
               Security
             </Badge>
-            <h1 className="display mt-5 max-w-4xl text-5xl sm:text-7xl">
+            <h1 className="display mt-5 max-w-4xl text-[clamp(2.5rem,6vw,4.5rem)]">
               Agent power needs <span className="em">visible boundaries</span>.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
@@ -69,7 +82,9 @@ export default function SecurityPage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/docs">Docs</Link>
+                <Link href={site.docsUrl} target="_blank" rel="noreferrer">
+                  Docs
+                </Link>
               </Button>
             </div>
           </div>
@@ -80,17 +95,20 @@ export default function SecurityPage() {
             <div>
               <h2 className="display text-4xl sm:text-5xl">Current posture.</h2>
               <div className="mt-10 grid gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)]">
-                {PRINCIPLES.map((item) => (
+                {PRINCIPLES.map((item) => {
+                  const Icon = item.icon;
+                  return (
                   <article key={item.title} className="bg-[var(--surface)] p-6">
                     <div className="flex items-start gap-4">
-                      <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-[var(--accent)]" />
+                      <Icon className="mt-1 h-5 w-5 shrink-0 text-[var(--accent)]" />
                       <div>
                         <h3 className="text-lg font-medium">{item.title}</h3>
                         <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{item.body}</p>
                       </div>
                     </div>
                   </article>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <aside className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">

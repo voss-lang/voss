@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from .session import EXIT_REASONS, IterationRecord, RunRecord
+from .session import EXIT_REASONS, BatchRecord, IterationRecord, RunRecord
 
 
 INSPECT_TOOLS = {"fs_read", "fs_glob", "fs_grep"}
@@ -121,6 +121,8 @@ class RunRecorder:
         cost_usd: float,
         prompt_tokens: int,
         completion_tokens: int,
+        cache_creation_input_tokens: int = 0,
+        cache_read_input_tokens: int = 0,
         exit_reason: Optional[str] = None,
     ) -> None:
         """Close the most recently opened iteration (T1-01).
@@ -146,8 +148,46 @@ class RunRecorder:
         target.cost_usd = cost_usd
         target.prompt_tokens = prompt_tokens
         target.completion_tokens = completion_tokens
+        target.cache_creation_input_tokens = cache_creation_input_tokens
+        target.cache_read_input_tokens = cache_read_input_tokens
         target.exit_reason = exit_reason
         target.ended_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    def begin_batch(
+        self, *, batch_index: int, step_indices: list[int]
+    ) -> BatchRecord:
+        """Append a new BatchRecord onto the current iteration (T2-01).
+
+        Must be called inside an iteration scope. The caller supplies
+        batch_index; the recorder is a passive append site. Returns the
+        appended BatchRecord so callers may hold a reference, though the
+        normal flow patches via end_batch.
+        """
+        if not self._iterations:
+            raise RuntimeError("begin_batch called outside an iteration scope")
+        br = BatchRecord(
+            batch_index=batch_index,
+            step_indices=list(step_indices),  # defensive copy
+            parallel_count=len(step_indices),
+        )
+        self._iterations[-1].batches.append(br)
+        return br
+
+    def end_batch(
+        self, *, wall_clock_ms: int, ok_count: int, err_count: int
+    ) -> None:
+        """Patch the trailing BatchRecord on the current iteration (T2-01).
+
+        Pure mutation of the trailing batch; does NOT append a new record.
+        Caller (scheduler in T2-03) computes wall-clock + ok/err totals
+        after asyncio.gather completes.
+        """
+        if not self._iterations or not self._iterations[-1].batches:
+            raise RuntimeError("end_batch called without a matching begin_batch")
+        br = self._iterations[-1].batches[-1]
+        br.wall_clock_ms = wall_clock_ms
+        br.ok_count = ok_count
+        br.err_count = err_count
 
     def finalize(
         self,

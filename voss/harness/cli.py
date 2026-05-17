@@ -48,6 +48,46 @@ except Exception:  # noqa: BLE001
     _litellm = None  # type: ignore[assignment]
 
 
+def _bootstrap_runtime_config() -> None:
+    """Wire on-disk [agent] config into the RuntimeConfig singleton.
+
+    Runs once at module import. Pulls max_iterations (T1-04) and
+    max_parallel_reads (T2-02 / PAR-05) from ~/.config/voss/config.toml
+    and pushes them into the runtime via a single configure() call.
+    Out-of-range / malformed values fall back to the dataclass defaults
+    with a RuntimeWarning (see voss.harness.config getters).
+    """
+    from .config import get_allow_net, get_max_iterations, get_max_parallel_reads
+
+    configure(
+        max_iterations=get_max_iterations(),
+        max_parallel_reads=get_max_parallel_reads(),
+        allow_net=get_allow_net(),
+    )
+
+
+_NET_SESSION: "NetSession | None" = None
+
+
+def _get_net_session() -> "NetSession":
+    """Lazily construct the process-wide NetSession.
+
+    Lazy so test-import never allocates an httpx client and the boot
+    configure() stays construct-free (matches T1-04/T2-02 pattern).
+    NetSession.__init__ registers itself with lifecycle for reap.
+    """
+    global _NET_SESSION
+    if _NET_SESSION is None:
+        from .config import get_net_rate_limits
+        from .net import NetSession
+
+        _NET_SESSION = NetSession(rate_overrides=get_net_rate_limits())
+    return _NET_SESSION
+
+
+_bootstrap_runtime_config()
+
+
 _INTENT_ALLOWLIST = frozenset(
     {
         "analyze repo",
@@ -544,9 +584,8 @@ def _build_slash_registry() -> SlashRegistry:
         flags = {a.lstrip("-") for a in args}
         if "by-tool" in flags:
             click.echo(
-                "  /cost --by-tool: per-tool cost tracking lands with T4 "
-                "(prompt caching). Recorder doesn't yet attribute provider "
-                "cost to individual tool calls."
+                "  /cost --by-tool: per-tool cost tracking lands with T6 SLASH-07. "
+                "Recorder doesn't yet attribute provider cost to individual tool calls."
             )
             return
         if "by-model" in flags:
@@ -970,6 +1009,19 @@ def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
 )
 @click.option("--yes", "yes_to_all", is_flag=True, help="Skip permission prompts.")
 @click.option(
+    "--allow-net/--no-allow-net",
+    "allow_net",
+    default=None,
+    help=(
+        "Enable (--allow-net) or disable (--no-allow-net) network tools "
+        "(web_fetch, web_search, MCP) for this session. When neither is "
+        "passed, falls back to [tools] allow_net in config.toml. NOTE: "
+        "SPEC NET-05d criterion `--allow-net=false` is satisfied via the "
+        "click-idiomatic `--no-allow-net` form (click flag pairs do not "
+        "accept `--flag=value` syntax)."
+    ),
+)
+@click.option(
     "--auth",
     "auth_pref",
     type=click.Choice(AUTH_CHOICES),
@@ -985,6 +1037,7 @@ def do_cmd(
     no_unicode: bool,
     mode: str,
     yes_to_all: bool,
+    allow_net: bool | None,
     auth_pref: str,
 ) -> None:
     """Run a one-shot agent task and print the final answer.
@@ -994,6 +1047,11 @@ def do_cmd(
     cwd = Path(cwd_str).resolve()
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
+    if allow_net is True:
+        configure(allow_net=True)
+    elif allow_net is False:
+        configure(allow_net=False)
+    # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
@@ -1009,7 +1067,7 @@ def do_cmd(
         sys.exit(2)
 
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    tools = make_toolset(cwd)
+    tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
     voss_md_text = voss_md.read_and_inject(cwd)
@@ -1104,6 +1162,19 @@ def do_cmd(
     help="Permission tier.",
 )
 @click.option(
+    "--allow-net/--no-allow-net",
+    "allow_net",
+    default=None,
+    help=(
+        "Enable (--allow-net) or disable (--no-allow-net) network tools "
+        "(web_fetch, web_search, MCP) for this session. When neither is "
+        "passed, falls back to [tools] allow_net in config.toml. NOTE: "
+        "SPEC NET-05d criterion `--allow-net=false` is satisfied via the "
+        "click-idiomatic `--no-allow-net` form (click flag pairs do not "
+        "accept `--flag=value` syntax)."
+    ),
+)
+@click.option(
     "--auth",
     "auth_pref",
     type=click.Choice(AUTH_CHOICES),
@@ -1117,12 +1188,18 @@ def chat_cmd(
     plain: bool,
     no_unicode: bool,
     mode: str,
+    allow_net: bool | None,
     auth_pref: str,
 ) -> None:
     """Interactive agent REPL. Ctrl-D or /exit to quit."""
     cwd = Path(cwd_str).resolve()
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
+    if allow_net is True:
+        configure(allow_net=True)
+    elif allow_net is False:
+        configure(allow_net=False)
+    # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
     cfg = get_config()
 
@@ -1233,7 +1310,7 @@ def _run_repl(
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    tools = make_toolset(cwd)
+    tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
@@ -1628,8 +1705,8 @@ def _extension_context(
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
-    tools = make_toolset(cwd)
     renderer = renderer or make_renderer(json_mode=False)
+    tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     gate = gate or PermissionGate(mode="edit", store=PermissionStore.load(cwd))
     ctx = SimpleNamespace(
         cwd=cwd,
@@ -1869,6 +1946,174 @@ def eval_cmd(
     )
 
 
+def _parse_arg_kvs(args_kvs: tuple[str, ...]) -> dict[str, object]:
+    """Parse repeatable --arg key=value pairs for direct MCP calls."""
+    import json as json_lib
+
+    args_dict: dict[str, object] = {}
+    for kv in args_kvs:
+        if "=" not in kv:
+            raise click.ClickException(
+                f"invalid --arg {kv!r}: expected key=value"
+            )
+        key, raw_val = kv.split("=", 1)
+        try:
+            args_dict[key] = json_lib.loads(raw_val)
+        except (json_lib.JSONDecodeError, ValueError):
+            args_dict[key] = raw_val
+    return args_dict
+
+
+@click.group("mcp")
+def mcp_group() -> None:
+    """Inspect and debug MCP server connections."""
+
+
+@mcp_group.command("list")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def mcp_list_cmd(cwd_str: str, json_mode: bool) -> None:
+    """List configured MCP servers and their advertised tools."""
+    import json as json_lib
+
+    from voss.harness.mcp import McpClient, McpConfigError, load_mcp_config
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        config = load_mcp_config(cwd)
+    except McpConfigError as e:
+        click.echo(f"<error: mcp config: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    if config is None or not config.servers:
+        if json_mode:
+            click.echo(json_lib.dumps({"servers": []}))
+        else:
+            click.echo("<no MCP servers configured>")
+        return
+
+    client = McpClient(config)
+    client.set_cwd(cwd)
+
+    async def _populate() -> None:
+        try:
+            for name in config.servers:
+                try:
+                    await client.ensure_launched(name)
+                except Exception as ex:  # noqa: BLE001
+                    click.echo(f"<warning: {name} launch failed: {ex}>", err=True)
+        finally:
+            await client.aclose()
+
+    asyncio.run(_populate())
+    servers_payload = []
+    for name, server in config.servers.items():
+        tools = client._tools_cache.get(name, [])
+        servers_payload.append(
+            {
+                "name": name,
+                "command": server.command + server.args,
+                "tools": [tool["name"] for tool in tools],
+            }
+        )
+
+    if json_mode:
+        click.echo(json_lib.dumps({"servers": servers_payload}, indent=2))
+    else:
+        for server_payload in servers_payload:
+            click.echo(f"{server_payload['name']}:")
+            click.echo(f"  command: {' '.join(server_payload['command'])}")
+            tools = server_payload["tools"]
+            click.echo(
+                f"  tools: {', '.join(tools) if tools else '<none discovered>'}"
+            )
+            click.echo("")
+
+
+@mcp_group.command("call")
+@click.argument("server")
+@click.argument("tool_name")
+@click.option(
+    "--arg",
+    "args_kvs",
+    multiple=True,
+    help=(
+        "key=value argument (repeatable). Values parsed as JSON when JSON-shaped; "
+        "raw string fallback."
+    ),
+)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def mcp_call_cmd(
+    server: str,
+    tool_name: str,
+    args_kvs: tuple[str, ...],
+    cwd_str: str,
+) -> None:
+    """Call an MCP tool directly. Bypasses PermissionGate (developer tool)."""
+    from voss.harness.mcp import McpClient, McpConfigError, load_mcp_config
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        config = load_mcp_config(cwd)
+    except McpConfigError as e:
+        click.echo(f"<error: mcp config: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    if config is None or server not in config.servers:
+        click.echo(f"<error: unknown server: {server!r}>", err=True)
+        raise click.exceptions.Exit(1)
+
+    try:
+        args_dict = _parse_arg_kvs(args_kvs)
+    except click.ClickException as e:
+        click.echo(f"<error: {e.message}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    client = McpClient(config)
+    client.set_cwd(cwd)
+
+    async def _invoke() -> dict[str, object]:
+        try:
+            return await client.call_tool(server, tool_name, args_dict)
+        except Exception as ex:  # noqa: BLE001
+            return {
+                "isError": True,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"<error: mcp transport: {ex}>",
+                    }
+                ],
+                "__transport_error": True,
+            }
+        finally:
+            await client.aclose()
+
+    result = asyncio.run(_invoke())
+    if result.get("__transport_error"):
+        content = result["content"]
+        if isinstance(content, list) and content:
+            first = content[0]
+            if isinstance(first, dict):
+                click.echo(first.get("text", ""), err=True)
+        raise click.exceptions.Exit(1)
+
+    transport_error = False
+    content = result.get("content", [])
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = str(item.get("text", ""))
+                if text.startswith("<error: mcp transport:"):
+                    transport_error = True
+                click.echo(text)
+
+    if result.get("isError"):
+        if transport_error:
+            raise click.exceptions.Exit(1)
+        raise click.exceptions.Exit(2)
+
+
 @click.group("logs")
 def logs_group() -> None:
     """Tail NDJSON harness telemetry (written when VOSS_LOG=1 and VOSS_LOG_PATH is set)."""
@@ -1926,6 +2171,7 @@ AGENT_COMMANDS = (
     agent_group,
     memory_group,
     config_cmd,
+    mcp_group,
     logs_group,
     eval_cmd,
 )

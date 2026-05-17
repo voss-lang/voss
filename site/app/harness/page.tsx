@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { codeToHtml } from "shiki";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import CopyButton from "@/components/CopyButton";
 import Cursor from "@/components/Cursor";
-import Terminal from "@/components/Terminal";
+import TerminalDemo from "@/components/TerminalDemo";
 import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
 import { harness, harnessFeatures, harnessCommands, site } from "@/lib/site";
 
@@ -13,21 +12,6 @@ export const metadata: Metadata = {
   title: `Harness — ${site.name}`,
   description: harness.description,
 };
-
-const SAMPLE_SESSION = `$ voss do --mode=auto "add a /healthz endpoint and a test for it"
-
-[plan]   confidence 0.92
-  1. fs_grep "FastAPI\\(" → app/main.py
-  2. fs_edit app/main.py → add @app.get("/healthz")
-  3. fs_write tests/test_health.py → pytest case
-  4. shell_run pytest tests/test_health.py -q
-
-[edit]   app/main.py        +4 -0    ✓ allow (mode=auto)
-[write]  tests/test_health.py +12     ✓ allow (mode=auto)
-[shell]  pytest tests/test_health.py -q
-         1 passed in 0.18s              ✓
-
-done. token spend: 4,128 / budget 8,000 — saved as session 0193…`;
 
 type PermissionRow = {
   mode: "plan" | "edit" | "auto";
@@ -68,12 +52,7 @@ function valueClass(v: string): string {
   return "text-[var(--muted)]";
 }
 
-export default async function HarnessPage() {
-  const sessionHtml = await codeToHtml(SAMPLE_SESSION, {
-    lang: "shellsession",
-    theme: "github-dark-default",
-  });
-
+export default function HarnessPage() {
   return (
     <>
       <Nav />
@@ -90,9 +69,9 @@ export default async function HarnessPage() {
               </p>
             </Reveal>
             <Reveal delay={0.05}>
-              <h1 className="display text-balance text-6xl sm:text-7xl">
-                Ship AI features<br />
-                <span className="em">without becoming an SRE.</span>
+              <h1 className="display text-balance text-[clamp(2.5rem,6vw,4.5rem)]">
+                An agent loop that<br />
+                <span className="em">stays inside the lines.</span>
               </h1>
             </Reveal>
             <Reveal delay={0.1}>
@@ -151,13 +130,7 @@ export default async function HarnessPage() {
                 validation loop. In plan mode, mutating tools are denied before they run.
               </p>
             </div>
-            <Terminal title="~/voss-app — voss do">
-              <div
-                className="overflow-x-auto p-6 text-sm"
-                // eslint-disable-next-line react/no-danger
-                dangerouslySetInnerHTML={{ __html: sessionHtml }}
-              />
-            </Terminal>
+            <TerminalDemo title="~/voss-app — voss do" />
           </div>
         </section>
 
@@ -316,7 +289,9 @@ voss doctor`}
               </pre>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
-                  href="/docs"
+                  href={site.docsUrl}
+                  target="_blank"
+                  rel="noreferrer"
                   className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--background)] transition hover:opacity-90"
                 >
                   Read the docs

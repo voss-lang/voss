@@ -20,6 +20,7 @@ class TaskSpec(BaseModel):
     provider: str | None = None
     model: str | None = None
     auto_approve_edits: bool = False
+    tools: list[str] = Field(default_factory=list)
 
 
 def load_task(task_dir: Path) -> TaskSpec:

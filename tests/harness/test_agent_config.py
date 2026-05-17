@@ -109,3 +109,140 @@ class TestCrossSection:
         harness_config.set_max_iterations(99)
         assert harness_config.get_max_iterations() == 99
         assert harness_config.load_harness_config()["preferred_model"] == "model-b"
+
+
+# ---------------------------------------------------------------------------
+# T2-02: max_parallel_reads field + loader (PAR-05).
+# ---------------------------------------------------------------------------
+
+
+def _write_agent(xdg_path, body: str) -> None:
+    p = harness_config.config_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(body)
+
+
+class TestRuntimeConfigMaxParallelReadsField:
+    def test_default_is_8(self) -> None:
+        assert get_config().max_parallel_reads == 8
+        assert RuntimeConfig().max_parallel_reads == 8
+
+    def test_configure_then_reset_round_trips(self) -> None:
+        configure(max_parallel_reads=12)
+        assert get_config().max_parallel_reads == 12
+        reset_config()
+        assert get_config().max_parallel_reads == 8
+
+
+class TestGetMaxParallelReadsDefault:
+    def test_no_config_file_returns_default(self, xdg) -> None:
+        assert harness_config.get_max_parallel_reads() == 8
+
+    def test_config_without_key_returns_default(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_iterations = "12"\n')
+        assert harness_config.get_max_parallel_reads() == 8
+
+
+class TestGetMaxParallelReadsValid:
+    def test_override_16(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_parallel_reads = "16"\n')
+        assert harness_config.get_max_parallel_reads() == 16
+
+    def test_min_boundary_1(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_parallel_reads = "1"\n')
+        assert harness_config.get_max_parallel_reads() == 1
+
+    def test_max_boundary_32(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_parallel_reads = "32"\n')
+        assert harness_config.get_max_parallel_reads() == 32
+
+
+class TestGetMaxParallelReadsOutOfRange:
+    def test_zero_warns_and_falls_back(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_parallel_reads = "0"\n')
+        with pytest.warns(RuntimeWarning, match="max_parallel_reads"):
+            n = harness_config.get_max_parallel_reads()
+        assert n == 8
+
+    def test_thirty_three_warns_and_falls_back(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_parallel_reads = "33"\n')
+        with pytest.warns(RuntimeWarning, match="max_parallel_reads"):
+            n = harness_config.get_max_parallel_reads()
+        assert n == 8
+
+    def test_one_hundred_warns_and_falls_back(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_parallel_reads = "100"\n')
+        with pytest.warns(RuntimeWarning, match="max_parallel_reads"):
+            n = harness_config.get_max_parallel_reads()
+        assert n == 8
+
+
+class TestGetMaxParallelReadsNonInt:
+    def test_string_value_warns_and_falls_back(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_parallel_reads = "foo"\n')
+        with pytest.warns(RuntimeWarning, match="max_parallel_reads"):
+            n = harness_config.get_max_parallel_reads()
+        assert n == 8
+
+    def test_empty_value_warns_and_falls_back(self, xdg) -> None:
+        _write_agent(xdg, '[agent]\nmax_parallel_reads = ""\n')
+        with pytest.warns(RuntimeWarning, match="max_parallel_reads"):
+            n = harness_config.get_max_parallel_reads()
+        assert n == 8
+
+
+class TestBothAgentKeysRoundtrip:
+    def test_both_keys_in_one_block(self, xdg) -> None:
+        _write_agent(
+            xdg,
+            '[agent]\nmax_iterations = "12"\nmax_parallel_reads = "16"\n',
+        )
+        assert harness_config.get_max_iterations() == 12
+        assert harness_config.get_max_parallel_reads() == 16
+
+
+# ---------------------------------------------------------------------------
+# T3-02: [tools] allow_net loader (NET-05a/b).
+# ---------------------------------------------------------------------------
+
+
+class TestGetAllowNet:
+    def test_get_allow_net_default_false(self, xdg) -> None:
+        assert harness_config.get_allow_net() is False
+
+    def test_get_allow_net_toml_true(self, xdg) -> None:
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("[tools]\nallow_net = true\n")
+        assert harness_config.get_allow_net() is True
+
+    def test_get_allow_net_toml_false_explicit(self, xdg) -> None:
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("[tools]\nallow_net = false\n")
+        assert harness_config.get_allow_net() is False
+
+    def test_get_allow_net_bogus_warns(self, xdg) -> None:
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("[tools]\nallow_net = yes\n")
+        with pytest.warns(RuntimeWarning, match="allow_net"):
+            assert harness_config.get_allow_net() is False
+
+
+class TestThreeSectionsCoexist:
+    def test_three_keys_coexist(self, xdg) -> None:
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            '[harness]\npreferred_model = "foo"\n\n'
+            '[agent]\nmax_iterations = "12"\nmax_parallel_reads = "16"\n\n'
+            "[tools]\nallow_net = true\n"
+        )
+        assert harness_config.load_harness_config()["preferred_model"] == "foo"
+        assert harness_config.load_agent_config()["max_iterations"] == "12"
+        assert harness_config.load_agent_config()["max_parallel_reads"] == "16"
+        assert harness_config.load_tools_config()["allow_net"] == "true"
+        assert harness_config.get_max_iterations() == 12
+        assert harness_config.get_max_parallel_reads() == 16
+        assert harness_config.get_allow_net() is True

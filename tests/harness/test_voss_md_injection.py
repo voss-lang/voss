@@ -74,7 +74,15 @@ def _system_text(provider: CapturingProvider) -> str:
     for call in provider.calls:
         for msg in call["messages"]:
             if msg.get("role") == "system":
-                out.append(msg.get("content", ""))
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    out.extend(
+                        block.get("text", "")
+                        for block in content
+                        if isinstance(block, dict)
+                    )
+                else:
+                    out.append(str(content or ""))
     return "\n".join(out)
 
 

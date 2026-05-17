@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import textwrap
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -14,15 +15,17 @@ from pathlib import Path
 from typing import Any
 
 import click
+import httpx
 
 from voss import __version__ as VOSS_VERSION
 from voss.harness import auth as auth_mod
 from voss.harness.agent import run_turn
+from voss.harness.net import NetSession
 from voss.harness.permissions import PermissionGate
 from voss.harness.render import PlainRenderer
 from voss.harness.session import SessionRecord, load, save
 from voss.harness.tools import make_toolset
-from voss_runtime import EpisodicMemory, get_config
+from voss_runtime import EpisodicMemory, configure, get_config
 from voss_runtime.providers import StubProvider, get as get_provider, has as has_provider
 from voss_runtime.providers.base import ModelProvider
 
@@ -111,6 +114,38 @@ def _add_run(record: SessionRecord, result) -> None:
     record.total_cost_usd += result.cost_usd
 
 
+def _make_stub_net_session(spec: TaskSpec, *, stub: bool) -> NetSession | None:
+    if not stub or "web_fetch" not in spec.tools:
+        return None
+
+    def _stub_handler(request: httpx.Request) -> httpx.Response:
+        if "example.com" in str(request.url):
+            return httpx.Response(
+                200,
+                text=textwrap.dedent(
+                    """
+                    <html>
+                      <head><title>Example Domain</title></head>
+                      <body>
+                        <h1>Example Domain</h1>
+                        <p>This domain is for illustration.</p>
+                      </body>
+                    </html>
+                    """
+                ).strip(),
+                headers={"content-type": "text/html; charset=utf-8"},
+            )
+        return httpx.Response(404, text="not found")
+
+    return NetSession(
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(_stub_handler),
+            follow_redirects=True,
+            max_redirects=5,
+        )
+    )
+
+
 async def _drive_resume(
     record: SessionRecord,
     spec: TaskSpec,
@@ -119,12 +154,13 @@ async def _drive_resume(
     provider: ModelProvider,
     model: str | None,
     permissions: PermissionGate,
+    net_session: NetSession | None = None,
 ) -> tuple[SessionRecord, str]:
     history = EpisodicMemory(capacity=40)
     task = asyncio.create_task(
         run_turn(
             spec.prompt,
-            tools=make_toolset(cwd),
+            tools=make_toolset(cwd, net=net_session),
             cwd=cwd,
             renderer=PlainRenderer(),
             model=model,
@@ -146,7 +182,7 @@ async def _drive_resume(
     record, history = load(record.id, cwd=cwd)
     result = await run_turn(
         spec.prompt,
-        tools=make_toolset(cwd),
+        tools=make_toolset(cwd, net=net_session),
         cwd=cwd,
         renderer=PlainRenderer(),
         model=model,
@@ -166,9 +202,11 @@ async def _drive_task(
     cwd: Path,
     provider: ModelProvider,
     model: str | None,
+    stub: bool = False,
 ) -> tuple[SessionRecord, str, str | None]:
     record = SessionRecord.new(cwd=cwd, model=_record_model(model), name=task_id)
     permissions = PermissionGate(mode=spec.mode, auto_yes=spec.auto_approve_edits)
+    net_session = _make_stub_net_session(spec, stub=stub)
     try:
         if task_id.startswith("05-"):
             record, final = await _drive_resume(
@@ -178,11 +216,12 @@ async def _drive_task(
                 provider=provider,
                 model=model,
                 permissions=permissions,
+                net_session=net_session,
             )
         else:
             result = await run_turn(
                 spec.prompt,
-                tools=make_toolset(cwd),
+                tools=make_toolset(cwd, net=net_session),
                 cwd=cwd,
                 renderer=PlainRenderer(),
                 model=model,
@@ -194,6 +233,9 @@ async def _drive_task(
             final = result.final
     except Exception as exc:  # noqa: BLE001 - eval records failures as rows
         return record, "", f"{type(exc).__name__}: {str(exc)[:300]}"
+    finally:
+        if net_session is not None:
+            await net_session.aclose()
     return record, final, None
 
 
@@ -279,6 +321,8 @@ def run_suite(
                 )
                 model_eff = "__stub__" if stub else (spec.model or model)
                 judge_model_eff = judge_model or model_eff or get_config().default_model
+                if "web_fetch" in spec.tools:
+                    configure(allow_net=True)
                 record, final, crash_reason = asyncio.run(
                     _drive_task(
                         task_id,
@@ -286,6 +330,7 @@ def run_suite(
                         cwd=cwd,
                         provider=provider,
                         model=model_eff,
+                        stub=stub,
                     )
                 )
                 diff = _file_diff(cwd)
