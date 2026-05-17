@@ -75,6 +75,7 @@ def make_toolset(
     *,
     renderer=None,
     net: "NetSession | None" = None,
+    session_id: str | None = None,
 ) -> dict[str, ToolEntry]:
     """Build the harness toolset bound to a project cwd.
 
@@ -156,6 +157,49 @@ def make_toolset(
         if len(text) > 30720:  # 30KB cap (T5 SHELL-01 / D-07; matches fs_read_many tools.py:68)
             text = text[:30720] + f"\n<truncated, total {len(out)} bytes>"
         return f"[exit {proc.returncode}]\n{text}"
+
+    @tool(
+        name="shell_run_background",
+        description=(
+            "Run an allowlisted command in the background; returns a bg-NNN "
+            "handle. Use shell_monitor(handle) to read incremental output and "
+            "shell_signal(handle, 'INT'|'TERM') to stop it. Background jobs "
+            "are reaped on session exit."
+        ),
+    )
+    async def shell_run_background(
+        cmd: str,
+        no_output_deadline_s: float = 30.0,
+    ) -> str:
+        # Allowlist + metacharacter check first. shell_allowed rejects pipelines,
+        # redirection, command substitution, chaining — anything that requires a
+        # shell to interpret. The actual invocation uses `create_subprocess_exec`
+        # so the binary is executed directly, never via `/bin/sh -c`.
+        ok, reason = shell_allowed(cmd)
+        if not ok:
+            return f"<denied: {reason}>"
+        try:
+            argv = split_command(cmd)
+        except SandboxError as e:
+            return f"<denied: {e}>"
+        from . import lifecycle
+
+        return await lifecycle.register_job(
+            cmd=cmd,
+            argv=argv,
+            cwd=cwd,
+            session_id=session_id or "_nosession",
+            no_output_deadline_s=no_output_deadline_s,
+        )
+
+    @tool(
+        name="shell_monitor",
+        description="Read incremental output for a background job handle.",
+    )
+    async def shell_monitor(handle: str, since_ms: int = 0) -> str:
+        from . import lifecycle
+
+        return lifecycle.monitor_job(handle, since_ms=since_ms)
 
     @tool(name="fs_write", description="Write text to a file inside cwd. Creates parent dirs. Overwrites existing.")
     async def fs_write(path: str, content: str) -> str:
@@ -365,6 +409,11 @@ def make_toolset(
         "fs_edit": ToolEntry(descriptor=fs_edit, is_mutating=True),
         "fs_edit_many": ToolEntry(descriptor=fs_edit_many, is_mutating=True),
         "shell_run": ToolEntry(descriptor=shell_run, is_mutating=True),
+        "shell_run_background": ToolEntry(
+            descriptor=shell_run_background,
+            is_mutating=True,
+        ),
+        "shell_monitor": ToolEntry(descriptor=shell_monitor, is_mutating=False),
         "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
         "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
         "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),
