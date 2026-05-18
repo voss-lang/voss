@@ -4,7 +4,7 @@ export default function App() {
       style={{
         height: '100vh',
         width: '100vw',
-        background: '#0a0b0e',
+        background: 'var(--bg-0)',
       }}
     />
   );
