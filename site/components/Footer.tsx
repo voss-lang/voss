@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TrackedOutboundLink from "@/components/TrackedOutboundLink";
 import {
   ArrowUpRight,
   BookOpenText,
@@ -51,10 +52,10 @@ export default function Footer() {
                 </Link>
               </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
-                <Link href={site.docsUrl} target="_blank" rel="noreferrer">
+                <TrackedOutboundLink href={site.docsUrl} analyticsTarget="docs">
                   <BookOpenText />
                   Docs
-                </Link>
+                </TrackedOutboundLink>
               </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
                 <Link href="/language">
@@ -85,18 +86,18 @@ export default function Footer() {
             <h2 className="font-mono text-sm uppercase tracking-widest text-[var(--foreground)]">Source</h2>
             <div className="mt-4 flex flex-col items-start gap-2">
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
-                <Link href={site.repoUrl} target="_blank" rel="noreferrer">
+                <TrackedOutboundLink href={site.repoUrl} analyticsTarget="github">
                   <GitBranch />
                   GitHub
                   <ArrowUpRight />
-                </Link>
+                </TrackedOutboundLink>
               </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
-                <Link href={site.prdUrl} target="_blank" rel="noreferrer">
+                <TrackedOutboundLink href={site.prdUrl} analyticsTarget="prd">
                   <BookOpenText />
                   PRD
                   <ArrowUpRight />
-                </Link>
+                </TrackedOutboundLink>
               </Button>
             </div>
           </div>

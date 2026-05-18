@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, BookOpenText, Code2, GitBranch, TerminalSquare } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import MobileMenu from "@/components/MobileMenu";
+import TrackedOutboundLink from "@/components/TrackedOutboundLink";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { site } from "@/lib/site";
@@ -31,10 +32,10 @@ export default function Nav() {
             </Link>
           </Button>
           <Button asChild variant="ghost" size="lg">
-            <Link href={site.docsUrl} target="_blank" rel="noreferrer">
+            <TrackedOutboundLink href={site.docsUrl} analyticsTarget="docs">
               <BookOpenText />
               Docs
-            </Link>
+            </TrackedOutboundLink>
           </Button>
           <Button asChild variant="ghost" size="lg">
             <Link href="/language">
@@ -43,11 +44,11 @@ export default function Nav() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg">
-            <Link href={site.repoUrl} target="_blank" rel="noreferrer">
+            <TrackedOutboundLink href={site.repoUrl} analyticsTarget="github">
               <GitBranch />
               GitHub
               <ArrowUpRight />
-            </Link>
+            </TrackedOutboundLink>
           </Button>
         </nav>
       </div>
