@@ -28,7 +28,7 @@ main = execParser opts >>= run
     astP = do
       astPath <- strOption (long "path" <> metavar "FILE" <> help ".voss source file")
       astNorm <- switch (long "normalize-spans" <> help "Match Python to_dict(..., normalize_spans=True)")
-      pure Ast {..}
+      pure (Ast astPath astNorm)
 
 run :: Cmd -> IO ()
 run Ir = BL.putStr "{\"_stub\":true}\n"

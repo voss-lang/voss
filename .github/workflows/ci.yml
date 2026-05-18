@@ -46,6 +46,8 @@ jobs:
       - name: voss check harness sources (M4 DOG-06)
         run: python -m voss.cli check voss/harness/agent/
       - run: python -m voss.cli check voss-demos/
+      - name: voss check voss/harness/skills/voss companions (T7)
+        run: python -m voss.cli check voss/harness/skills/voss/
       - name: T1 grep gate — _substitute_placeholders is deleted (SPEC ITER-02)
         run: |
           if grep -rn --include='*.py' --include='*.voss' \

@@ -18,6 +18,7 @@ Deliver **one working terminal pane**: an xterm.js frontend bound to a native PT
 
 ### Performance + Renderer
 - **D-01:** Use the **xterm.js Canvas renderer** (not WebGL, not DOM). Rationale: avoids the WebGL context-loss bug class across GPUs/VMs; throughput is sufficient for a single pane. Revisit renderer choice at A3 when N panes render concurrently.
+  - **D-01a (resolved 2026-05-18, post-research):** xterm.js v6.0.0 removed the canvas addon. To honor D-01, **pin `@xterm/xterm` to exactly `5.5.0` + `@xterm/addon-canvas@0.7.0`** (peer dep `@xterm/xterm@^5`). Accepted cost: frozen on xterm v5 line (no v6 features/fixes), tracked migration debt. User explicitly chose the v5 pin over relaxing to WebGL/v6 or DOM/v6. Planner MUST pin exact versions and add a deferred-idea note for the eventual v6/WebGL migration.
 - **D-02:** Flood policy: PTY output is **coalesced per animation frame**; on flood (`yes`, `cat bigfile`) render the latest state and **drop intermediate frames** — the UI must never freeze or block. This is a hard performance contract, not best-effort.
 - **D-03:** Performance bar: 60fps scroll target under normal load; sustained high-throughput output must keep the UI responsive (input still accepted, other future panes unaffected).
 

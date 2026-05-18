@@ -1,0 +1,9 @@
+# _seam_placeholder.voss — T7-01 seam placeholder.
+#
+# `voss check <dir>` errors (rc=1) when a directory contains zero .voss files,
+# so a .gitkeep-only dir would fail the CI gate on every push until T7-03/04
+# land real companions. This trivial, analyzer-clean file keeps the gate real
+# and green in the interim. T7-03/T7-04 may remove it once a real skill
+# companion exists.
+let ok: string = "placeholder"
+print(ok)

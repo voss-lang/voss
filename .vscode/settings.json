@@ -6,6 +6,17 @@
   "python.analysis.ignore": ["**/*.voss"],
   "pylint.ignorePatterns": ["**/*.voss"],
   "ruff.lint.ignore": ["**/*.voss"],
+  "haskell.plugin.hlint.globalOn": false,
+  "haskell.plugin.hlint.diagnosticsOn": false,
+  "files.exclude": {
+    "**/dist-newstyle/**": true
+  },
+  "files.watcherExclude": {
+    "**/dist-newstyle/**": true
+  },
+  "search.exclude": {
+    "**/dist-newstyle/**": true
+  },
   "[python]": {
     "editor.formatOnSave": false
   }

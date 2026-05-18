@@ -1,0 +1,12 @@
+# add-test.voss
+# Dogfood demo of the SKL-02 add-test skill (D-05). NOT the runtime exec
+# path — the skill is voss/harness/skills/add_test.py. Demonstrates the flow
+# in Voss and passes `voss check`.
+fn findPublicFn(path: string) -> string {
+    ctx(budget: 3000 tokens) {
+        yield ask("Find a public function in this module and write a deliberately failing pytest test for it at tests/test_<module>.py. Module: " + path)
+    }
+}
+
+let plan = findPublicFn("voss/example.py")
+print(plan)

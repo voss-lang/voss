@@ -3,13 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: verifying
-last_updated: "2026-05-18T02:27:12.192Z"
+last_updated: "2026-05-18T15:43:51.042Z"
 last_activity: "2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval)."
 progress:
-  total_phases: 16
+  total_phases: 33
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
+  percent: 0
 ---
 
 # State: Voss
@@ -46,6 +47,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Recent Activity
 
+- 2026-05-18 — **Phase A3 (voss-app Grid Engine) UI-SPEC approved.** A3-UI-SPEC.md authored by gsd-ui-researcher (0 user questions — fully derived from locked A1-UI-SPEC token system + A3-SPEC GRD-06/07 + A3-CONTEXT D-01..04 + sketch 001). gsd-ui-checker: 1 revision (rev 1/2) → 6/6 PASS. Blocking fix: `⋯` menu separator `margin: 2px 0` → `margin: 0` (off-4-grid removed) + Named Structural Constants row. 2 non-blocking FLAGs also applied: close-confirm buttons `Keep`/`Close` → `Keep open`/`Close anyway` (verb+adverb, mirrors warning copy); assistive aria-labels for `●` dot + `⋯` trigger (not-rendered, density unchanged). Zero token redefinitions, GRD-06/07 covered, no A4/A9/L2 scope creep, zero-Voss-exposure clean. Committed 68e2fb8. Resume: `/gsd:plan-phase A3` (UI gate now satisfied).
+- 2026-05-18 — **Phase O1 (Session-Tree Substrate + Budget Fan-out) planned.** O-track keystone. 2 plans, 2 serial waves (shared `session_tree.py` + `test_session_tree.py` force O1-02 depends_on O1-01): O1-01 = `SessionTreeNode` + `SessionTreeManager` fan-out allocator (asyncio.Lock check-and-append, no-oversell race closed) + D-04 guarded `mutate_envelope` + per-node 0o600 `.voss/sessions/<root>/<id>.json` persistence (D-01/D-02/D-04); O1-02 = D-03 always-finalize boundary in `run_subagent` + `_finalized` double-finalize guard + reserve carve (`token_budget = limit − reserve`) + parent linkage (closes Leak 4). RESEARCH (HIGH confidence) resolved the 3 deferred questions: asyncio.Lock at allocator only (live race-tested), D-03 handles BOTH soft `exit_reason="budget"` + hard `BudgetExceededError`, resume path needs zero `session.py` change (`_scan_dir` globs flat `*.json` only). PATTERNS.md (5/5 analogs). VALIDATION.md drafted (Nyquist). gsd-plan-checker: 0 blockers, 1 warning (RESEARCH `## Open Questions` missing `(RESOLVED)` suffix — fixed directly, not a plan defect; all 12 plan dimensions PASS). Strict harness-additive: zero field diff on SessionRecord/RunRecord/BudgetScope, `test_session_redaction.py` gated unmodified in both plans. SDK `state.planned-phase`/`roadmap.annotate-dependencies`/`commit` verbs absent in this build — done manually per T6 precedent. Resume: `/gsd-execute-phase O1`.
+- 2026-05-18 — **Phase A3 (voss-app Grid Engine) SPEC + context gathered.** A3-SPEC.md authored (8 reqs GRD-01..08, ambiguity 0.15, 13 acceptance criteria; 2 Socratic rounds — locks: no disk I/O in A3 [Solid tree + voss-app-core Rust mirror only; A4/A6 add file I/O], `⌘D` fork = A3 sibling-split inheriting cwd+shell, close-confirm reuses A2 D-07, 20×5 min floor, 9-pane ceiling, binary-split-tree grid model locked, N-pane ~60fps + flood-isolation perf bar). A3-CONTEXT.md captured 4 HOW decisions D-01..04: Canvas per-pane (research-validate @9, WebGL fallback gated) · 50/50 split + global `⌘=` · i3 nearest-edge-midpoint directional focus · close→expanded-sibling + last-pane-respawn (app never empty). Resume: `/gsd:plan-phase A3`.
 - 2026-05-18 — **Phase T6 (PRD §2.4 Slash Debt, v0.1.1 patch) complete.** All 3 waves executed and verified: T6-01 `/cost --by-tool` approximation + test rewrite; T6-02 grouped `/help` (4 named buckets + Other) + dual-CLI one-line signpost (operator-widened D-04); T6-03 per-slash SC#1 happy-path tests + D-07 `/why` audit (SC#2) + D-03 `/resume` resolution confirmation. 27/27 tests in `test_repl_slash.py` green. Zero production code changes. T6-CONTEXT status updated, DISCUSSION-LOG closed, ROADMAP success criteria marked Met.
 - 2026-05-18 — Completed T5-05 `voss jobs` and active-session lifecycle. Wired `_run_repl` to `make_toolset(..., session_id=record.id)`, added `jobs_cmd` sidecar inventory with table and D-11 JSON output, added `.active-session` write/remove plus explicit `reap_jobs()` in a `finally`, threaded `--keep-logs`, documented deliberate `_nosession` call sites, and restored `shell_monitor` reap-reason suffix required by watchdog tests. T5 and adjacent harness checks passed; full non-live run still stops early on the isolated subprocess `platformdirs` import issue outside T5.
 - 2026-05-17 — Completed T5-04 monitor/signal/permissions. Implemented `shell_monitor` cursor reads and `shell_signal` INT/TERM control, registered monitor read-only and signal mutating, extended `SHELL`, closed D-12 edit-mode denial for `shell_run_background`/`shell_signal` while allowing `shell_monitor`, and updated TUI permission bridge verbs/targets. Focused monitor/signal/edit-mode/tool tests passed; full non-live merge check still stops early on the isolated subprocess `platformdirs` import issue outside T5.
@@ -87,4 +91,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - Existing `.planning/phases/01-*` through `07-*` directories remain historical planning artifacts unless explicitly archived.
 - Next operational step after this rebaseline is to plan M0, then M1.
 
-**Planned Phase:** T8 (input-bar-ergonomics-v0-2) — 5 plans — 2026-05-18T02:27:12.183Z
+**Planned Phase:** O1 (session-tree-substrate-budget-fan-out) — 2 plans — 2026-05-18T15:43:51.042Z

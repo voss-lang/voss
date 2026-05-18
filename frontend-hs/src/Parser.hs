@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -35,18 +36,24 @@ hj :: P ()
 hj =
   void . Mp.many $
     choice
-      [ void (Mp.takeWhile1P Nothing (\c -> c == ' ' || c == '\t')),
-        try $ char '#' >> void (Mp.takeWhileP Nothing (/= '\n'))
+      [ hspaceChunk,
+        lineComment
       ]
 
 fills :: P ()
-fills = void . Mp.many $ choice [try eoline, hj]
+fills = void . Mp.many $ choice [try eoline, hspaceChunk, lineComment]
+
+hspaceChunk :: P ()
+hspaceChunk = void (Mp.takeWhile1P Nothing (\c -> c == ' ' || c == '\t'))
+
+lineComment :: P ()
+lineComment = try $ char '#' >> void (Mp.takeWhileP Nothing (/= '\n'))
 
 eoline :: P ()
-eoline = void . try $ optionally (chunk "\r") *> chunk "\n"
+eoline = void . try $ optional (chunk "\r") *> chunk "\n"
 
 stmtSep :: P ()
-stmtSep = hj *> fills *> void (Mp.some eoline) *> hj *> fills
+stmtSep = hj *> void (Mp.some eoline) *> fills
 
 ------------------------------------------------------------------------------
 mkSpan :: FilePath -> Mp.SourcePos -> Mp.SourcePos -> Span
@@ -67,13 +74,13 @@ kwBoundary :: P ()
 kwBoundary = void . notFollowedBy $ satisfy (\c -> Char.isAlphaNum c || c == '_')
 
 keyword :: Text -> P ()
-keyword k = hj *> chunk k *> kwBoundary
+keyword k = try (hj *> void (chunk k) *> kwBoundary *> hj)
 
 sym :: Text -> P ()
-sym t = hj *> chunk t
+sym t = try (hj *> void (chunk t) *> hj)
 
 symbolic :: Text -> P ()
-symbolic t = hj *> chunk t *> hj
+symbolic t = try (hj *> void (chunk t) *> hj)
 
 commaTok :: P ()
 commaTok = symbolic ","
@@ -129,13 +136,12 @@ decodeEscaped inner = go 0 ""
                          in if endEx <= n && all (\j -> isHexDigit (inner !! j)) [start .. endEx - 1]
                               then case readHex (slice start endEx) of
                                 [(v, [])]
-                                  | v >= 0 && v <= Char.ord Char.maxBound ->
+                                  | v >= 0 && v <= Char.ord (maxBound :: Char) ->
                                       go endEx (Char.chr v : acc)
                                   | otherwise -> go (i + 2) (e : '\\' : acc)
                                 _ -> go (i + 2) (e : '\\' : acc)
                               else go (i + 2) (e : '\\' : acc)
                 | otherwise -> go (i + 2) (e : '\\' : acc)
- where
   slice lo hi = take (hi - lo) (drop lo inner)
   octEnd j cnt
     | cnt >= 3 || j >= n = j
@@ -189,7 +195,7 @@ topStmt fp =
 -----------------------------------------------------------------------------
 decorator :: FilePath -> P Decorator
 decorator fp = do
-  (sp, nm, ax) <-
+  (sp, (nm, ax)) <-
     withSpan fp $
       (\n a -> (n, a)) <$> (sym "@" *> identTok) <*> optArgs
   void (Mp.some eoline)
@@ -222,7 +228,8 @@ matchThrStmt fp = do
   thr <- gateNumberLit fp
   _ <- symbolic ")"
   fills *> Mp.some eoline *> fills
-  StmtMatch <$> (matchAst fp (Just <$> litToDouble thr))
+  th <- litToDouble thr
+  StmtMatch <$> matchAst fp (Just th)
 
 litToDouble :: Expr -> P Double
 litToDouble = \case
@@ -275,8 +282,8 @@ ifStmt fp = StmtIf <$> ((\(sp, (c, th, el)) -> IfStmt_ sp c th el) <$> withSpan 
   inner =
     (,,)
       <$> (keyword "if" *> ifCondition fp)
-      <*> (symbolic "{" *> block fp <* symbolic "}")
-      <*> optional (keyword "else" *> symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
+      <*> optional (keyword "else" *> block fp)
 
 ifCondition :: FilePath -> P IfCondition
 ifCondition fp =
@@ -361,7 +368,7 @@ ctxStmt fp = StmtCtx <$> ((\(sp, (b, sts)) -> CtxStmt_ sp b sts) <$> withSpan fp
   inner =
     (,)
       <$> (keyword "ctx" *> symbolic "(" *> budgetKwarg fp <* symbolic ")")
-      <*> (symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
 
 withinStmt :: FilePath -> P Stmt
 withinStmt fp = StmtWithin <$> ((\(sp, (bs, prim, fb)) -> WithinStmt_ sp bs prim fb) <$> withSpan fp inner)
@@ -374,8 +381,8 @@ withinStmt fp = StmtWithin <$> ((\(sp, (bs, prim, fb)) -> WithinStmt_ sp bs prim
               *> sepEndBy (budgetKwarg fp) commaTok
               <* symbolic ")"
           )
-      <*> (symbolic "{" *> block fp <* symbolic "}")
-      <*> optional (keyword "fallback" *> symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
+      <*> optional (keyword "fallback" *> block fp)
 
 budgetKwarg :: FilePath -> P BudgetArg
 budgetKwarg fp = do
@@ -408,19 +415,19 @@ tryStmt fp = StmtTry <$> ((\(sp, (tb, exc, cb)) -> TryStmt_ sp tb exc cb) <$> wi
  where
   inner =
     (,,)
-      <$> (keyword "try" *> symbolic "{" *> block fp <* symbolic "}")
+      <$> (keyword "try" *> block fp)
       <*> (keyword "catch" *> optional identTok)
-      <*> (symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
 
 retStmt :: FilePath -> P Stmt
 retStmt fp = StmtReturn <$> ((\(sp, v) -> ReturnStmt_ sp v) <$> withSpan fp inner)
  where
-  inner = (,) <$> (keyword "return" *> optional (try (expr fp)))
+  inner = keyword "return" *> optional (try (expr fp))
 
 yieldStmt :: FilePath -> P Stmt
 yieldStmt fp = StmtYield <$> ((\(sp, v) -> YieldStmt_ sp v) <$> withSpan fp inner)
  where
-  inner = (,) <$> (keyword "yield" *> optional (try (expr fp)))
+  inner = keyword "yield" *> optional (try (expr fp))
 
 includeStmt :: FilePath -> P Stmt
 includeStmt fp = StmtInclude <$> ((\(sp, e) -> IncludeStmt_ sp e) <$> withSpan fp (keyword "include" *> expr fp))
@@ -519,7 +526,7 @@ chainPM ops base = do
   rest <- Mp.many (choice (map tryOp ops))
   pure $ foldl' (\acc (op, rhs) -> ExprBinOp (BinOp_ (glueSpan (exprSpan acc) (exprSpan rhs)) op acc rhs)) x rest
  where
-  tryOp op = try ((,) <$> symbolic op <*> base)
+  tryOp op = try ((,) <$> (symbolic op *> pure op) <*> base)
 
 unary :: FilePath -> P Expr
 unary fp =
@@ -844,7 +851,7 @@ pFn fp =
       <$> (keyword "fn" *> identTok)
       <*> (symbolic "(" *> paramList fp <* symbolic ")")
       <*> optional (sym "->" *> typeExpr fp)
-      <*> (symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
 
 pAgent :: FilePath -> P AgentDecl_
 pAgent fp =
@@ -852,12 +859,12 @@ pAgent fp =
      AgentDecl_ sp nm ps rt opts bd [])
     <$> withSpan fp inner
  where
-  inner =
-    (,,,,)
-      <$> (keyword "agent" *> identTok)
-      <*> (symbolic "(" *> paramList fp <* symbolic ")")
-      <*> optional (sym "->" *> typeExpr fp)
-      <*> (symbolic "{" *> (agentInner fp <* symbolic "}"))
+  inner = do
+    nm <- keyword "agent" *> identTok
+    ps <- symbolic "(" *> paramList fp <* symbolic ")"
+    rt <- optional (sym "->" *> typeExpr fp)
+    (opts, bd) <- symbolic "{" *> agentInner fp <* symbolic "}"
+    pure (nm, ps, rt, opts, bd)
 
 agentInner :: FilePath -> P (AgentOptions, [Stmt])
 agentInner fp = do

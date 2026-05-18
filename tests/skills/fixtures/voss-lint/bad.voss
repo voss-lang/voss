@@ -1,0 +1,12 @@
+# bad.voss — one deterministic analyzer violation for the SKL-06 voss-lint test.
+# `intent` is a probable<string> returned where a plain `string` is expected
+# with NO confidence gate, so the analyzer emits ANLY001 (unguarded probable).
+# The Voss analyzer does not flag undefined variables; this ANLY001 finding is
+# the stable seeded violation T7-02 asserts on.
+fn classify(text: string) -> string {
+    let intent: probable<string> = ask("Classify: " + text)
+    return intent
+}
+
+let result = classify("cancel my subscription")
+print(result)

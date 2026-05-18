@@ -28,3 +28,10 @@ npm/platforms/*/python/
 
 # Node.
 node_modules/
+
+# Haskell / Cabal / Stack build artifacts.
+dist-newstyle/
+.stack-work/
+cabal.project.local
+cabal.project.local~
+*.cabal.local

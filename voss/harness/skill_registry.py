@@ -56,4 +56,139 @@ def default_skill_registry() -> SkillRegistry:
             mutating=True,
         )
     )
+
+    def rename_symbol(ctx: Any, args: list[str]) -> None:
+        from .skills.rename_symbol import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+            args=args,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="rename-symbol",
+            description="Anchor + scope-aware rename across the repo.",
+            handler=rename_symbol,
+            mutating=True,
+        )
+    )
+
+    def voss_lint_as_skill(ctx: Any, args: list[str]) -> None:
+        from .skills.voss_lint_as_skill import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+            args=args,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="voss-lint-as-skill",
+            description="Lint .voss sources and emit structured JSON diagnostics.",
+            handler=voss_lint_as_skill,
+            mutating=False,
+        )
+    )
+
+    def summarize_diff(ctx: Any, _args: list[str]) -> None:
+        from .skills.summarize_diff import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="summarize-diff",
+            description="Summarize the working-tree git diff as a structured PR description.",
+            handler=summarize_diff,
+            mutating=False,
+        )
+    )
+
+    def audit_cognition(ctx: Any, _args: list[str]) -> None:
+        from .skills.audit_cognition import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="audit-cognition",
+            description="Audit project cognition for drift and propose an architecture update (never writes).",
+            handler=audit_cognition,
+            mutating=False,
+        )
+    )
+
+    def add_test(ctx: Any, _args: list[str]) -> None:
+        from .skills.add_test import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="add-test",
+            description="Locate a public function and generate a failing pytest test.",
+            handler=add_test,
+            mutating=True,
+        )
+    )
+
+    def port_py_to_voss(ctx: Any, args: list[str]) -> None:
+        from .skills.port_py_to_voss import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+            source=args[0] if args else None,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="port-py-to-voss",
+            description="Translate a Python source file to .voss.",
+            handler=port_py_to_voss,
+            mutating=True,
+        )
+    )
     return registry
