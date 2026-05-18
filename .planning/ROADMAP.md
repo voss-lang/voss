@@ -1354,7 +1354,13 @@ Plans:
 
 **Scope:** Parent→card budget fan-out (`(envelope − reserve) / total WIP` floor); reserved non-spendable drain budget guaranteeing every in-flight card reaches a verdict; hard non-extendable caps (no "ask for more tokens" path); session-tree recorder schema. Reuses/extends `RunRecorder`, `SessionRecord`.
 
-**Requirements (locked at SPEC):** OST-01..0N — TBD by `O1-SPEC.md`.
+**Requirements (locked at SPEC):** SPEC-1 (harness session tree + parent linkage), SPEC-2 (per-card budget allocation + fan-out invariant), SPEC-3 (reserved drain → terminal finalize), SPEC-4 (non-extendable cap + recorded attempts), SPEC-5 (strict harness-additive blast radius) — 5 locked in `O1-SPEC.md`.
+
+**Plans:** 2 plans, 2 waves
+
+Plans:
+- [ ] O1-01-PLAN.md — Session-tree substrate: SessionTreeNode + SessionTreeManager allocator (fan-out invariant) + D-04 guarded mutator + per-node file persistence (D-01/D-02/D-04)
+- [ ] O1-02-PLAN.md — D-03 always-finalize boundary in run_subagent: finalize_node guard + reserved-drain terminal finalize + parent linkage at spawn (D-03)
 
 **Cross-cutting:** No board, no reviewers, no EM in O1 — pure substrate. `subagents.py` gains budget/scope/recorder plumbing it lacks today.
 
