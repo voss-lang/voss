@@ -1008,7 +1008,7 @@ Plans:
 **Plans:** 5 plans across 4 waves (W0 scaffold → W1 TextArea swap → W2 prefix-dispatch ‖ TUI-submit-wiring → W3 Ctrl-R + paste-image)
 - [x] T8-01-PLAN.md — Wave 0: pytest-textual-snapshot + hermetic fixtures + `.value`→`.text` migration + red scaffolds (INPUT-01..05 substrate)
 - [x] T8-02-PLAN.md — INPUT-01: Input→TextArea swap, Enter/Shift+Enter inversion, autogrow 1-5, slash guard, additive `ctrl+r` keymap line
-- [ ] T8-03-PLAN.md — INPUT-02/03: `!cmd` via existing T5-D12 gate + `#note` to `## Notes` human section; run_turn bypass; `shell.local`/`memory.note` recorder events
+- [x] T8-03-PLAN.md — INPUT-02/03: `!cmd` via existing T5-D12 gate + `#note` to `## Notes` human section; run_turn bypass; `shell.local`/`memory.note` recorder events
 - [ ] T8-04-PLAN.md — Enabling deliverable (RESEARCH A4): `on_input_bar_submitted`→run_turn wiring + `_run_repl` interactive Textual loop + `app.history` for Ctrl-R corpus
 - [ ] T8-05-PLAN.md — INPUT-04 Ctrl-R inline reverse-i-search (per-project episodic) + INPUT-05 paste-image attach / no-vision transient notice
 
