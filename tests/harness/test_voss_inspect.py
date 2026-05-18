@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+
+from click.testing import CliRunner
 import pytest
 
+from voss.cli import main
 from voss.harness.session import IterationRecord, RunRecord
 from voss.harness.voss_inspect import (
     BudgetFrame,
@@ -141,3 +145,45 @@ def test_dataclass_shaped_run_supports_decisions_and_budget_iterations() -> None
 
 def test_expected_public_api_exports_load_run() -> None:
     assert callable(load_run)
+
+
+def test_inspect_probable_cli_reads_persisted_session_fixture(tmp_path) -> None:
+    sid = "m11inspect01"
+    sessions_dir = tmp_path / ".voss" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (sessions_dir / f"{sid}.json").write_text(
+        json.dumps(
+            {
+                "id": sid,
+                "name": "m11-inspect",
+                "cwd": str(tmp_path),
+                "model": "stub",
+                "started_at": "2026-05-18T00:00:00+00:00",
+                "updated_at": "2026-05-18T00:00:05+00:00",
+                "total_cost_usd": 0.0,
+                "turns": [],
+                "runs": [
+                    {
+                        "id": "run-1",
+                        "started_at": "2026-05-18T00:00:00+00:00",
+                        "ended_at": "2026-05-18T00:00:05+00:00",
+                        "decisions": [
+                            _decision("choose read path", "inspect-body", 0.74)
+                        ],
+                        "iterations": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        main,
+        ["inspect", "probable", sid, "--decision", "0", "--cwd", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "choose read path" in result.output
+    assert "inspect-body" in result.output
+    assert "0.74" in result.output

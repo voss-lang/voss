@@ -88,6 +88,8 @@ class TestToolEntryClassification:
             "git_status",
             "git_diff",
             "voss_check",
+            "voss_probable_inspect",
+            "voss_budget_trace",
         ):
             assert tools[name].is_mutating is False, name
 
@@ -112,5 +114,6 @@ class TestToolEntryClassification:
         # T2-05 added fs_read_many; T3 added web_fetch + web_search.
         # T5 adds shell_run_background + shell_monitor + shell_signal.
         assert sum(1 for e in tools.values() if e.is_mutating) == 7
-        # M10-04 added 4 read-only code tools (code_search, find_definition, find_references, code_refresh)
-        assert sum(1 for e in tools.values() if not e.is_mutating) == 14
+        # M10-04 added 4 read-only code tools (code_search, find_definition, find_references, code_refresh).
+        # M11-02 adds voss_probable_inspect + voss_budget_trace.
+        assert sum(1 for e in tools.values() if not e.is_mutating) == 16

@@ -133,6 +133,14 @@ def test_t6_prd_slash_commands_registered() -> None:
         assert registry.lookup(name) is not None, f"slash {name} not registered"
 
 
+def test_m11_probable_budget_trace_slash_commands_registered() -> None:
+    from voss.harness.cli import _build_slash_registry
+
+    registry = _build_slash_registry()
+    for name in ("/probable", "/btrace", "/budget"):
+        assert registry.lookup(name) is not None, f"slash {name} not registered"
+
+
 def test_m10_code_slash_commands_execute(tmp_path, capsys) -> None:
     from types import SimpleNamespace
     from voss.harness.cli import _build_slash_registry

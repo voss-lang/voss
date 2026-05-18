@@ -794,6 +794,44 @@ def _build_slash_registry() -> SlashRegistry:
             f"  budget: ${new_budget:.2f} (used ${ctx.total_cost:.4f}){warn}"
         )
 
+    def _probable(ctx: ReplContext, args: list[str], _line: str) -> None:
+        raw_args = list(args)
+        args, decision_raw = _pop_flag_value(raw_args, "--decision")
+        if "--decision" in raw_args and decision_raw is None:
+            click.echo(
+                "usage: /probable <session-id-or-name> [--decision N]",
+                err=True,
+            )
+            return
+        if len(args) > 1:
+            click.echo(
+                "usage: /probable <session-id-or-name> [--decision N]",
+                err=True,
+            )
+            return
+        try:
+            decision_index = (
+                int(decision_raw) if decision_raw is not None else None
+            )
+        except ValueError:
+            click.echo("--decision must be an integer", err=True)
+            return
+        target = args[0] if args else ctx.record.id
+        try:
+            click.echo(_render_probable_inspect(ctx.cwd, target, decision_index))
+        except (FileNotFoundError, ValueError, IndexError) as exc:
+            click.echo(f"/probable failed: {exc}", err=True)
+
+    def _btrace(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if len(args) > 1:
+            click.echo("usage: /btrace <session-id-or-name>", err=True)
+            return
+        target = args[0] if args else ctx.record.id
+        try:
+            click.echo(_render_budget_inspect(ctx.cwd, target))
+        except (FileNotFoundError, ValueError, IndexError) as exc:
+            click.echo(f"/btrace failed: {exc}", err=True)
+
     def _why(ctx: ReplContext, _args: list[str], _line: str) -> None:
         # T6 / SLASH-06. Render last plan's rationale + per-step why +
         # confidence. No provider call — reads ctx.last_plan only.
@@ -1053,6 +1091,16 @@ def _build_slash_registry() -> SlashRegistry:
             "/budget",
             "show or set session USD ceiling: /budget [<usd>]",
             _budget,
+        ),
+        SlashCommand(
+            "/probable",
+            "inspect recorded decisions: /probable [session] [--decision N]",
+            _probable,
+        ),
+        SlashCommand(
+            "/btrace",
+            "inspect recorded budget timeline: /btrace [session]",
+            _btrace,
         ),
         SlashCommand(
             "/why",
@@ -1858,7 +1906,7 @@ def _print_slash_help(registry: SlashRegistry | None = None) -> None:
     named_groups: list[tuple[str, list[str]]] = [
         ("Editing", ["/diff", "/apply", "/discard"]),
         ("Session", ["/resume", "/budget", "/cost", "/clear", "/save-session"]),
-        ("Insight", ["/why", "/tools", "/analyze"]),
+        ("Insight", ["/why", "/probable", "/btrace", "/tools", "/analyze"]),
         ("Control", ["/help", "/exit", "/mode", "/model"]),
     ]
 
@@ -2067,6 +2115,40 @@ def jobs_cmd(cwd_str: str, json_mode: bool) -> None:
             f"{handle:<{widths[0]}}  {pid:<{widths[1]}}  "
             f"{status:<{widths[2]}}  {runtime:<{widths[3]}}  {cmd}"
         )
+
+
+@click.group("inspect")
+def inspect_group() -> None:
+    """Inspect persisted run records."""
+
+
+@inspect_group.command("probable")
+@click.argument("session_id_or_name")
+@click.option("--decision", "decision_index", type=int, default=None)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def inspect_probable_cmd(
+    session_id_or_name: str, decision_index: int | None, cwd_str: str
+) -> None:
+    """Show recorded probable decision sequence."""
+    try:
+        text = _render_probable_inspect(
+            Path(cwd_str).resolve(), session_id_or_name, decision_index
+        )
+    except (FileNotFoundError, ValueError, IndexError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(text)
+
+
+@inspect_group.command("budget")
+@click.argument("session_id_or_name")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def inspect_budget_cmd(session_id_or_name: str, cwd_str: str) -> None:
+    """Show recorded budget timeline."""
+    try:
+        text = _render_budget_inspect(Path(cwd_str).resolve(), session_id_or_name)
+    except (FileNotFoundError, ValueError, IndexError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(text)
 
 
 @click.command("resume")
@@ -2624,6 +2706,7 @@ AGENT_COMMANDS = (
     doctor_cmd,
     sessions_cmd,
     jobs_cmd,
+    inspect_group,
     resume_cmd,
     tools_cmd,
     plugins_cmd,
