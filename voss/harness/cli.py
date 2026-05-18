@@ -1326,7 +1326,12 @@ def _run_repl(
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    tools = make_toolset(cwd, renderer=renderer, net=_get_net_session(), session_id=record.id)
+    tools = make_toolset(
+        cwd,
+        renderer=renderer,
+        net=_get_net_session(),
+        session_id=record.id,
+    )
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()

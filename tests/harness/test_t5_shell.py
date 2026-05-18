@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import os
 import re
@@ -302,6 +303,25 @@ def test_voss_jobs_stale_running_pid_renders_honestly(tmp_path: Path) -> None:
     assert "bg-001" in result.output
     assert "999999999" in result.output
     assert re.search(r"\b(stale|running\?)\b", result.output), result.output
+
+
+def test_cli_shell_job_wiring_contract() -> None:
+    from voss.harness import cli
+
+    repl_src = inspect.getsource(cli._run_repl)
+    do_src = inspect.getsource(cli.do_cmd.callback)
+
+    assert "session_id=record.id" in repl_src
+    forbidden = (
+        "make_toolset(cwd, renderer=renderer, "
+        "net=_get_net_session(), session_id=do_record.id)"
+    )
+    assert forbidden not in do_src
+    assert ".active-session" in repl_src
+    assert "reap_jobs" in repl_src
+    assert "finally" in repl_src
+    assert "keep_logs" in inspect.getsource(cli.chat_cmd.callback)
+    assert cli.jobs_cmd in cli.AGENT_COMMANDS
 
 
 @pytest.mark.skipif(os.name != "posix", reason="posix signals required")
