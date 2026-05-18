@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import os
 import re
@@ -48,6 +49,50 @@ def _cursor(prefix: str) -> int:
     match = re.search(r"\[cursor (\d+)\]", prefix)
     assert match is not None, f"missing cursor prefix: {prefix!r}"
     return int(match.group(1))
+
+
+def _d11_job_record(
+    session_dir: Path,
+    *,
+    handle: str = "bg-001",
+    pid: int = 12345,
+    status: str = "done",
+    runtime_ms: int = 42,
+) -> dict[str, Any]:
+    return {
+        "handle": handle,
+        "pid": pid,
+        "started_at": "2026-05-17T00:00:00Z",
+        "cmd": "python3 emit.py 2",
+        "log_path": str(session_dir / f"{handle}.log"),
+        "status": status,
+        "exit_code": 0 if status == "done" else None,
+        "runtime_ms": runtime_ms,
+    }
+
+
+def _preseed_job_sidecar(
+    tmp_path: Path,
+    *,
+    session_id: str = "sess-abc",
+    handle: str = "bg-001",
+    pid: int = 12345,
+    status: str = "done",
+    runtime_ms: int = 42,
+) -> dict[str, Any]:
+    jobs_root = tmp_path / ".voss-cache" / "jobs"
+    session_dir = jobs_root / session_id
+    session_dir.mkdir(parents=True)
+    (jobs_root / ".active-session").write_text(f"{session_id}\n")
+    record = _d11_job_record(
+        session_dir,
+        handle=handle,
+        pid=pid,
+        status=status,
+        runtime_ms=runtime_ms,
+    )
+    (session_dir / f"{handle}.meta.json").write_text(json.dumps(record))
+    return record
 
 
 @pytest.mark.skipif(_PYTHON_BIN is None, reason="python interpreter required")
@@ -192,34 +237,91 @@ def test_voss_jobs_reads_sidecar(tmp_path: Path) -> None:
 
     from click.testing import CliRunner
 
-    jobs_root = tmp_path / ".voss-cache" / "jobs"
-    session_dir = jobs_root / "sess-abc"
-    session_dir.mkdir(parents=True)
-    (jobs_root / ".active-session").write_text("sess-abc\n")
-    sidecar = session_dir / "bg-001.meta.json"
-    sidecar.write_text(
-        json.dumps(
-            {
-                "handle": "bg-001",
-                "pid": 12345,
-                "started_at": "2026-05-17T00:00:00Z",
-                "cmd": "python3 emit.py 2",
-                "log_path": str(session_dir / "bg-001.log"),
-                "status": "running",
-                "exit_code": None,
-                "runtime_ms": 42,
-            }
-        )
-    )
+    expected = _preseed_job_sidecar(tmp_path)
+    corrupt = tmp_path / ".voss-cache" / "jobs" / "sess-abc" / "bg-999.meta.json"
+    corrupt.write_text("{not-json")
 
     table = CliRunner().invoke(jobs_cmd, ["--cwd", str(tmp_path)])
     assert table.exit_code == 0, table.output
+    assert "HANDLE" in table.output
+    assert "PID" in table.output
+    assert "STATUS" in table.output
+    assert "RUNTIME" in table.output
+    assert "CMD" in table.output
     assert "bg-001" in table.output
-    assert "running" in table.output
+    assert "12345" in table.output
+    assert "done" in table.output
+    assert "python3 emit.py 2" in table.output
+    assert "bg-999" not in table.output
 
     json_lines = CliRunner().invoke(jobs_cmd, ["--cwd", str(tmp_path), "--json"])
     assert json_lines.exit_code == 0, json_lines.output
-    assert json.loads(json_lines.output)["handle"] == "bg-001"
+    records = [json.loads(line) for line in json_lines.output.splitlines() if line.strip()]
+    assert records == [expected]
+    assert set(records[0]) == {
+        "handle",
+        "pid",
+        "started_at",
+        "cmd",
+        "log_path",
+        "status",
+        "exit_code",
+        "runtime_ms",
+    }
+
+
+def test_voss_jobs_empty_without_active_session(tmp_path: Path) -> None:
+    try:
+        from voss.harness.cli import jobs_cmd
+    except (ImportError, AttributeError):
+        pytest.fail("T5 jobs CLI should expose jobs_cmd for `voss jobs`")
+
+    from click.testing import CliRunner
+
+    result = CliRunner().invoke(jobs_cmd, ["--cwd", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == "(no background jobs)"
+
+
+def test_voss_jobs_stale_running_pid_renders_honestly(tmp_path: Path) -> None:
+    try:
+        from voss.harness.cli import jobs_cmd
+    except (ImportError, AttributeError):
+        pytest.fail("T5 jobs CLI should expose jobs_cmd for `voss jobs`")
+
+    from click.testing import CliRunner
+
+    _preseed_job_sidecar(
+        tmp_path,
+        pid=999_999_999,
+        status="running",
+        runtime_ms=1234,
+    )
+
+    result = CliRunner().invoke(jobs_cmd, ["--cwd", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "bg-001" in result.output
+    assert "999999999" in result.output
+    assert re.search(r"\b(stale|running\?)\b", result.output), result.output
+
+
+def test_cli_shell_job_wiring_contract() -> None:
+    from voss.harness import cli
+
+    repl_src = inspect.getsource(cli._run_repl)
+    do_src = inspect.getsource(cli.do_cmd.callback)
+
+    assert "session_id=record.id" in repl_src
+    assert re.search(
+        r"make_toolset\([^)]*session_id\s*=\s*do_record\.id",
+        do_src,
+        re.S,
+    ) is None
+    assert ".active-session" in repl_src
+    assert "reap_jobs" in repl_src
+    assert "finally" in repl_src
+    assert "keep_logs" in inspect.getsource(cli.chat_cmd.callback)
+    assert cli.jobs_cmd in cli.AGENT_COMMANDS
 
 
 @pytest.mark.skipif(os.name != "posix", reason="posix signals required")

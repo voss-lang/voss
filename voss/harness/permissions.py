@@ -43,7 +43,7 @@ Mode = Literal["plan", "edit", "auto"]
 
 READ_ONLY = {"fs_read", "fs_glob", "fs_grep", "git_status", "git_diff", "voss_check"}
 WRITE = {"fs_write", "fs_edit"}
-SHELL = {"shell_run"}
+SHELL = {"shell_run", "shell_run_background", "shell_monitor", "shell_signal"}
 
 
 def mode_allows(mode: Mode, tool_name: str, is_mutating: bool) -> tuple[bool, str]:
@@ -58,8 +58,9 @@ def mode_allows(mode: Mode, tool_name: str, is_mutating: bool) -> tuple[bool, st
             return False, "denied by mode plan"
         return True, "ok"
     if mode == "edit":
-        if tool_name == "shell_run":
+        if tool_name in {"shell_run", "shell_run_background", "shell_signal"}:
             return False, "denied by mode edit"
+        # D-12: shell_monitor omitted deliberately — read-only, executes nothing
         return True, "ok"
     return True, "ok"
 
@@ -164,6 +165,8 @@ class PermissionGate:
     def signature(self, tool_name: str, args: dict) -> str:
         if tool_name == "shell_run":
             return f"shell_run:{args.get('cmd', '').split()[0] if args.get('cmd') else ''}"
+        if tool_name == "shell_run_background":
+            return f"shell_run_background:{args.get('cmd', '').split()[0] if args.get('cmd') else ''}"
         return tool_name
 
     def check(

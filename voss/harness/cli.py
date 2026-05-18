@@ -7,7 +7,9 @@ Defines `do_cmd`, `chat_cmd`, `doctor_cmd` as standalone click Commands.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -15,6 +17,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import click
+import psutil
 
 from voss_runtime import EpisodicMemory, configure, get_config
 from voss_runtime.providers import LiteLLMProvider
@@ -32,6 +35,7 @@ from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
+from .sandbox import jail_path
 from .skill_registry import SkillRegistry, default_skill_registry
 from .slash import SlashCommand, SlashRegistry
 from .subagents import (
@@ -1067,6 +1071,8 @@ def do_cmd(
         sys.exit(2)
 
     renderer = make_renderer(json_mode=json_mode, plain=plain)
+    # T5: deliberate _nosession — do_record is defined later; one-shot voss do
+    # bg jobs are reaped at process exit, with no voss jobs contract.
     tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
@@ -1181,6 +1187,13 @@ def do_cmd(
     default="auto",
     help="Credential source.",
 )
+@click.option(
+    "--keep-logs",
+    "keep_logs",
+    is_flag=True,
+    default=False,
+    help="Keep background-job logs/sidecars on session exit (default: reap them).",
+)
 def chat_cmd(
     model: str | None,
     cwd_str: str,
@@ -1190,6 +1203,7 @@ def chat_cmd(
     mode: str,
     allow_net: bool | None,
     auth_pref: str,
+    keep_logs: bool,
 ) -> None:
     """Interactive agent REPL. Ctrl-D or /exit to quit."""
     cwd = Path(cwd_str).resolve()
@@ -1214,6 +1228,7 @@ def chat_cmd(
         record=session_store.SessionRecord.new(cwd=cwd, model=cfg.default_model),
         provider=provider,
         auth_detail=f"{res.source} — {res.detail}",
+        keep_logs=keep_logs,
     )
 
 
@@ -1307,10 +1322,16 @@ def _run_repl(
     edit_scope=None,
     prior_context: dict | None = None,
     plain: bool = False,
+    keep_logs: bool = False,
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
+    tools = make_toolset(
+        cwd,
+        renderer=renderer,
+        net=_get_net_session(),
+        session_id=record.id,
+    )
     skill_registry = default_skill_registry()
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
@@ -1368,6 +1389,14 @@ def _run_repl(
         cognition=bundle,
     )
 
+    jobs_root = jail_path(cwd, ".voss-cache") / "jobs"
+    active_session = jobs_root / ".active-session"
+    try:
+        jobs_root.mkdir(parents=True, exist_ok=True)
+        active_session.write_text(record.id)
+    except OSError as exc:
+        click.echo(f"active session marker skipped: {exc}", err=True)
+
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     if auth_detail:
         click.echo(f"  [auth: {auth_detail}]")
@@ -1387,79 +1416,97 @@ def _run_repl(
                     f"  cognition stale ({drift.reason}) — /analyze to refresh"
                 )
 
-    while True:
-        try:
-            line = input("▌ ")
-        except (EOFError, KeyboardInterrupt):
-            click.echo()
+    try:
+        while True:
             try:
-                conventions.run_on_clean_exit(
-                    ctx,
-                    history=ctx.history,
-                    record=record,
-                    memory_store=ctx.memory_store,
-                )
-            except Exception as exc:  # noqa: BLE001
-                click.echo(f"conventions extraction skipped: {exc}", err=True)
-            return
-        line = line.strip()
-        if not line:
-            continue
-
-        # Slash commands.
-        if line.startswith("/"):
-            try:
-                handled = slash_registry.dispatch(ctx, line)
-            except ValueError as exc:
-                click.echo(str(exc), err=True)
-                continue
-            if ctx.should_exit:
+                line = input("▌ ")
+            except (EOFError, KeyboardInterrupt):
+                click.echo()
+                try:
+                    conventions.run_on_clean_exit(
+                        ctx,
+                        history=ctx.history,
+                        record=record,
+                        memory_store=ctx.memory_store,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    click.echo(f"conventions extraction skipped: {exc}", err=True)
                 return
-            if handled:
-                cfg = get_config()
+            line = line.strip()
+            if not line:
                 continue
-        if line.startswith("/"):
-            click.echo(f"unknown command: {line}. /help for list.", err=True)
-            continue
 
-        if _classify_intent(line) == "analyze":
-            skill = skill_registry.get("analyze")
-            if skill is not None:
-                skill.handler(ctx, [])
-            continue
+            # Slash commands.
+            if line.startswith("/"):
+                try:
+                    handled = slash_registry.dispatch(ctx, line)
+                except ValueError as exc:
+                    click.echo(str(exc), err=True)
+                    continue
+                if ctx.should_exit:
+                    return
+                if handled:
+                    cfg = get_config()
+                    continue
+            if line.startswith("/"):
+                click.echo(f"unknown command: {line}. /help for list.", err=True)
+                continue
 
-        renderer.show_user(line)
-        try:
-            run_turn = _resolve_run_turn(cwd)
-            result = _run_turn_cancellable(
-                run_turn(
-                    line,
-                    tools=tools,
-                    cwd=cwd,
+            if _classify_intent(line) == "analyze":
+                skill = skill_registry.get("analyze")
+                if skill is not None:
+                    skill.handler(ctx, [])
+                continue
+
+            renderer.show_user(line)
+            try:
+                run_turn = _resolve_run_turn(cwd)
+                result = _run_turn_cancellable(
+                    run_turn(
+                        line,
+                        tools=tools,
+                        cwd=cwd,
+                        renderer=renderer,
+                        model=cfg.default_model,
+                        history=ctx.history,
+                        permissions=gate,
+                        provider=provider,
+                        session_id=record.id,
+                        cognition=bundle,
+                        prior_context=ctx.prior_context,
+                        voss_md_text=ctx.voss_md_text,
+                    ),
                     renderer=renderer,
-                    model=cfg.default_model,
-                    history=ctx.history,
-                    permissions=gate,
-                    provider=provider,
-                    session_id=record.id,
-                    cognition=bundle,
-                    prior_context=ctx.prior_context,
-                    voss_md_text=ctx.voss_md_text,
-                ),
-                renderer=renderer,
+                )
+                # prior_context is one-shot: only the first turn rehydrates it.
+                ctx.prior_context = None
+            except Exception as e:  # noqa: BLE001
+                click.echo(f"error: {e}", err=True)
+                continue
+            ctx.last_plan = result.plan
+            if result.run is not None:
+                record.runs.append(asdict(result.run))
+            ctx.total_cost += result.cost_usd
+            renderer.show_final(
+                result.final, confidence=result.confidence, cost_usd=result.cost_usd
             )
-            # prior_context is one-shot: only the first turn rehydrates it.
-            ctx.prior_context = None
-        except Exception as e:  # noqa: BLE001
-            click.echo(f"error: {e}", err=True)
-            continue
-        ctx.last_plan = result.plan
-        if result.run is not None:
-            record.runs.append(asdict(result.run))
-        ctx.total_cost += result.cost_usd
-        renderer.show_final(
-            result.final, confidence=result.confidence, cost_usd=result.cost_usd
-        )
+    finally:
+        try:
+            from . import lifecycle
+
+            try:
+                asyncio.run(lifecycle.reap_jobs())
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                try:
+                    loop.run_until_complete(lifecycle.reap_jobs())
+                finally:
+                    loop.close()
+            if not keep_logs:
+                shutil.rmtree(jobs_root / record.id, ignore_errors=True)
+            active_session.unlink(missing_ok=True)
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"job reap skipped: {exc}", err=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1610,6 +1657,136 @@ def sessions_cmd(include_legacy: bool) -> None:
         )
 
 
+_JOB_META_FIELDS = (
+    "handle",
+    "pid",
+    "started_at",
+    "cmd",
+    "log_path",
+    "status",
+    "exit_code",
+    "runtime_ms",
+)
+
+
+def _read_job_meta(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text())
+    except PermissionError:
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or not all(k in data for k in _JOB_META_FIELDS):
+        return None
+    return {k: data[k] for k in _JOB_META_FIELDS}
+
+
+def _active_jobs_session(cache: Path) -> Path | None:
+    active = cache / ".active-session"
+    try:
+        sid = active.read_text().strip()
+    except OSError:
+        sid = ""
+    if sid:
+        try:
+            return jail_path(cache, sid)
+        except Exception:  # noqa: BLE001
+            return None
+
+    try:
+        dirs = [p for p in cache.iterdir() if p.is_dir()]
+    except OSError:
+        return None
+    if not dirs:
+        return None
+    return max(dirs, key=lambda p: p.stat().st_mtime)
+
+
+def _runtime_label(runtime_ms: object) -> str:
+    try:
+        ms = max(0, int(runtime_ms))
+    except (TypeError, ValueError):
+        ms = 0
+    if ms < 1000:
+        return f"{ms}ms"
+    return f"{ms / 1000:.1f}s"
+
+
+def _display_status(rec: dict) -> str:
+    status = str(rec.get("status", ""))
+    if status != "running":
+        return status
+    try:
+        live = psutil.pid_exists(int(rec["pid"]))
+    except (TypeError, ValueError, psutil.Error):
+        live = False
+    return "running" if live else "stale"
+
+
+@click.command("jobs")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--json", "json_mode", is_flag=True, help="One JSON record per line.")
+def jobs_cmd(cwd_str: str, json_mode: bool) -> None:
+    """List background jobs for the current session."""
+    cwd = Path(cwd_str).resolve()
+    cache = jail_path(cwd, ".voss-cache") / "jobs"
+    session_dir = _active_jobs_session(cache)
+    if session_dir is None:
+        click.echo("(no background jobs)")
+        return
+
+    records: list[dict] = []
+    try:
+        meta_paths = sorted(session_dir.glob("*.meta.json"))
+    except OSError:
+        meta_paths = []
+    for path in meta_paths:
+        rec = _read_job_meta(path)
+        if rec is not None:
+            records.append(rec)
+
+    if not records:
+        click.echo("(no background jobs)")
+        return
+
+    if json_mode:
+        for rec in records:
+            click.echo(json.dumps(rec))
+        return
+
+    rows = [
+        (
+            str(rec["handle"]),
+            str(rec["pid"]),
+            _display_status(rec),
+            _runtime_label(rec["runtime_ms"]),
+            str(rec["cmd"]),
+        )
+        for rec in records
+    ]
+    headers = ("HANDLE", "PID", "STATUS", "RUNTIME", "CMD")
+    widths = [
+        max(len(headers[i]), *(len(row[i]) for row in rows))
+        for i in range(len(headers) - 1)
+    ]
+    click.echo(
+        f"{headers[0]:<{widths[0]}}  {headers[1]:<{widths[1]}}  "
+        f"{headers[2]:<{widths[2]}}  {headers[3]:<{widths[3]}}  {headers[4]}"
+    )
+    terminal_cols = shutil.get_terminal_size((80, 24)).columns
+    max_cmd = max(10, terminal_cols - sum(widths) - 10)
+    for handle, pid, status, runtime, cmd in rows:
+        if len(cmd) > max_cmd:
+            cmd = cmd[: max_cmd - 1] + "…"
+        click.echo(
+            f"{handle:<{widths[0]}}  {pid:<{widths[1]}}  "
+            f"{status:<{widths[2]}}  {runtime:<{widths[3]}}  {cmd}"
+        )
+
+
 @click.command("resume")
 @click.argument("session_id_or_name")
 @click.option(
@@ -1682,6 +1859,7 @@ def resume_cmd(
 def tools_cmd(cwd_str: str) -> None:
     """List registered harness tools."""
     cwd = Path(cwd_str).resolve()
+    # T5: no session_id — tools_cmd never invokes tools (deliberate _nosession).
     tools = make_toolset(cwd)
     name_w = max(len(n) for n in tools)
     click.echo(f"  {'name':<{name_w}}  {'mut':<5}  description")
@@ -1706,6 +1884,7 @@ def _extension_context(
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
     renderer = renderer or make_renderer(json_mode=False)
+    # T5: deliberate _nosession — not a live session loop.
     tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     gate = gate or PermissionGate(mode="edit", store=PermissionStore.load(cwd))
     ctx = SimpleNamespace(
@@ -2161,6 +2340,7 @@ AGENT_COMMANDS = (
     logout_cmd,
     doctor_cmd,
     sessions_cmd,
+    jobs_cmd,
     resume_cmd,
     tools_cmd,
     plugins_cmd,

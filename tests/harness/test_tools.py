@@ -93,7 +93,13 @@ class TestToolEntryClassification:
 
     def test_mutating_tools_flagged(self, tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
-        for name in ("fs_write", "fs_edit", "shell_run", "shell_run_background"):
+        for name in (
+            "fs_write",
+            "fs_edit",
+            "shell_run",
+            "shell_run_background",
+            "shell_signal",
+        ):
             assert tools[name].is_mutating is True, name
 
     def test_descriptor_invoke_still_works(self, project: Path) -> None:
@@ -104,6 +110,6 @@ class TestToolEntryClassification:
     def test_mutating_count(self, tmp_path: Path) -> None:
         tools = make_toolset(tmp_path)
         # T2-05 added fs_read_many; T3 added web_fetch + web_search.
-        # T5 adds shell_run_background + shell_monitor.
-        assert sum(1 for e in tools.values() if e.is_mutating) == 6
+        # T5 adds shell_run_background + shell_monitor + shell_signal.
+        assert sum(1 for e in tools.values() if e.is_mutating) == 7
         assert sum(1 for e in tools.values() if not e.is_mutating) == 10

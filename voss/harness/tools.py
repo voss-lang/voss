@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import signal as _signal
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -194,12 +195,68 @@ def make_toolset(
 
     @tool(
         name="shell_monitor",
-        description="Read incremental output for a background job handle.",
+        description=(
+            "Read incremental output from a background job by handle. since_ms "
+            "is an opaque byte cursor (0 = from start); pass back the returned "
+            "cursor to continue. Non-blocking. Returns [cursor N][running|exit M] "
+            "then the new output."
+        ),
     )
     async def shell_monitor(handle: str, since_ms: int = 0) -> str:
         from . import lifecycle
 
-        return lifecycle.monitor_job(handle, since_ms=since_ms)
+        rec = lifecycle._JOBS.get(handle)
+        if rec is None:
+            return f"<error: unknown handle {handle}>"
+
+        offset = max(0, int(since_ms))
+        path = Path(rec.log_path)
+        chunk = b""
+        file_size = offset
+        try:
+            with path.open("rb") as fh:
+                fh.seek(offset)
+                chunk = fh.read(30720)
+                file_size = path.stat().st_size
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            return f"<error: {exc}>"
+
+        new_cursor = offset + len(chunk)
+        status_token = "running" if rec.status == "running" else f"exit {rec.exit_code}"
+        text = chunk.decode("utf-8", errors="replace")
+        suffix = ""
+        if file_size > new_cursor:
+            remaining = file_size - new_cursor
+            suffix = (
+                f"\n<truncated, {remaining} more bytes — re-monitor with cursor "
+                f"{new_cursor}>"
+            )
+        if rec.reap_reason:
+            suffix += f'\nshell.background.reap reason="{rec.reap_reason}"'
+        return f"[cursor {new_cursor}][{status_token}]\n" + text + suffix
+
+    @tool(
+        name="shell_signal",
+        description="Send INT or TERM to a background job by handle. KILL is not supported.",
+    )
+    async def shell_signal(handle: str, signal: str) -> str:
+        if signal == "INT":
+            sig = _signal.SIGINT
+        elif signal == "TERM":
+            sig = _signal.SIGTERM
+        else:
+            return "<denied: unsupported signal>"
+
+        from . import lifecycle
+
+        if lifecycle._JOBS.get(handle) is None:
+            return f"<error: unknown handle {handle}>"
+        await asyncio.sleep(0.1)
+        if not lifecycle.signal_job(handle, sig):
+            return f"<error: unknown handle {handle}>"
+        return f"[signal {signal} -> {handle}]"
 
     @tool(name="fs_write", description="Write text to a file inside cwd. Creates parent dirs. Overwrites existing.")
     async def fs_write(path: str, content: str) -> str:
@@ -414,6 +471,7 @@ def make_toolset(
             is_mutating=True,
         ),
         "shell_monitor": ToolEntry(descriptor=shell_monitor, is_mutating=False),
+        "shell_signal": ToolEntry(descriptor=shell_signal, is_mutating=True),
         "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
         "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
         "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),

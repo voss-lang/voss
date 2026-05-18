@@ -35,7 +35,7 @@
 | T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
 | T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | TBD |
-| A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A10) | SHL-01..0N (TBD by SPEC.md) | TBD |
+| A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A10) | SHL-01..06 | 4 plans, 4 waves |
 | A2 | voss-app PTY Pane | One xterm pane wired to native PTY, full TTY support, scrollback, copy/paste | PTY-01..0N (TBD by SPEC.md) | TBD |
 | A3 | voss-app Grid Engine | Binary-split tree, splits/focus/resize/close, `⌘1-9` nav, save/load layout | GRD-01..0N (TBD by SPEC.md) | TBD |
 | A4 | voss-app Layout Presets | Fanout/pipeline/swarm/watchers visual templates, `⌘G` cycle, reorder w/o killing panes | LAY-01..0N (TBD by SPEC.md) | TBD |
@@ -942,8 +942,8 @@ Plans:
 - [x] T5-01-test-scaffold-and-psutil-dep-PLAN.md — Wave 1: failing test surface (SHELL-01..05 + SC#1/#2/#3) + emit.py fixture + `_JOBS` reset + `30720` source guard + [BLOCKING human-verify] psutil legitimacy gate then `psutil>=5.9,<8` dep add
 - [x] T5-02-shell-run-cap-raise-PLAN.md — Wave 2: SHELL-01 cap 4096→30720 in both `shell_run` AND `_shell_capture` (Flag 1: raise both); envelope + 30s timeout untouched
 - [x] T5-03-job-registry-and-background-spawn-PLAN.md — Wave 3: JobRecord + atomic `.meta.json` sidecar + `_JOBS` registry + `register_job`/`reap_jobs`/`signal_job` + single supervisor task (pump+30s+100MB) + `start_new_session`/killpg + `shell.background.reap` + `shell_run_background` (SHELL-02, SC#2/#3, D-01/02/05/08/09/10/11)
-- [ ] T5-04-monitor-signal-and-permissions-PLAN.md — Wave 4: `shell_monitor` cursor read + `shell_signal` INT/TERM + 2 ToolEntry regs + D-12 edit-mode deny (explicit name-set) + permissions_bridge verbs (SHELL-03/04, SC#1, D-03/06/12)
-- [ ] T5-05-voss-jobs-cli-and-active-session-PLAN.md — Wave 5: production `make_toolset(session_id=record.id)` wiring (cli.py:1314 `_run_repl` only — closes the cross-process contract; other 5 sites deliberate `_nosession`) + `jail_path` import + `voss jobs` table/`--json` sidecar read + AGENT_COMMANDS + `.active-session` try/finally lifecycle + `--keep-logs` + explicit `reap_jobs()` (SHELL-02/05, D-04/09/11, A4)
+- [x] T5-04-monitor-signal-and-permissions-PLAN.md — Wave 4: `shell_monitor` cursor read + `shell_signal` INT/TERM + 2 ToolEntry regs + D-12 edit-mode deny (explicit name-set) + permissions_bridge verbs (SHELL-03/04, SC#1, D-03/06/12)
+- [x] T5-05-voss-jobs-cli-and-active-session-PLAN.md — Wave 5: production `make_toolset(session_id=record.id)` wiring (cli.py:1314 `_run_repl` only — closes the cross-process contract; other 5 sites deliberate `_nosession`) + `jail_path` import + `voss jobs` table/`--json` sidecar read + AGENT_COMMANDS + `.active-session` try/finally lifecycle + `--keep-logs` + explicit `reap_jobs()` (SHELL-02/05, D-04/09/11, A4)
 
 ---
 
@@ -1026,7 +1026,7 @@ Plans:
 
 **Goal:** Tauri + Solid empty window builds and runs locally on the dev's platform with custom titlebar and theme tokens applied. **No release pipeline, no signing, no distribution channels** — that work is consolidated into A10 (release is a final gate; the app does not ship until A1–A9 are built).
 
-**Requirements (locked at SPEC):** SHL-01..0N
+**Requirements (locked at SPEC):** SHL-01..06
 - SHL-01 Tauri version pinned (2.x recommended; SPEC confirms).
 - SHL-02 Solid + Tailwind UI scaffolded with Variant B theme tokens.
 - SHL-03 Custom titlebar with project-name placeholder, layout-preset switcher (visual only, no behavior yet). No cost-meter slot (Q6).
@@ -1038,6 +1038,13 @@ Plans:
 1. `voss-app` launches as an empty Tauri window on the dev's platform.
 2. Titlebar renders Variant B tokens; theme swappable via config file.
 3. `pnpm tauri build` produces a runnable unsigned local artifact.
+
+
+**Plans:** 4 plans across 4 waves (sequential — each layer compiles on the prior; VALIDATION.md sampling rule favors a compile/smoke check between layers)
+- [ ] A1-01-PLAN.md — Monorepo wiring + Tauri/Solid/Tailwind scaffold + pinned versions; empty 'Voss ADE' window (SHL-01, SHL-06)
+- [ ] A1-02-PLAN.md — Full Variant B token system + Tailwind @theme inline + Rust get_theme_overrides settings seam (SHL-02)
+- [ ] A1-03-PLAN.md — Custom 22px titlebar + macOS traffic-light controls + visual-only preset switcher (SHL-03, SHL-04)
+- [ ] A1-04-PLAN.md — Hardened CSP + unsigned `pnpm tauri build` smoke + About-panel ship name + A10 cert-procurement clock (SHL-05, SHL-06)
 
 **Cross-cutting constraints:**
 - No xterm, no PTY, no grid in A1 — pure window scaffolding.
