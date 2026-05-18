@@ -1104,7 +1104,7 @@ Plans:
 
 ### Phase A3: voss-app Grid Engine
 
-**Goal:** Multi-pane grid layout — binary-split tree, splits/focus/resize/close, `⌘1-9` numeric nav, persisted layout file. Each pane is an independent PTY from A2.
+**Goal:** Multi-pane grid layout — binary-split tree, splits/focus/resize/close, `⌘1-9` numeric nav, an **in-memory Solid→Rust layout mirror (no disk persistence in A3 — A4/A6 own file I/O)**. Each pane is an independent PTY from A2.
 
 **Requirements (locked at SPEC):** GRD-01..0N
 - GRD-01 Pane tree model: binary splits (horizontal/vertical), tmux-style.
@@ -1125,6 +1125,14 @@ Plans:
 **Cross-cutting constraints:**
 - Grid model decision (binary-tree vs css-grid vs flex) closes at SPEC.
 - No layout presets in A3 — that's A4.
+
+**Plans:** 6 plans across 5 waves
+- [ ] A3-01-PLAN.md — Binary-split tree model + Solid store + voss-app-core Rust mirror + sync seam (GRD-01, GRD-08)
+- [ ] A3-02-PLAN.md — Split/fork/close/equalize mutations + 20×5 floor guard + D-04 close (GRD-02, GRD-05)
+- [ ] A3-03-PLAN.md — Numeric/i3-directional/click/cycle focus + drag/keyboard resize w/ 20×5 clamp (GRD-03, GRD-04, GRD-05)
+- [ ] A3-04-PLAN.md — Recursive renderer + drag handles + global keymap + inset-shadow focus treatment (GRD-01, GRD-03, GRD-04, GRD-07)
+- [ ] A3-05-PLAN.md — 22px Variant B header (index + ⋯) + 5-item menu + foreground-gated close-confirm (GRD-02, GRD-06, GRD-07)
+- [ ] A3-06-PLAN.md — App integration + e2e acceptance + 9-pane Canvas perf/flood benchmark + mirror parity (GRD-01..08)
 
 ---
 
