@@ -114,3 +114,11 @@ class CodeIntelService:
             return {"result": "ok", "action": "refreshed", "path": str(self.cwd / ".voss-cache/code/index.db")}
         except Exception as e:
             return {"result": "error", "message": str(e)}
+
+    def get_project_index_summary(self, max_modules: int = 20) -> "IndexSummary | None":
+        """Return the current index summary for context injection (M10-05)."""
+        try:
+            from .index import summarize as _summarize
+            return _summarize(self.cwd, max_modules=max_modules)
+        except Exception:
+            return None

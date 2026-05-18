@@ -291,20 +291,20 @@ def _compose_system_blocks(
     *,
     voss_md_block: str,
     cognition_text: str,
+    project_index_text: str = "",
     prior_context_text: str,
     loop_system: str,
 ) -> list[dict]:
     """Render the CACHE-01 static prefix as cacheable text blocks.
 
-    Keeping the four D-08 slices as separate blocks preserves byte-level
-    invalidation checks for CACHE-06; collapsing them would blur the drift
-    surfaces back into one joined string.
+    M10-05 inserts the bounded `## Project Index` as its own slice after cognition.
     """
     blocks = [
         {"type": "text", "text": text}
         for text in (
             voss_md_block,
             cognition_text,
+            project_index_text,
             prior_context_text,
             loop_system,
         )
@@ -536,9 +536,13 @@ async def _run_turn_exec(
         prior_context_text = _compose_prior_context_block(prior_context)
         voss_md_block = f"# VOSS.md\n{voss_md_text}" if voss_md_text else ""
         # T4 CACHE-01: cached static prefix as block list; rider (below, per-iter) stays a string and remains uncached.
+        # M10-05: project_index_text is threaded from CLI session start
+        project_index_text = getattr(ctx, "project_index_text", "") if hasattr(ctx, "project_index_text") else ""
+
         sys_blocks = _compose_system_blocks(
             voss_md_block=voss_md_block,
             cognition_text=cognition_text,
+            project_index_text=project_index_text,
             prior_context_text=prior_context_text,
             loop_system=_compose_loop_system(max_iterations),
         )
