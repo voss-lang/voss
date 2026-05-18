@@ -570,6 +570,25 @@ def _save_note(ctx, args: list[str], _line: str) -> None:
     click.echo(f"note saved: {display}")
 
 
+def _symbol(ctx: ReplContext, args: list[str], _line: str) -> None:
+    if not args:
+        click.echo("usage: /symbol <name>   (M10 code intelligence — index + LSP)")
+        return
+    click.echo(f"[symbol] would search for {args[0]} using CodeIntelService (M10-04 stub)")
+
+
+def _refs(ctx: ReplContext, args: list[str], _line: str) -> None:
+    if not args:
+        click.echo("usage: /refs <symbol>   (M10 code intelligence — index + LSP)")
+        return
+    click.echo(f"[refs] would find references to {args[0]} (M10-04 stub)")
+
+
+def _refresh(ctx: ReplContext, args: list[str], _line: str) -> None:
+    click.echo("[refresh] rebuilding code index under .voss-cache/code/ (M10-04 stub)")
+    click.echo("Use /analyze for full cognition refresh.")
+
+
 def _build_slash_registry() -> SlashRegistry:
     registry = SlashRegistry()
 
@@ -959,6 +978,10 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/skill", "run a registered skill", _skill, mutating=True),
         SlashCommand("/agents", "list registered subagents", _agents),
         SlashCommand("/agent", "spawn a registered subagent", _agent, mutating=True),
+        # M10-04 code intelligence slash surface
+        SlashCommand("/symbol", "find symbols matching <name> (uses index + LSP)", _symbol),
+        SlashCommand("/refs", "find references to <symbol>", _refs),
+        SlashCommand("/refresh", "rebuild code index (and optionally refresh cognition)", _refresh, mutating=False),
     ):
         registry.register(command)
     return registry

@@ -79,7 +79,7 @@ def test_slash_registry_matches_test_matrix() -> None:
     registered = {cmd.name for cmd in registry._commands.values()}
 
     exercised = {line.split()[0] for line, _ in SLASH_CASES} | {"/exit"}
-    skipped = {"/analyze", "/save-session", "/plugin", "/skill", "/agent"}
+    skipped = {"/analyze", "/save-session", "/plugin", "/skill", "/agent", "/symbol", "/refs", "/refresh"}  # M10-04 stubs; full E2E in later wave
 
     missing = registered - exercised - skipped
     assert not missing, f"slash commands not covered in SLASH_CASES: {missing}"
