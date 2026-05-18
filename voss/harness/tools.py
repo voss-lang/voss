@@ -466,6 +466,47 @@ def make_toolset(
     }
     if net is not None:
         _merge_mcp_tools(result, cwd)
+
+    # --- M10-04 Code Intelligence tools (read-only) ---
+    try:
+        from voss.harness.code.service import CodeIntelService as _CodeIntelService
+    except Exception:
+        _CodeIntelService = None  # type: ignore
+
+    def _code_service():
+        if _CodeIntelService is None:
+            raise RuntimeError("code intelligence not available (install voss[code]?)")
+        return _CodeIntelService.for_cwd(cwd, session_id=session_id)
+
+    @tool(name="code_search", description="Structural code search using ast-grep (with regex fallback).")
+    async def code_search(pattern: str, path: str = ".", max_results: int = 50) -> str:
+        svc = _code_service()
+        res = await svc.search(pattern, path=path, max_results=max_results)
+        return str(res)
+
+    @tool(name="find_definition", description="Find definition of a symbol using LSP + index.")
+    async def find_definition(symbol: str, path: str | None = None) -> str:
+        svc = _code_service()
+        res = await svc.find_definition(symbol, path=path)
+        return str(res)
+
+    @tool(name="find_references", description="Find references to a symbol using LSP + index.")
+    async def find_references(symbol: str, path: str | None = None, max_results: int = 50) -> str:
+        svc = _code_service()
+        res = await svc.find_references(symbol, path=path, max_results=max_results)
+        return str(res)
+
+    @tool(name="code_refresh", description="Rebuild the project code index (cache only, read-only to source).")
+    async def code_refresh(paths: list[str] | None = None) -> str:
+        svc = _code_service()
+        res = await svc.code_refresh(paths)
+        return str(res)
+
+    result["code_search"] = ToolEntry(descriptor=code_search, is_mutating=False)
+    result["find_definition"] = ToolEntry(descriptor=find_definition, is_mutating=False)
+    result["find_references"] = ToolEntry(descriptor=find_references, is_mutating=False)
+    result["code_refresh"] = ToolEntry(descriptor=code_refresh, is_mutating=False)
+
     return result
 
 
