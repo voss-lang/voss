@@ -1,0 +1,9 @@
+# bad.voss — one deterministic analyzer violation for the SKL-06 voss-lint test.
+# `undefined_total` is referenced inside the fn but never declared. The seeded
+# finding must stay stable so T7-02 can assert the emitted JSON contains it.
+fn tally(n: int) -> int {
+    return n + undefined_total
+}
+
+let result = tally(1)
+print(result)
