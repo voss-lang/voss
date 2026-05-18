@@ -39,6 +39,7 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-mock>=3.12",
     "pytest-textual-snapshot>=1.1.0",
+    "Pillow>=10.0",
     "respx>=0.21",
     "vcrpy>=8.0.0,<9",  # T4 CACHE-05: cassette replay; v8 patches httpcore
     # `dev` includes `search` so the test suite can exercise semantic memory.

@@ -47,3 +47,21 @@ class LocalBlockNote(LocalBlock):
     def __init__(self, **kw) -> None:
         text = Text("# note saved", style="dim")
         super().__init__(text, classes="local-block local-block--note", **kw)
+
+
+class LocalBlockNotice(LocalBlock):
+    """Render a transient local warning notice."""
+
+    def __init__(self, message: str, **kw) -> None:
+        text = Text(message, style="signal-warn")
+        super().__init__(text, classes="local-block local-block--notice", **kw)
+        self._timer = None
+
+    def on_mount(self) -> None:
+        self._timer = self.set_timer(3.0, self.remove)
+
+    def dismiss(self) -> None:
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
+        self.remove()

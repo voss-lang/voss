@@ -16,6 +16,48 @@ from .. import glyphs
 from .local_block import LocalBlockNote, LocalBlockShell
 
 
+IMAGE_INDICATOR = "[image attached · 1 image]"
+NO_VISION_NOTICE = "current model has no vision — image not attached"
+
+
+def _build_corpus(history) -> list[str]:
+    if history is None:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for turn in reversed(getattr(history, "turns", [])):
+        if getattr(turn, "role", None) != "user":
+            continue
+        content = str(getattr(turn, "content", ""))
+        if not content or content in seen:
+            continue
+        seen.add(content)
+        out.append(content)
+    return out
+
+
+def _read_clipboard_image():
+    from PIL import Image, ImageGrab
+
+    result = ImageGrab.grabclipboard()
+    if isinstance(result, Image.Image):
+        return result
+    return None
+
+
+def _probe_clipboard_image():
+    try:
+        return _read_clipboard_image()
+    except (ImportError, NotImplementedError, ChildProcessError, OSError):
+        return None
+
+
+def _model_supports_vision(model_name: str) -> bool:
+    # [ASSUMED] No provider capability API exists; T8 gates by known model prefixes.
+    name = (model_name or "").lower()
+    return name.startswith(("claude-3", "claude-opus", "gpt-4o", "gpt-4-vision", "gemini"))
+
+
 class _InputTextArea(TextArea):
     """TextArea child with M9 main-context collisions stripped."""
 
@@ -29,13 +71,22 @@ class _InputTextArea(TextArea):
 class InputBar(Widget):
     """TextArea-backed input with locked prompt glyph + Submitted contract."""
 
-    BINDINGS = [("slash", "open_palette", "Open slash palette")]
+    BINDINGS = [
+        ("slash", "open_palette", "Open slash palette"),
+        ("ctrl+r", "reverse_search", "Reverse-search input history"),
+    ]
     can_focus = True
 
     def __init__(self, **kw) -> None:
         super().__init__(**kw)
         self._prompt_text = f"{glyphs.PROMPT} "
         self._search_mode = False
+        self._search_query = ""
+        self._search_saved_text = ""
+        self._search_matches: list[str] = []
+        self._search_idx = 0
+        self._search_corpus: list[str] = []
+        self._pending_image = None
 
     def compose(self) -> ComposeResult:
         yield Static(self._prompt_text, id="prompt-glyph", classes="accent")
@@ -50,6 +101,10 @@ class InputBar(Widget):
     def text(self) -> str:
         return self.query_one("#input-textarea", TextArea).text
 
+    @property
+    def search_mode(self) -> bool:
+        return self._search_mode
+
     def load_text(self, text: str) -> None:
         textarea = self.query_one("#input-textarea", TextArea)
         textarea.load_text(text)
@@ -61,6 +116,29 @@ class InputBar(Widget):
 
     async def _on_key(self, event) -> None:
         textarea = self.query_one("#input-textarea", TextArea)
+        if event.key == "ctrl+r":
+            event.prevent_default()
+            event.stop()
+            self.action_reverse_search()
+            return
+        if self._search_mode:
+            event.prevent_default()
+            event.stop()
+            if event.key == "enter":
+                self._accept_reverse_search()
+            elif event.key == "escape":
+                self._exit_reverse_search(restore=True)
+            elif event.key in {"backspace", "ctrl+h"}:
+                self._search_query = self._search_query[:-1]
+                self._refresh_reverse_search()
+            else:
+                char = getattr(event, "character", None)
+                if char is None and len(event.key) == 1:
+                    char = event.key
+                if char and char.isprintable():
+                    self._search_query += char
+                    self._refresh_reverse_search()
+            return
         if event.key == "enter" and not self._search_mode:
             event.prevent_default()
             event.stop()
@@ -88,7 +166,11 @@ class InputBar(Widget):
     async def action_submit(self) -> None:
         value = self.text
         self.load_text("")
+        pending_image = self._pending_image
+        self._pending_image = None
         stripped = value.strip()
+        if pending_image is not None and stripped == IMAGE_INDICATOR:
+            return
         if not stripped:
             return
         if stripped.startswith("!"):
@@ -102,6 +184,70 @@ class InputBar(Widget):
                 await self._dispatch_note(note)
             return
         self.post_message(self.Submitted(value))
+
+    def action_reverse_search(self) -> None:
+        if not self._search_mode:
+            self._search_mode = True
+            self._search_query = ""
+            self._search_saved_text = self.text
+            self._search_corpus = _build_corpus(getattr(self.app, "history", None))
+            self._search_idx = 0
+            self.query_one("#input-textarea", TextArea).read_only = True
+            self._refresh_reverse_search()
+            return
+        if self._search_matches and self._search_idx < len(self._search_matches) - 1:
+            self._search_idx += 1
+        else:
+            self._search_idx = len(self._search_matches)
+        self._render_reverse_search()
+
+    def _refresh_reverse_search(self) -> None:
+        query = self._search_query.lower()
+        self._search_matches = [
+            item for item in self._search_corpus if query in item.lower()
+        ]
+        self._search_idx = 0
+        self._render_reverse_search()
+
+    def _render_reverse_search(self) -> None:
+        if self._search_matches and self._search_idx < len(self._search_matches):
+            match = self._search_matches[self._search_idx]
+        else:
+            match = "(no match)"
+        self.load_text(f"{glyphs.PROMPT} (reverse-i-search)`{self._search_query}': {match}")
+
+    def _accept_reverse_search(self) -> None:
+        match = (
+            self._search_matches[self._search_idx]
+            if self._search_matches and self._search_idx < len(self._search_matches)
+            else ""
+        )
+        self._exit_reverse_search(restore=False)
+        self.load_text(match)
+
+    def _exit_reverse_search(self, *, restore: bool) -> None:
+        self._search_mode = False
+        self.query_one("#input-textarea", TextArea).read_only = False
+        self.load_text(self._search_saved_text if restore else "")
+
+    async def action_paste(self) -> None:
+        image = _probe_clipboard_image()
+        if image is None:
+            textarea = self.query_one("#input-textarea", TextArea)
+            action = getattr(textarea, "action_paste", None)
+            if action is not None:
+                result = action()
+                if asyncio.iscoroutine(result):
+                    await result
+            return
+        if _model_supports_vision(getattr(self.app, "model", "")):
+            self._pending_image = image
+            self.load_text(IMAGE_INDICATOR)
+            return
+        self._pending_image = None
+        handler = getattr(self.app, "on_local_event", None)
+        if handler is not None:
+            handler("notice", {"message": NO_VISION_NOTICE})
 
     async def _dispatch_shell(self, cmd: str) -> None:
         allowed, reason = sandbox.shell_allowed(cmd)
