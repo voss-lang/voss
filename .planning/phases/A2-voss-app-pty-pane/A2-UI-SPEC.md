@@ -1,7 +1,8 @@
 ---
 phase: A2
 slug: voss-app-pty-pane
-status: draft
+status: approved
+reviewed_at: 2026-05-18
 shadcn_initialized: false
 preset: none
 created: 2026-05-18
