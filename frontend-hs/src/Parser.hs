@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -43,7 +44,7 @@ fills :: P ()
 fills = void . Mp.many $ choice [try eoline, hj]
 
 eoline :: P ()
-eoline = void . try $ optionally (chunk "\r") *> chunk "\n"
+eoline = void . try $ optional (chunk "\r") *> chunk "\n"
 
 stmtSep :: P ()
 stmtSep = hj *> fills *> void (Mp.some eoline) *> hj *> fills
@@ -135,7 +136,6 @@ decodeEscaped inner = go 0 ""
                                 _ -> go (i + 2) (e : '\\' : acc)
                               else go (i + 2) (e : '\\' : acc)
                 | otherwise -> go (i + 2) (e : '\\' : acc)
- where
   slice lo hi = take (hi - lo) (drop lo inner)
   octEnd j cnt
     | cnt >= 3 || j >= n = j
