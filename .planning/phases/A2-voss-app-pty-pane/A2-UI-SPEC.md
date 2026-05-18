@@ -102,7 +102,7 @@ This pane uses a **density-first** model. The 8-point grid applies to the chrome
 
 **Exceptions:**
 - Pane header height: exactly **22px** (Variant B lock — does not conform to 4px multiples). Source: sketch 001 README + MANIFEST.md.
-- Touch targets: banner buttons (`Restart`, `Send`, `Cancel`) minimum height 28px to allow click accuracy, even though the row is visually compact.
+- Touch targets: banner buttons (`Restart`, `Send`, `Discard`) minimum height 28px to allow click accuracy, even though the row is visually compact.
 - Header font: 12px (see Typography) — dense by design, not an error.
 
 ---
@@ -117,7 +117,7 @@ All text in A2 uses `--font-mono` except `--font-ui` for the pane header UI chro
 | Header dim | `--font-ui` (Inter) | 11px | 400 (regular) | 1.0 | Separator glyphs, right-aligned notes |
 | Terminal body | `--font-mono` (JetBrains Mono) | 13px | 400 (regular) | 1.5 | xterm.js rendered PTY output |
 | Banner text | `--font-mono` (JetBrains Mono) | 12px | 400 (regular) | 1.4 | Paste-guard preview, exit-banner message |
-| Banner button | `--font-ui` (Inter) | 12px | 500 (medium) | 1.0 | "Restart", "Send", "Cancel" button labels |
+| Banner button | `--font-ui` (Inter) | 12px | 500 (medium) | 1.0 | "Restart", "Send", "Discard" button labels |
 
 **Weight constraint:** Maximum 2 weights per component context. Header = 500+400. Terminal = 400 only (xterm controls its own weights). Banners = 500+400.
 
@@ -369,20 +369,20 @@ Actually: exit banner and paste-guard are mutually exclusive in normal operation
 
 **Row 2 — Actions (28px):**
 ```
-[8px] Send (⏎) [8px] Cancel (Esc) ···spacer··· ⌘⇧V to paste without confirm [8px]
+[8px] Send (⏎) [8px] Discard (Esc) ···spacer··· ⌘⇧V to paste without confirm [8px]
 ```
 | Slot | Content | Color |
 |------|---------|-------|
 | Send button | `Send` with keyboard hint `⏎` | `--accent-blue` on `--bg-2` background |
-| Cancel button | `Cancel` with keyboard hint `Esc` | `--fg-2` on `--bg-1` background |
+| Discard button | `Discard` with keyboard hint `Esc` | `--fg-2` on `--bg-1` background |
 | Right hint | `⌘⇧V skips this` | `--fg-3` 11px italic — informational only, not a button |
 
 **Send button:** same styling as Restart button — `--bg-2` background, `--accent-blue` text, 1px `--border`, no radius.
-**Cancel button:** `--bg-1` background, `--fg-2` text, 1px `--border`, no radius.
+**Discard button:** `--bg-1` background, `--fg-2` text, 1px `--border`, no radius.
 
 **Keyboard interactions:**
 - `Enter` → executes send: writes the pending paste to the PTY (with bracketed-paste wrapping if shell supports it), dismisses banner.
-- `Escape` → cancels: clears pending paste, dismisses banner. Nothing sent to PTY.
+- `Escape` → discards: clears pending paste, dismisses banner. Nothing sent to PTY.
 - `⌘⇧V` → bypass: sets bypass flag, fires normal paste without banner (banner never shows for this keypress).
 - Any other key typed while banner is visible → **forwarded to terminal** — banner does not trap keyboard focus (non-modal).
 
@@ -478,8 +478,8 @@ Match highlighting: handled by `@xterm/addon-search` `SearchAddon.findNext` / `f
 | Paste-guard line count | `(N lines)` | Parentheses literal; e.g. `(3 lines)` |
 | Paste-guard send button | `Send` | Title case |
 | Paste-guard send keyboard hint | `⏎` | Follows `Send` with a space; rendered in `--fg-3` |
-| Paste-guard cancel button | `Cancel` | Title case |
-| Paste-guard cancel keyboard hint | `Esc` | Follows `Cancel` with a space; rendered in `--fg-3` |
+| Paste-guard discard button | `Discard` | Title case; verb-only, unambiguous (discards the pending paste) |
+| Paste-guard discard keyboard hint | `Esc` | Follows `Discard` with a space; rendered in `--fg-3` |
 | Paste-guard bypass hint | `⌘⇧V skips this` | Right-aligned, `--fg-3`, 11px, italics optional |
 | Find bar placeholder | `Find…` | Ellipsis is U+2026 (single char) |
 | Header cwd truncation | `<basename>…` | Truncate at 24 chars + U+2026 |
@@ -498,11 +498,11 @@ Match highlighting: handled by `@xterm/addon-search` `SearchAddon.findNext` / `f
 1. Terminal body (xterm `canvas` element — receives focus on click)
 2. When find bar is open: find input → prev → next → close (standard tab order)
 3. When exit banner visible: Restart button is in DOM tab order
-4. When paste-guard banner visible: Send → Cancel (tab order); terminal body also focusable but banner buttons are prioritized
+4. When paste-guard banner visible: Send → Discard (tab order); terminal body also focusable but banner buttons are prioritized
 
 **Keyboard reachability of banner buttons:**
 - Exit banner Restart button: reachable via Tab when banner is visible. `Enter` on focused button fires restart.
-- Paste-guard Send/Cancel: reachable via Tab. `Enter` on focused Send fires send. `Enter` on focused Cancel fires cancel.
+- Paste-guard Send/Discard: reachable via Tab. `Enter` on focused Send fires send. `Enter` on focused Discard fires discard.
 - Paste-guard also has keyboard shortcuts (Enter/Escape) that do not require tabbing to the buttons.
 
 **Contrast check against themes/default.css tokens (WCAG AA: 4.5:1 for normal text, 3:1 for large text):**
@@ -518,6 +518,10 @@ Match highlighting: handled by `@xterm/addon-search` `SearchAddon.findNext` / `f
 | `--fg-3` (#444a5a) on `--bg-3` (#1f232e) | separators, hints | ~1.9:1 | FAIL (intentional — separators are decorative, not informational) |
 
 **Note on `--fg-2` contrast:** At 12px/500 (header labels), `--fg-2` on `--bg-3` is ~4.1:1 — just below the 4.5:1 WCAG AA normal-text threshold. This is a **deliberate density-first tradeoff**. The text at this level (pane index, shell name) is supplemental chrome, not critical information. The primary content (terminal output) meets contrast at 18.5:1. If contrast compliance is required in a future accessibility pass, raise `--fg-2` to approximately `#7a8090`.
+
+**Note on non-blocking checker FLAGs (acknowledged, no behavior change):**
+- *Dim 2 — glyph-only buttons (`⋯ ↑ ↓ ✕`) lack aria-label:* A2 deliberately defers ARIA (dev-tool v0, power-user audience; xterm canvas produces no semantic DOM). This is an accepted, intentional posture for A2 — not a defect. Screen-reader support is deferred to a future accessibility phase.
+- *Dim 4 — 11/12/13px type scale:* The three sizes are differentiated by color and font-family per the locked density-first Variant B contract (Inter UI chrome at 11/12px vs JetBrains Mono terminal at 13px). Accepted as-is — this is the canonical sketch 001 contract, not an oversight.
 
 **Terminal content:** xterm.js renders terminal content controlled by the running shell. Terminal content contrast is user-controlled and out of scope for this spec. The xterm theme above ensures the default white/bright text has adequate contrast on the dark background.
 
@@ -603,3 +607,4 @@ All banner state transitions are instantaneous. `transition: none` should be exp
 | Status bar stubbed (0px) | ROADMAP.md A2 cross-cutting constraints |
 | Find bar design | FEATURES.md §L1.4.4 + RESEARCH.md PTY-03 |
 | Motion: no animation except xterm cursor | MANIFEST.md density-first conviction |
+| Paste-guard `Discard` label (was `Cancel`) | UI-checker revision 2026-05-18 — Dim 1 blocking fix |
