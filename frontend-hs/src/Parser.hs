@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
 module Parser (parseProgram) where
@@ -8,6 +9,7 @@ import Ast
 import Control.Applicative (optional, (<|>))
 import Control.Monad (void)
 import Data.List (foldl')
+import Data.Maybe (fromMaybe)
 import qualified Data.Char as Char
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -15,7 +17,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Read as TR
 import Data.Void (Void)
 import Numeric (readHex, readOct)
-import Text.Megaparsec hiding (sepBy, sepEndBy)
+import Text.Megaparsec
 import qualified Text.Megaparsec as Mp
 import Text.Megaparsec.Char
 import Text.Megaparsec.Pos (unPos)
@@ -84,6 +86,7 @@ identCont c = Char.isAlphaNum c || c == '_'
 
 identTok :: P Text
 identTok = do
+  hj
   c <- satisfy identLetter <?> "identifier"
   cs <- Mp.many (satisfy identCont)
   let nm = T.pack (c : cs)
@@ -344,7 +347,7 @@ matchCaseBody fp =
 pattern :: FilePath -> P Pattern
 pattern fp =
   choice
-    [ try $ (\(sp, t) -> PatSimilar SimilarPat_{ssSpan = sp, ssText = t}) <$> withSpan fp (keyword "similar" *> symbolic "(" *> stringChunks fp False <* symbolic ")"),
+    [ try $ (\(sp, t) -> PatSimilar SimilarPat_{ssSpan = sp, ssText = t}) <$> withSpan fp (keyword "similar" *> symbolic "(" *> doubleStringChunks <* symbolic ")"),
       try $ (\(sp, ()) -> PatWildcard sp) <$> withSpan fp (underscoreTok *> pure ()),
       PatExpr . uncurry ExprPat_ <$> withSpan fp (expr fp)
     ]
@@ -600,7 +603,8 @@ litExpr fp =
       (\(sp, t) -> ExprStrLit sp t False) <$> withSpan fp doubleStringChunks,
       numberExpr fp,
       (\(sp, b) -> ExprBoolLit sp b) <$> withSpan fp boolLit,
-      ExprNullLit . fst <$> withSpan fp (keyword "null" *> pure ())
+      (\(sp, ()) -> ExprNullLit sp) <$> withSpan fp (keyword "null" *> pure ())
+
     ]
 
 boolLit :: P Bool
@@ -610,7 +614,7 @@ boolLit =
 
 doubleStringChunks :: P Text
 doubleStringChunks =
-  char '"' *> (T.pack <$> Mp.many ch) <* char '"'
+  hj *> char '"' *> (T.pack <$> Mp.many ch) <* char '"'
  where
   ch =
     choice
@@ -623,18 +627,337 @@ doubleStringChunks =
       ]
 
 tripleStringChunks :: P Text
-tripleStringChunks = chunk "\"\"\"\"\"\"" *> fail "triple" <|> inner
+tripleStringChunks =
+  hj
+    *> chunk "\"\"\""
+    *> (T.pack <$> Mp.manyTill Mp.anySingle (try $ chunk "\"\"\""))
+
+gateNumberLit :: FilePath -> P Expr
+gateNumberLit = numberExpr
+
+numberExpr :: FilePath -> P Expr
+numberExpr fp =
+  (\(sp, v) -> either (ExprIntLit sp) (ExprFloatLit sp) v)
+    <$> withSpan fp numberAtom
+
+numberAtom :: P (Either Integer Double)
+numberAtom = hj *> lexNumText
+
+lexNumText :: P (Either Integer Double)
+lexNumText = do
+  whole <- Mp.takeWhile1P Nothing Char.isDigit
+  mfrac <- optional $ try (chunk "." *> Mp.takeWhile1P Nothing Char.isDigit)
+  case mfrac of
+    Nothing ->
+      case TR.decimal whole of
+        Right (i, r) | T.null r -> pure (Left i)
+        _ -> fail "invalid integer literal"
+    Just frac ->
+      let txt = whole <> "." <> frac
+       in case TR.double txt of
+            Right (d, r) | T.null r -> pure (Right d)
+            _ -> fail "invalid float literal"
+
+------------------------------------------------------------------------------
+budgetLiteral :: FilePath -> P BudgetArg
+budgetLiteral fp =
+  (\(sp, rawTxt) ->
+     let !(u, num, rr) = parseUnitToken rawTxt
+      in BudgetArg sp "" u num rr)
+    <$> withSpan fp budgetLexeme
+
+budgetLexeme :: P Text
+budgetLexeme =
+  hj
+    *> choice
+    [ try usdLit,
+      try tokensLit,
+      try turnsLit,
+      try msLit,
+      sLit
+    ]
+
+tokensLit :: P Text
+tokensLit = do
+  w <- Mp.takeWhile1P Nothing Char.isDigit
+  tabsOnly
+  _ <- chunk "tokens"
+  kwBoundary
+  pure (w <> " tokens")
+
+turnsLit :: P Text
+turnsLit = do
+  w <- Mp.takeWhile1P Nothing Char.isDigit
+  tabsOnly
+  _ <- chunk "turns"
+  kwBoundary
+  pure (w <> " turns")
+
+msLit :: P Text
+msLit = do
+  w <- Mp.takeWhile1P Nothing Char.isDigit
+  _ <- chunk "ms"
+  kwBoundary
+  pure (w <> "ms")
+
+sLit :: P Text
+sLit = do
+  w <- Mp.takeWhile1P Nothing Char.isDigit
+  _ <- chunk "s"
+  kwBoundary
+  pure (w <> "s")
+
+usdLit :: P Text
+usdLit = do
+  _ <- chunk "$"
+  whole <- Mp.takeWhile1P Nothing Char.isDigit
+  frac <- optional (try (chunk "." *> Mp.takeWhile1P Nothing Char.isDigit))
+  _ <- kwBoundary
+  pure $ case frac of
+    Nothing -> "$" <> whole
+    Just f -> "$" <> whole <> "." <> f
+
+------------------------------------------------------------------------------
+dictLit :: FilePath -> P DictLit_
+dictLit fp =
+  (\(sp, items) -> DictLit_ sp items) <$> withSpan fp inner
  where
-  inner = do
-    _ <- chunk "\"\"\""
-    chars <-
-      Mp.many
-        ( choice
-            [ try (chunk "\"\"\"\"") *> pure '"',
-              satisfy (/= '\"'),
-              try (lookAhead (chunk "\"\"\"") >> notFollowedBy (chunk "\"\"\"")) *> char '\"'
-            ]
-        )
-        <|> Mp.takeWhileP Nothing (/= '\"') *> empty
-    _ <- chunk "\"\"\""
-    pure ""
+  inner =
+    symbolic "{" *> sepEndBy (dictPair fp) commaTok <* symbolic "}"
+
+dictPair :: FilePath -> P (Expr, Expr)
+dictPair fp =
+  (,)
+    <$> dictKeyExpr fp
+    <*> (symbolic ":" *> expr fp)
+
+dictKeyExpr :: FilePath -> P Expr
+dictKeyExpr fp =
+  choice
+    [ (\(sp, t) -> ExprStrLit sp t False) <$> withSpan fp doubleStringChunks,
+      (\(sp, nm) -> ExprIdent sp nm) <$> withSpan fp identTok
+    ]
+
+------------------------------------------------------------------------------
+arg :: FilePath -> P Arg
+arg fp =
+  choice
+    [ try namedArg,
+      posArg
+    ]
+ where
+  namedArg = do
+    (sn, nm) <- withSpan fp identTok
+    _ <- symbolic ":"
+    (sv, ex) <- withSpan fp (expr fp)
+    pure Arg{argSpan = glueSpan sn sv, argName = Just nm, argValue = ex}
+  posArg = do
+    (sx, ex) <- withSpan fp (expr fp)
+    pure Arg{argSpan = sx, argName = Nothing, argValue = ex}
+
+------------------------------------------------------------------------------
+qualName :: FilePath -> P QualName
+qualName fp =
+  (\(sp, segs) -> QualName sp segs)
+    <$> withSpan fp segments
+ where
+  segments =
+    (:)
+      <$> identTok
+      <*> many (sym "." *> identTok)
+
+typeExpr :: FilePath -> P TypeExpr
+typeExpr fp = do
+  (sp, (qn, mg, mkw)) <- withSpan fp tyInner
+  pure $ TypeExpr sp qn (fromMaybe [] mg) (fromMaybe [] mkw)
+ where
+  tyInner =
+    (,,)
+      <$> qualName fp
+      <*> optional typeGenerics
+      <*> optional typeKwargsBlk
+  typeGenerics =
+    try $
+      symbolic "<"
+        *> sepEndBy (typeExpr fp) commaTok
+        <* symbolic ">"
+  typeKwargsBlk =
+    try $
+      symbolic "("
+        *> sepEndBy (typeKwarg fp) commaTok
+        <* symbolic ")"
+
+typeKwarg :: FilePath -> P TypeKwarg
+typeKwarg fp = do
+  (sn, nm) <- withSpan fp identTok
+  _ <- symbolic ":"
+  tv <- typeKwargValue fp
+  pure $ TypeKwarg (glueSpan sn (typeKwargValSpan tv)) nm tv
+
+typeKwargValSpan :: TypeKwargValue -> Span
+typeKwargValSpan = \case
+  TKVBudget b -> budgetSpan b
+  TKVQual q -> qnSpan q
+  TKVExpr e -> exprSpan e
+
+typeKwargValue :: FilePath -> P TypeKwargValue
+typeKwargValue fp =
+  choice
+    [ TKVBudget <$> try (budgetLiteral fp),
+      TKVExpr <$> try (numberExpr fp),
+      TKVExpr <$> try tripleStrKw,
+      TKVExpr <$> try doubleStrKw,
+      TKVExpr <$> try boolNullKw,
+      TKVQual <$> qualName fp
+    ]
+ where
+  tripleStrKw =
+    (\(sp, t) -> ExprStrLit sp t True) <$> withSpan fp tripleStringChunks
+  doubleStrKw =
+    (\(sp, t) -> ExprStrLit sp t False) <$> withSpan fp doubleStringChunks
+  boolNullKw =
+    choice
+      [ (\(sp, b) -> ExprBoolLit sp b) <$> withSpan fp boolLit,
+        (\(sp, ()) -> ExprNullLit sp) <$> withSpan fp (keyword "null" *> pure ())
+      ]
+
+------------------------------------------------------------------------------
+param :: FilePath -> P Param
+param fp = do
+  (sp, nm) <- withSpan fp identTok
+  ta <- optional (sym ":" *> typeExpr fp)
+  df <- optional (sym "=" *> expr fp)
+  pure $ Param sp nm ta df
+
+paramList :: FilePath -> P [Param]
+paramList fp = sepEndBy (param fp) commaTok
+
+------------------------------------------------------------------------------
+pFn :: FilePath -> P FnDecl_
+pFn fp =
+  (\(sp, (nm, ps, rt, bd)) ->
+     FnDecl_ sp nm ps rt bd [])
+    <$> withSpan fp inner
+ where
+  inner =
+    (,,,)
+      <$> (keyword "fn" *> identTok)
+      <*> (symbolic "(" *> paramList fp <* symbolic ")")
+      <*> optional (sym "->" *> typeExpr fp)
+      <*> (symbolic "{" *> block fp <* symbolic "}")
+
+pAgent :: FilePath -> P AgentDecl_
+pAgent fp =
+  (\(sp, (nm, ps, rt, opts, bd)) ->
+     AgentDecl_ sp nm ps rt opts bd [])
+    <$> withSpan fp inner
+ where
+  inner =
+    (,,,,)
+      <$> (keyword "agent" *> identTok)
+      <*> (symbolic "(" *> paramList fp <* symbolic ")")
+      <*> optional (sym "->" *> typeExpr fp)
+      <*> (symbolic "{" *> (agentInner fp <* symbolic "}"))
+
+agentInner :: FilePath -> P (AgentOptions, [Stmt])
+agentInner fp = do
+  fills
+  opts <- many (try (fills *> agentOpt fp <* stmtSep))
+  fills
+  sts <- sepEndBy (stmt fp) stmtSep
+  fills
+  pure (foldAgentOpts fp opts, sts)
+
+agentOpt :: FilePath -> P (Text, Expr)
+agentOpt fp =
+  choice
+    [ kv "system" (keyword "system"),
+      kv "tools" (keyword "tools"),
+      kv "model" (keyword "model"),
+      kv "retries" (keyword "retries"),
+      kv "memory" (keyword "memory")
+    ]
+ where
+  kv lbl p =
+    (\e -> (lbl, e)) <$> (p *> sym ":" *> expr fp)
+
+foldAgentOpts :: FilePath -> [(Text, Expr)] -> AgentOptions
+foldAgentOpts fp entries =
+  AgentOptions (Span fp 1 1 1 1 False)
+    (Map.lookup "system" m)
+    (Map.lookup "tools" m)
+    (Map.lookup "model" m)
+    (Map.lookup "retries" m)
+    (Map.lookup "memory" m)
+ where
+  m = Map.fromList entries
+
+------------------------------------------------------------------------------
+pPrompt :: FilePath -> P PromptDecl_
+pPrompt fp =
+  (\(sp, (nm, ext, bod)) ->
+     PromptDecl_ sp nm ext bod [])
+    <$> withSpan fp inner
+ where
+  inner =
+    (,,)
+      <$> (keyword "prompt" *> identTok)
+      <*> optional (keyword "extends" *> qualName fp)
+      <*> (symbolic "{" *> promptBody fp <* symbolic "}")
+
+promptBody :: FilePath -> P [PromptStringLit]
+promptBody fp =
+  fills *> Mp.sepEndBy1 (promptLit fp) (fills *> Mp.some eoline *> fills) <* fills
+
+promptLit :: FilePath -> P PromptStringLit
+promptLit fp =
+  choice
+    [ (\(sp, t) -> PromptStringLit sp t True) <$> withSpan fp tripleStringChunks,
+      (\(sp, t) -> PromptStringLit sp t False) <$> withSpan fp doubleStringChunks
+    ]
+
+------------------------------------------------------------------------------
+pClass :: FilePath -> P ClassDecl_
+pClass fp =
+  (\(sp, (nm, flds)) ->
+     ClassDecl_ sp nm flds [])
+    <$> withSpan fp inner
+ where
+  inner =
+    (,)
+      <$> (keyword "class" *> identTok)
+      <*> (symbolic "{" *> classBody fp <* symbolic "}")
+
+classBody :: FilePath -> P [ClassField]
+classBody fp =
+  fills *> sepEndBy (classField fp) stmtSep <* fills
+
+classField :: FilePath -> P ClassField
+classField fp =
+  (\(sp, (nm, ty, df)) ->
+     ClassField sp nm ty df)
+    <$> withSpan fp inner
+ where
+  inner =
+    (,,)
+      <$> identTok
+      <*> (sym ":" *> typeExpr fp)
+      <*> optional (sym "=" *> expr fp)
+
+------------------------------------------------------------------------------
+pUse :: FilePath -> P UseStmt_
+pUse fp =
+  (\(sp, (parts, als)) ->
+     UseStmt_ sp parts als)
+    <$> withSpan fp inner
+ where
+  inner =
+    (,)
+      <$> (keyword "use" *> usePathSegments)
+      <*> optional (keyword "as" *> identTok)
+
+usePathSegments :: P [Text]
+usePathSegments =
+  (:)
+    <$> identTok
+    <*> many (sym "::" *> identTok)

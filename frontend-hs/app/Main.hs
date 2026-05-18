@@ -3,16 +3,13 @@
 
 module Main (main) where
 
-import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Options.Applicative
 import System.Exit (exitFailure)
 
-import Voss.IrStub (irStubValue)
-import Voss.Json (encodeProgramUtf8)
-import Voss.Parse (parseProgramText)
+import JsonOut (encodeProgramPretty)
+import Parser (parseProgram)
 
 data Cmd = Ast {astPath :: FilePath, astNorm :: Bool} | Ir
 
@@ -34,11 +31,11 @@ main = execParser opts >>= run
       pure Ast {..}
 
 run :: Cmd -> IO ()
-run Ir = BL.putStr (A.encode irStubValue)
+run Ir = BL.putStr "{\"_stub\":true}\n"
 run Ast {astPath = path, astNorm = norm} = do
   (fp, src) <- case path of
     "-" -> (,) "<stdin>" <$> TIO.getContents
-    _ -> (,) (T.pack path) <$> TIO.readFile path
-  case parseProgramText fp src of
-    Left err -> TIO.hPutStrLn stderr (T.pack err) >> exitFailure
-    Right prog -> BL.putStr (encodeProgramUtf8 norm prog)
+    p -> (,) p <$> TIO.readFile p
+  case parseProgram fp src of
+    Left err -> putStrLn err >> exitFailure
+    Right prog -> BL.putStr (encodeProgramPretty norm fp prog)
