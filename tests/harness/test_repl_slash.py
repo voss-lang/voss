@@ -125,12 +125,11 @@ def test_memory_commands_registered() -> None:
 
 
 def test_t6_prd_slash_commands_registered() -> None:
-    """T6 — PRD §2.4 slash debt. /diff /apply /discard /budget /resume /why
-    must all register; /cost gains --by-model and --by-tool handling."""
+    """T6 — PRD §2.4 slash debt. All SLASH-01..07 must register."""
     from voss.harness.cli import _build_slash_registry
 
     registry = _build_slash_registry()
-    for name in ("/diff", "/apply", "/discard", "/budget", "/resume", "/why"):
+    for name in ("/diff", "/apply", "/discard", "/budget", "/resume", "/why", "/cost"):
         assert registry.lookup(name) is not None, f"slash {name} not registered"
 
 
@@ -264,3 +263,114 @@ class TestT6Behaviors:
         reg.lookup("/apply").handler(fake_ctx, [], "/apply")
         out = capsys.readouterr().out
         assert "immediately" in out.lower()
+
+    def test_diff_happy_path(self, fake_ctx, capsys, monkeypatch):
+        """SLASH-01: /diff happy-path via subprocess monkeypatch (git diff against working tree)."""
+        from voss.harness.cli import _build_slash_registry
+        import subprocess
+        from types import SimpleNamespace
+
+        fake_diff = "diff --git a/foo b/foo\nindex 123..456 100644\n--- a/foo\n+++ b/foo\n@@ -1 +1 @@\n-old\n+new"
+
+        def fake_run(cmd, **kwargs):
+            return SimpleNamespace(returncode=0, stdout=fake_diff, stderr="")
+
+        monkeypatch.setattr("voss.harness.cli.subprocess.run", fake_run)
+
+        reg = _build_slash_registry()
+        reg.lookup("/diff").handler(fake_ctx, [], "/diff")
+        out = capsys.readouterr().out
+        assert "diff --git a/foo" in out
+        assert "+new" in out
+
+    def test_why_d07_audit_sc2(self, fake_ctx, capsys):
+        """SLASH-06 / D-07 audit: current _why already satisfies PRD Ticket 7 (SC#2).
+
+        D-07 RESOLUTION: PRD Ticket 7 (.vscode/voss_v_0_1_scope_lock.md:1213-1221) is
+        satisfied by the existing single `confidence:.2f` float + rationale + per-step why.
+        `ProbableValue` (:712) is a runtime-layer type, NOT a /why output-format mandate.
+        Therefore T6 makes NO /why code change — test + documented rationale only.
+        """
+        from voss.harness.cli import _build_slash_registry
+
+        reg = _build_slash_registry()
+        reg.lookup("/why").handler(fake_ctx, [], "/why")
+        out = capsys.readouterr().out
+
+        # SC#2 assertions — rendered from ctx.last_plan only (no provider call by construction)
+        assert "picked the read-only path first" in out
+        assert "0.82" in out
+        assert "fs_grep" in out and "fs_read" in out
+        assert "symbol mapped" in out
+
+    def test_resume_id_prefix_arm(self, fake_ctx, capsys, monkeypatch):
+        """SLASH-05: /resume <id-prefix> routes through session_store.load and swaps ctx."""
+        from voss.harness.cli import _build_slash_registry
+        from types import SimpleNamespace
+
+        def fake_load(target, cwd=None):
+            # The test documents that we pass whatever the user typed as `target`
+            # and the real session.py:222 OR predicate decides (no ordering imposed here).
+            assert target == "abc12" or target.startswith("abc12")
+            record = SimpleNamespace(
+                id="abc123", name="fake-session", cwd=str(fake_ctx.cwd),
+                total_cost_usd=0.123, turns=[1, 2], runs=[]
+            )
+            return record, ["history"]
+
+        monkeypatch.setattr("voss.harness.cli.session_store.load", fake_load)
+
+        reg = _build_slash_registry()
+        reg.lookup("/resume").handler(fake_ctx, ["abc12"], "/resume abc12")
+        out = capsys.readouterr().out
+        assert "resumed: fake-session" in out
+        assert fake_ctx.record.id == "abc123"
+
+    def test_resume_exact_name_arm(self, fake_ctx, capsys, monkeypatch):
+        """SLASH-05: /resume <exact-name> also routes through the single load(target) call."""
+        from voss.harness.cli import _build_slash_registry
+        from types import SimpleNamespace
+
+        def fake_load(target, cwd=None):
+            # Same load(target) — real resolution (session.py:222) is a single OR
+            # with no id-first / name-second ordering. We only test that the handler
+            # accepts either shape and lets the loader decide.
+            assert target == "fake-session"
+            record = SimpleNamespace(
+                id="abc123", name="fake-session", cwd=str(fake_ctx.cwd),
+                total_cost_usd=0.050, turns=[], runs=[]
+            )
+            return record, None
+
+        monkeypatch.setattr("voss.harness.cli.session_store.load", fake_load)
+
+        reg = _build_slash_registry()
+        reg.lookup("/resume").handler(fake_ctx, ["fake-session"], "/resume fake-session")
+        out = capsys.readouterr().out
+        assert "resumed: fake-session" in out
+
+    def test_resume_cross_cwd_warns_and_stays(self, fake_ctx, capsys, monkeypatch):
+        """SLASH-05 / D-03: cross-cwd resume prints warning to err and does NOT change cwd."""
+        from voss.harness.cli import _build_slash_registry
+        from types import SimpleNamespace
+        from pathlib import Path
+
+        other_cwd = "/tmp/other-project"
+
+        def fake_load(target, cwd=None):
+            record = SimpleNamespace(
+                id="xyz999", name="other-session", cwd=other_cwd,
+                total_cost_usd=0.0, turns=[], runs=[]
+            )
+            return record, None
+
+        monkeypatch.setattr("voss.harness.cli.session_store.load", fake_load)
+
+        original_cwd = fake_ctx.cwd
+        reg = _build_slash_registry()
+        reg.lookup("/resume").handler(fake_ctx, ["xyz"], "/resume xyz")
+        err = capsys.readouterr().err
+        assert "warning: session cwd is" in err
+        assert "staying in" in err
+        # D-03: we stay in the current cwd (no rebind)
+        assert fake_ctx.cwd == original_cwd
