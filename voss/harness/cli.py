@@ -844,9 +844,15 @@ def _build_slash_registry() -> SlashRegistry:
             return
         target = args[0] if args else ctx.record.id
         try:
-            click.echo(_render_probable_inspect(ctx.cwd, target, decision_index))
+            text = _render_probable_inspect(ctx.cwd, target, decision_index)
         except (FileNotFoundError, ValueError, IndexError) as exc:
             click.echo(f"/probable failed: {exc}", err=True)
+            return
+        show = getattr(getattr(ctx, "renderer", None), "show_probable_inspector", None)
+        if callable(show):
+            show(text)
+        else:
+            click.echo(text)
 
     def _btrace(ctx: ReplContext, args: list[str], _line: str) -> None:
         if len(args) > 1:
@@ -854,18 +860,30 @@ def _build_slash_registry() -> SlashRegistry:
             return
         target = args[0] if args else ctx.record.id
         try:
-            click.echo(_render_budget_inspect(ctx.cwd, target))
+            text = _render_budget_inspect(ctx.cwd, target)
         except (FileNotFoundError, ValueError, IndexError) as exc:
             click.echo(f"/btrace failed: {exc}", err=True)
+            return
+        show = getattr(getattr(ctx, "renderer", None), "show_budget_trace", None)
+        if callable(show):
+            show(text)
+        else:
+            click.echo(text)
 
     def _vdiff(ctx: ReplContext, args: list[str], _line: str) -> None:
         if len(args) != 1:
             click.echo("usage: /vdiff <file.voss>", err=True)
             return
         try:
-            click.echo(_render_voss_py_diff(ctx.cwd, args[0]))
+            text = _render_voss_py_diff(ctx.cwd, args[0])
         except (FileNotFoundError, ValueError) as exc:
             click.echo(f"/vdiff failed: {exc}", err=True)
+            return
+        show = getattr(getattr(ctx, "renderer", None), "show_voss_py_diff", None)
+        if callable(show):
+            show(text)
+        else:
+            click.echo(text)
 
     def _why(ctx: ReplContext, _args: list[str], _line: str) -> None:
         # T6 / SLASH-06. Render last plan's rationale + per-step why +
