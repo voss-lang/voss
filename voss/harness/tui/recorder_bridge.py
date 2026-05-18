@@ -55,6 +55,10 @@ class RecorderBridge:
                 self._call("append_tool_line", f"{tool} · {err}", state="error")
             self._seen["failures"] = len(failures)
 
+    def emit(self, event_name: str, payload: dict) -> None:
+        """Emit a local TUI event that did not originate in RunRecorder."""
+        self._call("on_local_event", event_name, payload)
+
     def _call(self, method_name: str, *args, **kwargs) -> None:
         fn = getattr(self.app, method_name, None)
         if fn is None:

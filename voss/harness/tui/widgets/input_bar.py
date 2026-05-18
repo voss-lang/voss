@@ -1,12 +1,19 @@
 """InputBar widget - bottom multi-line input with locked prompt glyph."""
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime, timezone
+from pathlib import Path
+
 from textual.app import ComposeResult
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static, TextArea
 
+from voss.harness import sandbox, voss_md
+
 from .. import glyphs
+from .local_block import LocalBlockNote, LocalBlockShell
 
 
 class _InputTextArea(TextArea):
@@ -81,8 +88,69 @@ class InputBar(Widget):
     async def action_submit(self) -> None:
         value = self.text
         self.load_text("")
-        if value.strip():
-            self.post_message(self.Submitted(value))
+        stripped = value.strip()
+        if not stripped:
+            return
+        if stripped.startswith("!"):
+            cmd = stripped[1:].strip()
+            if cmd:
+                await self._dispatch_shell(cmd)
+            return
+        if stripped.startswith("#"):
+            note = stripped[1:].strip()
+            if note:
+                await self._dispatch_note(note)
+            return
+        self.post_message(self.Submitted(value))
+
+    async def _dispatch_shell(self, cmd: str) -> None:
+        allowed, reason = sandbox.shell_allowed(cmd)
+        if not allowed:
+            self._append_local_block(LocalBlockShell(cmd, reason, "", 1))
+            return
+
+        proc = await asyncio.create_subprocess_exec(
+            *sandbox.split_command(cmd),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_b, stderr_b = await proc.communicate()
+        stdout = stdout_b.decode(errors="replace")
+        stderr = stderr_b.decode(errors="replace")
+        exit_code = int(proc.returncode or 0)
+        self._append_local_block(LocalBlockShell(cmd, stdout, stderr, exit_code))
+        bridge = getattr(self.app, "recorder_bridge", None)
+        if bridge is not None:
+            bridge.emit(
+                "shell.local",
+                {
+                    "cmd": cmd,
+                    "exit_code": exit_code,
+                    "stdout": stdout,
+                    "stderr": stderr,
+                },
+            )
+
+    async def _dispatch_note(self, note: str) -> None:
+        timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        cwd = Path(getattr(self.app, "cwd", Path.cwd()))
+        voss_md.append_voss_notes_bullet(cwd / "VOSS.md", note, timestamp)
+        self._append_local_block(LocalBlockNote())
+        bridge = getattr(self.app, "recorder_bridge", None)
+        if bridge is not None:
+            bridge.emit("memory.note", {"text": note, "timestamp": timestamp})
+
+    def _append_local_block(self, block) -> None:
+        try:
+            from .turn_view import TurnView
+
+            turn_view = self.app.query_one("#main", TurnView)
+        except Exception:  # noqa: BLE001
+            return
+        if getattr(turn_view, "_turn_count", 0) == 0:
+            turn_view.clear()
+        turn_view._turn_count += 1  # noqa: SLF001 - matches TurnView append protocol.
+        turn_view.write(block.render())
 
     def action_open_palette(self) -> None:
         """Open the slash palette only when the input is empty."""
