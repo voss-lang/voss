@@ -48,7 +48,7 @@ $error: #FF5F5F;
 
 #input {
     dock: bottom;
-    height: 1;
+    height: auto;
     min-height: 1;
     max-height: 5;
 }
@@ -71,4 +71,30 @@ $error: #FF5F5F;
 
 .dim {
     color: $dim;
+}
+
+.local-block {
+    padding: 0 1;
+}
+
+.local-block--shell > .sigil {
+    color: $warn;
+    text-style: bold;
+}
+
+.local-block--note > .sigil {
+    color: $accent;
+    text-style: bold;
+}
+
+.local-block--notice {
+    color: $warn;
+}
+
+.reverse-search-bar .rs-label {
+    color: $dim;
+}
+
+.reverse-search-bar .rs-query {
+    color: $accent;
 }

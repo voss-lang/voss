@@ -9,6 +9,7 @@ from .fork_modal import ForkConfirmModal
 from .header import HeaderBar
 from .help_overlay import HelpOverlay
 from .input_bar import InputBar
+from .local_block import LocalBlock, LocalBlockNote, LocalBlockNotice, LocalBlockShell
 from .permission_modal import (
     PermissionChoice,
     PermissionModal,
@@ -32,6 +33,10 @@ __all__ = [
     "HelpOverlay",
     "Hunk",
     "InputBar",
+    "LocalBlock",
+    "LocalBlockNote",
+    "LocalBlockNotice",
+    "LocalBlockShell",
     "PermissionChoice",
     "PermissionModal",
     "ScopeChoice",

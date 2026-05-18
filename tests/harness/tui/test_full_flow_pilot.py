@@ -10,12 +10,25 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
 from voss.harness.tui.app import VossTUIApp
 from voss.harness.tui.renderer import TextualRenderer
 from voss.harness.tui.widgets import TurnView
+from voss_runtime.memory.episodic import EpisodicMemory
+
+
+def _input_text(input_bar) -> str | None:
+    if hasattr(input_bar, "text"):
+        return input_bar.text
+    if hasattr(input_bar, "value"):
+        return input_bar.value
+    try:
+        return input_bar.query_one("#input-textarea").text
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _plan(rationale: str = "do the thing", steps: list[dict] | None = None):
@@ -63,10 +76,8 @@ async def test_pilot_input_submit_triggers_widget() -> None:
         await pilot.press("h", "i")
         await pilot.pause()
         input_bar = pilot.app.query_one("#input")
-        # Textual Input widget exposes `.value`; just confirm it captured the keys.
-        value = getattr(input_bar, "value", None) or getattr(
-            getattr(input_bar, "query", lambda *_: None)("Input"), "value", ""
-        )
+        # T8 migrates InputBar from Input.value to TextArea-backed .text.
+        value = _input_text(input_bar)
         # Tolerate either path — just make sure the keys reached the bar.
         if value is not None:
             assert "h" in value.lower() or "i" in value.lower(), value
@@ -82,3 +93,33 @@ async def test_pilot_help_overlay_action() -> None:
         await pilot.pause()
         after = len(pilot.app.screen_stack)
         assert after >= before, (before, after)
+
+
+@pytest.mark.asyncio
+async def test_input_bar_submitted_dispatches_registered_turn_task(seeded_history) -> None:
+    from voss.harness.tui.widgets import InputBar
+
+    history = seeded_history("prior prompt")
+    dispatch = MagicMock()
+
+    async def _dispatch(value: str) -> str:
+        dispatch(value)
+        return "done"
+
+    app = VossTUIApp(history=history)
+    async with app.run_test() as pilot:
+        pilot.app._turn_dispatch = _dispatch
+        input_bar = pilot.app.query_one("#input", InputBar)
+        input_bar.load_text("hi")
+        await input_bar.action_submit()
+        await pilot.pause()
+
+        dispatch.assert_called_once_with("hi")
+        assert pilot.app.history is history
+        assert pilot.app.active_turn_task is None
+
+
+def test_tui_app_constructor_accepts_history() -> None:
+    history = EpisodicMemory()
+    app = VossTUIApp(history=history)
+    assert app.history is history

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight, BookOpenText, Code2, GitBranch, Menu, TerminalSquare, X } from "lucide-react";
+import { captureOutboundClick } from "@/lib/analytics";
 import { site } from "@/lib/site";
 
 type Item = {
@@ -19,6 +20,11 @@ const ITEMS: Item[] = [
   { href: "/language", label: "Language", icon: Code2 },
   { href: site.repoUrl, label: "GitHub", icon: GitBranch, external: true },
 ];
+
+const OUTBOUND_TARGETS: Partial<Record<string, "docs" | "github">> = {
+  Docs: "docs",
+  GitHub: "github",
+};
 
 export default function MobileMenu({ className = "" }: { className?: string }) {
   const [open, setOpen] = useState(false);
@@ -54,7 +60,11 @@ export default function MobileMenu({ className = "" }: { className?: string }) {
                   <li key={item.label}>
                     <Link
                       href={item.href}
-                      onClick={() => setOpen(false)}
+                      onClick={() => {
+                        const target = OUTBOUND_TARGETS[item.label];
+                        if (target) captureOutboundClick(target);
+                        setOpen(false);
+                      }}
                       target={item.external ? "_blank" : undefined}
                       rel={item.external ? "noreferrer" : undefined}
                       className="flex items-center gap-3 rounded-lg px-3 py-3 text-base text-[var(--foreground)] transition active:scale-[0.98] hover:bg-[var(--surface)]"

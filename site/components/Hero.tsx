@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { site } from "@/lib/site";
 import CopyButton from "./CopyButton";
+import TrackedOutboundLink from "./TrackedOutboundLink";
 import Cursor from "./Cursor";
 import Reveal from "./Reveal";
 import TerminalDemo from "./TerminalDemo";
@@ -38,14 +38,13 @@ export default function Hero() {
                 <Cursor />
                 <CopyButton text={site.install.primary} />
               </div>
-              <Link
+              <TrackedOutboundLink
                 href={site.prdUrl}
-                target="_blank"
-                rel="noreferrer"
+                analyticsTarget="prd"
                 className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-3 text-sm text-[var(--foreground)] transition hover:border-[var(--accent)]"
               >
                 Read the PRD →
-              </Link>
+              </TrackedOutboundLink>
             </div>
             <p className="mt-3 text-xs text-[var(--muted)]">{site.install.primaryNote}</p>
           </Reveal>

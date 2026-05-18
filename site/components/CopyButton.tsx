@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "motion/react";
+import { captureCopyInstall } from "@/lib/analytics";
 
 export default function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -11,6 +12,7 @@ export default function CopyButton({ text }: { text: string }) {
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
+          captureCopyInstall(text);
           setCopied(true);
           setTimeout(() => setCopied(false), 1400);
         } catch {

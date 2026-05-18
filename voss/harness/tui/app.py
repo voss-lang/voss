@@ -16,6 +16,7 @@ from textual.containers import Horizontal
 
 from voss.harness.session import SessionRecord
 from voss.harness.slash import SlashRegistry
+from voss_runtime.memory.episodic import EpisodicMemory
 
 from .keymap import KEYMAP
 from .widgets import (
@@ -23,6 +24,8 @@ from .widgets import (
     HeaderBar,
     HelpOverlay,
     InputBar,
+    LocalBlockNote,
+    LocalBlockShell,
     SideRegion,
     StatusLine,
     SubAgentPanel,
@@ -45,6 +48,7 @@ class VossTUIApp(App):
         model: str = "",
         budget_total: int = 0,
         slash_registry: SlashRegistry | None = None,
+        history: EpisodicMemory | None = None,
         **kw,
     ) -> None:
         super().__init__(**kw)
@@ -52,6 +56,8 @@ class VossTUIApp(App):
         self.model = model
         self.budget_total = budget_total
         self.slash_registry = slash_registry or SlashRegistry()
+        self.history = history
+        self._turn_dispatch = None
         # M9-06 fork wiring. cli.py (M9-07) sets `record` on the live app.
         # `focused_turn_index` defaults to the most recent turn.
         self.record: SessionRecord | None = None
@@ -207,6 +213,47 @@ class VossTUIApp(App):
             return
         prefix = "✓" if state == "ok" else "✗"
         tv.append_turn("tool", f"{prefix} {summary}")
+
+    def on_input_bar_submitted(self, event: InputBar.Submitted) -> None:
+        if self._turn_dispatch is None:
+            return
+        result = self._turn_dispatch(event.value)
+        if asyncio.iscoroutine(result):
+            task = asyncio.create_task(result)
+        else:
+            async def _done():
+                return result
+
+            task = asyncio.create_task(_done())
+        self.register_turn_task(task)
+
+    def on_local_event(self, event_name: str, payload: dict) -> None:
+        try:
+            tv = self.query_one("#main", TurnView)
+        except Exception:  # noqa: BLE001
+            return
+        if getattr(tv, "_turn_count", 0) == 0:
+            tv.clear()
+        if event_name == "shell.local":
+            block = LocalBlockShell(
+                str(payload.get("cmd", "")),
+                str(payload.get("stdout", "")),
+                str(payload.get("stderr", "")),
+                int(payload.get("exit_code", 0)),
+            )
+        elif event_name == "memory.note":
+            block = LocalBlockNote()
+        elif event_name == "notice":
+            try:
+                from .widgets import LocalBlockNotice
+            except Exception:  # noqa: BLE001
+                tv.append_turn("notice", str(payload.get("message", "")))
+                return
+            block = LocalBlockNotice(str(payload.get("message", "")))
+        else:
+            return
+        tv._turn_count += 1  # noqa: SLF001 - matches TurnView append protocol.
+        tv.write(block.render())
 
     def compose(self) -> ComposeResult:
         yield HeaderBar(id="header")

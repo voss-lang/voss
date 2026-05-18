@@ -9,6 +9,21 @@ from voss.harness.tui.reserved_slash_names import RESERVED_SLASH_NAMES
 from voss.harness.tui.widgets import SlashPalette, rank_commands
 
 
+def _input_text(input_bar) -> str:
+    if hasattr(input_bar, "text"):
+        return input_bar.text
+    return input_bar.value
+
+
+def _set_input_text(input_bar, text: str) -> None:
+    if hasattr(input_bar, "load_text"):
+        input_bar.load_text(text)
+    elif hasattr(input_bar, "text"):
+        input_bar.query_one("#input-textarea").load_text(text)
+    else:
+        input_bar.value = text
+
+
 # ----------------------------------------------------------------------
 # rank_commands — pure logic
 # ----------------------------------------------------------------------
@@ -119,7 +134,7 @@ async def test_input_bar_open_palette_only_when_empty() -> None:
         from voss.harness.tui.widgets import InputBar
 
         input_bar = pilot.app.query_one("#input", InputBar)
-        input_bar.value = ""
+        _set_input_text(input_bar, "")
         input_bar.focus()
         await pilot.press("/")
         await pilot.pause()
@@ -129,6 +144,7 @@ async def test_input_bar_open_palette_only_when_empty() -> None:
         except Exception:
             opened = False
         assert opened, "palette did not open on `/` with empty input"
+        assert _input_text(input_bar) == ""
 
 
 def test_app_bindings_populated_from_keymap() -> None:

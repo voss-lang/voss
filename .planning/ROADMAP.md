@@ -34,7 +34,7 @@
 | T3 | Network Surface (WebFetch + WebSearch + MCP client) | Live docs + MCP ecosystem, gated at the boundary | NET-01..07 | TBD |
 | T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
-| T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | TBD |
+| T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | **Complete** (5/5 plans, 2026-05-18) |
 | A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A10) | SHL-01..06 | 4 plans, 4 waves |
 | A2 | voss-app PTY Pane | One xterm pane wired to native PTY, full TTY support, scrollback, copy/paste | PTY-01..0N (TBD by SPEC.md) | TBD |
 | A3 | voss-app Grid Engine | Binary-split tree, splits/focus/resize/close, `⌘1-9` nav, save/load layout | GRD-01..0N (TBD by SPEC.md) | TBD |
@@ -1001,16 +1001,18 @@ Plans:
 2. `!` and `#` shortcuts emit recorder events (`shell.local` /
    `memory.note`) and bypass `run_turn`.
 
+**Status:** Complete (5/5 plans summarized, 2026-05-18). Focused T8 verification: 53 tests / 11 snapshots passed.
+
 **Cross-cutting constraints:**
 - M9 keymap (`tui/keymap.py`) is the source of truth — this phase only
   adds bindings.
 
 **Plans:** 5 plans across 4 waves (W0 scaffold → W1 TextArea swap → W2 prefix-dispatch ‖ TUI-submit-wiring → W3 Ctrl-R + paste-image)
-- [ ] T8-01-PLAN.md — Wave 0: pytest-textual-snapshot + hermetic fixtures + `.value`→`.text` migration + red scaffolds (INPUT-01..05 substrate)
-- [ ] T8-02-PLAN.md — INPUT-01: Input→TextArea swap, Enter/Shift+Enter inversion, autogrow 1-5, slash guard, additive `ctrl+r` keymap line
-- [ ] T8-03-PLAN.md — INPUT-02/03: `!cmd` via existing T5-D12 gate + `#note` to `## Notes` human section; run_turn bypass; `shell.local`/`memory.note` recorder events
-- [ ] T8-04-PLAN.md — Enabling deliverable (RESEARCH A4): `on_input_bar_submitted`→run_turn wiring + `_run_repl` interactive Textual loop + `app.history` for Ctrl-R corpus
-- [ ] T8-05-PLAN.md — INPUT-04 Ctrl-R inline reverse-i-search (per-project episodic) + INPUT-05 paste-image attach / no-vision transient notice
+- [x] T8-01-PLAN.md — Wave 0: pytest-textual-snapshot + hermetic fixtures + `.value`→`.text` migration + red scaffolds (INPUT-01..05 substrate)
+- [x] T8-02-PLAN.md — INPUT-01: Input→TextArea swap, Enter/Shift+Enter inversion, autogrow 1-5, slash guard, additive `ctrl+r` keymap line
+- [x] T8-03-PLAN.md — INPUT-02/03: `!cmd` via existing T5-D12 gate + `#note` to `## Notes` human section; run_turn bypass; `shell.local`/`memory.note` recorder events
+- [x] T8-04-PLAN.md — Enabling deliverable (RESEARCH A4): `on_input_bar_submitted`→run_turn wiring + `_run_repl` interactive Textual loop + `app.history` for Ctrl-R corpus
+- [x] T8-05-PLAN.md — INPUT-04 Ctrl-R inline reverse-i-search (per-project episodic) + INPUT-05 paste-image attach / no-vision transient notice
 
 **Scope note (RESEARCH A4 — recorded):** `make_renderer` builds `TextualRenderer(VossTUIApp())` but `app.run()` is never called and `_run_repl` uses synchronous `input()`. Without the T8-04 submit→run_turn wiring INPUT-01..05 are structurally unobservable in a real session. T8-04 is an in-scope ENABLING deliverable (planner option a), not scope creep.
 
@@ -1104,7 +1106,7 @@ Plans:
 
 ### Phase A3: voss-app Grid Engine
 
-**Goal:** Multi-pane grid layout — binary-split tree, splits/focus/resize/close, `⌘1-9` numeric nav, persisted layout file. Each pane is an independent PTY from A2.
+**Goal:** Multi-pane grid layout — binary-split tree, splits/focus/resize/close, `⌘1-9` numeric nav, an **in-memory Solid→Rust layout mirror (no disk persistence in A3 — A4/A6 own file I/O)**. Each pane is an independent PTY from A2.
 
 **Requirements (locked at SPEC):** GRD-01..0N
 - GRD-01 Pane tree model: binary splits (horizontal/vertical), tmux-style.
@@ -1125,6 +1127,14 @@ Plans:
 **Cross-cutting constraints:**
 - Grid model decision (binary-tree vs css-grid vs flex) closes at SPEC.
 - No layout presets in A3 — that's A4.
+
+**Plans:** 6 plans across 5 waves
+- [ ] A3-01-PLAN.md — Binary-split tree model + Solid store + voss-app-core Rust mirror + sync seam (GRD-01, GRD-08)
+- [ ] A3-02-PLAN.md — Split/fork/close/equalize mutations + 20×5 floor guard + D-04 close (GRD-02, GRD-05)
+- [ ] A3-03-PLAN.md — Numeric/i3-directional/click/cycle focus + drag/keyboard resize w/ 20×5 clamp (GRD-03, GRD-04, GRD-05)
+- [ ] A3-04-PLAN.md — Recursive renderer + drag handles + global keymap + inset-shadow focus treatment (GRD-01, GRD-03, GRD-04, GRD-07)
+- [ ] A3-05-PLAN.md — 22px Variant B header (index + ⋯) + 5-item menu + foreground-gated close-confirm (GRD-02, GRD-06, GRD-07)
+- [ ] A3-06-PLAN.md — App integration + e2e acceptance + 9-pane Canvas perf/flood benchmark + mirror parity (GRD-01..08)
 
 ---
 

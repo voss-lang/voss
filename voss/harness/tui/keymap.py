@@ -23,6 +23,7 @@ KEYMAP: tuple[Binding, ...] = (
     Binding("enter", "input", "submit", "Submit task"),
     Binding("shift+enter", "input", "newline", "Insert newline"),
     Binding("slash", "input", "open_palette", "Open slash command palette"),
+    Binding("ctrl+r", "input", "reverse_search", "Reverse-search input history"),
     Binding("escape", "modal", "dismiss_modal", "Close modal / cancel"),
     Binding("question_mark", "global", "open_help", "Open help overlay"),
     Binding("j", "main", "scroll_down", "Scroll one row down"),

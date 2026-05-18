@@ -270,6 +270,65 @@ def write_fence_body(
     os.replace(tmp, path)
 
 
+def append_voss_notes_bullet(path: Path, text: str, timestamp: str) -> None:
+    """Append a human-authored bullet under the `## Notes` section."""
+    existing_text = ""
+    if path.exists():
+        try:
+            existing_text = path.read_text()
+        except (OSError, UnicodeDecodeError):
+            existing_text = ""
+
+    blocks = parse(existing_text)
+    bullet = f"- [{timestamp}] {text}\n"
+    replaced = False
+    new_blocks: list[Block] = []
+    for block in blocks:
+        if block.kind == "human" and "## Notes" in block.body:
+            body = _append_notes_bullet(block.body, bullet)
+            new_blocks.append(Block(block.kind, block.id, body, block.recorded_hash))
+            replaced = True
+        else:
+            new_blocks.append(block)
+
+    if not replaced:
+        if new_blocks and not new_blocks[-1].body.endswith("\n"):
+            tail = new_blocks[-1]
+            new_blocks[-1] = Block(tail.kind, tail.id, tail.body + "\n", tail.recorded_hash)
+        new_blocks.append(Block(kind="human", id=None, body=f"\n## Notes\n\n{bullet}", recorded_hash=None))
+
+    rendered = _render(new_blocks)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(rendered)
+    os.replace(tmp, path)
+
+
+def _append_notes_bullet(body: str, bullet: str) -> str:
+    lines = body.splitlines(keepends=True)
+    notes_idx = next(
+        (i for i, line in enumerate(lines) if line.strip() == "## Notes"),
+        None,
+    )
+    if notes_idx is None:
+        if body and not body.endswith("\n"):
+            body += "\n"
+        return f"{body}\n## Notes\n\n{bullet}"
+
+    insert_at = len(lines)
+    for i in range(notes_idx + 1, len(lines)):
+        if lines[i].startswith("## "):
+            insert_at = i
+            break
+    prefix = "".join(lines[:insert_at])
+    suffix = "".join(lines[insert_at:])
+    if prefix and not prefix.endswith("\n"):
+        prefix += "\n"
+    if not prefix.endswith("\n\n"):
+        prefix += "\n"
+    return f"{prefix}{bullet}{suffix}"
+
+
 def machine_fence_path_or_marker(cwd: Path, *, fence_id: str) -> Path:
     """Return the VOSS.md path consumed by fence writers (used by analyze.py via M8-05)."""
     return cwd / "VOSS.md"

@@ -1417,6 +1417,60 @@ def _run_repl(
                 )
 
     try:
+        from .tui.renderer import TextualRenderer
+
+        if isinstance(renderer, TextualRenderer):
+            renderer.app.history = ctx.history
+            renderer.app.cwd = cwd
+            renderer.app.record = record
+            renderer.app.slash_registry = slash_registry
+
+            async def _dispatch_tui_turn(line: str):
+                renderer.show_user(line)
+                try:
+                    run_turn = _resolve_run_turn(cwd)
+                    result = await run_turn(
+                        line,
+                        tools=tools,
+                        cwd=cwd,
+                        renderer=renderer,
+                        model=cfg.default_model,
+                        history=ctx.history,
+                        permissions=gate,
+                        provider=provider,
+                        session_id=record.id,
+                        cognition=bundle,
+                        prior_context=ctx.prior_context,
+                        voss_md_text=ctx.voss_md_text,
+                    )
+                    ctx.prior_context = None
+                except Exception as e:  # noqa: BLE001
+                    click.echo(f"error: {e}", err=True)
+                    return None
+                ctx.last_plan = result.plan
+                if result.run is not None:
+                    record.runs.append(asdict(result.run))
+                ctx.total_cost += result.cost_usd
+                renderer.show_final(
+                    result.final,
+                    confidence=result.confidence,
+                    cost_usd=result.cost_usd,
+                )
+                return result
+
+            renderer.app._turn_dispatch = _dispatch_tui_turn
+            asyncio.run(renderer.app.run_async())
+            try:
+                conventions.run_on_clean_exit(
+                    ctx,
+                    history=ctx.history,
+                    record=record,
+                    memory_store=ctx.memory_store,
+                )
+            except Exception as exc:  # noqa: BLE001
+                click.echo(f"conventions extraction skipped: {exc}", err=True)
+            return
+
         while True:
             try:
                 line = input("▌ ")
