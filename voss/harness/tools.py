@@ -233,6 +233,8 @@ def make_toolset(
                 f"\n<truncated, {remaining} more bytes — re-monitor with cursor "
                 f"{new_cursor}>"
             )
+        if rec.reap_reason:
+            suffix += f'\nshell.background.reap reason="{rec.reap_reason}"'
         return f"[cursor {new_cursor}][{status_token}]\n" + text + suffix
 
     @tool(

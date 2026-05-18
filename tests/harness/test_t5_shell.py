@@ -312,11 +312,11 @@ def test_cli_shell_job_wiring_contract() -> None:
     do_src = inspect.getsource(cli.do_cmd.callback)
 
     assert "session_id=record.id" in repl_src
-    forbidden = (
-        "make_toolset(cwd, renderer=renderer, "
-        "net=_get_net_session(), session_id=do_record.id)"
-    )
-    assert forbidden not in do_src
+    assert re.search(
+        r"make_toolset\([^)]*session_id\s*=\s*do_record\.id",
+        do_src,
+        re.S,
+    ) is None
     assert ".active-session" in repl_src
     assert "reap_jobs" in repl_src
     assert "finally" in repl_src
