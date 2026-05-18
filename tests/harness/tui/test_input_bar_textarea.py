@@ -14,7 +14,14 @@ async def test_enter_submits_multiline_value() -> None:
         input_bar = pilot.app.query_one("#input", InputBar)
         input_bar.load_text("first\nsecond")
         messages: list[InputBar.Submitted] = []
-        input_bar.post_message = messages.append
+        original_post_message = input_bar.post_message
+
+        def capture(message) -> bool:
+            if isinstance(message, InputBar.Submitted):
+                messages.append(message)
+            return original_post_message(message)
+
+        input_bar.post_message = capture
 
         await input_bar.action_submit()
 
@@ -33,7 +40,14 @@ async def test_shift_enter_inserts_newline_without_submit() -> None:
         input_bar = pilot.app.query_one("#input", InputBar)
         input_bar.load_text("hello")
         messages: list[InputBar.Submitted] = []
-        input_bar.post_message = messages.append
+        original_post_message = input_bar.post_message
+
+        def capture(message) -> bool:
+            if isinstance(message, InputBar.Submitted):
+                messages.append(message)
+            return original_post_message(message)
+
+        input_bar.post_message = capture
 
         await pilot.press("shift+enter")
         await pilot.pause()

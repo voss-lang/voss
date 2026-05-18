@@ -44,7 +44,10 @@ class InputBar(Widget):
         return self.query_one("#input-textarea", TextArea).text
 
     def load_text(self, text: str) -> None:
-        self.query_one("#input-textarea", TextArea).load_text(text)
+        textarea = self.query_one("#input-textarea", TextArea)
+        textarea.load_text(text)
+        lines = text.split("\n")
+        textarea.move_cursor((len(lines) - 1, len(lines[-1])))
 
     def insert(self, text: str) -> None:
         self.query_one("#input-textarea", TextArea).insert(text)
