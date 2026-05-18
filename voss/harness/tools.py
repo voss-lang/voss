@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from voss.harness.net import NetSession
 
 
+SHELL_OUTPUT_CAP_BYTES = 30720
+
+
 @dataclass(frozen=True)
 class ToolEntry:
     """Registry entry pairing a ToolDescriptor with structural classification.
@@ -151,12 +154,17 @@ def make_toolset(
                 out, _ = await asyncio.wait_for(proc.communicate(), timeout=30.0)
             except asyncio.TimeoutError:
                 proc.kill()
+                try:
+                    await proc.wait()
+                except Exception:
+                    pass
                 return "<timeout: 30s>"
         except (OSError, SandboxError) as e:
             return f"<error: {e}>"
         text = out.decode("utf-8", errors="replace")
-        if len(text) > 30720:  # 30KB cap (T5 SHELL-01 / D-07; matches fs_read_many tools.py:68)
-            text = text[:30720] + f"\n<truncated, total {len(out)} bytes>"
+        # T5 cap: 30720 bytes via SHELL_OUTPUT_CAP_BYTES.
+        if len(text) > SHELL_OUTPUT_CAP_BYTES:
+            text = text[:SHELL_OUTPUT_CAP_BYTES] + f"\n<truncated, total {len(out)} bytes>"
         return f"[exit {proc.returncode}]\n{text}"
 
     @tool(
@@ -205,37 +213,11 @@ def make_toolset(
     async def shell_monitor(handle: str, since_ms: int = 0) -> str:
         from . import lifecycle
 
-        rec = lifecycle._JOBS.get(handle)
-        if rec is None:
-            return f"<error: unknown handle {handle}>"
-
-        offset = max(0, int(since_ms))
-        path = Path(rec.log_path)
-        chunk = b""
-        file_size = offset
-        try:
-            with path.open("rb") as fh:
-                fh.seek(offset)
-                chunk = fh.read(30720)
-                file_size = path.stat().st_size
-        except FileNotFoundError:
-            pass
-        except OSError as exc:
-            return f"<error: {exc}>"
-
-        new_cursor = offset + len(chunk)
-        status_token = "running" if rec.status == "running" else f"exit {rec.exit_code}"
-        text = chunk.decode("utf-8", errors="replace")
-        suffix = ""
-        if file_size > new_cursor:
-            remaining = file_size - new_cursor
-            suffix = (
-                f"\n<truncated, {remaining} more bytes — re-monitor with cursor "
-                f"{new_cursor}>"
-            )
-        if rec.reap_reason:
-            suffix += f'\nshell.background.reap reason="{rec.reap_reason}"'
-        return f"[cursor {new_cursor}][{status_token}]\n" + text + suffix
+        return lifecycle.monitor_job(
+            handle,
+            since_ms=since_ms,
+            session_id=session_id or "_nosession",
+        )
 
     @tool(
         name="shell_signal",
@@ -251,10 +233,11 @@ def make_toolset(
 
         from . import lifecycle
 
-        if lifecycle._JOBS.get(handle) is None:
-            return f"<error: unknown handle {handle}>"
-        await asyncio.sleep(0.1)
-        if not lifecycle.signal_job(handle, sig):
+        if not lifecycle.signal_job(
+            handle,
+            sig,
+            session_id=session_id or "_nosession",
+        ):
             return f"<error: unknown handle {handle}>"
         return f"[signal {signal} -> {handle}]"
 
@@ -500,10 +483,14 @@ async def _shell_capture(cwd: Path, argv: list[str], timeout: float = 30.0) -> s
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
         proc.kill()
+        try:
+            await proc.wait()
+        except Exception:
+            pass
         return f"<timeout: {timeout}s>"
     text = out.decode("utf-8", errors="replace")
-    if len(text) > 30720:  # 30KB cap (T5 SHELL-01 / D-07; matches fs_read_many tools.py:68)
-        text = text[:30720] + f"\n<truncated, total {len(out)} bytes>"
+    if len(text) > SHELL_OUTPUT_CAP_BYTES:
+        text = text[:SHELL_OUTPUT_CAP_BYTES] + f"\n<truncated, total {len(out)} bytes>"
     return f"[exit {proc.returncode}]\n{text}"
 
 
