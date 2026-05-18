@@ -4,12 +4,6 @@ from __future__ import annotations
 import pytest
 
 
-pytestmark = pytest.mark.xfail(
-    reason="T8 Wave 1 - TextArea input bar not yet implemented",
-    strict=False,
-)
-
-
 @pytest.mark.asyncio
 async def test_enter_submits_multiline_value() -> None:
     from voss.harness.tui.app import VossTUIApp
