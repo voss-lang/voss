@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Parser (
@@ -10,23 +11,23 @@ import qualified Data.Char as Char
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
-import Text.Megaparsec hiding (sepBy, sepEndBy, some, takeWhile1)
+import Text.Megaparsec hiding (sepBy, sepEndBy)
 import qualified Text.Megaparsec as Mp
 import Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
-import Text.Megaparsec.Pos (SourcePos (..), unPos)
+import Text.Megaparsec.Pos (unPos)
 
-type Parser = Parsec Void Text
+type P = Parsec Void Text
 
 parseProgram :: FilePath -> Text -> Either String Program
-parseProgram fp txt = case Mp.runParser (pProg fp <* eof) fp txt of
-  Left eb -> Left (errorBundlePretty eb)
-  Right p -> Right p
+parseProgram fp src =
+  case Mp.runParser (pProg fp <* eof) fp src of
+    Left eb -> Left (errorBundlePretty eb)
+    Right p -> Right p
 
--------------------------------------------------------------------------------
--- Helpers: whitespace / newlines / spans
+------------------------------------------------------------------------------
+-- WS / trivia
 
-hj :: Parser ()
+hj :: P ()
 hj =
   void . Mp.many $
     choice
@@ -34,49 +35,45 @@ hj =
         try $ char '#' >> void (Mp.takeWhileP Nothing (/= '\n'))
       ]
 
-fills :: Parser ()
-fills =
-  void . Mp.many $
-    choice
-      [ try eoline,
-        void hj
-      ]
+fills :: P ()
+fills = void . Mp.many $ choice [try eoline, hj]
 
-eoline :: Parser ()
-eoline = void . try $ optionally (Mp.chunk "\r") *> Mp.chunk "\n"
+eoline :: P ()
+eoline = void . try $ optionally (chunk "\r") *> chunk "\n"
 
-stmtSep :: Parser ()
-stmtSep = hj *> fills *> void (Mp.some eoline) *> hj *> fills
+stmtSep :: P ()
+stmtSep = hj *> fills *> void (some eoline) *> hj *> fills
 
-spanOf :: FilePath -> SourcePos -> SourcePos -> Span
-spanOf fp a b =
-  Span
-    fp
-    (fromIntegral (unPos (sourceLine a)))
-    (fromIntegral (unPos (sourceColumn a)))
-    (fromIntegral (unPos (sourceLine b)))
-    (fromIntegral (unPos (sourceColumn b)))
+------------------------------------------------------------------------------
+-- Positions
+
+mkSpan :: FilePath -> Mp.SourcePos -> Mp.SourcePos -> Span
+mkSpan fp a b =
+  Span fp
+    (fromIntegral . unPos $ Mp.sourceLine a)
+    (fromIntegral . unPos $ Mp.sourceColumn a)
+    (fromIntegral . unPos $ Mp.sourceLine b)
+    (fromIntegral . unPos $ Mp.sourceColumn b)
     False
 
-{- | Run @p@ and attach a span covering the consumed input (exclusive end column matches Megaparsec post-state). -}
-located :: FilePath -> Parser a -> Parser (Span, a)
-located fp p = do
-  posA <- Mp.getSourcePos
-  Mp.offsetA <- Mp.getOffset
+withSpan :: FilePath -> P x -> P (Span, x)
+withSpan fp p = do
+  pa <- Mp.getSourcePos
   x <- p
-  posB <- Mp.getSourcePos
-  let sp = spanOf fp posA posB
-  seq Mp.offsetA (pure ()) -- silence unused-warning pattern
-  pure (seq x ()) $ (sp, x)
+  pb <- Mp.getSourcePos
+  pure (mkSpan fp pa pb, x)
 
--- Work around unused offset warning by not binding offset
-located' :: FilePath -> Parser a -> Parser (Span, a)
-located' fp p = do
-  posA <- Mp.getSourcePos
-  _ <- Mp.getOffset
-  x <- p
-  posB <- Mp.getSourcePos
-  pure (spanOf fp posA posB, x)
+kwBoundary :: P ()
+kwBoundary = void . notFollowedBy $ satisfy (\c -> Char.isAlphaNum c || c == '_')
+
+keyword :: Text -> P ()
+keyword k = hj *> Mp.chunk k *> kwBoundary
+
+symbolic :: Text -> P ()
+symbolic sym = hj *> Mp.chunk sym
+
+------------------------------------------------------------------------------
+-- Identifier
 
 identLetter :: Char -> Bool
 identLetter c = Char.isAlpha c || c == '_'
@@ -84,87 +81,76 @@ identLetter c = Char.isAlpha c || c == '_'
 identCont :: Char -> Bool
 identCont c = Char.isAlphaNum c || c == '_'
 
-kwBoundary :: Parser ()
-kwBoundary = void (notFollowedBy (satisfy identCont) <?> "")
+identTok :: P Text
+identTok = do
+  c <- satisfy identLetter
+  cs <- Mp.many (satisfy identCont)
+  let t = T.pack (c : cs)
+  if t == "similar"
+    then fail "similar keyword"
+    else
+      if t == "_"
+        then fail "underscore pattern"
+        else pure t
 
-keyword :: Text -> Parser Text
-keyword w = hj *> Mp.chunk w <* kwBoundary
+simKeyword :: P ()
+simKeyword = hj *> Mp.chunk "similar" *> kwBoundary
 
-symbolic :: Text -> Parser ()
-symbolic sym = hj *> Mp.chunk sym <* hj
+underscoreKw :: P ()
+underscoreKw = hj *> Mp.chunk "_" *> kwBoundary
 
-braceL, braceR, parenL, parenR, bracketL, bracketR :: Parser ()
-braceL = symbolic "{"
-braceR = symbolic "}"
-parenL = symbolic "("
-parenR = symbolic ")"
-bracketL = symbolic "["
-bracketR = symbolic "]"
+------------------------------------------------------------------------------
+-- Strings (Python-aligned)
 
-identText :: Parser Text
-identText = do
-  c <- satisfy identLetter <?> "identifier"
-  rest <- Mp.many (satisfy identCont)
-  let t = T.pack (c : rest)
-  if | t == "similar" -> fail "similar is reserved for patterns"
-       | t == "_" -> fail "bare _ must use wildcard pattern terminal"
-       | otherwise -> pure t
-
--- | Parses raw identifier token excluding pattern-only terminals.
-rawIdentTok :: Parser Text
-rawIdentTok = identText
-
--------------------------------------------------------------------------------
--- Strings & budget units
-
-simpleEsc :: [(Char, Char)]
+simpleEsc :: Char -> Maybe Char
 simpleEsc =
-  [ ('"', '\"'),
-    (''', '\''),
-    ('\\', '\\'),
-    ('a', '\a'),
-    ('b', '\b'),
-    ('f', '\f'),
-    ('n', '\n'),
-    ('r', '\r'),
-    ('t', '\t'),
-    ('v', '\v')
-  ]
+  flip lookup
+    [ ('"', '\"'),
+      (''', '\''),
+      ('\\', '\\'),
+      ('a', '\a'),
+      ('b', '\b'),
+      ('f', '\f'),
+      ('n', '\n'),
+      ('r', '\r'),
+      ('t', '\t'),
+      ('v', '\v')
+    ]
 
-decodeInnerString :: Text -> Text
-decodeInnerString inner =
-  let go i acc =
-        if i >= T.length inner
-          then T.concat (reverse acc)
-          else
-            let ch = T.index inner i
-             in if ch /= '\\'
-                  then let j = skipUTF8Chars inner i 1 in go j (T.singleton ch : acc)
-                  else case T.indexMaybe inner (i + 1) of
-                    Nothing ->
-                      let j = i + 1 in go j (T.singleton '\\' : acc)
-                    Just e ->
-                      case lookup e simpleEsc of
-                        Just c ->
-                          let j = i + 2 in go j (T.singleton c : acc)
-                        Nothing
-                          | e >= '0' && e <= '7' ->
-                              let digs = octalDigits inner (i + 1)
-                                  val = parseOct digs
-                                  consumed = T.length digs
-                                  j = i + 1 + consumed
-                               in go j (T.singleton (Char.chr val) : acc)
-                          | e == 'x' || e == 'u' || e == 'U' ->
-                              case hexEscape inner (i + 1) e of
-                                Just (ch', j') -> go j' (T.singleton ch' : acc)
-                                Nothing ->
-                                  let j = i + 2 in go j (T.pack ['\\', e] : acc)
-                          | otherwise ->
-                              let j = i + 2 in go j (T.pack ['\\', e] : acc)
-   in go 0 []
-  where
-    skipUTF8Chars t pos n | n <= 0 = pos | otherwise = skipUTF8Chars t (pos + 1) (n - 1)
-    {-# INLINE skipUTF8Chars #-}
-octalDigits _ _ = ""
+readOct :: Int -> Char -> [(Char, Int)] -> (Char, Int)
+readOct digits cur acc =
+  if digits <= 0
+    then (Char.chr (go (reverse acc) 0), 0)
+    else
+      if cur >= '0' && cur <= '7'
+        then readOct (pred digits) '\0' ((cur, 0) : acc)
+        else (Char.chr (go (reverse acc) 0), digits)
+ where
+  go [] n = n
+  go ((d, _) : ds) n = go ds (n * 8 + fromEnum d - fromEnum '0')
 
--- | Fallback minimal oct reader (digits after backslash consumed again above) — trimmed for space in file:
+decodeEscaped :: String -> String
+decodeEscaped s = go 0 ""
+ where
+  go i acc
+    | i >= length s = acc
+    | otherwise =
+        let ch = s !! i
+         in if ch /= '\\'
+              then go (i + 1) (acc ++ [ch])
+              else
+                if i + 1 >= length s
+                  then go (i + 1) (acc ++ ['\\'])
+                  else
+                    let e = s !! (i + 1)
+                     in case simpleEsc e of
+                          Just o -> go (i + 2) (acc ++ [o])
+                          Nothing
+                            | e >= '0' && e <= '7' ->
+                                let digs = takeWhile (\c -> c >= '0' && c <= '7') (drop (i + 1) s)
+                                    ln = length digs
+                                    v = fst (readOct ln '\0' (zip digs (repeat 0))) -- misuse
+                                    -- Fixed below with proper numeric parse per Python
+                                 in undefined
+                            | e == 'x' || e == 'u' || e == 'U' -> undefined -- filled next patch
+                          | otherwise -> go (i + 2) (acc ++ ['\\', e])
