@@ -2,10 +2,10 @@
 
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure → desktop ADE scaffold
-**Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`)
+**Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`)
 **Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A10 (counts TBD by SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-05-16 — added A1–A10 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Last updated:** 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A10 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -45,6 +45,12 @@
 | A8 | voss-app Settings + Theme | Two-pane settings UI, JSON-backed, Variant B token system, font/shell config | CFG-01..0N (TBD by SPEC.md) | TBD |
 | A9 | voss-app Status Bar | Project · branch · pane count · cost meter stub · notifications bell · click-to-popover | BAR-01..0N (TBD by SPEC.md) | TBD |
 | A10 | voss-app Onboarding + Release Pipeline | First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update). v0 SHIP GATE | OBD-01..0N + REL-01..0N (TBD by SPEC.md) | TBD |
+| O1 | Session-Tree Substrate + Budget Fan-out | Parent→child session tree; per-card budget envelope; reserved drain budget; hard non-extendable caps (keystone) | OST-01..0N (TBD by SPEC.md) | TBD |
+| O2 | `.voss team{}` Spec + Specialist Roster | `team{}` parser → enriched SubagentSpec (model/mode/scope/budget/tools); EM-immutable ceiling/p; backend/frontend/ui/ai roster | OTEAM-01..0N (TBD by SPEC.md) | TBD |
+| O3 | Board State Machine + Gated Transitions | Columns, per-column WIP, gate predicates, →Done double gate, critic-loop ceiling+budget, timeout→Blocked | OBRD-01..0N (TBD by SPEC.md) | TBD |
+| O4 | Reviewer A/B Split | Reviewer-A (idea→bar + tests/eval, `voss/eval/` reuse); Reviewer-B (independent tiered judge: slop/errors/correctness) | ORVW-01..0N (TBD by SPEC.md) | TBD |
+| O5 | Engineering Manager Loop | EM full-authority autonomous loop; idea→tickets/AC/DoD; specialist dispatch + routing rationale; kill/re-scope lineage | OEM-01..0N (TBD by SPEC.md) | TBD |
+| O6 | Audit Product + Calibration + Liveness | Session-tree review surface; killed-card + routing first-class; calibration telemetry; reserve/timeout; sign-off forcing function | OAUD-01..0N (TBD by SPEC.md) | TBD |
 
 ---
 
@@ -1304,6 +1310,99 @@ Plans:
 
 ---
 
+## O-prefixed phases: Caged Autonomous Eng Team (ADE Orchestration)
+
+**Track:** Multi-agent orchestration layer on the Python harness. Full design, decision log (21 decisions), `.voss` strawman, and residual-risk register in **`.planning/ORCHESTRATION-PLAN.md`**.
+
+**Thesis:** Every autonomous agent-team product today is an unbounded blackbox. Voss already ships per-call budgets, confidence gates, write-scope locks, and replayable audit. The ADE orchestrator is the showcase: **a fully autonomous AI engineering team inside a *provable* cage — hard budget, global scope ceiling, an independent judge gating every state transition, fully replayable.** "Audit the cage," not "trust the swarm."
+
+**Not a pivot.** Showcase skin on the harness, not a parallel build. Single-agent harness must be boring-solid first. The orchestrator + board + rituals are expressed in `.voss`; the harness owns execution. Builds on M13 (raw `spawn`/`gather`) — O-phases add the cage.
+
+**Roles:** Human (idea + final sign-off) · **Engineering Manager** (LLM lead: idea→tickets/AC/DoD, runs board, dispatches specialists) · **Engineer roster** (backend/frontend/ui/ai, per-role scope+tools) · **Reviewer-A** (re-derives bar + authors tests/eval from the *original idea*) · **Reviewer-B** (independent tiered judge: slop/errors/correctness, EM-narrative-blind).
+
+**Cross-O cage invariants (the product is these or it is theater):**
+- Budget = security boundary: hard, pre-committed, non-extendable by EM; fans out parent→card.
+- Scope: per-card `edit_scope` + global ceiling; union of card scopes ≤ ceiling.
+- Confidence is independent (Reviewer-B); threshold `p` is per-card-risk, human-declared, EM-immutable.
+- Audit bar = the **original human idea** (Reviewer-A re-derives), never EM-authored AC.
+- Engineers cannot author the verification that gates them (Reviewer-A owns tests/eval).
+- Liveness guaranteed: reserved non-spendable drain budget + timeout→Blocked.
+- The session-tree recorder **is** the human review product, not telemetry.
+
+**Open residual risks (carried, none fatal — full register in ORCHESTRATION-PLAN.md §7):**
+- Standup→`semantic.memory` poisoning (Leak 6) — **unaddressed**, O6 mitigation candidate.
+- Reviewer-A misread propagates — requires a written invariant: Reviewer-B may fail idea-divergent A-verification.
+- Human sign-off is overloaded (correctness + misroute + killed-card review) — O6 forcing-function candidate.
+- "~80% reuse" is false — real build is substantial across O1–O6; do not plan against the reuse number.
+
+**Dependency chain:** O1 (keystone) → O2 → O3 → O4 → O5 → O6.
+
+---
+
+### Phase O1: Session-Tree Substrate + Budget Fan-out
+
+**Goal:** Parent→child session tree in `recorder.py`/`session.py` so every spawned agent is a first-class recorded node with its own budget, scope, and audit. The keystone — every other O-phase renders off this.
+
+**Scope:** Parent→card budget fan-out (`(envelope − reserve) / total WIP` floor); reserved non-spendable drain budget guaranteeing every in-flight card reaches a verdict; hard non-extendable caps (no "ask for more tokens" path); session-tree recorder schema. Reuses/extends `RunRecorder`, `SessionRecord`.
+
+**Requirements (locked at SPEC):** OST-01..0N — TBD by `O1-SPEC.md`.
+
+**Cross-cutting:** No board, no reviewers, no EM in O1 — pure substrate. `subagents.py` gains budget/scope/recorder plumbing it lacks today.
+
+---
+
+### Phase O2: `.voss team{}` Spec + Specialist Roster
+
+**Goal:** A `.voss team{}` block parser that compiles to an enriched `SubagentRegistry` + specialist roster, with `ceiling`/`p` declared above the EM and immutable to it (the cage is syntax).
+
+**Scope:** `SubagentSpec` extended with model/mode/scope/budget/tools per role; backend/frontend/ui/ai roster; EM-immutable `ceiling`/`p` blocks; per-role permission/tool profile (AI role gets `net`). Depends O1 (specs carry budget/scope that need the tree).
+
+**Requirements:** OTEAM-01..0N — TBD by `O2-SPEC.md`.
+
+---
+
+### Phase O3: Board State Machine + Gated Transitions
+
+**Goal:** The Kanban board as the orchestrator state machine — columns, per-column WIP, gated transitions.
+
+**Scope:** `Backlog→Planned→InProgress→InReview→Blocked→Done`; per-column WIP (backpressures reviewer cost); confidence gate only on artifact transitions; →Done double gate (code: tests; AI: eval); critic loop ceiling(≈3)+budget→Blocked; column/card timeout→Blocked liveness. Depends O1, O2.
+
+**Requirements:** OBRD-01..0N — TBD by `O3-SPEC.md`.
+
+---
+
+### Phase O4: Reviewer A/B Split
+
+**Goal:** Independent bar/verification authoring (A) cleanly split from independent judgment (B), restoring two independent sources at →Done.
+
+**Scope:** Reviewer-A re-derives the bar from the original idea + authors verification (deterministic tests for code; eval harness for AI via `voss/eval/` reuse). Reviewer-B: independent session/model, no shared memory with A or EM, tiered (fast intermediate / strong at →Done), checks slop/errors/correctness, sees `[artifact, acceptance, repo, original_idea]`, **explicit authority to fail a card whose A-verification diverges from the idea** (residual-2 invariant). Depends O2, O3.
+
+**Requirements:** ORVW-01..0N — TBD by `O4-SPEC.md`.
+
+---
+
+### Phase O5: Engineering Manager Loop
+
+**Goal:** The EM autonomous lead loop — idea in, board run to Done, human sign-off only.
+
+**Scope:** Full-authority autonomous loop; idea→tickets/AC/DoD (worker scaffolding, not the audit bar); specialist dispatch from roster + `routing_rationale` per card; kill/re-scope with preserved lineage; board mutation bounded by the cage (cannot rewrite `ceiling`/`p`, cannot invent agents). Depends O1–O4.
+
+**Requirements:** OEM-01..0N — TBD by `O5-SPEC.md`.
+
+---
+
+### Phase O6: Audit Product + Calibration + Liveness Hardening
+
+**Goal:** The human review product + the monitoring that keeps the cage honest.
+
+**Scope:** Session-tree as primary review surface; killed/re-scoped cards + routing rationale foregrounded first-class; reviewer calibration telemetry (B-verdict vs. A-verification, now independent) + sampled human slop-rejection spot-audit; reserve/timeout liveness wiring surfaced; **sign-off forcing function** (mandatory killed-card + misroute diff before approve is available); Leak-6 (`semantic.memory` poisoning) mitigation candidate. Depends O5.
+
+**Requirements:** OAUD-01..0N — TBD by `O6-SPEC.md`.
+
+**Cross-cutting:** O6 closes (or explicitly defers) the residual-risk register from `ORCHESTRATION-PLAN.md §7`. Leak 6 may remain a documented accepted gap if mitigation proves out-of-scope.
+
+---
+
 ## Coverage
 
 | Phase | Requirements | Count |
@@ -1347,6 +1446,14 @@ Plans:
 | A9 | BAR-01..0N | TBD by `A9-SPEC.md` |
 | A10 | OBD-01..0N + REL-01..0N | TBD by `A10-SPEC.md` |
 | **A-total (Layer 1)** | | **TBD per SPEC** |
+| **O-phases (ADE orchestration — Caged Autonomous Eng Team)** | | |
+| O1 | OST-01..0N | TBD by `O1-SPEC.md` |
+| O2 | OTEAM-01..0N | TBD by `O2-SPEC.md` |
+| O3 | OBRD-01..0N | TBD by `O3-SPEC.md` |
+| O4 | ORVW-01..0N | TBD by `O4-SPEC.md` |
+| O5 | OEM-01..0N | TBD by `O5-SPEC.md` |
+| O6 | OAUD-01..0N | TBD by `O6-SPEC.md` |
+| **O-total** | | **TBD per SPEC** |
 
 All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`. A-phase requirement IDs are placeholder prefixes; per-phase SPEC locks the count + exact text.
 
