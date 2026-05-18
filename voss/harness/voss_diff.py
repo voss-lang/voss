@@ -10,13 +10,13 @@ from voss.parser import parse
 
 
 def resolve_generated_python(source: Path, *, cwd: Path) -> tuple[str, str]:
-    """Return generated Python and the origin used to produce it."""
+    """Return the origin label and generated Python for a `.voss` source."""
     source_path = _resolve_voss_source(source, cwd=cwd)
     cwd_path = cwd.resolve()
 
     cached = _cached_harness_artifact(source_path, cwd=cwd_path)
     if cached is not None:
-        return cached.read_text(), _display_path(cached, cwd=cwd_path)
+        return _display_path(cached, cwd=cwd_path), cached.read_text()
 
     source_text = source_path.read_text()
     program = parse(source_text, file=str(source_path))
@@ -36,7 +36,7 @@ def resolve_generated_python(source: Path, *, cwd: Path) -> tuple[str, str]:
             project_root=tmp_root,
             cache_dir=".voss-cache",
         )
-    return result.source, "generated in memory"
+    return "generated in memory", result.source
 
 
 def render_voss_py_diff(source: Path, *, cwd: Path, width: int = 120) -> str:
@@ -44,7 +44,7 @@ def render_voss_py_diff(source: Path, *, cwd: Path, width: int = 120) -> str:
     source_path = _resolve_voss_source(source, cwd=cwd)
     cwd_path = cwd.resolve()
     source_text = source_path.read_text()
-    generated, origin = resolve_generated_python(source_path, cwd=cwd_path)
+    origin, generated = resolve_generated_python(source_path, cwd=cwd_path)
 
     source_label = f"Voss source: {_display_path(source_path, cwd=cwd_path)}"
     generated_label = f"Generated Python: {origin}"
