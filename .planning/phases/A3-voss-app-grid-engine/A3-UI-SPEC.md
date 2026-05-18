@@ -80,6 +80,7 @@ pattern established by A1's structural constants (22px header height, 1px border
 | Pane index badge width | **auto** (content-width) | Index is a 1–9 digit character at 10px/400. Width is content-driven; no fixed badge box. |
 | `⋯` menu width | **128px** | Fixed-width popup menu; wide enough for "Close pane" (10 chars) at 11px mono with `xl` (16px) horizontal padding each side. |
 | `⋯` menu item height | **22px** | Matches the header height — density parity. Each menu item is exactly one header-height tall. |
+| `⋯` menu separator margin | **0px** | Flush 1px rule between two 22px-height items. The 22px item height already provides sufficient vertical rhythm; no extra margin is added, keeping all menu spacing on the 4px grid. |
 | `⋯` menu border radius | **0px** | Variant B locked — no rounding anywhere. |
 | Close confirm inline banner height | **22px** | One-line banner matching the header density. Appears inside the pane body, top-of-body flush. |
 
@@ -208,6 +209,10 @@ indicator) are consumed unchanged.
 **Segment gap:** 4px (`xs`) between glyph and adjacent text within a segment; 0px between
 segments (the `│` pipe character provides visual separation, no extra margin needed).
 
+**Accessibility (icon-only elements — assistive-only, NOT rendered; visual density unchanged):**
+- `●` status dot: `aria-label="Shell running"` while the shell is running; `aria-label="Shell exited"` once the shell has exited.
+- `⋯` menu trigger: `aria-label="Pane menu"`.
+
 **Overflow policy:** If the combined segment widths exceed the pane width, truncate in this order:
 1. Process indicator (hide first — most variable length)
 2. cwd basename (truncate with `…` from the right)
@@ -230,6 +235,8 @@ The `⋯` menu is a small popup positioned **below the `⋯` trigger in the pane
 
 Click opens the menu. Menu closes on: item selection, `Escape`, click outside menu, or pane blur.
 
+**Accessibility:** the `⋯` trigger carries `aria-label="Pane menu"` (assistive-only, not rendered — terminal-density visual unchanged).
+
 ### Menu Container Styling
 
 ```
@@ -251,7 +258,7 @@ All items are 22px tall, `padding: 0 16px`, font `--font-mono` at 11px/400.
 | Fork pane | `Fork pane` | `--fg-0` | `⌘D` | Creates a sibling pane inheriting cwd+shell, empty scrollback |
 | Split right | `Split right` | `--fg-0` | `⌘\` | Horizontal split (new pane right) |
 | Split below | `Split below` | `--fg-0` | `⌘⇧\` | Vertical split (new pane below) |
-| — separator — | — | `--border` | — | 1px horizontal rule, `margin: 2px 0` |
+| — separator — | — | `--border` | — | 1px horizontal rule, `margin: 0` (flush between the two adjacent 22px items — item height supplies the rhythm; all menu spacing stays on the 4px grid) |
 | Close pane | `Close pane` | `--accent-red` | `⌘W` | Destructive — see close-confirm contract below |
 
 **Keyboard shortcut display:** Show the shortcut in dim right-aligned text (`--fg-3`, 10px) on the same row as the label. Aligned to the right edge of the 128px menu.
@@ -409,7 +416,7 @@ font:         --font-mono, 11px, weight 400
 **Banner layout (left to right):**
 
 ```
-[ ● ] [ Process "vim" is running. Close anyway? ] [ spacer ] [ Keep ] [ Close ]
+[ ● ] [ Process "vim" is running. Close anyway? ] [ spacer ] [ Keep open ] [ Close anyway ]
 ```
 
 | Element | Copy | Color | Behavior |
@@ -417,8 +424,8 @@ font:         --font-mono, 11px, weight 400
 | `●` dot | — | `--accent-red` | Visual alarm glyph; no interaction |
 | Warning text | `"<process name>" is running. Close anyway?` | `--fg-1` | Static label; process name from D-07 detection, quoted |
 | spacer | — | — | `flex: 1` |
-| Keep button | `Keep` | `--fg-0` | Dismiss banner; pane stays open; focus stays on pane |
-| Close button | `Close` | `--accent-red` | Confirm close; pane closes; D-04 focus-to-sibling |
+| Keep-open button | `Keep open` | `--fg-0` | Dismiss banner; pane stays open; focus stays on pane |
+| Close-anyway button | `Close anyway` | `--accent-red` | Confirm close; pane closes; D-04 focus-to-sibling |
 
 **Button styling (both buttons):**
 ```
@@ -431,8 +438,8 @@ cursor: default
 No button border, no border-radius — pure text buttons in the terminal aesthetic.
 
 **Keyboard:** While banner is visible:
-- `Enter` or `Return` = confirm close (same as clicking "Close")
-- `Escape` = keep (same as clicking "Keep")
+- `Enter` or `Return` = confirm close (same as clicking "Close anyway")
+- `Escape` = keep open (same as clicking "Keep open")
 - Any other key passes through to the PTY (banner is non-modal)
 
 **Auto-dismiss:** Banner dismisses automatically if the process exits on its own while the
@@ -480,17 +487,18 @@ implements consistently). Same geometry as `[exited N]` banner.
 
 | Element | Copy | Notes |
 |---------|------|-------|
-| Pane header: dot (running) | — (glyph only) | Color `--accent-green`; no label |
-| Pane header: dot (exited) | — (glyph only) | Color `--accent-red`; no label |
+| Pane header: dot (running) | — (glyph only) | Color `--accent-green`; no label; `aria-label="Shell running"` |
+| Pane header: dot (exited) | — (glyph only) | Color `--accent-red`; no label; `aria-label="Shell exited"` |
 | Pane header: index | `1` .. `9` .. | Numeric digit; no label prefix |
 | Pane header: no foreground process | (process segment hidden) | Empty string = hidden, not a dash or placeholder |
+| Pane header: `⋯` trigger | — (glyph only) | `aria-label="Pane menu"` (assistive-only, not rendered) |
 | `⋯` menu: fork | `Fork pane` | Verb + noun; all lowercase mono |
 | `⋯` menu: split right | `Split right` | Directional; lowercase |
 | `⋯` menu: split below | `Split below` | Directional; lowercase |
 | `⋯` menu: close (destructive) | `Close pane` | Lowercase; color `--accent-red` |
 | Close confirm: warning | `"<process>" is running. Close anyway?` | Process name quoted; sentence case |
-| Close confirm: keep action | `Keep` | Sentence case; neutral |
-| Close confirm: close action | `Close` | Sentence case; destructive red |
+| Close confirm: keep action | `Keep open` | Verb + adverb; sentence case; neutral |
+| Close confirm: close action | `Close anyway` | Verb + adverb; matches the "Close anyway?" warning copy; sentence case; destructive red |
 | Exit banner | `[exited N]  Restart` | Brackets included; exit code N is integer |
 | Restore banner | `[restored]  Processes were not relaunched` | Brackets included; informational |
 | Last-pane respawn | (no copy — respawn is silent, no banner) | D-04: closing last pane silently spawns a fresh pane in its place |
