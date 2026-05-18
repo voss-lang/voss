@@ -15,7 +15,7 @@ provides:
 key-files:
   created:
     - tests/cli/test_integration.py
-  modified:
+  verified:
     - tests/packaging/test_entrypoint.py
 
 requirements-completed:
@@ -29,7 +29,7 @@ requirements-completed:
   - TOOL-02
   - TOOL-03
 
-completed: 2026-05-08
+completed: 2026-05-18
 ---
 
 # Phase 05 Plan 06: Packaging + Integration Closure Summary
@@ -41,29 +41,33 @@ Phase 5 closed: editable install exposes `voss` console script, package data shi
 | Task | Status | Notes |
 |---|---|---|
 | 05-06-0 | PASSED | Confirmed `phase5-cli-contract-ok` marker. |
-| 05-06-1 | PASSED | Expanded `tests/packaging/test_entrypoint.py` — package-data resource check, parametrized console-script subcommand help, slow venv editable-install verification. |
-| 05-06-2 | PASSED | `tests/cli/test_integration.py` — init→ast→check smoke, hermetic compile→run, samples ast+check loop, no repo-local cache/generated. |
+| 05-06-1 | PASSED | Verified `tests/packaging/test_entrypoint.py` coverage — package-data resource check, parametrized console-script subcommand help, slow venv editable-install verification. |
+| 05-06-2 | PASSED | Added `tests/cli/test_integration.py` — init→ast→check smoke, hermetic compile→run, samples ast+check loop, no repo-local cache/generated. |
 | 05-06-3 | PASSED | Verified existing CLI surface; no new defects required Phase 5-surface fixes. |
 | 05-06-4 | PASSED | Ran full Phase 5 verification commands per `05-VALIDATION.md`. |
 
 ## Verification
 
-- `pytest tests/cli tests/tooling -q` (arm64) → all pass.
-- `pytest tests/parser tests/analyzer tests/codegen tests/cli tests/tooling -q` (arm64) → all pass.
-- `python3 -m pip install -e .` succeeded; `voss --help` exits 0 from console-script binary.
+- `pytest tests/packaging/test_entrypoint.py -q` → 10 passed.
+- `pytest tests/cli/test_integration.py -q` → 4 passed.
+- `pytest tests/packaging/test_entrypoint.py tests/cli/test_integration.py -q` → 14 passed.
+- `pytest tests/cli tests/tooling -q` → 47 passed.
+- `pytest tests/parser tests/analyzer tests/codegen tests/cli tests/tooling -q` → 256 passed.
+- Isolated venv editable install succeeded: `python3 -m venv --system-site-packages "$tmp/venv" && "$tmp/venv/bin/python" -m pip install -q --no-deps -e . && "$tmp/venv/bin/voss" --help`.
 - `phase5-no-repo-local-cache-ok` printed.
-- `git diff --check` clean.
+- `git diff --check -- tests/packaging/test_entrypoint.py tests/cli/test_integration.py voss/cli.py pyproject.toml` clean.
 
 ## Decisions
 
 - Slow venv install test uses `--system-site-packages` plus `pip install --no-deps -e <repo>` to avoid reinstalling heavy runtime dependencies (chromadb, sentence-transformers, pydantic) while still verifying the console-script entry-point shim.
 - Console-script subcommand help test prefers `shutil.which("voss")` and falls back to `python3 -m voss.cli` when the binary is not on PATH.
-- Integration smoke uses `let x = 1\nprint(x)\n` as the hermetic compile/run fixture; samples are exercised through ast+check only (no provider runtime).
+- Integration smoke uses the packaged `voss init` `hello.voss` scaffold as the hermetic compile/run fixture; samples are exercised through ast+check only (no provider runtime).
 
 ## Deviations
 
-- Default-launcher x86_64 vs arm64 pydantic_core wheel mismatch: full suite must run via `arch -arm64 /Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13 -m pytest`. This is a pre-existing local environment issue documented in 04-06-SUMMARY.md, not a Phase 5 regression.
+- `tests/packaging/test_entrypoint.py` already contained the required 05-06 packaging coverage, so this execution verified it rather than changing it.
+- The active environment was not mutated with `python3 -m pip install -e .`; an isolated temporary venv performed the editable install smoke instead.
 
 ## Self-Check
 
-PASSED. Full Phase 5 validation commands pass under the documented arm64 launcher; editable install exposes `voss --help`; no repository-local `.voss-cache` artifacts remain after the smoke suite.
+PASSED. Full Phase 5 validation commands pass; editable install exposes `voss --help`; no repository-local `.voss-cache` artifacts remain after the smoke suite.

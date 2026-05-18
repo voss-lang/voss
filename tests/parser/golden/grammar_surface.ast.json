@@ -1,0 +1,708 @@
+{
+  "_node": "Program",
+  "span": {
+    "file": "grammar_surface.voss",
+    "lines": [
+      0,
+      0
+    ],
+    "cols": [
+      0,
+      0
+    ],
+    "synthetic": false
+  },
+  "body": [
+    {
+      "_node": "UseStmt",
+      "span": {
+        "file": "grammar_surface.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "path": [
+        "foo",
+        "bar",
+        "tool"
+      ],
+      "alias": "baz"
+    },
+    {
+      "_node": "FnDecl",
+      "span": {
+        "file": "grammar_surface.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "decorated",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "x",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "grammar_surface.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "grammar_surface.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "int"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "grammar_surface.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "int"
+          ]
+        },
+        "generics": [],
+        "kwargs": []
+      },
+      "body": [
+        {
+          "_node": "ReturnStmt",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "value": {
+            "_node": "BinOp",
+            "span": {
+              "file": "grammar_surface.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "op": "+",
+            "left": {
+              "_node": "Identifier",
+              "span": {
+                "file": "grammar_surface.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "name": "x"
+            },
+            "right": {
+              "_node": "IntLit",
+              "span": {
+                "file": "grammar_surface.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": 1
+            }
+          }
+        }
+      ],
+      "decorators": [
+        {
+          "_node": "Decorator",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "tool",
+          "args": []
+        }
+      ]
+    },
+    {
+      "_node": "ClassDecl",
+      "span": {
+        "file": "grammar_surface.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "Point",
+      "fields": [
+        {
+          "_node": "ClassField",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "x",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "grammar_surface.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "grammar_surface.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "int"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": {
+            "_node": "IntLit",
+            "span": {
+              "file": "grammar_surface.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "value": 0
+          }
+        },
+        {
+          "_node": "ClassField",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "y",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "grammar_surface.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "grammar_surface.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "int"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "decorators": []
+    },
+    {
+      "_node": "PromptDecl",
+      "span": {
+        "file": "grammar_surface.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "P",
+      "extends": {
+        "_node": "QualName",
+        "span": {
+          "file": "grammar_surface.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "parts": [
+          "memory",
+          "working"
+        ]
+      },
+      "body": [
+        {
+          "_node": "StringLit",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "value": "line one",
+          "triple": false
+        },
+        {
+          "_node": "StringLit",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "value": "triple",
+          "triple": true
+        }
+      ],
+      "decorators": []
+    },
+    {
+      "_node": "FnDecl",
+      "span": {
+        "file": "grammar_surface.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "route",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "msg",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "grammar_surface.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "grammar_surface.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "grammar_surface.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "string"
+          ]
+        },
+        "generics": [],
+        "kwargs": []
+      },
+      "body": [
+        {
+          "_node": "MatchStmt",
+          "span": {
+            "file": "grammar_surface.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "scrutinee": {
+            "_node": "Identifier",
+            "span": {
+              "file": "grammar_surface.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "msg"
+          },
+          "cases": [
+            {
+              "_node": "MatchCase",
+              "span": {
+                "file": "grammar_surface.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "pattern": {
+                "_node": "SimilarPattern",
+                "span": {
+                  "file": "grammar_surface.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "text": "help"
+              },
+              "body": [
+                {
+                  "_node": "ReturnStmt",
+                  "span": {
+                    "file": "grammar_surface.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": {
+                    "_node": "StringLit",
+                    "span": {
+                      "file": "grammar_surface.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "value": "ok",
+                    "triple": false
+                  }
+                }
+              ]
+            },
+            {
+              "_node": "MatchCase",
+              "span": {
+                "file": "grammar_surface.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "pattern": {
+                "_node": "WildcardPattern",
+                "span": {
+                  "file": "grammar_surface.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                }
+              },
+              "body": [
+                {
+                  "_node": "ReturnStmt",
+                  "span": {
+                    "file": "grammar_surface.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": {
+                    "_node": "StringLit",
+                    "span": {
+                      "file": "grammar_surface.voss",
+                      "lines": [
+                        0,
+                        0
+                      ],
+                      "cols": [
+                        0,
+                        0
+                      ],
+                      "synthetic": false
+                    },
+                    "value": "no",
+                    "triple": false
+                  }
+                }
+              ]
+            }
+          ],
+          "threshold": null
+        }
+      ],
+      "decorators": []
+    }
+  ]
+}

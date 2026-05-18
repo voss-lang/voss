@@ -1,4 +1,10 @@
 from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import tempfile
 from dataclasses import replace as _dc_replace
 from pathlib import Path
 from lark import Lark, Transformer, v_args
@@ -15,6 +21,73 @@ from .ast_nodes import (
     FnDecl, AgentDecl, AgentOptions, PromptDecl, ClassDecl, ClassField, UseStmt, Decorator,
 )
 from .exceptions import VossParseError
+
+
+def _parse_haskell_subprocess(source: str, file: str) -> Program:
+    exe = os.environ.get("VOSS_FRONTEND_HS_EXE") or shutil.which("voss-frontend-hs")
+    if not exe:
+        raise VossParseError(
+            file=file,
+            line=1,
+            col=1,
+            expected=["voss-frontend-hs on PATH or VOSS_FRONTEND_HS_EXE"],
+            got="VOSS_FRONTEND=haskell but executable not found",
+        )
+    tmp_path: str | None = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(prefix="voss_hs_", suffix=".voss", text=True)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(source)
+        proc = subprocess.run(
+            [exe, "ast", "--path", tmp_path, "--normalize-spans"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    finally:
+        if tmp_path is not None:
+            Path(tmp_path).unlink(missing_ok=True)
+    if proc.returncode != 0:
+        msg = (proc.stderr or proc.stdout or "").strip() or f"exit {proc.returncode}"
+        raise VossParseError(
+            file=file,
+            line=1,
+            col=1,
+            expected=["successful voss-frontend-hs ast"],
+            got=msg[:500],
+        )
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise VossParseError(
+            file=file,
+            line=1,
+            col=1,
+            expected=["JSON from voss-frontend-hs"],
+            got=str(exc),
+        ) from exc
+    from .ast_deserializer import program_from_dict
+
+    if not isinstance(data, dict):
+        raise VossParseError(
+            file=file,
+            line=1,
+            col=1,
+            expected=["AST JSON object"],
+            got=type(data).__name__,
+        )
+    try:
+        return program_from_dict(data)
+    except ValueError as exc:
+        raise VossParseError(
+            file=file,
+            line=1,
+            col=1,
+            expected=["deserializable AST"],
+            got=str(exc),
+        ) from exc
+
 
 _GRAMMAR_PATH = Path(__file__).parent / "grammar.lark"
 
@@ -790,6 +863,8 @@ def _wrap_lark_error(exc: UnexpectedInput, source: str, file: str) -> VossParseE
 
 def parse(source: str, file: str = "<string>") -> Program:
     """Parse Voss source into a Program AST. Raises VossParseError on any parse failure."""
+    if os.environ.get("VOSS_FRONTEND", "python").lower() == "haskell":
+        return _parse_haskell_subprocess(source, file)
     try:
         tree = _PARSER.parse(source)
     except UnexpectedInput as exc:

@@ -1,0 +1,376 @@
+{
+  "_node": "Program",
+  "span": {
+    "file": "memory_semantic.voss",
+    "lines": [
+      0,
+      0
+    ],
+    "cols": [
+      0,
+      0
+    ],
+    "synthetic": false
+  },
+  "body": [
+    {
+      "_node": "LetStmt",
+      "span": {
+        "file": "memory_semantic.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "kb",
+      "type_annot": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "memory_semantic.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "memory_semantic.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "memory",
+            "semantic"
+          ]
+        },
+        "generics": [],
+        "kwargs": [
+          {
+            "_node": "TypeKwarg",
+            "span": {
+              "file": "memory_semantic.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "source",
+            "value": {
+              "_node": "StringLit",
+              "span": {
+                "file": "memory_semantic.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": "./knowledge_base/",
+              "triple": false
+            }
+          }
+        ]
+      },
+      "value": null
+    },
+    {
+      "_node": "FnDecl",
+      "span": {
+        "file": "memory_semantic.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "lookup",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "memory_semantic.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "q",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "memory_semantic.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "memory_semantic.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "memory_semantic.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "memory_semantic.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "list"
+          ]
+        },
+        "generics": [
+          {
+            "_node": "TypeRef",
+            "span": {
+              "file": "memory_semantic.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "memory_semantic.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          }
+        ],
+        "kwargs": []
+      },
+      "body": [
+        {
+          "_node": "ReturnStmt",
+          "span": {
+            "file": "memory_semantic.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "value": {
+            "_node": "Call",
+            "span": {
+              "file": "memory_semantic.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "callee": {
+              "_node": "Member",
+              "span": {
+                "file": "memory_semantic.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "obj": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "memory_semantic.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "kb"
+              },
+              "attr": "retrieve"
+            },
+            "args": [
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "memory_semantic.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": null,
+                "value": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "memory_semantic.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "q"
+                }
+              },
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "memory_semantic.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "top_k",
+                "value": {
+                  "_node": "IntLit",
+                  "span": {
+                    "file": "memory_semantic.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "value": 3
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "decorators": []
+    }
+  ]
+}

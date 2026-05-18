@@ -1684,6 +1684,33 @@ def _read_job_meta(path: Path) -> dict | None:
     return {k: data[k] for k in _JOB_META_FIELDS}
 
 
+def _newest_jobs_dir(cache: Path) -> Path | None:
+    newest: tuple[float, Path] | None = None
+    try:
+        entries = list(cache.iterdir())
+    except OSError:
+        return None
+    for path in entries:
+        try:
+            if not path.is_dir():
+                continue
+            if not _has_job_sidecars(path):
+                continue
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        if newest is None or mtime > newest[0]:
+            newest = (mtime, path)
+    return newest[1] if newest is not None else None
+
+
+def _has_job_sidecars(path: Path) -> bool:
+    try:
+        return any(path.glob("*.meta.json"))
+    except OSError:
+        return False
+
+
 def _active_jobs_session(cache: Path) -> Path | None:
     active = cache / ".active-session"
     try:
@@ -1692,17 +1719,13 @@ def _active_jobs_session(cache: Path) -> Path | None:
         sid = ""
     if sid:
         try:
-            return jail_path(cache, sid)
+            session_dir = jail_path(cache, sid)
         except Exception:  # noqa: BLE001
-            return None
+            session_dir = None
+        if session_dir is not None and session_dir.is_dir() and _has_job_sidecars(session_dir):
+            return session_dir
 
-    try:
-        dirs = [p for p in cache.iterdir() if p.is_dir()]
-    except OSError:
-        return None
-    if not dirs:
-        return None
-    return max(dirs, key=lambda p: p.stat().st_mtime)
+    return _newest_jobs_dir(cache)
 
 
 def _runtime_label(runtime_ms: object) -> str:
@@ -1754,7 +1777,9 @@ def jobs_cmd(cwd_str: str, json_mode: bool) -> None:
 
     if json_mode:
         for rec in records:
-            click.echo(json.dumps(rec))
+            rendered = dict(rec)
+            rendered["status"] = _display_status(rec)
+            click.echo(json.dumps(rendered))
         return
 
     rows = [

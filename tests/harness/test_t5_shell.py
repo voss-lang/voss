@@ -213,6 +213,7 @@ def test_signal_terminates(tmp_path: Path) -> None:
     script.write_text(
         "import signal, sys, time\n"
         "signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))\n"
+        "print('ready', flush=True)\n"
         "time.sleep(60)\n"
     )
 
@@ -221,6 +222,11 @@ def test_signal_terminates(tmp_path: Path) -> None:
 
         tools = make_toolset(tmp_path)
         handle = await _invoke(tools, "shell_run_background", cmd=f"{_PYTHON_BIN} {script}")
+        for _ in range(20):
+            monitor = await _invoke(tools, "shell_monitor", handle=handle, since_ms=0)
+            if "ready" in monitor:
+                break
+            await asyncio.sleep(0.05)
         assert "<denied:" not in await _invoke(tools, "shell_signal", handle=handle, signal="TERM")
         await asyncio.sleep(0.2)
         monitor = await _invoke(tools, "shell_monitor", handle=handle, since_ms=0)
@@ -303,6 +309,59 @@ def test_voss_jobs_stale_running_pid_renders_honestly(tmp_path: Path) -> None:
     assert "bg-001" in result.output
     assert "999999999" in result.output
     assert re.search(r"\b(stale|running\?)\b", result.output), result.output
+
+    json_result = CliRunner().invoke(jobs_cmd, ["--cwd", str(tmp_path), "--json"])
+    assert json_result.exit_code == 0, json_result.output
+    records = [json.loads(line) for line in json_result.output.splitlines() if line.strip()]
+    assert records[0]["status"] == "stale"
+
+
+def test_voss_jobs_falls_back_when_active_session_is_stale(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import jobs_cmd
+
+    jobs_root = tmp_path / ".voss-cache" / "jobs"
+    stale_dir = jobs_root / "stale"
+    stale_dir.mkdir(parents=True)
+    (jobs_root / ".active-session").write_text("stale\n")
+    _preseed_job_sidecar(tmp_path, session_id="newer", handle="bg-123", status="done")
+
+    result = CliRunner().invoke(jobs_cmd, ["--cwd", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "bg-123" in result.output
+
+
+@pytest.mark.skipif(_PYTHON_BIN is None, reason="python interpreter required")
+def test_same_handle_in_different_sessions_stays_distinct(tmp_path: Path) -> None:
+    first_script = tmp_path / "first.py"
+    second_script = tmp_path / "second.py"
+    first_script.write_text("print('first-session', flush=True)\n")
+    second_script.write_text("print('second-session', flush=True)\n")
+
+    async def _drive() -> None:
+        from voss.harness.tools import make_toolset
+
+        first_tools = make_toolset(tmp_path, session_id="sess-one")
+        second_tools = make_toolset(tmp_path, session_id="sess-two")
+        first = await _invoke(
+            first_tools,
+            "shell_run_background",
+            cmd=f"{_PYTHON_BIN} {first_script}",
+        )
+        second = await _invoke(
+            second_tools,
+            "shell_run_background",
+            cmd=f"{_PYTHON_BIN} {second_script}",
+        )
+        assert first == second == "bg-001"
+        await asyncio.sleep(0.2)
+
+        first_monitor = await _invoke(first_tools, "shell_monitor", handle=first, since_ms=0)
+        second_monitor = await _invoke(second_tools, "shell_monitor", handle=second, since_ms=0)
+        assert "first-session" in first_monitor
+        assert "second-session" in second_monitor
+
+    asyncio.run(_drive())
 
 
 def test_cli_shell_job_wiring_contract() -> None:
