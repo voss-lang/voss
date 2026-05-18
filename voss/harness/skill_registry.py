@@ -56,4 +56,50 @@ def default_skill_registry() -> SkillRegistry:
             mutating=True,
         )
     )
+
+    def rename_symbol(ctx: Any, args: list[str]) -> None:
+        from .skills.rename_symbol import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+            args=args,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="rename-symbol",
+            description="Anchor + scope-aware rename across the repo.",
+            handler=rename_symbol,
+            mutating=True,
+        )
+    )
+
+    def voss_lint_as_skill(ctx: Any, args: list[str]) -> None:
+        from .skills.voss_lint_as_skill import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+            args=args,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="voss-lint-as-skill",
+            description="Lint .voss sources and emit structured JSON diagnostics.",
+            handler=voss_lint_as_skill,
+            mutating=False,
+        )
+    )
     return registry
