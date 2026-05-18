@@ -10,12 +10,14 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
 from voss.harness.tui.app import VossTUIApp
 from voss.harness.tui.renderer import TextualRenderer
 from voss.harness.tui.widgets import TurnView
+from voss_runtime.memory.episodic import EpisodicMemory
 
 
 def _input_text(input_bar) -> str | None:
@@ -91,3 +93,33 @@ async def test_pilot_help_overlay_action() -> None:
         await pilot.pause()
         after = len(pilot.app.screen_stack)
         assert after >= before, (before, after)
+
+
+@pytest.mark.asyncio
+async def test_input_bar_submitted_dispatches_registered_turn_task(seeded_history) -> None:
+    from voss.harness.tui.widgets import InputBar
+
+    history = seeded_history("prior prompt")
+    dispatch = MagicMock()
+
+    async def _dispatch(value: str) -> str:
+        dispatch(value)
+        return "done"
+
+    app = VossTUIApp(history=history)
+    async with app.run_test() as pilot:
+        pilot.app._turn_dispatch = _dispatch
+        input_bar = pilot.app.query_one("#input", InputBar)
+        input_bar.load_text("hi")
+        await input_bar.action_submit()
+        await pilot.pause()
+
+        dispatch.assert_called_once_with("hi")
+        assert pilot.app.history is history
+        assert pilot.app.active_turn_task is None
+
+
+def test_tui_app_constructor_accepts_history() -> None:
+    history = EpisodicMemory()
+    app = VossTUIApp(history=history)
+    assert app.history is history
