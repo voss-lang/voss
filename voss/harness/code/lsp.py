@@ -1,36 +1,28 @@
 """
 LSP Client Adapter for Voss (M10-02).
 
-Public surface uses only Voss-owned types (from .models).
-pygls is an implementation detail and must never leak outside this file.
-
-Design:
-- LspClientAdapter: abstract interface used by the registry and higher layers.
-- _PyglsLspClient: private implementation that talks to pygls.
-- All public methods return CodeLocation / SymbolHit / ReferenceHit or structured
-  error dicts like {"result": "lsp_unavailable", "language": "...", "hint": "..." }.
-
-This module does **not** manage server processes — that is the job of LspRegistry.
+Strict isolation: pygls is never imported at module level and never leaks
+into any public API or other modules.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .models import CodeLocation, ReferenceHit, SymbolHit
 
-# ------------------------------------------------------------------
-# Public Interface (never mentions pygls)
-# ------------------------------------------------------------------
 
 class LspClientAdapter(ABC):
-    """Voss-owned interface for talking to a language server."""
+    """Voss-owned LSP client interface. All implementations must return
+    only Voss types or structured error dicts."""
 
     @abstractmethod
-    async def initialize(self, root_uri: str) -> None:
+    async def initialize(self, root_uri: str) -> dict[str, Any] | None:
         ...
 
     @abstractmethod
@@ -55,89 +47,163 @@ class LspClientAdapter(ABC):
 
 
 # ------------------------------------------------------------------
-# Private pygls-backed implementation
-# (All pygls imports must stay inside this block / this file only)
+# pygls-backed implementation (pygls is imported only inside this class)
 # ------------------------------------------------------------------
 
-try:
-    from pygls.client import JsonRPCClient
-    from pygls.protocol import LanguageServerProtocol
-    from pygls.uris import from_fs_path, to_fs_path
-    _PYGLS_AVAILABLE = True
-except ImportError:
-    JsonRPCClient = None  # type: ignore
-    LanguageServerProtocol = None  # type: ignore
-    _PYGLS_AVAILABLE = False
-
-
 class _PyglsLspClient(LspClientAdapter):
-    """Concrete adapter that talks to a language server via pygls."""
+    """Real implementation using pygls as a client."""
 
     def __init__(self, language: str):
         self.language = language
-        self._client: Any = None
+        self._proc: asyncio.subprocess.Process | None = None
+        self._client: Any = None  # pygls client
         self._initialized = False
 
-    async def initialize(self, root_uri: str) -> None:
-        if not _PYGLS_AVAILABLE:
-            return
+    async def connect(self, proc: asyncio.subprocess.Process) -> None:
+        """Wire this adapter to an already-started server process."""
+        self._proc = proc
+        try:
+            from pygls.client import JsonRPCClient
+            self._client = JsonRPCClient()
+            # pygls JsonRPCClient can take streams
+            await self._client.start_io(proc.stdout, proc.stdin)
+        except Exception as exc:
+            # If pygls fails to start, we still want graceful degradation
+            self._client = None
+            raise RuntimeError(f"Failed to start pygls client for {self.language}: {exc}") from exc
 
-        # We expect the caller (registry) to have already started the server
-        # process and wired its stdin/stdout to us.
-        # For now this is a stub that will be driven by the registry.
-        self._initialized = True
+    async def initialize(self, root_uri: str) -> dict[str, Any] | None:
+        if self._client is None:
+            return self._unavailable()
+
+        try:
+            params = {
+                "processId": None,
+                "rootUri": root_uri,
+                "capabilities": {},
+            }
+            result = await self._client.send_request("initialize", params)
+            await self._client.send_notification("initialized", {})
+            self._initialized = True
+            return result
+        except Exception:
+            return self._unavailable()
 
     async def shutdown(self) -> None:
-        if self._client is not None:
+        if self._client and self._initialized:
             try:
-                await self._client.shutdown()
-                await self._client.exit()
+                await self._client.send_request("shutdown")
+                await self._client.send_notification("exit")
             except Exception:
                 pass
+        if self._proc:
+            try:
+                self._proc.terminate()
+                await asyncio.wait_for(self._proc.wait(), timeout=2.0)
+            except Exception:
+                try:
+                    self._proc.kill()
+                except Exception:
+                    pass
         self._initialized = False
+        self._client = None
 
     async def find_definition(
         self, uri: str, line: int, character: int
     ) -> list[CodeLocation] | dict[str, Any]:
-        if not self._initialized or not _PYGLS_AVAILABLE:
+        if not self._initialized or self._client is None:
             return self._unavailable()
 
-        # Placeholder – real implementation will call the pygls client
-        # and convert results to CodeLocation.
-        return []
+        params = {
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+        }
+        try:
+            result = await self._client.send_request("textDocument/definition", params)
+            return self._convert_locations(result)
+        except Exception:
+            return self._unavailable()
 
     async def find_references(
         self, uri: str, line: int, character: int
     ) -> list[ReferenceHit] | dict[str, Any]:
-        if not self._initialized or not _PYGLS_AVAILABLE:
+        if not self._initialized or self._client is None:
             return self._unavailable()
-        return []
+
+        params = {
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+            "context": {"includeDeclaration": True},
+        }
+        try:
+            result = await self._client.send_request("textDocument/references", params)
+            return self._convert_references(result)
+        except Exception:
+            return self._unavailable()
 
     async def workspace_symbol(self, query: str) -> list[SymbolHit] | dict[str, Any]:
-        if not self._initialized or not _PYGLS_AVAILABLE:
+        if not self._initialized or self._client is None:
             return self._unavailable()
-        return []
+        try:
+            result = await self._client.send_request("workspace/symbol", {"query": query})
+            return self._convert_symbols(result)
+        except Exception:
+            return self._unavailable()
 
     def _unavailable(self) -> dict[str, Any]:
         return {
             "result": "lsp_unavailable",
             "language": self.language,
             "fallback": "ast-grep",
-            "hint": f"Install a language server for {self.language}",
         }
+
+    # Very small converters — real ones would be more complete
+    def _convert_locations(self, result: Any) -> list[CodeLocation]:
+        if not result:
+            return []
+        locations = []
+        for item in (result if isinstance(result, list) else [result]):
+            if isinstance(item, dict) and "uri" in item and "range" in item:
+                loc = self._range_to_location(item["uri"], item["range"])
+                if loc:
+                    locations.append(loc)
+        return locations
+
+    def _convert_references(self, result: Any) -> list[ReferenceHit]:
+        if not result:
+            return []
+        hits = []
+        for item in (result if isinstance(result, list) else [result]):
+            if isinstance(item, dict) and "uri" in item and "range" in item:
+                loc = self._range_to_location(item["uri"], item["range"])
+                if loc:
+                    hits.append(ReferenceHit(location=loc, language=self.language))
+        return hits
+
+    def _convert_symbols(self, result: Any) -> list[SymbolHit]:
+        # Simplified
+        return []
+
+    def _range_to_location(self, uri: str, rng: dict) -> CodeLocation | None:
+        try:
+            path = uri.replace("file://", "")
+            start = rng.get("start", {})
+            return CodeLocation(
+                file=path,
+                line=start.get("line", 0),
+                column=start.get("character", 0),
+            )
+        except Exception:
+            return None
 
 
 def create_lsp_client(language: str) -> LspClientAdapter:
-    """Factory that returns the best available adapter for the language."""
     return _PyglsLspClient(language)
 
 
-# ------------------------------------------------------------------
-# Convenience: check whether we can even attempt LSP for a language
-# ------------------------------------------------------------------
-
-def is_lsp_available(language: str) -> bool:
-    """Lightweight check used by the registry before spawning."""
-    # In a real implementation this would also consult config to see if
-    # the language is disabled.
-    return _PYGLS_AVAILABLE
+def is_lsp_available() -> bool:
+    try:
+        import pygls  # noqa: F401
+        return True
+    except ImportError:
+        return False
