@@ -27,7 +27,7 @@
 | M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..0N (TBD by SPEC.md) | TBD |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..0N (TBD by SPEC.md) | TBD |
-| T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | TBD |
+| T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | **Complete** (3/3 plans, 2026-05-18) |
 | T1 | Iteration Loop + Streaming + Interrupt | Turn single-shot plan→exec→done into a real while-loop agent with streamed text + cancel | ITER-01..06 | TBD |
 | T4 | Prompt Caching + Cost Truthfulness | Cache cognition prefix; honest `/cost` including cache reads | CACHE-01..04 | TBD |
 | T2 | Parallel Tools + Multi-Edit | Read-only steps gather; `fs_edit_many` atomic batch | PAR-01..04 | TBD |
@@ -684,12 +684,12 @@ slash is a documented contract bug from v0.1, not a new capability.
   confidence breakdown (PRD's "killer feature").
 - SLASH-07 `/cost --by-model` / `--by-tool` flags.
 
-**Success Criteria (proposed):**
-1. Each slash in PRD §2.4 registered in `_build_slash_registry` with at
-   least one integration test exercising the happy path.
-2. `/why` renders confidence + rationale from the most recent `Plan`
-   without a provider call.
-3. `voss --help` lists all v0.1 slashes; help discoverability matches Codex.
+**Success Criteria (Met — 2026-05-18):**
+1. **SC#1** — Each slash in PRD §2.4 has ≥1 integration test exercising the happy path (T6-03 completed the set; `/discard` confirmed pre-covered).
+2. **SC#2** — `/why` renders confidence + rationale from the most recent `Plan` with **no** provider call (D-07 audit test + existing `_why` implementation).
+3. **SC#3** — Grouped in-REPL `/help` (Editing/Session/Insight/Control + Other long-tail) + one-line signpost in **both** production `voss --help` and `python -m voss.harness --help` (T6-02). No slash-list duplication.
+
+All three criteria verified. T6 (v0.1.1 patch) **complete**.
 
 **Cross-cutting constraints:**
 - No new persistence. Slashes operate on the live `ReplContext`.
@@ -1004,6 +1004,15 @@ Plans:
 **Cross-cutting constraints:**
 - M9 keymap (`tui/keymap.py`) is the source of truth — this phase only
   adds bindings.
+
+**Plans:** 5 plans across 4 waves (W0 scaffold → W1 TextArea swap → W2 prefix-dispatch ‖ TUI-submit-wiring → W3 Ctrl-R + paste-image)
+- [ ] T8-01-PLAN.md — Wave 0: pytest-textual-snapshot + hermetic fixtures + `.value`→`.text` migration + red scaffolds (INPUT-01..05 substrate)
+- [ ] T8-02-PLAN.md — INPUT-01: Input→TextArea swap, Enter/Shift+Enter inversion, autogrow 1-5, slash guard, additive `ctrl+r` keymap line
+- [ ] T8-03-PLAN.md — INPUT-02/03: `!cmd` via existing T5-D12 gate + `#note` to `## Notes` human section; run_turn bypass; `shell.local`/`memory.note` recorder events
+- [ ] T8-04-PLAN.md — Enabling deliverable (RESEARCH A4): `on_input_bar_submitted`→run_turn wiring + `_run_repl` interactive Textual loop + `app.history` for Ctrl-R corpus
+- [ ] T8-05-PLAN.md — INPUT-04 Ctrl-R inline reverse-i-search (per-project episodic) + INPUT-05 paste-image attach / no-vision transient notice
+
+**Scope note (RESEARCH A4 — recorded):** `make_renderer` builds `TextualRenderer(VossTUIApp())` but `app.run()` is never called and `_run_repl` uses synchronous `input()`. Without the T8-04 submit→run_turn wiring INPUT-01..05 are structurally unobservable in a real session. T8-04 is an in-scope ENABLING deliverable (planner option a), not scope creep.
 
 ---
 
@@ -1425,7 +1434,7 @@ Plans:
 | M14 | WATCH-01..0N | TBD by `M14-SPEC.md` |
 | M15 | SKILL-01..0N | TBD by `M15-SPEC.md` |
 | **T-phases (daily-driver gap closure)** | | |
-| T6 (v0.1.1 patch) | SLASH-01..07 | 7 |
+| T6 (v0.1.1 patch) | SLASH-01..07 | 7 (Complete) |
 | T1 | ITER-01..06 | 6 |
 | T4 | CACHE-01..04 | 4 |
 | T2 | PAR-01..04 | 4 |
