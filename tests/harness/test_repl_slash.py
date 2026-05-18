@@ -85,6 +85,15 @@ class TestSlashHelp:
         for token in ("/login", "/model", "/mode", "--confirm"):
             assert token in captured.out, f"missing slash token: {token}"
 
+    def test_grouped_help_renders_headers_and_all_slashes(self, capsys):
+        """T6-02: grouped renderer produces the four named headers and does not drop slashes."""
+        _print_slash_help()
+        captured = capsys.readouterr()
+        for header in ("Editing", "Session", "Insight", "Control"):
+            assert header in captured.out, f"missing group header: {header}"
+        for token in ("/diff", "/resume", "/why"):
+            assert token in captured.out, f"missing slash token: {token}"
+
 
 class TestModeEscalationParsing:
     """Parse-level checks for /mode auto vs /mode auto --confirm."""

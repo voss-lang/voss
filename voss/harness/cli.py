@@ -1631,8 +1631,52 @@ def doctor_cmd(cwd_str: str) -> None:
 
 
 def _print_slash_help(registry: SlashRegistry | None = None) -> None:
+    """Render slash help grouped by semantic category (D-04 / SC#3).
+
+    Named groups are rendered first in fixed order; any registered non-hidden
+    slash not assigned to a named group falls under a final "Other" bucket so
+    nothing is ever silently dropped. Per-group width alignment mirrors the
+    style in SlashRegistry.help_lines (slash.py:45-52).
+    """
     registry = registry or _build_slash_registry()
-    click.echo("\n".join(registry.help_lines()))
+
+    # Explicit buckets finalized against live _build_slash_registry() contents.
+    # Order of groups and members within groups is semantic (not alpha).
+    named_groups: list[tuple[str, list[str]]] = [
+        ("Editing", ["/diff", "/apply", "/discard"]),
+        ("Session", ["/resume", "/budget", "/cost", "/clear", "/save-session"]),
+        ("Insight", ["/why", "/tools", "/analyze"]),
+        ("Control", ["/help", "/exit", "/mode", "/model"]),
+    ]
+
+    placed: set[str] = set()
+    for header, names in named_groups:
+        members: list[SlashCommand] = []
+        for name in names:
+            cmd = registry.lookup(name)
+            if cmd and not cmd.hidden:
+                members.append(cmd)
+                placed.add(name)
+        if not members:
+            continue
+        click.echo(header)
+        width = max(len(c.name) for c in members)
+        for c in members:
+            click.echo(f"  {c.name:<{width}}  {c.help}")
+        click.echo()
+
+    # Long-tail Other bucket (D-05 / M9-03 parity): everything not yet placed.
+    other_members: list[SlashCommand] = []
+    for name in registry.ids(include_hidden=False):
+        if name not in placed:
+            cmd = registry.lookup(name)
+            if cmd and not cmd.hidden:
+                other_members.append(cmd)
+    if other_members:
+        click.echo("Other")
+        width = max(len(c.name) for c in other_members)
+        for c in other_members:
+            click.echo(f"  {c.name:<{width}}  {c.help}")
 
 
 @click.command("sessions")
@@ -2402,6 +2446,7 @@ def main(ctx: click.Context) -> None:
     """voss · agent (standalone harness invocation).
 
     Usually invoked as `voss do` / `voss chat`. Bare invocation drops into chat.
+    Interactive commands: run `voss chat`, then /help
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(

@@ -153,6 +153,7 @@ def main(ctx: click.Context) -> None:
     Agent verbs    : do · chat · edit · doctor · tools · config
 
     Bare `voss` (no subcommand) drops into the agent REPL.
+    Interactive commands: run `voss chat`, then /help
     """
     if ctx.invoked_subcommand is None:
         from .harness.cli import chat_cmd
