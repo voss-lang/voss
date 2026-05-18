@@ -44,6 +44,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M5 | Eval and Distribution Prep | 6/6 plans summarized (M5-01..M5-06). |
 | M6 | npm Wrapper | Plans ready to execute (5 plans, 4 waves, verified iteration 2/3). |
 | M7 | SDK Polish | Plans ready to execute (6 plans, 6 waves, verified iter 2/3 PASS clean). |
+| T8 | Input Bar Ergonomics | Complete (5/5 plans summarized, focused T8 suite green). |
 
 ## Recent Activity
 

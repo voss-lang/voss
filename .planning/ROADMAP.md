@@ -34,7 +34,7 @@
 | T3 | Network Surface (WebFetch + WebSearch + MCP client) | Live docs + MCP ecosystem, gated at the boundary | NET-01..07 | TBD |
 | T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
-| T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | TBD |
+| T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | **Complete** (5/5 plans, 2026-05-18) |
 | A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A10) | SHL-01..06 | 4 plans, 4 waves |
 | A2 | voss-app PTY Pane | One xterm pane wired to native PTY, full TTY support, scrollback, copy/paste | PTY-01..0N (TBD by SPEC.md) | TBD |
 | A3 | voss-app Grid Engine | Binary-split tree, splits/focus/resize/close, `⌘1-9` nav, save/load layout | GRD-01..0N (TBD by SPEC.md) | TBD |
@@ -1000,6 +1000,8 @@ Plans:
 1. All five behaviors covered by Textual snapshot tests.
 2. `!` and `#` shortcuts emit recorder events (`shell.local` /
    `memory.note`) and bypass `run_turn`.
+
+**Status:** Complete (5/5 plans summarized, 2026-05-18). Focused T8 verification: 53 tests / 11 snapshots passed.
 
 **Cross-cutting constraints:**
 - M9 keymap (`tui/keymap.py`) is the source of truth — this phase only
