@@ -84,3 +84,17 @@ CONTEXT `<deferred>`: real per-tool attribution, pending-edit queue (T1), cross-
 ## Claude's Discretion Items
 
 CONTEXT `<decisions>` § Claude's Discretion: exact /help group names, zero-tool-result iteration skip, ~approx label placement, /resume id/name disambiguation order, test-file choice (extend test_repl_slash.py vs new test_t6_slashes.py — `test_cost_by_tool_is_honest_stub` MUST be updated since D-01 de-stubs --by-tool).
+
+---
+
+## Phase Complete (2026-05-18)
+
+All three waves executed:
+
+- **T6-01** — `/cost --by-tool` even-split approximation (SLASH-07), obsoleted-stub test rewrite.
+- **T6-02** — Grouped `_print_slash_help` (Editing / Session / Insight / Control + Other long-tail) + identical one-line `/help` signpost added to **both** `voss/cli.py:main` and `voss/harness/cli.py:main` (operator-widened D-04).
+- **T6-03** — Per-slash happy-path tests (SC#1), D-07 `/why` audit (SC#2), D-03 `/resume` resolution-order confirmation. Full `test_repl_slash.py` green (27 tests). Zero production code changes.
+
+**Final group map** and D-07 / D-03 resolutions recorded in the respective SUMMARIES.
+
+**Status:** T6 (v0.1.1 patch) complete. All SLASH-01..07 requirements satisfied. Ready for phase archival or next T-phase.

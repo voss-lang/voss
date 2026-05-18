@@ -1,7 +1,7 @@
 # Phase T6: PRD §2.4 Slash Debt — Context
 
 **Gathered:** 2026-05-16
-**Status:** Ready for planning
+**Status:** Complete (2026-05-18) — 3/3 plans executed and verified
 **SPEC:** None — requirements drawn from ROADMAP.md T6 (SLASH-01..SLASH-07 proposed)
 **Versioning:** v0.1.1 patch (closes a documented v0.1 contract bug — NOT a v0.2 feature)
 
