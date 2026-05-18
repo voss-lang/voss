@@ -1,0 +1,15 @@
+# summarize-diff.voss
+# Dogfood demo of the SKL-03 summarize-diff skill (D-05). NOT the runtime
+# exec path — the skill is voss/harness/skills/summarize_diff.py. This file
+# exists to demonstrate the same flow expressed in Voss and to pass `voss check`.
+fn summarizeDiff(diff: string) -> string {
+    ctx(budget: 3000 tokens) {
+        yield ask(
+            "Summarize this git diff as a PR description with exactly the "
+            + "sections ## Title, ## Summary, ## Changes. Diff:\n" + diff
+        )
+    }
+}
+
+let pr = summarizeDiff("--- a/x\n+++ b/x\n+added line")
+print(pr)
