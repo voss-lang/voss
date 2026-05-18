@@ -25,7 +25,15 @@ import pytest
 
 from voss.harness.skill_registry import default_skill_registry
 
-from tests.skills.conftest import PermissionGate, PlainRenderer, make_toolset
+from tests.skills.conftest import (
+    FakeProvider,
+    PermissionGate,
+    Plan,
+    PlainRenderer,
+    ToolCall,
+    make_toolset,
+    seed_git_repo,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -110,8 +118,55 @@ def test_add_test():  # SKL-02 — owned by T7-04
     pytest.fail("not yet")
 
 
-def test_summarize_diff():  # SKL-03 — owned by T7-03
-    pytest.fail("not yet")
+def _tracked_snapshot(root: Path) -> dict[str, bytes]:
+    """Bytes of every git-tracked file — the read-only invariant target.
+
+    Deliberately excludes untracked paths (run_turn writes session JSON
+    under XDG_STATE_HOME, which the autouse isolated_state fixture points at
+    the same tmp_path); only tracked-file mutation breaks the contract.
+    """
+    import subprocess
+
+    out = subprocess.run(
+        ["git", "ls-files"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.split()
+    return {rel: (root / rel).read_bytes() for rel in out if (root / rel).is_file()}
+
+
+def test_summarize_diff(tmp_path: Path, capsys) -> None:  # SKL-03 — T7-03
+    from voss.harness.skills.summarize_diff import run
+
+    seed_git_repo(tmp_path)
+    # Unstaged working-tree modification so `git diff` is non-empty.
+    (tmp_path / "README.md").write_text("# t\n\nan extra working-tree line\n")
+
+    before = _tracked_snapshot(tmp_path)
+
+    plan = Plan(
+        rationale="summarize the working-tree diff",
+        steps=[ToolCall(name="git_diff", args={})],
+        confidence=0.95,
+        final_when_done="## Title\nUpdate README\n## Summary\nAdds a line.\n## Changes\n- README.md: +1 line",
+    )
+    provider = FakeProvider(plan)
+
+    run(
+        cwd=tmp_path,
+        provider=provider,
+        history=None,
+        record=types.SimpleNamespace(model="fake", id="t"),
+        renderer=PlainRenderer(),
+        tools=make_toolset(tmp_path),
+        gate=PermissionGate(auto_yes=True),
+    )
+
+    out = capsys.readouterr().out
+    assert "## Title" in out and "## Summary" in out and "## Changes" in out, out
+    # Read-only invariant: no tracked/working file changed by the skill.
+    assert _snapshot(tmp_path) == before, "summarize-diff mutated the tree"
+
+    entry = default_skill_registry().get("summarize-diff")
+    assert entry is not None and entry.mutating is False
 
 
 def test_port_py_to_voss():  # SKL-04 — owned by T7-04

@@ -102,4 +102,48 @@ def default_skill_registry() -> SkillRegistry:
             mutating=False,
         )
     )
+
+    def summarize_diff(ctx: Any, _args: list[str]) -> None:
+        from .skills.summarize_diff import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="summarize-diff",
+            description="Summarize the working-tree git diff as a structured PR description.",
+            handler=summarize_diff,
+            mutating=False,
+        )
+    )
+
+    def audit_cognition(ctx: Any, _args: list[str]) -> None:
+        from .skills.audit_cognition import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="audit-cognition",
+            description="Audit project cognition for drift and propose an architecture update (never writes).",
+            handler=audit_cognition,
+            mutating=False,
+        )
+    )
     return registry
