@@ -1,11 +1,12 @@
 ---
 phase: T8
 slug: input-bar-ergonomics-v0-2
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 medium: terminal-ui
 created: 2026-05-17
+reviewed_at: 2026-05-17
 parent_spec: .planning/phases/M9-tui-shell-tui-01/M9-UI-SPEC.md
 ---
 
