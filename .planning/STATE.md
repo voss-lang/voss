@@ -3,13 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: verifying
-last_updated: "2026-05-18T15:31:59.148Z"
+last_updated: "2026-05-18T15:43:51.042Z"
 last_activity: "2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval)."
 progress:
-  total_phases: 16
+  total_phases: 33
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
+  percent: 0
 ---
 
 # State: Voss
@@ -46,6 +47,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Recent Activity
 
+- 2026-05-18 — **Phase A3 (voss-app Grid Engine) SPEC + context gathered.** A3-SPEC.md authored (8 reqs GRD-01..08, ambiguity 0.15, 13 acceptance criteria; 2 Socratic rounds — locks: no disk I/O in A3 [Solid tree + voss-app-core Rust mirror only; A4/A6 add file I/O], `⌘D` fork = A3 sibling-split inheriting cwd+shell, close-confirm reuses A2 D-07, 20×5 min floor, 9-pane ceiling, binary-split-tree grid model locked, N-pane ~60fps + flood-isolation perf bar). A3-CONTEXT.md captured 4 HOW decisions D-01..04: Canvas per-pane (research-validate @9, WebGL fallback gated) · 50/50 split + global `⌘=` · i3 nearest-edge-midpoint directional focus · close→expanded-sibling + last-pane-respawn (app never empty). Resume: `/gsd:plan-phase A3`.
 - 2026-05-18 — **Phase T6 (PRD §2.4 Slash Debt, v0.1.1 patch) complete.** All 3 waves executed and verified: T6-01 `/cost --by-tool` approximation + test rewrite; T6-02 grouped `/help` (4 named buckets + Other) + dual-CLI one-line signpost (operator-widened D-04); T6-03 per-slash SC#1 happy-path tests + D-07 `/why` audit (SC#2) + D-03 `/resume` resolution confirmation. 27/27 tests in `test_repl_slash.py` green. Zero production code changes. T6-CONTEXT status updated, DISCUSSION-LOG closed, ROADMAP success criteria marked Met.
 - 2026-05-18 — Completed T5-05 `voss jobs` and active-session lifecycle. Wired `_run_repl` to `make_toolset(..., session_id=record.id)`, added `jobs_cmd` sidecar inventory with table and D-11 JSON output, added `.active-session` write/remove plus explicit `reap_jobs()` in a `finally`, threaded `--keep-logs`, documented deliberate `_nosession` call sites, and restored `shell_monitor` reap-reason suffix required by watchdog tests. T5 and adjacent harness checks passed; full non-live run still stops early on the isolated subprocess `platformdirs` import issue outside T5.
 - 2026-05-17 — Completed T5-04 monitor/signal/permissions. Implemented `shell_monitor` cursor reads and `shell_signal` INT/TERM control, registered monitor read-only and signal mutating, extended `SHELL`, closed D-12 edit-mode denial for `shell_run_background`/`shell_signal` while allowing `shell_monitor`, and updated TUI permission bridge verbs/targets. Focused monitor/signal/edit-mode/tool tests passed; full non-live merge check still stops early on the isolated subprocess `platformdirs` import issue outside T5.
