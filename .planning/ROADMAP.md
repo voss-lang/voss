@@ -1010,7 +1010,7 @@ Plans:
 - [x] T8-02-PLAN.md — INPUT-01: Input→TextArea swap, Enter/Shift+Enter inversion, autogrow 1-5, slash guard, additive `ctrl+r` keymap line
 - [x] T8-03-PLAN.md — INPUT-02/03: `!cmd` via existing T5-D12 gate + `#note` to `## Notes` human section; run_turn bypass; `shell.local`/`memory.note` recorder events
 - [x] T8-04-PLAN.md — Enabling deliverable (RESEARCH A4): `on_input_bar_submitted`→run_turn wiring + `_run_repl` interactive Textual loop + `app.history` for Ctrl-R corpus
-- [ ] T8-05-PLAN.md — INPUT-04 Ctrl-R inline reverse-i-search (per-project episodic) + INPUT-05 paste-image attach / no-vision transient notice
+- [x] T8-05-PLAN.md — INPUT-04 Ctrl-R inline reverse-i-search (per-project episodic) + INPUT-05 paste-image attach / no-vision transient notice
 
 **Scope note (RESEARCH A4 — recorded):** `make_renderer` builds `TextualRenderer(VossTUIApp())` but `app.run()` is never called and `_run_repl` uses synchronous `input()`. Without the T8-04 submit→run_turn wiring INPUT-01..05 are structurally unobservable in a real session. T8-04 is an in-scope ENABLING deliverable (planner option a), not scope creep.
 
