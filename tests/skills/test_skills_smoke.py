@@ -163,7 +163,7 @@ def test_summarize_diff(tmp_path: Path, capsys) -> None:  # SKL-03 — T7-03
     out = capsys.readouterr().out
     assert "## Title" in out and "## Summary" in out and "## Changes" in out, out
     # Read-only invariant: no tracked/working file changed by the skill.
-    assert _snapshot(tmp_path) == before, "summarize-diff mutated the tree"
+    assert _tracked_snapshot(tmp_path) == before, "summarize-diff mutated the tree"
 
     entry = default_skill_registry().get("summarize-diff")
     assert entry is not None and entry.mutating is False
@@ -173,8 +173,48 @@ def test_port_py_to_voss():  # SKL-04 — owned by T7-04
     pytest.fail("not yet")
 
 
-def test_audit_cognition():  # SKL-05 — owned by T7-03
-    pytest.fail("not yet")
+def test_audit_cognition(tmp_path: Path, capsys) -> None:  # SKL-05 — T7-03
+    from voss.harness.skills.audit_cognition import run
+
+    seed_git_repo(tmp_path)
+    voss_dir = tmp_path / ".voss"
+    voss_dir.mkdir()
+    shutil.copy(
+        FIXTURES / "audit-cognition" / ".voss" / "architecture.md",
+        voss_dir / "architecture.md",
+    )
+
+    arch = voss_dir / "architecture.md"
+    arch_before = arch.read_bytes()
+    voss_md = tmp_path / "VOSS.md"
+    assert not voss_md.exists()
+
+    plan = Plan(
+        rationale="audit cognition drift",
+        steps=[],
+        confidence=0.95,
+        final_when_done="PROPOSAL: the architecture is now a skills bootstrap layer.",
+    )
+    provider = FakeProvider(plan)
+
+    run(
+        cwd=tmp_path,
+        provider=provider,
+        history=None,
+        record=types.SimpleNamespace(model="fake", id="t"),
+        renderer=PlainRenderer(),
+        tools=make_toolset(tmp_path),
+        gate=PermissionGate(auto_yes=True),
+    )
+
+    out = capsys.readouterr().out
+    assert "PROPOSAL:" in out, out
+    # HARD invariant (Pitfall 3): the skill proposes, never writes.
+    assert arch.read_bytes() == arch_before, "audit-cognition wrote architecture.md"
+    assert not voss_md.exists(), "audit-cognition created VOSS.md"
+
+    entry = default_skill_registry().get("audit-cognition")
+    assert entry is not None and entry.mutating is False
 
 
 def test_registry_count():  # last-to-green guard — owned by T7-04
