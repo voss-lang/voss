@@ -36,7 +36,7 @@ _SUBPROCESSES: list[asyncio.subprocess.Process] = []
 _SESSIONS: list[object] = []
 # _JOBS is separate because background jobs have distinct reap semantics:
 # watchdog timers, mid-life signals, and lifetimes beyond the 5s subprocess deadline.
-_JOBS: dict[str, "JobRecord"] = {}
+_JOBS: dict[tuple[str, str], "JobRecord"] = {}
 _HANDLE_COUNTERS: dict[str, int] = {}
 
 _TERM_DEADLINE_S = 5.0
@@ -66,6 +66,7 @@ class JobRecord:
     status: str
     exit_code: int | None
     runtime_ms: int
+    session_id: str = field(default="_nosession", repr=False, compare=False)
     proc: asyncio.subprocess.Process | Any | None = field(
         default=None, repr=False, compare=False
     )
@@ -278,8 +279,22 @@ def _next_handle(session_id: str) -> str:
     return f"bg-{n:03d}"
 
 
+def _job_key(session_id: str, handle: str) -> tuple[str, str]:
+    return (session_id, handle)
+
+
+def _find_job(handle: str, session_id: str | None = None) -> JobRecord | None:
+    if session_id is not None:
+        return _JOBS.get(_job_key(session_id, handle))
+    matches = [rec for (sid, h), rec in _JOBS.items() if h == handle]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
 def _store_record(
     *,
+    session_id: str,
     handle: str,
     proc: asyncio.subprocess.Process | Any,
     cmd: str,
@@ -297,12 +312,13 @@ def _store_record(
         status="running",
         exit_code=None,
         runtime_ms=0,
+        session_id=session_id,
         proc=proc,
         use_process_group=use_process_group,
     )
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.touch(exist_ok=True)
-    _JOBS[handle] = rec
+    _JOBS[_job_key(session_id, handle)] = rec
     _write_meta(rec)
     if start_task:
         rec.task = asyncio.create_task(
@@ -329,6 +345,7 @@ async def _spawn_job(
         start_new_session=(os.name == "posix"),
     )
     _store_record(
+        session_id=session_id,
         handle=handle,
         proc=proc,
         cmd=cmd,
@@ -354,6 +371,7 @@ def register_job(
         job_handle = handle or _next_handle(session_id)
         path = Path(log_path) if log_path is not None else _log_path(Path.cwd(), session_id, job_handle)
         _store_record(
+            session_id=session_id,
             handle=job_handle,
             proc=proc,
             cmd=cmd,
@@ -375,10 +393,10 @@ def register_job(
 
 
 async def reap_jobs() -> None:
-    for rec in list(_JOBS.values()):
+    for key, rec in list(_JOBS.items()):
         proc = rec.proc
         if proc is None:
-            _JOBS.pop(rec.handle, None)
+            _JOBS.pop(key, None)
             continue
         if rec.status != "running" or getattr(proc, "returncode", None) is not None:
             if getattr(proc, "returncode", None) is not None:
@@ -386,7 +404,7 @@ async def reap_jobs() -> None:
                 rec.status = "done" if rec.exit_code == 0 else "killed"
                 _refresh_runtime(rec)
                 _write_meta(rec)
-            _JOBS.pop(rec.handle, None)
+            _JOBS.pop(key, None)
             continue
         try:
             _kill_tree(proc, signal_mod.SIGTERM, use_process_group=rec.use_process_group)
@@ -419,11 +437,11 @@ async def reap_jobs() -> None:
         _write_meta(rec)
         if rec.task is not None:
             rec.task.cancel()
-        _JOBS.pop(rec.handle, None)
+        _JOBS.pop(key, None)
 
 
-def signal_job(handle: str, sig: int) -> bool:
-    rec = _JOBS.get(handle)
+def signal_job(handle: str, sig: int, *, session_id: str | None = None) -> bool:
+    rec = _find_job(handle, session_id=session_id)
     if rec is None or rec.proc is None:
         return False
     try:
@@ -433,29 +451,31 @@ def signal_job(handle: str, sig: int) -> bool:
     return True
 
 
-def monitor_job(handle: str, since_ms: int = 0) -> str:
-    rec = _JOBS.get(handle)
+def monitor_job(handle: str, since_ms: int = 0, *, session_id: str | None = None) -> str:
+    rec = _find_job(handle, session_id=session_id)
     if rec is None:
-        return "<error: unknown handle>"
+        return f"<error: unknown handle {handle}>"
     start = max(0, int(since_ms))
     path = Path(rec.log_path)
+    chunk = b""
+    file_size = start
     try:
         with path.open("rb") as fh:
             fh.seek(start)
-            chunk = fh.read(_MONITOR_CAP_BYTES + 1)
+            chunk = fh.read(_MONITOR_CAP_BYTES)
+            file_size = path.stat().st_size
+    except FileNotFoundError:
+        pass
     except OSError as exc:
         return f"<error: {exc}>"
-    more = len(chunk) > _MONITOR_CAP_BYTES
-    if more:
-        chunk = chunk[:_MONITOR_CAP_BYTES]
     cursor = start + len(chunk)
     if rec.status == "running":
         state = "running"
     else:
         state = f"exit {rec.exit_code if rec.exit_code is not None else -1}"
     text = chunk.decode("utf-8", errors="replace")
-    if more:
-        remaining = max(0, path.stat().st_size - cursor)
+    if file_size > cursor:
+        remaining = max(0, file_size - cursor)
         text += f"\n<truncated, {remaining} more bytes — re-monitor with cursor {cursor}>"
     if rec.reap_reason:
         text += f'\nshell.background.reap reason="{rec.reap_reason}"'
