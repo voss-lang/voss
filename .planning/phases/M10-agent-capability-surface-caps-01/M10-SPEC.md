@@ -17,7 +17,7 @@ The harness has a tool registry (`voss/harness/tools.py` — `ToolEntry`, `make_
 1. **Project index — session-start scan + on-demand refresh**: A persistent project index is built at session start and refreshable via a tool/slash command.
    - Current: No project index exists at the harness level. `.voss-cache/repo.idx` is mentioned in M2 as a "simpler rebuildable file index" but is not a symbol-level index.
    - Target: On every `voss chat` / `voss do` / `voss resume`, a session-start scan walks the repo, populates a symbol+file index under `.voss-cache/code/`, and exposes it to the in-session tools. A `code_refresh` tool and `/refresh` slash command rebuild the index on demand. No background file-watch (that is a separate M14 capability).
-   - Acceptance: Launching a session on a fixture repo populates `.voss-cache/code/index.json` with a deterministic schema (modules, symbols, references-by-file) before the first user turn. Calling `code_refresh` after a file write reflects the change in the index. Closing and re-launching `voss chat` re-runs the scan and matches the prior result on an unchanged tree.
+   - Acceptance: Launching a session on a fixture repo populates `.voss-cache/code/index.db` (SQLite) with a deterministic schema (modules, symbols, references-by-file) before the first user turn. Calling `code_refresh` after a file write reflects the change in the index. Closing and re-launching `voss chat` re-runs the scan and matches the prior result on an unchanged tree.
 
 2. **Polyglot LSP server registry**: A pluggable LSP client launches one server per supported language on demand, configured via `.voss/lsp.yml`.
    - Current: No LSP client. No `.voss/lsp.yml`. No language-server lifecycle code.
@@ -96,7 +96,7 @@ The harness has a tool registry (`voss/harness/tools.py` — `ToolEntry`, `make_
 ## Acceptance Criteria
 
 - [ ] `M9-XX-PLAN.md` amendment lands reserving `CodeIntelPanel` region-share contract and passes plan-checker. M9-CONTEXT.md or M9-UI-SPEC.md updated to record the amendment.
-- [ ] Session start on a fixture repo populates `.voss-cache/code/index.json` before the first user turn. Schema is deterministic across re-runs on an unchanged tree.
+- [ ] Session start on a fixture repo populates `.voss-cache/code/index.db` (SQLite) before the first user turn. Schema is deterministic across re-runs on an unchanged tree.
 - [ ] `code_refresh` (tool or `/refresh` slash) rebuilds the index and reflects post-refresh file changes.
 - [ ] `find_definition` on a known-good symbol returns the correct file + range for Python, JS/TS, Rust, and Go fixture repos.
 - [ ] `find_references` on a known-good symbol returns ≥ N expected references (N ground-truthed per fixture) for each of the four languages.
