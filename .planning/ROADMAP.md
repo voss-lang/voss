@@ -981,7 +981,7 @@ Plans:
 
 ---
 
-### Phase T8 — Input Bar Ergonomics *(v0.2)*
+### Phase T8: Input Bar Ergonomics (v0.2)
 
 **Goal:** The input bar stops being the slowest part of the loop.
 
