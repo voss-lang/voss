@@ -1093,6 +1093,13 @@ Plans:
 - Single pane only in A2 — multi-pane is A3.
 - Pane occupies the whole window minus titlebar + status bar (status bar stubbed; A9 finishes it).
 
+**Plans:** 5 plans across 4 waves
+- [ ] A2-01-PLAN.md — Wave 0 scaffold: red test suite, xterm v5.5.0 pin, voss-app-core crate, D-01/legitimacy gate (W1)
+- [ ] A2-02-PLAN.md — Rust PTY core: spawn/stream/resize/exit/backpressure/SIGINT + pgid fallback (W2)
+- [ ] A2-03-PLAN.md — Solid pane + Tauri Channel IPC + D-02 rAF coalescing & watermark (W2)
+- [ ] A2-04-PLAN.md — Paste-guard, ⌘C/SIGINT, find/clear, OSC8 links, fg-header, exit/restart (W3)
+- [ ] A2-05-PLAN.md — D-02 flood-perf build-failing gate + PTY-08 alt-screen manual matrix (W4)
+
 ---
 
 ### Phase A3: voss-app Grid Engine
