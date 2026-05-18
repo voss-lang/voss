@@ -19,7 +19,7 @@ export default function Titlebar() {
 
       {/* Left drag spacer — the drag attribute belongs on the spacer ONLY, never on  */}
       {/* the outer container or any button-bearing child (RESEARCH Pitfall 1).        */}
-      <div data-tauri-drag-region style={{ flex: '1' }} />
+      <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
 
       {/* Project name placeholder — shows "Voss ADE" until A5 opens a project */}
       <div
@@ -36,7 +36,7 @@ export default function Titlebar() {
       </div>
 
       {/* Right drag spacer */}
-      <div data-tauri-drag-region style={{ flex: '1' }} />
+      <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
 
       {/* Preset switcher — visual only in A1 (no cost / model / token slot) */}
       <PresetSwitcher />
