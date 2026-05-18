@@ -438,52 +438,48 @@ lambdaExpr fp =
  where
   lamSingle =
     (\(sp, (n, b)) -> ExprLambda (Lambda_ sp [Param sp n Nothing Nothing] b))
-      <$> try (withSpan fp ((,) <$> identTok <* sym "=>" <*> expr fp))
+      <$> try (withSpan fp ((,) <$> identTok <* symbolic "=>" <*> expr fp))
   lamMulti =
     (\(sp, (ps, b)) -> ExprLambda (Lambda_ sp ps b))
       <$> withSpan fp
-        ( (,) <$> (symbolic "(" *> sepEndBy (lambdaParam fp) commaTok <* symbolic ")") <*> (sym "=>" *> expr fp)
+        ( (,) <$> (symbolic "(" *> sepEndBy (lambdaParam fp) commaTok <* symbolic ")")
+            <*> (symbolic "=>" *> expr fp)
         )
-  lambdaParam fpP = do
-    (pn, nm) <- withSpan fpP identTok
-    ta <- optional (sym ":" *> typeExpr fpP)
-    pure (Param pn nm ta Nothing)
 
 lambdaParam :: FilePath -> P Param
+lambdaParam fpP = do
+  (spm, nm) <- withSpan fpP identTok
+  ta <- optional (sym ":" *> typeExpr fpP)
+  pure $ Param spm nm ta Nothing
 
 spawnExpr :: FilePath -> P Expr
 spawnExpr fp = do
   (sp, t) <- withSpan fp (keyword "spawn" *> postfix fp)
-  normalizeSpawn fp sp t
+  normalizeSpawn sp t
 
-normalizeSpawn :: FilePath -> Span -> Expr -> P Expr
-normalizeSpawn fp sp e = case e of
-  c@(ExprCall _) -> pure (ExprSpawn (Spawn_ sp (callAst c)))
+normalizeSpawn :: Span -> Expr -> P Expr
+normalizeSpawn sp e = case e of
+  ExprCall c -> pure $ ExprSpawn (Spawn_ sp c)
   ExprIdent sid nm ->
-    pure
-      ( ExprSpawn
-          ( Spawn_
-              sp
-              Call_
-                { cllSpan = glueSpan sid sid,
-                  callee = ExprIdent sid nm,
-                  callArgs = []
-                }
-          )
-      )
+    pure $
+      ExprSpawn
+        ( Spawn_
+            sp
+            Call_
+              { cllSpan = glueSpan sid sid,
+                callee = ExprIdent sid nm,
+                callArgs = []
+              }
+        )
   _ ->
-    fail
-      "spawn requires a parenthesized agent/call expression or bare identifier naming an agent/template"
- where
-  callAst (ExprCall c) = c
-  callAst _ = error "normalizeSpawn:callAst"
+    fail "spawn expects a parenthesized call or bare identifier"
 
 ------------------------------------------------------------------------------
 orExpr :: FilePath -> P Expr
-orExpr fp = chainBin "or" fp (andExpr fp)
+orExpr fp = chainBin "or" (andExpr fp)
 
 andExpr :: FilePath -> P Expr
-andExpr fp = chainBin "and" fp (notExpr fp)
+andExpr fp = chainBin "and" (notExpr fp)
 
 notExpr :: FilePath -> P Expr
 notExpr fp =
@@ -492,60 +488,153 @@ notExpr fp =
       cmpExpr fp
     ]
 
-chainBin :: Text -> FilePath -> P Expr -> P Expr
-chainBin op fp inner = do
+chainBin :: Text -> P Expr -> P Expr
+chainBin op inner = do
   a <- inner
-  rest <- Mp.many (try (keyword op *> inner))
-  pure (foldl' (glueBin op fp) a rest)
+  rs <- Mp.many (try (keyword op *> inner))
+  pure (foldl' (glueBin op) a rs)
 
-glueBin :: Text -> FilePath -> Expr -> Expr -> Expr
-glueBin op _ l r =
+glueBin :: Text -> Expr -> Expr -> Expr
+glueBin op l r =
   ExprBinOp (BinOp_ (glueSpan (exprSpan l) (exprSpan r)) op l r)
 
 cmpExpr :: FilePath -> P Expr
 cmpExpr fp = do
-  a <- addExpr fp
-  rest <-
-    Mp.many
-      ( try
-          ( (,)
-              <$> cmpTok
-              <*> addExpr fp
-          )
-      )
-  pure (foldl' (\lhs (cop, rhs) -> ExprBinOp (BinOp_ (glueSpan (exprSpan lhs) (exprSpan rhs)) cop lhs rhs)) a rest)
+  x <- addExpr fp
+  rs <- Mp.many (try ((,) <$> cmpTok <*> addExpr fp))
+  pure $ foldl' (\acc (cop, rhs) -> ExprBinOp (BinOp_ (glueSpan (exprSpan acc) (exprSpan rhs)) cop acc rhs)) x rs
 
 addExpr :: FilePath -> P Expr
-addExpr fp = chainOp fp [("+", additive), ("-", additive)] unaryOrPost
- where
-  additive = mulExpr fp
-  unaryOrPost = unary fp
+addExpr fp = chainPM ["+", "-"] (mulExpr fp)
 
 mulExpr :: FilePath -> P Expr
-mulExpr fp = chainOp fp [("*", postfix fp), ("/", postfix fp)] postfix fp
+mulExpr fp = chainPM ["*", "/"] (unary fp)
 
-chainOp ::
-  FilePath ->
-  [(Text, FilePath -> P Expr)] ->
-  FilePath ->
-  P Expr
-chainOp fp alts continuation = go
+chainPM :: [Text] -> P Expr -> P Expr
+chainPM ops base = do
+  x <- base
+  rest <- Mp.many (choice (map tryOp ops))
+  pure $ foldl' (\acc (op, rhs) -> ExprBinOp (BinOp_ (glueSpan (exprSpan acc) (exprSpan rhs)) op acc rhs)) x rest
  where
-  go = do
-    a <- continuation fp
-    m <-
-      optional
+  tryOp op = try ((,) <$> symbolic op <*> base)
+
+unary :: FilePath -> P Expr
+unary fp =
+  choice
+    [ (\(sp, u) -> ExprUnaryOp (UnaryOp_ sp "-" u))
+        <$> try (withSpan fp (symbolic "-" *> unary fp)),
+      postfix fp
+    ]
+
+postfix :: FilePath -> P Expr
+postfix fp = do
+  hd <- primary fp
+  fs <- Mp.many (suffixStep fp)
+  pure (foldl' (\acc f -> f acc) hd fs)
+
+suffixStep :: FilePath -> P (Expr -> Expr)
+suffixStep fp =
+  choice
+    [ callSuffix fp,
+      memberSuffix fp,
+      indexSuffix fp
+    ]
+
+callSuffix :: FilePath -> P (Expr -> Expr)
+callSuffix fp = do
+  args <- symbolic "(" *> sepEndBy (arg fp) commaTok <* symbolic ")"
+  pure $ \e ->
+    ExprCall
+      Call_
+        { cllSpan = glueCall e args,
+          callee = e,
+          callArgs = args
+        }
+
+memberSuffix :: FilePath -> P (Expr -> Expr)
+memberSuffix fp = do
+  (sp_nm, nm) <- symbolic "." *> withSpan fp identTok
+  pure $ \obj ->
+    ExprMember
+      Member_
+        { mbSpan = glueSpan (exprSpan obj) sp_nm,
+          mbObj = obj,
+          mbAttr = nm
+        }
+
+indexSuffix :: FilePath -> P (Expr -> Expr)
+indexSuffix fp = do
+  ix <- symbolic "[" *> expr fp <* symbolic "]"
+  pure $ \obj ->
+    ExprIndex
+      Index_
+        { ixSpan = glueSpan (exprSpan obj) (exprSpan ix),
+          ixObj = obj,
+          ixIndex = ix
+        }
+
+glueCall :: Expr -> [Arg] -> Span
+glueCall e as =
+  case as of
+    [] -> exprSpan e
+    xs -> glueSpan (exprSpan e) (argSpan $ last xs)
+
+------------------------------------------------------------------------------
+primary :: FilePath -> P Expr
+primary fp =
+  choice
+    [ try $ ExprBudget <$> budgetLiteral fp,
+      try $ litExpr fp,
+      symbolic "(" *> expr fp <* symbolic ")",
+      (\(sp, xs) -> ExprList $ ListLit_ sp xs)
+        <$> withSpan fp (symbolic "[" *> sepEndBy (expr fp) commaTok <* symbolic "]"),
+      ExprDict <$> dictLit fp,
+      (\(sp, nm) -> ExprIdent sp nm) <$> withSpan fp identTok
+    ]
+
+------------------------------------------------------------------------------
+litExpr :: FilePath -> P Expr
+litExpr fp =
+  choice
+    [ (\(sp, t) -> ExprStrLit sp t True) <$> withSpan fp tripleStringChunks,
+      (\(sp, t) -> ExprStrLit sp t False) <$> withSpan fp doubleStringChunks,
+      numberExpr fp,
+      (\(sp, b) -> ExprBoolLit sp b) <$> withSpan fp boolLit,
+      ExprNullLit . fst <$> withSpan fp (keyword "null" *> pure ())
+    ]
+
+boolLit :: P Bool
+boolLit =
+  True <$ keyword "true"
+    <|> False <$ keyword "false"
+
+doubleStringChunks :: P Text
+doubleStringChunks =
+  char '"' *> (T.pack <$> Mp.many ch) <* char '"'
+ where
+  ch =
+    choice
+      [ '\"' <$ try (chunk "\\\""),
+        '\\' <$ try (chunk "\\\\"),
+        '\n' <$ try (chunk "\\n"),
+        '\t' <$ try (chunk "\\t"),
+        '\r' <$ try (chunk "\\r"),
+        satisfy (\c -> c /= '"' && c /= '\\')
+      ]
+
+tripleStringChunks :: P Text
+tripleStringChunks = chunk "\"\"\"\"\"\"" *> fail "triple" <|> inner
+ where
+  inner = do
+    _ <- chunk "\"\"\""
+    chars <-
+      Mp.many
         ( choice
-            ( map
-                ( \(symb, _) ->
-                    try (symbolic symb *> pure symb)
-                )
-                alts
-            )
+            [ try (chunk "\"\"\"\"") *> pure '"',
+              satisfy (/= '\"'),
+              try (lookAhead (chunk "\"\"\"") >> notFollowedBy (chunk "\"\"\"")) *> char '\"'
+            ]
         )
-    case m of
-      Nothing -> pure a
-      Just symb ->
-        do
-          sub <- continuation fp -- wrong: need RIGHT parser per symbol
-          err "chainOp malformed"
+        <|> Mp.takeWhileP Nothing (/= '\"') *> empty
+    _ <- chunk "\"\"\""
+    pure ""
