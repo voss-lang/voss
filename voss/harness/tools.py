@@ -423,6 +423,35 @@ def make_toolset(
             return f"<error: {exc}>"
 
     @tool(
+        name="voss_py_diff",
+        description="Show read-only source vs generated Python for a .voss file.",
+    )
+    async def voss_py_diff(path: str) -> str:
+        raw = path.strip()
+        if not raw:
+            return "<error: missing source: expected .voss file>"
+        try:
+            source = jail_path(cwd, raw)
+        except SandboxError:
+            return f"<error: path outside cwd: {raw}>"
+        if not source.exists():
+            return f"<error: not found: {raw}>"
+        if source.is_dir():
+            return f"<error: expected .voss file, got directory: {raw}>"
+        if source.suffix != ".voss":
+            return f"<error: expected .voss source file, got {raw}>"
+        try:
+            from voss.harness.voss_diff import render_voss_py_diff
+        except ModuleNotFoundError as exc:
+            if exc.name == "voss.harness.voss_diff":
+                return "<error: voss diff core unavailable>"
+            return f"<error: {exc}>"
+        try:
+            return render_voss_py_diff(source, cwd=cwd)
+        except Exception as exc:  # noqa: BLE001
+            return f"<error: {exc}>"
+
+    @tool(
         name="record_run",
         description=(
             "(privileged) Close the current turn with semantic fields. "
@@ -497,6 +526,10 @@ def make_toolset(
         ),
         "voss_budget_trace": ToolEntry(
             descriptor=voss_budget_trace,
+            is_mutating=False,
+        ),
+        "voss_py_diff": ToolEntry(
+            descriptor=voss_py_diff,
             is_mutating=False,
         ),
         "record_run": ToolEntry(descriptor=record_run, is_mutating=True),

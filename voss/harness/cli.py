@@ -36,7 +36,7 @@ from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
-from .sandbox import jail_path
+from .sandbox import SandboxError, jail_path
 from .skill_registry import SkillRegistry, default_skill_registry
 from .slash import SlashCommand, SlashRegistry
 from .subagents import (
@@ -495,6 +495,32 @@ def _render_budget_inspect(cwd: Path, session_id_or_name: str) -> str:
     return render_budget_timeline(run)
 
 
+def _render_voss_py_diff(cwd: Path, source: str) -> str:
+    source = source.strip()
+    if not source:
+        raise ValueError("missing source: expected .voss file")
+    try:
+        path = jail_path(cwd, source)
+    except SandboxError as exc:
+        raise ValueError(f"path outside cwd: {source}") from exc
+    if not path.exists():
+        raise FileNotFoundError(f"not found: {source}")
+    if path.is_dir():
+        raise ValueError(f"expected .voss file, got directory: {source}")
+    if path.suffix != ".voss":
+        raise ValueError(f"expected .voss source file, got {source}")
+    try:
+        from .voss_diff import render_voss_py_diff
+    except ModuleNotFoundError as exc:
+        if exc.name == "voss.harness.voss_diff":
+            raise ValueError("voss diff core unavailable") from exc
+        raise
+    try:
+        return render_voss_py_diff(path, cwd=cwd)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(str(exc)) from exc
+
+
 _RECALL_USAGE = "usage: /recall <query> [--top N] [--source turn|decision|convention|ledger|note]"
 
 
@@ -832,6 +858,15 @@ def _build_slash_registry() -> SlashRegistry:
         except (FileNotFoundError, ValueError, IndexError) as exc:
             click.echo(f"/btrace failed: {exc}", err=True)
 
+    def _vdiff(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if len(args) != 1:
+            click.echo("usage: /vdiff <file.voss>", err=True)
+            return
+        try:
+            click.echo(_render_voss_py_diff(ctx.cwd, args[0]))
+        except (FileNotFoundError, ValueError) as exc:
+            click.echo(f"/vdiff failed: {exc}", err=True)
+
     def _why(ctx: ReplContext, _args: list[str], _line: str) -> None:
         # T6 / SLASH-06. Render last plan's rationale + per-step why +
         # confidence. No provider call — reads ctx.last_plan only.
@@ -1101,6 +1136,11 @@ def _build_slash_registry() -> SlashRegistry:
             "/btrace",
             "inspect recorded budget timeline: /btrace [session]",
             _btrace,
+        ),
+        SlashCommand(
+            "/vdiff",
+            "show source vs generated Python: /vdiff <file.voss>",
+            _vdiff,
         ),
         SlashCommand(
             "/why",
@@ -1906,7 +1946,7 @@ def _print_slash_help(registry: SlashRegistry | None = None) -> None:
     named_groups: list[tuple[str, list[str]]] = [
         ("Editing", ["/diff", "/apply", "/discard"]),
         ("Session", ["/resume", "/budget", "/cost", "/clear", "/save-session"]),
-        ("Insight", ["/why", "/probable", "/btrace", "/tools", "/analyze"]),
+        ("Insight", ["/why", "/probable", "/btrace", "/vdiff", "/tools", "/analyze"]),
         ("Control", ["/help", "/exit", "/mode", "/model"]),
     ]
 
@@ -2147,6 +2187,18 @@ def inspect_budget_cmd(session_id_or_name: str, cwd_str: str) -> None:
     try:
         text = _render_budget_inspect(Path(cwd_str).resolve(), session_id_or_name)
     except (FileNotFoundError, ValueError, IndexError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(text)
+
+
+@click.command("vdiff")
+@click.argument("source", metavar="FILE.voss")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def vdiff_cmd(source: str, cwd_str: str) -> None:
+    """Show source vs generated Python for a .voss file."""
+    try:
+        text = _render_voss_py_diff(Path(cwd_str).resolve(), source)
+    except (FileNotFoundError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(text)
 
@@ -2707,6 +2759,7 @@ AGENT_COMMANDS = (
     sessions_cmd,
     jobs_cmd,
     inspect_group,
+    vdiff_cmd,
     resume_cmd,
     tools_cmd,
     plugins_cmd,
