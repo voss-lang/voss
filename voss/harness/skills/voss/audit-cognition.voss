@@ -1,0 +1,12 @@
+# audit-cognition.voss
+# Dogfood demo of the SKL-05 audit-cognition skill (D-05). NOT the runtime
+# exec path — the skill is voss/harness/skills/audit_cognition.py. Demonstrates
+# the propose-only flow in Voss and passes `voss check`.
+fn proposeCognitionUpdate(drift: string) -> string {
+    ctx(budget: 2000 tokens) {
+        yield ask("Propose a one-paragraph architecture update starting with PROPOSAL:. Do NOT write any file. Drift signals: " + drift)
+    }
+}
+
+let proposal = proposeCognitionUpdate("HEAD +20 commits, -40 files")
+print(proposal)
