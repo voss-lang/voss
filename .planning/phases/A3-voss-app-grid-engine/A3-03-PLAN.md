@@ -32,10 +32,13 @@ must_haves:
       provides: "Vitest coverage of drag/keyboard resize + floor clamp"
       contains: "resizeByDrag"
   key_links:
+    # resize.ts deliberately does NOT import geometry.ts (A3-02 owns that file in
+    # the same wave); it reimplements the 20×5 clamp via a local rectsOf walker for
+    # file-ownership isolation. Its only cross-file link is the sync cadence below.
     - from: "apps/voss-app/src/grid/resize.ts"
-      to: "apps/voss-app/src/grid/geometry.ts"
-      via: "20×5 clamp on every ratio change"
-      pattern: "wouldViolateFloor|paneColsRows|computePaneRects"
+      to: "apps/voss-app/src/grid/sync.ts"
+      via: "markStructuralChange per keyboard step; markDragSettled on drag-end"
+      pattern: "markStructuralChange|markDragSettled"
     - from: "apps/voss-app/src/grid/focus.ts"
       to: "apps/voss-app/src/grid/sync.ts"
       via: "markStructuralChange on focus change"
