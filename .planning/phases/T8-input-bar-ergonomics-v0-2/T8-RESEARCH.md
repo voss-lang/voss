@@ -757,7 +757,7 @@ Not applicable. T8 is a greenfield widget rewrite — no renames or data migrati
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **TUI submit wiring scope (Pitfall 4)**
    - What we know: `InputBar.Submitted` is posted but there is no `on_input_bar_submitted` handler in `VossTUIApp`; `cli.py` uses `input("▌ ")` for the headless REPL; `app.run()` is never called from `_run_repl`.
