@@ -7,6 +7,7 @@ import pytest
 from click.testing import CliRunner
 
 from voss.harness.cli import config_cmd, tools_cmd
+from voss.harness.tools import make_toolset
 
 
 class TestToolsCmd:
@@ -15,15 +16,13 @@ class TestToolsCmd:
         assert result.exit_code == 0
         assert "tool" in result.output.lower()
 
-    def test_lists_all_ten_tools(self, tmp_path):
+    def test_lists_registered_tools(self, tmp_path):
         result = CliRunner().invoke(tools_cmd, ["--cwd", str(tmp_path)])
         assert result.exit_code == 0
-        for name in (
-            "fs_read", "fs_glob", "fs_grep",
-            "fs_write", "fs_edit", "shell_run",
-            "git_status", "git_diff", "voss_check",
-            "record_run",
-        ):
+        assert "name" in result.output
+        assert "mutating" in result.output
+        assert "description" in result.output
+        for name in make_toolset(tmp_path):
             assert name in result.output, f"missing tool name: {name}"
 
     def test_marks_mutating_tools(self, tmp_path):

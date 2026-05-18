@@ -2296,15 +2296,15 @@ def tools_cmd(cwd_str: str) -> None:
     # T5: no session_id — tools_cmd never invokes tools (deliberate _nosession).
     tools = make_toolset(cwd)
     name_w = max(len(n) for n in tools)
-    click.echo(f"  {'name':<{name_w}}  {'mut':<5}  description")
-    click.echo(f"  {'-' * name_w}  {'-' * 5}  {'-' * 40}")
+    click.echo(f"  {'name':<{name_w}}  {'mutating':<8}  description")
+    click.echo(f"  {'-' * name_w}  {'-' * 8}  {'-' * 40}")
     for name in sorted(tools):
         entry = tools[name]
         mut = "yes" if entry.is_mutating else "no"
         desc = entry.description
         if len(desc) > 60:
             desc = desc[:59] + "…"
-        click.echo(f"  {name:<{name_w}}  {mut:<5}  {desc}")
+        click.echo(f"  {name:<{name_w}}  {mut:<8}  {desc}")
 
 
 def _extension_context(
