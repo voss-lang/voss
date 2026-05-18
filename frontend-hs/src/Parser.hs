@@ -36,15 +36,15 @@ hj :: P ()
 hj =
   void . Mp.many $
     choice
-      [ hspace1,
+      [ hspaceChunk,
         lineComment
       ]
 
 fills :: P ()
-fills = void . Mp.many $ choice [try eoline, hspace1, lineComment]
+fills = void . Mp.many $ choice [try eoline, hspaceChunk, lineComment]
 
-hspace1 :: P ()
-hspace1 = void (Mp.takeWhile1P Nothing (\c -> c == ' ' || c == '\t'))
+hspaceChunk :: P ()
+hspaceChunk = void (Mp.takeWhile1P Nothing (\c -> c == ' ' || c == '\t'))
 
 lineComment :: P ()
 lineComment = try $ char '#' >> void (Mp.takeWhileP Nothing (/= '\n'))
@@ -74,13 +74,13 @@ kwBoundary :: P ()
 kwBoundary = void . notFollowedBy $ satisfy (\c -> Char.isAlphaNum c || c == '_')
 
 keyword :: Text -> P ()
-keyword k = hj *> chunk k *> kwBoundary
+keyword k = try (hj *> void (chunk k) *> kwBoundary *> hj)
 
 sym :: Text -> P ()
-sym t = hj *> void (chunk t)
+sym t = try (hj *> void (chunk t) *> hj)
 
 symbolic :: Text -> P ()
-symbolic t = hj *> chunk t *> hj
+symbolic t = try (hj *> void (chunk t) *> hj)
 
 commaTok :: P ()
 commaTok = symbolic ","
@@ -282,8 +282,8 @@ ifStmt fp = StmtIf <$> ((\(sp, (c, th, el)) -> IfStmt_ sp c th el) <$> withSpan 
   inner =
     (,,)
       <$> (keyword "if" *> ifCondition fp)
-      <*> (symbolic "{" *> block fp <* symbolic "}")
-      <*> optional (keyword "else" *> symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
+      <*> optional (keyword "else" *> block fp)
 
 ifCondition :: FilePath -> P IfCondition
 ifCondition fp =
@@ -368,7 +368,7 @@ ctxStmt fp = StmtCtx <$> ((\(sp, (b, sts)) -> CtxStmt_ sp b sts) <$> withSpan fp
   inner =
     (,)
       <$> (keyword "ctx" *> symbolic "(" *> budgetKwarg fp <* symbolic ")")
-      <*> (symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
 
 withinStmt :: FilePath -> P Stmt
 withinStmt fp = StmtWithin <$> ((\(sp, (bs, prim, fb)) -> WithinStmt_ sp bs prim fb) <$> withSpan fp inner)
@@ -381,8 +381,8 @@ withinStmt fp = StmtWithin <$> ((\(sp, (bs, prim, fb)) -> WithinStmt_ sp bs prim
               *> sepEndBy (budgetKwarg fp) commaTok
               <* symbolic ")"
           )
-      <*> (symbolic "{" *> block fp <* symbolic "}")
-      <*> optional (keyword "fallback" *> symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
+      <*> optional (keyword "fallback" *> block fp)
 
 budgetKwarg :: FilePath -> P BudgetArg
 budgetKwarg fp = do
@@ -415,9 +415,9 @@ tryStmt fp = StmtTry <$> ((\(sp, (tb, exc, cb)) -> TryStmt_ sp tb exc cb) <$> wi
  where
   inner =
     (,,)
-      <$> (keyword "try" *> symbolic "{" *> block fp <* symbolic "}")
+      <$> (keyword "try" *> block fp)
       <*> (keyword "catch" *> optional identTok)
-      <*> (symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
 
 retStmt :: FilePath -> P Stmt
 retStmt fp = StmtReturn <$> ((\(sp, v) -> ReturnStmt_ sp v) <$> withSpan fp inner)
@@ -851,7 +851,7 @@ pFn fp =
       <$> (keyword "fn" *> identTok)
       <*> (symbolic "(" *> paramList fp <* symbolic ")")
       <*> optional (sym "->" *> typeExpr fp)
-      <*> (symbolic "{" *> block fp <* symbolic "}")
+      <*> block fp
 
 pAgent :: FilePath -> P AgentDecl_
 pAgent fp =
