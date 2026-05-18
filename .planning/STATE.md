@@ -3,14 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: verifying
-last_updated: "2026-05-18T15:43:51.042Z"
+last_updated: "2026-05-18T20:08:49.947Z"
 last_activity: "2026-05-13 — M6 plans created and verified. Wave structure: 1 (M6-01 names+scaffold), 2 (M6-02 shim || M6-03 build scripts), 3 (M6-04 release workflow), 4 (M6-05 smoke + README). All 5 NPM-01..05 requirements covered. Three [BLOCKING] human-action gates (org creation, site-packages size-budget verify before publish fan-out, v0.1.0 release approval)."
 progress:
-  total_phases: 33
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # State: Voss
@@ -44,10 +43,13 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M5 | Eval and Distribution Prep | 6/6 plans summarized (M5-01..M5-06). |
 | M6 | npm Wrapper | Plans ready to execute (5 plans, 4 waves, verified iteration 2/3). |
 | M7 | SDK Polish | Plans ready to execute (6 plans, 6 waves, verified iter 2/3 PASS clean). |
+| M11 | Voss-aware Tools (CAPS-01b) | Plans ready to execute (5 plans, 5 waves, inline verification because local GSD agents are not installed). |
 | T8 | Input Bar Ergonomics | Complete (5/5 plans summarized, focused T8 suite green). |
 
 ## Recent Activity
 
+- 2026-05-18 — **Phase M11 (Voss-aware Tools, CAPS-01b) planned.** Created `M11-RESEARCH.md`, `M11-PATTERNS.md`, `M11-VALIDATION.md`, `M11-PLAN-OUTLINE.md`, and 5 executable plans across 5 serial waves: M11-01 recorded-data inspect core; M11-02 probable/budget CLI+slash+tool surfaces; M11-03 lint schema consumer; M11-04 `.voss` to Python diff; M11-05 TUI read-only modals + final no-emit guards. Research confirmed `/budget` is already the T6 USD slash, so M11 uses `/btrace`; Graphify query was attempted but no `graphify-out/graph.json` exists. Local GSD agents are not installed, so planning/checking was performed inline against the plan-phase contract. Resume: `/gsd:execute-phase M11`.
+- 2026-05-18 — **Phase M11 (Voss-aware Tools, CAPS-01b) context gathered.** `/gsd-discuss-phase M11`: user declined pre-discuss SPEC ("Discuss now, no SPEC") then directed auto-resolve of all gray areas with recommended answers. M11-CONTEXT.md captures D-01..D-07: (D-01) no-new-emit ROADMAP constraint binding/not-escalated — `RunRecord.decisions` confirmed `{title,body,confidence}` only, so "propagation graph" downgrades to derived confidence-annotated decision *sequence* and "frame-by-frame budget" to per-agent-iteration timeline (explicit M10-style ROADMAP-wording divergence); (D-02) deliverable 1 = verify/expose only — T7 SKL-06 lint skill already shipped with frozen M11 JSON schema, no `.voss`-exec path (T7-rejected); (D-03) CLI-first all 4, reuse M9 `ConfidenceBar`/`BudgetMeter`/`BudgetModal`/`DiffModal` via modals, NO M9-08-style amendment; (D-04) inspector `<session>[--decision N]`, tracer `<session>` frame=iteration; (D-05) `.voss`→Py diff on-demand only, pair `*.voss`↔`.voss-cache/harness/*.py`, two-pane no source map, dogfood-capable; (D-06) all tools `is_mutating=False` + M1 redaction reuse; (D-07) candidate slashes `/probable /budget /vdiff`, with planner to confirm collisions. M11 reframed as wiring/exposure phase, not greenfield — dominant risk is over-building + a downstream SPEC re-asserting literal "propagation graph". No SPEC: VTOOL-01..05 recommended mapping written for planner. `gsd-sdk` commit/state verbs absent this build — committed (d0d6d3e) + STATE updated manually per T6/O1 precedent. Resume: `/gsd:plan-phase M11`.
 - 2026-05-18 — **T8-05 reverse-search + paste-image complete.** Added Ctrl-R inline reverse-i-search over live `app.history`, Pillow dev dependency, clipboard-image probe with graceful ImportError/NotImplementedError/ChildProcessError/OSError handling, model-name vision gate, pending image indicator, no-vision local notice, and snapshot anchors 8-11. Focused T8 suite passed 53 tests / 11 snapshots; full non-e2e suite still fails on existing outside-T8 blockers (`platformdirs` isolated subprocess, runtime-surface baseline drift in recorder.py, npm shim expectation, live Anthropic 401, missing Ollama model). Resume: T8 completion audit.
 - 2026-05-18 — **T8-04 TUI submit wiring complete.** Added `VossTUIApp.history`, `_turn_dispatch`, `on_input_bar_submitted`, and `on_local_event`; submitted input values now schedule turn tasks through existing `register_turn_task` cancellation plumbing. `_run_repl` has an added TextualRenderer branch that wires app state and runs `app.run_async`, leaving the non-TUI input loop as fallback. Verified app interrupt/full-flow/app-shell/prefix/InputBar selections, constructor/handler introspection, py_compile, and diff check. Resume: execute `T8-05`.
 - 2026-05-18 — **T8-03 prefix dispatch complete.** Added LocalBlock shell/note renderers, local-block styles, `RecorderBridge.emit`, `append_voss_notes_bullet`, and `InputBar` submit branches for `!cmd` and `#note`. `!cmd` uses existing `sandbox.shell_allowed` + `split_command` before `asyncio.create_subprocess_exec`; denied commands render locally and do not exec. `#note` appends to the human `## Notes` section and preserves machine fences. Snapshot anchors 5-7 generated. Focused T8 tests passed; full TUI collection still hits the existing `tests.harness` import issue in cli/plain parity tests. Resume: execute `T8-04`.
@@ -98,4 +100,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - Existing `.planning/phases/01-*` through `07-*` directories remain historical planning artifacts unless explicitly archived.
 - Next operational step after this rebaseline is to plan M0, then M1.
 
-**Planned Phase:** O1 (session-tree-substrate-budget-fan-out) — 2 plans — 2026-05-18T15:43:51.042Z
+**Planned Phase:** M12 () — 0 plans — 2026-05-18T20:08:49.627Z

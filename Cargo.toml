@@ -8,6 +8,8 @@ members = [
     "crates/voss-tools",
     "crates/voss-render",
     "crates/voss-bridge",
+    "crates/voss-app-core",
+    "apps/voss-app/src-tauri",
 ]
 
 [workspace.package]

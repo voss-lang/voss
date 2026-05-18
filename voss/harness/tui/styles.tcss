@@ -98,3 +98,25 @@ $error: #FF5F5F;
 .reverse-search-bar .rs-query {
     color: $accent;
 }
+
+/* M9-08 CodeIntelPanel (side-region default, peer to SubAgentPanel) */
+CodeIntelPanel {
+    border-left: solid $dim;
+    padding: 1 2;
+    height: auto;
+    min-height: 4;
+}
+CodeIntelPanel .intel-header {
+    color: $accent;
+    text-style: bold;
+}
+CodeIntelPanel .intel-meta {
+    color: $dim;
+}
+CodeIntelPanel .intel-line {
+    padding: 0 0;
+}
+CodeIntelPanel .intel-empty {
+    color: $dim;
+    text-style: italic;
+}

@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -45,6 +46,11 @@ from .subagents import (
     run_subagent,
 )
 from .tools import make_toolset
+from .voss_inspect import (
+    load_run,
+    render_budget_timeline,
+    render_decision_sequence,
+)
 
 try:
     import litellm as _litellm  # type: ignore
@@ -192,6 +198,7 @@ class ReplContext:
     persist_conventions_selection: str | None = None
     # T6 / SLASH-04 — session-scoped USD ceiling. None = unbounded.
     budget_usd: float | None = None
+    project_index_text: str = ""
 
 
 def _resolve_default_model(user_explicit: str | None) -> None:
@@ -476,6 +483,18 @@ def _print_agents(ctx: ReplContext) -> None:
         click.echo(f"  {spec.id:<16} {spec.description}")
 
 
+def _render_probable_inspect(
+    cwd: Path, session_id_or_name: str, decision_index: int | None
+) -> str:
+    run = load_run(cwd, session_id_or_name)
+    return render_decision_sequence(run, decision_index=decision_index)
+
+
+def _render_budget_inspect(cwd: Path, session_id_or_name: str) -> str:
+    run = load_run(cwd, session_id_or_name)
+    return render_budget_timeline(run)
+
+
 _RECALL_USAGE = "usage: /recall <query> [--top N] [--source turn|decision|convention|ledger|note]"
 
 
@@ -570,6 +589,126 @@ def _save_note(ctx, args: list[str], _line: str) -> None:
     click.echo(f"note saved: {display}")
 
 
+def _run_async_sync(coro):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    result: list[object] = []
+    error: list[BaseException] = []
+
+    def _runner() -> None:
+        try:
+            result.append(asyncio.run(coro))
+        except BaseException as exc:  # noqa: BLE001
+            error.append(exc)
+
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+    if error:
+        raise error[0]
+    return result[0] if result else None
+
+
+def _get_code_service(cwd: Path, session_id: str | None = None):
+    from voss.harness.code.service import CodeIntelService
+
+    return CodeIntelService.for_cwd(cwd, session_id=session_id)
+
+
+def _render_project_index_text(cwd: Path, session_id: str | None = None) -> str:
+    try:
+        from voss.harness.code.context import render_project_index_section
+
+        svc = _get_code_service(cwd, session_id=session_id)
+        return render_project_index_section(svc.get_project_index_summary()) or ""
+    except Exception:
+        return ""
+
+
+def _show_code_intel_results(ctx: ReplContext, query: str, items: list[dict]) -> None:
+    renderer = getattr(ctx, "renderer", None)
+    show = getattr(renderer, "show_code_intel_results", None)
+    if callable(show):
+        try:
+            show(query, items)
+        except Exception:
+            pass
+
+
+def _symbol(ctx: ReplContext, args: list[str], _line: str) -> None:
+    if not args or args[0] in ("--help", "-h"):
+        click.echo("usage: /symbol <name>   (M10 code intelligence — index)")
+        return
+    symbol = args[0]
+    svc = _get_code_service(ctx.cwd, session_id=ctx.record.id)
+    res = svc.find_symbols(symbol, max_results=10)
+    items = res.get("items", [])
+    if not items:
+        click.echo(f"no symbols found for {symbol}")
+        _show_code_intel_results(ctx, f"/symbol {symbol}", [])
+        return
+    for item in items:
+        click.echo(
+            f"{item['name']} {item['file']}:{item['line']} "
+            f"[{item.get('language', 'unknown')} {item.get('source', 'index')}]"
+        )
+    _show_code_intel_results(ctx, f"/symbol {symbol}", items)
+
+
+def _refs(ctx: ReplContext, args: list[str], _line: str) -> None:
+    if not args or args[0] in ("--help", "-h"):
+        click.echo("usage: /refs <symbol>   (M10 code intelligence — index + LSP)")
+        return
+    symbol = args[0]
+    svc = _get_code_service(ctx.cwd, session_id=ctx.record.id)
+    res = _run_async_sync(svc.find_references(symbol, max_results=10))
+    items = res.get("items", []) if isinstance(res, dict) else []
+    if not items:
+        click.echo(f"no references found for {symbol}")
+        _show_code_intel_results(ctx, f"/refs {symbol}", [])
+        return
+    for item in items:
+        click.echo(
+            f"{item['file']}:{item['line']} "
+            f"[{item.get('language', 'unknown')} {item.get('source', 'regex')}] "
+            f"{item.get('context', '')}"
+        )
+    _show_code_intel_results(ctx, f"/refs {symbol}", items)
+
+
+def _refresh(ctx: ReplContext, args: list[str], _line: str) -> None:
+    if args and args[0] in ("--help", "-h"):
+        click.echo("usage: /refresh   rebuild code index under .voss-cache/code/")
+        return
+    svc = _get_code_service(ctx.cwd, session_id=ctx.record.id)
+    res = _run_async_sync(svc.code_refresh())
+    if isinstance(res, dict) and res.get("result") == "ok":
+        ctx.project_index_text = _render_project_index_text(ctx.cwd, session_id=ctx.record.id)
+        summary = svc.get_project_index_summary()
+        if summary is not None:
+            click.echo(
+                f"refreshed code index: {summary.file_count} files, "
+                f"{summary.symbol_count} symbols"
+            )
+        else:
+            click.echo("refreshed code index")
+        renderer = getattr(ctx, "renderer", None)
+        show = getattr(renderer, "show_code_intel_tree", None)
+        if callable(show) and summary is not None:
+            try:
+                show([
+                    {"label": path, "count": count}
+                    for path, count in summary.top_modules
+                ])
+            except Exception:
+                pass
+        return
+    click.echo(f"refresh failed: {res}", err=True)
+
+
 def _build_slash_registry() -> SlashRegistry:
     registry = SlashRegistry()
 
@@ -654,6 +793,44 @@ def _build_slash_registry() -> SlashRegistry:
         click.echo(
             f"  budget: ${new_budget:.2f} (used ${ctx.total_cost:.4f}){warn}"
         )
+
+    def _probable(ctx: ReplContext, args: list[str], _line: str) -> None:
+        raw_args = list(args)
+        args, decision_raw = _pop_flag_value(raw_args, "--decision")
+        if "--decision" in raw_args and decision_raw is None:
+            click.echo(
+                "usage: /probable <session-id-or-name> [--decision N]",
+                err=True,
+            )
+            return
+        if len(args) > 1:
+            click.echo(
+                "usage: /probable <session-id-or-name> [--decision N]",
+                err=True,
+            )
+            return
+        try:
+            decision_index = (
+                int(decision_raw) if decision_raw is not None else None
+            )
+        except ValueError:
+            click.echo("--decision must be an integer", err=True)
+            return
+        target = args[0] if args else ctx.record.id
+        try:
+            click.echo(_render_probable_inspect(ctx.cwd, target, decision_index))
+        except (FileNotFoundError, ValueError, IndexError) as exc:
+            click.echo(f"/probable failed: {exc}", err=True)
+
+    def _btrace(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if len(args) > 1:
+            click.echo("usage: /btrace <session-id-or-name>", err=True)
+            return
+        target = args[0] if args else ctx.record.id
+        try:
+            click.echo(_render_budget_inspect(ctx.cwd, target))
+        except (FileNotFoundError, ValueError, IndexError) as exc:
+            click.echo(f"/btrace failed: {exc}", err=True)
 
     def _why(ctx: ReplContext, _args: list[str], _line: str) -> None:
         # T6 / SLASH-06. Render last plan's rationale + per-step why +
@@ -916,6 +1093,16 @@ def _build_slash_registry() -> SlashRegistry:
             _budget,
         ),
         SlashCommand(
+            "/probable",
+            "inspect recorded decisions: /probable [session] [--decision N]",
+            _probable,
+        ),
+        SlashCommand(
+            "/btrace",
+            "inspect recorded budget timeline: /btrace [session]",
+            _btrace,
+        ),
+        SlashCommand(
             "/why",
             "explain the last plan (rationale, confidence, step why)",
             _why,
@@ -959,6 +1146,10 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/skill", "run a registered skill", _skill, mutating=True),
         SlashCommand("/agents", "list registered subagents", _agents),
         SlashCommand("/agent", "spawn a registered subagent", _agent, mutating=True),
+        # M10-04 code intelligence slash surface
+        SlashCommand("/symbol", "find symbols matching <name> (uses index + LSP)", _symbol),
+        SlashCommand("/refs", "find references to <symbol>", _refs),
+        SlashCommand("/refresh", "rebuild code index (and optionally refresh cognition)", _refresh, mutating=False),
     ):
         registry.register(command)
     return registry
@@ -1077,6 +1268,7 @@ def do_cmd(
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
     voss_md_text = voss_md.read_and_inject(cwd)
+    project_index_text = _render_project_index_text(cwd)
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
         store=PermissionStore.load(cwd),
@@ -1120,6 +1312,7 @@ def do_cmd(
             history=do_history,
             session_id=do_record.id,
             voss_md_text=voss_md_text,
+            project_index_text=project_index_text,
         ),
         renderer=renderer,
     )
@@ -1352,6 +1545,7 @@ def _run_repl(
         for err in bundle.load_errors:
             click.echo(f"cognition error: {err}", err=True)
     voss_md_text = voss_md.read_and_inject(cwd)
+    project_index_text = _render_project_index_text(cwd, session_id=record.id)
 
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
@@ -1377,6 +1571,7 @@ def _run_repl(
         voss_md_text=voss_md_text,
         memory_store=MemoryStore(cwd).bind(session_id=record.id),
         model=cfg.default_model,
+        project_index_text=project_index_text,
     )
     attach_subagent_tool(
         tools,
@@ -1426,6 +1621,16 @@ def _run_repl(
             renderer.app.slash_registry = slash_registry
 
             async def _dispatch_tui_turn(line: str):
+                if line.startswith("/"):
+                    try:
+                        handled = slash_registry.dispatch(ctx, line)
+                    except ValueError as exc:
+                        click.echo(str(exc), err=True)
+                        return None
+                    if handled:
+                        return None
+                    click.echo(f"unknown command: {line}. /help for list.", err=True)
+                    return None
                 renderer.show_user(line)
                 try:
                     run_turn = _resolve_run_turn(cwd)
@@ -1442,6 +1647,7 @@ def _run_repl(
                         cognition=bundle,
                         prior_context=ctx.prior_context,
                         voss_md_text=ctx.voss_md_text,
+                        project_index_text=ctx.project_index_text,
                     )
                     ctx.prior_context = None
                 except Exception as e:  # noqa: BLE001
@@ -1529,6 +1735,7 @@ def _run_repl(
                         cognition=bundle,
                         prior_context=ctx.prior_context,
                         voss_md_text=ctx.voss_md_text,
+                        project_index_text=ctx.project_index_text,
                     ),
                     renderer=renderer,
                 )
@@ -1699,7 +1906,7 @@ def _print_slash_help(registry: SlashRegistry | None = None) -> None:
     named_groups: list[tuple[str, list[str]]] = [
         ("Editing", ["/diff", "/apply", "/discard"]),
         ("Session", ["/resume", "/budget", "/cost", "/clear", "/save-session"]),
-        ("Insight", ["/why", "/tools", "/analyze"]),
+        ("Insight", ["/why", "/probable", "/btrace", "/tools", "/analyze"]),
         ("Control", ["/help", "/exit", "/mode", "/model"]),
     ]
 
@@ -1910,6 +2117,40 @@ def jobs_cmd(cwd_str: str, json_mode: bool) -> None:
         )
 
 
+@click.group("inspect")
+def inspect_group() -> None:
+    """Inspect persisted run records."""
+
+
+@inspect_group.command("probable")
+@click.argument("session_id_or_name")
+@click.option("--decision", "decision_index", type=int, default=None)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def inspect_probable_cmd(
+    session_id_or_name: str, decision_index: int | None, cwd_str: str
+) -> None:
+    """Show recorded probable decision sequence."""
+    try:
+        text = _render_probable_inspect(
+            Path(cwd_str).resolve(), session_id_or_name, decision_index
+        )
+    except (FileNotFoundError, ValueError, IndexError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(text)
+
+
+@inspect_group.command("budget")
+@click.argument("session_id_or_name")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def inspect_budget_cmd(session_id_or_name: str, cwd_str: str) -> None:
+    """Show recorded budget timeline."""
+    try:
+        text = _render_budget_inspect(Path(cwd_str).resolve(), session_id_or_name)
+    except (FileNotFoundError, ValueError, IndexError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(text)
+
+
 @click.command("resume")
 @click.argument("session_id_or_name")
 @click.option(
@@ -2025,6 +2266,7 @@ def _extension_context(
         prior_context=None,
         last_plan=None,
         total_cost=0.0,
+        project_index_text=_render_project_index_text(cwd),
     )
     if provider is not None:
         attach_subagent_tool(
@@ -2464,6 +2706,7 @@ AGENT_COMMANDS = (
     doctor_cmd,
     sessions_cmd,
     jobs_cmd,
+    inspect_group,
     resume_cmd,
     tools_cmd,
     plugins_cmd,

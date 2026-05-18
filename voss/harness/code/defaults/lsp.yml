@@ -1,0 +1,37 @@
+# Default language server configuration for voss[code]
+# Users can override / extend via .voss/lsp.yml in their project root.
+#
+# Each entry requires at minimum:
+#   command: [binary, ...]
+#
+# Optional keys:
+#   args: [...]
+#   init_options: { ... }
+#   root_markers: ["pyproject.toml", ...]
+#   disabled: false
+
+python:
+  command: ["pyright-langserver", "--stdio"]
+  args: []
+  root_markers: ["pyproject.toml", "setup.py", "setup.cfg"]
+  init_options:
+    python:
+      analysis:
+        autoSearchPaths: true
+
+javascript:
+  command: ["typescript-language-server", "--stdio"]
+  root_markers: ["package.json", "tsconfig.json"]
+
+typescript:
+  command: ["typescript-language-server", "--stdio"]
+  root_markers: ["package.json", "tsconfig.json"]
+
+rust:
+  command: ["rust-analyzer"]
+  root_markers: ["Cargo.toml"]
+
+go:
+  command: ["gopls"]
+  args: ["serve"]
+  root_markers: ["go.mod"]

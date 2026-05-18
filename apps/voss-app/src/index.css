@@ -1,0 +1,62 @@
+@import "tailwindcss";
+@import "./styles/variant-b.css";
+
+/* Map tokens into Tailwind v4 utilities — @theme inline embeds var reference directly */
+/* Generates: bg-bg-0, text-fg-0, border-border, text-accent-green, font-mono, etc.  */
+@theme inline {
+  /* Backgrounds */
+  --color-bg-0:          var(--bg-0);
+  --color-bg-1:          var(--bg-1);
+  --color-bg-2:          var(--bg-2);
+  --color-bg-3:          var(--bg-3);
+  /* Borders */
+  --color-border:        var(--border);
+  --color-border-bright: var(--border-bright);
+  /* Focus */
+  --color-focus:         var(--focus);
+  /* Foreground */
+  --color-fg-0:          var(--fg-0);
+  --color-fg-1:          var(--fg-1);
+  --color-fg-2:          var(--fg-2);
+  --color-fg-3:          var(--fg-3);
+  /* Accents */
+  --color-accent-green:   var(--accent-green);
+  --color-accent-amber:   var(--accent-amber);
+  --color-accent-red:     var(--accent-red);
+  --color-accent-cyan:    var(--accent-cyan);
+  --color-accent-magenta: var(--accent-magenta);
+  --color-accent-blue:    var(--accent-blue);
+  /* Role semantic */
+  --color-user-msg:  var(--user-msg);
+  --color-tool:      var(--tool);
+  --color-reviewer:  var(--reviewer);
+  /* Fonts */
+  --font-mono: var(--font-mono);
+  --font-ui:   var(--font-ui);
+}
+
+/* Global base styles */
+*, *::before, *::after {
+  box-sizing: border-box;
+  border-radius: 0;           /* Variant B: 0 radius everywhere */
+  border-width: 0;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg-0);
+  color: var(--fg-0);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;          /* terminal apps: no text selection on chrome */
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }

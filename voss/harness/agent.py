@@ -291,20 +291,20 @@ def _compose_system_blocks(
     *,
     voss_md_block: str,
     cognition_text: str,
+    project_index_text: str = "",
     prior_context_text: str,
     loop_system: str,
 ) -> list[dict]:
     """Render the CACHE-01 static prefix as cacheable text blocks.
 
-    Keeping the four D-08 slices as separate blocks preserves byte-level
-    invalidation checks for CACHE-06; collapsing them would blur the drift
-    surfaces back into one joined string.
+    M10-05 inserts the bounded `## Project Index` as its own slice after cognition.
     """
     blocks = [
         {"type": "text", "text": text}
         for text in (
             voss_md_block,
             cognition_text,
+            project_index_text,
             prior_context_text,
             loop_system,
         )
@@ -425,6 +425,7 @@ async def run_turn(
     cognition=None,
     prior_context: dict | None = None,
     voss_md_text: str | None = None,
+    project_index_text: str = "",
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -467,6 +468,7 @@ async def run_turn(
             cognition=cognition,
             prior_context=prior_context,
             voss_md_text=voss_md_text,
+            project_index_text=project_index_text,
         )
     except BaseException as e:
         _tel_ok = False
@@ -492,6 +494,7 @@ async def _run_turn_exec(
     cognition=None,
     prior_context: dict | None = None,
     voss_md_text: str | None = None,
+    project_index_text: str = "",
 ) -> TurnResult:
     """T1-05: iteration-loop turn driver.
 
@@ -539,6 +542,7 @@ async def _run_turn_exec(
         sys_blocks = _compose_system_blocks(
             voss_md_block=voss_md_block,
             cognition_text=cognition_text,
+            project_index_text=project_index_text,
             prior_context_text=prior_context_text,
             loop_system=_compose_loop_system(max_iterations),
         )

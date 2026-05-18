@@ -22,7 +22,7 @@
 | M8 | Project Memory (MEM-01) | VOSS.md + cross-session recall layer for the harness using Voss runtime memory primitives | MEM-01..07 | 7 |
 | M9 | TUI Shell (TUI-01) | Full-screen Textual interface — diff approval, slash palette, live workflow + budget view | TUI-01..10 | TBD |
 | M10 | Codebase Intelligence (CAPS-01a) | LSP polyglot + ast-grep + project index — tools, slash, auto-injection, M9 TUI panel | CODE-01..07 | TBD |
-| M11 | Voss-aware Tools (CAPS-01b) | Probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss`→Python diff viewer | VTOOL-01..0N (TBD by SPEC.md) | TBD |
+| M11 | Voss-aware Tools (CAPS-01b) | Probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss`→Python diff viewer | VTOOL-01..05 | 5 |
 | M12 | MCP Bridge (CAPS-01c, promotes DIST-03) | Consume external MCP tools + expose harness skills as MCP server | MCP-01..0N (TBD by SPEC.md) | TBD |
 | M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..0N (TBD by SPEC.md) | TBD |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
@@ -522,24 +522,40 @@ Plans:
 
 **Goal:** Build the Voss-language-aware tooling that turns the harness's own runtime primitives into visible product surfaces — probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss` → Python diff viewer. This is the "unfair advantage" axis per [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md): every feature exposes a runtime primitive to the user.
 
-**Requirements:** VTOOL-01..0N — TBD by `M11-SPEC.md`.
+**Requirements:** VTOOL-01..05 — locked by `M11-CONTEXT.md` + `M11-VALIDATION.md` (no separate SPEC; user declined SPEC during discuss-phase).
 
 **Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 2)
 **Thesis context:** [`notes/voss-agent-unfair-advantage.md`](notes/voss-agent-unfair-advantage.md) (the primary "why" for this phase)
 
-**Headline deliverables (to be refined in SPEC):**
+**Headline deliverables:**
 - `.voss` lint/type-check exposed as a first-class agent skill (callable from `.voss` workflows, not just `voss check`).
 - Probable-value inspector — show confidence + propagation graph for a chosen value at a recorded runtime point.
 - Budget tracer — visualize `ctx(budget:)` token consumption across a workflow run, frame-by-frame.
 - `.voss` → Python diff viewer — when the agent edits a `.voss` file, user sees both sides synchronized.
 - M9 TUI panels for each (render in main pane or modal — M9 region grid permitting).
 
+**Planning note (2026-05-18):** `M11-CONTEXT.md` constrains the roadmap wording to existing recorded data only: "propagation graph" ships as a confidence-annotated decision sequence from `RunRecord.decisions[]`, and "frame-by-frame budget" ships as a per-agent-iteration token timeline from `RunRecord.iterations[]`. True lineage DAGs and per-`ctx(budget:)` frames require new emit points and are out of M11.
+
 **Cross-cutting constraints:**
 - Depends on M9 TUI shell for visual surfaces; can ship CLI-only first if M9 incomplete.
 - Reuses `voss_runtime/{probable,budget,agent}.py` read-only (M9-baselined; no new emit points).
 - Pairs with M4 dogfood compound — inspectors must work on the harness's OWN `.voss` workflows.
 
-**Success Criteria:** TBD by `M11-SPEC.md`.
+**Success Criteria:**
+1. `voss-lint-as-skill` remains first-class reachable and M11 consumes its frozen version-1 JSON schema unchanged.
+2. Probable inspector is available through CLI, slash, tool, and read-only TUI modal surfaces using recorded decisions only.
+3. Budget tracer is available through CLI, slash, tool, and read-only TUI modal surfaces using recorded iterations only.
+4. `voss vdiff voss/harness/agent/planner.voss` shows `.voss` source beside generated Python without source-map claims.
+5. No changes land in `voss/harness/recorder.py` or `voss_runtime/{probable,budget,agent}.py`; all M11 tools are `is_mutating=False`.
+
+**Plans:** 5 plans across 5 waves
+
+Plans:
+- [ ] M11-01-recorded-data-inspect-core-PLAN.md — Recorded decision sequence + budget timeline core helpers and tests.
+- [ ] M11-02-probable-budget-surfaces-PLAN.md — Read-only tools, `voss inspect probable/budget`, `/probable`, `/btrace`.
+- [ ] M11-03-lint-schema-integration-PLAN.md — Consume and verify T7 SKL-06 frozen JSON schema.
+- [ ] M11-04-voss-python-diff-PLAN.md — `voss vdiff`, `/vdiff`, and `voss_py_diff` over source-vs-generated Python.
+- [ ] M11-05-tui-and-final-guards-PLAN.md — Read-only TUI modals and phase-level no-emit acceptance guards.
 
 **Out of scope:** Languages other than `.voss` (Python ecosystem handled by M10). Editor extensions (separate EDIT track). Live-replay debugger.
 
@@ -1451,7 +1467,7 @@ Plans:
 | M8 | MEM-01..07 | 7 |
 | M9 | TUI-01..10 | 10 |
 | M10 | CODE-01..07 | 7 |
-| M11 | VTOOL-01..0N | TBD by `M11-SPEC.md` |
+| M11 | VTOOL-01..05 | 5 |
 | M12 | MCP-01..0N | TBD by `M12-SPEC.md` |
 | M13 | MAG-01..0N | TBD by `M13-SPEC.md` |
 | M14 | WATCH-01..0N | TBD by `M14-SPEC.md` |

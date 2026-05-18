@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import signal as _signal
 import subprocess
@@ -390,6 +391,38 @@ def make_toolset(
         return await _shell_capture(cwd, ["voss", "check", str(p)])
 
     @tool(
+        name="voss_probable_inspect",
+        description="Inspect recorded probable decisions for a persisted Voss session.",
+    )
+    async def voss_probable_inspect(
+        session: str,
+        decision: int | None = None,
+    ) -> str:
+        from voss.harness import voss_inspect
+
+        try:
+            run = voss_inspect.load_run(cwd, session)
+            return voss_inspect.render_decision_sequence(
+                run,
+                decision_index=decision,
+            )
+        except (FileNotFoundError, ValueError, IndexError) as exc:
+            return f"<error: {exc}>"
+
+    @tool(
+        name="voss_budget_trace",
+        description="Inspect recorded per-iteration budget usage for a persisted Voss session.",
+    )
+    async def voss_budget_trace(session: str) -> str:
+        from voss.harness import voss_inspect
+
+        try:
+            run = voss_inspect.load_run(cwd, session)
+            return voss_inspect.render_budget_timeline(run)
+        except (FileNotFoundError, ValueError, IndexError) as exc:
+            return f"<error: {exc}>"
+
+    @tool(
         name="record_run",
         description=(
             "(privileged) Close the current turn with semantic fields. "
@@ -458,6 +491,14 @@ def make_toolset(
         "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
         "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
         "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),
+        "voss_probable_inspect": ToolEntry(
+            descriptor=voss_probable_inspect,
+            is_mutating=False,
+        ),
+        "voss_budget_trace": ToolEntry(
+            descriptor=voss_budget_trace,
+            is_mutating=False,
+        ),
         "record_run": ToolEntry(descriptor=record_run, is_mutating=True),
         "web_fetch": ToolEntry(
             descriptor=web_fetch, is_mutating=False, is_network=True
@@ -466,6 +507,47 @@ def make_toolset(
     }
     if net is not None:
         _merge_mcp_tools(result, cwd)
+
+    # --- M10-04 Code Intelligence tools (read-only) ---
+    try:
+        from voss.harness.code.service import CodeIntelService as _CodeIntelService
+    except Exception:
+        _CodeIntelService = None  # type: ignore
+
+    def _code_service():
+        if _CodeIntelService is None:
+            raise RuntimeError("code intelligence not available (install voss[code]?)")
+        return _CodeIntelService.for_cwd(cwd, session_id=session_id)
+
+    @tool(name="code_search", description="Structural code search using ast-grep (with regex fallback).")
+    async def code_search(pattern: str, path: str = ".", max_results: int = 50) -> str:
+        svc = _code_service()
+        res = await svc.search(pattern, path=path, max_results=max_results)
+        return json.dumps(res, indent=2)
+
+    @tool(name="find_definition", description="Find definition of a symbol using LSP + index.")
+    async def find_definition(symbol: str, path: str | None = None) -> str:
+        svc = _code_service()
+        res = await svc.find_definition(symbol, path=path)
+        return json.dumps(res, indent=2)
+
+    @tool(name="find_references", description="Find references to a symbol using LSP + index.")
+    async def find_references(symbol: str, path: str | None = None, max_results: int = 50) -> str:
+        svc = _code_service()
+        res = await svc.find_references(symbol, path=path, max_results=max_results)
+        return json.dumps(res, indent=2)
+
+    @tool(name="code_refresh", description="Rebuild the project code index (cache only, read-only to source).")
+    async def code_refresh(paths: list[str] | None = None) -> str:
+        svc = _code_service()
+        res = await svc.code_refresh(paths)
+        return json.dumps(res, indent=2)
+
+    result["code_search"] = ToolEntry(descriptor=code_search, is_mutating=False)
+    result["find_definition"] = ToolEntry(descriptor=find_definition, is_mutating=False)
+    result["find_references"] = ToolEntry(descriptor=find_references, is_mutating=False)
+    result["code_refresh"] = ToolEntry(descriptor=code_refresh, is_mutating=False)
+
     return result
 
 

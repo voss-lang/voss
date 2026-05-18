@@ -103,9 +103,9 @@ def test_voss_lint(tmp_path: Path) -> None:  # SKL-06 — owned by T7-02
     assert isinstance(schema["findings"], list)
     assert schema["findings"], "expected the seeded bad.voss violation"
 
-    expected_keys = {"file", "line", "col", "rule", "severity", "msg", "hint"}
+    expected_keys = ("file", "line", "col", "rule", "severity", "msg", "hint")
     for finding in schema["findings"]:
-        assert set(finding) == expected_keys, finding
+        assert tuple(finding) == expected_keys, finding
 
     seeded = [f for f in schema["findings"] if f["rule"] == "ANLY001"]
     assert seeded, schema["findings"]

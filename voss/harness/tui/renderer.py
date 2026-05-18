@@ -20,6 +20,7 @@ from .app import VossTUIApp
 from .widgets import (
     BudgetExhaustedModal,
     BudgetMeter,
+    CodeIntelPanel,
     ConfidenceBar,
     DiffDecision,
     DiffModal,
@@ -203,6 +204,28 @@ class TextualRenderer:
 
     def show_subagent_end(self, parent_id: str, n_results: int = 0) -> None:
         self._post(self.app.collapse_subagent, parent_id, n_results)
+
+    # ------------------------------------------------------------------
+    # M9-08 CodeIntelPanel private update methods (NOT on public Renderer)
+    # ------------------------------------------------------------------
+
+    def show_code_intel_tree(self, nodes: list[dict] | None = None) -> None:
+        """M10 will call this to populate the idle project tree view."""
+        self._post(self.app.show_code_intel_panel)
+        if self.app._code_intel_panel:
+            self._post(self.app._code_intel_panel.set_tree, nodes)
+
+    def show_code_intel_results(self, query: str, hits: list[dict] | None = None) -> None:
+        """M10 calls for /symbol and /refs results."""
+        self._post(self.app.show_code_intel_panel)
+        if self.app._code_intel_panel:
+            self._post(self.app._code_intel_panel.set_results, query, hits)
+
+    def show_code_intel_focus(self, hit: dict | None = None, excerpt_lines: list[str] | None = None) -> None:
+        """M10 calls for focused excerpt on a hit."""
+        self._post(self.app.show_code_intel_panel)
+        if self.app._code_intel_panel:
+            self._post(self.app._code_intel_panel.set_focus, hit, excerpt_lines)
 
     def show_clarify(self, question: str, confidence: float) -> None:
         conf = float(confidence)

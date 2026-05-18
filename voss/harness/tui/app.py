@@ -20,6 +20,7 @@ from voss_runtime.memory.episodic import EpisodicMemory
 
 from .keymap import KEYMAP
 from .widgets import (
+    CodeIntelPanel,
     ForkConfirmModal,
     HeaderBar,
     HelpOverlay,
@@ -65,6 +66,11 @@ class VossTUIApp(App):
         # T1-06: tracks the in-flight agent turn task so action_interrupt
         # can cancel it. Cleared via add_done_callback when the task ends.
         self.active_turn_task: Optional[asyncio.Task] = None
+        # M9-08 CodeIntelPanel region-share state machine (default code_intel;
+        # SubAgentPanel wins on active spawn unless pinned).
+        self._side_owner: str = "code_intel"
+        self._side_pinned: bool = False
+        self._code_intel_panel: CodeIntelPanel | None = None
 
     def register_turn_task(self, task: asyncio.Task) -> None:
         """Register the active agent-turn task (T1-06).
@@ -161,6 +167,7 @@ class VossTUIApp(App):
     # ------------------------------------------------------------------
 
     def mount_subagent_panel(self, panel: "SubAgentPanel") -> None:
+        self.show_subagent_panel()  # M9-08 ownership (respects pin)
         side = self.query_one("#side")
         side.mount(panel)
         side.display = True
@@ -178,17 +185,75 @@ class VossTUIApp(App):
         for panel in list(self.query(SubAgentPanel)):
             if getattr(panel, "parent_id", None) == parent_id:
                 panel.remove()
-        # Hide side region when empty.
+        # M9-08: if not pinned to sub_agent, restore CodeIntelPanel on final gather.
         side = self.query_one("#side")
         if not list(side.query(SubAgentPanel)):
-            side.display = False
-            side.styles.display = "none"
+            if not self._side_pinned or self._side_owner == "code_intel":
+                self._side_owner = "code_intel"
+                if self._code_intel_panel:
+                    # Re-mount if it was removed during spawn
+                    if self._code_intel_panel not in list(side.children):
+                        side.mount(self._code_intel_panel)
+                    side.display = True
+                    side.styles.display = "block"
+            else:
+                side.display = False
+                side.styles.display = "none"
         try:
             self.query_one("#main", TurnView).append_turn(
                 "gather", f"✓ gathered · {n_results} results"
             )
         except Exception:  # noqa: BLE001
             pass
+
+    # ------------------------------------------------------------------
+    # M9-08 CodeIntelPanel region-share + pin API (CODE-07 contract)
+    # ------------------------------------------------------------------
+
+    def show_code_intel_panel(self) -> None:
+        """Show / restore the CodeIntelPanel (default side occupant)."""
+        self._side_owner = "code_intel"
+        side = self.query_one("#side")
+        if self._code_intel_panel:
+            if self._code_intel_panel not in list(side.children):
+                side.mount(self._code_intel_panel)
+            side.display = True
+            side.styles.display = "block"
+
+    def show_subagent_panel(self) -> None:
+        """Switch side region to SubAgentPanel (called on spawn when not pinned)."""
+        if self._side_pinned and self._side_owner == "code_intel":
+            return  # pinned to code intel, ignore auto switch
+        self._side_owner = "sub_agent"
+        # hide code intel while sub is active (unless pinned the other way)
+        if self._code_intel_panel and not self._side_pinned:
+            try:
+                self._code_intel_panel.display = False
+            except Exception:
+                pass
+
+    def pin_side_panel(self, owner: str) -> None:
+        """Pin the side region to 'code_intel' or 'sub_agent' (suspends auto-switch)."""
+        if owner in ("code_intel", "sub_agent"):
+            self._side_pinned = True
+            self._side_owner = owner
+            if owner == "code_intel":
+                self.show_code_intel_panel()
+            else:
+                self.show_subagent_panel()
+
+    def unpin_side_panel(self) -> None:
+        """Release the pin; auto-switching resumes on next spawn/gather."""
+        self._side_pinned = False
+        # restore sensible default
+        if not list(self.query(SubAgentPanel)):
+            self.show_code_intel_panel()
+
+    def restore_code_intel_panel(self) -> None:
+        """Explicit restore used by gather paths and pin release."""
+        self._side_owner = "code_intel"
+        self._side_pinned = False
+        self.show_code_intel_panel()
 
     def update_inspected(self, paths: list[str]) -> None:
         try:
@@ -274,3 +339,9 @@ class VossTUIApp(App):
             budget_total=self.budget_total,
             git_status="",
         )
+        # M9-08: mount CodeIntelPanel as the default side-region occupant.
+        self._code_intel_panel = CodeIntelPanel()
+        side = self.query_one("#side")
+        side.mount(self._code_intel_panel)
+        # Start with code_intel visible (sub-agent will override on spawn).
+        side.display = True
