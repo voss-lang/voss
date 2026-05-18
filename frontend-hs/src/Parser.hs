@@ -36,18 +36,24 @@ hj :: P ()
 hj =
   void . Mp.many $
     choice
-      [ void (Mp.takeWhile1P Nothing (\c -> c == ' ' || c == '\t')),
-        try $ char '#' >> void (Mp.takeWhileP Nothing (/= '\n'))
+      [ hspace1,
+        lineComment
       ]
 
 fills :: P ()
-fills = void . Mp.many $ choice [try eoline, hj]
+fills = void . Mp.many $ choice [try eoline, hspace1, lineComment]
+
+hspace1 :: P ()
+hspace1 = void (Mp.takeWhile1P Nothing (\c -> c == ' ' || c == '\t'))
+
+lineComment :: P ()
+lineComment = try $ char '#' >> void (Mp.takeWhileP Nothing (/= '\n'))
 
 eoline :: P ()
 eoline = void . try $ optional (chunk "\r") *> chunk "\n"
 
 stmtSep :: P ()
-stmtSep = hj *> fills *> void (Mp.some eoline) *> hj *> fills
+stmtSep = hj *> void (Mp.some eoline) *> fills
 
 ------------------------------------------------------------------------------
 mkSpan :: FilePath -> Mp.SourcePos -> Mp.SourcePos -> Span
@@ -71,7 +77,7 @@ keyword :: Text -> P ()
 keyword k = hj *> chunk k *> kwBoundary
 
 sym :: Text -> P ()
-sym t = hj *> chunk t
+sym t = hj *> void (chunk t)
 
 symbolic :: Text -> P ()
 symbolic t = hj *> chunk t *> hj
@@ -189,7 +195,7 @@ topStmt fp =
 -----------------------------------------------------------------------------
 decorator :: FilePath -> P Decorator
 decorator fp = do
-  (sp, nm, ax) <-
+  (sp, (nm, ax)) <-
     withSpan fp $
       (\n a -> (n, a)) <$> (sym "@" *> identTok) <*> optArgs
   void (Mp.some eoline)
@@ -222,7 +228,8 @@ matchThrStmt fp = do
   thr <- gateNumberLit fp
   _ <- symbolic ")"
   fills *> Mp.some eoline *> fills
-  StmtMatch <$> (matchAst fp (Just <$> litToDouble thr))
+  th <- litToDouble thr
+  StmtMatch <$> matchAst fp (Just th)
 
 litToDouble :: Expr -> P Double
 litToDouble = \case
@@ -415,12 +422,12 @@ tryStmt fp = StmtTry <$> ((\(sp, (tb, exc, cb)) -> TryStmt_ sp tb exc cb) <$> wi
 retStmt :: FilePath -> P Stmt
 retStmt fp = StmtReturn <$> ((\(sp, v) -> ReturnStmt_ sp v) <$> withSpan fp inner)
  where
-  inner = (,) <$> (keyword "return" *> optional (try (expr fp)))
+  inner = keyword "return" *> optional (try (expr fp))
 
 yieldStmt :: FilePath -> P Stmt
 yieldStmt fp = StmtYield <$> ((\(sp, v) -> YieldStmt_ sp v) <$> withSpan fp inner)
  where
-  inner = (,) <$> (keyword "yield" *> optional (try (expr fp)))
+  inner = keyword "yield" *> optional (try (expr fp))
 
 includeStmt :: FilePath -> P Stmt
 includeStmt fp = StmtInclude <$> ((\(sp, e) -> IncludeStmt_ sp e) <$> withSpan fp (keyword "include" *> expr fp))
@@ -519,7 +526,7 @@ chainPM ops base = do
   rest <- Mp.many (choice (map tryOp ops))
   pure $ foldl' (\acc (op, rhs) -> ExprBinOp (BinOp_ (glueSpan (exprSpan acc) (exprSpan rhs)) op acc rhs)) x rest
  where
-  tryOp op = try ((,) <$> symbolic op <*> base)
+  tryOp op = try ((,) <$> (symbolic op *> pure op) <*> base)
 
 unary :: FilePath -> P Expr
 unary fp =
@@ -852,12 +859,12 @@ pAgent fp =
      AgentDecl_ sp nm ps rt opts bd [])
     <$> withSpan fp inner
  where
-  inner =
-    (,,,,)
-      <$> (keyword "agent" *> identTok)
-      <*> (symbolic "(" *> paramList fp <* symbolic ")")
-      <*> optional (sym "->" *> typeExpr fp)
-      <*> (symbolic "{" *> (agentInner fp <* symbolic "}"))
+  inner = do
+    nm <- keyword "agent" *> identTok
+    ps <- symbolic "(" *> paramList fp <* symbolic ")"
+    rt <- optional (sym "->" *> typeExpr fp)
+    (opts, bd) <- symbolic "{" *> agentInner fp <* symbolic "}"
+    pure (nm, ps, rt, opts, bd)
 
 agentInner :: FilePath -> P (AgentOptions, [Stmt])
 agentInner fp = do
