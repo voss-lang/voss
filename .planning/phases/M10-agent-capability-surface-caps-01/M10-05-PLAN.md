@@ -2,7 +2,7 @@
 phase: M10
 plan: 05
 type: execute
-wave: 4
+wave: 5
 depends_on: [M10-04]
 files_modified:
   - voss/harness/agent.py
@@ -99,7 +99,7 @@ Output: `## Project Index` renderer, session-start scan wiring, run_turn system-
   <read_first>
     - /Users/benjaminmarks/Projects/Voss/voss/harness/cli.py (_run_repl, do_cmd, resume flow)
     - /Users/benjaminmarks/Projects/Voss/voss/harness/cognition.py (existing load flow)
-    - /Users/benjaminmarks/Projects/Voss/.planning/phases/M10-agent-capability-surface-caps-01/M10-VALIDATION.md (M10-06 injection row)
+    - /Users/benjaminmarks/Projects/Voss/.planning/phases/M10-agent-capability-surface-caps-01/M10-VALIDATION.md (M10-05 injection row)
   </read_first>
   <action>
     Build or refresh the code index at session start for `voss chat`, `voss do`, and `voss resume` when code-intel scan is enabled. Use the service's scan budget settings from `.voss/lsp.yml` or defaults. If scan exceeds the quick budget, surface a partial-index warning in the service result and continue without blocking the first turn beyond the locked budget.

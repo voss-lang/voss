@@ -18,6 +18,7 @@ from .permission_modal import (
 )
 from .slash_palette import SlashPalette, rank_commands
 from .status_line import StatusLine
+from .code_intel_panel import CodeIntelPanel
 from .sub_agent_panel import SubAgentPanel
 from .turn_view import SideRegion, TurnView
 
@@ -25,6 +26,7 @@ __all__ = [
     "BudgetChoice",
     "BudgetExhaustedModal",
     "BudgetMeter",
+    "CodeIntelPanel",
     "ConfidenceBar",
     "DiffDecision",
     "DiffModal",

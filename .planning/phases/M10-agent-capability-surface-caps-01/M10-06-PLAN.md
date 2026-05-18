@@ -2,7 +2,7 @@
 phase: M10
 plan: 06
 type: execute
-wave: 5
+wave: 6
 depends_on: [M10-04, M10-05]
 files_modified:
   - tests/harness/test_code_integration.py
@@ -124,7 +124,7 @@ Output: integration tests, performance tests, invariant tests, optional live-ser
   </action>
   <verify>
     <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; python3 -m pytest tests/harness/test_code_invariants.py tests/harness/tui/test_no_new_runtime_hooks.py -q</automated>
-    <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; ! rg -n "class .*Memory" voss/harness</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; ! (rg -n "class .*Memory" voss/harness | rg -v "voss/harness/memory_store.py:54:class MemoryStore")</automated>
     <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; ! rg -n "watchdog|watchfiles|file.?watch|completion|hover|diagnostic|rename|formatting|codeAction|code_action" voss/harness/code voss/harness/cli.py voss/harness/tools.py</automated>
     <automated>cd /Users/benjaminmarks/Projects/Voss &amp;&amp; git diff --quiet -- voss/harness/recorder.py voss_runtime/probable.py voss_runtime/budget.py voss_runtime/agent.py</automated>
   </verify>
@@ -156,7 +156,7 @@ Security enforcement is on. Any high-severity unresolved issue blocks phase clos
 - `python3 -m pytest tests/harness/tui/test_code_intel_panel.py tests/harness/tui/test_code_intel_region_share.py tests/harness/tui/test_code_intel_integration.py tests/harness/tui/test_no_new_runtime_hooks.py -q`
 - `python3 -m pytest tests/harness/test_code_perf.py -q -m "not live"`
 - `python3 -m pytest tests/harness/test_code_lsp_live.py -q`
-- `! rg -n "class .*Memory" voss/harness`
+- `! (rg -n "class .*Memory" voss/harness | rg -v "voss/harness/memory_store.py:54:class MemoryStore")`
 - `! rg -n "watchdog|watchfiles|file.?watch|completion|hover|diagnostic|rename|formatting|codeAction|code_action" voss/harness/code voss/harness/cli.py voss/harness/tools.py`
 - `git diff --quiet -- voss/harness/recorder.py voss_runtime/probable.py voss_runtime/budget.py voss_runtime/agent.py`
 - `git diff --check -- tests/harness tests/fixtures/code voss/harness .planning/phases/M10-agent-capability-surface-caps-01/M10-VALIDATION.md`

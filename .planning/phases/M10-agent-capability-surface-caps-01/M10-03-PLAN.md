@@ -2,8 +2,8 @@
 phase: M10
 plan: 03
 type: execute
-wave: 2
-depends_on: [M10-01]
+wave: 3
+depends_on: [M10-02]
 files_modified:
   - voss/harness/code/ast_grep.py
   - voss/harness/code/regex_fallback.py

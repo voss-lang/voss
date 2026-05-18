@@ -2,7 +2,7 @@
 phase: M10
 plan: 04
 type: execute
-wave: 3
+wave: 4
 depends_on: [M10-02, M10-03]
 files_modified:
   - voss/harness/tools.py

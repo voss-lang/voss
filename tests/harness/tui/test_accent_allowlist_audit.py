@@ -32,6 +32,7 @@ _ALLOWLIST = frozenset(
         "header.py",
         "status_line.py",
         "sub_agent_panel.py",
+        "code_intel_panel.py",  # M9-08 side-region peer to SubAgentPanel
         "slash_palette.py",
         "confidence_bar.py",
         "styles.tcss",
