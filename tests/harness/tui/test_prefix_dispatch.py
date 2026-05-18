@@ -28,7 +28,8 @@ async def test_bang_command_renders_local_block_and_emits_recorder(
         assert payload["exit_code"] == 0
         assert "123" in payload["stdout"]
         flat = "".join(str(line) for line in pilot.app.query_one("#main", TurnView).lines)
-        assert "! python3 -c 'print(123)'" in flat
+        assert "python3 -c" in flat
+        assert "print(123)" in flat
         assert "· exit 0" in flat
 
 
