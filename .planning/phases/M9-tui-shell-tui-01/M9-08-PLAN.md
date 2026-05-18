@@ -182,4 +182,3 @@ Security enforcement is on. Any high-severity issue introduced by this amendment
 - M9 documentation records the amendment without editing M9-01..M9-07 plans.
 - Runtime-surface baseline stays green.
 </success_criteria>
-

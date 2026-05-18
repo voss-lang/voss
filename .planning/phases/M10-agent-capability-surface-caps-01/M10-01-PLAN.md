@@ -189,4 +189,3 @@ Security enforcement is on. High-severity cache traversal, arbitrary config exec
 - The SQLite index is deterministic, jailed, rebuildable, and summary-safe.
 - The polyglot fixture set exists for all later M10 acceptance tests.
 </success_criteria>
-

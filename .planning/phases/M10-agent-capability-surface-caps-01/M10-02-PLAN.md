@@ -166,4 +166,3 @@ Security enforcement is on. Any high-severity process orphan, arbitrary command 
 - Missing servers return structured `lsp_unavailable` envelopes with fallback and hint.
 - Optional live-server tests exist without making default CI depend on external language servers.
 </success_criteria>
-

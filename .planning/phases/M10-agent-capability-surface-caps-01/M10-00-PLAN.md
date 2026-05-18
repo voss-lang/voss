@@ -129,4 +129,3 @@ Security enforcement is on. Any high-severity prerequisite failure blocks M10.
 - Runtime-surface and memory-class invariants are green.
 - The M10 scope fence is clean.
 </success_criteria>
-
