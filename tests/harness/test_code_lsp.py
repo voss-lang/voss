@@ -114,6 +114,25 @@ async def test_registry_returns_unavailable_when_no_server(tmp_path: Path):
     assert result["result"] == "lsp_unavailable"
 
 
+@pytest.mark.asyncio
+async def test_registry_preserves_command_vector_args(tmp_path: Path, monkeypatch):
+    seen: dict[str, list[str]] = {}
+
+    monkeypatch.setattr("voss.harness.code.lsp_registry.shutil.which", lambda cmd: f"/bin/{cmd}")
+
+    async def fake_exec(*argv, **kwargs):
+        seen["argv"] = list(argv)
+        raise OSError("stop after capture")
+
+    monkeypatch.setattr("voss.harness.code.lsp_registry.asyncio.create_subprocess_exec", fake_exec)
+
+    reg = LspRegistry(tmp_path)
+    proc = await reg._spawn(reg._config.servers["python"])
+
+    assert proc is None
+    assert seen["argv"][:2] == ["/bin/pyright-langserver", "--stdio"]
+
+
 def test_no_pygls_leakage():
     # Grep-style check is done in CI via the plan's rg command
     # Here we just ensure the public surface is clean

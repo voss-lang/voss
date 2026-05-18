@@ -1,0 +1,51 @@
+/* Variant B token definitions — single source of truth (CONTEXT D-01, D-02) */
+/* DO NOT use raw hex values in component code — use these CSS vars only     */
+
+:root {
+  /* Background scale */
+  --bg-0: #0a0b0e;
+  --bg-1: #11131a;
+  --bg-2: #171a23;
+  --bg-3: #1f232e;
+
+  /* Border */
+  --border:        #262b38;
+  --border-bright: #353b4a;
+
+  /* Focus */
+  --focus:      #5a7cff;
+  --focus-glow: rgba(90, 124, 255, 0.18);
+
+  /* Foreground scale */
+  --fg-0: #e8eaf0;
+  --fg-1: #aab0c0;
+  --fg-2: #6a7080;
+  --fg-3: #444a5a;
+
+  /* Accent palette — reserved for specific roles (see UI-SPEC.md) */
+  --accent-green:   #6fd28f;
+  --accent-amber:   #e8b86c;
+  --accent-red:     #e87b7b;
+  --accent-cyan:    #6cc7d4;
+  --accent-magenta: #c084d4;
+  --accent-blue:    #7aa2ff;
+
+  /* Role-semantic colors */
+  --user-msg:  #8ab4ff;
+  --assistant: #b8c0d0;
+  --tool:      #c084d4;
+  --reviewer:  #e8b86c;
+
+  /* Typography — Variant B: mono everywhere */
+  --font-mono: "JetBrains Mono", "SF Mono", "Menlo", ui-monospace, monospace;
+  --font-ui:   "Inter", -apple-system, "SF Pro Text", system-ui, sans-serif;
+
+  /* Radius — Variant B: 0 everywhere (exceptions: traffic-light circles 50%, scrollbar thumb 4px) */
+  --radius-none: 0px;
+
+  /* Titlebar */
+  --titlebar-height: 22px;
+
+  /* Scrollbar */
+  --scrollbar-width: 8px;
+}

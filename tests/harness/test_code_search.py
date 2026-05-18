@@ -45,3 +45,18 @@ async def test_service_search_returns_source_tagged(tmp_path: Path):
     result = await svc.search("def $NAME")
     assert "result" in result
     assert "source" in result or "fallback" in result
+
+
+@pytest.mark.asyncio
+async def test_service_search_rejects_same_prefix_sibling_escape(tmp_path: Path):
+    repo = tmp_path / "repo"
+    sibling = tmp_path / "repo2"
+    repo.mkdir()
+    sibling.mkdir()
+    (sibling / "secret.py").write_text("def secret():\n    pass\n")
+
+    svc = CodeIntelService.for_cwd(repo)
+    result = await svc.search("def secret", path="../repo2")
+
+    assert result["result"] == "error"
+    assert "escapes cwd" in result["message"]

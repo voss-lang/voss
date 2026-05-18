@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -192,6 +193,7 @@ class ReplContext:
     persist_conventions_selection: str | None = None
     # T6 / SLASH-04 — session-scoped USD ceiling. None = unbounded.
     budget_usd: float | None = None
+    project_index_text: str = ""
 
 
 def _resolve_default_model(user_explicit: str | None) -> None:
@@ -570,23 +572,124 @@ def _save_note(ctx, args: list[str], _line: str) -> None:
     click.echo(f"note saved: {display}")
 
 
+def _run_async_sync(coro):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    result: list[object] = []
+    error: list[BaseException] = []
+
+    def _runner() -> None:
+        try:
+            result.append(asyncio.run(coro))
+        except BaseException as exc:  # noqa: BLE001
+            error.append(exc)
+
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+    if error:
+        raise error[0]
+    return result[0] if result else None
+
+
+def _get_code_service(cwd: Path, session_id: str | None = None):
+    from voss.harness.code.service import CodeIntelService
+
+    return CodeIntelService.for_cwd(cwd, session_id=session_id)
+
+
+def _render_project_index_text(cwd: Path, session_id: str | None = None) -> str:
+    try:
+        from voss.harness.code.context import render_project_index_section
+
+        svc = _get_code_service(cwd, session_id=session_id)
+        return render_project_index_section(svc.get_project_index_summary()) or ""
+    except Exception:
+        return ""
+
+
+def _show_code_intel_results(ctx: ReplContext, query: str, items: list[dict]) -> None:
+    renderer = getattr(ctx, "renderer", None)
+    show = getattr(renderer, "show_code_intel_results", None)
+    if callable(show):
+        try:
+            show(query, items)
+        except Exception:
+            pass
+
+
 def _symbol(ctx: ReplContext, args: list[str], _line: str) -> None:
-    if not args:
-        click.echo("usage: /symbol <name>   (M10 code intelligence — index + LSP)")
+    if not args or args[0] in ("--help", "-h"):
+        click.echo("usage: /symbol <name>   (M10 code intelligence — index)")
         return
-    click.echo(f"[symbol] would search for {args[0]} using CodeIntelService (M10-04 stub)")
+    symbol = args[0]
+    svc = _get_code_service(ctx.cwd, session_id=ctx.record.id)
+    res = svc.find_symbols(symbol, max_results=10)
+    items = res.get("items", [])
+    if not items:
+        click.echo(f"no symbols found for {symbol}")
+        _show_code_intel_results(ctx, f"/symbol {symbol}", [])
+        return
+    for item in items:
+        click.echo(
+            f"{item['name']} {item['file']}:{item['line']} "
+            f"[{item.get('language', 'unknown')} {item.get('source', 'index')}]"
+        )
+    _show_code_intel_results(ctx, f"/symbol {symbol}", items)
 
 
 def _refs(ctx: ReplContext, args: list[str], _line: str) -> None:
-    if not args:
+    if not args or args[0] in ("--help", "-h"):
         click.echo("usage: /refs <symbol>   (M10 code intelligence — index + LSP)")
         return
-    click.echo(f"[refs] would find references to {args[0]} (M10-04 stub)")
+    symbol = args[0]
+    svc = _get_code_service(ctx.cwd, session_id=ctx.record.id)
+    res = _run_async_sync(svc.find_references(symbol, max_results=10))
+    items = res.get("items", []) if isinstance(res, dict) else []
+    if not items:
+        click.echo(f"no references found for {symbol}")
+        _show_code_intel_results(ctx, f"/refs {symbol}", [])
+        return
+    for item in items:
+        click.echo(
+            f"{item['file']}:{item['line']} "
+            f"[{item.get('language', 'unknown')} {item.get('source', 'regex')}] "
+            f"{item.get('context', '')}"
+        )
+    _show_code_intel_results(ctx, f"/refs {symbol}", items)
 
 
 def _refresh(ctx: ReplContext, args: list[str], _line: str) -> None:
-    click.echo("[refresh] rebuilding code index under .voss-cache/code/ (M10-04 stub)")
-    click.echo("Use /analyze for full cognition refresh.")
+    if args and args[0] in ("--help", "-h"):
+        click.echo("usage: /refresh   rebuild code index under .voss-cache/code/")
+        return
+    svc = _get_code_service(ctx.cwd, session_id=ctx.record.id)
+    res = _run_async_sync(svc.code_refresh())
+    if isinstance(res, dict) and res.get("result") == "ok":
+        ctx.project_index_text = _render_project_index_text(ctx.cwd, session_id=ctx.record.id)
+        summary = svc.get_project_index_summary()
+        if summary is not None:
+            click.echo(
+                f"refreshed code index: {summary.file_count} files, "
+                f"{summary.symbol_count} symbols"
+            )
+        else:
+            click.echo("refreshed code index")
+        renderer = getattr(ctx, "renderer", None)
+        show = getattr(renderer, "show_code_intel_tree", None)
+        if callable(show) and summary is not None:
+            try:
+                show([
+                    {"label": path, "count": count}
+                    for path, count in summary.top_modules
+                ])
+            except Exception:
+                pass
+        return
+    click.echo(f"refresh failed: {res}", err=True)
 
 
 def _build_slash_registry() -> SlashRegistry:
@@ -1100,6 +1203,7 @@ def do_cmd(
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
     voss_md_text = voss_md.read_and_inject(cwd)
+    project_index_text = _render_project_index_text(cwd)
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
         store=PermissionStore.load(cwd),
@@ -1143,6 +1247,7 @@ def do_cmd(
             history=do_history,
             session_id=do_record.id,
             voss_md_text=voss_md_text,
+            project_index_text=project_index_text,
         ),
         renderer=renderer,
     )
@@ -1375,6 +1480,7 @@ def _run_repl(
         for err in bundle.load_errors:
             click.echo(f"cognition error: {err}", err=True)
     voss_md_text = voss_md.read_and_inject(cwd)
+    project_index_text = _render_project_index_text(cwd, session_id=record.id)
 
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
@@ -1400,6 +1506,7 @@ def _run_repl(
         voss_md_text=voss_md_text,
         memory_store=MemoryStore(cwd).bind(session_id=record.id),
         model=cfg.default_model,
+        project_index_text=project_index_text,
     )
     attach_subagent_tool(
         tools,
@@ -1449,6 +1556,16 @@ def _run_repl(
             renderer.app.slash_registry = slash_registry
 
             async def _dispatch_tui_turn(line: str):
+                if line.startswith("/"):
+                    try:
+                        handled = slash_registry.dispatch(ctx, line)
+                    except ValueError as exc:
+                        click.echo(str(exc), err=True)
+                        return None
+                    if handled:
+                        return None
+                    click.echo(f"unknown command: {line}. /help for list.", err=True)
+                    return None
                 renderer.show_user(line)
                 try:
                     run_turn = _resolve_run_turn(cwd)
@@ -1465,6 +1582,7 @@ def _run_repl(
                         cognition=bundle,
                         prior_context=ctx.prior_context,
                         voss_md_text=ctx.voss_md_text,
+                        project_index_text=ctx.project_index_text,
                     )
                     ctx.prior_context = None
                 except Exception as e:  # noqa: BLE001
@@ -1552,6 +1670,7 @@ def _run_repl(
                         cognition=bundle,
                         prior_context=ctx.prior_context,
                         voss_md_text=ctx.voss_md_text,
+                        project_index_text=ctx.project_index_text,
                     ),
                     renderer=renderer,
                 )
@@ -2048,6 +2167,7 @@ def _extension_context(
         prior_context=None,
         last_plan=None,
         total_cost=0.0,
+        project_index_text=_render_project_index_text(cwd),
     )
     if provider is not None:
         attach_subagent_tool(

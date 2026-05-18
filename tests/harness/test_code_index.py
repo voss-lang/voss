@@ -43,6 +43,20 @@ def test_build_and_refresh_is_deterministic(tmp_path: Path) -> None:
     assert "python" in summary.languages
 
 
+def test_repeated_build_does_not_duplicate_symbols(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _make_fixture_tree(proj, "python")
+
+    build_index(proj)
+    first = summarize(proj)
+    build_index(proj)
+    second = summarize(proj)
+
+    assert first.file_count == second.file_count == 1
+    assert first.symbol_count == second.symbol_count == 1
+
+
 def test_vendored_dirs_are_pruned(tmp_path: Path) -> None:
     proj = tmp_path / "proj"
     proj.mkdir()

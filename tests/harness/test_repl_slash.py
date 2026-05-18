@@ -133,6 +133,40 @@ def test_t6_prd_slash_commands_registered() -> None:
         assert registry.lookup(name) is not None, f"slash {name} not registered"
 
 
+def test_m10_code_slash_commands_execute(tmp_path, capsys) -> None:
+    from types import SimpleNamespace
+    from voss.harness.cli import _build_slash_registry
+
+    (tmp_path / "app.py").write_text(
+        "def shared_entry(x):\n"
+        "    return x\n\n"
+        "def caller():\n"
+        "    return shared_entry(1)\n",
+        encoding="utf-8",
+    )
+    ctx = SimpleNamespace(
+        cwd=tmp_path,
+        record=SimpleNamespace(id="sess-test"),
+        renderer=None,
+        project_index_text="",
+    )
+
+    reg = _build_slash_registry()
+    assert reg.dispatch(ctx, "/symbol shared_entry")
+    out = capsys.readouterr().out
+    assert "shared_entry app.py:1" in out
+
+    assert reg.dispatch(ctx, "/refs shared_entry")
+    out = capsys.readouterr().out
+    assert "app.py:1" in out
+    assert "app.py:5" in out
+
+    assert reg.dispatch(ctx, "/refresh")
+    out = capsys.readouterr().out
+    assert "refreshed code index" in out
+    assert "## Project Index" in ctx.project_index_text
+
+
 class TestT6Behaviors:
     """T6 — Verify /why /budget /cost --by-model and /discard dry-run paths
     against a fake ReplContext. Heavier integrations (live /resume, /diff

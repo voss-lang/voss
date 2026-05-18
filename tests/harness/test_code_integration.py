@@ -37,6 +37,12 @@ async def test_full_code_intel_happy_path_on_fixtures(tmp_path):
     refresh = await svc.code_refresh()
     assert refresh["result"] == "ok"
 
-    # The service is the common surface used by tools, slash, and context.
-    # If we got here without crashing, the integration is wired.
-    assert True
+    # 4. Symbol definition and references should use real inputs, not dummy.py.
+    definition = await svc.find_definition("shared_entry")
+    assert definition["result"] == "ok"
+    assert definition["items"]
+    assert definition["items"][0]["file"] == "app.py"
+
+    refs = await svc.find_references("shared_entry")
+    assert refs["result"] == "ok"
+    assert any(item["file"] == "app.py" for item in refs["items"])
