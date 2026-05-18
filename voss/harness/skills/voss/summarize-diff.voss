@@ -4,10 +4,7 @@
 # exists to demonstrate the same flow expressed in Voss and to pass `voss check`.
 fn summarizeDiff(diff: string) -> string {
     ctx(budget: 3000 tokens) {
-        yield ask(
-            "Summarize this git diff as a PR description with exactly the "
-            + "sections ## Title, ## Summary, ## Changes. Diff:\n" + diff
-        )
+        yield ask("Summarize this git diff as a PR description with exactly the sections ## Title, ## Summary, ## Changes. Diff: " + diff)
     }
 }
 

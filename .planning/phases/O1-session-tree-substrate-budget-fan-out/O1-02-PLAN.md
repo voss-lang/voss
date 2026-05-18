@@ -15,7 +15,7 @@ must_haves:
     - "Spawning a child via run_subagent creates a tree node linked to its parent (parent_run_id = parent's node id) and writes the node file at open BEFORE run_turn executes"
     - "A budget-drained child (soft exit_reason='budget' OR hard BudgetExceededError) finalizes exactly one terminal RunRecord with exit_reason='budget' and a closed node (terminal_state set, ended_at populated)"
     - "Finalize happens exactly once even if both budget signals could fire (the _finalized guard prevents double-finalize)"
-    - "After parent teardown no node remains in an open state (terminal_state is None for zero nodes)"
+    - "After parent teardown no node remains in an open state (zero node files with terminal_state == None)"
     - "reserve is honored: run_turn receives token_budget = envelope_limit - reserve while the composed BudgetScope.token_limit stays at envelope_limit"
     - "test_subagent_recursion.py passes unmodified (only node + reserve kwargs added; no depth/max_depth symbols)"
     - "test_session_redaction.py passes unmodified; git diff zero field changes on SessionRecord/RunRecord/BudgetScope"
@@ -86,8 +86,9 @@ voss/harness/recorder.py (terminal record producer — read only):
 
 voss/harness/session.py (read only, DO NOT MODIFY):
 - `EXIT_REASONS` includes `"budget"` (line 74) — terminal `exit_reason="budget"` needs NO schema change
+- `_scan_dir` (line 216) globs flat `*.json` only — never sees the tree subdir; resume path unaffected
 
-voss/harness/agent.py budget mechanisms (RESEARCH lines 41, 437-443):
+voss/harness/agent.py budget mechanisms (RESEARCH lines 41, 437-443 — read only, DO NOT MODIFY):
 - `run_turn` SOFT token check exits cleanly with `result.run.exit_reason == "budget"` (does NOT raise)
 - `BudgetExceededError` is the HARD path, raised only from compiled `.voss` ContextScope.ask()
 - reserve: pass `token_budget = envelope_limit - reserve` to `run_turn`; `record_run_call` (post-loop LLM finalize) consumes the reserve tokens
@@ -100,28 +101,29 @@ tests/harness/test_subagent_recursion.py (MUST stay unmodified):
 <tasks>
 
 <task type="tdd" tdd="true">
-  <name>Task 1: Red tests for drain-finalize + no-open-nodes + finalize_node helper (Wave 0 for this plan)</name>
+  <name>Task 1: Red tests for drain-finalize + no-open-nodes (Wave 0 for this plan)</name>
   <files>tests/harness/test_session_tree.py, voss/harness/session_tree.py</files>
   <read_first>
     - .planning/phases/O1-session-tree-substrate-budget-fan-out/O1-SPEC.md (REQ-3 + acceptance criteria 4,5)
-    - .planning/phases/O1-session-tree-substrate-budget-fan-out/O1-RESEARCH.md (Pattern 3 boundary lines 248-304, Pitfall 1 double-finalize lines 387-395, Assumption A1, finalize semantics)
+    - .planning/phases/O1-session-tree-substrate-budget-fan-out/O1-RESEARCH.md (Pattern 3 boundary lines 248-304, Pitfall 1 double-finalize lines 387-395, Assumption A1)
     - .planning/phases/O1-session-tree-substrate-budget-fan-out/O1-PATTERNS.md (test class structure lines 274-356; EXIT_REASONS membership lines 440-450)
     - .planning/phases/O1-session-tree-substrate-budget-fan-out/O1-01-SUMMARY.md (what O1-01 delivered: SessionTreeNode incl. _finalized flag)
     - voss/harness/session_tree.py (the module from O1-01 — extend, do not rewrite)
     - voss/harness/recorder.py (RunRecorder.finalize signature line 192 — read only)
     - voss/harness/session.py (EXIT_REASONS line 74 — read only, DO NOT MODIFY)
     - tests/harness/test_recorder_iterations.py (RunRecorder test analog for finalize forwarding)
+    - tests/harness/test_session_redaction.py (redaction invariant — read only, MUST stay unmodified)
   </read_first>
   <behavior>
-    - TestDrainFinalize::test_finalize_sets_terminal_and_ended: finalize_node(node, exit_reason="budget", final="halted: budget", cwd=tmp_path) sets node.terminal_state to a dict containing exit_reason="budget" (and final), populates node.ended_at, and rewrites the node file so the on-disk JSON reflects the closed state
-    - TestDrainFinalize::test_finalize_is_idempotent: calling finalize_node twice on the same node finalizes exactly once — second call is a no-op (terminal_state and ended_at unchanged from the first call; the _finalized guard holds). Assert ended_at does not change between the two calls
-    - TestDrainFinalize::test_exit_reason_must_be_valid: finalize_node with an exit_reason not in EXIT_REASONS raises ValueError (delegated to/consistent with RunRecorder validation semantics)
+    - TestDrainFinalize::test_finalize_sets_terminal_and_ended: finalize_node(node, exit_reason="budget", final="halted: budget", cwd=tmp_path) sets node.terminal_state to a dict containing exit_reason="budget" and final, populates node.ended_at, and rewrites the node file so the on-disk JSON reflects the closed state
+    - TestDrainFinalize::test_finalize_is_idempotent: calling finalize_node twice on the same node finalizes exactly once — second call is a no-op; node.ended_at is unchanged between the two calls (the _finalized guard holds)
+    - TestDrainFinalize::test_exit_reason_must_be_valid: finalize_node with an exit_reason not in EXIT_REASONS raises ValueError
     - TestNoOpenNodes::test_no_open_node_after_finalize: after allocating children and finalizing each via finalize_node, scanning the tree directory yields zero node files with terminal_state == None
   </behavior>
   <action>
-    Extend `tests/harness/test_session_tree.py` with two new classes `TestDrainFinalize` and `TestNoOpenNodes` exactly per <behavior>. Import `finalize_node` from `voss.harness.session_tree`. Reuse the existing module imports and the autouse `tmp_path`/`isolated_state` fixture; do NOT add a conftest. For `test_no_open_node_after_finalize`, read every `*.json` under `.voss/sessions/<root_id>/`, `json.loads` each, and assert none has `terminal_state` is None after all are finalized.
+    Extend `tests/harness/test_session_tree.py` with two new classes `TestDrainFinalize` and `TestNoOpenNodes` exactly per <behavior>. Import `finalize_node` from `voss.harness.session_tree`. Reuse the existing module imports and the autouse `tmp_path`/`isolated_state` fixture from `tests/harness/conftest.py`; do NOT add a conftest. For `test_no_open_node_after_finalize`, read every `*.json` under `.voss/sessions/<root_id>/`, `json.loads` each, and assert none has `terminal_state` is None after all are finalized. For `test_exit_reason_must_be_valid` use a string not in EXIT_REASONS (e.g. "quit").
 
-    Then add a STUB `finalize_node` to `voss/harness/session_tree.py` so the import resolves but the new tests fail RED on behavior (e.g. a function that exists but does not set terminal_state / does not honor the guard yet). The existing O1-01 tests (TestTreePersistence/TestBudgetFanOut/TestCapRaiseGuard/TestConcurrency/TestSchemaIsolation) MUST still pass — verify the stub does not break them. This is the RED step for this plan's Wave 0. Commit message: `test(O1-02): add failing drain-finalize + no-open-node tests`. NEVER modify `tests/harness/test_session_redaction.py` or `tests/harness/test_subagent_recursion.py`.
+    Then add a STUB `finalize_node` to `voss/harness/session_tree.py` so the import resolves but the new tests fail RED on behavior (a function that exists but does not set terminal_state / does not honor the guard / does not validate exit_reason yet). The existing O1-01 test classes (TestTreePersistence/TestBudgetFanOut/TestCapRaiseGuard/TestConcurrency/TestSchemaIsolation) MUST still pass — the stub must not regress them (do not let the new symbol break collection or the schema-isolation key set). This is the RED step for this plan's Wave 0. Commit message: `test(O1-02): add failing drain-finalize + no-open-node tests`. NEVER modify `tests/harness/test_session_redaction.py` or `tests/harness/test_subagent_recursion.py`.
   </action>
   <verify>
     <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest "tests/harness/test_session_tree.py::TestDrainFinalize" "tests/harness/test_session_tree.py::TestNoOpenNodes" -q 2>&1 | grep -qE "failed|error" && python -m pytest tests/harness/test_session_tree.py -q -k "TreePersistence or BudgetFanOut or CapRaiseGuard or Concurrency or SchemaIsolation" && echo RED-NEW-GREEN-OLD</automated>
@@ -142,17 +144,17 @@ tests/harness/test_subagent_recursion.py (MUST stay unmodified):
     - .planning/phases/O1-session-tree-substrate-budget-fan-out/O1-PATTERNS.md (subagents.py surgical-modify lines 161-219 incl. exact existing signature + body + the CRITICAL test_subagent_recursion constraint; EXIT_REASONS lines 440-450)
     - .planning/phases/O1-session-tree-substrate-budget-fan-out/O1-CONTEXT.md (D-03 + <specifics> interlock; resume Claude's-Discretion note)
     - voss/harness/subagents.py (the modify target — lines 19, 76-103, 106, 121)
-    - voss/harness/session_tree.py (extend finalize_node stub from Task 1 into the real guarded implementation)
+    - voss/harness/session_tree.py (extend the finalize_node stub from Task 1 into the real guarded implementation)
     - voss/harness/recorder.py (RunRecorder.finalize(cwd, cost_usd, *, exit_reason=None) line 192 — read only)
     - voss/harness/session.py (EXIT_REASONS line 74; _scan_dir line 216 globs flat *.json only — read only, DO NOT MODIFY)
     - tests/harness/test_subagent_recursion.py (the pinning test — MUST pass unmodified; only node+reserve kwargs allowed)
-    - tests/harness/test_session_redaction.py (redaction invariant — MUST pass unmodified)
+    - tests/harness/test_session_redaction.py (redaction invariant — read only, MUST pass unmodified)
   </read_first>
   <action>
-    Implement the real `finalize_node(node: SessionTreeNode, *, exit_reason: str, final: str = "", cwd: Path) -> None` in `voss/harness/session_tree.py`: FIRST check `node._finalized` — if already True, return immediately (idempotent, exactly-once — RESEARCH Pitfall 1 / Assumption A1; the check-and-set is safe under asyncio cooperative scheduling because there is no await between them). Validate `exit_reason` against `voss.harness.session.EXIT_REASONS` (raise `ValueError` if not a member, mirroring `RunRecorder` line 134 semantics) — import EXIT_REASONS, do not redefine it. Set `node.terminal_state = {"exit_reason": exit_reason, "final": final}`, set `node.ended_at = datetime.now(timezone.utc).isoformat(timespec="seconds")`, set `node._finalized = True`, then `_write_node_file(node, cwd)` to persist the closed state (D-01 second write — the close write). Do not touch `_budget`.
+    Implement the real `finalize_node(node: SessionTreeNode, *, exit_reason: str, final: str = "", cwd: Path) -> None` in `voss/harness/session_tree.py`: FIRST check `node._finalized` — if already True, return immediately (idempotent, exactly-once — RESEARCH Pitfall 1 / Assumption A1; the check-and-set is safe under asyncio cooperative scheduling because there is no await between them). Validate `exit_reason` against `voss.harness.session.EXIT_REASONS` (raise `ValueError` if not a member, mirroring `RunRecorder` line 134 semantics) — import EXIT_REASONS from session.py, do not redefine it. Set `node.terminal_state = {"exit_reason": exit_reason, "final": final}`, set `node.ended_at = datetime.now(timezone.utc).isoformat(timespec="seconds")`, set `node._finalized = True`, then `_write_node_file(node, cwd)` to persist the closed state (D-01 second write — the close write). Do not touch `_budget`.
 
     Modify `voss/harness/subagents.py` `run_subagent` surgically per O1-PATTERNS lines 161-219:
-    - Extend the signature: after `cognition: Any = None,` add `node: "SessionTreeNode | None" = None,` and `reserve: int = 0,`. Add the import `from voss.harness.session_tree import SessionTreeNode, finalize_node` (or a TYPE_CHECKING-guarded import for the annotation plus a runtime import for `finalize_node`). Do NOT add `depth`, `max_depth`, `MAX_DEPTH`, `DEPTH_LIMIT`, or `RECURSION_LIMIT` (preserves `test_subagent_recursion.py`).
+    - Extend the signature: after `cognition: Any = None,` add `node: "SessionTreeNode | None" = None,` and `reserve: int = 0,`. Add the import for `finalize_node` (runtime) and `SessionTreeNode` (TYPE_CHECKING-guarded is acceptable for the annotation) from `voss.harness.session_tree`. Do NOT add `depth`, `max_depth`, `MAX_DEPTH`, `DEPTH_LIMIT`, or `RECURSION_LIMIT` (preserves `test_subagent_recursion.py`).
     - Keep the early guard OUTSIDE the boundary: `spec = registry.get(agent_id); if spec is None: return f"<error: unknown subagent {agent_id!r}>"` stays exactly as-is, before any try.
     - Compute `spendable = (node.envelope["limit"] - reserve) if node else None` (RESEARCH Pitfall 7: subtract reserve from the soft token budget; the composed `BudgetScope.token_limit` from O1-01 stays at the full `envelope["limit"]`).
     - Wrap from `run_turn` onward in the D-03 boundary. Enter the per-node `BudgetScope` via `async with node._budget` ONLY when `node and node._budget` (else no scope context — do not fabricate one for the no-node legacy path). Call the existing `run_turn(...)` unchanged EXCEPT add `token_budget=spendable` only when `node` is provided (legacy callers with `node=None` get the unchanged call — backward compatible).
@@ -160,7 +162,62 @@ tests/harness/test_subagent_recursion.py (MUST stay unmodified):
     - HARD path: `except BudgetExceededError:` → if `node`: `finalize_node(node, exit_reason="budget", final="<halted: budget>", cwd=cwd)`; `return "<halted: budget>"`. The two paths are mutually exclusive (run_turn either returns or raises) and the `_finalized` guard makes a double call a no-op anyway (RESEARCH Pitfall 1).
     - The `asyncio.Lock` from O1-01's `SessionTreeManager` is NOT held here — allocation already happened upstream; this boundary must not re-acquire or hold it across `run_turn` (RESEARCH Pitfall 3).
 
-    Do NOT modify `session.py`, `recorder.py`, `voss_runtime/budget.py`, `agent.py`, or any persisted-record schema (REQ-5 redaction invariant; resume path unchanged — `_scan_dir` globs flat `*.json` and never sees the tree subdir, RESEARCH lines 597-617). No new third-party dependency. No fenced code in this action; follow RESEARCH Pattern 3 as the reference. Update `tests/harness/test_session_tree.py` only if a new green assertion for the boundary is warranted (e.g. an end-to-end TestNoOpenNodes case that drives a stub-provider child to drain) — do NOT weaken existing assertions. Commit message: `feat(O1-02): D-03 always-finalize boundary in run_subagent`.
+    Do NOT modify `session.py`, `recorder.py`, `voss_runtime/budget.py`, `agent.py`, or any persisted-record schema (REQ-5 redaction invariant; resume path unchanged — `_scan_dir` globs flat `*.json` and never sees the tree subdir, RESEARCH lines 597-617). No new third-party dependency. No fenced code in this action; follow RESEARCH Pattern 3 as the reference. Update `tests/harness/test_session_tree.py` only by turning the Task-1 RED classes green plus, if warranted, one end-to-end TestNoOpenNodes case that drives a stub-provider child to drain — do NOT weaken any existing assertion. Commit message: `feat(O1-02): D-03 always-finalize boundary in run_subagent`.
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_session_tree.py -q && python -m pytest tests/harness/test_session_redaction.py tests/harness/test_subagent_recursion.py -q && git diff --stat voss/harness/session.py voss/harness/recorder.py voss_runtime/budget.py voss/harness/agent.py | grep -qE "session\.py|recorder\.py|budget\.py|agent\.py" && echo SCHEMA-TOUCHED-FAIL || python -m pytest tests/harness/ -x -q
+    <automated>cd /Users/benjaminmarks/Projects/Voss && python -m pytest tests/harness/test_session_tree.py tests/harness/test_session_redaction.py tests/harness/test_subagent_recursion.py -q && test -z "$(git diff --stat voss/harness/session.py voss/harness/recorder.py voss_runtime/budget.py voss/harness/agent.py)" && python -m pytest tests/harness/ -x -q</automated>
+  </verify>
+  <acceptance_criteria>
+    - `python -m pytest tests/harness/test_session_tree.py -q` exits 0 with TestDrainFinalize + TestNoOpenNodes green (REQ-3, REQ-3b) and all O1-01 classes still green
+    - `python -m pytest tests/harness/test_session_redaction.py tests/harness/test_subagent_recursion.py -q` exits 0 UNMODIFIED (`git diff --stat` on both = 0 changed lines)
+    - `git diff --stat voss/harness/session.py voss/harness/recorder.py voss_runtime/budget.py voss/harness/agent.py` = empty (zero changed lines — REQ-5: no field add/remove on SessionRecord/RunRecord/BudgetScope; no agent.py budget edit)
+    - `run_subagent` signature gains exactly `node` and `reserve`; `inspect.signature` shows no `depth`/`max_depth`; no MAX_DEPTH/DEPTH_LIMIT/RECURSION_LIMIT constant in subagents.py
+    - Drain test: a child driven to budget exhaustion produces exactly one terminal node with `exit_reason="budget"`, `terminal_state` set, `ended_at` populated; second finalize is a no-op (idempotent)
+    - `python -m pytest tests/harness/ -x -q` exits 0 (wave merge gate)
+  </acceptance_criteria>
+  <done>The D-03 boundary always finalizes a drained child exactly once; no open node survives parent teardown; all schema-lock and recursion-pin tests pass unmodified; full harness suite green.</done>
+</task>
+
+</tasks>
+
+<threat_model>
+## Trust Boundaries
+
+| Boundary | Description |
+|----------|-------------|
+| child agent execution → terminal finalize | A child driven to budget exhaustion must always cross into a closed, recorded state (Leak 4 closure point) |
+| run_subagent boundary → persisted node file | The single spawn chokepoint is where the audit record is sealed; a missed seal is an audit gap |
+| budget exhaustion signal → exactly-once finalize | Two budget mechanisms (soft exit + hard exception) must not double-finalize |
+
+## STRIDE Threat Register
+
+| Threat ID | Category | Component | Disposition | Mitigation Plan |
+|-----------|----------|-----------|-------------|-----------------|
+| T-O1-07 | Repudiation | stranded half-open child node — no terminal record (Leak 4, ORCHESTRATION-PLAN §7) | mitigate | D-03 single-boundary always-finalize: both the soft `exit_reason=="budget"` path and `except BudgetExceededError` call `finalize_node`; `TestNoOpenNodes` asserts zero open nodes after teardown |
+| T-O1-08 | Tampering | double-finalize corrupting the node file (terminal_state / ended_at overwritten) | mitigate | `_finalized` guard in `finalize_node` (check-and-set, no await between — atomic under asyncio); `TestDrainFinalize::test_finalize_is_idempotent` asserts second call is a no-op |
+| T-O1-09 | Elevation of Privilege | child consuming the reserve so the terminal finalize call cannot complete (liveness break) | mitigate | reserve carved at the boundary: `token_budget = envelope_limit - reserve` to `run_turn`; the reserve covers the post-loop `record_run_call` finalize (RESEARCH Pitfall 7) |
+| T-O1-10 | Tampering | redaction-invariant breach via subagents.py touching a persisted-record schema or agent.py budget path | mitigate | Surgical kwargs-only modify; acceptance gate asserts `git diff --stat` on session.py/recorder.py/budget.py/agent.py is empty; `test_session_redaction.py` passes unmodified (REQ-5) |
+| T-O1-11 | Tampering | `node` kwarg accidentally introducing a depth symbol that breaks the recursion pin | mitigate | Only `node` + `reserve` kwargs added; acceptance asserts `test_subagent_recursion.py` passes unmodified and no depth/MAX_DEPTH symbol exists |
+| T-O1-SC | Tampering | npm/pip/cargo installs | accept | O1 installs zero external packages (SPEC constraint "no new third-party dependencies"); stdlib + voss_runtime only — no Package Legitimacy Gate applicable |
+</threat_model>
+
+<verification>
+- `python -m pytest tests/harness/test_session_tree.py -q` green incl. TestDrainFinalize + TestNoOpenNodes (REQ-3, REQ-3b)
+- `python -m pytest tests/harness/test_session_redaction.py tests/harness/test_subagent_recursion.py -q` green and UNMODIFIED (REQ-5 + recursion pin)
+- `git diff --stat voss/harness/session.py voss/harness/recorder.py voss_runtime/budget.py voss/harness/agent.py` = empty
+- `python -m pytest tests/harness/ -x -q` green (wave merge + phase gate, per O1-VALIDATION sampling rate)
+- Manual (non-blocking, O1-VALIDATION Manual-Only): run a root to mid-tree, kill, `voss resume`, confirm flat session loads and the tree dir is ignored by `_scan_dir`
+</verification>
+
+<success_criteria>
+- `run_subagent` extended with `node` + `reserve` kwargs and a D-03 try/except boundary around `run_turn`
+- Budget-drained child (soft OR hard path) always finalizes exactly one terminal `RunRecord` with `exit_reason="budget"` + closed node; idempotent under double signal
+- No open node after parent teardown (REQ-3b)
+- reserve honored: `run_turn` token_budget = envelope_limit - reserve; composed BudgetScope.token_limit unchanged
+- Zero field/line changes on SessionRecord/RunRecord/BudgetScope/agent.py; `test_session_redaction.py` and `test_subagent_recursion.py` pass unmodified
+- Full `tests/harness/` suite green
+</success_criteria>
+
+<output>
+Create `.planning/phases/O1-session-tree-substrate-budget-fan-out/O1-02-SUMMARY.md` when done
+</output>
