@@ -17,8 +17,8 @@ import qualified Data.Vector as Vec
 import System.FilePath (takeFileName)
 
 encodeProgramPretty :: Bool -> FilePath -> Program -> BL.ByteString
-encodeProgramPretty normalize sourcePath =
-  AP.encodePretty' conf (encodeProgram normalize sourcePath)
+encodeProgramPretty normalize sourcePath prog =
+  AP.encodePretty' conf (encodeProgram normalize sourcePath prog)
   where
     conf = AP.defConfig {AP.confIndent = AP.Spaces 2, AP.confCompare = AP.keyOrder []}
 

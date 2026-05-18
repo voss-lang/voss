@@ -15,6 +15,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import click
+
 from ..agent import run_turn
 
 _PROMPT = (
@@ -45,7 +47,7 @@ def run(
     tools,
     gate,
 ) -> None:
-    asyncio.run(
+    result = asyncio.run(
         run_turn(
             _PROMPT,
             tools=tools,
@@ -59,3 +61,9 @@ def run(
             session_id=record.id,
         )
     )
+    # The PR markdown is this skill's deliverable (D-12). run_turn streams a
+    # live provider's answer via the renderer but does not re-emit the final,
+    # so surface it explicitly — read-only (stdout only, no file write).
+    final = getattr(result, "final", "") or ""
+    if final.strip():
+        click.echo(final)

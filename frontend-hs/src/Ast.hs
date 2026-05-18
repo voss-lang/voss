@@ -24,6 +24,7 @@ module Ast (
   UseStmt_ (..),
   Decl (..),
   Expr (..),
+  exprSpan,
   BinOp_ (..),
   UnaryOp_ (..),
   Call_ (..),

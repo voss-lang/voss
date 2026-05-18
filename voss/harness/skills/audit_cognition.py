@@ -61,7 +61,7 @@ def run(
         "paragraph starting with 'PROPOSAL:'."
     )
 
-    asyncio.run(
+    result = asyncio.run(
         run_turn(
             prompt,
             tools=tools,
@@ -75,3 +75,7 @@ def run(
             session_id=record.id,
         )
     )
+    # Surface the proposal (read-only — stdout only, never a file write).
+    final = getattr(result, "final", "") or ""
+    if final.strip():
+        click.echo(final)

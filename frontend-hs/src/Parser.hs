@@ -130,7 +130,7 @@ decodeEscaped inner = go 0 ""
                          in if endEx <= n && all (\j -> isHexDigit (inner !! j)) [start .. endEx - 1]
                               then case readHex (slice start endEx) of
                                 [(v, [])]
-                                  | v >= 0 && v <= Char.ord Char.maxBound ->
+                                  | v >= 0 && v <= Char.ord (maxBound :: Char) ->
                                       go endEx (Char.chr v : acc)
                                   | otherwise -> go (i + 2) (e : '\\' : acc)
                                 _ -> go (i + 2) (e : '\\' : acc)
