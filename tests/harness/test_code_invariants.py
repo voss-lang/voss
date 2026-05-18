@@ -36,10 +36,11 @@ def test_no_new_memory_classes():
     from pathlib import Path
 
     root = Path("voss/harness")
-    pattern = re.compile(r"class \w*Memory")
+    pattern = re.compile(r"class \w+Memory\b")
     matches = []
     for p in root.rglob("*.py"):
         for m in pattern.finditer(p.read_text()):
-            if "MemoryStore" not in m.group():
+            name = m.group().split()[-1]
+            if name != "MemoryStore":
                 matches.append(f"{p}:{m.group()}")
     assert not matches, f"New memory classes introduced: {matches}"

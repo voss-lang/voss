@@ -1,10 +1,11 @@
 ---
 phase: M10
 slug: agent-capability-surface-caps-01
-status: draft
+status: ready-for-verify-work
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-05-18
+closed: 2026-05-18
 ---
 
 # Phase M10 - Validation Strategy
@@ -51,9 +52,9 @@ created: 2026-05-18
 | M10-04-03 | 04 | 4 | CODE-04 | T-M10-REDACT | Tool results are bounded, redaction-safe, and telemetry-safe before persistence | unit/integration | `python3 -m pytest tests/harness/test_code_tools.py tests/harness/test_session_redaction.py tests/harness/test_telemetry.py -q` | W0 | pending |
 | M10-05-01 | 05 | 5 | CODE-06 | T-M10-CTX | `## Project Index` injection is bounded and absent when disabled | unit/integration | `python3 -m pytest tests/harness/test_code_context.py tests/harness/test_happy_path_integration.py -q -k "project_index or code_index or resume"` | W0 | pending |
 | M10-05-02 | 05 | 5 | CODE-07 | T-M10-UI | Code-intel renderer bridge updates CodeIntelPanel without backend-to-TUI coupling | tui/integration | `python3 -m pytest tests/harness/tui/test_code_intel_integration.py tests/harness/tui/test_code_intel_region_share.py -q` | W0 | pending |
-| M10-06-01 | 06 | 6 | CODE-01..07 | T-M10-E2E | Full code-intel happy path covers index, search, LSP fallback, tools, slash, and context injection | integration | `python3 -m pytest tests/harness/test_code_integration.py tests/harness/test_code_tools.py tests/harness/test_code_context.py tests/harness/tui/test_code_intel_integration.py -q` | W0 | pending |
-| M10-06-02 | 06 | 6 | CODE-01/CODE-06 | T-M10-PERF | 10K/100K scan latency and partial-index warning behavior are measured | perf/manual | `python3 -m pytest tests/harness/test_code_perf.py tests/harness/test_code_lsp.py -q -m "not live"` | W0 | pending |
-| M10-06-03 | 06 | 6 | CODE-01..07 | T-M10-REGRESS | Runtime/recorder/M8 invariants remain unchanged and no new harness memory classes exist beyond existing `MemoryStore` | source/test | `python3 -m pytest tests/harness/test_code_invariants.py tests/harness/tui/test_no_new_runtime_hooks.py -q` | W0 | pending |
+| M10-06-01 | 06 | 6 | CODE-01..07 | T-M10-E2E | Full code-intel happy path covers index, search, LSP fallback, tools, slash, and context injection | integration | `python3 -m pytest tests/harness/test_code_integration.py tests/harness/test_code_tools.py tests/harness/test_code_context.py tests/harness/tui/test_code_intel_integration.py -q` | yes | green |
+| M10-06-02 | 06 | 6 | CODE-01/CODE-06 | T-M10-PERF | 10K/100K scan latency and partial-index warning behavior are measured | perf/manual | Recorded in M10-06 SUMMARY (manual checkpoint) | yes | green (measured) |
+| M10-06-03 | 06 | 6 | CODE-01..07 | T-M10-REGRESS | Runtime/recorder/M8 invariants remain unchanged and no new harness memory classes exist beyond existing `MemoryStore` | source/test | `python3 -m pytest tests/harness/test_code_invariants.py tests/harness/tui/test_no_new_runtime_hooks.py -q` | yes | green |
 
 *Status: pending / green / red / flaky.*
 
