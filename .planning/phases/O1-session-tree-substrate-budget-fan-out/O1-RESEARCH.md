@@ -646,19 +646,20 @@ O1 is compatible with resume-as-currently-implemented because the two persistenc
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Depth parameter for `run_subagent` (currently pinned as missing by `test_subagent_recursion.py`)**
    - What we know: `test_subagent_recursion.py` pins that `run_subagent` has no `depth`/`max_depth` param; the test asserts this gap.
    - What's unclear: Does O1 add `parent_node` to `run_subagent` (for tree linkage), which then makes the test need updating? Or does O1 add a separate `node` kwarg, leaving the depth-guard gap untouched?
-   - Recommendation: Add `node: SessionTreeNode | None = None` as an optional kwarg. This does NOT add `max_depth` — the pinning test continues to pass. The test only checks for `depth` and `max_depth`. Explicitly do NOT add depth in O1.
+   - RESOLVED: Add `node: SessionTreeNode | None = None` as an optional kwarg. This does NOT add `max_depth` — the pinning test continues to pass. The test only checks for `depth` and `max_depth`. Explicitly do NOT add depth in O1.
 
 2. **Who creates the root `SessionTreeNode`?**
    - What we know: `run_subagent` is the child-creation boundary. But a ROOT node (for the parent session itself) needs to be created somewhere.
    - What's unclear: Is the root created when the parent `run_turn` starts (in `_run_turn_exec`), or is it a lazy create-on-first-spawn?
-   - Recommendation: Lazy: create the root `SessionTreeNode` on first `run_subagent` call for a given `run_turn`. The `RunRecorder.id` can serve as the root node id basis. This avoids adding root-creation to every `run_turn` call (non-additive).
+   - RESOLVED: Lazy: create the root `SessionTreeNode` on first `run_subagent` call for a given `run_turn`. The `RunRecorder.id` can serve as the root node id basis. This avoids adding root-creation to every `run_turn` call (non-additive).
 
 3. **`test_subagent_recursion.py` update scope**
+   - RESOLVED (all three sub-points below confirm the test remains unmodified):
    - The test `test_subagent_tool_marked_mutating` will continue to pass (O1 doesn't change mutating status).
    - The signature tests check for absence of `depth`/`max_depth` — O1 doesn't add those.
    - If O1 adds `node: SessionTreeNode | None = None` and `reserve: int = 0`, the signature tests in `test_subagent_recursion.py` should continue to pass (they test for ABSENCE of specific params, not exact signatures).
