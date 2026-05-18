@@ -18,6 +18,17 @@ from voss.harness.tui.renderer import TextualRenderer
 from voss.harness.tui.widgets import TurnView
 
 
+def _input_text(input_bar) -> str | None:
+    if hasattr(input_bar, "text"):
+        return input_bar.text
+    if hasattr(input_bar, "value"):
+        return input_bar.value
+    try:
+        return input_bar.query_one("#input-textarea").text
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _plan(rationale: str = "do the thing", steps: list[dict] | None = None):
     """Build a duck-typed Plan-like object the renderer accepts."""
     step_objs = [
@@ -63,10 +74,8 @@ async def test_pilot_input_submit_triggers_widget() -> None:
         await pilot.press("h", "i")
         await pilot.pause()
         input_bar = pilot.app.query_one("#input")
-        # Textual Input widget exposes `.value`; just confirm it captured the keys.
-        value = getattr(input_bar, "value", None) or getattr(
-            getattr(input_bar, "query", lambda *_: None)("Input"), "value", ""
-        )
+        # T8 migrates InputBar from Input.value to TextArea-backed .text.
+        value = _input_text(input_bar)
         # Tolerate either path — just make sure the keys reached the bar.
         if value is not None:
             assert "h" in value.lower() or "i" in value.lower(), value
