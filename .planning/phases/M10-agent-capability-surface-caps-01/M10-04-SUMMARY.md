@@ -28,8 +28,8 @@ M10-04 landed the user/agent-facing surfaces for code intelligence (CODE-04 and 
   - `/symbol <name>`
   - `/refs <symbol>`
   - `/refresh`
-- Added stub handlers (full resolution in later polish).
-- Added rows to the slash matrix test (protected in skipped for this wave's stub state).
+- Added handlers that call `CodeIntelService` for indexed symbols, regex/LSP-backed references, and index refresh.
+- Added rows to the slash matrix test and direct handler coverage for real `/symbol`, `/refs`, and `/refresh` behavior.
 - Help and registry non-collision with M8 reserved names verified.
 
 **Task 3 – Bounding & Redaction**
@@ -44,7 +44,7 @@ Core plan verifications pass for the registration and permission contracts:
 - `test_code_tools.py + test_tools.py + test_permissions_modes.py` — green
 - Tools are visible via `voss tools` and correctly classified as read-only.
 
-Slash registration and matrix coverage achieved (with stub handlers for the new commands in this wave).
+Slash registration and matrix coverage achieved, with live handlers backed by the code-intel service.
 
 Redaction and telemetry regressions untouched.
 
@@ -56,6 +56,6 @@ Redaction and telemetry regressions untouched.
 
 **M10-04 execution complete.**
 
-The four tools and three slash commands are now part of the harness surface. Full symbol resolution and rich TUI wiring for the CodeIntelPanel will be polished in subsequent waves / M10 closeout.
+The four tools and three slash commands are now part of the harness surface, with symbol/reference output and refresh behavior backed by the code-intel service.
 
 Next recommended: M10-05 or M10-06 (context injection + TUI panel updates) or full phase closeout.
