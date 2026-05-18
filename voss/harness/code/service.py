@@ -9,16 +9,17 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import re
 
 from . import ast_grep, regex_fallback
-from .index import build_index
+from .index import build_index, find_symbols, list_files
 from .lsp_registry import LspRegistry
-from .models import CodeLocation, ReferenceHit, SearchHit
+from .models import CodeLocation, ReferenceHit, SearchHit, SymbolHit
 
 
 class CodeIntelService:
     def __init__(self, cwd: Path, session_id: str | None = None):
-        self.cwd = cwd
+        self.cwd = cwd.resolve()
         self.session_id = session_id
 
     @classmethod
@@ -41,8 +42,9 @@ class CodeIntelService:
         Tries ast-grep first, falls back to regex.
         Returns a source-tagged envelope.
         """
-        search_root = (self.cwd / path).resolve()
-        if not str(search_root).startswith(str(self.cwd.resolve())):
+        try:
+            search_root = self._resolve_inside_cwd(path)
+        except ValueError:
             return {"result": "error", "message": "path escapes cwd"}
 
         # Try ast-grep
@@ -79,6 +81,38 @@ class CodeIntelService:
             "source": hit.source,
         }
 
+    def _resolve_inside_cwd(self, path: str | None = ".") -> Path:
+        target = (self.cwd / (path or ".")).resolve()
+        target.relative_to(self.cwd)
+        return target
+
+    def _location_to_dict(self, location: CodeLocation, *, source: str, language: str | None = None) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "file": location.file,
+            "line": location.line,
+            "column": location.column,
+            "source": source,
+        }
+        if language:
+            out["language"] = language
+        if location.end_line is not None:
+            out["end_line"] = location.end_line
+        if location.end_column is not None:
+            out["end_column"] = location.end_column
+        return out
+
+    def _symbol_to_dict(self, hit: SymbolHit) -> dict[str, Any]:
+        return {
+            "name": hit.name,
+            "kind": hit.kind,
+            "file": hit.location.file,
+            "line": hit.location.line,
+            "column": hit.location.column,
+            "language": hit.language,
+            "source": hit.source,
+            "score": hit.score,
+        }
+
     # --- Lazy registries for semantic operations (M10-04) ---
     def _get_registry(self) -> LspRegistry:
         if not hasattr(self, "_registry") or self._registry is None:
@@ -87,24 +121,143 @@ class CodeIntelService:
 
     async def find_definition(
         self, symbol: str, path: str | None = None
-    ) -> list[CodeLocation] | dict[str, Any]:
-        """Best-effort definition lookup. Uses index + LSP when possible."""
-        # For M10-04 minimal, we delegate to LSP registry (which falls back gracefully)
-        reg = self._get_registry()
-        # Simple heuristic: use workspace symbol first if needed, then definition on first hit.
-        # For simplicity, assume caller gives a file:line or we use index.
-        # Here we do a basic pass-through to the registry for a placeholder file.
-        # In real use, tools will resolve symbol to location first.
-        # For now, return unavailable if we can't resolve easily.
-        # Better: use index to find candidates, then LSP.
-        # Simplified for wave 4:
-        return await reg.find_definition("python", f"file://{self.cwd}/dummy.py", 0, 0)  # placeholder until symbol resolution
+    ) -> dict[str, Any]:
+        """Best-effort definition lookup using the index, with optional LSP enrichment."""
+        try:
+            if path:
+                self._resolve_inside_cwd(path)
+            candidates = find_symbols(self.cwd, symbol, path=path, max_results=20)
+        except ValueError:
+            return {"result": "error", "message": "path escapes cwd"}
+
+        lsp_meta: dict[str, Any] | None = None
+        lsp_items: list[dict[str, Any]] = []
+        if candidates:
+            first = candidates[0]
+            target = (self.cwd / first.location.file).resolve()
+            try:
+                target.relative_to(self.cwd)
+                reg = self._get_registry()
+                lsp_result = await reg.find_definition(
+                    first.language,
+                    target.as_uri(),
+                    max(first.location.line - 1, 0),
+                    first.location.column,
+                )
+                if isinstance(lsp_result, list) and lsp_result:
+                    lsp_items = [
+                        self._location_to_dict(loc, source="lsp", language=first.language)
+                        for loc in lsp_result
+                    ]
+                elif isinstance(lsp_result, dict):
+                    lsp_meta = lsp_result
+            except Exception as exc:
+                lsp_meta = {"result": "lsp_unavailable", "reason": str(exc), "fallback": "index"}
+
+        items = lsp_items or [self._symbol_to_dict(hit) for hit in candidates]
+        return {
+            "result": "ok" if items else "not_found",
+            "symbol": symbol,
+            "source": "lsp" if lsp_items else "index",
+            "items": items,
+            "lsp": lsp_meta,
+        }
 
     async def find_references(
         self, symbol: str, path: str | None = None, max_results: int = 50
-    ) -> list[ReferenceHit] | dict[str, Any]:
-        reg = self._get_registry()
-        return await reg.find_references("python", f"file://{self.cwd}/dummy.py", 0, 0)
+    ) -> dict[str, Any]:
+        try:
+            search_root = self._resolve_inside_cwd(path)
+        except ValueError:
+            return {"result": "error", "message": "path escapes cwd"}
+
+        lsp_meta: dict[str, Any] | None = None
+        candidates = find_symbols(self.cwd, symbol, path=path, max_results=1)
+        if candidates:
+            first = candidates[0]
+            target = (self.cwd / first.location.file).resolve()
+            try:
+                target.relative_to(self.cwd)
+                reg = self._get_registry()
+                lsp_result = await reg.find_references(
+                    first.language,
+                    target.as_uri(),
+                    max(first.location.line - 1, 0),
+                    first.location.column,
+                )
+                if isinstance(lsp_result, list) and lsp_result:
+                    return {
+                        "result": "ok",
+                        "symbol": symbol,
+                        "source": "lsp",
+                        "items": [
+                            self._location_to_dict(hit.location, source=hit.source, language=hit.language)
+                            | ({"context": hit.context} if hit.context else {})
+                            for hit in lsp_result[:max_results]
+                        ],
+                        "truncated": len(lsp_result) > max_results,
+                    }
+                if isinstance(lsp_result, dict):
+                    lsp_meta = lsp_result
+            except Exception as exc:
+                lsp_meta = {"result": "lsp_unavailable", "reason": str(exc), "fallback": "regex"}
+
+        items = self._regex_references(symbol, search_root, max_results=max_results)
+        return {
+            "result": "ok" if items else "not_found",
+            "symbol": symbol,
+            "source": "regex",
+            "fallback": "find_references.fallback=regex",
+            "items": items,
+            "truncated": len(items) >= max_results,
+            "lsp": lsp_meta,
+        }
+
+    def find_symbols(self, symbol: str, path: str | None = None, max_results: int = 10) -> dict[str, Any]:
+        try:
+            if path:
+                self._resolve_inside_cwd(path)
+            hits = find_symbols(self.cwd, symbol, path=path, max_results=max_results)
+        except ValueError:
+            return {"result": "error", "message": "path escapes cwd"}
+        return {
+            "result": "ok" if hits else "not_found",
+            "symbol": symbol,
+            "source": "index",
+            "items": [self._symbol_to_dict(hit) for hit in hits],
+            "truncated": len(hits) >= max_results,
+        }
+
+    def _regex_references(self, symbol: str, root: Path, *, max_results: int) -> list[dict[str, Any]]:
+        pattern = re.compile(rf"\b{re.escape(symbol)}\b")
+        root = root.resolve()
+        files = list_files(self.cwd)
+        hits: list[dict[str, Any]] = []
+        for rel, lang in files:
+            full = (self.cwd / rel).resolve()
+            try:
+                full.relative_to(root)
+            except ValueError:
+                continue
+            if not full.is_file():
+                continue
+            try:
+                lines = full.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except OSError:
+                continue
+            for line_no, line in enumerate(lines, 1):
+                if pattern.search(line):
+                    hits.append({
+                        "file": rel,
+                        "line": line_no,
+                        "column": 0,
+                        "language": lang,
+                        "source": "regex",
+                        "context": line[:120],
+                    })
+                    if len(hits) >= max_results:
+                        return hits
+        return hits
 
     async def code_refresh(self, paths: list[str] | None = None) -> dict[str, Any]:
         """Rebuild the project index (cache only)."""

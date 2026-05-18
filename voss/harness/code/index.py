@@ -12,11 +12,12 @@ import os
 import re
 import sqlite3
 import time
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from .models import IndexSummary
+from .models import CodeLocation, IndexSummary, SymbolHit
 
 DB_NAME = "index.db"
 SCHEMA_VERSION = 1
@@ -89,11 +90,18 @@ def _discover_files(root: Path) -> list[Path]:
     return files
 
 
-def _extract_symbols(text: str, language: str) -> list[str]:
+def _extract_symbols(text: str, language: str) -> list[tuple[str, int]]:
     pattern = SYMBOL_PATTERNS.get(language)
     if not pattern:
         return []
-    return pattern.findall(text)[:200]  # safety cap
+    symbols: list[tuple[str, int]] = []
+    for match in pattern.finditer(text):
+        name = match.group(1)
+        line = text.count("\n", 0, match.start()) + 1
+        symbols.append((name, line))
+        if len(symbols) >= 200:
+            break
+    return symbols
 
 
 def _get_db_path(cwd: Path) -> Path:
@@ -154,6 +162,7 @@ def _needs_rebuild(db_path: Path) -> bool:
 
 def build_index(cwd: Path) -> Path:
     """Full deterministic rebuild of the project index."""
+    cwd = cwd.resolve()
     db_path = _get_db_path(cwd)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -164,9 +173,10 @@ def build_index(cwd: Path) -> Path:
     conn = sqlite3.connect(db_path)
     try:
         _ensure_schema(conn)
+        conn.execute("DELETE FROM symbols")
+        conn.execute("DELETE FROM files")
 
-        files = _discover_files(cwd)
-        now = time.time()
+        files = sorted(_discover_files(cwd), key=lambda p: str(p.relative_to(cwd)))
 
         for f in files:
             try:
@@ -174,18 +184,19 @@ def build_index(cwd: Path) -> Path:
                 lang = LANGUAGE_EXTS.get(f.suffix.lower(), "unknown")
                 mtime = f.stat().st_mtime
                 content = f.read_text(encoding="utf-8", errors="ignore")
+                digest = hashlib.sha256(content.encode("utf-8", errors="ignore")).hexdigest()
 
                 cur = conn.execute(
                     "INSERT OR REPLACE INTO files (path, lang, mtime, hash) VALUES (?, ?, ?, ?)",
-                    (rel, lang, mtime, str(hash(content))),
+                    (rel, lang, mtime, digest),
                 )
                 file_id = cur.lastrowid
 
                 symbols = _extract_symbols(content, lang)
-                for name in symbols:
+                for name, line in symbols:
                     conn.execute(
                         "INSERT INTO symbols (file_id, name, kind, line) VALUES (?, ?, ?, ?)",
-                        (file_id, name, "symbol", 0),
+                        (file_id, name, "symbol", line),
                     )
             except Exception:
                 continue  # never let one bad file kill the scan
@@ -203,8 +214,68 @@ def refresh(cwd: Path, paths: Iterable[str] | None = None) -> Path:
     return build_index(cwd)
 
 
+def list_files(cwd: Path) -> list[tuple[str, str]]:
+    """Return indexed files as (relative path, language), rebuilding if needed."""
+    cwd = cwd.resolve()
+    db_path = _get_db_path(cwd)
+    if not db_path.exists() or _needs_rebuild(db_path):
+        build_index(cwd)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT path, lang FROM files ORDER BY path"
+        ).fetchall()
+        return [(path, lang) for path, lang in rows]
+    finally:
+        conn.close()
+
+
+def find_symbols(cwd: Path, query: str, path: str | None = None, max_results: int = 20) -> list[SymbolHit]:
+    """Find indexed symbols by exact or substring match."""
+    cwd = cwd.resolve()
+    db_path = _get_db_path(cwd)
+    if not db_path.exists() or _needs_rebuild(db_path):
+        build_index(cwd)
+
+    params: list[object] = [query, f"%{query}%", max_results]
+    path_filter = ""
+    if path:
+        rel_root = (cwd / path).resolve().relative_to(cwd)
+        rel_text = str(rel_root)
+        path_filter = "AND (files.path = ? OR files.path LIKE ?)"
+        params = [query, f"%{query}%", rel_text, f"{rel_text.rstrip('/')}/%", max_results]
+
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT symbols.name, symbols.kind, symbols.line, files.path, files.lang
+            FROM symbols
+            JOIN files ON symbols.file_id = files.id
+            WHERE (symbols.name = ? OR symbols.name LIKE ?) {path_filter}
+            ORDER BY CASE WHEN symbols.name = ? THEN 0 ELSE 1 END, files.path, symbols.line
+            LIMIT ?
+            """,
+            (*params[:-1], query, params[-1]) if not path_filter else (*params[:-1], query, params[-1]),
+        ).fetchall()
+        return [
+            SymbolHit(
+                name=name,
+                kind=kind or "symbol",
+                location=CodeLocation(file=file_path, line=int(line or 1), column=0),
+                language=lang or "unknown",
+                source="index",
+            )
+            for name, kind, line, file_path, lang in rows
+        ]
+    finally:
+        conn.close()
+
+
 def summarize(cwd: Path, max_modules: int = 20) -> IndexSummary:
     """Return a compact, snippet-free summary suitable for system context."""
+    cwd = cwd.resolve()
     db_path = _get_db_path(cwd)
     if not db_path.exists() or _needs_rebuild(db_path):
         build_index(cwd)

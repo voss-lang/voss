@@ -30,11 +30,13 @@ class LspRegistry:
         self._config = load_lsp_config(cwd)
 
     async def _spawn(self, cfg: LspServerConfig) -> asyncio.subprocess.Process | None:
+        if not cfg.command:
+            return None
         cmd = shutil.which(cfg.command[0])
         if not cmd:
             return None
 
-        full_cmd = [cmd] + cfg.args
+        full_cmd = [cmd, *cfg.command[1:], *cfg.args]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *full_cmd,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import signal as _signal
 import subprocess
@@ -482,25 +483,25 @@ def make_toolset(
     async def code_search(pattern: str, path: str = ".", max_results: int = 50) -> str:
         svc = _code_service()
         res = await svc.search(pattern, path=path, max_results=max_results)
-        return str(res)
+        return json.dumps(res, indent=2)
 
     @tool(name="find_definition", description="Find definition of a symbol using LSP + index.")
     async def find_definition(symbol: str, path: str | None = None) -> str:
         svc = _code_service()
         res = await svc.find_definition(symbol, path=path)
-        return str(res)
+        return json.dumps(res, indent=2)
 
     @tool(name="find_references", description="Find references to a symbol using LSP + index.")
     async def find_references(symbol: str, path: str | None = None, max_results: int = 50) -> str:
         svc = _code_service()
         res = await svc.find_references(symbol, path=path, max_results=max_results)
-        return str(res)
+        return json.dumps(res, indent=2)
 
     @tool(name="code_refresh", description="Rebuild the project code index (cache only, read-only to source).")
     async def code_refresh(paths: list[str] | None = None) -> str:
         svc = _code_service()
         res = await svc.code_refresh(paths)
-        return str(res)
+        return json.dumps(res, indent=2)
 
     result["code_search"] = ToolEntry(descriptor=code_search, is_mutating=False)
     result["find_definition"] = ToolEntry(descriptor=find_definition, is_mutating=False)

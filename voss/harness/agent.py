@@ -425,6 +425,7 @@ async def run_turn(
     cognition=None,
     prior_context: dict | None = None,
     voss_md_text: str | None = None,
+    project_index_text: str = "",
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -467,6 +468,7 @@ async def run_turn(
             cognition=cognition,
             prior_context=prior_context,
             voss_md_text=voss_md_text,
+            project_index_text=project_index_text,
         )
     except BaseException as e:
         _tel_ok = False
@@ -492,6 +494,7 @@ async def _run_turn_exec(
     cognition=None,
     prior_context: dict | None = None,
     voss_md_text: str | None = None,
+    project_index_text: str = "",
 ) -> TurnResult:
     """T1-05: iteration-loop turn driver.
 
@@ -536,9 +539,6 @@ async def _run_turn_exec(
         prior_context_text = _compose_prior_context_block(prior_context)
         voss_md_block = f"# VOSS.md\n{voss_md_text}" if voss_md_text else ""
         # T4 CACHE-01: cached static prefix as block list; rider (below, per-iter) stays a string and remains uncached.
-        # M10-05: project_index_text is threaded from CLI session start
-        project_index_text = getattr(ctx, "project_index_text", "") if hasattr(ctx, "project_index_text") else ""
-
         sys_blocks = _compose_system_blocks(
             voss_md_block=voss_md_block,
             cognition_text=cognition_text,
