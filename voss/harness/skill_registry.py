@@ -146,4 +146,49 @@ def default_skill_registry() -> SkillRegistry:
             mutating=False,
         )
     )
+
+    def add_test(ctx: Any, _args: list[str]) -> None:
+        from .skills.add_test import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="add-test",
+            description="Locate a public function and generate a failing pytest test.",
+            handler=add_test,
+            mutating=True,
+        )
+    )
+
+    def port_py_to_voss(ctx: Any, args: list[str]) -> None:
+        from .skills.port_py_to_voss import run
+
+        run(
+            cwd=ctx.cwd,
+            provider=ctx.provider,
+            history=ctx.history,
+            record=ctx.record,
+            renderer=ctx.renderer,
+            tools=ctx.tools,
+            gate=ctx.gate,
+            source=args[0] if args else None,
+        )
+
+    registry.register(
+        SkillEntry(
+            id="port-py-to-voss",
+            description="Translate a Python source file to .voss.",
+            handler=port_py_to_voss,
+            mutating=True,
+        )
+    )
     return registry
