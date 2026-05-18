@@ -102,10 +102,11 @@ def test_local_block_notice_dismiss_cancels_timer() -> None:
     from voss.harness.tui.widgets import LocalBlockNotice
 
     notice = LocalBlockNotice("current model has no vision — image not attached")
-    notice._timer = MagicMock()
+    timer = MagicMock()
+    notice._timer = timer
     notice.remove = MagicMock()
     notice.dismiss()
-    notice._timer.stop.assert_called_once()
+    timer.stop.assert_called_once()
     notice.remove.assert_called_once()
 
 
