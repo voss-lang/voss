@@ -1,0 +1,273 @@
+{
+  "_node": "Program",
+  "span": {
+    "file": "memory_working.voss",
+    "lines": [
+      0,
+      0
+    ],
+    "cols": [
+      0,
+      0
+    ],
+    "synthetic": false
+  },
+  "body": [
+    {
+      "_node": "LetStmt",
+      "span": {
+        "file": "memory_working.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "scratchpad",
+      "type_annot": {
+        "_node": "TypeRef",
+        "span": {
+          "file": "memory_working.voss",
+          "lines": [
+            0,
+            0
+          ],
+          "cols": [
+            0,
+            0
+          ],
+          "synthetic": false
+        },
+        "name": {
+          "_node": "QualName",
+          "span": {
+            "file": "memory_working.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "parts": [
+            "memory",
+            "working"
+          ]
+        },
+        "generics": [],
+        "kwargs": [
+          {
+            "_node": "TypeKwarg",
+            "span": {
+              "file": "memory_working.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": "capacity",
+            "value": {
+              "_node": "IntLit",
+              "span": {
+                "file": "memory_working.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "value": 8
+            }
+          }
+        ]
+      },
+      "value": null
+    },
+    {
+      "_node": "FnDecl",
+      "span": {
+        "file": "memory_working.voss",
+        "lines": [
+          0,
+          0
+        ],
+        "cols": [
+          0,
+          0
+        ],
+        "synthetic": false
+      },
+      "name": "note",
+      "params": [
+        {
+          "_node": "Param",
+          "span": {
+            "file": "memory_working.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "name": "content",
+          "type_annot": {
+            "_node": "TypeRef",
+            "span": {
+              "file": "memory_working.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "name": {
+              "_node": "QualName",
+              "span": {
+                "file": "memory_working.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "parts": [
+                "string"
+              ]
+            },
+            "generics": [],
+            "kwargs": []
+          },
+          "default": null
+        }
+      ],
+      "return_type": null,
+      "body": [
+        {
+          "_node": "ExprStmt",
+          "span": {
+            "file": "memory_working.voss",
+            "lines": [
+              0,
+              0
+            ],
+            "cols": [
+              0,
+              0
+            ],
+            "synthetic": false
+          },
+          "expr": {
+            "_node": "Call",
+            "span": {
+              "file": "memory_working.voss",
+              "lines": [
+                0,
+                0
+              ],
+              "cols": [
+                0,
+                0
+              ],
+              "synthetic": false
+            },
+            "callee": {
+              "_node": "Member",
+              "span": {
+                "file": "memory_working.voss",
+                "lines": [
+                  0,
+                  0
+                ],
+                "cols": [
+                  0,
+                  0
+                ],
+                "synthetic": false
+              },
+              "obj": {
+                "_node": "Identifier",
+                "span": {
+                  "file": "memory_working.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": "scratchpad"
+              },
+              "attr": "add"
+            },
+            "args": [
+              {
+                "_node": "Arg",
+                "span": {
+                  "file": "memory_working.voss",
+                  "lines": [
+                    0,
+                    0
+                  ],
+                  "cols": [
+                    0,
+                    0
+                  ],
+                  "synthetic": false
+                },
+                "name": null,
+                "value": {
+                  "_node": "Identifier",
+                  "span": {
+                    "file": "memory_working.voss",
+                    "lines": [
+                      0,
+                      0
+                    ],
+                    "cols": [
+                      0,
+                      0
+                    ],
+                    "synthetic": false
+                  },
+                  "name": "content"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "decorators": []
+    }
+  ]
+}

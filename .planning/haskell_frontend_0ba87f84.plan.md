@@ -4,22 +4,22 @@ overview: Introduce a Haskell front end for the .voss compiler in stages, starti
 todos:
   - id: lock-contract
     content: Document and expand the AST JSON contract and parser golden coverage.
-    status: pending
+    status: completed
   - id: hs-skeleton
     content: Create the Haskell frontend package with AST ADTs and exact JSON encoding.
-    status: pending
+    status: completed
   - id: parser-parity
     content: Implement the Haskell parser and compare normalized AST output against Python fixtures.
     status: pending
   - id: py-adapter
     content: Add JSON-to-dataclass reconstruction and a backend selector behind `VOSS_FRONTEND`.
-    status: pending
+    status: completed
   - id: typed-ir
     content: Add an experimental Haskell typed IR layer after parser parity is stable.
-    status: pending
+    status: completed
   - id: ci-release
     content: Add Haskell CI first, then evaluate bundled binary distribution later.
-    status: pending
+    status: completed
 isProject: false
 ---
 

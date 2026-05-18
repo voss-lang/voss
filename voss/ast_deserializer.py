@@ -1,582 +1,828 @@
-"""Reconstruct `ast_nodes` trees from `ast_serializer.to_dict` JSON."""
-
 from __future__ import annotations
 
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable
 
-from . import ast_nodes as A
+from .ast_nodes import (
+    AgentDecl,
+    AgentOptions,
+    Arg,
+    BinOp,
+    BoolLit,
+    BudgetArg,
+    Call,
+    ClassDecl,
+    ClassField,
+    ConfidenceGate,
+    CtxBlock,
+    Decorator,
+    DictLit,
+    Expr,
+    ExprPattern,
+    ExprStmt,
+    FloatLit,
+    FnDecl,
+    Identifier,
+    IfStmt,
+    IncludeStmt,
+    Index,
+    IntLit,
+    Lambda,
+    LetStmt,
+    ListLit,
+    MatchCase,
+    MatchStmt,
+    Member,
+    Node,
+    NullLit,
+    Param,
+    Pattern,
+    Program,
+    PromptDecl,
+    QualName,
+    ReturnStmt,
+    SimilarPattern,
+    SpawnExpr,
+    Stmt,
+    StringLit,
+    TryCatch,
+    TypeExpr,
+    TypeKwarg,
+    TypeRef,
+    UnaryOp,
+    UseStmt,
+    WildcardPattern,
+    WithinFallback,
+    YieldStmt,
+)
+from .ast_nodes import Span
 
-U = TypeVar("U")
+
+def program_from_dict(data: dict[str, Any]) -> Program:
+    """Rebuild a frozen AST `Program` from dict/JSON emitted by `voss.ast_serializer.to_dict`.
+
+    Validates shapes and raises ``ValueError`` with a JSON-ish path suffix for pinpointing failures.
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"program_from_dict expects dict, got {type(data).__name__} ($)")
+    node = _deserialize_node(data, path="$")
+    if not isinstance(node, Program):
+        raise ValueError(f"expected root Program, got {type(node).__name__} ($)")
+    return node
 
 
-def _opt(conv: Callable[[Any], U], x: Any) -> U | None:
-    if x is None:
-        return None
-    return conv(x)
+def _ctx(msg: str, path: str) -> str:
+    return f"{msg} ({path})"
 
 
-def _span(d: dict[str, Any]) -> A.Span:
+def _require_keys(obj: dict[str, Any], path: str, *keys: str) -> None:
+    missing = [k for k in keys if k not in obj]
+    if missing:
+        raise ValueError(_ctx(f"object missing keys {missing!r}, has {sorted(obj)!r}", path))
+
+
+def _expect_list(value: Any, path: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise ValueError(_ctx(f"expected JSON array, got {type(value).__name__}", path))
+    return value
+
+
+def _parse_span(raw: Any, path: str) -> Span:
+    d = raw
+    if not isinstance(d, dict):
+        raise ValueError(_ctx("span must be an object", path))
+    _require_keys(d, path, "file", "lines", "cols", "synthetic")
     lines = d["lines"]
     cols = d["cols"]
-    return A.Span(
-        file=d["file"],
-        line_start=int(lines[0]),
-        col_start=int(cols[0]),
-        line_end=int(lines[1]),
-        col_end=int(cols[1]),
-        synthetic=bool(d.get("synthetic", False)),
+    if not isinstance(lines, list) or len(lines) != 2:
+        raise ValueError(_ctx("'lines' must be [start, end]", path + ".lines"))
+    if not isinstance(cols, list) or len(cols) != 2:
+        raise ValueError(_ctx("'cols' must be [start, end]", path + ".cols"))
+    try:
+        ls, le = int(lines[0]), int(lines[1])
+        cs, ce = int(cols[0]), int(cols[1])
+    except (TypeError, ValueError) as e:
+        raise ValueError(_ctx(f"non-integer span coordinates: {lines!r} / {cols!r}: {e}", path)) from e
+    fi = d["file"]
+    if not isinstance(fi, str):
+        raise ValueError(_ctx(f"'file' must be str", path + ".file"))
+    syn_raw = d["synthetic"]
+    if syn_raw is None:
+        raise ValueError(_ctx("'synthetic' must be present (bool)", path + ".synthetic"))
+    return Span(file=fi, line_start=ls, col_start=cs, line_end=le, col_end=ce, synthetic=bool(syn_raw))
+
+
+def _is_span_bucket(d: dict[str, Any]) -> bool:
+    return (
+        "_node" not in d
+        and "file" in d
+        and "lines" in d
+        and "cols" in d
+        and "synthetic" in d
     )
 
 
-def _node(d: Any) -> A.Node:
-    if not isinstance(d, dict):
-        raise ValueError(f"expected AST object dict, got {type(d).__name__}")
-    if "lines" in d and "cols" in d and "file" in d and "_node" not in d:
-        raise ValueError("Span not valid as Node; use _span only inside node payloads")
-    tag = d.get("_node")
-    if not tag or not isinstance(tag, str):
-        raise ValueError(f"missing or invalid _node in {d!r}")
-    builder = _BUILDERS.get(tag)
-    if builder is None:
-        raise ValueError(f"unknown AST node type: {tag!r}")
-    return builder(d)
+def _deserialize_node(data: dict[str, Any], path: str) -> Node:
+    if "_node" not in data and _is_span_bucket(data):
+        raise ValueError(_ctx("span object must not appear where a Node is required", path))
+    kind = data.get("_node")
+    if kind is None:
+        raise ValueError(_ctx("missing '_node' discriminator", path))
+    if not isinstance(kind, str):
+        raise ValueError(_ctx(f"_node must be str, got {type(kind).__name__}", path + "._node"))
+    fn = _DISPATCH.get(kind)
+    if fn is None:
+        raise ValueError(_ctx(f"unknown AST node type {_node_repr(kind)}", path))
+    _require_keys(data, path, "span")
+    span = _parse_span(data["span"], path + ".span")
+    return fn(span, data, base_path=path)
 
 
-def _expr(d: Any) -> A.Expr:
-    n = _node(d)
-    if not isinstance(n, A.Expr):
-        raise ValueError(f"expected Expr, got {type(n).__name__}")
-    return n
+def _node_repr(kind: str) -> str:
+    try:
+        return repr(kind)
+    except Exception:
+        return "<unprintable _node>"
 
 
-def _stmt(d: Any) -> A.Stmt:
-    n = _node(d)
-    if not isinstance(n, A.Stmt):
-        raise ValueError(f"expected Stmt, got {type(n).__name__}")
-    return n
+def _deserialize_subnode(val: Any, path: str) -> Node:
+    if not isinstance(val, dict):
+        raise ValueError(_ctx(f"expected node object (dict)", path))
+    node = _deserialize_node(val, path)
+    return node
 
 
-def _decl(d: Any) -> A.Decl:
-    n = _node(d)
-    if not isinstance(n, A.Decl):
-        raise ValueError(f"expected Decl, got {type(n).__name__}")
-    return n
-
-
-def _type_expr(d: Any) -> A.TypeExpr:
-    n = _node(d)
-    if not isinstance(n, A.TypeExpr):
-        raise ValueError(f"expected TypeExpr, got {type(n).__name__}")
-    return n
-
-
-def _pattern(d: Any) -> A.Pattern:
-    n = _node(d)
-    if not isinstance(n, A.Pattern):
-        raise ValueError(f"expected Pattern, got {type(n).__name__}")
-    return n
-
-
-def _gate_or_expr(d: Any) -> A.Expr | A.ConfidenceGate:
-    n = _node(d)
-    if isinstance(n, (A.Expr, A.ConfidenceGate)):
-        return n
-    raise ValueError(f"expected Expr or ConfidenceGate, got {type(n).__name__}")
-
-
-def _type_kwarg_value(d: Any) -> A.Node:
-    n = _node(d)
-    if not isinstance(n, (A.Expr, A.BudgetArg, A.QualName, A.TypeExpr)):
-        # literals and BudgetArg/QualName are Node subclasses
-        pass
-    if isinstance(
-        n,
-        (
-            A.IntLit,
-            A.FloatLit,
-            A.StringLit,
-            A.BoolLit,
-            A.NullLit,
-            A.BudgetArg,
-            A.QualName,
-        ),
-    ):
-        return n
-    raise ValueError(f"invalid type kwarg value node: {type(n).__name__}")
-
-
-def _stmts(arr: Any) -> tuple[A.Stmt, ...]:
-    if not isinstance(arr, list):
-        raise ValueError(f"expected stmt list, got {type(arr).__name__}")
-    return tuple(_stmt(x) for x in arr)
-
-
-def _exprs(arr: Any) -> tuple[A.Expr, ...]:
-    if not isinstance(arr, list):
-        raise ValueError(f"expected expr list, got {type(arr).__name__}")
-    return tuple(_expr(x) for x in arr)
-
-
-def _params(arr: Any) -> tuple[A.Param, ...]:
-    if not isinstance(arr, list):
-        raise ValueError(f"expected param list, got {type(arr).__name__}")
-    return tuple(_node(x) for x in arr)  # type: ignore[return-value]
-
-
-def _args(arr: Any) -> tuple[A.Arg, ...]:
-    if not isinstance(arr, list):
-        raise ValueError(f"expected arg list, got {type(arr).__name__}")
-    return tuple(_node(x) for x in arr)  # type: ignore[return-value]
-
-
-def _decorators(arr: Any) -> tuple[A.Decorator, ...]:
-    if not isinstance(arr, list):
-        raise ValueError(f"expected decorators list, got {type(arr).__name__}")
-    return tuple(_node(x) for x in arr)  # type: ignore[return-value]
-
-
-def _match_cases(arr: Any) -> tuple[A.MatchCase, ...]:
-    if not isinstance(arr, list):
-        raise ValueError(f"expected match cases list, got {type(arr).__name__}")
-    return tuple(_node(x) for x in arr)  # type: ignore[return-value]
-
-
-def _type_exprs(arr: Any) -> tuple[A.TypeExpr, ...]:
-    if not isinstance(arr, list):
-        return ()
-    return tuple(_type_expr(x) for x in arr)
-
-
-def _type_kwargs(arr: Any) -> tuple[A.TypeKwarg, ...]:
-    if not isinstance(arr, list):
-        return ()
-    return tuple(_node(x) for x in arr)  # type: ignore[return-value]
-
-
-def _dict_items(arr: Any) -> tuple[tuple[A.Expr, A.Expr], ...]:
-    if not isinstance(arr, list):
-        raise ValueError(f"expected dict items list, got {type(arr).__name__}")
-    out: list[tuple[A.Expr, A.Expr]] = []
-    for pair in arr:
-        if not isinstance(pair, list) or len(pair) != 2:
-            raise ValueError(f"dict item must be [k,v], got {pair!r}")
-        out.append((_expr(pair[0]), _expr(pair[1])))
+def _stmt_tuple(raw: Any, path: str) -> tuple[Stmt, ...]:
+    lst = _expect_list(raw, path)
+    out: list[Stmt] = []
+    for i, item in enumerate(lst):
+        stmt = _deserialize_subnode(item, f"{path}[{i}]")
+        if not isinstance(stmt, Stmt):
+            raise ValueError(_ctx(f"expected Stmt, got {type(stmt).__name__}", f"{path}[{i}]"))
+        out.append(stmt)
     return tuple(out)
 
 
-def _build_program(d: dict[str, Any]) -> A.Program:
-    return A.Program(span=_span(d["span"]), body=_stmts(d["body"]))
+def _expr_tuple(lst_raw: Any, path: str) -> tuple[Expr, ...]:
+    lst = _expect_list(lst_raw, path)
+    out: list[Expr] = []
+    for i, item in enumerate(lst):
+        ex = _deserialize_subnode(item, f"{path}[{i}]")
+        if not isinstance(ex, Expr):
+            raise ValueError(_ctx(f"expected Expr, got {type(ex).__name__}", f"{path}[{i}]"))
+        out.append(ex)
+    return tuple(out)
 
 
-def _build_int_lit(d: dict[str, Any]) -> A.IntLit:
-    return A.IntLit(span=_span(d["span"]), value=int(d["value"]))
+def _param_tuple(lst_raw: Any, path: str) -> tuple[Param, ...]:
+    lst = _expect_list(lst_raw, path)
+    out: list[Param] = []
+    for i, item in enumerate(lst):
+        node = _deserialize_subnode(item, f"{path}[{i}]")
+        if not isinstance(node, Param):
+            raise ValueError(_ctx(f"expected Param, got {type(node).__name__}", f"{path}[{i}]"))
+        out.append(node)
+    return tuple(out)
 
 
-def _build_float_lit(d: dict[str, Any]) -> A.FloatLit:
-    return A.FloatLit(span=_span(d["span"]), value=float(d["value"]))
+def _arg_tuple(lst_raw: Any, path: str) -> tuple[Arg, ...]:
+    lst = _expect_list(lst_raw, path)
+    out: list[Arg] = []
+    for i, item in enumerate(lst):
+        node = _deserialize_subnode(item, f"{path}[{i}]")
+        if not isinstance(node, Arg):
+            raise ValueError(_ctx(f"expected Arg, got {type(node).__name__}", f"{path}[{i}]"))
+        out.append(node)
+    return tuple(out)
 
 
-def _build_string_lit(d: dict[str, Any]) -> A.StringLit:
-    return A.StringLit(
-        span=_span(d["span"]),
-        value=str(d["value"]),
-        triple=bool(d.get("triple", False)),
+def _decorators_tuple(lst_raw: Any | None, path: str) -> tuple[Decorator, ...]:
+    lst = lst_raw if lst_raw is not None else []
+    lst_l = _expect_list(lst, path)
+    ds: list[Decorator] = []
+    for i, item in enumerate(lst_l):
+        d = _deserialize_subnode(item, f"{path}[{i}]")
+        if not isinstance(d, Decorator):
+            raise ValueError(_ctx(f"expected Decorator, got {type(d).__name__}", f"{path}[{i}]"))
+        ds.append(d)
+    return tuple(ds)
+
+
+# ---- per-node constructors: (span, full dict, *, base_path=str) -> Node
+
+def _b_program(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "body")
+    return Program(span=span, body=_stmt_tuple(data["body"], base_path + ".body"))
+
+
+def _b_int(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "value")
+    if not isinstance(data["value"], int):
+        raise ValueError(_ctx("IntLit.value must be JSON integer", base_path + ".value"))
+    return IntLit(span=span, value=data["value"])
+
+
+def _b_float(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "value")
+    v = data["value"]
+    if not isinstance(v, (int, float)):
+        raise ValueError(_ctx("FloatLit.value must be JSON number", base_path + ".value"))
+    return FloatLit(span=span, value=float(v))
+
+
+def _b_string(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "value", "triple")
+    v, t = data["value"], data["triple"]
+    if not isinstance(v, str):
+        raise ValueError(_ctx("StringLit.value must be str", base_path + ".value"))
+    if t is None:
+        raise ValueError(_ctx("StringLit.triple must be present (bool)", base_path + ".triple"))
+    return StringLit(span=span, value=v, triple=bool(t))
+
+
+def _b_bool(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "value")
+    v = data["value"]
+    if not isinstance(v, bool):
+        raise ValueError(_ctx("BoolLit.value must be bool", base_path + ".value"))
+    return BoolLit(span=span, value=v)
+
+
+def _b_null(span: Span, data: dict[str, Any], *, base_path: str) -> Node:  # noqa: ARG002
+    return NullLit(span=span)
+
+
+def _b_ident(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name")
+    n = data["name"]
+    if not isinstance(n, str):
+        raise ValueError(_ctx("Identifier.name must be str", base_path + ".name"))
+    return Identifier(span=span, name=n)
+
+
+def _b_budget(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "unit", "value", "raw")
+    name, unit, raw = data["name"], data["unit"], data["raw"]
+    if not isinstance(name, str) or not isinstance(unit, str) or not isinstance(raw, str):
+        raise ValueError(_ctx("BudgetArg name/unit/raw must be str", base_path))
+    val = data["value"]
+    if not isinstance(val, (int, float)):
+        raise ValueError(_ctx("BudgetArg.value must be number", base_path + ".value"))
+    return BudgetArg(span=span, name=name, unit=unit, value=val, raw=raw)
+
+
+def _b_expr_stmt(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "expr")
+    ex = _deserialize_subnode(data["expr"], base_path + ".expr")
+    if not isinstance(ex, Expr):
+        raise ValueError(_ctx("ExprStmt.expr must be Expr", base_path + ".expr"))
+    return ExprStmt(span=span, expr=ex)
+
+
+def _b_qual(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "parts")
+    parts_raw = data["parts"]
+    pl = _expect_list(parts_raw, base_path + ".parts")
+    ps: list[str] = []
+    for i, p in enumerate(pl):
+        if not isinstance(p, str):
+            raise ValueError(_ctx(f"QualName.parts[{i}] must be str", base_path + f".parts[{i}]"))
+        ps.append(p)
+    return QualName(span=span, parts=tuple(ps))
+
+
+_TYPE_KW_VALUE = (IntLit, FloatLit, StringLit, BoolLit, NullLit, BudgetArg, QualName)
+
+
+def _b_type_kwarg(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "value")
+    nk = data["name"]
+    if not isinstance(nk, str):
+        raise ValueError(_ctx("TypeKwarg.name must be str", base_path + ".name"))
+    val = _deserialize_subnode(data["value"], base_path + ".value")
+    if not isinstance(val, _TYPE_KW_VALUE):
+        raise ValueError(
+            _ctx(
+                "TypeKwarg.value must be literal / BudgetArg / QualName,"
+                f" got {type(val).__name__}",
+                base_path + ".value",
+            ),
+        )
+    return TypeKwarg(span=span, name=nk, value=val)
+
+
+def _b_type_ref(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "generics", "kwargs")
+    qn = _deserialize_subnode(data["name"], base_path + ".name")
+    if not isinstance(qn, QualName):
+        raise ValueError(_ctx("TypeRef.name must deserialize to QualName", base_path + ".name"))
+    gens = _expect_list(data["generics"], base_path + ".generics")
+    te_list: list[TypeExpr] = []
+    for i, g_item in enumerate(gens):
+        t = _deserialize_subnode(g_item, f"{base_path}.generics[{i}]")
+        if not isinstance(t, TypeExpr):
+            raise ValueError(_ctx(f"generics[{i}] must be TypeExpr", base_path + f".generics[{i}]"))
+        te_list.append(t)
+    ks = _expect_list(data["kwargs"], base_path + ".kwargs")
+    kws = []
+    for i, kv in enumerate(ks):
+        t = _deserialize_subnode(kv, f"{base_path}.kwargs[{i}]")
+        if not isinstance(t, TypeKwarg):
+            raise ValueError(_ctx(f"kwargs[{i}] must be TypeKwarg", base_path + f".kwargs[{i}]"))
+        kws.append(t)
+    return TypeRef(span=span, name=qn, generics=tuple(te_list), kwargs=tuple(kws))
+
+
+def _b_arg(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "value")
+    nm = data["name"]
+    if nm is not None and not isinstance(nm, str):
+        raise ValueError(_ctx("Arg.name must be str or null", base_path + ".name"))
+    v = _deserialize_subnode(data["value"], base_path + ".value")
+    # Parser may attach `BudgetArg` to `Arg.value` even though the field is annotated `Expr`.
+    if not isinstance(v, (Expr, BudgetArg)):
+        raise ValueError(_ctx("Arg.value must be Expr or BudgetArg", base_path + ".value"))
+    return Arg(span=span, name=nm, value=v)  # type: ignore[arg-type]
+
+
+def _b_bin(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "op", "left", "right")
+    op = data["op"]
+    if not isinstance(op, str):
+        raise ValueError(_ctx("BinOp.op must be str", base_path + ".op"))
+    L = _deserialize_subnode(data["left"], base_path + ".left")
+    R = _deserialize_subnode(data["right"], base_path + ".right")
+    if not isinstance(L, Expr) or not isinstance(R, Expr):
+        raise ValueError(_ctx("BinOp.left/right must be Expr", base_path))
+    return BinOp(span=span, op=op, left=L, right=R)
+
+
+def _b_unary(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "op", "operand")
+    op = data["op"]
+    if not isinstance(op, str):
+        raise ValueError(_ctx("UnaryOp.op must be str", base_path + ".op"))
+    o = _deserialize_subnode(data["operand"], base_path + ".operand")
+    if not isinstance(o, Expr):
+        raise ValueError(_ctx("UnaryOp.operand must be Expr", base_path + ".operand"))
+    return UnaryOp(span=span, op=op, operand=o)
+
+
+def _b_call(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "callee", "args")
+    cal = _deserialize_subnode(data["callee"], base_path + ".callee")
+    if not isinstance(cal, Expr):
+        raise ValueError(_ctx("Call.callee must be Expr", base_path + ".callee"))
+    return Call(span=span, callee=cal, args=_arg_tuple(data["args"], base_path + ".args"))
+
+
+def _b_member(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "obj", "attr")
+    o = _deserialize_subnode(data["obj"], base_path + ".obj")
+    if not isinstance(o, Expr):
+        raise ValueError(_ctx("Member.obj must be Expr", base_path + ".obj"))
+    attr = data["attr"]
+    if not isinstance(attr, str):
+        raise ValueError(_ctx("Member.attr must be str", base_path + ".attr"))
+    return Member(span=span, obj=o, attr=attr)
+
+
+def _b_index(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "obj", "index")
+    o = _deserialize_subnode(data["obj"], base_path + ".obj")
+    idx = _deserialize_subnode(data["index"], base_path + ".index")
+    if not isinstance(o, Expr) or not isinstance(idx, Expr):
+        raise ValueError(_ctx("Index obj/index must be Expr", base_path))
+    return Index(span=span, obj=o, index=idx)
+
+
+def _b_list(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "items")
+    return ListLit(span=span, items=_expr_tuple(data["items"], base_path + ".items"))
+
+
+def _b_dict(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "items")
+    lst = _expect_list(data["items"], base_path + ".items")
+    pairs: list[tuple[Expr, Expr]] = []
+    for i, pair in enumerate(lst):
+        pv = _expect_list(pair, f"{base_path}.items[{i}]")
+        if len(pv) != 2:
+            raise ValueError(_ctx(f"each dict entry must be [key,value]", base_path + f".items[{i}]"))
+        k = _deserialize_subnode(pv[0], f"{base_path}.items[{i}][0]")
+        vv = _deserialize_subnode(pv[1], f"{base_path}.items[{i}][1]")
+        if not isinstance(k, Expr) or not isinstance(vv, Expr):
+            raise ValueError(_ctx("dict kv must be Expr", base_path + f".items[{i}]"))
+        pairs.append((k, vv))
+    return DictLit(span=span, items=tuple(pairs))
+
+
+def _b_param(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name")
+    n = data["name"]
+    if not isinstance(n, str):
+        raise ValueError(_ctx("Param.name must be str", base_path + ".name"))
+    ta = None
+    if data.get("type_annot") is not None:
+        t_node = _deserialize_subnode(data["type_annot"], base_path + ".type_annot")
+        if not isinstance(t_node, TypeExpr):
+            raise ValueError(_ctx("Param.type_annot must be TypeExpr", base_path + ".type_annot"))
+        ta = t_node
+    dflt = None
+    if data.get("default") is not None:
+        d_node = _deserialize_subnode(data["default"], base_path + ".default")
+        if not isinstance(d_node, Expr):
+            raise ValueError(_ctx("Param.default must be Expr", base_path + ".default"))
+        dflt = d_node
+    return Param(span=span, name=n, type_annot=ta, default=dflt)
+
+
+def _b_lambda(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "params", "body")
+    params = _param_tuple(data["params"], base_path + ".params")
+    body = _deserialize_subnode(data["body"], base_path + ".body")
+    if not isinstance(body, Expr):
+        raise ValueError(_ctx("Lambda.body must be Expr", base_path + ".body"))
+    return Lambda(span=span, params=params, body=body)
+
+
+def _b_spawn(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "agent")
+    ag = _deserialize_subnode(data["agent"], base_path + ".agent")
+    if not isinstance(ag, Call):
+        raise ValueError(_ctx(f"SpawnExpr.agent must be Call, got {type(ag).__name__}", base_path + ".agent"))
+    return SpawnExpr(span=span, agent=ag)
+
+
+def _b_conf(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "target", "op", "threshold")
+    t = _deserialize_subnode(data["target"], base_path + ".target")
+    if not isinstance(t, Expr):
+        raise ValueError(_ctx("ConfidenceGate.target must be Expr", base_path + ".target"))
+    op = data["op"]
+    if not isinstance(op, str):
+        raise ValueError(_ctx("ConfidenceGate.op must be str", base_path + ".op"))
+    th = data["threshold"]
+    if not isinstance(th, (int, float)):
+        raise ValueError(_ctx("ConfidenceGate.threshold must be number", base_path + ".threshold"))
+    return ConfidenceGate(span=span, target=t, op=op, threshold=float(th))
+
+
+def _b_similar_pat(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "text")
+    tx = data["text"]
+    if not isinstance(tx, str):
+        raise ValueError(_ctx("SimilarPattern.text must be str", base_path + ".text"))
+    return SimilarPattern(span=span, text=tx)
+
+
+def _b_wild(span: Span, data: dict[str, Any], *, base_path: str) -> Node:  # noqa: ARG002
+    return WildcardPattern(span=span)
+
+
+def _b_expr_pat(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "expr")
+    e = _deserialize_subnode(data["expr"], base_path + ".expr")
+    if not isinstance(e, Expr):
+        raise ValueError(_ctx("ExprPattern.expr must be Expr", base_path + ".expr"))
+    return ExprPattern(span=span, expr=e)
+
+
+def _b_let(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name")
+    n = data["name"]
+    if not isinstance(n, str):
+        raise ValueError(_ctx("LetStmt.name must be str", base_path + ".name"))
+    ta = None
+    if data.get("type_annot") is not None:
+        t_node = _deserialize_subnode(data["type_annot"], base_path + ".type_annot")
+        if not isinstance(t_node, TypeExpr):
+            raise ValueError(_ctx("LetStmt.type_annot must be TypeExpr", base_path + ".type_annot"))
+        ta = t_node
+    val = None
+    if data.get("value") is not None:
+        v_node = _deserialize_subnode(data["value"], base_path + ".value")
+        if not isinstance(v_node, Expr):
+            raise ValueError(_ctx("LetStmt.value must be Expr", base_path + ".value"))
+        val = v_node
+    return LetStmt(span=span, name=n, type_annot=ta, value=val)
+
+
+def _b_if(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "condition", "then_body")
+    cond_node = _deserialize_subnode(data["condition"], base_path + ".condition")
+    if not isinstance(cond_node, Expr) and not isinstance(cond_node, ConfidenceGate):
+        raise ValueError(
+            _ctx(
+                f"IfStmt.condition must be Expr or ConfidenceGate, got {type(cond_node).__name__}",
+                base_path + ".condition",
+            ),
+        )
+    then_b = _stmt_tuple(data["then_body"], base_path + ".then_body")
+    eb = None
+    if data.get("else_body") is not None:
+        eb = _stmt_tuple(data["else_body"], base_path + ".else_body")
+    return IfStmt(span=span, condition=cond_node, then_body=then_b, else_body=eb)
+
+
+def _b_match_case(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "pattern", "body")
+    pat = _deserialize_subnode(data["pattern"], base_path + ".pattern")
+    if not isinstance(pat, Pattern):
+        raise ValueError(_ctx(f"MatchCase.pattern must be Pattern", base_path + ".pattern"))
+    return MatchCase(span=span, pattern=pat, body=_stmt_tuple(data["body"], base_path + ".body"))
+
+
+def _b_match(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "scrutinee", "cases")
+    sc = _deserialize_subnode(data["scrutinee"], base_path + ".scrutinee")
+    if not isinstance(sc, Expr):
+        raise ValueError(_ctx("MatchStmt.scrutinee must be Expr", base_path + ".scrutinee"))
+    cl = _expect_list(data["cases"], base_path + ".cases")
+    cases_list: list[MatchCase] = []
+    for i, c_raw in enumerate(cl):
+        c = _deserialize_subnode(c_raw, f"{base_path}.cases[{i}]")
+        if not isinstance(c, MatchCase):
+            raise ValueError(_ctx(f"cases[{i}] must be MatchCase", base_path + f".cases[{i}]"))
+        cases_list.append(c)
+    thresh = None
+    if data.get("threshold") is not None:
+        tp = data["threshold"]
+        if not isinstance(tp, (int, float)):
+            raise ValueError(_ctx("MatchStmt.threshold must be number", base_path + ".threshold"))
+        thresh = float(tp)
+    return MatchStmt(span=span, scrutinee=sc, cases=tuple(cases_list), threshold=thresh)
+
+
+def _b_ctx(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "budget", "body")
+    bd = _deserialize_subnode(data["budget"], base_path + ".budget")
+    if not isinstance(bd, BudgetArg):
+        raise ValueError(_ctx(f"CtxBlock.budget must be BudgetArg", base_path + ".budget"))
+    return CtxBlock(span=span, budget=bd, body=_stmt_tuple(data["body"], base_path + ".body"))
+
+
+def _b_within(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "budget_args", "primary")
+    bl = _expect_list(data["budget_args"], base_path + ".budget_args")
+    buddies: list[BudgetArg] = []
+    for i, b_raw in enumerate(bl):
+        b = _deserialize_subnode(b_raw, f"{base_path}.budget_args[{i}]")
+        if not isinstance(b, BudgetArg):
+            raise ValueError(_ctx(f"budget_args[{i}] must be BudgetArg", base_path + f".budget_args[{i}]"))
+        buddies.append(b)
+    primary = _stmt_tuple(data["primary"], base_path + ".primary")
+    fb = None
+    if data.get("fallback") is not None:
+        fb = _stmt_tuple(data["fallback"], base_path + ".fallback")
+    return WithinFallback(
+        span=span,
+        budget_args=tuple(buddies),
+        primary=primary,
+        fallback=fb,
     )
 
 
-def _build_bool_lit(d: dict[str, Any]) -> A.BoolLit:
-    return A.BoolLit(span=_span(d["span"]), value=bool(d["value"]))
-
-
-def _build_null_lit(d: dict[str, Any]) -> A.NullLit:
-    return A.NullLit(span=_span(d["span"]))
-
-
-def _build_identifier(d: dict[str, Any]) -> A.Identifier:
-    return A.Identifier(span=_span(d["span"]), name=str(d["name"]))
-
-
-def _build_budget_arg(d: dict[str, Any]) -> A.BudgetArg:
-    return A.BudgetArg(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        unit=str(d["unit"]),
-        value=d["value"],
-        raw=str(d["raw"]),
+def _b_try(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "try_body", "exc_name", "catch_body")
+    exc = data["exc_name"]
+    if exc is not None and not isinstance(exc, str):
+        raise ValueError(_ctx("TryCatch.exc_name must be str or null", base_path + ".exc_name"))
+    return TryCatch(
+        span=span,
+        try_body=_stmt_tuple(data["try_body"], base_path + ".try_body"),
+        exc_name=exc,
+        catch_body=_stmt_tuple(data["catch_body"], base_path + ".catch_body"),
     )
 
 
-def _build_expr_stmt(d: dict[str, Any]) -> A.ExprStmt:
-    return A.ExprStmt(span=_span(d["span"]), expr=_expr(d["expr"]))
+def _b_ret(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    val = None
+    if data.get("value") is not None:
+        v_node = _deserialize_subnode(data["value"], base_path + ".value")
+        if not isinstance(v_node, Expr):
+            raise ValueError(_ctx("ReturnStmt.value must be Expr", base_path + ".value"))
+        val = v_node
+    return ReturnStmt(span=span, value=val)
 
 
-def _qual_name_node(d: Any) -> A.QualName:
-    n = _node(d)
-    if not isinstance(n, A.QualName):
-        raise ValueError(f"expected QualName, got {type(n).__name__}")
-    return n
+def _b_yield(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    val = None
+    if data.get("value") is not None:
+        v_node = _deserialize_subnode(data["value"], base_path + ".value")
+        if not isinstance(v_node, Expr):
+            raise ValueError(_ctx("YieldStmt.value must be Expr", base_path + ".value"))
+        val = v_node
+    return YieldStmt(span=span, value=val)
 
 
-def _build_qual_name(d: dict[str, Any]) -> A.QualName:
-    return A.QualName(
-        span=_span(d["span"]),
-        parts=tuple(str(x) for x in d["parts"]),
+def _b_include(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "value")
+    v_node = _deserialize_subnode(data["value"], base_path + ".value")
+    if not isinstance(v_node, Expr):
+        raise ValueError(_ctx("IncludeStmt.value must be Expr", base_path + ".value"))
+    return IncludeStmt(span=span, value=v_node)
+
+
+def _b_decor(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "args")
+    nm = data["name"]
+    if not isinstance(nm, str):
+        raise ValueError(_ctx("Decorator.name must be str", base_path + ".name"))
+    return Decorator(span=span, name=nm, args=_arg_tuple(data["args"], base_path + ".args"))
+
+
+def _b_agent_opts(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    def gx(name: str) -> Expr | None:
+        r = data.get(name)
+        if r is None:
+            return None
+        n = _deserialize_subnode(r, base_path + f".{name}")
+        if not isinstance(n, Expr):
+            raise ValueError(_ctx(f"AgentOptions.{name} expects Expr-compatible node", base_path + f".{name}"))
+        return n
+
+    tools = None
+    if data.get("tools") is not None:
+        tnode = _deserialize_subnode(data["tools"], base_path + ".tools")
+        if not isinstance(tnode, ListLit):
+            raise ValueError(_ctx("AgentOptions.tools must be ListLit or null", base_path + ".tools"))
+        tools = tnode
+    sys_e = gx("system")
+    mod_e = gx("model")
+    ret_e = gx("retries")
+    mem_e = gx("memory")
+    return AgentOptions(span=span, system=sys_e, tools=tools, model=mod_e, retries=ret_e, memory=mem_e)
+
+
+def _b_fn(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "params", "body", "decorators")
+    nm = data["name"]
+    if not isinstance(nm, str):
+        raise ValueError(_ctx("FnDecl.name must be str", base_path + ".name"))
+    rt = None
+    if data.get("return_type") is not None:
+        rnode = _deserialize_subnode(data["return_type"], base_path + ".return_type")
+        if not isinstance(rnode, TypeExpr):
+            raise ValueError(_ctx("FnDecl.return_type must be TypeExpr", base_path + ".return_type"))
+        rt = rnode
+    return FnDecl(
+        span=span,
+        name=nm,
+        params=_param_tuple(data["params"], base_path + ".params"),
+        return_type=rt,
+        body=_stmt_tuple(data["body"], base_path + ".body"),
+        decorators=_decorators_tuple(data["decorators"], base_path + ".decorators"),
     )
 
 
-def _build_type_kwarg(d: dict[str, Any]) -> A.TypeKwarg:
-    return A.TypeKwarg(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        value=_type_kwarg_value(d["value"]),
+def _b_agent(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "params", "options", "body", "decorators")
+    nm = data["name"]
+    if not isinstance(nm, str):
+        raise ValueError(_ctx("AgentDecl.name must be str", base_path + ".name"))
+    opts = _deserialize_subnode(data["options"], base_path + ".options")
+    if not isinstance(opts, AgentOptions):
+        raise ValueError(_ctx("AgentDecl.options must be AgentOptions", base_path + ".options"))
+    rt = None
+    if data.get("return_type") is not None:
+        rnode = _deserialize_subnode(data["return_type"], base_path + ".return_type")
+        if not isinstance(rnode, TypeExpr):
+            raise ValueError(_ctx("AgentDecl.return_type must be TypeExpr", base_path + ".return_type"))
+        rt = rnode
+    return AgentDecl(
+        span=span,
+        name=nm,
+        params=_param_tuple(data["params"], base_path + ".params"),
+        return_type=rt,
+        options=opts,
+        body=_stmt_tuple(data["body"], base_path + ".body"),
+        decorators=_decorators_tuple(data["decorators"], base_path + ".decorators"),
     )
 
 
-def _build_type_ref(d: dict[str, Any]) -> A.TypeRef:
-    return A.TypeRef(
-        span=_span(d["span"]),
-        name=_qual_name_node(d["name"]),
-        generics=_type_exprs(d.get("generics", ())),
-        kwargs=_type_kwargs(d.get("kwargs", ())),
+def _b_prompt(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "body", "decorators")
+    nm = data["name"]
+    if not isinstance(nm, str):
+        raise ValueError(_ctx("PromptDecl.name must be str", base_path + ".name"))
+    ext = None
+    if data.get("extends") is not None:
+        en = _deserialize_subnode(data["extends"], base_path + ".extends")
+        if not isinstance(en, QualName):
+            raise ValueError(_ctx("PromptDecl.extends must be QualName", base_path + ".extends"))
+        ext = en
+    sl = _expect_list(data["body"], base_path + ".body")
+    strs = []
+    for i, lit_raw in enumerate(sl):
+        lt = _deserialize_subnode(lit_raw, base_path + f".body[{i}]")
+        if not isinstance(lt, StringLit):
+            raise ValueError(_ctx(f"prompt body[{i}] must be StringLit", base_path + f".body[{i}]"))
+        strs.append(lt)
+    return PromptDecl(
+        span=span,
+        name=nm,
+        extends=ext,
+        body=tuple(strs),
+        decorators=_decorators_tuple(data["decorators"], base_path + ".decorators"),
     )
 
 
-def _build_arg(d: dict[str, Any]) -> A.Arg:
-    return A.Arg(
-        span=_span(d["span"]),
-        name=d["name"] if d.get("name") is not None else None,
-        value=_expr(d["value"]),
+def _b_field(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "type_annot")
+    nm = data["name"]
+    if not isinstance(nm, str):
+        raise ValueError(_ctx("ClassField.name must be str", base_path + ".name"))
+    te = _deserialize_subnode(data["type_annot"], base_path + ".type_annot")
+    if not isinstance(te, TypeExpr):
+        raise ValueError(_ctx("ClassField.type_annot must be TypeExpr", base_path))
+    df = None
+    if data.get("default") is not None:
+        dnode = _deserialize_subnode(data["default"], base_path + ".default")
+        if not isinstance(dnode, Expr):
+            raise ValueError(_ctx("ClassField.default must be Expr", base_path))
+        df = dnode
+    return ClassField(span=span, name=nm, type_annot=te, default=df)
+
+
+def _b_class(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "name", "fields", "decorators")
+    nm = data["name"]
+    if not isinstance(nm, str):
+        raise ValueError(_ctx("ClassDecl.name must be str", base_path + ".name"))
+    fl_raw = _expect_list(data["fields"], base_path + ".fields")
+    fields_: list[ClassField] = []
+    for i, fr in enumerate(fl_raw):
+        fnode = _deserialize_subnode(fr, f"{base_path}.fields[{i}]")
+        if not isinstance(fnode, ClassField):
+            raise ValueError(_ctx(f"fields[{i}] must be ClassField", base_path + f".fields[{i}]"))
+        fields_.append(fnode)
+    return ClassDecl(
+        span=span,
+        name=nm,
+        fields=tuple(fields_),
+        decorators=_decorators_tuple(data["decorators"], base_path + ".decorators"),
     )
 
 
-def _build_bin_op(d: dict[str, Any]) -> A.BinOp:
-    return A.BinOp(
-        span=_span(d["span"]),
-        op=str(d["op"]),
-        left=_expr(d["left"]),
-        right=_expr(d["right"]),
-    )
-
-
-def _build_unary_op(d: dict[str, Any]) -> A.UnaryOp:
-    return A.UnaryOp(
-        span=_span(d["span"]),
-        op=str(d["op"]),
-        operand=_expr(d["operand"]),
-    )
-
-
-def _build_call(d: dict[str, Any]) -> A.Call:
-    return A.Call(
-        span=_span(d["span"]),
-        callee=_expr(d["callee"]),
-        args=_args(d.get("args", ())),
-    )
-
-
-def _build_member(d: dict[str, Any]) -> A.Member:
-    return A.Member(
-        span=_span(d["span"]),
-        obj=_expr(d["obj"]),
-        attr=str(d["attr"]),
-    )
-
-
-def _build_index(d: dict[str, Any]) -> A.Index:
-    return A.Index(
-        span=_span(d["span"]),
-        obj=_expr(d["obj"]),
-        index=_expr(d["index"]),
-    )
-
-
-def _build_list_lit(d: dict[str, Any]) -> A.ListLit:
-    return A.ListLit(span=_span(d["span"]), items=_exprs(d.get("items", ())))
-
-
-def _build_dict_lit(d: dict[str, Any]) -> A.DictLit:
-    return A.DictLit(span=_span(d["span"]), items=_dict_items(d.get("items", ())))
-
-
-def _build_param(d: dict[str, Any]) -> A.Param:
-    return A.Param(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        type_annot=_opt(_type_expr, d.get("type_annot")),
-        default=_opt(_expr, d.get("default")),
-    )
-
-
-def _build_lambda(d: dict[str, Any]) -> A.Lambda:
-    return A.Lambda(
-        span=_span(d["span"]),
-        params=_params(d["params"]),
-        body=_expr(d["body"]),
-    )
-
-
-def _build_spawn_expr(d: dict[str, Any]) -> A.SpawnExpr:
-    agent = _node(d["agent"])
-    if not isinstance(agent, A.Call):
-        raise ValueError("SpawnExpr.agent must be Call")
-    return A.SpawnExpr(span=_span(d["span"]), agent=agent)
-
-
-def _build_confidence_gate(d: dict[str, Any]) -> A.ConfidenceGate:
-    return A.ConfidenceGate(
-        span=_span(d["span"]),
-        target=_expr(d["target"]),
-        op=str(d["op"]),
-        threshold=float(d["threshold"]),
-    )
-
-
-def _build_similar_pattern(d: dict[str, Any]) -> A.SimilarPattern:
-    return A.SimilarPattern(span=_span(d["span"]), text=str(d["text"]))
-
-
-def _build_wildcard_pattern(d: dict[str, Any]) -> A.WildcardPattern:
-    return A.WildcardPattern(span=_span(d["span"]))
-
-
-def _build_expr_pattern(d: dict[str, Any]) -> A.ExprPattern:
-    return A.ExprPattern(span=_span(d["span"]), expr=_expr(d["expr"]))
-
-
-def _build_let_stmt(d: dict[str, Any]) -> A.LetStmt:
-    return A.LetStmt(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        type_annot=_opt(_type_expr, d.get("type_annot")),
-        value=_opt(_expr, d.get("value")),
-    )
-
-
-def _build_if_stmt(d: dict[str, Any]) -> A.IfStmt:
-    eb = d.get("else_body")
-    return A.IfStmt(
-        span=_span(d["span"]),
-        condition=_gate_or_expr(d["condition"]),
-        then_body=_stmts(d["then_body"]),
-        else_body=_stmts(eb) if isinstance(eb, list) else None,
-    )
-
-
-def _build_match_case(d: dict[str, Any]) -> A.MatchCase:
-    return A.MatchCase(
-        span=_span(d["span"]),
-        pattern=_pattern(d["pattern"]),
-        body=_stmts(d["body"]),
-    )
-
-
-def _build_match_stmt(d: dict[str, Any]) -> A.MatchStmt:
-    thr = d.get("threshold")
-    return A.MatchStmt(
-        span=_span(d["span"]),
-        scrutinee=_expr(d["scrutinee"]),
-        cases=_match_cases(d["cases"]),
-        threshold=float(thr) if thr is not None else None,
-    )
-
-
-def _build_ctx_block(d: dict[str, Any]) -> A.CtxBlock:
-    return A.CtxBlock(
-        span=_span(d["span"]),
-        budget=_node(d["budget"]),  # type: ignore[arg-type]
-        body=_stmts(d["body"]),
-    )
-
-
-def _build_within_fallback(d: dict[str, Any]) -> A.WithinFallback:
-    fb = d.get("fallback")
-    return A.WithinFallback(
-        span=_span(d["span"]),
-        budget_args=tuple(_node(x) for x in d["budget_args"]),  # type: ignore[arg-type]
-        primary=_stmts(d["primary"]),
-        fallback=_stmts(fb) if isinstance(fb, list) else None,
-    )
-
-
-def _build_try_catch(d: dict[str, Any]) -> A.TryCatch:
-    en = d.get("exc_name")
-    return A.TryCatch(
-        span=_span(d["span"]),
-        try_body=_stmts(d["try_body"]),
-        exc_name=str(en) if en is not None else None,
-        catch_body=_stmts(d["catch_body"]),
-    )
-
-
-def _build_return_stmt(d: dict[str, Any]) -> A.ReturnStmt:
-    v = d.get("value")
-    return A.ReturnStmt(
-        span=_span(d["span"]),
-        value=_expr(v) if v is not None else None,
-    )
-
-
-def _build_yield_stmt(d: dict[str, Any]) -> A.YieldStmt:
-    v = d.get("value")
-    return A.YieldStmt(
-        span=_span(d["span"]),
-        value=_expr(v) if v is not None else None,
-    )
-
-
-def _build_include_stmt(d: dict[str, Any]) -> A.IncludeStmt:
-    return A.IncludeStmt(span=_span(d["span"]), value=_expr(d["value"]))
-
-
-def _build_decorator(d: dict[str, Any]) -> A.Decorator:
-    return A.Decorator(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        args=_args(d.get("args", ())),
-    )
-
-
-def _build_fn_decl(d: dict[str, Any]) -> A.FnDecl:
-    return A.FnDecl(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        params=_params(d["params"]),
-        return_type=_opt(_type_expr, d.get("return_type")),
-        body=_stmts(d["body"]),
-        decorators=_decorators(d.get("decorators", ())),
-    )
-
-
-def _list_lit_node(d: Any) -> A.ListLit:
-    n = _node(d)
-    if not isinstance(n, A.ListLit):
-        raise ValueError(f"AgentOptions.tools must be ListLit, got {type(n).__name__}")
-    return n
-
-
-def _build_agent_options(d: dict[str, Any]) -> A.AgentOptions:
-    return A.AgentOptions(
-        span=_span(d["span"]),
-        system=_opt(_expr, d.get("system")),
-        tools=_opt(_list_lit_node, d.get("tools")),
-        model=_opt(_expr, d.get("model")),
-        retries=_opt(_expr, d.get("retries")),
-        memory=_opt(_expr, d.get("memory")),
-    )
-
-
-def _build_agent_decl(d: dict[str, Any]) -> A.AgentDecl:
-    opts = d["options"]
-    return A.AgentDecl(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        params=_params(d["params"]),
-        return_type=_opt(_type_expr, d.get("return_type")),
-        options=_node(opts),  # type: ignore[arg-type]
-        body=_stmts(d["body"]),
-        decorators=_decorators(d.get("decorators", ())),
-    )
-
-
-def _prompt_body_string(d: Any) -> A.StringLit:
-    n = _node(d)
-    if not isinstance(n, A.StringLit):
-        raise ValueError(f"prompt body expects StringLit, got {type(n).__name__}")
-    return n
-
-
-def _build_prompt_decl(d: dict[str, Any]) -> A.PromptDecl:
-    body_raw = d["body"]
-    body: tuple[A.StringLit, ...] = tuple(_prompt_body_string(x) for x in body_raw)
-    return A.PromptDecl(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        extends=_opt(_qual_name_node, d.get("extends")),
-        body=body,
-        decorators=_decorators(d.get("decorators", ())),
-    )
-
-
-def _build_class_field(d: dict[str, Any]) -> A.ClassField:
-    df = d.get("default")
-    return A.ClassField(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        type_annot=_type_expr(d["type_annot"]),
-        default=_expr(df) if df is not None else None,
-    )
-
-
-def _build_class_decl(d: dict[str, Any]) -> A.ClassDecl:
-    return A.ClassDecl(
-        span=_span(d["span"]),
-        name=str(d["name"]),
-        fields=tuple(_node(x) for x in d["fields"]),  # type: ignore[arg-type]
-        decorators=_decorators(d.get("decorators", ())),
-    )
-
-
-def _build_use_stmt(d: dict[str, Any]) -> A.UseStmt:
-    al = d.get("alias")
-    return A.UseStmt(
-        span=_span(d["span"]),
-        path=tuple(str(x) for x in d["path"]),
-        alias=str(al) if al is not None else None,
-    )
-
-
-_BUILDERS: dict[str, Callable[[dict[str, Any]], A.Node]] = {
-    "Program": _build_program,
-    "IntLit": _build_int_lit,
-    "FloatLit": _build_float_lit,
-    "StringLit": _build_string_lit,
-    "BoolLit": _build_bool_lit,
-    "NullLit": _build_null_lit,
-    "Identifier": _build_identifier,
-    "BudgetArg": _build_budget_arg,
-    "ExprStmt": _build_expr_stmt,
-    "QualName": _build_qual_name,
-    "TypeKwarg": _build_type_kwarg,
-    "TypeRef": _build_type_ref,
-    "Arg": _build_arg,
-    "BinOp": _build_bin_op,
-    "UnaryOp": _build_unary_op,
-    "Call": _build_call,
-    "Member": _build_member,
-    "Index": _build_index,
-    "ListLit": _build_list_lit,
-    "DictLit": _build_dict_lit,
-    "Param": _build_param,
-    "Lambda": _build_lambda,
-    "SpawnExpr": _build_spawn_expr,
-    "ConfidenceGate": _build_confidence_gate,
-    "SimilarPattern": _build_similar_pattern,
-    "WildcardPattern": _build_wildcard_pattern,
-    "ExprPattern": _build_expr_pattern,
-    "LetStmt": _build_let_stmt,
-    "IfStmt": _build_if_stmt,
-    "MatchCase": _build_match_case,
-    "MatchStmt": _build_match_stmt,
-    "CtxBlock": _build_ctx_block,
-    "WithinFallback": _build_within_fallback,
-    "TryCatch": _build_try_catch,
-    "ReturnStmt": _build_return_stmt,
-    "YieldStmt": _build_yield_stmt,
-    "IncludeStmt": _build_include_stmt,
-    "Decorator": _build_decorator,
-    "FnDecl": _build_fn_decl,
-    "AgentOptions": _build_agent_options,
-    "AgentDecl": _build_agent_decl,
-    "PromptDecl": _build_prompt_decl,
-    "ClassField": _build_class_field,
-    "ClassDecl": _build_class_decl,
-    "UseStmt": _build_use_stmt,
+def _b_use(span: Span, data: dict[str, Any], *, base_path: str) -> Node:
+    _require_keys(data, base_path, "path", "alias")
+    pr = data["path"]
+    pl = _expect_list(pr, base_path + ".path")
+    segs = []
+    for i, seg in enumerate(pl):
+        if not isinstance(seg, str):
+            raise ValueError(_ctx(f"path[{i}] must be str", base_path + f".path[{i}]"))
+        segs.append(seg)
+    ali = data["alias"]
+    if ali is not None and not isinstance(ali, str):
+        raise ValueError(_ctx("UseStmt.alias must be str or null", base_path + ".alias"))
+    return UseStmt(span=span, path=tuple(segs), alias=ali)
+
+
+_DISPATCH: dict[str, Callable[..., Node]] = {
+    "Program": _b_program,
+    "IntLit": _b_int,
+    "FloatLit": _b_float,
+    "StringLit": _b_string,
+    "BoolLit": _b_bool,
+    "NullLit": _b_null,
+    "Identifier": _b_ident,
+    "BudgetArg": _b_budget,
+    "ExprStmt": _b_expr_stmt,
+    "QualName": _b_qual,
+    "TypeKwarg": _b_type_kwarg,
+    "TypeRef": _b_type_ref,
+    "Arg": _b_arg,
+    "BinOp": _b_bin,
+    "UnaryOp": _b_unary,
+    "Call": _b_call,
+    "Member": _b_member,
+    "Index": _b_index,
+    "ListLit": _b_list,
+    "DictLit": _b_dict,
+    "Param": _b_param,
+    "Lambda": _b_lambda,
+    "SpawnExpr": _b_spawn,
+    "ConfidenceGate": _b_conf,
+    "SimilarPattern": _b_similar_pat,
+    "WildcardPattern": _b_wild,
+    "ExprPattern": _b_expr_pat,
+    "LetStmt": _b_let,
+    "IfStmt": _b_if,
+    "MatchCase": _b_match_case,
+    "MatchStmt": _b_match,
+    "CtxBlock": _b_ctx,
+    "WithinFallback": _b_within,
+    "TryCatch": _b_try,
+    "ReturnStmt": _b_ret,
+    "YieldStmt": _b_yield,
+    "IncludeStmt": _b_include,
+    "Decorator": _b_decor,
+    "FnDecl": _b_fn,
+    "AgentOptions": _b_agent_opts,
+    "AgentDecl": _b_agent,
+    "PromptDecl": _b_prompt,
+    "ClassField": _b_field,
+    "ClassDecl": _b_class,
+    "UseStmt": _b_use,
 }
-
-
-def program_from_dict(data: dict[str, Any]) -> A.Program:
-    """Deserialize the root `Program` object from `to_dict(program)` JSON."""
-    n = _node(data)
-    if not isinstance(n, A.Program):
-        raise ValueError(f"root must be Program, got {type(n).__name__}")
-    return n

@@ -1,0 +1,29 @@
+# Golden: decorators, class, prompt, match with similar / default
+
+use foo::bar::tool as baz
+
+@tool()
+fn decorated(x: int) -> int {
+    return x + 1
+}
+
+class Point {
+    x: int = 0
+    y: int
+}
+
+prompt P extends memory.working {
+    "line one"
+    """triple"""
+}
+
+fn route(msg: string) -> string {
+    match msg {
+        case similar("help") => {
+            return "ok"
+        }
+        case _ => {
+            return "no"
+        }
+    }
+}

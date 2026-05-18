@@ -1,0 +1,32 @@
+name: Haskell frontend
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "frontend-hs/**"
+      - ".github/workflows/haskell-frontend.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "frontend-hs/**"
+      - ".github/workflows/haskell-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cabal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.6.6"
+          cabal-version: "3.10.3.0"
+      - name: Build voss-frontend
+        working-directory: frontend-hs
+        run: |
+          cabal update
+          cabal build all -j2
