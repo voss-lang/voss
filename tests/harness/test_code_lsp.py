@@ -83,7 +83,8 @@ async def _send_lsp(writer: asyncio.StreamWriter, obj: dict) -> None:
 
 def test_lsp_adapter_imports_without_pygls():
     # This must succeed even if pygls is not installed
-    assert "LspClientAdapter" in dir()
+    from voss.harness.code import lsp as lsp_mod
+    assert hasattr(lsp_mod, "LspClientAdapter")
     adapter = create_lsp_client("python")
     assert isinstance(adapter, LspClientAdapter)
 

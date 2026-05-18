@@ -2,7 +2,7 @@
 
 This package provides the project index, LSP-backed semantic search,
 ast-grep structural search, and related surfaces. It is intentionally
-lazy: importing submodules does not require pygls or ast-grep to be
+lazy: importing submodules does not require the optional heavy dependencies to be
 installed (those live only under the optional `voss[code]` extra).
 
 Public surface is re-exported here for convenience.
