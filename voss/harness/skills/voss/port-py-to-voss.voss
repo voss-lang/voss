@@ -1,0 +1,17 @@
+# port-py-to-voss.voss
+# Dogfood demo of the SKL-04 port-py-to-voss skill (D-05), modeling the
+# samples/research.voss shape. NOT the runtime exec path — the skill is
+# voss/harness/skills/port_py_to_voss.py. Passes `voss check`.
+fn translatePython(pySource: string) -> string {
+    ctx(budget: 6000 tokens) {
+        try {
+            include pySource
+            yield ask("Translate this Python source to .voss using the classify/support/research sample shapes as guides.")
+        } catch e {
+            return "translation failed: " + e
+        }
+    }
+}
+
+let voss = translatePython("def classify(t): return 'cancel' if 'cancel' in t else 'unknown'")
+print(voss)
