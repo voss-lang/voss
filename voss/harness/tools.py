@@ -391,6 +391,38 @@ def make_toolset(
         return await _shell_capture(cwd, ["voss", "check", str(p)])
 
     @tool(
+        name="voss_probable_inspect",
+        description="Inspect recorded probable decisions for a persisted Voss session.",
+    )
+    async def voss_probable_inspect(
+        session: str,
+        decision: int | None = None,
+    ) -> str:
+        from voss.harness import voss_inspect
+
+        try:
+            run = voss_inspect.load_run(cwd, session)
+            return voss_inspect.render_decision_sequence(
+                run,
+                decision_index=decision,
+            )
+        except (FileNotFoundError, ValueError, IndexError) as exc:
+            return f"<error: {exc}>"
+
+    @tool(
+        name="voss_budget_trace",
+        description="Inspect recorded per-iteration budget usage for a persisted Voss session.",
+    )
+    async def voss_budget_trace(session: str) -> str:
+        from voss.harness import voss_inspect
+
+        try:
+            run = voss_inspect.load_run(cwd, session)
+            return voss_inspect.render_budget_timeline(run)
+        except (FileNotFoundError, ValueError, IndexError) as exc:
+            return f"<error: {exc}>"
+
+    @tool(
         name="record_run",
         description=(
             "(privileged) Close the current turn with semantic fields. "
@@ -459,6 +491,14 @@ def make_toolset(
         "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
         "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
         "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),
+        "voss_probable_inspect": ToolEntry(
+            descriptor=voss_probable_inspect,
+            is_mutating=False,
+        ),
+        "voss_budget_trace": ToolEntry(
+            descriptor=voss_budget_trace,
+            is_mutating=False,
+        ),
         "record_run": ToolEntry(descriptor=record_run, is_mutating=True),
         "web_fetch": ToolEntry(
             descriptor=web_fetch, is_mutating=False, is_network=True

@@ -46,6 +46,11 @@ from .subagents import (
     run_subagent,
 )
 from .tools import make_toolset
+from .voss_inspect import (
+    load_run,
+    render_budget_timeline,
+    render_decision_sequence,
+)
 
 try:
     import litellm as _litellm  # type: ignore
@@ -476,6 +481,18 @@ def _print_skills(ctx: ReplContext) -> None:
 def _print_agents(ctx: ReplContext) -> None:
     for spec in ctx.subagent_registry.entries():
         click.echo(f"  {spec.id:<16} {spec.description}")
+
+
+def _render_probable_inspect(
+    cwd: Path, session_id_or_name: str, decision_index: int | None
+) -> str:
+    run = load_run(cwd, session_id_or_name)
+    return render_decision_sequence(run, decision_index=decision_index)
+
+
+def _render_budget_inspect(cwd: Path, session_id_or_name: str) -> str:
+    run = load_run(cwd, session_id_or_name)
+    return render_budget_timeline(run)
 
 
 _RECALL_USAGE = "usage: /recall <query> [--top N] [--source turn|decision|convention|ledger|note]"
