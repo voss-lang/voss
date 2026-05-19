@@ -273,6 +273,49 @@ def _decode_string_literal(raw: str) -> str:
     return "".join(decoded)
 
 
+def _ceiling_or_role_value(file: str, meta, child) -> BudgetArg | ListLit | StringLit:
+    if isinstance(child, (BudgetArg, ListLit)):
+        return child
+    if isinstance(child, StringLit):
+        return child
+    if hasattr(child, "type") and child.type == "STRING":
+        raw = str(child)
+        return StringLit(span=_span(meta, file), value=_decode_string_literal(raw), triple=False)
+    raise VossParseError(
+        file=file,
+        line=meta.line,
+        col=meta.column,
+        expected=["budget literal, string literal, or list literal"],
+        got=type(child).__name__,
+    )
+
+
+def _ceiling_or_role_scope_tuple(file: str, meta, val: object) -> tuple[str, ...]:
+    if isinstance(val, StringLit):
+        return (val.value,)
+    if isinstance(val, ListLit):
+        parts: list[str] = []
+        for it in val.items:
+            if isinstance(it, StringLit):
+                parts.append(it.value)
+            else:
+                raise VossParseError(
+                    file=file,
+                    line=meta.line,
+                    col=meta.column,
+                    expected=["string literals in `scope` list"],
+                    got=type(it).__name__,
+                )
+        return tuple(parts)
+    raise VossParseError(
+        file=file,
+        line=meta.line,
+        col=meta.column,
+        expected=["string or list of strings for `scope`"],
+        got=type(val).__name__,
+    )
+
+
 @v_args(meta=True)
 class _Transformer(Transformer):
     def __init__(self, file: str):
@@ -751,6 +794,367 @@ class _Transformer(Transformer):
             body=tuple(body),
             decorators=(),
         )
+
+    # ---- Team / cage (O2) ----
+
+    def team_decl(self, meta, children):
+        name = str(children[0])
+        items = children[1] if len(children) > 1 else ()
+        if not isinstance(items, tuple):
+            items = (items,)
+        ceiling: CeilingDecl | None = None
+        policy_obj: Expr | None = None
+        agents: list[TeamAgentDecl] = []
+        rosters: list[RosterDecl] = []
+        board: BoardDecl | None = None
+        rituals: list[RitualDecl] = []
+
+        for item in items:
+            if isinstance(item, CeilingDecl):
+                if ceiling is not None:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=["at most one `ceiling` block per team"],
+                        got=f"team {name!r} has duplicate ceiling block",
+                    )
+                ceiling = item
+            elif isinstance(item, tuple) and item and item[0] == "_team_policy":
+                if policy_obj is not None:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=["single team policy key `p`"],
+                        got="duplicate `p` policy entry",
+                    )
+                policy_obj = item[1]
+            elif isinstance(item, TeamAgentDecl):
+                agents.append(item)
+            elif isinstance(item, RosterDecl):
+                rosters.append(item)
+            elif isinstance(item, BoardDecl):
+                if board is not None:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=["at most one `board` block per team"],
+                        got=f"team {name!r} has duplicate board block",
+                    )
+                board = item
+            elif isinstance(item, RitualDecl):
+                rituals.append(item)
+
+        if ceiling is None:
+            raise VossParseError(
+                file=self.file,
+                line=meta.line,
+                col=meta.column,
+                expected=["required `ceiling { … }` block"],
+                got=f"team {name!r} missing required block: ceiling",
+            )
+
+        return TeamDecl(
+            span=_span(meta, self.file),
+            name=name,
+            ceiling=ceiling,
+            policy=policy_obj,
+            agents=tuple(agents),
+            rosters=tuple(rosters),
+            board=board,
+            rituals=tuple(rituals),
+            decorators=(),
+        )
+
+    def team_body(self, meta, children):
+        return tuple(c for c in children if c is not None and not _is_newline(c))
+
+    def team_item(self, meta, children):
+        return children[0]
+
+    def ceiling_block(self, meta, children):
+        seen: dict[str, object] = {}
+        for c in children:
+            if not (isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str)):
+                continue
+            key, val = c
+            if key in seen:
+                raise VossParseError(
+                    file=self.file,
+                    line=meta.line,
+                    col=meta.column,
+                    expected=[f"unique `{key}` key in `ceiling` block"],
+                    got=f"duplicate `{key}` in ceiling block",
+                )
+            seen[key] = val
+
+        budget: int | None = None
+        scope: tuple[str, ...] = ()
+        latency_seconds: int | None = None
+
+        if "budget" in seen:
+            v = seen["budget"]
+            if isinstance(v, BudgetArg) and v.unit == "tokens":
+                budget = int(v.value)
+            else:
+                raise VossParseError(
+                    file=self.file,
+                    line=meta.line,
+                    col=meta.column,
+                    expected=["token budget literal for `budget`"],
+                    got=type(v).__name__,
+                )
+
+        if "scope" in seen:
+            scope = _ceiling_or_role_scope_tuple(self.file, meta, seen["scope"])
+
+        if "latency" in seen:
+            v = seen["latency"]
+            if isinstance(v, BudgetArg):
+                if v.unit == "s":
+                    latency_seconds = int(v.value)
+                elif v.unit == "ms":
+                    latency_seconds = int(v.value // 1000)
+                else:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=["duration literal for `latency` (e.g. `30s`, `500ms`)"],
+                        got=v.unit,
+                    )
+            else:
+                raise VossParseError(
+                    file=self.file,
+                    line=meta.line,
+                    col=meta.column,
+                    expected=["duration literal for `latency`"],
+                    got=type(v).__name__,
+                )
+
+        return CeilingDecl(
+            span=_span(meta, self.file),
+            budget=budget,
+            scope=scope,
+            latency_seconds=latency_seconds,
+        )
+
+    def ceiling_kv(self, meta, children):
+        key = str(children[0])
+        val = children[1]
+        if key not in ("budget", "scope", "latency"):
+            raise VossParseError(
+                file=self.file,
+                line=meta.line,
+                col=meta.column,
+                expected=["`budget`, `scope`, or `latency` ceiling key"],
+                got=key,
+            )
+        return (key, val)
+
+    def ceiling_value(self, meta, children):
+        return _ceiling_or_role_value(self.file, meta, children[0])
+
+    def policy_kv(self, meta, children):
+        _key = str(children[0])
+        val = children[1]
+        return ("_team_policy", val)
+
+    def team_agent(self, meta, children):
+        agent_name = str(children[0])
+        seen: set[str] = set()
+        opts: list[tuple[str, object]] = []
+        for c in children[1:]:
+            if isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str):
+                k, v = c
+                if k in seen:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=[f"unique `{k}` in team agent"],
+                        got="duplicate key",
+                    )
+                seen.add(k)
+                opts.append((k, v))
+        return TeamAgentDecl(
+            span=_span(meta, self.file),
+            name=agent_name,
+            options=tuple(opts),
+        )
+
+    def team_agent_kv(self, meta, children):
+        key = str(children[0])
+        allowed = (
+            "model",
+            "mode",
+            "scope",
+            "budget",
+            "tools",
+            "authority",
+            "judge",
+            "tiered",
+            "checks",
+            "sees",
+            "derives",
+        )
+        if key not in allowed:
+            raise VossParseError(
+                file=self.file,
+                line=meta.line,
+                col=meta.column,
+                expected=[f"one of {allowed!r}"],
+                got=key,
+            )
+        return (key, children[1])
+
+    def team_agent_value(self, meta, children):
+        return children[0]
+
+    def roster_block(self, meta, children):
+        roster_name = str(children[0])
+        roles: list[RosterRoleDecl] = []
+        for c in children[1:]:
+            if isinstance(c, RosterRoleDecl):
+                roles.append(c)
+        return RosterDecl(
+            span=_span(meta, self.file),
+            name=roster_name,
+            roles=tuple(roles),
+        )
+
+    def roster_role(self, meta, children):
+        role_name = str(children[0])
+        seen: set[str] = set()
+        opts: list[tuple[str, object]] = []
+        for c in children[1:]:
+            if isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str):
+                k, v = c
+                if k in seen:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=[f"unique `{k}` in roster role"],
+                        got="duplicate key",
+                    )
+                seen.add(k)
+                opts.append((k, v))
+        return RosterRoleDecl(
+            span=_span(meta, self.file),
+            name=role_name,
+            options=tuple(opts),
+        )
+
+    def role_kv(self, meta, children):
+        key = str(children[0])
+        allowed = ("model", "mode", "scope", "budget", "tools")
+        if key not in allowed:
+            raise VossParseError(
+                file=self.file,
+                line=meta.line,
+                col=meta.column,
+                expected=[f"one of {allowed!r}"],
+                got=key,
+            )
+        return (key, children[1])
+
+    def role_value(self, meta, children):
+        return _ceiling_or_role_value(self.file, meta, children[0])
+
+    def board_block(self, meta, children):
+        items: list[object] = []
+        for c in children:
+            if c is None or _is_newline(c):
+                continue
+            items.append(c)
+        return BoardDecl(
+            span=_span(meta, self.file),
+            items=tuple(items),
+        )
+
+    def board_item(self, meta, children):
+        return children[0]
+
+    def board_kv(self, meta, children):
+        key = str(children[0])
+        allowed = ("columns", "wip", "p", "retry", "liveness")
+        if key not in allowed:
+            raise VossParseError(
+                file=self.file,
+                line=meta.line,
+                col=meta.column,
+                expected=[f"one of {allowed!r}"],
+                got=key,
+            )
+        return (key, children[1])
+
+    def gate_decl(self, meta, children):
+        present = [c for c in children if c is not None and not _is_newline(c)]
+        if len(present) < 2:
+            raise VossParseError(
+                file=self.file,
+                line=meta.line,
+                col=meta.column,
+                expected=["gate COLUMN -> target { predicates }"],
+                got=f"too few gate parts ({len(present)})",
+            )
+        column = str(present[0])
+        target = present[1]
+        preds = tuple(c for c in present[2:] if isinstance(c, Expr))
+        return BoardGate(
+            span=_span(meta, self.file),
+            column=column,
+            target=target,
+            predicates=preds,
+        )
+
+    def gate_target(self, meta, children):
+        present = [c for c in children if c is not None]
+        head = str(present[0])
+        if len(present) >= 2:
+            return (head, str(present[1]))
+        return (head, None)
+
+    def gate_predicate(self, meta, children):
+        return children[0]
+
+    def ritual_block(self, meta, children):
+        ritu_name = str(children[0])
+        seen: set[str] = set()
+        kvs: list[tuple[str, object]] = []
+        for c in children[1:]:
+            if isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str):
+                k, v = c
+                if k in seen:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=[f"unique `{k}` in ritual block"],
+                        got="duplicate key",
+                    )
+                seen.add(k)
+                kvs.append((k, v))
+        return RitualDecl(
+            span=_span(meta, self.file),
+            name=ritu_name,
+            kvs=tuple(kvs),
+        )
+
+    def ritual_kv(self, meta, children):
+        key = str(children[0])
+        if key not in ("every", "gather"):
+            raise VossParseError(
+                file=self.file,
+                line=meta.line,
+                col=meta.column,
+                expected=["every or gather"],
+                got=key,
+            )
+        return (key, children[1])
 
     def prompt_string(self, meta, children):
         raw = str(children[0])

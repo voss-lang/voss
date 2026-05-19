@@ -183,7 +183,7 @@ team_item:   ceiling_block | policy_kv | team_agent | roster_block | board_block
 
 // `ceiling { k: v, k: v }` — every kv is required to be either a budget_literal
 // or a string literal (scope glob). Order-free; transformer validates required keys.
-ceiling_block: "ceiling" "{" _NL* ceiling_kv (_NL* "," _NL* ceiling_kv)* _NL* ","? _NL* "}"
+ceiling_block: "ceiling" "{" _NL* ceiling_kv ((_NL* "," _NL* | _NL+) ceiling_kv)* _NL* ","? _NL* "}"
 ceiling_kv:    CEILING_KEY ":" ceiling_value
 CEILING_KEY:   "budget" | "scope" | "latency"
 ceiling_value: budget_literal | STRING | list_lit
@@ -197,7 +197,7 @@ TEAM_POLICY_KEY: "p"
 // A single named agent (`agent em { ... }`). Distinct from the existing
 // `agent_decl` (top-level callable agent). team_agent's body is a kv list,
 // not a statement block — no `param_list`, no `block`.
-team_agent:   "agent" IDENT "{" _NL* team_agent_kv (_NL* "," _NL* team_agent_kv)* _NL* ","? _NL* "}"
+team_agent:   "agent" IDENT "{" _NL* team_agent_kv ((_NL* "," _NL* | _NL+) team_agent_kv)* _NL* ","? _NL* "}"
 team_agent_kv: TEAM_AGENT_KEY ":" team_agent_value
 TEAM_AGENT_KEY: "model" | "mode" | "scope" | "budget" | "tools" | "authority"
               | "judge" | "tiered" | "checks" | "sees" | "derives"
@@ -205,7 +205,7 @@ team_agent_value: budget_literal | expr   // expr covers ident, list, string
 
 // `roster <NAME> { role { k: v, ... } role { ... } }`
 roster_block: "roster" IDENT "{" _NL* roster_role (_NL+ roster_role)* _NL* "}"
-roster_role:  IDENT "{" _NL* role_kv (_NL* "," _NL* role_kv)* _NL* ","? _NL* "}"
+roster_role:  IDENT "{" _NL* role_kv ((_NL* "," _NL* | _NL+) role_kv)* _NL* ","? _NL* "}"
 role_kv:      ROLE_KEY ":" role_value
 ROLE_KEY:     "model" | "mode" | "scope" | "budget" | "tools"
 role_value:   budget_literal | STRING | list_lit
