@@ -258,7 +258,7 @@ def test_nondaemon_watch_reaped_on_exit(tmp_path: Path) -> None:
         voss_main,
         [
             "watch",
-            "python -c 'import time; time.sleep(60)'",
+            "python -m http.server 0",
             "--glob",
             "**/*.py",
             "--cwd",
