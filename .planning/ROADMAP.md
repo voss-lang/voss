@@ -24,7 +24,7 @@
 | M10 | Codebase Intelligence (CAPS-01a) | LSP polyglot + ast-grep + project index — tools, slash, auto-injection, M9 TUI panel | CODE-01..07 | TBD |
 | M11 | Voss-aware Tools (CAPS-01b) | Probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss`→Python diff viewer | VTOOL-01..05 | 5 |
 | M12 | MCP Bridge (CAPS-01c, promotes DIST-03) | Consume external MCP tools + expose harness skills as MCP server | MCP-01..0N (TBD by SPEC.md) | TBD |
-| M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..0N (TBD by SPEC.md) | TBD |
+| M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..MAG-08 | 8 |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..0N (TBD by SPEC.md) | TBD |
 | T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | **Complete** (3/3 plans, 2026-05-18) |
@@ -591,7 +591,17 @@ Plans:
 
 **Goal:** Expose the runtime `spawn`/`gather` primitives (`voss_runtime/agent.py`) to the user-facing chat session. A `voss chat` user can say "research X" → harness spawns sub-agent in a side panel (M9 `SubAgentPanel`), each sub-agent has its own budget meter, message bus is visible in the TUI.
 
-**Requirements:** MAG-01..0N — TBD by `M13-SPEC.md`.
+**Requirements:** MAG-01..MAG-08 (locked by `M13-SPEC.md`).
+
+**Plans:** 6 plans across 5 waves (W0→W1→W2[2 parallel]→W3→W4)
+
+Plans:
+- [ ] M13-01-PLAN.md — Wave 0 red scaffolds: shared scripted multi-agent provider conftest fixture + 5 new test files (fanout/steer/recursion/reveal/e2e) + additive keymap-baseline rows; back-compat guard
+- [ ] M13-02-PLAN.md — `voss/harness/multiagent.py` foundation: `M13Allocator` (asyncio.Lock check-and-allocate, exactly-once release, viable-floor denial) + `ChildHandle` + `ChildRegistry`; resolves RESEARCH OQ-A1 (reserve/floor defaults)
+- [ ] M13-03-PLAN.md — Wave 2A harness fan-out: non-blocking spawn/steer/status/gather tools + `PanelBridgeRenderer` + additive `steer_inbox` kwarg & line-830 drain in `agent.py`
+- [ ] M13-04-PLAN.md — Wave 2B TUI bridge + reveal: wire dead `renderer.py:203` seam, `action_toggle_subagent_detail`, quiet-by-default panel body, `ctrl+o` keymap row
+- [ ] M13-05-PLAN.md — Wave 3 recursion: slice-scoped sub-allocator handed to child toolset; depth>1 nested budget + nested panels (no depth constant)
+- [ ] M13-06-PLAN.md — Wave 4 chat integration: additive `attach_multiagent_tools` in `cli.py` + headline stub-provider `voss chat` e2e
 
 **Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 4)
 **Existing infra:** `voss/harness/subagents.py` (SubagentSpec/Registry, `attach_subagent_tool`); `voss_runtime/agent.py` (`VossAgent.spawn`, `AgentHandle`, `gather`).
@@ -614,9 +624,9 @@ Plans:
 
 ## Phase M14: Long-running Tasks + Watch (CAPS-01e)
 
-**Goal:** Add a background-job manager to the harness — file-watch-driven re-checks, dev-server lifecycle, test watchers — surfaced in an M9 TUI bottom-pane status strip. Unblocks codebase-intel file-watch refresh (deferred from M10).
+**Goal:** Voss gains a `watchdog`-backed file-watch backend exposed as an `fs_watch` agent tool emitting recorder events, plus a `voss watch <command>` CLI that re-runs a command on watched-file change with an opt-in `--daemon` flag — built on the existing T5 background job engine, headless-only this phase (M9 TUI status strip and M10 `code_refresh` hookback explicitly deferred per M14-SPEC.md).
 
-**Requirements:** WATCH-01..0N — TBD by `M14-SPEC.md`.
+**Requirements:** WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05 (locked in `M14-SPEC.md`).
 
 **Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 5)
 
@@ -632,7 +642,15 @@ Plans:
 - Background jobs reaped on session exit unless explicitly daemonized via opt-in flag.
 - File-watch backend cross-platform: `watchdog` Python lib for macOS/Linux/Windows.
 
-**Success Criteria:** TBD by `M14-SPEC.md`.
+**Success Criteria:** Per `M14-SPEC.md` acceptance criteria — watchdog pinned + importable; matching-glob edit yields exactly one coalesced recorder event in the debounce window; non-matching edit yields zero; `fs_watch` registered in one turn readable via cursor in a later turn; `voss watch 'pytest -q'` re-runs on change; non-daemon reaped on session exit (TERM <=2s/KILL <=5s); `--daemon` survives session exit; WATCH event tests green on macOS + Linux CI; shell allowlist enforced.
+
+**Plans:** 4 plans across 4 waves (serial spine; W3 runs M14-03 ∥ M14-04 file-disjoint).
+
+Plans:
+- [ ] M14-01-PLAN.md — Wave 0 scaffold: pin watchdog, 10 RED WATCH tests + reset/daemon-PID fixtures, macOS+Linux CI matrix (+ blocking package-legitimacy checkpoint)
+- [ ] M14-02-PLAN.md — lifecycle spine: `_WATCHERS` registry + `WatcherRecord` + shared `_read_log_cursor` factor (D-02/D-04, OQ-1) + `watch/backend.py` watchdog Observer/Debouncer/asyncio bridge (D-01) + reap wiring
+- [ ] M14-03-PLAN.md — `fs_watch` + `fs_watch_poll` agent tools in make_toolset, both `is_mutating=False` (WATCH-02, OQ-2)
+- [ ] M14-04-PLAN.md — `voss watch` CLI (allowlist + re-run via T5 register_job) + `watch/daemon.py` `start_new_session` detach with `--_is-worker` guard (WATCH-03/04, OQ-3)
 
 **Out of scope:** Distributed task scheduling. Cron-like recurring tasks (separate concern). Notification delivery (push/email/etc.).
 
@@ -1469,7 +1487,7 @@ Plans:
 | M10 | CODE-01..07 | 7 |
 | M11 | VTOOL-01..05 | 5 |
 | M12 | MCP-01..0N | TBD by `M12-SPEC.md` |
-| M13 | MAG-01..0N | TBD by `M13-SPEC.md` |
+| M13 | MAG-01..MAG-08 | 8 |
 | M14 | WATCH-01..0N | TBD by `M14-SPEC.md` |
 | M15 | SKILL-01..0N | TBD by `M15-SPEC.md` |
 | **T-phases (daily-driver gap closure)** | | |

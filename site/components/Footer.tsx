@@ -5,6 +5,7 @@ import {
   BookOpenText,
   Code2,
   GitBranch,
+  Layers3,
   Map,
   ShieldCheck,
   TerminalSquare,
@@ -34,9 +35,9 @@ export default function Footer() {
               {site.version}
             </Badge>
             <Button asChild variant="outline" size="lg">
-              <Link href="/harness">
-                <TerminalSquare />
-                Harness
+              <Link href="/ade">
+                <Layers3 />
+                ADE
               </Link>
             </Button>
           </div>
@@ -45,6 +46,12 @@ export default function Footer() {
           <div>
             <h2 className="font-mono text-sm uppercase tracking-widest text-[var(--foreground)]">Product</h2>
             <div className="mt-4 flex flex-col items-start gap-2">
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/ade">
+                  <Layers3 />
+                  ADE
+                </Link>
+              </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
                 <Link href="/harness">
                   <TerminalSquare />

@@ -18,7 +18,7 @@ export default function Home() {
         <CliShowcase />
         <CommandList />
         <InstallTabs />
-        <HarnessTeaser />
+        <AdeTeaser />
         <DocsTeaser />
       </main>
       <Footer />
@@ -26,33 +26,33 @@ export default function Home() {
   );
 }
 
-function HarnessTeaser() {
+function AdeTeaser() {
   return (
     <section className="border-b border-[var(--border)]">
       <div className="mx-auto max-w-6xl px-6 py-20">
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 sm:p-14">
           <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
-            Harness
+            ADE
           </p>
           <h2 className="display mt-3 text-4xl sm:text-5xl">
-            A coding agent with <span className="em">explicit boundaries</span>.
+            An agentic workspace with <span className="em">explicit boundaries</span>.
           </h2>
           <p className="mt-4 max-w-2xl text-[var(--muted)]">
-            For developers who already use AI coding tools and want tighter control over what an
-            agent reads, edits, runs, remembers, and resumes.
+            The Voss ADE brings tools, memory, permissions, sessions, replay, and inspection
+            surfaces into one local environment, with the harness as its bounded execution layer.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              href="/harness"
+              href="/ade"
               className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
             >
-              Meet the harness
+              Explore the ADE
             </Link>
             <Link
-              href="/harness#install"
+              href="/harness"
               className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"
             >
-              Install
+              Harness details
             </Link>
           </div>
         </div>
