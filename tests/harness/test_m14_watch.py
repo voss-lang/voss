@@ -1,22 +1,29 @@
-"""Wave 0 RED tests for M14 long-running watch support."""
+"""M14 WATCH scaffold tests.
+
+These tests intentionally bind the public names and behavior that later M14
+plans implement. Wave 0 expects the file to collect cleanly while most tests
+fail RED against today's production code.
+"""
 
 from __future__ import annotations
 
-import asyncio
-import importlib
+import inspect
 import json
 import os
+import re
 import signal
+import subprocess
 import sys
+import time
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 
 import pytest
 from click.testing import CliRunner
 
-from voss.harness import cli as harness_cli
+from voss.cli import main as voss_main
 from voss.harness import lifecycle
-from voss.harness import tools as harness_tools
+from voss.harness.tools import make_toolset
 
 
 @pytest.fixture(autouse=True)
@@ -37,252 +44,268 @@ def daemon_pid_cleanup():
             pass
 
 
-async def _maybe_await(value: Any) -> Any:
-    if hasattr(value, "__await__"):
-        return await value
-    return value
+def _require_attr(obj: Any, name: str) -> Any:
+    assert hasattr(obj, name), f"missing WATCH contract: {obj!r}.{name}"
+    return getattr(obj, name)
 
 
-async def _poll_for(
-    predicate: Callable[[], bool | Awaitable[bool]],
+def _poll_for(
+    predicate: Callable[[], Any],
     *,
     timeout_s: float = 2.0,
     interval_s: float = 0.05,
-) -> bool:
-    deadline = asyncio.get_running_loop().time() + timeout_s
-    while asyncio.get_running_loop().time() < deadline:
-        if await _maybe_await(predicate()):
-            return True
-        await asyncio.sleep(interval_s)
-    return False
+) -> Any:
+    deadline = time.monotonic() + timeout_s
+    last: Any = None
+    while time.monotonic() < deadline:
+        last = predicate()
+        if last:
+            return last
+        time.sleep(interval_s)
+    return last
 
 
-def _require_attr(module: Any, name: str) -> Any:
-    assert hasattr(module, name), f"missing M14 symbol: {module.__name__}.{name}"
-    return getattr(module, name)
-
-
-def _watchdog_classes() -> tuple[type[Any], type[Any]]:
-    try:
-        from watchdog.events import PatternMatchingEventHandler
-        from watchdog.observers import Observer
-    except Exception as exc:  # noqa: BLE001 - runtime failure, not collection error.
-        pytest.fail(f"watchdog>=4.0,<7 must be importable for M14 WATCH tests: {exc!r}")
-    return Observer, PatternMatchingEventHandler
-
-
-def _jsonl_event_count(text: str) -> int:
-    body = text.split("\n", 1)[1] if "\n" in text else ""
-    count = 0
-    for line in body.splitlines():
-        try:
-            json.loads(line)
-        except json.JSONDecodeError:
+def _event_lines(log_path: str | Path) -> list[dict[str, Any]]:
+    path = Path(log_path)
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text().splitlines():
+        if not line.strip():
             continue
-        count += 1
-    return count
+        rows.append(json.loads(line))
+    return rows
 
 
-async def _register_test_watcher(
-    tmp_path: Path,
-    *,
-    globs: list[str],
-    session_id: str = "m14-test",
-    debounce_ms: int = 200,
-) -> tuple[str, Any]:
-    register_watcher = _require_attr(lifecycle, "register_watcher")
-    find_watcher = _require_attr(lifecycle, "_find_watcher")
-    handle = await _maybe_await(
-        register_watcher(
-            cwd=tmp_path,
-            globs=globs,
-            session_id=session_id,
-            debounce_ms=debounce_ms,
-        )
-    )
-    assert isinstance(handle, str), "register_watcher must return a watch handle"
-    assert handle.startswith("watch-"), "watch handles must use the watch-NNN prefix"
-    rec = find_watcher(handle, session_id=session_id)
-    assert rec is not None, f"watcher {handle} must be registered"
-    return handle, rec
+def _cursor_from(envelope: str) -> int:
+    match = re.match(r"\[cursor (\d+)\]\[[^\]]+\]\n", envelope)
+    assert match is not None, envelope
+    return int(match.group(1))
+
+
+async def _invoke(entry: Any, **kwargs: Any) -> Any:
+    result = entry.invoke(**kwargs)
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+def test_watchdog_dependency_importable() -> None:
+    from watchdog.events import PatternMatchingEventHandler
+    from watchdog.observers import Observer
+    from watchdog.version import VERSION_STRING
+
+    major = int(VERSION_STRING.split(".", 1)[0])
+    assert 4 <= major < 7
+    assert Observer is not None
+    assert PatternMatchingEventHandler is not None
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="WATCH-05 Windows non-gating")
 async def test_debounce_coalesces_rapid_writes(tmp_path: Path) -> None:
-    Observer, _ = _watchdog_classes()
-    watched = tmp_path / "watched.txt"
-    watched.write_text("initial")
-    handle, rec = await _register_test_watcher(tmp_path, globs=["*.txt"])
-    assert isinstance(rec.observer, Observer)
-    assert rec.observer.daemon is True
-    assert await _poll_for(lambda: rec.observer.is_alive())
+    register_watcher = _require_attr(lifecycle, "register_watcher")
+    find_watcher = _require_attr(lifecycle, "_find_watcher")
+    reap_watchers = _require_attr(lifecycle, "reap_watchers")
 
-    watched.write_text("changed once")
-
-    read_log_cursor = _require_attr(lifecycle, "_read_log_cursor")
-    observed = await _poll_for(
-        lambda: _jsonl_event_count(
-            read_log_cursor(Path(rec.log_path), 0, status=rec.status)
-        )
-        == 1
+    handle = await register_watcher(
+        ["**/*.py"],
+        tmp_path,
+        session_id="watch-test",
+        debounce_ms=200,
     )
-    assert observed, f"{handle} should emit exactly one coalesced JSONL event"
-    assert _jsonl_event_count(read_log_cursor(Path(rec.log_path), 0, status=rec.status)) == 1
+    assert handle == "watch-001"
+
+    watched = tmp_path / "sample.py"
+    watched.write_text("print('one')\n")
+
+    def matching_events() -> list[dict[str, Any]]:
+        rec = find_watcher(handle, session_id="watch-test")
+        assert rec is not None
+        return [
+            row
+            for row in _event_lines(rec.log_path)
+            if row.get("path") == str(watched) or row.get("src_path") == str(watched)
+        ]
+
+    events = _poll_for(matching_events, timeout_s=2.0, interval_s=0.05)
+    assert len(events) == 1
+
+    await reap_watchers()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="WATCH-05 Windows non-gating")
 async def test_non_matching_glob_no_event(tmp_path: Path) -> None:
-    _watchdog_classes()
-    watched = tmp_path / "note.txt"
-    watched.write_text("initial")
-    _handle, rec = await _register_test_watcher(tmp_path, globs=["*.voss"])
-    assert await _poll_for(lambda: rec.observer.is_alive())
+    register_watcher = _require_attr(lifecycle, "register_watcher")
+    find_watcher = _require_attr(lifecycle, "_find_watcher")
+    reap_watchers = _require_attr(lifecycle, "reap_watchers")
 
-    watched.write_text("changed once")
-
-    read_log_cursor = _require_attr(lifecycle, "_read_log_cursor")
-    saw_event = await _poll_for(
-        lambda: _jsonl_event_count(
-            read_log_cursor(Path(rec.log_path), 0, status=rec.status)
-        )
-        > 0
+    handle = await register_watcher(
+        ["**/*.py"],
+        tmp_path,
+        session_id="watch-test",
+        debounce_ms=200,
     )
-    assert saw_event is False
-    assert _jsonl_event_count(read_log_cursor(Path(rec.log_path), 0, status=rec.status)) == 0
+    rec = find_watcher(handle, session_id="watch-test")
+    assert rec is not None
+
+    (tmp_path / "notes.txt").write_text("not watched\n")
+
+    def any_events() -> list[dict[str, Any]]:
+        return _event_lines(rec.log_path)
+
+    events = _poll_for(any_events, timeout_s=0.6, interval_s=0.05)
+    assert events == []
+
+    await reap_watchers()
 
 
 async def test_watcher_registry_and_reap(tmp_path: Path) -> None:
     watchers = _require_attr(lifecycle, "_WATCHERS")
-    reap_watchers = _require_attr(lifecycle, "reap_watchers")
     next_watch_handle = _require_attr(lifecycle, "_next_watch_handle")
-    assert next_watch_handle("session-a") == "watch-001"
-    handle, rec = await _register_test_watcher(tmp_path, globs=["*.py"])
-    assert any(record.handle == handle for record in watchers.values())
-    assert rec.observer.daemon is True
+    register_watcher = _require_attr(lifecycle, "register_watcher")
+    reap_watchers = _require_attr(lifecycle, "reap_watchers")
+
+    assert next_watch_handle("handles") == "watch-001"
+    assert next_watch_handle("handles") == "watch-002"
+    assert lifecycle._next_handle("handles") == "bg-001"
+
+    handle = await register_watcher(["**/*.py"], tmp_path, session_id="registry-test")
+    assert handle == "watch-001"
+    assert len(watchers) == 1
+    rec = next(iter(watchers.values()))
+    assert rec.handle == handle
+    assert rec.observer.is_alive()
 
     await reap_watchers()
-
-    assert all(record.handle != handle for record in watchers.values())
-    assert await _poll_for(lambda: not rec.observer.is_alive())
+    assert watchers == {}
+    assert not rec.observer.is_alive()
 
 
 async def test_fs_watch_tool_cursor_read(tmp_path: Path) -> None:
-    toolset = harness_tools.make_toolset(tmp_path, session_id="m14-tools")
-    assert "fs_watch" in toolset, "make_toolset must expose fs_watch"
-    assert "fs_watch_poll" in toolset, "make_toolset must expose fs_watch_poll"
-    assert toolset["fs_watch"].is_mutating is False
-    assert toolset["fs_watch_poll"].is_mutating is False
+    tools = make_toolset(tmp_path, session_id="tool-test")
+    assert "fs_watch" in tools
+    assert "fs_watch_poll" in tools
+    assert tools["fs_watch"].is_mutating is False
+    assert tools["fs_watch_poll"].is_mutating is False
 
-    watched = tmp_path / "watched.txt"
-    watched.write_text("initial")
-    handle = await _maybe_await(
-        toolset["fs_watch"].invoke(globs=["*.txt"], debounce_ms=200)
-    )
-    assert isinstance(handle, str)
-    assert handle.startswith("watch-")
+    handle = await _invoke(tools["fs_watch"], globs=["**/*.py"], debounce_ms=200)
+    assert handle == "watch-001"
 
-    watched.write_text("changed once")
+    changed = tmp_path / "tool_target.py"
+    changed.write_text("print('tool')\n")
 
-    async def _has_one_event() -> bool:
-        output = await _maybe_await(toolset["fs_watch_poll"].invoke(handle=handle, since_ms=0))
-        assert output.startswith("[cursor ")
-        assert "][watching]\n" in output or "][stopped]\n" in output
-        return _jsonl_event_count(output) == 1
+    def poll_output() -> str:
+        text = tools["fs_watch_poll"].invoke(handle=handle, since_ms=0)
+        assert isinstance(text, str)
+        if str(changed) in text or "tool_target.py" in text:
+            return text
+        return ""
 
-    assert await _poll_for(_has_one_event)
+    first = _poll_for(poll_output, timeout_s=2.0, interval_s=0.05)
+    assert first.startswith("[cursor ")
+    assert "][watching]\n" in first
+    assert "tool_target.py" in first
+
+    cursor = _cursor_from(first)
+    second = tools["fs_watch_poll"].invoke(handle=handle, since_ms=cursor)
+    assert isinstance(second, str)
+    assert second.startswith(f"[cursor {cursor}]")
+    assert "tool_target.py" not in second
 
 
 def test_shared_cursor_reader_format(tmp_path: Path) -> None:
     read_log_cursor = _require_attr(lifecycle, "_read_log_cursor")
-    log_path = tmp_path / "watch.log"
-    payload = '{"path":"watched.txt","event_type":"modified"}\n'
-    log_path.write_text(payload)
+    log = tmp_path / "watch.log"
+    log.write_text("alpha\nbeta\n")
 
-    output = read_log_cursor(log_path, 0, status="watching")
+    output = read_log_cursor(log, 0, status="watching")
 
-    assert output == f"[cursor {len(payload.encode())}][watching]\n{payload}"
+    assert output == "[cursor 11][watching]\nalpha\nbeta\n"
+    assert read_log_cursor(tmp_path / "missing.log", 0, status="stopped") == (
+        "[cursor 0][stopped]\n"
+    )
 
 
 def test_voss_watch_reruns_on_change(tmp_path: Path) -> None:
-    watch_cmd = _require_attr(harness_cli, "watch_cmd")
-    assert watch_cmd in harness_cli.AGENT_COMMANDS
-    runner = CliRunner()
-
-    result = runner.invoke(harness_cli.main, ["watch", "--help"])
-
+    result = CliRunner().invoke(voss_main, ["watch", "--help"])
     assert result.exit_code == 0
     assert "--glob" in result.output
-    assert "--daemon" in result.output
-    assert "--_is-worker" in {
-        opt for param in watch_cmd.params for opt in getattr(param, "opts", [])
-    }
+    assert "--_is-worker" in result.output
+
+    command = "python -c 'import time; time.sleep(60)'"
+    allowed = CliRunner().invoke(
+        voss_main,
+        ["watch", command, "--glob", "**/*.py", "--cwd", str(tmp_path)],
+    )
+    assert allowed.exit_code == 0
+    assert "watch-001" in allowed.output
 
 
 def test_watch_command_allowlist(tmp_path: Path) -> None:
-    _require_attr(harness_cli, "watch_cmd")
-    runner = CliRunner()
+    result = CliRunner().invoke(
+        voss_main,
+        ["watch", "echo ok | cat", "--cwd", str(tmp_path)],
+    )
+    assert result.exit_code != 0
+    assert "<denied:" in result.output
 
-    result = runner.invoke(
-        harness_cli.main,
+
+def test_nondaemon_watch_reaped_on_exit(tmp_path: Path) -> None:
+    register_watcher = _require_attr(lifecycle, "register_watcher")
+    assert register_watcher is not None
+
+    result = CliRunner().invoke(
+        voss_main,
         [
             "watch",
-            "python -c 'print(1)' && python -c 'print(2)'",
+            "python -c 'import time; time.sleep(60)'",
+            "--glob",
+            "**/*.py",
             "--cwd",
             str(tmp_path),
-            "--glob",
-            "*.py",
-            "--_is-worker",
         ],
     )
 
-    assert result.exit_code != 0 or "<denied:" in result.output
-    assert "metacharacter" in result.output or "denied" in result.output.lower()
+    assert result.exit_code == 0
+    assert lifecycle._JOBS == {}
+    assert _require_attr(lifecycle, "_WATCHERS") == {}
 
 
-async def test_nondaemon_watch_reaped_on_exit(tmp_path: Path) -> None:
-    _require_attr(harness_cli, "watch_cmd")
-    handle, rec = await _register_test_watcher(tmp_path, globs=["*.py"])
-    assert rec.observer.is_alive()
-
-    await lifecycle.reap_all()
-
-    watchers = _require_attr(lifecycle, "_WATCHERS")
-    assert all(record.handle != handle for record in watchers.values())
-    assert await _poll_for(lambda: not rec.observer.is_alive())
-
-
-def test_daemon_watch_survives_exit(tmp_path: Path, daemon_pid_cleanup: list[int]) -> None:
+def test_daemon_watch_survives_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    daemon_pid_cleanup: list[int],
+) -> None:
     try:
-        daemon_mod = importlib.import_module("voss.harness.watch.daemon")
-    except ModuleNotFoundError as exc:
-        assert False, f"missing M14 module: voss.harness.watch.daemon ({exc})"
-    spawn_detached_worker = _require_attr(daemon_mod, "spawn_detached_worker")
-    argv = [
-        sys.executable,
-        "-m",
-        "voss.harness.cli",
-        "watch",
-        "--_is-worker",
-        "--cwd",
-        str(tmp_path),
-        "--glob",
-        "*.py",
-        "python -c 'import time; time.sleep(60)'",
-    ]
+        from voss.harness.watch import daemon
+    except ModuleNotFoundError:
+        pytest.fail("missing WATCH contract: voss.harness.watch.daemon")
 
-    pid = spawn_detached_worker(argv)
+    calls: list[dict[str, Any]] = []
+
+    class DummyProc:
+        pid = 424242
+
+        def wait(self) -> None:
+            raise AssertionError("daemon detach must not wait on the child")
+
+    def fake_popen(argv: list[str], **kwargs: Any) -> DummyProc:
+        calls.append({"argv": argv, "kwargs": kwargs})
+        return DummyProc()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    pid = daemon.spawn_detached_worker(
+        ["--daemon", "pytest -q", "--glob", "**/*.py"]
+    )
     daemon_pid_cleanup.append(pid)
-    lifecycle.reset_for_tests()
 
-    assert isinstance(pid, int)
-    os.kill(pid, 0)
-
-
-def test_watchdog_dependency_importable() -> None:
-    Observer, PatternMatchingEventHandler = _watchdog_classes()
-    watchdog_version = importlib.import_module("watchdog.version")
-    major = int(watchdog_version.VERSION_STRING.split(".", 1)[0])
-
-    assert issubclass(Observer, object)
-    assert PatternMatchingEventHandler.__name__ == "PatternMatchingEventHandler"
-    assert 4 <= major < 7
+    assert pid == 424242
+    assert calls
+    argv = calls[0]["argv"]
+    assert argv[:4] == [sys.executable, "-m", "voss.harness.cli", "watch"]
+    assert "--daemon" not in argv
+    assert argv.count("--_is-worker") == 1
+    assert calls[0]["kwargs"]["stdin"] is subprocess.DEVNULL
+    assert calls[0]["kwargs"]["stdout"] is subprocess.DEVNULL
+    assert calls[0]["kwargs"]["stderr"] is subprocess.DEVNULL
+    assert calls[0]["kwargs"]["start_new_session"] is True
