@@ -67,7 +67,8 @@ def git_repo(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def signed_fixture_bundle() -> Path:
-    return Path("/Users/benjaminmarks/Projects/Voss/examples/skills/voss-git-summary")
+    # Repo-relative: tests/harness/skill/conftest.py -> repo root is parents[3].
+    return Path(__file__).resolve().parents[3] / "examples" / "skills" / "voss-git-summary"
 
 
 class FakeProvider:

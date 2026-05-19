@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
-from typing import Any
 
 
 def spawn_detached_worker(original_argv: list[str]) -> int:
@@ -32,8 +30,3 @@ def spawn_detached_worker(original_argv: list[str]) -> int:
 
     # Intentionally do not wait or block on the process.
     return proc.pid
-
-
-def is_worker_invocation(argv: list[str]) -> bool:
-    """Check if the argv represents a worker re-entry invocation."""
-    return "--_is-worker" in argv

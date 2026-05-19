@@ -244,7 +244,11 @@ def make_toolset(
 
     @tool(
         name="fs_watch",
-        description="Register a file-system watcher for glob patterns.",
+        description=(
+            "Register a file-system watcher for glob patterns. Patterns are "
+            "fnmatch-style matched against the full path (not recursive ** "
+            "globbing); '*' spans '/'. Paths under .voss-cache are ignored."
+        ),
     )
     async def fs_watch(globs: list[str], debounce_ms: int = 200) -> str:
         from . import lifecycle

@@ -2,10 +2,10 @@
 
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure → desktop ADE scaffold
-**Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`)
+**Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`)
 **Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A10 (counts TBD by SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A10 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Last updated:** 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A10 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -51,6 +51,12 @@
 | O4 | Reviewer A/B Split | Reviewer-A (idea→bar + tests/eval, `voss/eval/` reuse); Reviewer-B (independent tiered judge: slop/errors/correctness) | ORVW-01..0N (TBD by SPEC.md) | TBD |
 | O5 | Engineering Manager Loop | EM full-authority autonomous loop; idea→tickets/AC/DoD; specialist dispatch + routing rationale; kill/re-scope lineage | OEM-01..0N (TBD by SPEC.md) | TBD |
 | O6 | Audit Product + Calibration + Liveness | Session-tree review surface; killed-card + routing first-class; calibration telemetry; reserve/timeout; sign-off forcing function | OAUD-01..0N (TBD by SPEC.md) | TBD |
+| F1 | Durable Session Persistence | Agent cells resume after restart/crash; SQLite registry + Rust supervisor auto-restart | FPRS-01..0N (TBD by SPEC.md) | TBD |
+| F2 | Hybrid Semantic Search | BM25 + vector via Reciprocal Rank Fusion; symbol-accurate retrieval | FSRCH-01..0N (TBD by SPEC.md) | TBD |
+| F3 | Budget & Token Visualization | HUD progress bars for token/budget, live cost updates via IPC | FVIZ-01..0N (TBD by SPEC.md) | TBD |
+| F4 | Visual Context Heatmap | Context pane showing in-context/compressed files + manual pinning UI | FCTX-01..0N (TBD by SPEC.md) | TBD |
+| F5 | Commit with Critique Hook | Pre-commit hook invoking Voss agent to critique diffs against constraints | FCRIT-01..0N (TBD by SPEC.md) | TBD |
+| F6 | Multi-Model Agent Council | CLI-native multi-model deliberation panel; structured debate + consensus engine | FCNCL-01..0N (TBD by SPEC.md) | TBD |
 
 ---
 

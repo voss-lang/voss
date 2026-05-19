@@ -131,6 +131,63 @@ describe('GridRoot — container + keymap mount (GRD-01, GRD-03)', () => {
     });
     expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(2);
   });
+
+  it('⌘G calls onCycleLayout with the next preset and preserves pane ids', () => {
+    let active: 'fanout' | 'pipeline' | 'swarm' | 'watchers' | 'custom' =
+      'custom';
+    const onLayoutChange = vi.fn((next: typeof active) => {
+      active = next;
+    });
+    const el = mount(() => (
+      <GridRoot
+        activeLayout={() => active}
+        onLayoutChange={onLayoutChange}
+      />
+    ));
+    // Grow to 3 panes manually so the preset transform has work to do.
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'd', metaKey: true });
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'd', metaKey: true });
+    expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(3);
+    // Manual edits flagged the layout as custom.
+    expect(onLayoutChange).toHaveBeenLastCalledWith('custom');
+
+    onLayoutChange.mockClear();
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'g', metaKey: true });
+    expect(onLayoutChange).toHaveBeenLastCalledWith('fanout');
+    expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(3);
+
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'g', metaKey: true });
+    expect(onLayoutChange).toHaveBeenLastCalledWith('pipeline');
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'g', metaKey: true });
+    expect(onLayoutChange).toHaveBeenLastCalledWith('swarm');
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'g', metaKey: true });
+    expect(onLayoutChange).toHaveBeenLastCalledWith('watchers');
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'g', metaKey: true });
+    expect(onLayoutChange).toHaveBeenLastCalledWith('fanout');
+    expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(3);
+  });
+
+  it('manual structural edits after a preset flip activeLayout back to custom', () => {
+    let active: 'fanout' | 'pipeline' | 'swarm' | 'watchers' | 'custom' =
+      'custom';
+    const onLayoutChange = vi.fn((next: typeof active) => {
+      active = next;
+    });
+    mount(() => (
+      <GridRoot
+        activeLayout={() => active}
+        onLayoutChange={onLayoutChange}
+      />
+    ));
+    // Start with one pane → split → cycle to pipeline → manual split.
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'd', metaKey: true });
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'g', metaKey: true });
+    expect(active).toBe('fanout');
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'g', metaKey: true });
+    expect(active).toBe('pipeline');
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'd', metaKey: true });
+    expect(active).toBe('custom');
+  });
 });
 
 describe('GridRoot — GRD-05 window-shrink floor', () => {
