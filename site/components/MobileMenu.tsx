@@ -3,19 +3,20 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowUpRight, BookOpenText, Code2, GitBranch, Menu, TerminalSquare, X } from "lucide-react";
+import { ArrowUpRight, BookOpenText, Code2, GitBranch, Layers3, Menu, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { captureOutboundClick } from "@/lib/analytics";
 import { site } from "@/lib/site";
 
 type Item = {
   href: string;
   label: string;
-  icon: typeof TerminalSquare;
+  icon: LucideIcon;
   external?: boolean;
 };
 
 const ITEMS: Item[] = [
-  { href: "/harness", label: "Harness", icon: TerminalSquare },
+  { href: "/ade", label: "ADE", icon: Layers3 },
   { href: site.docsUrl, label: "Docs", icon: BookOpenText, external: true },
   { href: "/language", label: "Language", icon: Code2 },
   { href: site.repoUrl, label: "GitHub", icon: GitBranch, external: true },

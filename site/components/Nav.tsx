@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, BookOpenText, Code2, GitBranch, TerminalSquare } from "lucide-react";
+import { ArrowUpRight, BookOpenText, Code2, GitBranch, Layers3 } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import MobileMenu from "@/components/MobileMenu";
 import TrackedOutboundLink from "@/components/TrackedOutboundLink";
@@ -26,9 +26,9 @@ export default function Nav() {
         <MobileMenu className="md:hidden" />
         <nav className="hidden flex-wrap items-center gap-2 md:flex">
           <Button asChild variant="ghost" size="lg">
-            <Link href="/harness">
-              <TerminalSquare />
-              Harness
+            <Link href="/ade">
+              <Layers3 />
+              ADE
             </Link>
           </Button>
           <Button asChild variant="ghost" size="lg">
