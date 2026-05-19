@@ -1,0 +1,14 @@
+# git_summary.voss
+# Summarizes the working tree (git status/diff). NOT the runtime
+# exec path — the skill is implemented and registered by the skill marketplace harness.
+# This file exists to demonstrate the same flow expressed in Voss and to pass `voss check`.
+fn summarizeGitTree(status: string, diff: string) -> string {
+    ctx(budget: 3000 tokens) {
+        yield ask("Summarize this git status and diff as a concise developer status update. Status: " + status + "\nDiff: " + diff)
+    }
+}
+
+let status = "On branch main\nChanges not staged for commit:\n  modified:   README.md"
+let diff = "--- a/README.md\n+++ b/README.md\n+### New Section"
+let summary = summarizeGitTree(status, diff)
+print(summary)
