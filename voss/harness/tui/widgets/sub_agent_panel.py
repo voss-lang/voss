@@ -30,6 +30,7 @@ class SubAgentPanel(Vertical):
     }
     SubAgentPanel .agent-body {
         padding: 0 0;
+        display: none;
     }
     """
 

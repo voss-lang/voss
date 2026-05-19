@@ -286,16 +286,28 @@ def attach_multiagent_tools(
     model: str | Callable[[], str],
     gate: PermissionGate,
     cognition: Any = None,
+    allocator: M13Allocator | None = None,
 ) -> Callable[[], Any]:
     """Analog A — register the four non-blocking M13 fan-out tools.
 
-    SAME parameter list as ``subagents.attach_subagent_tool``. Closes over a
-    fresh chat-turn-scoped :class:`ChildRegistry` + :class:`M13Allocator`
-    (constructed with the M13-02 OQ-A1 ``DEFAULT_PARENT_RESERVE`` reserve;
-    the viable floor is M13Allocator's ``VIABLE_FLOOR`` class attr) and the
-    base renderer. Returns the ``_teardown_orphans`` callable so the cli wave
-    (M13-06) can invoke it at chat-turn exit; ``subagent_gather`` is itself
-    idempotently re-callable as a second safety net.
+    SAME parameter list as ``subagents.attach_subagent_tool``, plus the
+    M13-05 ADDITIVE keyword-only ``allocator``. Closes over a fresh
+    chat-turn-scoped :class:`ChildRegistry` and the base renderer.
+
+    ``allocator`` is the slice-scoped budget for THIS nesting level. When
+    omitted (the top-level chat-turn attach, M13-03 behavior) a fresh
+    :class:`M13Allocator` is constructed with the M13-02 OQ-A1
+    ``DEFAULT_PARENT_RESERVE`` reserve. The M13-05 recursive attach (below,
+    inside ``subagent_spawn``) passes the child's own slice-scoped
+    ``sub_allocator`` (``reserve = child.allotment``, D-07) so each nesting
+    level only ever divides its OWN reserve — the recursive no-oversell
+    invariant holds structurally with NO new accounting and recursion is
+    bounded SOLELY by the existing viable-floor ``None`` denial (no
+    depth/max_depth constant anywhere).
+
+    Returns the ``_teardown_orphans`` callable so the cli wave (M13-06) can
+    invoke it at chat-turn exit; ``subagent_gather`` is itself idempotently
+    re-callable as a second safety net.
 
     Tool names are FINAL and distinct from ``SPAWN_TOOL_NAME="subagent_run"``
     (the back-compat anchor, not shadowed): ``subagent_spawn`` /
@@ -306,7 +318,11 @@ def attach_multiagent_tools(
     # OQ-A1 reserve consumed from M13-02 (DEFAULT_PARENT_RESERVE=30_000);
     # the viable floor is M13Allocator.VIABLE_FLOOR (== DEFAULT_VIABLE_FLOOR
     # == 2_000), a class attr — M13Allocator takes ONLY reserve= (real API).
-    allocator = M13Allocator(reserve=DEFAULT_PARENT_RESERVE)
+    # M13-05: a recursive child passes its own slice-scoped sub_allocator
+    # (reserve == that child's allotment, D-07); only the top-level attach
+    # falls back to the synthetic parent reserve.
+    if allocator is None:
+        allocator = M13Allocator(reserve=DEFAULT_PARENT_RESERVE)
     # handle id -> PanelBridgeRenderer (so gather/teardown can end_panel even
     # though M13-02's ChildHandle dataclass has no bridge field).
     bridges: dict[str, PanelBridgeRenderer] = {}
@@ -341,6 +357,32 @@ def attach_multiagent_tools(
         bridges[handle] = bridge
         picked_model = model() if callable(model) else model
         child_tools = make_toolset(cwd, renderer=bridge)
+        # D-07 (M13-05) — slice-scoped sub-allocator: reserve == THIS child's
+        # allotment, so a grandchild's even slice == child.allotment // n
+        # (≤ child.allotment ≤ parent reserve at every nesting level). The
+        # viable floor is M13Allocator.VIABLE_FLOOR (class attr) — no ctor
+        # kwarg, no depth constant; recursion is bounded SOLELY by the
+        # existing viable-floor None denial.
+        sub_alloc = M13Allocator(reserve=allotment)
+        # Recursive attach (D-07 / Pitfall 5): re-register the four M13 tools
+        # onto the CHILD's own toolset so the child can itself fan out. It
+        # closes over its OWN fresh level-local ChildRegistry (constructed
+        # inside attach_multiagent_tools) + its slice-scoped sub_alloc, so a
+        # grandchild's subagent_gather awaits only the child's children and
+        # releases only on sub_alloc — never the parent allocator/registry.
+        # The child's renderer is its PanelBridgeRenderer base so a
+        # grandchild's subagent_spawn mounts its OWN fresh-uuid panel.
+        attach_multiagent_tools(
+            child_tools,
+            registry=registry,
+            cwd=cwd,
+            renderer=bridge,
+            provider=provider,
+            model=model,
+            gate=gate,
+            cognition=cognition,
+            allocator=sub_alloc,
+        )
         coro = run_turn(
             _resolve_task(agent, task),
             tools=child_tools,
@@ -364,7 +406,7 @@ def attach_multiagent_tools(
                 allotment=allotment,
                 queue=queue,
                 panel_id=panel_id,
-                sub_allocator=M13Allocator(reserve=allotment),
+                sub_allocator=sub_alloc,
             )
         )
         # Pitfall 1: the return string makes the pending-gather obligation
