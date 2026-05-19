@@ -1,0 +1,121 @@
+/* Variant B pane chrome — UI-SPEC §1/§2/§3/§6/§11. Tokens only (no raw hex). */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  overflow: hidden;
+  transition: none; /* UI-SPEC §11 — Variant B is motion-free chrome */
+}
+
+.pane.focused {
+  background: var(--bg-2);
+  /* Focus is bg-lift + inset glow ONLY — border color is unchanged. */
+  box-shadow: inset 0 0 0 2px var(--focus-glow);
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  background: var(--bg-3);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  border-radius: 0;
+  transition: none; /* UI-SPEC §11 */
+}
+
+.pane-header .dot {
+  font-size: 12px;
+  font-weight: 500;
+}
+.pane-header .dot.loading {
+  color: var(--fg-3);
+}
+.pane-header .dot.running {
+  color: var(--accent-green);
+}
+.pane-header .dot.exited {
+  color: var(--accent-red);
+}
+
+.pane-header .sep {
+  color: var(--fg-3);
+  font-weight: 400;
+}
+.pane-header .idx {
+  color: var(--fg-2);
+  font-weight: 400;
+}
+.pane-header .cwd {
+  color: var(--fg-1);
+  font-weight: 500;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane-header .shell {
+  color: var(--fg-2);
+  font-weight: 400;
+}
+.pane-header .proc {
+  color: var(--fg-0);
+  font-weight: 500;
+}
+.pane-header .proc.idle {
+  color: var(--fg-3);
+}
+.pane-header .spacer {
+  flex: 1;
+}
+.pane-header .menu {
+  min-width: 28px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 0;
+}
+.pane-header .menu:hover {
+  color: var(--fg-0);
+}
+
+.pane-body {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  background: var(--bg-0);
+  padding: 0;
+}
+
+/* Slim dark scrollbar — themes/default.css parity (UI-SPEC §3). */
+.pane-body ::-webkit-scrollbar {
+  width: 8px;
+}
+.pane-body ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pane-body ::-webkit-scrollbar-thumb {
+  background: var(--bg-3);
+  border-radius: 4px;
+}
+.pane-body ::-webkit-scrollbar-thumb:hover {
+  background: var(--border-bright);
+}

@@ -125,6 +125,12 @@ export default function AdePage() {
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">
+                    <Link href="/harness">
+                      Harness details
+                      <TerminalSquare />
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg">
                     <Link href={site.docsUrl} target="_blank" rel="noreferrer">
                       Read docs
                       <ArrowRight />
@@ -294,83 +300,87 @@ function AdeMock() {
         <span>voss ade</span>
         <span className="text-[var(--accent)]">plan | edit | auto</span>
       </div>
-      <div className="grid min-h-[420px] grid-cols-1 lg:grid-cols-[0.85fr_1.35fr_0.95fr]">
-        <aside className="border-b border-[var(--border)] p-4 lg:border-r lg:border-b-0">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">
-            Sessions
-          </p>
-          <div className="mt-4 space-y-2">
+      <div className="space-y-4 p-4">
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
+          <div className="flex items-center justify-between gap-4">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">
+              Workspace
+            </p>
+            <p className="truncate font-mono text-xs text-[var(--accent)]">~/Projects/Voss</p>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
             {sessionRows.map((row, index) => (
               <div
                 key={row}
-                className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
               >
                 <p className="truncate font-mono text-xs text-[var(--foreground)]">{row}</p>
                 <p className="mt-1 font-mono text-[10px] text-[var(--muted)]">checkpoint 0{index + 1}</p>
               </div>
             ))}
           </div>
-          <div className="mt-5 rounded-lg border border-[var(--accent)]/35 bg-[var(--accent-soft)] p-3">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--accent)]">
-              Workspace
-            </p>
-            <p className="mt-2 truncate text-sm">~/Projects/Voss</p>
-          </div>
-        </aside>
+        </section>
 
-        <section className="border-b border-[var(--border)] p-4 lg:border-r lg:border-b-0">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">
-            Active turn
-          </p>
-          <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--background)] p-4">
-            <p className="font-mono text-xs text-[var(--accent)]">$ voss do plan ADE page</p>
-            <div className="mt-4 space-y-3 text-sm leading-6">
-              <TraceLine label="plan" value="Create route, mock interface, download placeholders" />
-              <TraceLine label="tool" value="fs_read site/app/page.tsx" />
-              <TraceLine label="tool" value="fs_edit site/components/Nav.tsx" />
-              <TraceLine label="check" value="lint + build + mobile layout review" />
-            </div>
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">
+              Active turn
+            </p>
+            <Badge variant="secondary" className="font-mono uppercase tracking-wider">
+              edit
+            </Badge>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <Metric label="confidence" value="0.91" />
-            <Metric label="budget" value="$0.18" />
-            <Metric label="mode" value="edit" />
+          <div className="rounded-lg border border-[var(--border)] bg-black/30 p-4 font-mono text-[11px] leading-6">
+            <p className="text-[var(--accent)]">$ voss do &quot;plan ADE page&quot;</p>
+            <div className="mt-3 grid gap-2">
+              <MockLine label="plan" value="route + scaffold + download placeholders" />
+              <MockLine label="read" value="site/app/page.tsx" />
+              <MockLine label="edit" value="site/components/Nav.tsx" />
+              <MockLine label="check" value="lint + build + mobile review" />
+            </div>
           </div>
         </section>
 
-        <aside className="p-4">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">
-            Capabilities
-          </p>
-          <div className="mt-4 space-y-2">
+        <section className="grid gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {toolRows.map((row) => (
-              <div key={row} className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2">
+              <div
+                key={row}
+                className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              >
                 <CheckCircle2 className="h-4 w-4 text-[var(--accent)]" />
                 <span className="min-w-0 truncate font-mono text-xs">{row}</span>
               </div>
             ))}
           </div>
-          <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
-            <div className="mb-3 flex items-center gap-2 text-[var(--accent)]">
+          <div className="grid grid-cols-3 gap-2">
+            <Metric label="confidence" value="0.91" />
+            <Metric label="budget" value="$0.18" />
+            <Metric label="mode" value="edit" />
+          </div>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-[var(--accent)]">
               <CircleDollarSign className="h-4 w-4" />
-              <span className="font-mono text-xs">budget trace</span>
+                <span className="font-mono text-xs">budget trace</span>
+              </div>
+              <span className="font-mono text-xs text-[var(--muted)]">inspectable</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-2)]">
               <div className="h-full w-2/3 rounded-full bg-[var(--accent)]" />
             </div>
-            <p className="mt-3 text-xs leading-5 text-[var(--muted)]">tokens, cost, and decisions stay inspectable.</p>
           </div>
-        </aside>
+        </section>
       </div>
     </div>
   );
 }
 
-function TraceLine({ label, value }: { label: string; value: string }) {
+function MockLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[72px_1fr] gap-3">
+    <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-3">
       <span className="font-mono text-xs text-[var(--muted)]">{label}</span>
-      <span className="min-w-0 text-[var(--foreground)]">{value}</span>
+      <span className="min-w-0 truncate text-[var(--foreground)]">{value}</span>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   Layers3,
   Map,
   ShieldCheck,
+  TerminalSquare,
 } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,12 @@ export default function Footer() {
                 <Link href="/ade">
                   <Layers3 />
                   ADE
+                </Link>
+              </Button>
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/harness">
+                  <TerminalSquare />
+                  Harness
                 </Link>
               </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">

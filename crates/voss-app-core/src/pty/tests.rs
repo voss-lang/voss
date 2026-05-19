@@ -92,14 +92,39 @@ fn test_pty_write_validation() {
 #[test]
 fn test_foreground_pgid() {
     // PTY-06: foreground process name resolves via tcgetpgrp + pgid→pid.
-    let (session, reader, _pause) = spawn_session(24, 80, None).expect("spawn");
-    // Settle the shell prompt before launching the foreground child.
-    let _ = read_until(reader, "$", Duration::from_secs(3));
-    session.write(b"sleep 5\n").expect("write");
-    std::thread::sleep(Duration::from_millis(800));
+    let (session, mut reader, _pause) = spawn_session(24, 80, None).expect("spawn");
+    // Drain PTY output so the shell never blocks on a full master buffer.
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        while let Ok(n) = reader.read(&mut buf) {
+            if n == 0 {
+                break;
+            }
+        }
+    });
 
-    let fd = session.master_raw_fd();
-    let name = fd.and_then(crate::pty::foreground::get_foreground_name);
+    // `exec` replaces the shell process image with sleep (same pid), so the
+    // foreground process is deterministically `sleep` (no job-control race)
+    // and SIGKILL reaps it cleanly (no interactive shell that never exits).
+    // Interactive shell startup (rc files) is variable, so poll until the
+    // foreground name resolves to the exec'd `sleep` rather than guessing a
+    // fixed settle delay.
+    std::thread::sleep(Duration::from_millis(400));
+    session.write(b"exec sleep 30\n").expect("write");
+
+    let mut name: Option<String> = None;
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(300));
+        let n = session
+            .master_raw_fd()
+            .and_then(crate::pty::foreground::get_foreground_name);
+        if n.as_deref().is_some_and(|s| s.contains("sleep")) {
+            name = n;
+            break;
+        }
+        name = n;
+    }
     session.kill().ok();
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]

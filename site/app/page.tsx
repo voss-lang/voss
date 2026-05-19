@@ -39,7 +39,7 @@ function AdeTeaser() {
           </h2>
           <p className="mt-4 max-w-2xl text-[var(--muted)]">
             The Voss ADE brings tools, memory, permissions, sessions, replay, and inspection
-            surfaces into one local environment for bounded agent work.
+            surfaces into one local environment, with the harness as its bounded execution layer.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -49,10 +49,10 @@ function AdeTeaser() {
               Explore the ADE
             </Link>
             <Link
-              href="/ade#download"
+              href="/harness"
               className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"
             >
-              Download
+              Harness details
             </Link>
           </div>
         </div>

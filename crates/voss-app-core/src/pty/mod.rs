@@ -71,10 +71,22 @@ impl PtySession {
     }
 
     /// Kill the child and reap it (no zombie — A2-RESEARCH Pitfall 4).
+    ///
+    /// Bounded: `child.wait()` can block indefinitely for an interactive shell
+    /// that ignores the kill signal, so reap via a short `try_wait` poll loop
+    /// instead of an unbounded `wait()`.
     pub fn kill(&self) -> anyhow::Result<()> {
         let mut child = self.child.lock().expect("child mutex poisoned");
         let _ = child.kill();
-        let _ = child.wait();
+        let deadline =
+            std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                _ if std::time::Instant::now() >= deadline => break,
+                _ => std::thread::sleep(std::time::Duration::from_millis(25)),
+            }
+        }
         Ok(())
     }
 

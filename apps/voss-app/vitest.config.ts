@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [solidPlugin()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/__tests__/**/*.test.tsx'],
+    include: ['src/**/__tests__/**/*.test.{ts,tsx}'],
   },
   resolve: {
     conditions: ['development', 'browser'],

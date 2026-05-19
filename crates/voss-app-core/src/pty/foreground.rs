@@ -24,12 +24,10 @@ pub fn get_foreground_name(master_fd: std::os::unix::io::RawFd) -> Option<String
     let pgid_raw = pgid.as_raw() as u32;
 
     let pids = pids_by_type(ProcFilter::ByProgramGroup { pgrpid: pgid_raw }).ok()?;
-    // Prefer the group leader (pid == pgid) when present, else the first pid.
-    let pid = pids
-        .iter()
-        .copied()
-        .find(|&p| p == pgid_raw)
-        .or_else(|| pids.first().copied())?;
+    // Take the first pid in the foreground group (A2-PLAN). Do NOT prefer the
+    // group leader — under job control the leader is often the shell, not the
+    // foreground child we want to name.
+    let pid = pids.first().copied()?;
 
     libproc::proc_pid::name(pid as i32).ok()
 }
