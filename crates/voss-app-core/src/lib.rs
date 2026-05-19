@@ -1,9 +1,14 @@
 //! voss-app-core — Tauri plugin: PTY lifecycle, IPC commands.
 
 pub mod grid;
+pub mod layouts;
 pub mod pty;
 
 pub use grid::{sync_grid, GridState};
+pub use layouts::{
+    load_default_layout, load_layout, save_layout, list_layouts,
+    validate_layout_name, LayoutError, LayoutFile, CURRENT_LAYOUT_VERSION,
+};
 pub use pty::commands::{
     get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty,
     PtyEvent,
