@@ -1,33 +1,64 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render } from 'solid-js/web';
+import { fireEvent } from '@testing-library/dom';
+import PasteGuard from '../PasteGuard';
 
-/**
- * RED scaffold for PTY-04 (paste-guard banner + bypass) — owned by A2-04.
- *
- * Documented target interface (A2-PATTERNS.md §PasteGuard.tsx):
- *
- *   interface PasteGuardProps {
- *     text: string;                 // pending clipboard payload
- *     onConfirm: (text: string) => void;
- *     onCancel: () => void;
- *     bypass?: boolean;             // ⌘⇧V / Win+Shift+V skips the banner
- *   }
- *
- * The real <PasteGuard/> component does not exist yet. These tests assert the
- * behaviour A2-04 must satisfy; they are intentionally RED (not skipped) so the
- * Nyquist contract has a discoverable failing command for PTY-04.
- *
- * NOTE: the component is deliberately NOT imported — importing a non-existent
- * module would crash collection ("no tests found") instead of producing a clean
- * red test. A2-04 replaces the `expect(false)` lines with real assertions.
- */
+let dispose: (() => void) | undefined;
+function mount(el: HTMLElement, ui: () => unknown) {
+  dispose = render(ui as () => never, el);
+}
+afterEach(() => {
+  dispose?.();
+  dispose = undefined;
+  document.body.innerHTML = '';
+});
+
 describe('PasteGuard (PTY-04)', () => {
-  it('multi-line paste shows the confirmation banner', () => {
-    // RED: PTY-04 — A2-04 (multi-line clipboard payload must raise the banner)
-    expect(false).toBe(true);
+  it('multi-line paste shows banner: first-line preview + (N lines) badge + Discard (not Cancel)', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onSend = vi.fn();
+    const onDiscard = vi.fn();
+    mount(root, () => (
+      <PasteGuard
+        pendingText={'first-line\nsecond\nthird'}
+        onSend={onSend}
+        onDiscard={onDiscard}
+      />
+    ));
+
+    expect(root.textContent).toContain('first-line');
+    expect(root.textContent).toContain('(3 lines)');
+    expect(root.textContent).toContain('Discard');
+    expect(root.textContent).not.toContain('Cancel');
+    // bypass hint copy is load-bearing (UI-SPEC §9)
+    expect(root.textContent).toContain('⌘⇧V skips this');
   });
 
-  it('⌘⇧V (Win+Shift+V) bypasses the banner', () => {
-    // RED: PTY-04 — A2-04 (bypass prop / chord pastes directly, no banner)
-    expect(false).toBe(true);
+  it('Send button fires onSend; Discard button fires onDiscard', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const onSend = vi.fn();
+    const onDiscard = vi.fn();
+    mount(root, () => (
+      <PasteGuard
+        pendingText={'a\nb'}
+        onSend={onSend}
+        onDiscard={onDiscard}
+      />
+    ));
+
+    const buttons = root.querySelectorAll('button');
+    const send = Array.from(buttons).find((b) =>
+      b.textContent?.includes('Send'),
+    )!;
+    const discard = Array.from(buttons).find((b) =>
+      b.textContent?.includes('Discard'),
+    )!;
+
+    fireEvent.click(send);
+    expect(onSend).toHaveBeenCalledTimes(1);
+    fireEvent.click(discard);
+    expect(onDiscard).toHaveBeenCalledTimes(1);
   });
 });

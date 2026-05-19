@@ -119,3 +119,185 @@
 .pane-body ::-webkit-scrollbar-thumb:hover {
   background: var(--border-bright);
 }
+
+/* ---- A2-04 overlay components (UI-SPEC §4/§5/§8) ---- */
+
+.pane {
+  position: relative; /* anchor for absolute banners/findbar */
+}
+
+/* Exit banner — UI-SPEC §4 */
+.exit-banner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  background: var(--bg-3);
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-radius: 0;
+  transition: none;
+}
+.exit-banner .eb-dot.ok {
+  color: var(--accent-green);
+}
+.exit-banner .eb-dot.warn {
+  color: var(--accent-amber);
+}
+.exit-banner .eb-dot.err {
+  color: var(--accent-red);
+}
+.exit-banner .eb-msg.ok {
+  color: var(--fg-1);
+}
+.exit-banner .eb-msg.warn,
+.exit-banner .eb-msg.err {
+  color: var(--accent-amber);
+}
+.exit-banner .eb-spacer {
+  flex: 1;
+}
+.exit-banner .eb-restart {
+  min-width: 64px;
+  height: 22px;
+  padding: 0 12px;
+  background: var(--bg-2);
+  color: var(--accent-blue);
+  border: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 0;
+  transition: none;
+}
+.exit-banner .eb-restart:hover {
+  background: var(--bg-3);
+  color: var(--fg-0);
+  border-color: var(--border-bright);
+}
+
+/* Paste-guard — UI-SPEC §5 */
+.paste-guard {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-3);
+  border-top: 1px solid var(--accent-magenta);
+  border-radius: 0;
+  transition: none;
+}
+.paste-guard.above-exit {
+  bottom: 28px;
+}
+.paste-guard .pg-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.paste-guard .pg-glyph {
+  color: var(--accent-magenta);
+}
+.paste-guard .pg-text {
+  color: var(--fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.paste-guard .pg-count {
+  color: var(--fg-3);
+  font-size: 11px;
+}
+.paste-guard .pg-send,
+.paste-guard .pg-discard {
+  height: 22px;
+  padding: 0 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  border-radius: 0;
+  transition: none;
+}
+.paste-guard .pg-send {
+  background: var(--bg-2);
+  color: var(--accent-blue);
+}
+.paste-guard .pg-discard {
+  background: var(--bg-1);
+  color: var(--fg-2);
+}
+.paste-guard .pg-hint {
+  color: var(--fg-3);
+}
+.paste-guard .pg-spacer {
+  flex: 1;
+}
+.paste-guard .pg-bypass {
+  color: var(--fg-3);
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Find bar — UI-SPEC §8 */
+.find-bar {
+  position: absolute;
+  top: 22px;
+  right: 0;
+  width: 280px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--border-bright);
+  border-left: 1px solid var(--border-bright);
+  border-radius: 0;
+  transition: none;
+}
+.find-bar .fb-input {
+  flex: 1;
+  height: 22px;
+  background: var(--bg-2);
+  border: none;
+  color: var(--fg-0);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 0 6px;
+  border-radius: 0;
+  outline: none;
+}
+.find-bar .fb-input::placeholder {
+  color: var(--fg-3);
+}
+.find-bar .fb-btn {
+  background: transparent;
+  border: none;
+  color: var(--fg-2);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 0;
+}
+.find-bar .fb-btn:hover {
+  color: var(--fg-0);
+}
+.find-bar .fb-close:hover {
+  color: var(--accent-red);
+}
