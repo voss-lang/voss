@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from voss_runtime import EpisodicMemory, tool
+from voss_runtime.exceptions import BudgetExceededError
 
 from .agent import run_turn
 from .permissions import PermissionGate
 from .render import Renderer
+from .session_tree import finalize_node
 from .tools import ToolEntry, make_toolset
+
+if TYPE_CHECKING:
+    from .session_tree import SessionTreeNode
 
 
 # Single source of truth for the spawn tool name; consumed by the TUI
@@ -84,23 +90,70 @@ async def run_subagent(
     model: str,
     gate: PermissionGate,
     cognition: Any = None,
+    node: SessionTreeNode | None = None,
+    reserve: int = 0,
 ) -> str:
     spec = registry.get(agent_id)
     if spec is None:
         return f"<error: unknown subagent {agent_id!r}>"
+    spendable = (node.envelope["limit"] - reserve) if node else None
     child_tools = make_toolset(cwd, renderer=renderer)
-    result = await run_turn(
-        agent_task(spec, task),
-        tools=child_tools,
-        cwd=cwd,
-        renderer=renderer,
-        model=model,
-        provider=provider,
-        history=EpisodicMemory(capacity=20),
-        permissions=gate,
-        cognition=cognition,
+    scope = (
+        node._budget
+        if node and node._budget
+        else nullcontext()
     )
-    return result.final
+    try:
+        async with scope:
+            if node is not None:
+                result = await run_turn(
+                    agent_task(spec, task),
+                    tools=child_tools,
+                    cwd=cwd,
+                    renderer=renderer,
+                    model=model,
+                    provider=provider,
+                    history=EpisodicMemory(capacity=20),
+                    permissions=gate,
+                    cognition=cognition,
+                    token_budget=spendable,
+                )
+            else:
+                result = await run_turn(
+                    agent_task(spec, task),
+                    tools=child_tools,
+                    cwd=cwd,
+                    renderer=renderer,
+                    model=model,
+                    provider=provider,
+                    history=EpisodicMemory(capacity=20),
+                    permissions=gate,
+                    cognition=cognition,
+                )
+        if node and result.run and result.run.exit_reason == "budget":
+            finalize_node(
+                node,
+                exit_reason="budget",
+                final=result.final,
+                cwd=cwd,
+            )
+        elif node:
+            finalize_node(
+                node,
+                exit_reason="done",
+                final=result.final,
+                cwd=cwd,
+            )
+        return result.final
+    except BudgetExceededError:
+        if node:
+            finalize_node(
+                node,
+                exit_reason="budget",
+                final="<halted: budget>",
+                cwd=cwd,
+            )
+        return "<halted: budget>"
 
 
 def attach_subagent_tool(

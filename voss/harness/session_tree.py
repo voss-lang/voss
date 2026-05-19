@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from voss.harness.session import EXIT_REASONS
 from voss_runtime import BudgetScope
 
 __all__ = [
@@ -103,8 +104,18 @@ def finalize_node(
     final: str = "",
     cwd: Path,
 ) -> None:
-    """STUB (O1-02 Task 1 RED): import hook only; logic added in Task 2."""
-    pass
+    """Seal a tree node to disk exactly once (D-03 close write)."""
+    if node._finalized:
+        return
+    if exit_reason not in EXIT_REASONS:
+        raise ValueError(
+            f"invalid exit_reason {exit_reason!r}; "
+            f"must be one of {sorted(EXIT_REASONS)}"
+        )
+    node.terminal_state = {"exit_reason": exit_reason, "final": final}
+    node.ended_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    node._finalized = True
+    _write_node_file(node, cwd)
 
 
 def mutate_envelope(node: SessionTreeNode, delta: int, cwd: Path) -> None:
