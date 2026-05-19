@@ -345,6 +345,9 @@ def scripted_multiagent_provider():
     provides the deterministic seam the RED MAG tests drive
     `voss.harness.multiagent` (created in W1) against.
     """
+    from dataclasses import dataclass, field
+    from typing import Any
+
     from voss.harness.agent import Plan, ToolCall
     from voss.harness.providers import (
         Done,
@@ -490,20 +493,21 @@ def scripted_multiagent_provider():
         def count_tokens(self, *, text: str, model: str) -> int:
             return max(len(text) // 4, 1)
 
-    @dataclass
     class MultiAgentProviderFactory:
-        """Builds per-role providers from a shared `scripts` registry."""
+        """Builds per-role providers from a shared `scripts` registry.
 
-        scripts: dict[str, list[list[ProviderStreamEvent]]] = field(
-            default_factory=dict
-        )
-        spawn_plan: Any = staticmethod(spawn_plan)
-        steer_plan: Any = staticmethod(steer_plan)
-        gather_plan: Any = staticmethod(gather_plan)
-        done_plan: Any = staticmethod(done_plan)
-        _built: dict[str, ScriptedMultiAgentProvider] = field(
-            default_factory=dict
-        )
+        Plain class (not @dataclass): the script builders are closure-local
+        functions and a dataclass class-body cannot reference enclosing
+        function scope in field defaults — they are bound in __init__.
+        """
+
+        def __init__(self) -> None:
+            self.scripts: dict[str, list[list[ProviderStreamEvent]]] = {}
+            self.spawn_plan = spawn_plan
+            self.steer_plan = steer_plan
+            self.gather_plan = gather_plan
+            self.done_plan = done_plan
+            self._built: dict[str, ScriptedMultiAgentProvider] = {}
 
         def provider(self, role: str) -> ScriptedMultiAgentProvider:
             if role not in self._built:
