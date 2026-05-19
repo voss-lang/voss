@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: verifying
-last_updated: "2026-05-18T23:30:00.000Z"
-last_activity: "2026-05-18 — Phase M14 (Long-running Tasks + Watch, CAPS-01e) planned: SPEC (5 reqs WATCH-01..05, ambiguity 0.16) + CONTEXT (direct-from-SPEC, D-01..04) + RESEARCH (HIGH) + VALIDATION + PATTERNS + 4 plans/3 waves; plan-checker iter 1 PASS clean. Next: /gsd:execute-phase M14."
+last_updated: "2026-05-19T17:16:14.000Z"
+last_activity: "2026-05-19 — Phase A4 UI-SPEC approved: titlebar preset switcher contract, custom state, Cmd+G cycle behavior, save/load copy, token/spacing/typography inheritance, and registry safety all locked. UI-SPEC committed as 98231b9. Next: /gsd:plan-phase A4."
 progress:
   total_phases: 16
   completed_phases: 0
