@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -2241,10 +2242,7 @@ def watch_cmd(
 
     from .sandbox import shell_allowed, split_command, SandboxError
 
-    if "PYTEST_CURRENT_TEST" in os.environ and "time.sleep" in command:
-        ok, reason = True, "ok"
-    else:
-        ok, reason = shell_allowed(command)
+    ok, reason = shell_allowed(command)
 
     if not ok:
         click.echo(f"<denied: {reason}>")
@@ -2269,7 +2267,13 @@ def watch_cmd(
         except ValueError:
             original_args = []
         pid = spawn_detached_worker(original_args)
-        click.echo(f"watch-001 (daemonized PID: {pid})")
+        time.sleep(0.2)
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            click.echo(f"<error: daemon worker {pid} exited immediately>")
+            sys.exit(1)
+        click.echo(f"watch (daemonized PID: {pid})")
         return
 
     session_id = "_nosession"
