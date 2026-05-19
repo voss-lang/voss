@@ -21,6 +21,7 @@ dependencies = [
     "pyyaml>=6.0",
     "keyring>=24.0",
     "psutil>=5.9,<8",
+    "watchdog>=4.0,<7",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +47,7 @@ dev = [
     "Pillow>=10.0",
     "respx>=0.21",
     "vcrpy>=8.0.0,<9",  # T4 CACHE-05: cassette replay; v8 patches httpcore
+    "watchdog>=4.0,<7",
     # `dev` includes `search` so the test suite can exercise semantic memory.
     "chromadb>=0.5.0",
     "sentence-transformers>=2.7.0",
