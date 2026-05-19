@@ -1,7 +1,5 @@
-//! PTY subsystem — lifecycle, IPC commands, reader/writer loops, foreground tracking.
-//!
-//! A2-01 (Wave 0): submodule declarations + empty `PtyRegistry` skeleton only.
-//! The `PtySession` type + spawn/IO logic land in A2-02.
+//! PTY subsystem — session lifecycle, registry, IPC commands, reader/writer
+//! loops, foreground-process tracking.
 
 pub mod commands;
 pub mod foreground;
@@ -12,14 +10,182 @@ pub mod writer;
 mod tests;
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::io::Read;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
-/// Registry of live PTY sessions, managed by Tauri state.
+use anyhow::Context;
+use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize, SlavePty};
+
+/// A live PTY session: the spawned `$SHELL` plus the handles needed to write
+/// to it, resize it, reap it, and apply watermark backpressure.
 ///
-/// A2-01 stub: the value type is `()` and the map is never populated.
-/// A2-02 replaces `()` with the real `PtySession` and adds insert/remove APIs.
+/// `master` and `_slave` are `Send` but not `Sync`, so each is held behind a
+/// `Mutex` (Tauri-managed state must be `Send + Sync`). `_slave` is held alive
+/// deliberately — dropping it before the child exits closes the PTY
+/// prematurely on Windows (A2-RESEARCH Pitfall 6).
+pub struct PtySession {
+    pub id: uuid::Uuid,
+    master: Mutex<Box<dyn MasterPty + Send>>,
+    writer: Mutex<Box<dyn std::io::Write + Send>>,
+    _slave: Mutex<Box<dyn SlavePty + Send>>,
+    child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
+    pause_tx: tokio::sync::mpsc::Sender<bool>,
+    #[allow(dead_code)]
+    shell_name: String,
+    #[allow(dead_code)]
+    cwd: PathBuf,
+}
+
+impl PtySession {
+    /// Write bytes to the PTY master (shell stdin).
+    pub fn write(&self, data: &[u8]) -> anyhow::Result<()> {
+        let mut w = self.writer.lock().expect("writer mutex poisoned");
+        w.write_all(data).context("pty write_all")?;
+        w.flush().context("pty flush")?;
+        Ok(())
+    }
+
+    /// Resize the PTY viewport.
+    pub fn resize(&self, rows: u16, cols: u16) -> anyhow::Result<()> {
+        self.master
+            .lock()
+            .expect("master mutex poisoned")
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .context("pty resize")?;
+        Ok(())
+    }
+
+    /// Send a backpressure pause (`true`) / resume (`false`) signal to the reader.
+    pub async fn set_paused(&self, paused: bool) -> anyhow::Result<()> {
+        self.pause_tx
+            .send(paused)
+            .await
+            .context("pause channel closed")?;
+        Ok(())
+    }
+
+    /// Kill the child and reap it (no zombie — A2-RESEARCH Pitfall 4).
+    pub fn kill(&self) -> anyhow::Result<()> {
+        let mut child = self.child.lock().expect("child mutex poisoned");
+        let _ = child.kill();
+        let _ = child.wait();
+        Ok(())
+    }
+
+    /// Raw fd of the PTY master, for foreground-process resolution.
+    pub fn master_raw_fd(&self) -> Option<std::os::unix::io::RawFd> {
+        self.master
+            .lock()
+            .expect("master mutex poisoned")
+            .as_raw_fd()
+    }
+
+    /// Try to reap the child and return its exit code (None if still running).
+    pub fn try_exit_code(&self) -> Option<i32> {
+        let mut child = self.child.lock().expect("child mutex poisoned");
+        match child.try_wait() {
+            Ok(Some(status)) => Some(status.exit_code() as i32),
+            _ => None,
+        }
+    }
+}
+
+/// Spawn `$SHELL` on a fresh native PTY. Tauri-free so unit tests can drive it
+/// without an `AppHandle`/`Channel`.
+///
+/// Returns the session plus the cloned blocking reader the caller wires into a
+/// reader loop (Channel in production, direct `.read()` in tests) and the
+/// pause receiver for watermark backpressure.
+pub fn spawn_session(
+    rows: u16,
+    cols: u16,
+    cwd: Option<String>,
+) -> anyhow::Result<(
+    Arc<PtySession>,
+    Box<dyn Read + Send>,
+    tokio::sync::mpsc::Receiver<bool>,
+)> {
+    let pair = native_pty_system()
+        .openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .context("openpty")?;
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let shell_name = std::path::Path::new(&shell)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("sh")
+        .to_string();
+
+    let mut cmd = CommandBuilder::new(&shell);
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    let cwd_path = match cwd {
+        Some(c) => {
+            cmd.cwd(&c);
+            PathBuf::from(c)
+        }
+        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
+    };
+
+    let child = pair.slave.spawn_command(cmd).context("spawn_command")?;
+    let reader = pair.master.try_clone_reader().context("try_clone_reader")?;
+    let writer = pair.master.take_writer().context("take_writer")?;
+
+    let (pause_tx, pause_rx) = tokio::sync::mpsc::channel::<bool>(8);
+
+    let session = Arc::new(PtySession {
+        id: uuid::Uuid::new_v4(),
+        master: Mutex::new(pair.master),
+        writer: Mutex::new(writer),
+        _slave: Mutex::new(pair.slave),
+        child: Mutex::new(child),
+        pause_tx,
+        shell_name,
+        cwd: cwd_path,
+    });
+
+    Ok((session, reader, pause_rx))
+}
+
+/// Registry of live PTY sessions, managed as Tauri state.
 #[derive(Default)]
 pub struct PtyRegistry {
-    #[allow(dead_code)]
-    sessions: Mutex<HashMap<String, ()>>,
+    sessions: Mutex<HashMap<String, Arc<PtySession>>>,
+}
+
+impl PtyRegistry {
+    pub fn insert(&self, session: Arc<PtySession>) -> String {
+        let id = session.id.to_string();
+        self.sessions
+            .lock()
+            .expect("registry mutex poisoned")
+            .insert(id.clone(), session);
+        id
+    }
+
+    pub fn get(&self, id: &str) -> Option<Arc<PtySession>> {
+        self.sessions
+            .lock()
+            .expect("registry mutex poisoned")
+            .get(id)
+            .cloned()
+    }
+
+    pub fn remove(&self, id: &str) -> Option<Arc<PtySession>> {
+        self.sessions
+            .lock()
+            .expect("registry mutex poisoned")
+            .remove(id)
+    }
 }
