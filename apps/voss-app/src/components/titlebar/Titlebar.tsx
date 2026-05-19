@@ -1,7 +1,26 @@
 import WindowControls from './WindowControls';
 import PresetSwitcher from './PresetSwitcher';
+import type {
+  ActiveLayout,
+  LayoutPreset,
+} from '../../grid/layoutPresets';
 
-export default function Titlebar() {
+/**
+ * A1 titlebar shell, extended in A4-02 to carry controlled preset state
+ * down to `PresetSwitcher`. Window controls, drag regions, title text,
+ * and 22px height all stay unchanged.
+ *
+ * Props are optional so existing A1/A3 tests that render `<Titlebar />`
+ * continue to work; when omitted, the switcher defaults to `custom` and
+ * `onLayoutSelect` is a no-op.
+ */
+export type TitlebarProps = {
+  activeLayout?: ActiveLayout;
+  layoutDisabled?: boolean;
+  onLayoutSelect?: (preset: LayoutPreset) => void;
+};
+
+export default function Titlebar(props: TitlebarProps = {}) {
   return (
     <div
       style={{
@@ -44,8 +63,13 @@ export default function Titlebar() {
       {/* Right drag spacer */}
       <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
 
-      {/* Preset switcher — visual only in A1 (no cost / model / token slot) */}
-      <PresetSwitcher />
+      {/* Controlled preset switcher (A4-02). App owns the activeLayout */}
+      {/* signal and the apply callback; the switcher is a pure reflection. */}
+      <PresetSwitcher
+        activeLayout={props.activeLayout ?? 'custom'}
+        disabled={props.layoutDisabled}
+        onSelect={(p) => props.onLayoutSelect?.(p)}
+      />
     </div>
   );
 }

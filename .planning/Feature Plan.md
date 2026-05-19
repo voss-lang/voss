@@ -30,6 +30,13 @@ This document outlines proposed features for the Voss Harness and ADE, categoriz
 **Goal:** Enforce project constraints and quality standards at the point of commit.
 - **Git Integration**: A `pre-commit` hook that invokes a Voss agent to critique diffs against `.voss/constraints.yml`.
 
+### 8. Multi-Model Agent Council
+**Goal:** Enable a panel of agents from different LLM providers to deliberate on architectural decisions and converge on consensus.
+- **CLI-Native Execution**: Spawn council members as standard agent cells using locally-authenticated CLIs (Claude Code, Codex, Antigravity, OpenCode, etc.) — same config as terminal agents, no separate API key management.
+- **Council Protocol**: Feed identical prompt/context to each council member, collect responses, then run a structured debate round where each critiques the others' proposals.
+- **Consensus Engine**: Score and rank proposals via voting, critique weighting, or a designated "judge" agent. Surface the winning recommendation with full reasoning trail.
+- **Use Cases**: Architecture decisions, plan review, code review tiebreakers, implementation strategy selection.
+
 ## 🔵 DEFER to v2 (Layer 3)
 
 ### 6. General Layout Wiring DSL
