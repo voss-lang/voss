@@ -54,6 +54,21 @@ export function nextPreset(active: ActiveLayout): LayoutPreset {
  */
 export function applyPreset(root: TreeNode, preset: LayoutPreset): TreeNode {
   const leaves = collectLeaves(root); // inorder, stable
+  return applyPresetFromLeaves(leaves, preset);
+}
+
+/**
+ * Same as `applyPreset` but the caller supplies the leaves directly. Used
+ * by the Solid render layer: `GridRoot` spread-clones store leaves into
+ * plain `PaneLeaf` objects (memory:
+ * voss-app-solid-produce-no-structuredclone — pure tree utils called from
+ * the render layer must hand-clone) and passes them here so the resulting
+ * tree contains no draft proxies.
+ */
+export function applyPresetFromLeaves(
+  leaves: PaneLeaf[],
+  preset: LayoutPreset,
+): TreeNode {
   const next = buildPreset(preset, leaves);
   recomputeIndices(next);
   return next;
