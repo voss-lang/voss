@@ -2728,6 +2728,114 @@ def mcp_call_cmd(
         raise click.exceptions.Exit(2)
 
 
+class _NullRenderer:
+    """Renderer that emits nothing.
+
+    The MCP server's stdout is the JSON-RPC wire; PlainRenderer writes
+    show_final/stream_delta/finalize_stream to stdout and would corrupt the
+    frame stream (Threat T-M12-04-02). Any renderer method a skill calls is a
+    no-op here.
+    """
+
+    def __getattr__(self, _name: str):
+        return lambda *a, **k: None
+
+
+@mcp_group.command("serve")
+@click.option(
+    "--mode",
+    type=click.Choice(["plan", "edit", "auto"], case_sensitive=False),
+    required=True,
+    help=(
+        "Permission mode for incoming MCP calls. REQUIRED — no default. "
+        "plan denies all mutating tools; edit allows fs writes but denies "
+        "shell; auto allows everything."
+    ),
+)
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root the server operates against. Default: current dir.",
+)
+def mcp_serve_cmd(mode: str, cwd_str: str) -> None:
+    """Run the Voss MCP server over stdio.
+
+    Skills executed by this server use the SERVER's configured LLM provider
+    for cost. The calling MCP host does NOT see the LLM cost.
+    """
+    import types
+
+    from voss.harness.mcp.config import (
+        McpConfigError,
+        McpServerExposureConfig,
+        load_mcp_config,
+    )
+    from voss.harness.mcp.server import McpServer
+    from voss.harness.mcp.server_skills import make_skill_dispatch
+    from voss.harness.mcp.server_tools import (
+        build_tool_descriptors,
+        build_tool_dispatch,
+    )
+    from voss.harness.permissions import PermissionGate
+    from voss.harness.skill_registry import default_skill_registry
+    from voss.harness.tools import make_toolset
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        cfg = load_mcp_config(cwd)
+    except McpConfigError as e:
+        click.echo(f"<error: mcp config: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+    server_cfg = cfg.server if cfg is not None else None
+    if server_cfg is None:
+        server_cfg = McpServerExposureConfig()
+
+    tools = make_toolset(cwd)
+    reg = default_skill_registry()
+    try:
+        descriptors = build_tool_descriptors(tools, reg, server_cfg)
+    except McpConfigError as e:
+        click.echo(f"<error: mcp config: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    gate = PermissionGate(mode=mode, auto_yes=True)
+    record = types.SimpleNamespace(model="mcp-server", id="mcp-serve")
+    renderer = _NullRenderer()  # JSON-RPC stdout purity (T-M12-04-02)
+    skill_dispatch = make_skill_dispatch(
+        cwd=cwd,
+        provider=None,
+        history=None,
+        record=record,
+        renderer=renderer,
+        tools=tools,
+        gate=gate,
+        skill_registry=reg,
+    )
+    dispatch = build_tool_dispatch(tools, reg, skill_dispatch, gate)
+    server_name = server_cfg.name or "voss"
+    server = McpServer(
+        name=server_name, tool_descriptors=descriptors, dispatch=dispatch
+    )
+
+    async def _run() -> None:
+        loop = asyncio.get_running_loop()
+        reader = asyncio.StreamReader(loop=loop)
+        protocol = asyncio.StreamReaderProtocol(reader, loop=loop)
+        await loop.connect_read_pipe(lambda: protocol, sys.stdin.buffer)
+        transport, w_proto = await loop.connect_write_pipe(
+            asyncio.streams.FlowControlMixin, sys.stdout.buffer
+        )
+        writer = asyncio.StreamWriter(transport, w_proto, None, loop)
+        await server.serve_stdio(reader, writer)
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        raise click.exceptions.Exit(0)
+
+
 @click.group("logs")
 def logs_group() -> None:
     """Tail NDJSON harness telemetry (written when VOSS_LOG=1 and VOSS_LOG_PATH is set)."""
