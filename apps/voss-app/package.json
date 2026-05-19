@@ -6,19 +6,33 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:flood-perf": "tsx scripts/test-flood-perf.ts",
+    "check:xterm-pin": "node -e \"let v;try{v=require('./node_modules/@xterm/xterm/package.json').version}catch{v=require('./package.json').dependencies['@xterm/xterm']}if(v!=='5.5.0'){console.error('xterm pin violation: expected 5.5.0, got '+v);process.exit(1)}console.log('xterm pin ok: '+v)\""
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.0",
     "@tauri-apps/plugin-os": "2.3.2",
+    "@xterm/xterm": "5.5.0",
+    "@xterm/addon-canvas": "0.7.0",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/addon-search": "0.16.0",
+    "@xterm/addon-web-links": "0.12.0",
     "solid-js": "1.9.13"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.11.2",
+    "@playwright/test": "1.60.0",
     "@tailwindcss/vite": "4.3.0",
+    "@tauri-apps/cli": "2.11.2",
+    "@testing-library/dom": "10.4.1",
+    "jsdom": "29.1.1",
     "tailwindcss": "4.3.0",
+    "tsx": "4.22.2",
     "typescript": "^5.6.0",
     "vite": "8.0.13",
-    "vite-plugin-solid": "2.11.12"
+    "vite-plugin-solid": "2.11.12",
+    "vitest": "4.1.6"
   }
 }
