@@ -150,31 +150,33 @@ package.json                     # pnpm workspace root
 Cargo.toml                       # cargo workspace root
 ```
 
-## 9. v0 Build Order — Phases A1–A10
+## 9. v0 Build Order — Phases A1–A11
 
 Strict sequential dependencies (DAG enables some parallel work). Each phase passes its acceptance gate before downstream phases start. Phase IDs locked in root `.planning/ROADMAP.md` (A-prefix track).
 
-1. **A1 — Tauri Shell** — Tauri + Solid empty window, titlebar, theme tokens, local build only (`pnpm tauri dev` + unsigned smoke artifact). **No release pipeline** — deferred to A10.
+1. **A1 — Tauri Shell** — Tauri + Solid empty window, titlebar, theme tokens, local build only (`pnpm tauri dev` + unsigned smoke artifact). **No release pipeline** — deferred to A11.
 2. **A2 — PTY Pane** — One xterm pane wired to native PTY. Full TTY (vim/htop/tmux). Scrollback, copy/paste. (deps: A1)
 3. **A3 — Grid Engine** — Binary-split tree. Splits, focus, resize, close, `⌘1-9` nav. (deps: A2)
 4. **A4 — Layout Presets** — `fanout · pipeline · swarm · watchers`. `⌘G` cycle. Save/load. Pure visual templates in L1. (deps: A3)
 5. **A5 — Project Open** — Folder picker, recents, `.voss/` lazy create, git branch read, project-less mode. (deps: A1)
-6. **A6 — Session Persist** — Pane tree + cwds + scrollback restore. (deps: A3, A5)
+6. **A6 — Session Persist** — Pane tree + cwds + scrollback restore. Extends to multi-workspace persistence with A8. (deps: A3, A5)
 7. **A7 — Cmd Palette + Keymap** — `⌘P`/`⌘⇧P`, VSCode default profile + tmux additions, custom map. (deps: A3)
-8. **A8 — Settings + Theme** — Two-pane UI, JSON-backed, Variant B token system, telemetry consent. (deps: A1, A7)
-9. **A9 — Status Bar** — Project · branch · pane count · cost stub · notifications. (deps: A5, A8)
-10. **A10 — Onboarding + Release Pipeline** — First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update, version-sync). **v0 ship gate.** (deps: all)
+8. **A8 — Workspaces, UX Polish, & Theming** — Workspace tab bar (Warp-style), VSCode theme import engine, appearance polish, accessibility, setting profiles, platform-native feel. (deps: A1, A3, A5, A7)
+9. **A9 — Settings + Theme** — Two-pane settings UI, JSON-backed, surfaces themes/profiles from A8, telemetry consent. (deps: A8)
+10. **A10 — Status Bar** — Project · branch · pane count · cost stub · notifications. Workspace-aware. (deps: A5, A8, A9)
+11. **A11 — Onboarding + Release Pipeline** — First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update, version-sync). **v0 ship gate.** (deps: all)
 
-That's v0. No Voss yet. L2 phases (Voss substrate) and L3 phases (`.voss` DSL) lock once A10 ships.
+That's v0. No Voss yet. L2 phases (Voss substrate) and L3 phases (`.voss` DSL) lock once A11 ships.
 
 **Dependency DAG** enables parallel work:
-- A1 unblocks A2, A5, A8
+- A1 unblocks A2, A5
 - A2 unblocks A3
 - A3 unblocks A4, A6, A7
-- A5 unblocks A6, A9
+- A5 unblocks A6, A8
 - A7 unblocks A8
-- A8 unblocks A9
-- A10 integrates all
+- A8 unblocks A9, A10
+- A9 unblocks A10
+- A11 integrates all
 
 ## 10. Decisions Log (closed 2026-05-16)
 
