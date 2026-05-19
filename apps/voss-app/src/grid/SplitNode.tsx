@@ -14,8 +14,8 @@ import DragHandle, { type Dims } from './DragHandle';
  *
  * Focus (GRD-07): the focused leaf wrapper carries exactly the inset focus
  * shadow `shadow-[inset_0_0_0_1px_var(--focus)]` INSIDE the 1px split border
- * — never an outline/border colour change (A3-UI-SPEC "No border ring");
- * instant repaint, no CSS transition (Variant B perf budget).
+ * (A3-UI-SPEC forbids any boundary stroke/colour change). Instant repaint,
+ * no CSS animation (Variant B perf budget).
  */
 export default function SplitNodeView(props: {
   node: TreeNode;

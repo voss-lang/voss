@@ -79,6 +79,18 @@ export function wouldViolateFloor(
 }
 
 /**
+ * Pure structural deep-copy. NOT `structuredClone` — at the render layer
+ * `root` is a Solid `produce` draft proxy, which `structuredClone` rejects
+ * (DATA_CLONE_ERR). The tree is a tiny discriminated union, so a hand walk
+ * is both proxy-safe and faster.
+ */
+function cloneTree(n: TreeNode): TreeNode {
+  return n.kind === 'pane'
+    ? { ...n }
+    : { ...n, left: cloneTree(n.left), right: cloneTree(n.right) };
+}
+
+/**
  * Pre-flight guard for split/fork: build the post-split tree in a clone and
  * test the floor WITHOUT mutating the input.
  */
@@ -91,7 +103,7 @@ export function simulateSplitViolates(
   cw: number,
   ch: number,
 ): boolean {
-  const clone = structuredClone(root) as TreeNode;
+  const clone = cloneTree(root);
   const target = findLeaf(clone, focusedId);
   if (!target) return false;
 
