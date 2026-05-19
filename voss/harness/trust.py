@@ -2,20 +2,16 @@
 from __future__ import annotations
 
 import base64
-import datetime
 import hashlib
 import os
 import tomllib
+from datetime import datetime, timezone
 from pathlib import Path
-from cryptography.hazmat.primitives.asymmetric import ed25519
-from cryptography.hazmat.primitives import serialization
-from cryptography.exceptions import InvalidSignature
-import portalocker
 
-try:
-    import tomli_w
-except Exception:  # noqa: BLE001
-    tomli_w = None  # type: ignore[assignment]
+import portalocker
+import tomli_w
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 
 def trust_store_path() -> Path:
@@ -62,6 +58,15 @@ def is_key_trusted(pub_key_b64: str) -> bool:
     return False
 
 
+def load_trusted_key_map() -> dict[str, str]:
+    """Flat `author_identity -> pub_key_b64` view of the trust store.
+
+    Internal helper for `verify_manifest`'s default path so the
+    `trusted_keys: dict[str, str]` parameter and the on-disk schema agree.
+    """
+    return {ident: entry["public_key"] for ident, entry in load_trusted_keys().items()}
+
+
 def key_fingerprint(pub_key_b64: str) -> str:
     """Compute sha256 hex fingerprint of raw decoded public key bytes."""
     raw_bytes = base64.b64decode(pub_key_b64)
@@ -87,10 +92,18 @@ def pin_key(identity: str, pub_key_b64: str, *, tofu: bool = False) -> Path:
     path = trust_store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Pre-create the file with strict perms BEFORE portalocker opens it, so
+    # the file never exists under default-umask perms (typically 0644). Then
+    # chmod again inside the lock as belt-and-braces in case the file
+    # already existed with looser perms.
+    if not path.exists():
+        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+        os.close(fd)
+
     with portalocker.Lock(path, mode="a+", flags=portalocker.LOCK_EX) as fh:
         fh.seek(0)
         content = fh.read()
-        
+
         keys = {}
         if content.strip():
             try:
@@ -99,33 +112,23 @@ def pin_key(identity: str, pub_key_b64: str, *, tofu: bool = False) -> Path:
             except Exception:
                 keys = {}
 
-        pinned_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        pinned_at = datetime.now(timezone.utc).isoformat()
         keys[identity] = {
             "public_key": pub_key_b64,
             "pinned_at": pinned_at,
             "tofu": tofu,
         }
 
-        payload = {"keys": keys}
-        if tomli_w is not None:
-            text = tomli_w.dumps(payload)
-        else:
-            lines: list[str] = []
-            for k, v in sorted(payload["keys"].items()):
-                escaped_k = k.replace('"', '\\"')
-                lines.append(f'[keys."{escaped_k}"]')
-                lines.append(f'public_key = "{v["public_key"]}"')
-                lines.append(f'pinned_at = "{v["pinned_at"]}"')
-                lines.append(f"tofu = {'true' if v['tofu'] else 'false'}")
-                lines.append("")
-            text = "\n".join(lines)
+        text = tomli_w.dumps({"keys": keys})
 
         fh.seek(0)
         fh.truncate(0)
         fh.write(text)
         fh.flush()
+        # chmod inside the lock so no other process can read under
+        # looser perms in the window between unlock and chmod.
+        path.chmod(0o600)
 
-    path.chmod(0o600)
     return path
 
 
@@ -157,17 +160,11 @@ def verify_manifest(
             if not author:
                 return False, "missing author_identity in manifest"
 
-            if trusted_keys is None:
-                trusted_keys_store = load_trusted_keys()
-                if author in trusted_keys_store:
-                    pub_key_b64 = trusted_keys_store[author]["public_key"]
-                else:
-                    return False, f"untrusted author key for: {author}"
+            resolved = trusted_keys if trusted_keys is not None else load_trusted_key_map()
+            if author in resolved:
+                pub_key_b64 = resolved[author]
             else:
-                if author in trusted_keys:
-                    pub_key_b64 = trusted_keys[author]
-                else:
-                    return False, f"untrusted author key: {author}"
+                return False, f"untrusted author key: {author}"
 
         raw_pub_bytes = base64.b64decode(pub_key_b64)
         if len(raw_pub_bytes) != 32:
