@@ -1,7 +1,9 @@
 //! voss-app-core — Tauri plugin: PTY lifecycle, IPC commands.
 
+pub mod grid;
 pub mod pty;
 
+pub use grid::{sync_grid, GridState};
 pub use pty::commands::{
     get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty,
     PtyEvent,
