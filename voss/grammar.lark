@@ -10,7 +10,7 @@ program: _NL* (top_stmt (_NL+ top_stmt)*)? _NL*
 // Plan 02-03 promotes top_stmt to the full statement umbrella.
 // Plan 02-04 extends it with top_decl (fn/agent/prompt/class/use/decorated).
 top_stmt: top_decl | stmt
-top_decl: decorated_decl | fn_decl | agent_decl | prompt_decl | class_decl | use_stmt
+top_decl: decorated_decl | fn_decl | agent_decl | prompt_decl | class_decl | use_stmt | team_decl
 expr_stmt: expr
 
 // ---- Type expressions (D-08, D-09) ----
@@ -174,6 +174,57 @@ class_field: IDENT ":" type_expr ("=" expr)?
 use_stmt: "use" use_path ("as" IDENT)?
 use_path: IDENT ("::" IDENT)*
 
+// ---- Team declaration (O2) ----
+
+team_decl:   "team" IDENT "{" team_body "}"
+team_body:   _NL* (team_item (_NL+ team_item)*)? _NL*
+
+team_item:   ceiling_block | policy_kv | team_agent | roster_block | board_block | ritual_block
+
+// `ceiling { k: v, k: v }` — every kv is required to be either a budget_literal
+// or a string literal (scope glob). Order-free; transformer validates required keys.
+ceiling_block: "ceiling" "{" _NL* ceiling_kv (_NL* "," _NL* ceiling_kv)* _NL* ","? _NL* "}"
+ceiling_kv:    CEILING_KEY ":" ceiling_value
+CEILING_KEY:   "budget" | "scope" | "latency"
+ceiling_value: budget_literal | STRING | list_lit
+
+// `p: <expr>` and similar top-level team-config kvs (`p`, `retry`, etc. that
+// the board strawman shows at the team level). Stored as opaque expr on
+// TeamConfig.policy.
+policy_kv:    TEAM_POLICY_KEY ":" expr
+TEAM_POLICY_KEY: "p"
+
+// A single named agent (`agent em { ... }`). Distinct from the existing
+// `agent_decl` (top-level callable agent). team_agent's body is a kv list,
+// not a statement block — no `param_list`, no `block`.
+team_agent:   "agent" IDENT "{" _NL* team_agent_kv (_NL* "," _NL* team_agent_kv)* _NL* ","? _NL* "}"
+team_agent_kv: TEAM_AGENT_KEY ":" team_agent_value
+TEAM_AGENT_KEY: "model" | "mode" | "scope" | "budget" | "tools" | "authority"
+              | "judge" | "tiered" | "checks" | "sees" | "derives"
+team_agent_value: budget_literal | expr   // expr covers ident, list, string
+
+// `roster <NAME> { role { k: v, ... } role { ... } }`
+roster_block: "roster" IDENT "{" _NL* roster_role (_NL+ roster_role)* _NL* "}"
+roster_role:  IDENT "{" _NL* role_kv (_NL* "," _NL* role_kv)* _NL* ","? _NL* "}"
+role_kv:      ROLE_KEY ":" role_value
+ROLE_KEY:     "model" | "mode" | "scope" | "budget" | "tools"
+role_value:   budget_literal | STRING | list_lit
+
+// `board { ... }` — strawman shape parsed as a sequence of opaque kv items
+// and `gate` declarations. O2 stores as BoardSpec; O3 interprets.
+board_block:  "board" "{" _NL* board_item (_NL+ board_item)* _NL* "}"
+board_item:   board_kv | gate_decl
+board_kv:     BOARD_KEY ":" expr
+BOARD_KEY:    "columns" | "wip" | "p" | "retry" | "liveness"
+gate_decl:    "gate" IDENT "->" gate_target "{" _NL* gate_predicate (_NL* "," _NL* gate_predicate)* _NL* "}"
+gate_target:  IDENT ("(" IDENT ")")?                // `Done(code)`
+gate_predicate: expr
+
+// `ritual <NAME> { every: 1h, gather(...) -> semantic.memory }`
+ritual_block: "ritual" IDENT "{" _NL* ritual_kv (_NL+ ritual_kv)* _NL* "}"
+ritual_kv:    RITUAL_KEY ":" expr
+RITUAL_KEY:   "every" | "gather"
+
 // ---------- Terminals ----------
 
 EQ: "=="
@@ -188,7 +239,7 @@ STAR: "*"
 SLASH: "/"
 
 // Composite unit-suffix terminals MUST be declared before INT so Lark prefers them.
-TOKEN_BUDGET: /\d+[ \t]+tokens\b/
+TOKEN_BUDGET: /\d+[kKmM]?[ \t]+tokens\b/
 TURNS:        /\d+[ \t]+turns\b/
 DURATION_MS:  /\d+ms\b/
 DURATION_S:   /\d+s\b/
