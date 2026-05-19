@@ -47,6 +47,7 @@ export default function PaneComponent(props: PaneProps) {
   let resizeTimer: ReturnType<typeof setTimeout> | undefined;
   let dprMedia: MediaQueryList | undefined;
   let fgPoll: ReturnType<typeof setInterval> | undefined;
+  let perfStop = false; // stops the test-only rAF perf probe on cleanup
   let bypassFlag = false; // one-shot ⌘⇧V paste bypass
   let lastOscTitleAt = 0; // ms; D-07 OSC-vs-pgid arbitration
   const copyMode = 'smart' as CopyMode; // D-06 configurable hook (A8 UI)
