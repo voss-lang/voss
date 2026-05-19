@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use crate::pty::reader::start_reader;
+use crate::pty::writer::validate_write;
 use crate::pty::{spawn_session, PtyRegistry};
 
 /// Events streamed to the webview over a `Channel<PtyEvent>`.
@@ -18,8 +19,6 @@ pub enum PtyEvent {
     FgProcess { name: String },
     TitleChange { title: String },
 }
-
-const MAX_WRITE: usize = 1_048_576; // 1 MiB
 
 type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;
 
@@ -45,12 +44,7 @@ pub async fn pty_write(
     data: Vec<u8>,
     state: Reg<'_>,
 ) -> Result<(), String> {
-    if data.is_empty() {
-        return Err("empty payload".into());
-    }
-    if data.len() > MAX_WRITE {
-        return Err("payload exceeds 1MB limit".into());
-    }
+    validate_write(&data)?;
     let session = state.get(&session_id).ok_or("unknown session")?;
     session.write(&data).map_err(|e| e.to_string())
 }

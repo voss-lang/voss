@@ -1,20 +1,32 @@
 //! voss-app-core — Tauri plugin: PTY lifecycle, IPC commands.
-//!
-//! A2-01 (Wave 0): plugin-init shell + empty pty submodules only.
-//! PTY spawn/read/write/resize/kill + foreground tracking land in A2-02..05.
 
 pub mod pty;
 
-pub use pty::PtyRegistry;
+pub use pty::commands::{
+    get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty,
+    PtyEvent,
+};
+pub use pty::{PtyRegistry, PtySession};
+
+use std::sync::Arc;
 
 use tauri::Manager;
 
-/// Tauri plugin init. `#[tauri::command]` handlers are wired in A2-02
-/// (`invoke_handler` deliberately omitted here — no commands exist yet).
+/// Tauri plugin init. Manages an `Arc<PtyRegistry>` so the blocking reader
+/// threads can own cheap clones (commands borrow it via `State`).
 pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("voss-app-core")
+        .invoke_handler(tauri::generate_handler![
+            spawn_pty,
+            pty_write,
+            pty_resize,
+            pty_pause,
+            pty_resume,
+            pty_kill,
+            get_fg_process,
+        ])
         .setup(|app, _api| {
-            app.manage(PtyRegistry::default());
+            app.manage(Arc::new(PtyRegistry::default()));
             Ok(())
         })
         .build()
