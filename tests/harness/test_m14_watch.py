@@ -232,7 +232,7 @@ def test_voss_watch_reruns_on_change(tmp_path: Path) -> None:
     assert "--glob" in result.output
     assert "--_is-worker" in result.output
 
-    command = "python -c 'import time; time.sleep(60)'"
+    command = "python -m http.server 0"
     allowed = CliRunner().invoke(
         voss_main,
         ["watch", command, "--glob", "**/*.py", "--cwd", str(tmp_path)],

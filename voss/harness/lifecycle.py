@@ -104,9 +104,6 @@ class WatcherRecord:
     started_at: str
     observer: Any = field(repr=False, compare=False)
     session_id: str = field(default="_nosession", repr=False, compare=False)
-    drain_task: asyncio.Task | None = field(
-        default=None, repr=False, compare=False
-    )
     debouncer: Any | None = field(default=None, repr=False, compare=False)
 
 
@@ -453,11 +450,10 @@ async def register_watcher(
     root = jail_path(Path(cwd), ".")
     handle = _next_watch_handle(session_id)
     log_path = _watch_log_path(Path(cwd), session_id, handle)
-    observer, drain_task, debouncer = await start_watcher(
+    observer, debouncer = await start_watcher(
         globs,
         root,
         log_path,
-        asyncio.get_running_loop(),
         debounce_ms=debounce_ms,
     )
     rec = WatcherRecord(
@@ -468,7 +464,6 @@ async def register_watcher(
         started_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         observer=observer,
         session_id=session_id,
-        drain_task=drain_task,
         debouncer=debouncer,
     )
     _WATCHERS[_job_key(session_id, handle)] = rec
@@ -538,11 +533,6 @@ async def reap_watchers() -> None:
             rec.observer.join(timeout=2.0)
         except Exception as exc:
             sys.stderr.write(f"lifecycle.reap_watchers: {exc!r}\n")
-        if rec.drain_task is not None:
-            try:
-                rec.drain_task.cancel()
-            except Exception as exc:
-                sys.stderr.write(f"lifecycle.reap_watchers: {exc!r}\n")
         rec.status = "stopped"
         _WATCHERS.pop(key, None)
 
@@ -659,11 +649,6 @@ def reset_for_tests() -> None:
             rec.observer.join(timeout=2.0)
         except Exception:
             pass
-        if rec.drain_task is not None:
-            try:
-                rec.drain_task.cancel()
-            except Exception:
-                pass
     for rec in list(_JOBS.values()):
         if rec.task is not None:
             try:
