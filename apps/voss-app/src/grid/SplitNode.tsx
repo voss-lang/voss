@@ -1,9 +1,23 @@
-import { Switch, Match, createSignal } from 'solid-js';
+import { Switch, Match, Show, createSignal } from 'solid-js';
 import { produce, type SetStoreFunction, type Store } from 'solid-js/store';
 import type { GridStore, TreeNode, PaneLeaf, SplitNode } from './tree';
 import { focusByClick } from './focus';
 import PaneComponent from '../pane/PaneComponent';
 import DragHandle, { type Dims } from './DragHandle';
+import PaneHeader from './PaneHeader';
+import DotMenu from './DotMenu';
+import CloseConfirmBanner, { requestCloseGated } from './CloseConfirmBanner';
+
+/**
+ * A3-05 close gate injection (A2 D-07 black box). A2's `PaneComponent` does
+ * not surface its foreground signal yet, so `isFg` defaults to "idle" ⇒ ⌘W
+ * and "Close pane" close immediately (unchanged from A3-04). A3-06/A8 wires
+ * the real per-pane A2 fg signal here.
+ */
+export interface CloseUI {
+  isFg: (paneId: string) => boolean;
+  fgName: (paneId: string) => string;
+}
 
 /**
  * Recursive binary-split renderer (GRD-01). `H` = flex row (side-by-side),
@@ -23,9 +37,26 @@ export default function SplitNodeView(props: {
   setStore: SetStoreFunction<GridStore>;
   path: string;
   dims: () => Dims;
+  closeUI?: CloseUI;
 }) {
   const asSplit = () => props.node as SplitNode;
   const asLeaf = () => props.node as PaneLeaf;
+
+  // Per-leaf chrome state (inert on split nodes).
+  const [menuOpen, setMenuOpen] = createSignal(false);
+  const [banner, setBanner] = createSignal<string | null>(null);
+  const isFg = (id: string) => props.closeUI?.isFg(id) ?? false;
+  const fgName = (id: string) => props.closeUI?.fgName(id) ?? 'process';
+
+  // Single close entry (T-A3-13): idle ⇒ closeFocused now; fg ⇒ banner.
+  const requestClose = () =>
+    props.setStore(
+      produce((s) =>
+        requestCloseGated(s, asLeaf().id, () => isFg(asLeaf().id), () =>
+          setBanner(fgName(asLeaf().id)),
+        ),
+      ),
+    );
 
   const isFocused = () =>
     props.node.kind === 'pane' && asLeaf().id === props.store.focusedId;
