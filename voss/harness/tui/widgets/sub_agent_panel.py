@@ -30,6 +30,7 @@ class SubAgentPanel(Vertical):
     }
     SubAgentPanel .agent-body {
         padding: 0 0;
+        display: none;
     }
     """
 
@@ -57,6 +58,24 @@ class SubAgentPanel(Vertical):
             id=f"panel-budget-{self.parent_id}",
         )
         yield Vertical(id=f"panel-body-{self.parent_id}", classes="agent-body")
+
+    def on_mount(self) -> None:
+        # D-09 quiet-by-default. The DEFAULT_CSS `.agent-body { display:
+        # none; }` rule above documents intent, but Textual resolves
+        # `widget.styles.display` from the INLINE style object (a
+        # descendant DEFAULT_CSS rule does not populate it — same as the
+        # styles.tcss `#side { display: none; }` precedent). Set the body
+        # Vertical's inline display so the panel is genuinely quiet by
+        # default; `append_body` still mounts captured Static step lines
+        # while hidden (capture-not-render), and
+        # `VossTUIApp.action_toggle_subagent_detail` flips this inline
+        # value on Ctrl+O. compose/append_body/update_budget unchanged.
+        try:
+            self.query_one(
+                f"#panel-body-{self.parent_id}", Vertical
+            ).styles.display = "none"
+        except Exception:  # noqa: BLE001 — body not composed yet (defensive)
+            pass
 
     def append_body(self, line: str) -> None:
         body = self.query_one(f"#panel-body-{self.parent_id}", Vertical)

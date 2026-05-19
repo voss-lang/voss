@@ -647,8 +647,8 @@ Plans:
 **Plans:** 4 plans across 4 waves (serial spine; W3 runs M14-03 ∥ M14-04 file-disjoint).
 
 Plans:
-- [ ] M14-01-PLAN.md — Wave 0 scaffold: pin watchdog, 10 RED WATCH tests + reset/daemon-PID fixtures, macOS+Linux CI matrix (+ blocking package-legitimacy checkpoint)
-- [ ] M14-02-PLAN.md — lifecycle spine: `_WATCHERS` registry + `WatcherRecord` + shared `_read_log_cursor` factor (D-02/D-04, OQ-1) + `watch/backend.py` watchdog Observer/Debouncer/asyncio bridge (D-01) + reap wiring
+- [x] M14-01-PLAN.md — Wave 0 scaffold: pin watchdog, 10 RED WATCH tests + reset/daemon-PID fixtures, macOS+Linux CI matrix (+ blocking package-legitimacy checkpoint pending before M14-02)
+- [x] M14-02-PLAN.md — lifecycle spine: `_WATCHERS` registry + `WatcherRecord` + shared `_read_log_cursor` factor (D-02/D-04, OQ-1) + `watch/backend.py` watchdog Observer/Debouncer/asyncio bridge (D-01) + reap wiring
 - [ ] M14-03-PLAN.md — `fs_watch` + `fs_watch_poll` agent tools in make_toolset, both `is_mutating=False` (WATCH-02, OQ-2)
 - [ ] M14-04-PLAN.md — `voss watch` CLI (allowlist + re-run via T5 register_job) + `watch/daemon.py` `start_new_session` detach with `--_is-worker` guard (WATCH-03/04, OQ-3)
 
@@ -1203,6 +1203,16 @@ Plans:
 
 **Cross-cutting constraints:**
 - Preset semantics question (CONCEPT §10 Q4) must close before SPEC — L1 visual-only is the recommendation.
+
+**Plans:** 6 plans across 5 waves (planned 2026-05-19; A4-00 blocks on A3-06 substrate).
+
+Plans:
+- [ ] `A4-00-PLAN.md` — Blocking A3-06 substrate preflight; verify GridRoot is live in App, Rust grid sync commands are registered, and A3 integration/perf summary exists before A4 changes begin.
+- [ ] `A4-01-PLAN.md` — Pure preset transform model for fanout/pipeline/swarm/watchers, fixed cycle order, count-weighted ratios, and id-preserving capacity handling.
+- [ ] `A4-02-PLAN.md` — Controlled titlebar switcher, `custom` state, `Cmd+G` cycle injection, and GridRoot/App ownership wiring.
+- [ ] `A4-03-PLAN.md` — Rust versioned layout schema plus safe `.voss/layouts/<name>.json` save/load/list/default commands.
+- [ ] `A4-04-PLAN.md` — Frontend save/load command wrappers, exact command copy, loaded-layout remap semantics, and default-layout apply path.
+- [ ] `A4-05-PLAN.md` — Requirement-level acceptance, e2e smoke, full verification, and manual Variant B visual sign-off.
 
 ---
 

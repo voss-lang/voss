@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 
 from voss.harness.session import SessionRecord
 from voss.harness.slash import SlashRegistry
@@ -63,6 +63,10 @@ class VossTUIApp(App):
         # `focused_turn_index` defaults to the most recent turn.
         self.record: SessionRecord | None = None
         self.focused_turn_index: int | None = None
+        # M13-04: app-scoped sub-agent step-detail visibility (D-09 quiet-by-
+        # default). Applied uniformly across every mounted SubAgentPanel body
+        # by action_toggle_subagent_detail (one toggle, not per-panel state).
+        self._subagent_detail_visible: bool = False
         # T1-06: tracks the in-flight agent turn task so action_interrupt
         # can cancel it. Cleared via add_done_callback when the task ends.
         self.active_turn_task: Optional[asyncio.Task] = None
@@ -155,6 +159,26 @@ class VossTUIApp(App):
                 pass
 
         self.push_screen(ForkConfirmModal(idx), _on_confirm)
+
+    # ------------------------------------------------------------------
+    # M13-04 quiet-by-default sub-agent step-detail reveal (D-09 / MAG-02).
+    # Bound to ctrl+o (keymap.py "main" tier). Mirrors action_fork_turn's
+    # placement: a "main"-context action handler living on VossTUIApp.
+    # ------------------------------------------------------------------
+
+    def action_toggle_subagent_detail(self) -> None:
+        # One app-scoped toggle applied uniformly to every mounted panel so
+        # panels mounted-while-revealed stay consistent with the global state.
+        self._subagent_detail_visible = not self._subagent_detail_visible
+        target = "block" if self._subagent_detail_visible else "none"
+        for panel in self.query(SubAgentPanel):
+            try:
+                body = panel.query_one(
+                    f"#panel-body-{panel.parent_id}", Vertical
+                )
+                body.styles.display = target
+            except Exception:  # noqa: BLE001 — panel mid-mount may lack body
+                pass
 
     def action_focus_next(self) -> None:
         super().action_focus_next()

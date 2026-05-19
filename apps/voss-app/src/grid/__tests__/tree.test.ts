@@ -10,6 +10,8 @@ import {
   makeSplit,
   recomputeIndices,
   equalizeRatios,
+  balanceRatios,
+  leafCount,
   findLeaf,
   collectLeaves,
   type TreeNode,
@@ -92,6 +94,21 @@ describe('tree model (GRD-01)', () => {
     walk(root);
     expect(ratios.every((r) => r === 0.5)).toBe(true);
     expect(ratios.length).toBe(3);
+  });
+
+  it('balanceRatios makes every leaf equal-area (Warp locked tiling)', () => {
+    // H[ p, H[p,p] ] — 3 leaves. Equal width ⇒ root ratio 1/3 (1 of 3
+    // leaves left), inner ratio 0.5; leafCount reports subtree sizes.
+    const root = makeSplit(
+      'H',
+      makePane(),
+      makeSplit('H', makePane(), makePane()),
+    ) as Extract<TreeNode, { kind: 'split' }>;
+    expect(leafCount(root)).toBe(3);
+    expect(leafCount(root.right)).toBe(2);
+    balanceRatios(root);
+    expect(root.ratio).toBeCloseTo(1 / 3, 5);
+    expect((root.right as Extract<TreeNode, { kind: 'split' }>).ratio).toBe(0.5);
   });
 
   it('findLeaf locates a leaf by id; collectLeaves is inorder', () => {

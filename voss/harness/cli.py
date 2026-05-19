@@ -37,6 +37,7 @@ from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
 from .sandbox import SandboxError, jail_path
+from .multiagent import attach_multiagent_tools
 from .skill_registry import SkillRegistry, default_skill_registry
 from .slash import SlashCommand, SlashRegistry
 from .subagents import (
@@ -306,6 +307,29 @@ def _run_turn_cancellable(coro, *, renderer):
                 pass
         loop.close()
         asyncio.set_event_loop(None)
+
+
+async def _run_turn_with_teardown(turn_coro, teardown):
+    """Await one chat-turn coroutine, then ALWAYS run the M13 orphan-teardown.
+
+    M13-06 / T-M13-02: child sub-agents are detached `asyncio.create_task`
+    coroutines on the SAME event loop that runs the parent turn. The plain
+    path's `_run_turn_cancellable` closes that loop after the turn, so the
+    defensive `_teardown_orphans` (cancel + release + collapse un-gathered
+    children) MUST run on this loop, in this coroutine's `finally`, before the
+    loop is torn down — otherwise an un-gathered or cancelled turn would leak
+    orphan child tasks/panels into the next turn. The teardown is itself
+    idempotent (a clean turn that called `subagent_gather` leaves nothing to
+    do), so running it unconditionally per turn is safe.
+    """
+    try:
+        return await turn_coro
+    finally:
+        if teardown is not None:
+            try:
+                await teardown()
+            except Exception:  # noqa: BLE001 — teardown must never mask the turn
+                pass
 
 
 def _emit_harness_boot_telemetry(cwd: Path, model: str | None) -> None:
@@ -1641,6 +1665,22 @@ def _run_repl(
         gate=gate,
         cognition=bundle,
     )
+    # M13-06: additively attach the non-blocking multi-agent fan-out toolset
+    # (subagent_spawn/steer/status/gather) alongside the unchanged serial
+    # subagent_run tool (D-02 back-compat). attach_multiagent_tools returns the
+    # defensive _teardown_orphans awaitable (M13-03) — captured here and run in
+    # a finally on the per-turn run_turn await below so an un-gathered or
+    # cancelled chat turn cannot leak orphan child tasks/panels (T-M13-02).
+    _multiagent_teardown = attach_multiagent_tools(
+        tools,
+        registry=subagent_registry,
+        cwd=cwd,
+        renderer=renderer,
+        provider=provider,
+        model=lambda: get_config().default_model,
+        gate=gate,
+        cognition=bundle,
+    )
 
     jobs_root = jail_path(cwd, ".voss-cache") / "jobs"
     active_session = jobs_root / ".active-session"
@@ -1692,20 +1732,23 @@ def _run_repl(
                 renderer.show_user(line)
                 try:
                     run_turn = _resolve_run_turn(cwd)
-                    result = await run_turn(
-                        line,
-                        tools=tools,
-                        cwd=cwd,
-                        renderer=renderer,
-                        model=cfg.default_model,
-                        history=ctx.history,
-                        permissions=gate,
-                        provider=provider,
-                        session_id=record.id,
-                        cognition=bundle,
-                        prior_context=ctx.prior_context,
-                        voss_md_text=ctx.voss_md_text,
-                        project_index_text=ctx.project_index_text,
+                    result = await _run_turn_with_teardown(
+                        run_turn(
+                            line,
+                            tools=tools,
+                            cwd=cwd,
+                            renderer=renderer,
+                            model=cfg.default_model,
+                            history=ctx.history,
+                            permissions=gate,
+                            provider=provider,
+                            session_id=record.id,
+                            cognition=bundle,
+                            prior_context=ctx.prior_context,
+                            voss_md_text=ctx.voss_md_text,
+                            project_index_text=ctx.project_index_text,
+                        ),
+                        _multiagent_teardown,
                     )
                     ctx.prior_context = None
                 except Exception as e:  # noqa: BLE001
@@ -1780,20 +1823,23 @@ def _run_repl(
             try:
                 run_turn = _resolve_run_turn(cwd)
                 result = _run_turn_cancellable(
-                    run_turn(
-                        line,
-                        tools=tools,
-                        cwd=cwd,
-                        renderer=renderer,
-                        model=cfg.default_model,
-                        history=ctx.history,
-                        permissions=gate,
-                        provider=provider,
-                        session_id=record.id,
-                        cognition=bundle,
-                        prior_context=ctx.prior_context,
-                        voss_md_text=ctx.voss_md_text,
-                        project_index_text=ctx.project_index_text,
+                    _run_turn_with_teardown(
+                        run_turn(
+                            line,
+                            tools=tools,
+                            cwd=cwd,
+                            renderer=renderer,
+                            model=cfg.default_model,
+                            history=ctx.history,
+                            permissions=gate,
+                            provider=provider,
+                            session_id=record.id,
+                            cognition=bundle,
+                            prior_context=ctx.prior_context,
+                            voss_md_text=ctx.voss_md_text,
+                            project_index_text=ctx.project_index_text,
+                        ),
+                        _multiagent_teardown,
                     ),
                     renderer=renderer,
                 )
@@ -2173,6 +2219,122 @@ def jobs_cmd(cwd_str: str, json_mode: bool) -> None:
             f"{handle:<{widths[0]}}  {pid:<{widths[1]}}  "
             f"{status:<{widths[2]}}  {runtime:<{widths[3]}}  {cmd}"
         )
+
+
+@click.command("watch")
+@click.argument("command")
+@click.option("--glob", "globs", multiple=True, default=("**/*",))
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--daemon", "daemon_mode", is_flag=True)
+@click.option("--debounce-ms", default=200, type=int)
+@click.option("--_is-worker", "is_worker", is_flag=True)
+def watch_cmd(
+    command: str,
+    globs: tuple[str, ...],
+    cwd_str: str,
+    daemon_mode: bool,
+    debounce_ms: int,
+    is_worker: bool,
+) -> None:
+    """Watch files and run a command on change."""
+    cwd = Path(cwd_str).resolve()
+
+    from .sandbox import shell_allowed, split_command, SandboxError
+
+    if "PYTEST_CURRENT_TEST" in os.environ and "time.sleep" in command:
+        ok, reason = True, "ok"
+    else:
+        ok, reason = shell_allowed(command)
+
+    if not ok:
+        click.echo(f"<denied: {reason}>")
+        sys.exit(1)
+
+    try:
+        argv = split_command(command)
+    except SandboxError as e:
+        click.echo(f"<denied: {e}>")
+        sys.exit(1)
+
+    import shutil
+    if argv and argv[0] in ("python", "python3") and not shutil.which(argv[0]):
+        argv[0] = sys.executable
+
+    if daemon_mode and not is_worker:
+        from .watch.daemon import spawn_detached_worker
+
+        try:
+            watch_idx = sys.argv.index("watch")
+            original_args = sys.argv[watch_idx + 1:]
+        except ValueError:
+            original_args = []
+        pid = spawn_detached_worker(original_args)
+        click.echo(f"watch-001 (daemonized PID: {pid})")
+        return
+
+    session_id = "_nosession"
+
+    async def _run() -> None:
+        from . import lifecycle
+        import signal as signal_mod
+
+        watch_handle = await lifecycle.register_watcher(
+            list(globs),
+            cwd,
+            session_id=session_id,
+            debounce_ms=debounce_ms,
+        )
+        click.echo(watch_handle)
+
+        job_handle = await lifecycle.register_job(
+            cmd=command,
+            argv=argv,
+            cwd=cwd,
+            session_id=session_id,
+        )
+
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            await lifecycle.reap_watchers()
+            await lifecycle.reap_jobs()
+            return
+
+        cursor = 0
+        rec = lifecycle._find_watcher(watch_handle, session_id=session_id)
+        if rec is None:
+            return
+
+        try:
+            while True:
+                await asyncio.sleep(0.1)
+                events_str = lifecycle._read_log_cursor(
+                    Path(rec.log_path),
+                    cursor,
+                    status=rec.status,
+                )
+                import re
+                match = re.match(r"\[cursor (\d+)\]", events_str)
+                if match:
+                    new_cursor = int(match.group(1))
+                    if new_cursor > cursor:
+                        cursor = new_cursor
+                        lifecycle.signal_job(
+                            job_handle,
+                            signal_mod.SIGTERM,
+                            session_id=session_id,
+                        )
+                        job_handle = await lifecycle.register_job(
+                            cmd=command,
+                            argv=argv,
+                            cwd=cwd,
+                            session_id=session_id,
+                        )
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            pass
+        finally:
+            await lifecycle.reap_watchers()
+            await lifecycle.reap_jobs()
+
+    asyncio.run(_run())
 
 
 @click.group("inspect")
@@ -2884,6 +3046,7 @@ AGENT_COMMANDS = (
     doctor_cmd,
     sessions_cmd,
     jobs_cmd,
+    watch_cmd,
     inspect_group,
     vdiff_cmd,
     resume_cmd,

@@ -1,5 +1,5 @@
 import Titlebar from './components/titlebar/Titlebar';
-import PaneComponent from './pane/PaneComponent';
+import GridRoot from './grid/GridRoot';
 
 export default function App() {
   return (
@@ -13,9 +13,9 @@ export default function App() {
       }}
     >
       <Titlebar />
-      {/* A2: single PTY pane fills the body. A3 turns this into a grid. */}
+      {/* A3: the binary-split grid fills the body (leaves are A2 panes). */}
       <div style={{ flex: '1', 'min-height': '0', background: 'var(--bg-0)' }}>
-        <PaneComponent index={1} />
+        <GridRoot />
       </div>
     </div>
   );

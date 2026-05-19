@@ -1,0 +1,23 @@
+id = "voss-git-summary"
+name = "Git Working Tree Summary"
+description = "Summarizes the git status and diff in the current working directory"
+version = "0.1.0"
+author_identity = "voss-fixture@example.com"
+
+[skill]
+id = "voss-git-summary"
+entry = "git_summary.voss"
+mutating = false
+
+[scopes]
+tools = "read-only"
+fs = "cwd"
+net = false
+
+[trust]
+sig_file = "manifest.toml.sig"
+pub_key = "x1G77+mHNfw/15bz8V594fm+CpMkayuwVU2RLPrPBzo="
+
+[install]
+source_url = ""
+installed_at = ""

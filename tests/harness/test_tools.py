@@ -91,6 +91,8 @@ class TestToolEntryClassification:
             "voss_probable_inspect",
             "voss_budget_trace",
             "voss_py_diff",
+            "fs_watch",
+            "fs_watch_poll",
         ):
             assert tools[name].is_mutating is False, name
 
@@ -118,4 +120,5 @@ class TestToolEntryClassification:
         # M10-04 added 4 read-only code tools (code_search, find_definition, find_references, code_refresh).
         # M11-02 adds voss_probable_inspect + voss_budget_trace.
         # M11-04 adds voss_py_diff.
-        assert sum(1 for e in tools.values() if not e.is_mutating) == 17
+        # M14 adds fs_watch + fs_watch_poll.
+        assert sum(1 for e in tools.values() if not e.is_mutating) == 19

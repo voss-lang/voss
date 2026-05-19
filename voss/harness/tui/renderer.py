@@ -6,6 +6,9 @@ Textual app log) so a rendering bug can never crash the agent.
 
 Thread-safety: subagents run in worker threads (see voss.harness.subagents);
 the `_post` helper routes off-loop callers through `app.call_from_thread`.
+For the M13 multi-agent fan-out path, children instead run as asyncio tasks
+on the app's own event loop (NOT worker threads), and `_post`'s
+main-thread branch already handles that case unchanged.
 """
 from __future__ import annotations
 

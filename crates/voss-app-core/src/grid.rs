@@ -53,18 +53,61 @@ pub struct GridState {
     pub focused_id: String,
 }
 
-/// Overwrite the in-memory grid mirror with the webview's latest tree.
-/// In-memory ONLY — no filesystem access (GRD-08).
+/// Single default pane — initializes the managed mirror before the webview's
+/// first `sync_grid` (overwritten on the first structural change). In-memory
+/// only; no disk seed (GRD-08).
+impl Default for GridState {
+    fn default() -> Self {
+        GridState {
+            root: TreeNode::Pane(PaneLeaf {
+                id: "root".into(),
+                cwd: String::new(),
+                shell: String::new(),
+                index: 1,
+            }),
+            focused_id: "root".into(),
+        }
+    }
+}
+
+/// Plain mirror mutators — the cross-crate seam. `tauri::generate_handler!`
+/// can only resolve the command helper macros generated in the SAME crate,
+/// so the app crate registers its own thin `#[tauri::command]` wrappers
+/// (src-tauri/src/lib.rs) that delegate here (same pattern A2-05 used for
+/// PTY). Pure in-memory, no filesystem (GRD-08).
+pub fn overwrite(slot: &Mutex<GridState>, new_state: GridState) -> Result<(), String> {
+    let mut guard = slot
+        .lock()
+        .map_err(|e| format!("grid state mutex poisoned: {e}"))?;
+    *guard = new_state;
+    Ok(())
+}
+
+/// Clone the in-memory mirror for read-back (parity testing only — no disk).
+pub fn snapshot(slot: &Mutex<GridState>) -> Result<GridState, String> {
+    let guard = slot
+        .lock()
+        .map_err(|e| format!("grid state mutex poisoned: {e}"))?;
+    Ok(guard.clone())
+}
+
+/// Overwrite the in-memory grid mirror with the webview's latest tree
+/// (GRD-08). In-memory ONLY — no filesystem access.
 #[tauri::command]
 pub fn sync_grid(
     state: tauri::State<'_, Mutex<GridState>>,
     new_state: GridState,
 ) -> Result<(), String> {
-    let mut guard = state
-        .lock()
-        .map_err(|e| format!("grid state mutex poisoned: {e}"))?;
-    *guard = new_state;
-    Ok(())
+    overwrite(state.inner(), new_state)
+}
+
+/// Read-back of the in-memory mirror for Solid↔Rust parity assertions
+/// (GRD-08). In-memory ONLY — no filesystem access.
+#[tauri::command]
+pub fn get_grid(
+    state: tauri::State<'_, Mutex<GridState>>,
+) -> Result<GridState, String> {
+    snapshot(state.inner())
 }
 
 #[cfg(test)]

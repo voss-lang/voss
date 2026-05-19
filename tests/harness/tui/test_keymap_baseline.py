@@ -51,6 +51,17 @@ def test_ctrl_o_resolves_to_toggle_subagent_detail() -> None:
     assert any(b.action == "toggle_subagent_detail" for b in hit), (
         "ctrl+o does not resolve to toggle_subagent_detail"
     )
+    assert any(b.context == "main" for b in hit), (
+        "ctrl+o is not on the M9 'main' declarative registry tier"
+    )
+    # OQ-A3 dual contract: a "main" row resolves iff (a) the KEYMAP row
+    # exists AND (b) a matching action_<name> handler lives on VossTUIApp
+    # (the action_fork_turn precedent). Assert the App-handler half too.
+    from voss.harness.tui.app import VossTUIApp
+
+    assert callable(
+        getattr(VossTUIApp, "action_toggle_subagent_detail", None)
+    ), "VossTUIApp lacks a callable action_toggle_subagent_detail handler"
 
 
 def test_ctrl_c_still_interrupt() -> None:

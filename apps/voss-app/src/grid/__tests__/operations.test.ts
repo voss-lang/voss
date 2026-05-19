@@ -159,7 +159,9 @@ describe('operations — split/fork/close/equalize (GRD-02, D-04)', () => {
     expect(collectLeaves(s.root).map((l) => l.index)).toEqual([1, 2, 3]);
   });
 
-  it('equalizeAll resets every split ratio to 0.5 and syncs', () => {
+  it('equalizeAll balances ratios so every leaf is equal-area (Warp) + syncs', () => {
+    // V[ H[p,p], p ] — 3 leaves. Equal area ⇒ root V ratio = 2/3 (left holds
+    // 2 of 3 leaves), inner H ratio = 0.5.
     const root = makeSplit(
       'V',
       makeSplit('H', makePane(), makePane()),
@@ -169,16 +171,22 @@ describe('operations — split/fork/close/equalize (GRD-02, D-04)', () => {
     ((root as SplitNode).left as SplitNode).ratio = 0.85;
     const s = store(root, collectLeaves(root)[0].id);
     equalizeAll(s);
-    const ratios: number[] = [];
-    const walk = (n: TreeNode) => {
-      if (n.kind === 'split') {
-        ratios.push(n.ratio);
-        walk(n.left);
-        walk(n.right);
-      }
-    };
-    walk(s.root);
-    expect(ratios.every((r) => r === 0.5)).toBe(true);
+    expect((s.root as SplitNode).ratio).toBeCloseTo(2 / 3, 5);
+    expect(((s.root as SplitNode).left as SplitNode).ratio).toBe(0.5);
     expect(h.invoke).toHaveBeenCalledWith('sync_grid', expect.anything());
+  });
+
+  it('repeated splitFocused tiles N panes equal (no geometric shrink)', () => {
+    // 5 ⌘D-style H splits → 6 equal columns; every leaf ≈ 1/6 width at a
+    // wide window (the "only 4 max" bug = missing auto-equalize).
+    const p = makePane();
+    const s = store(p, p.id);
+    for (let i = 0; i < 5; i++) splitFocused(s, 'H');
+    const rects = computePaneRects(s.root, 6000, 800);
+    const widths = [...rects.values()].map((r) => r.w);
+    const min = Math.min(...widths);
+    const max = Math.max(...widths);
+    expect(collectLeaves(s.root)).toHaveLength(6);
+    expect(max - min).toBeLessThanOrEqual(2); // equal within rounding
   });
 });

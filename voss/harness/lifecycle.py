@@ -38,6 +38,10 @@ _SESSIONS: list[object] = []
 # watchdog timers, mid-life signals, and lifetimes beyond the 5s subprocess deadline.
 _JOBS: dict[tuple[str, str], "JobRecord"] = {}
 _HANDLE_COUNTERS: dict[str, int] = {}
+# _WATCHERS is separate because watchdog Observer is a thread (no pid/proc);
+# it is stopped via observer.stop()/join(), not SIGTERM.
+_WATCHERS: dict[tuple[str, str], "WatcherRecord"] = {}
+_WATCH_HANDLE_COUNTERS: dict[str, int] = {}
 
 _TERM_DEADLINE_S = 5.0
 _MEM_LIMIT_BYTES = 100 * 1024 * 1024
@@ -91,6 +95,21 @@ class JobRecord:
         }
 
 
+@dataclass
+class WatcherRecord:
+    handle: str
+    globs: list[str]
+    log_path: str
+    status: str
+    started_at: str
+    observer: Any = field(repr=False, compare=False)
+    session_id: str = field(default="_nosession", repr=False, compare=False)
+    drain_task: asyncio.Task | None = field(
+        default=None, repr=False, compare=False
+    )
+    debouncer: Any | None = field(default=None, repr=False, compare=False)
+
+
 def _hydrate_job(data: dict[str, Any]) -> JobRecord:
     known = {k: data[k] for k in _JOB_FIELDS if k in data}
     return JobRecord(**known)
@@ -116,6 +135,20 @@ def _job_dir(cwd: Path, session_id: str) -> Path:
 
 def _log_path(cwd: Path, session_id: str, handle: str) -> Path:
     return _job_dir(cwd, session_id) / f"{handle}.log"
+
+
+def _watch_dir(cwd: Path, session_id: str) -> Path:
+    from .sandbox import jail_path
+
+    root = jail_path(cwd, ".voss-cache/watch")
+    root.mkdir(parents=True, exist_ok=True)
+    session_dir = jail_path(root, session_id)
+    session_dir.mkdir(parents=True, exist_ok=True)
+    return session_dir
+
+
+def _watch_log_path(cwd: Path, session_id: str, handle: str) -> Path:
+    return _watch_dir(cwd, session_id) / f"{handle}.log"
 
 
 def _meta_path(rec: JobRecord) -> Path:
@@ -273,10 +306,16 @@ async def _supervise(rec: JobRecord, no_output_deadline_s: float = 30.0) -> None
         _write_meta(rec)
 
 
-def _next_handle(session_id: str) -> str:
+def _next_handle(session_id: str, prefix: str = "bg") -> str:
     n = _HANDLE_COUNTERS.get(session_id, 0) + 1
     _HANDLE_COUNTERS[session_id] = n
-    return f"bg-{n:03d}"
+    return f"{prefix}-{n:03d}"
+
+
+def _next_watch_handle(session_id: str) -> str:
+    n = _WATCH_HANDLE_COUNTERS.get(session_id, 0) + 1
+    _WATCH_HANDLE_COUNTERS[session_id] = n
+    return f"watch-{n:03d}"
 
 
 def _job_key(session_id: str, handle: str) -> tuple[str, str]:
@@ -287,6 +326,15 @@ def _find_job(handle: str, session_id: str | None = None) -> JobRecord | None:
     if session_id is not None:
         return _JOBS.get(_job_key(session_id, handle))
     matches = [rec for (sid, h), rec in _JOBS.items() if h == handle]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _find_watcher(handle: str, session_id: str | None = None) -> WatcherRecord | None:
+    if session_id is not None:
+        return _WATCHERS.get(_job_key(session_id, handle))
+    matches = [rec for (sid, h), rec in _WATCHERS.items() if h == handle]
     if len(matches) == 1:
         return matches[0]
     return None
@@ -392,6 +440,41 @@ def register_job(
     )
 
 
+async def register_watcher(
+    globs: list[str],
+    cwd: Path,
+    *,
+    session_id: str = "_nosession",
+    debounce_ms: int = 200,
+) -> str:
+    from .sandbox import jail_path
+    from .watch.backend import start_watcher
+
+    root = jail_path(Path(cwd), ".")
+    handle = _next_watch_handle(session_id)
+    log_path = _watch_log_path(Path(cwd), session_id, handle)
+    observer, drain_task, debouncer = await start_watcher(
+        globs,
+        root,
+        log_path,
+        asyncio.get_running_loop(),
+        debounce_ms=debounce_ms,
+    )
+    rec = WatcherRecord(
+        handle=handle,
+        globs=list(globs),
+        log_path=str(log_path.resolve()),
+        status="watching",
+        started_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        observer=observer,
+        session_id=session_id,
+        drain_task=drain_task,
+        debouncer=debouncer,
+    )
+    _WATCHERS[_job_key(session_id, handle)] = rec
+    return handle
+
+
 async def reap_jobs() -> None:
     for key, rec in list(_JOBS.items()):
         proc = rec.proc
@@ -440,6 +523,30 @@ async def reap_jobs() -> None:
         _JOBS.pop(key, None)
 
 
+async def reap_watchers() -> None:
+    for key, rec in list(_WATCHERS.items()):
+        if rec.debouncer is not None:
+            try:
+                rec.debouncer.cancel_all()
+            except Exception as exc:
+                sys.stderr.write(f"lifecycle.reap_watchers: {exc!r}\n")
+        try:
+            rec.observer.stop()
+        except Exception as exc:
+            sys.stderr.write(f"lifecycle.reap_watchers: {exc!r}\n")
+        try:
+            rec.observer.join(timeout=2.0)
+        except Exception as exc:
+            sys.stderr.write(f"lifecycle.reap_watchers: {exc!r}\n")
+        if rec.drain_task is not None:
+            try:
+                rec.drain_task.cancel()
+            except Exception as exc:
+                sys.stderr.write(f"lifecycle.reap_watchers: {exc!r}\n")
+        rec.status = "stopped"
+        _WATCHERS.pop(key, None)
+
+
 def signal_job(handle: str, sig: int, *, session_id: str | None = None) -> bool:
     rec = _find_job(handle, session_id=session_id)
     if rec is None or rec.proc is None:
@@ -455,31 +562,46 @@ def monitor_job(handle: str, since_ms: int = 0, *, session_id: str | None = None
     rec = _find_job(handle, session_id=session_id)
     if rec is None:
         return f"<error: unknown handle {handle}>"
+    if rec.status == "running":
+        state = "running"
+    else:
+        state = f"exit {rec.exit_code if rec.exit_code is not None else -1}"
+    return _read_log_cursor(
+        Path(rec.log_path),
+        since_ms,
+        status=state,
+        reap_reason=rec.reap_reason,
+    )
+
+
+def _read_log_cursor(
+    log_path: Path,
+    since_ms: int,
+    *,
+    status: str,
+    cap_bytes: int = _MONITOR_CAP_BYTES,
+    reap_reason: str | None = None,
+) -> str:
     start = max(0, int(since_ms))
-    path = Path(rec.log_path)
     chunk = b""
     file_size = start
     try:
-        with path.open("rb") as fh:
+        with log_path.open("rb") as fh:
             fh.seek(start)
-            chunk = fh.read(_MONITOR_CAP_BYTES)
-            file_size = path.stat().st_size
+            chunk = fh.read(cap_bytes)
+            file_size = log_path.stat().st_size
     except FileNotFoundError:
         pass
     except OSError as exc:
         return f"<error: {exc}>"
     cursor = start + len(chunk)
-    if rec.status == "running":
-        state = "running"
-    else:
-        state = f"exit {rec.exit_code if rec.exit_code is not None else -1}"
     text = chunk.decode("utf-8", errors="replace")
     if file_size > cursor:
         remaining = max(0, file_size - cursor)
         text += f"\n<truncated, {remaining} more bytes — re-monitor with cursor {cursor}>"
-    if rec.reap_reason:
-        text += f'\nshell.background.reap reason="{rec.reap_reason}"'
-    return f"[cursor {cursor}][{state}]\n{text}"
+    if reap_reason:
+        text += f'\nshell.background.reap reason="{reap_reason}"'
+    return f"[cursor {cursor}][{status}]\n{text}"
 
 
 async def reap_all() -> None:
@@ -515,6 +637,7 @@ async def reap_all() -> None:
         except BaseException as exc:
             sys.stderr.write(f"lifecycle.reap_all: aclose failed: {exc!r}\n")
 
+    await reap_watchers()
     await reap_jobs()
 
     _SUBPROCESSES.clear()
@@ -522,6 +645,25 @@ async def reap_all() -> None:
 
 
 def reset_for_tests() -> None:
+    for rec in list(_WATCHERS.values()):
+        if rec.debouncer is not None:
+            try:
+                rec.debouncer.cancel_all()
+            except Exception:
+                pass
+        try:
+            rec.observer.stop()
+        except Exception:
+            pass
+        try:
+            rec.observer.join(timeout=2.0)
+        except Exception:
+            pass
+        if rec.drain_task is not None:
+            try:
+                rec.drain_task.cancel()
+            except Exception:
+                pass
     for rec in list(_JOBS.values()):
         if rec.task is not None:
             try:
@@ -535,10 +677,12 @@ def reset_for_tests() -> None:
     _SESSIONS.clear()
     _JOBS.clear()
     _HANDLE_COUNTERS.clear()
+    _WATCHERS.clear()
+    _WATCH_HANDLE_COUNTERS.clear()
 
 
 def _atexit_hook() -> None:
-    if not _SUBPROCESSES and not _SESSIONS and not _JOBS:
+    if not _SUBPROCESSES and not _SESSIONS and not _JOBS and not _WATCHERS:
         return
     try:
         asyncio.run(reap_all())

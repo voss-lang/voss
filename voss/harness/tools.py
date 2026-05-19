@@ -242,6 +242,41 @@ def make_toolset(
             return f"<error: unknown handle {handle}>"
         return f"[signal {signal} -> {handle}]"
 
+    @tool(
+        name="fs_watch",
+        description="Register a file-system watcher for glob patterns.",
+    )
+    async def fs_watch(globs: list[str], debounce_ms: int = 200) -> str:
+        from . import lifecycle
+
+        return await lifecycle.register_watcher(
+            globs,
+            cwd,
+            session_id=session_id or "_nosession",
+            debounce_ms=debounce_ms,
+        )
+
+    @tool(
+        name="fs_watch_poll",
+        description=(
+            "Read incremental file-watch events by handle. since_ms "
+            "is an opaque byte cursor (0 = from start); pass back the returned "
+            "cursor to continue. Non-blocking. Returns [cursor N][watching|stopped] "
+            "then JSONL event lines."
+        ),
+    )
+    def fs_watch_poll(handle: str, since_ms: int = 0) -> str:
+        from . import lifecycle
+
+        rec = lifecycle._find_watcher(handle, session_id=session_id or "_nosession")
+        if rec is None:
+            return f"<error: unknown handle {handle}>"
+        return lifecycle._read_log_cursor(
+            Path(rec.log_path),
+            since_ms,
+            status=rec.status,
+        )
+
     @tool(name="fs_write", description="Write text to a file inside cwd. Creates parent dirs. Overwrites existing.")
     async def fs_write(path: str, content: str) -> str:
         p = jail_path(cwd, path)
@@ -517,6 +552,8 @@ def make_toolset(
         ),
         "shell_monitor": ToolEntry(descriptor=shell_monitor, is_mutating=False),
         "shell_signal": ToolEntry(descriptor=shell_signal, is_mutating=True),
+        "fs_watch": ToolEntry(descriptor=fs_watch, is_mutating=False),
+        "fs_watch_poll": ToolEntry(descriptor=fs_watch_poll, is_mutating=False),
         "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
         "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
         "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),

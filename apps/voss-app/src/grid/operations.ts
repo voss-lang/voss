@@ -1,8 +1,8 @@
 import {
   type GridStore,
   type TreeNode,
+  balanceRatios,
   collectLeaves,
-  equalizeRatios,
   findLeaf,
   makePane,
   makeSplit,
@@ -100,6 +100,7 @@ function insertSibling(
     makeSplit(orientation, { ...old }, newLeaf),
   );
   recomputeIndices(store.root);
+  balanceRatios(store.root); // Warp auto-equalize — new pane shrinks others evenly
   store.focusedId = (newLeaf as { id: string }).id;
   markStructuralChange(store);
 }
@@ -139,11 +140,12 @@ export function closeFocused(store: GridStore): void {
   store.root = res.root;
   store.focusedId = res.focus ?? collectLeaves(res.root)[0].id;
   recomputeIndices(store.root);
+  balanceRatios(store.root); // remaining panes re-spread evenly (Warp)
   markStructuralChange(store);
 }
 
-/** ⌘= — reset every split ratio to 0.5 recursively. */
+/** ⌘= — Warp locked-tiling equalize: every leaf the same size on its axis. */
 export function equalizeAll(store: GridStore): void {
-  equalizeRatios(store.root);
+  balanceRatios(store.root);
   markStructuralChange(store);
 }

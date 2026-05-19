@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
+use voss_app_core::grid::{self, GridState};
 use voss_app_core::pty::reader::start_reader;
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_session};
@@ -131,11 +132,30 @@ async fn get_fg_process(
     Ok(foreground::get_foreground_name(fd))
 }
 
+// ---- Grid mirror commands (GRD-08) ----------------------------------------
+// Thin app-level wrappers delegating to voss-app-core's plain `grid::overwrite`
+// / `grid::snapshot` — same cross-crate `generate_handler!` constraint as the
+// PTY commands above (the core's own `#[tauri::command]` macros are not in
+// scope here). In-memory mirror only; zero disk I/O.
+
+type GridSlot<'a> = tauri::State<'a, Mutex<GridState>>;
+
+#[tauri::command]
+fn sync_grid(state: GridSlot<'_>, new_state: GridState) -> Result<(), String> {
+    grid::overwrite(state.inner(), new_state)
+}
+
+#[tauri::command]
+fn get_grid(state: GridSlot<'_>) -> Result<GridState, String> {
+    grid::snapshot(state.inner())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
         .manage(Arc::new(PtyRegistry::default()))
+        .manage(Mutex::new(GridState::default()))
         .invoke_handler(tauri::generate_handler![
             get_theme_overrides,
             spawn_pty,
@@ -145,6 +165,8 @@ pub fn run() {
             pty_resume,
             pty_kill,
             get_fg_process,
+            sync_grid,
+            get_grid,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
