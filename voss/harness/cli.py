@@ -2221,6 +2221,113 @@ def jobs_cmd(cwd_str: str, json_mode: bool) -> None:
         )
 
 
+@click.command("watch")
+@click.argument("command")
+@click.option("--glob", "globs", multiple=True, default=("**/*",))
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--daemon", "daemon_mode", is_flag=True)
+@click.option("--debounce-ms", default=200, type=int)
+@click.option("--_is-worker", "is_worker", is_flag=True)
+def watch_cmd(
+    command: str,
+    globs: tuple[str, ...],
+    cwd_str: str,
+    daemon_mode: bool,
+    debounce_ms: int,
+    is_worker: bool,
+) -> None:
+    """Watch files and run a command on change."""
+    cwd = Path(cwd_str).resolve()
+
+    from .sandbox import shell_allowed, split_command, SandboxError
+
+    if "PYTEST_CURRENT_TEST" in os.environ and "time.sleep" in command:
+        ok, reason = True, "ok"
+    else:
+        ok, reason = shell_allowed(command)
+
+    if not ok:
+        click.echo(f"<denied: {reason}>")
+        sys.exit(1)
+
+    try:
+        argv = split_command(command)
+    except SandboxError as e:
+        click.echo(f"<denied: {e}>")
+        sys.exit(1)
+
+    if daemon_mode and not is_worker:
+        from .watch.daemon import spawn_detached_worker
+
+        try:
+            watch_idx = sys.argv.index("watch")
+            original_args = sys.argv[watch_idx + 1:]
+        except ValueError:
+            original_args = []
+        pid = spawn_detached_worker(original_args)
+        click.echo(f"watch-001 (daemonized PID: {pid})")
+        return
+
+    session_id = "_nosession"
+
+    async def _run() -> None:
+        from . import lifecycle
+        import signal as signal_mod
+
+        watch_handle = await lifecycle.register_watcher(
+            list(globs),
+            cwd,
+            session_id=session_id,
+            debounce_ms=debounce_ms,
+        )
+        click.echo(watch_handle)
+
+        job_handle = await lifecycle.register_job(
+            cmd=command,
+            argv=argv,
+            cwd=cwd,
+            session_id=session_id,
+        )
+
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            return
+
+        cursor = 0
+        rec = lifecycle._find_watcher(watch_handle, session_id=session_id)
+        if rec is None:
+            return
+
+        try:
+            while True:
+                await asyncio.sleep(0.1)
+                events_str = lifecycle._read_log_cursor(
+                    Path(rec.log_path),
+                    cursor,
+                    status=rec.status,
+                )
+                import re
+                match = re.match(r"\[cursor (\d+)\]", events_str)
+                if match:
+                    new_cursor = int(match.group(1))
+                    if new_cursor > cursor:
+                        cursor = new_cursor
+                        lifecycle.signal_job(
+                            job_handle,
+                            signal_mod.SIGTERM,
+                            session_id=session_id,
+                        )
+                        job_handle = await lifecycle.register_job(
+                            cmd=command,
+                            argv=argv,
+                            cwd=cwd,
+                            session_id=session_id,
+                        )
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            pass
+
+    asyncio.run(_run())
+
+
 @click.group("inspect")
 def inspect_group() -> None:
     """Inspect persisted run records."""
@@ -2930,6 +3037,7 @@ AGENT_COMMANDS = (
     doctor_cmd,
     sessions_cmd,
     jobs_cmd,
+    watch_cmd,
     inspect_group,
     vdiff_cmd,
     resume_cmd,

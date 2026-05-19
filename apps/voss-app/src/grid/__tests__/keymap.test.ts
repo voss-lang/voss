@@ -40,20 +40,24 @@ describe('keymap dispatch (GRD-02/03/04)', () => {
     onClose.mockClear();
   });
 
-  it('⌘\\ → splitFocused("H"); ⌘⇧\\ → splitFocused("V") — both consumed', () => {
-    const a = key({ code: 'Backslash', key: '\\', metaKey: true });
+  it('⌘D → split right (H); ⌘⇧D → split below (V) — Warp parity', () => {
+    const a = key({ code: 'KeyD', key: 'd', metaKey: true });
     expect(D(a)).toBe(true);
     expect(ops.splitFocused).toHaveBeenCalledWith(store, 'H', expect.anything());
     expect(a.preventDefault).toHaveBeenCalled();
 
-    const b = key({ code: 'Backslash', key: '|', metaKey: true, shiftKey: true });
+    const b = key({ code: 'KeyD', key: 'd', metaKey: true, shiftKey: true });
     expect(D(b)).toBe(true);
     expect(ops.splitFocused).toHaveBeenCalledWith(store, 'V', expect.anything());
   });
 
-  it('⌘D fork, ⌘= equalize, ⌘W → onCloseRequest (not closeFocused)', () => {
-    expect(D(key({ code: 'KeyD', key: 'd', metaKey: true }))).toBe(true);
-    expect(ops.forkFocused).toHaveBeenCalledWith(store, expect.anything());
+  it('⌘\\ / ⌘⇧\\ stay split aliases; ⌘= equalize; ⌘W → onCloseRequest', () => {
+    expect(D(key({ code: 'Backslash', key: '\\', metaKey: true }))).toBe(true);
+    expect(ops.splitFocused).toHaveBeenCalledWith(store, 'H', expect.anything());
+    expect(
+      D(key({ code: 'Backslash', key: '|', metaKey: true, shiftKey: true })),
+    ).toBe(true);
+    expect(ops.splitFocused).toHaveBeenCalledWith(store, 'V', expect.anything());
     expect(D(key({ code: 'Equal', key: '=', metaKey: true }))).toBe(true);
     expect(ops.equalizeAll).toHaveBeenCalledWith(store);
     expect(D(key({ code: 'KeyW', key: 'w', metaKey: true }))).toBe(true);
