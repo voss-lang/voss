@@ -1,9 +1,5 @@
 import type { GridStore } from './tree';
-import {
-  splitFocused,
-  forkFocused,
-  equalizeAll,
-} from './operations';
+import { splitFocused, equalizeAll } from './operations';
 import { focusByIndex, cycleFocus, focusByDirection } from './focus';
 import { resizeByKeyboard } from './resize';
 
@@ -55,19 +51,16 @@ export function dispatchKey(
       return true;
     }
 
-    // ⌘\ split right (H) / ⌘⇧\ split below (V) — code is layout-stable.
-    if (code === 'Backslash') {
+    // ⌘D split right (H) / ⌘⇧D split below (V) — Warp parity (memory
+    // voss-app-grid-warp-parity). ⌘\ / ⌘⇧\ kept as layout-stable aliases.
+    if (code === 'KeyD' || code === 'Backslash') {
       splitFocused(store, shift ? 'V' : 'H', geom);
       return true;
     }
 
     if (shift) return false; // remaining chords are all un-shifted
 
-    // ⌘D fork, ⌘W close (gated), ⌘= equalize.
-    if (code === 'KeyD') {
-      forkFocused(store, geom);
-      return true;
-    }
+    // ⌘W close (gated), ⌘= equalize.
     if (code === 'KeyW') {
       onCloseRequest(store);
       return true;
