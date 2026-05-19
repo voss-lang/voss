@@ -22,10 +22,14 @@ def test_tampered_manifest_refused(signed_fixture_bundle: Path, tmp_path: Path) 
     tampered_content = bytes([content[0] ^ 0xFF]) + content[1:]
     tampered_manifest.write_bytes(tampered_content)
 
-    trusted_keys = {"voss-fixture@example.com": "some_pub_key_b64"}
+    # Trust the REAL fixture public key (strip trailing whitespace from .pub file)
+    # so verification reaches the Ed25519 path and fails on the tampered bytes,
+    # not on malformed base64 in a placeholder key.
+    pub_key_b64 = (signed_fixture_bundle / "test_signing_key.pub").read_text().strip()
+    trusted_keys = {"voss-fixture@example.com": pub_key_b64}
     ok, err = verify_manifest(tampered_manifest, sig_path, trusted_keys=trusted_keys)
     assert not ok
-    assert "tampered" in err.lower() or "signature" in err.lower() or "invalid" in err.lower()
+    assert "signature" in err.lower(), err
 
     # Confirm install_bundle raises an error and nothing lands in plugin dir
     try:
