@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
@@ -24,8 +24,16 @@ class McpServerConfig(BaseModel):
     env: Optional[list[str]] = None
 
 
+class McpServerExposureConfig(BaseModel):
+    model_config = STRICT
+    name: str | None = None
+    exposed_tools: list[str] | Literal["*"] = "*"
+    exposed_skills: list[str] | Literal["*"] = "*"
+
+
 class McpConfig(BaseModel):
     model_config = STRICT
+    server: McpServerExposureConfig | None = None
     servers: dict[str, McpServerConfig] = Field(default_factory=dict)
 
 

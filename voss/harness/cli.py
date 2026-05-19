@@ -36,7 +36,7 @@ from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
-from .sandbox import jail_path
+from .sandbox import SandboxError, jail_path
 from .skill_registry import SkillRegistry, default_skill_registry
 from .slash import SlashCommand, SlashRegistry
 from .subagents import (
@@ -495,6 +495,32 @@ def _render_budget_inspect(cwd: Path, session_id_or_name: str) -> str:
     return render_budget_timeline(run)
 
 
+def _render_voss_py_diff(cwd: Path, source: str) -> str:
+    source = source.strip()
+    if not source:
+        raise ValueError("missing source: expected .voss file")
+    try:
+        path = jail_path(cwd, source)
+    except SandboxError as exc:
+        raise ValueError(f"path outside cwd: {source}") from exc
+    if not path.exists():
+        raise FileNotFoundError(f"not found: {source}")
+    if path.is_dir():
+        raise ValueError(f"expected .voss file, got directory: {source}")
+    if path.suffix != ".voss":
+        raise ValueError(f"expected .voss source file, got {source}")
+    try:
+        from .voss_diff import render_voss_py_diff
+    except ModuleNotFoundError as exc:
+        if exc.name == "voss.harness.voss_diff":
+            raise ValueError("voss diff core unavailable") from exc
+        raise
+    try:
+        return render_voss_py_diff(path, cwd=cwd)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(str(exc)) from exc
+
+
 _RECALL_USAGE = "usage: /recall <query> [--top N] [--source turn|decision|convention|ledger|note]"
 
 
@@ -818,9 +844,15 @@ def _build_slash_registry() -> SlashRegistry:
             return
         target = args[0] if args else ctx.record.id
         try:
-            click.echo(_render_probable_inspect(ctx.cwd, target, decision_index))
+            text = _render_probable_inspect(ctx.cwd, target, decision_index)
         except (FileNotFoundError, ValueError, IndexError) as exc:
             click.echo(f"/probable failed: {exc}", err=True)
+            return
+        show = getattr(getattr(ctx, "renderer", None), "show_probable_inspector", None)
+        if callable(show):
+            show(text)
+        else:
+            click.echo(text)
 
     def _btrace(ctx: ReplContext, args: list[str], _line: str) -> None:
         if len(args) > 1:
@@ -828,9 +860,30 @@ def _build_slash_registry() -> SlashRegistry:
             return
         target = args[0] if args else ctx.record.id
         try:
-            click.echo(_render_budget_inspect(ctx.cwd, target))
+            text = _render_budget_inspect(ctx.cwd, target)
         except (FileNotFoundError, ValueError, IndexError) as exc:
             click.echo(f"/btrace failed: {exc}", err=True)
+            return
+        show = getattr(getattr(ctx, "renderer", None), "show_budget_trace", None)
+        if callable(show):
+            show(text)
+        else:
+            click.echo(text)
+
+    def _vdiff(ctx: ReplContext, args: list[str], _line: str) -> None:
+        if len(args) != 1:
+            click.echo("usage: /vdiff <file.voss>", err=True)
+            return
+        try:
+            text = _render_voss_py_diff(ctx.cwd, args[0])
+        except (FileNotFoundError, ValueError) as exc:
+            click.echo(f"/vdiff failed: {exc}", err=True)
+            return
+        show = getattr(getattr(ctx, "renderer", None), "show_voss_py_diff", None)
+        if callable(show):
+            show(text)
+        else:
+            click.echo(text)
 
     def _why(ctx: ReplContext, _args: list[str], _line: str) -> None:
         # T6 / SLASH-06. Render last plan's rationale + per-step why +
@@ -1101,6 +1154,11 @@ def _build_slash_registry() -> SlashRegistry:
             "/btrace",
             "inspect recorded budget timeline: /btrace [session]",
             _btrace,
+        ),
+        SlashCommand(
+            "/vdiff",
+            "show source vs generated Python: /vdiff <file.voss>",
+            _vdiff,
         ),
         SlashCommand(
             "/why",
@@ -1906,7 +1964,7 @@ def _print_slash_help(registry: SlashRegistry | None = None) -> None:
     named_groups: list[tuple[str, list[str]]] = [
         ("Editing", ["/diff", "/apply", "/discard"]),
         ("Session", ["/resume", "/budget", "/cost", "/clear", "/save-session"]),
-        ("Insight", ["/why", "/probable", "/btrace", "/tools", "/analyze"]),
+        ("Insight", ["/why", "/probable", "/btrace", "/vdiff", "/tools", "/analyze"]),
         ("Control", ["/help", "/exit", "/mode", "/model"]),
     ]
 
@@ -2151,6 +2209,18 @@ def inspect_budget_cmd(session_id_or_name: str, cwd_str: str) -> None:
     click.echo(text)
 
 
+@click.command("vdiff")
+@click.argument("source", metavar="FILE.voss")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def vdiff_cmd(source: str, cwd_str: str) -> None:
+    """Show source vs generated Python for a .voss file."""
+    try:
+        text = _render_voss_py_diff(Path(cwd_str).resolve(), source)
+    except (FileNotFoundError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(text)
+
+
 @click.command("resume")
 @click.argument("session_id_or_name")
 @click.option(
@@ -2226,15 +2296,15 @@ def tools_cmd(cwd_str: str) -> None:
     # T5: no session_id — tools_cmd never invokes tools (deliberate _nosession).
     tools = make_toolset(cwd)
     name_w = max(len(n) for n in tools)
-    click.echo(f"  {'name':<{name_w}}  {'mut':<5}  description")
-    click.echo(f"  {'-' * name_w}  {'-' * 5}  {'-' * 40}")
+    click.echo(f"  {'name':<{name_w}}  {'mutating':<8}  description")
+    click.echo(f"  {'-' * name_w}  {'-' * 8}  {'-' * 40}")
     for name in sorted(tools):
         entry = tools[name]
         mut = "yes" if entry.is_mutating else "no"
         desc = entry.description
         if len(desc) > 60:
             desc = desc[:59] + "…"
-        click.echo(f"  {name:<{name_w}}  {mut:<5}  {desc}")
+        click.echo(f"  {name:<{name_w}}  {mut:<8}  {desc}")
 
 
 def _extension_context(
@@ -2658,6 +2728,114 @@ def mcp_call_cmd(
         raise click.exceptions.Exit(2)
 
 
+class _NullRenderer:
+    """Renderer that emits nothing.
+
+    The MCP server's stdout is the JSON-RPC wire; PlainRenderer writes
+    show_final/stream_delta/finalize_stream to stdout and would corrupt the
+    frame stream (Threat T-M12-04-02). Any renderer method a skill calls is a
+    no-op here.
+    """
+
+    def __getattr__(self, _name: str):
+        return lambda *a, **k: None
+
+
+@mcp_group.command("serve")
+@click.option(
+    "--mode",
+    type=click.Choice(["plan", "edit", "auto"], case_sensitive=False),
+    required=True,
+    help=(
+        "Permission mode for incoming MCP calls. REQUIRED — no default. "
+        "plan denies all mutating tools; edit allows fs writes but denies "
+        "shell; auto allows everything."
+    ),
+)
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root the server operates against. Default: current dir.",
+)
+def mcp_serve_cmd(mode: str, cwd_str: str) -> None:
+    """Run the Voss MCP server over stdio.
+
+    Skills executed by this server use the SERVER's configured LLM provider
+    for cost. The calling MCP host does NOT see the LLM cost.
+    """
+    import types
+
+    from voss.harness.mcp.config import (
+        McpConfigError,
+        McpServerExposureConfig,
+        load_mcp_config,
+    )
+    from voss.harness.mcp.server import McpServer
+    from voss.harness.mcp.server_skills import make_skill_dispatch
+    from voss.harness.mcp.server_tools import (
+        build_tool_descriptors,
+        build_tool_dispatch,
+    )
+    from voss.harness.permissions import PermissionGate
+    from voss.harness.skill_registry import default_skill_registry
+    from voss.harness.tools import make_toolset
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        cfg = load_mcp_config(cwd)
+    except McpConfigError as e:
+        click.echo(f"<error: mcp config: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+    server_cfg = cfg.server if cfg is not None else None
+    if server_cfg is None:
+        server_cfg = McpServerExposureConfig()
+
+    tools = make_toolset(cwd)
+    reg = default_skill_registry()
+    try:
+        descriptors = build_tool_descriptors(tools, reg, server_cfg)
+    except McpConfigError as e:
+        click.echo(f"<error: mcp config: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    gate = PermissionGate(mode=mode, auto_yes=True)
+    record = types.SimpleNamespace(model="mcp-server", id="mcp-serve")
+    renderer = _NullRenderer()  # JSON-RPC stdout purity (T-M12-04-02)
+    skill_dispatch = make_skill_dispatch(
+        cwd=cwd,
+        provider=None,
+        history=None,
+        record=record,
+        renderer=renderer,
+        tools=tools,
+        gate=gate,
+        skill_registry=reg,
+    )
+    dispatch = build_tool_dispatch(tools, reg, skill_dispatch, gate)
+    server_name = server_cfg.name or "voss"
+    server = McpServer(
+        name=server_name, tool_descriptors=descriptors, dispatch=dispatch
+    )
+
+    async def _run() -> None:
+        loop = asyncio.get_running_loop()
+        reader = asyncio.StreamReader(loop=loop)
+        protocol = asyncio.StreamReaderProtocol(reader, loop=loop)
+        await loop.connect_read_pipe(lambda: protocol, sys.stdin.buffer)
+        transport, w_proto = await loop.connect_write_pipe(
+            asyncio.streams.FlowControlMixin, sys.stdout.buffer
+        )
+        writer = asyncio.StreamWriter(transport, w_proto, None, loop)
+        await server.serve_stdio(reader, writer)
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        raise click.exceptions.Exit(0)
+
+
 @click.group("logs")
 def logs_group() -> None:
     """Tail NDJSON harness telemetry (written when VOSS_LOG=1 and VOSS_LOG_PATH is set)."""
@@ -2707,6 +2885,7 @@ AGENT_COMMANDS = (
     sessions_cmd,
     jobs_cmd,
     inspect_group,
+    vdiff_cmd,
     resume_cmd,
     tools_cmd,
     plugins_cmd,

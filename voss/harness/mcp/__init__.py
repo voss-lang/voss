@@ -7,6 +7,7 @@ from voss.harness.mcp.config import (
     McpConfig,
     McpConfigError,
     McpServerConfig,
+    McpServerExposureConfig,
     load_mcp_config,
     substitute_server,
 )
@@ -14,14 +15,17 @@ from voss.harness.mcp.config import (
 if TYPE_CHECKING:
     from voss.harness.mcp.client import McpClient
     from voss.harness.mcp.registry import register_mcp_tools
+    from voss.harness.mcp.server import McpServer
 
 __all__ = [
     "McpServerConfig",
+    "McpServerExposureConfig",
     "McpConfig",
     "load_mcp_config",
     "substitute_server",
     "McpConfigError",
     "McpClient",
+    "McpServer",
     "register_mcp_tools",
 ]
 
@@ -31,6 +35,10 @@ def __getattr__(name: str) -> Any:
         from voss.harness.mcp.client import McpClient
 
         return McpClient
+    if name == "McpServer":
+        from voss.harness.mcp.server import McpServer
+
+        return McpServer
     if name == "register_mcp_tools":
         from voss.harness.mcp.registry import register_mcp_tools
 

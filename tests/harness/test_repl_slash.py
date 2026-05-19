@@ -141,6 +141,13 @@ def test_m11_probable_budget_trace_slash_commands_registered() -> None:
         assert registry.lookup(name) is not None, f"slash {name} not registered"
 
 
+def test_m11_voss_diff_slash_command_registered() -> None:
+    from voss.harness.cli import _build_slash_registry
+
+    registry = _build_slash_registry()
+    assert registry.lookup("/vdiff") is not None, "slash /vdiff not registered"
+
+
 def test_m10_code_slash_commands_execute(tmp_path, capsys) -> None:
     from types import SimpleNamespace
     from voss.harness.cli import _build_slash_registry

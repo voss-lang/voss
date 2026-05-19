@@ -80,3 +80,27 @@ other agent verbs.
 ## Requirements covered
 
 CLIH-07, CLIH-09.
+
+## Re-execution Check — 2026-05-18
+
+Re-ran M1-06 against the current codebase after later phases expanded the
+tool registry. The user-facing contract still holds:
+
+- `voss tools` now lists every current registered tool dynamically instead
+  of the original 9-tool M1 snapshot.
+- The table header was restored to the full `mutating` label from the plan
+  contract (`name | mutating | description`).
+- `tests/harness/test_tools_config_cmds.py` now asserts against
+  `make_toolset(tmp_path)` so future additive read-only tools do not stale
+  the M1 happy-path check.
+
+Verification:
+
+- `python3 -m pytest -q tests/harness/test_tools_config_cmds.py tests/harness/test_cli.py -x` — 20 passed.
+- `python3 -m voss.cli --help` lists `tools` and `config`.
+- `python3 -m voss.cli tools` prints the current tool table with
+  `mutating` values.
+- `python3 -m voss.cli config --show --config-path <tmp>/config.toml`
+  creates the file and exits 0.
+- `EDITOR=true python3 -m voss.cli config --config-path <tmp>/config.toml`
+  exits 0.

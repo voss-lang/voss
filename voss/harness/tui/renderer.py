@@ -9,6 +9,7 @@ the `_post` helper routes off-loop callers through `app.call_from_thread`.
 """
 from __future__ import annotations
 
+import importlib
 import threading
 from pathlib import Path
 from typing import Any
@@ -227,6 +228,41 @@ class TextualRenderer:
         if self.app._code_intel_panel:
             self._post(self.app._code_intel_panel.set_focus, hit, excerpt_lines)
 
+    # ------------------------------------------------------------------
+    # M11 read-only modal hooks. Private; NOT part of the Renderer protocol.
+    # ------------------------------------------------------------------
+
+    def show_probable_inspector(
+        self, text: str, confidence: float | None = None
+    ) -> None:
+        modal_cls = _optional_modal_class("ProbableInspectModal", "probable_modal")
+        if modal_cls is None:
+            return
+        self._push_readonly_modal(modal_cls, text, confidence=confidence)
+
+    def show_budget_trace(self, text: str, used: int = 0, total: int = 0) -> None:
+        modal_cls = _optional_modal_class("BudgetTraceModal", "budget_trace_modal")
+        if modal_cls is None:
+            return
+        self._push_readonly_modal(modal_cls, text, used=used, total=total)
+
+    def show_voss_py_diff(self, text: str) -> None:
+        modal_cls = _optional_modal_class("VossPyDiffModal", "voss_py_diff_modal")
+        if modal_cls is None:
+            return
+        self._push_readonly_modal(modal_cls, text)
+
+    def _push_readonly_modal(self, modal_cls, *args, **kwargs) -> None:
+        try:
+            modal = modal_cls(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001 — never crash the agent
+            try:
+                self.app.log(f"TextualRenderer modal init failed: {exc}")
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        self._post(self.app.push_screen, modal)
+
     def show_clarify(self, question: str, confidence: float) -> None:
         conf = float(confidence)
         tv = self._turn_view()
@@ -403,6 +439,22 @@ def _resolve_spawn_name() -> str | None:
 
         return getattr(_subagents_mod, "SPAWN_TOOL_NAME", None)
     except ImportError:
+        return None
+
+
+def _optional_modal_class(class_name: str, module_name: str):
+    try:
+        from . import widgets as widgets_mod
+
+        cls = getattr(widgets_mod, class_name, None)
+        if cls is not None:
+            return cls
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        module = importlib.import_module(f".widgets.{module_name}", package=__package__)
+        return getattr(module, class_name, None)
+    except Exception:  # noqa: BLE001
         return None
 
 
