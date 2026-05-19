@@ -341,4 +341,3 @@ Suggested focused checks:
 - [x] Dimension 6 Registry Safety: PASS - no shadcn, third-party registry, icon package, or component package.
 
 **Approval:** approved 2026-05-19
-
