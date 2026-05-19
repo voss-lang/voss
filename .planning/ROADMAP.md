@@ -24,7 +24,7 @@
 | M10 | Codebase Intelligence (CAPS-01a) | LSP polyglot + ast-grep + project index — tools, slash, auto-injection, M9 TUI panel | CODE-01..07 | TBD |
 | M11 | Voss-aware Tools (CAPS-01b) | Probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss`→Python diff viewer | VTOOL-01..05 | 5 |
 | M12 | MCP Bridge (CAPS-01c, promotes DIST-03) | Consume external MCP tools + expose harness skills as MCP server | MCP-01..0N (TBD by SPEC.md) | TBD |
-| M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..0N (TBD by SPEC.md) | TBD |
+| M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..MAG-08 | 8 |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..0N (TBD by SPEC.md) | TBD |
 | T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | **Complete** (3/3 plans, 2026-05-18) |
@@ -1479,7 +1479,7 @@ Plans:
 | M10 | CODE-01..07 | 7 |
 | M11 | VTOOL-01..05 | 5 |
 | M12 | MCP-01..0N | TBD by `M12-SPEC.md` |
-| M13 | MAG-01..0N | TBD by `M13-SPEC.md` |
+| M13 | MAG-01..MAG-08 | 8 |
 | M14 | WATCH-01..0N | TBD by `M14-SPEC.md` |
 | M15 | SKILL-01..0N | TBD by `M15-SPEC.md` |
 | **T-phases (daily-driver gap closure)** | | |
