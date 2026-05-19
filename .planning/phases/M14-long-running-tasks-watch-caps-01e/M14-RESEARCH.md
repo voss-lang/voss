@@ -829,7 +829,7 @@ Both sites get watcher teardown for free once `reap_watchers()` is added inside 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED — locked in M14-02/03/04 plan `<interfaces>`: OQ-1 `_next_watch_handle`+`watch-NNN`, OQ-2 `fs_watch`/`fs_watch_poll` `is_mutating=False`, OQ-3 `[sys.executable, "-m", "voss.harness.cli", "watch", "--_is-worker", ...]`)
 
 1. **`_next_handle` prefix collision (`bg-NNN` vs `watch-NNN`)**
    - What we know: `_next_handle(session_id)` always emits `bg-{n:03d}`. `_find_job` looks up by handle in `_JOBS`.

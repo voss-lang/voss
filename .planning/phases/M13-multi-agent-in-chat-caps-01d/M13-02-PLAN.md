@@ -146,8 +146,10 @@ in M13-01; class names are LOCKED):
 Hard back-compat constraint (M13-PATTERNS "subagents.py MOD — but effectively UNCHANGED";
 M13-RESEARCH line 442): NO `depth`/`max_depth`/`MAX_DEPTH`/`DEPTH_LIMIT`/`RECURSION_LIMIT`
 identifier anywhere in this module — recursion is bounded ONLY by the viable-floor `None`
-return. `tests/harness/test_subagent_recursion.py` pins absence of those names; it must
-stay green unmodified.
+return. The `multiagent.py` ban is self-imposed via this plan's own AST verify guard (Task 1
+`<automated>`). `tests/harness/test_subagent_recursion.py` pins absence of those names only on
+the `voss.harness.subagents` module (it does NOT inspect `multiagent.py`); it must stay green
+unmodified as the back-compat anchor.
 </interfaces>
 </context>
 

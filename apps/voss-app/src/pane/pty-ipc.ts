@@ -121,4 +121,12 @@ export class PtyTransport {
     void invoke('pty_kill', { sessionId: this.sessionId });
     this.sessionId = null;
   }
+
+  /** D-07 fallback: resolve the foreground process name via the Rust pgid poll. */
+  async fgProcess(): Promise<string | null> {
+    if (!this.sessionId) return null;
+    return invoke<string | null>('get_fg_process', {
+      sessionId: this.sessionId,
+    });
+  }
 }

@@ -1,7 +1,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use voss_app_core::pty::reader::start_reader;
+use voss_app_core::pty::writer::validate_write;
+use voss_app_core::pty::{foreground, spawn_session};
+use voss_app_core::{PtyEvent, PtyRegistry};
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 struct SettingsFile {
@@ -45,11 +50,102 @@ fn get_theme_overrides() -> HashMap<String, String> {
     settings.theme.unwrap_or_default()
 }
 
+// ---- PTY commands ---------------------------------------------------------
+// Thin app-level #[tauri::command] wrappers over the voss-app-core `pty`
+// public API. They live in the APP crate (not voss-app-core) because
+// `tauri::generate_handler!` can only resolve the hidden command helper
+// macros generated in the SAME crate — a `pub use` of cross-crate commands
+// does not bring those macros into scope. This keeps the frontend's bare
+// `invoke('spawn_pty', …)` contract and app-managed `Arc<PtyRegistry>` state.
+
+type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;
+
+#[tauri::command]
+async fn spawn_pty(
+    on_data: tauri::ipc::Channel<PtyEvent>,
+    rows: u16,
+    cols: u16,
+    cwd: Option<String>,
+    state: Reg<'_>,
+) -> Result<String, String> {
+    let (session, reader, pause_rx) =
+        spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
+    let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
+    let id = registry.insert(session);
+    start_reader(id.clone(), reader, pause_rx, on_data, registry);
+    Ok(id)
+}
+
+#[tauri::command]
+async fn pty_write(
+    session_id: String,
+    data: Vec<u8>,
+    state: Reg<'_>,
+) -> Result<(), String> {
+    validate_write(&data)?;
+    let session = state.get(&session_id).ok_or("unknown session")?;
+    session.write(&data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn pty_resize(
+    session_id: String,
+    rows: u16,
+    cols: u16,
+    state: Reg<'_>,
+) -> Result<(), String> {
+    let session = state.get(&session_id).ok_or("unknown session")?;
+    session.resize(rows, cols).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn pty_pause(session_id: String, state: Reg<'_>) -> Result<(), String> {
+    let session = state.get(&session_id).ok_or("unknown session")?;
+    session.set_paused(true).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn pty_resume(session_id: String, state: Reg<'_>) -> Result<(), String> {
+    let session = state.get(&session_id).ok_or("unknown session")?;
+    session.set_paused(false).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn pty_kill(session_id: String, state: Reg<'_>) -> Result<(), String> {
+    let session = state.get(&session_id).ok_or("unknown session")?;
+    session.kill().map_err(|e| e.to_string())?;
+    state.remove(&session_id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_fg_process(
+    session_id: String,
+    state: Reg<'_>,
+) -> Result<Option<String>, String> {
+    let session = state.get(&session_id).ok_or("unknown session")?;
+    let fd = match session.master_raw_fd() {
+        Some(fd) => fd,
+        None => return Ok(None),
+    };
+    Ok(foreground::get_foreground_name(fd))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
-        .invoke_handler(tauri::generate_handler![get_theme_overrides])
+        .manage(Arc::new(PtyRegistry::default()))
+        .invoke_handler(tauri::generate_handler![
+            get_theme_overrides,
+            spawn_pty,
+            pty_write,
+            pty_resize,
+            pty_pause,
+            pty_resume,
+            pty_kill,
+            get_fg_process,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -289,3 +289,231 @@ def chroma_disabled_env(monkeypatch: pytest.MonkeyPatch) -> None:
         import importlib
 
         importlib.reload(_sys.modules["voss_runtime.memory.semantic"])
+
+
+# ---------------------------------------------------------------------------
+# M13 fixtures (Multi-agent in Chat MAG-01..MAG-08)
+#
+# Shared scripted-provider truth for the M13 Wave-0 RED scaffold. This is the
+# ONE source of multi-agent scripted-provider truth consumed by
+# test_multiagent_fanout.py / test_multiagent_steer.py /
+# test_multiagent_recursion.py / the e2e analog (M13-PATTERNS.md
+# §"Shared scripted-provider analog"; M13-VALIDATION.md Wave 0 Requirements).
+#
+# It replicates the FakeStreamingProvider idiom from
+# tests/harness/test_agent_loop.py:76-113 (copied dataclass shape — the test
+# module is intentionally NOT imported) and extends it to key scripts by
+# logical agent role ("parent", "child-a", "child-b", "grandchild", ...) so
+# one provider instance can deterministically drive a parent plus N children
+# plus a grandchild. Per D-11 it is hermetic: no live network, no real
+# provider, no shared mutable global state.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def scripted_multiagent_provider():
+    """The M13 shared scripted multi-agent provider double + script builders.
+
+    Returns a `MultiAgentProviderFactory` exposing:
+
+      * `provider(role) -> ScriptedMultiAgentProvider` — one hermetic provider
+        bound to `scripts[role]`, each call returning the next scripted stream
+        (same `stream()`/`complete()`/`count_tokens()` contract as
+        `FakeStreamingProvider` in test_agent_loop.py:76-113).
+      * `scripts: dict[str, list[list[ProviderStreamEvent]]]` — keyed by
+        logical agent role; populate with the builder helpers below.
+
+    Script builders (analogous to `_make_plan` / `_done_script` in
+    test_agent_loop.py:56-163):
+
+      * `spawn_plan(children, *, rationale, final)`     — a plan iter whose
+        steps emit a fan-out / `subagent_spawn` style tool call per child.
+      * `steer_plan(handle, guidance, *, rationale)`    — a plan iter that
+        emits a `subagent_steer` tool call against a running child.
+      * `gather_plan(handles, *, rationale, final)`     — a plan iter that
+        emits a `subagent_gather` tool call aggregating the children.
+      * `done_plan(final, *, rationale)`                — a terminal done plan
+        iter (final_when_done set, no steps) — loop-exit shape.
+
+    Each builder yields a single scripted stream (list[ProviderStreamEvent])
+    in the canonical `[TextDelta, ParsedPlan, Usage, Done]` shape; append
+    several to `scripts[role]` to script a multi-iteration child (≥2 iters
+    are required for the steer-drain seam — see M13-VALIDATION MAG-05 /
+    RESEARCH Pitfall 2).
+
+    This fixture writes ZERO production code and asserts nothing — it only
+    provides the deterministic seam the RED MAG tests drive
+    `voss.harness.multiagent` (created in W1) against.
+    """
+    from dataclasses import dataclass, field
+    from typing import Any
+
+    from voss.harness.agent import Plan, ToolCall
+    from voss.harness.providers import (
+        Done,
+        ParsedPlan,
+        ProviderStreamEvent,
+        TextDelta,
+        Usage,
+    )
+
+    def _plan(
+        *,
+        steps: list[dict] | None = None,
+        confidence: float = 0.9,
+        final_when_done: str = "",
+        rationale: str = "multiagent step",
+    ) -> Plan:
+        step_objs = [ToolCall(**s) for s in (steps or [])]
+        return Plan(
+            rationale=rationale,
+            steps=step_objs,
+            confidence=confidence,
+            final_when_done=final_when_done,
+            open_question=None,
+        )
+
+    def _stream_for(plan: Plan) -> list[ProviderStreamEvent]:
+        return [
+            TextDelta(text="..."),
+            ParsedPlan(plan=plan),
+            Usage(prompt_tokens=10, completion_tokens=5, cost_usd=0.001),
+            Done(stop_reason="end_turn"),
+        ]
+
+    def spawn_plan(
+        children: list[tuple[str, str]],
+        *,
+        rationale: str = "fan out to children",
+        final: str = "",
+    ) -> list[ProviderStreamEvent]:
+        """children: list of (agent_role, task) → one subagent_spawn step each."""
+        steps = [
+            {
+                "name": "subagent_spawn",
+                "args": {"agent": role, "task": task},
+                "why": f"delegate to {role}",
+            }
+            for role, task in children
+        ]
+        return _stream_for(
+            _plan(steps=steps, final_when_done=final, rationale=rationale)
+        )
+
+    def steer_plan(
+        handle: str,
+        guidance: str,
+        *,
+        rationale: str = "course-correct a running child",
+    ) -> list[ProviderStreamEvent]:
+        return _stream_for(
+            _plan(
+                steps=[
+                    {
+                        "name": "subagent_steer",
+                        "args": {"handle": handle, "guidance": guidance},
+                        "why": "inject mid-run correction",
+                    }
+                ],
+                rationale=rationale,
+            )
+        )
+
+    def gather_plan(
+        handles: list[str],
+        *,
+        rationale: str = "gather children",
+        final: str = "aggregated results",
+    ) -> list[ProviderStreamEvent]:
+        return _stream_for(
+            _plan(
+                steps=[
+                    {
+                        "name": "subagent_gather",
+                        "args": {"handles": list(handles)},
+                        "why": "collect child results",
+                    }
+                ],
+                final_when_done=final,
+                rationale=rationale,
+            )
+        )
+
+    def done_plan(
+        final: str,
+        *,
+        rationale: str = "child finished",
+    ) -> list[ProviderStreamEvent]:
+        return _stream_for(
+            _plan(steps=[], final_when_done=final, rationale=rationale)
+        )
+
+    @dataclass
+    class ScriptedMultiAgentProvider:
+        """Hermetic per-role provider double.
+
+        Mirrors FakeStreamingProvider (test_agent_loop.py:76-113) exactly:
+        `stream()` returns an async-gen over the next scripted stream and
+        records kwargs; `complete()` returns an empty ProviderResponse;
+        `count_tokens()` is the same cheap heuristic. No network, ever.
+        """
+
+        role: str
+        scripts: list[list[ProviderStreamEvent]]
+        stream_calls: list[dict] = field(default_factory=list)
+        complete_calls: list[dict] = field(default_factory=list)
+        record_run_return: Any = None
+        _stream_index: int = 0
+
+        def stream(self, **kwargs):
+            self.stream_calls.append(kwargs)
+            script = self.scripts[self._stream_index]
+            self._stream_index += 1
+
+            async def _gen():
+                for ev in script:
+                    yield ev
+
+            return _gen()
+
+        async def complete(self, **kwargs):
+            self.complete_calls.append(kwargs)
+            from voss_runtime.providers.base import ProviderResponse
+
+            return ProviderResponse(
+                text="",
+                model=kwargs.get("model", "stub"),
+                prompt_tokens=0,
+                completion_tokens=0,
+                cost_usd=0.0,
+                raw={},
+                parsed=self.record_run_return,
+            )
+
+        def count_tokens(self, *, text: str, model: str) -> int:
+            return max(len(text) // 4, 1)
+
+    class MultiAgentProviderFactory:
+        """Builds per-role providers from a shared `scripts` registry.
+
+        Plain class (not @dataclass): the script builders are closure-local
+        functions and a dataclass class-body cannot reference enclosing
+        function scope in field defaults — they are bound in __init__.
+        """
+
+        def __init__(self) -> None:
+            self.scripts: dict[str, list[list[ProviderStreamEvent]]] = {}
+            self.spawn_plan = spawn_plan
+            self.steer_plan = steer_plan
+            self.gather_plan = gather_plan
+            self.done_plan = done_plan
+            self._built: dict[str, ScriptedMultiAgentProvider] = {}
+
+        def provider(self, role: str) -> ScriptedMultiAgentProvider:
+            if role not in self._built:
+                self._built[role] = ScriptedMultiAgentProvider(
+                    role=role, scripts=self.scripts.get(role, [])
+                )
+            return self._built[role]
+
+    return MultiAgentProviderFactory()

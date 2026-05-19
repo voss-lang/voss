@@ -28,11 +28,42 @@ def test_keymap_size_at_least_14() -> None:
         ("G", "main"),
         ("ctrl+c", "global"),
         ("ctrl+l", "global"),
+        ("ctrl+o", "main"),
     ],
 )
 def test_keymap_includes_ui_spec_row(key: str, context_substr: str) -> None:
     hit = [b for b in KEYMAP if b.key == key and context_substr in b.context]
     assert hit, f"missing binding for key={key!r}"
+
+
+# --- M13 additive keymap-resolution guards (Wave 0) ---
+
+
+def test_ctrl_o_resolves_to_toggle_subagent_detail() -> None:
+    """M13 MAG-02: ctrl+o must resolve to the toggle_subagent_detail action.
+
+    RED from Wave 0 (the binding lands in W2B). Not xfail-marked — this
+    asserts a static module table and must be hard-RED that W2B turns
+    green.
+    """
+    hit = [b for b in KEYMAP if b.key == "ctrl+o"]
+    assert hit, "no ctrl+o binding in KEYMAP"
+    assert any(b.action == "toggle_subagent_detail" for b in hit), (
+        "ctrl+o does not resolve to toggle_subagent_detail"
+    )
+
+
+def test_ctrl_c_still_interrupt() -> None:
+    """M13 back-compat half of the keymap guard — GREEN from Wave 0.
+
+    ctrl+c must remain bound to `interrupt` (keymap.py:37). M13 must not
+    repurpose ctrl+c when adding the ctrl+o reveal binding.
+    """
+    hit = [b for b in KEYMAP if b.key == "ctrl+c"]
+    assert hit, "no ctrl+c binding in KEYMAP"
+    assert any(b.action == "interrupt" for b in hit), (
+        "ctrl+c no longer resolves to interrupt — back-compat breach"
+    )
 
 
 def test_every_binding_has_description_and_action() -> None:

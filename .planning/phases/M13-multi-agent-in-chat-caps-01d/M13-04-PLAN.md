@@ -345,10 +345,10 @@ with input typing and break the M9 single-source tiering). Additive-only.
     `ctrl+c` Binding still has `context=="global"` and
     `action=="interrupt"` (proves D-09: ctrl+c unchanged = interrupt). Keep
     every existing test and parametrize row intact;
-    `test_keymap_size_at_least_14` stays green (16 -> 17 rows).
+    `test_keymap_size_at_least_14` stays green (18 -> 19 rows).
   </action>
   <verify>
-    <automated>python -m py_compile voss/harness/tui/keymap.py && python -c "from voss.harness.tui.keymap import KEYMAP; o=[b for b in KEYMAP if b.key=='ctrl+o']; c=[b for b in KEYMAP if b.key=='ctrl+c']; assert o and o[0].context=='main' and o[0].action=='toggle_subagent_detail', 'ctrl+o row wrong'; assert c and c[0].context=='global' and c[0].action=='interrupt', 'ctrl+c changed'; assert len(KEYMAP)>=17; from voss.harness.tui.app import VossTUIApp; assert callable(getattr(VossTUIApp,'action_toggle_subagent_detail',None)), 'no app handler'; print('ok')" && pytest tests/harness/tui/test_keymap_baseline.py -x -q</automated>
+    <automated>python -m py_compile voss/harness/tui/keymap.py && python -c "from voss.harness.tui.keymap import KEYMAP; o=[b for b in KEYMAP if b.key=='ctrl+o']; c=[b for b in KEYMAP if b.key=='ctrl+c']; assert o and o[0].context=='main' and o[0].action=='toggle_subagent_detail', 'ctrl+o row wrong'; assert c and c[0].context=='global' and c[0].action=='interrupt', 'ctrl+c changed'; assert len(KEYMAP)>=19; from voss.harness.tui.app import VossTUIApp; assert callable(getattr(VossTUIApp,'action_toggle_subagent_detail',None)), 'no app handler'; print('ok')" && pytest tests/harness/tui/test_keymap_baseline.py -x -q</automated>
   </verify>
   <done>`KEYMAP` has exactly one new `ctrl+o`/`main`/`toggle_subagent_detail` row; `ctrl+c` line is byte-unchanged (`global`/`interrupt`); `VossTUIApp.action_toggle_subagent_detail` is callable; `test_keymap_baseline.py` passes including the new `ctrl+o` resolution assertion + the `ctrl+c`-still-interrupt assertion; OQ-A3 resolution recorded for the SUMMARY.</done>
 </task>
@@ -393,7 +393,7 @@ No new secret material, no network egress, no persisted data. Blast radius
 - [ ] `VossTUIApp.action_toggle_subagent_detail` exists, iterates `query(SubAgentPanel)`, flips each body `Vertical` `.styles.display`; driven by an additively-initialized app-level boolean; `mount_subagent_panel`/`update_subagent`/`collapse_subagent`/`_side_*` unmodified.
 - [ ] `keymap.py` has exactly one additive `Binding("ctrl+o","main","toggle_subagent_detail",…)`; line 37 ctrl+c byte-unchanged.
 - [ ] OQ-A3 resolved in-task and recorded in SUMMARY: `"main"` is M9's declarative registry tier; `ctrl+o` placed on the KEYMAP-row + App-`action_`-handler mechanism (`action_fork_turn` precedent); proven by the additive keymap-baseline resolution assertion.
-- [ ] `test_keymap_baseline.py` extended additively (new parametrize row + resolution test + ctrl+c-interrupt assertion); all existing rows/tests intact; `len(KEYMAP) >= 17`.
+- [ ] `test_keymap_baseline.py` extended additively (new parametrize row + resolution test + ctrl+c-interrupt assertion); all existing rows/tests intact; `len(KEYMAP) >= 19` (live KEYMAP = 18 rows, +1 `ctrl+o` = 19).
 - [ ] M13-01's `test_subagent_reveal.py` and the new keymap-baseline assertions go green; `test_subagent_recursion.py` green unmodified; zero file overlap with M13-03.
 </success_criteria>
 

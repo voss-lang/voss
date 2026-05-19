@@ -1,4 +1,5 @@
 import Titlebar from './components/titlebar/Titlebar';
+import PaneComponent from './pane/PaneComponent';
 
 export default function App() {
   return (
@@ -12,8 +13,10 @@ export default function App() {
       }}
     >
       <Titlebar />
-      {/* Body — intentionally empty in A1. Grid and PTY panes land in A2/A3. */}
-      <div style={{ flex: '1', background: 'var(--bg-0)' }} />
+      {/* A2: single PTY pane fills the body. A3 turns this into a grid. */}
+      <div style={{ flex: '1', 'min-height': '0', background: 'var(--bg-0)' }}>
+        <PaneComponent index={1} />
+      </div>
     </div>
   );
 }

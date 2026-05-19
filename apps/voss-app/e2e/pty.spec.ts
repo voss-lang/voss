@@ -1,43 +1,55 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 
 /**
- * RED scaffolds for the PTY end-to-end requirements. Each test name matches the
- * exact command string A2-VALIDATION.md greps for. All currently fail (never
- * skipped) so every PTY-0N requirement has a discoverable failing command
- * before A2-02..05 implement against it.
+ * PTY end-to-end specs (PTY-03/04/05/06/07).
+ *
+ * SKIPPED — platform block: these require a running Tauri app under WebDriver
+ * (`tauri-driver`). Tauri WebDriver is supported only on Linux
+ * (WebKitWebDriver) and Windows (Edge driver); Apple ships NO WKWebView
+ * WebDriver, so Tauri E2E cannot run on the macOS dev machine (A1 platform).
+ *
+ * User decision (2026-05-19, A2-04): implement all interaction code, gate on
+ * what IS runnable on macOS (Vitest + cargo test + tsc), and defer real E2E
+ * to a future Linux CI job (candidate: A10 / a dedicated CI phase). The
+ * interaction logic is still verified via Vitest unit tests + tsc; only the
+ * full browser-integration layer is deferred. See project memory
+ * `voss-app-tauri-e2e-macos-blocked`.
+ *
+ * Each spec retains its name + the assertion intent (as comments) so the
+ * Linux CI job can un-skip and implement against an unchanged contract.
  */
+const SKIP_REASON =
+  'Tauri WebDriver unsupported on macOS — deferred to Linux CI (A10/future)';
 
-test('pty-scrollback', async () => {
-  // RED: PTY-03 — A2-03 (scrollback buffer retains N lines, scroll up works)
-  expect(false).toBeTruthy();
+test.skip('pty-scrollback', () => {
+  // PTY-03: fill 10k lines, ⌘F, assert match on line ~9999. (Linux CI)
 });
 
-test('pty-clear', async () => {
-  // RED: PTY-03 — A2-03 (clear / ⌘K resets the viewport + scrollback)
-  expect(false).toBeTruthy();
+test.skip('pty-clear', () => {
+  // PTY-03: ⌘⇧K → scrollback buffer empty. (Linux CI)
 });
 
-test('pty-copy', async () => {
-  // RED: PTY-05 — A2-04 (selection → clipboard copy)
-  expect(false).toBeTruthy();
+test.skip('pty-copy', () => {
+  // PTY-04: select text → ⌘C → clipboard contains selection. (Linux CI)
 });
 
-test('pty-sigint', async () => {
-  // RED: PTY-06 — A2-02 (Ctrl-C SIGINTs the foreground child, not the shell)
-  expect(false).toBeTruthy();
+test.skip('pty-sigint', () => {
+  // PTY-04: run `sleep 999`, ⌘C with no selection → `^C` echoed. (Linux CI)
 });
 
-test('pty-osc8', async () => {
-  // RED: PTY-07 — A2-04 (OSC 8 hyperlinks are clickable via web-links addon)
-  expect(false).toBeTruthy();
+test.skip('pty-osc8', () => {
+  // PTY-05: emit OSC 8, ⌘+click → mocked open_url invoked. (Linux CI)
 });
 
-test('pty-title', async () => {
-  // RED: PTY-08 — A2-03 (OSC 0/2 title escape updates the pane title)
-  expect(false).toBeTruthy();
+test.skip('pty-title', () => {
+  // PTY-06: `printf '\\033]0;vim\\007'` → header process slot shows `vim`. (Linux CI)
 });
 
-test('pty-exit-restart', async () => {
-  // RED: PTY-08 — A2-05 (shell exit shows ExitBanner; restart respawns PTY)
-  expect(false).toBeTruthy();
+test.skip('pty-exit-restart', () => {
+  // PTY-07: `exit 0` → `[exited 0]` banner → Restart → fresh prompt,
+  // scrollback preserved. (Linux CI)
 });
+
+// Reference the reason so it is not an unused-symbol lint failure and is
+// greppable in CI logs when these are un-skipped.
+void SKIP_REASON;
