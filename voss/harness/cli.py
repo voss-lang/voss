@@ -2222,6 +2222,80 @@ def jobs_cmd(cwd_str: str, json_mode: bool) -> None:
         )
 
 
+async def _run_watch_loop(
+    *,
+    command: str,
+    argv: list[str],
+    cwd: Path,
+    globs: list[str],
+    debounce_ms: int,
+    session_id: str,
+    max_reruns: int,
+    idle_timeout_s: float | None,
+) -> None:
+    """Watch loop: spawn the command, re-spawn it on debounced file change.
+
+    Stops after `max_reruns` re-runs (0 = unbounded), after `idle_timeout_s`
+    with no events (None = never), or on cancel/Ctrl-C. Always reaps the
+    watcher and child job on exit. Kept free of test-environment sniffing so
+    the same path runs in tests and production; tests bound it via the args.
+    """
+    import re
+    import signal as signal_mod
+
+    from . import lifecycle
+
+    watch_handle = await lifecycle.register_watcher(
+        globs, cwd, session_id=session_id, debounce_ms=debounce_ms
+    )
+    click.echo(watch_handle)
+
+    job_handle = await lifecycle.register_job(
+        cmd=command, argv=argv, cwd=cwd, session_id=session_id
+    )
+
+    rec = lifecycle._find_watcher(watch_handle, session_id=session_id)
+    if rec is None:
+        await lifecycle.reap_watchers()
+        await lifecycle.reap_jobs()
+        return
+
+    cursor = 0
+    reruns = 0
+    last_activity = time.monotonic()
+    try:
+        while True:
+            await asyncio.sleep(0.05)
+            events_str = lifecycle._read_log_cursor(
+                Path(rec.log_path), cursor, status=rec.status
+            )
+            match = re.match(r"\[cursor (\d+)\]", events_str)
+            if match:
+                new_cursor = int(match.group(1))
+                if new_cursor > cursor:
+                    cursor = new_cursor
+                    last_activity = time.monotonic()
+                    lifecycle.signal_job(
+                        job_handle, signal_mod.SIGTERM, session_id=session_id
+                    )
+                    job_handle = await lifecycle.register_job(
+                        cmd=command, argv=argv, cwd=cwd, session_id=session_id
+                    )
+                    reruns += 1
+                    if max_reruns > 0 and reruns >= max_reruns:
+                        break
+            if (
+                idle_timeout_s is not None
+                and (time.monotonic() - last_activity) > idle_timeout_s
+            ):
+                break
+    except (asyncio.CancelledError, KeyboardInterrupt):
+        pass
+    finally:
+        await lifecycle.reap_watchers()
+        await lifecycle.reap_jobs()
+
+
 @click.command("watch")
 @click.argument("command")
 @click.option("--glob", "globs", multiple=True, default=("**/*",))
@@ -2229,6 +2303,10 @@ def jobs_cmd(cwd_str: str, json_mode: bool) -> None:
 @click.option("--daemon", "daemon_mode", is_flag=True)
 @click.option("--debounce-ms", default=200, type=int)
 @click.option("--_is-worker", "is_worker", is_flag=True)
+@click.option("--_max-reruns", "max_reruns", default=0, type=int, hidden=True)
+@click.option(
+    "--_idle-timeout-ms", "idle_timeout_ms", default=0, type=int, hidden=True
+)
 def watch_cmd(
     command: str,
     globs: tuple[str, ...],
@@ -2236,6 +2314,8 @@ def watch_cmd(
     daemon_mode: bool,
     debounce_ms: int,
     is_worker: bool,
+    max_reruns: int,
+    idle_timeout_ms: int,
 ) -> None:
     """Watch files and run a command on change."""
     cwd = Path(cwd_str).resolve()
@@ -2277,68 +2357,20 @@ def watch_cmd(
         return
 
     session_id = "_nosession"
+    idle_timeout_s = (idle_timeout_ms / 1000) if idle_timeout_ms > 0 else None
 
-    async def _run() -> None:
-        from . import lifecycle
-        import signal as signal_mod
-
-        watch_handle = await lifecycle.register_watcher(
-            list(globs),
-            cwd,
-            session_id=session_id,
-            debounce_ms=debounce_ms,
-        )
-        click.echo(watch_handle)
-
-        job_handle = await lifecycle.register_job(
-            cmd=command,
+    asyncio.run(
+        _run_watch_loop(
+            command=command,
             argv=argv,
             cwd=cwd,
+            globs=list(globs),
+            debounce_ms=debounce_ms,
             session_id=session_id,
+            max_reruns=max_reruns,
+            idle_timeout_s=idle_timeout_s,
         )
-
-        if "PYTEST_CURRENT_TEST" in os.environ:
-            await lifecycle.reap_watchers()
-            await lifecycle.reap_jobs()
-            return
-
-        cursor = 0
-        rec = lifecycle._find_watcher(watch_handle, session_id=session_id)
-        if rec is None:
-            return
-
-        try:
-            while True:
-                await asyncio.sleep(0.1)
-                events_str = lifecycle._read_log_cursor(
-                    Path(rec.log_path),
-                    cursor,
-                    status=rec.status,
-                )
-                import re
-                match = re.match(r"\[cursor (\d+)\]", events_str)
-                if match:
-                    new_cursor = int(match.group(1))
-                    if new_cursor > cursor:
-                        cursor = new_cursor
-                        lifecycle.signal_job(
-                            job_handle,
-                            signal_mod.SIGTERM,
-                            session_id=session_id,
-                        )
-                        job_handle = await lifecycle.register_job(
-                            cmd=command,
-                            argv=argv,
-                            cwd=cwd,
-                            session_id=session_id,
-                        )
-        except (asyncio.CancelledError, KeyboardInterrupt):
-            pass
-        finally:
-            await lifecycle.reap_watchers()
-            await lifecycle.reap_jobs()
-
-    asyncio.run(_run())
+    )
 
 
 @click.group("inspect")
