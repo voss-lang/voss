@@ -88,28 +88,86 @@ class TestDepth2:
         # sub_allocator (D-07), so the child itself fans out to TWO
         # grandchildren — child panel + 2 grandchild panels = 3 distinct
         # concurrent panel ids across the 3-level chain.
+        from voss.harness.agent import Plan, ToolCall
+        from voss.harness.providers import (
+            Done,
+            ParsedPlan,
+            TextDelta,
+            Usage,
+        )
+
         f = scripted_multiagent_provider
 
         # Opaque per-role sentinels: present ONLY in that role's own
-        # run_turn first user message (the task text), never echoed by any
-        # subagent_spawn/gather return string (those echo agent/handle/id,
-        # not the task) — so the role router never misroutes once
-        # grandchild result/handle strings enter child-a's gather messages.
+        # run_turn FIRST user message (its task text). The role router keys
+        # on messages[0] (the original Task: line) so it never misroutes
+        # once child-a's later iterations accumulate the grandchild
+        # spawn-tool-call args / result strings in conversation history.
         S_CHILD = "SENTINEL_CHILDA_TASK"
         S_GX = "SENTINEL_GRANDX_TASK"
         S_GY = "SENTINEL_GRANDY_TASK"
 
-        # Child-a (level-1) script: iter 0 fans out to two grandchildren via
-        # the recursively-attached subagent_spawn, then iter 1 gathers them.
+        def _stream(plan: Plan):
+            # Same canonical [TextDelta, ParsedPlan, Usage, Done] shape the
+            # conftest builders emit. Built in-test (not via f.gather_plan)
+            # because the conftest gather_plan builder emits
+            # subagent_gather(handles=[...]) — the FICTIONAL scaffold
+            # signature; the REAL M13-03 subagent_gather() takes NO args
+            # (multiagent.py:473). The conftest stays byte-stable; only this
+            # pre-authorized diverged test body builds a real-signature plan.
+            return [
+                TextDelta(text="..."),
+                ParsedPlan(plan=plan),
+                Usage(prompt_tokens=10, completion_tokens=5, cost_usd=0.001),
+                Done(stop_reason="end_turn"),
+            ]
+
+        # Child-a (level-1) script driving the REAL recursive toolset:
+        #   iter 0 — fan out to two grandchildren via the recursively
+        #            attached subagent_spawn (mounts 2 nested panels);
+        #   iter 1 — real no-arg subagent_gather (joins + collapses them);
+        #   iter 2 — terminal done plan (run_turn streams once more after a
+        #            step+final iteration to emit the final and exit).
         f.scripts["child-a"] = [
-            f.spawn_plan(
-                [
-                    ("grandchild-x", S_GX),
-                    ("grandchild-y", S_GY),
-                ]
+            _stream(
+                Plan(
+                    rationale="fan out to two grandchildren",
+                    steps=[
+                        ToolCall(
+                            name="subagent_spawn",
+                            args={"agent": "grandchild-x", "task": S_GX},
+                            why="delegate to grandchild-x",
+                        ),
+                        ToolCall(
+                            name="subagent_spawn",
+                            args={"agent": "grandchild-y", "task": S_GY},
+                            why="delegate to grandchild-y",
+                        ),
+                    ],
+                    confidence=0.9,
+                )
             ),
-            f.gather_plan(
-                ["grandchild-x", "grandchild-y"], final="child-a done"
+            _stream(
+                Plan(
+                    rationale="gather the grandchildren",
+                    steps=[
+                        ToolCall(
+                            name="subagent_gather",
+                            args={},  # REAL signature: subagent_gather()
+                            why="collect grandchild results",
+                        )
+                    ],
+                    confidence=0.9,
+                    final_when_done="child-a done",
+                )
+            ),
+            _stream(
+                Plan(
+                    rationale="child-a finished",
+                    steps=[],
+                    confidence=0.9,
+                    final_when_done="child-a done",
+                )
             ),
         ]
         # Grandchildren (level-2) are terminal done plans (no further fan-out
@@ -145,17 +203,24 @@ class TestDepth2:
 
                 return _noop
 
-        # Per-role provider: route each run_turn to the script for the role
-        # named in its task text (the GC marker / level-1 task). The same
-        # provider object is reused by the recursive attach, so it must
-        # dispatch by role rather than rely on call order.
+        # Per-role provider: route each run_turn by the FIRST user message
+        # only (the original "Task:\n<sentinel>" line). The same provider
+        # object is reused by the recursive attach, so it must dispatch by
+        # role; the first user message is the only stable per-child anchor
+        # (later iterations accumulate spawn tool-call args / result strings
+        # that would otherwise leak a sibling sentinel into the blob).
         def _role_for(messages) -> str:
-            blob = " ".join(
-                str(m.get("content", "")) for m in (messages or [])
+            first_user = next(
+                (
+                    str(m.get("content", ""))
+                    for m in (messages or [])
+                    if m.get("role") == "user"
+                ),
+                "",
             )
-            if S_GX in blob:
+            if S_GX in first_user:
                 return "grandchild-x"
-            if S_GY in blob:
+            if S_GY in first_user:
                 return "grandchild-y"
             return "child-a"
 

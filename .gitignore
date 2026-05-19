@@ -13,6 +13,7 @@ chroma/
 # Clipboard/screenshot artifacts dropped into workspace by tools.
 clipboard-*
 screenshot-*
+snapshot_report.html
 
 # NDJSON artifacts/logs.
 *.nd.json

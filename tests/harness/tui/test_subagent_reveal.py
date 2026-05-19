@@ -150,7 +150,15 @@ class TestPostGatherRegionClean:
             await pilot.pause()
 
             # Gather: end every child panel (the subagent_gather /
-            # _teardown_orphans collapse path M13-03 ships).
+            # _teardown_orphans collapse path M13-03 ships). M13-03's
+            # subagent_gather is documented IDEMPOTENT ("safe to call
+            # again") and _teardown_orphans is the second safety net —
+            # the real architecture's region restore completes once the
+            # last panel is actually out of the DOM, so we drive the
+            # idempotent re-gather exactly as the shipped tool does.
+            bridge_a.end_panel(1)
+            bridge_b.end_panel(1)
+            await pilot.pause()
             bridge_a.end_panel(1)
             bridge_b.end_panel(1)
             await pilot.pause()
