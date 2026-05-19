@@ -38,6 +38,10 @@ _SESSIONS: list[object] = []
 # watchdog timers, mid-life signals, and lifetimes beyond the 5s subprocess deadline.
 _JOBS: dict[tuple[str, str], "JobRecord"] = {}
 _HANDLE_COUNTERS: dict[str, int] = {}
+# _WATCHERS is separate because watchdog Observer is a thread (no pid/proc);
+# it is stopped via observer.stop()/join(), not SIGTERM.
+_WATCHERS: dict[tuple[str, str], "WatcherRecord"] = {}
+_WATCH_HANDLE_COUNTERS: dict[str, int] = {}
 
 _TERM_DEADLINE_S = 5.0
 _MEM_LIMIT_BYTES = 100 * 1024 * 1024
@@ -91,6 +95,21 @@ class JobRecord:
         }
 
 
+@dataclass
+class WatcherRecord:
+    handle: str
+    globs: list[str]
+    log_path: str
+    status: str
+    started_at: str
+    observer: Any = field(repr=False, compare=False)
+    session_id: str = field(default="_nosession", repr=False, compare=False)
+    drain_task: asyncio.Task | None = field(
+        default=None, repr=False, compare=False
+    )
+    debouncer: Any | None = field(default=None, repr=False, compare=False)
+
+
 def _hydrate_job(data: dict[str, Any]) -> JobRecord:
     known = {k: data[k] for k in _JOB_FIELDS if k in data}
     return JobRecord(**known)
@@ -116,6 +135,20 @@ def _job_dir(cwd: Path, session_id: str) -> Path:
 
 def _log_path(cwd: Path, session_id: str, handle: str) -> Path:
     return _job_dir(cwd, session_id) / f"{handle}.log"
+
+
+def _watch_dir(cwd: Path, session_id: str) -> Path:
+    from .sandbox import jail_path
+
+    root = jail_path(cwd, ".voss-cache/watch")
+    root.mkdir(parents=True, exist_ok=True)
+    session_dir = jail_path(root, session_id)
+    session_dir.mkdir(parents=True, exist_ok=True)
+    return session_dir
+
+
+def _watch_log_path(cwd: Path, session_id: str, handle: str) -> Path:
+    return _watch_dir(cwd, session_id) / f"{handle}.log"
 
 
 def _meta_path(rec: JobRecord) -> Path:
@@ -273,10 +306,16 @@ async def _supervise(rec: JobRecord, no_output_deadline_s: float = 30.0) -> None
         _write_meta(rec)
 
 
-def _next_handle(session_id: str) -> str:
+def _next_handle(session_id: str, prefix: str = "bg") -> str:
     n = _HANDLE_COUNTERS.get(session_id, 0) + 1
     _HANDLE_COUNTERS[session_id] = n
-    return f"bg-{n:03d}"
+    return f"{prefix}-{n:03d}"
+
+
+def _next_watch_handle(session_id: str) -> str:
+    n = _WATCH_HANDLE_COUNTERS.get(session_id, 0) + 1
+    _WATCH_HANDLE_COUNTERS[session_id] = n
+    return f"watch-{n:03d}"
 
 
 def _job_key(session_id: str, handle: str) -> tuple[str, str]:
@@ -287,6 +326,15 @@ def _find_job(handle: str, session_id: str | None = None) -> JobRecord | None:
     if session_id is not None:
         return _JOBS.get(_job_key(session_id, handle))
     matches = [rec for (sid, h), rec in _JOBS.items() if h == handle]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _find_watcher(handle: str, session_id: str | None = None) -> WatcherRecord | None:
+    if session_id is not None:
+        return _WATCHERS.get(_job_key(session_id, handle))
+    matches = [rec for (sid, h), rec in _WATCHERS.items() if h == handle]
     if len(matches) == 1:
         return matches[0]
     return None
