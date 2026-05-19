@@ -1,8 +1,8 @@
 import {
   type GridStore,
   type TreeNode,
+  balanceRatios,
   collectLeaves,
-  equalizeRatios,
   findLeaf,
   makePane,
   makeSplit,

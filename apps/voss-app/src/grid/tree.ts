@@ -80,12 +80,35 @@ export function recomputeIndices(root: TreeNode): void {
   walk(root);
 }
 
-/** Reset every SplitNode.ratio to 0.5 recursively (⌘= equalize, D-02). */
+/** Reset every SplitNode.ratio to 0.5 recursively (legacy even-split). */
 export function equalizeRatios(root: TreeNode): void {
   if (root.kind !== 'split') return;
   root.ratio = 0.5;
   equalizeRatios(root.left);
   equalizeRatios(root.right);
+}
+
+/** Leaf count of a subtree. */
+export function leafCount(root: TreeNode): number {
+  return root.kind === 'pane'
+    ? 1
+    : leafCount(root.left) + leafCount(root.right);
+}
+
+/**
+ * Warp-style locked-tiling equalize: set every split's ratio to
+ * leaves(left)/leaves(node) so EVERY leaf ends up the same size on its axis
+ * (a fresh pane shrinks the others evenly instead of geometrically halving
+ * the focused one). This is the ⌘= behavior and the auto-equalize applied
+ * after every split/fork/close (memory: voss-app-grid-warp-parity).
+ */
+export function balanceRatios(root: TreeNode): void {
+  if (root.kind !== 'split') return;
+  const l = leafCount(root.left);
+  const r = leafCount(root.right);
+  root.ratio = l / (l + r);
+  balanceRatios(root.left);
+  balanceRatios(root.right);
 }
 
 /** Find a pane leaf by id (inorder), or undefined. */
