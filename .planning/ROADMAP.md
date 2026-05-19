@@ -1578,3 +1578,46 @@ as cross-phase context.
 
 These do NOT block v0.1 ship. Listed so the roadmap has a memory of what's
 next without forcing premature commitment.
+
+## Backlog
+
+Unsequenced parking-lot ideas (999.x). Promote with `/gsd:review-backlog`.
+
+### Phase 999.1: voss-app Agents launcher + manager (BACKLOG)
+
+**Goal:** A titlebar/navbar "Agents" affordance to manage and spawn agents, plus
+shippable launch prefixes that open a new terminal pane and launch a specific
+agent CLI — named targets: Claude (`claude`), Codex, Gemini, OpenCode.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Context: validated when Claude Code ran interactively inside the A2 PTY pane
+(header showed `claude.exe` via OSC title). Candidate **A-track phase AFTER
+A3** — agent panes are grid panes, so the A3 Grid Engine (Warp-style locked
+tiling) must land first. Likely shape: (a) agent registry config
+(name → launch command + cwd), (b) titlebar "Agents" panel to manage/spawn,
+(c) prefix dispatch spawning a new A3 grid pane running the agent CLI (reuse
+A2 `PtyTransport` + A3 split). See session memory
+`voss-agents-launcher-feature`, `voss-app-grid-warp-parity`,
+`voss-app-track-build-order`.
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
+
+### Phase 999.2: voss-app focused-pane resize keybind ⌘/Win +/− (BACKLOG)
+
+**Goal:** `⌘ +` / `⌘ -` (Windows key on Windows — reuse the A1-03
+`@tauri-apps/plugin-os` platform gate) grows/shrinks the **focused** terminal
+pane within the tiling grid.
+**Requirements:** TBD (fold into A3 keymap when A3 executes)
+**Plans:** 0 plans
+
+Context: this belongs to **A3 (Grid Engine)**, which already plans
+split/fork/close/equalize + focus+resize (`⌘=` global equalize). This entry
+exists so the `⌘+`/`⌘-` focused-pane grow/shrink keybind is not lost — when
+A3 is executed (or replanned), add it to the A3 keymap/requirements rather
+than building a standalone phase. Snap-locked tiling, no free-canvas resize
+(memory `voss-app-grid-warp-parity`).
+
+Plans:
+- [ ] TBD (fold into A3 keymap on A3 execution / promote with /gsd:review-backlog)
