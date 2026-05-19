@@ -12,7 +12,6 @@ import {
   applyPreset,
   LAYOUT_PRESETS,
   nextPreset,
-  type LayoutPreset,
 } from '../layoutPresets';
 
 /**
