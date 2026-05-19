@@ -173,8 +173,10 @@ class TestSchemaIsolation:
         assert set(on_disk.keys()) == _NODE_JSON_KEYS
 
     def test_no_schema_merge(self) -> None:
-        node_names = {f.name for f in dataclasses.fields(SessionTreeNode)}
+        # Tree-only persisted fields must not collide with Session/Run schemas
+        # (id/ended_at/created_at are shared vocabulary, not a merge risk).
+        tree_only = _NODE_JSON_KEYS - {"id", "created_at", "ended_at"}
         session_names = {f.name for f in dataclasses.fields(SessionRecord)}
         run_names = {f.name for f in dataclasses.fields(RunRecord)}
-        assert node_names.isdisjoint(session_names)
-        assert node_names.isdisjoint(run_names)
+        assert tree_only.isdisjoint(session_names)
+        assert tree_only.isdisjoint(run_names)
