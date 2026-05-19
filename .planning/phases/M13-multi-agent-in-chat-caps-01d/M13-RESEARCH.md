@@ -649,20 +649,20 @@ Em-dash placeholder shows only when `budget_total <= 0` (widget docstring + W5 c
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How does the parent turn stay live between spawn and gather within ONE chat turn? — RESOLVED.**
    - What we know: `cli.py:1695` calls `run_turn(line, ...)` per chat input; `_run_turn_exec` is an iterative while-loop (`agent.py:583`, `max_iterations` default 8).
    - Resolution: No structural change to the parent loop. A non-blocking `subagent_spawn` (`create_task` + immediate return) lets the parent's *subsequent* iterations call `steer` then `gather`. Children progress as asyncio tasks whenever the parent `await`s the provider. The ONLY requirement: the parent stub/LLM must take ≥3 iterations (spawn/steer/gather). Tests script this deterministically. Confidence HIGH after reading agent.py:583-839 + 716/788 break points + 1104 dispatch.
 
-2. **Which dispatch table actually fires `"main"`-context keymap bindings?**
+2. **Which dispatch table actually fires `"main"`-context keymap bindings? — RESOLVED (M13-04 `<oq_a3_resolution>`).**
    - What we know: `VossTUIApp.BINDINGS` filters to `global|input|modal` (`app.py:42`), yet `keymap.py:29-36` has working `"main"` rows (j/k/g/G/f/ctrl+f).
    - What's unclear: Whether those reach an action via `TurnView.BINDINGS`, app focus routing, or a separate M9 mechanism.
-   - Recommendation: Planner reads `tui/widgets/turn_view.py` BINDINGS and `tui/app.py` focus handling before placing `ctrl+o`. Add a keymap-baseline assertion that `ctrl+o → toggle_subagent_detail` resolves in whatever table M9 main keys use. (Pitfall 6 / A3.)
+   - **Resolution (M13-04, verified against live code):** `"main"` is M9's *declarative single-source registry tier* — `TurnView` has no `BINDINGS`/actions and no `action_scroll_*`/`jump_*`/`open_search` handlers exist; the `"main"` contract = a `KEYMAP` row **+** an `action_<name>` method on `VossTUIApp` (the `action_fork_turn` precedent, `app.py:136`), with `test_keymap_baseline.py` as that contract's acceptance test. `ctrl+o` is placed on exactly that mechanism (KEYMAP row + `VossTUIApp.action_toggle_subagent_detail`), not a `TurnView.BINDINGS`, not a widened `App.BINDINGS` filter, not a `"global"` row; proven by the additive keymap-baseline resolution assertion. (Pitfall 6 / A3.)
 
-3. **Steer injection mechanism: synthetic message vs shared `EpisodicMemory`.**
+3. **Steer injection mechanism: synthetic message vs shared `EpisodicMemory`. — RESOLVED (M13-03 Task 1).**
    - What we know: child `run_turn` builds `messages` fresh each iter (agent.py:601) and reads `history.last(6)` into `history_block` (agent.py:514).
-   - Recommendation: Prefer the synthetic next-iteration user message (no shared mutable state across the loop boundary; deterministic under stub). Planner confirms the provider stub surfaces extra `messages` entries to the scripted plan (it does in `FakeStreamingProvider` — scripts are positional, but the *real* provider sees `messages`; the correction-changes-behavior test must use a stub whose script branches on injected guidance presence to prove behavior change). (A2.)
+   - **Resolution (M13-03 Task 1, verified against live code):** synthetic next-iteration user message is the **only** correct route, not merely "recommended" — `history_block` is built once before the loop and never rebuilt (`agent.py:513-519`), so a shared-`EpisodicMemory` route physically cannot surface a mid-run steer. The :830 drain buffers into `pending_steer`, injected as one `{"role":"user"}` entry in the per-iteration `messages` build (agent.py:599-610) and cleared after one injection; no shared mutable state across the loop boundary; the correction-changes-behavior stub script branches on injected-guidance presence to prove behavior change. (A2.)
 
 ---
 

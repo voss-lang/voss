@@ -64,7 +64,7 @@ Output: `voss/harness/cli.py` additively imports and calls `attach_multiagent_to
 <read_first>
 <!-- Executor: read these specific anchors BEFORE editing. Do not explore beyond them. -->
 
-1. `voss/harness/cli.py:1634-1643` — the CHAT-site `attach_subagent_tool(...)` call. This is the
+1. `voss/harness/cli.py:1634-1644` — the CHAT-site `attach_subagent_tool(...)` call (block ends 1644; `jobs_root` follows at 1645). This is the
    one in `_run_repl` (followed immediately by the `jobs_root = jail_path(...) / "jobs"` /
    `.active-session` write block). The `attach_multiagent_tools(...)` call goes IMMEDIATELY AFTER
    this block, BEFORE the `jobs_root = ...` line. Exact current block:
@@ -85,7 +85,7 @@ Output: `voss/harness/cli.py` additively imports and calls `attach_multiagent_to
    `attach_multiagent_tools` at 1337 or 2342 — that is out of scope for this plan/phase (chat
    integration only, per outline Wave 4).
 
-2. `voss/harness/cli.py:43-48` — the existing `from .subagents import (...)` import block.
+2. `voss/harness/cli.py:42-47` — the existing `from .subagents import (...)` import block.
    Add a sibling `from .multiagent import attach_multiagent_tools` import near it (alphabetical
    placement after `.skill_registry`/`.slash` and before/after `.subagents` is fine; match the
    existing relative-import grouping).
@@ -165,7 +165,7 @@ From tests/e2e/runner.py CliRunner:
   <name>Task 1: Wire attach_multiagent_tools into the chat REPL toolset (additive, chat site only)</name>
   <files>voss/harness/cli.py</files>
   <read_first>
-    cli.py:43-48 (.subagents import block); cli.py:1634-1643 (chat-site attach_subagent_tool
+    cli.py:42-47 (.subagents import block); cli.py:1634-1644 (chat-site attach_subagent_tool
     call + the immediately-following jobs_root/.active-session block); M13-03 SUMMARY for the
     final attach_multiagent_tools export name + signature.
   </read_first>
@@ -186,11 +186,11 @@ From tests/e2e/runner.py CliRunner:
   </acceptance_criteria>
   <action>
     Add `from .multiagent import attach_multiagent_tools` to cli.py's relative-import section
-    near the existing `from .subagents import (...)` block (cli.py:43-48), matching the existing
+    near the existing `from .subagents import (...)` block (cli.py:42-47), matching the existing
     import grouping/ordering style.
 
     In the chat `_run_repl` path, immediately AFTER the `attach_subagent_tool(...)` call block
-    that ends at cli.py:1643 (the one followed by `jobs_root = jail_path(cwd, ".voss-cache") /
+    that ends at cli.py:1644 (the one immediately followed by `jobs_root = jail_path(cwd, ".voss-cache") /
     "jobs"`), add an additive `attach_multiagent_tools(...)` call passing the SAME kwargs the
     adjacent `attach_subagent_tool` call uses, sourced from the in-scope chat locals:
     `tools` (positional), `registry=subagent_registry`, `cwd=cwd`, `renderer=renderer`,
@@ -198,6 +198,17 @@ From tests/e2e/runner.py CliRunner:
     `cognition=bundle`. Use the EXACT exported name + signature M13-03 shipped (verify against
     the M13-03 SUMMARY — `subagent_spawn`/`steer`/`status`/`gather` were working names that
     M13-03 finalized; the attach function name may have been finalized too).
+
+    Wire the orphan-teardown invocation (closes the M13-03→M13-06 handoff for T-M13-02; M13-03
+    proved `_teardown_orphans` works as a unit, this step makes it run in production). Capture
+    whatever `attach_multiagent_tools` exposes for teardown (per the M13-03 SUMMARY: it returns
+    or stashes an `async _teardown_orphans` callable) and invoke it in the chat turn's
+    completion path — the same in-scope location where the chat REPL `await`s `run_turn` per
+    user input, in a `finally` so an un-gathered/cancelled turn cannot leak orphan child tasks
+    or panels into the next turn. Anchor the site relationally to the per-input `run_turn`
+    await in the live `_run_repl` (not a hardcoded line); if M13-03's SUMMARY documents a
+    different exposed hook name/shape, use that — the contract (an awaitable that
+    cancels+releases+collapses un-gathered children) is what matters.
 
     Do NOT remove, reorder, or alter the existing `attach_subagent_tool` call (back-compat: the
     serial single-shot `subagent_run` tool stays attached alongside the new non-blocking tools —
