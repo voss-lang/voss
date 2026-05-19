@@ -591,7 +591,17 @@ Plans:
 
 **Goal:** Expose the runtime `spawn`/`gather` primitives (`voss_runtime/agent.py`) to the user-facing chat session. A `voss chat` user can say "research X" → harness spawns sub-agent in a side panel (M9 `SubAgentPanel`), each sub-agent has its own budget meter, message bus is visible in the TUI.
 
-**Requirements:** MAG-01..0N — TBD by `M13-SPEC.md`.
+**Requirements:** MAG-01..MAG-08 (locked by `M13-SPEC.md`).
+
+**Plans:** 6 plans across 5 waves (W0→W1→W2[2 parallel]→W3→W4)
+
+Plans:
+- [ ] M13-01-PLAN.md — Wave 0 red scaffolds: shared scripted multi-agent provider conftest fixture + 5 new test files (fanout/steer/recursion/reveal/e2e) + additive keymap-baseline rows; back-compat guard
+- [ ] M13-02-PLAN.md — `voss/harness/multiagent.py` foundation: `M13Allocator` (asyncio.Lock check-and-allocate, exactly-once release, viable-floor denial) + `ChildHandle` + `ChildRegistry`; resolves RESEARCH OQ-A1 (reserve/floor defaults)
+- [ ] M13-03-PLAN.md — Wave 2A harness fan-out: non-blocking spawn/steer/status/gather tools + `PanelBridgeRenderer` + additive `steer_inbox` kwarg & line-830 drain in `agent.py`
+- [ ] M13-04-PLAN.md — Wave 2B TUI bridge + reveal: wire dead `renderer.py:203` seam, `action_toggle_subagent_detail`, quiet-by-default panel body, `ctrl+o` keymap row
+- [ ] M13-05-PLAN.md — Wave 3 recursion: slice-scoped sub-allocator handed to child toolset; depth>1 nested budget + nested panels (no depth constant)
+- [ ] M13-06-PLAN.md — Wave 4 chat integration: additive `attach_multiagent_tools` in `cli.py` + headline stub-provider `voss chat` e2e
 
 **Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 4)
 **Existing infra:** `voss/harness/subagents.py` (SubagentSpec/Registry, `attach_subagent_tool`); `voss_runtime/agent.py` (`VossAgent.spawn`, `AgentHandle`, `gather`).
