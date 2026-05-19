@@ -90,13 +90,22 @@ class TestDepth2:
         # concurrent panel ids across the 3-level chain.
         f = scripted_multiagent_provider
 
+        # Opaque per-role sentinels: present ONLY in that role's own
+        # run_turn first user message (the task text), never echoed by any
+        # subagent_spawn/gather return string (those echo agent/handle/id,
+        # not the task) — so the role router never misroutes once
+        # grandchild result/handle strings enter child-a's gather messages.
+        S_CHILD = "SENTINEL_CHILDA_TASK"
+        S_GX = "SENTINEL_GRANDX_TASK"
+        S_GY = "SENTINEL_GRANDY_TASK"
+
         # Child-a (level-1) script: iter 0 fans out to two grandchildren via
         # the recursively-attached subagent_spawn, then iter 1 gathers them.
         f.scripts["child-a"] = [
             f.spawn_plan(
                 [
-                    ("grandchild-x", "GC marker grandchild-x"),
-                    ("grandchild-y", "GC marker grandchild-y"),
+                    ("grandchild-x", S_GX),
+                    ("grandchild-y", S_GY),
                 ]
             ),
             f.gather_plan(
@@ -144,9 +153,9 @@ class TestDepth2:
             blob = " ".join(
                 str(m.get("content", "")) for m in (messages or [])
             )
-            if "grandchild-x" in blob:
+            if S_GX in blob:
                 return "grandchild-x"
-            if "grandchild-y" in blob:
+            if S_GY in blob:
                 return "grandchild-y"
             return "child-a"
 
@@ -181,7 +190,7 @@ class TestDepth2:
         # wired with a slice-scoped sub_allocator (reserve == child-a's
         # allotment) so it can fan out to grandchildren (D-07).
         spawn_ret = await tools["subagent_spawn"].invoke(
-            agent="child-a", task="orchestrate two grandchildren"
+            agent="child-a", task=S_CHILD
         )
         assert spawn_ret.startswith("spawned"), spawn_ret
         child_budget = int(spawn_ret.split("budget=")[1].split(" ")[0])

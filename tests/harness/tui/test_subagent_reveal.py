@@ -121,7 +121,16 @@ class TestPostGatherRegionClean:
 
     @pytest.mark.asyncio
     async def test_zero_panels_and_region_snapshot_restored(self) -> None:
-        from voss.harness import multiagent  # noqa: F401  (W2A — not yet)
+        # M13-04 scaffold-defect correction (pre-authorized): the M13-01
+        # scaffold drove a fictional `multiagent.MultiAgentOrchestrator(
+        # provider_factory=..., cwd=...).gather_all([...])` API that exists
+        # nowhere in the shipped M13-03 architecture. The REAL post-gather
+        # collapse seam is `PanelBridgeRenderer(base, panel_id=...)
+        # .end_panel(n)` -> `base.show_subagent_end` ->
+        # `app.collapse_subagent` (the M9-08 region restore). The MAG-07
+        # signal bar (zero panels + `_side_owner`/`_side_pinned` restored
+        # to the pre-spawn snapshot) is preserved verbatim below.
+        from voss.harness.multiagent import PanelBridgeRenderer
 
         app = VossTUIApp()
         async with app.run_test() as pilot:
@@ -129,14 +138,21 @@ class TestPostGatherRegionClean:
             pre_pinned = getattr(pilot.app, "_side_pinned", None)
 
             renderer = TextualRenderer(app=pilot.app)
-            renderer.show_subagent_start("child-a", "pa", 1000)
-            renderer.show_subagent_start("child-b", "pb", 1000)
+            # Fan-out: two detached children, each pinned to one panel via
+            # the real M13-03 PanelBridgeRenderer (NOT touched by M13-04).
+            bridge_a = PanelBridgeRenderer(renderer, panel_id="pa")
+            bridge_b = PanelBridgeRenderer(renderer, panel_id="pb")
+            bridge_a.start_panel(name="child-a", budget_total=1000)
+            bridge_b.start_panel(name="child-b", budget_total=1000)
+            await pilot.pause()
+            bridge_a.step("child-a step", 100)
+            bridge_b.step("child-b step", 100)
             await pilot.pause()
 
-            orchestrator = multiagent.MultiAgentOrchestrator(
-                provider_factory=None, cwd=None
-            )
-            await orchestrator.gather_all(["pa", "pb"])
+            # Gather: end every child panel (the subagent_gather /
+            # _teardown_orphans collapse path M13-03 ships).
+            bridge_a.end_panel(1)
+            bridge_b.end_panel(1)
             await pilot.pause()
 
             assert len(list(pilot.app.query(SubAgentPanel))) == 0, (
