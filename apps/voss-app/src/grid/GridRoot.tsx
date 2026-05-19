@@ -1,9 +1,9 @@
 import { onMount, onCleanup, createSignal } from 'solid-js';
 import { produce } from 'solid-js/store';
 import { createGridStore, type GridStore, type TreeNode } from './tree';
-import { closeFocused } from './operations';
 import { dispatchKey } from './keymap';
-import SplitNodeView from './SplitNode';
+import SplitNodeView, { type CloseUI } from './SplitNode';
+import { requestCloseGated } from './CloseConfirmBanner';
 import type { Dims } from './DragHandle';
 
 /**
@@ -60,6 +60,7 @@ export function minGridSize(
 
 export default function GridRoot(props: {
   onCloseRequest?: (store: GridStore) => void;
+  closeUI?: CloseUI;
 }) {
   const [store, setStore] = createGridStore();
   const [win, setWin] = createSignal({
@@ -90,7 +91,16 @@ export default function GridRoot(props: {
           win().h,
           DEFAULT_CW,
           DEFAULT_CH,
-          props.onCloseRequest ?? closeFocused,
+          props.onCloseRequest ??
+            ((s) =>
+              requestCloseGated(
+                s,
+                s.focusedId,
+                () => props.closeUI?.isFg(s.focusedId) ?? false,
+                () => {
+                  /* ⌘W cross-pane banner is A3-06 (A2 fg not surfaced yet) */
+                },
+              )),
         );
       }),
     );
@@ -116,6 +126,7 @@ export default function GridRoot(props: {
           setStore={setStore}
           path=""
           dims={dims}
+          closeUI={props.closeUI}
         />
       </div>
     </div>

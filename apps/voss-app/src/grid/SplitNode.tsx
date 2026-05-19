@@ -79,14 +79,40 @@ export default function SplitNodeView(props: {
             'relative w-full h-full bg-bg-0': true,
             'shadow-[inset_0_0_0_1px_var(--focus)]': isFocused(),
           }}
+          style={{ display: 'flex', 'flex-direction': 'column' }}
           onClick={focus}
         >
-          {/* A3-05 mount: PaneHeader index + ⋯ menu + CloseConfirmBanner overlay here */}
-          <PaneComponent
+          {/* A3-05 seam: Variant B header + ⋯ menu + close-confirm banner */}
+          <PaneHeader
+            index={asLeaf().index}
+            focused={isFocused()}
             cwd={asLeaf().cwd}
             shell={asLeaf().shell}
-            index={asLeaf().index}
+            onToggleMenu={() => setMenuOpen((v) => !v)}
           />
+          <Show when={menuOpen()}>
+            <DotMenu
+              store={props.store}
+              setStore={props.setStore}
+              onDismiss={() => setMenuOpen(false)}
+              onRequestClose={requestClose}
+            />
+          </Show>
+          <Show when={banner() !== null}>
+            <CloseConfirmBanner
+              store={props.store}
+              setStore={props.setStore}
+              process={banner() as string}
+              onKeepOpen={() => setBanner(null)}
+            />
+          </Show>
+          <div style={{ flex: 1, 'min-height': 0, position: 'relative' }}>
+            <PaneComponent
+              cwd={asLeaf().cwd}
+              shell={asLeaf().shell}
+              index={asLeaf().index}
+            />
+          </div>
         </div>
       </Match>
 
