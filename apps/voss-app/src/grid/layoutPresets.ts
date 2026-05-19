@@ -1,5 +1,4 @@
 import {
-  balanceRatios,
   collectLeaves,
   recomputeIndices,
   type PaneLeaf,
@@ -15,12 +14,16 @@ import {
  * downstream PTY identity are preserved across preset switches (extends
  * A3 D-04: never destroy panes).
  *
- * D-01: leaves are placed in stable inorder (`collectLeaves` post-recompute)
- *       so pane #1 always fills the preset's primary slot.
+ * D-01: leaves are placed in stable inorder so pane #1 always fills the
+ *       preset's primary slot.
  * D-06: every entry recomputes geometry fresh from pane count — stateless.
- * Ratios are Warp count-weighted via `balanceRatios` (memory:
- * voss-app-balance-ratios) so leaves end up equal-area regardless of
- * subtree shape.
+ *
+ * Ratios are assigned per-builder via `chainEqualSlots` so each direct
+ * child of a chain split occupies an equal share of its parent's axis.
+ * This preserves preset silhouettes (e.g. swarm's 4×4 grid stays a 4×4
+ * grid even when the last cell hosts spill panes) instead of devolving to
+ * Warp's leaf-equal-area rule, which is only correct for manually-built
+ * trees in A3.
  */
 export type LayoutPreset = 'fanout' | 'pipeline' | 'swarm' | 'watchers';
 export type ActiveLayout = LayoutPreset | 'custom';
@@ -53,7 +56,6 @@ export function applyPreset(root: TreeNode, preset: LayoutPreset): TreeNode {
   const leaves = collectLeaves(root); // inorder, stable
   const next = buildPreset(preset, leaves);
   recomputeIndices(next);
-  balanceRatios(next);
   return next;
 }
 
@@ -61,20 +63,31 @@ export function applyPreset(root: TreeNode, preset: LayoutPreset): TreeNode {
 
 function makeSplitNode(
   orientation: 'H' | 'V',
+  ratio: number,
   left: TreeNode,
   right: TreeNode,
 ): SplitNode {
-  // 0.5 placeholder — `balanceRatios` overwrites after the full tree is built.
-  return { kind: 'split', orientation, ratio: 0.5, left, right };
+  return { kind: 'split', orientation, ratio, left, right };
 }
 
-/** Right-skewed chain of N nodes — N-1 splits along one axis. */
-function chain(orientation: 'H' | 'V', nodes: readonly TreeNode[]): TreeNode {
-  if (nodes.length === 1) return nodes[0];
+/**
+ * Right-skewed chain of N direct children where each child occupies an
+ * equal share of its parent along `orientation` (ratios 1/N, 1/(N-1), …,
+ * 1/2). Each `child` is treated atomically — its internal leaf count does
+ * NOT affect the chain's outer ratios, which is what gives a swarm spill
+ * cell the same column width as its non-split neighbours.
+ */
+function chainEqualSlots(
+  orientation: 'H' | 'V',
+  children: readonly TreeNode[],
+): TreeNode {
+  const n = children.length;
+  if (n === 1) return children[0];
   return makeSplitNode(
     orientation,
-    nodes[0],
-    chain(orientation, nodes.slice(1)),
+    1 / n,
+    children[0],
+    chainEqualSlots(orientation, children.slice(1)),
   );
 }
 
@@ -91,29 +104,50 @@ function buildPreset(preset: LayoutPreset, leaves: PaneLeaf[]): TreeNode {
   }
 }
 
-/** Pane#1 left primary; remaining panes form a right-side vertical column. */
+/**
+ * Fanout: pane #1 in the left primary slot; remaining panes form a single
+ * right-side vertical column. Outer H split is 50/50 so the source pane
+ * reads as the dominant region, with receivers stacked equally inside the
+ * right half.
+ */
 function buildFanout(leaves: PaneLeaf[]): TreeNode {
   if (leaves.length === 1) return leaves[0];
   const [primary, ...rest] = leaves;
-  return makeSplitNode('H', primary, chain('V', rest));
+  return makeSplitNode(
+    'H',
+    0.5,
+    primary,
+    chainEqualSlots('V', rest),
+  );
 }
 
-/** Single left-to-right H row across all panes (LAY-03 pipeline). */
+/** Pipeline: single left-to-right H row with N equal-width slots. */
 function buildPipeline(leaves: PaneLeaf[]): TreeNode {
-  return chain('H', leaves);
-}
-
-/** Pane#1 main top; remaining panes form a bottom H row of watchers. */
-function buildWatchers(leaves: PaneLeaf[]): TreeNode {
-  if (leaves.length === 1) return leaves[0];
-  const [primary, ...rest] = leaves;
-  return makeSplitNode('V', primary, chain('H', rest));
+  return chainEqualSlots('H', leaves);
 }
 
 /**
- * Near-square grid up to 4×4 (D-03). For N>16, fill the first 15 cells in
- * a 4×4 grid and spill remaining panes into the last cell via an H chain
- * (D-04 — split the last region, never drop a pane).
+ * Watchers: pane #1 main on top (full width), remaining panes stacked into
+ * a single bottom H row. Outer V split is 50/50 so the main region reads
+ * as the primary surface even as the watcher count grows.
+ */
+function buildWatchers(leaves: PaneLeaf[]): TreeNode {
+  if (leaves.length === 1) return leaves[0];
+  const [primary, ...rest] = leaves;
+  return makeSplitNode(
+    'V',
+    0.5,
+    primary,
+    chainEqualSlots('H', rest),
+  );
+}
+
+/**
+ * Swarm: near-square grid up to 4×4 (D-03). For N>16, fill a 4×4 grid and
+ * spill remaining panes into the last cell via an H chain (D-04). The
+ * outer 4×4 silhouette is preserved because each row uses equal-slot
+ * ratios — the spill cell consumes the same column width as a non-split
+ * neighbour, with its own panes split inside that column.
  */
 function buildSwarm(leaves: PaneLeaf[]): TreeNode {
   const n = leaves.length;
@@ -123,6 +157,7 @@ function buildSwarm(leaves: PaneLeaf[]): TreeNode {
 
   if (n <= cap * cap) {
     // Near-square: cols = ceil(sqrt(n)) capped at 4, rows = ceil(n/cols).
+    // Partial last row is allowed (no filler panes — D-04).
     const cols = Math.min(cap, Math.ceil(Math.sqrt(n)));
     const rows = Math.ceil(n / cols);
     const rowNodes: TreeNode[] = [];
@@ -130,24 +165,25 @@ function buildSwarm(leaves: PaneLeaf[]): TreeNode {
     for (let r = 0; r < rows; r++) {
       const cells = Math.min(cols, n - i);
       const rowLeaves = leaves.slice(i, i + cells);
-      rowNodes.push(chain('H', rowLeaves));
+      rowNodes.push(chainEqualSlots('H', rowLeaves));
       i += cells;
     }
-    return chain('V', rowNodes);
+    return chainEqualSlots('V', rowNodes);
   }
 
-  // Overflow (n > 16): fill first 3 rows × 4 cols + first 3 cells of row 4,
-  // then last cell holds an H chain of the remaining panes (panes 16..n-1).
+  // Overflow (n > 16): full 4×4 grid; last cell of the last row hosts the
+  // spill chain so the grid's outer silhouette stays a 4×4.
   const cols = cap;
   const rows = cap;
   const rowNodes: TreeNode[] = [];
   for (let r = 0; r < rows - 1; r++) {
-    rowNodes.push(chain('H', leaves.slice(r * cols, (r + 1) * cols)));
+    rowNodes.push(chainEqualSlots('H', leaves.slice(r * cols, (r + 1) * cols)));
   }
   const lastRowStart = (rows - 1) * cols;
   const lastRowLeading = leaves.slice(lastRowStart, lastRowStart + cols - 1);
-  const spill = leaves.slice(lastRowStart + cols - 1);
-  const spillCell: TreeNode = spill.length === 1 ? spill[0] : chain('H', spill);
-  rowNodes.push(chain('H', [...lastRowLeading, spillCell]));
-  return chain('V', rowNodes);
+  const spillLeaves = leaves.slice(lastRowStart + cols - 1);
+  const spillCell: TreeNode =
+    spillLeaves.length === 1 ? spillLeaves[0] : chainEqualSlots('H', spillLeaves);
+  rowNodes.push(chainEqualSlots('H', [...lastRowLeading, spillCell]));
+  return chainEqualSlots('V', rowNodes);
 }
