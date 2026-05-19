@@ -1,7 +1,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use voss_app_core::{
+    get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty,
+    PtyRegistry,
+};
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 struct SettingsFile {
@@ -49,7 +54,21 @@ fn get_theme_overrides() -> HashMap<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
-        .invoke_handler(tauri::generate_handler![get_theme_overrides])
+        // PTY backend (voss-app-core) registered at app level so the frontend
+        // can call the bare command names (invoke('spawn_pty', …)) — same
+        // pattern as get_theme_overrides. The Arc<PtyRegistry> is the state the
+        // A2-02 commands borrow via State<'_, Arc<PtyRegistry>>.
+        .manage(Arc::new(PtyRegistry::default()))
+        .invoke_handler(tauri::generate_handler![
+            get_theme_overrides,
+            spawn_pty,
+            pty_write,
+            pty_resize,
+            pty_pause,
+            pty_resume,
+            pty_kill,
+            get_fg_process,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

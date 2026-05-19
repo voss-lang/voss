@@ -275,9 +275,28 @@ export default function PaneComponent(props: PaneProps) {
       `(resolution: ${window.devicePixelRatio}dppx)`,
     );
     dprMedia.addEventListener('change', onDpr);
+
+    // D-02 test-only perf probe: records rAF deltas into a ring buffer for
+    // the flood-perf harness. Inert in production (env guard) — T-A2-12.
+    if (import.meta.env.MODE === 'test') {
+      const w = window as unknown as { __vossPerf?: { frames: number[] } };
+      w.__vossPerf = { frames: [] };
+      let last = performance.now();
+      const tick = () => {
+        if (perfStop) return;
+        const now = performance.now();
+        const f = w.__vossPerf!.frames;
+        f.push(now - last);
+        if (f.length > 1000) f.shift();
+        last = now;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
   });
 
   onCleanup(() => {
+    perfStop = true;
     if (resizeTimer) clearTimeout(resizeTimer);
     if (fgPoll) clearInterval(fgPoll);
     observer?.disconnect();
