@@ -222,3 +222,272 @@ def new_handle_id() -> str:
     O1-PATTERNS lines 110-120). M13-03 mints ids via this helper so the
     scheme stays consistent; do NOT inline ``uuid.uuid4()`` at call sites."""
     return uuid.uuid4().hex[:12]
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# M13-03 Wave 2A — non-blocking fan-out tools, panel bridge, attach entry,
+# defensive orphan-teardown net. EXTENDS this M13-02 module (no recreation of
+# M13Allocator / ChildHandle / ChildRegistry above; stdlib + in-repo only).
+# ════════════════════════════════════════════════════════════════════════════
+
+from pathlib import Path  # noqa: E402  (in-repo, additive — Analog A param shape)
+from typing import Callable  # noqa: E402
+
+from voss_runtime import EpisodicMemory, tool  # noqa: E402
+
+from .agent import run_turn  # noqa: E402
+from .permissions import PermissionGate  # noqa: E402
+from .subagents import SubagentRegistry, agent_task  # noqa: E402
+from .tools import ToolEntry, make_toolset  # noqa: E402
+
+
+class PanelBridgeRenderer:
+    """RESEARCH Pattern 4 — a thin renderer wrapper that pins a child's render
+    calls to ONE ``SubAgentPanel`` (``panel_id``) and otherwise transparently
+    delegates the full Renderer protocol to the base renderer so the child's
+    ``run_turn`` drives it unchanged.
+
+    Children are ``asyncio.create_task`` coroutines on the app's event loop
+    (NOT threads): the base renderer's existing ``_post`` already handles
+    main-thread vs off-loop posting (T-M13-05 — no ``to_thread``/``Thread``).
+    """
+
+    def __init__(self, base: Any, *, panel_id: str) -> None:
+        self._base = base
+        self._panel_id = panel_id
+
+    def start_panel(self, *, name: str, budget_total: int) -> None:
+        if hasattr(self._base, "show_subagent_start"):
+            self._base.show_subagent_start(name, self._panel_id, budget_total)
+
+    def step(self, line: str, used: int) -> None:
+        # Calls the existing renderer.py:203 method name (the dead seam); the
+        # renderer.py wiring itself is M13-04's TUI track, NOT touched here.
+        if hasattr(self._base, "show_subagent_progress"):
+            self._base.show_subagent_progress(self._panel_id, line, used)
+
+    def end_panel(self, n_results: int = 1) -> None:
+        if hasattr(self._base, "show_subagent_end"):
+            self._base.show_subagent_end(self._panel_id, n_results)
+
+    def __getattr__(self, attr: str) -> Any:
+        # Everything not overridden above (the full Renderer protocol the
+        # child run_turn calls) delegates to the base renderer unchanged.
+        return getattr(self._base, attr)
+
+
+def attach_multiagent_tools(
+    tools: dict[str, ToolEntry],
+    *,
+    registry: SubagentRegistry,
+    cwd: Path,
+    renderer: Any,
+    provider: Any,
+    model: str | Callable[[], str],
+    gate: PermissionGate,
+    cognition: Any = None,
+) -> Callable[[], Any]:
+    """Analog A — register the four non-blocking M13 fan-out tools.
+
+    SAME parameter list as ``subagents.attach_subagent_tool``. Closes over a
+    fresh chat-turn-scoped :class:`ChildRegistry` + :class:`M13Allocator`
+    (constructed with the M13-02 OQ-A1 ``DEFAULT_PARENT_RESERVE`` reserve;
+    the viable floor is M13Allocator's ``VIABLE_FLOOR`` class attr) and the
+    base renderer. Returns the ``_teardown_orphans`` callable so the cli wave
+    (M13-06) can invoke it at chat-turn exit; ``subagent_gather`` is itself
+    idempotently re-callable as a second safety net.
+
+    Tool names are FINAL and distinct from ``SPAWN_TOOL_NAME="subagent_run"``
+    (the back-compat anchor, not shadowed): ``subagent_spawn`` /
+    ``subagent_steer`` / ``subagent_status`` / ``subagent_gather``.
+    """
+    base_renderer = renderer
+    child_registry = ChildRegistry()
+    # OQ-A1 reserve consumed from M13-02 (DEFAULT_PARENT_RESERVE=30_000);
+    # the viable floor is M13Allocator.VIABLE_FLOOR (== DEFAULT_VIABLE_FLOOR
+    # == 2_000), a class attr — M13Allocator takes ONLY reserve= (real API).
+    allocator = M13Allocator(reserve=DEFAULT_PARENT_RESERVE)
+    # handle id -> PanelBridgeRenderer (so gather/teardown can end_panel even
+    # though M13-02's ChildHandle dataclass has no bridge field).
+    bridges: dict[str, PanelBridgeRenderer] = {}
+
+    def _resolve_task(agent: str, task: str) -> str:
+        # Reuse the registered subagent role framing when the agent id is a
+        # known SubagentSpec; else fall back to the raw task string.
+        spec = registry.get(agent) if registry is not None else None
+        return agent_task(spec, task) if spec is not None else task
+
+    @tool(
+        name="subagent_spawn",
+        description=(
+            "Spawn a sub-agent on a bounded task as a DETACHED concurrent "
+            "child and return its handle immediately (does NOT wait for the "
+            "child). Spawn several, then call subagent_gather once to collect "
+            "all results. Returns '<denied: ...>' if the remaining budget is "
+            "below the viable floor (no child is created)."
+        ),
+    )
+    async def subagent_spawn(agent: str, task: str) -> str:
+        handle = new_handle_id()
+        allotment = await allocator.allocate(handle)
+        if allotment is None:
+            return (
+                f"<denied: budget below viable floor — cannot spawn {agent!r}>"
+            )
+        queue: asyncio.Queue = asyncio.Queue()
+        panel_id = handle
+        bridge = PanelBridgeRenderer(base_renderer, panel_id=panel_id)
+        bridge.start_panel(name=agent, budget_total=allotment)
+        bridges[handle] = bridge
+        picked_model = model() if callable(model) else model
+        child_tools = make_toolset(cwd, renderer=bridge)
+        coro = run_turn(
+            _resolve_task(agent, task),
+            tools=child_tools,
+            cwd=cwd,
+            renderer=bridge,
+            model=picked_model,
+            provider=provider,
+            history=EpisodicMemory(capacity=20),
+            permissions=gate,
+            cognition=cognition,
+            token_budget=allotment,
+            steer_inbox=queue,
+        )
+        # RESEARCH Pattern 1 — the INVERSION of subagents.py:92 `await
+        # run_turn(...)`: schedule, do NOT await the child here.
+        t = asyncio.create_task(coro)
+        child_registry.add(
+            ChildHandle(
+                id=handle,
+                task=t,
+                allotment=allotment,
+                queue=queue,
+                panel_id=panel_id,
+                sub_allocator=M13Allocator(reserve=allotment),
+            )
+        )
+        # Pitfall 1: the return string makes the pending-gather obligation
+        # explicit so the parent LLM actually gathers.
+        return (
+            f"spawned {agent} handle={handle} budget={allotment} — "
+            f"call subagent_gather when ready"
+        )
+
+    @tool(
+        name="subagent_steer",
+        description=(
+            "Inject a mid-run course-correction into a still-running child by "
+            "handle. NOTE: a steer only affects a child that runs another "
+            "iteration; a child that has already decided it is done will not "
+            "consume it. Unknown/finished handles are a safe no-op (no error)."
+        ),
+    )
+    async def subagent_steer(handle: str, guidance: str) -> str:
+        h = child_registry.get(handle)
+        if h is None:  # T-M13-01 mis-steer — validate, never raise
+            return f"<no-op: unknown handle {handle!r}>"
+        if h.done:  # steer to a done child = no-op (D-04 / Pitfall 2)
+            return f"<no-op: child {handle} already finished>"
+        h.queue.put_nowait(guidance)
+        return f"steered {handle}"
+
+    @tool(
+        name="subagent_status",
+        description=(
+            "Read-only status of spawned children: per-handle done flag, "
+            "result, and current budget allotment. Pass a handle for one "
+            "child, or omit to summarize all."
+        ),
+    )
+    async def subagent_status(handle: str | None = None) -> str:
+        snap = allocator.snapshot()
+        if handle is not None:
+            h = child_registry.get(handle)
+            if h is None:
+                return f"<no-op: unknown handle {handle!r}>"
+            return (
+                f"[{h.id}] done={h.done} allotment={snap.get(h.id, h.allotment)} "
+                f"result={h.result!r}"
+            )
+        children = child_registry.all()
+        active = len(child_registry.active())
+        lines = [f"children={len(children)} active={active}"]
+        for h in children:
+            lines.append(
+                f"[{h.id}] done={h.done} "
+                f"allotment={snap.get(h.id, h.allotment)}"
+            )
+        return "\n".join(lines)
+
+    @tool(
+        name="subagent_gather",
+        description=(
+            "Join ALL outstanding spawned children concurrently, release each "
+            "budget allotment, collapse each panel, and return every child's "
+            "result aggregated into this turn. Idempotent: safe to call again."
+        ),
+    )
+    async def subagent_gather() -> str:
+        handles = child_registry.all()
+        pending = [h for h in handles if h.task is not None and not h.done]
+        tasks = [h.task for h in pending]
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        else:
+            results = []
+        for h, r in zip(pending, results):
+            allocator.release(h.id)  # sync release (real API) ...
+            await allocator.rebalance()  # ... then async rebalance (MAG-04)
+            if isinstance(r, Exception):
+                h.done = True
+                h.result = h.result or f"<error: {r}>"
+            else:
+                h.done = True
+                h.result = h.result or (
+                    r.final if hasattr(r, "final") else str(r)
+                )
+            br = bridges.get(h.id)
+            if br is not None:
+                br.end_panel(1)  # -> app.collapse_subagent (M9-08 restore)
+        lines = [f"[{h.id}] {h.result}" for h in child_registry.all()]
+        return "Aggregated sub-agent results:\n" + "\n".join(lines)
+
+    async def _teardown_orphans() -> None:
+        """Pitfall 1 / T-M13-02 — defensive net: cancel + release + collapse
+        every un-gathered, not-finished child so no task/panel leaks if the
+        parent turn exits without ``subagent_gather``. The cli-level
+        invocation hook (chat-turn-exit) lands in M13-06; this is the
+        callable it will invoke."""
+        for h in child_registry.all():
+            if h.done:
+                continue
+            t = h.task
+            finished = t is not None and t.done()
+            if t is not None and not finished:
+                t.cancel()
+                try:
+                    await t
+                except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                    pass
+            allocator.release(h.id)
+            await allocator.rebalance()
+            h.done = True
+            h.result = h.result or "<orphan: cancelled at parent turn exit>"
+            br = bridges.get(h.id)
+            if br is not None:
+                br.end_panel(1)
+
+    tools["subagent_spawn"] = ToolEntry(
+        descriptor=subagent_spawn, is_mutating=True
+    )
+    tools["subagent_steer"] = ToolEntry(
+        descriptor=subagent_steer, is_mutating=True
+    )
+    tools["subagent_status"] = ToolEntry(
+        descriptor=subagent_status, is_mutating=False
+    )
+    tools["subagent_gather"] = ToolEntry(
+        descriptor=subagent_gather, is_mutating=True
+    )
+    return _teardown_orphans
