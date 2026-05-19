@@ -1204,6 +1204,16 @@ Plans:
 **Cross-cutting constraints:**
 - Preset semantics question (CONCEPT §10 Q4) must close before SPEC — L1 visual-only is the recommendation.
 
+**Plans:** 6 plans across 5 waves (planned 2026-05-19; A4-00 blocks on A3-06 substrate).
+
+Plans:
+- [ ] `A4-00-PLAN.md` — Blocking A3-06 substrate preflight; verify GridRoot is live in App, Rust grid sync commands are registered, and A3 integration/perf summary exists before A4 changes begin.
+- [ ] `A4-01-PLAN.md` — Pure preset transform model for fanout/pipeline/swarm/watchers, fixed cycle order, count-weighted ratios, and id-preserving capacity handling.
+- [ ] `A4-02-PLAN.md` — Controlled titlebar switcher, `custom` state, `Cmd+G` cycle injection, and GridRoot/App ownership wiring.
+- [ ] `A4-03-PLAN.md` — Rust versioned layout schema plus safe `.voss/layouts/<name>.json` save/load/list/default commands.
+- [ ] `A4-04-PLAN.md` — Frontend save/load command wrappers, exact command copy, loaded-layout remap semantics, and default-layout apply path.
+- [ ] `A4-05-PLAN.md` — Requirement-level acceptance, e2e smoke, full verification, and manual Variant B visual sign-off.
+
 ---
 
 ### Phase A5: voss-app Project Open

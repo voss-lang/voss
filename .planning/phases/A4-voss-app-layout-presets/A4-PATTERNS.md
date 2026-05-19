@@ -7,7 +7,7 @@ created: 2026-05-19
 
 # Phase A4 - Pattern Map
 
-## Pattern Mapping Complete
+## PATTERN MAPPING COMPLETE
 
 A4 builds on the A3 grid engine and A1 titlebar. The codebase graph is unavailable (`graphify-out/graph.json` missing), so this map is source-inspected.
 
@@ -38,4 +38,3 @@ A4 builds on the A3 grid engine and A1 titlebar. The codebase graph is unavailab
 - A4-03 owns Rust schema/path/file I/O and no Solid layout transforms.
 - A4-04 owns frontend save/load remapping and invokes A4-03 commands.
 - A4-05 is final acceptance and visual/manual verification.
-
