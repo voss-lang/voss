@@ -15,13 +15,13 @@ from pathlib import Path
 from typing import Optional
 
 from voss_runtime import BudgetScope
-from voss_runtime.exceptions import BudgetExceededError  # O1-02 finalize boundary
 
 __all__ = [
     "BudgetAllocationError",
     "BudgetCapRaiseError",
     "SessionTreeManager",
     "SessionTreeNode",
+    "finalize_node",
     "mutate_envelope",
 ]
 
@@ -94,6 +94,17 @@ def _write_node_file(node: SessionTreeNode, cwd: Path) -> Path:
     path.write_text(json.dumps(node.to_dict(), indent=2))
     path.chmod(0o600)
     return path
+
+
+def finalize_node(
+    node: SessionTreeNode,
+    *,
+    exit_reason: str,
+    final: str = "",
+    cwd: Path,
+) -> None:
+    """STUB (O1-02 Task 1 RED): import hook only; logic added in Task 2."""
+    pass
 
 
 def mutate_envelope(node: SessionTreeNode, delta: int, cwd: Path) -> None:

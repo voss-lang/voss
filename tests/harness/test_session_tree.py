@@ -13,12 +13,13 @@ from pathlib import Path
 
 import pytest
 
-from voss.harness.session import RunRecord, SessionRecord
+from voss.harness.session import EXIT_REASONS, RunRecord, SessionRecord
 from voss.harness.session_tree import (
     BudgetAllocationError,
     BudgetCapRaiseError,
     SessionTreeManager,
     SessionTreeNode,
+    finalize_node,
     mutate_envelope,
 )
 
@@ -180,3 +181,65 @@ class TestSchemaIsolation:
         run_names = {f.name for f in dataclasses.fields(RunRecord)}
         assert tree_only.isdisjoint(session_names)
         assert tree_only.isdisjoint(run_names)
+
+
+class TestDrainFinalize:
+    def test_finalize_sets_terminal_and_ended(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=500)
+        finalize_node(
+            root,
+            exit_reason="budget",
+            final="halted: budget",
+            cwd=tmp_path,
+        )
+        assert root.terminal_state is not None
+        assert root.terminal_state["exit_reason"] == "budget"
+        assert root.terminal_state["final"] == "halted: budget"
+        assert root.ended_at is not None
+        disk = json.loads(_node_path(tmp_path, root.id, root.id).read_text())
+        assert disk["terminal_state"] == root.terminal_state
+        assert disk["ended_at"] == root.ended_at
+
+    def test_finalize_is_idempotent(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=400)
+        finalize_node(root, exit_reason="done", final="finished", cwd=tmp_path)
+        assert root.ended_at is not None
+        assert root._finalized is True
+        ended_after_first = root.ended_at
+        ts_after_first = dict(root.terminal_state) if root.terminal_state else {}
+        finalize_node(
+            root,
+            exit_reason="done",
+            final="different",
+            cwd=tmp_path,
+        )
+        assert root.ended_at == ended_after_first
+        assert root.terminal_state == ts_after_first
+
+    def test_exit_reason_must_be_valid(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=100)
+        assert "quit" not in EXIT_REASONS
+        with pytest.raises(ValueError):
+            finalize_node(
+                root, exit_reason="quit", final="", cwd=tmp_path
+            )
+
+
+class TestNoOpenNodes:
+    async def test_no_open_node_after_finalize(
+        self, tmp_path: Path
+    ) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=900)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        children = [await mgr.allocate_child(100) for _ in range(3)]
+        tree_dir = _sessions_tree_dir(tmp_path, root.id)
+        json_paths = sorted(tree_dir.glob("*.json"))
+        assert len(json_paths) == 4  # root + 3 children
+        for node in (root, *children):
+            finalize_node(
+                node, exit_reason="done", final="closed", cwd=tmp_path
+            )
+        assert tree_dir.exists()
+        for path in tree_dir.glob("*.json"):
+            blob = json.loads(path.read_text())
+            assert blob.get("terminal_state") is not None
