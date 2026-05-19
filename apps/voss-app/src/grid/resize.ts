@@ -2,7 +2,7 @@ import {
   type GridStore,
   type SplitNode,
   type TreeNode,
-  equalizeRatios,
+  balanceRatios,
 } from './tree';
 import { markStructuralChange } from './sync';
 
@@ -197,6 +197,6 @@ export function resizeByKeyboard(
  * double-bind.
  */
 export function equalizeAllRatios(store: GridStore): void {
-  equalizeRatios(store.root);
+  balanceRatios(store.root);
   markStructuralChange(store);
 }

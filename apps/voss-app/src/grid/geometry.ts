@@ -1,5 +1,6 @@
 import {
   type TreeNode,
+  balanceRatios,
   findLeaf,
   makePane,
   makeSplit,
@@ -117,5 +118,7 @@ export function simulateSplitViolates(
     if (n.kind === 'pane') return n.id === focusedId ? replacement : n;
     return { ...n, left: swap(n.left), right: swap(n.right) };
   };
-  return wouldViolateFloor(swap(clone), winW, winH, cw, ch);
+  const next = swap(clone);
+  balanceRatios(next); // floor reflects the Warp auto-equalized geometry
+  return wouldViolateFloor(next, winW, winH, cw, ch);
 }
