@@ -15,11 +15,15 @@ def test_tampered_manifest_refused(signed_fixture_bundle: Path, tmp_path: Path) 
     manifest_path = signed_fixture_bundle / "manifest.toml"
     sig_path = signed_fixture_bundle / "manifest.toml.sig"
 
-    # Create a tampered copy of manifest
+    # Tamper a byte INSIDE a TOML string value so the file still parses as
+    # TOML — the verify path resolves author_identity from the manifest
+    # before checking the signature, so a tamper that breaks TOML decoding
+    # would short-circuit before reaching the Ed25519 check.
     tampered_manifest = tmp_path / "manifest.toml"
     content = manifest_path.read_bytes()
-    # Flip the first byte
-    tampered_content = bytes([content[0] ^ 0xFF]) + content[1:]
+    assert b"Summarizes" in content, "fixture manifest changed; update tamper marker"
+    tampered_content = content.replace(b"Summarizes", b"summarizes", 1)
+    assert tampered_content != content
     tampered_manifest.write_bytes(tampered_content)
 
     # Trust the REAL fixture public key (strip trailing whitespace from .pub file)
