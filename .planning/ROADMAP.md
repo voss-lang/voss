@@ -26,7 +26,7 @@
 | M12 | MCP Bridge (CAPS-01c, promotes DIST-03) | Consume external MCP tools + expose harness skills as MCP server | MCP-01..0N (TBD by SPEC.md) | TBD |
 | M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..MAG-08 | 8 |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
-| M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..0N (TBD by SPEC.md) | TBD |
+| M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..06 | 6 plans, 5 waves |
 | T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | **Complete** (3/3 plans, 2026-05-18) |
 | T1 | Iteration Loop + Streaming + Interrupt | Turn single-shot plan→exec→done into a real while-loop agent with streamed text + cancel | ITER-01..06 | TBD |
 | T4 | Prompt Caching + Cost Truthfulness | Cache cognition prefix; honest `/cost` including cache reads | CACHE-01..04 | TBD |
@@ -660,7 +660,17 @@ Plans:
 
 **Goal:** Make third-party `.voss` skills installable via a `voss skill add <name>` workflow with signed manifests, a sandbox boundary, and a permission scope per skill. Build atop the existing `voss/harness/plugins.py` scaffold.
 
-**Requirements:** SKILL-01..0N — TBD by `M15-SPEC.md`.
+**Requirements:** SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-06 (6 locked — `M15-SPEC.md`).
+
+**Plans:** 6 plans across 5 waves (planned 2026-05-19).
+
+Plans:
+- [ ] M15-01-PLAN.md — Wave 0: RED skill test suite + cryptography direct dep + signed example bundle (human gate)
+- [ ] M15-02-PLAN.md — Wave 1: trust.py — Ed25519 detached-sig verify + pinned-key trust store [SKILL-03]
+- [ ] M15-03-PLAN.md — Wave 1: scope.py — declared scopes → existing PermissionGate (no new engine) [SKILL-04]
+- [ ] M15-04-PLAN.md — Wave 2: fetch + manifest schema + install/remove/update gating (staging→verify→copy) [SKILL-01, SKILL-05]
+- [ ] M15-05-PLAN.md — Wave 3: VossSkillAdapter + registry + voss skill CLI + RunRecorder audit [SKILL-02]
+- [ ] M15-06-PLAN.md — Wave 4: e2e fixture-cycle CI test + documented confinement limitation [SKILL-06]
 
 **Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 6)
 **Existing infra:** `voss/harness/plugins.py` (`PluginManifest`, user/project plugin dirs, enablement TOML) — scaffold present, unused.
@@ -677,7 +687,7 @@ Plans:
 - Coordinates with M1 permission tiers (`plan`/`edit`/`auto`) — skills declare which tier they need.
 - Audit trail — every skill invocation logged through M2 RunRecorder.
 
-**Success Criteria:** TBD by `M15-SPEC.md`.
+**Success Criteria:** The 10 acceptance criteria in `M15-SPEC.md` (add/list/run/trust/tamper-refuse/scope-deny/remove/update-tamper-intact/e2e-fixture/no-forbidden-subsystem).
 
 **Out of scope:** Paid skills. Cross-org skill discovery (post-v0.2). Hot-reload of skills mid-session. Skill GUIs beyond TUI palette registration.
 
@@ -1489,7 +1499,7 @@ Plans:
 | M12 | MCP-01..0N | TBD by `M12-SPEC.md` |
 | M13 | MAG-01..MAG-08 | 8 |
 | M14 | WATCH-01..0N | TBD by `M14-SPEC.md` |
-| M15 | SKILL-01..0N | TBD by `M15-SPEC.md` |
+| M15 | SKILL-01..06 | 6 |
 | **T-phases (daily-driver gap closure)** | | |
 | T6 (v0.1.1 patch) | SLASH-01..07 | 7 (Complete) |
 | T1 | ITER-01..06 | 6 |
