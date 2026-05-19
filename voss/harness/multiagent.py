@@ -166,15 +166,26 @@ class ChildHandle:
     #: ``uuid.uuid4().hex[:12]`` handle (also the ``panel_id``, RESEARCH
     #: Pattern 1).
     id: str
-    #: Placeholder for the future ``asyncio.Task`` (typed ``Any`` so nothing
-    #: is imported/awaited here; M13-03 populates it).
+    #: The detached ``asyncio.Task`` running the child ``run_turn`` (typed
+    #: ``Any`` so M13-02 imports/awaits nothing; M13-03 populates it).
     task: Any = None
     #: Budget slice received from ``M13Allocator.allocate``.
     allotment: int = 0
-    #: Lifecycle flag flipped by the future gather path.
+    #: Lifecycle flag flipped by the gather path.
     done: bool = False
-    #: Aggregated child output, set on completion by the future gather path.
+    #: Aggregated child output, set on completion by the gather path.
     result: str | None = None
+    #: M13-03 ADDITIVE (D-03): per-child steer inbox. The parent enqueues
+    #: ``subagent_steer`` guidance here; the child ``run_turn`` drains it at
+    #: its loop boundary (agent.py:830). Defaulted so M13-02's 5-field
+    #: construction stays valid; populated by ``subagent_spawn``.
+    queue: Any = None
+    #: M13-03 ADDITIVE: the ``SubAgentPanel`` parent_id (== :attr:`id`).
+    panel_id: str = ""
+    #: M13-03 ADDITIVE (D-07, slice-scoped): an optional per-child
+    #: sub-allocator (``reserve = allotment``) the recursive wave (M13-05)
+    #: hands children of children; unused by first-level fan-out here.
+    sub_allocator: Any = None
 
 
 class ChildRegistry:

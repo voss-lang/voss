@@ -615,6 +615,25 @@ async def _run_turn_exec(
                     messages.append(a_msg)
                     messages.append(u_msg)
 
+                # M13-03 OQ-A2 (RESEARCH Pattern 3): land a parent steer as ONE
+                # synthetic next-iteration user message — a sibling of the
+                # replay messages above. This is the ONLY route that surfaces
+                # mid-loop: `history_block` is built ONCE before the while-loop
+                # from history.last(6) (agent.py:513-519) and is NEVER rebuilt
+                # per iteration, so mutating history/EpisodicMemory after turn
+                # start cannot reach the model. The `messages` list IS rebuilt
+                # every loop entry, so this append (then clear, inject-once) is
+                # the correct landing site (no shared mutable history).
+                if pending_steer:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": "[steering from parent agent]\n"
+                            + "\n".join(pending_steer),
+                        }
+                    )
+                    pending_steer.clear()
+
                 renderer.show_thinking(
                     f"planning iter {iteration_index + 1}/{max_iterations}"
                 )
@@ -835,6 +854,19 @@ async def _run_turn_exec(
                 total_prompt_tokens += iter_prompt_tokens
                 total_completion_tokens += iter_completion_tokens
                 all_iter_records.append(rec._iterations[-1])
+
+                # M13-03 D-04 steer-inbox drain (RESEARCH Pattern 3). This sits
+                # in the NON-terminating branch only: the _is_done_plan branch
+                # (line ~787) breaks BEFORE here, so a "done" child never
+                # consumes a pending steer (D-04 / Pitfall 2). Non-blocking
+                # drain of every queued guidance into pending_steer; injected
+                # once on the next iteration's messages build (see above).
+                if steer_inbox is not None:
+                    while not steer_inbox.empty():
+                        try:
+                            pending_steer.append(steer_inbox.get_nowait())
+                        except asyncio.QueueEmpty:
+                            break
 
                 if (
                     ctx.token_budget
