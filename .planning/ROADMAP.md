@@ -35,7 +35,7 @@
 | T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
 | T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | **Complete** (5/5 plans, 2026-05-18) |
-| A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A10) | SHL-01..06 | 4 plans, 4 waves |
+| A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A11) | SHL-01..06 | 4 plans, 4 waves |
 | A2 | voss-app PTY Pane | One xterm pane wired to native PTY, full TTY support, scrollback, copy/paste | PTY-01..0N (TBD by SPEC.md) | TBD |
 | A3 | voss-app Grid Engine | Binary-split tree, splits/focus/resize/close, `⌘1-9` nav, save/load layout | GRD-01..0N (TBD by SPEC.md) | TBD |
 | A4 | voss-app Layout Presets | Fanout/pipeline/swarm/watchers visual templates, `⌘G` cycle, reorder w/o killing panes | LAY-01..0N (TBD by SPEC.md) | TBD |
@@ -1093,7 +1093,7 @@ Plans:
 
 ### Phase A1: voss-app Tauri Shell
 
-**Goal:** Tauri + Solid empty window builds and runs locally on the dev's platform with custom titlebar and theme tokens applied. **No release pipeline, no signing, no distribution channels** — that work is consolidated into A10 (release is a final gate; the app does not ship until A1–A9 are built).
+**Goal:** Tauri + Solid empty window builds and runs locally on the dev's platform with custom titlebar and theme tokens applied. **No release pipeline, no signing, no distribution channels** — that work is consolidated into A11 (release is a final gate; the app does not ship until A1–A10 are built).
 
 **Requirements (locked at SPEC):** SHL-01..06
 - SHL-01 Tauri version pinned (2.x recommended; SPEC confirms).
@@ -1113,11 +1113,11 @@ Plans:
 - [ ] A1-01-PLAN.md — Monorepo wiring + Tauri/Solid/Tailwind scaffold + pinned versions; empty 'Voss ADE' window (SHL-01, SHL-06)
 - [ ] A1-02-PLAN.md — Full Variant B token system + Tailwind @theme inline + Rust get_theme_overrides settings seam (SHL-02)
 - [ ] A1-03-PLAN.md — Custom 22px titlebar + macOS traffic-light controls + visual-only preset switcher (SHL-03, SHL-04)
-- [ ] A1-04-PLAN.md — Hardened CSP + unsigned `pnpm tauri build` smoke + About-panel ship name + A10 cert-procurement clock (SHL-05, SHL-06)
+- [ ] A1-04-PLAN.md — Hardened CSP + unsigned `pnpm tauri build` smoke + About-panel ship name + A11 cert-procurement clock (SHL-05, SHL-06)
 
 **Cross-cutting constraints:**
 - No xterm, no PTY, no grid in A1 — pure window scaffolding.
-- **No release/CI/signing/Homebrew/npm work in A1** — moved to A10.
+- **No release/CI/signing/Homebrew/npm work in A1** — moved to A11.
 - Settings load from `~/.config/voss-app/settings.json` if present; else baked defaults.
 - `apps/voss-app/src-tauri/` is a new Rust crate consuming `crates/voss-app-core/` (created empty here, populated by later A phases).
 
@@ -1612,9 +1612,10 @@ Plans:
 | A5 | WS-01..0N | TBD by `A5-SPEC.md` |
 | A6 | PER-01..0N | TBD by `A6-SPEC.md` |
 | A7 | CMD-01..0N | TBD by `A7-SPEC.md` |
-| A8 | CFG-01..0N | TBD by `A8-SPEC.md` |
-| A9 | BAR-01..0N | TBD by `A9-SPEC.md` |
-| A10 | OBD-01..0N + REL-01..0N | TBD by `A10-SPEC.md` |
+| A8 | UXP-01..0N | TBD by `A8-SPEC.md` |
+| A9 | CFG-01..0N | TBD by `A9-SPEC.md` |
+| A10 | BAR-01..0N | TBD by `A10-SPEC.md` |
+| A11 | OBD-01..0N + REL-01..0N | TBD by `A11-SPEC.md` |
 | **A-total (Layer 1)** | | **TBD per SPEC** |
 | **O-phases (ADE orchestration — Caged Autonomous Eng Team)** | | |
 | O1 | OST-01..0N | TBD by `O1-SPEC.md` |

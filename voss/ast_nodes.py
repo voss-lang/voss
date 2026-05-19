@@ -287,6 +287,64 @@ class AgentDecl(Decl):
     decorators: tuple[Decorator, ...] = ()
 
 
+# ----- Team / cage declarations (O2) -----
+@dataclass(frozen=True, slots=True)
+class CeilingDecl(Decl):
+    budget: int | None
+    scope: tuple[str, ...]
+    latency_seconds: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAgentDecl(Decl):
+    name: str
+    options: tuple[tuple[str, object], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RosterRoleDecl(Decl):
+    name: str
+    options: tuple[tuple[str, object], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RosterDecl(Decl):
+    name: str
+    roles: tuple[RosterRoleDecl, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class BoardGate(Node):
+    """A `gate` clause inside `board { … }` (opaque shell until O3)."""
+
+    column: str
+    target: tuple[str, str | None]
+    predicates: tuple[Expr, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class BoardDecl(Decl):
+    items: tuple[object, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RitualDecl(Decl):
+    name: str
+    kvs: tuple[tuple[str, object], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TeamDecl(Decl):
+    name: str
+    ceiling: CeilingDecl | None
+    policy: object | None
+    agents: tuple[TeamAgentDecl, ...]
+    rosters: tuple[RosterDecl, ...]
+    board: BoardDecl | None
+    rituals: tuple[RitualDecl, ...]
+    decorators: tuple[Decorator, ...] = ()
+
+
 @dataclass(frozen=True, slots=True)
 class PromptDecl(Decl):
     name: str

@@ -11,14 +11,17 @@ from lark import Lark, Transformer, v_args
 from lark.exceptions import UnexpectedToken, UnexpectedCharacters, UnexpectedInput, VisitError
 
 from .ast_nodes import (
-    Span, Stmt, Program, ExprStmt, IntLit, FloatLit, StringLit, BoolLit, NullLit,
+    Span, Stmt, Program, ExprStmt, Expr, IntLit, FloatLit, StringLit, BoolLit, NullLit,
     Identifier, BudgetArg,
     QualName, TypeKwarg, TypeRef,
     Arg, BinOp, UnaryOp, Call, Member, Index, ListLit, DictLit,
     Param, Lambda, SpawnExpr, ConfidenceGate,
     LetStmt, IfStmt, MatchStmt, MatchCase, SimilarPattern, WildcardPattern, ExprPattern,
     CtxBlock, WithinFallback, TryCatch, ReturnStmt, YieldStmt, IncludeStmt,
-    FnDecl, AgentDecl, AgentOptions, PromptDecl, ClassDecl, ClassField, UseStmt, Decorator,
+    FnDecl, AgentDecl, AgentOptions,
+    CeilingDecl, TeamAgentDecl, RosterRoleDecl, RosterDecl, BoardGate, BoardDecl,
+    RitualDecl, TeamDecl,
+    PromptDecl, ClassDecl, ClassField, UseStmt, Decorator,
 )
 from .exceptions import VossParseError
 
@@ -166,6 +169,23 @@ def _left_assoc(file: str, meta, children, op: str):
     return node
 
 
+def _resolve_token_budget(text: str) -> int:
+    """Parse ``TOKEN_BUDGET`` text like ``200 tokens`` or ``200k tokens`` to an int."""
+    s = text.strip()
+    if not s.lower().endswith("tokens"):
+        raise ValueError(f"not a token budget literal: {text!r}")
+    head = s[: s.lower().rindex("tokens")].strip()
+    if not head:
+        raise ValueError(f"empty numeric part in token budget: {text!r}")
+    idx = len(head) - 1
+    mult = 1
+    if head[idx] in "kKmM":
+        suf = head[idx]
+        head = head[:idx]
+        mult = 1_000 if suf in "kK" else 1_000_000
+    return int(head) * mult
+
+
 def _parse_unit_token(tok: str) -> tuple[str, int | float, str]:
     """Decompose a unit-suffix token's text. Returns (unit, numeric_value, raw)."""
     raw = str(tok)
@@ -176,9 +196,14 @@ def _parse_unit_token(tok: str) -> tuple[str, int | float, str]:
         return ("ms", int(s[:-2]), raw)
     if s.endswith("s") and not s.endswith("tokens") and not s.endswith("turns"):
         return ("s", int(s[:-1]), raw)
-    # whitespace-separated: "4000 tokens" / "20 turns"
-    num, unit = s.split(None, 1)
-    return (unit, int(num), raw)
+    # whitespace-separated: "4000 tokens" / "200k tokens" / "20 turns"
+    parts = s.split(None, 1)
+    if len(parts) != 2:
+        raise ValueError(f"cannot parse unit token: {raw!r}")
+    _num, unit = parts
+    if unit == "tokens":
+        return ("tokens", _resolve_token_budget(s), raw)
+    return (unit, int(_num), raw)
 
 
 _SIMPLE_STRING_ESCAPES = {
