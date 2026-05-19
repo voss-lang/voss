@@ -426,6 +426,7 @@ async def run_turn(
     prior_context: dict | None = None,
     voss_md_text: str | None = None,
     project_index_text: str = "",
+    steer_inbox: asyncio.Queue | None = None,
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -469,6 +470,7 @@ async def run_turn(
             prior_context=prior_context,
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
+            steer_inbox=steer_inbox,
         )
     except BaseException as e:
         _tel_ok = False
@@ -495,6 +497,7 @@ async def _run_turn_exec(
     prior_context: dict | None = None,
     voss_md_text: str | None = None,
     project_index_text: str = "",
+    steer_inbox: asyncio.Queue | None = None,
 ) -> TurnResult:
     """T1-05: iteration-loop turn driver.
 
@@ -574,6 +577,10 @@ async def _run_turn_exec(
         total_prompt_tokens: int = 0
         total_completion_tokens: int = 0
         all_iter_records: list[IterationRecord] = []
+        # M13-03 D-04: per-turn buffer for parent->child steer guidance drained
+        # from steer_inbox at the loop boundary (agent.py:830) and injected
+        # once as a synthetic next-iteration user message (see injection site).
+        pending_steer: list[str] = []
         this_iter_plan: Plan | None = None
         this_iter_usage: Usage | None = None
 
