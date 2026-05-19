@@ -49,7 +49,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | A1 | voss-app Tauri Shell | Complete (4/4 plans executed + human-verified; SHL-01..06). |
 | A2 | voss-app PTY Pane | Complete (5/5 plans; PTY-01..08; PTY pane live in shell, proven via Claude Code in-pane). |
 | A3 | voss-app Grid Engine | Executing (6 plans, 5 waves; A3-01..05 complete, A3-06 next — final, integration+perf). |
-| M14 | Long-running Tasks + Watch (CAPS-01e) | Plans ready to execute (4 plans, 3 waves; plan-checker iter 1 PASS clean). |
+| M14 | Long-running Tasks + Watch (CAPS-01e) | M14-01 scaffold executed; package-legitimacy checkpoint pending before M14-02. |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Plans ready to execute (6 plans, 5 waves; trust+scope spine W1 before third-party exec W3; req 6/6). |
 
 ## Recent Activity
