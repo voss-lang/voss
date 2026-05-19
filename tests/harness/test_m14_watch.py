@@ -14,6 +14,7 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -226,19 +227,52 @@ def test_shared_cursor_reader_format(tmp_path: Path) -> None:
     )
 
 
-def test_voss_watch_reruns_on_change(tmp_path: Path) -> None:
+def test_voss_watch_help() -> None:
     result = CliRunner().invoke(voss_main, ["watch", "--help"])
     assert result.exit_code == 0
     assert "--glob" in result.output
     assert "--_is-worker" in result.output
 
-    command = "python -m http.server 0"
-    allowed = CliRunner().invoke(
-        voss_main,
-        ["watch", command, "--glob", "**/*.py", "--cwd", str(tmp_path)],
+
+@pytest.mark.skipif(sys.platform == "win32", reason="WATCH-05 Windows non-gating")
+def test_voss_watch_reruns_on_change(tmp_path: Path) -> None:
+    # Each spawn appends to `marker`; a clean re-run yields >= 2 writes.
+    command = "python -c \"open('marker','a').write('r')\""
+
+    def trigger() -> None:
+        (tmp_path / "trigger.py").write_text("x = 1\n")
+
+    timer = threading.Timer(0.3, trigger)
+    timer.start()
+    try:
+        result = CliRunner().invoke(
+            voss_main,
+            [
+                "watch",
+                command,
+                "--glob",
+                "**/*.py",
+                "--cwd",
+                str(tmp_path),
+                "--debounce-ms",
+                "50",
+                "--_idle-timeout-ms",
+                "1000",
+            ],
+        )
+    finally:
+        timer.cancel()
+
+    assert result.exit_code == 0, result.output
+    assert "watch-001" in result.output
+
+    marker = tmp_path / "marker"
+    written = _poll_for(
+        lambda: marker.read_text() if marker.exists() else "",
+        timeout_s=3.0,
+        interval_s=0.05,
     )
-    assert allowed.exit_code == 0
-    assert "watch-001" in allowed.output
+    assert written.count("r") >= 2, f"expected >=2 runs, got {written!r}"
 
 
 def test_watch_command_allowlist(tmp_path: Path) -> None:
@@ -263,10 +297,12 @@ def test_nondaemon_watch_reaped_on_exit(tmp_path: Path) -> None:
             "**/*.py",
             "--cwd",
             str(tmp_path),
+            "--_idle-timeout-ms",
+            "300",
         ],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
     assert lifecycle._JOBS == {}
     assert _require_attr(lifecycle, "_WATCHERS") == {}
 
