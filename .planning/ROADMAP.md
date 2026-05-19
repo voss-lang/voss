@@ -624,9 +624,9 @@ Plans:
 
 ## Phase M14: Long-running Tasks + Watch (CAPS-01e)
 
-**Goal:** Add a background-job manager to the harness — file-watch-driven re-checks, dev-server lifecycle, test watchers — surfaced in an M9 TUI bottom-pane status strip. Unblocks codebase-intel file-watch refresh (deferred from M10).
+**Goal:** Voss gains a `watchdog`-backed file-watch backend exposed as an `fs_watch` agent tool emitting recorder events, plus a `voss watch <command>` CLI that re-runs a command on watched-file change with an opt-in `--daemon` flag — built on the existing T5 background job engine, headless-only this phase (M9 TUI status strip and M10 `code_refresh` hookback explicitly deferred per M14-SPEC.md).
 
-**Requirements:** WATCH-01..0N — TBD by `M14-SPEC.md`.
+**Requirements:** WATCH-01, WATCH-02, WATCH-03, WATCH-04, WATCH-05 (locked in `M14-SPEC.md`).
 
 **Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 5)
 
@@ -642,7 +642,15 @@ Plans:
 - Background jobs reaped on session exit unless explicitly daemonized via opt-in flag.
 - File-watch backend cross-platform: `watchdog` Python lib for macOS/Linux/Windows.
 
-**Success Criteria:** TBD by `M14-SPEC.md`.
+**Success Criteria:** Per `M14-SPEC.md` acceptance criteria — watchdog pinned + importable; matching-glob edit yields exactly one coalesced recorder event in the debounce window; non-matching edit yields zero; `fs_watch` registered in one turn readable via cursor in a later turn; `voss watch 'pytest -q'` re-runs on change; non-daemon reaped on session exit (TERM <=2s/KILL <=5s); `--daemon` survives session exit; WATCH event tests green on macOS + Linux CI; shell allowlist enforced.
+
+**Plans:** 4 plans across 4 waves (serial spine; W3 runs M14-03 ∥ M14-04 file-disjoint).
+
+Plans:
+- [ ] M14-01-PLAN.md — Wave 0 scaffold: pin watchdog, 10 RED WATCH tests + reset/daemon-PID fixtures, macOS+Linux CI matrix (+ blocking package-legitimacy checkpoint)
+- [ ] M14-02-PLAN.md — lifecycle spine: `_WATCHERS` registry + `WatcherRecord` + shared `_read_log_cursor` factor (D-02/D-04, OQ-1) + `watch/backend.py` watchdog Observer/Debouncer/asyncio bridge (D-01) + reap wiring
+- [ ] M14-03-PLAN.md — `fs_watch` + `fs_watch_poll` agent tools in make_toolset, both `is_mutating=False` (WATCH-02, OQ-2)
+- [ ] M14-04-PLAN.md — `voss watch` CLI (allowlist + re-run via T5 register_job) + `watch/daemon.py` `start_new_session` detach with `--_is-worker` guard (WATCH-03/04, OQ-3)
 
 **Out of scope:** Distributed task scheduling. Cron-like recurring tasks (separate concern). Notification delivery (push/email/etc.).
 
