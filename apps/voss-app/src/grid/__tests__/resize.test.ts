@@ -118,7 +118,7 @@ describe('resize — keyboard 5% + equalize (GRD-04, GRD-05)', () => {
     expect(splitPath(a, 'no-id', 'H')).toBeNull();
   });
 
-  it('equalizeAllRatios resets every ratio to 0.5 and syncs', () => {
+  it('equalizeAllRatios balances to equal-area leaves (Warp) and syncs', () => {
     const root = makeSplit(
       'V',
       makeSplit('H', makePane(), makePane()),
@@ -128,7 +128,7 @@ describe('resize — keyboard 5% + equalize (GRD-04, GRD-05)', () => {
     ((root as SplitNode).left as SplitNode).ratio = 0.85;
     const s = store(root, (((root as SplitNode).left as SplitNode).left as { id: string }).id);
     equalizeAllRatios(s);
-    expect((s.root as SplitNode).ratio).toBe(0.5);
+    expect((s.root as SplitNode).ratio).toBeCloseTo(2 / 3, 5); // 2 of 3 leaves left
     expect(((s.root as SplitNode).left as SplitNode).ratio).toBe(0.5);
     expect(h.invoke).toHaveBeenCalledWith('sync_grid', expect.anything());
   });

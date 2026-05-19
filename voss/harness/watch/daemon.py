@@ -19,8 +19,8 @@ def spawn_detached_worker(original_argv: list[str]) -> int:
 
     worker_argv = [sys.executable, "-m", "voss.harness.cli", "watch"] + filtered_args
 
-    # start_new_session=True detaches the child on POSIX (by calling setsid()).
-    # On Windows, start_new_session=True is ignored/supported best-effort.
+    # start_new_session is True to detach the child on POSIX (by calling setsid()).
+    # On Windows, start_new_session is ignored/supported best-effort.
     proc = subprocess.Popen(
         worker_argv,
         stdin=subprocess.DEVNULL,

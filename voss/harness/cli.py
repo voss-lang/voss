@@ -2256,6 +2256,10 @@ def watch_cmd(
         click.echo(f"<denied: {e}>")
         sys.exit(1)
 
+    import shutil
+    if argv and argv[0] in ("python", "python3") and not shutil.which(argv[0]):
+        argv[0] = sys.executable
+
     if daemon_mode and not is_worker:
         from .watch.daemon import spawn_detached_worker
 
@@ -2290,6 +2294,8 @@ def watch_cmd(
         )
 
         if "PYTEST_CURRENT_TEST" in os.environ:
+            await lifecycle.reap_watchers()
+            await lifecycle.reap_jobs()
             return
 
         cursor = 0
@@ -2324,6 +2330,9 @@ def watch_cmd(
                         )
         except (asyncio.CancelledError, KeyboardInterrupt):
             pass
+        finally:
+            await lifecycle.reap_watchers()
+            await lifecycle.reap_jobs()
 
     asyncio.run(_run())
 
