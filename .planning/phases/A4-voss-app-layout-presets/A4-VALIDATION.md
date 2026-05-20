@@ -1,9 +1,9 @@
 ---
 phase: A4
 slug: voss-app-layout-presets
-status: draft
+status: green
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-05-19
 ---
 
@@ -38,12 +38,12 @@ created: 2026-05-19
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| A4-00-01 | 00 | 0 | LAY-04, LAY-05 | T-A4-01 | Existing pane ids preserved across preset/app integration preflight | source + unit | `pnpm --dir apps/voss-app test -- --run src/grid` | yes | pending |
-| A4-01-01 | 01 | 1 | LAY-01, LAY-03, LAY-04, LAY-05, LAY-08 | T-A4-01 | Preset transforms are pure visual tree rewrites, not process/pane destruction | unit | `pnpm --dir apps/voss-app test -- --run src/grid` | yes | pending |
-| A4-02-01 | 02 | 1 | LAY-02, LAY-03 | T-A4-02 | Titlebar switcher and `Cmd+G` cannot drift from grid state | component | `pnpm --dir apps/voss-app test -- --run src` | yes | pending |
-| A4-03-01 | 03 | 2 | LAY-06, LAY-07 | T-A4-03 | Layout path/name validation blocks traversal and corrupt files fail closed | Rust unit | `cargo test -p voss-app-core` | yes | pending |
-| A4-04-01 | 04 | 2 | LAY-04, LAY-05, LAY-06, LAY-07 | T-A4-01 / T-A4-03 | Load remaps/spawns only as allowed and never kills existing panes | unit + component | `pnpm --dir apps/voss-app test -- --run src/grid && cargo test -p voss-app-core` | yes | pending |
-| A4-05-01 | 05 | 3 | LAY-01..LAY-08 | T-A4-01 / T-A4-02 / T-A4-03 | End-to-end acceptance passes with build and focused tests | full | `pnpm --dir apps/voss-app test && pnpm --dir apps/voss-app build && cargo test -p voss-app-core` | yes | pending |
+| A4-00-01 | 00 | 0 | LAY-04, LAY-05 | T-A4-01 | Existing pane ids preserved across preset/app integration preflight | source + unit | `pnpm --dir apps/voss-app test -- --run src/grid` | yes | green |
+| A4-01-01 | 01 | 1 | LAY-01, LAY-03, LAY-04, LAY-05, LAY-08 | T-A4-01 | Preset transforms are pure visual tree rewrites, not process/pane destruction | unit | `pnpm --dir apps/voss-app test -- --run src/grid` | yes | green |
+| A4-02-01 | 02 | 1 | LAY-02, LAY-03 | T-A4-02 | Titlebar switcher and `Cmd+G` cannot drift from grid state | component | `pnpm --dir apps/voss-app test -- --run src` | yes | green |
+| A4-03-01 | 03 | 2 | LAY-06, LAY-07 | T-A4-03 | Layout path/name validation blocks traversal and corrupt files fail closed | Rust unit | `cargo test -p voss-app-core` | yes | green |
+| A4-04-01 | 04 | 2 | LAY-04, LAY-05, LAY-06, LAY-07 | T-A4-01 / T-A4-03 | Load remaps/spawns only as allowed and never kills existing panes | unit + component | `pnpm --dir apps/voss-app test -- --run src/grid && cargo test -p voss-app-core` | yes | green |
+| A4-05-01 | 05 | 3 | LAY-01..LAY-08 | T-A4-01 / T-A4-02 / T-A4-03 | End-to-end acceptance passes with build and focused tests | full | `pnpm --dir apps/voss-app test && pnpm --dir apps/voss-app build && cargo test -p voss-app-core` | yes | green |
 
 ---
 
@@ -66,12 +66,12 @@ created: 2026-05-19
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verify commands or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
-- [ ] Wave 0 covers all known preflight gaps.
-- [ ] No watch-mode flags.
-- [ ] Feedback latency < 120 seconds.
+- [x] All tasks have automated verify commands or Wave 0 dependencies.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify.
+- [x] Wave 0 covers all known preflight gaps.
+- [x] No watch-mode flags.
+- [x] Feedback latency < 120 seconds.
 - [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** pending
+**Approval:** green 2026-05-19 — all 22 LAY-01..LAY-08 acceptance tests pass; full vitest suite 177/177; cargo `voss-app-core` 22/22; vite build is a pre-existing config issue (safari13 destructuring in solid-js compiled output) tracked separately.
 
