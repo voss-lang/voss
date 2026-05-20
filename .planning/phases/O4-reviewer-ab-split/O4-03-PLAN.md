@@ -22,6 +22,7 @@ must_haves:
     - "Reviewer-A uses judge_run for AI cards with an A-authored rubric; Verdict translates to ReviewerVerdict"
     - "EpisodicMemory is fresh per review() call — no cross-card bleed"
     - "ReviewerA is a valid instance of the Reviewer Protocol"
+    - "gate_for_role(reviewer_a_spec, base_gate) returns a PermissionGate without raising"
   artifacts:
     - path: "voss/harness/board/reviewer_a.py"
       provides: "ReviewerA class implementing Reviewer Protocol via run_turn agent loop"
@@ -105,8 +106,9 @@ From voss_runtime:
   <name>Task 1: Implement ReviewerA class</name>
   <files>voss/harness/board/reviewer_a.py</files>
   <read_first>
+    - .planning/phases/O4-reviewer-ab-split/O4-01-SUMMARY.md (CRITICAL: read Card field inventory for actual field names, Reviewer.review sync/async finding, ReviewerVerdict type finding)
     - voss/harness/board/verdict.py (ReviewerVerdict exact fields + Reviewer Protocol method signature)
-    - voss/harness/board/machine.py (Card fields — identify what carries original_idea, domain, artifact_path, acceptance)
+    - voss/harness/board/machine.py (Card fields — use actual field names from O4-01 SUMMARY)
     - voss/harness/agent.py (run_turn signature at line 412 — exact kwargs, return type)
     - voss/harness/subagents.py (run_subagent at lines 90-164 — the EpisodicMemory(capacity=20) fresh-per-call pattern)
     - voss/harness/team.py (gate_for_role, filter_toolset_for_role — signatures and required args)
@@ -134,12 +136,14 @@ From voss_runtime:
     Define a private helper `_verdict_from_test_exit(exit_code: int, test_file: str, output: str) -> ReviewerVerdict` for code-card path. Mapping: conf=1.0 if exit_code==0 else 0.0, source="A", tier="strong", verdict="pass" if exit_code==0 else "fail", notes=output (truncated to 2000 chars), evidence_refs=(test_file,).
 
     Define `class ReviewerA` implementing the `Reviewer` Protocol.
-    Constructor `__init__(self, *, provider: ModelProvider, model: str, cwd: Path, renderer: Renderer, base_gate: PermissionGate)` — stores all as instance attributes. Also construct a `SubagentSpec` for reviewer_a internally: id="reviewer_a", description="Derives verification bar from original idea", role_prompt=REVIEWER_A_ROLE_PROMPT, mode=check O3/O2's expected mode for A (likely "edit" — needs fs_write for test authoring + shell_run for execution), tools=frozenset({"fs", "shell"}) (A needs fs_write for test files + shell_run for execution).
+    Constructor `__init__(self, *, provider: ModelProvider, model: str, cwd: Path, renderer: Renderer, base_gate: PermissionGate)` — stores all as instance attributes. Also construct a `SubagentSpec` for reviewer_a internally: id="reviewer_a", description="Derives verification bar from original idea", role_prompt=REVIEWER_A_ROLE_PROMPT, mode=check O3/O2's expected mode for A (likely "edit" — needs fs_write for test authoring + shell_run for execution), tools=frozenset({"fs", "shell"}) (A needs fs_write for test files + shell_run for execution). Store as `self._reviewer_a_spec`.
+
+    IMPORTANT: After constructing the SubagentSpec, validate that `gate_for_role(self._reviewer_a_spec, base_gate)` returns a PermissionGate without raising. This is a construction-time sanity check that the spec is compatible with the O2 gate system. If gate_for_role raises, the SubagentSpec fields (mode, tools, etc.) are incompatible and must be corrected.
 
     Implement `async def review(self, card: Card) -> ReviewerVerdict`. The method:
     1. Creates `EpisodicMemory(capacity=20)` INSIDE this method body (CRITICAL: never in __init__ — Pitfall 2).
     2. Creates a fresh `session_id = str(uuid.uuid4())` (no shared session).
-    3. Derives the task prompt from `_reviewer_a_task(card.original_idea, card.artifact_path, card.domain)` — adapt field names to actual Card fields from machine.py.
+    3. Derives the task prompt from `_reviewer_a_task(card.original_idea, card.artifact_path, card.domain)` — adapt field names to actual Card fields from O4-01 SUMMARY.
     4. Calls `run_turn(task_prompt, tools=filter_toolset_for_role(self._reviewer_a_spec, make_toolset(self.cwd, renderer=self.renderer)), cwd=self.cwd, renderer=self.renderer, model=self.model, provider=self.provider, history=memory, permissions=gate_for_role(self._reviewer_a_spec, self.base_gate), session_id=session_id)`.
     5. After `run_turn` completes, inspect the result to determine A's outcome:
        - For **code cards** (card.domain == "code"): parse the run result for `shell_run` tool calls. Find the test execution call, parse the `[exit N]` suffix from the shell output. Return `_verdict_from_test_exit(exit_code, test_file, output)`.
@@ -162,8 +166,9 @@ From voss_runtime:
     - _verdict_from_test_exit produces conf=1.0/verdict="pass" for exit 0, conf=0.0/verdict="fail" for non-zero
     - reviewer_a.py imports from voss.eval.judge (judge_run), voss.harness.agent (run_turn), voss.harness.team (gate_for_role)
     - reviewer_a.py does NOT modify verdict.py
+    - gate_for_role(self._reviewer_a_spec, base_gate) returns a PermissionGate without raising (validated at construction time or test time)
   </acceptance_criteria>
-  <done>ReviewerA class importable, implements Reviewer Protocol via run_turn with fresh memory, handles code-card (test exit) and AI-card (judge_run) paths.</done>
+  <done>ReviewerA class importable, implements Reviewer Protocol via run_turn with fresh memory, handles code-card (test exit) and AI-card (judge_run) paths. gate_for_role compatibility verified.</done>
 </task>
 
 <task type="auto">
@@ -207,6 +212,9 @@ From voss_runtime:
     **test_a_implements_protocol (ORVW-09):**
     Import ReviewerA and Reviewer. Construct a ReviewerA instance. Assert isinstance(a, Reviewer) or structural Protocol conformance check.
 
+    Additionally, add a construction-time gate_for_role validation test:
+    Construct a ReviewerA with a valid base_gate. Assert that construction succeeds without raising. This proves gate_for_role(self._reviewer_a_spec, base_gate) is compatible. (This can be folded into test_a_implements_protocol or as a separate assert within any test that constructs ReviewerA.)
+
     All tests are `async def`. Use `tmp_path` (pytest fixture) for cwd. Use NullRenderer for renderer. Construct a minimal PermissionGate for base_gate.
 
     NOTE: run_turn is a complex async function. These tests may need to mock run_turn itself (via monkeypatch or dependency injection) rather than trying to script the full agent loop via a fake provider. Read how test_agent_integration.py handles this. If run_turn is too complex to fake through the provider alone, mock `reviewer_a._run_turn_wrapper` or inject a callable. The key is: test the ReviewerA CONTRACT (idea in, verdict out, fresh memory), not the internals of run_turn.
@@ -221,9 +229,10 @@ From voss_runtime:
     - test_a_ai_card_eval exercises the judge_run Verdict-to-ReviewerVerdict translation path
     - test_a_memory_fresh_per_card proves sequential review() calls have isolated memory (card_2 messages do not contain card_1 text)
     - test_a_implements_protocol verifies ReviewerA is a Reviewer Protocol instance
+    - gate_for_role(reviewer_a_spec, base_gate) returns PermissionGate without raising (validated during ReviewerA construction in at least one test)
     - Existing tests outside tests/harness/board/ show zero regressions
   </acceptance_criteria>
-  <done>5 tests GREEN covering ORVW-01..03, ORVW-08, ORVW-09 for Reviewer-A. Bar-from-idea, test authoring, AI eval gate, memory isolation, and Protocol conformance all verified.</done>
+  <done>5 tests GREEN covering ORVW-01..03, ORVW-08, ORVW-09 for Reviewer-A. Bar-from-idea, test authoring, AI eval gate, memory isolation, Protocol conformance, and gate_for_role compatibility all verified.</done>
 </task>
 
 </tasks>
@@ -260,6 +269,7 @@ From voss_runtime:
 - AI-card path: rubric authored + judge_run Verdict translated to ReviewerVerdict
 - EpisodicMemory created per review() call (no cross-card bleed)
 - Original idea is the anchor (not EM AC/DoD)
+- gate_for_role compatibility confirmed (SubagentSpec accepted by O2 gate system)
 - 5/5 tests pass, 0 xfail
 </success_criteria>
 

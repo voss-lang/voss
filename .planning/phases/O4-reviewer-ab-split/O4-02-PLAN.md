@@ -91,8 +91,9 @@ From tests/eval/test_judge_verdict.py (test pattern):
   <name>Task 1: Implement ReviewerB class</name>
   <files>voss/harness/board/reviewer_b.py</files>
   <read_first>
+    - .planning/phases/O4-reviewer-ab-split/O4-01-SUMMARY.md (CRITICAL: read ReviewerVerdict type finding — "dataclass" or "pydantic BaseModel" — and Card field names; also read Reviewer.review sync/async finding)
     - voss/harness/board/verdict.py (ReviewerVerdict exact fields + Reviewer Protocol method signature — sync vs async confirmed in O4-01 summary)
-    - voss/harness/board/machine.py (Card fields: node_id, column, risk_tier, retry_count, deadline — identify what fields carry original_idea, acceptance, artifact)
+    - voss/harness/board/machine.py (Card fields — use the actual field names documented in O4-01 SUMMARY for original_idea, acceptance, artifact, etc.)
     - voss/eval/judge.py (judge_run: the exact provider.complete() + response_format + ParseError pattern to replicate)
     - voss_runtime/providers/base.py (ModelProvider protocol + ProviderResponse shape)
     - voss_runtime/providers/litellm_provider.py (ParseError import path)
@@ -100,6 +101,12 @@ From tests/eval/test_judge_verdict.py (test pattern):
   </read_first>
   <action>
     Create `voss/harness/board/reviewer_b.py`. Start with `from __future__ import annotations`.
+
+    FIRST: Read O4-01-SUMMARY.md to determine the ReviewerVerdict type finding. This determines the response_format strategy:
+    - If "ReviewerVerdict type: dataclass" (most likely per RESEARCH): ReviewerVerdict CANNOT be used directly as `response_format` (pydantic structured output requires a BaseModel). Create a pydantic mirror class `_ReviewerBOutput(BaseModel)` with identical fields (conf, source, tier, verdict, notes, evidence_refs) for use as `response_format`. After parsing, translate `_ReviewerBOutput` to `ReviewerVerdict(...)` frozen dataclass.
+    - If "ReviewerVerdict type: pydantic BaseModel": Use ReviewerVerdict directly as `response_format`. No mirror class needed.
+
+    ALSO: Read O4-01-SUMMARY.md for the actual Card field names. Use those exact names when constructing the user message from card data (e.g., card.original_idea vs card.idea).
 
     Import: `ModelProvider` from `voss_runtime.providers.base`, `ParseError` from `voss_runtime.providers.litellm_provider`, `ReviewerVerdict` and `Reviewer` from `voss.harness.board.verdict`, `Card` from `voss.harness.board.machine`. Use `from typing import Literal`.
 
@@ -115,12 +122,13 @@ From tests/eval/test_judge_verdict.py (test pattern):
 
     Implement `async def review(self, card: Card, *, tier: Literal["fast", "strong"] = "fast") -> ReviewerVerdict`. The method:
     1. Selects model: `self.fast_model` if tier=="fast", `self.strong_model` if tier=="strong".
-    2. Constructs `user_msg` with exactly 5 labeled sections using only data from `card`: original_idea, acceptance (from card fields — confirm exact field names from machine.py read), artifact, repo_summary, a_verification_summary. CRITICAL: no EM plan text, no EM narrative, no A's episodic history enters this string.
-    3. Calls `await self.provider.complete(messages=[{"role": "system", "content": REVIEWER_B_SYSTEM}, {"role": "user", "content": user_msg}], model=model, response_format=ReviewerVerdict, temperature=0.0)`.
+    2. Constructs `user_msg` with exactly 5 labeled sections using only data from `card`: original_idea, acceptance (adapt field name per O4-01 SUMMARY Card field inventory), artifact, repo_summary, a_verification_summary. CRITICAL: no EM plan text, no EM narrative, no A's episodic history enters this string.
+    3. Calls `await self.provider.complete(messages=[{"role": "system", "content": REVIEWER_B_SYSTEM}, {"role": "user", "content": user_msg}], model=model, response_format=response_format_class, temperature=0.0)` where response_format_class is either `_ReviewerBOutput` (mirror) or `ReviewerVerdict` depending on the type finding.
     4. On `ParseError`: return a blocking `ReviewerVerdict(conf=0.0, source="B", tier=tier, verdict="block", notes="ParseError: structured output failed", evidence_refs=())`. Do NOT swallow silently like judge_run does — a parse failure at the gate is safer as a block.
     5. On `resp.parsed is None`: same blocking verdict as ParseError.
-    6. On success: if the ReviewerVerdict is a frozen dataclass (not pydantic), the structured output from provider.complete() will be pydantic-parsed as the `response_format` shape, then needs translation to the dataclass. Check how O3's verdict.py defines ReviewerVerdict — if it is a dataclass (not pydantic BaseModel), create a pydantic mirror class `_ReviewerBOutput(BaseModel)` with the same fields for `response_format`, then translate to `ReviewerVerdict(...)` from the parsed result. If ReviewerVerdict IS a pydantic BaseModel, use it directly as `response_format`. Handle both cases based on what O3 actually shipped.
-    7. Return the ReviewerVerdict with `source="B"` and the appropriate `tier`.
+    6. On success (dataclass path): translate `_ReviewerBOutput` fields to `ReviewerVerdict(conf=parsed.conf, source="B", tier=tier, verdict=parsed.verdict, notes=parsed.notes, evidence_refs=tuple(parsed.evidence_refs))`. Hardcode source="B" and the actual tier — do not trust the LLM's source/tier values.
+    7. On success (pydantic path): return `resp.parsed` directly but override source="B" and tier=tier if possible.
+    8. Return the ReviewerVerdict.
 
     The information isolation guarantee is structural: `messages[]` contains exactly 2 entries (system + user), and the user message is built from card data only. No method on ReviewerB accepts EM context.
 
@@ -138,8 +146,9 @@ From tests/eval/test_judge_verdict.py (test pattern):
     - reviewer_b.py does NOT import from voss_runtime.memory or EpisodicMemory
     - ParseError path returns ReviewerVerdict with verdict="block" (not None or raise)
     - messages list in provider.complete() call contains exactly 2 entries (system + user)
+    - response_format strategy matches O4-01 SUMMARY ReviewerVerdict type finding (pydantic mirror if dataclass, direct if BaseModel)
   </acceptance_criteria>
-  <done>ReviewerB class importable, implements Reviewer Protocol shape, single provider.complete() call with isolation guarantee.</done>
+  <done>ReviewerB class importable, implements Reviewer Protocol shape, single provider.complete() call with isolation guarantee, response_format strategy aligned with O4-01 preflight finding.</done>
 </task>
 
 <task type="auto">

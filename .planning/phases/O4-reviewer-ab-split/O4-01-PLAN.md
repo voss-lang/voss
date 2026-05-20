@@ -23,6 +23,8 @@ requirements:
 must_haves:
   truths:
     - "O3 board package exists and verdict.py imports cleanly before any O4 code runs"
+    - "Card has all fields O4 consumes: original_idea, domain, artifact_path, artifact_text, file_diff, a_verification_summary"
+    - "ReviewerVerdict type (dataclass vs pydantic BaseModel) is recorded for O4-02/O4-03"
     - "RED test scaffolds collect and fail for all 10 ORVW requirements"
     - "Existing test suite is unmodified and passes"
   artifacts:
@@ -49,9 +51,9 @@ must_haves:
 <objective>
 O3 preflight gate + RED test scaffolds for all 10 ORVW requirements.
 
-Purpose: Verify the O3 substrate (board package, verdict.py, ReviewerVerdict, Reviewer Protocol, Card, DeterministicReviewerStub) is importable before writing any O4 code. Stand up the RED test framework so O4-02 and O4-03 can drive their implementations against failing tests.
+Purpose: Verify the O3 substrate (board package, verdict.py, ReviewerVerdict, Reviewer Protocol, Card, DeterministicReviewerStub) is importable before writing any O4 code. Verify Card has ALL fields O4 consumes. Record ReviewerVerdict's type (dataclass vs pydantic) for O4-02/O4-03 conditional handling. Stand up the RED test framework so O4-02 and O4-03 can drive their implementations against failing tests.
 
-Output: 3 test files with xfail scaffolds covering ORVW-01 through ORVW-10. All collect, all fail, zero existing test regressions.
+Output: 3 test files with xfail scaffolds covering ORVW-01 through ORVW-10. All collect, all fail, zero existing test regressions. Preflight findings (Card fields, ReviewerVerdict type, Reviewer.review sync/async) documented in SUMMARY.md.
 </objective>
 
 <execution_context>
@@ -100,8 +102,8 @@ From tests/eval/test_judge_verdict.py (test pattern):
   <files>tests/harness/board/test_reviewer_a.py, tests/harness/board/test_reviewer_b.py, tests/harness/board/test_reviewer_integration.py</files>
   <read_first>
     - voss/harness/board/__init__.py (confirm O3 board package exists)
-    - voss/harness/board/verdict.py (confirm ReviewerVerdict fields + Reviewer Protocol signature — sync vs async)
-    - voss/harness/board/machine.py (confirm Card shape — fields: node_id, column, risk_tier, retry_count, deadline; confirm Board exists)
+    - voss/harness/board/verdict.py (confirm ReviewerVerdict fields + Reviewer Protocol signature — sync vs async; confirm whether ReviewerVerdict is a dataclass or pydantic BaseModel)
+    - voss/harness/board/machine.py (confirm Card shape — fields: node_id, column, risk_tier, retry_count, deadline; CHECK for O4-required fields: original_idea, domain, artifact_path, artifact_text, file_diff, a_verification_summary)
     - voss/harness/board/stub.py (confirm DeterministicReviewerStub exists and its constructor kwargs)
     - tests/eval/test_judge_verdict.py (FakeJudgeProvider pattern for ProviderResponse construction)
     - tests/harness/test_agent_integration.py (FakeProvider pattern for run_turn-based tests)
@@ -109,9 +111,17 @@ From tests/eval/test_judge_verdict.py (test pattern):
     - voss_runtime/providers/base.py (ProviderResponse + ModelProvider protocol shape)
   </read_first>
   <action>
-    PREFLIGHT (blocking): Verify that `from voss.harness.board.verdict import ReviewerVerdict, Reviewer` succeeds. Verify that `from voss.harness.board.machine import Board, Card` succeeds. Verify that `from voss.harness.board.stub import DeterministicReviewerStub` succeeds. If ANY import fails, STOP and report "O3 not yet executed — O4 is blocked." Check whether `Reviewer.review` is `async def` or `def` (RESEARCH Open Question #1) and record the finding for O4-02/O4-03.
+    PREFLIGHT (blocking — all 4 gates must pass before writing any test files):
 
-    After preflight passes, create the `tests/harness/board/` directory (may already exist from O3). Confirm `__init__.py` exists in `tests/harness/board/` or create an empty one.
+    Gate 1 — O3 imports: Verify that `from voss.harness.board.verdict import ReviewerVerdict, Reviewer` succeeds. Verify that `from voss.harness.board.machine import Board, Card` succeeds. Verify that `from voss.harness.board.stub import DeterministicReviewerStub` succeeds. If ANY import fails, STOP and report "O3 not yet executed — O4 is blocked."
+
+    Gate 2 — Reviewer.review sync vs async (RESEARCH Open Question #1): Check whether `Reviewer.review` is `async def` or `def`. Record the finding for O4-02/O4-03 in SUMMARY.md.
+
+    Gate 3 — Card field inventory (RESEARCH Open Question #4): Use `dataclasses.fields(Card)` (or `Card.__dataclass_fields__` / `Card.model_fields` depending on Card's type) to enumerate all field names on Card. Assert that the following fields exist on Card: `original_idea`, `domain`, `artifact_path`, `artifact_text`, `file_diff`, `a_verification_summary`. These are the fields O4-02 (ReviewerB) and O4-03 (ReviewerA) reference via `card.original_idea`, `card.domain`, etc. If ANY of these 6 fields is MISSING from Card, STOP and report "Card is missing field(s) {list} — O3 Card addendum required before O4 can proceed, or the Reviewer.review() Protocol signature must add these as kwargs." Record the actual Card fields in SUMMARY.md so O4-02/O4-03 can adapt field access patterns.
+
+    Gate 4 — ReviewerVerdict type classification (RESEARCH Open Question / WARNING 2): Determine whether ReviewerVerdict is a `dataclasses.dataclass` or a `pydantic.BaseModel`. Run: `import dataclasses; dataclasses.is_dataclass(ReviewerVerdict)` and check `issubclass(ReviewerVerdict, pydantic.BaseModel)`. Record the result in SUMMARY.md as "ReviewerVerdict type: dataclass" or "ReviewerVerdict type: pydantic BaseModel". This determines whether O4-02 needs a pydantic mirror class for `response_format` in `provider.complete()`, or can use ReviewerVerdict directly.
+
+    After ALL 4 preflight gates pass, create the `tests/harness/board/` directory (may already exist from O3). Confirm `__init__.py` exists in `tests/harness/board/` or create an empty one.
 
     Create `tests/harness/board/test_reviewer_a.py` with xfail scaffolds for 5 tests:
     - `test_a_uses_original_idea` (ORVW-01): A derives bar from original idea, not EM AC. xfail(strict=True, reason="ORVW-01: ReviewerA not implemented").
@@ -143,16 +153,18 @@ From tests/eval/test_judge_verdict.py (test pattern):
     <automated>.venv/bin/python -m pytest tests/harness/board/ -x -q 2>&1 | tail -10</automated>
   </verify>
   <acceptance_criteria>
+    - Preflight Gate 1: `from voss.harness.board.verdict import ReviewerVerdict, Reviewer` succeeds at import time
+    - Preflight Gate 2: Reviewer.review signature (sync vs async) is documented in the summary
+    - Preflight Gate 3: Card has fields original_idea, domain, artifact_path, artifact_text, file_diff, a_verification_summary — OR preflight STOPS with a blocking report listing the missing fields
+    - Preflight Gate 4: SUMMARY.md records "ReviewerVerdict type: dataclass" or "ReviewerVerdict type: pydantic BaseModel"
     - tests/harness/board/test_reviewer_a.py contains exactly 5 test functions: test_a_uses_original_idea, test_a_authors_test_file, test_a_ai_card_eval, test_a_memory_fresh_per_card, test_a_implements_protocol
     - tests/harness/board/test_reviewer_b.py contains exactly 5 test functions: test_b_message_isolation, test_b_tier_selection, test_b_tier_strong, test_b_residual_2_block, test_b_implements_protocol
     - tests/harness/board/test_reviewer_integration.py contains exactly 1 test function: test_board_lifecycle_with_real_reviewers
     - All 11 tests collect successfully via --collect-only
     - All 11 tests are xfail (strict=True) and show as xfailed (not XPASS) on run
-    - `from voss.harness.board.verdict import ReviewerVerdict, Reviewer` succeeds at import time
     - Existing test suite (tests/harness/ minus board/) shows zero regressions
-    - Reviewer.review signature (sync vs async) is documented in the summary
   </acceptance_criteria>
-  <done>11 RED scaffolds collect and xfail; O3 preflight gate passes; existing tests unbroken; Reviewer.review sync/async finding recorded.</done>
+  <done>11 RED scaffolds collect and xfail; O3 preflight gate passes (all 4 gates); Card field inventory and ReviewerVerdict type recorded in SUMMARY.md; existing tests unbroken.</done>
 </task>
 
 </tasks>
@@ -162,7 +174,7 @@ From tests/eval/test_judge_verdict.py (test pattern):
 
 | Boundary | Description |
 |----------|-------------|
-| O3→O4 interface | O4 imports frozen types from O3's verdict.py; must not modify verdict.py |
+| O3->O4 interface | O4 imports frozen types from O3's verdict.py; must not modify verdict.py |
 
 ## STRIDE Threat Register
 
@@ -176,12 +188,15 @@ From tests/eval/test_judge_verdict.py (test pattern):
 - `.venv/bin/python -m pytest tests/harness/board/ --collect-only -q` shows 11 tests
 - `.venv/bin/python -m pytest tests/harness/board/ -x -q` shows 11 xfailed, 0 passed, 0 failed
 - `.venv/bin/python -c "from voss.harness.board.verdict import ReviewerVerdict, Reviewer"` exits 0
+- `.venv/bin/python -c "from voss.harness.board.machine import Card; import dataclasses; fields = [f.name for f in dataclasses.fields(Card)]; assert 'original_idea' in fields, f'Card missing original_idea, has: {fields}'"` exits 0
 - `git diff --name-only` shows only files in tests/harness/board/
 </verification>
 
 <success_criteria>
 - 11 xfail scaffolds covering all 10 ORVW requirements
 - O3 preflight verified (board package importable)
+- Card field inventory confirms original_idea, domain, artifact_path, artifact_text, file_diff, a_verification_summary
+- ReviewerVerdict type (dataclass vs pydantic) documented in SUMMARY.md
 - Reviewer.review sync/async determination documented
 - Zero existing test regressions
 </success_criteria>

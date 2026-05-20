@@ -8,13 +8,15 @@ depends_on:
   - O4-03
 files_modified:
   - tests/harness/board/test_reviewer_integration.py
+  - voss/harness/board/reviewer_a.py
+  - voss/harness/board/reviewer_b.py
 autonomous: true
 requirements:
   - ORVW-10
   - ORVW-09
 must_haves:
   truths:
-    - "A full board lifecycle (Backlog to Done) works with ReviewerA + ReviewerB stubs"
+    - "A full board lifecycle (Backlog to Done) works with ReviewerA + ReviewerB driving at least one Board column transition triggered by a reviewer.review() call"
     - "Both ReviewerA and ReviewerB implement the Reviewer Protocol and are interchangeable with DeterministicReviewerStub"
     - "All 11 ORVW tests pass (O4-01 scaffolds fully green)"
     - "verdict.py is unmodified from O3"
@@ -40,7 +42,7 @@ must_haves:
 <objective>
 Integration test proving the full board lifecycle works with real ReviewerA + ReviewerB implementations, plus final acceptance gate for all 11 ORVW tests and the verdict.py invariant.
 
-Purpose: O4's structural claim is that two independent sources (A authors verification, B renders independent judgment) plug into O3's board via the frozen Reviewer Protocol. This plan verifies that claim end-to-end: a card enters at Backlog, receives A-verification and B-judgment at the appropriate gates, and transitions to Done. It also confirms the global O4 invariants: verdict.py unmodified, all 11 tests green, no existing test regressions.
+Purpose: O4's structural claim is that two independent sources (A authors verification, B renders independent judgment) plug into O3's board via the frozen Reviewer Protocol. This plan verifies that claim end-to-end: a card enters at Backlog, receives A-verification and B-judgment at the appropriate gates, and transitions through at least one Board column transition triggered by a reviewer.review() call before reaching Done. It also confirms the global O4 invariants: verdict.py unmodified, all 11 tests green, no existing test regressions.
 
 Output: 1 green integration test (previously RED xfail scaffold from O4-01); full ORVW-01..10 acceptance.
 </objective>
@@ -91,46 +93,46 @@ From voss/harness/board/stub.py (O3):
     - tests/harness/board/test_reviewer_integration.py (current xfail scaffold from O4-01)
     - voss/harness/board/reviewer_a.py (ReviewerA constructor + review signature)
     - voss/harness/board/reviewer_b.py (ReviewerB constructor + review signature)
-    - voss/harness/board/machine.py (Board.from_team_config, Board.move, Card shape — exact API for lifecycle test)
+    - voss/harness/board/machine.py (Board API — Board.from_team_config, Board.move, Board.dry_run_gate, Card shape, column enum/values, gate predicates — understand the full lifecycle API)
     - voss/harness/board/verdict.py (ReviewerVerdict, Reviewer Protocol)
     - voss/harness/board/stub.py (DeterministicReviewerStub — reference for how O3 tests drive the board)
     - voss/harness/board/gates.py (gate predicates — understand what the board checks at each transition)
-    - tests/harness/board/ (any O3 integration tests for the board lifecycle pattern to follow)
+    - tests/harness/board/ (any O3 integration tests for the board lifecycle pattern to follow — these are the primary reference for how to construct a Board, create Cards, and drive transitions in tests)
     - voss/harness/permissions.py (PermissionGate constructor for ReviewerA setup)
     - voss/harness/render.py (NullRenderer for silent runs)
   </read_first>
   <action>
     Rewrite `tests/harness/board/test_reviewer_integration.py` — replace the xfail scaffold with a real integration test. Remove `@pytest.mark.xfail(strict=True)`.
 
-    The integration test verifies ORVW-10: "Full board lifecycle with real ReviewerA+B stubs drives card to Done."
+    The integration test verifies ORVW-10: "Full board lifecycle with real ReviewerA+B drives card to Done."
 
-    This test does NOT call a real LLM. It uses fake providers for both ReviewerA and ReviewerB. The test is structural: it proves the Protocol contract works end-to-end with the Board.
+    This test does NOT call a real LLM. It uses fake providers for both ReviewerA and ReviewerB. The test is structural: it proves the Protocol contract works end-to-end with the Board, including at least one Board column transition triggered by a reviewer.review() call.
+
+    CRITICAL REQUIREMENT: The test MUST exercise the Board lifecycle — specifically, at least one `Board.move()` (or equivalent Board transition API) must be triggered. Simply calling `review()` on both reviewers outside the Board context is NOT sufficient for ORVW-10. The test must prove that reviewer verdicts drive Board state transitions.
 
     Create `FakeProviderForA` that scripts run_turn responses such that ReviewerA produces a "pass" verdict (code-card: shell_run returning "[exit 0]"; AI-card: judge_run returning Verdict pass). Reuse the FakeProvider pattern from O4-03 test_reviewer_a.py.
 
     Create `FakeProviderForB` that returns a canned ReviewerVerdict with conf=0.95, verdict="pass" (sufficient to pass the high-risk-tier threshold). Reuse the FakeReviewerBProvider pattern from O4-02 test_reviewer_b.py.
 
-    The test flow:
-    1. Set up a Board via Board.from_team_config(...) with a test TeamConfig. Read how O3 tests do this — likely needs a minimal TeamConfig + recorder mock/fixture.
-    2. Create a Card (either via Board API or direct construction) with domain="code" (or "ai"), risk_tier="med", original_idea="test idea".
-    3. Construct ReviewerA with FakeProviderForA (for the run_turn agent loop).
-    4. Construct ReviewerB with FakeProviderForB.
-    5. Drive the card through the lifecycle: Backlog -> Planned -> InProgress -> InReview (triggers B.review(card, tier="fast")) -> Done (triggers B.review(card, tier="strong") + A's verification check).
-    6. Assert the card reaches Done (card.column == "Done" or equivalent).
-    7. Assert ReviewerA was invoked (provider.calls is non-empty).
-    8. Assert ReviewerB was invoked with correct tier at each gate.
+    The test flow must follow one of these approaches (read O3 board tests to determine which matches the Board API):
 
-    ALTERNATIVE APPROACH: If the Board API is too tightly coupled to its internal reviewer wiring (i.e., Board.move() internally calls reviewer.review() and the reviewer is injected at Board construction time), then the test may need to adapt to the Board's actual API:
-    - Read how O3 injects reviewers into the Board (Board.from_team_config(..., reviewer=...)?)
-    - The test creates a `CompositeReviewer` or passes ReviewerA and ReviewerB separately
-    - Read O3 tests for the exact injection pattern
+    Approach A — Board-driven reviewer invocation:
+    1. Set up a Board via Board.from_team_config(...) with ReviewerA and ReviewerB injected as the reviewers.
+    2. Create a Card and place it on the Board.
+    3. Drive the card through the lifecycle: use Board.move() or the Board's tick/advance API to transition the card through columns (Backlog -> Planned -> InProgress -> InReview -> Done).
+    4. Assert the Board internally calls reviewer.review() at the gate transitions.
+    5. Assert the card reaches Done.
 
-    If the Board lifecycle API is too complex to test directly (requires recorder, session-tree, etc.), simplify:
-    - Test ReviewerA.review(card) and ReviewerB.review(card) individually in sequence (proving they produce compatible ReviewerVerdict values)
-    - Test that the DeterministicReviewerStub can be replaced by ReviewerA or ReviewerB without type errors
-    - This is still a valid ORVW-10 proof: "both reviewers produce ReviewerVerdict that the board can consume"
+    Approach B — Manual gate + Board.move() composition:
+    1. Set up a Board via Board.from_team_config(...) or direct construction.
+    2. Create a Card.
+    3. At each gate transition, manually call the appropriate reviewer's review() method to get a ReviewerVerdict.
+    4. Use Board.move(card, to=next_column) to advance the card, with the ReviewerVerdict satisfying the gate predicate.
+    5. Assert at least one Board.move() call is conditioned on a reviewer.review() result (i.e., the reviewer's verdict determines whether the move succeeds).
+    6. Assert the card reaches Done (card.column == Done or equivalent).
+    7. Assert both ReviewerA and ReviewerB were invoked.
 
-    The key structural proof is: ReviewerA and ReviewerB produce ReviewerVerdict instances that are structurally identical to what DeterministicReviewerStub produces, and both are valid Reviewer Protocol implementations.
+    Read the O3 board test files and Board API carefully to determine which approach matches the actual Board architecture. The Board may internally invoke reviewers at gate transitions (Approach A), or the caller may need to orchestrate the reviewer calls and Board.move() separately (Approach B). Either way, the test MUST include Board.move() driving the card through at least one column transition gated by a reviewer verdict.
   </action>
   <verify>
     <automated>.venv/bin/python -m pytest tests/harness/board/test_reviewer_integration.py -x -q 2>&1 | tail -10</automated>
@@ -138,16 +140,18 @@ From voss/harness/board/stub.py (O3):
   <acceptance_criteria>
     - test_board_lifecycle_with_real_reviewers passes (0 xfail, 0 failures)
     - ReviewerA and ReviewerB are both constructed and their review() methods are called
+    - The test exercises at least one Board.move() (or equivalent) column transition triggered by a reviewer.review() call
+    - The card transitions through at least one column boundary gated by a reviewer verdict before reaching Done
     - Both produce ReviewerVerdict instances with correct field types (conf: float, source: Literal, tier: Literal, verdict: Literal, notes: str, evidence_refs: tuple)
     - The test proves ReviewerA and ReviewerB are drop-in replacements for DeterministicReviewerStub (Protocol compatibility)
     - No direct modification to verdict.py, machine.py, gates.py, or any O3 file
   </acceptance_criteria>
-  <done>Integration test proves ReviewerA + ReviewerB plug into the O3 board lifecycle via the Reviewer Protocol.</done>
+  <done>Integration test proves ReviewerA + ReviewerB plug into the O3 board lifecycle via the Reviewer Protocol, with Board column transitions driven by reviewer verdicts.</done>
 </task>
 
 <task type="auto">
   <name>Task 2: Final acceptance gate — all ORVW tests + invariants</name>
-  <files></files>
+  <files>voss/harness/board/reviewer_a.py, voss/harness/board/reviewer_b.py, tests/harness/board/test_reviewer_a.py, tests/harness/board/test_reviewer_b.py, tests/harness/board/test_reviewer_integration.py</files>
   <read_first>
     - tests/harness/board/test_reviewer_a.py (should be all green)
     - tests/harness/board/test_reviewer_b.py (should be all green)
@@ -166,7 +170,7 @@ From voss/harness/board/stub.py (O3):
     5. Verify reviewer_b.py isolation: `grep -v '^#' voss/harness/board/reviewer_b.py | grep -c 'voss\.harness\.agent\|voss\.harness\.subagents\|EpisodicMemory'` must be 0 (B does not use agent loop or episodic memory).
     6. Verify reviewer_a.py memory pattern: confirm EpisodicMemory appears inside the `review` method body, not at class level or __init__.
 
-    If any check fails, fix the issue in the relevant source file (reviewer_a.py, reviewer_b.py, or test file). Do NOT modify verdict.py.
+    If any check fails, fix the issue in the relevant source file (reviewer_a.py, reviewer_b.py, or the failing test file). The `files` field above lists all candidate files that may need fixes. Do NOT modify verdict.py.
   </action>
   <verify>
     <automated>.venv/bin/python -m pytest tests/harness/board/ -v -q 2>&1 | tail -15</automated>
@@ -211,7 +215,7 @@ From voss/harness/board/stub.py (O3):
 </verification>
 
 <success_criteria>
-- ORVW-10 integration test proves A+B plug into the board lifecycle
+- ORVW-10 integration test proves A+B plug into the board lifecycle with Board column transitions driven by reviewer verdicts
 - All 11 ORVW tests green (01-10 covered, 09 covered twice for both reviewers)
 - verdict.py invariant: zero diff from O3
 - Circular import invariant: clean
