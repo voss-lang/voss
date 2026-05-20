@@ -2,7 +2,7 @@
 //! best-effort git branch detection, and project-less default cwd resolution.
 //!
 //! The on-disk recents shape is versioned so the same camelCase payload the
-//! TypeScript model uses (`gitBranch`) round-trips unchanged while the
+//! TypeScript model uses (`"gitBranch"`) round-trips unchanged while the
 //! persisted file remains a small `{ version, recents }` schema. Bump
 //! `CURRENT_RECENTS_VERSION` whenever the recents file shape changes.
 //!
@@ -146,6 +146,7 @@ fn save_recents(file: &RecentsFile) -> std::io::Result<()> {
         std::fs::create_dir_all(dir)?;
     }
 
+    // Write recents.json.tmp before renaming over recents.json.
     let tmp = path.with_extension("json.tmp");
     let json = serde_json::to_string_pretty(file)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
