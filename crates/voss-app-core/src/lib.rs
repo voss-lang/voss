@@ -1,6 +1,7 @@
 //! voss-app-core — Tauri plugin: PTY lifecycle, IPC commands.
 
 pub mod grid;
+pub mod keymap;
 pub mod layouts;
 pub mod project;
 pub mod pty;
