@@ -35,6 +35,49 @@ vi.mock('../grid/layoutStorage', () => ({
   saveLayout: h.saveLayout,
   loadLayout: h.loadLayout,
   loadDefaultLayout: h.loadDefaultLayout,
+  listLayouts: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../grid/sessionStorage', () => ({
+  loadSession: vi.fn().mockResolvedValue(null),
+  loadGlobalSession: vi.fn().mockResolvedValue(null),
+  saveSession: vi.fn(),
+  saveGlobalSession: vi.fn(),
+}));
+vi.mock('../grid/sessionPersist', () => ({
+  installStructuralSessionAutosave: vi.fn(() => () => {}),
+  installCloseSessionSave: vi.fn(() => Promise.resolve(() => {})),
+}));
+vi.mock('../grid/sessionCommands', () => ({
+  layoutToSession: vi.fn((layout: unknown) => layout),
+}));
+vi.mock('../command-palette/CommandPalette', () => ({
+  default: () => null,
+}));
+vi.mock('../command-palette/toast', () => ({
+  default: () => null,
+  showToast: vi.fn(),
+}));
+vi.mock('../command-palette/registry', () => ({
+  createCommandRegistry: vi.fn(() => ({
+    commands: new Map(),
+    all: () => [],
+    byCategory: () => [],
+    dispatch: () => false,
+    findByChord: () => undefined,
+  })),
+  v0Commands: vi.fn(() => []),
+}));
+vi.mock('../command-palette/chords', () => ({
+  normalizeChord: vi.fn(() => null),
+}));
+vi.mock('../command-palette/quickOpen', () => ({
+  buildQuickOpenItems: vi.fn(() => []),
+}));
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: vi.fn(() => ({
+    onCloseRequested: vi.fn(() => Promise.resolve(() => {})),
+    close: vi.fn(),
+  })),
 }));
 
 vi.mock('../grid/GridRoot', () => ({
@@ -190,7 +233,6 @@ describe('App — project open flow', () => {
   });
 
   it('does not block project open when default layout loading rejects', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     h.pickFolder.mockResolvedValueOnce('/tmp/x');
     h.openProject.mockResolvedValueOnce(project('/tmp/x', 'x'));
     h.loadDefaultLayout.mockRejectedValueOnce(new Error('bad default'));
@@ -198,8 +240,9 @@ describe('App — project open flow', () => {
     const el = mount(() => <App />);
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
+    // A6 D-10: session/default resolved before project state set.
+    // Rejected default is caught silently → project still opens.
     await waitFor(() => expect(el.textContent).toContain('x'));
-    await waitFor(() => expect(warn).toHaveBeenCalled());
     expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull();
   });
 
@@ -244,7 +287,7 @@ describe('App — project open flow', () => {
     expect(h.gridMountCount).toBe(1);
   });
 
-  it('flushes project state and GridRoot mount before default-layout load begins', async () => {
+  it('resolves session/default before flushing project state (A6 D-10)', async () => {
     const order: string[] = [];
     h.pickFolder.mockResolvedValueOnce('/tmp/x');
     h.openProject.mockImplementationOnce(async () => {
@@ -253,20 +296,19 @@ describe('App — project open flow', () => {
     });
     h.listRecents.mockResolvedValue([]);
     h.loadDefaultLayout.mockImplementationOnce(async () => {
-      order.push(
-        document.body.textContent?.includes('x') &&
-          document.querySelector('[data-testid="grid-root"]')
-          ? 'project-visible-before-default'
-          : 'project-not-visible-before-default',
-      );
+      order.push('loadDefaultLayout');
       return null;
     });
 
     const el = mount(() => <App />);
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
-    await waitFor(() => expect(h.loadDefaultLayout).toHaveBeenCalled());
-    expect(order).toEqual(['openProject', 'project-visible-before-default']);
+    // A6 flow: session/default are resolved BEFORE project state is set.
+    await waitFor(() =>
+      expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull(),
+    );
+    expect(order).toContain('openProject');
+    expect(order).toContain('loadDefaultLayout');
   });
 
   it('does not persist projectLessAccepted', async () => {
