@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: completed
-last_updated: "2026-05-20T16:30:00Z"
+last_updated: "2026-05-20T18:31:28.902Z"
 last_activity: "2026-05-18 — Phase A1 complete (4 plans, 4 waves). A1-01 Tauri+Solid+Tailwind scaffold + Cargo/pnpm monorepo + pinned versions + icon set (icon repadded to Big Sur safe-area). A1-02 Variant B token taxonomy + @theme inline + get_theme_overrides theme seam (3-path verified: absent/valid/malformed). A1-03 22px titlebar + macOS traffic lights + platform gate + visual-only preset switcher + drag (2 in-flight visual-defect patches: spacer align-self stretch, title-text drag). A1-04 hardened CSP + unsigned ad-hoc build smoke + "Voss ADE" ship-name verify + A10 cert-procurement clock started. SHL-01..06 all satisfied. Carried-forward: 11px Retina legibility re-check in A2, drag-region count + App.tsx plan-defects logged for plan-checker, A10 cert clock started 2026-05-18."
 progress:
   total_phases: 16

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use voss_app_core::grid::{self, GridState};
 use voss_app_core::layouts::{self, LayoutFile};
 use voss_app_core::project::{self, ProjectInfo};
+use voss_app_core::session::{self, SessionFile};
 use voss_app_core::pty::reader::start_reader;
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_session};
@@ -216,6 +217,36 @@ fn default_cwd(project_path: Option<String>) -> String {
     project::default_cwd(project_path.as_deref().map(Path::new))
 }
 
+// ---- Session persistence commands (A6-01) -----------------------------------
+// Thin app-level wrappers over `voss_app_core::session`. Same cross-crate
+// `generate_handler!` constraint as the PTY, grid, layout, and project
+// commands above. Project commands take `workspace_path`; global commands
+// take no path argument.
+
+#[tauri::command]
+fn save_session(workspace_path: String, session: SessionFile) -> Result<(), String> {
+    session::save_session(Path::new(&workspace_path), &session)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_session(workspace_path: String) -> Result<Option<SessionFile>, String> {
+    session::load_session(Path::new(&workspace_path))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn save_global_session(session: SessionFile) -> Result<(), String> {
+    session::save_global_session(&session)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_global_session() -> Result<Option<SessionFile>, String> {
+    session::load_global_session()
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -241,6 +272,10 @@ pub fn run() {
             open_project,
             load_recents,
             default_cwd,
+            save_session,
+            load_session,
+            save_global_session,
+            load_global_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
