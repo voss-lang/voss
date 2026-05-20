@@ -11,14 +11,24 @@ import { PtyTransport } from './pty-ipc';
 import PasteGuard from './PasteGuard';
 import ExitBanner from './ExitBanner';
 import FindBar from './FindBar';
+import {
+  registerScrollbackProvider,
+  unregisterScrollbackProvider,
+} from './scrollbackRegistry';
 
 export interface PaneProps {
+  /** Pane id for scrollback registry and restore keying (A6). */
+  id?: string;
   /** Working directory for the spawned shell; header shows its basename. */
   cwd?: string;
   /** $SHELL basename for the header shell slot (A2 = static; A8 wires real). */
   shell?: string;
   /** Pane index — A2 is always 1; A3 assigns real indices. */
   index?: number;
+  /** Session-restored scrollback lines to seed before shell interaction (A6 D-09). */
+  restoredScrollback?: string[];
+  /** Called once on first user input in a restored pane (dismiss RestoreBanner). */
+  onFirstInput?: () => void;
 }
 
 function basename(p: string): string {
