@@ -100,6 +100,7 @@ export default function GridRoot(props: {
   activeLayout?: () => ActiveLayout;
   onLayoutChange?: (next: ActiveLayout) => void;
   controllerRef?: (ctrl: GridController) => void;
+  projectCwd?: string;
 }) {
   const [store, setStore] = createGridStore();
   const [win, setWin] = createSignal({

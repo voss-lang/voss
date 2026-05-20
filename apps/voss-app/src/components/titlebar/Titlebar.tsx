@@ -18,9 +18,16 @@ export type TitlebarProps = {
   activeLayout?: ActiveLayout;
   layoutDisabled?: boolean;
   onLayoutSelect?: (preset: LayoutPreset) => void;
+  projectName?: string;
 };
 
 export default function Titlebar(props: TitlebarProps = {}) {
+  // Empty project names fall back too; only a non-empty open project replaces the brand.
+  const titleText = () =>
+    props.projectName && props.projectName.length > 0
+      ? props.projectName
+      : 'Voss ADE';
+
   return (
     <div
       style={{
@@ -40,7 +47,7 @@ export default function Titlebar(props: TitlebarProps = {}) {
       {/* the outer container or any button-bearing child (RESEARCH Pitfall 1).        */}
       <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
 
-      {/* Project name placeholder — shows "Voss ADE" until A5 opens a project.   */}
+      {/* projectName: A5-05 wires this from App.tsx project() signal; 'Voss ADE' is the project-less / pre-open fallback (CONCEPT §10 Q1). */}
       {/* Drag attr on the text element itself so clicking the title drags the    */}
       {/* window (matches macOS standard titlebar behavior). Safe because the div */}
       {/* contains plain text only — no buttons / interactive children.           */}
@@ -57,7 +64,7 @@ export default function Titlebar(props: TitlebarProps = {}) {
           'align-items': 'center',
         }}
       >
-        Voss ADE
+        {titleText()}
       </div>
 
       {/* Right drag spacer */}

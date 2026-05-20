@@ -1,6 +1,7 @@
-import { createSignal } from 'solid-js';
+import { createSignal, onMount, Show } from 'solid-js';
 import Titlebar from './components/titlebar/Titlebar';
 import GridRoot, { type GridController } from './grid/GridRoot';
+import SetupWindow from './components/setup/SetupWindow';
 import type {
   ActiveLayout,
   LayoutPreset,
@@ -11,6 +12,13 @@ import {
   loadLayout,
   saveLayout,
 } from './grid/layoutStorage';
+import {
+  defaultCwd,
+  listRecents,
+  openProject,
+  pickFolder,
+  type ProjectInfo,
+} from './project/projectStorage';
 
 /**
  * App composition root.
@@ -37,11 +45,17 @@ import {
 export default function App() {
   const [activeLayout, setActiveLayout] =
     createSignal<ActiveLayout>('custom');
+  const [project, setProject] = createSignal<ProjectInfo | null>(null);
+  const [projectLessAccepted, setProjectLessAccepted] = createSignal(false);
+  const [recents, setRecents] = createSignal<string[]>([]);
+  const [projectLessCwd, setProjectLessCwd] = createSignal<string | undefined>();
   let gridController: GridController | undefined;
 
   const onLayoutSelect = (preset: LayoutPreset) => {
     gridController?.applyPreset(preset);
   };
+
+  const showGrid = () => project() !== null || projectLessAccepted();
 
   // --- A7 callable seam (LAY-06/07) ----------------------------------------
   // A5 owns the workspace folder picker; until it lands, callers must
@@ -78,10 +92,46 @@ export default function App() {
     return true;
   };
 
+  const openSelectedProject = async (
+    path: string,
+    errorPrefix: string,
+  ): Promise<void> => {
+    try {
+      const info = await openProject(path);
+      setProject(info);
+      setProjectLessAccepted(true);
+      setRecents(await listRecents());
+      await Promise.resolve();
+      await applyDefaultLayout(info.path).catch((e) => {
+        console.warn('default layout skipped:', e);
+      });
+    } catch (e) {
+      console.error(errorPrefix, e);
+    }
+  };
+
+  const handleOpenFolder = async () => {
+    const picked = await pickFolder();
+    if (!picked) return;
+    await openSelectedProject(picked, 'open_project failed:');
+  };
+
+  const handleOpenRecent = (path: string) => {
+    void openSelectedProject(path, 'open_recent failed:');
+  };
+
+  onMount(() => {
+    void listRecents()
+      .then(setRecents)
+      .catch(() => setRecents([]));
+    void defaultCwd(null)
+      .then(setProjectLessCwd)
+      .catch(() => setProjectLessCwd(undefined));
+  });
+
   // Suppress unused warnings while keeping the symbols live for A7 wiring.
   void saveCurrentLayout;
   void loadLayoutByName;
-  void applyDefaultLayout;
 
   return (
     <div
@@ -94,19 +144,35 @@ export default function App() {
       }}
     >
       <Titlebar
+        projectName={project()?.name}
         activeLayout={activeLayout()}
         onLayoutSelect={onLayoutSelect}
       />
-      {/* A3: the binary-split grid fills the body (leaves are A2 panes). */}
-      <div style={{ flex: '1', 'min-height': '0', background: 'var(--bg-0)' }}>
-        <GridRoot
-          activeLayout={activeLayout}
-          onLayoutChange={(next) => setActiveLayout(next)}
-          controllerRef={(c) => {
-            gridController = c;
-          }}
-        />
-      </div>
+      <Show
+        when={showGrid()}
+        fallback={
+          <SetupWindow
+            recents={recents()}
+            onOpenProject={handleOpenFolder}
+            onOpenRecent={handleOpenRecent}
+            onStartProjectLess={() => setProjectLessAccepted(true)}
+          />
+        }
+      >
+        {/* A3: the binary-split grid fills the body (leaves are A2 panes). */}
+        <div
+          style={{ flex: '1', 'min-height': '0', background: 'var(--bg-0)' }}
+        >
+          <GridRoot
+            activeLayout={activeLayout}
+            onLayoutChange={(next) => setActiveLayout(next)}
+            controllerRef={(c) => {
+              gridController = c;
+            }}
+            projectCwd={project()?.path ?? projectLessCwd()}
+          />
+        </div>
+      </Show>
     </div>
   );
 }
