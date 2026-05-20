@@ -59,7 +59,10 @@ fn test_pty_spawn_env() {
         out.contains("T=xterm-256color"),
         "TERM not set; got: {out:?}"
     );
-    assert!(out.contains("C=truecolor"), "COLORTERM not set; got: {out:?}");
+    assert!(
+        out.contains("C=truecolor"),
+        "COLORTERM not set; got: {out:?}"
+    );
 }
 
 #[test]
@@ -69,10 +72,17 @@ fn test_pty_round_trip() {
     session.write(b"echo hi_marker_42\n").expect("write");
     let out = read_until(reader, "hi_marker_42", Duration::from_secs(8));
     session.kill().ok();
-    assert!(out.contains("hi_marker_42"), "round-trip failed; got: {out:?}");
+    assert!(
+        out.contains("hi_marker_42"),
+        "round-trip failed; got: {out:?}"
+    );
 
     // Session id is a UUID v4 (non-sequential — T-A2-03).
-    assert_eq!(session.id.get_version_num(), 4, "session id must be UUID v4");
+    assert_eq!(
+        session.id.get_version_num(),
+        4,
+        "session id must be UUID v4"
+    );
 }
 
 #[test]
@@ -86,7 +96,10 @@ fn test_pty_write_validation() {
     assert!(validate_write(b"ok").is_ok(), "normal payload must pass");
 
     let reg = PtyRegistry::default();
-    assert!(reg.get("no-such-session").is_none(), "unknown session = None");
+    assert!(
+        reg.get("no-such-session").is_none(),
+        "unknown session = None"
+    );
 }
 
 #[test]

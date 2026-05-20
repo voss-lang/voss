@@ -30,8 +30,7 @@ pub async fn spawn_pty(
     cwd: Option<String>,
     state: Reg<'_>,
 ) -> Result<String, String> {
-    let (session, reader, pause_rx) =
-        spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
+    let (session, reader, pause_rx) = spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
     let id = registry.insert(session);
     start_reader(id.clone(), reader, pause_rx, on_data, registry);
@@ -39,11 +38,7 @@ pub async fn spawn_pty(
 }
 
 #[tauri::command]
-pub async fn pty_write(
-    session_id: String,
-    data: Vec<u8>,
-    state: Reg<'_>,
-) -> Result<(), String> {
+pub async fn pty_write(session_id: String, data: Vec<u8>, state: Reg<'_>) -> Result<(), String> {
     validate_write(&data)?;
     let session = state.get(&session_id).ok_or("unknown session")?;
     session.write(&data).map_err(|e| e.to_string())
@@ -81,10 +76,7 @@ pub async fn pty_kill(session_id: String, state: Reg<'_>) -> Result<(), String> 
 }
 
 #[tauri::command]
-pub async fn get_fg_process(
-    session_id: String,
-    state: Reg<'_>,
-) -> Result<Option<String>, String> {
+pub async fn get_fg_process(session_id: String, state: Reg<'_>) -> Result<Option<String>, String> {
     let session = state.get(&session_id).ok_or("unknown session")?;
     let fd = match session.master_raw_fd() {
         Some(fd) => fd,

@@ -14,6 +14,7 @@ path = "src/lib.rs"
 tauri = { version = "2", features = ["wry"] }
 portable-pty = "0.9.0"
 nix = { version = "0.31", features = ["signal", "term", "process"] }
+git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 # Shared deps: inherit from [workspace.dependencies] — do NOT re-pin
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -21,6 +22,7 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
+dirs = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

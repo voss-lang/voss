@@ -2,16 +2,20 @@
 
 pub mod grid;
 pub mod layouts;
+pub mod project;
 pub mod pty;
 
 pub use grid::{sync_grid, GridState};
 pub use layouts::{
-    load_default_layout, load_layout, save_layout, list_layouts,
-    validate_layout_name, LayoutError, LayoutFile, CURRENT_LAYOUT_VERSION,
+    list_layouts, load_default_layout, load_layout, save_layout, validate_layout_name, LayoutError,
+    LayoutFile, CURRENT_LAYOUT_VERSION,
+};
+pub use project::{
+    default_cwd, list_recents, open_project, ProjectError, ProjectInfo, RecentsFile,
+    CURRENT_RECENTS_VERSION, RECENTS_CAP,
 };
 pub use pty::commands::{
-    get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty,
-    PtyEvent,
+    get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty, PtyEvent,
 };
 pub use pty::{PtyRegistry, PtySession};
 
