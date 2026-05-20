@@ -1,7 +1,6 @@
 import {
   collectLeaves,
   recomputeIndices,
-  type PaneLeaf,
   type TreeNode,
 } from './tree';
 import type { ActiveLayout, LayoutPreset } from './layoutPresets';

@@ -59,6 +59,7 @@ export default function PaneComponent(props: PaneProps) {
   let fgPoll: ReturnType<typeof setInterval> | undefined;
   let perfStop = false; // stops the test-only rAF perf probe on cleanup
   let bypassFlag = false; // one-shot ⌘⇧V paste bypass
+  let firstInputFired = false; // A6: one-shot first-input callback guard
   let lastOscTitleAt = 0; // ms; D-07 OSC-vs-pgid arbitration
   const copyMode = 'smart' as CopyMode; // D-06 configurable hook (A8 UI)
 
@@ -254,8 +255,38 @@ export default function PaneComponent(props: PaneProps) {
       lastOscTitleAt = Date.now();
       setProc(title);
     });
-    // Keystrokes → PTY.
-    t.onData((d) => writeStr(d));
+    // Keystrokes → PTY. Fire onFirstInput once for restore-banner dismiss (A6 D-09).
+    t.onData((d) => {
+      if (!firstInputFired && props.onFirstInput) {
+        firstInputFired = true;
+        props.onFirstInput();
+      }
+      writeStr(d);
+    });
+
+    // A6: seed restored scrollback before shell spawns (context only, not re-executed).
+    if (props.restoredScrollback && props.restoredScrollback.length > 0) {
+      t.write(props.restoredScrollback.join('\r\n') + '\r\n');
+    }
+
+    // A6: register scrollback provider — extracts plain text from buffer.normal (D-02/D-03).
+    const paneId = props.id ?? String(props.index ?? 1);
+    registerScrollbackProvider(paneId, () => {
+      const buf = t.buffer.normal;
+      const lines: string[] = [];
+      const totalRows = buf.length;
+      for (let i = 0; i < totalRows; i++) {
+        const line = buf.getLine(i);
+        if (line) {
+          lines.push(line.translateToString(true));
+        }
+      }
+      // Trim trailing empty lines (xterm pads the buffer to viewport height).
+      while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+        lines.pop();
+      }
+      return lines;
+    });
 
     await doSpawn(t);
 
@@ -312,6 +343,7 @@ export default function PaneComponent(props: PaneProps) {
     observer?.disconnect();
     dprMedia?.removeEventListener('change', onDpr);
     containerRef?.removeEventListener('paste', onPaste, true);
+    unregisterScrollbackProvider(props.id ?? String(props.index ?? 1));
     transport?.kill();
     term?.dispose();
   });

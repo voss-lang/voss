@@ -38,6 +38,10 @@ export default function SplitNodeView(props: {
   path: string;
   dims: () => Dims;
   closeUI?: CloseUI;
+  /** A6: per-pane restored scrollback keyed by saved pane id. */
+  restoredScrollbackByPaneId?: Record<string, string[]>;
+  /** A6: called once when user types into a restored pane. */
+  onPaneFirstInput?: (paneId: string) => void;
 }) {
   const asSplit = () => props.node as SplitNode;
   const asLeaf = () => props.node as PaneLeaf;
@@ -108,9 +112,12 @@ export default function SplitNodeView(props: {
           </Show>
           <div style={{ flex: 1, 'min-height': 0, position: 'relative' }}>
             <PaneComponent
+              id={asLeaf().id}
               cwd={asLeaf().cwd}
               shell={asLeaf().shell}
               index={asLeaf().index}
+              restoredScrollback={props.restoredScrollbackByPaneId?.[asLeaf().id]}
+              onFirstInput={() => props.onPaneFirstInput?.(asLeaf().id)}
             />
           </div>
         </div>
@@ -151,6 +158,8 @@ export default function SplitNodeView(props: {
               setStore={props.setStore}
               path={`${props.path}L`}
               dims={props.dims}
+              restoredScrollbackByPaneId={props.restoredScrollbackByPaneId}
+              onPaneFirstInput={props.onPaneFirstInput}
             />
             <DragHandle
               store={props.store}
@@ -175,6 +184,8 @@ export default function SplitNodeView(props: {
               setStore={props.setStore}
               path={`${props.path}R`}
               dims={props.dims}
+              restoredScrollbackByPaneId={props.restoredScrollbackByPaneId}
+              onPaneFirstInput={props.onPaneFirstInput}
             />
           </div>
         </div>
