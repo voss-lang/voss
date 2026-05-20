@@ -173,6 +173,71 @@ describe('CloseConfirmBanner + requestCloseGated (GRD-02, A2 D-07)', () => {
   });
 });
 
+describe('PaneHeader — tmux prefix indicator (A7-04)', () => {
+  it('renders [Cmd+B...] when prefixActive and prefixReserved are true', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={true}
+        cwd="/repo"
+        shell="zsh"
+        prefixActive={true}
+        prefixReserved={true}
+        onToggleMenu={() => {}}
+      />
+    ));
+    const indicator = el.querySelector('[data-testid="prefix-indicator"]')!;
+    expect(indicator.textContent).toBe('[Cmd+B...]');
+  });
+
+  it('does not render indicator text when prefixActive is false', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={true}
+        cwd="/repo"
+        shell="zsh"
+        prefixActive={false}
+        prefixReserved={true}
+        onToggleMenu={() => {}}
+      />
+    ));
+    const indicator = el.querySelector('[data-testid="prefix-indicator"]')!;
+    expect(indicator.textContent).toBe('');
+  });
+
+  it('does not render indicator element when prefixReserved is false', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={true}
+        cwd="/repo"
+        shell="zsh"
+        prefixActive={true}
+        prefixReserved={false}
+        onToggleMenu={() => {}}
+      />
+    ));
+    expect(el.querySelector('[data-testid="prefix-indicator"]')).toBeNull();
+  });
+
+  it('reserves 72px width for indicator', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={true}
+        cwd="/repo"
+        shell="zsh"
+        prefixActive={false}
+        prefixReserved={true}
+        onToggleMenu={() => {}}
+      />
+    ));
+    const indicator = el.querySelector('[data-testid="prefix-indicator"]') as HTMLElement;
+    expect(indicator.style.width).toBe('72px');
+  });
+});
+
 describe('SplitNode seam — chrome mounted per leaf (GRD-06)', () => {
   beforeEach(() => Object.values(ops).forEach((f) => f.mockClear()));
 
