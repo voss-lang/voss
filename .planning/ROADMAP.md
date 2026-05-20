@@ -1547,7 +1547,15 @@ Plans:
 
 **Scope:** Reviewer-A re-derives the bar from the original idea + authors verification (deterministic tests for code; eval harness for AI via `voss/eval/` reuse). Reviewer-B: independent session/model, no shared memory with A or EM, tiered (fast intermediate / strong at →Done), checks slop/errors/correctness, sees `[artifact, acceptance, repo, original_idea]`, **explicit authority to fail a card whose A-verification diverges from the idea** (residual-2 invariant). Depends O2, O3.
 
-**Requirements:** ORVW-01..0N — TBD by `O4-SPEC.md`.
+**Requirements:** ORVW-01 (A bar from idea), ORVW-02 (A test authoring for code), ORVW-03 (A judge_run for AI), ORVW-04 (B message isolation), ORVW-05 (B fast tier), ORVW-06 (B strong tier), ORVW-07 (Residual-2 block), ORVW-08 (fresh memory per A review), ORVW-09 (Protocol conformance), ORVW-10 (board lifecycle integration).
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] O4-01-PLAN.md — O3 preflight gate + RED test scaffolds for all 10 ORVW requirements (ORVW-01..10)
+- [ ] O4-02-PLAN.md — Reviewer-B: independent tiered judgment via single provider.complete() call (ORVW-04..07, ORVW-09)
+- [ ] O4-03-PLAN.md — Reviewer-A: bar authoring via run_turn + judge_run AI-card path (ORVW-01..03, ORVW-08, ORVW-09)
+- [ ] O4-04-PLAN.md — Integration test + final acceptance gate (ORVW-09, ORVW-10)
 
 ---
 
