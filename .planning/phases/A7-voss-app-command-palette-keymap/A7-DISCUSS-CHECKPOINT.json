@@ -1,0 +1,17 @@
+{
+  "phase": "A7",
+  "phase_name": "voss-app Command Palette + Keymap",
+  "timestamp": "2026-05-20T16:00:00Z",
+  "areas_completed": ["Command registry design"],
+  "areas_remaining": ["⌘P quick-open scope in L1", "tmux ⌘B prefix mode", "keymap.json override semantics"],
+  "decisions": {
+    "Command registry design": [
+      {"question": "How should the command system be organized?", "answer": "Central typed registry — one CommandRegistry Map<string, Command> with {id, label, category, keybinding?, handler}. Single source of truth for palette and keymap.", "options_presented": ["Central typed registry", "Distributed registration", "You decide"]},
+      {"question": "Should keymap.ts be refactored to dispatch through the registry?", "answer": "Registry dispatch replaces keymap.ts. Single dispatch path. A3 chords migrated to registry entries.", "options_presented": ["Registry dispatch replaces keymap.ts", "Dual path — grid keeps switch, palette uses registry", "You decide"]},
+      {"question": "How should command handlers receive app context?", "answer": "Single AppContext object built once at App.tsx mount, threaded into registry. Handlers destructure what they need.", "options_presented": ["Single AppContext object", "Scoped context per category", "You decide"]},
+      {"question": "Where does the native OS menu fit?", "answer": "Auto-generate Tauri native menu items from registry entries at app init. Categories map to menu groups.", "options_presented": ["Auto-generate from registry", "Stub for A7, real wiring in A8", "You decide"]}
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": [".planning/ROADMAP.md Phase A7", "apps/voss-app/CONCEPT.md", "apps/voss-app/FEATURES.md §L1.5", "apps/voss-app/src/grid/keymap.ts", "apps/voss-app/src/App.tsx"]
+}
