@@ -54,6 +54,9 @@ class SessionTreeNode:
     created_at: str
     ended_at: Optional[str]
     rejected_raises: list = field(default_factory=list)
+    # O3 OBRD-01 / R-01+R-03: per-card transition + retry history on the node.
+    transitions: list = field(default_factory=list)
+    retry_notes: list = field(default_factory=list)
     _budget: Optional[BudgetScope] = field(default=None, init=False, repr=False)
     _finalized: bool = field(default=False, init=False, repr=False)
 
@@ -86,6 +89,8 @@ _NODE_FIELDS = {f.name for f in dataclasses.fields(SessionTreeNode)}
 def _hydrate_node(data: dict) -> SessionTreeNode:
     kept = {k: v for k, v in data.items() if k in _NODE_FIELDS}
     kept.setdefault("rejected_raises", [])
+    kept.setdefault("transitions", [])
+    kept.setdefault("retry_notes", [])
     return SessionTreeNode(**kept)
 
 
@@ -147,6 +152,15 @@ class SessionTreeManager:
         self._cwd = cwd
         self._children: list[SessionTreeNode] = []
         self._lock = asyncio.Lock()
+
+    def get_node(self, node_id: str) -> SessionTreeNode | None:
+        """Lookup a node by id from root or children. Additive — preserves O1 SPEC-5."""
+        if self._root.id == node_id:
+            return self._root
+        for child in self._children:
+            if child.id == node_id:
+                return child
+        return None
 
     async def allocate_child(self, limit: int) -> SessionTreeNode:
         async with self._lock:

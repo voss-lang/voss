@@ -11,14 +11,24 @@ import { PtyTransport } from './pty-ipc';
 import PasteGuard from './PasteGuard';
 import ExitBanner from './ExitBanner';
 import FindBar from './FindBar';
+import {
+  registerScrollbackProvider,
+  unregisterScrollbackProvider,
+} from './scrollbackRegistry';
 
 export interface PaneProps {
+  /** Pane id for scrollback registry and restore keying (A6). */
+  id?: string;
   /** Working directory for the spawned shell; header shows its basename. */
   cwd?: string;
   /** $SHELL basename for the header shell slot (A2 = static; A8 wires real). */
   shell?: string;
   /** Pane index — A2 is always 1; A3 assigns real indices. */
   index?: number;
+  /** Session-restored scrollback lines to seed before shell interaction (A6 D-09). */
+  restoredScrollback?: string[];
+  /** Called once on first user input in a restored pane (dismiss RestoreBanner). */
+  onFirstInput?: () => void;
 }
 
 function basename(p: string): string {
@@ -49,6 +59,7 @@ export default function PaneComponent(props: PaneProps) {
   let fgPoll: ReturnType<typeof setInterval> | undefined;
   let perfStop = false; // stops the test-only rAF perf probe on cleanup
   let bypassFlag = false; // one-shot ⌘⇧V paste bypass
+  let firstInputFired = false; // A6: one-shot first-input callback guard
   let lastOscTitleAt = 0; // ms; D-07 OSC-vs-pgid arbitration
   const copyMode = 'smart' as CopyMode; // D-06 configurable hook (A8 UI)
 
@@ -244,8 +255,38 @@ export default function PaneComponent(props: PaneProps) {
       lastOscTitleAt = Date.now();
       setProc(title);
     });
-    // Keystrokes → PTY.
-    t.onData((d) => writeStr(d));
+    // Keystrokes → PTY. Fire onFirstInput once for restore-banner dismiss (A6 D-09).
+    t.onData((d) => {
+      if (!firstInputFired && props.onFirstInput) {
+        firstInputFired = true;
+        props.onFirstInput();
+      }
+      writeStr(d);
+    });
+
+    // A6: seed restored scrollback before shell spawns (context only, not re-executed).
+    if (props.restoredScrollback && props.restoredScrollback.length > 0) {
+      t.write(props.restoredScrollback.join('\r\n') + '\r\n');
+    }
+
+    // A6: register scrollback provider — extracts plain text from buffer.normal (D-02/D-03).
+    const paneId = props.id ?? String(props.index ?? 1);
+    registerScrollbackProvider(paneId, () => {
+      const buf = t.buffer.normal;
+      const lines: string[] = [];
+      const totalRows = buf.length;
+      for (let i = 0; i < totalRows; i++) {
+        const line = buf.getLine(i);
+        if (line) {
+          lines.push(line.translateToString(true));
+        }
+      }
+      // Trim trailing empty lines (xterm pads the buffer to viewport height).
+      while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+        lines.pop();
+      }
+      return lines;
+    });
 
     await doSpawn(t);
 
@@ -302,6 +343,7 @@ export default function PaneComponent(props: PaneProps) {
     observer?.disconnect();
     dprMedia?.removeEventListener('change', onDpr);
     containerRef?.removeEventListener('paste', onPaste, true);
+    unregisterScrollbackProvider(props.id ?? String(props.index ?? 1));
     transport?.kill();
     term?.dispose();
   });

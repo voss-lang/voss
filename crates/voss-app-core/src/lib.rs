@@ -4,6 +4,7 @@ pub mod grid;
 pub mod layouts;
 pub mod project;
 pub mod pty;
+pub mod session;
 
 pub use grid::{sync_grid, GridState};
 pub use layouts::{
@@ -13,6 +14,10 @@ pub use layouts::{
 pub use project::{
     default_cwd, list_recents, open_project, ProjectError, ProjectInfo, RecentsFile,
     CURRENT_RECENTS_VERSION, RECENTS_CAP,
+};
+pub use session::{
+    load_global_session, load_session, save_global_session, save_session, SessionError,
+    SessionFile, SessionPane, CURRENT_SESSION_VERSION,
 };
 pub use pty::commands::{
     get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty, PtyEvent,

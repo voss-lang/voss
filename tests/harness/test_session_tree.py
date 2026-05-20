@@ -33,6 +33,9 @@ _NODE_JSON_KEYS = frozenset(
         "created_at",
         "ended_at",
         "rejected_raises",
+        # O3 OBRD-01: per-card transition + retry history (additive).
+        "transitions",
+        "retry_notes",
     }
 )
 

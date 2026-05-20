@@ -113,9 +113,12 @@ class TestRunRecordRedaction:
             "exit_reason",
             "iteration_total_prompt_tokens",
             "iteration_total_completion_tokens",
+            # M15-05: skill audit events (additive, no credentials).
+            "skill_events",
+            "scope_denials",
         }
         assert set(asdict(rec).keys()) == expected
-        assert len(dataclasses.fields(RunRecord)) == 21
+        assert len(dataclasses.fields(RunRecord)) == 23
 
     def test_run_record_no_secret_patterns(self, state_dir, tmp_path):
         record = SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")

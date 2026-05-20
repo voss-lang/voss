@@ -72,8 +72,9 @@ legacy_state_dir = _legacy_state_dir
 # T2-03: extended with "batch-invariant" (PAR-02) — 5th additive value
 # surfaced when the partition scheduler raises BatchInvariantError.
 EXIT_REASONS: frozenset[str] = frozenset(
-    {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
+    {"done", "max-iter", "budget", "interrupt", "batch-invariant", "timeout"}
 )
+# O3 OBRD-09 / R-04: "timeout" added for forced-timeout cards (additive).
 
 
 @dataclass

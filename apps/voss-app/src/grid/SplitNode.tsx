@@ -7,6 +7,7 @@ import DragHandle, { type Dims } from './DragHandle';
 import PaneHeader from './PaneHeader';
 import DotMenu from './DotMenu';
 import CloseConfirmBanner, { requestCloseGated } from './CloseConfirmBanner';
+import RestoreBanner from './RestoreBanner';
 
 /**
  * A3-05 close gate injection (A2 D-07 black box). A2's `PaneComponent` does
@@ -38,6 +39,10 @@ export default function SplitNodeView(props: {
   path: string;
   dims: () => Dims;
   closeUI?: CloseUI;
+  /** A6: per-pane restored scrollback keyed by saved pane id. */
+  restoredScrollbackByPaneId?: Record<string, string[]>;
+  /** A6: called once when user types into a restored pane. */
+  onPaneFirstInput?: (paneId: string) => void;
 }) {
   const asSplit = () => props.node as SplitNode;
   const asLeaf = () => props.node as PaneLeaf;
@@ -106,11 +111,19 @@ export default function SplitNodeView(props: {
               onKeepOpen={() => setBanner(null)}
             />
           </Show>
+          <Show when={props.restoredScrollbackByPaneId?.[asLeaf().id]}>
+            <RestoreBanner
+              lineCount={props.restoredScrollbackByPaneId![asLeaf().id].length}
+            />
+          </Show>
           <div style={{ flex: 1, 'min-height': 0, position: 'relative' }}>
             <PaneComponent
+              id={asLeaf().id}
               cwd={asLeaf().cwd}
               shell={asLeaf().shell}
               index={asLeaf().index}
+              restoredScrollback={props.restoredScrollbackByPaneId?.[asLeaf().id]}
+              onFirstInput={() => props.onPaneFirstInput?.(asLeaf().id)}
             />
           </div>
         </div>
@@ -151,6 +164,8 @@ export default function SplitNodeView(props: {
               setStore={props.setStore}
               path={`${props.path}L`}
               dims={props.dims}
+              restoredScrollbackByPaneId={props.restoredScrollbackByPaneId}
+              onPaneFirstInput={props.onPaneFirstInput}
             />
             <DragHandle
               store={props.store}
@@ -175,6 +190,8 @@ export default function SplitNodeView(props: {
               setStore={props.setStore}
               path={`${props.path}R`}
               dims={props.dims}
+              restoredScrollbackByPaneId={props.restoredScrollbackByPaneId}
+              onPaneFirstInput={props.onPaneFirstInput}
             />
           </div>
         </div>
