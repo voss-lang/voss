@@ -22,17 +22,30 @@ The entire v0 binary. **Zero Voss code.** Ships as a competitive grid-native ter
 - System tray icon (linux/win) · menu bar (mac).
 - Full-screen, zoom, multi-monitor support.
 
-### L1.1.2 Themes
+### L1.1.2 Themes → **expanded in A8 (Workspaces, UX Polish, & Theming)**
 - Dark default = sketch 001 Variant B tokens.
 - Color tokens: `--bg-0..3`, `--fg-0..3`, `--border`, `--focus`, accent colors (green/amber/red/cyan/magenta/blue).
 - Mono font: JetBrains Mono default, configurable.
-- Light theme deferred to L4+.
+- **VSCode theme import engine** — parse popular theme JSONs → map to voss-app token system.
+- **Bundled themes (dark):** One Dark Pro, Dracula, Catppuccin Mocha, Gruvbox Dark, Tokyo Night, Nord, Monokai Pro, Solarized Dark, plus Variant B (default).
+- **Bundled themes (light):** Catppuccin Latte, Solarized Light, GitHub Light.
+- **Custom themes:** `.voss/themes/<name>.json` with documented schema.
+- **Live preview:** hover theme in settings → instant preview. Click to apply. No restart.
 
-### L1.1.3 Distribution → **delivered in A10, not A1**
-- Release pipeline is the **final gate** — app does not ship until A1–A9 built. All distribution work consolidated into phase **A10** (REL-01..0N).
+### L1.1.3 Workspaces → **delivered in A8**
+- Workspace tab bar at top of window (below titlebar, above pane area). Each tab = one workspace with isolated pane tree.
+- Warp-style: named, color-coded tabs, `+` button to add new workspace.
+- New workspace picker: select directory, shell, layout preset.
+- Each workspace owns its own pane tree, cwd, layout, session state.
+- Switch hotkeys: `⌃1`–`⌃9` for workspace tabs, `⌃Tab`/`⌃⇧Tab` cycle.
+- Drag-to-reorder tabs. Double-click to rename. Context menu: rename, color, close.
+- All workspaces persist across app restart (extends A6 session persist).
+
+### L1.1.4 Distribution → **delivered in A11, not A1**
+- Release pipeline is the **final gate** — app does not ship until A1–A10 built. All distribution work consolidated into phase **A11** (REL-01..0N).
 - Three channels (Q8): direct signed DMG/AppImage/MSI on GitHub Releases · Homebrew cask (`brew install --cask voss-ade`) · npm subcommand (`@vosslang/cli voss app`).
 - Auto-updater via Tauri updater (GitHub Releases backend, direct channel).
-- Code signing: mac Developer ID + notarization, win Authenticode. **Cert procurement is the long-pole — start during A1, wire in A10.**
+- Code signing: mac Developer ID + notarization, win Authenticode. **Cert procurement is the long-pole — start during A1, wire in A11.**
 - A1 only ships an unsigned local `pnpm tauri build` smoke artifact.
 
 ## L1.2 Workspace & Project
@@ -259,12 +272,14 @@ ALL of these must work, repeatable, without bugs:
 9. Save layout as "build-watch". Reload layout from palette.
 10. Run `vim`, `htop`, `tmux` inside a pane — full TTY support including alt-screen.
 11. Copy text from one pane, paste into another.
-12. Quit app. Reopen. Project + panes restored (processes re-launched by user).
-13. Open settings, change theme, font size, shell. Persists across restart.
-14. Customize a keybinding. Persists.
-15. No crashes or PTY leaks over a 24-hour soak test with 8 active panes.
+12. Open 3 workspace tabs with independent projects. `⌃1`/`⌃2`/`⌃3` switches instantly.
+13. Quit app. Reopen. All workspaces + panes restored (processes re-launched by user).
+14. Open settings, change theme (e.g., Dracula), font size, shell. Persists across restart.
+15. Customize a keybinding. Persists.
+16. High-contrast mode renders all text at WCAG AAA.
+17. No crashes or PTY leaks over a 24-hour soak test with 8 active panes across 3 workspaces.
 
-If any of 1–15 fails, L1/v0 doesn't ship.
+If any of 1–17 fails, L1/v0 doesn't ship.
 
 ---
 

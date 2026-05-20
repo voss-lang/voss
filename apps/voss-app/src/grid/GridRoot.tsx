@@ -15,6 +15,8 @@ import {
   type LayoutPreset,
 } from './layoutPresets';
 import { markStructuralChange } from './sync';
+import { applyLoadedLayout } from './layoutCommands';
+import type { LayoutFile } from './layoutStorage';
 import SplitNodeView, { type CloseUI } from './SplitNode';
 import { requestCloseGated } from './CloseConfirmBanner';
 import type { Dims } from './DragHandle';
@@ -86,6 +88,10 @@ export function minGridSize(
  */
 export type GridController = {
   applyPreset: (preset: LayoutPreset) => void;
+  /** Apply a loaded LayoutFile to the live store — never destroys panes (A4-04). */
+  applyLoadedLayout: (file: LayoutFile) => void;
+  /** Plain-JS snapshot of the grid state for serialization (A4-04 D-07). */
+  snapshot: () => { root: TreeNode; focusedId: string };
 };
 
 export default function GridRoot(props: {
@@ -132,6 +138,39 @@ export default function GridRoot(props: {
     markStructuralChange(store);
     props.onLayoutChange?.(preset);
   };
+
+  /**
+   * Apply a loaded LayoutFile to the live store. Spread-clones existing
+   * leaves first so `applyLoadedLayout` operates on plain JS, never a
+   * draft proxy (memory: voss-app-solid-produce-no-structuredclone). The
+   * function may spawn new panes (saved > current) or spill extras
+   * (saved < current); A4-04 guarantees no pane id is dropped.
+   */
+  const applyLoadedLayoutToStore = (file: LayoutFile) => {
+    let nextActive: ActiveLayout = 'custom';
+    setStore(
+      produce((s) => {
+        const leaves: PaneLeaf[] = collectLeaves(s.root).map(
+          (l) => ({ ...l }) as PaneLeaf,
+        );
+        const result = applyLoadedLayout(leaves, file);
+        s.root = result.root;
+        s.focusedId = result.focusedId;
+        nextActive = result.activeLayout;
+      }),
+    );
+    markStructuralChange(store);
+    props.onLayoutChange?.(nextActive);
+  };
+
+  /** Plain-JS snapshot for `serializeLayout`. */
+  const snapshot = (): { root: TreeNode; focusedId: string } => ({
+    // JSON-clone strips Solid proxies and any non-canonical runtime fields
+    // (D-07: PTY ids / scrollback / processName MUST NOT leak into the
+    // serialized layout).
+    root: JSON.parse(JSON.stringify(store.root)) as TreeNode,
+    focusedId: store.focusedId,
+  });
 
   const onKey = (e: KeyboardEvent) => {
     if (!e.metaKey) return; // every A3 chord needs ⌘ — let the PTY have it
@@ -183,7 +222,11 @@ export default function GridRoot(props: {
   onMount(() => {
     window.addEventListener('keydown', onKey);
     window.addEventListener('resize', onResize);
-    props.controllerRef?.({ applyPreset: applyPresetToStore });
+    props.controllerRef?.({
+      applyPreset: applyPresetToStore,
+      applyLoadedLayout: applyLoadedLayoutToStore,
+      snapshot,
+    });
   });
   onCleanup(() => {
     window.removeEventListener('keydown', onKey);

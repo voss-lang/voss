@@ -1,0 +1,22 @@
+{
+  "id": "22e781859c12",
+  "name": "py-session",
+  "cwd": "/Users/benjaminmarks/Projects/Voss",
+  "model": "claude-sonnet-4-5",
+  "started_at": "2026-05-19T23:50:14+00:00",
+  "updated_at": "2026-05-19T23:50:14+00:00",
+  "total_cost_usd": 0.0,
+  "turns": [
+    {
+      "role": "user",
+      "content": "hi"
+    },
+    {
+      "role": "assistant",
+      "content": "ok"
+    }
+  ],
+  "runs": [],
+  "parent_id": null,
+  "parent_turn_index": null
+}

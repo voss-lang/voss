@@ -1,9 +1,10 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use voss_app_core::grid::{self, GridState};
+use voss_app_core::layouts::{self, LayoutFile};
 use voss_app_core::pty::reader::start_reader;
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_session};
@@ -150,6 +151,51 @@ fn get_grid(state: GridSlot<'_>) -> Result<GridState, String> {
     grid::snapshot(state.inner())
 }
 
+// ---- Layout persistence commands (A4-03, LAY-06/07) -----------------------
+// Thin app-level wrappers over `voss_app_core::layouts`. Same cross-crate
+// `generate_handler!` constraint as the PTY and grid commands above — the
+// core's own `#[tauri::command]` macros are not in scope here.
+//
+// `workspace_path` is the absolute path to the open project root; the
+// frontend resolves it via the A5 project-open seam (until A5 lands the
+// frontend passes the CWD of the focused pane or the user's home).
+// Errors propagate as `LayoutError`'s Display strings — those match the
+// A4-UI-SPEC error copy exactly, so the renderer can surface them
+// verbatim.
+
+#[tauri::command]
+fn save_layout(
+    workspace_path: String,
+    name: String,
+    layout: LayoutFile,
+) -> Result<(), String> {
+    layouts::save_layout(Path::new(&workspace_path), &name, &layout)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_layout(
+    workspace_path: String,
+    name: String,
+) -> Result<LayoutFile, String> {
+    layouts::load_layout(Path::new(&workspace_path), &name)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_layouts(workspace_path: String) -> Result<Vec<String>, String> {
+    layouts::list_layouts(Path::new(&workspace_path))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_default_layout(
+    workspace_path: String,
+) -> Result<Option<LayoutFile>, String> {
+    layouts::load_default_layout(Path::new(&workspace_path))
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -167,6 +213,10 @@ pub fn run() {
             get_fg_process,
             sync_grid,
             get_grid,
+            save_layout,
+            load_layout,
+            list_layouts,
+            load_default_layout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

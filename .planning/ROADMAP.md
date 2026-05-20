@@ -3,9 +3,9 @@
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure → desktop ADE scaffold
 **Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`)
-**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A10 (counts TBD by SPEC.md)
+**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A11 (counts TBD by SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A10 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Last updated:** 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -35,16 +35,17 @@
 | T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
 | T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | **Complete** (5/5 plans, 2026-05-18) |
-| A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A10) | SHL-01..06 | 4 plans, 4 waves |
+| A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A11) | SHL-01..06 | 4 plans, 4 waves |
 | A2 | voss-app PTY Pane | One xterm pane wired to native PTY, full TTY support, scrollback, copy/paste | PTY-01..0N (TBD by SPEC.md) | TBD |
 | A3 | voss-app Grid Engine | Binary-split tree, splits/focus/resize/close, `⌘1-9` nav, save/load layout | GRD-01..0N (TBD by SPEC.md) | TBD |
 | A4 | voss-app Layout Presets | Fanout/pipeline/swarm/watchers visual templates, `⌘G` cycle, reorder w/o killing panes | LAY-01..0N (TBD by SPEC.md) | TBD |
 | A5 | voss-app Project Open | Folder picker, recents, `.voss/` lazy create, git branch read, project-less mode | WS-01..0N (TBD by SPEC.md) | TBD |
 | A6 | voss-app Session Persist | Pane tree + cwd + truncated scrollback restore across restart | PER-01..0N (TBD by SPEC.md) | TBD |
 | A7 | voss-app Cmd Palette + Keymap | `⌘P`/`⌘⇧P`, VSCode-default profile + tmux additions, custom map via `.voss/keymap.json` | CMD-01..0N (TBD by SPEC.md) | TBD |
-| A8 | voss-app Settings + Theme | Two-pane settings UI, JSON-backed, Variant B token system, font/shell config | CFG-01..0N (TBD by SPEC.md) | TBD |
-| A9 | voss-app Status Bar | Project · branch · pane count · cost meter stub · notifications bell · click-to-popover | BAR-01..0N (TBD by SPEC.md) | TBD |
-| A10 | voss-app Onboarding + Release Pipeline | First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update). v0 SHIP GATE | OBD-01..0N + REL-01..0N (TBD by SPEC.md) | TBD |
+| A8 | voss-app Workspaces, UX Polish, & Theming | Workspace tab bar (Warp-style), VSCode theme import engine, settings pane, appearance polish, accessibility, profiles, platform-native feel | UXP-01..0N (TBD by SPEC.md) | TBD |
+| A9 | voss-app Settings + Theme | Two-pane settings UI, JSON-backed, Variant B token system, font/shell config | CFG-01..0N (TBD by SPEC.md) | TBD |
+| A10 | voss-app Status Bar | Project · branch · pane count · cost meter stub · notifications bell · click-to-popover | BAR-01..0N (TBD by SPEC.md) | TBD |
+| A11 | voss-app Onboarding + Release Pipeline | First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update). v0 SHIP GATE | OBD-01..0N + REL-01..0N (TBD by SPEC.md) | TBD |
 | O1 | Session-Tree Substrate + Budget Fan-out | Parent→child session tree; per-card budget envelope; reserved drain budget; hard non-extendable caps (keystone) | OST-01..0N (TBD by SPEC.md) | TBD |
 | O2 | `.voss team{}` Spec + Specialist Roster | `team{}` parser → enriched SubagentSpec (model/mode/scope/budget/tools); EM-immutable ceiling/p; backend/frontend/ui/ai roster | OTEAM-01..0N (TBD by SPEC.md) | TBD |
 | O3 | Board State Machine + Gated Transitions | Columns, per-column WIP, gate predicates, →Done double gate, critic-loop ceiling+budget, timeout→Blocked | OBRD-01..0N (TBD by SPEC.md) | TBD |
@@ -1073,9 +1074,9 @@ Plans:
 **Track:** voss-app — terminal-grid desktop ADE in `apps/voss-app/`. Sibling deliverable to the Python harness. Tauri (Rust core) + Solid (webview UI) + xterm.js + `portable-pty`.
 
 **Layering** (full detail in `apps/voss-app/CONCEPT.md`):
-- **Layer 1 / v0 = A1–A10** — terminal-grid scaffold. **Zero Voss code in binary.** Ships as competitive Warp/Wezterm alternative.
-- **Layer 2 / v1 = A11+** — Voss harness substrate. Promote-to-cell, streaming render, permissions, reviewer-as-pair-programmer demo. Locks once L1 ships.
-- **Layer 3 / v2 = A20+** — `.voss` DSL features (hot-reload, inter-cell DSL wiring, curated loop library).
+- **Layer 1 / v0 = A1–A11** — terminal-grid scaffold. **Zero Voss code in binary.** Ships as competitive Warp/Wezterm alternative.
+- **Layer 2 / v1 = A12+** — Voss harness substrate. Promote-to-cell, streaming render, permissions, reviewer-as-pair-programmer demo. Locks once L1 ships.
+- **Layer 3 / v2 = A21+** — `.voss` DSL features (hot-reload, inter-cell DSL wiring, curated loop library).
 - **Layer 4+ / deferred** — Monaco editor pane, file tree, SCM, search. Uncommitted; evaluate post-L3.
 
 **Reference design:** sketch 001 Variant B (Minimal Tile) — `.planning/sketches/001-voss-grid-shell/`. 22px headers, thin 1px borders, mono everywhere, glyph-prefix lines, inset-shadow focus.
@@ -1084,14 +1085,15 @@ Plans:
 - v0 must be usable as a daily terminal without the word "Voss" appearing in the UI beyond the app name.
 - `.voss/` directory is forward-compat only in L1 (empty unless user customizes settings) — schema versioned `{"version": 1}`.
 - Cost meter in status bar is stubbed `$0.00` in L1; comes alive in L2.
-- All A phases share the Variant B aesthetic tokens — no per-phase visual re-exploration.
+- All A phases share the Variant B aesthetic tokens (default) — A8 adds a full theme engine with VSCode theme import, but Variant B remains the canonical default.
+- **Workspaces (A8) are the top-level container** — each workspace owns an isolated pane tree, project cwd, layout, and session state. A5 (Project Open) handles folder-picker mechanics; A6 (Session Persist) extends to multi-workspace persistence; A10 (Status Bar) scopes to active workspace.
 - Project-wide spec-blocking questions **closed 2026-05-16** — full decisions in `apps/voss-app/CONCEPT.md` §10. Highlights: ship name = **Voss ADE** (Q1); auto-`$SHELL` on pane open (Q2); banner + restart on exit (Q3); pure-visual presets in L1 (Q4); first-class project-less mode (Q5); no cost meter in L1 (Q6); lazy `.voss/` creation (Q7); three distribution channels — Direct + Homebrew + npm subcommand (Q8); telemetry OFF default, opt-in (Q9).
 
 ---
 
 ### Phase A1: voss-app Tauri Shell
 
-**Goal:** Tauri + Solid empty window builds and runs locally on the dev's platform with custom titlebar and theme tokens applied. **No release pipeline, no signing, no distribution channels** — that work is consolidated into A10 (release is a final gate; the app does not ship until A1–A9 are built).
+**Goal:** Tauri + Solid empty window builds and runs locally on the dev's platform with custom titlebar and theme tokens applied. **No release pipeline, no signing, no distribution channels** — that work is consolidated into A11 (release is a final gate; the app does not ship until A1–A10 are built).
 
 **Requirements (locked at SPEC):** SHL-01..06
 - SHL-01 Tauri version pinned (2.x recommended; SPEC confirms).
@@ -1111,11 +1113,11 @@ Plans:
 - [ ] A1-01-PLAN.md — Monorepo wiring + Tauri/Solid/Tailwind scaffold + pinned versions; empty 'Voss ADE' window (SHL-01, SHL-06)
 - [ ] A1-02-PLAN.md — Full Variant B token system + Tailwind @theme inline + Rust get_theme_overrides settings seam (SHL-02)
 - [ ] A1-03-PLAN.md — Custom 22px titlebar + macOS traffic-light controls + visual-only preset switcher (SHL-03, SHL-04)
-- [ ] A1-04-PLAN.md — Hardened CSP + unsigned `pnpm tauri build` smoke + About-panel ship name + A10 cert-procurement clock (SHL-05, SHL-06)
+- [ ] A1-04-PLAN.md — Hardened CSP + unsigned `pnpm tauri build` smoke + About-panel ship name + A11 cert-procurement clock (SHL-05, SHL-06)
 
 **Cross-cutting constraints:**
 - No xterm, no PTY, no grid in A1 — pure window scaffolding.
-- **No release/CI/signing/Homebrew/npm work in A1** — moved to A10.
+- **No release/CI/signing/Homebrew/npm work in A1** — moved to A11.
 - Settings load from `~/.config/voss-app/settings.json` if present; else baked defaults.
 - `apps/voss-app/src-tauri/` is a new Rust crate consuming `crates/voss-app-core/` (created empty here, populated by later A phases).
 
@@ -1293,7 +1295,71 @@ Plans:
 
 ---
 
-### Phase A8: voss-app Settings + Theme
+### Phase A8: voss-app Workspaces, UX Polish, & Theming
+
+**Goal:** Workspace tab bar (Warp-style multi-project tabs), VSCode theme import engine with bundled popular themes, appearance polish (vibrancy, animations, font management), accessibility foundations, setting profiles, and platform-native window chrome. Turns voss-app from a functional terminal into an app people *want* to use daily.
+
+**Requirements (locked at SPEC):** UXP-01..0N
+
+*Workspaces — UXP-01..08:*
+- UXP-01 Workspace tab bar at top of window (below titlebar, above pane area). Each tab = one workspace. Warp-style: named, color-coded, `+` button to add.
+- UXP-02 Each workspace owns an isolated pane tree, cwd, layout preset, session state. Switching workspaces swaps the entire pane area.
+- UXP-03 `+` button opens a workspace picker: select directory, shell, layout preset. (L2 will add agent selection.)
+- UXP-04 Workspace accent color: user picks per-workspace, or auto-derived from project name hash.
+- UXP-05 Switch hotkeys: `⌃1`–`⌃9` for workspace tabs (`⌘1`–`⌘9` stays pane focus). `⌃Tab` / `⌃⇧Tab` cycle workspaces.
+- UXP-06 Workspace persistence: all open workspaces restore on app relaunch (extends A6 session persist to multi-workspace).
+- UXP-07 Drag-to-reorder workspace tabs. Double-click tab to rename. Context menu: rename, color, close.
+- UXP-08 Close workspace: confirm if any pane has a running process. Last workspace can't be closed (app stays open with empty workspace).
+
+*Theme Engine — UXP-09..14:*
+- UXP-09 VSCode theme import: parse `.json` theme files from popular VSCode themes and map `tokenColors` + `colors` → voss-app CSS variable token system (`--bg-0..3`, `--fg-0..3`, `--border`, `--focus`, accent colors).
+- UXP-10 Ship 8 bundled themes: One Dark Pro, Dracula, Catppuccin Mocha, Gruvbox Dark, Tokyo Night, Nord, Monokai Pro, Solarized Dark. Plus Variant B (default).
+- UXP-11 Light themes: Catppuccin Latte, Solarized Light, GitHub Light. (Variant B light variant deferred — can be added later via the same engine.)
+- UXP-12 Live theme preview: hover theme in settings → panes + chrome preview instantly. Click to apply. No restart.
+- UXP-13 Custom theme authoring via `.voss/themes/<name>.json` with documented JSON schema.
+- UXP-14 Theme hot-swap: switching theme updates all open workspaces + panes in ≤100ms.
+
+*Appearance & Polish — UXP-15..20:*
+- UXP-15 Window opacity/vibrancy: macOS `NSVisualEffectView` behind webview, Windows acrylic/mica (platform-gated). Configurable opacity slider (0.5–1.0).
+- UXP-16 Font picker with live preview: family, size, line-height, letter-spacing, ligature toggle. Bundled fallback: JetBrains Mono.
+- UXP-17 Cursor customization: block/bar/underline shape, blink rate (off/slow/fast), cursor color follows theme or override.
+- UXP-18 Smooth transitions: pane split/close animations (150ms ease), focus transition (opacity shift), layout preset switch (200ms reflow). All respect `prefers-reduced-motion`.
+- UXP-19 Pane chrome refinement: hover states on resize handles, subtle drag affordance, consistent focus indicator across themes.
+- UXP-20 Window corner radius + shadow consistency across platforms.
+
+*Accessibility — UXP-21..24:*
+- UXP-21 High-contrast mode: overrides theme with WCAG AAA contrast ratios. Toggleable in settings.
+- UXP-22 `prefers-reduced-motion` respected globally: disables all transitions/animations when OS preference set.
+- UXP-23 Minimum font size floor (10px) enforced regardless of settings.
+- UXP-24 Bell behavior: visual flash / audible / none / badge-only. Configurable per-workspace.
+
+*Profiles — UXP-25..27:*
+- UXP-25 Named setting profiles: user creates profiles (e.g., "Work", "Personal", "Presentation"). Profile = snapshot of appearance + terminal + layout settings.
+- UXP-26 Quick-switch via command palette ("Switch Profile → Work") or workspace tab context menu.
+- UXP-27 Profiles stored at `~/.config/voss-app/profiles/<name>.json`. Workspace can pin a profile.
+
+*Platform-Native Feel — UXP-28..30:*
+- UXP-28 macOS: proper traffic-light positioning with vibrancy, native menu bar wraps command registry, system appearance follows light/dark.
+- UXP-29 Windows: proper title bar with snap layout support (Win+arrow), acrylic backdrop, taskbar integration.
+- UXP-30 Linux: desktop entry + `.desktop` file, tray icon, proper window manager hints (WM_CLASS).
+
+**Success Criteria (proposed):**
+1. Open 3 workspace tabs (Wineberry, Voss, Claude Code). Each has independent pane trees. `⌃1`/`⌃2`/`⌃3` switches instantly.
+2. Import a VSCode theme (Dracula) → all panes + chrome update live without restart.
+3. Quit app with 3 workspaces → reopen → all 3 restore with correct layouts + cwds.
+4. Switch to high-contrast mode → all text meets WCAG AAA.
+5. Create "Presentation" profile with large font + light theme → quick-switch from palette.
+6. macOS vibrancy visible through pane backgrounds when opacity < 1.0.
+
+**Cross-cutting constraints:**
+- Workspace tabs live between titlebar and pane area — titlebar (A1) rendered above, status bar (A10) below.
+- A5 (Project Open) scopes down: "open folder" becomes "open folder in current workspace" or "new workspace for folder." Folder-picker + git-read mechanics stay in A5; workspace *container* is A8.
+- A6 (Session Persist) extends: `session.json` becomes `session.json` per workspace, plus a top-level `workspaces.json` index.
+- Theme engine supersedes the narrow Variant B token override from old A8 (now A9). A9 settings UI references themes delivered here.
+
+---
+
+### Phase A9: voss-app Settings + Theme
 
 **Goal:** Two-pane settings UI (search + categories left, form right) backed by JSON files. Variant B token system applied as theme. Font, shell, telemetry-consent UX all live here.
 
@@ -1301,7 +1367,7 @@ Plans:
 - CFG-01 User settings: `~/.config/voss-app/settings.json`. Workspace settings: `.voss/settings.json`. Workspace wins.
 - CFG-02 Two-pane UI: search + nav left (Appearance · Terminal · Layout · Keybindings · Project · Updates · Telemetry), form right.
 - CFG-03 Each form value has "Edit as JSON" link → opens raw settings file in OS default editor.
-- CFG-04 Theme tokens delivered as CSS variables (sketch 001 Variant B canonical set). Token override via `.voss/theme.css` or settings.
+- CFG-04 Theme tokens delivered as CSS variables (sketch 001 Variant B canonical set). Token override via `.voss/theme.css` or settings. **Theme engine from A8 provides the full theme catalog; A9 provides the settings surface to select/configure them.**
 - CFG-05 Font (family + size + line-height), cursor shape, scrollback size, default shell all configurable.
 - CFG-06 Telemetry section: all toggles OFF default. Crash reports + usage analytics opt-in, both clearly labelled.
 - CFG-07 Settings hot-reload: change → next pane open uses new defaults; live panes ask before retroactive changes.
@@ -1314,17 +1380,18 @@ Plans:
 **Cross-cutting constraints:**
 - CONCEPT §10 Q9 (telemetry policy) must close before SPEC.
 - Settings schema validated by JSONSchema or similar (decision at SPEC).
+- A9 settings UI surfaces themes, profiles, and accessibility controls delivered by A8.
 
 ---
 
-### Phase A9: voss-app Status Bar
+### Phase A10: voss-app Status Bar
 
-**Goal:** Bottom status bar: project · branch · active pane info · pane count · cost-meter stub · notifications bell. Click any cluster for popover detail.
+**Goal:** Bottom status bar: project · branch · active pane info · pane count · cost-meter stub · notifications bell. Click any cluster for popover detail. **With A8 workspaces, status bar is per-workspace** — shows info for the active workspace's focused pane.
 
 **Requirements (locked at SPEC):** BAR-01..0N
-- BAR-01 Left cluster: project name (click → recents), git branch (read-only display).
+- BAR-01 Left cluster: project name (click → recents), git branch (read-only display). **Workspace-aware: shows active workspace's project.**
 - BAR-02 Center cluster: focused pane cwd · shell · pid.
-- BAR-03 Right cluster: pane count `▢ N`, notifications bell with badge, settings cog. **No cost meter slot in L1** (Q6 decision — added in L2 with cell promotion).
+- BAR-03 Right cluster: pane count `▢ N` (for active workspace), notifications bell with badge, settings cog. **No cost meter slot in L1** (Q6 decision — added in L2 with cell promotion).
 - BAR-04 Click clusters → popovers with full detail (focus history, branch switcher placeholder, notification log).
 - BAR-05 Status bar height fixed (22px Variant B), single dense line, mono font.
 - BAR-06 Updates on every focus change + every git ref change (file watcher).
@@ -1336,26 +1403,28 @@ Plans:
 2. Pane count updates instantly on split/close.
 3. Project-less status bar renders without branch/project clusters.
 4. Notification log persists across restart (last 50).
+5. Switching workspace tabs → status bar updates to reflect new workspace's state.
 
 **Cross-cutting constraints:**
 - Q6 closed: no cost meter in L1. L2 status bar work will add the slot (planned minor reflow accepted).
+- Status bar scoped to active workspace (A8). Pane count, branch, cwd all reflect active workspace only.
 
 ---
 
-### Phase A10: voss-app Onboarding + Release Pipeline (v0 SHIP GATE)
+### Phase A11: voss-app Onboarding + Release Pipeline (v0 SHIP GATE)
 
-**Goal:** First-run wizard, empty-state UI, soak-test hardening, AND the entire release pipeline (signing + 3 distribution channels + auto-update + version-sync). This is the final gate — the app does not release until A1–A9 are built and stable. All distribution work deferred from A1 lands here.
+**Goal:** First-run wizard, empty-state UI, soak-test hardening, AND the entire release pipeline (signing + 3 distribution channels + auto-update + version-sync). This is the final gate — the app does not release until A1–A10 are built and stable. All distribution work deferred from A1 lands here.
 
 **Requirements (locked at SPEC):**
 
 *Onboarding + polish — OBD-01..0N:*
-- OBD-01 First-run wizard: welcome → pick theme → pick shell → done. No API keys requested (L1 has no Voss).
+- OBD-01 First-run wizard: welcome → pick workspace name → pick theme → pick shell → done. No API keys requested (L1 has no Voss).
 - OBD-02 Empty-state UI for project-less new window: prompt "Open folder" or "Start without a project".
 - OBD-03 Empty pane area shows keyboard hint `⌘\` split / `⌘O` open project.
 - OBD-04 Keybind cheatsheet modal via Help menu, scrollable, categorized.
 - OBD-05 In-app docs link to website docs; changelog modal.
 - OBD-06 Crash reporter pipeline (off by default; opt-in CFG-06): captures stderr + last 500 log lines + system info on panic, queues for upload.
-- OBD-07 24-hour soak test: 8 panes, mixed alt-screen + scrolling output, no PTY leaks, no memory growth > 100MB.
+- OBD-07 24-hour soak test: 8 panes across 3 workspaces, mixed alt-screen + scrolling output, no PTY leaks, no memory growth > 100MB.
 - OBD-08 Bug-report flow: Help → "Report Issue" opens prefilled GitHub issue with app version + platform.
 
 *Release pipeline — REL-01..0N (deferred from A1 per 2026-05-16 decision):*
@@ -1383,15 +1452,16 @@ Plans:
 12. Save + reload layout via palette.
 13. `vim`/`htop`/`tmux` work inside a pane.
 14. Copy/paste across panes.
-15. Quit + reopen restores layout.
+15. Quit + reopen restores layout + all workspaces.
 16. Settings persist (theme + font + shell + keybind).
-17. 24hr soak with 8 panes — no crashes, no PTY leaks.
-18. Crash reporter activates if app panics (opt-in pipeline tested).
-19. Bug-report flow opens prefilled GH issue.
+17. 3 workspace tabs with independent pane trees — switch instantly.
+18. 24hr soak with 8 panes across 3 workspaces — no crashes, no PTY leaks.
+19. Crash reporter activates if app panics (opt-in pipeline tested).
+20. Bug-report flow opens prefilled GH issue.
 
 **Cross-cutting constraints:**
-- A10 is the integration + release phase — assumes A1–A9 complete and stable.
-- Cert procurement (REL-02) is the long-pole — kick off procurement during A1, even though the wiring lands in A10.
+- A11 is the integration + release phase — assumes A1–A10 complete and stable.
+- Cert procurement (REL-02) is the long-pole — kick off procurement during A1, even though the wiring lands in A11.
 - Failing any acceptance criterion = v0 doesn't ship.
 
 ---
@@ -1449,7 +1519,15 @@ Plans:
 
 **Scope:** `SubagentSpec` extended with model/mode/scope/budget/tools per role; backend/frontend/ui/ai roster; EM-immutable `ceiling`/`p` blocks; per-role permission/tool profile (AI role gets `net`). Depends O1 (specs carry budget/scope that need the tree).
 
-**Requirements:** OTEAM-01..0N — TBD by `O2-SPEC.md`.
+**Requirements:** OTEAM-01, OTEAM-02, OTEAM-03, OTEAM-04, OTEAM-05, OTEAM-06, OTEAM-07, OTEAM-08 (derived in `O2-RESEARCH.md`; no O2-SPEC.md — requirements ratified inline at planning).
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] O2-01-PLAN.md — Grammar + AST nodes + transformer for `team{}` block; frozen value-object shells (OTEAM-01, OTEAM-04, OTEAM-08)
+- [ ] O2-02-PLAN.md — `SubagentSpec` extension + `compile_team` + scope-containment validator (OTEAM-02, OTEAM-03, OTEAM-05, OTEAM-06)
+- [ ] O2-03-PLAN.md — Per-role `gate_for_role` + tool filter + per-gate `allow_net` override; AI-vs-engineer net cage (OTEAM-03, OTEAM-07)
+
 
 ---
 
@@ -1459,7 +1537,15 @@ Plans:
 
 **Scope:** `Backlog→Planned→InProgress→InReview→Blocked→Done`; per-column WIP (backpressures reviewer cost); confidence gate only on artifact transitions; →Done double gate (code: tests; AI: eval); critic loop ceiling(≈3)+budget→Blocked; column/card timeout→Blocked liveness. Depends O1, O2.
 
-**Requirements:** OBRD-01..0N — TBD by `O3-SPEC.md`.
+**Requirements:** OBRD-01..OBRD-09 — locked in `O3-SPEC.md` (14 acceptance checkboxes).
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] O3-01-PLAN.md — Substrate edits (SessionTreeNode fields, get_node, EXIT_REASONS+"timeout"); board package scaffold (verdict.py zero-deps, errors.py) — addresses OBRD-01 (substrate), OBRD-07
+- [ ] O3-02-PLAN.md — State machine: Card frozen value-object, Board.from_team_config, Board.move with WIP enforcement, BoardSpec adapter, transition-delta emission — addresses OBRD-01, OBRD-02, OBRD-03, OBRD-06 (single-source threshold)
+- [ ] O3-03-PLAN.md — Gate-predicate registry (8 predicates / 7 stable names), Board.dry_run_gate, artifact-only confidence, DeterministicReviewerStub — addresses OBRD-04, OBRD-05, OBRD-06 (acceptance), OBRD-07 (stub end-to-end)
+- [ ] O3-04-PLAN.md — Tick driver (Clock + FakeClock + _tick_loop), Board.start/stop, critic loop (retry_notes + ceiling), finalize_node integration, 100-card stress — addresses OBRD-08, OBRD-09, OBRD-01 (full audit invariant)
 
 ---
 
@@ -1469,7 +1555,15 @@ Plans:
 
 **Scope:** Reviewer-A re-derives the bar from the original idea + authors verification (deterministic tests for code; eval harness for AI via `voss/eval/` reuse). Reviewer-B: independent session/model, no shared memory with A or EM, tiered (fast intermediate / strong at →Done), checks slop/errors/correctness, sees `[artifact, acceptance, repo, original_idea]`, **explicit authority to fail a card whose A-verification diverges from the idea** (residual-2 invariant). Depends O2, O3.
 
-**Requirements:** ORVW-01..0N — TBD by `O4-SPEC.md`.
+**Requirements:** ORVW-01 (A bar from idea), ORVW-02 (A test authoring for code), ORVW-03 (A judge_run for AI), ORVW-04 (B message isolation), ORVW-05 (B fast tier), ORVW-06 (B strong tier), ORVW-07 (Residual-2 block), ORVW-08 (fresh memory per A review), ORVW-09 (Protocol conformance), ORVW-10 (board lifecycle integration).
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] O4-01-PLAN.md — O3 preflight gate + RED test scaffolds for all 10 ORVW requirements (ORVW-01..10)
+- [ ] O4-02-PLAN.md — Reviewer-B: independent tiered judgment via single provider.complete() call (ORVW-04..07, ORVW-09)
+- [ ] O4-03-PLAN.md — Reviewer-A: bar authoring via run_turn + judge_run AI-card path (ORVW-01..03, ORVW-08, ORVW-09)
+- [ ] O4-04-PLAN.md — Integration test + final acceptance gate (ORVW-09, ORVW-10)
 
 ---
 
@@ -1534,9 +1628,10 @@ Plans:
 | A5 | WS-01..0N | TBD by `A5-SPEC.md` |
 | A6 | PER-01..0N | TBD by `A6-SPEC.md` |
 | A7 | CMD-01..0N | TBD by `A7-SPEC.md` |
-| A8 | CFG-01..0N | TBD by `A8-SPEC.md` |
-| A9 | BAR-01..0N | TBD by `A9-SPEC.md` |
-| A10 | OBD-01..0N + REL-01..0N | TBD by `A10-SPEC.md` |
+| A8 | UXP-01..0N | TBD by `A8-SPEC.md` |
+| A9 | CFG-01..0N | TBD by `A9-SPEC.md` |
+| A10 | BAR-01..0N | TBD by `A10-SPEC.md` |
+| A11 | OBD-01..0N + REL-01..0N | TBD by `A11-SPEC.md` |
 | **A-total (Layer 1)** | | **TBD per SPEC** |
 | **O-phases (ADE orchestration — Caged Autonomous Eng Team)** | | |
 | O1 | OST-01..0N | TBD by `O1-SPEC.md` |

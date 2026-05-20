@@ -1,0 +1,216 @@
+{
+  "phase": "A5",
+  "phase_name": "voss-app Project Open",
+  "timestamp": "2026-05-19T17:34:17-0700",
+  "areas_completed": [
+    "Setup Window Flow",
+    "Project State Propagation",
+    "Native Project Commands",
+    "Recents UX"
+  ],
+  "areas_remaining": [],
+  "decisions": {
+    "Setup Window Flow": [
+      {
+        "question": "When no project is active, how should the setup window appear?",
+        "answer": "Modal over app shell; titlebar/grid render behind it.",
+        "options_presented": [
+          "First-screen surface",
+          "Modal over app shell",
+          "Minimal centered panel"
+        ]
+      },
+      {
+        "question": "Behind the modal, what should the grid do before the user chooses a project mode?",
+        "answer": "Idle placeholder grid; do not start PTYs before setup choice.",
+        "options_presented": [
+          "Idle placeholder grid",
+          "Live $HOME shell",
+          "Dimmed empty body"
+        ]
+      },
+      {
+        "question": "How much of the screenshot-inspired setup modal should ship in A5?",
+        "answer": "Directory-only setup. Use the centered configurator pattern as inspiration, but A5 ships only directory selection, last-5 recents, and project/project-less launch.",
+        "options_presented": [
+          "Directory-only setup",
+          "Directory setup + disabled future section",
+          "Full launch configurator"
+        ]
+      },
+      {
+        "question": "For Start without project, how should it appear in the modal?",
+        "answer": "Secondary button below the primary Open Project action. It opens a standard blank terminal grid.",
+        "options_presented": [
+          "Secondary button below primary",
+          "Separate row in directory picker",
+          "Small text link"
+        ]
+      },
+      {
+        "question": "What cwd should Start without project use?",
+        "answer": "User home directory ($HOME).",
+        "options_presented": [
+          "User home directory ($HOME)",
+          "Filesystem root (/)",
+          "App launch cwd"
+        ]
+      }
+    ]
+    ,
+    "Project State Propagation": [
+      {
+        "question": "When the user opens a project while panes already exist, what should happen to the existing panes/window?",
+        "answer": "Opening a project creates a new window, Warp-style. Existing panes/window stay untouched. A5 remains single-project-per-window; A8 owns multi-workspace tabs.",
+        "options_presented": [
+          "Existing panes stay as-is; new panes use project cwd",
+          "Idle/unstarted panes retarget; running panes stay as-is",
+          "All panes visually relabel only"
+        ]
+      },
+      {
+        "question": "For the new project window, what should the initial terminal/grid cwd be?",
+        "answer": "All initial panes use the selected project directory.",
+        "options_presented": [
+          "All initial panes use the selected project directory",
+          "Only first pane uses project directory; later panes inherit focused pane cwd",
+          "Use selected directory for pane spawn defaults, but restore default.json cwd if A4 default layout exists"
+        ]
+      },
+      {
+        "question": "How should A4 default.json layout interact with the selected project cwd?",
+        "answer": "Default layout applies geometry/preset only on project open; spawned panes use the selected project directory as cwd. Saved per-pane cwd in the layout is ignored during project-open auto-apply.",
+        "options_presented": [
+          "Geometry only on open",
+          "Use saved cwd from layout",
+          "Hybrid: use saved cwd only if inside selected project directory"
+        ]
+      },
+      {
+        "question": "How should project metadata flow into the titlebar before A10 status bar exists?",
+        "answer": "Titlebar shows the project basename in place of the current Voss ADE placeholder.",
+        "options_presented": [
+          "Titlebar shows project basename",
+          "Titlebar always stays Voss ADE until A10",
+          "Titlebar shows Project — branch"
+        ]
+      },
+      {
+        "question": "For a project-less window, what should the titlebar show?",
+        "answer": "Project-less titlebar shows Voss ADE.",
+        "options_presented": [
+          "Voss ADE",
+          "No Project",
+          "Home"
+        ]
+      }
+    ],
+    "Native Project Commands": [
+      {
+        "question": "Where should recent-project storage live?",
+        "answer": "Global app config at ~/.config/voss-app/recents.json, separate from settings and never under project .voss/.",
+        "options_presented": [
+          "Global app config under ~/.config/voss-app/recents.json",
+          "Inside existing settings.json under a recents key",
+          "Platform-native app data directory via Tauri path APIs"
+        ]
+      },
+      {
+        "question": "How should folder picking be split between frontend and native commands?",
+        "answer": "Frontend uses Tauri dialog plugin for folder picking; backend commands validate/open explicit paths.",
+        "options_presented": [
+          "Frontend uses Tauri dialog plugin; backend validates/opens path",
+          "Backend command opens the native dialog itself",
+          "A5 accepts typed/manual paths only"
+        ]
+      },
+      {
+        "question": "What should the backend return from open_project(path)?",
+        "answer": "A project envelope: { path, name, gitBranch, defaultLayout }.",
+        "options_presented": [
+          "Project envelope: { path, name, gitBranch, defaultLayout }",
+          "Metadata only: { path, name, gitBranch }",
+          "Path only"
+        ]
+      },
+      {
+        "question": "How strict should path validation be when opening a project?",
+        "answer": "Existing readable directory only. Files, missing paths, and unreadable directories return errors.",
+        "options_presented": [
+          "Existing readable directory only",
+          "Existing directory or create missing directory",
+          "Allow files by opening their parent directory"
+        ]
+      },
+      {
+        "question": "How should git branch detection behave for detached HEAD or unusual git states?",
+        "answer": "Return branch name only when a symbolic branch exists; detached HEAD or unusual states return null.",
+        "options_presented": [
+          "Return branch name only when a symbolic branch exists; otherwise null",
+          "Return raw short commit hash for detached HEAD",
+          "Return structured git status like { branch, detached, commit }"
+        ]
+      }
+    ],
+    "Recents UX": [
+      {
+        "question": "How should the last-5 recents appear in the setup modal?",
+        "answer": "Compact rows under the directory picker, showing folder basename plus full path as secondary text.",
+        "options_presented": [
+          "Rows under the directory picker",
+          "Dropdown inside the picker",
+          "Separate Recent Projects section"
+        ]
+      },
+      {
+        "question": "What happens when a recent folder no longer exists?",
+        "answer": "Show it disabled with a remove affordance.",
+        "options_presented": [
+          "Show it disabled with a remove affordance",
+          "Hide missing recents automatically",
+          "Show normally, then error when clicked"
+        ]
+      },
+      {
+        "question": "When the user selects a recent folder, should it open immediately or just fill the picker?",
+        "answer": "Fill the picker; the user explicitly launches. In A5 the launch control remains Open Project. Future agent/terms selection is deferred.",
+        "options_presented": [
+          "Open immediately",
+          "Fill picker, then user clicks Open Project",
+          "Single click fills, double click opens"
+        ]
+      },
+      {
+        "question": "If the user picks the same folder that is already selected in the setup modal, what should happen?",
+        "answer": "No visible change except keeping it selected; same-folder selection is a no-op success.",
+        "options_presented": [
+          "No visible change except keep it selected",
+          "Move it to top immediately before launch",
+          "Show subtle confirmation text"
+        ]
+      },
+      {
+        "question": "Should the setup modal include a clear-recents action in A5?",
+        "answer": "No clear-all action is needed in A5. Missing entries may still have their row-level remove affordance.",
+        "options_presented": [
+          "No clear action in A5",
+          "Per-row remove only for missing entries",
+          "Clear all recents button"
+        ]
+      }
+    ]
+  },
+  "deferred_ideas": [
+    "Agent roster/count controls from the provided setup screenshot belong to the ADE/orchestration track, not A5, because A5 remains L1 Project Open and L1 stays zero-agent exposure.",
+    "Future setup may include agent/terms selection after directory selection; A5 keeps the launch action to Open Project only."
+  ],
+  "canonical_refs": [
+    ".planning/phases/A5-voss-app-project-open/A5-SPEC.md",
+    ".planning/ROADMAP.md",
+    "apps/voss-app/CONCEPT.md",
+    "apps/voss-app/FEATURES.md",
+    ".planning/phases/A4-voss-app-layout-presets/A4-CONTEXT.md",
+    ".planning/phases/A3-voss-app-grid-engine/A3-CONTEXT.md",
+    ".planning/phases/A2-voss-app-pty-pane/A2-CONTEXT.md"
+  ]
+}

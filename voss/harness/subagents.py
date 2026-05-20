@@ -3,19 +3,20 @@ from __future__ import annotations
 from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, FrozenSet, Optional
 
 from voss_runtime import EpisodicMemory, tool
 from voss_runtime.exceptions import BudgetExceededError
 
 from .agent import run_turn
-from .permissions import PermissionGate
+from .permissions import Mode, PermissionGate
 from .render import Renderer
 from .session_tree import finalize_node
 from .tools import ToolEntry, make_toolset
 
 if TYPE_CHECKING:
     from .session_tree import SessionTreeNode
+    from .team import TeamRoleScope
 
 
 # Single source of truth for the spawn tool name; consumed by the TUI
@@ -30,6 +31,13 @@ class SubagentSpec:
     id: str
     description: str
     role_prompt: str
+    # O2 additions; all optional / defaulted for back-compat.
+    model: Optional[str] = None
+    mode: Optional[Mode] = None
+    scope: "TeamRoleScope | None" = None
+    budget: Optional[int] = None
+    tools: Optional[FrozenSet[str]] = None
+    net: bool = False
 
 
 class SubagentRegistry:
