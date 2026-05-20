@@ -1,0 +1,383 @@
+"""Board state machine: Card, Board, WIP enforcement, transition-delta emission.
+
+Implements OBRD-01 (card == session-tree node), OBRD-02 (one board per team),
+OBRD-03 (6 columns + WIP), OBRD-06 (risk-tier thresholds from single source).
+
+Gate-predicate evaluation is O3-03. This wave enforces:
+  - Unknown-column rejection (BoardGateError)
+  - Per-column WIP cap (BoardWIPError)
+  - Transition-delta emission on every move attempt (passed or refused)
+"""
+from __future__ import annotations
+
+import dataclasses
+import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable, Literal, Optional
+
+from voss.harness.session_tree import (
+    SessionTreeManager,
+    SessionTreeNode,
+    _write_node_file,
+)
+from voss.harness.team import BoardSpec, TeamCeiling, TeamConfig, TeamRoleScope
+from voss.ast_nodes import BoardGate, DictLit, IntLit, FloatLit, StringLit
+
+from .errors import BoardGateError, BoardWIPError
+from .verdict import Reviewer, ReviewerVerdict
+
+
+# ---------------------------------------------------------------------------
+# Type aliases + constants
+# ---------------------------------------------------------------------------
+
+Column = Literal[
+    "Backlog", "Planned", "InProgress", "InReview", "Blocked", "Done"
+]
+RiskTier = Literal["low", "med", "high"]
+
+_COLUMNS: tuple[str, ...] = (
+    "Backlog", "Planned", "InProgress", "InReview", "Blocked", "Done",
+)
+_TERMINAL_COLUMNS: frozenset[str] = frozenset({"Done", "Blocked"})
+
+# SPEC L116 SINGLE SOURCE OF TRUTH — do not duplicate elsewhere.
+_DEFAULT_RISK_THRESHOLDS: dict[str, float] = {
+    "low": 0.60,
+    "med": 0.80,
+    "high": 0.95,
+}
+
+_DEFAULT_WIP: dict[str, Optional[int]] = {
+    "Backlog": None,
+    "Planned": None,
+    "InProgress": 3,
+    "InReview": 2,
+    "Blocked": None,
+    "Done": None,
+}
+_DEFAULT_RETRY_CEILING = 3
+_DEFAULT_CARD_DEADLINE_S = 1800.0  # 30 min
+_DEFAULT_TICK_INTERVAL_S = 1.0
+
+
+# ---------------------------------------------------------------------------
+# Card (frozen value-object)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class Card:
+    """A board card mapped 1:1 to a SessionTreeNode (OBRD-01).
+
+    Immutable — mutated via `dataclasses.replace` so EM cannot widen
+    `scope` by direct attribute assignment (cage invariant).
+    """
+    node_id: str
+    column: Column
+    risk_tier: RiskTier
+    retry_count: int
+    deadline: float
+    scope: Optional[TeamRoleScope] = None
+    artifact: Optional[object] = None
+    eval_threshold: float = 1.0
+
+
+# ---------------------------------------------------------------------------
+# _BoardConfig + adapter
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class _BoardConfig:
+    """Parsed board configuration — private, produced by _read_board_spec."""
+    wip: dict
+    p_overrides: dict
+    retry_ceiling: int
+    card_deadline_s: float
+    tick_interval_s: float
+    gates: tuple
+
+
+def _read_board_spec(spec: BoardSpec | None) -> _BoardConfig:
+    """Adapt O2's opaque BoardSpec.raw_items into a typed _BoardConfig.
+
+    Single localized consumer of raw_items — per O3-RESEARCH §9. Defensive:
+    wrong types fall back to defaults rather than raising.
+    """
+    wip = dict(_DEFAULT_WIP)
+    p_overrides: dict[str, float] = {}
+    retry_ceiling = _DEFAULT_RETRY_CEILING
+    card_deadline_s = _DEFAULT_CARD_DEADLINE_S
+    tick_interval_s = _DEFAULT_TICK_INTERVAL_S
+    gates: list[BoardGate] = []
+
+    if spec is None:
+        return _BoardConfig(
+            wip=wip, p_overrides=p_overrides, retry_ceiling=retry_ceiling,
+            card_deadline_s=card_deadline_s, tick_interval_s=tick_interval_s,
+            gates=(),
+        )
+
+    for item in spec.raw_items:
+        if isinstance(item, BoardGate):
+            gates.append(item)
+            continue
+        if isinstance(item, tuple) and len(item) == 2:
+            key, val = item
+            if key == "wip":
+                wip.update(_parse_wip(val))
+            elif key == "p":
+                p_overrides.update(_parse_p_overrides(val))
+            elif key == "retry":
+                parsed = _parse_retry(val)
+                if parsed is not None:
+                    retry_ceiling = parsed
+            elif key == "liveness":
+                parsed = _parse_liveness(val)
+                if parsed is not None:
+                    card_deadline_s = parsed
+            # "columns" → IGNORE (SPEC locks the 6 columns)
+
+    return _BoardConfig(
+        wip=wip, p_overrides=p_overrides, retry_ceiling=retry_ceiling,
+        card_deadline_s=card_deadline_s, tick_interval_s=tick_interval_s,
+        gates=tuple(gates),
+    )
+
+
+def _parse_wip(val: object) -> dict[str, int | None]:
+    """Extract WIP overrides from a DictLit or return empty dict."""
+    if isinstance(val, DictLit):
+        result: dict[str, int | None] = {}
+        for k, v in val.items:
+            col_name = _lit_str(k)
+            if col_name and col_name in _COLUMNS:
+                n = _lit_int(v)
+                result[col_name] = n
+        return result
+    return {}
+
+
+def _parse_p_overrides(val: object) -> dict[str, float]:
+    """Extract risk-tier threshold overrides from a DictLit."""
+    if isinstance(val, DictLit):
+        result: dict[str, float] = {}
+        for k, v in val.items:
+            tier = _lit_str(k)
+            if tier in ("low", "med", "high"):
+                fv = _lit_float(v)
+                if fv is not None:
+                    result[tier] = fv
+        return result
+    return {}
+
+
+def _parse_retry(val: object) -> int | None:
+    """Extract retry ceiling — IntLit or DictLit with 'ceiling' key."""
+    if isinstance(val, IntLit):
+        return val.value
+    if isinstance(val, DictLit):
+        for k, v in val.items:
+            if _lit_str(k) == "ceiling":
+                return _lit_int(v)
+    return None
+
+
+def _parse_liveness(val: object) -> float | None:
+    """Extract card_timeout seconds from liveness DictLit."""
+    if isinstance(val, DictLit):
+        for k, v in val.items:
+            name = _lit_str(k)
+            if name in ("card_timeout", "timeout"):
+                n = _lit_int(v)
+                if n is not None:
+                    return float(n)
+    return None
+
+
+def _lit_str(val: object) -> str | None:
+    if isinstance(val, StringLit):
+        return val.value
+    if hasattr(val, "name"):  # Identifier
+        return val.name  # type: ignore[attr-defined]
+    return None
+
+
+def _lit_int(val: object) -> int | None:
+    if isinstance(val, IntLit):
+        return val.value
+    return None
+
+
+def _lit_float(val: object) -> float | None:
+    if isinstance(val, FloatLit):
+        return val.value
+    if isinstance(val, IntLit):
+        return float(val.value)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Board
+# ---------------------------------------------------------------------------
+
+class Board:
+    """6-column Kanban state machine bound to a SessionTreeManager (OBRD-02/03)."""
+
+    def __init__(
+        self,
+        *,
+        manager: SessionTreeManager,
+        reviewer: Reviewer,
+        cwd: Path,
+        cfg: _BoardConfig,
+        team_ceiling: TeamCeiling,
+        root_node_id: str,
+        clock: Callable[[], float] = time.monotonic,
+        per_card_budget: int = 100_000,
+        reserve: int = 0,
+    ) -> None:
+        self._manager = manager
+        self._reviewer = reviewer
+        self._cwd = cwd
+        self._cfg = cfg
+        self._team_ceiling = team_ceiling
+        self._root_node_id = root_node_id
+        self._clock = clock
+        self._per_card_budget = per_card_budget
+        self._reserve = reserve
+        self._cards: list[Card] = []
+        self._tick_task = None  # populated by O3-04
+
+    @classmethod
+    def from_team_config(
+        cls,
+        team_config: TeamConfig,
+        *,
+        recorder: SessionTreeManager,
+        reviewer: Reviewer,
+        cwd: Path,
+        clock: Callable[[], float] = time.monotonic,
+        parent_node_id: str | None = None,
+        per_card_budget: int = 100_000,
+    ) -> Board:
+        cfg = _read_board_spec(team_config.board)
+        if team_config.ceiling.latency_seconds:
+            cfg = dataclasses.replace(
+                cfg, card_deadline_s=float(team_config.ceiling.latency_seconds),
+            )
+        root_id = parent_node_id if parent_node_id else recorder._root.id
+        return cls(
+            manager=recorder,
+            reviewer=reviewer,
+            cwd=cwd,
+            cfg=cfg,
+            team_ceiling=team_config.ceiling,
+            root_node_id=root_id,
+            clock=clock,
+            per_card_budget=per_card_budget,
+        )
+
+    @property
+    def root_node_id(self) -> str:
+        return self._root_node_id
+
+    def cards(self) -> list[Card]:
+        """Snapshot of current card list (copy — caller mutation is safe)."""
+        return list(self._cards)
+
+    async def spawn_card(
+        self,
+        *,
+        risk_tier: RiskTier = "med",
+        artifact: Optional[object] = None,
+        deadline_override: Optional[float] = None,
+        per_card_budget: Optional[int] = None,
+    ) -> Card:
+        """Create a new card in Backlog, backed by a child session-tree node."""
+        limit = per_card_budget if per_card_budget is not None else self._per_card_budget
+        node = await self._manager.allocate_child(limit=limit)
+        deadline = (
+            deadline_override
+            if deadline_override is not None
+            else self._clock() + self._cfg.card_deadline_s
+        )
+        card = Card(
+            node_id=node.id,
+            column="Backlog",
+            risk_tier=risk_tier,
+            retry_count=0,
+            deadline=deadline,
+            scope=self._team_ceiling.scope,
+            artifact=artifact,
+        )
+        self._cards.append(card)
+        return card
+
+    def move(self, card: Card, to: str) -> Card:
+        """Transition a card to `to` column. Enforces WIP + unknown-column.
+
+        Gate predicates are TODO(O3-03) — this wave accepts the transition
+        unconditionally after WIP passes.
+        """
+        # 1. Unknown column rejection
+        if to not in _COLUMNS:
+            self._append_delta(
+                card, from_col=card.column, to_col=to,
+                outcome="refused", failing_clauses=["unknown-column"],
+            )
+            raise BoardGateError(f"unknown column: {to}")
+
+        # 2. WIP enforcement
+        cap = self._cfg.wip.get(to)
+        if cap is not None:
+            in_dest = sum(1 for c in self._cards if c.column == to)
+            if in_dest >= cap:
+                self._append_delta(
+                    card, from_col=card.column, to_col=to,
+                    outcome="refused", failing_clauses=["wip"],
+                )
+                raise BoardWIPError(to, cap)
+
+        # 3. TODO(O3-03): wire gate registry — predicate evaluation goes here.
+
+        # 4. Emit passed delta + rebuild card with new column.
+        new_card = dataclasses.replace(card, column=to)
+        self._cards = [
+            new_card if c.node_id == card.node_id else c
+            for c in self._cards
+        ]
+        self._append_delta(
+            card, from_col=card.column, to_col=to,
+            outcome="passed", failing_clauses=None,
+        )
+        return new_card
+
+    def _append_delta(
+        self,
+        card: Card,
+        *,
+        from_col: str,
+        to_col: str,
+        outcome: str,
+        failing_clauses: list[str] | None = None,
+        reason: str | None = None,
+        verdict_snapshot: object | None = None,
+    ) -> None:
+        node = self._manager.get_node(card.node_id)
+        if node is None:
+            return  # defensive — card.node_id should always resolve
+        delta = {
+            "kind": "board.transition",
+            "from": from_col,
+            "to": to_col,
+            "outcome": outcome,
+            "failing_clauses": list(failing_clauses) if failing_clauses else None,
+            "reason": reason,
+            "verdict_snapshot": verdict_snapshot,
+            "retry_count": card.retry_count,
+            "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        node.transitions.append(delta)
+        _write_node_file(node, self._cwd)
