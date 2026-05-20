@@ -1573,7 +1573,15 @@ Plans:
 
 **Scope:** Full-authority autonomous loop; idea→tickets/AC/DoD (worker scaffolding, not the audit bar); specialist dispatch from roster + `routing_rationale` per card; kill/re-scope with preserved lineage; board mutation bounded by the cage (cannot rewrite `ceiling`/`p`, cannot invent agents). Depends O1–O4.
 
-**Requirements:** OEM-01..0N — TBD by `O5-SPEC.md`.
+**Requirements:** OEM-01..OEM-10 (locked direct from CONTEXT + RESEARCH; no SPEC).
+
+**Plans:** 6 plans
+- [ ] O5-00-PLAN.md — Substrate gate (O1/O2 live probes + O3/O4 paper audit; no code)
+- [ ] O5-01-PLAN.md — Data model: Ticket/KillRecord/RescopeRecord/RoutingRationale/RunFinal + EXIT_REASONS "killed" additive (OEM-01, OEM-07, OEM-10)
+- [ ] O5-02-PLAN.md — EMBoardHandle cage facade + BoardProtocol mocks for O3 (OEM-02, OEM-06, OEM-07, OEM-08)
+- [ ] O5-03-PLAN.md — EM LLM wrapper + EMPlanResponse pydantic LENIENT schema + DeterministicEMStub (OEM-03, OEM-04)
+- [ ] O5-04-PLAN.md — em_loop driver: idea → plan → dispatch → tick → terminate (OEM-05, OEM-06)
+- [ ] O5-05-PLAN.md — Integration tests + cross-phase coordination doc + VALIDATION matrix (OEM-08, OEM-09, OEM-10)
 
 ---
 
