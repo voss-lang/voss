@@ -137,6 +137,9 @@ class RunRecord:
     exit_reason: Optional[str] = None
     iteration_total_prompt_tokens: int = 0
     iteration_total_completion_tokens: int = 0
+    # M15-05: skill audit events (additive, defaults for back-compat)
+    skill_events: list[dict] = field(default_factory=list)
+    scope_denials: list[dict] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.exit_reason is not None and self.exit_reason not in EXIT_REASONS:
