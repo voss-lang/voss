@@ -61,10 +61,15 @@ See SPEC.md "Boundaries" — In-scope / Out-of-scope lists are the canonical per
 - The async driver is the ONLY non-test path. No `threading.Timer`, no lazy-on-transition.
 - `interval_s` is injectable; default 1.0. Production tunes via `team_config.board.tick_interval_s`.
 
-### `RunRecord` Transition-Delta Payload
-- Every transition (passed, refused, or forced) emits exactly one `RunRecord` delta on the card's node. Fields:
+### Transition-Delta Storage  ⚠ corrected per research
+- **CORRECTION:** Research found `RunRecord` has **NO `payload` field** (O3-RESEARCH.md). Storing transitions on `RunRecord.payload` would require a `RunRecord` schema change, violating O1 SPEC-5 (strict harness-additive blast radius).
+- **Decision:** transitions live on the **`SessionTreeNode`**, not on `RunRecord`. Extend `SessionTreeNode` (already mutated through its lifecycle) with a typed list:
+  ```python
+  node.transitions: list[BoardTransition]
   ```
-  {
+- `BoardTransition` is a frozen dataclass / `TypedDict` in `voss/harness/board/machine.py`:
+  ```
+  BoardTransition = {
     "kind": "board.transition",
     "from": <column>,
     "to":   <column>,
@@ -73,13 +78,14 @@ See SPEC.md "Boundaries" — In-scope / Out-of-scope lists are the canonical per
     "reason": "timeout" | "budget" | "retry_ceiling" | null,  # only when outcome=forced
     "verdict_snapshot": <ReviewerVerdict-as-dict> | null,  # present iff a verdict was consulted
     "retry_count": <int>,
+    "ts_monotonic": <float>,
   }
   ```
-- `failing_clauses` is null for `passed`/`forced` outcomes (no clauses failed in the dry-run sense).
+- `failing_clauses` is null for `passed`/`forced` outcomes.
 - `reason` is null for `passed`/`refused`.
 - `verdict_snapshot` is the frozen dataclass dumped via `dataclasses.asdict` — captured exactly once per transition.
-- Schema lives in `voss/harness/board/machine.py` as a `TypedDict` (no new persisted-record schema; uses the existing `RunRecord.payload` field).
-- **Audit invariant:** count of `board.transition` deltas == count of transition attempts (passed + refused + forced). O6 will assert this.
+- **`EXIT_REASONS` gap (research finding):** `EXIT_REASONS` currently lacks `"timeout"`. Planner must either (a) extend `EXIT_REASONS` to include `"timeout"` (treated as additive, not a schema break) **or** (b) map forced-timeout cards to `exit_reason="budget"` and rely on `BoardTransition.reason="timeout"` on the node for audit fidelity. **Recommend (a)** — preserves audit clarity. Open question O5 in §open_questions.
+- **Audit invariant:** `len(node.transitions)` == count of transition attempts on that card (passed + refused + forced). O6 will assert this against the node, not `RunRecord`.
 
 ### Card↔Recorder wiring
 - `Board.from_team_config(team_config, recorder, parent_node_id=None)` accepts the recorder + an optional parent node id. If parent_node_id is None, Board creates its own root node via `recorder.open_root(...)`; otherwise it opens a child node under `parent_node_id`.
@@ -121,7 +127,7 @@ See SPEC.md "Boundaries" — In-scope / Out-of-scope lists are the canonical per
 - **`_min_mode` + `scoped_gate`** (from `voss/harness/skill/scope.py`): the cap-not-expand rule. If/when O3 needs to cap per-card permissions, REUSE — do not re-implement.
 - **`RunRecord.payload`** (from O1 session.py): typed `dict` field already on the record. Transition delta uses this; no new persisted-record schema (preserves O1 SPEC-5).
 - **Async harness** (existing): everything inside `voss/harness/` runs under asyncio; `Board._tick_loop` integrates as `asyncio.create_task`.
-- **Test clock injection pattern** (M14 watch): clock-as-Protocol with a `MonotonicClock` default impl and a `FakeClock` for tests. Reuse the same shape.
+- **Test clock injection pattern** (existing): research found NO `Clock` Protocol exists in the harness; the actual existing convention is a `Callable[[], float] = time.monotonic` injectable arg (see `voss/harness/auth.py:423`). O3 reuses that exact convention — `Board.__init__(..., clock: Callable[[], float] = time.monotonic)`. Tests inject a closure over a mutable cell; no Protocol needed.
 </code_context>
 
 <deferred>
@@ -138,10 +144,13 @@ See SPEC.md "Boundaries" — In-scope / Out-of-scope lists are the canonical per
 <open_questions>
 ## Open Questions for Researcher / Planner
 
-1. Whether O2's `BoardSpec.raw_items` is upgraded to a typed shape in O3 or read opaquely with a thin adapter. Research O2-RESEARCH.md §5 + O2-02-PLAN.md for the current representation before deciding.
+1. Whether O2's `BoardSpec.raw_items` is upgraded to a typed shape in O3 or read opaquely with a thin adapter. Research O2-RESEARCH.md §5 + O2-02-PLAN.md for the current representation before deciding. (Research found `BoardSpec` is `tuple[object, ...]` with mixed `(key,value)` and `BoardGate` items; adapter likely.)
 2. `Card` frozen-rebuild vs mutable-with-controlled-setters — both satisfy the SPEC; planner picks one and binds the choice to a test.
 3. Whether `Board.start()` returns the task handle or stores it internally — affects how `Board.stop()` joins.
 4. Wall-clock deadline source: `team_config.ceiling.latency` (declared on the team) vs `team_config.board.card_deadline` (declared on the board). SPEC says "from `team_config.ceiling.latency` (default 30 min)" — confirm this lives on `ceiling`, not `board`.
+5. **`EXIT_REASONS` extension vs mapping** (surfaced by research): forced-timeout cards need a terminal `exit_reason` but `EXIT_REASONS` currently lacks `"timeout"`. Extend (recommended) or map to `"budget"`. Decide before O3 Wave 1 lands the forced-timeout path.
+6. **`recorder.get_node(node_id)`** does not exist in `SessionTreeManager`; research recommends adding it. Planner: add a minimal `get_node` lookup in O3 Wave 1 (additive only — preserves O1 SPEC-5).
+7. **Per-node episodic memory** (for retry notes per SPEC REQ-8): research found `EpisodicMemory(capacity=20)` is constructed fresh per `run_subagent` call — there is no per-node store today. Planner must decide where `RetryNote` accumulates: attach to `SessionTreeNode.retry_notes: list[RetryNote]` (matches the transitions-on-node pattern) or extend `EpisodicMemory` to be node-scoped. **Recommend node-scoped attribute** (same shape as `node.transitions`).
 </open_questions>
 
 ## Dependencies
