@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 from voss.harness.board import Board, BoardGateError, BoardWIPError
+from voss.harness.board.stub import DeterministicReviewerStub
 
 from .conftest import build_test_team
 
@@ -11,7 +12,7 @@ from .conftest import build_test_team
 class TestTransitionCountInvariant:
     @pytest.mark.asyncio
     async def test_mixed_lifecycle_delta_count_equals_attempt_count(
-        self, tmp_recorder, stub_reviewer,
+        self, tmp_recorder,
     ):
         """20-transition mixed lifecycle across 5 cards.
 
@@ -20,8 +21,9 @@ class TestTransitionCountInvariant:
         must equal total attempts.
         """
         manager, cwd = tmp_recorder
+        stub = DeterministicReviewerStub(conf=0.99, verdict="pass")
         board = Board.from_team_config(
-            build_test_team(), recorder=manager, reviewer=stub_reviewer, cwd=cwd,
+            build_test_team(), recorder=manager, reviewer=stub, cwd=cwd,
         )
 
         attempts: dict[str, int] = {}

@@ -21,11 +21,13 @@ evaluation pass. Cross-attempt caching is forbidden (artifact may change).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Protocol
+from typing import TYPE_CHECKING, Optional, Protocol
 
 from voss.harness.team import TeamCeiling, TeamRoleScope
-from .machine import Card, Column, RiskTier, _DEFAULT_RISK_THRESHOLDS
 from .verdict import Reviewer, ReviewerVerdict
+
+if TYPE_CHECKING:
+    from .machine import Card, Column, RiskTier
 
 
 # SPEC L114 — 7 stable predicate names. Tests pin this tuple.
@@ -84,6 +86,7 @@ class conf_meets_p:
     """
     name = "conf"
     def evaluate(self, ctx: GateContext) -> bool:
+        from .machine import _DEFAULT_RISK_THRESHOLDS  # lazy to break circular import
         if ctx.reviewer is None:
             return False
         if ctx.verdict is None:
