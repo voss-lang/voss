@@ -160,7 +160,7 @@ Output: `A5_FULL_GREEN` printed, A5-VALIDATION.md committed, and a human-approve
     Run the file once to confirm Playwright loads it without error (even if all tests skip).
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss/apps/voss-app && test -f e2e/project-open.spec.ts && grep -q 'SKIP_REASON' e2e/project-open.spec.ts && grep -q 'tauri-driver' e2e/project-open.spec.ts && grep -q 'Open project' e2e/project-open.spec.ts && grep -q 'Start without project' e2e/project-open.spec.ts && grep -q 'a5-acceptance' e2e/project-open.spec.ts && (pnpm playwright test project-open 2>&1 | tail -10 || echo 'A5_E2E_DEFERRED_SEE_OUTPUT') && echo A5_E2E_SPEC_OK</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss/apps/voss-app && test -f e2e/project-open.spec.ts && grep -q 'SKIP_REASON' e2e/project-open.spec.ts && grep -q 'tauri-driver' e2e/project-open.spec.ts && grep -q 'Open project' e2e/project-open.spec.ts && grep -q 'Start without project' e2e/project-open.spec.ts && grep -q 'a5-acceptance' e2e/project-open.spec.ts && SKIPS=$(grep -c 'test.skip(' e2e/project-open.spec.ts) && [ "$SKIPS" -ge 7 ] && (pnpm playwright test project-open 2>&1 | tail -10) && echo A5_E2E_SPEC_OK</automated>
   </verify>
   <acceptance_criteria>
     - apps/voss-app/e2e/project-open.spec.ts exists with the SKIP_REASON header pattern.

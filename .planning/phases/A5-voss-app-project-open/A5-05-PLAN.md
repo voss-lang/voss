@@ -104,6 +104,22 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (this plan extends):
   // Display site (current line ~60):
   // BEFORE:  Voss ADE
   // AFTER:   {props.projectName ?? 'Voss ADE'}
+
+From apps/voss-app/src/grid/GridRoot.tsx (this plan extends — D-11 cwd plumbing):
+
+  export type GridRootProps = {
+    onCloseRequest?: (store: GridStore) => void;
+    closeUI?: CloseUI;
+    activeLayout?: () => ActiveLayout;
+    onLayoutChange?: (next: ActiveLayout) => void;
+    controllerRef?: (ctrl: GridController) => void;
+    projectCwd?: string;         // A5 adds — Rust-resolved default cwd
+                                  // (project.path when open; $HOME when project-less).
+                                  // undefined preserves legacy A4 behavior; operations.ts
+                                  // wiring into pane spawn is deferred to a follow-up task
+                                  // (A5 SPEC AC #7 is satisfied by A5-01 default_cwd Rust
+                                  // tests; this prop is the plumbing seam).
+  };
 </interfaces>
 </context>
 

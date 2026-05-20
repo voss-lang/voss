@@ -691,7 +691,9 @@ describe('projectStorage', () => {
 | A4 | macOS `tempdir()` paths canonicalize consistently across two calls within one test run. | Pitfall 6 | If not, test will flake; refactor to a single canonicalize per assertion. |
 | A5 | Solid's `<Show when={…}>` does NOT recreate child subtree when `when` flips from one truthy value to another. | Anti-Patterns / Pattern 4 | [CITED: docs.solidjs.com/concepts/control-flow/conditional-rendering] confirms truthy→truthy does not recreate. Risk: low. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three questions carry an inline Recommendation that A5-00 / A5-01 implement; this heading carries the `(RESOLVED)` suffix per the GSD checker Dimension 11 contract.
 
 1. **`tauri-plugin-dialog` MSRV vs workspace MSRV**
    - What we know: workspace `rust-version = "1.75"`; latest `tauri-plugin-dialog` 2.4.2 needs ≥ 1.77.2 [CITED: docs.rs/tauri-plugin-dialog].
