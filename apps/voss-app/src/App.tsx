@@ -3,6 +3,7 @@ import Titlebar from './components/titlebar/Titlebar';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
+import ToastStack from './command-palette/toast';
 import {
   createCommandRegistry,
   v0Commands,
@@ -335,6 +336,9 @@ export default function App() {
           />
         </div>
       </Show>
+
+      {/* A7: toast stack (keymap validation, profile switch feedback) */}
+      <ToastStack />
 
       {/* A7: command palette overlay */}
       <Show when={paletteMode() !== null}>
