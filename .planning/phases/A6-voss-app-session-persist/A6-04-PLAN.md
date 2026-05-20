@@ -15,8 +15,10 @@ requirements: [PER-01, PER-02, PER-03, PER-04, PER-05, PER-06]
 must_haves:
   truths:
     - "Session restore priority is session.json, then default.json, then fresh pane"
+    - "D-10/D-11: restore data is resolved before GridRoot mounts panes so a fresh shell is not spawned and then replaced"
     - "Structural auto-save writes tree/session state without reading xterm buffers"
-    - "Quit save prevents close, captures scrollback once, writes session, then allows close via reentry guard"
+    - "D-04/D-06: structural auto-save writes the same session file with null scrollback"
+    - "D-05: quit save prevents close, captures scrollback once, writes session, then allows close via reentry guard"
     - "Project-less accepted state persists in global-session.json and can bypass setup on relaunch"
   artifacts:
     - path: "apps/voss-app/src/grid/sessionPersist.ts"
@@ -81,13 +83,13 @@ T-A6-06 Infinite close loop. Mitigation: reentry guard lets the second close req
     - apps/voss-app/src/grid/SplitNode.tsx - restored scrollback threading from A6-03
   </read_first>
   <action>
-    Add controller methods needed by App-level restore, for example `applySession(session)` and `snapshot()`. `applySession` must call the pure `applySessionFile`, set `store.root`, `store.focusedId`, report the restored `activeLayout` through `onLayoutChange`, and store/forward `restoredScrollbackByPaneId` to `SplitNodeView`. Add a local signal or store for restore banner line counts keyed by pane id; expose a way for first input to clear the pane id. Do not start any old process or serialize PTY ids.
+    Add controller methods and initial-state props needed by App-level restore, for example `initialSession?: SessionFile`, `applySession(session)`, and `snapshot()`. On first render, `GridRoot` must initialize from `initialSession` when provided so saved panes mount directly and no throwaway default pane/PTY is spawned before restore. `applySession` must call the pure `applySessionFile`, set `store.root`, `store.focusedId`, report the restored `activeLayout` through `onLayoutChange`, and store/forward `restoredScrollbackByPaneId` to `SplitNodeView`. Add a local signal or store for restore banner line counts keyed by pane id; expose a way for first input to clear the pane id. Do not start any old process or serialize PTY ids.
   </action>
   <verify>
     <automated>cd /Users/benjaminmarks/Projects/Voss/apps/voss-app && pnpm exec tsc --noEmit -p . && grep -q 'applySession' src/grid/GridRoot.tsx && grep -q 'restoredScrollbackByPaneId' src/grid/GridRoot.tsx && echo GRID_SESSION_APPLY_OK</automated>
   </verify>
   <acceptance_criteria>
-    - Restored session sets root and focused pane from saved session.
+    - Restored session sets root and focused pane from saved session before panes mount when `initialSession` is available.
     - Active layout is restored from session active preset.
     - Restored scrollback is available to panes by id.
     - No PTY/process id appears in restored state.
@@ -106,13 +108,13 @@ T-A6-06 Infinite close loop. Mitigation: reentry guard lets the second close req
     - Tauri v2 docs: `getCurrentWindow().onCloseRequested`
   </read_first>
   <action>
-    In `App.tsx`, after A5 project/project-less state is known and `gridController` is available, restore in this order for project mode: `loadSession(project.path)`, then `loadDefaultLayout(project.path)`, then fresh pane. For project-less mode, load `loadGlobalSession()` and only bypass setup when `projectLessAccepted` is true. Install structural autosave with project path or global mode. Install a close-request handler through `getCurrentWindow().onCloseRequested`: immediately `event.preventDefault()` unless a reentry flag is set; collect `getScrollbackSnapshot(2000)`; build a full session; save project/global target; set reentry flag; call `getCurrentWindow().close()`. On save failure, log and still allow close only if the current product decision accepts it; otherwise keep the window open and log the error. Use one explicit behavior and test/source-assert it.
+    In `App.tsx`, after A5 project/project-less state is known but before rendering `GridRoot`, resolve initial grid data in this order for project mode: `loadSession(project.path)`, then `loadDefaultLayout(project.path)`, then fresh pane. Keep a small boot/loading branch while this async restore decision is pending, so no default PTY starts before the selected session/default state is known. For project-less mode, load `loadGlobalSession()` and only bypass setup when `projectLessAccepted` is true. Pass the resolved session/default/fresh decision into `GridRoot` through explicit initial props. Install structural autosave with project path or global mode. Install a close-request handler through `getCurrentWindow().onCloseRequested`: immediately `event.preventDefault()` unless a reentry flag is set; collect `getScrollbackSnapshot(2000)`; build a full session; save project/global target; set reentry flag; call `getCurrentWindow().close()`. On save failure, keep the window open and log the error rather than dropping the user's quit-time scrollback silently; the user can retry quit or force-kill. Test/source-assert this behavior.
   </action>
   <verify>
     <automated>cd /Users/benjaminmarks/Projects/Voss/apps/voss-app && pnpm exec tsc --noEmit -p . && grep -q 'onCloseRequested' src/App.tsx src/grid/sessionPersist.ts && grep -q 'preventDefault' src/App.tsx src/grid/sessionPersist.ts && grep -q 'getScrollbackSnapshot' src/App.tsx src/grid/sessionPersist.ts && grep -q 'loadDefaultLayout' src/App.tsx && echo APP_SESSION_LIFECYCLE_OK</automated>
   </verify>
   <acceptance_criteria>
-    - Project restore priority is session, then default layout, then fresh.
+    - Project restore priority is session, then default layout, then fresh, resolved before `GridRoot` mounts panes.
     - Global project-less session can bypass setup only when `projectLessAccepted` is true.
     - Close-request handler prevents close before async save.
     - Full quit save includes scrollback snapshot capped to 2,000 lines.
@@ -132,4 +134,3 @@ Run `pnpm --dir apps/voss-app test -- --run src/grid src/App` and `pnpm --dir ap
 - Structural autosave preserves tree/focus/preset cheaply.
 - Quit save captures scrollback without recurring CPU cost.
 </success_criteria>
-

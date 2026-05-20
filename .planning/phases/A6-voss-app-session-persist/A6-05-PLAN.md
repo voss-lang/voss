@@ -16,7 +16,7 @@ requirements: [PER-01, PER-02, PER-03, PER-04, PER-05, PER-06]
 must_haves:
   truths:
     - "Restored panes show a 22px RestoreBanner with exact copy `Session restored - N lines`"
-    - "RestoreBanner dismisses on first keystroke in that pane"
+    - "D-07/D-08/D-09: RestoreBanner is a separate component, uses the exact line-count copy, and dismisses on first keystroke in that pane"
     - "No L1 path relaunches old processes after restore"
     - "A6 final verification includes corrupt-session fallback and project-less global restore"
   artifacts:
@@ -128,4 +128,3 @@ Run full app and core test suites, then complete the manual restart sign-off.
 - Restore UI is accurate and unobtrusive.
 - No live process restart is attempted in L1.
 </success_criteria>
-
