@@ -248,6 +248,35 @@ fn load_global_session() -> Result<Option<SessionFile>, String> {
         .map_err(|e| e.to_string())
 }
 
+// ---- Keymap commands (A7-03) ------------------------------------------------
+// Thin wrappers over `voss_app_core::keymap`. Profile persistence uses
+// `settings.json`; workspace overrides use `.voss/keymap.json`.
+
+#[tauri::command]
+fn load_keymap_profile() -> String {
+    let profile = keymap::load_keymap_profile();
+    serde_json::to_string(&profile).unwrap_or_else(|_| "\"vscode\"".into())
+}
+
+#[tauri::command]
+fn save_keymap_profile(profile: KeymapProfile) -> Result<(), String> {
+    keymap::save_keymap_profile(&profile).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_keymap_overrides(workspace_path: String) -> Option<KeymapOverrideFile> {
+    keymap::load_keymap_overrides(Path::new(&workspace_path))
+}
+
+#[tauri::command]
+fn validate_keymap_overrides(
+    overrides: KeymapOverrideFile,
+    known_command_ids: Vec<String>,
+    known_chords: Vec<String>,
+) -> KeymapValidationResult {
+    keymap::validate_keymap_overrides(&overrides, &known_command_ids, &known_chords)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -277,6 +306,10 @@ pub fn run() {
             load_session,
             save_global_session,
             load_global_session,
+            load_keymap_profile,
+            save_keymap_profile,
+            load_keymap_overrides,
+            validate_keymap_overrides,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
