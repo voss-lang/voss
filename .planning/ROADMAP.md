@@ -1583,7 +1583,7 @@ Plans:
 
 **Scope:** Session-tree as primary review surface; killed/re-scoped cards + routing rationale foregrounded first-class; reviewer calibration telemetry (B-verdict vs. A-verification, now independent) + sampled human slop-rejection spot-audit; reserve/timeout liveness wiring surfaced; **sign-off forcing function** (mandatory killed-card + misroute diff before approve is available); Leak-6 (`semantic.memory` poisoning) mitigation candidate. Depends O5.
 
-**Requirements:** OAUD-01..0N — TBD by `O6-SPEC.md`.
+**Requirements:** OAUD-01..08 — derived in `O6-RESEARCH.md` / `O6-VALIDATION.md` because `O6-SPEC.md` is not present; reconcile if a formal SPEC is later authored.
 
 **Cross-cutting:** O6 closes (or explicitly defers) the residual-risk register from `ORCHESTRATION-PLAN.md §7`. Leak 6 may remain a documented accepted gap if mitigation proves out-of-scope.
 
@@ -1639,7 +1639,7 @@ Plans:
 | O3 | OBRD-01..0N | TBD by `O3-SPEC.md` |
 | O4 | ORVW-01..0N | TBD by `O4-SPEC.md` |
 | O5 | OEM-01..0N | TBD by `O5-SPEC.md` |
-| O6 | OAUD-01..0N | TBD by `O6-SPEC.md` |
+| O6 | OAUD-01..08 | 8 |
 | **O-total** | | **TBD per SPEC** |
 
 All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`. A-phase requirement IDs are placeholder prefixes; per-phase SPEC locks the count + exact text.
