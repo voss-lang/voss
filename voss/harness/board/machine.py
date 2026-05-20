@@ -26,6 +26,13 @@ from voss.harness.team import BoardSpec, TeamCeiling, TeamConfig, TeamRoleScope
 from voss.ast_nodes import BoardGate, DictLit, IntLit, FloatLit, StringLit
 
 from .errors import BoardGateError, BoardWIPError
+from .gates import (
+    Gates,
+    GateContext,
+    conf_meets_p,
+    eval_meets_threshold,
+    scope_clean,
+)
 from .verdict import Reviewer, ReviewerVerdict
 
 
@@ -248,6 +255,8 @@ class Board:
         self._per_card_budget = per_card_budget
         self._reserve = reserve
         self._cards: list[Card] = []
+        self._gates = Gates.build_default()
+        self._team_p_overrides: dict = {}
         self._tick_task = None  # populated by O3-04
 
     @classmethod
@@ -268,7 +277,7 @@ class Board:
                 cfg, card_deadline_s=float(team_config.ceiling.latency_seconds),
             )
         root_id = parent_node_id if parent_node_id else recorder._root.id
-        return cls(
+        board = cls(
             manager=recorder,
             reviewer=reviewer,
             cwd=cwd,
@@ -278,6 +287,12 @@ class Board:
             clock=clock,
             per_card_budget=per_card_budget,
         )
+        # Derive p_overrides from team_config.policy.p if it's a dict.
+        if isinstance(team_config.policy.p, dict):
+            board._team_p_overrides = dict(team_config.policy.p)
+        elif cfg.p_overrides:
+            board._team_p_overrides = dict(cfg.p_overrides)
+        return board
 
     @property
     def root_node_id(self) -> str:
@@ -316,10 +331,10 @@ class Board:
         return card
 
     def move(self, card: Card, to: str) -> Card:
-        """Transition a card to `to` column. Enforces WIP + unknown-column.
+        """Transition a card to `to` column.
 
-        Gate predicates are TODO(O3-03) — this wave accepts the transition
-        unconditionally after WIP passes.
+        Enforces: unknown-column → WIP → gate predicates (O3-03).
+        Every attempt (passed or refused) emits exactly one transition delta.
         """
         # 1. Unknown column rejection
         if to not in _COLUMNS:
@@ -340,7 +355,51 @@ class Board:
                 )
                 raise BoardWIPError(to, cap)
 
-        # 3. TODO(O3-03): wire gate registry — predicate evaluation goes here.
+        # 3. Gate predicate evaluation (O3-03).
+        transition = (card.column, to)
+        predicates = self._gates.transitions.get(transition)
+        verdict_snapshot = None
+        if predicates is not None:
+            # AI-vs-code Done variant: swap by artifact introspection.
+            if transition == ("InReview", "Done") and card.artifact is not None:
+                if hasattr(card.artifact, "eval_score") and not hasattr(
+                    card.artifact, "tests_passed"
+                ):
+                    predicates = (
+                        scope_clean(),
+                        conf_meets_p(),
+                        eval_meets_threshold(),
+                    )
+            node = self._manager.get_node(card.node_id)
+            if node is None:
+                raise BoardGateError("card node missing", failing_clauses=["scope"])
+            ctx = GateContext(
+                card=card,
+                node_envelope=dict(node.envelope),
+                team_ceiling=self._team_ceiling,
+                team_p_overrides=dict(self._team_p_overrides),
+                retry_ceiling=self._cfg.retry_ceiling,
+                reserve=self._reserve,
+                now=self._clock(),
+                reviewer=self._reviewer,
+            )
+            failing: list[str] = []
+            for p in predicates:
+                if not p.evaluate(ctx):
+                    if p.name not in failing:
+                        failing.append(p.name)
+            if ctx.verdict is not None:
+                verdict_snapshot = dataclasses.asdict(ctx.verdict)
+            if failing:
+                self._append_delta(
+                    card,
+                    from_col=card.column,
+                    to_col=to,
+                    outcome="refused",
+                    failing_clauses=failing,
+                    verdict_snapshot=verdict_snapshot,
+                )
+                raise BoardGateError("gate refused", failing_clauses=failing)
 
         # 4. Emit passed delta + rebuild card with new column.
         new_card = dataclasses.replace(card, column=to)
@@ -351,8 +410,49 @@ class Board:
         self._append_delta(
             card, from_col=card.column, to_col=to,
             outcome="passed", failing_clauses=None,
+            verdict_snapshot=verdict_snapshot,
         )
         return new_card
+
+    def dry_run_gate(
+        self, card: Card, transition: tuple[str, str],
+    ) -> tuple[bool, list[str]]:
+        """Non-destructive predicate evaluation. SPEC L114 acceptance.
+
+        Returns (passed, failing_clauses). Never mutates board state, never
+        appends to node.transitions, never invokes the reviewer unless a
+        confidence predicate is in the registry for `transition`.
+        """
+        predicates = self._gates.transitions.get(transition)
+        if predicates is None:
+            return (True, [])
+        # AI-vs-code Done variant — same logic as move.
+        if transition == ("InReview", "Done") and card.artifact is not None:
+            if hasattr(card.artifact, "eval_score") and not hasattr(
+                card.artifact, "tests_passed"
+            ):
+                predicates = (
+                    scope_clean(),
+                    conf_meets_p(),
+                    eval_meets_threshold(),
+                )
+        node = self._manager.get_node(card.node_id)
+        ctx = GateContext(
+            card=card,
+            node_envelope=dict(node.envelope) if node else {"limit": 0, "spent": 0},
+            team_ceiling=self._team_ceiling,
+            team_p_overrides=dict(self._team_p_overrides),
+            retry_ceiling=self._cfg.retry_ceiling,
+            reserve=self._reserve,
+            now=self._clock(),
+            reviewer=self._reviewer,
+        )
+        failing: list[str] = []
+        for p in predicates:
+            if not p.evaluate(ctx):
+                if p.name not in failing:
+                    failing.append(p.name)
+        return (not failing, failing)
 
     def _append_delta(
         self,

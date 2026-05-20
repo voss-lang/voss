@@ -4,6 +4,7 @@ import {
   type TreeNode,
 } from './tree';
 import type { ActiveLayout, LayoutPreset } from './layoutPresets';
+import type { LayoutFile } from './layoutStorage';
 import type { SessionFile, SessionPane } from './sessionStorage';
 
 /**
@@ -88,6 +89,27 @@ export function applySessionFile(session: SessionFile): SessionRestoreResult {
   }
 
   return { root, focusedId, activeLayout, restoredScrollbackByPaneId };
+}
+
+/**
+ * Convert a LayoutFile to a SessionFile for the D-10 restore priority
+ * chain (session → default layout → fresh). Default layouts have no
+ * scrollback, so panes get `null`.
+ */
+export function layoutToSession(
+  layout: LayoutFile,
+  projectLessAccepted: boolean,
+): SessionFile {
+  return {
+    version: 1,
+    activePreset: layout.activePreset as SessionFile['activePreset'],
+    grid: layout.grid,
+    panes: collectLeaves(layout.grid.root).map((l) => ({
+      id: l.id,
+      scrollback: null,
+    })),
+    projectLessAccepted,
+  };
 }
 
 // ---------------------------------------------------------------------------

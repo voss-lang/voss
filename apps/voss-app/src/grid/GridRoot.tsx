@@ -1,5 +1,5 @@
 import { onMount, onCleanup, createSignal } from 'solid-js';
-import { produce } from 'solid-js/store';
+import { produce, createStore } from 'solid-js/store';
 import {
   collectLeaves,
   createGridStore,
@@ -16,7 +16,9 @@ import {
 } from './layoutPresets';
 import { markStructuralChange } from './sync';
 import { applyLoadedLayout } from './layoutCommands';
+import { applySessionFile } from './sessionCommands';
 import type { LayoutFile } from './layoutStorage';
+import type { SessionFile } from './sessionStorage';
 import SplitNodeView, { type CloseUI } from './SplitNode';
 import { requestCloseGated } from './CloseConfirmBanner';
 import type { Dims } from './DragHandle';
@@ -90,6 +92,8 @@ export type GridController = {
   applyPreset: (preset: LayoutPreset) => void;
   /** Apply a loaded LayoutFile to the live store — never destroys panes (A4-04). */
   applyLoadedLayout: (file: LayoutFile) => void;
+  /** Apply a restored session to the live store (A6 runtime apply). */
+  applySession: (session: SessionFile) => void;
   /** Plain-JS snapshot of the grid state for serialization (A4-04 D-07). */
   snapshot: () => { root: TreeNode; focusedId: string };
 };
@@ -101,8 +105,28 @@ export default function GridRoot(props: {
   onLayoutChange?: (next: ActiveLayout) => void;
   controllerRef?: (ctrl: GridController) => void;
   projectCwd?: string;
+  /** A6: pre-resolved session to initialize from — avoids throwaway default pane. */
+  initialSession?: SessionFile;
 }) {
-  const [store, setStore] = createGridStore();
+  // A6: initialize from restored session when available so no throwaway PTY spawns.
+  const initResult = props.initialSession
+    ? applySessionFile(props.initialSession)
+    : null;
+
+  const [store, setStore] = initResult
+    ? createStore<GridStore>({
+        root: initResult.root,
+        focusedId: initResult.focusedId,
+      })
+    : createGridStore({ cwd: props.projectCwd });
+
+  // A6: restored scrollback map — keyed by saved pane id, cleared on first input.
+  const [restoredScrollbackByPaneId, setRestoredScrollbackByPaneId] =
+    createSignal<Record<string, string[]>>(
+      initResult
+        ? Object.fromEntries(initResult.restoredScrollbackByPaneId)
+        : {},
+    );
   const [win, setWin] = createSignal({
     w: window.innerWidth,
     h: window.innerHeight,
@@ -162,6 +186,25 @@ export default function GridRoot(props: {
     );
     markStructuralChange(store);
     props.onLayoutChange?.(nextActive);
+  };
+
+  /**
+   * Apply a restored session to the live store at runtime (e.g., switching
+   * from project-less to project mode). Uses layout remap since live panes
+   * already exist. Scrollback from the session is set for newly matched panes.
+   */
+  const applySessionToStore = (session: SessionFile) => {
+    const layoutFile: LayoutFile = {
+      version: 1,
+      activePreset: session.activePreset,
+      grid: session.grid,
+    };
+    applyLoadedLayoutToStore(layoutFile);
+    // Set scrollback map for any matching pane ids after remap.
+    const result = applySessionFile(session);
+    setRestoredScrollbackByPaneId(
+      Object.fromEntries(result.restoredScrollbackByPaneId),
+    );
   };
 
   /** Plain-JS snapshot for `serializeLayout`. */
@@ -226,8 +269,13 @@ export default function GridRoot(props: {
     props.controllerRef?.({
       applyPreset: applyPresetToStore,
       applyLoadedLayout: applyLoadedLayoutToStore,
+      applySession: applySessionToStore,
       snapshot,
     });
+    // A6: report restored activeLayout after mount so App.tsx signal updates.
+    if (initResult) {
+      props.onLayoutChange?.(initResult.activeLayout);
+    }
   });
   onCleanup(() => {
     window.removeEventListener('keydown', onKey);
@@ -244,6 +292,14 @@ export default function GridRoot(props: {
           path=""
           dims={dims}
           closeUI={props.closeUI}
+          restoredScrollbackByPaneId={restoredScrollbackByPaneId()}
+          onPaneFirstInput={(paneId) => {
+            setRestoredScrollbackByPaneId((prev) => {
+              const next = { ...prev };
+              delete next[paneId];
+              return next;
+            });
+          }}
         />
       </div>
     </div>

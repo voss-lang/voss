@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show } from 'solid-js';
+import { batch, createSignal, onMount, Show } from 'solid-js';
 import Titlebar from './components/titlebar/Titlebar';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import SetupWindow from './components/setup/SetupWindow';
@@ -7,11 +7,22 @@ import type {
   LayoutPreset,
 } from './grid/layoutPresets';
 import { serializeLayout } from './grid/layoutCommands';
+import { layoutToSession } from './grid/sessionCommands';
 import {
   loadDefaultLayout,
   loadLayout,
   saveLayout,
 } from './grid/layoutStorage';
+import {
+  loadSession,
+  loadGlobalSession,
+  type SessionFile,
+} from './grid/sessionStorage';
+import {
+  installStructuralSessionAutosave,
+  installCloseSessionSave,
+  type SessionContext,
+} from './grid/sessionPersist';
 import {
   defaultCwd,
   listRecents,
@@ -49,7 +60,9 @@ export default function App() {
   const [projectLessAccepted, setProjectLessAccepted] = createSignal(false);
   const [recents, setRecents] = createSignal<string[]>([]);
   const [projectLessCwd, setProjectLessCwd] = createSignal<string | undefined>();
+  const [initialSession, setInitialSession] = createSignal<SessionFile | null>(null);
   let gridController: GridController | undefined;
+  let sessionCleanup: (() => void) | undefined;
 
   const onLayoutSelect = (preset: LayoutPreset) => {
     gridController?.applyPreset(preset);
@@ -91,6 +104,7 @@ export default function App() {
     gridController.applyLoadedLayout(file);
     return true;
   };
+  void applyDefaultLayout; // A7 callable seam — kept live for palette wiring
 
   const openSelectedProject = async (
     path: string,
@@ -98,12 +112,24 @@ export default function App() {
   ): Promise<void> => {
     try {
       const info = await openProject(path);
-      setProject(info);
-      setProjectLessAccepted(true);
       setRecents(await listRecents());
-      await Promise.resolve();
-      await applyDefaultLayout(info.path).catch((e) => {
-        console.warn('default layout skipped:', e);
+
+      // D-10: restore priority — session → default layout → fresh pane.
+      // Resolved BEFORE setting project/projectLessAccepted so GridRoot
+      // mounts with the correct initial state and no throwaway PTY spawns.
+      let session: SessionFile | null = null;
+      session = await loadSession(info.path).catch(() => null);
+      if (!session) {
+        const layout = await loadDefaultLayout(info.path).catch(() => null);
+        if (layout) {
+          session = layoutToSession(layout, false);
+        }
+      }
+
+      batch(() => {
+        setInitialSession(session);
+        setProject(info);
+        setProjectLessAccepted(true);
       });
     } catch (e) {
       console.error(errorPrefix, e);
@@ -127,11 +153,26 @@ export default function App() {
     void defaultCwd(null)
       .then(setProjectLessCwd)
       .catch(() => setProjectLessCwd(undefined));
+
+    // D-12: check global session for project-less bypass on launch.
+    void loadGlobalSession()
+      .then((globalSession) => {
+        if (globalSession?.projectLessAccepted && !projectLessAccepted()) {
+          batch(() => {
+            setInitialSession(globalSession);
+            setProjectLessAccepted(true);
+          });
+        }
+      })
+      .catch(() => {
+        // No global session — show setup window as normal.
+      });
   });
 
   // Suppress unused warnings while keeping the symbols live for A7 wiring.
   void saveCurrentLayout;
   void loadLayoutByName;
+  void sessionCleanup;
 
   return (
     <div
@@ -168,8 +209,19 @@ export default function App() {
             onLayoutChange={(next) => setActiveLayout(next)}
             controllerRef={(c) => {
               gridController = c;
+              // A6: install session lifecycle once grid is mounted.
+              const ctx: SessionContext = {
+                getRoot: () => c.snapshot().root,
+                getFocusedId: () => c.snapshot().focusedId,
+                getActiveLayout: () => activeLayout(),
+                getProjectLessAccepted: () => projectLessAccepted(),
+                projectPath: project()?.path ?? null,
+              };
+              sessionCleanup = installStructuralSessionAutosave(ctx);
+              void installCloseSessionSave(ctx);
             }}
             projectCwd={project()?.path ?? projectLessCwd()}
+            initialSession={initialSession() ?? undefined}
           />
         </div>
       </Show>

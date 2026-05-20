@@ -19,9 +19,25 @@ export async function syncGridToRust(state: GridStore): Promise<void> {
   await invoke('sync_grid', { newState: serialize(state) });
 }
 
+// A6: structural-change listeners. Session autosave hooks in here.
+type StructuralChangeListener = () => void;
+const structuralListeners: StructuralChangeListener[] = [];
+
+/** Subscribe to structural changes. Returns an unsubscribe function. */
+export function subscribeStructuralChange(
+  listener: StructuralChangeListener,
+): () => void {
+  structuralListeners.push(listener);
+  return () => {
+    const idx = structuralListeners.indexOf(listener);
+    if (idx >= 0) structuralListeners.splice(idx, 1);
+  };
+}
+
 /** Structural change → sync now (split/fork/close/focus/equalize). */
 export function markStructuralChange(state: GridStore): void {
   void syncGridToRust(state);
+  for (const listener of structuralListeners) listener();
 }
 
 // Drag coalescer: pointer-move stores the latest state but never syncs;
