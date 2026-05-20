@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 from voss.harness import config as harness_config
 from voss.harness.cli import chat_cmd, do_cmd
+from voss.harness.cognition_schemas import PermissionsConfig, ToolPolicy
 from voss.harness.permissions import PermissionGate, PermissionStore
 from voss_runtime._config import configure, get_config, reset_config
 
@@ -125,6 +126,77 @@ def test_gate_before_prompt(xdg, tmp_path: Path) -> None:
         "web_fetch", {"url": "https://x.com"}, is_mutating=False, is_network=True
     )
     assert allowed is True, f"net-gate should not deny when allow_net=True; got {why!r}"
+
+
+def test_per_gate_allow_net_true_overrides_process_false(xdg, tmp_path: Path) -> None:
+    gate = PermissionGate(
+        mode="edit",
+        store=PermissionStore(cwd=tmp_path),
+        allow_net=True,
+        auto_yes=True,
+    )
+    gate.prompt_fn = _fail_prompt
+    configure(allow_net=False)
+    allowed, why = gate.check(
+        "web_fetch", {"url": "https://x.com"}, is_mutating=False, is_network=True
+    )
+    assert allowed is True
+    assert why == "auto"
+
+
+def test_per_gate_allow_net_false_overrides_process_true(xdg, tmp_path: Path) -> None:
+    gate = PermissionGate(
+        mode="edit",
+        store=PermissionStore(cwd=tmp_path),
+        allow_net=False,
+    )
+    gate.prompt_fn = _fail_prompt
+    configure(allow_net=True)
+    allowed, why = gate.check(
+        "web_fetch", {"url": "https://x.com"}, is_mutating=False, is_network=True
+    )
+    assert allowed is False
+    assert why == "net disabled for this role (per-gate override)"
+
+
+def test_per_gate_allow_net_none_defers_to_process(xdg, tmp_path: Path) -> None:
+    gate = PermissionGate(
+        mode="edit",
+        store=PermissionStore(cwd=tmp_path),
+        allow_net=None,
+        auto_yes=True,
+    )
+    gate.prompt_fn = _fail_prompt
+
+    configure(allow_net=False)
+    allowed, why = gate.check(
+        "web_fetch", {"url": "https://x.com"}, is_mutating=False, is_network=True
+    )
+    assert allowed is False
+    assert "net disabled" in why
+
+    configure(allow_net=True)
+    allowed, why = gate.check(
+        "web_fetch", {"url": "https://x.com"}, is_mutating=False, is_network=True
+    )
+    assert allowed is True
+
+
+def test_project_policy_deny_wins_over_per_gate_allow_net_true(xdg, tmp_path: Path) -> None:
+    gate = PermissionGate(
+        mode="auto",
+        auto_yes=True,
+        allow_net=True,
+        project_policy=PermissionsConfig(
+            tool_policy=ToolPolicy(deny=["web_fetch"])
+        ),
+    )
+    configure(allow_net=True)
+    allowed, why = gate.check(
+        "web_fetch", {"url": "https://x.com"}, is_mutating=False, is_network=True
+    )
+    assert allowed is False
+    assert "denied by .voss/permissions.yml" in why
 
 
 async def test_zero_socket_invariant(xdg, tmp_path: Path) -> None:

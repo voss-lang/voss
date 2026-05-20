@@ -151,6 +151,7 @@ class PermissionGate:
     edit_scope: Optional["EditScope"] = None  # set by voss edit; None for do/chat
     scope_prompt_fn: Optional[Callable] = None  # injected for tests
     project_policy: Optional[PermissionsConfig] = None  # .voss/permissions.yml
+    allow_net: Optional[bool] = None  # per-gate override; None → process config
 
     def needs_prompt(self, tool_name: str) -> bool:
         if self.auto_yes:
@@ -210,9 +211,13 @@ class PermissionGate:
           0. Project-policy deny (`.voss/permissions.yml`) — deny wins over
              allow and over session-mode auto. Project allow does NOT expand
              mode (recorded but not short-circuiting).
-          0a. T3-02 net gate (D-10): when is_network=True and runtime
-              allow_net=False, deny BEFORE mode-tier evaluation. Net is a
-              separate safety axis from mutating writes.
+          0a. T3-02 net gate (D-10): when is_network=True, evaluate per-gate
+              PermissionGate.allow_net before process config:
+              - False → deny ("per-gate override"), ignoring harness allow_net.
+              - True → skip process net check (project deny in step 0 still
+                applies).
+              - None → legacy: deny when get_config().allow_net is False.
+              Net is a separate safety axis from mutating writes.
           1. Mode-tier structural denial (skips everything else).
           2. CTRL-08 diff preview for any fs_write/fs_edit (scope-independent).
           3. Scope check (only if edit_scope set) — expand-prompt fires AFTER
@@ -224,13 +229,16 @@ class PermissionGate:
                 return False, "denied by .voss/permissions.yml"
 
         if is_network:
-            from voss_runtime._config import get_config
+            if self.allow_net is False:
+                return False, "net disabled for this role (per-gate override)"
+            if self.allow_net is None:
+                from voss_runtime._config import get_config
 
-            if not get_config().allow_net:
-                return False, (
-                    "net disabled: set tools.allow_net = true in "
-                    "harness.toml or pass --allow-net"
-                )
+                if not get_config().allow_net:
+                    return False, (
+                        "net disabled: set tools.allow_net = true in "
+                        "harness.toml or pass --allow-net"
+                    )
 
         allowed, why = mode_allows(self.mode, tool_name, is_mutating)
         if not allowed:
