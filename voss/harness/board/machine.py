@@ -10,6 +10,7 @@ Gate-predicate evaluation is O3-03. This wave enforces:
 """
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import time
 from dataclasses import dataclass
@@ -21,7 +22,9 @@ from voss.harness.session_tree import (
     SessionTreeManager,
     SessionTreeNode,
     _write_node_file,
+    finalize_node,
 )
+from .tick import _tick_loop
 from voss.harness.team import BoardSpec, TeamCeiling, TeamConfig, TeamRoleScope
 from voss.ast_nodes import BoardGate, DictLit, IntLit, FloatLit, StringLit
 
