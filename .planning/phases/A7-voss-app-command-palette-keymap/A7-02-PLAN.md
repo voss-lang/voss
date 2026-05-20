@@ -103,7 +103,7 @@ T-A7-04 Quick-open scope creep. Mitigation: quick rows are saved layouts and rec
   <acceptance_criteria>
     - `App.tsx` owns one AppContext object.
     - Cmd+P and Cmd+Shift+P open correct palette modes.
-    - Palette-open keys do not reach grid/PTX dispatch.
+    - Palette-open keys do not reach grid/PTY dispatch.
     - Existing A3/A4 keyboard behavior remains covered by tests.
     - TypeScript build passes.
   </acceptance_criteria>
@@ -120,4 +120,3 @@ Run focused App/palette/grid Vitest plus `pnpm --dir apps/voss-app build`.
 - Quick-open applies layout/recent-project actions through existing A4/A5 seams.
 - Palette input owns keyboard focus while open.
 </success_criteria>
-
