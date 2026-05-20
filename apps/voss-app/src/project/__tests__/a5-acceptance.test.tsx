@@ -18,6 +18,7 @@ vi.mock('@tauri-apps/api/window', () => ({
     minimize: vi.fn(),
     setFullscreen: vi.fn(),
     isFullscreen: vi.fn().mockResolvedValue(false),
+    onCloseRequested: vi.fn(() => Promise.resolve(() => {})),
   }),
 }));
 
@@ -222,14 +223,17 @@ describe('WS-07 — project switching path exists before palette UI lands', () =
       if (cmd === 'load_recents') return Promise.resolve([]);
       if (cmd === 'default_cwd') return Promise.resolve('/Users/ben');
       if (cmd === 'load_default_layout') return Promise.reject(new Error('invalid default'));
+      if (cmd === 'load_session') return Promise.resolve(null);
+      if (cmd === 'load_global_session') return Promise.resolve(null);
       return Promise.resolve(undefined);
     });
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const el = mount(() => <App />);
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
-    // SPEC AC #10: default.json layout load is attempted and cannot block project open.
-    await waitFor(() => expect(warn).toHaveBeenCalled());
-    expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull();
+    // A6 D-10: session/default resolved before project state; rejected default
+    // caught silently → project still opens.
+    await waitFor(() =>
+      expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull(),
+    );
   });
 });
 

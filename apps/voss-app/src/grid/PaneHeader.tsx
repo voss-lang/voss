@@ -19,6 +19,10 @@ export interface PaneHeaderProps {
   dotState?: 'running' | 'exited';
   /** A2-owned foreground command; '' ⇒ segment hidden. */
   process?: string;
+  /** A7: show `[Cmd+B...]` prefix indicator (focused pane only). */
+  prefixActive?: boolean;
+  /** A7: reserve indicator width under tmux profile to avoid header shift. */
+  prefixReserved?: boolean;
   onToggleMenu: () => void;
 }
 
@@ -87,6 +91,22 @@ export default function PaneHeader(props: PaneHeaderProps) {
         </span>
       </Show>
       <span style={{ flex: 1 }} />
+      {/* A7: tmux prefix indicator — reserved 72px, visible only when active + focused */}
+      <Show when={props.prefixReserved}>
+        <span
+          data-testid="prefix-indicator"
+          style={{
+            width: '72px',
+            'text-align': 'right',
+            'font-size': '11px',
+            'font-weight': 400,
+            color: props.prefixActive ? 'var(--accent-amber)' : 'transparent',
+            'flex-shrink': 0,
+          }}
+        >
+          {props.prefixActive ? '[Cmd+B...]' : ''}
+        </span>
+      </Show>
       <button
         type="button"
         class={secondary()}

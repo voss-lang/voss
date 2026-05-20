@@ -43,6 +43,10 @@ export default function SplitNodeView(props: {
   restoredScrollbackByPaneId?: Record<string, string[]>;
   /** A6: called once when user types into a restored pane. */
   onPaneFirstInput?: (paneId: string) => void;
+  /** A7: tmux prefix indicator active on focused pane. */
+  prefixActive?: boolean;
+  /** A7: reserve prefix indicator width (tmux profile). */
+  prefixReserved?: boolean;
 }) {
   const asSplit = () => props.node as SplitNode;
   const asLeaf = () => props.node as PaneLeaf;
@@ -93,6 +97,8 @@ export default function SplitNodeView(props: {
             focused={isFocused()}
             cwd={asLeaf().cwd}
             shell={asLeaf().shell}
+            prefixActive={isFocused() && props.prefixActive}
+            prefixReserved={props.prefixReserved}
             onToggleMenu={() => setMenuOpen((v) => !v)}
           />
           <Show when={menuOpen()}>
@@ -166,6 +172,8 @@ export default function SplitNodeView(props: {
               dims={props.dims}
               restoredScrollbackByPaneId={props.restoredScrollbackByPaneId}
               onPaneFirstInput={props.onPaneFirstInput}
+              prefixActive={props.prefixActive}
+              prefixReserved={props.prefixReserved}
             />
             <DragHandle
               store={props.store}
@@ -192,6 +200,8 @@ export default function SplitNodeView(props: {
               dims={props.dims}
               restoredScrollbackByPaneId={props.restoredScrollbackByPaneId}
               onPaneFirstInput={props.onPaneFirstInput}
+              prefixActive={props.prefixActive}
+              prefixReserved={props.prefixReserved}
             />
           </div>
         </div>
