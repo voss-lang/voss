@@ -87,18 +87,17 @@ class TestBoardErrors:
 
 
 class TestPackageSurface:
-    def test_init_exports_only_wave1_symbols(self):
+    def test_init_exports_wave1_and_wave2_symbols(self):
         from voss.harness import board
         expected = {
             "ReviewerVerdict", "Reviewer",
             "BoardError", "BoardWIPError", "BoardGateError", "BoardTimeoutError",
+            # O3-02 additions:
+            "Board", "Card", "Column", "RiskTier",
         }
         assert set(board.__all__) == expected
 
-    def test_board_card_column_not_yet_importable(self):
-        with pytest.raises(ImportError):
-            from voss.harness.board import Board  # noqa: F401
-        with pytest.raises(ImportError):
-            from voss.harness.board import Card  # noqa: F401
-        with pytest.raises(ImportError):
-            from voss.harness.board import Column  # noqa: F401
+    def test_board_card_column_importable(self):
+        from voss.harness.board import Board, Card, Column  # noqa: F401
+        assert Board is not None
+        assert Card is not None
