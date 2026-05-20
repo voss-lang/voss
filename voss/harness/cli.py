@@ -1981,6 +1981,15 @@ def doctor_cmd(cwd_str: str) -> None:
     else:
         click.echo(f"  {'legacy sessions':<20}: 0")
 
+    # M15-06: surface gate-only confinement when third-party skills installed
+    third_party = [p for p in load_plugins(cwd) if p.skill_id and p.voss_entry]
+    if third_party:
+        ids = ", ".join(p.skill_id for p in third_party)
+        click.echo(f"  {'third-party skills':<20}: {len(third_party)} ({ids})")
+        click.echo(f"  {'skill confinement':<20}: gate-level only (OS-level sandbox deferred)")
+    else:
+        click.echo(f"  {'third-party skills':<20}: 0")
+
     code = diag.aggregate_exit_code(results)
 
     warns = [c for c in results if c.result is diag.CheckResult.WARN]
