@@ -1537,7 +1537,15 @@ Plans:
 
 **Scope:** `Backlog→Planned→InProgress→InReview→Blocked→Done`; per-column WIP (backpressures reviewer cost); confidence gate only on artifact transitions; →Done double gate (code: tests; AI: eval); critic loop ceiling(≈3)+budget→Blocked; column/card timeout→Blocked liveness. Depends O1, O2.
 
-**Requirements:** OBRD-01..0N — TBD by `O3-SPEC.md`.
+**Requirements:** OBRD-01..OBRD-09 — locked in `O3-SPEC.md` (14 acceptance checkboxes).
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] O3-01-PLAN.md — Substrate edits (SessionTreeNode fields, get_node, EXIT_REASONS+"timeout"); board package scaffold (verdict.py zero-deps, errors.py) — addresses OBRD-01 (substrate), OBRD-07
+- [ ] O3-02-PLAN.md — State machine: Card frozen value-object, Board.from_team_config, Board.move with WIP enforcement, BoardSpec adapter, transition-delta emission — addresses OBRD-01, OBRD-02, OBRD-03, OBRD-06 (single-source threshold)
+- [ ] O3-03-PLAN.md — Gate-predicate registry (8 predicates / 7 stable names), Board.dry_run_gate, artifact-only confidence, DeterministicReviewerStub — addresses OBRD-04, OBRD-05, OBRD-06 (acceptance), OBRD-07 (stub end-to-end)
+- [ ] O3-04-PLAN.md — Tick driver (Clock + FakeClock + _tick_loop), Board.start/stop, critic loop (retry_notes + ceiling), finalize_node integration, 100-card stress — addresses OBRD-08, OBRD-09, OBRD-01 (full audit invariant)
 
 ---
 
