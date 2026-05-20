@@ -1,4 +1,4 @@
-import { createSignal, For, Show, onMount, onCleanup } from 'solid-js';
+import { createSignal, For, Show, onMount } from 'solid-js';
 import { formatChord } from './chords';
 import { rankCommandItems } from './fuzzy';
 import { filterQuickItems, type QuickOpenItem } from './quickOpen';

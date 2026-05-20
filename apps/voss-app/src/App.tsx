@@ -196,7 +196,7 @@ export default function App() {
   // --- AppContext (D-03) — built once, threaded to registry handlers ----------
 
   const appCtx: AppContext = {
-    splitFocused: (o) => gridController?.applyPreset?.(undefined as never) ?? void 0,
+    splitFocused: () => {},
     closeFocused: () => {},
     equalizePanes: () => {},
     cycleLayout: () => {

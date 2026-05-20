@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { fireEvent } from '@testing-library/dom';
 import CommandPalette from '../CommandPalette';
-import type { Command, CommandCategory } from '../registry';
+import type { Command } from '../registry';
 import type { QuickOpenItem } from '../quickOpen';
 
 /**
