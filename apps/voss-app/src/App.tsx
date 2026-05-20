@@ -1,7 +1,15 @@
-import { batch, createSignal, onMount, Show } from 'solid-js';
+import { batch, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import Titlebar from './components/titlebar/Titlebar';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import SetupWindow from './components/setup/SetupWindow';
+import CommandPalette from './command-palette/CommandPalette';
+import {
+  createCommandRegistry,
+  v0Commands,
+  type AppContext,
+} from './command-palette/registry';
+import { normalizeChord } from './command-palette/chords';
+import { buildQuickOpenItems } from './command-palette/quickOpen';
 import type {
   ActiveLayout,
   LayoutPreset,
@@ -9,6 +17,7 @@ import type {
 import { serializeLayout } from './grid/layoutCommands';
 import { layoutToSession } from './grid/sessionCommands';
 import {
+  listLayouts,
   loadDefaultLayout,
   loadLayout,
   saveLayout,
@@ -61,8 +70,14 @@ export default function App() {
   const [recents, setRecents] = createSignal<string[]>([]);
   const [projectLessCwd, setProjectLessCwd] = createSignal<string | undefined>();
   const [initialSession, setInitialSession] = createSignal<SessionFile | null>(null);
+  const [paletteMode, setPaletteMode] = createSignal<'quick' | 'full' | null>(null);
+  const [layoutNames, setLayoutNames] = createSignal<string[]>([]);
+  const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let gridController: GridController | undefined;
   let sessionCleanup: (() => void) | undefined;
+
+  // --- Command registry (D-01) -----------------------------------------------
+  const registry = createCommandRegistry(v0Commands());
 
   const onLayoutSelect = (preset: LayoutPreset) => {
     gridController?.applyPreset(preset);
@@ -146,7 +161,99 @@ export default function App() {
     void openSelectedProject(path, 'open_recent failed:');
   };
 
+  // --- Palette lifecycle (D-06/D-08) ------------------------------------------
+
+  const openPalette = (mode: 'quick' | 'full') => {
+    setPaletteMode(mode);
+    if (mode === 'quick' && project()) {
+      void listLayouts(project()!.path)
+        .then(setLayoutNames)
+        .catch(() => setLayoutNames([]));
+    }
+  };
+
+  const dismissPalette = () => setPaletteMode(null);
+
+  const quickItems = () =>
+    buildQuickOpenItems(layoutNames(), recents());
+
+  const handlePaletteExecute = (id: string) => {
+    if (id.startsWith('layout:')) {
+      const name = id.slice('layout:'.length);
+      if (project() && gridController) {
+        void loadLayoutByName(project()!.path, name);
+      }
+    } else if (id.startsWith('recent:')) {
+      const path = id.slice('recent:'.length);
+      void openSelectedProject(path, 'palette open_recent failed:');
+    } else {
+      // Full-mode command — dispatch through registry
+      const cmd = registry.commands.get(id);
+      if (cmd) cmd.handler(appCtx);
+    }
+  };
+
+  // --- AppContext (D-03) — built once, threaded to registry handlers ----------
+
+  const appCtx: AppContext = {
+    splitFocused: (o) => gridController?.applyPreset?.(undefined as never) ?? void 0,
+    closeFocused: () => {},
+    equalizePanes: () => {},
+    cycleLayout: () => {
+      // Cycle is special — needs activeLayout + applyPreset
+      // Handled below via the existing GridRoot flow
+    },
+    focusNext: () => {},
+    focusPrev: () => {},
+    focusIndex: () => {},
+    focusDirection: () => {},
+    resizeDirection: () => {},
+    openQuickPalette: () => openPalette('quick'),
+    openFullPalette: () => openPalette('full'),
+    openProject: () => void handleOpenFolder(),
+    saveLayout: () => {
+      // Placeholder — A7 palette wires prompt UI later
+    },
+    loadLayout: () => {
+      // Placeholder — opens quick palette as fallback
+      openPalette('quick');
+    },
+    switchProfile: () => {
+      // Placeholder — A7-03 wires profile switching
+    },
+    showKeybindings: () => {
+      // Placeholder — A7-04 wires keybindings display
+    },
+  };
+
+  // --- Global keyboard routing (D-02/D-08) -----------------------------------
+  // Capture phase: intercepts ⌘P/⌘⇧P before GridRoot sees them.
+  // While palette is open, suppresses all ⌘ chords from reaching the grid.
+
+  const onAppKey = (e: KeyboardEvent) => {
+    // While palette open: suppress grid chords (T-A7-03)
+    if (paletteMode() !== null) {
+      if (e.metaKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+      return;
+    }
+
+    const chord = normalizeChord(e);
+    if (chord === 'Cmd+P') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openPalette('quick');
+    } else if (chord === 'Cmd+Shift+P') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openPalette('full');
+    }
+  };
+
   onMount(() => {
+    window.addEventListener('keydown', onAppKey, true); // capture phase
     void listRecents()
       .then(setRecents)
       .catch(() => setRecents([]));
@@ -169,9 +276,12 @@ export default function App() {
       });
   });
 
-  // Suppress unused warnings while keeping the symbols live for A7 wiring.
+  onCleanup(() => {
+    window.removeEventListener('keydown', onAppKey, true);
+  });
+
+  // Suppress unused warnings while keeping the symbols live.
   void saveCurrentLayout;
-  void loadLayoutByName;
   void sessionCleanup;
 
   return (
@@ -224,6 +334,18 @@ export default function App() {
             initialSession={initialSession() ?? undefined}
           />
         </div>
+      </Show>
+
+      {/* A7: command palette overlay */}
+      <Show when={paletteMode() !== null}>
+        <CommandPalette
+          mode={paletteMode()!}
+          commands={registry.all()}
+          quickItems={quickItems()}
+          recentCommandIds={recentCommandIds()}
+          onExecute={handlePaletteExecute}
+          onDismiss={dismissPalette}
+        />
       </Show>
     </div>
   );
