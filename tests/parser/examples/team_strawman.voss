@@ -1,0 +1,69 @@
+# ORCHESTRATION-PLAN §5 strawman (O2 acceptance fixture): quoted globs (OQ-01-A);
+# ceiling latency 1800s = 30m (minute suffix not in budget_literal yet);
+# ritual gather: string vs plan gather(...) — see Task 3 notes.
+
+team Engineering {
+
+  ceiling {
+    budget: 200k tokens
+    scope: "src/**"
+    latency: 1800s
+  }
+
+  p: risk_tiered
+
+  agent em {
+    model: "opus"
+    mode: "auto"
+    authority: "full"
+    scope: "all"
+    budget: "ceiling"
+    tools: ["board", "spawn", "kill", "timer"]
+    judge: "tiered"
+    checks: ["slop", "errors", "correctness", "review_idea_alignment"]
+    sees: ["artifact", "acceptance", "repo", "original_idea"]
+    derives: "verification"
+  }
+
+  roster engineers {
+    backend {
+      model: "opus"
+      scope: "src/api/**"
+      tools: ["fs", "test"]
+    }
+    frontend {
+      model: "opus"
+      scope: "src/web/**"
+      tools: ["fs", "test"]
+    }
+    ui {
+      model: "opus"
+      scope: "src/ui/**"
+      tools: ["fs", "test"]
+    }
+    ai {
+      model: "opus"
+      scope: "src/ml/**"
+      tools: ["fs", "test", "net"]
+    }
+  }
+
+  board {
+    columns: ["Backlog", "Planned", "InProgress", "InReview", "Blocked", "Done"]
+    wip: [3, 2, 1]
+    p: 0.85
+    retry: 3
+    liveness: "30m"
+
+    gate Done -> code {
+      "pass_tests",
+      "pass_reviewer_a",
+      "pass_reviewer_b"
+    }
+  }
+
+  ritual ContextDigest {
+    every: "1h"
+    gather: "session_tree"
+  }
+}
