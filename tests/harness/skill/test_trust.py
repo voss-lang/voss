@@ -35,14 +35,19 @@ def test_tampered_manifest_refused(signed_fixture_bundle: Path, tmp_path: Path) 
     assert not ok
     assert "signature" in err.lower(), err
 
-    # Confirm install_bundle raises an error and nothing lands in plugin dir
-    try:
-        from voss.harness.skill.install import install_bundle
-        with pytest.raises(Exception):
-            install_bundle(str(tampered_manifest), cwd=tmp_path)
-    except ImportError:
-        # install_bundle not implemented yet (Wave 1 focus is trust spine)
-        pass
+    # Create a tampered bundle dir with the tampered manifest + original sig
+    import shutil
+    tampered_bundle = tmp_path / "tampered_bundle"
+    shutil.copytree(signed_fixture_bundle, tampered_bundle)
+    (tampered_bundle / "manifest.toml").write_bytes(tampered_content)
+
+    # Pin key so we reach the signature check (not the trust check)
+    from voss.harness.trust import pin_key
+    pin_key("voss-fixture@example.com", pub_key_b64)
+
+    from voss.harness.skill.install import install_bundle, SkillTrustError
+    with pytest.raises(SkillTrustError, match="signature verification failed"):
+        install_bundle(str(tampered_bundle), cwd=tmp_path)
 
 
 def test_unknown_key_refused(signed_fixture_bundle: Path, tmp_path: Path) -> None:
@@ -87,9 +92,6 @@ def test_trust_then_install_succeeds(signed_fixture_bundle: Path, tmp_path: Path
     assert ok
     assert err == "ok"
 
-    try:
-        from voss.harness.skill.install import install_bundle
-        install_bundle(str(manifest_path), cwd=tmp_path)
-    except ImportError:
-        # install_bundle not implemented yet (Wave 1 focus is trust spine)
-        pass
+    from voss.harness.skill.install import install_bundle
+    skill_id = install_bundle(str(signed_fixture_bundle), cwd=tmp_path)
+    assert skill_id == "voss-git-summary"

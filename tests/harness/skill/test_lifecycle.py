@@ -61,7 +61,12 @@ def test_update_tamper_leaves_prior_intact(
     # Point the installed manifest's source_url at the tampered upstream
     installed_manifest = install_dir / "manifest.toml"
     text = installed_manifest.read_text()
-    text = text.replace('source_url = ""', f'source_url = "{tampered_upstream}"')
+    import re as _re
+    text = _re.sub(
+        r'source_url\s*=\s*"[^"]*"',
+        f'source_url = "{tampered_upstream}"',
+        text,
+    )
     installed_manifest.write_text(text)
 
     # Update should fail due to tampered signature
