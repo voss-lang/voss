@@ -63,3 +63,9 @@ def artifact_passing():
 
 def artifact_failing():
     return SimpleNamespace(tests_passed=False, eval_score=0.0, scope_violations=("leak",))
+
+
+@pytest.fixture
+def fake_clock():
+    from voss.harness.board.tick import FakeClock
+    return FakeClock(0.0)

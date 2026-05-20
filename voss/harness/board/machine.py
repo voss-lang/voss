@@ -415,6 +415,13 @@ class Board:
             outcome="passed", failing_clauses=None,
             verdict_snapshot=verdict_snapshot,
         )
+
+        # 5. Finalize on Done (O3-04).
+        if to == "Done":
+            node = self._manager.get_node(new_card.node_id)
+            if node is not None and not node._finalized:
+                finalize_node(node, exit_reason="done", cwd=self._cwd)
+
         return new_card
 
     def dry_run_gate(
@@ -484,3 +491,111 @@ class Board:
         }
         node.transitions.append(delta)
         _write_node_file(node, self._cwd)
+
+    # --- O3-04: tick, forced terminal, critic loop, start/stop ----------------
+
+    def _tick_once(self, now: float) -> None:
+        """Synchronous test entry. Forces terminal states only — no forward
+        progression. Idempotent: terminal cards are skipped."""
+        for card in list(self._cards):
+            if card.column in _TERMINAL_COLUMNS:
+                continue
+            # 1. Wall-clock deadline check.
+            if now >= card.deadline:
+                self._force_terminal(card, reason="timeout")
+                continue
+            # 2. Budget exhaustion check.
+            node = self._manager.get_node(card.node_id)
+            if node is None:
+                continue
+            env = node.envelope
+            if env["spent"] >= env["limit"] - self._reserve:
+                self._force_terminal(card, reason="budget")
+
+    def _force_terminal(self, card: Card, *, reason: str) -> Card:
+        """Force a card to Blocked with the given reason; finalize the node.
+
+        Mapping for finalize_node exit_reason:
+          - "timeout" → exit_reason="timeout"  (in EXIT_REASONS post-O3-01)
+          - "budget"  → exit_reason="budget"   (in EXIT_REASONS)
+          - "retry_ceiling" → exit_reason="max-iter" (avoids further
+            EXIT_REASONS extension; transition delta retains "retry_ceiling")
+        """
+        new_card = dataclasses.replace(card, column="Blocked")
+        self._cards = [
+            new_card if c.node_id == card.node_id else c
+            for c in self._cards
+        ]
+        self._append_delta(
+            card, from_col=card.column, to_col="Blocked",
+            outcome="forced", reason=reason,
+        )
+        node = self._manager.get_node(card.node_id)
+        if node is not None and not node._finalized:
+            exit_reason = reason if reason in {"timeout", "budget"} else "max-iter"
+            finalize_node(node, exit_reason=exit_reason, cwd=self._cwd)
+        return new_card
+
+    def critic_step(self, card: Card, last_verdict: ReviewerVerdict) -> Card:
+        """Process a reviewer verdict after InReview.
+
+        - pass: no-op (caller drives forward progression).
+        - fail: if retry_count < ceiling, card returns to InProgress with
+          retry_count+1 and a RetryNote on node.retry_notes. If ceiling
+          hit: forced to Blocked(reason="retry_ceiling").
+        - block: forced to Blocked(reason="retry_ceiling") immediately.
+        """
+        if last_verdict.verdict == "pass":
+            return card
+        if last_verdict.verdict == "block":
+            return self._force_terminal(card, reason="retry_ceiling")
+
+        # verdict == "fail"
+        new_retry = card.retry_count + 1
+        if new_retry > self._cfg.retry_ceiling:
+            return self._force_terminal(card, reason="retry_ceiling")
+
+        new_card = dataclasses.replace(
+            card, column="InProgress", retry_count=new_retry,
+        )
+        self._cards = [
+            new_card if c.node_id == card.node_id else c
+            for c in self._cards
+        ]
+        # Append RetryNote to node.
+        node = self._manager.get_node(card.node_id)
+        if node is not None:
+            note = {
+                "round": new_retry,
+                "notes": last_verdict.notes,
+                "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            }
+            node.retry_notes.append(note)
+        # Emit passed transition InReview→InProgress.
+        self._append_delta(
+            card, from_col="InReview", to_col="InProgress",
+            outcome="passed",
+            verdict_snapshot=dataclasses.asdict(last_verdict),
+        )
+        if node is not None:
+            _write_node_file(node, self._cwd)
+        return new_card
+
+    def start(self) -> None:
+        """Start the periodic tick loop (idempotent)."""
+        if self._tick_task is not None and not self._tick_task.done():
+            return
+        self._tick_task = asyncio.create_task(
+            _tick_loop(self, self._clock, self._cfg.tick_interval_s),
+        )
+
+    async def stop(self) -> None:
+        """Cancel the tick loop and await drain."""
+        if self._tick_task is None:
+            return
+        self._tick_task.cancel()
+        try:
+            await self._tick_task
+        except asyncio.CancelledError:
+            pass
+        self._tick_task = None

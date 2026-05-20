@@ -7,6 +7,7 @@ import DragHandle, { type Dims } from './DragHandle';
 import PaneHeader from './PaneHeader';
 import DotMenu from './DotMenu';
 import CloseConfirmBanner, { requestCloseGated } from './CloseConfirmBanner';
+import RestoreBanner from './RestoreBanner';
 
 /**
  * A3-05 close gate injection (A2 D-07 black box). A2's `PaneComponent` does
@@ -108,6 +109,11 @@ export default function SplitNodeView(props: {
               setStore={props.setStore}
               process={banner() as string}
               onKeepOpen={() => setBanner(null)}
+            />
+          </Show>
+          <Show when={props.restoredScrollbackByPaneId?.[asLeaf().id]}>
+            <RestoreBanner
+              lineCount={props.restoredScrollbackByPaneId![asLeaf().id].length}
             />
           </Show>
           <div style={{ flex: 1, 'min-height': 0, position: 'relative' }}>
