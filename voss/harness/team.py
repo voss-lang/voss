@@ -25,7 +25,9 @@ from voss.ast_nodes import (
 )
 
 from .permissions import Mode, PermissionGate
+from .skill.scope import _min_mode  # team compile reuse; see skill/scope.py:74
 from .subagents import SubagentRegistry, SubagentSpec
+from .tools import ToolEntry
 
 
 class VossTeamConfigError(Exception):
@@ -80,6 +82,71 @@ def default_team_role_defaults(role_name: str) -> tuple[str, str]:
 
 EM_DESCRIPTION: str = "Engineering Manager (orchestrator)"
 EM_ROLE_PROMPT: str = "<EM role prompt — populated in O5>"
+
+# OQ-03-A: hybrid alias table (shorthand groups + exact tool names accepted separately).
+TOOL_GROUP_ALIASES: dict[str, frozenset[str]] = {
+    "fs": frozenset({"fs_read", "fs_write", "fs_edit", "fs_glob", "fs_grep"}),
+    "test": frozenset({"shell_run"}),
+    "shell": frozenset(
+        {"shell_run", "shell_run_background", "shell_monitor", "shell_signal"}
+    ),
+    "net": frozenset({"web_fetch", "web_search"}),
+    "git": frozenset({"git_status", "git_diff"}),
+}
+
+
+def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGate:
+    """Compile a per-role PermissionGate from a SubagentSpec.
+
+    Cap-not-expand: when ``spec.mode`` is set, it caps ``base_gate.mode`` via
+    :func:`voss.harness.skill.scope._min_mode`; it never widens permissions.
+
+    Per-gate network: ``spec.net`` maps to ``allow_net`` explicitly (``True`` or
+    ``False``), never ``None``, so specialist roles stay netless even when the
+    process is started with ``--allow-net``.
+
+    Subagent sessions do not use :class:`~voss.harness.edit_scope.EditScope`
+    in this compile step (O5 may route per-role paths separately); ``edit_scope``
+    is therefore always ``None`` here.
+    """
+    if spec.mode is None:
+        effective_mode = base_gate.mode
+    else:
+        effective_mode = _min_mode(base_gate.mode, spec.mode)
+    return PermissionGate(
+        mode=effective_mode,
+        store=None,
+        auto_yes=True,
+        prompt_fn=None,
+        edit_scope=None,
+        scope_prompt_fn=None,
+        project_policy=base_gate.project_policy,
+        allow_net=True if spec.net else False,
+    )
+
+
+def filter_toolset_for_role(
+    spec: SubagentSpec,
+    base_toolset: Mapping[str, ToolEntry],
+) -> dict[str, ToolEntry]:
+    """Return a subset of *base_toolset* based on ``spec.tools``.
+
+    If ``spec.tools`` is ``None``, returns a shallow copy of the full toolset.
+
+    Otherwise expands :data:`TOOL_GROUP_ALIASES` entries and treats any other
+    string as an exact ``make_toolset`` key. ``web_fetch`` / ``web_search``
+    appear in the result only when the ``net`` alias is included (or those names
+    are listed explicitly).
+    """
+    if spec.tools is None:
+        return dict(base_toolset)
+    expanded: set[str] = set()
+    for entry in spec.tools:
+        if entry in TOOL_GROUP_ALIASES:
+            expanded |= set(TOOL_GROUP_ALIASES[entry])
+        else:
+            expanded.add(entry)
+    return {name: te for name, te in base_toolset.items() if name in expanded}
 
 
 @dataclass(frozen=True, slots=True)
