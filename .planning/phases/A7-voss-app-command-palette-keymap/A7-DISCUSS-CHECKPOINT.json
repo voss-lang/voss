@@ -1,9 +1,9 @@
 {
   "phase": "A7",
   "phase_name": "voss-app Command Palette + Keymap",
-  "timestamp": "2026-05-20T16:10:00Z",
-  "areas_completed": ["Command registry design", "⌘P quick-open scope in L1"],
-  "areas_remaining": ["tmux ⌘B prefix mode", "keymap.json override semantics"],
+  "timestamp": "2026-05-20T16:20:00Z",
+  "areas_completed": ["Command registry design", "⌘P quick-open scope in L1", "tmux ⌘B prefix mode"],
+  "areas_remaining": ["keymap.json override semantics"],
   "decisions": {
     "Command registry design": [
       {"question": "How should the command system be organized?", "answer": "Central typed registry — one CommandRegistry Map<string, Command> with {id, label, category, keybinding?, handler}. Single source of truth for palette and keymap.", "options_presented": ["Central typed registry", "Distributed registration", "You decide"]},
@@ -16,9 +16,14 @@
       {"question": "One component or two?", "answer": "One CommandPalette component with two modes: 'quick' (⌘P, layouts+recents) and 'full' (⌘⇧P, all commands). Same fuzzy engine, same styling.", "options_presented": ["One component, two modes", "Two separate components"]},
       {"question": "How should fuzzy matching work?", "answer": "Simple substring match + recency boost. Case-insensitive. ~50 commands doesn't need fzf sophistication.", "options_presented": ["Simple substring + recency boost", "Proper fuzzy (fzf-style)", "You decide"]},
       {"question": "How should the palette dismiss?", "answer": "Centered overlay. Esc or click-outside dismisses. PTY does not receive keystrokes while open. Focus returns to previously-focused pane.", "options_presented": ["Overlay + Esc/click-outside", "Inline at top of focused pane", "You decide"]},
-      {"question": "Should the palette show keybinding hints?", "answer": "Yes — right-aligned chord hints in dim text next to each command (e.g., 'Split Right  ⌘D'). Read from registry.", "options_presented": ["Yes — right-aligned chord hints", "No hints in L1"]}
+      {"question": "Should the palette show keybinding hints?", "answer": "Yes — right-aligned chord hints in dim text next to each command. Read from registry.", "options_presented": ["Yes — right-aligned chord hints", "No hints in L1"]}
+    ],
+    "tmux ⌘B prefix mode": [
+      {"question": "How should the ⌘B prefix window work?", "answer": "Timed 1.5s window. Small [⌘B…] indicator in focused pane header. Next keypress (no ⌘ needed) dispatches tmux-mapped command. Timeout or Esc cancels. Unrecognized key cancels + passes to PTY.", "options_presented": ["Timed window + subtle indicator", "Sticky until used or Esc", "Defer to A8", "You decide"]},
+      {"question": "How does tmux profile interact with registry?", "answer": "Named profiles — switching profile replaces active keybinding map. 'vscode' (default) and 'tmux'. tmux inherits all vscode bindings + adds ⌘B prefix chords.", "options_presented": ["Named profiles — switch replaces active set", "tmux = additive layer", "You decide"]},
+      {"question": "Where is the active profile persisted?", "answer": "~/.config/voss-app/settings.json under \"keymap.profile\": \"vscode\" | \"tmux\". User-global, matches A1 D-09 path lock.", "options_presented": ["~/.config/voss-app/settings.json", ".voss/keymap.json", "You decide"]}
     ]
   },
   "deferred_ideas": [],
-  "canonical_refs": [".planning/ROADMAP.md Phase A7", "apps/voss-app/CONCEPT.md", "apps/voss-app/FEATURES.md §L1.5", "apps/voss-app/src/grid/keymap.ts", "apps/voss-app/src/App.tsx"]
+  "canonical_refs": [".planning/ROADMAP.md Phase A7", "apps/voss-app/CONCEPT.md", "apps/voss-app/FEATURES.md §L1.5", "apps/voss-app/FEATURES.md §L1.6.4", "apps/voss-app/src/grid/keymap.ts", "apps/voss-app/src/App.tsx"]
 }
