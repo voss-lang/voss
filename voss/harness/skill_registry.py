@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 
@@ -191,4 +192,49 @@ def default_skill_registry() -> SkillRegistry:
             mutating=True,
         )
     )
+    # Load third-party .voss skills AFTER built-ins (built-in ids win on collision)
+    load_voss_skills(Path.cwd(), registry)
     return registry
+
+
+def load_voss_skills(cwd: Path, registry: SkillRegistry) -> None:
+    """Discover installed .voss bundles and register them as SkillEntry handlers.
+
+    Runs AFTER built-ins are registered so built-in ids are never shadowed.
+    """
+    from .plugins import load_plugins
+    from .skill.adapter import make_voss_skill_handler
+    from .skill.scope import scope_spec_from_manifest
+
+    plugins = load_plugins(cwd)
+    for plugin in plugins:
+        if not plugin.voss_entry or not plugin.skill_id:
+            continue
+        if not plugin.enabled:
+            continue
+        # Skip if built-in id already registered (no shadowing)
+        if registry.get(plugin.skill_id) is not None:
+            continue
+        bundle_dir = plugin.bundle_dir
+        if bundle_dir is None:
+            continue
+        voss_path = bundle_dir / plugin.voss_entry
+        if not voss_path.exists():
+            continue
+        spec = scope_spec_from_manifest({
+            "scopes": {
+                "tools": plugin.scope_tools,
+                "fs": plugin.scope_fs,
+                "net": plugin.scope_net,
+            }
+        })
+        registry.register(
+            SkillEntry(
+                id=plugin.skill_id,
+                description=plugin.description,
+                handler=make_voss_skill_handler(
+                    voss_path, spec, skill_id=plugin.skill_id
+                ),
+                mutating=plugin.skill_mutating,
+            )
+        )
