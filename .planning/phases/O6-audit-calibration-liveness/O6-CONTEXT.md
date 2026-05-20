@@ -1,7 +1,7 @@
 # Phase O6: Audit Product + Calibration + Liveness Hardening - Context
 
 **Gathered:** 2026-05-17
-**Status:** Seeded from `.planning/ORCHESTRATION-PLAN.md` — needs `/gsd-spec-phase` then `/gsd-plan-phase`
+**Status:** Planned inline on 2026-05-20 from roadmap/context because `O6-SPEC.md` is not present; reconcile if a formal SPEC is later authored.
 **Source of truth:** `.planning/ORCHESTRATION-PLAN.md` (§4 invariants, §7 residual register, §8 decisions)
 
 <domain>

@@ -104,9 +104,7 @@ pub fn sync_grid(
 /// Read-back of the in-memory mirror for Solid↔Rust parity assertions
 /// (GRD-08). In-memory ONLY — no filesystem access.
 #[tauri::command]
-pub fn get_grid(
-    state: tauri::State<'_, Mutex<GridState>>,
-) -> Result<GridState, String> {
+pub fn get_grid(state: tauri::State<'_, Mutex<GridState>>) -> Result<GridState, String> {
     snapshot(state.inner())
 }
 

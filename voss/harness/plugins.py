@@ -23,6 +23,20 @@ class PluginManifest:
     agents: tuple[str, ...] = ()
     source: Path | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    # skill binding
+    voss_entry: str = ""
+    skill_id: str = ""
+    skill_mutating: bool = False
+    # declared scopes (default-deny)
+    scope_tools: str = "read-only"
+    scope_fs: str = "cwd"
+    scope_net: bool = False
+    # trust
+    sig_file: str = ""
+    author_identity: str = ""
+    # install metadata
+    source_url: str = ""
+    bundle_dir: Path | None = None
 
 
 def user_plugin_dir() -> Path:
@@ -121,6 +135,22 @@ def _read_manifest(
         else:
             warnings.append(f"unknown agent: {agent}")
     enabled = enabled_overrides.get(plugin_id, bool(raw.get("enabled", False)))
+    # skill binding
+    skill_tbl = raw.get("skill", {})
+    if not isinstance(skill_tbl, dict):
+        skill_tbl = {}
+    # scopes (default-deny)
+    scopes_tbl = raw.get("scopes", {})
+    if not isinstance(scopes_tbl, dict):
+        scopes_tbl = {}
+    # trust
+    trust_tbl = raw.get("trust", {})
+    if not isinstance(trust_tbl, dict):
+        trust_tbl = {}
+    # install metadata
+    install_tbl = raw.get("install", {})
+    if not isinstance(install_tbl, dict):
+        install_tbl = {}
     return PluginManifest(
         id=plugin_id,
         name=str(raw.get("name", plugin_id)),
@@ -131,6 +161,16 @@ def _read_manifest(
         agents=tuple(known_agents),
         source=path,
         warnings=tuple(warnings),
+        voss_entry=str(skill_tbl.get("entry", "")),
+        skill_id=str(skill_tbl.get("id", "")),
+        skill_mutating=bool(skill_tbl.get("mutating", False)),
+        scope_tools=str(scopes_tbl.get("tools", "read-only")),
+        scope_fs=str(scopes_tbl.get("fs", "cwd")),
+        scope_net=bool(scopes_tbl.get("net", False)),
+        sig_file=str(trust_tbl.get("sig_file", "")),
+        author_identity=str(raw.get("author_identity", "")),
+        source_url=str(install_tbl.get("source_url", "")),
+        bundle_dir=path.parent if path.name == "manifest.toml" else None,
     )
 
 
@@ -148,6 +188,17 @@ def load_plugins(
         if not root.exists():
             continue
         for path in sorted(root.glob("*.toml")):
+            manifest = _read_manifest(
+                path,
+                command_ids=ids[0],
+                skill_ids=ids[1],
+                agent_ids=ids[2],
+                enabled_overrides=enabled_overrides,
+            )
+            if manifest is not None:
+                manifests.append(manifest)
+        # Also discover installed bundle subdirs: <root>/<id>/manifest.toml
+        for path in sorted(root.glob("*/manifest.toml")):
             manifest = _read_manifest(
                 path,
                 command_ids=ids[0],

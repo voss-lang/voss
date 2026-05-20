@@ -26,7 +26,7 @@
 | M12 | MCP Bridge (CAPS-01c, promotes DIST-03) | Consume external MCP tools + expose harness skills as MCP server | MCP-01..0N (TBD by SPEC.md) | TBD |
 | M13 | Multi-agent in Chat (CAPS-01d) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel` | MAG-01..MAG-08 | 8 |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
-| M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..06 | 6 plans, 5 waves |
+| M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..06 | **Complete** (6/6 plans, 2026-05-20) |
 | T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | **Complete** (3/3 plans, 2026-05-18) |
 | T1 | Iteration Loop + Streaming + Interrupt | Turn single-shot plan→exec→done into a real while-loop agent with streamed text + cancel | ITER-01..06 | TBD |
 | T4 | Prompt Caching + Cost Truthfulness | Cache cognition prefix; honest `/cost` including cache reads | CACHE-01..04 | TBD |
@@ -672,12 +672,12 @@ Plans:
 **Plans:** 6 plans across 5 waves (planned 2026-05-19).
 
 Plans:
-- [ ] M15-01-PLAN.md — Wave 0: RED skill test suite + cryptography direct dep + signed example bundle (human gate)
-- [ ] M15-02-PLAN.md — Wave 1: trust.py — Ed25519 detached-sig verify + pinned-key trust store [SKILL-03]
-- [ ] M15-03-PLAN.md — Wave 1: scope.py — declared scopes → existing PermissionGate (no new engine) [SKILL-04]
-- [ ] M15-04-PLAN.md — Wave 2: fetch + manifest schema + install/remove/update gating (staging→verify→copy) [SKILL-01, SKILL-05]
-- [ ] M15-05-PLAN.md — Wave 3: VossSkillAdapter + registry + voss skill CLI + RunRecorder audit [SKILL-02]
-- [ ] M15-06-PLAN.md — Wave 4: e2e fixture-cycle CI test + documented confinement limitation [SKILL-06]
+- [x] M15-01-PLAN.md — Wave 0: RED skill test suite + cryptography direct dep + signed example bundle (human gate)
+- [x] M15-02-PLAN.md — Wave 1: trust.py — Ed25519 detached-sig verify + pinned-key trust store [SKILL-03]
+- [x] M15-03-PLAN.md — Wave 1: scope.py — declared scopes → existing PermissionGate (no new engine) [SKILL-04]
+- [x] M15-04-PLAN.md — Wave 2: fetch + manifest schema + install/remove/update gating (staging→verify→copy) [SKILL-01, SKILL-05]
+- [x] M15-05-PLAN.md — Wave 3: VossSkillAdapter + registry + voss skill CLI + RunRecorder audit [SKILL-02]
+- [x] M15-06-PLAN.md — Wave 4: e2e fixture-cycle CI test + documented confinement limitation [SKILL-06]
 
 **Seed source:** [`seeds/agent-capability-surface.md`](seeds/agent-capability-surface.md) (capability 6)
 **Existing infra:** `voss/harness/plugins.py` (`PluginManifest`, user/project plugin dirs, enablement TOML) — scaffold present, unused.
@@ -1573,7 +1573,15 @@ Plans:
 
 **Scope:** Full-authority autonomous loop; idea→tickets/AC/DoD (worker scaffolding, not the audit bar); specialist dispatch from roster + `routing_rationale` per card; kill/re-scope with preserved lineage; board mutation bounded by the cage (cannot rewrite `ceiling`/`p`, cannot invent agents). Depends O1–O4.
 
-**Requirements:** OEM-01..0N — TBD by `O5-SPEC.md`.
+**Requirements:** OEM-01..OEM-10 (locked direct from CONTEXT + RESEARCH; no SPEC).
+
+**Plans:** 6 plans
+- [ ] O5-00-PLAN.md — Substrate gate (O1/O2 live probes + O3/O4 paper audit; no code)
+- [ ] O5-01-PLAN.md — Data model: Ticket/KillRecord/RescopeRecord/RoutingRationale/RunFinal + EXIT_REASONS "killed" additive (OEM-01, OEM-07, OEM-10)
+- [ ] O5-02-PLAN.md — EMBoardHandle cage facade + BoardProtocol mocks for O3 (OEM-02, OEM-06, OEM-07, OEM-08)
+- [ ] O5-03-PLAN.md — EM LLM wrapper + EMPlanResponse pydantic LENIENT schema + DeterministicEMStub (OEM-03, OEM-04)
+- [ ] O5-04-PLAN.md — em_loop driver: idea → plan → dispatch → tick → terminate (OEM-05, OEM-06)
+- [ ] O5-05-PLAN.md — Integration tests + cross-phase coordination doc + VALIDATION matrix (OEM-08, OEM-09, OEM-10)
 
 ---
 
@@ -1583,7 +1591,7 @@ Plans:
 
 **Scope:** Session-tree as primary review surface; killed/re-scoped cards + routing rationale foregrounded first-class; reviewer calibration telemetry (B-verdict vs. A-verification, now independent) + sampled human slop-rejection spot-audit; reserve/timeout liveness wiring surfaced; **sign-off forcing function** (mandatory killed-card + misroute diff before approve is available); Leak-6 (`semantic.memory` poisoning) mitigation candidate. Depends O5.
 
-**Requirements:** OAUD-01..0N — TBD by `O6-SPEC.md`.
+**Requirements:** OAUD-01..08 — derived in `O6-RESEARCH.md` / `O6-VALIDATION.md` because `O6-SPEC.md` is not present; reconcile if a formal SPEC is later authored.
 
 **Cross-cutting:** O6 closes (or explicitly defers) the residual-risk register from `ORCHESTRATION-PLAN.md §7`. Leak 6 may remain a documented accepted gap if mitigation proves out-of-scope.
 
@@ -1639,7 +1647,7 @@ Plans:
 | O3 | OBRD-01..0N | TBD by `O3-SPEC.md` |
 | O4 | ORVW-01..0N | TBD by `O4-SPEC.md` |
 | O5 | OEM-01..0N | TBD by `O5-SPEC.md` |
-| O6 | OAUD-01..0N | TBD by `O6-SPEC.md` |
+| O6 | OAUD-01..08 | 8 |
 | **O-total** | | **TBD per SPEC** |
 
 All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`. A-phase requirement IDs are placeholder prefixes; per-phase SPEC locks the count + exact text.

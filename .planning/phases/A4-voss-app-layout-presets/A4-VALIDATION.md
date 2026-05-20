@@ -49,9 +49,9 @@ created: 2026-05-19
 
 ## Wave 0 Requirements
 
-- [ ] Add or verify tests that assert `App.tsx` renders `GridRoot`, not a direct single `PaneComponent`, before A4 work assumes grid runtime wiring.
-- [ ] Add or verify Rust-side tests/source assertions that `sync_grid` is registered and `Mutex<GridState>` is managed by the Tauri app before layout persistence depends on the mirror.
-- [ ] Add pure fixture helpers for pane-id set equality, focused-id preservation, and layout tree leaf order.
+- [x] Add or verify tests that assert `App.tsx` renders `GridRoot`, not a direct single `PaneComponent`, before A4 work assumes grid runtime wiring.
+- [x] Add or verify Rust-side tests/source assertions that `sync_grid` is registered and `Mutex<GridState>` is managed by the Tauri app before layout persistence depends on the mirror.
+- [x] Add pure fixture helpers for pane-id set equality, focused-id preservation, and layout tree leaf order.
 
 ---
 
@@ -75,3 +75,4 @@ created: 2026-05-19
 
 **Approval:** green 2026-05-19 — all 22 LAY-01..LAY-08 acceptance tests pass; full vitest suite 177/177; cargo `voss-app-core` 22/22; vite build is a pre-existing config issue (safari13 destructuring in solid-js compiled output) tracked separately.
 
+**Closeout:** complete 2026-05-20 — local pnpm dependencies restored with `pnpm install --frozen-lockfile`; `pnpm --dir apps/voss-app test` passed 15 files / 174 tests; `pnpm --dir apps/voss-app build` passed; `cargo test -p voss-app-core` passed 22/22; `cargo test -p voss-app-core layouts` passed 16/16. A4 summary artifacts added: `A4-00-SUMMARY.md` through `A4-05-SUMMARY.md` plus `A4-PHASE-SUMMARY.md`.

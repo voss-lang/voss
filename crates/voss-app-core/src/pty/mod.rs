@@ -78,8 +78,7 @@ impl PtySession {
     pub fn kill(&self) -> anyhow::Result<()> {
         let mut child = self.child.lock().expect("child mutex poisoned");
         let _ = child.kill();
-        let deadline =
-            std::time::Instant::now() + std::time::Duration::from_secs(2);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         loop {
             match child.try_wait() {
                 Ok(Some(_)) => break,

@@ -1981,6 +1981,15 @@ def doctor_cmd(cwd_str: str) -> None:
     else:
         click.echo(f"  {'legacy sessions':<20}: 0")
 
+    # M15-06: surface gate-only confinement when third-party skills installed
+    third_party = [p for p in load_plugins(cwd) if p.skill_id and p.voss_entry]
+    if third_party:
+        ids = ", ".join(p.skill_id for p in third_party)
+        click.echo(f"  {'third-party skills':<20}: {len(third_party)} ({ids})")
+        click.echo(f"  {'skill confinement':<20}: gate-level only (OS-level sandbox deferred)")
+    else:
+        click.echo(f"  {'third-party skills':<20}: 0")
+
     code = diag.aggregate_exit_code(results)
 
     warns = [c for c in results if c.result is diag.CheckResult.WARN]
@@ -2611,6 +2620,84 @@ def skill_run_cmd(
     if entry is None:
         raise click.ClickException(f"unknown skill: {skill_id}")
     entry.handler(ctx, list(args))
+
+
+@skill_group.command("add")
+@click.argument("source")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--allow-tofu", is_flag=True, default=False, help="TOFU-pin unknown keys on first install")
+def skill_add_cmd(source: str, cwd_str: str, allow_tofu: bool) -> None:
+    """Install a skill bundle from a local path, git URL, or GitHub shorthand."""
+    from .skill.install import SkillTrustError, install_bundle
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        skill_id = install_bundle(source, cwd=cwd, allow_tofu=allow_tofu)
+        click.echo(f"skill installed: {skill_id}")
+    except SkillTrustError as e:
+        click.echo(f"error: {e}", err=True)
+        raise click.exceptions.Exit(code=1) from None
+
+
+@skill_group.command("list")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def skill_list_cmd(cwd_str: str) -> None:
+    """List installed third-party skills."""
+    cwd = Path(cwd_str).resolve()
+    plugins = load_plugins(cwd)
+    found = False
+    for p in plugins:
+        if p.skill_id and p.voss_entry:
+            found = True
+            status = "enabled" if p.enabled else "disabled"
+            click.echo(f"  {p.skill_id:<24} {status:<10} tools={p.scope_tools} fs={p.scope_fs} net={p.scope_net}")
+    if found:
+        click.echo("")
+        click.echo("  note: scope enforcement applies to harness tool calls only (OS-level sandbox deferred)")
+    else:
+        click.echo("  (no third-party skills installed)")
+
+
+@skill_group.command("remove")
+@click.argument("skill_id")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def skill_remove_cmd(skill_id: str, cwd_str: str) -> None:
+    """Remove an installed skill."""
+    from .skill.install import remove_bundle
+
+    cwd = Path(cwd_str).resolve()
+    remove_bundle(skill_id, cwd=cwd)
+    click.echo(f"skill removed: {skill_id}")
+
+
+@skill_group.command("update")
+@click.argument("skill_id")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def skill_update_cmd(skill_id: str, cwd_str: str) -> None:
+    """Re-fetch and re-verify an installed skill (prior version intact on failure)."""
+    from .skill.install import SkillTrustError, update_bundle
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        update_bundle(skill_id, cwd=cwd)
+        click.echo(f"skill updated: {skill_id}")
+    except SkillTrustError as e:
+        click.echo(f"error: {e} (prior version intact)", err=True)
+        raise click.exceptions.Exit(code=1) from None
+
+
+@skill_group.command("trust")
+@click.argument("pub_key_b64")
+@click.option("--identity", required=True, help="Author identity (e.g. email)")
+def skill_trust_cmd(pub_key_b64: str, identity: str) -> None:
+    """Trust a signing key by pinning it to an identity."""
+    from .trust import key_fingerprint, pin_key
+
+    fp = key_fingerprint(pub_key_b64)
+    click.echo(f"key fingerprint: {fp}")
+    click.confirm(f"Trust key for identity '{identity}'?", abort=True)
+    pin_key(identity, pub_key_b64)
+    click.echo(f"key pinned for {identity}")
 
 
 @click.command("agents")

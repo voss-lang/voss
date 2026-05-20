@@ -1,65 +1,83 @@
-"""RED tests for SKILL-05 (lifecycle: remove, update, and tamper protection)."""
+"""Tests for SKILL-05 (lifecycle: remove, update, tamper protection)."""
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
+
 import pytest
+import tomllib
+
+from voss.harness.plugins import load_plugins, user_plugin_dir
+from voss.harness.skill.install import (
+    SkillTrustError,
+    install_bundle,
+    remove_bundle,
+    update_bundle,
+)
+from voss.harness.trust import pin_key
+
+
+def _install_fixture(signed_fixture_bundle: Path, tmp_path: Path) -> str:
+    """Pin key and install the fixture bundle. Returns skill_id."""
+    manifest_data = tomllib.loads((signed_fixture_bundle / "manifest.toml").read_text())
+    pin_key(manifest_data["author_identity"], manifest_data["trust"]["pub_key"])
+    return install_bundle(str(signed_fixture_bundle), cwd=tmp_path)
 
 
 def test_remove(signed_fixture_bundle: Path, tmp_path: Path) -> None:
-    """SKILL-05: Removing an installed skill removes it from filesystem and registry."""
-    try:
-        from voss.harness.skill.install import install_bundle, remove_bundle
-        from voss.harness.skill_registry import default_skill_registry
-    except ImportError as e:
-        pytest.fail(f"RED: missing install/lifecycle module ({e})")
+    """SKILL-05: Removing an installed skill removes it from filesystem and discovery."""
+    skill_id = _install_fixture(signed_fixture_bundle, tmp_path)
+    install_dir = user_plugin_dir() / skill_id
 
-    # Install first
-    install_bundle(str(signed_fixture_bundle), cwd=tmp_path)
+    assert install_dir.is_dir()
 
-    registry = default_skill_registry()
-    assert registry.get("voss-git-summary") is not None
+    remove_bundle(skill_id, cwd=tmp_path)
 
-    # Remove
-    remove_bundle("voss-git-summary", cwd=tmp_path)
-
-    # Registry and listing should now omit it
-    assert registry.get("voss-git-summary") is None
+    assert not install_dir.exists()
+    # Not discoverable via load_plugins
+    plugins = load_plugins(tmp_path)
+    ids = [p.id for p in plugins]
+    assert skill_id not in ids
 
 
-def test_update_tamper_leaves_prior_intact(signed_fixture_bundle: Path, tmp_path: Path) -> None:
-    """SKILL-05: If an update package has a tampered manifest, the update fails and the prior version remains untouched."""
-    try:
-        from voss.harness.skill.install import install_bundle, update_bundle
-        from voss.harness.skill_registry import default_skill_registry
-        from voss.harness.trust import verify_manifest
-    except ImportError as e:
-        pytest.fail(f"RED: missing install/lifecycle or trust module ({e})")
+def test_update_tamper_leaves_prior_intact(
+    signed_fixture_bundle: Path, tmp_path: Path
+) -> None:
+    """SKILL-05: Tampered upstream update fails; prior version remains byte-intact."""
+    skill_id = _install_fixture(signed_fixture_bundle, tmp_path)
+    install_dir = user_plugin_dir() / skill_id
 
-    # Install original valid version
-    install_bundle(str(signed_fixture_bundle), cwd=tmp_path)
+    # Snapshot prior version bytes
+    prior_manifest = (install_dir / "manifest.toml").read_bytes()
+    prior_sig = (install_dir / "manifest.toml.sig").read_bytes()
 
-    registry = default_skill_registry()
-    original_entry = registry.get("voss-git-summary")
-    assert original_entry is not None
+    # Create a tampered "upstream" that the update will fetch from
+    tampered_upstream = tmp_path / "tampered_upstream"
+    shutil.copytree(signed_fixture_bundle, tampered_upstream)
+    # Tamper the manifest (breaks signature)
+    m = tampered_upstream / "manifest.toml"
+    m.write_text(m.read_text() + "\n# tampered byte")
 
-    # Prepare a tampered update bundle
-    tampered_dir = tmp_path / "tampered_update"
-    tampered_dir.mkdir()
-    # Copy manifest and program
-    manifest_path = tampered_dir / "manifest.toml"
-    sig_path = tampered_dir / "manifest.toml.sig"
-    manifest_path.write_text((signed_fixture_bundle / "manifest.toml").read_text())
-    sig_path.write_text((signed_fixture_bundle / "manifest.toml.sig").read_text())
-    (tampered_dir / "git_summary.voss").write_text((signed_fixture_bundle / "git_summary.voss").read_text())
+    # Point the installed manifest's source_url at the tampered upstream
+    installed_manifest = install_dir / "manifest.toml"
+    text = installed_manifest.read_text()
+    import re as _re
+    text = _re.sub(
+        r'source_url\s*=\s*"[^"]*"',
+        f'source_url = "{tampered_upstream}"',
+        text,
+    )
+    installed_manifest.write_text(text)
 
-    # Tamper the update manifest
-    manifest_path.write_text(manifest_path.read_text() + "\n# tampered byte")
+    # Update should fail due to tampered signature
+    with pytest.raises(SkillTrustError):
+        update_bundle(skill_id, cwd=tmp_path)
 
-    # Trying to update should raise an error due to signature verification failure
-    with pytest.raises(Exception):
-        update_bundle("voss-git-summary", cwd=tmp_path)
-
-    # Confirm the original intact version is still registered and active
-    current_entry = registry.get("voss-git-summary")
-    assert current_entry is not None
-    assert current_entry == original_entry
+    # Prior version still intact and byte-identical (except source_url we set)
+    assert install_dir.is_dir()
+    assert (install_dir / "manifest.toml").exists()
+    assert (install_dir / "manifest.toml.sig").read_bytes() == prior_sig
+    # Manifest still loadable
+    plugins = load_plugins(tmp_path)
+    ids = [p.id for p in plugins]
+    assert skill_id in ids

@@ -77,11 +77,7 @@ pub fn validate_layout_name(name: &str) -> Result<(), LayoutError> {
     if name.is_empty() {
         return Err(LayoutError::InvalidName);
     }
-    if name.contains('/')
-        || name.contains('\\')
-        || name.contains("..")
-        || name.contains(':')
-    {
+    if name.contains('/') || name.contains('\\') || name.contains("..") || name.contains(':') {
         return Err(LayoutError::InvalidName);
     }
     if name.starts_with('.') {
@@ -110,11 +106,7 @@ pub fn layout_path(workspace: &Path, name: &str) -> Result<PathBuf, LayoutError>
 
 /// Save `layout` to `<workspace>/.voss/layouts/<name>.json`, lazily
 /// creating the parent directory on first write (CONCEPT §10 Q7).
-pub fn save_layout(
-    workspace: &Path,
-    name: &str,
-    layout: &LayoutFile,
-) -> Result<(), LayoutError> {
+pub fn save_layout(workspace: &Path, name: &str, layout: &LayoutFile) -> Result<(), LayoutError> {
     let path = layout_path(workspace, name)?;
     let dir = path.parent().ok_or(LayoutError::SaveFailed)?;
     std::fs::create_dir_all(dir).map_err(|e| {
@@ -179,10 +171,7 @@ pub fn list_layouts(workspace: &Path) -> Result<Vec<String>, LayoutError> {
 /// version → `Ok(None)` after a stderr log — never crashes startup
 /// (D-09 fail-safe).
 pub fn load_default_layout(workspace: &Path) -> Result<Option<LayoutFile>, LayoutError> {
-    let path = workspace
-        .join(".voss")
-        .join("layouts")
-        .join("default.json");
+    let path = workspace.join(".voss").join("layouts").join("default.json");
     if !path.exists() {
         return Ok(None);
     }
@@ -258,8 +247,7 @@ mod tests {
 
     #[test]
     fn layout_file_round_trips_through_json_with_version_1() {
-        let original =
-            LayoutFile::new(sample_grid(), Some("fanout".into()));
+        let original = LayoutFile::new(sample_grid(), Some("fanout".into()));
         assert_eq!(original.version, CURRENT_LAYOUT_VERSION);
         assert_eq!(CURRENT_LAYOUT_VERSION, 1);
         let json = serde_json::to_string(&original).expect("serialize");
@@ -443,14 +431,8 @@ mod tests {
             LayoutError::UnsupportedVersion.to_string(),
             "layout ignored: unsupported version"
         );
-        assert_eq!(
-            LayoutError::SaveFailed.to_string(),
-            "could not save layout"
-        );
-        assert_eq!(
-            LayoutError::LoadFailed.to_string(),
-            "could not load layout"
-        );
+        assert_eq!(LayoutError::SaveFailed.to_string(), "could not save layout");
+        assert_eq!(LayoutError::LoadFailed.to_string(), "could not load layout");
         assert_eq!(LayoutError::NotFound.to_string(), "layout not found");
     }
 }

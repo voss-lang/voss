@@ -20,6 +20,7 @@ from .session import EXIT_REASONS, BatchRecord, IterationRecord, RunRecord
 INSPECT_TOOLS = {"fs_read", "fs_glob", "fs_grep"}
 CHANGE_TOOLS = {"fs_write", "fs_edit"}
 VALIDATE_TOOLS = {"shell_run", "voss_check"}
+SKILL_EVENTS = {"skill_install", "skill_remove", "skill_update"}
 FAILURE_TRUNC = 200
 SUMMARY_TRUNC = 160
 
@@ -42,6 +43,9 @@ class RunRecorder:
     decisions: list[dict] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
     follow_ups: list[str] = field(default_factory=list)
+    # M15-05: skill install/run/deny audit events
+    skill_events: list[dict] = field(default_factory=list)
+    scope_denials: list[dict] = field(default_factory=list)
     # T1-01: per-iteration sub-records appended via begin_iteration /
     # end_iteration; forwarded to RunRecord.iterations on finalize.
     _iterations: list[IterationRecord] = field(default_factory=list)
@@ -79,6 +83,34 @@ class RunRecorder:
                     "summary": summary[:SUMMARY_TRUNC],
                 }
             )
+
+    def observe_skill_event(
+        self,
+        action: str,
+        skill_id: str,
+        source: str,
+        *,
+        ok: bool,
+        error: str = "",
+    ) -> None:
+        """Record a skill install/remove/update/run event."""
+        self.skill_events.append({
+            "action": action,
+            "skill_id": skill_id,
+            "source": source,
+            "ok": ok,
+            "error": error[:FAILURE_TRUNC],
+        })
+
+    def observe_scope_denial(
+        self, skill_id: str, tool: str, reason: str
+    ) -> None:
+        """Record a scope-limited gate denial for a third-party skill."""
+        self.scope_denials.append({
+            "skill_id": skill_id,
+            "tool": tool,
+            "reason": reason,
+        })
 
     def absorb(self, semantics: Any, plan: Any = None) -> None:
         """Copy semantic fields from a duck-typed semantics object.
@@ -222,6 +254,8 @@ class RunRecorder:
             exit_reason=exit_reason,
             iteration_total_prompt_tokens=total_prompt,
             iteration_total_completion_tokens=total_completion,
+            skill_events=list(self.skill_events),
+            scope_denials=list(self.scope_denials),
         )
 
 

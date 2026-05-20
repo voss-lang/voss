@@ -140,6 +140,27 @@ def _compile_source(
     return target
 
 
+def compile_voss_file(
+    source: Path,
+    output: Path,
+    *,
+    project_root: Path | None,
+    cache_dir: Path,
+    verbose: bool = False,
+) -> Path:
+    """Public compile wrapper over _compile_source (M15-05, RESEARCH OQ1).
+
+    Removes private cross-module coupling for voss.harness consumers.
+    """
+    return _compile_source(
+        source,
+        output_path=output,
+        project_root=project_root,
+        cache_dir=cache_dir,
+        verbose=verbose,
+    )
+
+
 @click.group(
     context_settings={"help_option_names": ["-h", "--help"]},
     invoke_without_command=True,
