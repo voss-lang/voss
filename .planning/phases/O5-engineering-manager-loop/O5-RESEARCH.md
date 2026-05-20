@@ -45,9 +45,11 @@
 
 ## Phase Requirements
 
-| ID (suggested) | Description | Research Support |
-|----|-------------|------------------|
-| OEM-01 | `Ticket` value-object — `Card` + EM-authored scaffolding (`original_idea`, `acceptance_criteria`, `dod`, `worker_role`, `routing_rationale_id`, `lineage_parent_id`, `domain`). Frozen, replaced wholesale on EM mutation. | Q2, Q3 |
+> **Numbering note (2026-05-20):** The OEM IDs below were the planner's initial suggestion. The locked OEM-01..OEM-10 numbering used by the plans + `O5-VALIDATION.md` regrouped these items (e.g. RESEARCH's OEM-04 = `EMBoardHandle` is locked as OEM-02; RESEARCH's OEM-08 = `DeterministicEMStub` is locked as OEM-04). When in doubt, the **plans + `O5-VALIDATION.md` numbering is authoritative**; the descriptions below remain valid as semantic specifications.
+
+| ID (suggested) | Description | Research Support | Locked As |
+|----|-------------|------------------|-----------|
+| OEM-01 | `Ticket` value-object — `Card` + EM-authored scaffolding (`original_idea`, `acceptance_criteria`, `dod`, `worker_role`, `routing_rationale_id`, `lineage_parent_id`, `domain`). Frozen, replaced wholesale on EM mutation. | Q2, Q3 | OEM-01 |
 | OEM-02 | `RoutingRationale` frozen record on `SessionTreeNode` — `(card_id, chosen_role, candidates_considered, rationale_text, confidence_hint, ts)`. Emitted on every dispatch. | Q3 |
 | OEM-03 | `KillRecord` + `RescopeRecord` on `SessionTreeNode` — kill/rescope NEVER deletes the node; lineage_parent_id links new card to killed one. | Q4 |
 | OEM-04 | `EMBoardHandle` facade — cage-enforced verb surface; refuses `ceiling`/`p`/budget mutation; refuses unknown role IDs; the EM's *only* board API. | Q5 |
