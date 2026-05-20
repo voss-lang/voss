@@ -15,6 +15,7 @@ tauri = { version = "2", features = ["wry"] }
 portable-pty = "0.9.0"
 nix = { version = "0.31", features = ["signal", "term", "process"] }
 git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
+fs2 = "0.4"
 # Shared deps: inherit from [workspace.dependencies] — do NOT re-pin
 tokio = { workspace = true }
 serde = { workspace = true }
