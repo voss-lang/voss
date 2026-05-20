@@ -7,7 +7,7 @@ dependencies. See O3-SPEC.md acceptance L124.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal, Protocol, runtime_checkable
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +30,7 @@ class ReviewerVerdict:
     evidence_refs: tuple[str, ...]
 
 
+@runtime_checkable
 class Reviewer(Protocol):
     """The injectable reviewer interface.
 
