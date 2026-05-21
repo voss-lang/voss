@@ -190,6 +190,100 @@ def test_bm25_fallback_no_match_returns_empty_list(
     assert store.recall("zzzz-not-present", top_k=10) == []
 
 
+def test_rrf_merge_deduplicates_and_preserves_first_hit_metadata() -> None:
+    duplicate_bm25 = Hit(
+        source="turn",
+        locator="turn:s1:000",
+        score=9.0,
+        excerpt="bm25 duplicate excerpt",
+        session_id="s1",
+        ts="2026-05-21T10:00:00+00:00",
+    )
+    bm25_only = Hit(source="note", locator="note:alpha", score=8.0, excerpt="bm25 only")
+    chroma_only = Hit(source="decision", locator="decision:beta", score=7.0, excerpt="chroma only")
+    duplicate_chroma = Hit(
+        source="ledger",
+        locator="turn:s1:000",
+        score=6.0,
+        excerpt="chroma duplicate excerpt",
+        session_id="other",
+        ts="2026-05-21T11:00:00+00:00",
+    )
+
+    results = MemoryStore._rrf_merge(
+        [[duplicate_bm25, bm25_only], [chroma_only, duplicate_chroma]],
+        top_k=2,
+    )
+
+    assert len(results) == 2
+    assert results[0].locator == "turn:s1:000"
+    assert results[0].score > results[1].score
+    assert results[0].source == duplicate_bm25.source
+    assert results[0].excerpt == duplicate_bm25.excerpt
+    assert results[0].session_id == duplicate_bm25.session_id
+    assert results[0].ts == duplicate_bm25.ts
+
+
+def test_recall_uses_rrf_hybrid_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_voss_repo: Path
+) -> None:
+    store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
+    chroma = object()
+    calls: list[str] = []
+    duplicate_bm25 = Hit(source="turn", locator="turn:s1:000", score=1.0, excerpt="bm25")
+    bm25_only = Hit(source="note", locator="note:alpha", score=1.0, excerpt="bm25 only")
+    chroma_only = Hit(source="decision", locator="decision:beta", score=1.0, excerpt="chroma only")
+    duplicate_chroma = Hit(source="turn", locator="turn:s1:000", score=1.0, excerpt="chroma")
+
+    def fake_bm25(self, query, *, top_k, source):
+        calls.append(f"bm25:{top_k}:{source}")
+        return [duplicate_bm25, bm25_only]
+
+    def fake_maybe_chroma(self):
+        calls.append("maybe_chroma")
+        return chroma
+
+    def fake_chroma(self, received_chroma, query, *, top_k, source):
+        calls.append(f"chroma:{top_k}:{source}:{received_chroma is chroma}")
+        return [chroma_only, duplicate_chroma]
+
+    monkeypatch.setattr(MemoryStore, "_bm25_recall", fake_bm25)
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", fake_maybe_chroma)
+    monkeypatch.setattr(MemoryStore, "_chroma_recall", fake_chroma)
+
+    hits = store.recall("jwt", top_k=2, source="turns")
+
+    assert calls == ["bm25:6:turns", "maybe_chroma", "chroma:6:turns:True"]
+    assert [hit.locator for hit in hits] == ["turn:s1:000", "decision:beta"]
+    assert hits[0].score > hits[1].score
+
+
+def test_recall_returns_bm25_when_chroma_recall_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_voss_repo: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
+    bm25_hits = [
+        Hit(source="turn", locator="turn:s1:000", score=3.0, excerpt="first"),
+        Hit(source="turn", locator="turn:s1:001", score=2.0, excerpt="second"),
+        Hit(source="turn", locator="turn:s1:002", score=1.0, excerpt="third"),
+    ]
+
+    monkeypatch.setattr(MemoryStore, "_bm25_recall", lambda self, query, *, top_k, source: bm25_hits)
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", lambda self: object())
+
+    def fail_chroma(self, chroma, query, *, top_k, source):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(MemoryStore, "_chroma_recall", fail_chroma)
+
+    hits = store.recall("jwt", top_k=2)
+
+    assert hits == bm25_hits[:2]
+    assert "falling back to BM25" in capsys.readouterr().err
+
+
 def test_composite_id_format() -> None:
     assert make_id("turn", "abc-123", seq=42) == "turn:abc-123:042"
     assert make_id("decision", ".voss/decisions/2026-05-14-foo.md") == (

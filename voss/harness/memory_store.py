@@ -409,13 +409,34 @@ class MemoryStore:
         top_k: int = 5,
         source: str | None = None,
     ) -> list[Hit]:
+        recall_k = max(top_k * 3, top_k)
+        bm25_hits = self._bm25_recall(query, top_k=recall_k, source=source)
         chroma = self._maybe_chroma()
-        if chroma is not None:
-            try:
-                return self._chroma_recall(chroma, query, top_k=top_k, source=source)
-            except Exception as exc:  # noqa: BLE001 — chroma can raise on malformed query
-                print(f"memory: chroma recall failed ({exc}); falling back to BM25", file=sys.stderr)
-        return self._bm25_recall(query, top_k=top_k, source=source)
+        if chroma is None:
+            return bm25_hits[:top_k]
+        try:
+            chroma_hits = self._chroma_recall(chroma, query, top_k=recall_k, source=source)
+        except Exception as exc:  # noqa: BLE001 — chroma can raise on malformed query
+            print(f"memory: chroma recall failed ({exc}); falling back to BM25", file=sys.stderr)
+            return bm25_hits[:top_k]
+        return self._rrf_merge([bm25_hits, chroma_hits], top_k=top_k)
+
+    @staticmethod
+    def _rrf_merge(rankings: list[list[Hit]], *, top_k: int, k: int = 60) -> list[Hit]:
+        scores: dict[str, float] = {}
+        carriers: dict[str, Hit] = {}
+        for ranking in rankings:
+            for rank, hit in enumerate(ranking, start=1):
+                carriers.setdefault(hit.locator, hit)
+                scores[hit.locator] = scores.get(hit.locator, 0.0) + (1.0 / (k + rank))
+
+        fused: list[Hit] = []
+        for locator, score in scores.items():
+            carrier = carriers[locator]
+            fused.append(dataclasses.replace(carrier, score=score))
+
+        fused.sort(key=lambda hit: (-hit.score, hit.locator))
+        return fused[:top_k]
 
     def _chroma_recall(self, chroma, query, *, top_k, source) -> list[Hit]:
         where: dict[str, object] = {"tombstoned": False}
