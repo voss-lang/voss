@@ -117,7 +117,7 @@ fn settings_path() -> PathBuf {
     })
 }
 
-fn override_path(workspace: &Path) -> PathBuf {
+pub fn keymap_override_path(workspace: &Path) -> PathBuf {
     workspace.join(".voss").join("keymap.json")
 }
 
@@ -173,7 +173,7 @@ pub fn save_keymap_profile(profile: &KeymapProfile) -> Result<(), KeymapError> {
 /// Load `.voss/keymap.json`. Returns `None` for missing, corrupt, or
 /// unsupported files. Never creates `.voss/`.
 pub fn load_keymap_overrides(workspace: &Path) -> Option<KeymapOverrideFile> {
-    let path = override_path(workspace);
+    let path = keymap_override_path(workspace);
     let raw = std::fs::read_to_string(&path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
     let version = value.get("version").and_then(|v| v.as_u64());
@@ -244,6 +244,25 @@ pub fn validate_keymap_overrides(
     }
 
     KeymapValidationResult { valid, issues }
+}
+
+/// Load and validate the workspace override file for hot-reload.
+/// Missing, corrupt, or unsupported files resolve to an empty result so
+/// callers can clear any previously-applied overrides.
+pub fn validate_workspace_keymap_overrides(
+    workspace: &Path,
+    known_command_ids: &[String],
+    known_chords: &[String],
+) -> KeymapValidationResult {
+    match load_keymap_overrides(workspace) {
+        Some(overrides) => {
+            validate_keymap_overrides(&overrides, known_command_ids, known_chords)
+        }
+        None => KeymapValidationResult {
+            valid: HashMap::new(),
+            issues: Vec::new(),
+        },
+    }
 }
 
 // --- Tests -------------------------------------------------------------------
@@ -428,6 +447,37 @@ mod tests {
         assert_eq!(result.valid.len(), 1);
         assert_eq!(result.valid.get("pane.close"), Some(&None));
         assert!(result.issues.is_empty());
+    }
+
+    #[test]
+    fn validate_workspace_overrides_returns_valid_and_issues() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".voss");
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(
+            path.join("keymap.json"),
+            r#"{"version":1,"bindings":{"pane.close":null,"bad.command":{"key":"Cmd+X"}}}"#,
+        )
+        .unwrap();
+
+        let result = validate_workspace_keymap_overrides(
+            dir.path(),
+            &["pane.close".to_string()],
+            &[],
+        );
+
+        assert_eq!(result.valid.get("pane.close"), Some(&None));
+        assert_eq!(result.issues.len(), 1);
+        assert_eq!(result.issues[0].command_id, "bad.command");
+    }
+
+    #[test]
+    fn validate_workspace_overrides_missing_file_clears_overrides() {
+        let dir = tempdir().unwrap();
+        let result = validate_workspace_keymap_overrides(dir.path(), &[], &[]);
+        assert!(result.valid.is_empty());
+        assert!(result.issues.is_empty());
+        assert!(!dir.path().join(".voss").exists());
     }
 
     #[test]
