@@ -11,8 +11,10 @@ use tauri::Emitter;
 use voss_app_core::grid::{self, GridState};
 use voss_app_core::keymap::{self, KeymapOverrideFile, KeymapProfile, KeymapValidationResult};
 use voss_app_core::layouts::{self, LayoutFile};
+use voss_app_core::profiles::{self, ProfileFile};
 use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
+use voss_app_core::themes::{self, CustomThemeFile};
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_session};
 use voss_app_core::session::{self, SessionFile};
@@ -358,6 +360,72 @@ fn watch_keymap_overrides(
     Ok(initial)
 }
 
+// ---- Theme persistence commands (A8-01) -------------------------------------
+// Thin wrappers over `voss_app_core::themes`. Custom themes live under
+// `<workspace>/.voss/themes/`; active theme id is in `settings.json`.
+
+#[tauri::command]
+fn list_custom_themes(workspace_path: String) -> Vec<String> {
+    themes::list_custom_themes(Path::new(&workspace_path))
+}
+
+#[tauri::command]
+fn load_custom_theme(
+    workspace_path: String,
+    name: String,
+) -> Option<CustomThemeFile> {
+    themes::load_custom_theme(Path::new(&workspace_path), &name)
+}
+
+#[tauri::command]
+fn save_custom_theme(
+    workspace_path: String,
+    name: String,
+    theme: CustomThemeFile,
+) -> Result<(), String> {
+    themes::save_custom_theme(Path::new(&workspace_path), &name, &theme)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_active_theme_id() -> Option<String> {
+    themes::load_active_theme_id()
+}
+
+#[tauri::command]
+fn save_active_theme_id(id: Option<String>) -> Result<(), String> {
+    themes::save_active_theme_id(id.as_deref()).map_err(|e| e.to_string())
+}
+
+// ---- Profile persistence commands (A8-01) -----------------------------------
+// Thin wrappers over `voss_app_core::profiles`. Snapshots live at
+// `~/.config/voss-app/profiles/`; active profile id is in `settings.json`.
+
+#[tauri::command]
+fn list_profiles() -> Vec<String> {
+    profiles::list_profiles()
+}
+
+#[tauri::command]
+fn load_profile(name: String) -> Option<ProfileFile> {
+    profiles::load_profile(&name)
+}
+
+#[tauri::command]
+fn save_profile(name: String, profile: ProfileFile) -> Result<(), String> {
+    profiles::save_profile(&name, &profile).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_active_profile_id() -> Option<String> {
+    profiles::load_active_profile_id()
+}
+
+#[tauri::command]
+fn save_active_profile_id(id: Option<String>) -> Result<(), String> {
+    profiles::save_active_profile_id(id.as_deref()).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -393,6 +461,16 @@ pub fn run() {
             load_keymap_overrides,
             validate_keymap_overrides,
             watch_keymap_overrides,
+            list_custom_themes,
+            load_custom_theme,
+            save_custom_theme,
+            load_active_theme_id,
+            save_active_theme_id,
+            list_profiles,
+            load_profile,
+            save_profile,
+            load_active_profile_id,
+            save_active_profile_id,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -3,18 +3,28 @@
 pub mod grid;
 pub mod keymap;
 pub mod layouts;
+pub mod profiles;
 pub mod project;
 pub mod pty;
 pub mod session;
+pub mod themes;
 
 pub use grid::{sync_grid, GridState};
 pub use layouts::{
     list_layouts, load_default_layout, load_layout, save_layout, validate_layout_name, LayoutError,
     LayoutFile, CURRENT_LAYOUT_VERSION,
 };
+pub use profiles::{
+    list_profiles, load_active_profile_id, load_profile, save_active_profile_id, save_profile,
+    ProfileError, ProfileFile, CURRENT_PROFILE_VERSION,
+};
 pub use project::{
     default_cwd, list_recents, open_project, ProjectError, ProjectInfo, RecentsFile,
     CURRENT_RECENTS_VERSION, RECENTS_CAP,
+};
+pub use themes::{
+    list_custom_themes, load_active_theme_id, load_custom_theme, save_active_theme_id,
+    save_custom_theme, CustomThemeFile, ThemeAppearance, ThemeError, CURRENT_THEME_VERSION,
 };
 pub use session::{
     load_global_session, load_session, save_global_session, save_session, SessionError,
