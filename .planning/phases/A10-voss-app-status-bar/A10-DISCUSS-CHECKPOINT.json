@@ -1,0 +1,15 @@
+{
+  "phase": "A10",
+  "phase_name": "voss-app Status Bar",
+  "timestamp": "2026-05-20T21:00:00.000Z",
+  "areas_completed": ["Popover content & behavior"],
+  "areas_remaining": ["Notification store vs toasts", "Git info depth & detection"],
+  "decisions": {
+    "Popover content & behavior": [
+      {"question": "How should popovers dismiss?", "answer": "Click-outside + Esc (standard popover: click cluster to open, click anywhere else or Esc to close, one popover at a time)", "options_presented": ["Click-outside + Esc", "Click toggles (same cluster closes)", "You decide"]},
+      {"question": "What shows in the LEFT popover?", "answer": "Recent projects list (click project name → recents, click one = switch project, branch read-only detail, no branch switcher in L1)", "options_presented": ["Recent projects list", "Project detail + recents", "You decide"]},
+      {"question": "What shows in the CENTER popover?", "answer": "Pane detail card (focused pane full path/cwd, shell name+version, PID, pane index, running command if any — read-only info)", "options_presented": ["Pane detail card", "Pane list for workspace", "You decide"]},
+      {"question": "Component structure?", "answer": "One generic Popover component (single <Popover anchor={el} content={...}> reused by all clusters, consistent positioning/dismiss/animation)", "options_presented": ["One generic Popover", "You decide", "Distinct per cluster"]}
+    ]
+  }
+}
