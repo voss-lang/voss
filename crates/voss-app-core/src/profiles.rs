@@ -318,9 +318,10 @@ mod tests {
         save_active_profile_id(Some("personal")).unwrap();
 
         let raw = std::fs::read_to_string(&path).unwrap();
-        assert!(raw.contains("\"theme\""));
-        assert!(raw.contains("\"activeThemeId\":\"nord\""));
-        assert!(raw.contains("\"activeProfileId\":\"personal\""));
+        let value: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["theme"]["bg"], "#111");
+        assert_eq!(value["appearance"]["activeThemeId"], "nord");
+        assert_eq!(value["appearance"]["activeProfileId"], "personal");
     }
 
     #[test]

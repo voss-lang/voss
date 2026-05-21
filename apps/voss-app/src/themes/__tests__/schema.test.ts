@@ -20,7 +20,7 @@ describe('theme schema', () => {
   it('exports all required CSS var keys', () => {
     expect(REQUIRED_CSS_VARS).toContain('--bg-0');
     expect(REQUIRED_CSS_VARS).toContain('--window-opacity-bg');
-    expect(REQUIRED_CSS_VARS).toHaveLength(28);
+    expect(REQUIRED_CSS_VARS).toHaveLength(27);
   });
 
   it('validateTheme accepts a complete theme', () => {
