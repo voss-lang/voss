@@ -52,7 +52,7 @@
 | O4 | Reviewer A/B Split | Reviewer-A (idea→bar + tests/eval, `voss/eval/` reuse); Reviewer-B (independent tiered judge: slop/errors/correctness) | ORVW-01..0N (TBD by SPEC.md) | TBD |
 | O5 | Engineering Manager Loop | EM full-authority autonomous loop; idea→tickets/AC/DoD; specialist dispatch + routing rationale; kill/re-scope lineage | OEM-01..0N (TBD by SPEC.md) | TBD |
 | O6 | Audit Product + Calibration + Liveness | Session-tree review surface; killed-card + routing first-class; calibration telemetry; reserve/timeout; sign-off forcing function | OAUD-01..0N (TBD by SPEC.md) | TBD |
-| F1 | Durable Session Persistence | Agent cells resume after restart/crash; SQLite registry + Rust supervisor auto-restart | FPRS-01..0N (TBD by SPEC.md) | TBD |
+| F1 | Durable Session Persistence | Agent cells resume after restart/crash; SQLite registry + boot-path auto-restart | FPRS-01..05 | 3 plans, 2 waves |
 | F2 | Hybrid Semantic Search | BM25 + vector via Reciprocal Rank Fusion; symbol-accurate retrieval | FSRCH-01..0N (TBD by SPEC.md) | TBD |
 | F3 | Budget & Token Visualization | HUD progress bars for token/budget, live cost updates via IPC | FVIZ-01..0N (TBD by SPEC.md) | TBD |
 | F4 | Visual Context Heatmap | Context pane showing in-context/compressed files + manual pinning UI | FCTX-01..0N (TBD by SPEC.md) | TBD |
@@ -1675,6 +1675,14 @@ Plans:
 | O5 | OEM-01..0N | TBD by `O5-SPEC.md` |
 | O6 | OAUD-01..08 | 8 |
 | **O-total** | | **TBD per SPEC** |
+| **F-phases (substrate features — v1 Layer 2)** | | |
+| F1 | FPRS-01..05 | 5 |
+| F2 | FSRCH-01..0N | TBD by `F2-SPEC.md` |
+| F3 | FVIZ-01..0N | TBD by `F3-SPEC.md` |
+| F4 | FCTX-01..0N | TBD by `F4-SPEC.md` |
+| F5 | FCRIT-01..0N | TBD by `F5-SPEC.md` |
+| F6 | FCNCL-01..0N | TBD by `F6-SPEC.md` |
+| **F-total** | | **TBD per SPEC** |
 
 All v0.1 requirements mapped. v0.2 requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`. A-phase requirement IDs are placeholder prefixes; per-phase SPEC locks the count + exact text.
 
@@ -1733,6 +1741,37 @@ as cross-phase context.
 
 These do NOT block v0.1 ship. Listed so the roadmap has a memory of what's
 next without forcing premature commitment.
+
+
+## F-prefixed phases: Substrate Features (v1 Layer 2)
+
+F-phases add Layer 2 features to the voss-app ADE — Voss integration,
+semantic search, budget visualization, and multi-model capabilities.
+They depend on the A-phase Layer 1 terminal-grid substrate being in place.
+
+### Phase F1: Durable Session Persistence
+
+**Goal:** When the ADE quits with active Voss agent panes, relaunching the app auto-restarts those agent subprocesses in the correct panes with the correct session IDs, cwd, and CLI arguments — without user intervention.
+
+**Requirements:** FPRS-01..05 (5 locked in `F1-SPEC.md`)
+
+**Plans:** 3 plans, 2 waves
+
+Plans:
+- [ ] F1-01-PLAN.md — Rust agent_registry.rs + spawn_command_session + Tauri command wrappers
+- [ ] F1-02-PLAN.md — Frontend agentConfig prop plumbing + command palette + gitignore
+- [ ] F1-03-PLAN.md — Boot restore orchestration + quit lifecycle + orphan sweep + verification
+
+**Success Criteria:**
+1. Quit app with 2 agent panes + 1 shell pane -> relaunch -> agents restart, shell stays shell
+2. Agent exit marks registry row as stopped
+3. Clean quit updates last_seen on all active rows
+4. Orphaned registry rows cleaned on boot
+5. No regression in A6 session geometry restore
+
+**Cross-cutting:** Builds on A6 session persistence (geometry) + A2 PTY subsystem + A7 command palette. Does NOT modify PaneLeaf/GridState/session.json schema — registry is the sole source of truth for agent metadata.
+
+---
 
 ## Backlog
 
