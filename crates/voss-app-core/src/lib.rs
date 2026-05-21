@@ -1,5 +1,6 @@
 //! voss-app-core — Tauri plugin: PTY lifecycle, IPC commands.
 
+pub mod agent_registry;
 pub mod appearance;
 pub mod fonts;
 pub mod grid;
@@ -47,7 +48,12 @@ pub use workspaces::{
 pub use pty::commands::{
     get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty, PtyEvent,
 };
-pub use pty::{PtyRegistry, PtySession};
+pub use agent_registry::{
+    create_schema, get_active_agents, global_registry_path, mark_stopped, open_registry,
+    register_agent, registry_path, sweep_orphans, update_last_seen_all, AgentEntry,
+    AgentRegistryError,
+};
+pub use pty::{spawn_command_session, PtyRegistry, PtySession};
 
 use std::sync::Arc;
 

@@ -1,0 +1,406 @@
+//! SQLite-backed registry of agent PTY sessions per pane.
+
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+
+/// Typed errors for agent registry operations. Display strings are safe for UI
+/// passthrough — no Rust internals leak.
+#[derive(Debug, thiserror::Error)]
+pub enum AgentRegistryError {
+    #[error("could not open agent registry")]
+    OpenFailed,
+    #[error("could not query agent registry")]
+    QueryFailed,
+    #[error("could not write agent registry")]
+    WriteFailed,
+}
+
+/// One row in `agent_sessions`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentEntry {
+    pub pane_id: String,
+    pub session_id: String,
+    pub cli_binary: String,
+    pub cli_args: String,
+    pub cwd: String,
+    pub status: String,
+    pub last_seen: i64,
+}
+
+fn epoch_seconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// `<workspace>/.voss/agent-registry.sqlite`
+pub fn registry_path(workspace: &Path) -> PathBuf {
+    workspace.join(".voss").join("agent-registry.sqlite")
+}
+
+#[cfg(not(test))]
+pub fn global_registry_path() -> PathBuf {
+    config_voss_app_dir().join("agent-registry.sqlite")
+}
+
+#[cfg(test)]
+pub fn global_registry_path() -> PathBuf {
+    TEST_GLOBAL_REGISTRY_PATH.with(|p| {
+        p.borrow()
+            .clone()
+            .expect("tests must set TEST_GLOBAL_REGISTRY_PATH before touching global registry")
+    })
+}
+
+#[cfg(not(test))]
+fn config_voss_app_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join(".config")
+        .join("voss-app")
+}
+
+/// Open (or create) the registry at `path` and ensure schema exists.
+pub fn open_registry(path: &Path) -> Result<Connection, AgentRegistryError> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            eprintln!("[voss-app] agent registry mkdir failed: {e}");
+            AgentRegistryError::OpenFailed
+        })?;
+    }
+    let conn = Connection::open(path).map_err(|e| {
+        eprintln!("[voss-app] agent registry open failed: {e}");
+        AgentRegistryError::OpenFailed
+    })?;
+    create_schema(&conn)?;
+    Ok(conn)
+}
+
+/// Create `agent_sessions` table if missing.
+pub fn create_schema(conn: &Connection) -> Result<(), AgentRegistryError> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS agent_sessions (
+            pane_id    TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            cli_binary TEXT NOT NULL,
+            cli_args   TEXT NOT NULL DEFAULT '[]',
+            cwd        TEXT NOT NULL,
+            status     TEXT NOT NULL DEFAULT 'active'
+                       CHECK(status IN ('active', 'stopped')),
+            last_seen  INTEGER NOT NULL
+        );",
+    )
+    .map_err(|e| {
+        eprintln!("[voss-app] agent registry schema failed: {e}");
+        AgentRegistryError::WriteFailed
+    })?;
+    Ok(())
+}
+
+/// Insert or replace an active agent row.
+pub fn register_agent(
+    conn: &Connection,
+    pane_id: &str,
+    session_id: &str,
+    cli_binary: &str,
+    cli_args: &[String],
+    cwd: &str,
+) -> Result<(), AgentRegistryError> {
+    let args_json = serde_json::to_string(cli_args).map_err(|e| {
+        eprintln!("[voss-app] agent registry args serialize failed: {e}");
+        AgentRegistryError::WriteFailed
+    })?;
+    let now = epoch_seconds();
+    conn.execute(
+        "INSERT OR REPLACE INTO agent_sessions
+         (pane_id, session_id, cli_binary, cli_args, cwd, status, last_seen)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'active', ?6)",
+        params![pane_id, session_id, cli_binary, args_json, cwd, now],
+    )
+    .map_err(|e| {
+        eprintln!("[voss-app] agent registry register failed: {e}");
+        AgentRegistryError::WriteFailed
+    })?;
+    Ok(())
+}
+
+/// Mark one pane's agent as stopped.
+pub fn mark_stopped(conn: &Connection, pane_id: &str) -> Result<(), AgentRegistryError> {
+    conn.execute(
+        "UPDATE agent_sessions SET status = 'stopped', last_seen = ?1
+         WHERE pane_id = ?2",
+        params![epoch_seconds(), pane_id],
+    )
+    .map_err(|e| {
+        eprintln!("[voss-app] agent registry mark_stopped failed: {e}");
+        AgentRegistryError::WriteFailed
+    })?;
+    Ok(())
+}
+
+/// Bump `last_seen` for all active rows.
+pub fn update_last_seen_all(conn: &Connection) -> Result<(), AgentRegistryError> {
+    conn.execute(
+        "UPDATE agent_sessions SET last_seen = ?1 WHERE status = 'active'",
+        params![epoch_seconds()],
+    )
+    .map_err(|e| {
+        eprintln!("[voss-app] agent registry update_last_seen failed: {e}");
+        AgentRegistryError::WriteFailed
+    })?;
+    Ok(())
+}
+
+/// Return all rows with `status = 'active'`.
+pub fn get_active_agents(conn: &Connection) -> Result<Vec<AgentEntry>, AgentRegistryError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT pane_id, session_id, cli_binary, cli_args, cwd, status, last_seen
+             FROM agent_sessions WHERE status = 'active'",
+        )
+        .map_err(|e| {
+            eprintln!("[voss-app] agent registry prepare failed: {e}");
+            AgentRegistryError::QueryFailed
+        })?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(AgentEntry {
+                pane_id: row.get(0)?,
+                session_id: row.get(1)?,
+                cli_binary: row.get(2)?,
+                cli_args: row.get(3)?,
+                cwd: row.get(4)?,
+                status: row.get(5)?,
+                last_seen: row.get(6)?,
+            })
+        })
+        .map_err(|e| {
+            eprintln!("[voss-app] agent registry query failed: {e}");
+            AgentRegistryError::QueryFailed
+        })?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| {
+            eprintln!("[voss-app] agent registry row map failed: {e}");
+            AgentRegistryError::QueryFailed
+        })
+}
+
+/// Mark active rows whose `pane_id` is not in `valid_pane_ids` as stopped.
+/// If `valid_pane_ids` is empty, mark all active rows stopped.
+pub fn sweep_orphans(
+    conn: &Connection,
+    valid_pane_ids: &[String],
+) -> Result<usize, AgentRegistryError> {
+    let now = epoch_seconds();
+    if valid_pane_ids.is_empty() {
+        return conn
+            .execute(
+                "UPDATE agent_sessions SET status = 'stopped', last_seen = ?1
+                 WHERE status = 'active'",
+                params![now],
+            )
+            .map_err(|e| {
+                eprintln!("[voss-app] agent registry sweep_all failed: {e}");
+                AgentRegistryError::WriteFailed
+            });
+    }
+
+    let placeholders: String = (2..=valid_pane_ids.len() + 1)
+        .map(|i| format!("?{i}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "UPDATE agent_sessions SET status = 'stopped', last_seen = ?1
+         WHERE status = 'active' AND pane_id NOT IN ({placeholders})"
+    );
+
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> =
+        vec![Box::new(now)];
+    for id in valid_pane_ids {
+        param_values.push(Box::new(id.clone()));
+    }
+
+    conn.execute(
+        &sql,
+        rusqlite::params_from_iter(param_values.iter().map(|p| p.as_ref())),
+    )
+    .map_err(|e| {
+        eprintln!("[voss-app] agent registry sweep_orphans failed: {e}");
+        AgentRegistryError::WriteFailed
+    })
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TEST_GLOBAL_REGISTRY_PATH: std::cell::RefCell<Option<PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn open_test_registry(dir: &Path) -> Connection {
+        let path = registry_path(dir);
+        open_registry(&path).expect("open test registry")
+    }
+
+    #[test]
+    fn test_schema_creation() {
+        let dir = tempdir().unwrap();
+        let path = registry_path(dir.path());
+        let conn = open_registry(&path).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='agent_sessions'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_register_and_get_active() {
+        let dir = tempdir().unwrap();
+        let conn = open_test_registry(dir.path());
+
+        register_agent(
+            &conn,
+            "pane-a",
+            "sess-1",
+            "/usr/bin/claude",
+            &["--print".into()],
+            "/repo",
+        )
+        .unwrap();
+        register_agent(
+            &conn,
+            "pane-b",
+            "sess-2",
+            "/usr/bin/codex",
+            &[],
+            "/other",
+        )
+        .unwrap();
+
+        let active = get_active_agents(&conn).unwrap();
+        assert_eq!(active.len(), 2);
+        let ids: Vec<_> = active.iter().map(|e| e.pane_id.as_str()).collect();
+        assert!(ids.contains(&"pane-a"));
+        assert!(ids.contains(&"pane-b"));
+    }
+
+    #[test]
+    fn test_mark_stopped() {
+        let dir = tempdir().unwrap();
+        let conn = open_test_registry(dir.path());
+        register_agent(&conn, "pane-a", "s1", "claude", &[], "/").unwrap();
+
+        mark_stopped(&conn, "pane-a").unwrap();
+        assert!(get_active_agents(&conn).unwrap().is_empty());
+
+        let status: String = conn
+            .query_row(
+                "SELECT status FROM agent_sessions WHERE pane_id = 'pane-a'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "stopped");
+    }
+
+    #[test]
+    fn test_update_last_seen() {
+        let dir = tempdir().unwrap();
+        let conn = open_test_registry(dir.path());
+        register_agent(&conn, "pane-a", "s1", "claude", &[], "/").unwrap();
+
+        let before: i64 = conn
+            .query_row(
+                "SELECT last_seen FROM agent_sessions WHERE pane_id = 'pane-a'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        update_last_seen_all(&conn).unwrap();
+
+        let after: i64 = conn
+            .query_row(
+                "SELECT last_seen FROM agent_sessions WHERE pane_id = 'pane-a'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(after >= before);
+    }
+
+    #[test]
+    fn test_sweep_orphans() {
+        let dir = tempdir().unwrap();
+        let conn = open_test_registry(dir.path());
+        for id in ["a", "b", "c"] {
+            register_agent(&conn, id, "s", "bin", &[], "/").unwrap();
+        }
+
+        let n = sweep_orphans(&conn, &[String::from("a")]).unwrap();
+        assert_eq!(n, 2);
+
+        let active = get_active_agents(&conn).unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].pane_id, "a");
+    }
+
+    #[test]
+    fn test_sweep_empty_valid() {
+        let dir = tempdir().unwrap();
+        let conn = open_test_registry(dir.path());
+        register_agent(&conn, "a", "s", "bin", &[], "/").unwrap();
+        register_agent(&conn, "b", "s", "bin", &[], "/").unwrap();
+
+        let n = sweep_orphans(&conn, &[]).unwrap();
+        assert_eq!(n, 2);
+        assert!(get_active_agents(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_registry_path_resolution() {
+        let dir = tempdir().unwrap();
+        assert_eq!(
+            registry_path(dir.path()),
+            dir.path().join(".voss").join("agent-registry.sqlite")
+        );
+
+        let custom = dir.path().join("global-registry.sqlite");
+        TEST_GLOBAL_REGISTRY_PATH.with(|p| *p.borrow_mut() = Some(custom.clone()));
+        assert_eq!(global_registry_path(), custom);
+        TEST_GLOBAL_REGISTRY_PATH.with(|p| *p.borrow_mut() = None);
+    }
+
+    #[test]
+    fn test_insert_or_replace() {
+        let dir = tempdir().unwrap();
+        let conn = open_test_registry(dir.path());
+        register_agent(&conn, "pane-a", "sess-1", "claude", &["--a".into()], "/one").unwrap();
+        register_agent(&conn, "pane-a", "sess-2", "codex", &["--b".into()], "/two").unwrap();
+
+        let row: (String, String, String) = conn
+            .query_row(
+                "SELECT session_id, cli_binary, cwd FROM agent_sessions WHERE pane_id = 'pane-a'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(row.0, "sess-2");
+        assert_eq!(row.1, "codex");
+        assert_eq!(row.2, "/two");
+        assert_eq!(get_active_agents(&conn).unwrap().len(), 1);
+    }
+}

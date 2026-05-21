@@ -17,8 +17,14 @@ use voss_app_core::profiles::{self, ProfileFile};
 use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
 use voss_app_core::themes::{self, CustomThemeFile};
+use rusqlite::Connection;
+use voss_app_core::agent_registry::{
+    get_active_agents as registry_get_active_agents, global_registry_path, mark_stopped,
+    open_registry, register_agent, registry_path, sweep_orphans, update_last_seen_all,
+    AgentEntry,
+};
 use voss_app_core::pty::writer::validate_write;
-use voss_app_core::pty::{foreground, spawn_session};
+use voss_app_core::pty::{foreground, spawn_command_session, spawn_session};
 use voss_app_core::session::{self, SessionFile};
 use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
@@ -74,6 +80,120 @@ fn get_theme_overrides() -> HashMap<String, String> {
 // `invoke('spawn_pty', …)` contract and app-managed `Arc<PtyRegistry>` state.
 
 type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;
+type AgentDb<'a> = tauri::State<'a, Mutex<Option<Connection>>>;
+
+fn ensure_registry<'a>(
+    db: &'a Mutex<Option<Connection>>,
+    workspace_path: Option<&str>,
+) -> Result<std::sync::MutexGuard<'a, Option<Connection>>, String> {
+    let mut guard = db
+        .lock()
+        .map_err(|_| "agent registry lock poisoned".to_string())?;
+    if guard.is_none() {
+        let path = match workspace_path {
+            Some(ws) => registry_path(Path::new(ws)),
+            None => global_registry_path(),
+        };
+        let conn = open_registry(&path).map_err(|e| e.to_string())?;
+        *guard = Some(conn);
+    }
+    Ok(guard)
+}
+
+#[tauri::command]
+async fn spawn_agent(
+    on_data: tauri::ipc::Channel<PtyEvent>,
+    rows: u16,
+    cols: u16,
+    cwd: Option<String>,
+    cli_binary: String,
+    cli_args: Vec<String>,
+    session_id: String,
+    pane_id: String,
+    workspace_path: Option<String>,
+    db: AgentDb<'_>,
+    pty_state: Reg<'_>,
+) -> Result<String, String> {
+    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let conn = guard
+        .as_mut()
+        .ok_or_else(|| "agent registry unavailable".to_string())?;
+
+    let (session, reader, pause_rx) =
+        spawn_command_session(&cli_binary, &cli_args, rows, cols, cwd.clone())
+            .map_err(|e| e.to_string())?;
+    let registry: Arc<PtyRegistry> = Arc::clone(pty_state.inner());
+    let pty_id = registry.insert(session);
+    start_reader(pty_id.clone(), reader, pause_rx, on_data, registry);
+
+    let cwd_str = cwd.as_deref().unwrap_or("");
+    register_agent(
+        conn,
+        &pane_id,
+        &session_id,
+        &cli_binary,
+        &cli_args,
+        cwd_str,
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(pty_id)
+}
+
+#[tauri::command]
+fn get_active_agents(
+    workspace_path: Option<String>,
+    db: AgentDb<'_>,
+) -> Result<Vec<AgentEntry>, String> {
+    let Ok(mut guard) = ensure_registry(db.inner(), workspace_path.as_deref()) else {
+        return Ok(Vec::new());
+    };
+    let Some(conn) = guard.as_mut() else {
+        return Ok(Vec::new());
+    };
+    Ok(registry_get_active_agents(conn).unwrap_or_else(|e| {
+        eprintln!("[voss-app] get_active_agents failed: {e}");
+        Vec::new()
+    }))
+}
+
+#[tauri::command]
+fn mark_agent_stopped(
+    pane_id: String,
+    workspace_path: Option<String>,
+    db: AgentDb<'_>,
+) -> Result<(), String> {
+    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let conn = guard
+        .as_mut()
+        .ok_or_else(|| "agent registry unavailable".to_string())?;
+    mark_stopped(conn, &pane_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_agents_last_seen(
+    workspace_path: Option<String>,
+    db: AgentDb<'_>,
+) -> Result<(), String> {
+    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let conn = guard
+        .as_mut()
+        .ok_or_else(|| "agent registry unavailable".to_string())?;
+    update_last_seen_all(conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn sweep_orphan_agents(
+    valid_pane_ids: Vec<String>,
+    workspace_path: Option<String>,
+    db: AgentDb<'_>,
+) -> Result<usize, String> {
+    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let conn = guard
+        .as_mut()
+        .ok_or_else(|| "agent registry unavailable".to_string())?;
+    sweep_orphans(conn, &valid_pane_ids).map_err(|e| e.to_string())
+}
 
 #[tauri::command]
 async fn spawn_pty(
@@ -487,6 +607,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(PtyRegistry::default()))
         .manage(Mutex::new(GridState::default()))
+        .manage(Mutex::new(None::<Connection>))
         .manage(KeymapWatchState::default())
         .invoke_handler(tauri::generate_handler![
             get_theme_overrides,
@@ -497,6 +618,11 @@ pub fn run() {
             pty_resume,
             pty_kill,
             get_fg_process,
+            spawn_agent,
+            get_active_agents,
+            mark_agent_stopped,
+            update_agents_last_seen,
+            sweep_orphan_agents,
             sync_grid,
             get_grid,
             save_layout,
