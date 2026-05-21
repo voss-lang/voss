@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { applyThemeOverrides } from '../theme/applyTheme';
+import { initWindowEffectsFromAppearance } from './windowEffects';
 import {
   getBundledTheme,
   resolveThemeCssVars,
@@ -238,10 +239,7 @@ export function applyAppearanceDocumentHints(
     root.style.letterSpacing = `${appearance.letterSpacing}px`;
   }
 
-  if (typeof appearance.windowOpacity === 'number') {
-    const clamped = Math.min(1, Math.max(0.5, appearance.windowOpacity));
-    root.style.setProperty('--window-opacity-bg', String(clamped));
-  }
+  void initWindowEffectsFromAppearance(appearance);
 
   root.dataset.highContrast = appearance.highContrastEnabled ? 'true' : 'false';
   root.dataset.reducedMotion = appearance.reducedMotion ? 'true' : 'false';

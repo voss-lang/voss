@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+Comment=Grid-native terminal application development environment
+Exec={{exec}}
+Icon={{icon}}
+Terminal=false
+Categories=Development;TerminalEmulator
+StartupWMClass=app.voss-ade

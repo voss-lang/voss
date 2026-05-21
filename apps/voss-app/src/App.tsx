@@ -39,6 +39,7 @@ import {
 import { createPrefixMode } from './command-palette/prefixMode';
 import { setAsAppMenu } from './command-palette/nativeMenu';
 import { showToast } from './command-palette/toast';
+import { applyWindowEffects } from './appearance/windowEffects';
 import { buildQuickOpenItems } from './command-palette/quickOpen';
 import type {
   ActiveLayout,
@@ -745,6 +746,7 @@ export default function App() {
 
   onMount(() => {
     window.addEventListener('keydown', onAppKey, true);
+    void applyWindowEffects({ enabled: true });
     void setAsAppMenu(registry(), (id) => {
       void dispatchCommandId(id);
     });
