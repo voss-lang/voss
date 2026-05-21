@@ -1656,7 +1656,7 @@ Plans:
 | **T-total** | | **42** |
 | **A-phases (voss-app desktop ADE Layer 1)** | | |
 | A1 | SHL-01..0N | TBD by `A1-SPEC.md` |
-| A2 | PTY-01..0N | TBD by `A2-SPEC.md` |
+| A2 | PTY-01..0N | TBD by `A2-SPEC.md` |z 
 | A3 | GRD-01..0N | TBD by `A3-SPEC.md` |
 | A4 | LAY-01..0N | TBD by `A4-SPEC.md` |
 | A5 | WS-01..0N | TBD by `A5-SPEC.md` |
