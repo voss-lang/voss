@@ -1,4 +1,4 @@
-import { batch, createSignal, onMount, onCleanup, Show } from 'solid-js';
+import { batch, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import Titlebar from './components/titlebar/Titlebar';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import SetupWindow from './components/setup/SetupWindow';
@@ -8,8 +8,19 @@ import {
   createCommandRegistry,
   v0Commands,
   type AppContext,
+  type KeyBindingOverrides,
 } from './command-palette/registry';
-import { normalizeChord } from './command-palette/chords';
+import { normalizeChord, normalizePrefixKey } from './command-palette/chords';
+import {
+  loadKeymapProfile,
+  saveKeymapProfile,
+  watchWorkspaceKeymap,
+  type KeymapProfile,
+  type KeymapUpdatePayload,
+} from './command-palette/keymapStorage';
+import { createPrefixMode } from './command-palette/prefixMode';
+import { setAsAppMenu } from './command-palette/nativeMenu';
+import { showToast } from './command-palette/toast';
 import { buildQuickOpenItems } from './command-palette/quickOpen';
 import type {
   ActiveLayout,
@@ -73,18 +84,33 @@ export default function App() {
   const [initialSession, setInitialSession] = createSignal<SessionFile | null>(null);
   const [paletteMode, setPaletteMode] = createSignal<'quick' | 'full' | null>(null);
   const [layoutNames, setLayoutNames] = createSignal<string[]>([]);
+  const [keymapProfile, setKeymapProfile] = createSignal<KeymapProfile>('vscode');
+  const [keymapOverrides, setKeymapOverrides] =
+    createSignal<KeyBindingOverrides>({});
+  const [prefixActive, setPrefixActive] = createSignal(false);
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let gridController: GridController | undefined;
   let sessionCleanup: (() => void) | undefined;
+  let keymapUnlisten: (() => void) | undefined;
 
   // --- Command registry (D-01) -----------------------------------------------
-  const registry = createCommandRegistry(v0Commands());
+  const baseCommands = v0Commands();
+  const registry = createMemo(() =>
+    createCommandRegistry(baseCommands, keymapOverrides()),
+  );
+  const knownCommandIds = () => baseCommands.map((cmd) => cmd.id);
+  const knownChords = () =>
+    baseCommands.flatMap((cmd) => [
+      ...(cmd.keybinding ? [cmd.keybinding] : []),
+      ...(cmd.aliases ?? []),
+    ]);
 
   const onLayoutSelect = (preset: LayoutPreset) => {
     gridController?.applyPreset(preset);
   };
 
   const showGrid = () => project() !== null || projectLessAccepted();
+  const workspacePath = () => project()?.path ?? projectLessCwd();
 
   // --- A7 callable seam (LAY-06/07) ----------------------------------------
   // A5 owns the workspace folder picker; until it lands, callers must
@@ -147,6 +173,7 @@ export default function App() {
         setProject(info);
         setProjectLessAccepted(true);
       });
+      void installWorkspaceKeymap(info.path);
     } catch (e) {
       console.error(errorPrefix, e);
     }
@@ -166,8 +193,9 @@ export default function App() {
 
   const openPalette = (mode: 'quick' | 'full') => {
     setPaletteMode(mode);
-    if (mode === 'quick' && project()) {
-      void listLayouts(project()!.path)
+    const path = workspacePath();
+    if (mode === 'quick' && path) {
+      void listLayouts(path)
         .then(setLayoutNames)
         .catch(() => setLayoutNames([]));
     }
@@ -181,51 +209,105 @@ export default function App() {
   const handlePaletteExecute = (id: string) => {
     if (id.startsWith('layout:')) {
       const name = id.slice('layout:'.length);
-      if (project() && gridController) {
-        void loadLayoutByName(project()!.path, name);
+      const path = workspacePath();
+      if (path && gridController) {
+        void loadLayoutByName(path, name);
       }
     } else if (id.startsWith('recent:')) {
       const path = id.slice('recent:'.length);
       void openSelectedProject(path, 'palette open_recent failed:');
     } else {
-      // Full-mode command — dispatch through registry
-      const cmd = registry.commands.get(id);
-      if (cmd) cmd.handler(appCtx);
+      dispatchCommandId(id);
+    }
+  };
+
+  const applyKeymapUpdate = (payload: KeymapUpdatePayload) => {
+    setKeymapOverrides(payload.valid);
+    for (const issue of payload.issues) {
+      showToast('warning', `${issue.commandId}: ${issue.reason}`);
+    }
+  };
+
+  const installWorkspaceKeymap = async (workspacePath: string) => {
+    keymapUnlisten?.();
+    keymapUnlisten = undefined;
+    try {
+      keymapUnlisten = await watchWorkspaceKeymap(
+        workspacePath,
+        knownCommandIds(),
+        knownChords(),
+        applyKeymapUpdate,
+      );
+    } catch (e) {
+      console.error('watch_keymap_overrides failed:', e);
+      setKeymapOverrides({});
+      showToast('error', 'could not load keymap settings');
     }
   };
 
   // --- AppContext (D-03) — built once, threaded to registry handlers ----------
 
   const appCtx: AppContext = {
-    splitFocused: () => {},
-    closeFocused: () => {},
-    equalizePanes: () => {},
-    cycleLayout: () => {
-      // Cycle is special — needs activeLayout + applyPreset
-      // Handled below via the existing GridRoot flow
-    },
-    focusNext: () => {},
-    focusPrev: () => {},
-    focusIndex: () => {},
-    focusDirection: () => {},
-    resizeDirection: () => {},
+    splitFocused: (orientation) => gridController?.splitFocused(orientation),
+    closeFocused: () => gridController?.closeFocused(),
+    equalizePanes: () => gridController?.equalizePanes(),
+    cycleLayout: () => gridController?.cycleLayout(),
+    focusNext: () => gridController?.focusNext(),
+    focusPrev: () => gridController?.focusPrev(),
+    focusIndex: (n) => gridController?.focusIndex(n),
+    focusDirection: (dir) => gridController?.focusDirection(dir),
+    resizeDirection: (dir) => gridController?.resizeDirection(dir),
     openQuickPalette: () => openPalette('quick'),
     openFullPalette: () => openPalette('full'),
     openProject: () => void handleOpenFolder(),
     saveLayout: () => {
-      // Placeholder — A7 palette wires prompt UI later
+      const path = workspacePath();
+      if (!path) return;
+      const name = window.prompt('Save layout as');
+      const trimmed = name?.trim();
+      if (!trimmed) return;
+      void saveCurrentLayout(path, trimmed)
+        .then(() => listLayouts(path))
+        .then(setLayoutNames)
+        .catch((e) => console.error('save_layout failed:', e));
     },
     loadLayout: () => {
-      // Placeholder — opens quick palette as fallback
       openPalette('quick');
     },
     switchProfile: () => {
-      // Placeholder — A7-03 wires profile switching
+      const next: KeymapProfile =
+        keymapProfile() === 'tmux' ? 'vscode' : 'tmux';
+      void saveKeymapProfile(next)
+        .then(() => {
+          setKeymapProfile(next);
+          showToast('info', `Keymap profile: ${next}`);
+        })
+        .catch((e) => {
+          console.error('save_keymap_profile failed:', e);
+          showToast('error', 'could not save keymap settings');
+        });
     },
     showKeybindings: () => {
-      // Placeholder — A7-04 wires keybindings display
+      openPalette('full');
     },
   };
+
+  const dispatchCommandId = (id: string): boolean => {
+    const cmd = registry().commands.get(id);
+    if (!cmd) return false;
+    cmd.handler(appCtx);
+    return true;
+  };
+
+  const prefixMode = createPrefixMode({
+    onActivate: () => setPrefixActive(true),
+    onDeactivate: () => setPrefixActive(false),
+    dispatch: (commandId) => {
+      void dispatchCommandId(commandId);
+    },
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (id) => window.clearTimeout(id),
+  });
 
   // --- Global keyboard routing (D-02/D-08) -----------------------------------
   // Capture phase: intercepts ⌘P/⌘⇧P before GridRoot sees them.
@@ -242,19 +324,45 @@ export default function App() {
     }
 
     const chord = normalizeChord(e);
-    if (chord === 'Cmd+P') {
+
+    if (prefixMode.isActive()) {
+      const prefixKey = normalizePrefixKey(e);
+      if (prefixKey) {
+        const result = prefixMode.handleKey(prefixKey);
+        if (result.action !== 'passthrough') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+        return;
+      }
+      if (chord === 'Cmd+B') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        prefixMode.tryEnter(keymapProfile());
+        return;
+      }
+    }
+
+    if (chord === 'Cmd+B' && prefixMode.tryEnter(keymapProfile())) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      openPalette('quick');
-    } else if (chord === 'Cmd+Shift+P') {
+      return;
+    }
+
+    if (chord && registry().dispatch(chord, appCtx)) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      openPalette('full');
     }
   };
 
   onMount(() => {
     window.addEventListener('keydown', onAppKey, true); // capture phase
+    void setAsAppMenu(registry(), (id) => {
+      void dispatchCommandId(id);
+    });
+    void loadKeymapProfile()
+      .then(setKeymapProfile)
+      .catch(() => setKeymapProfile('vscode'));
     void listRecents()
       .then(setRecents)
       .catch(() => setRecents([]));
@@ -279,6 +387,8 @@ export default function App() {
 
   onCleanup(() => {
     window.removeEventListener('keydown', onAppKey, true);
+    keymapUnlisten?.();
+    prefixMode.cancel();
   });
 
   // Suppress unused warnings while keeping the symbols live.
@@ -333,6 +443,9 @@ export default function App() {
             }}
             projectCwd={project()?.path ?? projectLessCwd()}
             initialSession={initialSession() ?? undefined}
+            externalKeymap={true}
+            prefixActive={prefixActive()}
+            prefixReserved={keymapProfile() === 'tmux'}
           />
         </div>
       </Show>
@@ -344,7 +457,7 @@ export default function App() {
       <Show when={paletteMode() !== null}>
         <CommandPalette
           mode={paletteMode()!}
-          commands={registry.all()}
+          commands={registry().all()}
           quickItems={quickItems()}
           recentCommandIds={recentCommandIds()}
           onExecute={handlePaletteExecute}

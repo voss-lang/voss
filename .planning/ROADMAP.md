@@ -1382,6 +1382,20 @@ Plans:
 - Settings schema validated by JSONSchema or similar (decision at SPEC).
 - A9 settings UI surfaces themes, profiles, and accessibility controls delivered by A8.
 
+**Plans (4 plans, 3 waves):**
+
+**Wave 1** *(parallel, file-disjoint)*
+- [x] A9-01 — Rust settings.rs: typed structs, load/save/merge, Tauri commands
+- [x] A9-02 — Frontend form controls: Toggle, Dropdown, Slider, NumberStepper, RadioGroup, WorkspaceBadge, SettingRow
+
+**Wave 2** *(depends on Wave 1)*
+- [x] A9-03 — SettingsPanel overlay + sidebar + search + 7 category sections (wires controls to Tauri backend)
+
+**Wave 3** *(depends on Wave 2)*
+- [x] A9-04 — App.tsx integration: ⌘, shortcut, overlay mount, hot-reload dispatch, CFG-01..07 acceptance
+
+Cross-cutting constraints: All 16 CONTEXT decisions (D-01..D-16) covered. Plan-checker 12/12 PASS.
+
 ---
 
 ### Phase A10: voss-app Status Bar

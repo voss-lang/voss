@@ -81,9 +81,26 @@ export async function validateKeymapOverrides(
  * Returns an unlisten function for cleanup.
  */
 export async function watchWorkspaceKeymap(
+  workspacePath: string,
+  knownCommandIds: string[],
+  knownChords: string[],
   onUpdate: (payload: KeymapUpdatePayload) => void,
 ): Promise<UnlistenFn> {
-  return listen<KeymapUpdatePayload>('voss://keymap-updated', (event) => {
+  const unlisten = await listen<KeymapUpdatePayload>('voss://keymap-updated', (event) => {
     onUpdate(event.payload);
   });
+
+  try {
+    const initial = await invoke<KeymapUpdatePayload>('watch_keymap_overrides', {
+      workspacePath,
+      knownCommandIds,
+      knownChords,
+    });
+    onUpdate(initial);
+  } catch (error) {
+    unlisten();
+    throw error;
+  }
+
+  return unlisten;
 }

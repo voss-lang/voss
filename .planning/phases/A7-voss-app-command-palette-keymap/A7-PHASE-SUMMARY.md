@@ -1,7 +1,7 @@
 # Phase A7 — Command Palette + Keymap — Phase Summary
 
-**Status:** Implementation complete
-**Date:** 2026-05-20
+**Status:** Code close-out complete; live runtime manual checks pending
+**Date:** 2026-05-21
 
 ## Requirements Coverage
 
@@ -38,9 +38,19 @@
 
 | Check | Requirement | Status |
 |-------|-------------|--------|
-| Native menu items trigger same commands as palette | CMD-03 | Pending |
-| .voss/keymap.json hot-reload | CMD-05/CMD-06 | Pending |
-| Cmd+B prefix indicator on focused pane only | CMD-05 | Pending |
+| Native menu items trigger same commands as palette | CMD-03 | Pending live Tauri runtime check |
+| .voss/keymap.json hot-reload | CMD-05/CMD-06 | Pending live Tauri runtime check |
+| Cmd+B prefix indicator on focused pane only | CMD-05 | Pending live Tauri runtime check |
+
+## Close-Out Verification
+
+| Command | Status |
+|---------|--------|
+| `npm test -- App.test.tsx keymapStorage.test.ts registry.test.ts --run` | PASS — 4 files, 47 tests |
+| `npm test -- --run` | PASS — 34 files, 384 tests |
+| `npm run build` | PASS |
+| `cargo test -p voss-app-core keymap --lib` | PASS — 14 tests |
+| `cargo check -p voss-app` | PASS |
 
 ## Architecture Delivered
 

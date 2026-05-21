@@ -30,6 +30,10 @@ export interface CommandDefinition {
 
 export type Command = Readonly<CommandDefinition>;
 
+export type KeyBindingOverrides = Readonly<
+  Record<string, { key: string } | null>
+>;
+
 /**
  * Cross-module action callbacks (D-03). Built once at App.tsx mount.
  * Handlers destructure what they need — no Solid imports leak in.
@@ -65,6 +69,7 @@ export interface CommandRegistry {
 
 export function createCommandRegistry(
   definitions: readonly CommandDefinition[],
+  overrides: KeyBindingOverrides = {},
 ): CommandRegistry {
   const commands = new Map<string, Command>();
   const byChord = new Map<string, Command>();
@@ -73,10 +78,16 @@ export function createCommandRegistry(
     if (commands.has(def.id)) {
       throw new Error(`Duplicate command id: ${def.id}`);
     }
-    commands.set(def.id, def);
-    if (def.keybinding) byChord.set(def.keybinding, def);
-    for (const alias of def.aliases ?? []) {
-      byChord.set(alias, def);
+    const override = overrides[def.id];
+    const command =
+      override && override.key
+        ? { ...def, keybinding: override.key, aliases: [] }
+        : def;
+    commands.set(def.id, command);
+    if (override === null) continue;
+    if (command.keybinding) byChord.set(command.keybinding, command);
+    for (const alias of command.aliases ?? []) {
+      byChord.set(alias, command);
     }
   }
 
