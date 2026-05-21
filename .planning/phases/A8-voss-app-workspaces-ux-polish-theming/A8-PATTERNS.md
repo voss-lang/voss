@@ -33,6 +33,25 @@ Graphify was attempted during A8 research, but no graph existed at
 
 ## Pattern Assignments
 
+## Decision Coverage Map
+
+| Decision | Plan Coverage |
+|---|---|
+| D-01 all workspaces stay mounted hidden | A8-02, A8-03 |
+| D-02 workspace state structure planner discretion | A8-02 chooses mounted mini-App workspace records |
+| D-03 fixed workspace accent dot palette | A8-03 |
+| D-04 workspaces.json plus per-workspace sessions | A8-02 |
+| D-05 12 curated bundled themes, no VSCode import | A8-01 |
+| D-06 static JSON theme files in repo | A8-01 |
+| D-07 custom themes via same JSON schema | A8-01 |
+| D-08 native vibrancy per platform with Linux CSS fallback | A8-05 |
+| D-09 full platform polish across macOS, Windows, Linux | A8-05, A8-06 |
+| D-10 OS-native window chrome | A8-05 |
+| D-11 CSS transitions only and reduced-motion kill switch | A8-04 |
+| D-12 high-contrast token override layer | A8-01, A8-04 |
+| D-13 font dropdown and live preview | A8-04 |
+| D-14 full settings snapshot profiles | A8-01, A8-03 |
+
 ### App Composition and Workspaces
 
 **Analog:** `apps/voss-app/src/App.tsx`
@@ -135,4 +154,3 @@ A8 should extend A7 rather than duplicate it:
 - Rust: `cargo test -p voss-app-core <module>`.
 - Build: `pnpm --dir apps/voss-app build` and `cargo build -p voss-app`.
 - Manual: Tauri runtime for native vibrancy, hidden PTY liveness, and cross-platform metadata.
-
