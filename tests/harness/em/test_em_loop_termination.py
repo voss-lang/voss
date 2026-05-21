@@ -26,7 +26,7 @@ class _BudgetBombStub:
         self._call += 1
         self.calls.append(kwargs)
         if self._call >= self._bomb_on:
-            raise BudgetExceededError("budget drained")
+            raise BudgetExceededError(reason="tokens", limit=100, observed=101)
         return EMPlanResponse(ops=[NoopOp(reason="ticking")])
 
 
