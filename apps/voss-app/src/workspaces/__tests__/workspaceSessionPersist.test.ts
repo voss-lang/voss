@@ -56,8 +56,12 @@ function mockController(id: string) {
 
 describe('installAllWorkspacesCloseSave', () => {
   let closeHandler: ((event: { preventDefault: () => void }) => Promise<void>) | undefined;
+  let unlisten: (() => void) | undefined;
 
   beforeEach(async () => {
+    unlisten?.();
+    unlisten = undefined;
+    closeHandler = undefined;
     h.onCloseRequested.mockReset();
     h.close.mockReset();
     h.saveSession.mockReset();
@@ -68,7 +72,9 @@ describe('installAllWorkspacesCloseSave', () => {
 
     h.onCloseRequested.mockImplementation((cb) => {
       closeHandler = cb;
-      return Promise.resolve(() => {});
+      return Promise.resolve(() => {
+        closeHandler = undefined;
+      });
     });
     h.saveSession.mockResolvedValue(undefined);
     h.saveProjectLessSession.mockResolvedValue(undefined);
@@ -99,7 +105,7 @@ describe('installAllWorkspacesCloseSave', () => {
       },
     ];
 
-    await installAllWorkspacesCloseSave(
+    unlisten = await installAllWorkspacesCloseSave(
       () => contexts,
       () => ({
         version: CURRENT_WORKSPACES_VERSION,
@@ -111,6 +117,8 @@ describe('installAllWorkspacesCloseSave', () => {
   });
 
   afterEach(() => {
+    unlisten?.();
+    unlisten = undefined;
     closeHandler = undefined;
   });
 
@@ -135,19 +143,23 @@ describe('installAllWorkspacesCloseSave', () => {
   });
 
   it('reentry guard allows second close without duplicate saves', async () => {
-    const preventDefault = vi.fn();
-    await closeHandler!({ preventDefault });
+    const preventDefault1 = vi.fn();
+    await closeHandler!({ preventDefault: preventDefault1 });
+
+    const preventDefault2 = vi.fn();
     h.buildSessionFile.mockClear();
     h.saveSession.mockClear();
     h.saveProjectLessSession.mockClear();
     h.saveIndex.mockClear();
+    h.close.mockClear();
 
-    await closeHandler!({ preventDefault });
+    await closeHandler!({ preventDefault: preventDefault2 });
 
     expect(h.buildSessionFile).not.toHaveBeenCalled();
     expect(h.saveSession).not.toHaveBeenCalled();
     expect(h.saveProjectLessSession).not.toHaveBeenCalled();
     expect(h.saveIndex).not.toHaveBeenCalled();
-    expect(preventDefault).not.toHaveBeenCalled();
+    expect(h.close).not.toHaveBeenCalled();
+    expect(preventDefault2).not.toHaveBeenCalled();
   });
 });

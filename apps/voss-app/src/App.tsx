@@ -137,11 +137,21 @@ function sessionContextFor(ws: MountedWorkspace): WorkspaceSessionContext {
   };
 }
 
+function seedMountedMap(
+  records: readonly WorkspaceRecord[],
+): Map<string, MountedWorkspace> {
+  const next = new Map<string, MountedWorkspace>();
+  for (const record of records) {
+    next.set(record.id, createMountedWorkspace(record.id));
+  }
+  return next;
+}
+
 export default function App() {
   const workspaceStore = createWorkspaceStore();
-  const [mountedById, setMountedById] = createSignal<
-    Map<string, MountedWorkspace>
-  >(new Map());
+  const [mountedById, setMountedById] = createSignal<Map<string, MountedWorkspace>>(
+    seedMountedMap(workspaceStore.workspaces()),
+  );
 
   const [recents, setRecents] = createSignal<string[]>([]);
   const [paletteMode, setPaletteMode] = createSignal<'quick' | 'full' | null>(
@@ -494,17 +504,22 @@ export default function App() {
 
     void (async () => {
       await workspaceStore.load();
-      const records = workspaceStore.workspaces();
-      const next = new Map<string, MountedWorkspace>();
-      for (const record of records) {
-        const ws = createMountedWorkspace(record.id);
-        next.set(record.id, ws);
+      const nextMounted = new Map(mountedById());
+      for (const record of workspaceStore.workspaces()) {
+        if (!nextMounted.has(record.id)) {
+          nextMounted.set(record.id, createMountedWorkspace(record.id));
+        }
+      }
+      setMountedById(nextMounted);
+
+      for (const record of workspaceStore.workspaces()) {
+        const ws = nextMounted.get(record.id);
+        if (!ws) continue;
         void defaultCwd(record.projectPath ?? null)
           .then(ws.setProjectLessCwd)
           .catch(() => ws.setProjectLessCwd(undefined));
         void restoreWorkspaceFromRecord(ws, record);
       }
-      setMountedById(next);
 
       closeSaveUnlisten = await installAllWorkspacesCloseSave(
         allSessionContexts,

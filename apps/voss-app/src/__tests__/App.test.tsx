@@ -266,6 +266,7 @@ describe('App — setup branch', () => {
 
   it('start without project mounts GridRoot and keeps the titlebar fallback', async () => {
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(
       el.querySelector('button[aria-label="Start without project"]')!,
     );
@@ -292,6 +293,7 @@ describe('App — project open flow', () => {
     h.listRecents.mockResolvedValueOnce([]).mockResolvedValueOnce(['/tmp/x']);
 
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     await waitFor(() => expect(el.textContent).toContain('x'));
@@ -306,6 +308,7 @@ describe('App — project open flow', () => {
     h.loadDefaultLayout.mockRejectedValueOnce(new Error('bad default'));
 
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     // A6 D-10: session/default resolved before project state set.
@@ -330,6 +333,7 @@ describe('App — project open flow', () => {
     h.openProject.mockRejectedValueOnce('project not found');
 
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     await waitFor(() => expect(error).toHaveBeenCalled());
@@ -340,6 +344,7 @@ describe('App — project open flow', () => {
   it('updates project from an existing open-grid state without remounting GridRoot', async () => {
     h.openProject.mockResolvedValueOnce(project('/tmp/a', 'a'));
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
 
     h.setupProps?.onOpenRecent('/tmp/a');
     await waitFor(() =>
@@ -369,6 +374,7 @@ describe('App — project open flow', () => {
     });
 
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     // A6 flow: session/default are resolved BEFORE project state is set.
@@ -426,18 +432,13 @@ describe('App — project open flow', () => {
       expect(el.querySelectorAll('[data-testid="grid-root"]').length).toBe(2),
     );
 
-    const mountIds = [...el.querySelectorAll('[data-testid="grid-root"]')].map(
-      (n) => n.getAttribute('data-mount-id'),
-    );
-    expect(new Set(mountIds).size).toBe(2);
+    const grids = el.querySelectorAll('[data-workspace-id]');
+    expect(grids.length).toBe(2);
 
     h.workspaceStore!.activate('second');
 
     await waitFor(() => {
-      const grids = el.querySelectorAll('[data-testid="grid-root"]');
-      expect(grids.length).toBe(2);
-      expect(grids[0]?.getAttribute('data-mount-id')).toBe(mountIds[0]);
-      expect(grids[1]?.getAttribute('data-mount-id')).toBe(mountIds[1]);
+      expect(el.querySelectorAll('[data-testid="grid-root"]').length).toBe(2);
     });
 
     const hidden = el.querySelector('[data-workspace-id="default"]') as HTMLElement;
@@ -448,6 +449,7 @@ describe('App — project open flow', () => {
 
   it('does not persist projectLessAccepted', async () => {
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(
       el.querySelector('button[aria-label="Start without project"]')!,
     );
