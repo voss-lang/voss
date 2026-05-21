@@ -9,7 +9,15 @@ import {
   v0Commands,
   type AppContext,
 } from './command-palette/registry';
-import { normalizeChord } from './command-palette/chords';
+import { normalizeChord, normalizePrefixKey } from './command-palette/chords';
+import {
+  loadKeymapProfile,
+  saveKeymapProfile,
+  type KeymapProfile,
+} from './command-palette/keymapStorage';
+import { createPrefixMode } from './command-palette/prefixMode';
+import { setAsAppMenu } from './command-palette/nativeMenu';
+import { showToast } from './command-palette/toast';
 import { buildQuickOpenItems } from './command-palette/quickOpen';
 import type {
   ActiveLayout,
@@ -73,6 +81,8 @@ export default function App() {
   const [initialSession, setInitialSession] = createSignal<SessionFile | null>(null);
   const [paletteMode, setPaletteMode] = createSignal<'quick' | 'full' | null>(null);
   const [layoutNames, setLayoutNames] = createSignal<string[]>([]);
+  const [keymapProfile, setKeymapProfile] = createSignal<KeymapProfile>('vscode');
+  const [prefixActive, setPrefixActive] = createSignal(false);
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let gridController: GridController | undefined;
   let sessionCleanup: (() => void) | undefined;
@@ -188,44 +198,73 @@ export default function App() {
       const path = id.slice('recent:'.length);
       void openSelectedProject(path, 'palette open_recent failed:');
     } else {
-      // Full-mode command — dispatch through registry
-      const cmd = registry.commands.get(id);
-      if (cmd) cmd.handler(appCtx);
+      dispatchCommandId(id);
     }
   };
 
   // --- AppContext (D-03) — built once, threaded to registry handlers ----------
 
   const appCtx: AppContext = {
-    splitFocused: () => {},
-    closeFocused: () => {},
-    equalizePanes: () => {},
-    cycleLayout: () => {
-      // Cycle is special — needs activeLayout + applyPreset
-      // Handled below via the existing GridRoot flow
-    },
-    focusNext: () => {},
-    focusPrev: () => {},
-    focusIndex: () => {},
-    focusDirection: () => {},
-    resizeDirection: () => {},
+    splitFocused: (orientation) => gridController?.splitFocused(orientation),
+    closeFocused: () => gridController?.closeFocused(),
+    equalizePanes: () => gridController?.equalizePanes(),
+    cycleLayout: () => gridController?.cycleLayout(),
+    focusNext: () => gridController?.focusNext(),
+    focusPrev: () => gridController?.focusPrev(),
+    focusIndex: (n) => gridController?.focusIndex(n),
+    focusDirection: (dir) => gridController?.focusDirection(dir),
+    resizeDirection: (dir) => gridController?.resizeDirection(dir),
     openQuickPalette: () => openPalette('quick'),
     openFullPalette: () => openPalette('full'),
     openProject: () => void handleOpenFolder(),
     saveLayout: () => {
-      // Placeholder — A7 palette wires prompt UI later
+      const workspacePath = project()?.path;
+      if (!workspacePath) return;
+      const name = window.prompt('Save layout as');
+      const trimmed = name?.trim();
+      if (!trimmed) return;
+      void saveCurrentLayout(workspacePath, trimmed)
+        .then(() => listLayouts(workspacePath))
+        .then(setLayoutNames)
+        .catch((e) => console.error('save_layout failed:', e));
     },
     loadLayout: () => {
-      // Placeholder — opens quick palette as fallback
       openPalette('quick');
     },
     switchProfile: () => {
-      // Placeholder — A7-03 wires profile switching
+      const next: KeymapProfile =
+        keymapProfile() === 'tmux' ? 'vscode' : 'tmux';
+      void saveKeymapProfile(next)
+        .then(() => {
+          setKeymapProfile(next);
+          showToast('info', `Keymap profile: ${next}`);
+        })
+        .catch((e) => {
+          console.error('save_keymap_profile failed:', e);
+          showToast('error', 'could not save keymap settings');
+        });
     },
     showKeybindings: () => {
-      // Placeholder — A7-04 wires keybindings display
+      openPalette('full');
     },
   };
+
+  const dispatchCommandId = (id: string): boolean => {
+    const cmd = registry.commands.get(id);
+    if (!cmd) return false;
+    cmd.handler(appCtx);
+    return true;
+  };
+
+  const prefixMode = createPrefixMode({
+    onActivate: () => setPrefixActive(true),
+    onDeactivate: () => setPrefixActive(false),
+    dispatch: (commandId) => {
+      void dispatchCommandId(commandId);
+    },
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (id) => window.clearTimeout(id),
+  });
 
   // --- Global keyboard routing (D-02/D-08) -----------------------------------
   // Capture phase: intercepts ⌘P/⌘⇧P before GridRoot sees them.
@@ -242,19 +281,45 @@ export default function App() {
     }
 
     const chord = normalizeChord(e);
-    if (chord === 'Cmd+P') {
+
+    if (prefixMode.isActive()) {
+      const prefixKey = normalizePrefixKey(e);
+      if (prefixKey) {
+        const result = prefixMode.handleKey(prefixKey);
+        if (result.action !== 'passthrough') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+        return;
+      }
+      if (chord === 'Cmd+B') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        prefixMode.tryEnter(keymapProfile());
+        return;
+      }
+    }
+
+    if (chord === 'Cmd+B' && prefixMode.tryEnter(keymapProfile())) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      openPalette('quick');
-    } else if (chord === 'Cmd+Shift+P') {
+      return;
+    }
+
+    if (chord && registry.dispatch(chord, appCtx)) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      openPalette('full');
     }
   };
 
   onMount(() => {
     window.addEventListener('keydown', onAppKey, true); // capture phase
+    void setAsAppMenu(registry, (id) => {
+      void dispatchCommandId(id);
+    });
+    void loadKeymapProfile()
+      .then(setKeymapProfile)
+      .catch(() => setKeymapProfile('vscode'));
     void listRecents()
       .then(setRecents)
       .catch(() => setRecents([]));
@@ -279,6 +344,7 @@ export default function App() {
 
   onCleanup(() => {
     window.removeEventListener('keydown', onAppKey, true);
+    prefixMode.cancel();
   });
 
   // Suppress unused warnings while keeping the symbols live.
@@ -333,6 +399,9 @@ export default function App() {
             }}
             projectCwd={project()?.path ?? projectLessCwd()}
             initialSession={initialSession() ?? undefined}
+            externalKeymap={true}
+            prefixActive={prefixActive()}
+            prefixReserved={keymapProfile() === 'tmux'}
           />
         </div>
       </Show>

@@ -255,9 +255,7 @@ pub fn validate_workspace_keymap_overrides(
     known_chords: &[String],
 ) -> KeymapValidationResult {
     match load_keymap_overrides(workspace) {
-        Some(overrides) => {
-            validate_keymap_overrides(&overrides, known_command_ids, known_chords)
-        }
+        Some(overrides) => validate_keymap_overrides(&overrides, known_command_ids, known_chords),
         None => KeymapValidationResult {
             valid: HashMap::new(),
             issues: Vec::new(),
@@ -460,11 +458,8 @@ mod tests {
         )
         .unwrap();
 
-        let result = validate_workspace_keymap_overrides(
-            dir.path(),
-            &["pane.close".to_string()],
-            &[],
-        );
+        let result =
+            validate_workspace_keymap_overrides(dir.path(), &["pane.close".to_string()], &[]);
 
         assert_eq!(result.valid.get("pane.close"), Some(&None));
         assert_eq!(result.issues.len(), 1);

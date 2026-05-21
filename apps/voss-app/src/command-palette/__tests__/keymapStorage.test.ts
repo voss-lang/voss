@@ -66,9 +66,12 @@ describe('keymapStorage — override commands', () => {
 });
 
 describe('keymapStorage — watch event', () => {
-  beforeEach(() => h.listen.mockReset());
+  beforeEach(() => {
+    h.invoke.mockReset();
+    h.listen.mockReset();
+  });
 
-  it('watchWorkspaceKeymap listens on voss://keymap-updated', async () => {
+  it('watchWorkspaceKeymap starts Rust watcher and listens on voss://keymap-updated', async () => {
     let capturedHandler: ((e: unknown) => void) | undefined;
     h.listen.mockImplementation(
       ((_event: string, handler: (e: unknown) => void) => {
@@ -76,19 +79,31 @@ describe('keymapStorage — watch event', () => {
         return Promise.resolve(() => {});
       }) as typeof h.listen,
     );
+    h.invoke.mockResolvedValueOnce({ valid: {}, issues: [] });
 
     const onUpdate = vi.fn();
-    const unlisten = await watchWorkspaceKeymap(onUpdate);
+    const unlisten = await watchWorkspaceKeymap(
+      '/ws',
+      ['pane.splitRight'],
+      ['Cmd+D'],
+      onUpdate,
+    );
 
     expect(h.listen).toHaveBeenCalledWith(
       'voss://keymap-updated',
       expect.any(Function),
     );
+    expect(h.invoke).toHaveBeenCalledWith('watch_keymap_overrides', {
+      workspacePath: '/ws',
+      knownCommandIds: ['pane.splitRight'],
+      knownChords: ['Cmd+D'],
+    });
 
     // Simulate event
     const payload = { valid: {}, issues: [{ commandId: 'bad', reason: 'unknown' }] };
     capturedHandler!({ payload });
-    expect(onUpdate).toHaveBeenCalledWith(payload);
+    expect(onUpdate).toHaveBeenNthCalledWith(1, { valid: {}, issues: [] });
+    expect(onUpdate).toHaveBeenNthCalledWith(2, payload);
 
     expect(typeof unlisten).toBe('function');
   });
@@ -101,9 +116,10 @@ describe('keymapStorage — watch event', () => {
         return Promise.resolve(() => {});
       }) as typeof h.listen,
     );
+    h.invoke.mockResolvedValueOnce({ valid: {}, issues: [] });
 
     const onUpdate = vi.fn();
-    await watchWorkspaceKeymap(onUpdate);
+    await watchWorkspaceKeymap('/ws', ['pane.splitRight'], ['Cmd+D'], onUpdate);
 
     const payload = {
       valid: { 'pane.splitRight': { key: 'Cmd+X' } },
@@ -111,7 +127,19 @@ describe('keymapStorage — watch event', () => {
     };
     capturedHandler!({ payload });
     expect(onUpdate).toHaveBeenCalledWith(payload);
-    expect(onUpdate.mock.calls[0][0].issues).toHaveLength(1);
+    expect(onUpdate.mock.calls[1][0].issues).toHaveLength(1);
+  });
+
+  it('cleans up the listener if starting the Rust watcher fails', async () => {
+    const unlisten = vi.fn();
+    h.listen.mockResolvedValueOnce(unlisten);
+    h.invoke.mockRejectedValueOnce(new Error('watch failed'));
+
+    await expect(
+      watchWorkspaceKeymap('/ws', [], [], vi.fn()),
+    ).rejects.toThrow('watch failed');
+
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 });
 

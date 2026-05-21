@@ -9,9 +9,7 @@ use std::time::{Duration, SystemTime};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 use voss_app_core::grid::{self, GridState};
-use voss_app_core::keymap::{
-    self, KeymapOverrideFile, KeymapProfile, KeymapValidationResult,
-};
+use voss_app_core::keymap::{self, KeymapOverrideFile, KeymapProfile, KeymapValidationResult};
 use voss_app_core::layouts::{self, LayoutFile};
 use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
@@ -323,11 +321,8 @@ fn watch_keymap_overrides(
 ) -> Result<KeymapValidationResult, String> {
     let workspace = PathBuf::from(workspace_path);
     let keymap_path = keymap::keymap_override_path(&workspace);
-    let initial = keymap::validate_workspace_keymap_overrides(
-        &workspace,
-        &known_command_ids,
-        &known_chords,
-    );
+    let initial =
+        keymap::validate_workspace_keymap_overrides(&workspace, &known_command_ids, &known_chords);
 
     let stop = Arc::new(AtomicBool::new(false));
     let previous = state
