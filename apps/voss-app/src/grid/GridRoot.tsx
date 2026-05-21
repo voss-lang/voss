@@ -8,6 +8,9 @@ import {
   type TreeNode,
 } from './tree';
 import { dispatchKey } from './keymap';
+import { splitFocused, equalizeAll } from './operations';
+import { focusByIndex, cycleFocus, focusByDirection } from './focus';
+import { resizeByKeyboard } from './resize';
 import {
   applyPresetFromLeaves,
   nextPreset,
@@ -94,6 +97,15 @@ export type GridController = {
   applyLoadedLayout: (file: LayoutFile) => void;
   /** Apply a restored session to the live store (A6 runtime apply). */
   applySession: (session: SessionFile) => void;
+  splitFocused: (orientation: 'H' | 'V') => void;
+  closeFocused: () => void;
+  equalizePanes: () => void;
+  cycleLayout: () => void;
+  focusNext: () => void;
+  focusPrev: () => void;
+  focusIndex: (n: number) => void;
+  focusDirection: (dir: 'left' | 'right' | 'up' | 'down') => void;
+  resizeDirection: (dir: 'left' | 'right' | 'up' | 'down') => void;
   /** Plain-JS snapshot of the grid state for serialization (A4-04 D-07). */
   snapshot: () => { root: TreeNode; focusedId: string };
 };
@@ -107,6 +119,12 @@ export default function GridRoot(props: {
   projectCwd?: string;
   /** A6: pre-resolved session to initialize from — avoids throwaway default pane. */
   initialSession?: SessionFile;
+  /** A7: App owns registry key routing when this is true. */
+  externalKeymap?: boolean;
+  /** A7: tmux prefix indicator active on focused pane. */
+  prefixActive?: boolean;
+  /** A7: reserve prefix indicator width under tmux profile. */
+  prefixReserved?: boolean;
 }) {
   // A6: initialize from restored session when available so no throwaway PTY spawns.
   const initResult = props.initialSession
@@ -133,6 +151,13 @@ export default function GridRoot(props: {
   });
 
   const dims = (): Dims => ({
+    winW: win().w,
+    winH: win().h,
+    cw: DEFAULT_CW,
+    ch: DEFAULT_CH,
+  });
+
+  const geom = () => ({
     winW: win().w,
     winH: win().h,
     cw: DEFAULT_CW,
@@ -216,7 +241,83 @@ export default function GridRoot(props: {
     focusedId: store.focusedId,
   });
 
+  const requestClose = (s: GridStore) =>
+    (props.onCloseRequest ??
+      ((s) =>
+        requestCloseGated(
+          s,
+          s.focusedId,
+          () => props.closeUI?.isFg(s.focusedId) ?? false,
+          () => {
+            /* ⌘W cross-pane banner is A3-06 (A2 fg not surfaced yet) */
+          },
+        )))(s);
+
+  const markCustom = () => props.onLayoutChange?.('custom');
+
+  const splitFocusedFromController = (orientation: 'H' | 'V') => {
+    setStore(
+      produce((s) => {
+        markCustom();
+        splitFocused(s, orientation, geom());
+      }),
+    );
+  };
+
+  const closeFocusedFromController = () => {
+    setStore(
+      produce((s) => {
+        markCustom();
+        requestClose(s);
+      }),
+    );
+  };
+
+  const equalizePanesFromController = () => {
+    setStore(
+      produce((s) => {
+        markCustom();
+        equalizeAll(s);
+      }),
+    );
+  };
+
+  const cycleLayoutFromController = () => {
+    const cur = props.activeLayout?.() ?? 'custom';
+    applyPresetToStore(nextPreset(cur));
+  };
+
+  const focusNextFromController = () => {
+    setStore(produce((s) => cycleFocus(s, 'next')));
+  };
+
+  const focusPrevFromController = () => {
+    setStore(produce((s) => cycleFocus(s, 'prev')));
+  };
+
+  const focusIndexFromController = (n: number) => {
+    setStore(produce((s) => focusByIndex(s, n)));
+  };
+
+  const focusDirectionFromController = (
+    dir: 'left' | 'right' | 'up' | 'down',
+  ) => {
+    setStore(produce((s) => focusByDirection(s, dir, win().w, win().h)));
+  };
+
+  const resizeDirectionFromController = (
+    dir: 'left' | 'right' | 'up' | 'down',
+  ) => {
+    setStore(
+      produce((s) => {
+        markCustom();
+        resizeByKeyboard(s, dir, win().w, win().h, DEFAULT_CW, DEFAULT_CH);
+      }),
+    );
+  };
+
   const onKey = (e: KeyboardEvent) => {
+    if (props.externalKeymap) return;
     if (!e.metaKey) return; // every A3 chord needs ⌘ — let the PTY have it
     // Cmd+G must run OUTSIDE the dispatch produce because
     // `applyPresetToStore` owns its own `setStore` call; nesting setStore
@@ -233,15 +334,7 @@ export default function GridRoot(props: {
           DEFAULT_CW,
           DEFAULT_CH,
           props.onCloseRequest ??
-            ((s) =>
-              requestCloseGated(
-                s,
-                s.focusedId,
-                () => props.closeUI?.isFg(s.focusedId) ?? false,
-                () => {
-                  /* ⌘W cross-pane banner is A3-06 (A2 fg not surfaced yet) */
-                },
-              )),
+            requestClose,
           // onCycleLayout: defer to after-produce execution.
           () => {
             cycleRequested = true;
@@ -270,6 +363,15 @@ export default function GridRoot(props: {
       applyPreset: applyPresetToStore,
       applyLoadedLayout: applyLoadedLayoutToStore,
       applySession: applySessionToStore,
+      splitFocused: splitFocusedFromController,
+      closeFocused: closeFocusedFromController,
+      equalizePanes: equalizePanesFromController,
+      cycleLayout: cycleLayoutFromController,
+      focusNext: focusNextFromController,
+      focusPrev: focusPrevFromController,
+      focusIndex: focusIndexFromController,
+      focusDirection: focusDirectionFromController,
+      resizeDirection: resizeDirectionFromController,
       snapshot,
     });
     // A6: report restored activeLayout after mount so App.tsx signal updates.
@@ -300,6 +402,8 @@ export default function GridRoot(props: {
               return next;
             });
           }}
+          prefixActive={props.prefixActive}
+          prefixReserved={props.prefixReserved}
         />
       </div>
     </div>

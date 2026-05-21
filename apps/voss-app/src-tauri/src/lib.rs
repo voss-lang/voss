@@ -1,16 +1,23 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 use voss_app_core::grid::{self, GridState};
+use voss_app_core::keymap::{
+    self, KeymapOverrideFile, KeymapProfile, KeymapValidationResult,
+};
 use voss_app_core::layouts::{self, LayoutFile};
 use voss_app_core::project::{self, ProjectInfo};
-use voss_app_core::session::{self, SessionFile};
-use voss_app_core::keymap::{self, KeymapProfile, KeymapOverrideFile, KeymapValidationResult};
 use voss_app_core::pty::reader::start_reader;
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_session};
+use voss_app_core::session::{self, SessionFile};
 use voss_app_core::{PtyEvent, PtyRegistry};
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -252,6 +259,35 @@ fn load_global_session() -> Result<Option<SessionFile>, String> {
 // Thin wrappers over `voss_app_core::keymap`. Profile persistence uses
 // `settings.json`; workspace overrides use `.voss/keymap.json`.
 
+const KEYMAP_UPDATED_EVENT: &str = "voss://keymap-updated";
+
+#[derive(Default)]
+struct KeymapWatchState {
+    stops: Mutex<HashMap<PathBuf, Arc<AtomicBool>>>,
+}
+
+#[derive(Debug, PartialEq)]
+struct KeymapFileStamp {
+    exists: bool,
+    modified: Option<SystemTime>,
+    len: Option<u64>,
+}
+
+fn keymap_file_stamp(path: &Path) -> KeymapFileStamp {
+    match std::fs::metadata(path) {
+        Ok(metadata) => KeymapFileStamp {
+            exists: true,
+            modified: metadata.modified().ok(),
+            len: Some(metadata.len()),
+        },
+        Err(_) => KeymapFileStamp {
+            exists: false,
+            modified: None,
+            len: None,
+        },
+    }
+}
+
 #[tauri::command]
 fn load_keymap_profile() -> String {
     let profile = keymap::load_keymap_profile();
@@ -277,6 +313,56 @@ fn validate_keymap_overrides(
     keymap::validate_keymap_overrides(&overrides, &known_command_ids, &known_chords)
 }
 
+#[tauri::command]
+fn watch_keymap_overrides(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, KeymapWatchState>,
+    workspace_path: String,
+    known_command_ids: Vec<String>,
+    known_chords: Vec<String>,
+) -> Result<KeymapValidationResult, String> {
+    let workspace = PathBuf::from(workspace_path);
+    let keymap_path = keymap::keymap_override_path(&workspace);
+    let initial = keymap::validate_workspace_keymap_overrides(
+        &workspace,
+        &known_command_ids,
+        &known_chords,
+    );
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let previous = state
+        .stops
+        .lock()
+        .map_err(|_| "could not watch keymap settings".to_string())?
+        .insert(workspace.clone(), Arc::clone(&stop));
+    if let Some(previous) = previous {
+        previous.store(true, Ordering::Relaxed);
+    }
+
+    std::thread::spawn(move || {
+        let mut last = keymap_file_stamp(&keymap_path);
+        while !stop.load(Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_millis(500));
+            let next = keymap_file_stamp(&keymap_path);
+            if next == last {
+                continue;
+            }
+            last = next;
+            std::thread::sleep(Duration::from_millis(75));
+            let payload = keymap::validate_workspace_keymap_overrides(
+                &workspace,
+                &known_command_ids,
+                &known_chords,
+            );
+            if let Err(e) = app.emit(KEYMAP_UPDATED_EVENT, payload) {
+                eprintln!("[voss-app] keymap update event failed: {e}");
+            }
+        }
+    });
+
+    Ok(initial)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -284,6 +370,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(PtyRegistry::default()))
         .manage(Mutex::new(GridState::default()))
+        .manage(KeymapWatchState::default())
         .invoke_handler(tauri::generate_handler![
             get_theme_overrides,
             spawn_pty,
@@ -310,6 +397,7 @@ pub fn run() {
             save_keymap_profile,
             load_keymap_overrides,
             validate_keymap_overrides,
+            watch_keymap_overrides,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
