@@ -90,6 +90,8 @@ export async function installAllWorkspacesCloseSave(
 ): Promise<() => void> {
   let isClosingAfterSave = false;
 
+  const QUIT_SAVE_TIMEOUT_MS = 5000;
+
   const unlisten = await getCurrentWindow().onCloseRequested(async (event) => {
     if (isClosingAfterSave) return;
     event.preventDefault();
@@ -98,20 +100,26 @@ export async function installAllWorkspacesCloseSave(
       const scrollback = getScrollbackSnapshot(2000);
       const contexts = getContexts();
 
-      for (const ctx of contexts) {
-        await saveWorkspaceSession(ctx, scrollback);
-      }
-
-      await saveIndex(getIndex());
-
-      isClosingAfterSave = true;
-      await getCurrentWindow().close();
+      await Promise.race([
+        (async () => {
+          for (const ctx of contexts) {
+            await saveWorkspaceSession(ctx, scrollback);
+          }
+          await saveIndex(getIndex());
+        })(),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('quit save timed out')), QUIT_SAVE_TIMEOUT_MS),
+        ),
+      ]);
     } catch (e) {
       console.error(
-        '[voss-app] all-workspace quit save failed — window kept open:',
+        '[voss-app] all-workspace quit save failed — closing anyway:',
         e,
       );
     }
+
+    isClosingAfterSave = true;
+    await getCurrentWindow().close();
   });
 
   return unlisten;

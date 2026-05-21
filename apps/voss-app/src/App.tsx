@@ -262,8 +262,6 @@ export default function App() {
     ctrl.applyLoadedLayout(file);
     return true;
   };
-  void applyDefaultLayout;
-
   const restoreWorkspaceFromRecord = async (
     ws: MountedWorkspace,
     record: WorkspaceRecord,
@@ -804,8 +802,6 @@ export default function App() {
       ws.sessionCleanup?.();
     }
   });
-
-  void saveCurrentLayout;
 
   const bindController = (ws: MountedWorkspace, c: GridController) => {
     ws.gridController = c;

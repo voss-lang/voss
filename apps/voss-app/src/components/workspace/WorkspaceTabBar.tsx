@@ -58,7 +58,7 @@ export type WorkspaceTabBarProps = {
 
 type MenuView = 'main' | 'color' | 'confirm-close';
 
-function workspaceAccentVar(color: string): string {
+export function workspaceAccentVar(color: string): string {
   return `var(--workspace-${color}, var(--workspace-blue))`;
 }
 

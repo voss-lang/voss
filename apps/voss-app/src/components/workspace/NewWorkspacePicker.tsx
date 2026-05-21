@@ -11,6 +11,7 @@ import { pickFolder } from '../../project/projectStorage';
 import {
   COPY_NEW_WORKSPACE,
   WORKSPACE_ACCENT_COLORS,
+  workspaceAccentVar,
   type WorkspaceAccentColor,
 } from './WorkspaceTabBar';
 import './workspace.css';
@@ -46,10 +47,6 @@ export type NewWorkspacePickerProps = {
 
 function basename(path: string): string {
   return path.split('/').filter(Boolean).pop() ?? path;
-}
-
-function workspaceAccentVar(color: string): string {
-  return `var(--workspace-${color}, var(--workspace-blue))`;
 }
 
 function focusableIn(root: HTMLElement): HTMLElement[] {

@@ -47,10 +47,7 @@ export type WorkspaceStore = {
 };
 
 function newWorkspaceId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID().replace(/_/g, '-');
-  }
-  return `ws-${Date.now()}`;
+  return crypto.randomUUID();
 }
 
 function reindexOrders(workspaces: WorkspaceRecord[]): WorkspaceRecord[] {

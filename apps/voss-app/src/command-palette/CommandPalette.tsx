@@ -276,10 +276,6 @@ export default function CommandPalette(props: CommandPaletteProps) {
                         idx() === selected()
                           ? 'var(--bg-2)'
                           : 'transparent',
-                      'border-left':
-                        idx() === selected()
-                          ? '1px solid var(--focus)'
-                          : '1px solid transparent',
                       border: 'none',
                       'border-left-width': '1px',
                       'border-left-style': 'solid',
