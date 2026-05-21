@@ -205,7 +205,6 @@ describe('workspace command catalog', () => {
     expect(ids).toContain('workspace.prev');
     expect(ids).toContain('workspace.rename');
     expect(ids).toContain('workspace.color');
-    expect(ids).toContain('profile.switch');
     for (let i = 1; i <= 9; i += 1) {
       expect(ids).toContain(`workspace.focus${i}`);
     }
@@ -217,9 +216,9 @@ describe('workspace command catalog', () => {
     expect(ctx.focusWorkspace).toHaveBeenCalledWith(2);
   });
 
-  it('profile.switch calls switchProfile', () => {
+  it('settings.switchProfile calls switchProfile (canonical location)', () => {
     const ctx = mockCtx();
-    registry.commands.get('profile.switch')!.handler(ctx);
+    registry.commands.get('settings.switchProfile')!.handler(ctx);
     expect(ctx.switchProfile).toHaveBeenCalled();
   });
 });

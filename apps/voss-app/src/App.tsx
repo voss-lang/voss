@@ -254,14 +254,6 @@ export default function App() {
     ctrl.applyLoadedLayout(file);
   };
 
-  const applyDefaultLayout = async (path: string): Promise<boolean> => {
-    const ctrl = gridController();
-    if (!ctrl) return false;
-    const file = await loadDefaultLayout(path);
-    if (!file) return false;
-    ctrl.applyLoadedLayout(file);
-    return true;
-  };
   const restoreWorkspaceFromRecord = async (
     ws: MountedWorkspace,
     record: WorkspaceRecord,

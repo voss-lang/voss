@@ -77,12 +77,10 @@ describe('buildNativeMenuModel — A8 workspace commands', () => {
   const model = buildNativeMenuModel(registry);
   const workspaceGroup = model.find((g) => g.label === 'Workspace')!;
 
-  it('includes workspace.new, workspace.close, and profile.switch', () => {
+  it('includes workspace.new and workspace.close', () => {
     const ids = workspaceGroup.items.map((i) => i.id);
     expect(ids).toContain('workspace.new');
     expect(ids).toContain('workspace.close');
-    // UI-SPEC: profile switch appears in workspace tab context menu → Workspace group.
-    expect(ids).toContain('profile.switch');
   });
 
   it('maps Ctrl+Tab workspace shortcuts to accelerators', () => {
