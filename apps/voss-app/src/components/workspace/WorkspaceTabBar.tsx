@@ -155,6 +155,7 @@ export default function WorkspaceTabBar(props: WorkspaceTabBarProps) {
   onCleanup(() => {
     document.removeEventListener('keydown', onDocKey);
     document.removeEventListener('click', onDocClick, true);
+    if (blockedTimer != null) clearTimeout(blockedTimer);
   });
 
   const onTabContextMenu = (id: string, e: MouseEvent) => {

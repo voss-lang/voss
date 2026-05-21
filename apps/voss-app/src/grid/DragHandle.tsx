@@ -60,7 +60,7 @@ export default function DragHandle(props: {
     );
   };
 
-  const onPointerUp = (e: PointerEvent) => {
+  const endDrag = (e: PointerEvent) => {
     if (!dragging()) return;
     setDragging(false);
     props.onDragActive?.(false);
@@ -86,7 +86,8 @@ export default function DragHandle(props: {
       data-drag-active={dragging() ? 'true' : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
       onPointerEnter={enter}
       onPointerLeave={leave}
     />
