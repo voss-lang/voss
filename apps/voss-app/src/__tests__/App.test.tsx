@@ -69,6 +69,15 @@ vi.mock('../command-palette/registry', () => ({
 }));
 vi.mock('../command-palette/chords', () => ({
   normalizeChord: vi.fn(() => null),
+  normalizePrefixKey: vi.fn(() => null),
+}));
+vi.mock('../command-palette/keymapStorage', () => ({
+  loadKeymapProfile: vi.fn().mockResolvedValue('vscode'),
+  saveKeymapProfile: vi.fn().mockResolvedValue(undefined),
+  watchWorkspaceKeymap: vi.fn().mockResolvedValue(() => {}),
+}));
+vi.mock('../command-palette/nativeMenu', () => ({
+  setAsAppMenu: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../command-palette/quickOpen', () => ({
   buildQuickOpenItems: vi.fn(() => []),
@@ -85,6 +94,16 @@ vi.mock('../grid/GridRoot', () => ({
     controllerRef?: (ctrl: {
       applyPreset: typeof h.applyPreset;
       applyLoadedLayout: typeof h.applyLoadedLayout;
+      applySession: ReturnType<typeof vi.fn>;
+      splitFocused: ReturnType<typeof vi.fn>;
+      closeFocused: ReturnType<typeof vi.fn>;
+      equalizePanes: ReturnType<typeof vi.fn>;
+      cycleLayout: ReturnType<typeof vi.fn>;
+      focusNext: ReturnType<typeof vi.fn>;
+      focusPrev: ReturnType<typeof vi.fn>;
+      focusIndex: ReturnType<typeof vi.fn>;
+      focusDirection: ReturnType<typeof vi.fn>;
+      resizeDirection: ReturnType<typeof vi.fn>;
       snapshot: typeof h.snapshot;
     }) => void;
     projectCwd?: string;
@@ -93,6 +112,16 @@ vi.mock('../grid/GridRoot', () => ({
     props.controllerRef?.({
       applyPreset: h.applyPreset,
       applyLoadedLayout: h.applyLoadedLayout,
+      applySession: vi.fn(),
+      splitFocused: vi.fn(),
+      closeFocused: vi.fn(),
+      equalizePanes: vi.fn(),
+      cycleLayout: vi.fn(),
+      focusNext: vi.fn(),
+      focusPrev: vi.fn(),
+      focusIndex: vi.fn(),
+      focusDirection: vi.fn(),
+      resizeDirection: vi.fn(),
       snapshot: h.snapshot,
     });
     return (
