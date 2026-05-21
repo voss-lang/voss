@@ -313,12 +313,6 @@ export function workspaceCommands(): CommandDefinition[] {
       category: 'Workspace',
       handler: (ctx) => ctx.colorWorkspace?.(),
     },
-    {
-      id: 'profile.switch',
-      label: 'Switch Profile',
-      category: 'Workspace',
-      handler: (ctx) => ctx.switchProfile?.(),
-    },
   ];
 }
 

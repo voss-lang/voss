@@ -188,12 +188,6 @@ pub fn load_active_theme_id() -> Option<String> {
 /// Persist `appearance.activeThemeId`, preserving unknown settings keys.
 pub fn save_active_theme_id(id: Option<&str>) -> Result<(), ThemeError> {
     let path = settings_path();
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| {
-            eprintln!("[voss-app] settings mkdir failed: {e}");
-            ThemeError::SettingsSaveFailed
-        })?;
-    }
     let mut settings: SettingsThemes = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -203,11 +197,7 @@ pub fn save_active_theme_id(id: Option<&str>) -> Result<(), ThemeError> {
         eprintln!("[voss-app] settings serialize failed: {e}");
         ThemeError::SettingsSaveFailed
     })?;
-    std::fs::write(&path, json).map_err(|e| {
-        eprintln!("[voss-app] settings write failed: {e}");
-        ThemeError::SettingsSaveFailed
-    })?;
-    Ok(())
+    settings_atomic_write(&path, &json)
 }
 
 // --- Internal helpers --------------------------------------------------------
@@ -248,6 +238,25 @@ fn atomic_write(path: &Path, json: &str) -> Result<(), ThemeError> {
     std::fs::rename(&tmp, path).map_err(|e| {
         eprintln!("[voss-app] custom theme rename failed: {e}");
         ThemeError::SaveFailed
+    })?;
+    Ok(())
+}
+
+fn settings_atomic_write(path: &Path, json: &str) -> Result<(), ThemeError> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| {
+            eprintln!("[voss-app] settings mkdir failed: {e}");
+            ThemeError::SettingsSaveFailed
+        })?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, json).map_err(|e| {
+        eprintln!("[voss-app] settings write tmp failed: {e}");
+        ThemeError::SettingsSaveFailed
+    })?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        eprintln!("[voss-app] settings rename failed: {e}");
+        ThemeError::SettingsSaveFailed
     })?;
     Ok(())
 }

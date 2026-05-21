@@ -81,10 +81,17 @@ export default function WorkspaceTabBar(props: WorkspaceTabBarProps) {
     setBlockedCopy(null);
   };
 
+  let blockedTimer: ReturnType<typeof setTimeout> | undefined;
+  const showBlocked = (msg: string) => {
+    if (blockedTimer != null) clearTimeout(blockedTimer);
+    setBlockedCopy(msg);
+    blockedTimer = setTimeout(() => setBlockedCopy(null), 3000);
+  };
+
   const requestClose = (id: string) => {
     const guard = props.closeGuardFor(id);
     if (!guard.canClose || guard.isLastWorkspace) {
-      setBlockedCopy(COPY_LAST_WORKSPACE_BLOCKED);
+      showBlocked(COPY_LAST_WORKSPACE_BLOCKED);
       props.onCloseBlocked?.();
       return;
     }

@@ -1,12 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
-import { applyThemeOverrides } from '../theme/applyTheme';
 import { initWindowEffectsFromAppearance } from './windowEffects';
 import {
   getBundledTheme,
-  resolveThemeCssVars,
   validateTheme,
   type Theme,
 } from '../themes/themeCatalog';
+import { applyThemeToRuntime } from '../themes/themeRuntime';
 
 /**
  * A8-01 Task 3 — frontend bridge for settings profile snapshots.
@@ -259,18 +258,13 @@ export async function applyAppearanceFromSnapshot(
   const theme = await resolveThemeForAppearance(appearance, workspacePath);
 
   if (theme) {
-    const cssVars = resolveThemeCssVars(
-      theme,
-      appearance.highContrastEnabled === true,
-    );
-    applyThemeOverrides(cssVars);
+    applyThemeToRuntime(theme, {
+      highContrast: appearance.highContrastEnabled === true,
+    });
   } else if (appearance.highContrastEnabled) {
-    applyThemeOverrides(
-      resolveThemeCssVars(
-        getBundledTheme('variant-b')!,
-        true,
-      ),
-    );
+    applyThemeToRuntime(getBundledTheme('variant-b')!, {
+      highContrast: true,
+    });
   }
 
   applyAppearanceDocumentHints(appearance);

@@ -171,7 +171,7 @@ export async function initWindowEffectsFromAppearance(
 
   await applyWindowEffects({
     opacity,
-    enabled: opacity === undefined ? true : opacity < 1 || opacity >= 0.5,
+    enabled: opacity === undefined ? true : opacity < 1,
   });
 }
 

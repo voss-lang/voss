@@ -1,4 +1,4 @@
-import { createSignal, type Accessor } from 'solid-js';
+import { batch, createSignal, type Accessor } from 'solid-js';
 import type { LayoutPreset } from '../grid/layoutPresets';
 import {
   CURRENT_WORKSPACES_VERSION,
@@ -223,13 +223,12 @@ export function createWorkspaceStore(
 
   const remove = (id: string) => {
     if (!closeGuardFor(workspaces(), id).canClose) return;
-    setWorkspaces((prev) => {
-      const next = reindexOrders(prev.filter((w) => w.id !== id));
+    batch(() => {
+      setWorkspaces((prev) => reindexOrders(prev.filter((w) => w.id !== id)));
       setActiveId((current) => {
         if (current !== id) return current;
-        return next[0]?.id ?? null;
+        return workspaces()[0]?.id ?? null;
       });
-      return next;
     });
   };
 
