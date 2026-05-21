@@ -8,6 +8,7 @@ pub mod project;
 pub mod pty;
 pub mod session;
 pub mod themes;
+pub mod workspaces;
 
 pub use grid::{sync_grid, GridState};
 pub use layouts::{
@@ -27,8 +28,14 @@ pub use themes::{
     save_custom_theme, CustomThemeFile, ThemeAppearance, ThemeError, CURRENT_THEME_VERSION,
 };
 pub use session::{
-    load_global_session, load_session, save_global_session, save_session, SessionError,
-    SessionFile, SessionPane, CURRENT_SESSION_VERSION,
+    load_global_session, load_project_less_session, load_session, save_global_session,
+    save_project_less_session, save_session, SessionError, SessionFile, SessionPane,
+    CURRENT_SESSION_VERSION,
+};
+pub use workspaces::{
+    default_workspaces_index, list_workspaces, load_workspaces_index, save_workspaces_index,
+    validate_workspace_id, workspace_session_path, WorkspacesError, WorkspacesIndex,
+    WorkspaceEntry, CURRENT_WORKSPACES_VERSION, DEFAULT_ACCENT_COLOR, DEFAULT_WORKSPACE_ID,
 };
 pub use pty::commands::{
     get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty, PtyEvent,

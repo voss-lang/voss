@@ -18,6 +18,7 @@ use voss_app_core::themes::{self, CustomThemeFile};
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_session};
 use voss_app_core::session::{self, SessionFile};
+use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -255,6 +256,40 @@ fn load_global_session() -> Result<Option<SessionFile>, String> {
         .map_err(|e| e.to_string())
 }
 
+// ---- Workspace index + project-less sessions (A8-02) ------------------------
+// Thin wrappers over `voss_app_core::workspaces` and extended session paths.
+
+#[tauri::command]
+fn load_workspaces_index() -> WorkspacesIndex {
+    workspaces::load_workspaces_index()
+}
+
+#[tauri::command]
+fn save_workspaces_index(index: WorkspacesIndex) -> Result<(), String> {
+    workspaces::save_workspaces_index(&index).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_workspaces() -> Vec<workspaces::WorkspaceEntry> {
+    workspaces::list_workspaces()
+}
+
+#[tauri::command]
+fn save_project_less_session(
+    workspace_id: String,
+    session: SessionFile,
+) -> Result<(), String> {
+    session::save_project_less_session(&workspace_id, &session)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_project_less_session(
+    workspace_id: String,
+) -> Result<Option<SessionFile>, String> {
+    session::load_project_less_session(&workspace_id).map_err(|e| e.to_string())
+}
+
 // ---- Keymap commands (A7-03) ------------------------------------------------
 // Thin wrappers over `voss_app_core::keymap`. Profile persistence uses
 // `settings.json`; workspace overrides use `.voss/keymap.json`.
@@ -456,6 +491,11 @@ pub fn run() {
             load_session,
             save_global_session,
             load_global_session,
+            load_workspaces_index,
+            save_workspaces_index,
+            list_workspaces,
+            save_project_less_session,
+            load_project_less_session,
             load_keymap_profile,
             save_keymap_profile,
             load_keymap_overrides,
