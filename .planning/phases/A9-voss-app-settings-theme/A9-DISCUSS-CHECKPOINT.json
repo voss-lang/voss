@@ -1,0 +1,17 @@
+{
+  "phase": "A9",
+  "phase_name": "voss-app Settings + Theme",
+  "timestamp": "2026-05-20T20:00:00.000Z",
+  "areas_completed": ["Settings panel hosting"],
+  "areas_remaining": ["Merge & override UX", "Hot-reload granularity", "Edit-as-JSON & telemetry"],
+  "decisions": {
+    "Settings panel hosting": [
+      {"question": "How should the settings panel render?", "answer": "Full-screen overlay (covers pane area, Esc dismisses, same z-layer as command palette)", "options_presented": ["Full-screen overlay", "Dedicated pane type", "Modal dialog"]},
+      {"question": "How does the user open settings?", "answer": "⌘, shortcut (also via ⌘⇧P palette + A10 status bar cog)", "options_presented": ["⌘, shortcut", "⌘⇧P palette only", "You decide"]},
+      {"question": "Category nav style?", "answer": "Fixed sidebar (~160px, always visible, click category → scroll right pane)", "options_presented": ["Fixed sidebar", "Collapsible sidebar", "You decide"]},
+      {"question": "Search behavior?", "answer": "Filter to matches (hide non-matching rows, clear search restores full list)", "options_presented": ["Filter to matches", "Jump to first match", "You decide"]}
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": [".planning/ROADMAP.md Phase A9", "apps/voss-app/CONCEPT.md §10 Q7/Q9", "apps/voss-app/FEATURES.md §L1.6"]
+}

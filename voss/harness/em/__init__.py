@@ -18,6 +18,7 @@ from .schema import (
     SetACOp, SetDoDOp, NoopOp,
 )
 from .llm import em_plan
+from .loop import em_loop
 from .stub import DeterministicEMStub
 
 __all__ = [
@@ -28,5 +29,5 @@ __all__ = [
     "EMPlanResponse", "EMOp",
     "CreateTicketOp", "DispatchCardOp", "KillCardOp", "RescopeCardOp",
     "SetACOp", "SetDoDOp", "NoopOp",
-    "em_plan", "DeterministicEMStub",
+    "em_plan", "em_loop", "DeterministicEMStub",
 ]
