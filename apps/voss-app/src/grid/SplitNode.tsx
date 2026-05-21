@@ -3,6 +3,7 @@ import { produce, type SetStoreFunction, type Store } from 'solid-js/store';
 import type { GridStore, TreeNode, PaneLeaf, SplitNode } from './tree';
 import { focusByClick } from './focus';
 import PaneComponent from '../pane/PaneComponent';
+import type { AgentConfig } from '../pane/pty-ipc';
 import DragHandle, { type Dims } from './DragHandle';
 import PaneHeader from './PaneHeader';
 import DotMenu from './DotMenu';
@@ -47,6 +48,8 @@ export default function SplitNodeView(props: {
   prefixActive?: boolean;
   /** A7: reserve prefix indicator width (tmux profile). */
   prefixReserved?: boolean;
+  agentConfigByPaneId?: Record<string, AgentConfig>;
+  workspacePath?: string;
 }) {
   const asSplit = () => props.node as SplitNode;
   const asLeaf = () => props.node as PaneLeaf;
@@ -129,6 +132,8 @@ export default function SplitNodeView(props: {
               index={asLeaf().index}
               restoredScrollback={props.restoredScrollbackByPaneId?.[asLeaf().id]}
               onFirstInput={() => props.onPaneFirstInput?.(asLeaf().id)}
+              agentConfig={props.agentConfigByPaneId?.[asLeaf().id]}
+              workspacePath={props.workspacePath}
             />
           </div>
         </div>
@@ -178,6 +183,8 @@ export default function SplitNodeView(props: {
               onPaneFirstInput={props.onPaneFirstInput}
               prefixActive={props.prefixActive}
               prefixReserved={props.prefixReserved}
+              agentConfigByPaneId={props.agentConfigByPaneId}
+              workspacePath={props.workspacePath}
             />
             <DragHandle
               store={props.store}
@@ -208,6 +215,8 @@ export default function SplitNodeView(props: {
               onPaneFirstInput={props.onPaneFirstInput}
               prefixActive={props.prefixActive}
               prefixReserved={props.prefixReserved}
+              agentConfigByPaneId={props.agentConfigByPaneId}
+              workspacePath={props.workspacePath}
             />
           </div>
         </div>

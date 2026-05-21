@@ -169,6 +169,65 @@ pub fn spawn_session(
     Ok((session, reader, pause_rx))
 }
 
+/// Spawn an arbitrary command on a fresh native PTY (not `$SHELL`).
+pub fn spawn_command_session(
+    cmd_binary: &str,
+    cmd_args: &[String],
+    rows: u16,
+    cols: u16,
+    cwd: Option<String>,
+) -> anyhow::Result<(
+    Arc<PtySession>,
+    Box<dyn Read + Send>,
+    tokio::sync::mpsc::Receiver<bool>,
+)> {
+    let pair = native_pty_system()
+        .openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .context("openpty")?;
+
+    let shell_name = std::path::Path::new(cmd_binary)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(cmd_binary)
+        .to_string();
+
+    let mut cmd = CommandBuilder::new(cmd_binary);
+    cmd.args(cmd_args);
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    let cwd_path = match cwd {
+        Some(c) => {
+            cmd.cwd(&c);
+            PathBuf::from(c)
+        }
+        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
+    };
+
+    let child = pair.slave.spawn_command(cmd).context("spawn_command")?;
+    let reader = pair.master.try_clone_reader().context("try_clone_reader")?;
+    let writer = pair.master.take_writer().context("take_writer")?;
+
+    let (pause_tx, pause_rx) = tokio::sync::mpsc::channel::<bool>(8);
+
+    let session = Arc::new(PtySession {
+        id: uuid::Uuid::new_v4(),
+        master: Mutex::new(pair.master),
+        writer: Mutex::new(writer),
+        _slave: Mutex::new(pair.slave),
+        child: Mutex::new(child),
+        pause_tx,
+        shell_name,
+        cwd: cwd_path,
+    });
+
+    Ok((session, reader, pause_rx))
+}
+
 /// Registry of live PTY sessions, managed as Tauri state.
 #[derive(Default)]
 pub struct PtyRegistry {

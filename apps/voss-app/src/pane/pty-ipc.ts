@@ -14,6 +14,12 @@ export type PtyEvent =
   | { type: 'fg_process'; name: string }
   | { type: 'title_change'; title: string };
 
+export interface AgentConfig {
+  cliBinary: string;
+  cliArgs: string[];
+  sessionId: string;
+}
+
 /** D-02 watermark thresholds — locked constants (do not tune). */
 export const HIGH_WATERMARK = 100_000; // 100 KB → pause
 export const LOW_WATERMARK = 10_000; //  10 KB → resume
@@ -24,6 +30,8 @@ export interface PtyTransportOpts {
   onExit?: (code: number) => void;
   onFgProcess?: (name: string) => void;
   onTitle?: (title: string) => void;
+  agentPaneId?: string;
+  workspacePath?: string;
 }
 
 function mergeChunks(chunks: Uint8Array[]): Uint8Array {
@@ -69,6 +77,14 @@ export class PtyTransport {
       }
       case 'exit':
         this.opts.onExit?.(ev.code);
+        if (this.opts.agentPaneId) {
+          void invoke('mark_agent_stopped', {
+            paneId: this.opts.agentPaneId,
+            workspacePath: this.opts.workspacePath ?? null,
+          }).catch((e) =>
+            console.error('[voss-app] agent registry exit update failed:', e),
+          );
+        }
         break;
       case 'fg_process':
         this.opts.onFgProcess?.(ev.name);
@@ -99,6 +115,27 @@ export class PtyTransport {
       rows: o.rows,
       cols: o.cols,
       cwd: o.cwd,
+    });
+    return this.sessionId;
+  }
+
+  async spawnAgent(o: {
+    rows: number;
+    cols: number;
+    cwd?: string;
+    paneId: string;
+    workspacePath?: string;
+  } & AgentConfig): Promise<string> {
+    this.sessionId = await invoke<string>('spawn_agent', {
+      onData: this.channel,
+      rows: o.rows,
+      cols: o.cols,
+      cwd: o.cwd,
+      cliBinary: o.cliBinary,
+      cliArgs: o.cliArgs,
+      sessionId: o.sessionId,
+      paneId: o.paneId,
+      workspacePath: o.workspacePath,
     });
     return this.sessionId;
   }

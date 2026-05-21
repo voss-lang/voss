@@ -7,7 +7,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
-import { PtyTransport } from './pty-ipc';
+import { PtyTransport, type AgentConfig } from './pty-ipc';
 import PasteGuard from './PasteGuard';
 import ExitBanner from './ExitBanner';
 import FindBar from './FindBar';
@@ -41,6 +41,8 @@ export interface PaneProps {
   restoredScrollback?: string[];
   /** Called once on first user input in a restored pane (dismiss RestoreBanner). */
   onFirstInput?: () => void;
+  agentConfig?: AgentConfig;
+  workspacePath?: string;
 }
 
 function basename(p: string): string {
@@ -205,7 +207,18 @@ export default function PaneComponent(props: PaneProps) {
   });
 
   const doSpawn = async (t: Terminal) => {
-    await transport!.spawn({ rows: t.rows, cols: t.cols, cwd: props.cwd });
+    if (props.agentConfig) {
+      await transport!.spawnAgent({
+        rows: t.rows,
+        cols: t.cols,
+        cwd: props.cwd,
+        paneId: props.id ?? '',
+        workspacePath: props.workspacePath,
+        ...props.agentConfig,
+      });
+    } else {
+      await transport!.spawn({ rows: t.rows, cols: t.cols, cwd: props.cwd });
+    }
     setDot('running');
   };
 
@@ -305,6 +318,12 @@ export default function PaneComponent(props: PaneProps) {
         lastOscTitleAt = Date.now();
         setProc(title);
       },
+      ...(props.agentConfig
+        ? {
+            agentPaneId: props.id,
+            workspacePath: props.workspacePath,
+          }
+        : {}),
     });
 
     // D-07 primary: OSC 0/2 title → process slot.

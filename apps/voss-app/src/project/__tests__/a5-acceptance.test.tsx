@@ -104,6 +104,9 @@ function mockInvoke() {
     if (cmd === 'load_project_less_session') return Promise.resolve(null);
     if (cmd === 'load_global_session') return Promise.resolve(null);
     if (cmd === 'load_session') return Promise.resolve(null);
+    if (cmd === 'get_active_agents') return Promise.resolve([]);
+    if (cmd === 'sweep_orphan_agents') return Promise.resolve(undefined);
+    if (cmd === 'update_agents_last_seen') return Promise.resolve(undefined);
     return Promise.resolve(undefined);
   });
 }
@@ -220,6 +223,7 @@ describe('WS-07 — project switching path exists before palette UI lands', () =
       if (cmd === 'load_recents') return Promise.resolve(['/tmp/voss-a', '/tmp/voss-b']);
       if (cmd === 'default_cwd') return Promise.resolve('/Users/ben');
       if (cmd === 'load_default_layout') return Promise.resolve(null);
+      if (cmd === 'get_active_agents') return Promise.resolve([]);
       return Promise.resolve(undefined);
     });
     const el = mount(() => <App />);
@@ -242,6 +246,7 @@ describe('WS-07 — project switching path exists before palette UI lands', () =
       if (cmd === 'load_default_layout') return Promise.reject(new Error('invalid default'));
       if (cmd === 'load_session') return Promise.resolve(null);
       if (cmd === 'load_global_session') return Promise.resolve(null);
+      if (cmd === 'get_active_agents') return Promise.resolve([]);
       return Promise.resolve(undefined);
     });
     const el = mount(() => <App />);

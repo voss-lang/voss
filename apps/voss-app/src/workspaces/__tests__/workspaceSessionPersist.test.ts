@@ -11,6 +11,10 @@ const h = vi.hoisted(() => ({
   getScrollbackSnapshot: vi.fn(),
 }));
 
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: vi.fn(() => ({
     onCloseRequested: h.onCloseRequested,

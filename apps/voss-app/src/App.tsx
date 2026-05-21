@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import {
   batch,
   createMemo,
@@ -18,6 +19,8 @@ import NewWorkspacePicker, {
 } from './components/workspace/NewWorkspacePicker';
 import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
+import { collectLeaves } from './grid/tree';
+import type { AgentConfig } from './pane/pty-ipc';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
 import ToastStack from './command-palette/toast';
@@ -91,6 +94,39 @@ import {
  * CSS when inactive — D-01), and a single all-workspace close-save handler.
  */
 
+interface AgentEntry {
+  paneId: string;
+  sessionId: string;
+  cliBinary: string;
+  cliArgs: string;
+  cwd: string;
+  status: string;
+  lastSeen: number;
+}
+
+async function fetchAgentConfigs(
+  workspacePath: string | null,
+): Promise<Record<string, AgentConfig>> {
+  const entries = await invoke<AgentEntry[]>('get_active_agents', {
+    workspacePath,
+  }).catch(() => []);
+  const out: Record<string, AgentConfig> = {};
+  for (const entry of entries) {
+    let cliArgs: string[] = [];
+    try {
+      cliArgs = JSON.parse(entry.cliArgs) as string[];
+    } catch {
+      cliArgs = [];
+    }
+    out[entry.paneId] = {
+      cliBinary: entry.cliBinary,
+      cliArgs,
+      sessionId: entry.sessionId,
+    };
+  }
+  return out;
+}
+
 export type MountedWorkspace = {
   id: string;
   activeLayout: Accessor<ActiveLayout>;
@@ -106,6 +142,9 @@ export type MountedWorkspace = {
   /** Once true, GridRoot stays mounted when switching away (D-01). */
   everMounted: Accessor<boolean>;
   setEverMounted: (next: boolean) => void;
+  agentConfigByPaneId: Accessor<Record<string, AgentConfig>>;
+  setAgentConfigByPaneId: (next: Record<string, AgentConfig>) => void;
+  orphanSweepDone: boolean;
   gridController?: GridController;
   sessionCleanup?: () => void;
 };
@@ -120,6 +159,9 @@ function createMountedWorkspace(id: string): MountedWorkspace {
   );
   const [projectLessCwd, setProjectLessCwd] = createSignal<string | undefined>();
   const [everMounted, setEverMounted] = createSignal(false);
+  const [agentConfigByPaneId, setAgentConfigByPaneId] = createSignal<
+    Record<string, AgentConfig>
+  >({});
 
   return {
     id,
@@ -135,6 +177,9 @@ function createMountedWorkspace(id: string): MountedWorkspace {
     setProjectLessCwd,
     everMounted,
     setEverMounted,
+    agentConfigByPaneId,
+    setAgentConfigByPaneId,
+    orphanSweepDone: false,
   };
 }
 
@@ -261,6 +306,7 @@ export default function App() {
     if (record.projectPath) {
       try {
         const info = await openProject(record.projectPath);
+        const agentConfigs = await fetchAgentConfigs(info.path);
         let session: SessionFile | null = null;
         session = await loadSession(info.path).catch(() => null);
         if (!session) {
@@ -270,6 +316,7 @@ export default function App() {
           }
         }
         batch(() => {
+          ws.setAgentConfigByPaneId(agentConfigs);
           ws.setInitialSession(session);
           ws.setProject(info);
           ws.setProjectLessAccepted(true);
@@ -292,7 +339,9 @@ export default function App() {
     }
 
     if (session?.projectLessAccepted) {
+      const agentConfigs = await fetchAgentConfigs(null);
       batch(() => {
+        ws.setAgentConfigByPaneId(agentConfigs);
         ws.setInitialSession(session);
         ws.setProjectLessAccepted(true);
         ws.setEverMounted(true);
@@ -309,6 +358,7 @@ export default function App() {
     try {
       const info = await openProject(path);
       setRecents(await listRecents());
+      const agentConfigs = await fetchAgentConfigs(info.path);
 
       let session: SessionFile | null = await loadSession(info.path).catch(
         () => null,
@@ -327,6 +377,7 @@ export default function App() {
       }
 
       batch(() => {
+        ws.setAgentConfigByPaneId(agentConfigs);
         ws.setInitialSession(session);
         ws.setProject(info);
         ws.setProjectLessAccepted(true);
@@ -361,8 +412,13 @@ export default function App() {
         }
       }
 
+      const agentConfigs = !ws.everMounted()
+        ? await fetchAgentConfigs(info.path)
+        : {};
+
       batch(() => {
         if (!ws.everMounted()) {
+          ws.setAgentConfigByPaneId(agentConfigs);
           ws.setInitialSession(session);
         }
         ws.setProject(info);
@@ -781,6 +837,7 @@ export default function App() {
         async () => {
           await workspaceStore.persist();
         },
+        () => activeMounted()?.project()?.path ?? null,
       );
     })();
   });
@@ -799,6 +856,20 @@ export default function App() {
     ws.gridController = c;
     ws.sessionCleanup?.();
     ws.sessionCleanup = installWorkspaceStructuralAutosave(sessionContextFor(ws));
+    if (!ws.orphanSweepDone) {
+      ws.orphanSweepDone = true;
+      const session = ws.initialSession();
+      if (session) {
+        const leafIds = collectLeaves(session.grid.root).map((l) => l.id);
+        const wp = ws.project()?.path ?? null;
+        void invoke('sweep_orphan_agents', {
+          validPaneIds: leafIds,
+          workspacePath: wp,
+        }).catch((e) =>
+          console.error('[voss-app] agent orphan sweep failed:', e),
+        );
+      }
+    }
   };
 
   return (
@@ -888,6 +959,8 @@ export default function App() {
                       externalKeymap={true}
                       prefixActive={prefixActive()}
                       prefixReserved={keymapProfile() === 'tmux'}
+                      agentConfigByPaneId={ws()!.agentConfigByPaneId()}
+                      workspacePath={ws()!.project()?.path ?? undefined}
                     />
                   </div>
                 </Show>
