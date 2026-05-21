@@ -350,13 +350,17 @@ describe('App — project open flow', () => {
     await waitFor(() =>
       expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull(),
     );
-    const grid = el.querySelector('[data-testid="grid-root"]');
+    const mountId = el
+      .querySelector('[data-testid="grid-root"]')!
+      .getAttribute('data-mount-id');
 
     h.openProject.mockResolvedValueOnce(project('/tmp/b', 'b'));
     h.setupProps?.onOpenRecent('/tmp/b');
     await waitFor(() => expect(el.textContent).toContain('b'));
 
-    expect(el.querySelector('[data-testid="grid-root"]')).toBe(grid);
+    expect(
+      el.querySelector('[data-testid="grid-root"]')?.getAttribute('data-mount-id'),
+    ).toBe(mountId);
     expect(h.gridMountCount).toBe(1);
   });
 

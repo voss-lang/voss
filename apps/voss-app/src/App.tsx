@@ -167,9 +167,18 @@ export default function App() {
   let keymapUnlisten: (() => void) | undefined;
 
   const activeId = () => workspaceStore.activeId();
-  const workspaceIds = createMemo(() =>
-    workspaceStore.workspaces().map((w) => w.id),
-  );
+  let cachedWorkspaceIds: string[] = [];
+  const workspaceIds = createMemo(() => {
+    const next = workspaceStore.workspaces().map((w) => w.id);
+    if (
+      next.length === cachedWorkspaceIds.length &&
+      next.every((id, i) => id === cachedWorkspaceIds[i])
+    ) {
+      return cachedWorkspaceIds;
+    }
+    cachedWorkspaceIds = next;
+    return next;
+  });
   const activeMounted = createMemo(() => {
     const id = activeId();
     return id ? mountedById().get(id) : undefined;
@@ -589,7 +598,7 @@ export default function App() {
             'flex-direction': 'column',
           }}
         >
-          <For each={workspaceIds}>
+          <For each={workspaceIds()}>
             {(workspaceId) => {
               const ws = () => mountedById().get(workspaceId);
               const shouldMount = () => {

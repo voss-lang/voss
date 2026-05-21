@@ -1,5 +1,5 @@
 import { HIGH_CONTRAST_OVERLAY } from './highContrast';
-import { validateTheme, type Theme } from './schema';
+import type { Theme } from './schema';
 
 import variantB from './bundled/variant-b.json';
 import oneDarkPro from './bundled/one-dark-pro.json';
