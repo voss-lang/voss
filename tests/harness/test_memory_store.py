@@ -11,6 +11,17 @@ import pytest
 from voss.harness.memory_store import Hit, MemoryStore, make_id
 
 
+def test_bm25_tokenize_splits_symbols_and_punctuation() -> None:
+    from voss.harness.memory_store import _bm25_tokenize
+
+    assert {"get", "user", "by", "id"} <= set(_bm25_tokenize("getUserById"))
+    assert {"parse", "config", "file"} <= set(_bm25_tokenize("parse_config_file"))
+    assert {"voss", "harness", "memory", "store"} <= set(
+        _bm25_tokenize("voss.harness.memory_store")
+    )
+    assert _bm25_tokenize("!@#$%^&*()") == []
+
+
 def test_recall_hits_tagged_with_source(tmp_voss_repo: Path) -> None:
     from types import SimpleNamespace
 
@@ -108,6 +119,63 @@ def test_recall_source_filter(tmp_voss_repo: Path) -> None:
     hits = store.recall("jwt", top_k=10, source="turns")
     assert hits, "expected at least one turn hit"
     assert all(h.source == "turn" for h in hits)
+
+
+def test_bm25_fallback_source_filter_returns_turn_hits(
+    monkeypatch: pytest.MonkeyPatch, tmp_voss_repo: Path
+) -> None:
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", lambda self: None)
+    store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
+    store.write_turn(
+        role="user",
+        content="semantic fallback source filter target",
+        session_id="s1",
+        turn_idx=0,
+    )
+    decisions_dir = tmp_voss_repo / ".voss" / "memory" / "decisions"
+    decisions_dir.mkdir(parents=True, exist_ok=True)
+    (decisions_dir / "fallback-source.md").write_text(
+        "---\nid: fallback-source\n---\n\n# Decision\n\nsemantic fallback source filter target\n"
+    )
+
+    hits = store.recall("semantic fallback source filter", top_k=10, source="turns")
+
+    assert hits, "expected at least one BM25 turn hit"
+    assert all(h.source == "turn" for h in hits)
+
+
+def test_bm25_fallback_omits_tombstoned_turn_locator(
+    monkeypatch: pytest.MonkeyPatch, tmp_voss_repo: Path
+) -> None:
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", lambda self: None)
+    store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
+    store.write_turn(
+        role="user",
+        content="tombstone bm25 fallback should hide this locator",
+        session_id="s1",
+        turn_idx=0,
+    )
+    locator = make_id("turn", "s1", seq=0)
+    assert store.forget(locator) == 1
+
+    hits = store.recall("tombstone bm25 fallback locator", top_k=10)
+
+    assert all(h.locator != locator for h in hits)
+
+
+def test_bm25_fallback_no_match_returns_empty_list(
+    monkeypatch: pytest.MonkeyPatch, tmp_voss_repo: Path
+) -> None:
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", lambda self: None)
+    store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
+    store.write_turn(
+        role="user",
+        content="alpha beta gamma",
+        session_id="s1",
+        turn_idx=0,
+    )
+
+    assert store.recall("zzzz-not-present", top_k=10) == []
 
 
 def test_composite_id_format() -> None:

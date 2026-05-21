@@ -9,6 +9,7 @@ import dataclasses
 import fnmatch
 import json
 import os
+import re
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 import portalocker
+from rank_bm25 import BM25Okapi
 
 from voss_runtime.memory import EpisodicMemory, SemanticMemory, Turn  # noqa: F401  (imported for downstream waves)
 
@@ -44,11 +46,25 @@ class Hit:
     ts: str | None = None
 
 
+@dataclass
+class _BM25Candidate:
+    hit: Hit
+    text: str
+
+
 def make_id(source: str, locator: str, seq: int | None = None) -> str:
     """D-04 composite ID format <source>:<locator>:<seq>."""
     if seq is None:
         return f"{source}:{locator}"
     return f"{source}:{locator}:{seq:03d}"
+
+
+def _bm25_tokenize(text: str) -> list[str]:
+    """Tokenize memory text for lexical recall, including code-like symbols."""
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    spaced = re.sub(r"[_\-\./\\]+", " ", spaced)
+    spaced = re.sub(r"[^\w\s]", " ", spaced)
+    return [tok for tok in spaced.lower().split() if tok]
 
 
 class MemoryStore:
@@ -102,7 +118,7 @@ class MemoryStore:
             self._chroma_unavailable = True
             return None
         except Exception as exc:  # noqa: BLE001 — defensive; chroma init can raise OS/permission errors
-            print(f"memory: chroma init failed ({exc}); using keyword fallback", file=sys.stderr)
+            print(f"memory: chroma init failed ({exc}); using BM25 fallback", file=sys.stderr)
             self._chroma_unavailable = True
             return None
         self._chroma = chroma
@@ -398,8 +414,8 @@ class MemoryStore:
             try:
                 return self._chroma_recall(chroma, query, top_k=top_k, source=source)
             except Exception as exc:  # noqa: BLE001 — chroma can raise on malformed query
-                print(f"memory: chroma recall failed ({exc}); falling back to keyword", file=sys.stderr)
-        return self._keyword_scan(query, top_k=top_k, source=source)
+                print(f"memory: chroma recall failed ({exc}); falling back to BM25", file=sys.stderr)
+        return self._bm25_recall(query, top_k=top_k, source=source)
 
     def _chroma_recall(self, chroma, query, *, top_k, source) -> list[Hit]:
         where: dict[str, object] = {"tombstoned": False}
@@ -439,24 +455,16 @@ class MemoryStore:
             )
         return out
 
-    def _keyword_scan(
-        self,
-        query: str,
-        *,
-        top_k: int,
-        source: str | None,
-    ) -> list[Hit]:
-        terms = [t.lower() for t in query.split() if t]
-        if not terms:
-            return []
+    def _bm25_corpus(self, source: str | None) -> list[_BM25Candidate]:
         wanted_sources = _SOURCES
         if source is not None:
             singular = source.rstrip("s") if source.endswith("s") else source
             wanted_sources = tuple(
                 s for s in _SOURCES if s == source or s.rstrip("s") == singular
             )
+
         tombstoned = self._load_tombstones()
-        candidates: list[tuple[float, Hit]] = []
+        candidates: list[_BM25Candidate] = []
         for src in wanted_sources:
             src_dir = self.root / src
             if not src_dir.exists():
@@ -467,51 +475,86 @@ class MemoryStore:
                 if path.name.startswith(".tombstones"):
                     continue
                 if src in ("turns", "ledgers"):
-                    candidates.extend(
-                        self._scan_jsonl(src, path, terms, tombstoned)
-                    )
+                    candidates.extend(self._bm25_jsonl_candidates(src, path, tombstoned))
                     continue
                 try:
                     text = path.read_text(errors="ignore")
                 except OSError:
                     continue
-                lower = text.lower()
-                score = sum(lower.count(t) for t in terms)
-                if score <= 0:
-                    continue
                 locator = self._locator_from_path(src, path)
                 if locator in tombstoned:
                     continue
+                source_label = src.rstrip("s") if src != "ledgers" else "ledger"
                 candidates.append(
-                    (
-                        float(score),
-                        Hit(
-                            source=src.rstrip("s") if src != "ledgers" else "ledger",
+                    _BM25Candidate(
+                        hit=Hit(
+                            source=source_label,
                             locator=locator,
-                            score=float(score),
+                            score=0.0,
                             excerpt=text[:200],
                             session_id=None,
                             ts=None,
                         ),
+                        text=text,
                     )
                 )
-        candidates.sort(key=lambda x: x[0], reverse=True)
-        return [h for _, h in candidates[:top_k]]
+        return candidates
 
-    def _scan_jsonl(
+    def _bm25_recall(
+        self,
+        query: str,
+        *,
+        top_k: int,
+        source: str | None,
+    ) -> list[Hit]:
+        query_tokens = _bm25_tokenize(query)
+        if not query_tokens:
+            return []
+
+        candidates = self._bm25_corpus(source)
+        if not candidates:
+            return []
+
+        tokenized_corpus = [_bm25_tokenize(candidate.text) for candidate in candidates]
+        if not any(tokenized_corpus):
+            return []
+
+        bm25 = BM25Okapi(tokenized_corpus)
+        scores = bm25.get_scores(query_tokens)
+        ranked: list[tuple[float, Hit]] = []
+        for candidate, score in zip(candidates, scores):
+            score_float = float(score)
+            if score_float <= 0:
+                continue
+            ranked.append(
+                (
+                    score_float,
+                    Hit(
+                        source=candidate.hit.source,
+                        locator=candidate.hit.locator,
+                        score=score_float,
+                        excerpt=candidate.hit.excerpt,
+                        session_id=candidate.hit.session_id,
+                        ts=candidate.hit.ts,
+                    ),
+                )
+            )
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        return [hit for _, hit in ranked[:top_k]]
+
+    def _bm25_jsonl_candidates(
         self,
         src: str,
         path: Path,
-        terms: list[str],
         tombstoned: set[str],
-    ) -> list[tuple[float, Hit]]:
-        """Score JSONL files line-by-line so turn / ledger seq aligns with composite IDs."""
+    ) -> list[_BM25Candidate]:
+        """Build JSONL candidates line-by-line so locators remain forgettable."""
         try:
             raw = path.read_text(errors="ignore")
         except OSError:
             return []
         stem = path.stem
-        out: list[tuple[float, Hit]] = []
+        out: list[_BM25Candidate] = []
         for line in raw.splitlines():
             stripped = line.strip()
             if not stripped:
@@ -534,21 +577,17 @@ class MemoryStore:
                 session_id = rec.get("session_id")
             if locator in tombstoned:
                 continue
-            lower = content.lower()
-            score = sum(lower.count(t) for t in terms)
-            if score <= 0:
-                continue
             out.append(
-                (
-                    float(score),
-                    Hit(
+                _BM25Candidate(
+                    hit=Hit(
                         source=source_label,
                         locator=locator,
-                        score=float(score),
+                        score=0.0,
                         excerpt=content[:200],
                         session_id=session_id,
                         ts=rec.get("ts"),
                     ),
+                    text=content,
                 )
             )
         return out

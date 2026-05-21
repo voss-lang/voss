@@ -1,7 +1,7 @@
 """MemoryStore behavior when chromadb is unavailable.
 
 The harness must not crash if `chromadb` is unimportable. `_maybe_chroma`
-returns None; `recall` falls back to keyword scan; `write_*` paths return
+returns None; `recall` falls back to BM25 search; `write_*` paths return
 without crashing.
 
 Uses the existing `chroma_disabled_env` fixture from tests/harness/conftest.py.
@@ -26,12 +26,12 @@ def test_maybe_chroma_returns_none_when_disabled(
 def test_recall_returns_list_when_chroma_disabled(
     chroma_disabled_env: None, tmp_voss_repo: Path
 ) -> None:
-    """recall must fall back to keyword scan, returning a list (possibly empty)."""
+    """recall must fall back to BM25 search, returning a list (possibly empty)."""
     store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
     store.write_turn(role="user", content="hello world", session_id="s1", turn_idx=0)
     hits = store.recall("hello", top_k=5)
     assert isinstance(hits, list)
-    # Keyword fallback should match the seeded turn.
+    # BM25 fallback should match the seeded turn.
     assert any("hello" in (h.excerpt or "") for h in hits), [h.excerpt for h in hits]
 
 
