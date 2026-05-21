@@ -1,5 +1,7 @@
 //! voss-app-core — Tauri plugin: PTY lifecycle, IPC commands.
 
+pub mod appearance;
+pub mod fonts;
 pub mod grid;
 pub mod keymap;
 pub mod layouts;
@@ -10,6 +12,11 @@ pub mod session;
 pub mod themes;
 pub mod workspaces;
 
+pub use appearance::{
+    load_appearance_settings, save_appearance_settings, AppearanceError, AppearanceSettings,
+    BellBehavior, CursorBlink, CursorShape,
+};
+pub use fonts::list_system_fonts;
 pub use grid::{sync_grid, GridState};
 pub use layouts::{
     list_layouts, load_default_layout, load_layout, save_layout, validate_layout_name, LayoutError,

@@ -12,6 +12,10 @@ import { markDragSettled } from './sync';
  *
  * Cadence (A3-CONTEXT): NO sync per pointer-move (resizeByDrag never syncs);
  * exactly one `markDragSettled` on pointer-up.
+ *
+ * A8-04: hover uses token-only background tint (`--border-bright` via CSS);
+ * dimensions stay fixed at 6px. Active drag disables split-child transitions
+ * on the parent wrap via `onDragActive`.
  */
 export interface Dims {
   winW: number;
@@ -28,17 +32,20 @@ export default function DragHandle(props: {
   spanRect: () => DOMRect | undefined;
   dims: () => Dims;
   onHover: (hot: boolean) => void;
+  onDragActive?: (active: boolean) => void;
 }) {
-  let dragging = false;
+  const [hot, setHot] = createSignal(false);
+  const [dragging, setDragging] = createSignal(false);
 
   const onPointerDown = (e: PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragging = true;
+    setDragging(true);
+    props.onDragActive?.(true);
     e.preventDefault();
   };
 
   const onPointerMove = (e: PointerEvent) => {
-    if (!dragging) return;
+    if (!dragging()) return;
     const rect = props.spanRect();
     if (!rect) return;
     const ratio =
@@ -54,19 +61,19 @@ export default function DragHandle(props: {
   };
 
   const onPointerUp = (e: PointerEvent) => {
-    if (!dragging) return;
-    dragging = false;
+    if (!dragging()) return;
+    setDragging(false);
+    props.onDragActive?.(false);
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     markDragSettled(props.store); // single drag-end mirror sync
   };
 
-  const [, setLocal] = createSignal(false); // keeps the hover handler cheap
   const enter = () => {
-    setLocal(true);
+    setHot(true);
     props.onHover(true);
   };
   const leave = () => {
-    setLocal(false);
+    setHot(false);
     props.onHover(false);
   };
 
@@ -74,26 +81,9 @@ export default function DragHandle(props: {
   return (
     <div
       data-drag-handle
-      style={{
-        position: 'absolute',
-        background: 'transparent',
-        'z-index': 5,
-        ...(horizontal
-          ? {
-              width: '6px',
-              top: 0,
-              bottom: 0,
-              left: 'calc(100% - 3px)',
-              cursor: 'col-resize',
-            }
-          : {
-              height: '6px',
-              left: 0,
-              right: 0,
-              top: 'calc(100% - 3px)',
-              cursor: 'row-resize',
-            }),
-      }}
+      data-orientation={horizontal ? 'H' : 'V'}
+      data-hot={hot() ? 'true' : 'false'}
+      data-drag-active={dragging() ? 'true' : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

@@ -8,6 +8,8 @@ use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
+use voss_app_core::appearance::{self, AppearanceSettings};
+use voss_app_core::fonts;
 use voss_app_core::grid::{self, GridState};
 use voss_app_core::keymap::{self, KeymapOverrideFile, KeymapProfile, KeymapValidationResult};
 use voss_app_core::layouts::{self, LayoutFile};
@@ -142,6 +144,23 @@ async fn get_fg_process(
         None => return Ok(None),
     };
     Ok(foreground::get_foreground_name(fd))
+}
+
+// ---- Appearance settings + fonts (A8-04) ------------------------------------
+
+#[tauri::command]
+fn load_appearance_settings() -> AppearanceSettings {
+    appearance::load_appearance_settings()
+}
+
+#[tauri::command]
+fn save_appearance_settings(settings: AppearanceSettings) -> Result<(), String> {
+    appearance::save_appearance_settings(&settings).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_system_fonts() -> Vec<String> {
+    fonts::list_system_fonts()
 }
 
 // ---- Grid mirror commands (GRD-08) ----------------------------------------
@@ -511,6 +530,9 @@ pub fn run() {
             save_profile,
             load_active_profile_id,
             save_active_profile_id,
+            load_appearance_settings,
+            save_appearance_settings,
+            list_system_fonts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -45,7 +45,7 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-const FOCUS_SEL = '[class*="inset_0_0_0_1px"]';
+const FOCUS_SEL = '.grid-pane-leaf--focused';
 const dims = () => ({ winW: 1024, winH: 768, cw: 8, ch: 20 });
 
 describe('SplitNode + DragHandle render (GRD-01, GRD-07)', () => {

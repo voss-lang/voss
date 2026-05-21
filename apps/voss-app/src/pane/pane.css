@@ -9,7 +9,9 @@
   border: 1px solid var(--border);
   border-radius: 0;
   overflow: hidden;
-  transition: none; /* UI-SPEC §11 — Variant B is motion-free chrome */
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .pane.focused {
@@ -32,7 +34,10 @@
   white-space: nowrap;
   overflow: hidden;
   border-radius: 0;
-  transition: none; /* UI-SPEC §11 */
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .pane-header .dot {
@@ -97,15 +102,39 @@
   color: var(--fg-0);
 }
 
+.pane-header.bell-flash {
+  background: var(--accent-amber);
+  box-shadow: inset 0 0 0 1px var(--focus-glow);
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.pane-header .bell-badge {
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-header.bell-flash {
+    transition: none;
+  }
+}
+
+html.reduced-motion .pane-header.bell-flash {
+  transition: none;
+}
+
 .pane-body {
   flex: 1;
   min-height: 0;
   width: 100%;
   background: var(--bg-0);
   padding: 0;
+  scrollbar-color: var(--bg-3) transparent;
 }
 
-/* Slim dark scrollbar — themes/default.css parity (UI-SPEC §3). */
+/* Slim dark scrollbar — theme-aware via CSS vars (UI-SPEC §3). */
 .pane-body ::-webkit-scrollbar {
   width: 8px;
 }
@@ -115,9 +144,12 @@
 .pane-body ::-webkit-scrollbar-thumb {
   background: var(--bg-3);
   border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 .pane-body ::-webkit-scrollbar-thumb:hover {
   background: var(--border-bright);
+  background-clip: padding-box;
 }
 
 /* ---- A2-04 overlay components (UI-SPEC §4/§5/§8) ---- */

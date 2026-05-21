@@ -18,6 +18,7 @@ import type { Command, CommandCategory } from './registry';
 
 const CATEGORY_GLYPH: Record<CommandCategory, string> = {
   Window: 'W',
+  Workspace: 'K',
   Pane: 'P',
   Layout: 'L',
   Project: 'R',

@@ -15,6 +15,18 @@ import {
   registerScrollbackProvider,
   unregisterScrollbackProvider,
 } from './scrollbackRegistry';
+import {
+  getCurrentXtermTheme,
+  registerTerminal,
+  unregisterTerminal,
+  applyAppearanceToTerminal,
+} from '../themes/themeRuntime';
+import {
+  loadAppearanceSettings,
+  subscribeAppearanceSettings,
+  type AppearanceSettings,
+} from '../appearance/settings';
+import { DEFAULT_APPEARANCE_SETTINGS } from '../appearance/types';
 
 export interface PaneProps {
   /** Pane id for scrollback registry and restore keying (A6). */
@@ -61,6 +73,10 @@ export default function PaneComponent(props: PaneProps) {
   let bypassFlag = false; // one-shot ⌘⇧V paste bypass
   let firstInputFired = false; // A6: one-shot first-input callback guard
   let lastOscTitleAt = 0; // ms; D-07 OSC-vs-pgid arbitration
+  let bellFlashTimer: ReturnType<typeof setTimeout> | undefined;
+  let bellBadgeTimer: ReturnType<typeof setTimeout> | undefined;
+  let appearanceUnsub: (() => void) | undefined;
+  let headerRef!: HTMLDivElement;
   const copyMode = 'smart' as CopyMode; // D-06 configurable hook (A8 UI)
 
   const [focused, setFocused] = createSignal(true); // single pane = focused (A2)
@@ -69,6 +85,11 @@ export default function PaneComponent(props: PaneProps) {
   const [pendingPaste, setPendingPaste] = createSignal<string | null>(null);
   const [showFind, setShowFind] = createSignal(false);
   const [exitCode, setExitCode] = createSignal<number | null>(null);
+  const [appearance, setAppearance] = createSignal<AppearanceSettings>(
+    DEFAULT_APPEARANCE_SETTINGS,
+  );
+  const [bellBadge, setBellBadge] = createSignal(false);
+  const [headerFlash, setHeaderFlash] = createSignal(false);
 
   const cwdBase = () => basename(props.cwd ?? '~');
   const shellName = () => props.shell ?? 'shell';
@@ -76,6 +97,71 @@ export default function PaneComponent(props: PaneProps) {
 
   const writeBytes = (b: Uint8Array) => transport?.write(b);
   const writeStr = (s: string) => writeBytes(new TextEncoder().encode(s));
+
+  const playAudibleBell = () => {
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.value = 0.08;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.08);
+      osc.onended = () => void ctx.close();
+    } catch {
+      /* no audio — ignore */
+    }
+  };
+
+  const triggerBell = (behavior: AppearanceSettings['bellBehavior']) => {
+    if (behavior === 'none') return;
+
+    if (behavior === 'badge') {
+      setBellBadge(true);
+      if (bellBadgeTimer) clearTimeout(bellBadgeTimer);
+      bellBadgeTimer = setTimeout(() => setBellBadge(false), 2000);
+      return;
+    }
+
+    if (behavior === 'audible') {
+      playAudibleBell();
+      return;
+    }
+
+    // visual flash (default)
+    if (appearance().reducedMotionEnabled) {
+      setHeaderFlash(true);
+      if (bellFlashTimer) clearTimeout(bellFlashTimer);
+      bellFlashTimer = setTimeout(() => setHeaderFlash(false), 120);
+      return;
+    }
+    setHeaderFlash(true);
+    if (bellFlashTimer) clearTimeout(bellFlashTimer);
+    bellFlashTimer = setTimeout(() => setHeaderFlash(false), 200);
+  };
+
+  const buildTerminalOptions = (settings: AppearanceSettings) => ({
+    scrollback: 10_000,
+    fontFamily: `"${settings.fontFamily}", "SF Mono", "Menlo", ui-monospace, monospace`,
+    fontSize: settings.fontSize,
+    lineHeight: settings.lineHeight,
+    letterSpacing: settings.letterSpacing,
+    customGlyphs: settings.ligatures,
+    theme: getCurrentXtermTheme(),
+    cursorStyle: settings.cursorShape,
+    cursorBlink: settings.cursorBlink !== 'off',
+    macOptionIsMeta: true,
+    rightClickSelectsWord: false,
+    allowProposedApi: false,
+    linkHandler: {
+      activate: (event: MouseEvent, uri: string) => {
+        if (event.metaKey) openLink(uri);
+      },
+      allowNonHttpProtocols: true,
+    },
+  });
 
   const SEARCH_DECORATIONS = {
     activeMatchBackground: 'rgba(90,124,255,0.35)',
@@ -181,46 +267,15 @@ export default function PaneComponent(props: PaneProps) {
   };
 
   onMount(async () => {
-    term = new Terminal({
-      scrollback: 10_000,
-      fontFamily:
-        '"JetBrains Mono", "SF Mono", "Menlo", ui-monospace, monospace',
-      fontSize: 13,
-      lineHeight: 1.5,
-      theme: {
-        background: '#0a0b0e',
-        foreground: '#e8eaf0',
-        cursor: '#5a7cff',
-        cursorAccent: '#0a0b0e',
-        selectionBackground: 'rgba(122, 162, 255, 0.30)',
-        black: '#0a0b0e',
-        brightBlack: '#444a5a',
-        red: '#e87b7b',
-        brightRed: '#e87b7b',
-        green: '#6fd28f',
-        brightGreen: '#6fd28f',
-        yellow: '#e8b86c',
-        brightYellow: '#e8b86c',
-        blue: '#7aa2ff',
-        brightBlue: '#7aa2ff',
-        magenta: '#c084d4',
-        brightMagenta: '#c084d4',
-        cyan: '#6cc7d4',
-        brightCyan: '#6cc7d4',
-        white: '#aab0c0',
-        brightWhite: '#e8eaf0',
-      },
-      cursorBlink: true,
-      macOptionIsMeta: true,
-      rightClickSelectsWord: false,
-      allowProposedApi: false,
-      linkHandler: {
-        activate: (event: MouseEvent, uri: string) => {
-          if (event.metaKey) openLink(uri);
-        },
-        allowNonHttpProtocols: true,
-      },
-    });
+    let settings = DEFAULT_APPEARANCE_SETTINGS;
+    try {
+      settings = await loadAppearanceSettings();
+      setAppearance(settings);
+    } catch {
+      /* use defaults when settings unavailable (tests) */
+    }
+
+    term = new Terminal(buildTerminalOptions(settings));
 
     fitAddon = new FitAddon();
     searchAddon = new SearchAddon();
@@ -233,6 +288,8 @@ export default function PaneComponent(props: PaneProps) {
     fitAddon.fit();
 
     const t = term;
+    applyAppearanceToTerminal(t, settings);
+    t.onBell(() => triggerBell(appearance().bellBehavior));
     t.registerLinkProvider(filePathLinkProvider(t));
     t.attachCustomKeyEventHandler(keyHandler);
     containerRef.addEventListener('paste', onPaste, true); // capture phase
@@ -271,6 +328,7 @@ export default function PaneComponent(props: PaneProps) {
 
     // A6: register scrollback provider — extracts plain text from buffer.normal (D-02/D-03).
     const paneId = props.id ?? String(props.index ?? 1);
+    registerTerminal(paneId, t);
     registerScrollbackProvider(paneId, () => {
       const buf = t.buffer.normal;
       const lines: string[] = [];
@@ -289,6 +347,11 @@ export default function PaneComponent(props: PaneProps) {
     });
 
     await doSpawn(t);
+
+    appearanceUnsub = subscribeAppearanceSettings((next) => {
+      setAppearance(next);
+      applyAppearanceToTerminal(t, next);
+    });
 
     // D-07 fallback: poll pgid only when no recent OSC title (>2s).
     fgPoll = setInterval(() => {
@@ -340,10 +403,15 @@ export default function PaneComponent(props: PaneProps) {
     perfStop = true;
     if (resizeTimer) clearTimeout(resizeTimer);
     if (fgPoll) clearInterval(fgPoll);
+    if (bellFlashTimer) clearTimeout(bellFlashTimer);
+    if (bellBadgeTimer) clearTimeout(bellBadgeTimer);
+    appearanceUnsub?.();
     observer?.disconnect();
     dprMedia?.removeEventListener('change', onDpr);
     containerRef?.removeEventListener('paste', onPaste, true);
-    unregisterScrollbackProvider(props.id ?? String(props.index ?? 1));
+    const paneId = props.id ?? String(props.index ?? 1);
+    unregisterTerminal(paneId);
+    unregisterScrollbackProvider(paneId);
     transport?.kill();
     term?.dispose();
   });
@@ -366,7 +434,10 @@ export default function PaneComponent(props: PaneProps) {
       class={focused() ? 'pane focused' : 'pane'}
       onClick={() => setFocused(true)}
     >
-      <div class="pane-header">
+      <div
+        ref={headerRef}
+        class={`pane-header${headerFlash() ? ' bell-flash' : ''}`}
+      >
         <span class={`dot ${dot()}`}>●</span>
         <span class="sep">·</span>
         <span class="idx">{props.index ?? 1}</span>
@@ -377,6 +448,12 @@ export default function PaneComponent(props: PaneProps) {
         <Show when={proc()}>
           <span class="sep">·</span>
           <span class="proc">{proc()}</span>
+        </Show>
+        <Show when={bellBadge()}>
+          <span class="sep">·</span>
+          <span class="bell-badge" title="Bell">
+            *
+          </span>
         </Show>
         <span class="spacer" />
         <button class="menu" title="menu" type="button">
