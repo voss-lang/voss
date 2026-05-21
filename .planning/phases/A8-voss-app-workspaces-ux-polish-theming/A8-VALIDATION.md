@@ -38,7 +38,7 @@ created: 2026-05-20
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| A8-00-01 | 00 | 0 | UXP-01..UXP-30 | T-A8-00 | A8 does not execute over missing A7/UI/source substrate | source + shell | `test -f .planning/phases/A8-voss-app-workspaces-ux-polish-theming/A8-UI-SPEC.md && find .planning/phases/A7-voss-app-command-palette-keymap -name '*SUMMARY.md' -print -quit` | no | pending |
+| A8-00-01 | 00 | 0 | UXP-01..UXP-30 | T-A8-00 | A8 does not execute over missing A7/UI/source substrate | source + shell | `test -f .planning/phases/A8-voss-app-workspaces-ux-polish-theming/A8-UI-SPEC.md && test -f apps/voss-app/src/command-palette/registry.ts && test -f apps/voss-app/src/command-palette/toast.tsx` | no | pending |
 | A8-01-01 | 01 | 1 | UXP-09..14, UXP-21, UXP-25..27 | T-A8-01/T-A8-02 | Theme/profile/settings files validate, fail safe, and never block boot on corrupt input | Vitest + Cargo | `pnpm --dir apps/voss-app test -- --run src/themes && cargo test -p voss-app-core themes profiles` | no | pending |
 | A8-02-01 | 02 | 2 | UXP-01, UXP-02, UXP-06, UXP-08 | T-A8-03/T-A8-04 | All mounted workspaces restore, only active workspace handles keys, close saves all sessions | Vitest + Cargo | `pnpm --dir apps/voss-app test -- --run src/workspaces src/grid && cargo test -p voss-app-core workspaces session` | no | pending |
 | A8-03-01 | 03 | 3 | UXP-03..08 | T-A8-05 | Workspace tab UI supports picker, rename, fixed color dots, reorder, shortcuts, and close guard | Vitest | `pnpm --dir apps/voss-app test -- --run src/components/workspace src/__tests__/App.test.tsx` | no | pending |
@@ -80,4 +80,3 @@ created: 2026-05-20
 - [x] `nyquist_compliant: true` set in frontmatter.
 
 **Approval:** pending
-
