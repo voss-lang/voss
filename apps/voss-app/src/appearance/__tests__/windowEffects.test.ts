@@ -8,6 +8,10 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: h.platform }));
 vi.mock('@tauri-apps/api/window', () => ({
+  Effect: {
+    UnderWindowBackground: 'underWindowBackground',
+    Tabbed: 'tabbed',
+  },
   getCurrentWindow: () => ({
     setEffects: h.setEffects,
     clearEffects: h.clearEffects,

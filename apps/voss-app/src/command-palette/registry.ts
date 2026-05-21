@@ -63,6 +63,10 @@ export interface AppContext {
   focusWorkspace?: (index: number) => void;
   renameWorkspace?: () => void;
   colorWorkspace?: () => void;
+  switchTheme?: () => void;
+  switchFont?: () => void;
+  toggleHighContrast?: () => void;
+  setBellBehavior?: () => void;
 }
 
 // --- Registry ----------------------------------------------------------------
@@ -314,6 +318,37 @@ export function workspaceCommands(): CommandDefinition[] {
       label: 'Switch Profile',
       category: 'Workspace',
       handler: (ctx) => ctx.switchProfile?.(),
+    },
+  ];
+}
+
+// --- Appearance Command Catalog (A8-03 / UXP-04..07) ------------------------
+
+export function appearanceCommands(): CommandDefinition[] {
+  return [
+    {
+      id: 'theme.switch',
+      label: 'Switch Theme',
+      category: 'Settings',
+      handler: (ctx) => ctx.switchTheme?.(),
+    },
+    {
+      id: 'appearance.font',
+      label: 'Switch Font',
+      category: 'Settings',
+      handler: (ctx) => ctx.switchFont?.(),
+    },
+    {
+      id: 'appearance.highContrast',
+      label: 'Toggle High Contrast',
+      category: 'Settings',
+      handler: (ctx) => ctx.toggleHighContrast?.(),
+    },
+    {
+      id: 'appearance.bell',
+      label: 'Set Bell Behavior',
+      category: 'Settings',
+      handler: (ctx) => ctx.setBellBehavior?.(),
     },
   ];
 }

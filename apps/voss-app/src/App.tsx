@@ -25,6 +25,7 @@ import {
   createCommandRegistry,
   v0Commands,
   workspaceCommands,
+  appearanceCommands,
   type AppContext,
   type KeyBindingOverrides,
 } from './command-palette/registry';
@@ -202,7 +203,11 @@ export default function App() {
   const gridController = () => activeMounted()?.gridController;
 
   // --- Command registry (D-01) -----------------------------------------------
-  const baseCommands = [...v0Commands(), ...workspaceCommands()];
+  const baseCommands = [
+    ...v0Commands(),
+    ...workspaceCommands(),
+    ...appearanceCommands(),
+  ];
   const registry = createMemo(() =>
     createCommandRegistry(baseCommands, keymapOverrides()),
   );
@@ -666,6 +671,10 @@ export default function App() {
     focusWorkspace: (index) => handleFocusWorkspaceByIndex(index),
     renameWorkspace: () => handleRenameActiveWorkspace(),
     colorWorkspace: () => handleColorActiveWorkspace(),
+    switchTheme: () => openPalette('full'),
+    switchFont: () => openPalette('full'),
+    toggleHighContrast: () => openPalette('full'),
+    setBellBehavior: () => openPalette('full'),
   };
 
   const dispatchCommandId = (id: string): boolean => {

@@ -1,20 +1,27 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   buildNativeMenuModel,
   chordToAccelerator,
 } from '../nativeMenu';
-import { createCommandRegistry, v0Commands, workspaceCommands } from '../registry';
+import {
+  createCommandRegistry,
+  v0Commands,
+  workspaceCommands,
+  appearanceCommands,
+} from '../registry';
 
 /**
- * A7-05 Task 1 — native menu model tests.
+ * A7-05 Task 1 + A8-05 Task 3 — native menu model tests.
  *
  * Verifies the pure menu model generation — no Tauri runtime needed.
- * The Tauri `setAsAppMenu` installation is manual-only verification.
+ * The Tauri `setAsAppMenu` installation is manual-only verification except
+ * for the non-Tauri no-op guard tested below.
  */
 
 const registry = createCommandRegistry([
   ...v0Commands(),
   ...workspaceCommands(),
+  ...appearanceCommands(),
 ]);
 
 describe('buildNativeMenuModel — category groups', () => {
@@ -66,6 +73,59 @@ describe('buildNativeMenuModel — category groups', () => {
   });
 });
 
+describe('buildNativeMenuModel — A8 workspace commands', () => {
+  const model = buildNativeMenuModel(registry);
+  const workspaceGroup = model.find((g) => g.label === 'Workspace')!;
+
+  it('includes workspace.new, workspace.close, and profile.switch', () => {
+    const ids = workspaceGroup.items.map((i) => i.id);
+    expect(ids).toContain('workspace.new');
+    expect(ids).toContain('workspace.close');
+    // UI-SPEC: profile switch appears in workspace tab context menu → Workspace group.
+    expect(ids).toContain('profile.switch');
+  });
+
+  it('maps Ctrl+Tab workspace shortcuts to accelerators', () => {
+    const next = workspaceGroup.items.find((i) => i.id === 'workspace.next');
+    const prev = workspaceGroup.items.find((i) => i.id === 'workspace.prev');
+    expect(next?.accelerator).toBe('Ctrl+Tab');
+    expect(prev?.accelerator).toBe('Ctrl+Shift+Tab');
+  });
+
+  it('menu item ids match registry ids for workspace commands', () => {
+    for (const item of workspaceGroup.items) {
+      expect(registry.commands.get(item.id)?.id).toBe(item.id);
+    }
+  });
+});
+
+describe('buildNativeMenuModel — A8 settings / appearance commands', () => {
+  const model = buildNativeMenuModel(registry);
+  const settingsGroup = model.find((g) => g.label === 'Settings')!;
+
+  it('includes theme, font, high contrast, and bell commands', () => {
+    const ids = settingsGroup.items.map((i) => i.id);
+    expect(ids).toContain('theme.switch');
+    expect(ids).toContain('appearance.font');
+    expect(ids).toContain('appearance.highContrast');
+    expect(ids).toContain('appearance.bell');
+  });
+
+  it('uses UI-SPEC labels for appearance commands', () => {
+    const byId = Object.fromEntries(settingsGroup.items.map((i) => [i.id, i]));
+    expect(byId['theme.switch'].label).toBe('Switch Theme');
+    expect(byId['appearance.font'].label).toBe('Switch Font');
+    expect(byId['appearance.highContrast'].label).toBe('Toggle High Contrast');
+    expect(byId['appearance.bell'].label).toBe('Set Bell Behavior');
+  });
+
+  it('menu item ids match registry ids for settings commands', () => {
+    for (const item of settingsGroup.items) {
+      expect(registry.commands.get(item.id)?.id).toBe(item.id);
+    }
+  });
+});
+
 describe('chordToAccelerator', () => {
   it('Cmd+D → CmdOrCtrl+D', () => {
     expect(chordToAccelerator('Cmd+D')).toBe('CmdOrCtrl+D');
@@ -97,5 +157,28 @@ describe('buildNativeMenuModel — no duplicate command list', () => {
     const model = buildNativeMenuModel(registry);
     const menuCount = model.reduce((sum, g) => sum + g.items.length, 0);
     expect(menuCount).toBe(registry.all().length);
+  });
+});
+
+describe('setAsAppMenu — non-Tauri fallback', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.doMock('@tauri-apps/api/menu', () =>
+      Promise.reject(new Error('Tauri unavailable')),
+    );
+  });
+
+  afterEach(() => {
+    vi.doUnmock('@tauri-apps/api/menu');
+  });
+
+  it('does not throw when dynamic import fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { setAsAppMenu: setMenu } = await import('../nativeMenu');
+
+    await expect(setMenu(registry, vi.fn())).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
   });
 });

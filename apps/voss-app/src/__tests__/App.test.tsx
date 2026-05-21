@@ -103,6 +103,7 @@ vi.mock('../command-palette/registry', () => ({
   })),
   v0Commands: vi.fn(() => []),
   workspaceCommands: vi.fn(() => []),
+  appearanceCommands: vi.fn(() => []),
 }));
 vi.mock('../command-palette/chords', () => ({
   normalizeChord: vi.fn(() => null),
