@@ -42,7 +42,7 @@ created: 2026-05-21
 | F2-01-02 | 01 | 1 | FSRCH-01, FSRCH-04 | T-F2-02 | Tokenization is deterministic and does not expose secrets or new persistence | unit | `PYTHONPATH=. pytest tests/harness/test_memory_store.py -q` | yes | pending |
 | F2-02-01 | 02 | 2 | FSRCH-02, FSRCH-03 | T-F2-03 | Chroma failures degrade to BM25 without crashing or returning tombstoned rows | unit/integration | `PYTHONPATH=. pytest tests/harness/test_chroma_unavailable.py tests/harness/test_recall_eval.py -q` | yes | pending |
 | F2-02-02 | 02 | 2 | FSRCH-02 | T-F2-04 | RRF de-duplicates by locator and caps output to `top_k` | unit | `PYTHONPATH=. pytest tests/harness/test_memory_store.py -q` | yes | pending |
-| F2-03-01 | 03 | 2 | FSRCH-01..FSRCH-04 | T-F2-05 | Base install includes BM25 while vector search remains optional | dependency + regression | `python -c "from rank_bm25 import BM25Okapi; print(BM25Okapi.__name__)" && PYTHONPATH=. pytest tests/harness/test_memory_runtime_reuse.py tests/harness/test_slash_recall.py -q` | yes | pending |
+| F2-03-01 | 03 | 3 | FSRCH-01..FSRCH-04 | T-F2-05 | Base install includes BM25 while vector search remains optional | dependency + regression | `python -c "from rank_bm25 import BM25Okapi; print(BM25Okapi.__name__)" && PYTHONPATH=. pytest tests/harness/test_memory_runtime_reuse.py tests/harness/test_slash_recall.py -q` | yes | pending |
 
 *Status: pending | green | red | flaky*
 

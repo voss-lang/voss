@@ -5,7 +5,7 @@
 **Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`)
 **Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A11 (counts TBD by SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Last updated:** 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -53,7 +53,7 @@
 | O5 | Engineering Manager Loop | EM full-authority autonomous loop; idea→tickets/AC/DoD; specialist dispatch + routing rationale; kill/re-scope lineage | OEM-01..0N (TBD by SPEC.md) | TBD |
 | O6 | Audit Product + Calibration + Liveness | Session-tree review surface; killed-card + routing first-class; calibration telemetry; reserve/timeout; sign-off forcing function | OAUD-01..0N (TBD by SPEC.md) | TBD |
 | F1 | Durable Session Persistence | Agent cells resume after restart/crash; SQLite registry + boot-path auto-restart | FPRS-01..05 | 3 plans, 2 waves |
-| F2 | Hybrid Semantic Search | BM25 + vector via Reciprocal Rank Fusion; symbol-accurate retrieval | FSRCH-01..0N (TBD by SPEC.md) | TBD |
+| F2 | Hybrid Semantic Search | BM25 + vector via Reciprocal Rank Fusion; symbol-accurate retrieval | FSRCH-01..04 | 3 plans, 3 waves |
 | F3 | Budget & Token Visualization | HUD progress bars for token/budget, live cost updates via IPC | FVIZ-01..0N (TBD by SPEC.md) | TBD |
 | F4 | Visual Context Heatmap | Context pane showing in-context/compressed files + manual pinning UI | FCTX-01..0N (TBD by SPEC.md) | TBD |
 | F5 | Commit with Critique Hook | Pre-commit hook invoking Voss agent to critique diffs against constraints | FCRIT-01..0N (TBD by SPEC.md) | TBD |
@@ -1677,7 +1677,7 @@ Plans:
 | **O-total** | | **TBD per SPEC** |
 | **F-phases (substrate features — v1 Layer 2)** | | |
 | F1 | FPRS-01..05 | 5 |
-| F2 | FSRCH-01..0N | TBD by `F2-SPEC.md` |
+| F2 | FSRCH-01..04 | 4 |
 | F3 | FVIZ-01..0N | TBD by `F3-SPEC.md` |
 | F4 | FCTX-01..0N | TBD by `F4-SPEC.md` |
 | F5 | FCRIT-01..0N | TBD by `F5-SPEC.md` |
@@ -1770,6 +1770,30 @@ Plans:
 5. No regression in A6 session geometry restore
 
 **Cross-cutting:** Builds on A6 session persistence (geometry) + A2 PTY subsystem + A7 command palette. Does NOT modify PaneLeaf/GridState/session.json schema — registry is the sole source of truth for agent metadata.
+
+---
+
+### Phase F2: Hybrid Semantic Search
+
+**Goal:** Improve harness memory recall by replacing naive keyword scan with symbol-aware BM25 and fusing BM25 with optional Chroma vector recall via Reciprocal Rank Fusion.
+
+**Requirements:** FSRCH-01..04 (locked in `F2-CONTEXT.md`)
+
+**Plans:** 3 plans, 3 waves
+
+Plans:
+- [ ] F2-01-PLAN.md — symbol-aware BM25 tokenizer, corpus builder, and BM25-only recall fallback
+- [ ] F2-02-PLAN.md — hybrid BM25 + Chroma recall using RRF with BM25 degradation on Chroma failure
+- [ ] F2-03-PLAN.md — base `rank-bm25` dependency placement, lock validation, and targeted recall regressions
+
+**Success Criteria:**
+1. Chroma-unavailable recall uses BM25 and never crashes.
+2. Chroma-available recall merges BM25 and vector results with RRF k=60.
+3. Source and tombstone filtering apply to both lexical and vector results.
+4. Symbol-heavy terms like `getUserById` and `parse_config_file` are tokenized consistently in corpus and query.
+5. Base installs include BM25 without requiring heavyweight vector-search extras.
+
+**Cross-cutting:** Scope is limited to `MemoryStore.recall()` and its tests. Code search remains out of scope for F2 and belongs to the M10/code-search track.
 
 ---
 
