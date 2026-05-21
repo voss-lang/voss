@@ -102,6 +102,7 @@ vi.mock('../command-palette/registry', () => ({
     findByChord: () => undefined,
   })),
   v0Commands: vi.fn(() => []),
+  workspaceCommands: vi.fn(() => []),
 }));
 vi.mock('../command-palette/chords', () => ({
   normalizeChord: vi.fn(() => null),
@@ -211,6 +212,29 @@ vi.mock('../components/setup/SetupWindow', () => ({
   },
 }));
 
+vi.mock('../components/workspace/NewWorkspacePicker', () => ({
+  default: (props: {
+    onDismiss: () => void;
+    onCreate: (payload: unknown) => void;
+    onStartEmpty: (payload: unknown) => void;
+  }) => (
+    <div data-testid="new-workspace-picker">
+      <button type="button" data-testid="picker-dismiss" onClick={props.onDismiss}>
+        dismiss
+      </button>
+      <button
+        type="button"
+        data-testid="picker-start-empty"
+        onClick={() =>
+          props.onStartEmpty({ name: 'Empty', accentColor: 'blue' })
+        }
+      >
+        Start empty
+      </button>
+    </div>
+  ),
+}));
+
 import App from '../App';
 
 let dispose: (() => void) | undefined;
@@ -253,6 +277,19 @@ beforeEach(() => {
 });
 
 describe('App — setup branch', () => {
+  it('renders workspace tab bar below the titlebar', async () => {
+    const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
+    expect(el.querySelector('[data-workspace-tabbar]')).not.toBeNull();
+  });
+
+  it('+ opens the new workspace picker', async () => {
+    const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
+    fireEvent.click(el.querySelector('[aria-label="New workspace"]')!);
+    expect(el.querySelector('[data-testid="new-workspace-picker"]')).not.toBeNull();
+  });
+
   it('renders SetupWindow and not GridRoot on initial no-project mount', () => {
     const el = mount(() => <App />);
     expect(el.querySelector('[data-testid="setup-window"]')).not.toBeNull();
@@ -387,6 +424,62 @@ describe('App — project open flow', () => {
     );
     expect(order).toContain('openProject');
     expect(order).toContain('loadDefaultLayout');
+  });
+
+  it('Ctrl+Tab switches to the next workspace', async () => {
+    const { loadWorkspacesIndex, loadProjectLessSession } = await import(
+      '../workspaces/workspaceStorage'
+    );
+    const projectLessSession = {
+      version: 1 as const,
+      activePreset: null,
+      grid: {
+        root: {
+          kind: 'pane' as const,
+          id: 'p1',
+          cwd: '/tmp',
+          shell: '/bin/zsh',
+          index: 1,
+        },
+        focusedId: 'p1',
+      },
+      panes: [{ id: 'p1', scrollback: null }],
+      projectLessAccepted: true,
+    };
+
+    vi.mocked(loadWorkspacesIndex).mockResolvedValueOnce({
+      version: 1,
+      activeWorkspaceId: 'default',
+      workspaces: [
+        {
+          id: 'default',
+          name: 'One',
+          accentColor: 'blue',
+          order: 0,
+        },
+        {
+          id: 'second',
+          name: 'Two',
+          accentColor: 'green',
+          order: 1,
+        },
+      ],
+    });
+    vi.mocked(loadProjectLessSession).mockResolvedValue(projectLessSession);
+
+    mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
+    expect(h.workspaceStore!.activeId()).toBe('default');
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Tab',
+        ctrlKey: true,
+        bubbles: true,
+      }),
+    );
+
+    await waitFor(() => expect(h.workspaceStore!.activeId()).toBe('second'));
   });
 
   it('keeps GridRoot mounted when switching active workspace (A8 D-01)', async () => {

@@ -9,6 +9,14 @@ import {
   type Accessor,
 } from 'solid-js';
 import Titlebar from './components/titlebar/Titlebar';
+import WorkspaceTabBar, {
+  COPY_LAST_WORKSPACE_BLOCKED,
+} from './components/workspace/WorkspaceTabBar';
+import NewWorkspacePicker, {
+  type NewWorkspacePickerCreatePayload,
+  type NewWorkspacePickerStartEmptyPayload,
+} from './components/workspace/NewWorkspacePicker';
+import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
@@ -16,6 +24,7 @@ import ToastStack from './command-palette/toast';
 import {
   createCommandRegistry,
   v0Commands,
+  workspaceCommands,
   type AppContext,
   type KeyBindingOverrides,
 } from './command-palette/registry';
@@ -68,6 +77,10 @@ import {
   installWorkspaceStructuralAutosave,
   type WorkspaceSessionContext,
 } from './workspaces/workspaceSessionPersist';
+import {
+  parseWorkspaceShortcut,
+  workspaceIndexForFocusAction,
+} from './workspaces/workspaceShortcuts';
 
 /**
  * App composition root (A4-02, A8-02).
@@ -162,6 +175,7 @@ export default function App() {
   const [keymapOverrides, setKeymapOverrides] =
     createSignal<KeyBindingOverrides>({});
   const [prefixActive, setPrefixActive] = createSignal(false);
+  const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
@@ -187,7 +201,7 @@ export default function App() {
   const gridController = () => activeMounted()?.gridController;
 
   // --- Command registry (D-01) -----------------------------------------------
-  const baseCommands = v0Commands();
+  const baseCommands = [...v0Commands(), ...workspaceCommands()];
   const registry = createMemo(() =>
     createCommandRegistry(baseCommands, keymapOverrides()),
   );
@@ -290,6 +304,48 @@ export default function App() {
     }
   };
 
+  const bootstrapWorkspaceProject = async (
+    ws: MountedWorkspace,
+    workspaceId: string,
+    path: string,
+    layoutName?: string | null,
+  ): Promise<void> => {
+    try {
+      const info = await openProject(path);
+      setRecents(await listRecents());
+
+      let session: SessionFile | null = await loadSession(info.path).catch(
+        () => null,
+      );
+      if (!session && layoutName) {
+        const layout = await loadLayout(info.path, layoutName).catch(() => null);
+        if (layout) {
+          session = layoutToSession(layout, false);
+        }
+      }
+      if (!session) {
+        const layout = await loadDefaultLayout(info.path).catch(() => null);
+        if (layout) {
+          session = layoutToSession(layout, false);
+        }
+      }
+
+      batch(() => {
+        ws.setInitialSession(session);
+        ws.setProject(info);
+        ws.setProjectLessAccepted(true);
+        ws.setEverMounted(true);
+      });
+      workspaceStore.setProjectPath(workspaceId, info.path);
+      void installWorkspaceKeymap(info.path);
+      void defaultCwd(info.path)
+        .then(ws.setProjectLessCwd)
+        .catch(() => ws.setProjectLessCwd(undefined));
+    } catch (e) {
+      console.error('bootstrap workspace project failed:', e);
+    }
+  };
+
   const openSelectedProject = async (
     path: string,
     errorPrefix: string,
@@ -341,6 +397,167 @@ export default function App() {
       ws.setProjectLessAccepted(true);
       ws.setEverMounted(true);
     });
+  };
+
+  const ensureMountedRecord = (id: string): MountedWorkspace => {
+    const existing = mountedById().get(id);
+    if (existing) return existing;
+    const ws = createMountedWorkspace(id);
+    setMountedById((prev) => new Map(prev).set(id, ws));
+    return ws;
+  };
+
+  const handleNewWorkspace = () => {
+    setNewWorkspacePickerOpen(true);
+  };
+
+  const handleCreateWorkspace = async (
+    payload: NewWorkspacePickerCreatePayload,
+  ) => {
+    setNewWorkspacePickerOpen(false);
+    const record = workspaceStore.add({
+      name: payload.name,
+      projectPath: payload.folderPath,
+      accentColor: payload.accentColor,
+    });
+    const ws = ensureMountedRecord(record.id);
+    if (payload.folderPath) {
+      await bootstrapWorkspaceProject(
+        ws,
+        record.id,
+        payload.folderPath,
+        payload.layoutName,
+      );
+    }
+    void workspaceStore.persist();
+  };
+
+  const handleStartEmptyWorkspace = async (
+    payload: NewWorkspacePickerStartEmptyPayload,
+  ) => {
+    setNewWorkspacePickerOpen(false);
+    const record = workspaceStore.add({
+      name: payload.name,
+      accentColor: payload.accentColor,
+    });
+    const ws = ensureMountedRecord(record.id);
+    batch(() => {
+      ws.setProjectLessAccepted(true);
+      ws.setEverMounted(true);
+    });
+    void defaultCwd(null)
+      .then(ws.setProjectLessCwd)
+      .catch(() => ws.setProjectLessCwd(undefined));
+    void workspaceStore.persist();
+  };
+
+  const handleActivateWorkspace = (id: string) => {
+    workspaceStore.activate(id);
+    void workspaceStore.persist();
+  };
+
+  const handleRenameWorkspace = (id: string, name: string) => {
+    workspaceStore.rename(id, name);
+    void workspaceStore.persist();
+  };
+
+  const handleColorWorkspace = (id: string, color: string) => {
+    workspaceStore.setAccentColor(id, color);
+    void workspaceStore.persist();
+  };
+
+  const handleReorderWorkspaces = (fromIndex: number, toIndex: number) => {
+    workspaceStore.reorder(fromIndex, toIndex);
+    void workspaceStore.persist();
+  };
+
+  const handleCloseWorkspace = (id: string) => {
+    if (!workspaceStore.canClose(id)) return;
+    const ws = mountedById().get(id);
+    ws?.sessionCleanup?.();
+    if (ws) {
+      ws.gridController = undefined;
+    }
+    setMountedById((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    workspaceStore.remove(id);
+    void workspaceStore.persist();
+  };
+
+  const handleCloseBlocked = () => {
+    showToast('info', COPY_LAST_WORKSPACE_BLOCKED);
+  };
+
+  const handleNextWorkspace = () => {
+    const list = workspaceStore.workspaces();
+    const current = activeId();
+    if (!current || list.length === 0) return;
+    const idx = list.findIndex((w) => w.id === current);
+    if (idx < 0) return;
+    handleActivateWorkspace(list[(idx + 1) % list.length]!.id);
+  };
+
+  const handlePrevWorkspace = () => {
+    const list = workspaceStore.workspaces();
+    const current = activeId();
+    if (!current || list.length === 0) return;
+    const idx = list.findIndex((w) => w.id === current);
+    if (idx < 0) return;
+    handleActivateWorkspace(list[(idx - 1 + list.length) % list.length]!.id);
+  };
+
+  const handleFocusWorkspaceByIndex = (index: number) => {
+    const list = workspaceStore.workspaces();
+    if (index < 0 || index >= list.length) return;
+    handleActivateWorkspace(list[index]!.id);
+  };
+
+  const handleCloseActiveWorkspace = () => {
+    const id = activeId();
+    if (!id) return;
+    if (!workspaceStore.canClose(id)) {
+      handleCloseBlocked();
+      return;
+    }
+    handleCloseWorkspace(id);
+  };
+
+  const handleRenameActiveWorkspace = () => {
+    const id = activeId();
+    if (!id) return;
+    const current = workspaceStore.workspaces().find((w) => w.id === id);
+    const name = window.prompt('Rename workspace', current?.name ?? '');
+    const trimmed = name?.trim();
+    if (trimmed) handleRenameWorkspace(id, trimmed);
+  };
+
+  const handleColorActiveWorkspace = () => {
+    const id = activeId();
+    if (!id) return;
+    const tab = document.querySelector(
+      `[data-workspace-tab="${id}"]`,
+    ) as HTMLElement | null;
+    tab?.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+    );
+  };
+
+  const handleWorkspaceShortcut = (
+    action: NonNullable<ReturnType<typeof parseWorkspaceShortcut>>,
+  ) => {
+    if (action === 'next') {
+      handleNextWorkspace();
+      return;
+    }
+    if (action === 'prev') {
+      handlePrevWorkspace();
+      return;
+    }
+    const index = workspaceIndexForFocusAction(action);
+    if (index != null) handleFocusWorkspaceByIndex(index);
   };
 
   const openPalette = (mode: 'quick' | 'full') => {
@@ -441,6 +658,13 @@ export default function App() {
     showKeybindings: () => {
       openPalette('full');
     },
+    newWorkspace: () => handleNewWorkspace(),
+    closeWorkspace: () => handleCloseActiveWorkspace(),
+    nextWorkspace: () => handleNextWorkspace(),
+    prevWorkspace: () => handlePrevWorkspace(),
+    focusWorkspace: (index) => handleFocusWorkspaceByIndex(index),
+    renameWorkspace: () => handleRenameActiveWorkspace(),
+    colorWorkspace: () => handleColorActiveWorkspace(),
   };
 
   const dispatchCommandId = (id: string): boolean => {
@@ -461,11 +685,26 @@ export default function App() {
   });
 
   const onAppKey = (e: KeyboardEvent) => {
+    if (newWorkspacePickerOpen()) {
+      if (e.key === 'Escape') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
     if (paletteMode() !== null) {
       if (e.metaKey) {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
+      return;
+    }
+
+    const workspaceAction = parseWorkspaceShortcut(e);
+    if (workspaceAction) {
+      handleWorkspaceShortcut(workspaceAction);
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
 
@@ -578,6 +817,28 @@ export default function App() {
         activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
         onLayoutSelect={onLayoutSelect}
       />
+      <WorkspaceTabBar
+        workspaces={workspaceStore.workspaces()}
+        activeId={activeId()}
+        onActivate={handleActivateWorkspace}
+        onNew={handleNewWorkspace}
+        onRename={handleRenameWorkspace}
+        onColor={handleColorWorkspace}
+        onClose={handleCloseWorkspace}
+        onReorder={handleReorderWorkspaces}
+        closeGuardFor={(id) => workspaceStore.closeGuardFor(id)}
+        onCloseBlocked={handleCloseBlocked}
+        onCloseConfirm={handleCloseWorkspace}
+      />
+      <div
+        style={{
+          flex: '1',
+          'min-height': '0',
+          display: 'flex',
+          'flex-direction': 'column',
+          overflow: 'hidden',
+        }}
+      >
       <Show
         when={showGrid()}
         fallback={
@@ -635,6 +896,15 @@ export default function App() {
             }}
           </For>
         </div>
+      </Show>
+      </div>
+
+      <Show when={newWorkspacePickerOpen()}>
+        <NewWorkspacePicker
+          onDismiss={() => setNewWorkspacePickerOpen(false)}
+          onCreate={handleCreateWorkspace}
+          onStartEmpty={handleStartEmptyWorkspace}
+        />
       </Show>
 
       <ToastStack />

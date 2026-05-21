@@ -3,7 +3,7 @@ import {
   buildNativeMenuModel,
   chordToAccelerator,
 } from '../nativeMenu';
-import { createCommandRegistry, v0Commands } from '../registry';
+import { createCommandRegistry, v0Commands, workspaceCommands } from '../registry';
 
 /**
  * A7-05 Task 1 — native menu model tests.
@@ -12,15 +12,19 @@ import { createCommandRegistry, v0Commands } from '../registry';
  * The Tauri `setAsAppMenu` installation is manual-only verification.
  */
 
-const registry = createCommandRegistry(v0Commands());
+const registry = createCommandRegistry([
+  ...v0Commands(),
+  ...workspaceCommands(),
+]);
 
 describe('buildNativeMenuModel — category groups', () => {
   const model = buildNativeMenuModel(registry);
 
-  it('produces groups for Window, Pane, Layout, Project, Settings, Help', () => {
+  it('produces groups for Window, Workspace, Pane, Layout, Project, Settings, Help', () => {
     const labels = model.map((g) => g.label);
     expect(labels).toEqual([
       'Window',
+      'Workspace',
       'Pane',
       'Layout',
       'Project',
@@ -75,6 +79,10 @@ describe('chordToAccelerator', () => {
     expect(chordToAccelerator('Cmd+Alt+ArrowRight')).toBe(
       'CmdOrCtrl+Alt+Right',
     );
+  });
+
+  it('Ctrl+Tab workspace shortcut maps to accelerator', () => {
+    expect(chordToAccelerator('Ctrl+Tab')).toBe('Ctrl+Tab');
   });
 
   it('Cmd+Alt+Shift+ArrowUp → CmdOrCtrl+Alt+Shift+Up', () => {

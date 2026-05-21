@@ -40,6 +40,7 @@ export type WorkspaceStore = {
     preset: LayoutPreset | 'custom' | null,
   ) => void;
   setProjectPath: (id: string, projectPath: string | null) => void;
+  remove: (id: string) => void;
   closeGuardFor: (id: string) => WorkspaceCloseGuard;
   canClose: (id: string) => boolean;
   snapshotIndex: () => WorkspacesIndex;
@@ -220,6 +221,18 @@ export function createWorkspaceStore(
     );
   };
 
+  const remove = (id: string) => {
+    if (!closeGuardFor(workspaces(), id).canClose) return;
+    setWorkspaces((prev) => {
+      const next = reindexOrders(prev.filter((w) => w.id !== id));
+      setActiveId((current) => {
+        if (current !== id) return current;
+        return next[0]?.id ?? null;
+      });
+      return next;
+    });
+  };
+
   return {
     workspaces,
     activeId,
@@ -233,6 +246,7 @@ export function createWorkspaceStore(
     setPinnedProfile,
     setActiveLayoutPreset,
     setProjectPath,
+    remove,
     closeGuardFor: (id) => closeGuardFor(workspaces(), id),
     canClose: (id) => closeGuardFor(workspaces(), id).canClose,
     snapshotIndex,
