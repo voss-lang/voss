@@ -73,11 +73,10 @@ export default function SplitNodeView(props: {
   const focus = () =>
     props.setStore(produce((s) => focusByClick(s, asLeaf().id)));
 
-  // Drag-handle hover brightens the divider (instant, no transition).
+  // Drag-handle hover brightens the divider (150ms border-color transition).
   const [hot, setHot] = createSignal(false);
+  const [dragActive, setDragActive] = createSignal(false);
   let wrap: HTMLDivElement | undefined;
-  const dividerColor = () =>
-    hot() ? 'var(--border-bright)' : 'var(--border)';
 
   return (
     <Switch>
@@ -85,8 +84,8 @@ export default function SplitNodeView(props: {
         <div
           data-pane-id={asLeaf().id}
           classList={{
-            'relative w-full h-full bg-bg-0': true,
-            'shadow-[inset_0_0_0_1px_var(--focus)]': isFocused(),
+            'grid-pane-leaf relative w-full h-full bg-bg-0': true,
+            'grid-pane-leaf--focused': isFocused(),
           }}
           style={{ display: 'flex', 'flex-direction': 'column' }}
           onClick={focus}
@@ -138,6 +137,8 @@ export default function SplitNodeView(props: {
       <Match when={props.node.kind === 'split'}>
         <div
           ref={wrap}
+          class="grid-split-wrap"
+          data-drag-active={dragActive() ? '' : undefined}
           style={{
             position: 'relative',
             display: 'flex',
@@ -149,20 +150,23 @@ export default function SplitNodeView(props: {
           }}
         >
           <div
-            style={{
-              position: 'relative',
-              ...(asSplit().orientation === 'H'
+            classList={{
+              'grid-split-child': true,
+              'grid-split-child--h': asSplit().orientation === 'H',
+              'grid-split-child--v': asSplit().orientation === 'V',
+              'grid-split-child--divider-hot': hot(),
+            }}
+            style={
+              asSplit().orientation === 'H'
                 ? {
                     width: `${asSplit().ratio * 100}%`,
                     height: '100%',
-                    'border-right': `1px solid ${dividerColor()}`,
                   }
                 : {
                     width: '100%',
                     height: `${asSplit().ratio * 100}%`,
-                    'border-bottom': `1px solid ${dividerColor()}`,
-                  }),
-            }}
+                  }
+            }
           >
             <SplitNodeView
               node={asSplit().left}
@@ -183,9 +187,11 @@ export default function SplitNodeView(props: {
               spanRect={() => wrap?.getBoundingClientRect()}
               dims={props.dims}
               onHover={setHot}
+              onDragActive={setDragActive}
             />
           </div>
           <div
+            class="grid-split-child"
             style={
               asSplit().orientation === 'H'
                 ? { width: `${(1 - asSplit().ratio) * 100}%`, height: '100%' }

@@ -11,6 +11,7 @@
 
 export type CommandCategory =
   | 'Window'
+  | 'Workspace'
   | 'Pane'
   | 'Layout'
   | 'Project'
@@ -55,6 +56,17 @@ export interface AppContext {
   loadLayout: () => void;
   switchProfile: () => void;
   showKeybindings: () => void;
+  newWorkspace?: () => void;
+  closeWorkspace?: () => void;
+  nextWorkspace?: () => void;
+  prevWorkspace?: () => void;
+  focusWorkspace?: (index: number) => void;
+  renameWorkspace?: () => void;
+  colorWorkspace?: () => void;
+  switchTheme?: () => void;
+  switchFont?: () => void;
+  toggleHighContrast?: () => void;
+  setBellBehavior?: () => void;
 }
 
 // --- Registry ----------------------------------------------------------------
@@ -248,6 +260,89 @@ export function v0Commands(): CommandDefinition[] {
       label: 'Keyboard Shortcuts',
       category: 'Help',
       handler: (ctx) => ctx.showKeybindings(),
+    },
+  ];
+}
+
+// --- Workspace Command Catalog (A8-03 / UXP-03) -----------------------------
+
+export function workspaceCommands(): CommandDefinition[] {
+  return [
+    {
+      id: 'workspace.new',
+      label: 'New workspace',
+      category: 'Workspace',
+      handler: (ctx) => ctx.newWorkspace?.(),
+    },
+    {
+      id: 'workspace.close',
+      label: 'Close workspace',
+      category: 'Workspace',
+      handler: (ctx) => ctx.closeWorkspace?.(),
+    },
+    {
+      id: 'workspace.next',
+      label: 'Next workspace',
+      category: 'Workspace',
+      keybinding: 'Ctrl+Tab',
+      handler: (ctx) => ctx.nextWorkspace?.(),
+    },
+    {
+      id: 'workspace.prev',
+      label: 'Previous workspace',
+      category: 'Workspace',
+      keybinding: 'Ctrl+Shift+Tab',
+      handler: (ctx) => ctx.prevWorkspace?.(),
+    },
+    ...Array.from({ length: 9 }, (_, i) => ({
+      id: `workspace.focus${i + 1}`,
+      label: `Switch to workspace ${i + 1}`,
+      category: 'Workspace' as CommandCategory,
+      keybinding: `Ctrl+${i + 1}`,
+      handler: (ctx: AppContext) => ctx.focusWorkspace?.(i),
+    })),
+    {
+      id: 'workspace.rename',
+      label: 'Rename workspace',
+      category: 'Workspace',
+      handler: (ctx) => ctx.renameWorkspace?.(),
+    },
+    {
+      id: 'workspace.color',
+      label: 'Color',
+      category: 'Workspace',
+      handler: (ctx) => ctx.colorWorkspace?.(),
+    },
+  ];
+}
+
+// --- Appearance Command Catalog (A8-03 / UXP-04..07) ------------------------
+
+export function appearanceCommands(): CommandDefinition[] {
+  return [
+    {
+      id: 'theme.switch',
+      label: 'Switch Theme',
+      category: 'Settings',
+      handler: (ctx) => ctx.switchTheme?.(),
+    },
+    {
+      id: 'appearance.font',
+      label: 'Switch Font',
+      category: 'Settings',
+      handler: (ctx) => ctx.switchFont?.(),
+    },
+    {
+      id: 'appearance.highContrast',
+      label: 'Toggle High Contrast',
+      category: 'Settings',
+      handler: (ctx) => ctx.toggleHighContrast?.(),
+    },
+    {
+      id: 'appearance.bell',
+      label: 'Set Bell Behavior',
+      category: 'Settings',
+      handler: (ctx) => ctx.setBellBehavior?.(),
     },
   ];
 }

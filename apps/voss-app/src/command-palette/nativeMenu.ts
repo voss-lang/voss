@@ -8,7 +8,7 @@
  *   Requires live Tauri runtime — manual-only verification.
  *
  * Category order matches the UI-SPEC and palette category order:
- * Window → Pane → Layout → Project → Settings → Help.
+ * Window → Workspace → Pane → Layout → Project → Settings → Help.
  */
 
 import type { CommandCategory, CommandRegistry } from './registry';
@@ -29,6 +29,7 @@ export interface NativeMenuGroup {
 /** Fixed category order matching UI-SPEC. */
 const CATEGORY_ORDER: CommandCategory[] = [
   'Window',
+  'Workspace',
   'Pane',
   'Layout',
   'Project',

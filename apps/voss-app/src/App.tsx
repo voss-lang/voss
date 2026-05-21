@@ -1,5 +1,22 @@
-import { batch, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
+import {
+  batch,
+  createMemo,
+  createSignal,
+  onMount,
+  onCleanup,
+  Show,
+  For,
+  type Accessor,
+} from 'solid-js';
 import Titlebar from './components/titlebar/Titlebar';
+import WorkspaceTabBar, {
+  COPY_LAST_WORKSPACE_BLOCKED,
+} from './components/workspace/WorkspaceTabBar';
+import NewWorkspacePicker, {
+  type NewWorkspacePickerCreatePayload,
+  type NewWorkspacePickerStartEmptyPayload,
+} from './components/workspace/NewWorkspacePicker';
+import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
@@ -7,6 +24,8 @@ import ToastStack from './command-palette/toast';
 import {
   createCommandRegistry,
   v0Commands,
+  workspaceCommands,
+  appearanceCommands,
   type AppContext,
   type KeyBindingOverrides,
 } from './command-palette/registry';
@@ -21,6 +40,7 @@ import {
 import { createPrefixMode } from './command-palette/prefixMode';
 import { setAsAppMenu } from './command-palette/nativeMenu';
 import { showToast } from './command-palette/toast';
+import { applyWindowEffects } from './appearance/windowEffects';
 import { buildQuickOpenItems } from './command-palette/quickOpen';
 import type {
   ActiveLayout,
@@ -40,61 +60,154 @@ import {
   type SessionFile,
 } from './grid/sessionStorage';
 import {
-  installStructuralSessionAutosave,
-  installCloseSessionSave,
-  type SessionContext,
-} from './grid/sessionPersist';
-import {
   defaultCwd,
   listRecents,
   openProject,
   pickFolder,
   type ProjectInfo,
 } from './project/projectStorage';
+import {
+  createWorkspaceStore,
+  type WorkspaceRecord,
+} from './workspaces/workspaceStore';
+import {
+  DEFAULT_WORKSPACE_ID,
+  loadProjectLessSession,
+} from './workspaces/workspaceStorage';
+import {
+  installAllWorkspacesCloseSave,
+  installWorkspaceStructuralAutosave,
+  type WorkspaceSessionContext,
+} from './workspaces/workspaceSessionPersist';
+import {
+  parseWorkspaceShortcut,
+  workspaceIndexForFocusAction,
+} from './workspaces/workspaceShortcuts';
 
 /**
- * App composition root.
+ * App composition root (A4-02, A8-02).
  *
- * A4-02 lifts `activeLayout` ownership to this component so the titlebar
- * preset switcher (`PresetSwitcher`) and the grid keyboard handler
- * (`GridRoot` → `dispatchKey`) share a single source of truth. The grid
- * owns the pane tree and reports back the new layout through
- * `onLayoutChange`; titlebar clicks bubble back into the grid via
- * `onLayoutSelect` → `<GridRoot>` controller hook (here: a callback ref
- * the grid populates on mount).
- *
- * Default `activeLayout` is `'custom'` — the app boots with a single
- * default pane (A3) which is, by definition, off-cycle until the user
- * applies a preset.
- *
- * A4-04 wires the layout persistence seam. `saveCurrentLayout`,
- * `loadLayoutByName`, and `applyDefaultLayout` are callable closures
- * that bridge the Rust Tauri commands (via `layoutStorage`) to the live
- * grid (via the `GridController`). They are exposed for A7's command
- * palette to invoke; A4 itself does not ship UI for them.
+ * Owns the workspace index, one mounted `GridRoot` per workspace (hidden via
+ * CSS when inactive — D-01), and a single all-workspace close-save handler.
  */
 
-export default function App() {
+export type MountedWorkspace = {
+  id: string;
+  activeLayout: Accessor<ActiveLayout>;
+  setActiveLayout: (next: ActiveLayout) => void;
+  project: Accessor<ProjectInfo | null>;
+  setProject: (next: ProjectInfo | null) => void;
+  projectLessAccepted: Accessor<boolean>;
+  setProjectLessAccepted: (next: boolean) => void;
+  initialSession: Accessor<SessionFile | null>;
+  setInitialSession: (next: SessionFile | null) => void;
+  projectLessCwd: Accessor<string | undefined>;
+  setProjectLessCwd: (next: string | undefined) => void;
+  /** Once true, GridRoot stays mounted when switching away (D-01). */
+  everMounted: Accessor<boolean>;
+  setEverMounted: (next: boolean) => void;
+  gridController?: GridController;
+  sessionCleanup?: () => void;
+};
+
+function createMountedWorkspace(id: string): MountedWorkspace {
   const [activeLayout, setActiveLayout] =
     createSignal<ActiveLayout>('custom');
   const [project, setProject] = createSignal<ProjectInfo | null>(null);
   const [projectLessAccepted, setProjectLessAccepted] = createSignal(false);
-  const [recents, setRecents] = createSignal<string[]>([]);
+  const [initialSession, setInitialSession] = createSignal<SessionFile | null>(
+    null,
+  );
   const [projectLessCwd, setProjectLessCwd] = createSignal<string | undefined>();
-  const [initialSession, setInitialSession] = createSignal<SessionFile | null>(null);
-  const [paletteMode, setPaletteMode] = createSignal<'quick' | 'full' | null>(null);
+  const [everMounted, setEverMounted] = createSignal(false);
+
+  return {
+    id,
+    activeLayout,
+    setActiveLayout,
+    project,
+    setProject,
+    projectLessAccepted,
+    setProjectLessAccepted,
+    initialSession,
+    setInitialSession,
+    projectLessCwd,
+    setProjectLessCwd,
+    everMounted,
+    setEverMounted,
+  };
+}
+
+function workspaceIsReady(ws: MountedWorkspace): boolean {
+  return ws.project() !== null || ws.projectLessAccepted();
+}
+
+function sessionContextFor(ws: MountedWorkspace): WorkspaceSessionContext {
+  return {
+    workspaceId: ws.id,
+    getController: () => ws.gridController,
+    getActiveLayout: () => ws.activeLayout(),
+    getProjectLessAccepted: () => ws.projectLessAccepted(),
+    projectPath: ws.project()?.path ?? null,
+  };
+}
+
+function seedMountedMap(
+  records: readonly WorkspaceRecord[],
+): Map<string, MountedWorkspace> {
+  const next = new Map<string, MountedWorkspace>();
+  for (const record of records) {
+    next.set(record.id, createMountedWorkspace(record.id));
+  }
+  return next;
+}
+
+export default function App() {
+  const workspaceStore = createWorkspaceStore();
+  const [mountedById, setMountedById] = createSignal<Map<string, MountedWorkspace>>(
+    seedMountedMap(workspaceStore.workspaces()),
+  );
+
+  const [recents, setRecents] = createSignal<string[]>([]);
+  const [paletteMode, setPaletteMode] = createSignal<'quick' | 'full' | null>(
+    null,
+  );
   const [layoutNames, setLayoutNames] = createSignal<string[]>([]);
   const [keymapProfile, setKeymapProfile] = createSignal<KeymapProfile>('vscode');
   const [keymapOverrides, setKeymapOverrides] =
     createSignal<KeyBindingOverrides>({});
   const [prefixActive, setPrefixActive] = createSignal(false);
+  const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
-  let gridController: GridController | undefined;
-  let sessionCleanup: (() => void) | undefined;
+  let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
 
+  const activeId = () => workspaceStore.activeId();
+  let cachedWorkspaceIds: string[] = [];
+  const workspaceIds = createMemo(() => {
+    const next = workspaceStore.workspaces().map((w) => w.id);
+    if (
+      next.length === cachedWorkspaceIds.length &&
+      next.every((id, i) => id === cachedWorkspaceIds[i])
+    ) {
+      return cachedWorkspaceIds;
+    }
+    cachedWorkspaceIds = next;
+    return next;
+  });
+  const activeMounted = createMemo(() => {
+    const id = activeId();
+    return id ? mountedById().get(id) : undefined;
+  });
+
+  const gridController = () => activeMounted()?.gridController;
+
   // --- Command registry (D-01) -----------------------------------------------
-  const baseCommands = v0Commands();
+  const baseCommands = [
+    ...v0Commands(),
+    ...workspaceCommands(),
+    ...appearanceCommands(),
+  ];
   const registry = createMemo(() =>
     createCommandRegistry(baseCommands, keymapOverrides()),
   );
@@ -106,59 +219,139 @@ export default function App() {
     ]);
 
   const onLayoutSelect = (preset: LayoutPreset) => {
-    gridController?.applyPreset(preset);
+    gridController()?.applyPreset(preset);
   };
 
-  const showGrid = () => project() !== null || projectLessAccepted();
-  const workspacePath = () => project()?.path ?? projectLessCwd();
+  const showGrid = () => {
+    const ws = activeMounted();
+    return ws != null && workspaceIsReady(ws);
+  };
 
-  // --- A7 callable seam (LAY-06/07) ----------------------------------------
-  // A5 owns the workspace folder picker; until it lands, callers must
-  // supply `workspacePath` explicitly. These closures intentionally avoid
-  // a global `window.__voss` registration — A7's palette will import them
-  // directly from this module once it exists.
+  const workspacePath = () => {
+    const ws = activeMounted();
+    return ws?.project()?.path ?? ws?.projectLessCwd();
+  };
 
   const saveCurrentLayout = async (
-    workspacePath: string,
+    path: string,
     name: string,
   ): Promise<void> => {
-    if (!gridController) return;
-    const snap = gridController.snapshot();
-    const file = serializeLayout(snap.root, snap.focusedId, activeLayout());
-    await saveLayout(workspacePath, name, file);
+    const ctrl = gridController();
+    const ws = activeMounted();
+    if (!ctrl || !ws) return;
+    const snap = ctrl.snapshot();
+    const file = serializeLayout(snap.root, snap.focusedId, ws.activeLayout());
+    await saveLayout(path, name, file);
   };
 
   const loadLayoutByName = async (
-    workspacePath: string,
+    path: string,
     name: string,
   ): Promise<void> => {
-    if (!gridController) return;
-    const file = await loadLayout(workspacePath, name);
-    gridController.applyLoadedLayout(file);
+    const ctrl = gridController();
+    if (!ctrl) return;
+    const file = await loadLayout(path, name);
+    ctrl.applyLoadedLayout(file);
   };
 
-  const applyDefaultLayout = async (
-    workspacePath: string,
-  ): Promise<boolean> => {
-    if (!gridController) return false;
-    const file = await loadDefaultLayout(workspacePath);
-    if (!file) return false;
-    gridController.applyLoadedLayout(file);
-    return true;
-  };
-  void applyDefaultLayout; // A7 callable seam — kept live for palette wiring
+  const restoreWorkspaceFromRecord = async (
+    ws: MountedWorkspace,
+    record: WorkspaceRecord,
+  ): Promise<void> => {
+    if (record.projectPath) {
+      try {
+        const info = await openProject(record.projectPath);
+        let session: SessionFile | null = null;
+        session = await loadSession(info.path).catch(() => null);
+        if (!session) {
+          const layout = await loadDefaultLayout(info.path).catch(() => null);
+          if (layout) {
+            session = layoutToSession(layout, false);
+          }
+        }
+        batch(() => {
+          ws.setInitialSession(session);
+          ws.setProject(info);
+          ws.setProjectLessAccepted(true);
+          ws.setEverMounted(true);
+        });
+        workspaceStore.setProjectPath(record.id, info.path);
+        void installWorkspaceKeymap(info.path);
+      } catch (e) {
+        console.error('restore workspace project failed:', e);
+      }
+      return;
+    }
 
-  const openSelectedProject = async (
+    let session: SessionFile | null = await loadProjectLessSession(
+      record.id,
+    ).catch(() => null);
+
+    if (!session && record.id === DEFAULT_WORKSPACE_ID) {
+      session = await loadGlobalSession().catch(() => null);
+    }
+
+    if (session?.projectLessAccepted) {
+      batch(() => {
+        ws.setInitialSession(session);
+        ws.setProjectLessAccepted(true);
+        ws.setEverMounted(true);
+      });
+    }
+  };
+
+  const bootstrapWorkspaceProject = async (
+    ws: MountedWorkspace,
+    workspaceId: string,
     path: string,
-    errorPrefix: string,
+    layoutName?: string | null,
   ): Promise<void> => {
     try {
       const info = await openProject(path);
       setRecents(await listRecents());
 
-      // D-10: restore priority — session → default layout → fresh pane.
-      // Resolved BEFORE setting project/projectLessAccepted so GridRoot
-      // mounts with the correct initial state and no throwaway PTY spawns.
+      let session: SessionFile | null = await loadSession(info.path).catch(
+        () => null,
+      );
+      if (!session && layoutName) {
+        const layout = await loadLayout(info.path, layoutName).catch(() => null);
+        if (layout) {
+          session = layoutToSession(layout, false);
+        }
+      }
+      if (!session) {
+        const layout = await loadDefaultLayout(info.path).catch(() => null);
+        if (layout) {
+          session = layoutToSession(layout, false);
+        }
+      }
+
+      batch(() => {
+        ws.setInitialSession(session);
+        ws.setProject(info);
+        ws.setProjectLessAccepted(true);
+        ws.setEverMounted(true);
+      });
+      workspaceStore.setProjectPath(workspaceId, info.path);
+      void installWorkspaceKeymap(info.path);
+      void defaultCwd(info.path)
+        .then(ws.setProjectLessCwd)
+        .catch(() => ws.setProjectLessCwd(undefined));
+    } catch (e) {
+      console.error('bootstrap workspace project failed:', e);
+    }
+  };
+
+  const openSelectedProject = async (
+    path: string,
+    errorPrefix: string,
+  ): Promise<void> => {
+    const ws = activeMounted();
+    if (!ws) return;
+    try {
+      const info = await openProject(path);
+      setRecents(await listRecents());
+
       let session: SessionFile | null = null;
       session = await loadSession(info.path).catch(() => null);
       if (!session) {
@@ -169,10 +362,14 @@ export default function App() {
       }
 
       batch(() => {
-        setInitialSession(session);
-        setProject(info);
-        setProjectLessAccepted(true);
+        if (!ws.everMounted()) {
+          ws.setInitialSession(session);
+        }
+        ws.setProject(info);
+        ws.setProjectLessAccepted(true);
+        ws.setEverMounted(true);
       });
+      workspaceStore.setProjectPath(ws.id, info.path);
       void installWorkspaceKeymap(info.path);
     } catch (e) {
       console.error(errorPrefix, e);
@@ -189,7 +386,175 @@ export default function App() {
     void openSelectedProject(path, 'open_recent failed:');
   };
 
-  // --- Palette lifecycle (D-06/D-08) ------------------------------------------
+  const handleStartProjectLess = () => {
+    const ws = activeMounted();
+    if (!ws) return;
+    batch(() => {
+      ws.setProjectLessAccepted(true);
+      ws.setEverMounted(true);
+    });
+  };
+
+  const ensureMountedRecord = (id: string): MountedWorkspace => {
+    const existing = mountedById().get(id);
+    if (existing) return existing;
+    const ws = createMountedWorkspace(id);
+    setMountedById((prev) => new Map(prev).set(id, ws));
+    return ws;
+  };
+
+  const handleNewWorkspace = () => {
+    setNewWorkspacePickerOpen(true);
+  };
+
+  const handleCreateWorkspace = async (
+    payload: NewWorkspacePickerCreatePayload,
+  ) => {
+    setNewWorkspacePickerOpen(false);
+    const record = workspaceStore.add({
+      name: payload.name,
+      projectPath: payload.folderPath,
+      accentColor: payload.accentColor,
+    });
+    const ws = ensureMountedRecord(record.id);
+    if (payload.folderPath) {
+      await bootstrapWorkspaceProject(
+        ws,
+        record.id,
+        payload.folderPath,
+        payload.layoutName,
+      );
+    }
+    void workspaceStore.persist();
+  };
+
+  const handleStartEmptyWorkspace = async (
+    payload: NewWorkspacePickerStartEmptyPayload,
+  ) => {
+    setNewWorkspacePickerOpen(false);
+    const record = workspaceStore.add({
+      name: payload.name,
+      accentColor: payload.accentColor,
+    });
+    const ws = ensureMountedRecord(record.id);
+    batch(() => {
+      ws.setProjectLessAccepted(true);
+      ws.setEverMounted(true);
+    });
+    void defaultCwd(null)
+      .then(ws.setProjectLessCwd)
+      .catch(() => ws.setProjectLessCwd(undefined));
+    void workspaceStore.persist();
+  };
+
+  const handleActivateWorkspace = (id: string) => {
+    workspaceStore.activate(id);
+    void workspaceStore.persist();
+  };
+
+  const handleRenameWorkspace = (id: string, name: string) => {
+    workspaceStore.rename(id, name);
+    void workspaceStore.persist();
+  };
+
+  const handleColorWorkspace = (id: string, color: string) => {
+    workspaceStore.setAccentColor(id, color);
+    void workspaceStore.persist();
+  };
+
+  const handleReorderWorkspaces = (fromIndex: number, toIndex: number) => {
+    workspaceStore.reorder(fromIndex, toIndex);
+    void workspaceStore.persist();
+  };
+
+  const handleCloseWorkspace = (id: string) => {
+    if (!workspaceStore.canClose(id)) return;
+    const ws = mountedById().get(id);
+    ws?.sessionCleanup?.();
+    if (ws) {
+      ws.gridController = undefined;
+    }
+    setMountedById((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    workspaceStore.remove(id);
+    void workspaceStore.persist();
+  };
+
+  const handleCloseBlocked = () => {
+    showToast('info', COPY_LAST_WORKSPACE_BLOCKED);
+  };
+
+  const handleNextWorkspace = () => {
+    const list = workspaceStore.workspaces();
+    const current = activeId();
+    if (!current || list.length === 0) return;
+    const idx = list.findIndex((w) => w.id === current);
+    if (idx < 0) return;
+    handleActivateWorkspace(list[(idx + 1) % list.length]!.id);
+  };
+
+  const handlePrevWorkspace = () => {
+    const list = workspaceStore.workspaces();
+    const current = activeId();
+    if (!current || list.length === 0) return;
+    const idx = list.findIndex((w) => w.id === current);
+    if (idx < 0) return;
+    handleActivateWorkspace(list[(idx - 1 + list.length) % list.length]!.id);
+  };
+
+  const handleFocusWorkspaceByIndex = (index: number) => {
+    const list = workspaceStore.workspaces();
+    if (index < 0 || index >= list.length) return;
+    handleActivateWorkspace(list[index]!.id);
+  };
+
+  const handleCloseActiveWorkspace = () => {
+    const id = activeId();
+    if (!id) return;
+    if (!workspaceStore.canClose(id)) {
+      handleCloseBlocked();
+      return;
+    }
+    handleCloseWorkspace(id);
+  };
+
+  const handleRenameActiveWorkspace = () => {
+    const id = activeId();
+    if (!id) return;
+    const current = workspaceStore.workspaces().find((w) => w.id === id);
+    const name = window.prompt('Rename workspace', current?.name ?? '');
+    const trimmed = name?.trim();
+    if (trimmed) handleRenameWorkspace(id, trimmed);
+  };
+
+  const handleColorActiveWorkspace = () => {
+    const id = activeId();
+    if (!id) return;
+    const tab = document.querySelector(
+      `[data-workspace-tab="${id}"]`,
+    ) as HTMLElement | null;
+    tab?.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+    );
+  };
+
+  const handleWorkspaceShortcut = (
+    action: NonNullable<ReturnType<typeof parseWorkspaceShortcut>>,
+  ) => {
+    if (action === 'next') {
+      handleNextWorkspace();
+      return;
+    }
+    if (action === 'prev') {
+      handlePrevWorkspace();
+      return;
+    }
+    const index = workspaceIndexForFocusAction(action);
+    if (index != null) handleFocusWorkspaceByIndex(index);
+  };
 
   const openPalette = (mode: 'quick' | 'full') => {
     setPaletteMode(mode);
@@ -210,7 +575,8 @@ export default function App() {
     if (id.startsWith('layout:')) {
       const name = id.slice('layout:'.length);
       const path = workspacePath();
-      if (path && gridController) {
+      const ctrl = gridController();
+      if (path && ctrl) {
         void loadLayoutByName(path, name);
       }
     } else if (id.startsWith('recent:')) {
@@ -228,12 +594,12 @@ export default function App() {
     }
   };
 
-  const installWorkspaceKeymap = async (workspacePath: string) => {
+  const installWorkspaceKeymap = async (path: string) => {
     keymapUnlisten?.();
     keymapUnlisten = undefined;
     try {
       keymapUnlisten = await watchWorkspaceKeymap(
-        workspacePath,
+        path,
         knownCommandIds(),
         knownChords(),
         applyKeymapUpdate,
@@ -245,18 +611,16 @@ export default function App() {
     }
   };
 
-  // --- AppContext (D-03) — built once, threaded to registry handlers ----------
-
   const appCtx: AppContext = {
-    splitFocused: (orientation) => gridController?.splitFocused(orientation),
-    closeFocused: () => gridController?.closeFocused(),
-    equalizePanes: () => gridController?.equalizePanes(),
-    cycleLayout: () => gridController?.cycleLayout(),
-    focusNext: () => gridController?.focusNext(),
-    focusPrev: () => gridController?.focusPrev(),
-    focusIndex: (n) => gridController?.focusIndex(n),
-    focusDirection: (dir) => gridController?.focusDirection(dir),
-    resizeDirection: (dir) => gridController?.resizeDirection(dir),
+    splitFocused: (orientation) => gridController()?.splitFocused(orientation),
+    closeFocused: () => gridController()?.closeFocused(),
+    equalizePanes: () => gridController()?.equalizePanes(),
+    cycleLayout: () => gridController()?.cycleLayout(),
+    focusNext: () => gridController()?.focusNext(),
+    focusPrev: () => gridController()?.focusPrev(),
+    focusIndex: (n) => gridController()?.focusIndex(n),
+    focusDirection: (dir) => gridController()?.focusDirection(dir),
+    resizeDirection: (dir) => gridController()?.resizeDirection(dir),
     openQuickPalette: () => openPalette('quick'),
     openFullPalette: () => openPalette('full'),
     openProject: () => void handleOpenFolder(),
@@ -290,6 +654,17 @@ export default function App() {
     showKeybindings: () => {
       openPalette('full');
     },
+    newWorkspace: () => handleNewWorkspace(),
+    closeWorkspace: () => handleCloseActiveWorkspace(),
+    nextWorkspace: () => handleNextWorkspace(),
+    prevWorkspace: () => handlePrevWorkspace(),
+    focusWorkspace: (index) => handleFocusWorkspaceByIndex(index),
+    renameWorkspace: () => handleRenameActiveWorkspace(),
+    colorWorkspace: () => handleColorActiveWorkspace(),
+    switchTheme: () => openPalette('full'),
+    switchFont: () => openPalette('full'),
+    toggleHighContrast: () => openPalette('full'),
+    setBellBehavior: () => openPalette('full'),
   };
 
   const dispatchCommandId = (id: string): boolean => {
@@ -309,17 +684,27 @@ export default function App() {
     clearTimeout: (id) => window.clearTimeout(id),
   });
 
-  // --- Global keyboard routing (D-02/D-08) -----------------------------------
-  // Capture phase: intercepts ⌘P/⌘⇧P before GridRoot sees them.
-  // While palette is open, suppresses all ⌘ chords from reaching the grid.
-
   const onAppKey = (e: KeyboardEvent) => {
-    // While palette open: suppress grid chords (T-A7-03)
+    if (newWorkspacePickerOpen()) {
+      if (e.key === 'Escape') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
     if (paletteMode() !== null) {
       if (e.metaKey) {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
+      return;
+    }
+
+    const workspaceAction = parseWorkspaceShortcut(e);
+    if (workspaceAction) {
+      handleWorkspaceShortcut(workspaceAction);
+      e.preventDefault();
+      e.stopImmediatePropagation();
       return;
     }
 
@@ -355,8 +740,12 @@ export default function App() {
     }
   };
 
+  const allSessionContexts = (): WorkspaceSessionContext[] =>
+    [...mountedById().values()].map(sessionContextFor);
+
   onMount(() => {
-    window.addEventListener('keydown', onAppKey, true); // capture phase
+    window.addEventListener('keydown', onAppKey, true);
+    void applyWindowEffects({ enabled: true });
     void setAsAppMenu(registry(), (id) => {
       void dispatchCommandId(id);
     });
@@ -366,34 +755,51 @@ export default function App() {
     void listRecents()
       .then(setRecents)
       .catch(() => setRecents([]));
-    void defaultCwd(null)
-      .then(setProjectLessCwd)
-      .catch(() => setProjectLessCwd(undefined));
 
-    // D-12: check global session for project-less bypass on launch.
-    void loadGlobalSession()
-      .then((globalSession) => {
-        if (globalSession?.projectLessAccepted && !projectLessAccepted()) {
-          batch(() => {
-            setInitialSession(globalSession);
-            setProjectLessAccepted(true);
-          });
+    void (async () => {
+      await workspaceStore.load();
+      const nextMounted = new Map(mountedById());
+      for (const record of workspaceStore.workspaces()) {
+        if (!nextMounted.has(record.id)) {
+          nextMounted.set(record.id, createMountedWorkspace(record.id));
         }
-      })
-      .catch(() => {
-        // No global session — show setup window as normal.
-      });
+      }
+      setMountedById(nextMounted);
+
+      for (const record of workspaceStore.workspaces()) {
+        const ws = nextMounted.get(record.id);
+        if (!ws) continue;
+        void defaultCwd(record.projectPath ?? null)
+          .then(ws.setProjectLessCwd)
+          .catch(() => ws.setProjectLessCwd(undefined));
+        void restoreWorkspaceFromRecord(ws, record);
+      }
+
+      closeSaveUnlisten = await installAllWorkspacesCloseSave(
+        allSessionContexts,
+        () => workspaceStore.snapshotIndex(),
+        async () => {
+          await workspaceStore.persist();
+        },
+      );
+    })();
   });
 
   onCleanup(() => {
     window.removeEventListener('keydown', onAppKey, true);
     keymapUnlisten?.();
     prefixMode.cancel();
+    closeSaveUnlisten?.();
+    for (const ws of mountedById().values()) {
+      ws.sessionCleanup?.();
+    }
   });
 
-  // Suppress unused warnings while keeping the symbols live.
-  void saveCurrentLayout;
-  void sessionCleanup;
+  const bindController = (ws: MountedWorkspace, c: GridController) => {
+    ws.gridController = c;
+    ws.sessionCleanup?.();
+    ws.sessionCleanup = installWorkspaceStructuralAutosave(sessionContextFor(ws));
+  };
 
   return (
     <div
@@ -406,10 +812,32 @@ export default function App() {
       }}
     >
       <Titlebar
-        projectName={project()?.name}
-        activeLayout={activeLayout()}
+        projectName={activeMounted()?.project()?.name}
+        activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
         onLayoutSelect={onLayoutSelect}
       />
+      <WorkspaceTabBar
+        workspaces={workspaceStore.workspaces()}
+        activeId={activeId()}
+        onActivate={handleActivateWorkspace}
+        onNew={handleNewWorkspace}
+        onRename={handleRenameWorkspace}
+        onColor={handleColorWorkspace}
+        onClose={handleCloseWorkspace}
+        onReorder={handleReorderWorkspaces}
+        closeGuardFor={(id) => workspaceStore.closeGuardFor(id)}
+        onCloseBlocked={handleCloseBlocked}
+        onCloseConfirm={handleCloseWorkspace}
+      />
+      <div
+        style={{
+          flex: '1',
+          'min-height': '0',
+          display: 'flex',
+          'flex-direction': 'column',
+          overflow: 'hidden',
+        }}
+      >
       <Show
         when={showGrid()}
         fallback={
@@ -417,43 +845,69 @@ export default function App() {
             recents={recents()}
             onOpenProject={handleOpenFolder}
             onOpenRecent={handleOpenRecent}
-            onStartProjectLess={() => setProjectLessAccepted(true)}
+            onStartProjectLess={handleStartProjectLess}
           />
         }
       >
-        {/* A3: the binary-split grid fills the body (leaves are A2 panes). */}
         <div
-          style={{ flex: '1', 'min-height': '0', background: 'var(--bg-0)' }}
+          style={{
+            flex: '1',
+            'min-height': '0',
+            background: 'var(--bg-0)',
+            display: 'flex',
+            'flex-direction': 'column',
+          }}
         >
-          <GridRoot
-            activeLayout={activeLayout}
-            onLayoutChange={(next) => setActiveLayout(next)}
-            controllerRef={(c) => {
-              gridController = c;
-              // A6: install session lifecycle once grid is mounted.
-              const ctx: SessionContext = {
-                getRoot: () => c.snapshot().root,
-                getFocusedId: () => c.snapshot().focusedId,
-                getActiveLayout: () => activeLayout(),
-                getProjectLessAccepted: () => projectLessAccepted(),
-                projectPath: project()?.path ?? null,
+          <For each={workspaceIds()}>
+            {(workspaceId) => {
+              const ws = () => mountedById().get(workspaceId);
+              const shouldMount = () => {
+                const m = ws();
+                return m != null && (m.everMounted() || workspaceIsReady(m));
               };
-              sessionCleanup = installStructuralSessionAutosave(ctx);
-              void installCloseSessionSave(ctx);
+              return (
+                <Show when={shouldMount()}>
+                  <div
+                    data-workspace-id={workspaceId}
+                    style={{
+                      display: activeId() === workspaceId ? 'flex' : 'none',
+                      flex: '1',
+                      'min-height': '0',
+                      'flex-direction': 'column',
+                    }}
+                  >
+                    <GridRoot
+                      active={() => activeId() === workspaceId}
+                      activeLayout={ws()!.activeLayout}
+                      onLayoutChange={(next) => ws()!.setActiveLayout(next)}
+                      controllerRef={(c) => bindController(ws()!, c)}
+                      projectCwd={
+                        ws()!.project()?.path ?? ws()!.projectLessCwd()
+                      }
+                      initialSession={ws()!.initialSession() ?? undefined}
+                      externalKeymap={true}
+                      prefixActive={prefixActive()}
+                      prefixReserved={keymapProfile() === 'tmux'}
+                    />
+                  </div>
+                </Show>
+              );
             }}
-            projectCwd={project()?.path ?? projectLessCwd()}
-            initialSession={initialSession() ?? undefined}
-            externalKeymap={true}
-            prefixActive={prefixActive()}
-            prefixReserved={keymapProfile() === 'tmux'}
-          />
+          </For>
         </div>
       </Show>
+      </div>
 
-      {/* A7: toast stack (keymap validation, profile switch feedback) */}
+      <Show when={newWorkspacePickerOpen()}>
+        <NewWorkspacePicker
+          onDismiss={() => setNewWorkspacePickerOpen(false)}
+          onCreate={handleCreateWorkspace}
+          onStartEmpty={handleStartEmptyWorkspace}
+        />
+      </Show>
+
       <ToastStack />
 
-      {/* A7: command palette overlay */}
       <Show when={paletteMode() !== null}>
         <CommandPalette
           mode={paletteMode()!}

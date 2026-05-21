@@ -54,7 +54,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | A7 | voss-app Cmd Palette + Keymap | Context gathered (16 decisions D-01..D-16). Ready for planning. |
 | A8 | voss-app Workspaces, UX Polish, & Theming | Context gathered (14 decisions D-01..D-14). Ready for planning. |
 | A9 | voss-app Settings + Theme | Plans ready to execute (4 plans, 3 waves; D-01..D-16 covered; plan-checker 12/12 PASS). |
-| A10 | voss-app Status Bar | Context gathered (11 decisions D-01..D-11). Ready for planning. |
+| A10 | voss-app Status Bar | Plans ready to execute (4 plans, 3 waves; BAR-01..08 covered; plan-checker iter 2/3 PASS clean). |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | M14-01..02 complete; M14-03/M14-04 Wave 3 tool+CLI surfaces next. |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Complete (6/6 plans, 5 waves; SKILL-01..06 all GREEN; 2026-05-20). |
 | O6 | Audit Product + Calibration + Liveness Hardening | Plans ready to execute (6 plans, 5 waves; OAUD-01..08 derived from roadmap/context due missing O6-SPEC; execution blocked on O1-O5 substrate preflight). |

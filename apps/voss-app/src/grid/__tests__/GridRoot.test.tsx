@@ -16,6 +16,13 @@ vi.mock('../../pane/PaneComponent', () => ({
   },
 }));
 
+const keymap = vi.hoisted(() => ({ dispatchKey: vi.fn() }));
+vi.mock('../keymap', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../keymap')>();
+  keymap.dispatchKey.mockImplementation(actual.dispatchKey);
+  return { dispatchKey: keymap.dispatchKey };
+});
+
 import {
   type GridStore,
   type TreeNode,
@@ -38,7 +45,7 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-const FOCUS_SEL = '[class*="inset_0_0_0_1px"]';
+const FOCUS_SEL = '.grid-pane-leaf--focused';
 const dims = () => ({ winW: 1024, winH: 768, cw: 8, ch: 20 });
 
 describe('SplitNode + DragHandle render (GRD-01, GRD-07)', () => {
@@ -129,6 +136,30 @@ describe('GridRoot — container + keymap mount (GRD-01, GRD-03)', () => {
       key: '\\',
       metaKey: true,
     });
+    expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(2);
+  });
+
+  it('inactive grid ignores keydown — dispatchKey not called', () => {
+    keymap.dispatchKey.mockClear();
+    mount(() => <GridRoot active={() => false} />);
+    fireEvent.keyDown(window, {
+      code: 'Backslash',
+      key: '\\',
+      metaKey: true,
+    });
+    expect(keymap.dispatchKey).not.toHaveBeenCalled();
+  });
+
+  it('active grid still handles keydown when active prop returns true', () => {
+    keymap.dispatchKey.mockClear();
+    const el = mount(() => <GridRoot active={() => true} />);
+    expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(1);
+    fireEvent.keyDown(window, {
+      code: 'Backslash',
+      key: '\\',
+      metaKey: true,
+    });
+    expect(keymap.dispatchKey).toHaveBeenCalled();
     expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(2);
   });
 

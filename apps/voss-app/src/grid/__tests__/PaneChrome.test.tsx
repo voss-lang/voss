@@ -25,6 +25,11 @@ import PaneHeader from '../PaneHeader';
 import DotMenu from '../DotMenu';
 import CloseConfirmBanner, { requestCloseGated } from '../CloseConfirmBanner';
 import SplitNodeView from '../SplitNode';
+import {
+  applyAppearanceSettings,
+  DEFAULT_APPEARANCE_SETTINGS,
+  _resetAppearanceForTest,
+} from '../../appearance/settings';
 
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown) {
@@ -301,5 +306,146 @@ describe('SplitNode seam — chrome mounted per leaf (GRD-06)', () => {
     openClose();
     expect(el.textContent).toContain('"npm" is running. Close anyway?');
     expect(ops.closeFocused).toHaveBeenCalledTimes(1); // banner, not closed
+  });
+});
+
+describe('A8-04 — transitions, reduced motion, pane chrome polish', () => {
+  beforeEach(() => {
+    _resetAppearanceForTest();
+    document.documentElement.classList.remove('reduced-motion');
+  });
+
+  it('reduced-motion setting adds html.reduced-motion class', () => {
+    applyAppearanceSettings({
+      ...DEFAULT_APPEARANCE_SETTINGS,
+      reducedMotionEnabled: true,
+    });
+    expect(document.documentElement.classList.contains('reduced-motion')).toBe(
+      true,
+    );
+    applyAppearanceSettings({
+      ...DEFAULT_APPEARANCE_SETTINGS,
+      reducedMotionEnabled: false,
+    });
+    expect(document.documentElement.classList.contains('reduced-motion')).toBe(
+      false,
+    );
+  });
+
+  it('reduced-motion class disables CSS transitions (global kill switch contract)', () => {
+    const style = document.createElement('style');
+    style.textContent = `
+      html.reduced-motion *, html.reduced-motion *::before, html.reduced-motion *::after {
+        transition: none !important;
+        animation: none !important;
+      }
+      .a8-transition-probe { transition: background 120ms ease; }
+    `;
+    document.head.appendChild(style);
+    document.documentElement.classList.add('reduced-motion');
+    const probe = document.createElement('div');
+    probe.className = 'a8-transition-probe';
+    document.body.appendChild(probe);
+    expect(getComputedStyle(probe).transitionDuration).toBe('0s');
+    style.remove();
+    document.documentElement.classList.remove('reduced-motion');
+  });
+
+  it('pane header height stays 22px when unfocused', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={false}
+        cwd="repo"
+        shell="zsh"
+        onToggleMenu={() => {}}
+      />
+    ));
+    const hdr = el.firstElementChild as HTMLElement;
+    expect(hdr.style.height).toBe('22px');
+    expect(hdr.style.minHeight).toBe('22px');
+  });
+
+  it('pane header height stays 22px when focused', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={2}
+        focused={true}
+        cwd="repo"
+        shell="zsh"
+        onToggleMenu={() => {}}
+      />
+    ));
+    const hdr = el.firstElementChild as HTMLElement;
+    expect(hdr.style.height).toBe('22px');
+    expect(hdr.style.minHeight).toBe('22px');
+  });
+
+  it('DragHandle hover sets data-hot without inline dimension changes', () => {
+    const a = makePane();
+    const b = makePane();
+    const root = makeSplit('H', a, b);
+    recomputeIndices(root);
+    const [store, setStore] = createStore<GridStore>({ root, focusedId: a.id });
+    const el = mount(() => (
+      <SplitNodeView
+        node={store.root}
+        store={store}
+        setStore={setStore}
+        path=""
+        dims={() => ({ winW: 1024, winH: 768, cw: 8, ch: 20 })}
+      />
+    ));
+    const handle = el.querySelector('[data-drag-handle]') as HTMLElement;
+    expect(handle).toBeTruthy();
+    expect(handle.getAttribute('data-orientation')).toBe('H');
+    expect(handle.style.width).toBe('');
+    expect(handle.style.height).toBe('');
+    fireEvent.pointerEnter(handle);
+    expect(handle.getAttribute('data-hot')).toBe('true');
+    expect(handle.style.width).toBe('');
+    expect(handle.style.height).toBe('');
+  });
+
+  it('split tree has no badge, status bar, or agent semantics in chrome', () => {
+    const p = makePane();
+    const [store, setStore] = createStore<GridStore>({
+      root: p,
+      focusedId: p.id,
+    });
+    const el = mount(() => (
+      <SplitNodeView
+        node={store.root}
+        store={store}
+        setStore={setStore}
+        path=""
+        dims={() => ({ winW: 1024, winH: 768, cw: 8, ch: 20 })}
+      />
+    ));
+    expect(el.querySelector('.bell-badge')).toBeNull();
+    expect(el.querySelector('[data-status-bar]')).toBeNull();
+    expect(el.querySelector('.status-bar')).toBeNull();
+    expect(el.querySelector('[data-agent-cost]')).toBeNull();
+    expect(el.querySelector('.grid-pane-leaf')).toBeTruthy();
+  });
+
+  it('focused pane uses grid-pane-leaf--focused without extra chrome rows', () => {
+    const p = makePane();
+    const [store, setStore] = createStore<GridStore>({
+      root: p,
+      focusedId: p.id,
+    });
+    const el = mount(() => (
+      <SplitNodeView
+        node={store.root}
+        store={store}
+        setStore={setStore}
+        path=""
+        dims={() => ({ winW: 1024, winH: 768, cw: 8, ch: 20 })}
+      />
+    ));
+    const leaf = el.querySelector('.grid-pane-leaf') as HTMLElement;
+    expect(leaf.classList.contains('grid-pane-leaf--focused')).toBe(true);
+    expect(leaf.querySelectorAll(':scope > div').length).toBeGreaterThan(0);
   });
 });

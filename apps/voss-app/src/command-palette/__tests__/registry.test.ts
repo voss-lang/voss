@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   createCommandRegistry,
   v0Commands,
+  workspaceCommands,
   type AppContext,
   type CommandCategory,
 } from '../registry';
@@ -35,6 +36,13 @@ function mockCtx(): AppContext {
     loadLayout: vi.fn(),
     switchProfile: vi.fn(),
     showKeybindings: vi.fn(),
+    newWorkspace: vi.fn(),
+    closeWorkspace: vi.fn(),
+    nextWorkspace: vi.fn(),
+    prevWorkspace: vi.fn(),
+    focusWorkspace: vi.fn(),
+    renameWorkspace: vi.fn(),
+    colorWorkspace: vi.fn(),
   };
 }
 
@@ -182,5 +190,35 @@ describe('createCommandRegistry — validation', () => {
       { id: 'test', label: 'B', category: 'Pane' as CommandCategory, handler: () => {} },
     ];
     expect(() => createCommandRegistry(dupe)).toThrow('Duplicate command id: test');
+  });
+});
+
+describe('workspace command catalog', () => {
+  const defs = workspaceCommands();
+  const registry = createCommandRegistry([...v0Commands(), ...defs]);
+
+  it('registers workspace commands with expected ids', () => {
+    const ids = defs.map((d) => d.id);
+    expect(ids).toContain('workspace.new');
+    expect(ids).toContain('workspace.close');
+    expect(ids).toContain('workspace.next');
+    expect(ids).toContain('workspace.prev');
+    expect(ids).toContain('workspace.rename');
+    expect(ids).toContain('workspace.color');
+    for (let i = 1; i <= 9; i += 1) {
+      expect(ids).toContain(`workspace.focus${i}`);
+    }
+  });
+
+  it('workspace.focus3 calls focusWorkspace(2)', () => {
+    const ctx = mockCtx();
+    registry.commands.get('workspace.focus3')!.handler(ctx);
+    expect(ctx.focusWorkspace).toHaveBeenCalledWith(2);
+  });
+
+  it('settings.switchProfile calls switchProfile (canonical location)', () => {
+    const ctx = mockCtx();
+    registry.commands.get('settings.switchProfile')!.handler(ctx);
+    expect(ctx.switchProfile).toHaveBeenCalled();
   });
 });

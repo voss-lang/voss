@@ -125,6 +125,11 @@ export default function GridRoot(props: {
   prefixActive?: boolean;
   /** A7: reserve prefix indicator width under tmux profile. */
   prefixReserved?: boolean;
+  /**
+   * A8: when this returns false, ignore global keydown (multi-workspace mount).
+   * Omitted or true preserves single-grid behavior. Resize listener stays live.
+   */
+  active?: () => boolean;
 }) {
   // A6: initialize from restored session when available so no throwaway PTY spawns.
   const initResult = props.initialSession
@@ -317,6 +322,7 @@ export default function GridRoot(props: {
   };
 
   const onKey = (e: KeyboardEvent) => {
+    if (props.active && !props.active()) return;
     if (props.externalKeymap) return;
     if (!e.metaKey) return; // every A3 chord needs ⌘ — let the PTY have it
     // Cmd+G must run OUTSIDE the dispatch produce because

@@ -60,3 +60,113 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+
+/* A8 reduced-motion kill switch (user setting + OS preference). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+html.reduced-motion *,
+html.reduced-motion *::before,
+html.reduced-motion *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* A8-04 allowed transition durations (UI-SPEC Transitions). */
+:root {
+  --transition-tab: 120ms ease;
+  --transition-focus: 120ms ease;
+  --transition-split: 150ms ease;
+  --transition-layout: 200ms ease;
+}
+
+/* ---- Grid pane chrome (A8-04) ---- */
+
+.grid-pane-leaf {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-0);
+  transition:
+    box-shadow var(--transition-focus),
+    background-color var(--transition-focus);
+}
+
+.grid-pane-leaf--focused {
+  box-shadow: inset 0 0 0 1px var(--focus);
+}
+
+.grid-pane-leaf > div:first-of-type {
+  transition:
+    background-color var(--transition-focus),
+    color var(--transition-focus),
+    opacity var(--transition-focus);
+}
+
+.grid-split-wrap[data-drag-active] .grid-split-child {
+  transition: none !important;
+}
+
+.grid-split-child {
+  position: relative;
+  transition:
+    width var(--transition-split),
+    height var(--transition-split),
+    border-color var(--transition-split);
+}
+
+.grid-root[data-layout-reflow] .grid-split-child {
+  transition:
+    width var(--transition-layout),
+    height var(--transition-layout),
+    border-color var(--transition-layout);
+}
+
+.grid-split-child--h {
+  border-right: 1px solid var(--border);
+}
+
+.grid-split-child--v {
+  border-bottom: 1px solid var(--border);
+}
+
+.grid-split-child--h.grid-split-child--divider-hot {
+  border-right-color: var(--border-bright);
+}
+
+.grid-split-child--v.grid-split-child--divider-hot {
+  border-bottom-color: var(--border-bright);
+}
+
+[data-drag-handle] {
+  position: absolute;
+  z-index: 5;
+  background: transparent;
+  transition: background var(--transition-focus);
+}
+
+[data-drag-handle][data-orientation='H'] {
+  width: 6px;
+  top: 0;
+  bottom: 0;
+  left: calc(100% - 3px);
+  cursor: col-resize;
+}
+
+[data-drag-handle][data-orientation='V'] {
+  height: 6px;
+  left: 0;
+  right: 0;
+  top: calc(100% - 3px);
+  cursor: row-resize;
+}
+
+[data-drag-handle][data-hot='true'] {
+  background: color-mix(in srgb, var(--border-bright) 35%, transparent);
+}

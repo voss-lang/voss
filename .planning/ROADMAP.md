@@ -1423,6 +1423,18 @@ Cross-cutting constraints: All 16 CONTEXT decisions (D-01..D-16) covered. Plan-c
 - Q6 closed: no cost meter in L1. L2 status bar work will add the slot (planned minor reflow accepted).
 - Status bar scoped to active workspace (A8). Pane count, branch, cwd all reflect active workspace only.
 
+**Plans (4 plans, 3 waves):**
+
+**Wave 1** *(parallel, file-disjoint)*
+- [ ] A10-01 — Rust backend: git.rs HEAD helpers + lib.rs watcher/notifications commands
+- [ ] A10-02 — Frontend stores: notificationStore.ts + gitWatcher.ts + Popover.tsx
+
+**Wave 2** *(depends on Wave 1)*
+- [ ] A10-03 — StatusBar component tree: 3 clusters + 3 popover content panels
+
+**Wave 3** *(depends on Wave 2)*
+- [ ] A10-04 — App.tsx integration: GridController extension + signal wiring + BAR-01..08 acceptance + human verify
+
 ---
 
 ### Phase A11: voss-app Onboarding + Release Pipeline (v0 SHIP GATE)

@@ -87,6 +87,23 @@ function mockInvoke() {
     if (cmd === 'load_recents') return Promise.resolve(['/tmp/recent-a']);
     if (cmd === 'default_cwd') return Promise.resolve(args?.projectPath ?? '/Users/ben');
     if (cmd === 'load_default_layout') return Promise.resolve(null);
+    if (cmd === 'load_workspaces_index') {
+      return Promise.resolve({
+        version: 1,
+        activeWorkspaceId: 'default',
+        workspaces: [
+          {
+            id: 'default',
+            name: 'Workspace',
+            accentColor: 'blue',
+            order: 0,
+          },
+        ],
+      });
+    }
+    if (cmd === 'load_project_less_session') return Promise.resolve(null);
+    if (cmd === 'load_global_session') return Promise.resolve(null);
+    if (cmd === 'load_session') return Promise.resolve(null);
     return Promise.resolve(undefined);
   });
 }

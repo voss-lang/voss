@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "enableGTKAppId": true,
     "windows": [
       {
         "label": "main",
@@ -19,6 +20,7 @@
         "minWidth": 800,
         "minHeight": 500,
         "decorations": false,
+        "transparent": true,
         "resizable": true,
         "fullscreen": false
       }
@@ -30,6 +32,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Grid-native terminal application development environment",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -39,6 +43,15 @@
     ],
     "macOS": {
       "signingIdentity": null
+    },
+    "linux": {
+      "deb": {
+        "section": "devel",
+        "desktopTemplate": "resources/voss-ade.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "resources/voss-ade.desktop"
+      }
     }
   }
 }

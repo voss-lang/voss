@@ -1,0 +1,33 @@
+# Voss
+
+> Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.
+
+## Primary Pages
+
+- [Home](https://voss.dev/): Product overview for Voss, installation paths, and the terminal-native workflow.
+- [Harness](https://voss.dev/harness): Details on the coding harness, modes, tools, sessions, and bounded repository work.
+- [Agentic Development Environment](https://voss.dev/ade): Overview of the local ADE surface for tools, memory, permissions, sessions, replay, and inspection.
+- [Language](https://voss.dev/language): Introduction to the .voss control language for confidence, context budgets, semantic routing, and agent composition.
+- [Security](https://voss.dev/security): Security model for harness permissions, local credentials, project boundaries, and execution safety.
+- [Roadmap](https://voss.dev/roadmap): Current product direction from the v0.1 harness toward TUI, memory, and codebase intelligence.
+
+## Documentation
+
+- [Documentation Home](https://docs.tryvoss.dev): Technical documentation for installing, configuring, and using Voss.
+- [Quickstart](https://docs.tryvoss.dev/get-started/quickstart): Fast path for installing Voss and running the first bounded repo task.
+- [Harness Overview](https://docs.tryvoss.dev/harness/overview): How the Voss harness runs model sessions inside explicit project and permission boundaries.
+- [Harness Commands](https://docs.tryvoss.dev/harness/commands): CLI command reference for common Voss harness workflows.
+- [Harness Modes](https://docs.tryvoss.dev/harness/modes): Explanation of plan, edit, and auto permission modes.
+- [Harness Tools](https://docs.tryvoss.dev/harness/tools): Read/write/shell/git tool surface exposed to Voss sessions.
+- [Language Overview](https://docs.tryvoss.dev/language/overview): Overview of the .voss language and compiler/runtime direction.
+- [Security Overview](https://docs.tryvoss.dev/security/overview): Security posture and operational boundaries for using Voss.
+
+## Developer Resources
+
+- [GitHub Repository](https://github.com/bm9797/Voss): Source repository, issue history, and implementation details for Voss.
+- [Product Requirements Document](https://github.com/bm9797/Voss/blob/main/PRD.md): Product requirements and background context for Voss.
+
+## Optional
+
+- [Roadmap Documentation](https://docs.tryvoss.dev/roadmap/v0-1): Detailed v0.1 roadmap documentation.
+- [Troubleshooting Reference](https://docs.tryvoss.dev/reference/troubleshooting): Diagnostic guidance for common install, auth, and runtime issues.

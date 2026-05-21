@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   applyLoadedLayout: vi.fn(),
   snapshot: vi.fn(),
   gridMountCount: 0,
+  workspaceStore: null as import('../workspaces/workspaceStore').WorkspaceStore | null,
   setupProps: undefined as
     | {
         recents: string[];
@@ -43,10 +44,45 @@ vi.mock('../grid/sessionStorage', () => ({
   saveSession: vi.fn(),
   saveGlobalSession: vi.fn(),
 }));
-vi.mock('../grid/sessionPersist', () => ({
-  installStructuralSessionAutosave: vi.fn(() => () => {}),
-  installCloseSessionSave: vi.fn(() => Promise.resolve(() => {})),
+vi.mock('../workspaces/workspaceSessionPersist', () => ({
+  installWorkspaceStructuralAutosave: vi.fn(() => () => {}),
+  installAllWorkspacesCloseSave: vi.fn(() => Promise.resolve(() => {})),
 }));
+vi.mock('../workspaces/workspaceStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../workspaces/workspaceStore')>();
+  return {
+    ...actual,
+    createWorkspaceStore: (
+      initial?: Parameters<typeof actual.createWorkspaceStore>[0],
+    ) => {
+      const store = actual.createWorkspaceStore(initial);
+      h.workspaceStore = store;
+      return store;
+    },
+  };
+});
+
+vi.mock('../workspaces/workspaceStorage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../workspaces/workspaceStorage')>();
+  return {
+    ...actual,
+    loadWorkspacesIndex: vi.fn().mockResolvedValue({
+      version: actual.CURRENT_WORKSPACES_VERSION,
+      activeWorkspaceId: actual.DEFAULT_WORKSPACE_ID,
+      workspaces: [
+        {
+          id: actual.DEFAULT_WORKSPACE_ID,
+          name: 'Workspace',
+          accentColor: actual.DEFAULT_ACCENT_COLOR,
+          order: 0,
+        },
+      ],
+    }),
+    saveWorkspacesIndex: vi.fn().mockResolvedValue(undefined),
+    loadProjectLessSession: vi.fn().mockResolvedValue(null),
+    saveProjectLessSession: vi.fn().mockResolvedValue(undefined),
+  };
+});
 vi.mock('../grid/sessionCommands', () => ({
   layoutToSession: vi.fn((layout: unknown) => layout),
 }));
@@ -66,6 +102,8 @@ vi.mock('../command-palette/registry', () => ({
     findByChord: () => undefined,
   })),
   v0Commands: vi.fn(() => []),
+  workspaceCommands: vi.fn(() => []),
+  appearanceCommands: vi.fn(() => []),
 }));
 vi.mock('../command-palette/chords', () => ({
   normalizeChord: vi.fn(() => null),
@@ -91,6 +129,7 @@ vi.mock('@tauri-apps/api/window', () => ({
 
 vi.mock('../grid/GridRoot', () => ({
   default: (props: {
+    active?: () => boolean;
     controllerRef?: (ctrl: {
       applyPreset: typeof h.applyPreset;
       applyLoadedLayout: typeof h.applyLoadedLayout;
@@ -129,6 +168,7 @@ vi.mock('../grid/GridRoot', () => ({
         data-testid="grid-root"
         data-mount-id={String(h.gridMountCount)}
         data-project-cwd={props.projectCwd ?? ''}
+        data-active={props.active?.() !== false ? 'true' : 'false'}
       >
         grid
       </div>
@@ -173,6 +213,29 @@ vi.mock('../components/setup/SetupWindow', () => ({
   },
 }));
 
+vi.mock('../components/workspace/NewWorkspacePicker', () => ({
+  default: (props: {
+    onDismiss: () => void;
+    onCreate: (payload: unknown) => void;
+    onStartEmpty: (payload: unknown) => void;
+  }) => (
+    <div data-testid="new-workspace-picker">
+      <button type="button" data-testid="picker-dismiss" onClick={props.onDismiss}>
+        dismiss
+      </button>
+      <button
+        type="button"
+        data-testid="picker-start-empty"
+        onClick={() =>
+          props.onStartEmpty({ name: 'Empty', accentColor: 'blue' })
+        }
+      >
+        Start empty
+      </button>
+    </div>
+  ),
+}));
+
 import App from '../App';
 
 let dispose: (() => void) | undefined;
@@ -206,6 +269,7 @@ beforeEach(() => {
   h.applyLoadedLayout.mockReset();
   h.snapshot.mockReset();
   h.gridMountCount = 0;
+  h.workspaceStore = null;
   h.setupProps = undefined;
 
   h.listRecents.mockResolvedValue([]);
@@ -214,6 +278,19 @@ beforeEach(() => {
 });
 
 describe('App — setup branch', () => {
+  it('renders workspace tab bar below the titlebar', async () => {
+    const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
+    expect(el.querySelector('[data-workspace-tabbar]')).not.toBeNull();
+  });
+
+  it('+ opens the new workspace picker', async () => {
+    const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
+    fireEvent.click(el.querySelector('[aria-label="New workspace"]')!);
+    expect(el.querySelector('[data-testid="new-workspace-picker"]')).not.toBeNull();
+  });
+
   it('renders SetupWindow and not GridRoot on initial no-project mount', () => {
     const el = mount(() => <App />);
     expect(el.querySelector('[data-testid="setup-window"]')).not.toBeNull();
@@ -227,6 +304,7 @@ describe('App — setup branch', () => {
 
   it('start without project mounts GridRoot and keeps the titlebar fallback', async () => {
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(
       el.querySelector('button[aria-label="Start without project"]')!,
     );
@@ -253,6 +331,7 @@ describe('App — project open flow', () => {
     h.listRecents.mockResolvedValueOnce([]).mockResolvedValueOnce(['/tmp/x']);
 
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     await waitFor(() => expect(el.textContent).toContain('x'));
@@ -267,6 +346,7 @@ describe('App — project open flow', () => {
     h.loadDefaultLayout.mockRejectedValueOnce(new Error('bad default'));
 
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     // A6 D-10: session/default resolved before project state set.
@@ -291,6 +371,7 @@ describe('App — project open flow', () => {
     h.openProject.mockRejectedValueOnce('project not found');
 
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     await waitFor(() => expect(error).toHaveBeenCalled());
@@ -301,18 +382,23 @@ describe('App — project open flow', () => {
   it('updates project from an existing open-grid state without remounting GridRoot', async () => {
     h.openProject.mockResolvedValueOnce(project('/tmp/a', 'a'));
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
 
     h.setupProps?.onOpenRecent('/tmp/a');
     await waitFor(() =>
       expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull(),
     );
-    const grid = el.querySelector('[data-testid="grid-root"]');
+    const mountId = el
+      .querySelector('[data-testid="grid-root"]')!
+      .getAttribute('data-mount-id');
 
     h.openProject.mockResolvedValueOnce(project('/tmp/b', 'b'));
     h.setupProps?.onOpenRecent('/tmp/b');
     await waitFor(() => expect(el.textContent).toContain('b'));
 
-    expect(el.querySelector('[data-testid="grid-root"]')).toBe(grid);
+    expect(
+      el.querySelector('[data-testid="grid-root"]')?.getAttribute('data-mount-id'),
+    ).toBe(mountId);
     expect(h.gridMountCount).toBe(1);
   });
 
@@ -330,6 +416,7 @@ describe('App — project open flow', () => {
     });
 
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     // A6 flow: session/default are resolved BEFORE project state is set.
@@ -340,8 +427,127 @@ describe('App — project open flow', () => {
     expect(order).toContain('loadDefaultLayout');
   });
 
+  it('Ctrl+Tab switches to the next workspace', async () => {
+    const { loadWorkspacesIndex, loadProjectLessSession } = await import(
+      '../workspaces/workspaceStorage'
+    );
+    const projectLessSession = {
+      version: 1 as const,
+      activePreset: null,
+      grid: {
+        root: {
+          kind: 'pane' as const,
+          id: 'p1',
+          cwd: '/tmp',
+          shell: '/bin/zsh',
+          index: 1,
+        },
+        focusedId: 'p1',
+      },
+      panes: [{ id: 'p1', scrollback: null }],
+      projectLessAccepted: true,
+    };
+
+    vi.mocked(loadWorkspacesIndex).mockResolvedValueOnce({
+      version: 1,
+      activeWorkspaceId: 'default',
+      workspaces: [
+        {
+          id: 'default',
+          name: 'One',
+          accentColor: 'blue',
+          order: 0,
+        },
+        {
+          id: 'second',
+          name: 'Two',
+          accentColor: 'green',
+          order: 1,
+        },
+      ],
+    });
+    vi.mocked(loadProjectLessSession).mockResolvedValue(projectLessSession);
+
+    mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
+    expect(h.workspaceStore!.activeId()).toBe('default');
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Tab',
+        ctrlKey: true,
+        bubbles: true,
+      }),
+    );
+
+    await waitFor(() => expect(h.workspaceStore!.activeId()).toBe('second'));
+  });
+
+  it('keeps GridRoot mounted when switching active workspace (A8 D-01)', async () => {
+    const { loadWorkspacesIndex, loadProjectLessSession } = await import(
+      '../workspaces/workspaceStorage'
+    );
+    const projectLessSession = {
+      version: 1 as const,
+      activePreset: null,
+      grid: {
+        root: {
+          kind: 'pane' as const,
+          id: 'p1',
+          cwd: '/tmp',
+          shell: '/bin/zsh',
+          index: 1,
+        },
+        focusedId: 'p1',
+      },
+      panes: [{ id: 'p1', scrollback: null }],
+      projectLessAccepted: true,
+    };
+
+    vi.mocked(loadWorkspacesIndex).mockResolvedValueOnce({
+      version: 1,
+      activeWorkspaceId: 'default',
+      workspaces: [
+        {
+          id: 'default',
+          name: 'One',
+          accentColor: 'blue',
+          order: 0,
+        },
+        {
+          id: 'second',
+          name: 'Two',
+          accentColor: 'green',
+          order: 1,
+        },
+      ],
+    });
+    vi.mocked(loadProjectLessSession).mockResolvedValue(projectLessSession);
+
+    const el = mount(() => <App />);
+
+    await waitFor(() =>
+      expect(el.querySelectorAll('[data-testid="grid-root"]').length).toBe(2),
+    );
+
+    const grids = el.querySelectorAll('[data-workspace-id]');
+    expect(grids.length).toBe(2);
+
+    h.workspaceStore!.activate('second');
+
+    await waitFor(() => {
+      expect(el.querySelectorAll('[data-testid="grid-root"]').length).toBe(2);
+    });
+
+    const hidden = el.querySelector('[data-workspace-id="default"]') as HTMLElement;
+    const shown = el.querySelector('[data-workspace-id="second"]') as HTMLElement;
+    expect(hidden?.style.display).toBe('none');
+    expect(shown?.style.display).toBe('flex');
+  });
+
   it('does not persist projectLessAccepted', async () => {
     const el = mount(() => <App />);
+    await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(
       el.querySelector('button[aria-label="Start without project"]')!,
     );

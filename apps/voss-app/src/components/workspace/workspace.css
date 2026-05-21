@@ -1,0 +1,411 @@
+/* A8-03 Workspace tab bar — Variant B tokens only (A8-UI-SPEC). */
+
+:root {
+  --workspace-bar-height: 28px;
+  --workspace-tab-height: 24px;
+  --workspace-tab-min-width: 120px;
+  --workspace-tab-max-width: 220px;
+  --workspace-bar-inset-left: 12px;
+  --workspace-tab-close-width: 16px;
+}
+
+.workspace-tabbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: var(--workspace-bar-height);
+  padding-left: var(--workspace-bar-inset-left);
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.workspace-tabbar__scroll {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 0;
+}
+
+.workspace-tab {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: var(--workspace-tab-height);
+  min-width: var(--workspace-tab-min-width);
+  max-width: var(--workspace-tab-max-width);
+  padding: 0 8px;
+  border: none;
+  border-top: 1px solid transparent;
+  background: var(--bg-1);
+  color: var(--fg-2);
+  cursor: default;
+  outline: none;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.workspace-tab[data-tab-state='active'] {
+  background: var(--bg-2);
+  color: var(--fg-0);
+  border-top-color: var(--workspace-accent, var(--workspace-blue));
+}
+
+.workspace-tab:hover,
+.workspace-tab[data-tab-state='active']:hover {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.workspace-tab[data-tab-state='active']:hover {
+  color: var(--fg-0);
+}
+
+.workspace-tab__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--workspace-accent, var(--workspace-blue));
+}
+
+.workspace-tab__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.workspace-tab__rename {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-0);
+  color: var(--fg-0);
+  font: inherit;
+  outline: none;
+}
+
+.workspace-tab__close-slot {
+  flex-shrink: 0;
+  width: var(--workspace-tab-close-width);
+  height: var(--workspace-tab-close-width);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workspace-tab__close {
+  width: var(--workspace-tab-close-width);
+  height: var(--workspace-tab-close-width);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 11px;
+  line-height: 1;
+  cursor: default;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.workspace-tab:hover .workspace-tab__close,
+.workspace-tab:focus-within .workspace-tab__close,
+.workspace-tab[data-tab-state='active'] .workspace-tab__close {
+  opacity: 1;
+}
+
+.workspace-tab__close:hover {
+  color: var(--fg-0);
+}
+
+.workspace-tabbar__add {
+  flex-shrink: 0;
+  width: var(--workspace-bar-height);
+  height: var(--workspace-bar-height);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 14px;
+  line-height: 1;
+  cursor: default;
+}
+
+.workspace-tabbar__add:hover {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.workspace-context-menu {
+  position: fixed;
+  z-index: 100;
+  width: min(220px, calc(100vw - 24px));
+  background: var(--bg-1);
+  border: 1px solid var(--border-bright);
+  border-radius: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.workspace-context-menu__row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--fg-0);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: default;
+}
+
+.workspace-context-menu__row:hover {
+  background: var(--bg-2);
+}
+
+.workspace-context-menu__row--destructive {
+  color: var(--accent-red);
+}
+
+.workspace-context-menu__row--disabled {
+  color: var(--fg-3);
+  cursor: default;
+}
+
+.workspace-context-menu__message {
+  padding: 8px 12px;
+  color: var(--fg-2);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.workspace-context-menu__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px 12px;
+}
+
+.workspace-color-dot {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: default;
+  background: var(--workspace-dot-color, var(--workspace-blue));
+}
+
+.workspace-color-dot[data-selected='true'] {
+  outline: 1px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.workspace-close-confirm {
+  padding: 8px 12px 12px;
+}
+
+.workspace-close-confirm__copy {
+  margin: 0 0 8px;
+  color: var(--fg-1);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.workspace-close-confirm__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.workspace-close-confirm__btn {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--fg-0);
+  font: inherit;
+  font-size: 11px;
+  cursor: default;
+}
+
+.workspace-close-confirm__btn--destructive {
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+.workspace-tabbar__blocked {
+  flex-shrink: 0;
+  padding: 0 12px;
+  color: var(--fg-2);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* A8-03 New workspace picker overlay */
+
+.new-workspace-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 48px;
+  background: rgba(0, 0, 0, 0.48);
+}
+
+.new-workspace-picker {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 64px));
+  max-height: min(420px, calc(100vh - 96px));
+  background: var(--bg-1);
+  border: 1px solid var(--border-bright);
+  border-radius: 0;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-0);
+}
+
+.new-workspace-picker__header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-0);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.new-workspace-picker__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px;
+  gap: 4px;
+}
+
+.new-workspace-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.new-workspace-picker__label {
+  flex-shrink: 0;
+  width: 56px;
+  color: var(--fg-2);
+}
+
+.new-workspace-picker__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-1);
+}
+
+.new-workspace-picker__input,
+.new-workspace-picker__select {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  color: var(--fg-0);
+  font: inherit;
+  outline: none;
+}
+
+.new-workspace-picker__input:focus,
+.new-workspace-picker__select:focus {
+  box-shadow: inset 0 0 0 1px var(--focus);
+}
+
+.new-workspace-picker__action {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--fg-0);
+  font: inherit;
+  cursor: default;
+}
+
+.new-workspace-picker__action:hover:not(:disabled) {
+  background: var(--bg-3);
+}
+
+.new-workspace-picker__action:disabled {
+  color: var(--fg-3);
+}
+
+.new-workspace-picker__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+
+.new-workspace-picker__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.new-workspace-picker__primary,
+.new-workspace-picker__secondary {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  font: inherit;
+  cursor: default;
+}
+
+.new-workspace-picker__primary {
+  background: var(--focus);
+  color: var(--fg-0);
+  border-color: var(--focus);
+}
+
+.new-workspace-picker__primary:disabled {
+  opacity: 0.5;
+}
+
+.new-workspace-picker__secondary {
+  background: transparent;
+  color: var(--fg-2);
+}
+
+.new-workspace-picker__secondary:disabled {
+  color: var(--fg-3);
+}

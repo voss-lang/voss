@@ -8,14 +8,19 @@ use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
+use voss_app_core::appearance::{self, AppearanceSettings};
+use voss_app_core::fonts;
 use voss_app_core::grid::{self, GridState};
 use voss_app_core::keymap::{self, KeymapOverrideFile, KeymapProfile, KeymapValidationResult};
 use voss_app_core::layouts::{self, LayoutFile};
+use voss_app_core::profiles::{self, ProfileFile};
 use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
+use voss_app_core::themes::{self, CustomThemeFile};
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_session};
 use voss_app_core::session::{self, SessionFile};
+use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -141,6 +146,23 @@ async fn get_fg_process(
     Ok(foreground::get_foreground_name(fd))
 }
 
+// ---- Appearance settings + fonts (A8-04) ------------------------------------
+
+#[tauri::command]
+fn load_appearance_settings() -> AppearanceSettings {
+    appearance::load_appearance_settings()
+}
+
+#[tauri::command]
+fn save_appearance_settings(settings: AppearanceSettings) -> Result<(), String> {
+    appearance::save_appearance_settings(&settings).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_system_fonts() -> Vec<String> {
+    fonts::list_system_fonts()
+}
+
 // ---- Grid mirror commands (GRD-08) ----------------------------------------
 // Thin app-level wrappers delegating to voss-app-core's plain `grid::overwrite`
 // / `grid::snapshot` — same cross-crate `generate_handler!` constraint as the
@@ -253,6 +275,40 @@ fn load_global_session() -> Result<Option<SessionFile>, String> {
         .map_err(|e| e.to_string())
 }
 
+// ---- Workspace index + project-less sessions (A8-02) ------------------------
+// Thin wrappers over `voss_app_core::workspaces` and extended session paths.
+
+#[tauri::command]
+fn load_workspaces_index() -> WorkspacesIndex {
+    workspaces::load_workspaces_index()
+}
+
+#[tauri::command]
+fn save_workspaces_index(index: WorkspacesIndex) -> Result<(), String> {
+    workspaces::save_workspaces_index(&index).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_workspaces() -> Vec<workspaces::WorkspaceEntry> {
+    workspaces::list_workspaces()
+}
+
+#[tauri::command]
+fn save_project_less_session(
+    workspace_id: String,
+    session: SessionFile,
+) -> Result<(), String> {
+    session::save_project_less_session(&workspace_id, &session)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_project_less_session(
+    workspace_id: String,
+) -> Result<Option<SessionFile>, String> {
+    session::load_project_less_session(&workspace_id).map_err(|e| e.to_string())
+}
+
 // ---- Keymap commands (A7-03) ------------------------------------------------
 // Thin wrappers over `voss_app_core::keymap`. Profile persistence uses
 // `settings.json`; workspace overrides use `.voss/keymap.json`.
@@ -358,6 +414,72 @@ fn watch_keymap_overrides(
     Ok(initial)
 }
 
+// ---- Theme persistence commands (A8-01) -------------------------------------
+// Thin wrappers over `voss_app_core::themes`. Custom themes live under
+// `<workspace>/.voss/themes/`; active theme id is in `settings.json`.
+
+#[tauri::command]
+fn list_custom_themes(workspace_path: String) -> Vec<String> {
+    themes::list_custom_themes(Path::new(&workspace_path))
+}
+
+#[tauri::command]
+fn load_custom_theme(
+    workspace_path: String,
+    name: String,
+) -> Option<CustomThemeFile> {
+    themes::load_custom_theme(Path::new(&workspace_path), &name)
+}
+
+#[tauri::command]
+fn save_custom_theme(
+    workspace_path: String,
+    name: String,
+    theme: CustomThemeFile,
+) -> Result<(), String> {
+    themes::save_custom_theme(Path::new(&workspace_path), &name, &theme)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_active_theme_id() -> Option<String> {
+    themes::load_active_theme_id()
+}
+
+#[tauri::command]
+fn save_active_theme_id(id: Option<String>) -> Result<(), String> {
+    themes::save_active_theme_id(id.as_deref()).map_err(|e| e.to_string())
+}
+
+// ---- Profile persistence commands (A8-01) -----------------------------------
+// Thin wrappers over `voss_app_core::profiles`. Snapshots live at
+// `~/.config/voss-app/profiles/`; active profile id is in `settings.json`.
+
+#[tauri::command]
+fn list_profiles() -> Vec<String> {
+    profiles::list_profiles()
+}
+
+#[tauri::command]
+fn load_profile(name: String) -> Option<ProfileFile> {
+    profiles::load_profile(&name)
+}
+
+#[tauri::command]
+fn save_profile(name: String, profile: ProfileFile) -> Result<(), String> {
+    profiles::save_profile(&name, &profile).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_active_profile_id() -> Option<String> {
+    profiles::load_active_profile_id()
+}
+
+#[tauri::command]
+fn save_active_profile_id(id: Option<String>) -> Result<(), String> {
+    profiles::save_active_profile_id(id.as_deref()).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -388,11 +510,29 @@ pub fn run() {
             load_session,
             save_global_session,
             load_global_session,
+            load_workspaces_index,
+            save_workspaces_index,
+            list_workspaces,
+            save_project_less_session,
+            load_project_less_session,
             load_keymap_profile,
             save_keymap_profile,
             load_keymap_overrides,
             validate_keymap_overrides,
             watch_keymap_overrides,
+            list_custom_themes,
+            load_custom_theme,
+            save_custom_theme,
+            load_active_theme_id,
+            save_active_theme_id,
+            list_profiles,
+            load_profile,
+            save_profile,
+            load_active_profile_id,
+            save_active_profile_id,
+            load_appearance_settings,
+            save_appearance_settings,
+            list_system_fonts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

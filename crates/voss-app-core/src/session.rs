@@ -83,11 +83,7 @@ pub fn session_path(workspace: &Path) -> PathBuf {
 /// `~/.config/voss-app/global-session.json`
 #[cfg(not(test))]
 pub fn global_session_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_default()
-        .join(".config")
-        .join("voss-app")
-        .join("global-session.json")
+    config_voss_app_dir().join("global-session.json")
 }
 
 #[cfg(test)]
@@ -97,6 +93,33 @@ pub fn global_session_path() -> PathBuf {
             .clone()
             .expect("tests must set TEST_GLOBAL_SESSION_PATH before touching global session")
     })
+}
+
+/// `~/.config/voss-app/sessions/<workspace_id>.json` (D-04 project-less workspaces).
+pub fn project_less_session_path(workspace_id: &str) -> PathBuf {
+    project_less_sessions_dir().join(format!("{workspace_id}.json"))
+}
+
+#[cfg(not(test))]
+fn project_less_sessions_dir() -> PathBuf {
+    config_voss_app_dir().join("sessions")
+}
+
+#[cfg(test)]
+fn project_less_sessions_dir() -> PathBuf {
+    TEST_PROJECT_LESS_SESSIONS_DIR.with(|p| {
+        p.borrow()
+            .clone()
+            .expect("tests must set TEST_PROJECT_LESS_SESSIONS_DIR")
+    })
+}
+
+#[cfg(not(test))]
+fn config_voss_app_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join(".config")
+        .join("voss-app")
 }
 
 // --- Save / Load -------------------------------------------------------------
@@ -132,6 +155,44 @@ pub fn save_global_session(session: &SessionFile) -> Result<(), SessionError> {
 /// unsupported files.
 pub fn load_global_session() -> Result<Option<SessionFile>, SessionError> {
     fail_safe_load(&global_session_path())
+}
+
+/// Save a project-less workspace session to
+/// `~/.config/voss-app/sessions/<id>.json`.
+pub fn save_project_less_session(
+    workspace_id: &str,
+    session: &SessionFile,
+) -> Result<(), SessionError> {
+    if !is_filename_safe_workspace_id(workspace_id) {
+        eprintln!("[voss-app] invalid project-less session workspace id");
+        return Err(SessionError::SaveFailed);
+    }
+    let path = project_less_session_path(workspace_id);
+    let json = serde_json::to_string_pretty(session).map_err(|e| {
+        eprintln!("[voss-app] project-less session serialize failed: {e}");
+        SessionError::SaveFailed
+    })?;
+    locked_write(&path, &json)
+}
+
+/// Load a project-less workspace session. Returns `Ok(None)` for missing,
+/// corrupt, or unsupported files.
+pub fn load_project_less_session(
+    workspace_id: &str,
+) -> Result<Option<SessionFile>, SessionError> {
+    if !is_filename_safe_workspace_id(workspace_id) {
+        eprintln!("[voss-app] invalid project-less session workspace id");
+        return Ok(None);
+    }
+    fail_safe_load(&project_less_session_path(workspace_id))
+}
+
+/// Workspace ids used in session filenames: alphanumeric + hyphen only.
+fn is_filename_safe_workspace_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
 // --- Internal helpers --------------------------------------------------------
@@ -217,6 +278,8 @@ fn parse_session(raw: &str) -> Result<SessionFile, &'static str> {
 thread_local! {
     static TEST_GLOBAL_SESSION_PATH: std::cell::RefCell<Option<PathBuf>> =
         const { std::cell::RefCell::new(None) };
+    pub(crate) static TEST_PROJECT_LESS_SESSIONS_DIR: std::cell::RefCell<Option<PathBuf>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(test)]
@@ -274,6 +337,14 @@ mod tests {
         let path = dir.path().join("global-session.json");
         TEST_GLOBAL_SESSION_PATH.with(|p| {
             *p.borrow_mut() = Some(path);
+        });
+        dir
+    }
+
+    fn isolate_project_less() -> TempDir {
+        let dir = tempdir().unwrap();
+        TEST_PROJECT_LESS_SESSIONS_DIR.with(|p| {
+            *p.borrow_mut() = Some(dir.path().join("sessions"));
         });
         dir
     }
@@ -456,5 +527,70 @@ mod tests {
         let loaded = load_session(dir.path()).unwrap().unwrap();
         assert_eq!(loaded.active_preset, Some("pipeline".into()));
         assert!(loaded.project_less_accepted);
+    }
+
+    // --- Project-less per-workspace sessions (A8 D-04) ---------------------
+
+    #[test]
+    fn project_less_session_path_resolves_under_config_sessions() {
+        let _dir = isolate_project_less();
+        let p = project_less_session_path("my-ws");
+        assert!(
+            p.to_string_lossy().ends_with("sessions/my-ws.json"),
+            "path: {p:?}"
+        );
+    }
+
+    #[test]
+    fn save_then_load_round_trips_project_less_session() {
+        let _dir = isolate_project_less();
+        let session = SessionFile::new(sample_grid(), Some("fanout".into()), vec![], true);
+        save_project_less_session("ws-1", &session).unwrap();
+        assert_eq!(
+            load_project_less_session("ws-1").unwrap(),
+            Some(session)
+        );
+    }
+
+    #[test]
+    fn load_project_less_session_returns_none_when_missing() {
+        let _dir = isolate_project_less();
+        assert!(load_project_less_session("missing").unwrap().is_none());
+    }
+
+    #[test]
+    fn load_project_less_session_returns_none_for_corrupt_json() {
+        let _dir = isolate_project_less();
+        let path = project_less_session_path("bad");
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, "not json").unwrap();
+        assert!(load_project_less_session("bad").unwrap().is_none());
+    }
+
+    #[test]
+    fn save_project_less_session_rejects_unsafe_workspace_id() {
+        let _dir = isolate_project_less();
+        let session = sample_session();
+        assert!(save_project_less_session("../x", &session).is_err());
+    }
+
+    #[test]
+    fn load_project_less_session_rejects_unsafe_workspace_id() {
+        let _dir = isolate_project_less();
+        assert!(load_project_less_session("bad/id").unwrap().is_none());
+    }
+
+    #[test]
+    fn save_project_less_creates_sessions_dir_on_write() {
+        let dir = tempdir().unwrap();
+        let sessions = dir.path().join("sessions");
+        TEST_PROJECT_LESS_SESSIONS_DIR.with(|p| {
+            *p.borrow_mut() = Some(sessions.clone());
+        });
+        assert!(!sessions.exists());
+        save_project_less_session("alpha", &sample_session()).unwrap();
+        assert!(project_less_session_path("alpha").exists());
     }
 }

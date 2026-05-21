@@ -1,4 +1,4 @@
-import { createSignal, For, Show, onMount } from 'solid-js';
+import { createMemo, createSignal, For, Show, onMount } from 'solid-js';
 import { formatChord } from './chords';
 import { rankCommandItems } from './fuzzy';
 import { filterQuickItems, type QuickOpenItem } from './quickOpen';
@@ -18,6 +18,7 @@ import type { Command, CommandCategory } from './registry';
 
 const CATEGORY_GLYPH: Record<CommandCategory, string> = {
   Window: 'W',
+  Workspace: 'K',
   Pane: 'P',
   Layout: 'L',
   Project: 'R',
@@ -51,7 +52,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
     section?: string;
   };
 
-  const rows = (): DisplayRow[] => {
+  const rows = createMemo((): DisplayRow[] => {
     if (props.mode === 'quick') {
       const filtered = filterQuickItems(props.quickItems, query());
       return filtered.map((item) => ({
@@ -73,7 +74,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
       label: cmd.label,
       chord: cmd.keybinding ? formatChord(cmd.keybinding) : undefined,
     }));
-  };
+  });
 
   // --- Keyboard & focus ------------------------------------------------------
 
@@ -118,7 +119,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
 
   // --- Section headers for quick mode ----------------------------------------
 
-  const sectionBreaks = (): Set<number> => {
+  const sectionBreaks = createMemo((): Set<number> => {
     if (props.mode !== 'quick') return new Set();
     const r = rows();
     const breaks = new Set<number>();
@@ -130,7 +131,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
       }
     }
     return breaks;
-  };
+  });
 
   // --- Placeholder & empty state ---------------------------------------------
 
@@ -275,10 +276,6 @@ export default function CommandPalette(props: CommandPaletteProps) {
                         idx() === selected()
                           ? 'var(--bg-2)'
                           : 'transparent',
-                      'border-left':
-                        idx() === selected()
-                          ? '1px solid var(--focus)'
-                          : '1px solid transparent',
                       border: 'none',
                       'border-left-width': '1px',
                       'border-left-style': 'solid',
