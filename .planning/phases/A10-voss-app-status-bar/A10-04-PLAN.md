@@ -19,6 +19,7 @@ must_haves:
     - "Notification store loads persisted entries on app mount"
     - "Git watcher starts on project open and stops on project switch"
     - "Project-less mode shows no-project fallback in status bar"
+    - "PID shown in pane detail popover as a real number from get_pty_pid"
   artifacts:
     - path: "apps/voss-app/src/grid/GridRoot.tsx"
       provides: "getFocusedLeaf and getPaneCount on GridController"
@@ -107,7 +108,7 @@ From apps/voss-app/src/App.tsx (existing imports + return JSX, lines 1-53, 398-4
 // Existing signals:
 const [project, setProject] = createSignal<ProjectInfo | null>(null);
 let gridController: GridController | undefined;
-// Existing JSX order: Titlebar → Show(GridRoot) → ToastStack → CommandPalette
+// Existing JSX order: Titlebar -> Show(GridRoot) -> ToastStack -> CommandPalette
 ```
 
 From apps/voss-app/src/status-bar/StatusBar.tsx (Plan 03 output):
@@ -122,6 +123,10 @@ export default function StatusBar(props: {
 });
 ```
 
+NOTE: The StatusBar prop is `branch: string | null` (not `getBranch`). RESEARCH
+Pattern 6 used `getBranch` as a draft name; the authoritative prop shape from
+Plan 03 is `branch`.
+
 From apps/voss-app/src/status-bar/gitWatcher.ts (Plan 02 output):
 ```typescript
 export const branch: () => string | null;
@@ -132,6 +137,8 @@ export function stopGitWatch(): void;
 From apps/voss-app/src/status-bar/notificationStore.ts (Plan 02 output):
 ```typescript
 export function initNotificationStore(): Promise<() => void>;
+export const MAX_NOTIFICATIONS = 100;  // in-memory cap
+export const MAX_PERSISTED = 50;       // disk cap
 ```
 </interfaces>
 </context>
@@ -145,7 +152,7 @@ export function initNotificationStore(): Promise<() => void>;
     - apps/voss-app/src/grid/GridRoot.tsx (full file — GridController type at lines 94-111, controllerRef callback construction)
     - apps/voss-app/src/App.tsx (full file — imports at 1-53, onMount at 358-386, return JSX at 398-460, handleOpenFolder/handleOpenRecent functions, dispatchCommandId)
     - apps/voss-app/src/grid/tree.ts (findLeaf, collectLeaves exports)
-    - apps/voss-app/src/status-bar/StatusBar.tsx (props interface)
+    - apps/voss-app/src/status-bar/StatusBar.tsx (props interface — note: prop is `branch: string | null`, NOT `getBranch`)
     - apps/voss-app/src/status-bar/gitWatcher.ts (watchGitHead, stopGitWatch, branch exports)
     - apps/voss-app/src/status-bar/notificationStore.ts (initNotificationStore export)
     - .planning/phases/A10-voss-app-status-bar/A10-RESEARCH.md (Pattern 4: focused pane signal, Pattern 6: App.tsx integration, Open Question 2: signal threading, Open Question 3: branch state on project change)
@@ -233,7 +240,7 @@ export function initNotificationStore(): Promise<() => void>;
     - apps/voss-app/src/status-bar/StatusBar.tsx (props interface, data-testid)
     - apps/voss-app/src/status-bar/LeftCluster.tsx (project/branch rendering)
     - apps/voss-app/src/status-bar/RightCluster.tsx (pane count, bell badge, cog)
-    - apps/voss-app/src/status-bar/notificationStore.ts (addNotification, unreadCount, _resetNotificationsForTest)
+    - apps/voss-app/src/status-bar/notificationStore.ts (addNotification, unreadCount, _resetNotificationsForTest, MAX_NOTIFICATIONS, MAX_PERSISTED)
     - apps/voss-app/src/status-bar/Popover.tsx (_resetPopoverForTest)
     - apps/voss-app/src/status-bar/__tests__/StatusBar.test.tsx (existing test patterns)
     - .planning/phases/A10-voss-app-status-bar/A10-VALIDATION.md (Success Criteria)
@@ -244,7 +251,7 @@ export function initNotificationStore(): Promise<() => void>;
 
     **Test setup:**
     - Mock Tauri APIs via vi.hoisted pattern (invoke, listen, getCurrentWindow).
-    - Mock `../project/projectStorage` (listRecents returns mock data).
+    - Mock `../project/projectStorage` listRecents.
     - Import StatusBar, addNotification, _resetNotificationsForTest, _resetPopoverForTest.
     - Helper: `renderStatusBar(overrides)` function that renders `<StatusBar>` with default props merged with overrides.
     - `beforeEach`: reset notification store, reset popover, reset mocks.
@@ -256,6 +263,8 @@ export function initNotificationStore(): Promise<() => void>;
     BAR-01 (D-11): "branch hidden when no git repo" — render with project but `branch: null`. Assert branch glyph `\u2387` is NOT in the text content.
 
     BAR-02: "center cluster shows focused pane cwd and shell" — render with `getFocusedLeaf` returning `{ kind: 'pane', id: '1', cwd: '~/projects', shell: 'zsh', index: 1 }`. Assert text contains `~/projects` and `zsh`.
+
+    BAR-02 (PID): "pane detail popover shows PID" — mock invoke to return `12345` for `get_pty_pid` command. Open center popover, assert PID value `12345` appears in the pane detail content. Assert em dash appears when invoke returns `null`.
 
     BAR-03: "right cluster shows pane count" — render with `getPaneCount: () => 4`. Assert text contains `4`.
 
@@ -269,7 +278,7 @@ export function initNotificationStore(): Promise<() => void>;
 
     BAR-06: (unit-level, structural) "git watcher bridge is imported and connected" — this is a structural test. Assert that the gitWatcher module exports `branch` and `watchGitHead`. The 500ms latency requirement is validated at runtime; the structural test ensures the wiring exists.
 
-    BAR-07: "notification store caps at 50 and clearAll works" — add 55 notifications, assert store length is 50. Call `clearAll()`, assert store length is 0.
+    BAR-07: "notification store caps at 100 in memory and persists last 50" — add 105 notifications, assert store length is 100 (MAX_NOTIFICATIONS). Call `persistNotifications()`, assert result length is 50 (MAX_PERSISTED). Call `clearAll()`, assert store length is 0.
 
     BAR-08: "project-less mode shows fallback text" — render with `project: null, branch: null`. Assert text contains "no project".
   </action>
@@ -277,35 +286,37 @@ export function initNotificationStore(): Promise<() => void>;
     <automated>cd /Users/benjaminmarks/Projects/Voss/apps/voss-app && pnpm vitest run src/status-bar/__tests__/a10-acceptance.test.tsx 2>&1 | tail -20</automated>
   </verify>
   <acceptance_criteria>
-    - a10-acceptance.test.tsx has at least 11 tests (one per requirement + sub-cases)
+    - a10-acceptance.test.tsx has at least 12 tests (one per requirement + sub-cases including PID test)
     - BAR-01 test passes (project name + branch displayed)
     - BAR-01/D-11 test passes (branch hidden when null)
     - BAR-02 test passes (cwd + shell from focused leaf)
+    - BAR-02 PID test passes (real PID from get_pty_pid; em dash when null)
     - BAR-03 tests pass (pane count + bell badge + badge hidden)
     - BAR-04 test passes (popover open/close)
     - BAR-05 test passes (22px + role toolbar)
     - BAR-06 structural test passes
-    - BAR-07 test passes (50 cap + clearAll)
+    - BAR-07 test passes (100 in-memory cap + 50 persist cap + clearAll)
     - BAR-08 test passes (no-project fallback)
     - All prior status-bar tests still pass
   </acceptance_criteria>
-  <done>Full BAR-01..08 acceptance battery passes; all status-bar tests green; phase ready for verify-work</done>
+  <done>Full BAR-01..08 acceptance battery passes including PID and dual-buffer notification tests; all status-bar tests green; phase ready for verify-work</done>
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
   <what-built>
     Full status bar integrated into the voss-app: 22px strip below GridRoot with three
     clusters (left: project+branch, center: focused pane, right: pane count+bell+cog),
-    click-to-popover details, notification store with persistence, and git HEAD file
-    watcher with 200ms polling.
+    click-to-popover details (including real PID in pane detail), notification store
+    with dual-buffer (100 in memory, 50 on disk), and git HEAD file watcher with 200ms
+    polling.
   </what-built>
   <how-to-verify>
     1. Run the app: `cd apps/voss-app && pnpm tauri dev`
     2. Verify the status bar is visible at the bottom — 22px dark strip below the grid.
     3. **BAR-01:** Confirm left cluster shows project name and git branch (e.g., "dev").
-    4. **BAR-02:** Click different panes — confirm center cluster updates with focused pane's cwd and shell.
+    4. **BAR-02:** Click different panes — confirm center cluster updates with focused pane's cwd and shell. Click center cluster to open pane detail popover — confirm PID shows a real number (not em dash or "—").
     5. **BAR-03:** Split panes (Cmd+D) — confirm pane count increments. Close panes (Cmd+W) — count decrements.
-    6. **BAR-04:** Click left cluster — popover shows recent projects list. Click center — pane detail. Click bell — notifications. Esc closes. Only one popover at a time.
+    6. **BAR-04:** Click left cluster — popover shows recent projects list. Click center — pane detail with PID. Click bell — notifications. Esc closes. Only one popover at a time.
     7. **BAR-05:** Visually confirm 22px height, mono font, Variant B colors.
     8. **BAR-06:** In a pane, run `git checkout -b test-a10` then `git checkout dev`. Confirm branch name updates in the status bar within ~1 second.
     9. **BAR-08:** If possible, start without a project — confirm "no project" fallback text and hidden branch.
@@ -321,9 +332,9 @@ export function initNotificationStore(): Promise<() => void>;
 
 | Boundary | Description |
 |----------|-------------|
-| GridController → StatusBar | Pane data crosses from grid store to status bar display |
-| git watcher events → App.tsx | Branch change events from Rust thread arrive in frontend |
-| persisted notifications.json → store | Loaded file contents populate the notification store |
+| GridController -> StatusBar | Pane data crosses from grid store to status bar display |
+| git watcher events -> App.tsx | Branch change events from Rust thread arrive in frontend |
+| persisted notifications.json -> store | Loaded file contents populate the notification store |
 
 ## STRIDE Threat Register
 
@@ -360,10 +371,12 @@ cd apps/voss-app && npx tsc --noEmit
 <success_criteria>
 - StatusBar visible in the app below GridRoot
 - All 8 BAR requirements have passing acceptance tests
+- PID displayed as real number in pane detail popover
+- Notification store: 100 in-memory cap, 50 disk persist cap
 - Full vitest suite green (no regressions in grid, command-palette, etc.)
 - cargo build + cargo test green
 - tsc --noEmit green
-- Human verifies visual correctness and branch update latency
+- Human verifies visual correctness, PID display, and branch update latency
 </success_criteria>
 
 <output>

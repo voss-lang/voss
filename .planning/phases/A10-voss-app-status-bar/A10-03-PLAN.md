@@ -14,17 +14,19 @@ files_modified:
   - apps/voss-app/src/status-bar/NotificationsPopover.tsx
   - apps/voss-app/src/status-bar/__tests__/StatusBar.test.tsx
 autonomous: true
-requirements: [BAR-01, BAR-02, BAR-03, BAR-04, BAR-05, BAR-08]
+requirements: [BAR-01, BAR-02, BAR-03, BAR-04, BAR-05, BAR-07, BAR-08]
 must_haves:
   truths:
     - "StatusBar renders as a 22px strip with three clusters (BAR-05)"
     - "Left cluster shows project name + branch, or no-project fallback (BAR-01/BAR-08)"
     - "Branch hidden entirely when no git repo (D-11)"
     - "Center cluster shows focused pane cwd and shell (BAR-02)"
+    - "Center popover shows PID from get_pty_pid Tauri command (BAR-02)"
     - "Right cluster shows pane count, bell with badge, and settings cog (BAR-03)"
     - "Click left cluster opens RecentProjectsPopover (D-02)"
     - "Click center cluster opens PaneDetailPopover (D-03)"
     - "Click bell opens NotificationsPopover and clears badge (D-06)"
+    - "Bell popover shows up to 100 notification entries (BAR-07)"
     - "Click cog dispatches open-settings command (A9)"
     - "Popovers are mutually exclusive — opening one closes another (D-01)"
   artifacts:
@@ -50,6 +52,14 @@ must_haves:
       to: "apps/voss-app/src/status-bar/RecentProjectsPopover.tsx"
       via: "popover content children"
       pattern: "RecentProjectsPopover"
+    - from: "apps/voss-app/src/status-bar/LeftCluster.tsx"
+      to: "apps/voss-app/src/status-bar/gitWatcher.ts"
+      via: "import { branch }"
+      pattern: "import.*branch.*gitWatcher"
+    - from: "apps/voss-app/src/status-bar/CenterCluster.tsx"
+      to: "apps/voss-app/src/status-bar/PaneDetailPopover.tsx"
+      via: "popover children props"
+      pattern: "PaneDetailPopover"
 ---
 
 <objective>
@@ -91,6 +101,8 @@ export interface NotificationEntry {
   timestamp: number;
   read: boolean;
 }
+export const MAX_NOTIFICATIONS = 100;  // in-memory cap (BAR-07)
+export const MAX_PERSISTED = 50;       // disk cap (D-07)
 export const notifications: NotificationEntry[];
 export function addNotification(severity, message, source): void;
 export function markAllRead(): void;
@@ -136,6 +148,10 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
 // 22px height, flex-shrink:0, background var(--bg-0), border-bottom 1px solid var(--border)
 // font-size: 11px, font-family var(--font-mono), font-weight 400
 ```
+
+NOTE on RESEARCH Pattern 6 `getBranch` prop: The authoritative prop shape is
+`branch: string | null` (not `getBranch`). Plan 03 StatusBar props use `branch`,
+and the value comes from the gitWatcher module-level signal in Plan 02.
 </interfaces>
 </context>
 
@@ -198,7 +214,7 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
     All components use inline `style={{}}` with Variant B token references only. No inline hex values. No border-radius.
   </action>
   <verify>
-    <automated>cd /Users/benjaminmarks/Projects/Voss/apps/voss-app && npx tsc --noEmit 2>&1 | tail -10</automated>
+    <automated>cd /Users/benjaminmarks/Projects/Voss/apps/voss-app && npx tsc --noEmit 2>&1 | tail -10 && pnpm vitest run src/status-bar/__tests__ 2>&1 | tail -10</automated>
   </verify>
   <acceptance_criteria>
     - StatusBar.tsx has role="toolbar" and data-testid="status-bar"
@@ -213,6 +229,7 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
     - Cog click calls dispatchCommand('open-settings')
     - All styling uses var(--token) references only — no inline hex
     - tsc --noEmit exits 0
+    - Prior Plan 02 tests still pass (pnpm vitest run src/status-bar/__tests__)
   </acceptance_criteria>
   <done>StatusBar root + three clusters render with correct content, glyphs, and popover triggers per UI-SPEC</done>
 </task>
@@ -224,7 +241,7 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
     - apps/voss-app/src/status-bar/StatusBar.tsx (props interface, cluster composition)
     - apps/voss-app/src/status-bar/LeftCluster.tsx (RecentProjectsPopover usage)
     - apps/voss-app/src/status-bar/RightCluster.tsx (NotificationsPopover usage, markAllRead call)
-    - apps/voss-app/src/status-bar/notificationStore.ts (notifications store, NotificationEntry type, clearAll)
+    - apps/voss-app/src/status-bar/notificationStore.ts (notifications store, NotificationEntry type, clearAll, MAX_NOTIFICATIONS)
     - apps/voss-app/src/project/projectStorage.ts (listRecents, openProject)
     - .planning/phases/A10-voss-app-status-bar/A10-UI-SPEC.md (Popover Content Specs — all three popover layouts, Copywriting Contract, Notification Store Schema, Bell Badge Contract)
     - .planning/phases/A10-voss-app-status-bar/A10-PATTERNS.md (popover content sections)
@@ -234,7 +251,7 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
 
     **RecentProjectsPopover.tsx** — per D-02 and UI-SPEC Left Popover:
     - Props: `project: ProjectInfo | null`, `onOpenProject: (path: string) => void`.
-    - On mount: call `listRecents()` (from `../project/projectStorage`) → store result in local signal.
+    - On mount: call `listRecents()` (from `../project/projectStorage`) -> store result in local signal.
     - Header row: "Recent Projects" heading, 11px `--font-mono` weight 500, `--fg-2`, `--bg-3`, 24px height, 8px padding.
     - `<For each={recents()}>` rendering rows: 32px height, 8px padding, 12px `--font-mono` `--fg-1`, `\u25C6` prefix in `--fg-2`. Hover `--bg-2`. Active project (matching `props.project?.path`): `--fg-0` text, `--accent-blue` left border 2px, `aria-current="true"`.
     - Row click: call `props.onOpenProject(path)`, then `closePopover()`.
@@ -245,13 +262,15 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
     - Props: `getLeaf: () => PaneLeaf | null`.
     - Header row: "Pane Detail" heading, same style as RecentProjectsPopover header.
     - Field rows (24px each): label column (52px, right-aligned, 11px `--fg-2`) + value column (12px `--fg-1`, ellipsis overflow).
-    - Fields: `cwd:` → `getLeaf()?.cwd`, `shell:` → `getLeaf()?.shell`, `pid:` → show `\u2014` (em dash — PID not available in PaneLeaf per RESEARCH Open Question 1), `index:` → `getLeaf()?.index`, `cmd:` → hidden when no running command (always hidden in L1 since PaneLeaf has no running-command field; use `<Show when={false}>` placeholder).
+    - Fields: `cwd:` -> `getLeaf()?.cwd`, `shell:` -> `getLeaf()?.shell`, `pid:` -> invoke `get_pty_pid` Tauri command with the focused pane's PTY session id to get the real process ID (see wiring below), `index:` -> `getLeaf()?.index`, `cmd:` -> hidden when no running command (always hidden in L1 since PaneLeaf has no running-command field; use `<Show when={false}>` placeholder).
+    - **PID wiring (BLOCKER 2 fix):** Import `invoke` from `@tauri-apps/api/core`. Create a local signal `const [pid, setPid] = createSignal<number | null>(null)`. Use `createEffect` (from solid-js) that watches `getLeaf()?.id`: when it changes (new focused pane), call `invoke<number | null>('get_pty_pid', { sessionId: getLeaf()!.id })` and set the result. The PTY session id IS the pane id (PaneLeaf.id matches the PTY session UUID from spawn_pty). Show `pid()` when available, show `\u2014` (em dash) when `pid()` is null (process has exited or not yet loaded).
     - Read fields inside JSX reactive context (NOT destructured outside — Pitfall 5 from RESEARCH).
     - No pane: "No pane focused" centered in `--fg-3` 12px.
 
     **NotificationsPopover.tsx** — per D-05/D-06 and UI-SPEC Right Popover:
     - No props needed — reads `notifications` directly from `../status-bar/notificationStore`.
     - Header row: "Notifications" heading left, "Clear all" button right. Header: 11px weight 500 `--fg-2`. "Clear all": 11px `--fg-2`, hover `--fg-1`, click calls `clearAll()`.
+    - The notifications store holds up to MAX_NOTIFICATIONS (100) entries in memory (per BAR-07). The popover renders all of them via `<For each={notifications}>`.
     - `<For each={notifications}>` rendering rows: 40px height, severity dot `\u25CF` glyph colored per severity (success=`--accent-green`, warning=`--accent-amber`, error=`--accent-red`, info=`--accent-cyan`), message text 12px (unread `--fg-0`, read `--fg-2`), relative timestamp 11px `--fg-3` below message.
     - Relative timestamp helper: inline function. < 60s: "just now". < 3600s: `N minute(s) ago`. < 86400s: `N hour(s) ago`. Else: month+day string (e.g., "May 19"). Use singular/plural correctly.
     - Row separator: `border-bottom: '1px solid var(--border)'`.
@@ -273,15 +292,16 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
     - RecentProjectsPopover.tsx empty state shows "No recent projects"
     - PaneDetailPopover.tsx reads leaf fields inside JSX (not destructured outside)
     - PaneDetailPopover.tsx shows "No pane focused" when getLeaf returns null
-    - PaneDetailPopover.tsx pid field shows em dash (PID not available)
-    - NotificationsPopover.tsx reads notifications from notificationStore
+    - PaneDetailPopover.tsx invokes get_pty_pid with focused pane id and displays the real PID
+    - PaneDetailPopover.tsx shows em dash when PID is null (process exited)
+    - NotificationsPopover.tsx reads notifications from notificationStore (up to 100 entries)
     - NotificationsPopover.tsx "Clear all" calls clearAll()
     - NotificationsPopover.tsx relative timestamp: "just now" for <60s
     - NotificationsPopover.tsx empty state shows "No notifications"
     - StatusBar.test.tsx has at least 6 passing tests covering BAR-01, BAR-03, BAR-05, BAR-08
     - tsc --noEmit exits 0
   </acceptance_criteria>
-  <done>Three popover content panels render per UI-SPEC with correct styling and behavior; StatusBar integration tests verify cluster content and popover triggers</done>
+  <done>Three popover content panels render per UI-SPEC with correct styling and behavior; PaneDetailPopover shows real PID from Rust; bell popover shows up to 100 entries; StatusBar integration tests verify cluster content and popover triggers</done>
 </task>
 
 </tasks>
@@ -291,8 +311,9 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
 
 | Boundary | Description |
 |----------|-------------|
-| listRecents() → UI | User filesystem paths rendered in popover |
-| notification messages → DOM | Event messages rendered as text nodes |
+| listRecents() -> UI | User filesystem paths rendered in popover |
+| notification messages -> DOM | Event messages rendered as text nodes |
+| get_pty_pid -> UI | Process ID from Rust displayed in popover |
 
 ## STRIDE Threat Register
 
@@ -300,7 +321,7 @@ From apps/voss-app/src/components/titlebar/Titlebar.tsx (styling pattern):
 |-----------|----------|-----------|-------------|-----------------|
 | T-A10-08 | Spoofing | RecentProjectsPopover | accept | Paths come from Rust open_project (already validated by A5); Solid JSX auto-escapes |
 | T-A10-09 | Spoofing | NotificationsPopover | mitigate | Messages already capped at 120 chars by addNotification; Solid JSX auto-escapes (no innerHTML) |
-| T-A10-10 | Information Disclosure | PaneDetailPopover | accept | Shows cwd/shell/index of user's own pane — no cross-user risk |
+| T-A10-10 | Information Disclosure | PaneDetailPopover | accept | Shows cwd/shell/index/pid of user's own pane — no cross-user risk |
 | T-A10-SC | Tampering | npm/pip/cargo installs | accept | No new dependencies |
 </threat_model>
 
@@ -323,6 +344,8 @@ cd apps/voss-app && npx tsc --noEmit
 - All prior Plan 02 tests still pass (no regression)
 - tsc --noEmit exits 0
 - All text uses Variant B tokens only
+- PaneDetailPopover shows real PID from get_pty_pid command
+- NotificationsPopover renders up to 100 entries from in-memory store
 </success_criteria>
 
 <output>

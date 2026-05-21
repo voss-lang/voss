@@ -17,7 +17,8 @@ must_haves:
   truths:
     - "addNotification adds to store AND calls showToast (D-05 unified stream)"
     - "markAllRead sets all entries to read:true (D-06)"
-    - "Notification store caps at 50 entries"
+    - "Notification store caps at 100 entries in memory (BAR-07)"
+    - "persistNotifications sends last 50 to Rust for disk write (D-07/SC4)"
     - "initNotificationStore loads from Rust and installs quit-save hook (D-07)"
     - "Git watcher bridge registers listen() before invoke() (Pitfall 6)"
     - "branch() signal updates when Tauri event fires"
@@ -26,7 +27,7 @@ must_haves:
   artifacts:
     - path: "apps/voss-app/src/status-bar/notificationStore.ts"
       provides: "NotificationEntry type, addNotification, markAllRead, clearAll, unreadCount, initNotificationStore, notifications store"
-      exports: ["NotificationEntry", "addNotification", "markAllRead", "clearAll", "unreadCount", "initNotificationStore", "notifications", "_resetNotificationsForTest"]
+      exports: ["NotificationEntry", "addNotification", "markAllRead", "clearAll", "unreadCount", "initNotificationStore", "notifications", "_resetNotificationsForTest", "MAX_NOTIFICATIONS", "MAX_PERSISTED"]
     - path: "apps/voss-app/src/status-bar/gitWatcher.ts"
       provides: "branch signal, watchGitHead, stopGitWatch"
       exports: ["branch", "watchGitHead", "stopGitWatch"]
@@ -134,13 +135,16 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: h.listen }));
     **notificationStore.ts** — module-level `createStore` (NOT createSignal) per RESEARCH Pattern 2:
     - Export `NotificationEntry` interface: `{ id: number, severity: 'success'|'warning'|'error'|'info', message: string, source: string, timestamp: number, read: boolean }` per UI-SPEC schema.
     - Module-level `const [notifications, setNotifications] = createStore<NotificationEntry[]>([])`.
-    - `MAX_NOTIFICATIONS = 50` constant (UI-SPEC/D-07 — overrides ROADMAP's 100).
-    - `addNotification(severity, message, source)`: create entry with `id: nextId++`, `message.slice(0, 120)`, `timestamp: Date.now()`, `read: false`; append to store sliced to last 50; call `showToast(severity as ToastSeverity, message)` per D-05 unified stream. Import `showToast` and `ToastSeverity` from `../command-palette/toast`.
+    - TWO constants for the dual-buffer design (BLOCKER 1 fix):
+      - `export const MAX_NOTIFICATIONS = 100` — in-memory buffer size. This is what the bell popover shows (per BAR-07 "last 100 events").
+      - `export const MAX_PERSISTED = 50` — what gets written to notifications.json on quit (per D-07 "last 50 entries" / SC4).
+    - `addNotification(severity, message, source)`: create entry with `id: nextId++`, `message.slice(0, 120)`, `timestamp: Date.now()`, `read: false`; append to store sliced to last MAX_NOTIFICATIONS (100); call `showToast(severity as ToastSeverity, message)` per D-05 unified stream. Import `showToast` and `ToastSeverity` from `../command-palette/toast`.
     - `markAllRead()`: map all entries to `{ ...e, read: true }` per D-06.
     - `clearAll()`: set store to `[]`.
     - `unreadCount()`: filter `!e.read`, return `.length`.
     - `highestUnreadSeverity()`: return the highest severity among unread entries (error > warning > info > success) or `null` if none unread. Per UI-SPEC bell badge color contract.
-    - `initNotificationStore()`: returns `Promise<() => void>`. Calls `invoke<NotificationEntry[]>('load_notifications')`, slices to last 50, sets store. Then registers `getCurrentWindow().onCloseRequested` handler that calls `invoke('save_notifications', { entries: [...notifications] })` then `getCurrentWindow().close()`. Returns the unlisten function. Follows `installCloseSessionSave` pattern from sessionPersist.ts.
+    - `persistNotifications()`: helper that returns `[...notifications].slice(-MAX_PERSISTED)` — the last 50 entries for Rust to write. Used in the quit-save hook.
+    - `initNotificationStore()`: returns `Promise<() => void>`. Calls `invoke<NotificationEntry[]>('load_notifications')`, slices to last MAX_NOTIFICATIONS (100), sets store. Then registers `getCurrentWindow().onCloseRequested` handler that calls `invoke('save_notifications', { entries: persistNotifications() })` then `getCurrentWindow().close()`. Returns the unlisten function. Follows `installCloseSessionSave` pattern from sessionPersist.ts.
     - `_resetNotificationsForTest()`: set store to `[]`, reset nextId to 1.
     - Export `notifications` (read-only getter).
 
@@ -152,9 +156,9 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: h.listen }));
     - Export `branch` signal.
 
     **notificationStore.test.ts** — follow keymapStorage.test.ts mock pattern:
-    - `vi.hoisted` mock for `@tauri-apps/api/core` (invoke) and `@tauri-apps/api/event` (listen) and `@tauri-apps/api/window` (getCurrentWindow → onCloseRequested mock).
+    - `vi.hoisted` mock for `@tauri-apps/api/core` (invoke) and `@tauri-apps/api/event` (listen) and `@tauri-apps/api/window` (getCurrentWindow -> onCloseRequested mock).
     - Also mock `../command-palette/toast` so `showToast` calls are captured.
-    - Tests: addNotification adds entry + calls showToast; addNotification caps at 50; message truncated to 120 chars; markAllRead sets all read:true; clearAll empties store; unreadCount returns correct count; highestUnreadSeverity returns correct severity ordering; _resetNotificationsForTest clears state.
+    - Tests: addNotification adds entry + calls showToast; addNotification caps at 100 (MAX_NOTIFICATIONS); message truncated to 120 chars; markAllRead sets all read:true; clearAll empties store; unreadCount returns correct count; highestUnreadSeverity returns correct severity ordering; persistNotifications returns last 50 entries when store has more than 50; _resetNotificationsForTest clears state.
     - `beforeEach` calls `_resetNotificationsForTest()` and resets mocks.
 
     **gitWatcher.test.ts** — follow keymapStorage.test.ts mock pattern:
@@ -165,19 +169,22 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: h.listen }));
     <automated>cd /Users/benjaminmarks/Projects/Voss/apps/voss-app && pnpm vitest run src/status-bar/__tests__/notificationStore.test.ts src/status-bar/__tests__/gitWatcher.test.ts 2>&1 | tail -30</automated>
   </verify>
   <acceptance_criteria>
-    - src/status-bar/notificationStore.ts exports: NotificationEntry, addNotification, markAllRead, clearAll, unreadCount, highestUnreadSeverity, initNotificationStore, notifications, _resetNotificationsForTest
+    - src/status-bar/notificationStore.ts exports: NotificationEntry, addNotification, markAllRead, clearAll, unreadCount, highestUnreadSeverity, initNotificationStore, notifications, persistNotifications, _resetNotificationsForTest, MAX_NOTIFICATIONS, MAX_PERSISTED
     - src/status-bar/notificationStore.ts imports showToast from ../command-palette/toast
     - src/status-bar/notificationStore.ts uses createStore (not createSignal) from solid-js/store
-    - src/status-bar/notificationStore.ts contains `MAX_NOTIFICATIONS = 50`
+    - src/status-bar/notificationStore.ts contains `MAX_NOTIFICATIONS = 100` (in-memory cap per BAR-07)
+    - src/status-bar/notificationStore.ts contains `MAX_PERSISTED = 50` (disk cap per D-07)
+    - src/status-bar/notificationStore.ts addNotification slices to last MAX_NOTIFICATIONS (100)
+    - src/status-bar/notificationStore.ts persistNotifications slices to last MAX_PERSISTED (50)
     - src/status-bar/notificationStore.ts initNotificationStore calls getCurrentWindow().onCloseRequested
     - src/status-bar/gitWatcher.ts exports: branch, watchGitHead, stopGitWatch
     - src/status-bar/gitWatcher.ts listen() call precedes invoke() call in watchGitHead
     - src/status-bar/gitWatcher.ts event constant is 'voss://branch-changed'
-    - notificationStore.test.ts has at least 6 passing tests
+    - notificationStore.test.ts has at least 7 passing tests (including 100-cap and persistNotifications-50 tests)
     - gitWatcher.test.ts has at least 3 passing tests
     - tsc --noEmit exits 0
   </acceptance_criteria>
-  <done>Notification store adds+caps+persists+resets entries; showToast called on every add (D-05); git watcher bridge follows listen-before-invoke pattern; both modules have passing unit tests</done>
+  <done>Notification store adds+caps at 100 in memory+persists last 50 on quit+resets entries; showToast called on every add (D-05); git watcher bridge follows listen-before-invoke pattern; both modules have passing unit tests</done>
 </task>
 
 <task type="auto">
@@ -240,15 +247,15 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: h.listen }));
 
 | Boundary | Description |
 |----------|-------------|
-| Tauri event → frontend | Branch-changed events from Rust arrive as untyped payloads |
-| notification message → DOM | User-visible text rendered in UI |
+| Tauri event -> frontend | Branch-changed events from Rust arrive as untyped payloads |
+| notification message -> DOM | User-visible text rendered in UI |
 
 ## STRIDE Threat Register
 
 | Threat ID | Category | Component | Disposition | Mitigation Plan |
 |-----------|----------|-----------|-------------|-----------------|
 | T-A10-05 | Spoofing | notificationStore addNotification | mitigate | message.slice(0, 120) caps input length; Solid JSX auto-escapes text (no innerHTML) |
-| T-A10-06 | DoS | notificationStore | mitigate | MAX_NOTIFICATIONS = 50 hard cap; slice enforced on every add |
+| T-A10-06 | DoS | notificationStore | mitigate | MAX_NOTIFICATIONS = 100 in-memory hard cap; MAX_PERSISTED = 50 disk cap; slice enforced on every add and persist |
 | T-A10-07 | Tampering | gitWatcher event payload | accept | Payload is string|null from same-process Rust; no cross-origin risk; type assertion at listen() generic |
 | T-A10-SC | Tampering | npm/pip/cargo installs | accept | No new dependencies; all imports from existing solid-js, @tauri-apps/api |
 </threat_model>
@@ -273,6 +280,9 @@ git diff HEAD -- apps/voss-app/package.json | grep -c '^\+.*"dependencies"' || e
 - No new npm dependencies added
 - D-05 unified stream verified (addNotification calls showToast)
 - D-01/D-04 one-at-a-time enforcement verified in Popover tests
+- MAX_NOTIFICATIONS = 100 (in-memory, per BAR-07)
+- MAX_PERSISTED = 50 (disk, per D-07)
+- persistNotifications() returns last 50 entries for quit-save
 </success_criteria>
 
 <output>
