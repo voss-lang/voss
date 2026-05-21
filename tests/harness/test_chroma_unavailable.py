@@ -29,6 +29,12 @@ def test_recall_returns_list_when_chroma_disabled(
     """recall must fall back to BM25 search, returning a list (possibly empty)."""
     store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
     store.write_turn(role="user", content="hello world", session_id="s1", turn_idx=0)
+    store.write_turn(
+        role="assistant",
+        content="unrelated deployment checklist",
+        session_id="s1",
+        turn_idx=1,
+    )
     hits = store.recall("hello", top_k=5)
     assert isinstance(hits, list)
     # BM25 fallback should match the seeded turn.

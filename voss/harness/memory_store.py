@@ -522,8 +522,14 @@ class MemoryStore:
         bm25 = BM25Okapi(tokenized_corpus)
         scores = bm25.get_scores(query_tokens)
         ranked: list[tuple[float, Hit]] = []
-        for candidate, score in zip(candidates, scores):
+        query_token_set = set(query_tokens)
+        for candidate, tokens, score in zip(candidates, tokenized_corpus, scores):
             score_float = float(score)
+            if score_float <= 0 and query_token_set.intersection(tokens):
+                # rank_bm25 can produce zero/negative IDF for tiny corpora
+                # where every query term appears in every document. Keep
+                # true lexical matches while still dropping no-overlap rows.
+                score_float = float(len(query_token_set.intersection(tokens)))
             if score_float <= 0:
                 continue
             ranked.append(

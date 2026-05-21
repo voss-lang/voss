@@ -110,6 +110,12 @@ def test_recall_source_filter(tmp_voss_repo: Path) -> None:
         session_id="s1",
         turn_idx=0,
     )
+    store.write_turn(
+        role="assistant",
+        content="unrelated deployment checklist",
+        session_id="s1",
+        turn_idx=1,
+    )
     decisions_dir = tmp_voss_repo / ".voss" / "memory" / "decisions"
     decisions_dir.mkdir(parents=True, exist_ok=True)
     (decisions_dir / "jwt-policy.md").write_text(
@@ -131,6 +137,12 @@ def test_bm25_fallback_source_filter_returns_turn_hits(
         content="semantic fallback source filter target",
         session_id="s1",
         turn_idx=0,
+    )
+    store.write_turn(
+        role="assistant",
+        content="unrelated deployment checklist",
+        session_id="s1",
+        turn_idx=1,
     )
     decisions_dir = tmp_voss_repo / ".voss" / "memory" / "decisions"
     decisions_dir.mkdir(parents=True, exist_ok=True)
