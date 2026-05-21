@@ -478,22 +478,13 @@ pub async fn spawn_agent(
 | A3 | `bundled` feature compiles SQLite from source without additional system deps on macOS | Standard Stack | Low -- widely documented pattern |
 | A4 | `spawn_session()` can be extended or wrapped to accept an arbitrary command instead of `$SHELL` | Architecture | Medium -- if `portable-pty` CommandBuilder cannot be customized, need a parallel spawn path |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **spawn_session extension for arbitrary commands**
-   - What we know: `spawn_session()` in `pty/mod.rs:116-170` hardcodes `$SHELL` via `CommandBuilder::new(&shell)`. F1 needs to spawn `cli_binary cli_args` instead.
-   - What's unclear: Whether to add params to `spawn_session()` (breaking its signature) or create a parallel `spawn_command_session()` function.
-   - Recommendation: Create a new `spawn_command_session(cmd, args, rows, cols, cwd)` that mirrors `spawn_session` but takes explicit command + args. This avoids changing the existing PTY API and keeps the generic shell path untouched. The new function can share most of the body.
+1. **spawn_session extension for arbitrary commands** — RESOLVED: New `spawn_command_session(cmd, args, rows, cols, cwd)` function alongside `spawn_session()`. No signature change to existing API. Plans F1-01 Task 1 implements this.
 
-2. **Registry Connection lifecycle with project switching**
-   - What we know: Users can switch projects mid-session (A5 open_project). The registry path depends on the project path.
-   - What's unclear: Whether the connection should be swapped when the project changes, or whether a global registry suffices.
-   - Recommendation: Start with the global fallback path (`~/.config/voss-app/agent-registry.sqlite`) for simplicity. The SPEC says per-project, but the critical path is boot restore, which always knows the project path from A6. For the initial implementation, open the connection lazily when the first spawn_agent is called with a known workspace path. Managed state can hold `Mutex<Option<Connection>>` and initialize on first use.
+2. **Registry Connection lifecycle with project switching** — RESOLVED: `Mutex<Option<Connection>>` lazily opened on first `spawn_agent` call with the workspace path. Plans F1-01 Task 2 implements this.
 
-3. **PTY exit callback plumbing for registry update (D-10)**
-   - What we know: `reader.rs:47-57` handles EOF by reaping the child and removing from PtyRegistry. F1 needs to update the agent registry here.
-   - What's unclear: How to get the `Mutex<Connection>` into the reader thread. The reader is spawned via `tokio::task::spawn_blocking` and currently only receives `Arc<PtyRegistry>`.
-   - Recommendation: Pass a callback or `Arc<Mutex<Connection>>` clone to `start_reader`. Or have the reader emit an `AgentExit` event alongside `PtyEvent::Exit` and let the frontend handle the registry update via IPC. The latter is simpler (no reader.rs signature change) but adds a network hop. The former is more correct (Rust-side, no frontend dependency). Planner should decide.
+3. **PTY exit callback plumbing for registry update (D-10)** — RESOLVED: Frontend approach chosen — PtyTransport `handle()` invokes `mark_agent_stopped` via IPC on exit event. Simpler than passing Connection to reader thread (no reader.rs signature change). Plans F1-03 Task 1 implements this.
 
 ## Environment Availability
 
