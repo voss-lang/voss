@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   applyLoadedLayout: vi.fn(),
   snapshot: vi.fn(),
   gridMountCount: 0,
+  workspaceStore: null as import('../workspaces/workspaceStore').WorkspaceStore | null,
   setupProps: undefined as
     | {
         recents: string[];
@@ -43,10 +44,45 @@ vi.mock('../grid/sessionStorage', () => ({
   saveSession: vi.fn(),
   saveGlobalSession: vi.fn(),
 }));
-vi.mock('../grid/sessionPersist', () => ({
-  installStructuralSessionAutosave: vi.fn(() => () => {}),
-  installCloseSessionSave: vi.fn(() => Promise.resolve(() => {})),
+vi.mock('../workspaces/workspaceSessionPersist', () => ({
+  installWorkspaceStructuralAutosave: vi.fn(() => () => {}),
+  installAllWorkspacesCloseSave: vi.fn(() => Promise.resolve(() => {})),
 }));
+vi.mock('../workspaces/workspaceStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../workspaces/workspaceStore')>();
+  return {
+    ...actual,
+    createWorkspaceStore: (
+      initial?: Parameters<typeof actual.createWorkspaceStore>[0],
+    ) => {
+      const store = actual.createWorkspaceStore(initial);
+      h.workspaceStore = store;
+      return store;
+    },
+  };
+});
+
+vi.mock('../workspaces/workspaceStorage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../workspaces/workspaceStorage')>();
+  return {
+    ...actual,
+    loadWorkspacesIndex: vi.fn().mockResolvedValue({
+      version: actual.CURRENT_WORKSPACES_VERSION,
+      activeWorkspaceId: actual.DEFAULT_WORKSPACE_ID,
+      workspaces: [
+        {
+          id: actual.DEFAULT_WORKSPACE_ID,
+          name: 'Workspace',
+          accentColor: actual.DEFAULT_ACCENT_COLOR,
+          order: 0,
+        },
+      ],
+    }),
+    saveWorkspacesIndex: vi.fn().mockResolvedValue(undefined),
+    loadProjectLessSession: vi.fn().mockResolvedValue(null),
+    saveProjectLessSession: vi.fn().mockResolvedValue(undefined),
+  };
+});
 vi.mock('../grid/sessionCommands', () => ({
   layoutToSession: vi.fn((layout: unknown) => layout),
 }));
@@ -91,6 +127,7 @@ vi.mock('@tauri-apps/api/window', () => ({
 
 vi.mock('../grid/GridRoot', () => ({
   default: (props: {
+    active?: () => boolean;
     controllerRef?: (ctrl: {
       applyPreset: typeof h.applyPreset;
       applyLoadedLayout: typeof h.applyLoadedLayout;
@@ -129,6 +166,7 @@ vi.mock('../grid/GridRoot', () => ({
         data-testid="grid-root"
         data-mount-id={String(h.gridMountCount)}
         data-project-cwd={props.projectCwd ?? ''}
+        data-active={props.active?.() !== false ? 'true' : 'false'}
       >
         grid
       </div>
@@ -206,6 +244,7 @@ beforeEach(() => {
   h.applyLoadedLayout.mockReset();
   h.snapshot.mockReset();
   h.gridMountCount = 0;
+  h.workspaceStore = null;
   h.setupProps = undefined;
 
   h.listRecents.mockResolvedValue([]);
@@ -338,6 +377,73 @@ describe('App — project open flow', () => {
     );
     expect(order).toContain('openProject');
     expect(order).toContain('loadDefaultLayout');
+  });
+
+  it('keeps GridRoot mounted when switching active workspace (A8 D-01)', async () => {
+    const { loadWorkspacesIndex, loadProjectLessSession } = await import(
+      '../workspaces/workspaceStorage'
+    );
+    const projectLessSession = {
+      version: 1 as const,
+      activePreset: null,
+      grid: {
+        root: {
+          kind: 'pane',
+          id: 'p1',
+          cwd: '/tmp',
+          shell: '/bin/zsh',
+          index: 1,
+        },
+        focusedId: 'p1',
+      },
+      panes: [{ id: 'p1', scrollback: null }],
+      projectLessAccepted: true,
+    };
+
+    vi.mocked(loadWorkspacesIndex).mockResolvedValueOnce({
+      version: 1,
+      activeWorkspaceId: 'default',
+      workspaces: [
+        {
+          id: 'default',
+          name: 'One',
+          accentColor: 'blue',
+          order: 0,
+        },
+        {
+          id: 'second',
+          name: 'Two',
+          accentColor: 'green',
+          order: 1,
+        },
+      ],
+    });
+    vi.mocked(loadProjectLessSession).mockResolvedValue(projectLessSession);
+
+    const el = mount(() => <App />);
+
+    await waitFor(() =>
+      expect(el.querySelectorAll('[data-testid="grid-root"]').length).toBe(2),
+    );
+
+    const mountIds = [...el.querySelectorAll('[data-testid="grid-root"]')].map(
+      (n) => n.getAttribute('data-mount-id'),
+    );
+    expect(new Set(mountIds).size).toBe(2);
+
+    h.workspaceStore!.activate('second');
+
+    await waitFor(() => {
+      const grids = el.querySelectorAll('[data-testid="grid-root"]');
+      expect(grids.length).toBe(2);
+      expect(grids[0]?.getAttribute('data-mount-id')).toBe(mountIds[0]);
+      expect(grids[1]?.getAttribute('data-mount-id')).toBe(mountIds[1]);
+    });
+
+    const hidden = el.querySelector('[data-workspace-id="default"]') as HTMLElement;
+    const shown = el.querySelector('[data-workspace-id="second"]') as HTMLElement;
+    expect(hidden?.style.display).toBe('none');
+    expect(shown?.style.display).toBe('flex');
   });
 
   it('does not persist projectLessAccepted', async () => {

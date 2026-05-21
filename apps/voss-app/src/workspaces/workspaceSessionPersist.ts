@@ -1,0 +1,118 @@
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { subscribeStructuralChange } from '../grid/sync';
+import { buildSessionFile } from '../grid/sessionCommands';
+import { saveSession } from '../grid/sessionStorage';
+import { getScrollbackSnapshot } from '../pane/scrollbackRegistry';
+import type { GridController } from '../grid/GridRoot';
+import type { ActiveLayout } from '../grid/layoutPresets';
+import type { WorkspacesIndex } from './workspaceStorage';
+import { saveProjectLessSession } from './workspaceStorage';
+
+/**
+ * A8-02 — multi-workspace session lifecycle.
+ *
+ * One app-level close handler saves every mounted workspace controller,
+ * then persists workspaces.json. Per-workspace structural autosave mirrors
+ * A6 `sessionPersist.ts` but routes project-less saves to
+ * `sessions/<workspaceId>.json`.
+ */
+
+export type WorkspaceSessionContext = {
+  workspaceId: string;
+  getController: () => GridController | undefined;
+  getActiveLayout: () => ActiveLayout;
+  getProjectLessAccepted: () => boolean;
+  /** null = project-less session target for this workspace id. */
+  projectPath: string | null;
+};
+
+const AUTOSAVE_DEBOUNCE_MS = 2000;
+
+async function saveWorkspaceSession(
+  ctx: WorkspaceSessionContext,
+  scrollbackByPaneId: Map<string, string[]>,
+): Promise<void> {
+  const controller = ctx.getController();
+  if (!controller) return;
+
+  const snap = controller.snapshot();
+  const session = buildSessionFile(
+    snap.root,
+    snap.focusedId,
+    ctx.getActiveLayout(),
+    scrollbackByPaneId,
+    ctx.getProjectLessAccepted(),
+  );
+
+  if (ctx.projectPath) {
+    await saveSession(ctx.projectPath, session);
+  } else {
+    await saveProjectLessSession(ctx.workspaceId, session);
+  }
+}
+
+/**
+ * Debounced tree-only save for one mounted workspace.
+ */
+export function installWorkspaceStructuralAutosave(
+  ctx: WorkspaceSessionContext,
+): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const flush = () => {
+    void saveWorkspaceSession(ctx, new Map()).catch((e) => {
+      console.error(
+        `[voss-app] workspace ${ctx.workspaceId} session autosave failed:`,
+        e,
+      );
+    });
+  };
+
+  const unsub = subscribeStructuralChange(() => {
+    if (timer != null) clearTimeout(timer);
+    timer = setTimeout(flush, AUTOSAVE_DEBOUNCE_MS);
+  });
+
+  return () => {
+    if (timer != null) clearTimeout(timer);
+    unsub();
+  };
+}
+
+/**
+ * Install a single close-request handler that snapshots every workspace,
+ * saves each session and the workspace index, then closes with reentry guard.
+ */
+export async function installAllWorkspacesCloseSave(
+  getContexts: () => WorkspaceSessionContext[],
+  getIndex: () => WorkspacesIndex,
+  saveIndex: (index: WorkspacesIndex) => Promise<void>,
+): Promise<() => void> {
+  let isClosingAfterSave = false;
+
+  const unlisten = await getCurrentWindow().onCloseRequested(async (event) => {
+    if (isClosingAfterSave) return;
+    event.preventDefault();
+
+    try {
+      const scrollback = getScrollbackSnapshot(2000);
+      const contexts = getContexts();
+
+      for (const ctx of contexts) {
+        await saveWorkspaceSession(ctx, scrollback);
+      }
+
+      await saveIndex(getIndex());
+
+      isClosingAfterSave = true;
+      await getCurrentWindow().close();
+    } catch (e) {
+      console.error(
+        '[voss-app] all-workspace quit save failed — window kept open:',
+        e,
+      );
+    }
+  });
+
+  return unlisten;
+}
