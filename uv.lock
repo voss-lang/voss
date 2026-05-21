@@ -4030,6 +4030,7 @@ dependencies = [
     { name = "psutil" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "rank-bm25" },
     { name = "rich" },
     { name = "textual" },
     { name = "tiktoken" },
@@ -4050,7 +4051,6 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "pytest-textual-snapshot" },
-    { name = "rank-bm25" },
     { name = "respx" },
     { name = "sentence-transformers" },
     { name = "vcrpy" },
@@ -4058,7 +4058,6 @@ dev = [
 ]
 search = [
     { name = "chromadb" },
-    { name = "rank-bm25" },
     { name = "sentence-transformers" },
 ]
 
@@ -4085,8 +4084,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12" },
     { name = "pytest-textual-snapshot", marker = "extra == 'dev'", specifier = ">=1.1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rank-bm25", marker = "extra == 'dev'", specifier = ">=0.2.2" },
-    { name = "rank-bm25", marker = "extra == 'search'", specifier = ">=0.2.2" },
+    { name = "rank-bm25", specifier = ">=0.2.2" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "sentence-transformers", marker = "extra == 'dev'", specifier = ">=2.7.0" },
