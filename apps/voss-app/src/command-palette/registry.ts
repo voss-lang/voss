@@ -67,6 +67,7 @@ export interface AppContext {
   switchFont?: () => void;
   toggleHighContrast?: () => void;
   setBellBehavior?: () => void;
+  startAgent?: () => void;
 }
 
 // --- Registry ----------------------------------------------------------------
@@ -312,6 +313,19 @@ export function workspaceCommands(): CommandDefinition[] {
       label: 'Color',
       category: 'Workspace',
       handler: (ctx) => ctx.colorWorkspace?.(),
+    },
+  ];
+}
+
+// --- Agent Command Catalog ----------------------------------------------------
+
+export function agentCommands(): CommandDefinition[] {
+  return [
+    {
+      id: 'agent.start',
+      label: 'Start Agent',
+      category: 'Pane',
+      handler: (ctx) => ctx.startAgent?.(),
     },
   ];
 }

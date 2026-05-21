@@ -23,6 +23,7 @@ import { applySessionFile } from './sessionCommands';
 import type { LayoutFile } from './layoutStorage';
 import type { SessionFile } from './sessionStorage';
 import SplitNodeView, { type CloseUI } from './SplitNode';
+import type { AgentConfig } from '../pane/pty-ipc';
 import { requestCloseGated } from './CloseConfirmBanner';
 import type { Dims } from './DragHandle';
 
@@ -130,6 +131,8 @@ export default function GridRoot(props: {
    * Omitted or true preserves single-grid behavior. Resize listener stays live.
    */
   active?: () => boolean;
+  agentConfigByPaneId?: Record<string, AgentConfig>;
+  workspacePath?: string;
 }) {
   // A6: initialize from restored session when available so no throwaway PTY spawns.
   const initResult = props.initialSession
@@ -410,6 +413,8 @@ export default function GridRoot(props: {
           }}
           prefixActive={props.prefixActive}
           prefixReserved={props.prefixReserved}
+          agentConfigByPaneId={props.agentConfigByPaneId}
+          workspacePath={props.workspacePath}
         />
       </div>
     </div>
