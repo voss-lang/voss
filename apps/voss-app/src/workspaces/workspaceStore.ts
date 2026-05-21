@@ -112,7 +112,13 @@ export function createWorkspaceStore(
   };
 
   const load = async () => {
-    const index = await loadWorkspacesIndex();
+    let index: WorkspacesIndex;
+    try {
+      index = await loadWorkspacesIndex();
+    } catch {
+      return;
+    }
+    if (!index?.workspaces?.length) return;
     setWorkspaces(sortByOrder(index.workspaces));
     const active =
       index.activeWorkspaceId &&

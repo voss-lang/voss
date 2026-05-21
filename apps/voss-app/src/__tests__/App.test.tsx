@@ -394,7 +394,7 @@ describe('App — project open flow', () => {
       activePreset: null,
       grid: {
         root: {
-          kind: 'pane',
+          kind: 'pane' as const,
           id: 'p1',
           cwd: '/tmp',
           shell: '/bin/zsh',

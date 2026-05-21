@@ -167,6 +167,9 @@ export default function App() {
   let keymapUnlisten: (() => void) | undefined;
 
   const activeId = () => workspaceStore.activeId();
+  const workspaceIds = createMemo(() =>
+    workspaceStore.workspaces().map((w) => w.id),
+  );
   const activeMounted = createMemo(() => {
     const id = activeId();
     return id ? mountedById().get(id) : undefined;
@@ -298,7 +301,9 @@ export default function App() {
       }
 
       batch(() => {
-        ws.setInitialSession(session);
+        if (!ws.everMounted()) {
+          ws.setInitialSession(session);
+        }
         ws.setProject(info);
         ws.setProjectLessAccepted(true);
         ws.setEverMounted(true);
@@ -584,9 +589,9 @@ export default function App() {
             'flex-direction': 'column',
           }}
         >
-          <For each={workspaceStore.workspaces()}>
-            {(record) => {
-              const ws = () => mountedById().get(record.id);
+          <For each={workspaceIds}>
+            {(workspaceId) => {
+              const ws = () => mountedById().get(workspaceId);
               const shouldMount = () => {
                 const m = ws();
                 return m != null && (m.everMounted() || workspaceIsReady(m));
@@ -594,16 +599,16 @@ export default function App() {
               return (
                 <Show when={shouldMount()}>
                   <div
-                    data-workspace-id={record.id}
+                    data-workspace-id={workspaceId}
                     style={{
-                      display: activeId() === record.id ? 'flex' : 'none',
+                      display: activeId() === workspaceId ? 'flex' : 'none',
                       flex: '1',
                       'min-height': '0',
                       'flex-direction': 'column',
                     }}
                   >
                     <GridRoot
-                      active={() => activeId() === record.id}
+                      active={() => activeId() === workspaceId}
                       activeLayout={ws()!.activeLayout}
                       onLayoutChange={(next) => ws()!.setActiveLayout(next)}
                       controllerRef={(c) => bindController(ws()!, c)}

@@ -1,0 +1,21 @@
+# Voss
+
+> Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.
+
+## Primary Pages
+
+- [Home](https://voss.dev/): Product overview for Voss and its terminal-native workflow.
+- [Harness](https://voss.dev/harness): Details on the AI coding harness for bounded repository work.
+- [ADE](https://voss.dev/ade): Overview of the agent development environment.
+- [Language](https://voss.dev/language): Introduction to the .voss control language.
+- [Security](https://voss.dev/security): Security model, boundaries, and operational controls.
+- [Roadmap](https://voss.dev/roadmap): Planned product direction and upcoming work.
+
+## Reference
+
+- [Documentation](https://docs.tryvoss.dev): Technical documentation for installing, configuring, and using Voss.
+- [GitHub Repository](https://github.com/bm9797/Voss): Source repository and issue history for Voss.
+
+## Optional
+
+- [Product Requirements Document](https://github.com/bm9797/Voss/blob/main/PRD.md): Product requirements and background context for Voss.
