@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { subscribeStructuralChange } from '../grid/sync';
 import { buildSessionFile } from '../grid/sessionCommands';
@@ -87,6 +88,7 @@ export async function installAllWorkspacesCloseSave(
   getContexts: () => WorkspaceSessionContext[],
   getIndex: () => WorkspacesIndex,
   saveIndex: (index: WorkspacesIndex) => Promise<void>,
+  getWorkspacePath?: () => string | null,
 ): Promise<() => void> {
   let isClosingAfterSave = false;
 
@@ -106,6 +108,11 @@ export async function installAllWorkspacesCloseSave(
             await saveWorkspaceSession(ctx, scrollback);
           }
           await saveIndex(getIndex());
+          await invoke('update_agents_last_seen', {
+            workspacePath: getWorkspacePath?.() ?? null,
+          }).catch((e) =>
+            console.error('[voss-app] agent registry quit update failed:', e),
+          );
         })(),
         new Promise<void>((_, reject) =>
           setTimeout(() => reject(new Error('quit save timed out')), QUIT_SAVE_TIMEOUT_MS),

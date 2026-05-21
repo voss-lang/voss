@@ -30,6 +30,8 @@ export interface PtyTransportOpts {
   onExit?: (code: number) => void;
   onFgProcess?: (name: string) => void;
   onTitle?: (title: string) => void;
+  agentPaneId?: string;
+  workspacePath?: string;
 }
 
 function mergeChunks(chunks: Uint8Array[]): Uint8Array {
@@ -75,6 +77,14 @@ export class PtyTransport {
       }
       case 'exit':
         this.opts.onExit?.(ev.code);
+        if (this.opts.agentPaneId) {
+          void invoke('mark_agent_stopped', {
+            paneId: this.opts.agentPaneId,
+            workspacePath: this.opts.workspacePath ?? null,
+          }).catch((e) =>
+            console.error('[voss-app] agent registry exit update failed:', e),
+          );
+        }
         break;
       case 'fg_process':
         this.opts.onFgProcess?.(ev.name);

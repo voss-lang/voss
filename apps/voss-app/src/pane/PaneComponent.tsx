@@ -318,6 +318,12 @@ export default function PaneComponent(props: PaneProps) {
         lastOscTitleAt = Date.now();
         setProc(title);
       },
+      ...(props.agentConfig
+        ? {
+            agentPaneId: props.id,
+            workspacePath: props.workspacePath,
+          }
+        : {}),
     });
 
     // D-07 primary: OSC 0/2 title → process slot.
