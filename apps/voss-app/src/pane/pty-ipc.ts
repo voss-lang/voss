@@ -13,7 +13,23 @@ export type PtyEvent =
   | { type: 'exit'; code: number }
   | { type: 'fg_process'; name: string }
   | { type: 'title_change'; title: string }
-  | { type: 'budget_update'; tokens_used: number; token_limit: number | null; cost_usd: number; iteration: number; model: string };
+  | { type: 'budget_update'; tokens_used: number; token_limit: number | null; cost_usd: number; iteration: number; model: string }
+  | { type: 'context_update'; system_tokens: number; conversation_tokens: number; total_tokens: number; token_limit: number | null; files: FileContextEntry[] };
+
+export type FileContextEntry = {
+  path: string;
+  tokens: number;
+  state: 'full' | 'compressed' | 'dropped';
+  pinned: boolean;
+};
+
+export type ContextData = {
+  system_tokens: number;
+  conversation_tokens: number;
+  total_tokens: number;
+  token_limit: number | null;
+  files: FileContextEntry[];
+};
 
 export type BudgetState = {
   tokens_used: number;
@@ -40,6 +56,7 @@ export interface PtyTransportOpts {
   onFgProcess?: (name: string) => void;
   onTitle?: (title: string) => void;
   onBudgetUpdate?: (data: BudgetState) => void;
+  onContextUpdate?: (data: ContextData) => void;
   agentPaneId?: string;
   workspacePath?: string;
 }
@@ -109,6 +126,15 @@ export class PtyTransport {
           cost_usd: ev.cost_usd,
           iteration: ev.iteration,
           model: ev.model,
+        });
+        break;
+      case 'context_update':
+        this.opts.onContextUpdate?.({
+          system_tokens: ev.system_tokens,
+          conversation_tokens: ev.conversation_tokens,
+          total_tokens: ev.total_tokens,
+          token_limit: ev.token_limit,
+          files: ev.files,
         });
         break;
     }
