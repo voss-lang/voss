@@ -20,8 +20,10 @@ import NewWorkspacePicker, {
 import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import StatusBar from './components/StatusBar';
+import ContextPanel from './components/ContextPanel';
 import { collectLeaves } from './grid/tree';
-import type { AgentConfig } from './pane/pty-ipc';
+import type { AgentConfig, ContextData } from './pane/pty-ipc';
+import { contextByPaneId } from './pane/contextRegistry';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
 import ToastStack from './command-palette/toast';
