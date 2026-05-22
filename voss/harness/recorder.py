@@ -20,6 +20,79 @@ import sys
 from .session import EXIT_REASONS, BatchRecord, IterationRecord, RunRecord
 
 
+@dataclass
+class FileContextState:
+    """Per-file context window state for F4 heatmap visualization."""
+    path: str
+    tokens: int
+    state: str = "full"  # "full" | "dropped"
+    pinned: bool = False
+
+
+class ContextTracker:
+    """Accumulates per-file context state for OSC emission (F4 D-25)."""
+
+    def __init__(self) -> None:
+        self.files: dict[str, FileContextState] = {}
+        self.pinned: set[str] = set()
+        self.prev_prompt_tokens: int = 0
+
+    def track_file(self, path: str, content: str) -> None:
+        """Record a file read into context with token estimate (len//4)."""
+        tokens = max(len(content) // 4, 1)
+        self.files[path] = FileContextState(
+            path=path, tokens=tokens, state="full",
+            pinned=path in self.pinned,
+        )
+
+    def detect_drops(self, prompt_tokens: int) -> None:
+        """Mark oldest non-pinned files as dropped when prompt_tokens decreases."""
+        if self.prev_prompt_tokens > 0 and prompt_tokens < self.prev_prompt_tokens:
+            deficit = self.prev_prompt_tokens - prompt_tokens
+            accounted = 0
+            # Sort by insertion order (dict preserves it), oldest first
+            for fcs in self.files.values():
+                if accounted >= deficit:
+                    break
+                if fcs.pinned or fcs.state == "dropped":
+                    continue
+                fcs.state = "dropped"
+                accounted += fcs.tokens
+        self.prev_prompt_tokens = prompt_tokens
+
+    def load_pins(self, pin_file: Path) -> None:
+        """Read pin commands from .voss/context-pins.json (F4 D-20, D-22)."""
+        if not pin_file.is_file():
+            return
+        try:
+            data = json.loads(pin_file.read_text())
+        except (json.JSONDecodeError, OSError):
+            return
+        raw_pins = data.get("pinned", [])
+        if not isinstance(raw_pins, list):
+            return
+        # D-22: only accept paths already in tracked files
+        self.pinned = {p for p in raw_pins if isinstance(p, str) and p in self.files}
+        for path, fcs in self.files.items():
+            fcs.pinned = path in self.pinned
+
+    def snapshot(self) -> dict:
+        """Return D-25 payload dict. Files sorted by tokens desc, capped at 200."""
+        sorted_files = sorted(self.files.values(), key=lambda f: f.tokens, reverse=True)
+        capped = sorted_files[:200]
+        total = sum(f.tokens for f in self.files.values())
+        return {
+            "system_tokens": 0,
+            "conversation_tokens": 0,
+            "total_tokens": total,
+            "token_limit": None,
+            "files": [
+                {"path": f.path, "tokens": f.tokens, "state": f.state, "pinned": f.pinned}
+                for f in capped
+            ],
+        }
+
+
 def _emit_budget_osc(
     *,
     tokens_used: int,
@@ -44,6 +117,16 @@ def _emit_budget_osc(
         separators=(",", ":"),
     )
     sys.stdout.write(f"\x1b]1337;voss-budget={payload}\x07")
+    sys.stdout.flush()
+
+
+def _emit_context_osc(payload: dict) -> None:
+    """Write an OSC 1337 voss-context= sequence to stdout (F4 D-23, D-24).
+
+    Stripped by reader.rs extract_voss_osc before bytes reach xterm.
+    """
+    json_str = json.dumps(payload, separators=(",", ":"))
+    sys.stdout.write(f"\x1b]1337;voss-context={json_str}\x07")
     sys.stdout.flush()
 
 
@@ -79,6 +162,8 @@ class RunRecorder:
     # T1-01: per-iteration sub-records appended via begin_iteration /
     # end_iteration; forwarded to RunRecord.iterations on finalize.
     _iterations: list[IterationRecord] = field(default_factory=list)
+    # F4: per-file context tracking for heatmap visualization
+    _context_tracker: ContextTracker = field(default_factory=ContextTracker)
 
     @classmethod
     def start(cls) -> "RunRecorder":
@@ -97,6 +182,9 @@ class RunRecorder:
             path = args.get("path") or args.get("pattern") or ""
             if path:
                 self.inspected.append(path)
+            # F4: track file content for context heatmap
+            if tool_name == "fs_read" and path and isinstance(result, str) and result:
+                self._context_tracker.track_file(path, result)
         elif tool_name in CHANGE_TOOLS:
             path = args.get("path", "")
             if path:
@@ -214,6 +302,8 @@ class RunRecorder:
         target.cache_read_input_tokens = cache_read_input_tokens
         target.exit_reason = exit_reason
         target.ended_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        # F4: update drop detection state
+        self._context_tracker.detect_drops(prompt_tokens)
 
     def begin_batch(
         self, *, batch_index: int, step_indices: list[int]
