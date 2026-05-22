@@ -767,6 +767,7 @@ async def _run_turn_exec(
                             iteration=iteration_index + 1,
                             model=model,
                         )
+                        _emit_context_osc(rec._context_tracker.snapshot())
                         telemetry.emit(
                             "iteration.end",
                             "info",
@@ -813,6 +814,7 @@ async def _run_turn_exec(
                         iteration=iteration_index + 1,
                         model=model,
                     )
+                    _emit_context_osc(rec._context_tracker.snapshot())
                     telemetry.emit(
                         "iteration.end",
                         "info",
@@ -863,6 +865,7 @@ async def _run_turn_exec(
                     iteration=iteration_index + 1,
                     model=model,
                 )
+                _emit_context_osc(rec._context_tracker.snapshot())
                 telemetry.emit(
                     "iteration.end",
                     "info",
