@@ -5,6 +5,7 @@ use std::io::Read;
 use std::sync::mpsc;
 use std::time::Duration;
 
+use crate::pty::reader::extract_voss_osc;
 use crate::pty::writer::validate_write;
 use crate::pty::{spawn_session, PtyRegistry};
 
@@ -149,4 +150,41 @@ fn test_foreground_pgid() {
     {
         assert!(name.is_none(), "non-unix returns None (Windows stub)");
     }
+}
+
+// ── F3: extract_voss_osc unit tests ─────────────────────────────────────
+
+#[test]
+fn test_extract_voss_osc_parses_well_formed() {
+    let payload = br#"{"tokens_used":100,"token_limit":1000,"cost_usd":0.005,"iteration":1,"model":"claude-3"}"#;
+    let mut data = b"\x1b]1337;voss-budget=".to_vec();
+    data.extend_from_slice(payload);
+    data.push(0x07);
+    let (json, display) = extract_voss_osc(&data).expect("should find the sequence");
+    assert_eq!(json, payload.to_vec());
+    assert!(display.is_empty());
+}
+
+#[test]
+fn test_extract_voss_osc_strips_surrounding_display_bytes() {
+    let before = b"hello ";
+    let after = b" world";
+    let osc = b"\x1b]1337;voss-budget={\"tokens_used\":1,\"token_limit\":null,\"cost_usd\":0.0,\"iteration\":1,\"model\":\"m\"}\x07";
+    let mut data = before.to_vec();
+    data.extend_from_slice(osc);
+    data.extend_from_slice(after);
+    let (_, display) = extract_voss_osc(&data).expect("found");
+    assert_eq!(display, b"hello  world");
+}
+
+#[test]
+fn test_extract_voss_osc_returns_none_for_partial_sequence() {
+    let data = b"\x1b]1337;voss-budget={\"tokens_used\":1";
+    assert!(extract_voss_osc(data).is_none());
+}
+
+#[test]
+fn test_extract_voss_osc_returns_none_for_unrelated_bytes() {
+    let data = b"normal terminal output \x1b[32mgreen text\x1b[0m";
+    assert!(extract_voss_osc(data).is_none());
 }

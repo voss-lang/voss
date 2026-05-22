@@ -54,7 +54,7 @@
 | O6 | Audit Product + Calibration + Liveness | Session-tree review surface; killed-card + routing first-class; calibration telemetry; reserve/timeout; sign-off forcing function | OAUD-01..0N (TBD by SPEC.md) | TBD |
 | F1 | Durable Session Persistence | Agent cells resume after restart/crash; SQLite registry + boot-path auto-restart | FPRS-01..05 | 3 plans, 2 waves |
 | F2 | Hybrid Semantic Search | BM25 + vector via Reciprocal Rank Fusion; symbol-accurate retrieval | FSRCH-01..04 | 3 plans, 3 waves |
-| F3 | Budget & Token Visualization | HUD progress bars for token/budget, live cost updates via IPC | FVIZ-01..0N (TBD by SPEC.md) | TBD |
+| F3 | Budget & Token Visualization | HUD progress bars for token/budget, live cost updates via IPC | D-01..D-14 (from F3-CONTEXT.md) | 3 plans, 3 waves |
 | F4 | Visual Context Heatmap | Context pane showing in-context/compressed files + manual pinning UI | FCTX-01..0N (TBD by SPEC.md) | TBD |
 | F5 | Commit with Critique Hook | Pre-commit hook invoking Voss agent to critique diffs against constraints | FCRIT-01..0N (TBD by SPEC.md) | TBD |
 | F6 | Multi-Model Agent Council | CLI-native multi-model deliberation panel; structured debate + consensus engine | FCNCL-01..0N (TBD by SPEC.md) | TBD |
@@ -1795,6 +1795,32 @@ Plans:
 
 **Cross-cutting:** Scope is limited to `MemoryStore.recall()` and its tests. Code search remains out of scope for F2 and belongs to the M10/code-search track.
 
+
+---
+
+### Phase F3: Budget & Token Visualization
+
+**Goal:** Live HUD in voss-app showing token budget consumption and cost accumulation for agent panes. Budget/cost data flows from the Voss harness process (running inside a PTY pane) to the ADE UI via custom OSC escape sequences in the PTY stream.
+
+**Requirements:** D-01..D-14 (locked in `F3-CONTEXT.md`)
+
+**Plans:** 3 plans, 3 waves
+
+Plans:
+- [ ] F3-01-PLAN.md — Rust OSC parser + BudgetData/BudgetUpdate + Python _emit_budget_osc + agent.py wiring
+- [ ] F3-02-PLAN.md — Frontend transport extension + Popover + BudgetBar + BudgetPopover components
+- [ ] F3-03-PLAN.md — PaneComponent integration + CSS transition + human verification
+
+**Success Criteria:**
+1. Python harness emits OSC 1337 voss-budget= with cumulative totals after each LLM response.
+2. Rust PTY reader strips OSC from display bytes and emits BudgetUpdate event.
+3. Agent panes show cost text + conditional progress bar in 22px header.
+4. Shell panes show nothing.
+5. Click budget segment opens detail popover with tokens, model, turns, cost.
+6. 3-tier color thresholds: green (<70%), amber (70-90%), red (90-100%).
+7. Budget state resets on app restart; first OSC repopulates (self-heal).
+
+**Cross-cutting:** Builds on A2 PTY subsystem (reader.rs, commands.rs, PtyEvent, PtyTransport) + A3 PaneComponent inline header. Does NOT modify PaneHeader.tsx (grid layer uses it; PaneComponent has its own inline header). Creates a thin Popover.tsx primitive forward-compatible with A10 status bar popover pattern.
 ---
 
 ## Backlog

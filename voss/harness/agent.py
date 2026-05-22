@@ -39,7 +39,7 @@ from .providers import (
     ToolUseStart,
     Usage,
 )
-from .recorder import RunRecorder, write_decisions_md
+from .recorder import RunRecorder, _emit_budget_osc, write_decisions_md
 from .render import Renderer
 from .session import IterationRecord, RunRecord
 from .tools import ToolEntry
@@ -757,6 +757,13 @@ async def _run_turn_exec(
                             cache_read_input_tokens=iter_cache_read,
                             exit_reason="done",
                         )
+                        _emit_budget_osc(
+                            tokens_used=total_prompt_tokens + total_completion_tokens + iter_prompt_tokens + iter_completion_tokens,
+                            token_limit=token_budget,
+                            cost_usd=total_cost_usd + iter_cost,
+                            iteration=iteration_index + 1,
+                            model=model,
+                        )
                         telemetry.emit(
                             "iteration.end",
                             "info",
@@ -795,6 +802,13 @@ async def _run_turn_exec(
                         cache_creation_input_tokens=iter_cache_creation,
                         cache_read_input_tokens=iter_cache_read,
                         exit_reason="done",
+                    )
+                    _emit_budget_osc(
+                        tokens_used=total_prompt_tokens + total_completion_tokens + iter_prompt_tokens + iter_completion_tokens,
+                        token_limit=token_budget,
+                        cost_usd=total_cost_usd + iter_cost,
+                        iteration=iteration_index + 1,
+                        model=model,
                     )
                     telemetry.emit(
                         "iteration.end",
@@ -838,6 +852,13 @@ async def _run_turn_exec(
                     cache_creation_input_tokens=iter_cache_creation,
                     cache_read_input_tokens=iter_cache_read,
                     exit_reason=None,
+                )
+                _emit_budget_osc(
+                    tokens_used=total_prompt_tokens + total_completion_tokens + iter_prompt_tokens + iter_completion_tokens,
+                    token_limit=token_budget,
+                    cost_usd=total_cost_usd + iter_cost,
+                    iteration=iteration_index + 1,
+                    model=model,
                 )
                 telemetry.emit(
                     "iteration.end",

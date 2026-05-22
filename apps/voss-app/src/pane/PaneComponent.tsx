@@ -7,7 +7,11 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
-import { PtyTransport, type AgentConfig } from './pty-ipc';
+import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
+import { isKnownAgentCli } from './agentDetect';
+import { registerPaneProc, unregisterPaneProc } from './procRegistry';
+import BudgetBar from '../grid/BudgetBar';
+import BudgetPopover from '../grid/BudgetPopover';
 import PasteGuard from './PasteGuard';
 import ExitBanner from './ExitBanner';
 import FindBar from './FindBar';
@@ -92,6 +96,17 @@ export default function PaneComponent(props: PaneProps) {
   );
   const [bellBadge, setBellBadge] = createSignal(false);
   const [headerFlash, setHeaderFlash] = createSignal(false);
+  const [budget, setBudget] = createSignal<BudgetState | null>(null);
+  const [budgetPopoverAnchor, setBudgetPopoverAnchor] = createSignal<HTMLElement | null>(null);
+  const openBudgetPopover = (anchor: HTMLElement) =>
+    setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
+  const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
+  const isAgentCli = () => isKnownAgentCli(proc());
+  const updateProc = (name: string) => {
+    setProc(name);
+    const paneId = props.id;
+    if (paneId) registerPaneProc(paneId, name);
+  };
 
   const cwdBase = () => basename(props.cwd ?? '~');
   const shellName = () => props.shell ?? 'shell';
@@ -313,11 +328,12 @@ export default function PaneComponent(props: PaneProps) {
         setDot('exited');
         setExitCode(code);
       },
-      onFgProcess: (name) => setProc(name),
+      onFgProcess: (name) => updateProc(name),
       onTitle: (title) => {
         lastOscTitleAt = Date.now();
-        setProc(title);
+        updateProc(title);
       },
+      onBudgetUpdate: (data) => setBudget(data),
       ...(props.agentConfig
         ? {
             agentPaneId: props.id,
@@ -329,7 +345,7 @@ export default function PaneComponent(props: PaneProps) {
     // D-07 primary: OSC 0/2 title → process slot.
     t.onTitleChange((title) => {
       lastOscTitleAt = Date.now();
-      setProc(title);
+      updateProc(title);
     });
     // Keystrokes → PTY. Fire onFirstInput once for restore-banner dismiss (A6 D-09).
     t.onData((d) => {
@@ -378,7 +394,7 @@ export default function PaneComponent(props: PaneProps) {
       transport
         ?.fgProcess()
         .then((name) => {
-          if (name) setProc(name);
+          if (name) updateProc(name);
         })
         .catch(() => {});
     }, 500);
@@ -431,6 +447,7 @@ export default function PaneComponent(props: PaneProps) {
     const paneId = props.id ?? String(props.index ?? 1);
     unregisterTerminal(paneId);
     unregisterScrollbackProvider(paneId);
+    if (props.id) unregisterPaneProc(props.id);
     transport?.kill();
     term?.dispose();
   });
@@ -455,9 +472,9 @@ export default function PaneComponent(props: PaneProps) {
     >
       <div
         ref={headerRef}
-        class={`pane-header${headerFlash() ? ' bell-flash' : ''}`}
+        class={`pane-header${headerFlash() ? ' bell-flash' : ''}${isAgentCli() ? ' agent-pane' : ''}`}
       >
-        <span class={`dot ${dot()}`}>●</span>
+        <span class={`dot ${dot()}${isAgentCli() ? ' agent' : ''}`}>●</span>
         <span class="sep">·</span>
         <span class="idx">{props.index ?? 1}</span>
         <span class="sep">·</span>
@@ -466,7 +483,15 @@ export default function PaneComponent(props: PaneProps) {
         <span class="shell">{shellName()}</span>
         <Show when={proc()}>
           <span class="sep">·</span>
-          <span class="proc">{proc()}</span>
+          <span class={isAgentCli() ? 'proc agent-proc' : 'proc'}>{proc()}</span>
+        </Show>
+        <Show when={isAgentCli() && !budget()}>
+          <span class="sep">·</span>
+          <span style={{ color: 'var(--accent-cyan)', 'font-size': '11px' }}>agent</span>
+        </Show>
+        <Show when={isAgentCli() && budget()?.model}>
+          <span class="sep">·</span>
+          <span class="model">{budget()!.model}</span>
         </Show>
         <Show when={bellBadge()}>
           <span class="sep">·</span>
@@ -475,6 +500,14 @@ export default function PaneComponent(props: PaneProps) {
           </span>
         </Show>
         <span class="spacer" />
+        <Show when={budget()}>
+          {(b) => (
+            <BudgetBar
+              budget={b()}
+              onClickDetail={(anchor) => openBudgetPopover(anchor)}
+            />
+          )}
+        </Show>
         <button class="menu" title="menu" type="button">
           ⋯
         </button>
@@ -503,6 +536,14 @@ export default function PaneComponent(props: PaneProps) {
 
       <Show when={exitCode() !== null}>
         <ExitBanner exitCode={exitCode() as number} onRestart={restart} />
+      </Show>
+
+      <Show when={budgetPopoverAnchor() != null && budget() != null}>
+        <BudgetPopover
+          budget={budget()!}
+          anchor={budgetPopoverAnchor()!}
+          onClose={closeBudgetPopover}
+        />
       </Show>
     </div>
   );

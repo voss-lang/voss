@@ -333,3 +333,34 @@ html.reduced-motion .pane-header.bell-flash {
 .find-bar .fb-close:hover {
   color: var(--accent-red);
 }
+
+/* F3: Budget bar fill transition (D-13) */
+.budget-bar-fill {
+  transition: width 150ms ease-out;
+}
+
+html.reduced-motion .budget-bar-fill {
+  transition: none;
+}
+
+/* Agent pane visual distinction */
+.pane-header .dot.running.agent {
+  color: var(--accent-cyan);
+}
+
+.pane-header.agent-pane {
+  border-bottom: 1px solid var(--accent-cyan);
+}
+
+.pane-header .agent-proc {
+  color: var(--accent-cyan);
+  font-weight: 500;
+}
+
+.pane-header .model {
+  color: var(--fg-2);
+  font-size: 11px;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

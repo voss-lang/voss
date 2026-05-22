@@ -1,0 +1,80 @@
+import { Show, createMemo } from 'solid-js';
+import { procByPaneId } from '../pane/procRegistry';
+import { isKnownAgentCli } from '../pane/agentDetect';
+
+export type StatusBarProps = {
+  workspaceName: string | undefined;
+  paneCount: number;
+  focusedPaneId: string | undefined;
+  gitBranch: string | null | undefined;
+};
+
+export default function StatusBar(props: StatusBarProps) {
+  const focusedProc = createMemo(() => {
+    const id = props.focusedPaneId;
+    if (!id) return undefined;
+    return procByPaneId()[id];
+  });
+
+  const procIsAgent = createMemo(() => {
+    const proc = focusedProc();
+    return proc ? isKnownAgentCli(proc) : false;
+  });
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        'align-items': 'center',
+        height: '22px',
+        'flex-shrink': '0',
+        background: 'var(--bg-0)',
+        'border-top': '1px solid var(--border)',
+        'font-family': 'var(--font-mono)',
+        'font-size': '11px',
+        color: 'var(--fg-2)',
+        padding: '0 8px',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Left: workspace name + pane count */}
+      <div style={{ 'white-space': 'nowrap' }}>
+        <Show when={props.workspaceName}>
+          <span>{props.workspaceName}</span>
+          <span style={{ margin: '0 4px' }}>&middot;</span>
+        </Show>
+        <span>
+          {props.paneCount} pane{props.paneCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Center: focused pane process name */}
+      <div
+        style={{
+          flex: '1',
+          'text-align': 'center',
+          overflow: 'hidden',
+          'text-overflow': 'ellipsis',
+          'white-space': 'nowrap',
+        }}
+      >
+        <Show when={focusedProc()}>
+          <span
+            style={{
+              color: procIsAgent() ? 'var(--accent-cyan)' : 'var(--fg-1)',
+            }}
+          >
+            {focusedProc()}
+          </span>
+        </Show>
+      </div>
+
+      {/* Right: git branch */}
+      <div style={{ 'white-space': 'nowrap' }}>
+        <Show when={props.gitBranch}>
+          <span>{props.gitBranch}</span>
+        </Show>
+      </div>
+    </div>
+  );
+}

@@ -32,6 +32,8 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
         'flex-shrink': '0',
         'margin-right': '10px',
         gap: '6px',
+        // Ensure Tauri drag-region siblings don't swallow pointer events.
+        'pointer-events': 'auto',
       }}
     >
       {/*

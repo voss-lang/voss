@@ -1,59 +1,59 @@
 {
   "version": 1,
-  "activePreset": null,
+  "activePreset": "fanout",
   "grid": {
     "root": {
       "kind": "split",
       "orientation": "H",
-      "ratio": 0.6,
+      "ratio": 0.5,
       "left": {
+        "kind": "pane",
+        "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
+        "cwd": "/Users/benjaminmarks/Projects/Voss",
+        "shell": "",
+        "index": 1
+      },
+      "right": {
         "kind": "split",
-        "orientation": "H",
-        "ratio": 0.33333334,
+        "orientation": "V",
+        "ratio": 0.25,
         "left": {
           "kind": "pane",
-          "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
-          "cwd": "/Users/benjaminmarks/Projects/Voss",
+          "id": "10795fa4-8c7a-40d3-842e-8c4cdcba7d0b",
+          "cwd": "",
           "shell": "",
-          "index": 1
+          "index": 2
         },
         "right": {
           "kind": "split",
           "orientation": "V",
-          "ratio": 0.5,
+          "ratio": 0.33333334,
           "left": {
-            "kind": "pane",
-            "id": "10795fa4-8c7a-40d3-842e-8c4cdcba7d0b",
-            "cwd": "",
-            "shell": "",
-            "index": 2
-          },
-          "right": {
             "kind": "pane",
             "id": "499e6ae2-00f1-4984-bb66-45c0e2cde8c9",
             "cwd": "",
             "shell": "",
             "index": 3
+          },
+          "right": {
+            "kind": "split",
+            "orientation": "V",
+            "ratio": 0.5,
+            "left": {
+              "kind": "pane",
+              "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
+              "cwd": "",
+              "shell": "",
+              "index": 4
+            },
+            "right": {
+              "kind": "pane",
+              "id": "621f2aa7-4e5b-44e0-81d1-f203442f3134",
+              "cwd": "",
+              "shell": "",
+              "index": 5
+            }
           }
-        }
-      },
-      "right": {
-        "kind": "split",
-        "orientation": "V",
-        "ratio": 0.5,
-        "left": {
-          "kind": "pane",
-          "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
-          "cwd": "",
-          "shell": "",
-          "index": 4
-        },
-        "right": {
-          "kind": "pane",
-          "id": "621f2aa7-4e5b-44e0-81d1-f203442f3134",
-          "cwd": "",
-          "shell": "",
-          "index": 5
         }
       }
     },
