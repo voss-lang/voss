@@ -7,7 +7,9 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
-import { PtyTransport, type AgentConfig } from './pty-ipc';
+import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
+import BudgetBar from '../grid/BudgetBar';
+import BudgetPopover from '../grid/BudgetPopover';
 import PasteGuard from './PasteGuard';
 import ExitBanner from './ExitBanner';
 import FindBar from './FindBar';
@@ -92,6 +94,11 @@ export default function PaneComponent(props: PaneProps) {
   );
   const [bellBadge, setBellBadge] = createSignal(false);
   const [headerFlash, setHeaderFlash] = createSignal(false);
+  const [budget, setBudget] = createSignal<BudgetState | null>(null);
+  const [budgetPopoverAnchor, setBudgetPopoverAnchor] = createSignal<HTMLElement | null>(null);
+  const openBudgetPopover = (anchor: HTMLElement) =>
+    setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
+  const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
 
   const cwdBase = () => basename(props.cwd ?? '~');
   const shellName = () => props.shell ?? 'shell';
@@ -318,6 +325,7 @@ export default function PaneComponent(props: PaneProps) {
         lastOscTitleAt = Date.now();
         setProc(title);
       },
+      onBudgetUpdate: (data) => setBudget(data),
       ...(props.agentConfig
         ? {
             agentPaneId: props.id,
@@ -475,6 +483,16 @@ export default function PaneComponent(props: PaneProps) {
           </span>
         </Show>
         <span class="spacer" />
+        <Show when={props.agentConfig != null}>
+          <Show when={budget()}>
+            {(b) => (
+              <BudgetBar
+                budget={b()}
+                onClickDetail={(anchor) => openBudgetPopover(anchor)}
+              />
+            )}
+          </Show>
+        </Show>
         <button class="menu" title="menu" type="button">
           ⋯
         </button>
@@ -503,6 +521,14 @@ export default function PaneComponent(props: PaneProps) {
 
       <Show when={exitCode() !== null}>
         <ExitBanner exitCode={exitCode() as number} onRestart={restart} />
+      </Show>
+
+      <Show when={budgetPopoverAnchor() != null && budget() != null}>
+        <BudgetPopover
+          budget={budget()!}
+          anchor={budgetPopoverAnchor()!}
+          onClose={closeBudgetPopover}
+        />
       </Show>
     </div>
   );
