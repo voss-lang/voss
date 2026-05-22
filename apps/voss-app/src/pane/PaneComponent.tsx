@@ -102,6 +102,8 @@ export default function PaneComponent(props: PaneProps) {
     setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
   const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
   const isAgentCli = () => isKnownAgentCli(proc());
+  // Suppress unused until workstreams 2+4 add JSX consumers
+  void isAgentCli;
   const updateProc = (name: string) => {
     setProc(name);
     const paneId = props.id;
@@ -447,6 +449,7 @@ export default function PaneComponent(props: PaneProps) {
     const paneId = props.id ?? String(props.index ?? 1);
     unregisterTerminal(paneId);
     unregisterScrollbackProvider(paneId);
+    if (props.id) unregisterPaneProc(props.id);
     transport?.kill();
     term?.dispose();
   });
