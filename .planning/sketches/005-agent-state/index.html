@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>005 — Agent State</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+/* ── Layout ── */
+html, body { height: 100%; overflow: hidden; }
+body { display: flex; flex-direction: column; user-select: none; }
+
+/* ── Titlebar ── */
+.titlebar {
+  height: var(--titlebar-h);
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+.traffic-lights { position: absolute; left: 14px; display: flex; gap: 8px; }
+.traffic-light {
+  width: 12px; height: 12px; border-radius: 50%;
+}
+.tl-close { background: #ff5f57; }
+.tl-min   { background: #febc2e; }
+.tl-max   { background: #28c840; }
+.titlebar-text {
+  font-family: var(--font-ui); font-size: 13px; font-weight: 500;
+  color: var(--fg-1); letter-spacing: 0.3px;
+}
+
+/* ── Variant Tabs ── */
+.variant-tabs {
+  height: var(--tabbar-h);
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: stretch; flex-shrink: 0;
+  padding: 0 12px; gap: 2px;
+}
+.variant-tab {
+  font-family: var(--font-ui); font-size: 12px; font-weight: 500;
+  color: var(--fg-2); background: transparent; border: none;
+  padding: 0 16px; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--ease-base);
+}
+.variant-tab:hover { color: var(--fg-1); }
+.variant-tab.active {
+  color: var(--focus); border-bottom-color: var(--focus);
+}
+
+/* ── Pane Grid ── */
+.pane-grid {
+  flex: 1; display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px; background: var(--border);
+  min-height: 0;
+}
+
+/* ── Pane (shared) ── */
+.pane {
+  background: var(--bg-0);
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+  position: relative;
+  transition: box-shadow var(--ease-base);
+  cursor: pointer;
+}
+.pane.focused { box-shadow: inset 0 0 0 1px var(--focus), 0 0 20px rgba(255,91,31,0.08); }
+
+/* ── Pane Header (shared base) ── */
+.pane-header {
+  height: var(--pane-header-h);
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 10px; gap: 8px;
+  font-family: var(--font-ui); font-size: 11px;
+  color: var(--fg-2); flex-shrink: 0;
+  transition: height var(--ease-base), background var(--ease-base);
+  overflow: hidden;
+}
+
+/* ── Terminal Content ── */
+.terminal {
+  flex: 1; padding: 6px 10px;
+  font-family: var(--font-mono); font-size: 12.5px;
+  line-height: 1.55; color: var(--fg-1);
+  overflow-y: auto; overflow-x: hidden;
+  min-height: 0;
+  white-space: pre-wrap; word-break: break-all;
+}
+.terminal .prompt { color: var(--accent-green); }
+.terminal .cmd { color: var(--fg-0); font-weight: 500; }
+.terminal .comment { color: var(--fg-3); font-style: italic; }
+.terminal .path { color: var(--accent-cyan); }
+.terminal .string { color: var(--accent-amber); }
+.terminal .hash { color: var(--accent-amber); }
+.terminal .dim { color: var(--fg-2); }
+.terminal .keyword { color: var(--accent-magenta); }
+.terminal .fn { color: var(--accent-cyan); }
+.terminal .error { color: var(--accent-red); }
+
+/* ── Status Indicators ── */
+.status-indicator {
+  width: 14px; height: 14px; position: relative;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+}
+
+/* Thinking — pulsing orange ring */
+@keyframes thinking-ring {
+  0%   { transform: scale(0.7); opacity: 0.3; }
+  50%  { transform: scale(1.0); opacity: 1; }
+  100% { transform: scale(0.7); opacity: 0.3; }
+}
+@keyframes thinking-inner {
+  0%, 100% { transform: scale(0.9); }
+  50%      { transform: scale(1.1); }
+}
+.status-thinking .ring {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--role-planner);
+  animation: thinking-ring 2s ease-in-out infinite;
+  position: absolute;
+}
+.status-thinking .ring-outer {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1px solid rgba(255,91,31,0.25);
+  animation: thinking-ring 2s ease-in-out infinite 0.3s;
+  position: absolute;
+}
+.status-thinking .dot-inner {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--role-planner);
+  animation: thinking-inner 2s ease-in-out infinite;
+}
+
+/* Executing — spinning cyan arc */
+@keyframes spin-arc {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.status-executing svg {
+  width: 14px; height: 14px;
+  animation: spin-arc 1s linear infinite;
+}
+.status-executing svg circle {
+  stroke: var(--role-executor);
+  stroke-width: 2; fill: none;
+  stroke-dasharray: 28; stroke-dashoffset: 20;
+  stroke-linecap: round;
+}
+
+/* Waiting — green dot with ? badge */
+.status-waiting .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent-green);
+}
+.status-waiting .badge {
+  position: absolute; top: -2px; right: -3px;
+  font-size: 8px; font-weight: 700;
+  color: var(--bg-0); background: var(--accent-green);
+  width: 10px; height: 10px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-ui);
+}
+
+/* Streaming — flowing orange dots */
+@keyframes stream-dot-1 { 0%,20% { opacity: 0.2; } 30%,50% { opacity: 1; } 60%,100% { opacity: 0.2; } }
+@keyframes stream-dot-2 { 0%,30% { opacity: 0.2; } 40%,60% { opacity: 1; } 70%,100% { opacity: 0.2; } }
+@keyframes stream-dot-3 { 0%,40% { opacity: 0.2; } 50%,70% { opacity: 1; } 80%,100% { opacity: 0.2; } }
+.status-streaming { gap: 2px; }
+.status-streaming .sd {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--role-planner);
+}
+.status-streaming .sd:nth-child(1) { animation: stream-dot-1 1.4s ease-in-out infinite; }
+.status-streaming .sd:nth-child(2) { animation: stream-dot-2 1.4s ease-in-out infinite; }
+.status-streaming .sd:nth-child(3) { animation: stream-dot-3 1.4s ease-in-out infinite; }
+
+/* Done — checkmark, fading */
+@keyframes done-fade { 0% { opacity: 1; } 100% { opacity: 0.4; } }
+.status-done svg {
+  width: 12px; height: 12px;
+  animation: done-fade 3s ease forwards;
+}
+.status-done svg polyline {
+  stroke: var(--accent-green); stroke-width: 2.5; fill: none;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Error — red pulse */
+@keyframes error-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50%      { transform: scale(1.2); opacity: 1; }
+}
+.status-error .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent-red);
+  animation: error-pulse 1.2s ease-in-out infinite;
+}
+
+/* Idle — dim dot */
+.status-idle .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--fg-3);
+}
+
+/* ── Header info segments ── */
+.header-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.header-center { display: flex; align-items: center; gap: 6px; flex: 2; justify-content: center; min-width: 0; }
+.header-right { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; min-width: 0; }
+.header-sep { color: var(--fg-3); font-size: 9px; }
+.header-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.header-label.bright { color: var(--fg-1); }
+.header-cost { color: var(--accent-amber); font-weight: 500; font-family: var(--font-mono); font-size: 10px; }
+.header-tokens { color: var(--fg-3); font-family: var(--font-mono); font-size: 10px; }
+.header-time { color: var(--fg-3); font-family: var(--font-mono); font-size: 10px; }
+
+/* ── Variant A: Expandable header ── */
+.variant-a .pane-header { cursor: pointer; }
+.variant-a .pane-header.expanded {
+  height: 60px;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  padding-bottom: 4px;
+}
+.expand-row {
+  width: 100%; display: none;
+  align-items: center; gap: 8px;
+  padding-top: 4px;
+}
+.variant-a .pane-header.expanded .expand-row { display: flex; }
+.progress-bar {
+  flex: 1; height: 3px; background: var(--bg-3);
+  border-radius: 2px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 2px;
+  transition: width var(--ease-base);
+}
+.tool-pill {
+  font-family: var(--font-mono); font-size: 9px;
+  padding: 1px 6px; border-radius: 3px;
+  background: var(--bg-3); color: var(--fg-2);
+  white-space: nowrap;
+}
+.btn-stop, .btn-pause {
+  font-family: var(--font-ui); font-size: 9px; font-weight: 600;
+  padding: 1px 8px; border-radius: 3px;
+  border: none; cursor: pointer;
+  transition: all var(--ease-fast);
+}
+.btn-stop { background: rgba(232,123,123,0.2); color: var(--accent-red); }
+.btn-stop:hover { background: rgba(232,123,123,0.35); }
+.btn-pause { background: rgba(232,184,108,0.2); color: var(--accent-amber); }
+.btn-pause:hover { background: rgba(232,184,108,0.35); }
+.expand-chevron {
+  margin-left: auto; font-size: 8px; color: var(--fg-3);
+  transition: transform var(--ease-base);
+}
+.pane-header.expanded .expand-chevron { transform: rotate(180deg); }
+
+/* ── Variant B: Inline agent banners ── */
+.variant-b .terminal .agent-block {
+  background: rgba(255,91,31,0.04);
+  border-radius: 3px; margin: 2px -4px; padding: 4px 8px;
+}
+.variant-b .terminal .tool-block {
+  border-left: 3px solid var(--role-executor);
+  padding-left: 10px; margin: 4px 0;
+  background: rgba(108,199,212,0.04);
+  border-radius: 0 3px 3px 0;
+  font-size: 12px;
+}
+.variant-b .terminal .tool-result {
+  padding-left: 16px; color: var(--fg-2);
+  font-size: 11.5px;
+}
+.variant-b .terminal .user-msg {
+  color: var(--fg-0); font-weight: 500;
+}
+.variant-b .terminal .user-prefix { color: var(--accent-green); font-weight: 700; }
+.variant-b .terminal .turn-sep {
+  border-top: 1px dashed var(--border-bright);
+  margin: 6px 0;
+}
+.variant-b .terminal .cost-watermark {
+  text-align: right; color: var(--fg-3); font-size: 10px;
+  margin: 2px 0;
+}
+
+/* Thinking banner — shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+.thinking-banner {
+  height: 3px; flex-shrink: 0;
+  background: linear-gradient(90deg, transparent, var(--focus), transparent);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+.thinking-banner.cyan-shimmer {
+  background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+  background-size: 200px 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+/* Collapsible card */
+.json-card {
+  background: var(--bg-2); border: 1px solid var(--border-bright);
+  border-radius: 4px; margin: 4px 0; overflow: hidden;
+}
+.json-card-header {
+  padding: 3px 8px; font-size: 10px;
+  color: var(--fg-2); cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-ui);
+}
+.json-card-header:hover { background: var(--bg-3); }
+.json-card-body {
+  padding: 4px 10px; font-size: 11px;
+  border-top: 1px solid var(--border);
+  color: var(--fg-1); display: none;
+}
+.json-card.open .json-card-body { display: block; }
+.json-card-chevron { font-size: 8px; transition: transform var(--ease-base); }
+.json-card.open .json-card-chevron { transform: rotate(90deg); }
+
+/* Rendered markdown in terminal */
+.md-h3 { color: var(--fg-0); font-weight: 600; font-size: 13px; margin: 4px 0 2px; }
+.md-bold { color: var(--fg-0); font-weight: 600; }
+.md-code { background: var(--bg-2); padding: 1px 4px; border-radius: 2px; color: var(--accent-cyan); font-size: 12px; }
+.md-codeblock {
+  background: var(--bg-2); padding: 6px 8px; border-radius: 3px;
+  margin: 3px 0; border: 1px solid var(--border);
+  font-size: 12px; color: var(--fg-1);
+}
+
+/* ── Variant C: Side Panel ── */
+.variant-c .pane-grid-wrapper {
+  flex: 1; display: flex; min-height: 0;
+}
+.variant-c .pane-grid { flex: 1; }
+
+.side-panel {
+  width: 0; background: var(--bg-1);
+  border-left: 1px solid var(--border);
+  overflow-y: auto; overflow-x: hidden;
+  transition: width 200ms ease-out;
+  flex-shrink: 0;
+}
+.side-panel.open { width: 260px; }
+.side-panel-inner {
+  width: 260px; padding: 12px; display: flex; flex-direction: column; gap: 14px;
+}
+.sp-header {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.sp-name { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--fg-0); }
+.sp-model { font-family: var(--font-mono); font-size: 10px; color: var(--fg-2); }
+.sp-badge {
+  font-family: var(--font-ui); font-size: 9px; font-weight: 600;
+  padding: 2px 7px; border-radius: 10px;
+  margin-left: auto;
+}
+.sp-section { display: flex; flex-direction: column; gap: 6px; }
+.sp-section-title {
+  font-family: var(--font-ui); font-size: 10px; font-weight: 600;
+  color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.8px;
+}
+.sp-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 11px; color: var(--fg-1);
+}
+.sp-row .label { color: var(--fg-2); }
+.sp-progress-bar {
+  height: 4px; background: var(--bg-3); border-radius: 2px; overflow: hidden;
+}
+.sp-progress-fill { height: 100%; border-radius: 2px; }
+.sp-tool-item {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--fg-2); padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sp-tool-item:last-child { border-bottom: none; }
+.sp-tool-name { color: var(--fg-1); }
+.sp-tool-time { margin-left: auto; color: var(--fg-3); font-size: 9px; }
+.sp-file {
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--accent-cyan); padding: 2px 0;
+  cursor: pointer;
+}
+.sp-file:hover { text-decoration: underline; }
+.sp-controls { display: flex; gap: 6px; }
+.sp-btn {
+  flex: 1; padding: 5px 0; border-radius: 4px;
+  font-family: var(--font-ui); font-size: 11px; font-weight: 600;
+  border: none; cursor: pointer; text-align: center;
+  transition: all var(--ease-fast);
+}
+.sp-btn-stop { background: rgba(232,123,123,0.15); color: var(--accent-red); }
+.sp-btn-stop:hover { background: rgba(232,123,123,0.3); }
+.sp-btn-pause { background: rgba(232,184,108,0.15); color: var(--accent-amber); }
+.sp-btn-pause:hover { background: rgba(232,184,108,0.3); }
+.sp-btn-restart { background: rgba(94,194,106,0.15); color: var(--accent-green); }
+.sp-btn-restart:hover { background: rgba(94,194,106,0.3); }
+
+/* ── Status Bar ── */
+.statusbar {
+  height: var(--statusbar-h);
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 12px; gap: 16px;
+  font-family: var(--font-ui); font-size: 11px;
+  color: var(--fg-2); flex-shrink: 0;
+}
+.statusbar-item { display: flex; align-items: center; gap: 4px; }
+.statusbar-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.statusbar .spacer { flex: 1; }
+
+/* ── Sketch Toolbar ── */
+.sketch-toolbar {
+  position: fixed; bottom: 36px; right: 12px;
+  display: flex; gap: 6px; z-index: 100;
+}
+.sketch-btn {
+  font-family: var(--font-ui); font-size: 10px; font-weight: 500;
+  padding: 4px 10px; border-radius: 4px;
+  background: var(--bg-3); color: var(--fg-2);
+  border: 1px solid var(--border-bright);
+  cursor: pointer; transition: all var(--ease-fast);
+}
+.sketch-btn:hover { background: var(--bg-2); color: var(--fg-1); border-color: var(--fg-3); }
+
+/* ── Variant visibility ── */
+.variant { display: none; flex-direction: column; flex: 1; min-height: 0; }
+.variant.active { display: flex; }
+
+/* ── Agent name colors ── */
+.agent-name-claude { color: var(--role-planner); }
+.agent-name-codex { color: var(--role-executor); }
+.agent-name-gemini { color: var(--accent-amber); }
+.agent-name-shell { color: var(--accent-green); }
+
+/* ── Misc ── */
+.role-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<!-- Titlebar -->
+<div class="titlebar">
+  <div class="traffic-lights">
+    <div class="traffic-light tl-close"></div>
+    <div class="traffic-light tl-min"></div>
+    <div class="traffic-light tl-max"></div>
+  </div>
+  <span class="titlebar-text">Voss ADE</span>
+</div>
+
+<!-- Variant Tabs -->
+<div class="variant-tabs">
+  <button class="variant-tab active" data-variant="a">A: Enhanced Pane Headers</button>
+  <button class="variant-tab" data-variant="b">B: Inline Agent Banners</button>
+  <button class="variant-tab" data-variant="c">C: Side Panel Detail</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- VARIANT A -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="variant variant-a active" id="variant-a">
+  <div class="pane-grid">
+
+    <!-- Pane 1: Claude — thinking -->
+    <div class="pane focused" data-pane="claude-a">
+      <div class="pane-header" onclick="toggleExpandA(this)">
+        <div class="header-left">
+          <div class="status-indicator status-thinking">
+            <div class="ring-outer"></div>
+            <div class="ring"></div>
+            <div class="dot-inner"></div>
+          </div>
+          <span class="header-label agent-name-claude" style="font-weight:600">Claude</span>
+        </div>
+        <div class="header-center">
+          <span class="header-label dim">planner</span>
+          <span class="header-sep">/</span>
+          <span class="header-label dim">opus-4</span>
+          <span class="header-sep">/</span>
+          <span class="header-label bright">iter 3/5</span>
+          <span class="header-sep">/</span>
+          <span class="header-label" style="color:var(--fg-1)">reading src/main.rs</span>
+        </div>
+        <div class="header-right">
+          <span class="header-cost">$0.42</span>
+          <span class="header-tokens">12.4k</span>
+          <span class="header-time">2m 14s</span>
+          <span class="expand-chevron">&#9660;</span>
+        </div>
+        <div class="expand-row">
+          <div class="progress-bar"><div class="progress-fill" style="width:60%;background:var(--role-planner)"></div></div>
+          <span class="tool-pill">Read src/lib.rs</span>
+          <span class="tool-pill">Grep "handler"</span>
+          <span class="tool-pill">Read Cargo.toml</span>
+          <button class="btn-pause">Pause</button>
+          <button class="btn-stop">Stop</button>
+        </div>
+      </div>
+      <div class="terminal" id="term-claude-a"></div>
+    </div>
+
+    <!-- Pane 2: Codex — executing tool -->
+    <div class="pane" data-pane="codex-a">
+      <div class="pane-header" onclick="toggleExpandA(this)">
+        <div class="header-left">
+          <div class="status-indicator status-executing">
+            <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>
+          </div>
+          <span class="header-label agent-name-codex" style="font-weight:600">Codex</span>
+        </div>
+        <div class="header-center">
+          <span class="header-label dim">executor</span>
+          <span class="header-sep">/</span>
+          <span class="header-label dim">o3</span>
+          <span class="header-sep">/</span>
+          <span class="header-label bright">iter 7/10</span>
+          <span class="header-sep">/</span>
+          <span class="header-label" style="color:var(--fg-1)">editing handler.rs</span>
+        </div>
+        <div class="header-right">
+          <span class="header-cost">$1.08</span>
+          <span class="header-tokens">34.2k</span>
+          <span class="header-time">5m 02s</span>
+          <span class="expand-chevron">&#9660;</span>
+        </div>
+        <div class="expand-row">
+          <div class="progress-bar"><div class="progress-fill" style="width:70%;background:var(--role-executor)"></div></div>
+          <span class="tool-pill">Edit handler.rs</span>
+          <span class="tool-pill">Bash cargo check</span>
+          <span class="tool-pill">Read tests/mod.rs</span>
+          <button class="btn-pause">Pause</button>
+          <button class="btn-stop">Stop</button>
+        </div>
+      </div>
+      <div class="terminal" id="term-codex-a"></div>
+    </div>
+
+    <!-- Pane 3: Shell — idle -->
+    <div class="pane" data-pane="shell-a">
+      <div class="pane-header">
+        <div class="header-left">
+          <div class="status-indicator status-idle"><div class="dot"></div></div>
+          <span class="header-label agent-name-shell" style="font-weight:600">Shell</span>
+        </div>
+        <div class="header-center">
+          <span class="header-label dim">zsh</span>
+          <span class="header-sep">/</span>
+          <span class="header-label dim">~/Projects/voss-app</span>
+        </div>
+        <div class="header-right">
+          <span class="header-time" style="color:var(--fg-3)">idle</span>
+        </div>
+      </div>
+      <div class="terminal" id="term-shell-a"></div>
+    </div>
+
+    <!-- Pane 4: Gemini — waiting input -->
+    <div class="pane" data-pane="gemini-a">
+      <div class="pane-header" onclick="toggleExpandA(this)">
+        <div class="header-left">
+          <div class="status-indicator status-waiting">
+            <div class="dot"></div>
+            <div class="badge">?</div>
+          </div>
+          <span class="header-label agent-name-gemini" style="font-weight:600">Gemini</span>
+        </div>
+        <div class="header-center">
+          <span class="header-label dim">reviewer</span>
+          <span class="header-sep">/</span>
+          <span class="header-label dim">2.5-pro</span>
+          <span class="header-sep">/</span>
+          <span class="header-label bright">iter 2/4</span>
+          <span class="header-sep">/</span>
+          <span class="header-label" style="color:var(--accent-amber)">awaiting confirmation</span>
+        </div>
+        <div class="header-right">
+          <span class="header-cost">$0.18</span>
+          <span class="header-tokens">6.1k</span>
+          <span class="header-time">1m 37s</span>
+          <span class="expand-chevron">&#9660;</span>
+        </div>
+        <div class="expand-row">
+          <div class="progress-bar"><div class="progress-fill" style="width:50%;background:var(--accent-amber)"></div></div>
+          <span class="tool-pill">Read PLAN.md</span>
+          <span class="tool-pill">Grep "TODO"</span>
+          <button class="btn-pause">Pause</button>
+          <button class="btn-stop">Stop</button>
+        </div>
+      </div>
+      <div class="terminal" id="term-gemini-a"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- VARIANT B -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="variant variant-b" id="variant-b">
+  <div class="pane-grid">
+
+    <!-- Claude — streaming, inline banners -->
+    <div class="pane focused" data-pane="claude-b">
+      <div class="pane-header">
+        <div class="header-left">
+          <div class="status-indicator status-streaming"><div class="sd"></div><div class="sd"></div><div class="sd"></div></div>
+          <span class="header-label agent-name-claude" style="font-weight:600">Claude</span>
+          <span class="header-label dim">opus-4</span>
+        </div>
+        <div class="header-right">
+          <span class="header-cost">$0.42</span>
+          <span class="header-label dim">iter 3/5</span>
+        </div>
+      </div>
+      <div class="thinking-banner"></div>
+      <div class="terminal" id="term-claude-b"></div>
+    </div>
+
+    <!-- Codex — executing, inline blocks -->
+    <div class="pane" data-pane="codex-b">
+      <div class="pane-header">
+        <div class="header-left">
+          <div class="status-indicator status-executing">
+            <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>
+          </div>
+          <span class="header-label agent-name-codex" style="font-weight:600">Codex</span>
+          <span class="header-label dim">o3</span>
+        </div>
+        <div class="header-right">
+          <span class="header-cost">$1.08</span>
+          <span class="header-label dim">iter 7/10</span>
+        </div>
+      </div>
+      <div class="thinking-banner cyan-shimmer"></div>
+      <div class="terminal" id="term-codex-b"></div>
+    </div>
+
+    <!-- Shell -->
+    <div class="pane" data-pane="shell-b">
+      <div class="pane-header">
+        <div class="header-left">
+          <div class="status-indicator status-idle"><div class="dot"></div></div>
+          <span class="header-label agent-name-shell" style="font-weight:600">Shell</span>
+          <span class="header-label dim">zsh</span>
+        </div>
+        <div class="header-right">
+          <span class="header-label dim">idle</span>
+        </div>
+      </div>
+      <div class="terminal" id="term-shell-b"></div>
+    </div>
+
+    <!-- Gemini — waiting -->
+    <div class="pane" data-pane="gemini-b">
+      <div class="pane-header">
+        <div class="header-left">
+          <div class="status-indicator status-waiting">
+            <div class="dot"></div>
+            <div class="badge">?</div>
+          </div>
+          <span class="header-label agent-name-gemini" style="font-weight:600">Gemini</span>
+          <span class="header-label dim">2.5-pro</span>
+        </div>
+        <div class="header-right">
+          <span class="header-cost">$0.18</span>
+          <span class="header-label dim">iter 2/4</span>
+        </div>
+      </div>
+      <div class="terminal" id="term-gemini-b"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- VARIANT C -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="variant variant-c" id="variant-c">
+  <div class="pane-grid-wrapper">
+    <div class="pane-grid">
+
+      <!-- Claude -->
+      <div class="pane focused" data-pane="claude-c" onclick="openPanel(this, 'claude')">
+        <div class="pane-header">
+          <div class="header-left">
+            <div class="status-indicator status-thinking">
+              <div class="ring-outer"></div><div class="ring"></div><div class="dot-inner"></div>
+            </div>
+            <span class="header-label agent-name-claude" style="font-weight:600">Claude</span>
+          </div>
+          <div class="header-center">
+            <span class="header-label dim">thinking</span>
+          </div>
+          <div class="header-right">
+            <span class="header-cost">$0.42</span>
+          </div>
+        </div>
+        <div class="terminal" id="term-claude-c"></div>
+      </div>
+
+      <!-- Codex -->
+      <div class="pane" data-pane="codex-c" onclick="openPanel(this, 'codex')">
+        <div class="pane-header">
+          <div class="header-left">
+            <div class="status-indicator status-executing">
+              <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>
+            </div>
+            <span class="header-label agent-name-codex" style="font-weight:600">Codex</span>
+          </div>
+          <div class="header-center">
+            <span class="header-label dim">executing tool</span>
+          </div>
+          <div class="header-right">
+            <span class="header-cost">$1.08</span>
+          </div>
+        </div>
+        <div class="terminal" id="term-codex-c"></div>
+      </div>
+
+      <!-- Shell -->
+      <div class="pane" data-pane="shell-c" onclick="openPanel(this, 'shell')">
+        <div class="pane-header">
+          <div class="header-left">
+            <div class="status-indicator status-idle"><div class="dot"></div></div>
+            <span class="header-label agent-name-shell" style="font-weight:600">Shell</span>
+          </div>
+          <div class="header-center">
+            <span class="header-label dim">idle</span>
+          </div>
+          <div class="header-right"></div>
+        </div>
+        <div class="terminal" id="term-shell-c"></div>
+      </div>
+
+      <!-- Gemini -->
+      <div class="pane" data-pane="gemini-c" onclick="openPanel(this, 'gemini')">
+        <div class="pane-header">
+          <div class="header-left">
+            <div class="status-indicator status-waiting">
+              <div class="dot"></div><div class="badge">?</div>
+            </div>
+            <span class="header-label agent-name-gemini" style="font-weight:600">Gemini</span>
+          </div>
+          <div class="header-center">
+            <span class="header-label dim">awaiting input</span>
+          </div>
+          <div class="header-right">
+            <span class="header-cost">$0.18</span>
+          </div>
+        </div>
+        <div class="terminal" id="term-gemini-c"></div>
+      </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="side-panel" id="side-panel">
+      <div class="side-panel-inner" id="side-panel-inner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div class="statusbar">
+  <div class="statusbar-item">
+    <div class="statusbar-dot" style="background:var(--accent-green)"></div>
+    <span>voss-app</span>
+  </div>
+  <div class="statusbar-item"><span class="dim">4 panes</span></div>
+  <div class="spacer"></div>
+  <div class="statusbar-item">
+    <span class="dim">Total:</span>
+    <span style="color:var(--accent-amber);font-weight:500">$1.68</span>
+  </div>
+  <div class="statusbar-item">
+    <div class="statusbar-dot" style="background:var(--role-planner);animation:pulse-dot 2s ease-in-out infinite"></div>
+    <span>3 agents active</span>
+  </div>
+</div>
+
+<!-- Sketch Toolbar -->
+<div class="sketch-toolbar">
+  <button class="sketch-btn" onclick="resetAll()">Reset</button>
+  <button class="sketch-btn" onclick="cycleStates()">Cycle States</button>
+  <button class="sketch-btn">005 / Agent State</button>
+</div>
+
+<script>
+// ── Terminal content data ──
+const TERM = {
+  claude_a: [
+    '<span class="comment"># Analyzing project structure...</span>',
+    '',
+    'I can see the main entry point at <span class="path">src/main.rs</span> which',
+    'sets up the Tauri application with the following commands:',
+    '',
+    '  <span class="keyword">pub fn</span> <span class="fn">setup_commands</span>() -> Vec&lt;Command&gt; {',
+    '      vec![',
+    '          <span class="fn">get_panes</span>,',
+    '          <span class="fn">split_pane</span>,',
+    '          <span class="fn">close_pane</span>,',
+    '          <span class="fn">resize_pane</span>,',
+    '          <span class="fn">focus_pane</span>,',
+    '      ]',
+    '  }',
+    '',
+    'The grid logic in <span class="path">src/grid/tree.rs</span> uses a binary tree',
+    'structure. Each node is either a <span class="md-code">Leaf</span> (terminal) or',
+    'a <span class="md-code">Fork</span> (split). The balance ratio calculation at',
+    'line 142 looks correct, but I notice the <span class="md-code">equalize()</span>',
+    'function doesn\'t account for nested forks properly.',
+    '',
+    'Let me read the test file to verify...<span class="cursor"></span>',
+  ],
+  codex_a: [
+    '<span class="prompt">$</span> <span class="cmd">codex --model o3 "fix the handler registration"</span>',
+    '',
+    '<span class="dim">Reading handler.rs...</span>',
+    '<span class="dim">Analyzing 247 lines...</span>',
+    '',
+    '--- <span class="error">a/src/handler.rs</span>',
+    '+++ <span class="string">b/src/handler.rs</span>',
+    '<span class="dim">@@ -89,7 +89,12 @@</span>',
+    '   fn register_handler(&mut self, name: &str) {',
+    '<span class="error">-      self.handlers.insert(name, Handler::new());</span>',
+    '<span class="string">+      let handler = Handler::new()</span>',
+    '<span class="string">+          .with_middleware(self.default_middleware())</span>',
+    '<span class="string">+          .with_timeout(Duration::from_secs(30))</span>',
+    '<span class="string">+          .with_retry(RetryPolicy::exponential(3));</span>',
+    '<span class="string">+      self.handlers.insert(name.to_string(), handler);</span>',
+    '   }',
+    '',
+    '<span class="dim">Running cargo check...</span>',
+    '   <span class="string">Compiling</span> voss-app v0.1.0',
+    '   <span class="string">Checking</span> voss-core v0.1.0',
+    '   <span class="string">Finished</span> dev [unoptimized] in 2.3s<span class="cursor"></span>',
+  ],
+  shell_a: [
+    '<span class="prompt">~/Projects/voss-app</span> <span class="cmd">git log --oneline -12</span>',
+    '<span class="hash">3f2ddb7</span> feat: emit context OSC snapshots at end of iteration',
+    '<span class="hash">9be4bb3</span> feat: F4 context tracking for heatmap visualization',
+    '<span class="hash">eeea4b9</span> feat: add context telemetry via voss-context OSC',
+    '<span class="hash">a518dc5</span> docs(F3): close budget visualization phase',
+    '<span class="hash">e9d5cd1</span> docs(state): F4 planned -- 4 plans, 3 waves',
+    '<span class="hash">b8e1a2f</span> fix: pane resize ratio drift on rapid splits',
+    '<span class="hash">c4d9e7a</span> feat: add process detection for agent tagging',
+    '<span class="hash">1f3b8c2</span> refactor: extract grid tree into own module',
+    '<span class="hash">a7e2d1b</span> test: add equalize balance ratio coverage',
+    '<span class="hash">8c4f1e9</span> fix: traffic lights alignment on narrow windows',
+    '<span class="hash">d2a7b3c</span> feat: initial titlebar + tab chrome',
+    '<span class="hash">f9e1c4a</span> chore: bump tauri to 2.1.0',
+    '',
+    '<span class="prompt">~/Projects/voss-app</span> <span class="cursor"></span>',
+  ],
+  gemini_a: [
+    '<span class="dim">Gemini 2.5 Pro  |  Review Mode</span>',
+    '',
+    'I\'ve reviewed the implementation plan in <span class="path">PLAN.md</span>',
+    'and compared it against the codebase. Here are my findings:',
+    '',
+    '  <span class="string">1.</span> The OSC sequence parser in <span class="path">voss/harness/osc.py</span>',
+    '     correctly handles context snapshots.',
+    '',
+    '  <span class="string">2.</span> However, the cost aggregation in <span class="path">telemetry.py</span>',
+    '     double-counts tokens when an agent restarts mid-session.',
+    '',
+    '  <span class="string">3.</span> The heatmap visualization lacks a color scale',
+    '     legend, which will confuse users.',
+    '',
+    '<span class="dim">───────────────────────────────────────────</span>',
+    '',
+    '<span style="color:var(--accent-amber);font-weight:600">Awaiting confirmation...</span>',
+    '',
+    '  Apply suggested fix for issue #2?  <span class="dim">[y/N]</span> <span class="cursor"></span>',
+  ],
+};
+
+// Variant B content — inline styled
+const TERM_B = {
+  claude_b: [
+    '<div class="agent-block"><span class="md-h3">Analysis of Grid Architecture</span></div>',
+    '',
+    '<div class="agent-block">The <span class="md-code">src/grid/tree.rs</span> module implements a binary tree for pane layout. Each node is either a <span class="md-bold">Leaf</span> (terminal pane) or a <span class="md-bold">Fork</span> (split container with a ratio).</div>',
+    '',
+    '<div class="tool-block"><span class="dim">Tool: Read</span> src/grid/tree.rs<br><span class="dim">Lines 89-142 (balance logic)</span></div>',
+    '<div class="tool-result">pub fn equalize(&mut self) {<br>    let count = self.leaf_count();<br>    self.set_ratio(1.0 / count as f64);<br>}</div>',
+    '',
+    '<div class="cost-watermark">+2.1k tokens / $0.08</div>',
+    '<div class="turn-sep"></div>',
+    '',
+    '<div class="agent-block">The <span class="md-code">equalize()</span> function at line 142 uses a flat ratio, but this doesn\'t account for <span class="md-bold">nested fork depth</span>. A fork with 3 leaves under the left child and 1 leaf under the right gets equal ratios, making the left side cramped.</div>',
+    '',
+    '<div class="agent-block">Proposed fix:</div>',
+    '<div class="md-codeblock">fn equalize(&mut self) {<br>    match self {<br>        Node::Fork { left, right, ratio } => {<br>            let l = left.leaf_count() as f64;<br>            let total = l + right.leaf_count() as f64;<br>            *ratio = l / total;<br>            left.equalize();<br>            right.equalize();<br>        }<br>        _ => {}<br>    }<br>}</div>',
+    '',
+    '<div class="cost-watermark">+3.8k tokens / $0.14</div>',
+    '',
+    'Let me verify this against the test suite...<span class="cursor"></span>',
+  ],
+  codex_b: [
+    '<div class="turn-sep"></div>',
+    '<span class="user-prefix">&#10095;</span> <span class="user-msg">Fix the handler registration to include middleware and retries</span>',
+    '<div class="turn-sep"></div>',
+    '',
+    '<div class="agent-block">I\'ll update the <span class="md-code">register_handler</span> method to chain middleware and retry policy configuration.</div>',
+    '',
+    '<div class="tool-block"><span class="dim">Tool: Edit</span> src/handler.rs:89-90<br><span class="dim">Replace registration with builder pattern</span></div>',
+    '',
+    '<div class="md-codeblock"><span class="error">- self.handlers.insert(name, Handler::new());</span><br><span class="string">+ let handler = Handler::new()</span><br><span class="string">+     .with_middleware(self.default_middleware())</span><br><span class="string">+     .with_timeout(Duration::from_secs(30))</span><br><span class="string">+     .with_retry(RetryPolicy::exponential(3));</span><br><span class="string">+ self.handlers.insert(name.to_string(), handler);</span></div>',
+    '',
+    '<div class="cost-watermark">+1.4k tokens / $0.12</div>',
+    '<div class="turn-sep"></div>',
+    '',
+    '<div class="tool-block"><span class="dim">Tool: Bash</span> cargo check</div>',
+    '<div class="tool-result">   Compiling voss-app v0.1.0<br>   Checking voss-core v0.1.0<br>   Finished dev [unoptimized] in 2.3s</div>',
+    '',
+    '<div class="agent-block">Build succeeds. Now running the test suite to verify no regressions...</div>',
+    '',
+    '<div class="tool-block"><span class="dim">Tool: Bash</span> cargo test -- handler<span class="cursor"></span></div>',
+    '',
+    '<div class="cost-watermark">+5.2k tokens / $0.38</div>',
+  ],
+  shell_b: TERM.shell_a,
+  gemini_b: [
+    '<div class="turn-sep"></div>',
+    '<span class="user-prefix">&#10095;</span> <span class="user-msg">Review the F4 implementation plan against the codebase</span>',
+    '<div class="turn-sep"></div>',
+    '',
+    '<div class="agent-block"><span class="md-h3">Plan Review: F4 Context Tracking</span></div>',
+    '',
+    '<div class="tool-block"><span class="dim">Tool: Read</span> .planning/phases/F4/PLAN.md</div>',
+    '<div class="tool-result">Phase: F4 Context Tracking<br>Status: In Progress<br>Plans: 4 total, 3 waves</div>',
+    '',
+    '<div class="cost-watermark">+1.2k tokens / $0.04</div>',
+    '<div class="turn-sep"></div>',
+    '',
+    '<div class="agent-block">Findings:</div>',
+    '',
+    '<div class="agent-block"><span class="md-bold">1. OSC Parser</span> in <span class="md-code">voss/harness/osc.py</span> &mdash; Correct. Handles snapshots.</div>',
+    '<div class="agent-block"><span class="md-bold">2. Cost Aggregation</span> in <span class="md-code">telemetry.py</span> &mdash; <span class="error">Bug: double-counts on restart.</span></div>',
+    '<div class="agent-block"><span class="md-bold">3. Heatmap</span> &mdash; Missing color scale legend.</div>',
+    '',
+    '<div class="turn-sep"></div>',
+    '<div style="padding:6px 0"><span style="color:var(--accent-amber);font-weight:600">Awaiting confirmation...</span>  Apply fix for #2? <span class="dim">[y/N]</span> <span class="cursor"></span></div>',
+    '',
+    '<div class="cost-watermark">total: 6.1k tokens / $0.18</div>',
+  ],
+};
+
+// Clone terminal data for variant C
+const TERM_C = {
+  claude_c: TERM.claude_a,
+  codex_c: TERM.codex_a,
+  shell_c: TERM.shell_a,
+  gemini_c: TERM.gemini_a,
+};
+
+// ── Populate terminals ──
+function fillTerminals() {
+  Object.entries(TERM).forEach(([id, lines]) => {
+    const el = document.getElementById('term-' + id);
+    if (el) el.innerHTML = lines.join('\n');
+  });
+  Object.entries(TERM_B).forEach(([id, lines]) => {
+    const el = document.getElementById('term-' + id);
+    if (el) el.innerHTML = lines.join('\n');
+  });
+  Object.entries(TERM_C).forEach(([id, lines]) => {
+    const el = document.getElementById('term-' + id);
+    if (el) el.innerHTML = lines.join('\n');
+  });
+}
+
+// ── Variant Tabs ──
+document.querySelectorAll('.variant-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('variant-' + tab.dataset.variant).classList.add('active');
+    // Close side panel when switching
+    const sp = document.getElementById('side-panel');
+    if (sp) sp.classList.remove('open');
+  });
+});
+
+// ── Pane Focus ──
+document.querySelectorAll('.pane').forEach(pane => {
+  pane.addEventListener('click', (e) => {
+    // Don't steal focus from buttons
+    if (e.target.closest('.btn-stop, .btn-pause, .sp-btn, .json-card-header')) return;
+    const grid = pane.closest('.pane-grid');
+    grid.querySelectorAll('.pane').forEach(p => p.classList.remove('focused'));
+    pane.classList.add('focused');
+  });
+});
+
+// ── Variant A: Expand header ──
+function toggleExpandA(header) {
+  // Only in variant A
+  if (!header.closest('.variant-a')) return;
+  header.classList.toggle('expanded');
+}
+
+// ── Variant B: Collapsible JSON cards ──
+document.addEventListener('click', (e) => {
+  const cardHeader = e.target.closest('.json-card-header');
+  if (cardHeader) {
+    cardHeader.closest('.json-card').classList.toggle('open');
+  }
+});
+
+// ── Variant C: Side Panel ──
+const panelData = {
+  claude: {
+    name: 'Claude', model: 'opus-4', statusText: 'Thinking',
+    statusColor: 'var(--role-planner)', badgeBg: 'rgba(255,91,31,0.15)',
+    iter: 3, iterTotal: 5, inputTokens: '8.2k', outputTokens: '4.2k', cost: '$0.42',
+    tools: [
+      { name: 'Read', arg: 'src/main.rs', time: '0.4s' },
+      { name: 'Grep', arg: '"setup_commands"', time: '0.2s' },
+      { name: 'Read', arg: 'src/grid/tree.rs', time: '0.3s' },
+      { name: 'Read', arg: 'Cargo.toml', time: '0.1s' },
+      { name: 'Read', arg: 'src/lib.rs', time: '0.2s' },
+    ],
+    files: ['src/main.rs', 'src/grid/tree.rs', 'Cargo.toml', 'src/lib.rs'],
+  },
+  codex: {
+    name: 'Codex', model: 'o3', statusText: 'Executing tool',
+    statusColor: 'var(--role-executor)', badgeBg: 'rgba(108,199,212,0.15)',
+    iter: 7, iterTotal: 10, inputTokens: '22.1k', outputTokens: '12.1k', cost: '$1.08',
+    tools: [
+      { name: 'Read', arg: 'handler.rs', time: '0.3s' },
+      { name: 'Edit', arg: 'handler.rs:89', time: '0.1s' },
+      { name: 'Bash', arg: 'cargo check', time: '2.3s' },
+      { name: 'Read', arg: 'tests/mod.rs', time: '0.2s' },
+      { name: 'Edit', arg: 'handler.rs:102', time: '0.1s' },
+      { name: 'Bash', arg: 'cargo test', time: '4.1s' },
+      { name: 'Read', arg: 'src/middleware.rs', time: '0.2s' },
+    ],
+    files: ['src/handler.rs', 'tests/mod.rs', 'src/middleware.rs'],
+  },
+  shell: {
+    name: 'Shell', model: 'zsh', statusText: 'Idle',
+    statusColor: 'var(--fg-3)', badgeBg: 'rgba(90,85,77,0.15)',
+    iter: null, iterTotal: null, inputTokens: '--', outputTokens: '--', cost: '--',
+    tools: [],
+    files: [],
+  },
+  gemini: {
+    name: 'Gemini', model: '2.5-pro', statusText: 'Awaiting input',
+    statusColor: 'var(--accent-amber)', badgeBg: 'rgba(232,184,108,0.15)',
+    iter: 2, iterTotal: 4, inputTokens: '4.3k', outputTokens: '1.8k', cost: '$0.18',
+    tools: [
+      { name: 'Read', arg: 'PLAN.md', time: '0.2s' },
+      { name: 'Grep', arg: '"TODO"', time: '0.3s' },
+      { name: 'Read', arg: 'telemetry.py', time: '0.2s' },
+    ],
+    files: ['PLAN.md', 'voss/harness/osc.py', 'telemetry.py'],
+  },
+};
+
+function openPanel(paneEl, agentKey) {
+  const panel = document.getElementById('side-panel');
+  const inner = document.getElementById('side-panel-inner');
+  const data = panelData[agentKey];
+  if (!data) return;
+
+  // Focus the pane
+  const grid = paneEl.closest('.pane-grid');
+  grid.querySelectorAll('.pane').forEach(p => p.classList.remove('focused'));
+  paneEl.classList.add('focused');
+
+  const progressPct = data.iter && data.iterTotal ? Math.round((data.iter / data.iterTotal) * 100) : 0;
+  const toolsHtml = data.tools.map(t =>
+    `<div class="sp-tool-item"><span class="sp-tool-name">${t.name}</span> <span class="dim">${t.arg}</span><span class="sp-tool-time">${t.time}</span></div>`
+  ).join('');
+  const filesHtml = data.files.map(f =>
+    `<div class="sp-file">${f}</div>`
+  ).join('');
+
+  inner.innerHTML = `
+    <div class="sp-header">
+      <div>
+        <div class="sp-name">${data.name}</div>
+        <div class="sp-model">${data.model}</div>
+      </div>
+      <div class="sp-badge" style="background:${data.badgeBg};color:${data.statusColor}">${data.statusText}</div>
+    </div>
+
+    ${data.iter !== null ? `
+    <div class="sp-section">
+      <div class="sp-section-title">Progress</div>
+      <div class="sp-row"><span class="label">Iteration</span><span>${data.iter} / ${data.iterTotal}</span></div>
+      <div class="sp-progress-bar"><div class="sp-progress-fill" style="width:${progressPct}%;background:${data.statusColor}"></div></div>
+    </div>` : ''}
+
+    <div class="sp-section">
+      <div class="sp-section-title">Cost</div>
+      <div class="sp-row"><span class="label">Input tokens</span><span>${data.inputTokens}</span></div>
+      <div class="sp-row"><span class="label">Output tokens</span><span>${data.outputTokens}</span></div>
+      <div class="sp-row"><span class="label">Total</span><span style="color:var(--accent-amber);font-weight:600">${data.cost}</span></div>
+    </div>
+
+    ${data.tools.length ? `
+    <div class="sp-section">
+      <div class="sp-section-title">Tool History</div>
+      ${toolsHtml}
+    </div>` : ''}
+
+    ${data.files.length ? `
+    <div class="sp-section">
+      <div class="sp-section-title">Context</div>
+      ${filesHtml}
+    </div>` : ''}
+
+    <div class="sp-section">
+      <div class="sp-section-title">Controls</div>
+      <div class="sp-controls">
+        <button class="sp-btn sp-btn-stop" onclick="event.stopPropagation()">Stop</button>
+        <button class="sp-btn sp-btn-pause" onclick="event.stopPropagation()">Pause</button>
+        <button class="sp-btn sp-btn-restart" onclick="event.stopPropagation()">Restart</button>
+      </div>
+    </div>
+  `;
+
+  panel.classList.add('open');
+}
+
+// Close panel with Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const panel = document.getElementById('side-panel');
+    if (panel) panel.classList.remove('open');
+  }
+});
+
+// ── Sketch toolbar actions ──
+function resetAll() {
+  document.querySelectorAll('.pane-header.expanded').forEach(h => h.classList.remove('expanded'));
+  const panel = document.getElementById('side-panel');
+  if (panel) panel.classList.remove('open');
+  // Reset focus to first pane in each variant
+  document.querySelectorAll('.pane-grid').forEach(grid => {
+    grid.querySelectorAll('.pane').forEach((p, i) => {
+      p.classList.toggle('focused', i === 0);
+    });
+  });
+}
+
+let stateIndex = 0;
+const stateRotation = ['thinking', 'executing', 'streaming', 'waiting', 'done', 'error'];
+function cycleStates() {
+  stateIndex = (stateIndex + 1) % stateRotation.length;
+  const state = stateRotation[stateIndex];
+  // Update Claude pane in variant A as demo
+  const indicator = document.querySelector('#variant-a [data-pane="claude-a"] .status-indicator');
+  if (!indicator) return;
+  indicator.className = 'status-indicator';
+  indicator.innerHTML = '';
+  switch(state) {
+    case 'thinking':
+      indicator.classList.add('status-thinking');
+      indicator.innerHTML = '<div class="ring-outer"></div><div class="ring"></div><div class="dot-inner"></div>';
+      break;
+    case 'executing':
+      indicator.classList.add('status-executing');
+      indicator.innerHTML = '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>';
+      break;
+    case 'streaming':
+      indicator.classList.add('status-streaming');
+      indicator.innerHTML = '<div class="sd"></div><div class="sd"></div><div class="sd"></div>';
+      break;
+    case 'waiting':
+      indicator.classList.add('status-waiting');
+      indicator.innerHTML = '<div class="dot"></div><div class="badge">?</div>';
+      break;
+    case 'done':
+      indicator.classList.add('status-done');
+      indicator.innerHTML = '<svg viewBox="0 0 16 16"><polyline points="3 8 7 12 13 4"/></svg>';
+      break;
+    case 'error':
+      indicator.classList.add('status-error');
+      indicator.innerHTML = '<div class="dot"></div>';
+      break;
+  }
+  // Update the status text in header center
+  const center = document.querySelector('#variant-a [data-pane="claude-a"] .header-center .header-label:last-child');
+  if (center) center.textContent = state;
+}
+
+// ── Init ──
+fillTerminals();
+</script>
+</body>
+</html>
