@@ -1,4 +1,4 @@
-import { onMount, onCleanup, createSignal } from 'solid-js';
+import { onMount, onCleanup, createSignal, createEffect } from 'solid-js';
 import { produce, createStore } from 'solid-js/store';
 import {
   collectLeaves,
@@ -133,6 +133,8 @@ export default function GridRoot(props: {
   active?: () => boolean;
   agentConfigByPaneId?: Record<string, AgentConfig>;
   workspacePath?: string;
+  onFocusChange?: (paneId: string) => void;
+  onLeafCountChange?: (count: number) => void;
 }) {
   // A6: initialize from restored session when available so no throwaway PTY spawns.
   const initResult = props.initialSession
@@ -153,6 +155,13 @@ export default function GridRoot(props: {
         ? Object.fromEntries(initResult.restoredScrollbackByPaneId)
         : {},
     );
+  createEffect(() => {
+    props.onFocusChange?.(store.focusedId);
+  });
+  createEffect(() => {
+    props.onLeafCountChange?.(collectLeaves(store.root).length);
+  });
+
   const [win, setWin] = createSignal({
     w: window.innerWidth,
     h: window.innerHeight,

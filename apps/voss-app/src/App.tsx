@@ -19,6 +19,7 @@ import NewWorkspacePicker, {
 } from './components/workspace/NewWorkspacePicker';
 import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
+import StatusBar from './components/StatusBar';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import SetupWindow from './components/setup/SetupWindow';

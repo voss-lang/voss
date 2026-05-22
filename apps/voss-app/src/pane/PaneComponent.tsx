@@ -102,8 +102,6 @@ export default function PaneComponent(props: PaneProps) {
     setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
   const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
   const isAgentCli = () => isKnownAgentCli(proc());
-  // Suppress unused until workstreams 2+4 add JSX consumers
-  void isAgentCli;
   const updateProc = (name: string) => {
     setProc(name);
     const paneId = props.id;
@@ -474,9 +472,9 @@ export default function PaneComponent(props: PaneProps) {
     >
       <div
         ref={headerRef}
-        class={`pane-header${headerFlash() ? ' bell-flash' : ''}`}
+        class={`pane-header${headerFlash() ? ' bell-flash' : ''}${isAgentCli() ? ' agent-pane' : ''}`}
       >
-        <span class={`dot ${dot()}`}>●</span>
+        <span class={`dot ${dot()}${isAgentCli() ? ' agent' : ''}`}>●</span>
         <span class="sep">·</span>
         <span class="idx">{props.index ?? 1}</span>
         <span class="sep">·</span>
@@ -485,7 +483,11 @@ export default function PaneComponent(props: PaneProps) {
         <span class="shell">{shellName()}</span>
         <Show when={proc()}>
           <span class="sep">·</span>
-          <span class="proc">{proc()}</span>
+          <span class={isAgentCli() ? 'proc agent-proc' : 'proc'}>{proc()}</span>
+        </Show>
+        <Show when={isAgentCli() && budget()?.model}>
+          <span class="sep">·</span>
+          <span class="model">{budget()!.model}</span>
         </Show>
         <Show when={bellBadge()}>
           <span class="sep">·</span>
@@ -494,15 +496,13 @@ export default function PaneComponent(props: PaneProps) {
           </span>
         </Show>
         <span class="spacer" />
-        <Show when={props.agentConfig != null}>
-          <Show when={budget()}>
-            {(b) => (
-              <BudgetBar
-                budget={b()}
-                onClickDetail={(anchor) => openBudgetPopover(anchor)}
-              />
-            )}
-          </Show>
+        <Show when={budget()}>
+          {(b) => (
+            <BudgetBar
+              budget={b()}
+              onClickDetail={(anchor) => openBudgetPopover(anchor)}
+            />
+          )}
         </Show>
         <button class="menu" title="menu" type="button">
           ⋯

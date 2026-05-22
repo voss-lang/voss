@@ -342,3 +342,25 @@ html.reduced-motion .pane-header.bell-flash {
 html.reduced-motion .budget-bar-fill {
   transition: none;
 }
+
+/* Agent pane visual distinction */
+.pane-header .dot.running.agent {
+  color: var(--accent-cyan);
+}
+
+.pane-header.agent-pane {
+  border-bottom: 1px solid var(--accent-cyan);
+}
+
+.pane-header .agent-proc {
+  color: var(--accent-cyan);
+  font-weight: 500;
+}
+
+.pane-header .model {
+  color: var(--fg-2);
+  font-size: 11px;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
