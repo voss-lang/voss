@@ -8,18 +8,20 @@
 use std::io::Read;
 use std::sync::Arc;
 
-use crate::pty::commands::{BudgetData, PtyEvent};
+use crate::pty::commands::{BudgetData, ContextData, PtyEvent};
 use crate::pty::PtyRegistry;
 
-/// Scans `data` for one complete `ESC]1337;voss-budget={json}BEL` sequence.
+const BUDGET_PREFIX: &[u8] = b"\x1b]1337;voss-budget=";
+const CONTEXT_PREFIX: &[u8] = b"\x1b]1337;voss-context=";
+
+/// Scans `data` for one complete `{prefix}{json}BEL` OSC 1337 sequence.
 /// Returns `Some((json_bytes, display_bytes))` if the full sequence is present;
 /// `None` passes through the buffer unchanged as display bytes.
 /// Buffer fragmentation: returns `None` silently — next emission has cumulative
-/// state (D-03).
-pub(crate) fn extract_voss_osc(data: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
-    const PREFIX: &[u8] = b"\x1b]1337;voss-budget=";
-    let start = data.windows(PREFIX.len()).position(|w| w == PREFIX)?;
-    let json_start = start + PREFIX.len();
+/// state (F3 D-03 / F4 D-26).
+pub(crate) fn extract_voss_osc(data: &[u8], prefix: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
+    let start = data.windows(prefix.len()).position(|w| w == prefix)?;
+    let json_start = start + prefix.len();
     let rel_end = data[json_start..].iter().position(|&b| b == 0x07)?;
     let end = json_start + rel_end;
     let json_bytes = data[json_start..end].to_vec();
@@ -49,33 +51,54 @@ pub fn start_reader(
                 Ok(0) => break, // EOF — child exited
                 Ok(n) => {
                     let slice = &buf[..n];
-                    match extract_voss_osc(slice) {
-                        Some((json_bytes, display_bytes)) => {
-                            if let Ok(data) =
-                                serde_json::from_slice::<BudgetData>(&json_bytes)
-                            {
-                                let _ = on_data.send(PtyEvent::BudgetUpdate(data));
-                            }
-                            if !display_bytes.is_empty()
-                                && on_data
-                                    .send(PtyEvent::Data {
-                                        bytes: display_bytes,
-                                    })
-                                    .is_err()
-                            {
-                                break;
-                            }
+                    // Budget OSC check (F3)
+                    if let Some((json_bytes, display_bytes)) =
+                        extract_voss_osc(slice, BUDGET_PREFIX)
+                    {
+                        if let Ok(data) =
+                            serde_json::from_slice::<BudgetData>(&json_bytes)
+                        {
+                            let _ = on_data.send(PtyEvent::BudgetUpdate(data));
                         }
-                        None => {
-                            if on_data
+                        if !display_bytes.is_empty()
+                            && on_data
                                 .send(PtyEvent::Data {
-                                    bytes: slice.to_vec(),
+                                    bytes: display_bytes,
                                 })
                                 .is_err()
-                            {
-                                break; // channel closed (pane gone)
-                            }
+                        {
+                            break;
                         }
+                        continue;
+                    }
+                    // Context OSC check (F4)
+                    if let Some((json_bytes, display_bytes)) =
+                        extract_voss_osc(slice, CONTEXT_PREFIX)
+                    {
+                        if let Ok(data) =
+                            serde_json::from_slice::<ContextData>(&json_bytes)
+                        {
+                            let _ = on_data.send(PtyEvent::ContextUpdate(data));
+                        }
+                        if !display_bytes.is_empty()
+                            && on_data
+                                .send(PtyEvent::Data {
+                                    bytes: display_bytes,
+                                })
+                                .is_err()
+                        {
+                            break;
+                        }
+                        continue;
+                    }
+                    // No OSC — plain display bytes
+                    if on_data
+                        .send(PtyEvent::Data {
+                            bytes: slice.to_vec(),
+                        })
+                        .is_err()
+                    {
+                        break; // channel closed (pane gone)
                     }
                 }
                 Err(_) => break,
