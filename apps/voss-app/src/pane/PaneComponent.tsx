@@ -7,9 +7,10 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
-import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
+import { PtyTransport, type AgentConfig, type BudgetState, type ContextData } from './pty-ipc';
 import { isKnownAgentCli } from './agentDetect';
 import { registerPaneProc, unregisterPaneProc } from './procRegistry';
+import { registerPaneContext, unregisterPaneContext } from './contextRegistry';
 import BudgetBar from '../grid/BudgetBar';
 import BudgetPopover from '../grid/BudgetPopover';
 import PasteGuard from './PasteGuard';
@@ -97,6 +98,7 @@ export default function PaneComponent(props: PaneProps) {
   const [bellBadge, setBellBadge] = createSignal(false);
   const [headerFlash, setHeaderFlash] = createSignal(false);
   const [budget, setBudget] = createSignal<BudgetState | null>(null);
+  const [context, setContext] = createSignal<ContextData | null>(null);
   const [budgetPopoverAnchor, setBudgetPopoverAnchor] = createSignal<HTMLElement | null>(null);
   const openBudgetPopover = (anchor: HTMLElement) =>
     setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
@@ -334,6 +336,10 @@ export default function PaneComponent(props: PaneProps) {
         updateProc(title);
       },
       onBudgetUpdate: (data) => setBudget(data),
+      onContextUpdate: (data) => {
+        setContext(data);
+        if (props.id) registerPaneContext(props.id, data);
+      },
       ...(props.agentConfig
         ? {
             agentPaneId: props.id,
@@ -448,6 +454,7 @@ export default function PaneComponent(props: PaneProps) {
     unregisterTerminal(paneId);
     unregisterScrollbackProvider(paneId);
     if (props.id) unregisterPaneProc(props.id);
+    if (props.id) unregisterPaneContext(props.id);
     transport?.kill();
     term?.dispose();
   });
