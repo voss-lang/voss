@@ -24,6 +24,7 @@ dependencies = [
     "watchdog>=4.0,<7",
     "cryptography>=43.0.3",
     "tomli-w>=1.0",
+    "rank-bm25>=0.2.2",
 ]
 
 [project.optional-dependencies]
@@ -35,7 +36,6 @@ dependencies = [
 search = [
     "chromadb>=0.5.0",
     "sentence-transformers>=2.7.0",
-    "rank-bm25>=0.2.2",
 ]
 code = [
     "pygls>=2.1,<3.0",
@@ -54,7 +54,6 @@ dev = [
     # `dev` includes `search` so the test suite can exercise semantic memory.
     "chromadb>=0.5.0",
     "sentence-transformers>=2.7.0",
-    "rank-bm25>=0.2.2",
 ]
 
 [project.scripts]
