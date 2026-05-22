@@ -12,7 +12,16 @@ export type PtyEvent =
   | { type: 'data'; bytes: number[] }
   | { type: 'exit'; code: number }
   | { type: 'fg_process'; name: string }
-  | { type: 'title_change'; title: string };
+  | { type: 'title_change'; title: string }
+  | { type: 'budget_update'; tokens_used: number; token_limit: number | null; cost_usd: number; iteration: number; model: string };
+
+export type BudgetState = {
+  tokens_used: number;
+  token_limit: number | null;
+  cost_usd: number;
+  iteration: number;
+  model: string;
+};
 
 export interface AgentConfig {
   cliBinary: string;
@@ -30,6 +39,7 @@ export interface PtyTransportOpts {
   onExit?: (code: number) => void;
   onFgProcess?: (name: string) => void;
   onTitle?: (title: string) => void;
+  onBudgetUpdate?: (data: BudgetState) => void;
   agentPaneId?: string;
   workspacePath?: string;
 }
@@ -91,6 +101,15 @@ export class PtyTransport {
         break;
       case 'title_change':
         this.opts.onTitle?.(ev.title);
+        break;
+      case 'budget_update':
+        this.opts.onBudgetUpdate?.({
+          tokens_used: ev.tokens_used,
+          token_limit: ev.token_limit,
+          cost_usd: ev.cost_usd,
+          iteration: ev.iteration,
+          model: ev.model,
+        });
         break;
     }
   }
