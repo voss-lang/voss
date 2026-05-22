@@ -333,3 +333,12 @@ html.reduced-motion .pane-header.bell-flash {
 .find-bar .fb-close:hover {
   color: var(--accent-red);
 }
+
+/* F3: Budget bar fill transition (D-13) */
+.budget-bar-fill {
+  transition: width 150ms ease-out;
+}
+
+html.reduced-motion .budget-bar-fill {
+  transition: none;
+}
