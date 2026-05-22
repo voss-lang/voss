@@ -22,7 +22,7 @@ import GridRoot, { type GridController } from './grid/GridRoot';
 import StatusBar from './components/StatusBar';
 import ContextPanel from './components/ContextPanel';
 import { collectLeaves } from './grid/tree';
-import type { AgentConfig, ContextData } from './pane/pty-ipc';
+import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
@@ -228,6 +228,7 @@ export default function App() {
   const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
   const [paneCount, setPaneCount] = createSignal(0);
+  const [contextPanelOpen, setContextPanelOpen] = createSignal(false);
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
@@ -807,6 +808,14 @@ export default function App() {
       return;
     }
 
+    // F4: toggle context panel
+    if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
+      setContextPanelOpen((prev) => !prev);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
     if (chord && registry().dispatch(chord, appCtx)) {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -944,6 +953,7 @@ export default function App() {
             background: 'var(--bg-0)',
             display: 'flex',
             'flex-direction': 'column',
+            position: 'relative',
           }}
         >
           <For each={workspaceIds()}>
@@ -990,6 +1000,23 @@ export default function App() {
               );
             }}
           </For>
+          {/* F4: Context heatmap side panel (D-01, D-03 overlay) */}
+          <ContextPanel
+            open={contextPanelOpen()}
+            context={(() => {
+              const id = focusedPaneId();
+              return id ? contextByPaneId()[id] ?? null : null;
+            })()}
+            isAgentPane={(() => {
+              const id = focusedPaneId();
+              if (!id) return false;
+              const m = activeMounted();
+              return m?.agentConfigByPaneId()?.[id] != null;
+            })()}
+            onTogglePin={(_path, _pinned) => {
+              /* F4-04 wires Tauri IPC */
+            }}
+          />
         </div>
         <StatusBar
           workspaceName={

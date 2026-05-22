@@ -98,7 +98,6 @@ export default function PaneComponent(props: PaneProps) {
   const [bellBadge, setBellBadge] = createSignal(false);
   const [headerFlash, setHeaderFlash] = createSignal(false);
   const [budget, setBudget] = createSignal<BudgetState | null>(null);
-  const [context, setContext] = createSignal<ContextData | null>(null);
   const [budgetPopoverAnchor, setBudgetPopoverAnchor] = createSignal<HTMLElement | null>(null);
   const openBudgetPopover = (anchor: HTMLElement) =>
     setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
@@ -337,7 +336,6 @@ export default function PaneComponent(props: PaneProps) {
       },
       onBudgetUpdate: (data) => setBudget(data),
       onContextUpdate: (data) => {
-        setContext(data);
         if (props.id) registerPaneContext(props.id, data);
       },
       ...(props.agentConfig
