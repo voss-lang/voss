@@ -41,4 +41,15 @@ status: done
 
 Full pipeline now wired: Python harness → OSC stdout → Rust PTY reader → BudgetUpdate event → Channel → PtyTransport → setBudget signal → BudgetBar in header → BudgetPopover on click.
 
-Needs live verification per F3-03-PLAN Task 2 checkpoint.
+Closeout on 2026-05-22: automated and source evidence passed, and the phase was closed by operator-directed completion. No independent live LLM-pane visual screenshot was captured in this session.
+
+Additional closeout gates:
+
+| Check | Result |
+|-------|--------|
+| `cargo test -p voss-app-core` | 132 passed |
+| `python3 -m pytest voss/harness/test_budget_osc.py -q` | 4 passed |
+| `cd apps/voss-app && npm run test -- --reporter=dot` | 525 passed (49 files) |
+| `cd apps/voss-app && npx tsc --noEmit` | clean |
+| `cd apps/voss-app && npm run build` | passed; existing large-chunk warning |
+| `cargo build -p voss-app-core` | passed |
