@@ -485,6 +485,10 @@ export default function PaneComponent(props: PaneProps) {
           <span class="sep">·</span>
           <span class={isAgentCli() ? 'proc agent-proc' : 'proc'}>{proc()}</span>
         </Show>
+        <Show when={isAgentCli() && !budget()}>
+          <span class="sep">·</span>
+          <span style={{ color: 'var(--accent-cyan)', 'font-size': '11px' }}>agent</span>
+        </Show>
         <Show when={isAgentCli() && budget()?.model}>
           <span class="sep">·</span>
           <span class="model">{budget()!.model}</span>

@@ -267,7 +267,19 @@ export default function App() {
     ]);
 
   const onLayoutSelect = (preset: LayoutPreset) => {
-    gridController()?.applyPreset(preset);
+    // Read controller directly from the mounted workspace to avoid
+    // stale memo / optional-chaining swallowing undefined silently.
+    const id = activeId();
+    const ws = id ? mountedById().get(id) : undefined;
+    const ctrl = ws?.gridController;
+    if (!ctrl) {
+      console.warn(
+        '[voss-app] onLayoutSelect: gridController unavailable',
+        { activeId: id, hasMounted: !!ws, hasCtrl: !!ctrl },
+      );
+      return;
+    }
+    ctrl.applyPreset(preset);
   };
 
   const showGrid = () => {
@@ -964,6 +976,12 @@ export default function App() {
                       prefixReserved={keymapProfile() === 'tmux'}
                       agentConfigByPaneId={ws()!.agentConfigByPaneId()}
                       workspacePath={ws()!.project()?.path ?? undefined}
+                      onFocusChange={(id) => {
+                        if (activeId() === workspaceId) setFocusedPaneId(id);
+                      }}
+                      onLeafCountChange={(count) => {
+                        if (activeId() === workspaceId) setPaneCount(count);
+                      }}
                     />
                   </div>
                 </Show>
@@ -971,6 +989,14 @@ export default function App() {
             }}
           </For>
         </div>
+        <StatusBar
+          workspaceName={
+            workspaceStore.workspaces().find((w) => w.id === activeId())?.name
+          }
+          paneCount={paneCount()}
+          focusedPaneId={focusedPaneId()}
+          gitBranch={activeMounted()?.project()?.gitBranch}
+        />
       </Show>
       </div>
 
