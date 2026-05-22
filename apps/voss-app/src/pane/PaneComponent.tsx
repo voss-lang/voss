@@ -7,7 +7,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
-import { PtyTransport, type AgentConfig, type BudgetState, type ContextData } from './pty-ipc';
+import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
 import { isKnownAgentCli } from './agentDetect';
 import { registerPaneProc, unregisterPaneProc } from './procRegistry';
 import { registerPaneContext, unregisterPaneContext } from './contextRegistry';
