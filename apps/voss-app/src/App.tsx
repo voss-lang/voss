@@ -224,6 +224,8 @@ export default function App() {
     createSignal<KeyBindingOverrides>({});
   const [prefixActive, setPrefixActive] = createSignal(false);
   const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
+  const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
+  const [paneCount, setPaneCount] = createSignal(0);
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
