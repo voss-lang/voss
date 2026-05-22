@@ -228,7 +228,16 @@ export default function App() {
   const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
   const [paneCount, setPaneCount] = createSignal(0);
-  const [contextPanelOpen, setContextPanelOpen] = createSignal(false);
+  const [contextPanelOpen, setContextPanelOpen] = createSignal(
+    localStorage.getItem('voss:contextPanelOpen') === 'true',
+  );
+  const toggleContextPanel = () => {
+    setContextPanelOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('voss:contextPanelOpen', String(next));
+      return next;
+    });
+  };
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
@@ -808,9 +817,9 @@ export default function App() {
       return;
     }
 
-    // F4: toggle context panel
+    // F4: toggle context panel (D-01, D-06 persisted)
     if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
-      setContextPanelOpen((prev) => !prev);
+      toggleContextPanel();
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
@@ -1025,6 +1034,8 @@ export default function App() {
           paneCount={paneCount()}
           focusedPaneId={focusedPaneId()}
           gitBranch={activeMounted()?.project()?.gitBranch}
+          contextPanelOpen={contextPanelOpen()}
+          onToggleContextPanel={toggleContextPanel}
         />
       </Show>
       </div>
