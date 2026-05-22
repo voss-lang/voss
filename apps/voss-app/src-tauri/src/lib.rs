@@ -346,6 +346,22 @@ fn load_default_layout(
         .map_err(|e| e.to_string())
 }
 
+// ---- Context pin commands (F4-04) -------------------------------------------
+// Write .voss/context-pins.json atomically (write-then-rename). The harness
+// reads this file at iteration start (F4 D-20). ADE is the sole writer.
+
+#[tauri::command]
+fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Result<(), String> {
+    let voss_dir = Path::new(&workspace_path).join(".voss");
+    std::fs::create_dir_all(&voss_dir).map_err(|e| e.to_string())?;
+    let target = voss_dir.join("context-pins.json");
+    let tmp = voss_dir.join("context-pins.json.tmp");
+    let payload = serde_json::json!({ "pinned": pinned_paths });
+    std::fs::write(&tmp, payload.to_string()).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &target).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // ---- Project open commands (A5-02) ----------------------------------------
 // Thin app-level wrappers over `voss_app_core::project`. Same cross-crate
 // `generate_handler!` constraint as the PTY, grid, and layout commands above.
@@ -659,6 +675,7 @@ pub fn run() {
             load_appearance_settings,
             save_appearance_settings,
             list_system_fonts,
+            write_context_pins,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

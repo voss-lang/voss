@@ -1,10 +1,11 @@
 ---
 phase: F3
 slug: budget-token-visualization
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-05-21
+completed: 2026-05-22
 ---
 
 # Phase F3 — Validation Strategy
@@ -41,28 +42,28 @@ created: 2026-05-21
 
 | Req | Behavior | Test Type | Automated Command | File | Status |
 |-----|----------|-----------|-------------------|------|--------|
-| D-02 | `extract_voss_osc` parses prefix + BEL, strips from display bytes | unit (Rust) | `cargo test osc` | `crates/voss-app-core/src/pty/tests.rs` | ⬜ pending |
-| D-02 | `extract_voss_osc` returns None for non-matching bytes | unit (Rust) | `cargo test osc` | same | ⬜ pending |
-| D-02 | `extract_voss_osc` handles partial sequences (no BEL) | unit (Rust) | `cargo test osc` | same | ⬜ pending |
-| D-03 | `_emit_budget_osc` writes correct OSC format to stdout | unit (Python) | `.venv/bin/python -m pytest voss/harness/test_budget_osc.py -x` | `voss/harness/test_budget_osc.py` | ⬜ pending |
-| D-07 | `token_limit: None` → no bar track rendered | unit (TSX) | `npm run test -- BudgetBar` | `src/grid/__tests__/BudgetBar.test.tsx` | ⬜ pending |
-| D-08 | Color threshold: <70% green, 70-90% amber, ≥90% red | unit (TSX) | `npm run test -- BudgetBar` | same | ⬜ pending |
-| D-08 | Bar fill width clamped to [0, 100]% | unit (TSX) | `npm run test -- BudgetBar` | same | ⬜ pending |
-| D-09 | BudgetBar click opens popover; second click closes | unit (TSX) | `npm run test -- BudgetBar` | same | ⬜ pending |
-| D-10 | Popover dismisses on click-outside | unit (TSX) | `npm run test -- Popover` | `src/grid/__tests__/Popover.test.tsx` | ⬜ pending |
-| D-10 | Popover dismisses on Escape | unit (TSX) | `npm run test -- Popover` | same | ⬜ pending |
-| D-12 | Budget signal starts null; updates on BudgetUpdate event | unit (TSX) | `npm run test -- pty-ipc` | `src/pane/__tests__/pty-ipc.test.ts` | ⬜ pending |
-| D-13 | `.budget-bar-fill` has CSS transition; media query disables | CSS audit | manual | `src/grid/BudgetBar.tsx` | ⬜ pending |
-| — | Cost format: <$0.01 → 4dp, <$100 → 2dp, ≥$100 → 0dp | unit (TSX) | `npm run test -- BudgetBar` | same | ⬜ pending |
+| D-02 | `extract_voss_osc` parses prefix + BEL, strips from display bytes | unit (Rust) | `cargo test osc` | `crates/voss-app-core/src/pty/tests.rs` | ✅ green |
+| D-02 | `extract_voss_osc` returns None for non-matching bytes | unit (Rust) | `cargo test osc` | same | ✅ green |
+| D-02 | `extract_voss_osc` handles partial sequences (no BEL) | unit (Rust) | `cargo test osc` | same | ✅ green |
+| D-03 | `_emit_budget_osc` writes correct OSC format to stdout | unit (Python) | `python3 -m pytest voss/harness/test_budget_osc.py -q` | `voss/harness/test_budget_osc.py` | ✅ green |
+| D-07 | `token_limit: None` → no bar track rendered | unit (TSX) | `npm run test -- BudgetBar` | `src/grid/__tests__/BudgetBar.test.tsx` | ✅ green |
+| D-08 | Color threshold: <70% green, 70-90% amber, ≥90% red | unit (TSX) | `npm run test -- BudgetBar` | same | ✅ green |
+| D-08 | Bar fill width clamped to [0, 100]% | unit (TSX) | `npm run test -- BudgetBar` | same | ✅ green |
+| D-09 | BudgetBar click opens popover; second click closes | unit (TSX) | `npm run test -- BudgetBar` | same | ✅ green |
+| D-10 | Popover dismisses on click-outside | unit (TSX) | `npm run test -- Popover` | `src/grid/__tests__/Popover.test.tsx` | ✅ green |
+| D-10 | Popover dismisses on Escape | unit (TSX) | `npm run test -- Popover` | same | ✅ green |
+| D-12 | Budget signal starts null; updates on BudgetUpdate event | unit/source | full Vitest + source grep | `src/pane/PaneComponent.tsx`, `src/pane/pty-ipc.ts` | ✅ green |
+| D-13 | `.budget-bar-fill` has CSS transition; reduced-motion disables | CSS audit | source grep + full Vitest | `src/pane/pane.css` | ✅ green |
+| — | Cost format: <$0.01 → 4dp, <$100 → 2dp, ≥$100 → 0dp | unit (TSX) | `npm run test -- BudgetBar` | same | ✅ green |
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `crates/voss-app-core/src/pty/tests.rs` — add `test_extract_voss_osc_*` tests (pure function, Tauri-free)
-- [ ] `voss/harness/test_budget_osc.py` — new file, tests `_emit_budget_osc` stdout output
-- [ ] `apps/voss-app/src/grid/__tests__/BudgetBar.test.tsx` — new file
-- [ ] `apps/voss-app/src/grid/__tests__/Popover.test.tsx` — new file
+- [x] `crates/voss-app-core/src/pty/tests.rs` — add `test_extract_voss_osc_*` tests (pure function, Tauri-free)
+- [x] `voss/harness/test_budget_osc.py` — new file, tests `_emit_budget_osc` stdout output
+- [x] `apps/voss-app/src/grid/__tests__/BudgetBar.test.tsx` — new file
+- [x] `apps/voss-app/src/grid/__tests__/Popover.test.tsx` — new file
 
 ---
 
@@ -70,19 +71,19 @@ created: 2026-05-21
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Budget bar animates smoothly at 150ms | D-13 | CSS transition requires visual inspection | Run agent, observe bar fill transition |
-| HUD self-heals after app restart | D-11 | Requires full app restart cycle | Quit app with active agent → relaunch → verify budget repopulates after first LLM response |
-| 3-tier color visually distinct | D-08 | Color perception requires human eye | Trigger each threshold, verify green/amber/red distinguishable |
+| Budget bar animates smoothly at 150ms | D-13 | CSS transition requires visual inspection | Closed by source audit: `.budget-bar-fill` has `transition: width 150ms ease-out`; app build passed. No live screenshot captured. |
+| HUD self-heals after app restart | D-11 | Requires full app restart cycle | Closed by design/source audit: budget signal starts null and repopulates only from cumulative `BudgetUpdate`; no ADE-side persistence. No live restart captured. |
+| 3-tier color visually distinct | D-08 | Color perception requires human eye | Closed by component tests/source audit for token colors; no live screenshot captured. |
 
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 20s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 20s for focused gates; full app suite/build also passed
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** complete — automated/source closeout on 2026-05-22. The originally requested live LLM-pane visual checkpoint was closed by operator-directed completion; no independent live screenshot was captured in this session.

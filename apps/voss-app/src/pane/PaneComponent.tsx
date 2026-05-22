@@ -10,6 +10,7 @@ import './pane.css';
 import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
 import { isKnownAgentCli } from './agentDetect';
 import { registerPaneProc, unregisterPaneProc } from './procRegistry';
+import { registerPaneContext, unregisterPaneContext } from './contextRegistry';
 import BudgetBar from '../grid/BudgetBar';
 import BudgetPopover from '../grid/BudgetPopover';
 import PasteGuard from './PasteGuard';
@@ -334,6 +335,9 @@ export default function PaneComponent(props: PaneProps) {
         updateProc(title);
       },
       onBudgetUpdate: (data) => setBudget(data),
+      onContextUpdate: (data) => {
+        if (props.id) registerPaneContext(props.id, data);
+      },
       ...(props.agentConfig
         ? {
             agentPaneId: props.id,
@@ -448,6 +452,7 @@ export default function PaneComponent(props: PaneProps) {
     unregisterTerminal(paneId);
     unregisterScrollbackProvider(paneId);
     if (props.id) unregisterPaneProc(props.id);
+    if (props.id) unregisterPaneContext(props.id);
     transport?.kill();
     term?.dispose();
   });

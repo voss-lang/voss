@@ -7,6 +7,8 @@ export type StatusBarProps = {
   paneCount: number;
   focusedPaneId: string | undefined;
   gitBranch: string | null | undefined;
+  contextPanelOpen: boolean;
+  onToggleContextPanel: () => void;
 };
 
 export default function StatusBar(props: StatusBarProps) {
@@ -69,8 +71,25 @@ export default function StatusBar(props: StatusBarProps) {
         </Show>
       </div>
 
-      {/* Right: git branch */}
-      <div style={{ 'white-space': 'nowrap' }}>
+      {/* Right: context panel toggle (F4 D-09) + git branch */}
+      <div style={{ 'white-space': 'nowrap', display: 'flex', 'align-items': 'center', gap: '4px' }}>
+        <button
+          type="button"
+          title="Toggle context panel (Cmd+I)"
+          onClick={() => props.onToggleContextPanel()}
+          style={{
+            background: props.contextPanelOpen ? 'var(--bg-2)' : 'transparent',
+            color: props.contextPanelOpen ? 'var(--accent)' : 'var(--fg-2)',
+            border: 'none',
+            'font-family': 'var(--font-mono)',
+            'font-size': '11px',
+            cursor: 'pointer',
+            padding: '0 6px',
+            'border-radius': '3px',
+          }}
+        >
+          Ctx
+        </button>
         <Show when={props.gitBranch}>
           <span>{props.gitBranch}</span>
         </Show>

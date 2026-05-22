@@ -461,14 +461,14 @@ No external component registry. All components are hand-rolled Solid.js + CSS cu
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Spacing: All measurements multiples of 4 (BudgetBar track 48px, height 4px, expanded bar 8px, gaps 4px — all confirmed 4n)
-- [ ] Dimension 2 Color: No new accent tokens; 3-tier fill uses existing `--accent-green/amber/red`; no inline hex
-- [ ] Dimension 3 Contrast: `--fg-2` on `--bg-1`/`--bg-2` (PaneHeader backgrounds) meets WCAG AA; `--fg-1` on `--bg-3` (popover) meets AA
-- [ ] Dimension 4 Typography: 2 sizes (11px + 12px), 2 weights (400/500), mono throughout
-- [ ] Dimension 5 Consistency: Popover pattern follows A10 Popover contract; single-open-at-a-time rule preserved
-- [ ] Dimension 6 Completeness: All D-05..D-14 decisions have layout/interaction/animation spec
+- [x] Dimension 1 Spacing: All measurements multiples of 4 (BudgetBar track 48px, height 4px, expanded bar 8px, gaps 4px — all confirmed 4n)
+- [x] Dimension 2 Color: No new accent tokens; 3-tier fill uses existing `--accent-green/amber/red`; no inline hex
+- [x] Dimension 3 Contrast: `--fg-2` on `--bg-1`/`--bg-2` (PaneHeader backgrounds) meets WCAG AA; `--fg-1` on `--bg-3` (popover) meets AA
+- [x] Dimension 4 Typography: 2 sizes (11px + 12px), 2 weights (400/500), mono throughout
+- [x] Dimension 5 Consistency: Popover pattern follows the planned popover contract; single-open-at-a-time rule preserved
+- [x] Dimension 6 Completeness: All D-05..D-14 decisions have layout/interaction/animation spec
 
-**Approval:** pending
+**Approval:** complete by F3 closeout on 2026-05-22. Automated/source gates passed; no independent live screenshot was captured in this session.
 
 ---
 

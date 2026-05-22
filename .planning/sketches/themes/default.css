@@ -1,82 +1,133 @@
-/* Voss ADE — dark terminal aesthetic */
+/* Voss ADE — warm dark, site-aligned palette */
+/* Burnt orange accent, warm neutrals, terminal-grade density */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap');
+
 :root {
-  --bg-0: #0a0b0e;
-  --bg-1: #11131a;
-  --bg-2: #171a23;
-  --bg-3: #1f232e;
-  --border: #262b38;
-  --border-bright: #353b4a;
-  --focus: #5a7cff;
-  --focus-glow: rgba(90, 124, 255, 0.18);
+  /* Background scale — warm dark from site */
+  --bg-0: #0b0a09;
+  --bg-1: #131110;
+  --bg-2: #1a1714;
+  --bg-3: #221f1b;
 
-  --fg-0: #e8eaf0;
-  --fg-1: #aab0c0;
-  --fg-2: #6a7080;
-  --fg-3: #444a5a;
+  /* Foreground — warm cream from site */
+  --fg-0: #f5f1ea;
+  --fg-1: #c4beb5;
+  --fg-2: #8a847a;
+  --fg-3: #5a554d;
 
-  --accent-green: #6fd28f;
+  /* Borders */
+  --border: #1d1a16;
+  --border-bright: #2e2924;
+
+  /* Focus / primary — burnt orange from site */
+  --focus: #ff5b1f;
+  --focus-hover: #ff7a47;
+  --focus-soft: rgba(255, 91, 31, 0.14);
+  --focus-glow: rgba(255, 91, 31, 0.18);
+
+  /* Semantic accents */
+  --accent-green: #5ec26a;
   --accent-amber: #e8b86c;
   --accent-red: #e87b7b;
   --accent-cyan: #6cc7d4;
   --accent-magenta: #c084d4;
-  --accent-blue: #7aa2ff;
+  --accent-orange: #ff5b1f;
 
-  --user-msg: #8ab4ff;
-  --assistant: #b8c0d0;
-  --tool: #c084d4;
-  --reviewer: #e8b86c;
+  /* Agent role colors */
+  --role-planner: #ff5b1f;
+  --role-executor: #6cc7d4;
+  --role-reviewer: #e8b86c;
+  --role-watcher: #8a847a;
+  --role-user: #5ec26a;
 
+  /* Typography */
+  --font-display: "Poppins", system-ui, sans-serif;
+  --font-ui: "Inter", -apple-system, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Menlo", ui-monospace, monospace;
-  --font-ui: "Inter", -apple-system, "SF Pro Text", system-ui, sans-serif;
 
-  --radius-sm: 4px;
+  /* Shape — mostly zero, selective rounding */
+  --radius-none: 0px;
+  --radius-sm: 3px;
   --radius-md: 6px;
   --radius-lg: 10px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(255, 91, 31, 0.15);
+
+  /* Transitions */
+  --ease-fast: 100ms ease;
+  --ease-base: 150ms ease;
+  --ease-slow: 250ms ease;
+
+  /* Layout */
+  --titlebar-h: 38px;
+  --tabbar-h: 32px;
+  --pane-header-h: 28px;
+  --statusbar-h: 26px;
+  --sidebar-w: 280px;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  margin: 0;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.5;
   color: var(--fg-0);
   background: var(--bg-0);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Scrollbar — slim, dark */
+/* Selection */
+::selection {
+  background: var(--focus);
+  color: var(--bg-0);
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-3); }
 
 /* Streaming cursor */
 @keyframes blink { 50% { opacity: 0; } }
 .cursor {
   display: inline-block;
-  width: 7px;
-  height: 1em;
+  width: 7px; height: 1em;
   background: var(--accent-green);
   vertical-align: text-bottom;
   animation: blink 1s steps(2) infinite;
   margin-left: 1px;
 }
 
-/* Pulse for streaming/active */
+/* Pulse glow */
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 0 0 var(--focus-glow); }
   50% { box-shadow: 0 0 0 4px var(--focus-glow); }
 }
-.streaming-indicator {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--accent-green);
-  animation: pulse-glow 1.4s ease-in-out infinite;
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-/* Common */
+/* Glow effect from site */
+.glow {
+  background-image:
+    radial-gradient(600px circle at 20% 0%, var(--focus-glow), transparent 55%),
+    radial-gradient(400px circle at 80% 10%, rgba(255, 91, 31, 0.06), transparent 55%);
+}
+
+/* Utility classes */
 .mono { font-family: var(--font-mono); }
+.ui-font { font-family: var(--font-ui); }
+.display-font { font-family: var(--font-display); }
 .dim { color: var(--fg-2); }
 .dimmer { color: var(--fg-3); }
 .bright { color: var(--fg-0); }
@@ -85,6 +136,4 @@ body {
 .red { color: var(--accent-red); }
 .cyan { color: var(--accent-cyan); }
 .magenta { color: var(--accent-magenta); }
-.blue { color: var(--accent-blue); }
-</content>
-</invoke>
+.orange { color: var(--accent-orange); }

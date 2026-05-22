@@ -21,6 +21,25 @@ pub struct BudgetData {
     pub model: String,
 }
 
+/// Per-file entry within ContextData.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct FileContextEntry {
+    pub path: String,
+    pub tokens: u64,
+    pub state: String, // "full" | "compressed" | "dropped"
+    pub pinned: bool,
+}
+
+/// Context window telemetry extracted from `ESC]1337;voss-context={json}BEL` OSC sequences.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ContextData {
+    pub system_tokens: u64,
+    pub conversation_tokens: u64,
+    pub total_tokens: u64,
+    pub token_limit: Option<u64>,
+    pub files: Vec<FileContextEntry>,
+}
+
 /// Events streamed to the webview over a `Channel<PtyEvent>`.
 /// serde-tagged like the ndjson `"type"` discriminant (A2-PATTERNS commands.rs).
 #[derive(serde::Serialize, Clone)]
@@ -31,6 +50,7 @@ pub enum PtyEvent {
     FgProcess { name: String },
     TitleChange { title: String },
     BudgetUpdate(BudgetData),
+    ContextUpdate(ContextData),
 }
 
 type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;

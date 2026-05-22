@@ -39,7 +39,7 @@ from .providers import (
     ToolUseStart,
     Usage,
 )
-from .recorder import RunRecorder, _emit_budget_osc, write_decisions_md
+from .recorder import RunRecorder, _emit_budget_osc, _emit_context_osc, write_decisions_md
 from .render import Renderer
 from .session import IterationRecord, RunRecord
 from .tools import ToolEntry
@@ -588,6 +588,9 @@ async def _run_turn_exec(
             token_budget=token_budget, model=model, provider=provider
         ) as ctx:
             while iteration_index < max_iterations:
+                # F4: load pin commands from file-based channel
+                _pin_file = cwd / ".voss" / "context-pins.json"
+                rec._context_tracker.load_pins(_pin_file)
                 iter_rec = rec.begin_iteration()
                 telemetry.emit(
                     "iteration.start",
@@ -764,6 +767,7 @@ async def _run_turn_exec(
                             iteration=iteration_index + 1,
                             model=model,
                         )
+                        _emit_context_osc(rec._context_tracker.snapshot())
                         telemetry.emit(
                             "iteration.end",
                             "info",
@@ -810,6 +814,7 @@ async def _run_turn_exec(
                         iteration=iteration_index + 1,
                         model=model,
                     )
+                    _emit_context_osc(rec._context_tracker.snapshot())
                     telemetry.emit(
                         "iteration.end",
                         "info",
@@ -860,6 +865,7 @@ async def _run_turn_exec(
                     iteration=iteration_index + 1,
                     model=model,
                 )
+                _emit_context_osc(rec._context_tracker.snapshot())
                 telemetry.emit(
                     "iteration.end",
                     "info",

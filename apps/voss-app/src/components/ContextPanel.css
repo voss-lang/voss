@@ -1,0 +1,151 @@
+.context-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 240px;
+  height: 100%;
+  background: var(--bg-1);
+  border-left: 1px solid var(--border);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 150ms ease-out;
+  overflow: hidden;
+}
+.context-panel.open {
+  transform: translateX(0);
+}
+.context-panel-header {
+  height: 28px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-1);
+  flex-shrink: 0;
+}
+.context-panel-header .meta {
+  color: var(--text-3);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.context-summary {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.context-summary-text {
+  font-size: 10px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+.context-summary-bar {
+  height: 4px;
+  background: var(--bg-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.context-summary-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 150ms ease-out;
+}
+.context-file-list {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 11px;
+}
+.context-special-row {
+  padding: 4px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-3);
+  font-size: 10px;
+  border-bottom: 1px solid var(--bg-2);
+}
+.context-file-row {
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--bg-2);
+}
+.context-file-row.pinned {
+  background: var(--bg-2);
+}
+.context-file-info {
+  flex: 1;
+  min-width: 0;
+}
+.context-file-name {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  color: var(--text-1);
+}
+.context-file-tokens {
+  font-size: 9px;
+  color: var(--text-2);
+}
+.context-file-bar {
+  width: 40px;
+  height: 4px;
+  background: var(--bg-2);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.context-file-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+.context-state-dot {
+  width: 4px;
+  height: 12px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+.context-pin-btn {
+  background: transparent;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  font-size: 10px;
+  flex-shrink: 0;
+  color: var(--text-3);
+  line-height: 1;
+}
+.context-pin-btn:hover {
+  color: var(--text-1);
+}
+.context-pin-btn.active {
+  color: var(--accent);
+}
+.context-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  font-size: 11px;
+  padding: 16px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-panel {
+    transition: none;
+  }
+  .context-summary-fill {
+    transition: none;
+  }
+}

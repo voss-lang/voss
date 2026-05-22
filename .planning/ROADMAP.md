@@ -1807,9 +1807,9 @@ Plans:
 **Plans:** 3 plans, 3 waves
 
 Plans:
-- [ ] F3-01-PLAN.md — Rust OSC parser + BudgetData/BudgetUpdate + Python _emit_budget_osc + agent.py wiring
-- [ ] F3-02-PLAN.md — Frontend transport extension + Popover + BudgetBar + BudgetPopover components
-- [ ] F3-03-PLAN.md — PaneComponent integration + CSS transition + human verification
+- [x] F3-01-PLAN.md — Rust OSC parser + BudgetData/BudgetUpdate + Python _emit_budget_osc + agent.py wiring
+- [x] F3-02-PLAN.md — Frontend transport extension + Popover + BudgetBar + BudgetPopover components
+- [x] F3-03-PLAN.md — PaneComponent integration + CSS transition + closeout verification
 
 **Success Criteria:**
 1. Python harness emits OSC 1337 voss-budget= with cumulative totals after each LLM response.

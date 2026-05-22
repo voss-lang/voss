@@ -20,8 +20,10 @@ import NewWorkspacePicker, {
 import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import StatusBar from './components/StatusBar';
+import ContextPanel from './components/ContextPanel';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
+import { contextByPaneId } from './pane/contextRegistry';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
 import ToastStack from './command-palette/toast';
@@ -226,6 +228,16 @@ export default function App() {
   const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
   const [paneCount, setPaneCount] = createSignal(0);
+  const [contextPanelOpen, setContextPanelOpen] = createSignal(
+    localStorage.getItem('voss:contextPanelOpen') === 'true',
+  );
+  const toggleContextPanel = () => {
+    setContextPanelOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('voss:contextPanelOpen', String(next));
+      return next;
+    });
+  };
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
@@ -805,6 +817,14 @@ export default function App() {
       return;
     }
 
+    // F4: toggle context panel (D-01, D-06 persisted)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
+      toggleContextPanel();
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
     if (chord && registry().dispatch(chord, appCtx)) {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -942,6 +962,7 @@ export default function App() {
             background: 'var(--bg-0)',
             display: 'flex',
             'flex-direction': 'column',
+            position: 'relative',
           }}
         >
           <For each={workspaceIds()}>
@@ -988,6 +1009,38 @@ export default function App() {
               );
             }}
           </For>
+          {/* F4: Context heatmap side panel (D-01, D-03 overlay) */}
+          <ContextPanel
+            open={contextPanelOpen()}
+            context={(() => {
+              const id = focusedPaneId();
+              return id ? contextByPaneId()[id] ?? null : null;
+            })()}
+            isAgentPane={(() => {
+              const id = focusedPaneId();
+              if (!id) return false;
+              const m = activeMounted();
+              return m?.agentConfigByPaneId()?.[id] != null;
+            })()}
+            onTogglePin={(path, pinned) => {
+              const id = focusedPaneId();
+              const ctx = id ? contextByPaneId()[id] : null;
+              if (!ctx) return;
+              const currentPinned = ctx.files.filter((f) => f.pinned).map((f) => f.path);
+              const next = pinned
+                ? [...new Set([...currentPinned, path])]
+                : currentPinned.filter((p) => p !== path);
+              const wp = activeMounted()?.project()?.path;
+              if (wp) {
+                void invoke('write_context_pins', {
+                  workspacePath: wp,
+                  pinnedPaths: next,
+                }).catch((e: unknown) =>
+                  console.error('[voss-app] write_context_pins failed:', e),
+                );
+              }
+            }}
+          />
         </div>
         <StatusBar
           workspaceName={
@@ -996,6 +1049,8 @@ export default function App() {
           paneCount={paneCount()}
           focusedPaneId={focusedPaneId()}
           gitBranch={activeMounted()?.project()?.gitBranch}
+          contextPanelOpen={contextPanelOpen()}
+          onToggleContextPanel={toggleContextPanel}
         />
       </Show>
       </div>
