@@ -8,6 +8,8 @@ import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
 import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
+import { isKnownAgentCli } from './agentDetect';
+import { registerPaneProc, unregisterPaneProc } from './procRegistry';
 import BudgetBar from '../grid/BudgetBar';
 import BudgetPopover from '../grid/BudgetPopover';
 import PasteGuard from './PasteGuard';
@@ -99,6 +101,12 @@ export default function PaneComponent(props: PaneProps) {
   const openBudgetPopover = (anchor: HTMLElement) =>
     setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
   const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
+  const isAgentCli = () => isKnownAgentCli(proc());
+  const updateProc = (name: string) => {
+    setProc(name);
+    const paneId = props.id;
+    if (paneId) registerPaneProc(paneId, name);
+  };
 
   const cwdBase = () => basename(props.cwd ?? '~');
   const shellName = () => props.shell ?? 'shell';
@@ -320,10 +328,10 @@ export default function PaneComponent(props: PaneProps) {
         setDot('exited');
         setExitCode(code);
       },
-      onFgProcess: (name) => setProc(name),
+      onFgProcess: (name) => updateProc(name),
       onTitle: (title) => {
         lastOscTitleAt = Date.now();
-        setProc(title);
+        updateProc(title);
       },
       onBudgetUpdate: (data) => setBudget(data),
       ...(props.agentConfig
@@ -337,7 +345,7 @@ export default function PaneComponent(props: PaneProps) {
     // D-07 primary: OSC 0/2 title → process slot.
     t.onTitleChange((title) => {
       lastOscTitleAt = Date.now();
-      setProc(title);
+      updateProc(title);
     });
     // Keystrokes → PTY. Fire onFirstInput once for restore-banner dismiss (A6 D-09).
     t.onData((d) => {
@@ -386,7 +394,7 @@ export default function PaneComponent(props: PaneProps) {
       transport
         ?.fgProcess()
         .then((name) => {
-          if (name) setProc(name);
+          if (name) updateProc(name);
         })
         .catch(() => {});
     }, 500);
