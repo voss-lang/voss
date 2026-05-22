@@ -60,7 +60,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Complete (6/6 plans, 5 waves; SKILL-01..06 all GREEN; 2026-05-20). |
 | O6 | Audit Product + Calibration + Liveness Hardening | Plans ready to execute (6 plans, 5 waves; OAUD-01..08 derived from roadmap/context due missing O6-SPEC; execution blocked on O1-O5 substrate preflight). |
 | F3 | Budget & Token Visualization | Plans ready to execute (3 plans, 3 waves; D-01..D-14 covered; zero new deps). |
-| F4 | Visual Context Heatmap | Context gathered (27 decisions D-01..D-27). Ready for planning. |
+| F4 | Visual Context Heatmap | Plans ready to execute (4 plans, 3 waves; D-01..D-27 covered; research deviation D-19 stdin→file-based pin channel). |
 
 ## Recent Activity
 
