@@ -14,7 +14,37 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+import json
+import sys
+
 from .session import EXIT_REASONS, BatchRecord, IterationRecord, RunRecord
+
+
+def _emit_budget_osc(
+    *,
+    tokens_used: int,
+    token_limit: int | None,
+    cost_usd: float,
+    iteration: int,
+    model: str,
+) -> None:
+    """Write an OSC 1337 voss-budget= sequence to stdout (D-02, D-04).
+
+    The Rust PTY reader (reader.rs extract_voss_osc) strips this sequence
+    before bytes reach xterm, so the terminal never renders it.
+    """
+    payload = json.dumps(
+        {
+            "tokens_used": tokens_used,
+            "token_limit": token_limit,
+            "cost_usd": cost_usd,
+            "iteration": iteration,
+            "model": model,
+        },
+        separators=(",", ":"),
+    )
+    sys.stdout.write(f"\x1b]1337;voss-budget={payload}\x07")
+    sys.stdout.flush()
 
 
 INSPECT_TOOLS = {"fs_read", "fs_glob", "fs_grep"}

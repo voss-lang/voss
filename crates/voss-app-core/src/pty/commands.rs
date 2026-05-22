@@ -9,6 +9,18 @@ use crate::pty::reader::start_reader;
 use crate::pty::writer::validate_write;
 use crate::pty::{spawn_session, PtyRegistry};
 
+/// Budget telemetry extracted from `ESC]1337;voss-budget={json}BEL` OSC sequences.
+/// Needs both `Serialize` (Tauri Channel → TypeScript) and `Deserialize`
+/// (`serde_json::from_slice` in reader.rs).
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct BudgetData {
+    pub tokens_used: u64,
+    pub token_limit: Option<u64>,
+    pub cost_usd: f64,
+    pub iteration: u32,
+    pub model: String,
+}
+
 /// Events streamed to the webview over a `Channel<PtyEvent>`.
 /// serde-tagged like the ndjson `"type"` discriminant (A2-PATTERNS commands.rs).
 #[derive(serde::Serialize, Clone)]
@@ -18,6 +30,7 @@ pub enum PtyEvent {
     Exit { code: i32 },
     FgProcess { name: String },
     TitleChange { title: String },
+    BudgetUpdate(BudgetData),
 }
 
 type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;
