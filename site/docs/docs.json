@@ -144,6 +144,12 @@
           "security/overview",
           "roadmap/v0-1"
         ]
+      },
+      {
+        "group": "Changelog",
+        "pages": [
+          "changelog/2026-05-22"
+        ]
       }
     ]
   }
