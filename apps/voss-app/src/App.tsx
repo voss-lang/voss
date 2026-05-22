@@ -1022,8 +1022,23 @@ export default function App() {
               const m = activeMounted();
               return m?.agentConfigByPaneId()?.[id] != null;
             })()}
-            onTogglePin={(_path, _pinned) => {
-              /* F4-04 wires Tauri IPC */
+            onTogglePin={(path, pinned) => {
+              const id = focusedPaneId();
+              const ctx = id ? contextByPaneId()[id] : null;
+              if (!ctx) return;
+              const currentPinned = ctx.files.filter((f) => f.pinned).map((f) => f.path);
+              const next = pinned
+                ? [...new Set([...currentPinned, path])]
+                : currentPinned.filter((p) => p !== path);
+              const wp = activeMounted()?.project()?.path;
+              if (wp) {
+                void invoke('write_context_pins', {
+                  workspacePath: wp,
+                  pinnedPaths: next,
+                }).catch((e: unknown) =>
+                  console.error('[voss-app] write_context_pins failed:', e),
+                );
+              }
             }}
           />
         </div>
