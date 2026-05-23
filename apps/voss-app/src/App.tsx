@@ -24,6 +24,9 @@ import ContextPanel from './components/ContextPanel';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
+import { budgetByPaneId } from './pane/budgetRegistry';
+import { isKnownAgentCli } from './pane/agentDetect';
+import AgentSidebar from './components/sidebar/AgentSidebar';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
 import ToastStack from './command-palette/toast';
@@ -238,6 +241,16 @@ export default function App() {
       return next;
     });
   };
+  const [sidebarCollapsed, setSidebarCollapsed] = createSignal(
+    localStorage.getItem('voss:sidebarCollapsed') === 'true',
+  );
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('voss:sidebarCollapsed', String(next));
+      return next;
+    });
+  };
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
@@ -261,6 +274,32 @@ export default function App() {
   });
 
   const gridController = () => activeMounted()?.gridController;
+
+  const agentListForSidebar = createMemo(() => {
+    const ws = activeMounted();
+    if (!ws) return [];
+    const configs = ws.agentConfigByPaneId();
+    const budgets = budgetByPaneId();
+    return Object.entries(configs)
+      .filter(([, cfg]) => isKnownAgentCli(cfg.cliBinary))
+      .map(([paneId, cfg]) => {
+        const b = budgets[paneId];
+        const model = cfg.cliArgs.find((a) => a.startsWith('--model'))?.split('=')[1] ?? 'default';
+        const role = cfg.cliBinary === 'claude' ? 'planner'
+          : cfg.cliBinary === 'codex' ? 'executor'
+          : cfg.cliBinary === 'gemini' ? 'reviewer'
+          : cfg.cliBinary === 'aider' ? 'executor'
+          : 'user';
+        return {
+          paneId,
+          cliBinary: cfg.cliBinary,
+          model,
+          role,
+          costUsd: b?.cost_usd ?? 0,
+          isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
+        };
+      });
+  });
 
   // --- Command registry (D-01) -----------------------------------------------
   const baseCommands = [
@@ -748,6 +787,7 @@ export default function App() {
     switchFont: () => openPalette('full'),
     toggleHighContrast: () => openPalette('full'),
     setBellBehavior: () => openPalette('full'),
+    toggleSidebar,
   };
 
   const dispatchCommandId = (id: string): boolean => {
@@ -812,6 +852,14 @@ export default function App() {
     }
 
     if (chord === 'Cmd+B' && prefixMode.tryEnter(keymapProfile())) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
+    // Cmd+Shift+B: toggle sidebar
+    if (e.metaKey && e.shiftKey && (e.key === 'b' || e.key === 'B')) {
+      toggleSidebar();
       e.preventDefault();
       e.stopImmediatePropagation();
       return;

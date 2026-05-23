@@ -106,6 +106,7 @@ export type GridController = {
   focusPrev: () => void;
   focusIndex: (n: number) => void;
   focusDirection: (dir: 'left' | 'right' | 'up' | 'down') => void;
+  focusPaneById: (paneId: string) => void;
   resizeDirection: (dir: 'left' | 'right' | 'up' | 'down') => void;
   /** Plain-JS snapshot of the grid state for serialization (A4-04 D-07). */
   snapshot: () => { root: TreeNode; focusedId: string };
@@ -322,6 +323,14 @@ export default function GridRoot(props: {
     setStore(produce((s) => focusByDirection(s, dir, win().w, win().h)));
   };
 
+  const focusPaneByIdFromController = (paneId: string) => {
+    const leaves = collectLeaves(store.root);
+    const target = leaves.find((l) => l.id === paneId);
+    if (!target) return;
+    setStore(produce((s) => { s.focusedId = paneId; }));
+    props.onFocusChange?.(paneId);
+  };
+
   const resizeDirectionFromController = (
     dir: 'left' | 'right' | 'up' | 'down',
   ) => {
@@ -389,6 +398,7 @@ export default function GridRoot(props: {
       focusPrev: focusPrevFromController,
       focusIndex: focusIndexFromController,
       focusDirection: focusDirectionFromController,
+      focusPaneById: focusPaneByIdFromController,
       resizeDirection: resizeDirectionFromController,
       snapshot,
     });
