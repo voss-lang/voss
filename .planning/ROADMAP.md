@@ -1512,20 +1512,25 @@ Cross-cutting constraints: All 16 CONTEXT decisions (D-01..D-16) covered. Plan-c
 
 **Depends on:** A3 (grid engine), A8 (workspaces/theming baseline)
 
-**Plans:**
+**Plans:** 8 plans, 3 waves
 
-| Plan | Scope | Depends on |
-|------|-------|------------|
-| P1 | ADE-01: Theme migration (CSS token swap) | — |
-| P2 | ADE-02: AgentSidebar component | P1 |
-| P3 | ADE-03: Layout integration (wire sidebar into App.tsx) | P2 |
-| P4 | ADE-04: Agent launch flow | P3 |
-| P5 | ADE-05: Titlebar + branding polish | P1 |
-| P6 | ADE-06: Pane chrome warmth | P1 |
-| P7 | ADE-07: File tree | P3 |
-| P8 | ADE-08: History/sessions | P3 |
+Plans:
+- [ ] A12-01-PLAN.md — ADE-01: Voss Ignite theme (token swap + xterm palette + Poppins bundled)
+- [ ] A12-02-PLAN.md — ADE-02: AgentSidebar component (4 sections shell + budgetRegistry)
+- [ ] A12-03-PLAN.md — ADE-03: Layout integration (wire sidebar into App.tsx + Cmd+Shift+B + focus sync)
+- [ ] A12-04-PLAN.md — ADE-04: Agent launch modal (6 CLI presets, context-sensitive config)
+- [ ] A12-05-PLAN.md — ADE-05: Titlebar branding + status bar agent badge
+- [ ] A12-06-PLAN.md — ADE-06: Pane chrome warmth (accent bars, streaming pulse, focused state)
+- [ ] A12-07-PLAN.md — ADE-07: File tree (read-only, Tauri list_dir command)
+- [ ] A12-08-PLAN.md — ADE-08: Git log + Sessions (two sidebar sections, Tauri git_log)
 
-**Critical path:** P1 → P2 → P3. After P3, P4/P5/P6/P7/P8 parallelize.
+| Wave | Plans | Parallel |
+|------|-------|----------|
+| 1 | A12-01 (theme), A12-02 (sidebar shell) | yes |
+| 2 | A12-03 (layout wiring), A12-05 (titlebar/badge), A12-06 (pane chrome) | A12-05/A12-06 parallel; A12-03 sequential after W1 |
+| 3 | A12-04 (launch modal), A12-07 (file tree), A12-08 (git/sessions) | yes, all after A12-03 |
+
+**Critical path:** A12-01 → A12-03 → A12-04. A12-02 parallel with A12-01 in W1.
 
 **Success Criteria (proposed):**
 1. App renders with warm site palette — no cool blue-grays remain.
