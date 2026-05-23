@@ -3204,6 +3204,70 @@ def consensus_cmd(input_mode: str, ref: str | None, cwd_str: str, auth_pref: str
     sys.exit(0)
 
 
+HOOK_SHIM = "#!/bin/sh\n# Installed by: voss hooks install\nexec voss consensus --staged\n"
+HOOK_MARKER = "Installed by: voss hooks install"
+
+
+@click.group("hooks")
+def hooks_group() -> None:
+    """Manage git pre-commit hook for voss consensus."""
+
+
+@hooks_group.command("install")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Working directory.")
+@click.option("--force", is_flag=True, default=False, help="Overwrite existing hook.")
+def hooks_install_cmd(cwd_str: str, force: bool) -> None:
+    """Install a pre-commit hook that runs voss consensus."""
+    cwd = Path(cwd_str).resolve()
+    out = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    if out.returncode != 0:
+        click.echo("Error: not a git repository.", err=True)
+        sys.exit(2)
+    git_root = Path(out.stdout.strip())
+    hook_path = git_root / ".git" / "hooks" / "pre-commit"
+    hook_path.parent.mkdir(parents=True, exist_ok=True)
+    if hook_path.exists() and not force:
+        click.echo("Error: .git/hooks/pre-commit already exists. Use --force to overwrite.", err=True)
+        sys.exit(1)
+    hook_path.write_text(HOOK_SHIM)
+    hook_path.chmod(0o755)
+    click.echo(f"Installed pre-commit hook at {hook_path}")
+
+
+@hooks_group.command("uninstall")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Working directory.")
+def hooks_uninstall_cmd(cwd_str: str) -> None:
+    """Remove a voss-installed pre-commit hook."""
+    cwd = Path(cwd_str).resolve()
+    out = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    if out.returncode != 0:
+        click.echo("Error: not a git repository.", err=True)
+        sys.exit(2)
+    git_root = Path(out.stdout.strip())
+    hook_path = git_root / ".git" / "hooks" / "pre-commit"
+    if not hook_path.exists():
+        click.echo("No pre-commit hook found.")
+        sys.exit(0)
+    content = hook_path.read_text(encoding="utf-8")
+    if HOOK_MARKER not in content:
+        click.echo("Error: .git/hooks/pre-commit was not installed by voss. Remove manually.", err=True)
+        sys.exit(1)
+    hook_path.unlink()
+    click.echo("Removed pre-commit hook.")
+
+
 AGENT_COMMANDS = (
     do_cmd,
     chat_cmd,
@@ -3230,6 +3294,7 @@ AGENT_COMMANDS = (
     logs_group,
     eval_cmd,
     consensus_cmd,
+    hooks_group,
 )
 
 
