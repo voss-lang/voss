@@ -152,3 +152,6 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - Next operational step after this rebaseline is to plan M0, then M1.
 
 **Planned Phase:** A8 (voss-app-workspaces-ux-polish-theming) — 7 plans — 2026-05-21T00:04:42.143Z
+
+### Roadmap Evolution
+- Phase A12 added: voss-app ADE Visual Redesign — left sidebar + warm site palette + branded titlebar + pane chrome accent bars. 8 requirements (ADE-01..08), 8 plans (P1–P8). Source: sketch 002 Variant A winner. (2026-05-22)

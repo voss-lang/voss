@@ -3,7 +3,7 @@
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure → desktop ADE scaffold
 **Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`)
-**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A11 (counts TBD by SPEC.md)
+**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A12 (counts TBD by SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
 **Last updated:** 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
@@ -46,6 +46,7 @@
 | A9 | voss-app Settings + Theme | Two-pane settings UI, JSON-backed, Variant B token system, font/shell config | CFG-01..0N (TBD by SPEC.md) | TBD |
 | A10 | voss-app Status Bar | Project · branch · pane count · cost meter stub · notifications bell · click-to-popover | BAR-01..0N (TBD by SPEC.md) | TBD |
 | A11 | voss-app Onboarding + Release Pipeline | First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update). v0 SHIP GATE | OBD-01..0N + REL-01..0N (TBD by SPEC.md) | TBD |
+| A12 | voss-app ADE Visual Redesign | Left sidebar (agent list, quick launch, file tree, history) + warm site palette (#ff5b1f accent), pane chrome with role-color accents, branded titlebar. Transforms terminal multiplexer into SOTA ADE. | ADE-01..08 (TBD by SPEC.md) | TBD |
 | O1 | Session-Tree Substrate + Budget Fan-out | Parent→child session tree; per-card budget envelope; reserved drain budget; hard non-extendable caps (keystone) | OST-01..0N (TBD by SPEC.md) | TBD |
 | O2 | `.voss team{}` Spec + Specialist Roster | `team{}` parser → enriched SubagentSpec (model/mode/scope/budget/tools); EM-immutable ceiling/p; backend/frontend/ui/ai roster | OTEAM-01..0N (TBD by SPEC.md) | TBD |
 | O3 | Board State Machine + Gated Transitions | Columns, per-column WIP, gate predicates, →Done double gate, critic-loop ceiling+budget, timeout→Blocked | OBRD-01..0N (TBD by SPEC.md) | TBD |
@@ -1492,6 +1493,59 @@ Cross-cutting constraints: All 16 CONTEXT decisions (D-01..D-16) covered. Plan-c
 
 ---
 
+### Phase A12: voss-app ADE Visual Redesign
+
+**Goal:** Transform voss-app from "terminal multiplexer" to SOTA agent development environment. Left sidebar with agent list, quick launch, file tree, and history. Warm site palette (#0b0a09 bg, #ff5b1f burnt orange accent, Poppins/Inter/JetBrains Mono). Pane chrome with role-color accent bars. Branded titlebar with Voss logo. Terminals remain the hero — this is for vibe coders.
+
+**Source:** `.planning/ADE-REDESIGN.md` (sketch 002 Variant A winner). Site design tokens from `site/app/globals.css`.
+
+**Requirements (locked at SPEC):** ADE-01..08
+
+- ADE-01 Theme migration: replace cool blue-gray token palette (variant-b.css) with warm site-aligned palette. All CSS vars, no raw hex. Font loading for Poppins.
+- ADE-02 AgentSidebar component: collapsible left panel (280px), 2px orange left accent, sections for Agents/Quick Launch/Files/History. Animates open/close (250ms).
+- ADE-03 Layout integration: sidebar sits outside grid tree in flex row. Grid resizes via ResizeObserver. `⌘⇧B` toggle. Sidebar state persists in localStorage.
+- ADE-04 Agent launch flow: Quick Launch buttons (Claude/Codex/Gemini) spawn agents in new panes. Agent detection updates sidebar reactively.
+- ADE-05 Titlebar + branding: Voss logo mark (20px SVG), Poppins display font for app name. Status bar orange agent count badge.
+- ADE-06 Pane chrome warmth: 3px left accent bars in role color on agent pane headers. Focused agent pane gets orange edge + focus-soft bg. Streaming pulse animation.
+- ADE-07 File tree: basic recursive directory listing from project root via Tauri FS. Expand/collapse, scroll within section.
+- ADE-08 History/sessions: git log entries with relative timestamps in sidebar History section. Updates on focus.
+
+**Depends on:** A3 (grid engine), A8 (workspaces/theming baseline)
+
+**Plans:**
+
+| Plan | Scope | Depends on |
+|------|-------|------------|
+| P1 | ADE-01: Theme migration (CSS token swap) | — |
+| P2 | ADE-02: AgentSidebar component | P1 |
+| P3 | ADE-03: Layout integration (wire sidebar into App.tsx) | P2 |
+| P4 | ADE-04: Agent launch flow | P3 |
+| P5 | ADE-05: Titlebar + branding polish | P1 |
+| P6 | ADE-06: Pane chrome warmth | P1 |
+| P7 | ADE-07: File tree | P3 |
+| P8 | ADE-08: History/sessions | P3 |
+
+**Critical path:** P1 → P2 → P3. After P3, P4/P5/P6/P7/P8 parallelize.
+
+**Success Criteria (proposed):**
+1. App renders with warm site palette — no cool blue-grays remain.
+2. Sidebar shows running agents with role badges, status dots, model, cost.
+3. Sidebar collapses/expands smoothly via `⌘⇧B`.
+4. Quick Launch spawns an agent in a new pane.
+5. Logo mark visible in titlebar.
+6. Agent panes have role-colored accent bars in headers.
+7. File tree shows project directory structure.
+8. History shows recent git commits.
+9. All existing tests pass (no regression).
+
+**Cross-cutting constraints:**
+- Terminals remain the hero element — sidebar is supplementary, not dominant.
+- Grid resize must work correctly with sidebar open/closed (ResizeObserver, not manual width math).
+- Agent list derives from existing `agentConfigByPaneId` — no new backend required for P1-P3.
+- Design tokens reference: `.planning/ADE-REDESIGN.md` § Design Tokens Reference.
+
+---
+
 ## O-prefixed phases: Caged Autonomous Eng Team (ADE Orchestration)
 
 **Track:** Multi-agent orchestration layer on the Python harness. Full design, decision log (21 decisions), `.voss` strawman, and residual-risk register in **`.planning/ORCHESTRATION-PLAN.md`**.
@@ -1666,6 +1720,7 @@ Plans:
 | A9 | CFG-01..0N | TBD by `A9-SPEC.md` |
 | A10 | BAR-01..0N | TBD by `A10-SPEC.md` |
 | A11 | OBD-01..0N + REL-01..0N | TBD by `A11-SPEC.md` |
+| A12 | ADE-01..08 | 8 plans (P1–P8) |
 | **A-total (Layer 1)** | | **TBD per SPEC** |
 | **O-phases (ADE orchestration — Caged Autonomous Eng Team)** | | |
 | O1 | OST-01..0N | TBD by `O1-SPEC.md` |
@@ -1821,6 +1876,16 @@ Plans:
 7. Budget state resets on app restart; first OSC repopulates (self-heal).
 
 **Cross-cutting:** Builds on A2 PTY subsystem (reader.rs, commands.rs, PtyEvent, PtyTransport) + A3 PaneComponent inline header. Does NOT modify PaneHeader.tsx (grid layer uses it; PaneComponent has its own inline header). Creates a thin Popover.tsx primitive forward-compatible with A10 status bar popover pattern.
+### Phase 1: voss-app ADE Visual Redesign — Left Sidebar + Warm Site Palette
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 0
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 1 to break down)
+
 ---
 
 ## Backlog
