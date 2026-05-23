@@ -23,6 +23,14 @@ export interface PaneHeaderProps {
   prefixActive?: boolean;
   /** A7: reserve indicator width under tmux profile to avoid header shift. */
   prefixReserved?: boolean;
+  /** A12: whether pane runs an agent CLI. */
+  isAgent?: boolean;
+  /** A12: CSS variable for role color (e.g. '--role-planner'). */
+  roleColor?: string;
+  /** A12: agent is currently streaming output. */
+  isStreaming?: boolean;
+  /** A12: agent accumulated cost in USD. */
+  costUsd?: number;
   onToggleMenu: () => void;
 }
 
@@ -43,25 +51,50 @@ export default function PaneHeader(props: PaneHeaderProps) {
 
   return (
     <div
-      class={`font-mono ${props.focused ? 'bg-bg-2' : 'bg-bg-1'}`}
+      class={`font-mono ${props.focused && props.isAgent ? '' : props.focused ? 'bg-bg-2' : 'bg-bg-1'}`}
       style={{
         display: 'flex',
         'align-items': 'center',
-        height: '22px',
-        'min-height': '22px',
-        padding: '0 10px',
+        position: 'relative',
+        height: 'var(--pane-header-height, 22px)',
+        'min-height': 'var(--pane-header-height, 22px)',
+        padding: '0 8px 0 12px',
         'font-size': '11px',
         'font-weight': 400,
         overflow: 'hidden',
+        ...(props.focused && props.isAgent ? { background: 'var(--focus-soft)' } : {}),
       }}
     >
-      <span
-        class={dotClass()}
-        style={{ opacity: props.focused ? 1 : 0.6, 'font-size': '8px' }}
-        aria-label={exited() ? 'Shell exited' : 'Shell running'}
-      >
-        ●
-      </span>
+      {/* A12: role-colored accent bar for agent panes */}
+        <Show when={props.isAgent}>
+          <span
+            style={{
+              position: 'absolute',
+              left: '0',
+              top: '0',
+              bottom: '0',
+              width: '3px',
+              background: props.focused ? 'var(--focus)' : `var(${props.roleColor ?? '--role-user'})`,
+            }}
+          />
+        </Show>
+        <span
+          class={props.isAgent
+            ? (props.isStreaming ? 'pane-dot--streaming' : '')
+            : dotClass()}
+          style={{
+            opacity: props.focused ? 1 : 0.6,
+            'font-size': '8px',
+            ...(props.isAgent ? {
+              color: `var(${props.roleColor ?? '--role-user'})`,
+            } : {}),
+          }}
+          aria-label={props.isAgent
+            ? (props.isStreaming ? 'Agent streaming' : 'Agent idle')
+            : (exited() ? 'Shell exited' : 'Shell running')}
+        >
+          ●
+        </span>
       <Pipe />
       <span
         class={secondary()}
@@ -90,7 +123,21 @@ export default function PaneHeader(props: PaneHeaderProps) {
           {props.process}
         </span>
       </Show>
-      <span style={{ flex: 1 }} />
+      <Show when={props.isAgent && props.costUsd != null}>
+          <Pipe />
+          <span
+            data-testid="agent-cost"
+            style={{
+              'font-family': 'var(--font-mono)',
+              'font-size': '11px',
+              color: (props.costUsd ?? 0) > 1.0 ? 'var(--focus)' : 'var(--fg-2)',
+              'white-space': 'nowrap',
+            }}
+          >
+            ${(props.costUsd ?? 0).toFixed(2)}
+          </span>
+        </Show>
+        <span style={{ flex: 1 }} />
       {/* A7: tmux prefix indicator — reserved 72px, visible only when active + focused */}
       <Show when={props.prefixReserved}>
         <span

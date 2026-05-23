@@ -4,6 +4,8 @@ import type { GridStore, TreeNode, PaneLeaf, SplitNode } from './tree';
 import { focusByClick } from './focus';
 import PaneComponent from '../pane/PaneComponent';
 import type { AgentConfig } from '../pane/pty-ipc';
+import { budgetByPaneId } from '../pane/budgetRegistry';
+import { isKnownAgentCli } from '../pane/agentDetect';
 import DragHandle, { type Dims } from './DragHandle';
 import PaneHeader from './PaneHeader';
 import DotMenu from './DotMenu';
@@ -33,6 +35,19 @@ export interface CloseUI {
  * (A3-UI-SPEC forbids any boundary stroke/colour change). Instant repaint,
  * no CSS animation (Variant B perf budget).
  */
+function mapCliToRoleColor(cliBinary?: string): string {
+  if (!cliBinary) return '--role-user';
+  switch (cliBinary) {
+    case 'claude': return '--role-planner';
+    case 'codex': return '--role-executor';
+    case 'gemini': return '--role-reviewer';
+    case 'opencode': return '--role-watcher';
+    case 'aider': return '--role-executor';
+    case 'voss': return '--role-planner';
+    default: return '--role-user';
+  }
+}
+
 export default function SplitNodeView(props: {
   node: TreeNode;
   store: Store<GridStore>;
@@ -102,6 +117,10 @@ export default function SplitNodeView(props: {
             prefixActive={isFocused() && props.prefixActive}
             prefixReserved={props.prefixReserved}
             onToggleMenu={() => setMenuOpen((v) => !v)}
+            isAgent={!!props.agentConfigByPaneId?.[asLeaf().id] && isKnownAgentCli(props.agentConfigByPaneId[asLeaf().id].cliBinary)}
+            roleColor={mapCliToRoleColor(props.agentConfigByPaneId?.[asLeaf().id]?.cliBinary)}
+            isStreaming={(() => { const b = budgetByPaneId()[asLeaf().id]; return b ? Date.now() - b.lastSeenMs < 3000 : false; })()}
+            costUsd={budgetByPaneId()[asLeaf().id]?.cost_usd}
           />
           <Show when={menuOpen()}>
             <DotMenu
