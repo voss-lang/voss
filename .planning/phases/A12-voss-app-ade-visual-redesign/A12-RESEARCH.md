@@ -834,22 +834,19 @@ Both commands must be added to `tauri::generate_handler![...]` in `run()`.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Custom CLI persistence (D-21)**
+1. **Custom CLI persistence (D-21)** -- RESOLVED
    - What we know: settings.json at `~/.config/voss-app/settings.json` stores `theme` key only. No `custom_agents` key exists.
-   - What's unclear: Should custom CLIs be added to the existing settings file or a new `custom-agents.json`?
-   - Recommendation: Add a `custom_agents: Vec<CustomCli>` to `SettingsFile` struct in `lib.rs`. Expose `load_custom_agents` / `save_custom_agents` Tauri commands. Keep it in the existing settings path.
+   - Resolution: Custom CLIs stored in the existing settings.json under a `custom_agents` key. The `SettingsFile` Rust struct gets a `custom_agents: Option<Vec<CustomAgent>>` field. Two new Tauri commands: `load_custom_agents` and `save_custom_agents`. Implemented in A12-04 Task 4.
 
-2. **Session tracking data for SESSIONS section (D-06)**
+2. **Session tracking data for SESSIONS section (D-06)** -- RESOLVED
    - What we know: Agent sessions start when `spawn_agent` is called (SQLite registry). End when `mark_agent_stopped` is called.
-   - What's unclear: Should the Sessions section read from the SQLite agent registry, or from a new in-memory event log in App.tsx?
-   - Recommendation: Read from `get_active_agents` + filter for `status = 'stopped'` (last N stopped agents). Requires `get_recent_sessions(limit)` Tauri command or reading from the existing agent registry with a different query.
+   - Resolution: Sessions derive from `agentConfigByPaneId` diffs + timestamps. The sidebar Sessions section reads from `get_active_agents` filtered by status (active and recently stopped). Session start/stop events are detected by diffing the agentConfigByPaneId signal between reactive updates and recording timestamps in an App.tsx-level sessionLog signal. Implemented in A12-08.
 
-3. **WCAG AA contrast for --focus (#ff5b1f) on --bg-3 (#221f1b) at 11px**
+3. **WCAG AA contrast for --focus (#ff5b1f) on --bg-3 (#221f1b) at 11px** -- RESOLVED
    - What we know: The UI-SPEC explicitly calls this out as needing executor verification.
-   - What's unclear: `contrastRatio('#ff5b1f', '#221f1b')` = ? (need calculation)
-   - Recommendation: Calculate using the existing `contrastRatio()` function from schema.ts. If < 4.5:1, pair orange elements with `--fg-0` labels (as spec says). Planner should add a verification step.
+   - Resolution: Executor verifies WCAG contrast at implementation time using the existing `contrastRatio()` function from schema.ts. If < 4.5:1, orange elements are paired with `--fg-0` labels (as spec says). Verification step included in A12-01 plan (theme creation).
 
 ---
 
