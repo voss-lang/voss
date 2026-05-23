@@ -29,9 +29,16 @@ use voss_app_core::session::{self, SessionFile};
 use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct CustomAgent {
+    name: String,
+    command: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Default)]
 struct SettingsFile {
     theme: Option<HashMap<String, String>>,
+    custom_agents: Option<Vec<CustomAgent>>,
 }
 
 fn settings_path() -> PathBuf {
@@ -69,6 +76,43 @@ fn get_theme_overrides() -> HashMap<String, String> {
         }
     };
     settings.theme.unwrap_or_default()
+}
+
+#[tauri::command]
+fn load_custom_agents() -> Vec<CustomAgent> {
+    let path = settings_path();
+    if !path.exists() {
+        return Vec::new();
+    }
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    let settings: SettingsFile = match serde_json::from_str(&raw) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    settings.custom_agents.unwrap_or_default()
+}
+
+#[tauri::command]
+fn save_custom_agents(agents: Vec<CustomAgent>) -> Result<(), String> {
+    let path = settings_path();
+    let mut settings: SettingsFile = if path.exists() {
+        std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or_default()
+    } else {
+        SettingsFile::default()
+    };
+    settings.custom_agents = Some(agents);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ---- PTY commands ---------------------------------------------------------
@@ -676,6 +720,8 @@ pub fn run() {
             save_appearance_settings,
             list_system_fonts,
             write_context_pins,
+            load_custom_agents,
+            save_custom_agents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

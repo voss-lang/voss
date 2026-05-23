@@ -27,6 +27,8 @@ import { contextByPaneId } from './pane/contextRegistry';
 import { budgetByPaneId } from './pane/budgetRegistry';
 import { isKnownAgentCli } from './pane/agentDetect';
 import AgentSidebar from './components/sidebar/AgentSidebar';
+import AgentLaunchModal from './components/modal/AgentLaunchModal';
+import AgentContextMenu from './components/sidebar/AgentContextMenu';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
 import ToastStack from './command-palette/toast';
@@ -251,6 +253,19 @@ export default function App() {
       return next;
     });
   };
+  const [agentModalOpen, setAgentModalOpen] = createSignal(false);
+  const [contextMenuState, setContextMenuState] = createSignal<{
+    paneId: string;
+    anchor: HTMLElement;
+    costUsd: number;
+  } | null>(null);
+
+  const handleLaunchAgent = (_config: { cliBinary: string; cliArgs: string[]; taskPrompt: string }) => {
+    setAgentModalOpen(false);
+    gridController()?.splitFocused('H');
+    // Agent spawn will be wired to the new pane in a future plan
+  };
+
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
@@ -1019,8 +1034,15 @@ export default function App() {
             agents={agentListForSidebar()}
             focusedPaneId={focusedPaneId()}
             onAgentClick={(paneId) => gridController()?.focusPaneById(paneId)}
-            onAgentContextMenu={() => {}}
-            onLaunchAgent={() => {}}
+            onAgentContextMenu={(paneId, e) => {
+              e.preventDefault();
+              setContextMenuState({
+                paneId,
+                anchor: e.currentTarget as HTMLElement,
+                costUsd: budgetByPaneId()[paneId]?.cost_usd ?? 0,
+              });
+            }}
+            onLaunchAgent={() => setAgentModalOpen(true)}
             sessions={[]}
             projectPath={activeMounted()?.project()?.path ?? null}
             workspacePath={workspacePath() ?? null}
@@ -1126,6 +1148,26 @@ export default function App() {
       </Show>
 
       <ToastStack />
+
+      <Show when={agentModalOpen()}>
+        <AgentLaunchModal
+          onDismiss={() => setAgentModalOpen(false)}
+          onLaunch={handleLaunchAgent}
+        />
+      </Show>
+
+      <Show when={contextMenuState() != null}>
+        <AgentContextMenu
+          anchor={contextMenuState()!.anchor}
+          paneId={contextMenuState()!.paneId}
+          costUsd={contextMenuState()!.costUsd}
+          onClose={() => setContextMenuState(null)}
+          onFocusPane={(id) => gridController()?.focusPaneById(id)}
+          onStopAgent={(id) => { void invoke('pty_kill', { sessionId: id }); }}
+          onRestartAgent={() => {}}
+          onDetachAgent={() => {}}
+        />
+      </Show>
 
       <Show when={paletteMode() !== null}>
         <CommandPalette
