@@ -715,6 +715,41 @@ fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
     Ok(read_dir_shallow(&canonical, 2))
 }
 
+#[derive(Debug, serde::Serialize)]
+struct GitCommit {
+    hash: String,
+    message: String,
+    timestamp_secs: i64,
+}
+
+#[tauri::command]
+fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, String> {
+    let output = std::process::Command::new("git")
+        .args(["-C", &workspace_path, "log", &format!("-{}", limit), "--format=%H %ct %s"])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        // Not a git repo or other git error — return empty gracefully
+        return Ok(Vec::new());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let commits: Vec<GitCommit> = stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .filter_map(|line| {
+            let mut parts = line.splitn(3, ' ');
+            let hash = parts.next()?.to_string();
+            let ts: i64 = parts.next()?.parse().ok()?;
+            let message = parts.next().unwrap_or("").to_string();
+            Some(GitCommit { hash, message, timestamp_secs: ts })
+        })
+        .collect();
+
+    Ok(commits)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -778,6 +813,7 @@ pub fn run() {
             load_custom_agents,
             save_custom_agents,
             list_dir,
+            git_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

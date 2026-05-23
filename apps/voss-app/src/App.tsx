@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
   batch,
+  createEffect,
   createMemo,
   createSignal,
   onMount,
@@ -314,6 +315,50 @@ export default function App() {
           isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
         };
       });
+  });
+
+  const [sessionLog, setSessionLog] = createSignal<
+    { id: string; description: string; startedAt: number; stoppedAt: number | null }[]
+  >([]);
+
+  // Track agent sessions — detect new and removed agents
+  let prevAgentPaneIds = new Set<string>();
+  createEffect(() => {
+    const ws = activeMounted();
+    if (!ws) return;
+    const configs = ws.agentConfigByPaneId();
+    const currentIds = new Set(Object.keys(configs));
+
+    // New agents = in current but not in prev
+    for (const id of currentIds) {
+      if (!prevAgentPaneIds.has(id)) {
+        const cfg = configs[id];
+        setSessionLog((prev) => [
+          {
+            id,
+            description: `${cfg.cliBinary} started`,
+            startedAt: Date.now(),
+            stoppedAt: null,
+          },
+          ...prev,
+        ]);
+      }
+    }
+
+    // Stopped agents = in prev but not in current
+    for (const id of prevAgentPaneIds) {
+      if (!currentIds.has(id)) {
+        setSessionLog((prev) =>
+          prev.map((s) =>
+            s.id === id && s.stoppedAt === null
+              ? { ...s, stoppedAt: Date.now(), description: s.description.replace('started', 'stopped') }
+              : s,
+          ),
+        );
+      }
+    }
+
+    prevAgentPaneIds = currentIds;
   });
 
   // --- Command registry (D-01) -----------------------------------------------
@@ -1043,7 +1088,7 @@ export default function App() {
               });
             }}
             onLaunchAgent={() => setAgentModalOpen(true)}
-            sessions={[]}
+            sessions={sessionLog()}
             projectPath={activeMounted()?.project()?.path ?? null}
             workspacePath={workspacePath() ?? null}
           />
