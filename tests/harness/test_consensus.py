@@ -118,9 +118,7 @@ def test_response_format_is_critique_response() -> None:
 
     provider = SimpleNamespace(complete=spy_complete)
     cfg = ConstraintsConfig(mode="warn", rules=["r1"])
-    asyncio.get_event_loop().run_until_complete(
-        run_critique(provider, "test-model", cfg, SAMPLE_DIFF)
-    )
+    asyncio.run(run_critique(provider, "test-model", cfg, SAMPLE_DIFF))
     assert captured_kwargs.get("response_format") is CritiqueResponse
 
 
@@ -167,18 +165,14 @@ def test_violation_output_format() -> None:
 def test_fail_open_on_llm_error() -> None:
     provider = _make_mock_provider(raise_exc=True)
     cfg = ConstraintsConfig(mode="block", rules=["r1"])
-    result = asyncio.get_event_loop().run_until_complete(
-        run_critique(provider, "test-model", cfg, SAMPLE_DIFF)
-    )
+    result = asyncio.run(run_critique(provider, "test-model", cfg, SAMPLE_DIFF))
     assert result is None
 
 
 def test_fail_open_on_none_parsed() -> None:
     provider = _make_mock_provider(result=None)
     cfg = ConstraintsConfig(mode="block", rules=["r1"])
-    result = asyncio.get_event_loop().run_until_complete(
-        run_critique(provider, "test-model", cfg, SAMPLE_DIFF)
-    )
+    result = asyncio.run(run_critique(provider, "test-model", cfg, SAMPLE_DIFF))
     assert result is None
 
 
