@@ -310,3 +310,121 @@ def test_pydantic_extra_ignore() -> None:
 def test_default_mode_is_warn() -> None:
     cfg = ConstraintsConfig()
     assert cfg.mode == "warn"
+
+
+# ── CLI integration: consensus in voss --help ────────────────────────
+
+
+def test_consensus_in_voss_help() -> None:
+    from click.testing import CliRunner
+    from voss.cli import main as voss_main
+
+    r = CliRunner().invoke(voss_main, ["--help"])
+    assert r.exit_code == 0
+    assert "consensus" in r.output
+
+
+# ── CLI integration: block mode exits 1 ──────────────────────────────
+
+
+def test_block_mode_exits_1(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import consensus_cmd
+
+    _write_constraints(tmp_path, mode="block", rules=["No print statements"])
+
+    # Mock capture_diff to return a diff
+    monkeypatch.setattr(
+        "voss.harness.consensus.capture_diff",
+        lambda mode, cwd, ref=None: SAMPLE_DIFF,
+    )
+
+    violation_resp = CritiqueResponse(
+        violations=[Violation(constraint="No print statements", file="foo.py", line=2, explanation="print found")],
+        summary=CritiqueSummary(total_checked=1, violation_count=1),
+    )
+
+    async def fake_critique(provider, model, constraints, diff_text):
+        return violation_resp
+
+    monkeypatch.setattr("voss.harness.consensus.run_critique", fake_critique)
+
+    # Mock auth
+    from types import SimpleNamespace as NS
+
+    monkeypatch.setattr(
+        "voss.harness.cli._resolve_auth_or_die",
+        lambda pref: (NS(source="api"), NS(complete=None)),
+    )
+    monkeypatch.setattr("voss.harness.cli._resolve_default_model", lambda m: None)
+
+    r = CliRunner().invoke(consensus_cmd, ["--staged", "--cwd", str(tmp_path)])
+    assert r.exit_code == 1
+
+
+# ── CLI integration: warn mode exits 0 ───────────────────────────────
+
+
+def test_warn_mode_exits_0(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import consensus_cmd
+
+    _write_constraints(tmp_path, mode="warn", rules=["No print statements"])
+
+    monkeypatch.setattr(
+        "voss.harness.consensus.capture_diff",
+        lambda mode, cwd, ref=None: SAMPLE_DIFF,
+    )
+
+    violation_resp = CritiqueResponse(
+        violations=[Violation(constraint="No print statements", file="foo.py", line=2, explanation="print found")],
+        summary=CritiqueSummary(total_checked=1, violation_count=1),
+    )
+
+    async def fake_critique(provider, model, constraints, diff_text):
+        return violation_resp
+
+    monkeypatch.setattr("voss.harness.consensus.run_critique", fake_critique)
+
+    from types import SimpleNamespace as NS
+
+    monkeypatch.setattr(
+        "voss.harness.cli._resolve_auth_or_die",
+        lambda pref: (NS(source="api"), NS(complete=None)),
+    )
+    monkeypatch.setattr("voss.harness.cli._resolve_default_model", lambda m: None)
+
+    r = CliRunner().invoke(consensus_cmd, ["--staged", "--cwd", str(tmp_path)])
+    assert r.exit_code == 0
+
+
+# ── CLI integration: fail-open on LLM error ──────────────────────────
+
+
+def test_cli_fail_open_on_llm_error(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import consensus_cmd
+
+    _write_constraints(tmp_path, mode="block", rules=["r1"])
+
+    monkeypatch.setattr(
+        "voss.harness.consensus.capture_diff",
+        lambda mode, cwd, ref=None: SAMPLE_DIFF,
+    )
+
+    async def failing_critique(provider, model, constraints, diff_text):
+        return None
+
+    monkeypatch.setattr("voss.harness.consensus.run_critique", failing_critique)
+
+    from types import SimpleNamespace as NS
+
+    monkeypatch.setattr(
+        "voss.harness.cli._resolve_auth_or_die",
+        lambda pref: (NS(source="api"), NS(complete=None)),
+    )
+    monkeypatch.setattr("voss.harness.cli._resolve_default_model", lambda m: None)
+
+    r = CliRunner().invoke(consensus_cmd, ["--staged", "--cwd", str(tmp_path)])
+    assert r.exit_code == 0
+    assert "fail-open" in (r.output + (r.output or ""))

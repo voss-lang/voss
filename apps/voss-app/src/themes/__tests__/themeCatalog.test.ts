@@ -10,6 +10,7 @@ import { contrastRatio } from '../schema';
 import { HIGH_CONTRAST_OVERLAY } from '../highContrast';
 
 const EXPECTED_IDS = [
+  'voss-ignite',
   'variant-b',
   'one-dark-pro',
   'dracula',
@@ -25,9 +26,9 @@ const EXPECTED_IDS = [
 ] as const;
 
 describe('theme catalog', () => {
-  it('exposes exactly 12 bundled theme IDs in UI-SPEC order', () => {
+  it('exposes exactly 13 bundled theme IDs in UI-SPEC order', () => {
     expect(BUNDLED_THEME_IDS).toEqual([...EXPECTED_IDS]);
-    expect(listBundledThemes()).toHaveLength(12);
+    expect(listBundledThemes()).toHaveLength(13);
     expect(listBundledThemes().map((t) => t.id)).toEqual([...EXPECTED_IDS]);
   });
 

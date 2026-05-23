@@ -1,6 +1,23 @@
 @import "tailwindcss";
 @import "./styles/variant-b.css";
 
+/* Poppins display font — bundled locally (CSP blocks Google Fonts). */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/poppins-500.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/poppins-600.woff2') format('woff2');
+}
+
 /* Map tokens into Tailwind v4 utilities — @theme inline embeds var reference directly */
 /* Generates: bg-bg-0, text-fg-0, border-border, text-accent-green, font-mono, etc.  */
 @theme inline {
