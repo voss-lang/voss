@@ -9,6 +9,9 @@ export type StatusBarProps = {
   gitBranch: string | null | undefined;
   contextPanelOpen: boolean;
   onToggleContextPanel: () => void;
+  agentCount: number;
+  totalCost: number;
+  onToggleSidebar: () => void;
 };
 
 export default function StatusBar(props: StatusBarProps) {
