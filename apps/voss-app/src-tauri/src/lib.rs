@@ -660,6 +660,61 @@ fn save_active_profile_id(id: Option<String>) -> Result<(), String> {
     profiles::save_active_profile_id(id.as_deref()).map_err(|e| e.to_string())
 }
 
+// ---- File tree commands (A12-07) -------------------------------------------
+
+#[derive(Debug, serde::Serialize)]
+struct DirEntry {
+    name: String,
+    is_dir: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    children: Vec<DirEntry>,
+}
+
+const SKIP_DIRS: &[&str] = &[
+    "node_modules", "target", ".git", "__pycache__", ".next",
+    "dist", "build", ".venv", ".tox", ".mypy_cache",
+];
+
+fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
+    if depth == 0 {
+        return Vec::new();
+    }
+    let rd = match std::fs::read_dir(path) {
+        Ok(rd) => rd,
+        Err(_) => return Vec::new(),
+    };
+    let mut entries: Vec<DirEntry> = rd
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            // Skip hidden files/dirs
+            if name.starts_with('.') {
+                return None;
+            }
+            let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            // Skip noise directories
+            if is_dir && SKIP_DIRS.contains(&name.as_str()) {
+                return None;
+            }
+            let children = if is_dir && depth > 1 {
+                read_dir_shallow(&e.path(), depth - 1)
+            } else {
+                Vec::new()
+            };
+            Some(DirEntry { name, is_dir, children })
+        })
+        .collect();
+    // Sort: dirs first, then alphabetical
+    entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
+    entries
+}
+
+#[tauri::command]
+fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
+    let canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
+    Ok(read_dir_shallow(&canonical, 2))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -722,6 +777,7 @@ pub fn run() {
             write_context_pins,
             load_custom_agents,
             save_custom_agents,
+            list_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

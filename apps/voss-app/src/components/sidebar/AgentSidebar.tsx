@@ -2,6 +2,7 @@ import { type Component, createEffect, createSignal, For, Show } from 'solid-js'
 import type { AgentItemProps } from './AgentItem';
 import AgentItem from './AgentItem';
 import SessionsSection from './SessionsSection';
+import FileTree from './FileTree';
 import './sidebar.css';
 
 type AgentEntry = Omit<AgentItemProps, 'onClick' | 'onContextMenu' | 'isActive'>;
@@ -133,10 +134,10 @@ const AgentSidebar: Component<AgentSidebarProps> = (props) => {
           <SessionsSection sessions={props.sessions} />
         </div>
 
-        {/* FILES placeholder */}
+        {/* FILES section */}
         <div class="sidebar-section-label">FILES</div>
         <div class="sidebar-section-body">
-          <div class="sidebar-empty">No project open</div>
+          <FileTree projectPath={props.projectPath} />
         </div>
 
         {/* GIT placeholder */}
