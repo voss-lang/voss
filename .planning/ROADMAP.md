@@ -57,7 +57,7 @@
 | F2 | Hybrid Semantic Search | BM25 + vector via Reciprocal Rank Fusion; symbol-accurate retrieval | FSRCH-01..04 | 3 plans, 3 waves |
 | F3 | Budget & Token Visualization | HUD progress bars for token/budget, live cost updates via IPC | D-01..D-14 (from F3-CONTEXT.md) | 3 plans, 3 waves |
 | F4 | Visual Context Heatmap | Context pane showing in-context/compressed files + manual pinning UI | FCTX-01..0N (TBD by SPEC.md) | TBD |
-| F5 | Commit with Critique Hook | Pre-commit hook invoking Voss agent to critique diffs against constraints | FCRIT-01..0N (TBD by SPEC.md) | TBD |
+| F5 | Commit with Critique Hook | Pre-commit hook invoking Voss agent to critique diffs against constraints | D-01..D-16 (from F5-CONTEXT.md) | 2 plans, 2 waves |
 | F6 | Multi-Model Agent Council | CLI-native multi-model deliberation panel; structured debate + consensus engine | FCNCL-01..0N (TBD by SPEC.md) | TBD |
 
 ---
@@ -1735,7 +1735,7 @@ Plans:
 | F2 | FSRCH-01..04 | 4 |
 | F3 | FVIZ-01..0N | TBD by `F3-SPEC.md` |
 | F4 | FCTX-01..0N | TBD by `F4-SPEC.md` |
-| F5 | FCRIT-01..0N | TBD by `F5-SPEC.md` |
+| F5 | D-01..D-16 | 2 |
 | F6 | FCNCL-01..0N | TBD by `F6-SPEC.md` |
 | **F-total** | | **TBD per SPEC** |
 
@@ -1876,6 +1876,28 @@ Plans:
 7. Budget state resets on app restart; first OSC repopulates (self-heal).
 
 **Cross-cutting:** Builds on A2 PTY subsystem (reader.rs, commands.rs, PtyEvent, PtyTransport) + A3 PaneComponent inline header. Does NOT modify PaneHeader.tsx (grid layer uses it; PaneComponent has its own inline header). Creates a thin Popover.tsx primitive forward-compatible with A10 status bar popover pattern.
+
+### Phase F5: Commit with Critique Hook
+
+**Goal:** `voss consensus` CLI command for single-shot LLM critique of diffs against natural-language constraints in `.voss/constraints.yml`, plus `voss hooks install/uninstall` to wire it as a git pre-commit hook.
+
+**Requirements:** D-01..D-16 (locked in `F5-CONTEXT.md`)
+
+**Plans:** 2 plans, 2 waves
+
+Plans:
+- [ ] F5-01-PLAN.md — Core consensus module + Pydantic models + CLI command + tests (D-01..D-04, D-08..D-16)
+- [ ] F5-02-PLAN.md — Hook lifecycle install/uninstall + hook tests (D-05..D-07)
+
+**Success Criteria:**
+1. `voss consensus --staged` critiques staged diff against constraints.yml rules.
+2. Exits 0 silently when no constraints.yml exists (D-04).
+3. Exits 1 on violations when mode=block; exits 0 when mode=warn (D-09).
+4. Fails open on LLM errors — exit 0 + warning (D-16).
+5. `voss hooks install` writes 3-line shell shim; refuses if hook exists (D-07).
+6. `voss hooks uninstall` removes only voss-installed hooks.
+7. Zero new dependencies.
+
 ### Phase 1: voss-app ADE Visual Redesign — Left Sidebar + Warm Site Palette
 
 **Goal:** [To be planned]
