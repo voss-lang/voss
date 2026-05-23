@@ -3,6 +3,7 @@ import type { AgentItemProps } from './AgentItem';
 import AgentItem from './AgentItem';
 import SessionsSection from './SessionsSection';
 import FileTree from './FileTree';
+import GitSection from './GitSection';
 import './sidebar.css';
 
 type AgentEntry = Omit<AgentItemProps, 'onClick' | 'onContextMenu' | 'isActive'>;
@@ -140,10 +141,10 @@ const AgentSidebar: Component<AgentSidebarProps> = (props) => {
           <FileTree projectPath={props.projectPath} />
         </div>
 
-        {/* GIT placeholder */}
+        {/* GIT section */}
         <div class="sidebar-section-label">GIT</div>
         <div class="sidebar-section-body">
-          <div class="sidebar-empty">Not a git repository</div>
+          <GitSection workspacePath={props.workspacePath} />
         </div>
       </div>
 
