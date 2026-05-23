@@ -1009,86 +1009,100 @@ export default function App() {
             'min-height': '0',
             background: 'var(--bg-0)',
             display: 'flex',
-            'flex-direction': 'column',
+            'flex-direction': 'row',
             position: 'relative',
           }}
         >
-          <For each={workspaceIds()}>
-            {(workspaceId) => {
-              const ws = () => mountedById().get(workspaceId);
-              const shouldMount = () => {
-                const m = ws();
-                return m != null && (m.everMounted() || workspaceIsReady(m));
-              };
-              return (
-                <Show when={shouldMount()}>
-                  <div
-                    data-workspace-id={workspaceId}
-                    style={{
-                      display: activeId() === workspaceId ? 'flex' : 'none',
-                      flex: '1',
-                      'min-height': '0',
-                      'flex-direction': 'column',
-                    }}
-                  >
-                    <GridRoot
-                      active={() => activeId() === workspaceId}
-                      activeLayout={ws()!.activeLayout}
-                      onLayoutChange={(next) => ws()!.setActiveLayout(next)}
-                      controllerRef={(c) => bindController(ws()!, c)}
-                      projectCwd={
-                        ws()!.project()?.path ?? ws()!.projectLessCwd()
-                      }
-                      initialSession={ws()!.initialSession() ?? undefined}
-                      externalKeymap={true}
-                      prefixActive={prefixActive()}
-                      prefixReserved={keymapProfile() === 'tmux'}
-                      agentConfigByPaneId={ws()!.agentConfigByPaneId()}
-                      workspacePath={ws()!.project()?.path ?? undefined}
-                      onFocusChange={(id) => {
-                        if (activeId() === workspaceId) setFocusedPaneId(id);
-                      }}
-                      onLeafCountChange={(count) => {
-                        if (activeId() === workspaceId) setPaneCount(count);
-                      }}
-                    />
-                  </div>
-                </Show>
-              );
-            }}
-          </For>
-          {/* F4: Context heatmap side panel (D-01, D-03 overlay) */}
-          <ContextPanel
-            open={contextPanelOpen()}
-            context={(() => {
-              const id = focusedPaneId();
-              return id ? contextByPaneId()[id] ?? null : null;
-            })()}
-            isAgentPane={(() => {
-              const id = focusedPaneId();
-              if (!id) return false;
-              const m = activeMounted();
-              return m?.agentConfigByPaneId()?.[id] != null;
-            })()}
-            onTogglePin={(path, pinned) => {
-              const id = focusedPaneId();
-              const ctx = id ? contextByPaneId()[id] : null;
-              if (!ctx) return;
-              const currentPinned = ctx.files.filter((f) => f.pinned).map((f) => f.path);
-              const next = pinned
-                ? [...new Set([...currentPinned, path])]
-                : currentPinned.filter((p) => p !== path);
-              const wp = activeMounted()?.project()?.path;
-              if (wp) {
-                void invoke('write_context_pins', {
-                  workspacePath: wp,
-                  pinnedPaths: next,
-                }).catch((e: unknown) =>
-                  console.error('[voss-app] write_context_pins failed:', e),
-                );
-              }
-            }}
+          <AgentSidebar
+            collapsed={sidebarCollapsed()}
+            onToggle={toggleSidebar}
+            agents={agentListForSidebar()}
+            focusedPaneId={focusedPaneId()}
+            onAgentClick={(paneId) => gridController()?.focusPaneById(paneId)}
+            onAgentContextMenu={() => {}}
+            onLaunchAgent={() => {}}
+            sessions={[]}
+            projectPath={activeMounted()?.project()?.path ?? null}
+            workspacePath={workspacePath() ?? null}
           />
+          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: 'flex', 'flex-direction': 'column', position: 'relative' }}>
+            <For each={workspaceIds()}>
+              {(workspaceId) => {
+                const ws = () => mountedById().get(workspaceId);
+                const shouldMount = () => {
+                  const m = ws();
+                  return m != null && (m.everMounted() || workspaceIsReady(m));
+                };
+                return (
+                  <Show when={shouldMount()}>
+                    <div
+                      data-workspace-id={workspaceId}
+                      style={{
+                        display: activeId() === workspaceId ? 'flex' : 'none',
+                        flex: '1',
+                        'min-height': '0',
+                        'flex-direction': 'column',
+                      }}
+                    >
+                      <GridRoot
+                        active={() => activeId() === workspaceId}
+                        activeLayout={ws()!.activeLayout}
+                        onLayoutChange={(next) => ws()!.setActiveLayout(next)}
+                        controllerRef={(c) => bindController(ws()!, c)}
+                        projectCwd={
+                          ws()!.project()?.path ?? ws()!.projectLessCwd()
+                        }
+                        initialSession={ws()!.initialSession() ?? undefined}
+                        externalKeymap={true}
+                        prefixActive={prefixActive()}
+                        prefixReserved={keymapProfile() === 'tmux'}
+                        agentConfigByPaneId={ws()!.agentConfigByPaneId()}
+                        workspacePath={ws()!.project()?.path ?? undefined}
+                        onFocusChange={(id) => {
+                          if (activeId() === workspaceId) setFocusedPaneId(id);
+                        }}
+                        onLeafCountChange={(count) => {
+                          if (activeId() === workspaceId) setPaneCount(count);
+                        }}
+                      />
+                    </div>
+                  </Show>
+                );
+              }}
+            </For>
+            {/* F4: Context heatmap side panel (D-01, D-03 overlay) */}
+            <ContextPanel
+              open={contextPanelOpen()}
+              context={(() => {
+                const id = focusedPaneId();
+                return id ? contextByPaneId()[id] ?? null : null;
+              })()}
+              isAgentPane={(() => {
+                const id = focusedPaneId();
+                if (!id) return false;
+                const m = activeMounted();
+                return m?.agentConfigByPaneId()?.[id] != null;
+              })()}
+              onTogglePin={(path, pinned) => {
+                const id = focusedPaneId();
+                const ctx = id ? contextByPaneId()[id] : null;
+                if (!ctx) return;
+                const currentPinned = ctx.files.filter((f) => f.pinned).map((f) => f.path);
+                const next = pinned
+                  ? [...new Set([...currentPinned, path])]
+                  : currentPinned.filter((p) => p !== path);
+                const wp = activeMounted()?.project()?.path;
+                if (wp) {
+                  void invoke('write_context_pins', {
+                    workspacePath: wp,
+                    pinnedPaths: next,
+                  }).catch((e: unknown) =>
+                    console.error('[voss-app] write_context_pins failed:', e),
+                  );
+                }
+              }}
+            />
+          </div>
         </div>
         <StatusBar
           workspaceName={
