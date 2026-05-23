@@ -428,3 +428,132 @@ def test_cli_fail_open_on_llm_error(monkeypatch, tmp_path: Path) -> None:
     r = CliRunner().invoke(consensus_cmd, ["--staged", "--cwd", str(tmp_path)])
     assert r.exit_code == 0
     assert "fail-open" in (r.output + (r.output or ""))
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Hook lifecycle tests (Plan 02 — D-05, D-06, D-07)
+# ═══════════════════════════════════════════════════════════════════════
+
+import os
+import stat
+
+
+def _fake_git_repo(tmp_path: Path) -> Path:
+    """Create a fake .git/hooks directory and return tmp_path."""
+    (tmp_path / ".git" / "hooks").mkdir(parents=True, exist_ok=True)
+    return tmp_path
+
+
+def _patch_git_toplevel(monkeypatch, tmp_path: Path) -> None:
+    """Monkeypatch subprocess.run so git rev-parse --show-toplevel returns tmp_path."""
+    original_run = subprocess.run
+
+    def patched_run(cmd, **kwargs):
+        if cmd[:3] == ["git", "rev-parse", "--show-toplevel"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=str(tmp_path) + "\n", stderr="")
+        return original_run(cmd, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", patched_run)
+
+
+def test_hooks_install_writes_shim(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import hooks_group, HOOK_SHIM
+
+    _fake_git_repo(tmp_path)
+    _patch_git_toplevel(monkeypatch, tmp_path)
+
+    r = CliRunner().invoke(hooks_group, ["install", "--cwd", str(tmp_path)])
+    assert r.exit_code == 0
+
+    hook_path = tmp_path / ".git" / "hooks" / "pre-commit"
+    assert hook_path.exists()
+    assert hook_path.read_text() == HOOK_SHIM
+    assert os.stat(hook_path).st_mode & stat.S_IXUSR
+
+
+def test_hooks_install_refuses_existing(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import hooks_group
+
+    _fake_git_repo(tmp_path)
+    _patch_git_toplevel(monkeypatch, tmp_path)
+
+    hook_path = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook_path.write_text("#!/bin/sh\necho existing\n")
+
+    r = CliRunner().invoke(hooks_group, ["install", "--cwd", str(tmp_path)])
+    assert r.exit_code == 1
+    assert "already exists" in r.output
+    assert hook_path.read_text() == "#!/bin/sh\necho existing\n"
+
+
+def test_hooks_install_force_overwrites(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import hooks_group, HOOK_SHIM
+
+    _fake_git_repo(tmp_path)
+    _patch_git_toplevel(monkeypatch, tmp_path)
+
+    hook_path = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook_path.write_text("#!/bin/sh\necho old\n")
+
+    r = CliRunner().invoke(hooks_group, ["install", "--cwd", str(tmp_path), "--force"])
+    assert r.exit_code == 0
+    assert hook_path.read_text() == HOOK_SHIM
+
+
+def test_hooks_uninstall_removes_voss_hook(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import hooks_group
+
+    _fake_git_repo(tmp_path)
+    _patch_git_toplevel(monkeypatch, tmp_path)
+
+    # Install first
+    CliRunner().invoke(hooks_group, ["install", "--cwd", str(tmp_path)])
+    hook_path = tmp_path / ".git" / "hooks" / "pre-commit"
+    assert hook_path.exists()
+
+    # Uninstall
+    r = CliRunner().invoke(hooks_group, ["uninstall", "--cwd", str(tmp_path)])
+    assert r.exit_code == 0
+    assert not hook_path.exists()
+    assert "Removed" in r.output
+
+
+def test_hooks_uninstall_refuses_foreign_hook(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import hooks_group
+
+    _fake_git_repo(tmp_path)
+    _patch_git_toplevel(monkeypatch, tmp_path)
+
+    hook_path = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook_path.write_text("#!/bin/sh\nnpx lint-staged\n")
+
+    r = CliRunner().invoke(hooks_group, ["uninstall", "--cwd", str(tmp_path)])
+    assert r.exit_code == 1
+    assert "not installed by voss" in r.output
+    assert hook_path.exists()
+
+
+def test_hooks_uninstall_no_hook_exists(monkeypatch, tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from voss.harness.cli import hooks_group
+
+    _fake_git_repo(tmp_path)
+    _patch_git_toplevel(monkeypatch, tmp_path)
+
+    r = CliRunner().invoke(hooks_group, ["uninstall", "--cwd", str(tmp_path)])
+    assert r.exit_code == 0
+    assert "No pre-commit hook found" in r.output
+
+
+def test_hooks_in_voss_help() -> None:
+    from click.testing import CliRunner
+    from voss.cli import main as voss_main
+
+    r = CliRunner().invoke(voss_main, ["--help"])
+    assert r.exit_code == 0
+    assert "hooks" in r.output
