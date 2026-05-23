@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: completed
-last_updated: "2026-05-21T00:04:42.149Z"
-last_activity: "2026-05-18 — Phase A1 complete (4 plans, 4 waves). A1-01 Tauri+Solid+Tailwind scaffold + Cargo/pnpm monorepo + pinned versions + icon set (icon repadded to Big Sur safe-area). A1-02 Variant B token taxonomy + @theme inline + get_theme_overrides theme seam (3-path verified: absent/valid/malformed). A1-03 22px titlebar + macOS traffic lights + platform gate + visual-only preset switcher + drag (2 in-flight visual-defect patches: spacer align-self stretch, title-text drag). A1-04 hardened CSP + unsigned ad-hoc build smoke + \"Voss ADE\" ship-name verify + A10 cert-procurement clock started. SHL-01..06 all satisfied. Carried-forward: 11px Retina legibility re-check in A2, drag-region count + App.tsx plan-defects logged for plan-checker, A10 cert clock started 2026-05-18."
+last_updated: "2026-05-22T23:59:54.822Z"
+last_activity: "2026-05-18 — Phase A1 complete (4 plans, 4 waves). A1-01 Tauri+Solid+Tailwind scaffold + Cargo/pnpm monorepo + pinned versions + icon set (icon repadded to Big Sur safe-area). A1-02 Variant B token taxonomy + @theme inline + get_theme_overrides theme seam (3-path verified: absent/valid/malformed). A1-03 22px titlebar + macOS traffic lights + platform gate + visual-only preset switcher + drag (2 in-flight visual-defect patches: spacer align-self stretch, title-text drag). A1-04 hardened CSP + unsigned ad-hoc build smoke + "Voss ADE" ship-name verify + A10 cert-procurement clock started. SHL-01..06 all satisfied. Carried-forward: 11px Retina legibility re-check in A2, drag-region count + App.tsx plan-defects logged for plan-checker, A10 cert clock started 2026-05-18."
 progress:
   total_phases: 16
   completed_phases: 0
@@ -61,8 +61,13 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | O6 | Audit Product + Calibration + Liveness Hardening | Plans ready to execute (6 plans, 5 waves; OAUD-01..08 derived from roadmap/context due missing O6-SPEC; execution blocked on O1-O5 substrate preflight). |
 | F3 | Budget & Token Visualization | Complete (3/3 plans; OSC budget pipeline, BudgetBar/BudgetPopover HUD, targeted Rust/Python/TS/app gates green; live visual checkpoint closed by operator-directed closeout on 2026-05-22). |
 | F4 | Visual Context Heatmap | Plans ready to execute (4 plans, 3 waves; D-01..D-27 covered; research deviation D-19 stdin→file-based pin channel). |
+| F5 | Commit with Critique Hook | Plans ready to execute (2 plans, 2 waves; D-01..D-16 covered; zero new deps). |
 
 ## Recent Activity
+
+- 2026-05-22 — **Phase F5 (Commit with Critique Hook) planned — 2 plans, 2 waves.** W1 F5-01: consensus.py (Pydantic models, YAML constraints loading, single-shot provider.complete critique, structured output formatting) + consensus_cmd CLI registration + 15+ unit tests covering D-01..D-04, D-08..D-16. W2 F5-02: hooks_group (install/uninstall) + hook lifecycle tests covering D-05..D-07. Zero new deps (pyyaml, pydantic, click all already in pyproject.toml). All 16 CONTEXT decisions mapped. Resume: `/gsd:execute-phase F5`.
+
+- 2026-05-22 — **Phase F5 (Commit with Critique Hook) context gathered.** `/gsd-discuss-phase F5`: all 4 gray areas discussed. F5-CONTEXT.md captures D-01..D-16. **Constraint format:** D-01 natural language rules in `.voss/constraints.yml`; D-02 system prompt injection (constraints + diff in one context); D-03 constraints.yml only (no conventions merge); D-04 skip silently if no file. **Hook lifecycle:** D-05 `voss hooks install/uninstall` CLI; D-06 thin shell shim (`exec voss consensus --staged`); D-07 refuse if hook exists (--force override); D-08 `voss consensus` is a real standalone CLI command. **Output & gate:** D-09 configurable `mode: block|warn` in constraints.yml; D-10 structured violations list (constraint + file:line + explanation); D-11 violations only (summary shows totals); D-12 one-liner on clean pass. **Agent model:** D-13 single-shot prompt (one LLM call, ~2-5s); D-14 same provider as configured; D-15 no budget cap; D-16 fail open on LLM errors. Resume: `/gsd:plan-phase F5`.
 
 - 2026-05-22 — **Phase F3 (Budget & Token Visualization) COMPLETE — 3/3 plans.** F3-01 shipped Python `_emit_budget_osc`, agent iteration emission, Rust `BudgetData`/`BudgetUpdate`, and PTY OSC stripping. F3-02 shipped `budget_update` transport handling, `BudgetBar`, `BudgetPopover`, `Popover`, and component tests. F3-03 wired local pane budget state, agent-pane-only header HUD, click popover, and 150ms bar transition. Closeout gates: `cargo test -p voss-app-core` 132 passed; `python3 -m pytest voss/harness/test_budget_osc.py -q` 4 passed; `cd apps/voss-app && npm run test -- --reporter=dot` 525 passed; `npx tsc --noEmit` clean; `npm run build` passed with the existing large-chunk warning; `cargo build -p voss-app-core` passed. Runtime visual checkpoint was closed by operator-directed closeout; no independent live LLM-pane screenshot was captured in this session.
 
@@ -149,3 +154,6 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 - Next operational step after this rebaseline is to plan M0, then M1.
 
 **Planned Phase:** A8 (voss-app-workspaces-ux-polish-theming) — 7 plans — 2026-05-21T00:04:42.143Z
+
+### Roadmap Evolution
+- Phase A12 added: voss-app ADE Visual Redesign — left sidebar + warm site palette + branded titlebar + pane chrome accent bars. 8 requirements (ADE-01..08), 8 plans (P1–P8). Source: sketch 002 Variant A winner. (2026-05-22)

@@ -8,7 +8,7 @@ import type { Theme } from './schema';
 import type { AppearanceSettings } from '../appearance/types';
 import { clampFontSize } from '../appearance/types';
 
-const DEFAULT_THEME = getBundledTheme('variant-b')!;
+const DEFAULT_THEME = getBundledTheme('voss-ignite')!;
 
 const terminals = new Map<string, Terminal>();
 

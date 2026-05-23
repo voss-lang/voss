@@ -3160,6 +3160,50 @@ def logs_watch_cmd(path: Path, poll_interval: float) -> None:
             click.echo("", err=True)
 
 
+@click.command("consensus")
+@click.option("--staged", "input_mode", flag_value="staged", default=True, help="Critique staged changes (default).")
+@click.option("--diff", "ref", default=None, metavar="REF", help="Critique diff against REF.")
+@click.option("--stdin", "input_mode", flag_value="stdin", help="Read diff from stdin.")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Working directory.")
+@click.option("--auth", "auth_pref", type=click.Choice(AUTH_CHOICES), default="auto", help="Credential source.")
+@click.option("--model", default=None, help="Model override.")
+def consensus_cmd(input_mode: str, ref: str | None, cwd_str: str, auth_pref: str, model: str | None) -> None:
+    """Critique a diff against .voss/constraints.yml rules."""
+    from voss.harness.consensus import capture_diff, format_violations, load_constraints, run_critique
+
+    cwd = Path(cwd_str).resolve()
+    _resolve_default_model(model)
+
+    constraints = load_constraints(cwd)
+    if constraints is None:
+        sys.exit(0)
+
+    mode = "ref" if ref else input_mode
+    try:
+        diff_text = capture_diff(mode, cwd, ref=ref)
+    except RuntimeError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(2)
+
+    if not diff_text:
+        click.echo("\u2713 No changes to critique.")
+        sys.exit(0)
+
+    res, provider = _resolve_auth_or_die(auth_pref)
+    cfg = get_config()
+    result = asyncio.run(run_critique(provider, cfg.default_model, constraints, diff_text))
+
+    if result is None:
+        click.echo("warning: LLM request failed — commit proceeds (fail-open).", err=True)
+        sys.exit(0)
+
+    text, has_violations = format_violations(result)
+    click.echo(text)
+    if has_violations and constraints.mode == "block":
+        sys.exit(1)
+    sys.exit(0)
+
+
 AGENT_COMMANDS = (
     do_cmd,
     chat_cmd,
@@ -3185,6 +3229,7 @@ AGENT_COMMANDS = (
     mcp_group,
     logs_group,
     eval_cmd,
+    consensus_cmd,
 )
 
 

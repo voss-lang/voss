@@ -1,6 +1,7 @@
 import { HIGH_CONTRAST_OVERLAY } from './highContrast';
 import type { Theme } from './schema';
 
+import vossIgnite from './bundled/voss-ignite.json';
 import variantB from './bundled/variant-b.json';
 import oneDarkPro from './bundled/one-dark-pro.json';
 import dracula from './bundled/dracula.json';
@@ -19,8 +20,9 @@ export type { Theme, ThemeAppearance, ThemeValidationResult } from './schema';
 export { HIGH_CONTRAST_OVERLAY } from './highContrast';
 export { contrastRatio } from './schema';
 
-/** Curated bundled theme IDs (A8 UI-SPEC — exactly 12, no VSCode import). */
+/** Curated bundled theme IDs (A8 UI-SPEC — exactly 13, no VSCode import). */
 export const BUNDLED_THEME_IDS = [
+  'voss-ignite',
   'variant-b',
   'one-dark-pro',
   'dracula',
@@ -38,6 +40,7 @@ export const BUNDLED_THEME_IDS = [
 export type BundledThemeId = (typeof BUNDLED_THEME_IDS)[number];
 
 const BUNDLED_BY_ID: Record<BundledThemeId, Theme> = {
+  'voss-ignite': vossIgnite as Theme,
   'variant-b': variantB as Theme,
   'one-dark-pro': oneDarkPro as Theme,
   dracula: dracula as Theme,

@@ -68,6 +68,7 @@ export interface AppContext {
   toggleHighContrast?: () => void;
   setBellBehavior?: () => void;
   startAgent?: () => void;
+  toggleSidebar?: () => void;
 }
 
 // --- Registry ----------------------------------------------------------------
@@ -237,6 +238,14 @@ export function v0Commands(): CommandDefinition[] {
       category: 'Window',
       keybinding: 'Cmd+Shift+P',
       handler: (ctx) => ctx.openFullPalette(),
+    },
+
+    {
+      id: 'sidebar.toggle',
+      label: 'Toggle Sidebar',
+      category: 'Window',
+      keybinding: 'Cmd+Shift+B',
+      handler: (ctx) => ctx.toggleSidebar?.(),
     },
 
     // ---- Project ------------------------------------------------------------
