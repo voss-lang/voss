@@ -29,9 +29,16 @@ use voss_app_core::session::{self, SessionFile};
 use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct CustomAgent {
+    name: String,
+    command: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Default)]
 struct SettingsFile {
     theme: Option<HashMap<String, String>>,
+    custom_agents: Option<Vec<CustomAgent>>,
 }
 
 fn settings_path() -> PathBuf {
@@ -69,6 +76,43 @@ fn get_theme_overrides() -> HashMap<String, String> {
         }
     };
     settings.theme.unwrap_or_default()
+}
+
+#[tauri::command]
+fn load_custom_agents() -> Vec<CustomAgent> {
+    let path = settings_path();
+    if !path.exists() {
+        return Vec::new();
+    }
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    let settings: SettingsFile = match serde_json::from_str(&raw) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    settings.custom_agents.unwrap_or_default()
+}
+
+#[tauri::command]
+fn save_custom_agents(agents: Vec<CustomAgent>) -> Result<(), String> {
+    let path = settings_path();
+    let mut settings: SettingsFile = if path.exists() {
+        std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or_default()
+    } else {
+        SettingsFile::default()
+    };
+    settings.custom_agents = Some(agents);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ---- PTY commands ---------------------------------------------------------
@@ -616,6 +660,96 @@ fn save_active_profile_id(id: Option<String>) -> Result<(), String> {
     profiles::save_active_profile_id(id.as_deref()).map_err(|e| e.to_string())
 }
 
+// ---- File tree commands (A12-07) -------------------------------------------
+
+#[derive(Debug, serde::Serialize)]
+struct DirEntry {
+    name: String,
+    is_dir: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    children: Vec<DirEntry>,
+}
+
+const SKIP_DIRS: &[&str] = &[
+    "node_modules", "target", ".git", "__pycache__", ".next",
+    "dist", "build", ".venv", ".tox", ".mypy_cache",
+];
+
+fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
+    if depth == 0 {
+        return Vec::new();
+    }
+    let rd = match std::fs::read_dir(path) {
+        Ok(rd) => rd,
+        Err(_) => return Vec::new(),
+    };
+    let mut entries: Vec<DirEntry> = rd
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            // Skip hidden files/dirs
+            if name.starts_with('.') {
+                return None;
+            }
+            let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            // Skip noise directories
+            if is_dir && SKIP_DIRS.contains(&name.as_str()) {
+                return None;
+            }
+            let children = if is_dir && depth > 1 {
+                read_dir_shallow(&e.path(), depth - 1)
+            } else {
+                Vec::new()
+            };
+            Some(DirEntry { name, is_dir, children })
+        })
+        .collect();
+    // Sort: dirs first, then alphabetical
+    entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
+    entries
+}
+
+#[tauri::command]
+fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
+    let canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
+    Ok(read_dir_shallow(&canonical, 2))
+}
+
+#[derive(Debug, serde::Serialize)]
+struct GitCommit {
+    hash: String,
+    message: String,
+    timestamp_secs: i64,
+}
+
+#[tauri::command]
+fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, String> {
+    let output = std::process::Command::new("git")
+        .args(["-C", &workspace_path, "log", &format!("-{}", limit), "--format=%H %ct %s"])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        // Not a git repo or other git error — return empty gracefully
+        return Ok(Vec::new());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let commits: Vec<GitCommit> = stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .filter_map(|line| {
+            let mut parts = line.splitn(3, ' ');
+            let hash = parts.next()?.to_string();
+            let ts: i64 = parts.next()?.parse().ok()?;
+            let message = parts.next().unwrap_or("").to_string();
+            Some(GitCommit { hash, message, timestamp_secs: ts })
+        })
+        .collect();
+
+    Ok(commits)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -676,6 +810,10 @@ pub fn run() {
             save_appearance_settings,
             list_system_fonts,
             write_context_pins,
+            load_custom_agents,
+            save_custom_agents,
+            list_dir,
+            git_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

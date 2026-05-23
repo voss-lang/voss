@@ -119,6 +119,16 @@ html.reduced-motion *::after {
   box-shadow: inset 0 0 0 1px var(--focus);
 }
 
+/* A12: streaming pulse animation for agent pane dots */
+@keyframes voss-pulse {
+  from { opacity: 1; }
+  to   { opacity: 0.3; }
+}
+
+.pane-dot--streaming {
+  animation: voss-pulse 0.8s ease-in-out infinite alternate;
+}
+
 .grid-pane-leaf > div:first-of-type {
   transition:
     background-color var(--transition-focus),

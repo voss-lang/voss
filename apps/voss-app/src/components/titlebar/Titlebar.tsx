@@ -55,16 +55,30 @@ export default function Titlebar(props: TitlebarProps = {}) {
         data-tauri-drag-region
         style={{
           'flex-shrink': '0',
-          color: 'var(--fg-1)',
-          'font-size': '11px',
-          'font-family': 'var(--font-mono)',
-          'font-weight': '400',
           'align-self': 'stretch',
           display: 'flex',
           'align-items': 'center',
+          gap: '6px',
         }}
       >
-        {titleText()}
+        <svg
+          viewBox="0 0 2048 2048"
+          fill="none"
+          style={{ width: '18px', height: '18px', 'flex-shrink': '0', color: 'var(--focus)' }}
+        >
+          <path d="M332 471h278l566 908-136 226L332 471Z" fill="currentColor" />
+          <path d="M1432 470h308l-503 724-144-197 339-527Z" fill="currentColor" />
+        </svg>
+        <span
+          style={{
+            color: 'var(--fg-1)',
+            'font-size': '13px',
+            'font-family': 'var(--font-display)',
+            'font-weight': '500',
+          }}
+        >
+          {titleText()}
+        </span>
       </div>
 
       {/* Right drag spacer */}

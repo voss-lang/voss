@@ -9,6 +9,9 @@ export type StatusBarProps = {
   gitBranch: string | null | undefined;
   contextPanelOpen: boolean;
   onToggleContextPanel: () => void;
+  agentCount: number;
+  totalCost: number;
+  onToggleSidebar: () => void;
 };
 
 export default function StatusBar(props: StatusBarProps) {
@@ -73,6 +76,32 @@ export default function StatusBar(props: StatusBarProps) {
 
       {/* Right: context panel toggle (F4 D-09) + git branch */}
       <div style={{ 'white-space': 'nowrap', display: 'flex', 'align-items': 'center', gap: '4px' }}>
+        <Show when={props.agentCount > 0}>
+          <button
+            type="button"
+            onClick={() => props.onToggleSidebar()}
+            style={{
+              background: 'rgba(255,91,31,0.15)',
+              border: '1px solid var(--focus)',
+              color: 'var(--focus)',
+              'border-radius': '9999px',
+              padding: '0 8px',
+              height: '16px',
+              display: 'inline-flex',
+              'align-items': 'center',
+              'font-family': 'var(--font-mono)',
+              'font-size': '11px',
+              cursor: 'pointer',
+              'white-space': 'nowrap',
+              gap: '4px',
+            }}
+          >
+            <span>●</span>
+            <span>
+              {props.agentCount} agent{props.agentCount !== 1 ? 's' : ''} · ${props.totalCost.toFixed(2)}
+            </span>
+          </button>
+        </Show>
         <button
           type="button"
           title="Toggle context panel (Cmd+I)"

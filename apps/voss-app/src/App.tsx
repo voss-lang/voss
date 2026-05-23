@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
   batch,
+  createEffect,
   createMemo,
   createSignal,
   onMount,
@@ -27,6 +28,8 @@ import { contextByPaneId } from './pane/contextRegistry';
 import { budgetByPaneId } from './pane/budgetRegistry';
 import { isKnownAgentCli } from './pane/agentDetect';
 import AgentSidebar from './components/sidebar/AgentSidebar';
+import AgentLaunchModal from './components/modal/AgentLaunchModal';
+import AgentContextMenu from './components/sidebar/AgentContextMenu';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
 import ToastStack from './command-palette/toast';
@@ -251,6 +254,19 @@ export default function App() {
       return next;
     });
   };
+  const [agentModalOpen, setAgentModalOpen] = createSignal(false);
+  const [contextMenuState, setContextMenuState] = createSignal<{
+    paneId: string;
+    anchor: HTMLElement;
+    costUsd: number;
+  } | null>(null);
+
+  const handleLaunchAgent = (_config: { cliBinary: string; cliArgs: string[]; taskPrompt: string }) => {
+    setAgentModalOpen(false);
+    gridController()?.splitFocused('H');
+    // Agent spawn will be wired to the new pane in a future plan
+  };
+
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
@@ -299,6 +315,50 @@ export default function App() {
           isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
         };
       });
+  });
+
+  const [sessionLog, setSessionLog] = createSignal<
+    { id: string; description: string; startedAt: number; stoppedAt: number | null }[]
+  >([]);
+
+  // Track agent sessions — detect new and removed agents
+  let prevAgentPaneIds = new Set<string>();
+  createEffect(() => {
+    const ws = activeMounted();
+    if (!ws) return;
+    const configs = ws.agentConfigByPaneId();
+    const currentIds = new Set(Object.keys(configs));
+
+    // New agents = in current but not in prev
+    for (const id of currentIds) {
+      if (!prevAgentPaneIds.has(id)) {
+        const cfg = configs[id];
+        setSessionLog((prev) => [
+          {
+            id,
+            description: `${cfg.cliBinary} started`,
+            startedAt: Date.now(),
+            stoppedAt: null,
+          },
+          ...prev,
+        ]);
+      }
+    }
+
+    // Stopped agents = in prev but not in current
+    for (const id of prevAgentPaneIds) {
+      if (!currentIds.has(id)) {
+        setSessionLog((prev) =>
+          prev.map((s) =>
+            s.id === id && s.stoppedAt === null
+              ? { ...s, stoppedAt: Date.now(), description: s.description.replace('started', 'stopped') }
+              : s,
+          ),
+        );
+      }
+    }
+
+    prevAgentPaneIds = currentIds;
   });
 
   // --- Command registry (D-01) -----------------------------------------------
@@ -1019,9 +1079,16 @@ export default function App() {
             agents={agentListForSidebar()}
             focusedPaneId={focusedPaneId()}
             onAgentClick={(paneId) => gridController()?.focusPaneById(paneId)}
-            onAgentContextMenu={() => {}}
-            onLaunchAgent={() => {}}
-            sessions={[]}
+            onAgentContextMenu={(paneId, e) => {
+              e.preventDefault();
+              setContextMenuState({
+                paneId,
+                anchor: e.currentTarget as HTMLElement,
+                costUsd: budgetByPaneId()[paneId]?.cost_usd ?? 0,
+              });
+            }}
+            onLaunchAgent={() => setAgentModalOpen(true)}
+            sessions={sessionLog()}
             projectPath={activeMounted()?.project()?.path ?? null}
             workspacePath={workspacePath() ?? null}
           />
@@ -1113,6 +1180,9 @@ export default function App() {
           gitBranch={activeMounted()?.project()?.gitBranch}
           contextPanelOpen={contextPanelOpen()}
           onToggleContextPanel={toggleContextPanel}
+          agentCount={agentListForSidebar().length}
+          totalCost={Object.values(budgetByPaneId()).reduce((sum, b) => sum + b.cost_usd, 0)}
+          onToggleSidebar={toggleSidebar}
         />
       </Show>
       </div>
@@ -1126,6 +1196,26 @@ export default function App() {
       </Show>
 
       <ToastStack />
+
+      <Show when={agentModalOpen()}>
+        <AgentLaunchModal
+          onDismiss={() => setAgentModalOpen(false)}
+          onLaunch={handleLaunchAgent}
+        />
+      </Show>
+
+      <Show when={contextMenuState() != null}>
+        <AgentContextMenu
+          anchor={contextMenuState()!.anchor}
+          paneId={contextMenuState()!.paneId}
+          costUsd={contextMenuState()!.costUsd}
+          onClose={() => setContextMenuState(null)}
+          onFocusPane={(id) => gridController()?.focusPaneById(id)}
+          onStopAgent={(id) => { void invoke('pty_kill', { sessionId: id }); }}
+          onRestartAgent={() => {}}
+          onDetachAgent={() => {}}
+        />
+      </Show>
 
       <Show when={paletteMode() !== null}>
         <CommandPalette

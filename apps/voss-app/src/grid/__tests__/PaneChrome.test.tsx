@@ -58,7 +58,7 @@ describe('PaneHeader — 22px Variant B header (GRD-06, GRD-07)', () => {
       />
     ));
     const hdr = el.firstElementChild as HTMLElement;
-    expect(hdr.style.height).toBe('22px');
+    expect(hdr.style.height).toBe('var(--pane-header-height, 22px)');
     expect(hdr.className).toContain('bg-bg-2'); // focused bg-lift
     expect(el.querySelector('[data-pane-index="3"]')?.textContent).toBe('3');
     expect(el.querySelector('[aria-label="Pane menu"]')).toBeTruthy();
@@ -362,8 +362,8 @@ describe('A8-04 — transitions, reduced motion, pane chrome polish', () => {
       />
     ));
     const hdr = el.firstElementChild as HTMLElement;
-    expect(hdr.style.height).toBe('22px');
-    expect(hdr.style.minHeight).toBe('22px');
+    expect(hdr.style.height).toBe('var(--pane-header-height, 22px)');
+    expect(hdr.style.minHeight).toBe('var(--pane-header-height, 22px)');
   });
 
   it('pane header height stays 22px when focused', () => {
@@ -377,8 +377,8 @@ describe('A8-04 — transitions, reduced motion, pane chrome polish', () => {
       />
     ));
     const hdr = el.firstElementChild as HTMLElement;
-    expect(hdr.style.height).toBe('22px');
-    expect(hdr.style.minHeight).toBe('22px');
+    expect(hdr.style.height).toBe('var(--pane-header-height, 22px)');
+    expect(hdr.style.minHeight).toBe('var(--pane-header-height, 22px)');
   });
 
   it('DragHandle hover sets data-hot without inline dimension changes', () => {
@@ -447,5 +447,106 @@ describe('A8-04 — transitions, reduced motion, pane chrome polish', () => {
     const leaf = el.querySelector('.grid-pane-leaf') as HTMLElement;
     expect(leaf.classList.contains('grid-pane-leaf--focused')).toBe(true);
     expect(leaf.querySelectorAll(':scope > div').length).toBeGreaterThan(0);
+  });
+});
+
+describe('PaneHeader — A12 agent accent bar and streaming', () => {
+  it('renders accent bar when isAgent=true', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={false}
+        cwd="repo"
+        shell="zsh"
+        onToggleMenu={() => {}}
+        isAgent={true}
+        roleColor="--role-planner"
+      />
+    ));
+    // Accent bar is a span with position absolute, width 3px
+    const bar = el.querySelector('span[style*="width: 3px"]') as HTMLElement;
+    expect(bar).toBeTruthy();
+    expect(bar.style.position).toBe('absolute');
+  });
+
+  it('no accent bar when isAgent is false', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={false}
+        cwd="repo"
+        shell="zsh"
+        onToggleMenu={() => {}}
+      />
+    ));
+    const bar = el.querySelector('span[style*="width: 3px"]');
+    expect(bar).toBeNull();
+  });
+
+  it('focused agent uses --focus accent bar color', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={true}
+        cwd="repo"
+        shell="zsh"
+        onToggleMenu={() => {}}
+        isAgent={true}
+        roleColor="--role-planner"
+      />
+    ));
+    const bar = el.querySelector('span[style*="width: 3px"]') as HTMLElement;
+    expect(bar).toBeTruthy();
+    expect(bar.style.background).toContain('--focus');
+  });
+
+  it('streaming dot has pulsing class', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={true}
+        cwd="repo"
+        shell="zsh"
+        onToggleMenu={() => {}}
+        isAgent={true}
+        isStreaming={true}
+      />
+    ));
+    const dots = el.querySelectorAll('.pane-dot--streaming');
+    expect(dots.length).toBeGreaterThan(0);
+  });
+
+  it('cost displays with correct format', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={false}
+        cwd="repo"
+        shell="zsh"
+        onToggleMenu={() => {}}
+        isAgent={true}
+        costUsd={0.42}
+      />
+    ));
+    const cost = el.querySelector('[data-testid="agent-cost"]');
+    expect(cost).toBeTruthy();
+    expect(cost!.textContent).toBe('$0.42');
+  });
+
+  it('cost turns --focus color above $1.00', () => {
+    const el = mount(() => (
+      <PaneHeader
+        index={1}
+        focused={false}
+        cwd="repo"
+        shell="zsh"
+        onToggleMenu={() => {}}
+        isAgent={true}
+        costUsd={1.50}
+      />
+    ));
+    const cost = el.querySelector('[data-testid="agent-cost"]') as HTMLElement;
+    expect(cost).toBeTruthy();
+    expect(cost.style.color).toContain('--focus');
   });
 });

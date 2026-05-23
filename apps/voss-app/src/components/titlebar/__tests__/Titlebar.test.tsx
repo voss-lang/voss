@@ -51,3 +51,23 @@ describe('Titlebar - project name fallback', () => {
     expect(titleRegion(el).textContent?.trim()).toBe('Voss ADE');
   });
 });
+
+describe('Titlebar - branding (D-28, D-29)', () => {
+  it('renders Voss logo SVG', () => {
+    const el = mount(() => <Titlebar />);
+    const svg = el.querySelector('svg');
+    expect(svg).toBeTruthy();
+    expect(svg!.getAttribute('viewBox')).toBe('0 0 2048 2048');
+    const paths = svg!.querySelectorAll('path');
+    expect(paths).toHaveLength(2);
+  });
+
+  it('renders project name with display font', () => {
+    const el = mount(() => <Titlebar projectName="test-project" />);
+    const titleEl = titleRegion(el);
+    const span = titleEl.querySelector('span');
+    expect(span).toBeTruthy();
+    expect(span!.textContent).toBe('test-project');
+    expect(span!.style.fontFamily).toContain('font-display');
+  });
+});
