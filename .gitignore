@@ -28,6 +28,10 @@ crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap.new
 .env*.local
 npm/platforms/*/python/
 
+# Claude Code / GSD local install (runtime-generated, not source).
+.claude/
+.cursor/rules/gsd-*
+
 # Node.
 node_modules/
 
