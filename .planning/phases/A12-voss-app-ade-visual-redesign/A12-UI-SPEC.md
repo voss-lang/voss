@@ -276,7 +276,7 @@ Sidebar collapses to 0px width with CSS transition. GridRoot fills remaining wid
 
 **Modal header (48px):**
 - Title: "New Agent Session" — Poppins 600 16px `--fg-0`
-- Dismiss `×` button top-right
+- Dismiss `×` button top-right, `aria-label="Dismiss"`
 
 **CLI preset tabs (6 tabs):** Claude / Codex / Antigravity / OpenCode / Voss / Custom
 - Tab style: Inter 11px 500. Active: `--focus` underline + `--fg-0`. Inactive: `--fg-2`.
@@ -332,7 +332,7 @@ Agent badge pill:
 
 ### PaneHeader (modified from existing)
 
-Height: 28px (increased from 22px). Padding: `0 10px 0 14px` (extra left space for accent bar).
+Height: 28px (increased from 22px). Padding: `0 8px 0 16px` (extra left space for accent bar; 16px left accommodates 3px accent bar giving 13px visual padding after bar).
 
 **Agent pane accent bar:**
 - 3px wide left bar via `::before` pseudo-element, full height
@@ -451,6 +451,7 @@ Note: `⌘B` is reserved for prefix mode (A7). Sidebar uses `⌘⇧B` per D-03.
 - Streaming dot: `aria-label="Streaming"` on the pulsing element.
 - Collapse chevron button: `aria-label="Collapse sidebar"`.
 - Expand handle (collapsed state): `aria-label="Expand sidebar"`.
+- Modal dismiss button: `aria-label="Dismiss"`.
 - Context menu: `role="menu"` + `role="menuitem"`. Dismisses on Escape and on outside click.
 - Focus ring: `outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px` (inherit from site globals pattern).
 - Color contrast: `--fg-0` on `--bg-0` achieves > 12:1. `--fg-2` on `--bg-0` achieves approx 4.5:1 minimum. `--focus` (#ff5b1f) on `--bg-3` (#221f1b) at 11px must be verified by executor — WCAG AA requires 4.5:1 at this size; if contrast falls short, pair the orange element with a `--fg-0` text label alongside.
@@ -485,6 +486,8 @@ No third-party component registries. All UI is hand-rolled SolidJS + CSS modules
 | Typography collapsed to 4 tiers (checker rev) | gsd-ui-checker Issue A — drop 10px, merge into 11px |
 | Poppins weights reduced to 500/600 (checker rev) | gsd-ui-checker Issue B — remove 400 weight |
 | aria-label on collapse/expand controls (checker rev) | gsd-ui-checker non-blocking recommendation |
+| PaneHeader padding fixed to 0 8px 0 16px (checker rev) | gsd-ui-checker Dimension 5 BLOCK — 10px/14px violated 8-point grid |
+| Modal dismiss aria-label added (checker rev) | gsd-ui-checker non-blocking accessibility fix |
 
 ---
 
@@ -504,3 +507,4 @@ No third-party component registries. All UI is hand-rolled SolidJS + CSS modules
 *Phase: A12-voss-app-ade-visual-redesign*
 *UI-SPEC created: 2026-05-22*
 *UI-SPEC revised: 2026-05-22 — checker Issues A and B fixed; non-blocking accessibility recommendations applied*
+*UI-SPEC revised: 2026-05-22 — checker Dimension 5 BLOCK fixed (PaneHeader padding 0 8px 0 16px); modal dismiss aria-label added*
