@@ -1135,6 +1135,9 @@ export default function App() {
           gitBranch={activeMounted()?.project()?.gitBranch}
           contextPanelOpen={contextPanelOpen()}
           onToggleContextPanel={toggleContextPanel}
+          agentCount={agentListForSidebar().length}
+          totalCost={Object.values(budgetByPaneId()).reduce((sum, b) => sum + b.cost_usd, 0)}
+          onToggleSidebar={toggleSidebar}
         />
       </Show>
       </div>
