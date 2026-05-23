@@ -22,7 +22,7 @@ created: 2026-05-22
 | Preset | not applicable | project convention |
 | Component library | none — SolidJS + hand-rolled components | existing codebase |
 | Icon library | Unicode glyphs + inline SVG (logo mark) | ADE-REDESIGN.md |
-| Font: Display | Poppins 400/500/600 via Google Fonts | CONTEXT D-12 |
+| Font: Display | Poppins 500/600 via Google Fonts | CONTEXT D-12 |
 | Font: UI | Inter (already loaded) | CONTEXT D-12 |
 | Font: Terminal / Code | JetBrains Mono (already loaded) | CONTEXT D-12 |
 
@@ -159,13 +159,14 @@ Three fonts. Four size tiers. Two weights per font family.
 | Display large | Poppins | 16px | 600 | 1.2 | Agent launch modal title only |
 | UI body | Inter | 12px | 400 | 1.5 | Sidebar agent names, file tree entries, session history |
 | UI label | Inter | 11px | 500 | 1.4 | Buttons, badges, role pills, tab labels, status bar |
-| Mono small | JetBrains Mono | 10px | 400 | 1.4 | Model names in agent rows, cost values, timestamps, pane header dims |
-| Mono body | JetBrains Mono | 11px | 400 | 1.5 | Terminal content, status bar proc name, pane header cwd/shell |
-| Section heading | Poppins | 10px | 600 | 1.2 | Uppercase sidebar section labels (AGENTS, FILES, SESSIONS, GIT) |
+| Mono body | JetBrains Mono | 11px | 400 | 1.5 | Terminal content, status bar proc name, pane header cwd/shell, model names in agent rows, cost values, timestamps, pane header dims |
+| Section heading | Poppins | 11px | 600 | 1.2 | Uppercase sidebar section labels (AGENTS, FILES, SESSIONS, GIT) |
 
 Section heading labels: uppercase, `letter-spacing: 0.08em`.
 
-Poppins loads from Google Fonts (weights 400, 500, 600, 700) in `index.html`. Inter and JetBrains Mono already present.
+Poppins loads from Google Fonts with `wght@500;600` only — load URL: `https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&display=swap`. Inter and JetBrains Mono already present.
+
+**Collapsed tiers note:** The former 10px "Mono small" tier (model names, cost values, timestamps) is merged into the 11px "Mono body" tier. Section headings promoted from 10px to 11px. Both remain legible at dark-theme contrast ratios. Executor must verify `--focus` (#ff5b1f) on `--bg-3` (#221f1b) at 11px meets WCAG AA 4.5:1; pair with `--fg-0` label if contrast is insufficient.
 
 ---
 
@@ -243,25 +244,25 @@ Sidebar collapses to 0px width with CSS transition. GridRoot fills remaining wid
 **Sidebar header (44px):**
 - Left: Voss logo mark (18px inline SVG, `--focus` fill)
 - Center: "Agents" label in Poppins 500 12px `--fg-1`
-- Right: `+ Agent` button (3px radius, 24×24px, orange fill on hover) + collapse chevron (`◀`) button
+- Right: `+ Agent` button (3px radius, 24×24px, orange fill on hover) + collapse chevron (`◀`) button (`aria-label="Collapse sidebar"`)
 
 **Section structure (4 sections):** AGENTS → SESSIONS → FILES → GIT
-- Section heading: Poppins 600 10px uppercase `--fg-3`, `letter-spacing: 0.08em`, padding: 8px 12px 4px
+- Section heading: Poppins 600 11px uppercase `--fg-3`, `letter-spacing: 0.08em`, padding: 8px 12px 4px
 - Section body: variable height, `overflow-y: auto`
 
 **Agent item row (32px):**
 - 7px status dot with role color + `box-shadow: 0 0 4px var(--role-X)` glow
 - Agent name: Inter 12px 400 `--fg-0`
-- Model name: JetBrains Mono 10px `--fg-3`
-- Role pill: 6px radius, 9px Poppins 600 uppercase, role background at 20% opacity
-- Cost: JetBrains Mono 10px `--fg-2`, turns `--focus` when > $1.00
+- Model name: JetBrains Mono 11px `--fg-3`
+- Role pill: 6px radius, 11px Poppins 600 uppercase, role background at 20% opacity
+- Cost: JetBrains Mono 11px `--fg-2`, turns `--focus` when > $1.00
 - Hover: `--bg-2` background
 - Active (focused pane): 2px `--focus` left bar + `--focus-soft` background
 - Right-click context menu items: Stop / Restart / Detach / Copy cost / Focus pane
 
 **Streaming animation:** Pulsing orange dot — CSS keyframes `opacity 0.8s ease-in-out infinite alternate`. Stops on agent completion; dot changes to static green checkmark fading to `--fg-3` after 3 seconds.
 
-**Collapsed state:** Sidebar width 0. A 16px × 48px expand handle appears at left edge of grid area: `--bg-2` background, `1px solid --border` right+top+bottom, `border-radius: 0 3px 3px 0`, contains `▸` glyph in `--fg-2`.
+**Collapsed state:** Sidebar width 0. A 16px × 48px expand handle appears at left edge of grid area: `--bg-2` background, `1px solid --border` right+top+bottom, `border-radius: 0 3px 3px 0`, contains `▸` glyph in `--fg-2`. Element must have `aria-label="Expand sidebar"`.
 
 **Drag-to-reorder agents:** Visual reorder only. Implementation detail left to Claude's discretion (SolidJS-compatible approach).
 
@@ -340,13 +341,13 @@ Height: 28px (increased from 22px). Padding: `0 10px 0 14px` (extra left space f
 
 **Focused agent pane:** `--focus-soft` background tint + `--focus` 3px left bar.
 
-Cost display in header (when agent): JetBrains Mono 10px, turns `--focus` when cost > $1.00.
+Cost display in header (when agent): JetBrains Mono 11px, turns `--focus` when cost > $1.00.
 
 Streaming indicator: Pulsing orange dot replaces static green dot during active streaming. Done state: static checkmark, fades to `--fg-3` after 3 seconds.
 
 ### File Tree (sidebar FILES section)
 
-- Tree icons: `▾` expanded dir, `▸` collapsed dir, `●` file — JetBrains Mono 10px `--fg-3`
+- Tree icons: `▾` expanded dir, `▸` collapsed dir, `●` file — JetBrains Mono 11px `--fg-3`
 - Entry labels: Inter 12px `--fg-1` for dirs, `--fg-2` for files
 - Indent per level: 12px
 - Initial depth: 2 levels expanded
@@ -356,7 +357,7 @@ Streaming indicator: Pulsing orange dot replaces static green dot during active 
 
 ### Sessions Section
 
-- Row format: relative timestamp (JetBrains Mono 10px `--fg-3`) + description (Inter 12px `--fg-1`)
+- Row format: relative timestamp (JetBrains Mono 11px `--fg-3`) + description (Inter 12px `--fg-1`)
 - Agent sessions only (D-06 / D-08); shell panes excluded
 - Empty state: "No sessions yet" — Inter 12px `--fg-3`
 
@@ -448,9 +449,11 @@ Note: `⌘B` is reserved for prefix mode (A7). Sidebar uses `⌘⇧B` per D-03.
 - Agent launch modal: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing to modal title. Focus trap on open. Focus returns to `+ Agent` button on close.
 - Sidebar agent list: `role="list"` + `role="listitem"`. Active item: `aria-current="true"`.
 - Streaming dot: `aria-label="Streaming"` on the pulsing element.
+- Collapse chevron button: `aria-label="Collapse sidebar"`.
+- Expand handle (collapsed state): `aria-label="Expand sidebar"`.
 - Context menu: `role="menu"` + `role="menuitem"`. Dismisses on Escape and on outside click.
 - Focus ring: `outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px` (inherit from site globals pattern).
-- Color contrast: `--fg-0` on `--bg-0` achieves > 12:1. `--fg-2` on `--bg-0` achieves approx 4.5:1 minimum. `--focus` on `--bg-3` must be verified by checker (orange on dark typically passes AA for large text, may need `--fg-0` label alongside for small text).
+- Color contrast: `--fg-0` on `--bg-0` achieves > 12:1. `--fg-2` on `--bg-0` achieves approx 4.5:1 minimum. `--focus` (#ff5b1f) on `--bg-3` (#221f1b) at 11px must be verified by executor — WCAG AA requires 4.5:1 at this size; if contrast falls short, pair the orange element with a `--fg-0` text label alongside.
 
 ---
 
@@ -479,6 +482,9 @@ No third-party component registries. All UI is hand-rolled SolidJS + CSS modules
 | StatusBar existing props contract | apps/voss-app/src/components/StatusBar.tsx |
 | Titlebar existing layout contract | apps/voss-app/src/components/titlebar/Titlebar.tsx |
 | PaneHeader existing props contract | apps/voss-app/src/grid/PaneHeader.tsx |
+| Typography collapsed to 4 tiers (checker rev) | gsd-ui-checker Issue A — drop 10px, merge into 11px |
+| Poppins weights reduced to 500/600 (checker rev) | gsd-ui-checker Issue B — remove 400 weight |
+| aria-label on collapse/expand controls (checker rev) | gsd-ui-checker non-blocking recommendation |
 
 ---
 
@@ -497,3 +503,4 @@ No third-party component registries. All UI is hand-rolled SolidJS + CSS modules
 
 *Phase: A12-voss-app-ade-visual-redesign*
 *UI-SPEC created: 2026-05-22*
+*UI-SPEC revised: 2026-05-22 — checker Issues A and B fixed; non-blocking accessibility recommendations applied*
