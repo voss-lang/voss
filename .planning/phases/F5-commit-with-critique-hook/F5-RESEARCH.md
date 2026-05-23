@@ -450,17 +450,19 @@ def consensus_cmd(...): ...
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `voss consensus` accept a `--model` flag?**
    - What we know: All other harness commands with LLM access accept `--model`. D-14 says "same provider as configured."
    - What's unclear: Whether Ben wants model override capability or strict config-only.
    - Recommendation: Add `--model` with `default=None` (same as `do_cmd`). No harm, consistent UX.
+   - RESOLVED: Added `--model` option with `default=None`, consistent with `do_cmd` pattern. Implemented in F5-01 Task 3.
 
 2. **Should `voss hooks install` support non-git-root cwd?**
    - What we know: `.git/` may be in a parent directory (monorepos).
    - What's unclear: Should the hook find the git root automatically?
    - Recommendation: Use `git rev-parse --show-toplevel` to find git root; write hook there. Print the path so user sees where it landed.
+   - RESOLVED: `voss hooks install` uses `git rev-parse --show-toplevel` to find git root before writing hook. Implemented in F5-02 Task 1.
 
 ---
 
