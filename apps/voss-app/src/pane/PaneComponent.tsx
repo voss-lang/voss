@@ -12,6 +12,7 @@ import { isKnownAgentCli } from './agentDetect';
 import { registerPaneProc, unregisterPaneProc } from './procRegistry';
 import { registerPaneBudget, unregisterPaneBudget } from './budgetRegistry';
 import { registerPaneContext, unregisterPaneContext } from './contextRegistry';
+import { maybeLatchAgent, unregisterAgentPane } from './agentPaneRegistry';
 import BudgetBar from '../grid/BudgetBar';
 import BudgetPopover from '../grid/BudgetPopover';
 import PasteGuard from './PasteGuard';
@@ -107,7 +108,10 @@ export default function PaneComponent(props: PaneProps) {
   const updateProc = (name: string) => {
     setProc(name);
     const paneId = props.id;
-    if (paneId) registerPaneProc(paneId, name);
+    if (paneId) {
+      registerPaneProc(paneId, name);
+      maybeLatchAgent(paneId, name);
+    }
   };
 
   const cwdBase = () => basename(props.cwd ?? '~');
@@ -458,6 +462,7 @@ export default function PaneComponent(props: PaneProps) {
     if (props.id) unregisterPaneProc(props.id);
     if (props.id) unregisterPaneContext(props.id);
     if (props.id) unregisterPaneBudget(props.id);
+    if (props.id) unregisterAgentPane(props.id);
     transport?.kill();
     term?.dispose();
   });

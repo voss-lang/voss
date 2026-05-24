@@ -25,8 +25,10 @@ import ContextPanel from './components/ContextPanel';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
+import { procByPaneId } from './pane/procRegistry';
 import { budgetByPaneId } from './pane/budgetRegistry';
 import { isKnownAgentCli } from './pane/agentDetect';
+import { agentPaneById } from './pane/agentPaneRegistry';
 import AgentSidebar from './components/sidebar/AgentSidebar';
 import AgentLaunchModal from './components/modal/AgentLaunchModal';
 import AgentContextMenu from './components/sidebar/AgentContextMenu';
@@ -296,29 +298,83 @@ export default function App() {
     if (!ws) return [];
     const configs = ws.agentConfigByPaneId();
     const budgets = budgetByPaneId();
-    return Object.entries(configs)
-      .filter(([, cfg]) => isKnownAgentCli(cfg.cliBinary))
-      .map(([paneId, cfg]) => {
-        const b = budgets[paneId];
-        const model = cfg.cliArgs.find((a) => a.startsWith('--model'))?.split('=')[1] ?? 'default';
-        const role = cfg.cliBinary === 'claude' ? 'planner'
-          : cfg.cliBinary === 'codex' ? 'executor'
-          : cfg.cliBinary === 'gemini' ? 'reviewer'
-          : cfg.cliBinary === 'aider' ? 'executor'
-          : 'user';
-        return {
-          paneId,
-          cliBinary: cfg.cliBinary,
-          model,
-          role,
-          costUsd: b?.cost_usd ?? 0,
-          isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
-        };
+    const procs = procByPaneId();
+    const seen = new Set<string>();
+
+    const mapRole = (cli: string) =>
+      cli === 'claude' ? 'planner'
+        : cli === 'codex' ? 'executor'
+        : cli === 'gemini' ? 'reviewer'
+        : cli === 'aider' ? 'executor'
+        : 'user';
+
+    const result: {
+      paneId: string; cliBinary: string; model: string; role: string;
+      costUsd: number; isStreaming: boolean; tokensUsed: number;
+      tokenLimit: number | null; taskPrompt: string;
+    }[] = [];
+
+    // Source 1: agents launched via spawn_agent (agentConfigByPaneId)
+    for (const [paneId, cfg] of Object.entries(configs)) {
+      if (!isKnownAgentCli(cfg.cliBinary)) continue;
+      seen.add(paneId);
+      const b = budgets[paneId];
+      result.push({
+        paneId,
+        cliBinary: cfg.cliBinary,
+        model: cfg.cliArgs.find((a) => a.startsWith('--model'))?.split('=')[1] ?? 'default',
+        role: mapRole(cfg.cliBinary),
+        costUsd: b?.cost_usd ?? 0,
+        isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
+        tokensUsed: b?.tokens_used ?? 0,
+        tokenLimit: b?.token_limit ?? null,
+        taskPrompt: cfg.cliArgs.find((a) => !a.startsWith('-')) ?? '',
       });
+    }
+
+    // Source 2: agents detected from foreground process name (manually typed)
+    for (const [paneId, proc] of Object.entries(procs)) {
+      if (seen.has(paneId)) continue;
+      if (!isKnownAgentCli(proc)) continue;
+      seen.add(paneId);
+      const b = budgets[paneId];
+      result.push({
+        paneId,
+        cliBinary: proc,
+        model: b?.model ?? 'default',
+        role: mapRole(proc),
+        costUsd: b?.cost_usd ?? 0,
+        isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
+        tokensUsed: b?.tokens_used ?? 0,
+        tokenLimit: b?.token_limit ?? null,
+        taskPrompt: '',
+      });
+    }
+
+    // Source 3: latched agent detection (catches agents whose proc name
+    // changed from "claude" to "node" after pgid poll override)
+    const latched = agentPaneById();
+    for (const [paneId, agent] of Object.entries(latched)) {
+      if (seen.has(paneId)) continue;
+      const b = budgets[paneId];
+      result.push({
+        paneId,
+        cliBinary: agent.cliBinary,
+        model: b?.model ?? 'default',
+        role: mapRole(agent.cliBinary),
+        costUsd: b?.cost_usd ?? 0,
+        isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
+        tokensUsed: b?.tokens_used ?? 0,
+        tokenLimit: b?.token_limit ?? null,
+        taskPrompt: '',
+      });
+    }
+
+    return result;
   });
 
-  const [sessionLog, setSessionLog] = createSignal<
-    { id: string; description: string; startedAt: number; stoppedAt: number | null }[]
+  const [activityLog, setActivityLog] = createSignal<
+    { id: string; type: 'completion' | 'error'; description: string; timestamp: number }[]
   >([]);
 
   // Track agent sessions — detect new and removed agents
@@ -333,12 +389,12 @@ export default function App() {
     for (const id of currentIds) {
       if (!prevAgentPaneIds.has(id)) {
         const cfg = configs[id];
-        setSessionLog((prev) => [
+        setActivityLog((prev) => [
           {
             id,
+            type: 'completion' as const,
             description: `${cfg.cliBinary} started`,
-            startedAt: Date.now(),
-            stoppedAt: null,
+            timestamp: Date.now(),
           },
           ...prev,
         ]);
@@ -348,17 +404,32 @@ export default function App() {
     // Stopped agents = in prev but not in current
     for (const id of prevAgentPaneIds) {
       if (!currentIds.has(id)) {
-        setSessionLog((prev) =>
-          prev.map((s) =>
-            s.id === id && s.stoppedAt === null
-              ? { ...s, stoppedAt: Date.now(), description: s.description.replace('started', 'stopped') }
-              : s,
-          ),
-        );
+        setActivityLog((prev) => [
+          {
+            id: `${id}-stop`,
+            type: 'completion' as const,
+            description: `agent stopped`,
+            timestamp: Date.now(),
+          },
+          ...prev,
+        ]);
       }
     }
 
     prevAgentPaneIds = currentIds;
+  });
+
+  const usageEntries = createMemo(() => {
+    const budgets = budgetByPaneId();
+    const ws = activeMounted();
+    if (!ws) return [];
+    const configs = ws.agentConfigByPaneId();
+    return Object.entries(budgets)
+      .filter(([paneId]) => configs[paneId] && isKnownAgentCli(configs[paneId].cliBinary))
+      .map(([paneId, b]) => ({
+        name: configs[paneId].cliBinary.charAt(0).toUpperCase() + configs[paneId].cliBinary.slice(1),
+        tokensUsed: b.tokens_used,
+      }));
   });
 
   // --- Command registry (D-01) -----------------------------------------------
@@ -1088,8 +1159,8 @@ export default function App() {
               });
             }}
             onLaunchAgent={() => setAgentModalOpen(true)}
-            sessions={sessionLog()}
-            projectPath={activeMounted()?.project()?.path ?? null}
+            activityEvents={activityLog()}
+            usageEntries={usageEntries()}
             workspacePath={workspacePath() ?? null}
           />
           <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: 'flex', 'flex-direction': 'column', position: 'relative' }}>

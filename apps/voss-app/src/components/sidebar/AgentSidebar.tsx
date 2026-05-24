@@ -1,9 +1,10 @@
 import { type Component, createEffect, createSignal, For, Show } from 'solid-js';
 import type { AgentItemProps } from './AgentItem';
 import AgentItem from './AgentItem';
-import SessionsSection from './SessionsSection';
-import FileTree from './FileTree';
-import GitSection from './GitSection';
+import ActivitySection from './ActivitySection';
+import type { ActivityEvent } from './ActivitySection';
+import UsageSection from './UsageSection';
+import type { UsageEntry } from './UsageSection';
 import './sidebar.css';
 
 type AgentEntry = Omit<AgentItemProps, 'onClick' | 'onContextMenu' | 'isActive'>;
@@ -16,13 +17,8 @@ export interface AgentSidebarProps {
   onAgentClick: (paneId: string) => void;
   onAgentContextMenu: (paneId: string, e: MouseEvent) => void;
   onLaunchAgent: () => void;
-  sessions: {
-    id: string;
-    description: string;
-    startedAt: number;
-    stoppedAt: number | null;
-  }[];
-  projectPath: string | null;
+  activityEvents: ActivityEvent[];
+  usageEntries: UsageEntry[];
   workspacePath: string | null;
 }
 
@@ -129,22 +125,16 @@ const AgentSidebar: Component<AgentSidebarProps> = (props) => {
           </Show>
         </div>
 
-        {/* SESSIONS section */}
-        <div class="sidebar-section-label">SESSIONS</div>
-        <div class="sidebar-section-body">
-          <SessionsSection sessions={props.sessions} />
+        {/* ACTIVITY section */}
+        <div class="sidebar-section-label">ACTIVITY</div>
+        <div class="sidebar-section-body" style={{ flex: '1', 'min-height': '0' }}>
+          <ActivitySection events={props.activityEvents} />
         </div>
 
-        {/* FILES section */}
-        <div class="sidebar-section-label">FILES</div>
+        {/* USAGE section */}
+        <div class="sidebar-section-label">USAGE</div>
         <div class="sidebar-section-body">
-          <FileTree projectPath={props.projectPath} />
-        </div>
-
-        {/* GIT section */}
-        <div class="sidebar-section-label">GIT</div>
-        <div class="sidebar-section-body">
-          <GitSection workspacePath={props.workspacePath} />
+          <UsageSection entries={props.usageEntries} />
         </div>
       </div>
 

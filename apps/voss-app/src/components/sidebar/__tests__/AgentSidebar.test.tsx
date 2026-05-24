@@ -24,18 +24,18 @@ const defaultProps = () => ({
   onAgentClick: vi.fn(),
   onAgentContextMenu: vi.fn(),
   onLaunchAgent: vi.fn(),
-  sessions: [] as any[],
-  projectPath: null as string | null,
+  activityEvents: [] as any[],
+  usageEntries: [] as any[],
   workspacePath: null as string | null,
 });
 
 describe('AgentSidebar', () => {
-  it('renders 4 section headings', () => {
+  it('renders 3 section headings', () => {
     const p = defaultProps();
     const el = mount(() => <AgentSidebar {...p} />);
     const labels = el.querySelectorAll('.sidebar-section-label');
     const texts = Array.from(labels).map((l) => l.textContent?.trim());
-    expect(texts).toEqual(['AGENTS', 'SESSIONS', 'FILES', 'GIT']);
+    expect(texts).toEqual(['AGENTS', 'ACTIVITY', 'USAGE']);
   });
 
   it('collapsed renders with sidebar--collapsed class', () => {
