@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -6,8 +6,13 @@ use std::sync::{
 };
 use std::time::{Duration, SystemTime};
 
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
+use voss_app_core::agent_registry::{
+    get_active_agents as registry_get_active_agents, global_registry_path, mark_stopped,
+    open_registry, register_agent, registry_path, sweep_orphans, update_last_seen_all, AgentEntry,
+};
 use voss_app_core::appearance::{self, AppearanceSettings};
 use voss_app_core::fonts;
 use voss_app_core::grid::{self, GridState};
@@ -16,16 +21,10 @@ use voss_app_core::layouts::{self, LayoutFile};
 use voss_app_core::profiles::{self, ProfileFile};
 use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
-use voss_app_core::themes::{self, CustomThemeFile};
-use rusqlite::Connection;
-use voss_app_core::agent_registry::{
-    get_active_agents as registry_get_active_agents, global_registry_path, mark_stopped,
-    open_registry, register_agent, registry_path, sweep_orphans, update_last_seen_all,
-    AgentEntry,
-};
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_command_session, spawn_session};
 use voss_app_core::session::{self, SessionFile};
+use voss_app_core::themes::{self, CustomThemeFile};
 use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
 
@@ -171,15 +170,8 @@ async fn spawn_agent(
     start_reader(pty_id.clone(), reader, pause_rx, on_data, registry);
 
     let cwd_str = cwd.as_deref().unwrap_or("");
-    register_agent(
-        conn,
-        &pane_id,
-        &session_id,
-        &cli_binary,
-        &cli_args,
-        cwd_str,
-    )
-    .map_err(|e| e.to_string())?;
+    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
+        .map_err(|e| e.to_string())?;
 
     Ok(pty_id)
 }
@@ -215,10 +207,7 @@ fn mark_agent_stopped(
 }
 
 #[tauri::command]
-fn update_agents_last_seen(
-    workspace_path: Option<String>,
-    db: AgentDb<'_>,
-) -> Result<(), String> {
+fn update_agents_last_seen(workspace_path: Option<String>, db: AgentDb<'_>) -> Result<(), String> {
     let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
     let conn = guard
         .as_mut()
@@ -247,8 +236,7 @@ async fn spawn_pty(
     cwd: Option<String>,
     state: Reg<'_>,
 ) -> Result<String, String> {
-    let (session, reader, pause_rx) =
-        spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
+    let (session, reader, pause_rx) = spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
     let id = registry.insert(session);
     start_reader(id.clone(), reader, pause_rx, on_data, registry);
@@ -256,11 +244,7 @@ async fn spawn_pty(
 }
 
 #[tauri::command]
-async fn pty_write(
-    session_id: String,
-    data: Vec<u8>,
-    state: Reg<'_>,
-) -> Result<(), String> {
+async fn pty_write(session_id: String, data: Vec<u8>, state: Reg<'_>) -> Result<(), String> {
     validate_write(&data)?;
     let session = state.get(&session_id).ok_or("unknown session")?;
     session.write(&data).map_err(|e| e.to_string())
@@ -298,10 +282,7 @@ async fn pty_kill(session_id: String, state: Reg<'_>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn get_fg_process(
-    session_id: String,
-    state: Reg<'_>,
-) -> Result<Option<String>, String> {
+async fn get_fg_process(session_id: String, state: Reg<'_>) -> Result<Option<String>, String> {
     let session = state.get(&session_id).ok_or("unknown session")?;
     let fd = match session.master_raw_fd() {
         Some(fd) => fd,
@@ -358,36 +339,23 @@ fn get_grid(state: GridSlot<'_>) -> Result<GridState, String> {
 // verbatim.
 
 #[tauri::command]
-fn save_layout(
-    workspace_path: String,
-    name: String,
-    layout: LayoutFile,
-) -> Result<(), String> {
-    layouts::save_layout(Path::new(&workspace_path), &name, &layout)
-        .map_err(|e| e.to_string())
+fn save_layout(workspace_path: String, name: String, layout: LayoutFile) -> Result<(), String> {
+    layouts::save_layout(Path::new(&workspace_path), &name, &layout).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn load_layout(
-    workspace_path: String,
-    name: String,
-) -> Result<LayoutFile, String> {
-    layouts::load_layout(Path::new(&workspace_path), &name)
-        .map_err(|e| e.to_string())
+fn load_layout(workspace_path: String, name: String) -> Result<LayoutFile, String> {
+    layouts::load_layout(Path::new(&workspace_path), &name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn list_layouts(workspace_path: String) -> Result<Vec<String>, String> {
-    layouts::list_layouts(Path::new(&workspace_path))
-        .map_err(|e| e.to_string())
+    layouts::list_layouts(Path::new(&workspace_path)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn load_default_layout(
-    workspace_path: String,
-) -> Result<Option<LayoutFile>, String> {
-    layouts::load_default_layout(Path::new(&workspace_path))
-        .map_err(|e| e.to_string())
+fn load_default_layout(workspace_path: String) -> Result<Option<LayoutFile>, String> {
+    layouts::load_default_layout(Path::new(&workspace_path)).map_err(|e| e.to_string())
 }
 
 // ---- Context pin commands (F4-04) -------------------------------------------
@@ -403,6 +371,131 @@ fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Resu
     let payload = serde_json::json!({ "pinned": pinned_paths });
     std::fs::write(&tmp, payload.to_string()).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &target).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ---- Swarm orchestration commands (A13) -------------------------------------
+
+const SWARM_RESULT_EVENT: &str = "voss://swarm-result-added";
+
+#[derive(Default)]
+struct SwarmWatchState {
+    stops: Mutex<HashMap<String, Arc<AtomicBool>>>,
+}
+
+fn emit_new_swarm_results(
+    app: &tauri::AppHandle,
+    swarm_id: &str,
+    results_path: &Path,
+    known: &mut HashSet<String>,
+) {
+    let entries = match std::fs::read_dir(results_path) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+    for entry in entries.filter_map(|entry| entry.ok()) {
+        let is_file = entry
+            .file_type()
+            .map(|file_type| file_type.is_file())
+            .unwrap_or(false);
+        if !is_file {
+            continue;
+        }
+        let filename = entry.file_name().to_string_lossy().into_owned();
+        if !filename.ends_with(".result.md") || !known.insert(filename.clone()) {
+            continue;
+        }
+        let payload = serde_json::json!({
+            "swarmId": swarm_id,
+            "resultFile": filename,
+        });
+        if let Err(e) = app.emit(SWARM_RESULT_EVENT, payload) {
+            eprintln!("[voss-app] swarm result event failed: {e}");
+        }
+    }
+}
+
+#[tauri::command]
+fn get_env_var(name: String) -> Result<String, String> {
+    std::env::var(&name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_swarm_files(
+    workspace_path: String,
+    manifest_json: String,
+    tasks: Vec<(String, String)>,
+    shared_context: String,
+) -> Result<(), String> {
+    if workspace_path.trim().is_empty() {
+        return Err("workspace_path must not be empty".to_string());
+    }
+
+    let swarm_dir = Path::new(&workspace_path).join(".voss").join("swarm");
+    let tasks_dir = swarm_dir.join("tasks");
+    let results_dir = swarm_dir.join("results");
+    let shared_dir = swarm_dir.join("shared");
+    std::fs::create_dir_all(&tasks_dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&results_dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&shared_dir).map_err(|e| e.to_string())?;
+
+    let manifest_target = swarm_dir.join("manifest.json");
+    let manifest_tmp = swarm_dir.join("manifest.json.tmp");
+    std::fs::write(&manifest_tmp, manifest_json).map_err(|e| e.to_string())?;
+    std::fs::rename(&manifest_tmp, &manifest_target).map_err(|e| e.to_string())?;
+
+    for (filename, content) in tasks {
+        std::fs::write(tasks_dir.join(filename), content).map_err(|e| e.to_string())?;
+    }
+
+    std::fs::write(shared_dir.join("context.md"), shared_context).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn watch_swarm_results(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SwarmWatchState>,
+    swarm_id: String,
+    results_dir: String,
+) -> Result<(), String> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let previous = state
+        .stops
+        .lock()
+        .map_err(|_| "could not watch swarm results".to_string())?
+        .insert(swarm_id.clone(), Arc::clone(&stop));
+    if let Some(previous) = previous {
+        previous.store(true, Ordering::Relaxed);
+    }
+
+    let results_path = PathBuf::from(results_dir);
+    std::thread::spawn(move || {
+        let mut known = HashSet::new();
+        emit_new_swarm_results(&app, &swarm_id, &results_path, &mut known);
+
+        while !stop.load(Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_millis(500));
+            emit_new_swarm_results(&app, &swarm_id, &results_path, &mut known);
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn stop_swarm_watcher(
+    state: tauri::State<'_, SwarmWatchState>,
+    swarm_id: String,
+) -> Result<(), String> {
+    if let Some(stop) = state
+        .stops
+        .lock()
+        .map_err(|_| "could not stop swarm watcher".to_string())?
+        .remove(&swarm_id)
+    {
+        stop.store(true, Ordering::Relaxed);
+    }
     Ok(())
 }
 
@@ -433,26 +526,22 @@ fn default_cwd(project_path: Option<String>) -> String {
 
 #[tauri::command]
 fn save_session(workspace_path: String, session: SessionFile) -> Result<(), String> {
-    session::save_session(Path::new(&workspace_path), &session)
-        .map_err(|e| e.to_string())
+    session::save_session(Path::new(&workspace_path), &session).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn load_session(workspace_path: String) -> Result<Option<SessionFile>, String> {
-    session::load_session(Path::new(&workspace_path))
-        .map_err(|e| e.to_string())
+    session::load_session(Path::new(&workspace_path)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn save_global_session(session: SessionFile) -> Result<(), String> {
-    session::save_global_session(&session)
-        .map_err(|e| e.to_string())
+    session::save_global_session(&session).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn load_global_session() -> Result<Option<SessionFile>, String> {
-    session::load_global_session()
-        .map_err(|e| e.to_string())
+    session::load_global_session().map_err(|e| e.to_string())
 }
 
 // ---- Workspace index + project-less sessions (A8-02) ------------------------
@@ -474,18 +563,12 @@ fn list_workspaces() -> Vec<workspaces::WorkspaceEntry> {
 }
 
 #[tauri::command]
-fn save_project_less_session(
-    workspace_id: String,
-    session: SessionFile,
-) -> Result<(), String> {
-    session::save_project_less_session(&workspace_id, &session)
-        .map_err(|e| e.to_string())
+fn save_project_less_session(workspace_id: String, session: SessionFile) -> Result<(), String> {
+    session::save_project_less_session(&workspace_id, &session).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn load_project_less_session(
-    workspace_id: String,
-) -> Result<Option<SessionFile>, String> {
+fn load_project_less_session(workspace_id: String) -> Result<Option<SessionFile>, String> {
     session::load_project_less_session(&workspace_id).map_err(|e| e.to_string())
 }
 
@@ -604,10 +687,7 @@ fn list_custom_themes(workspace_path: String) -> Vec<String> {
 }
 
 #[tauri::command]
-fn load_custom_theme(
-    workspace_path: String,
-    name: String,
-) -> Option<CustomThemeFile> {
+fn load_custom_theme(workspace_path: String, name: String) -> Option<CustomThemeFile> {
     themes::load_custom_theme(Path::new(&workspace_path), &name)
 }
 
@@ -617,8 +697,7 @@ fn save_custom_theme(
     name: String,
     theme: CustomThemeFile,
 ) -> Result<(), String> {
-    themes::save_custom_theme(Path::new(&workspace_path), &name, &theme)
-        .map_err(|e| e.to_string())
+    themes::save_custom_theme(Path::new(&workspace_path), &name, &theme).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -671,8 +750,16 @@ struct DirEntry {
 }
 
 const SKIP_DIRS: &[&str] = &[
-    "node_modules", "target", ".git", "__pycache__", ".next",
-    "dist", "build", ".venv", ".tox", ".mypy_cache",
+    "node_modules",
+    "target",
+    ".git",
+    "__pycache__",
+    ".next",
+    "dist",
+    "build",
+    ".venv",
+    ".tox",
+    ".mypy_cache",
 ];
 
 fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
@@ -701,7 +788,11 @@ fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
             } else {
                 Vec::new()
             };
-            Some(DirEntry { name, is_dir, children })
+            Some(DirEntry {
+                name,
+                is_dir,
+                children,
+            })
         })
         .collect();
     // Sort: dirs first, then alphabetical
@@ -725,7 +816,13 @@ struct GitCommit {
 #[tauri::command]
 fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, String> {
     let output = std::process::Command::new("git")
-        .args(["-C", &workspace_path, "log", &format!("-{}", limit), "--format=%H %ct %s"])
+        .args([
+            "-C",
+            &workspace_path,
+            "log",
+            &format!("-{}", limit),
+            "--format=%H %ct %s",
+        ])
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -743,7 +840,11 @@ fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, Strin
             let hash = parts.next()?.to_string();
             let ts: i64 = parts.next()?.parse().ok()?;
             let message = parts.next().unwrap_or("").to_string();
-            Some(GitCommit { hash, message, timestamp_secs: ts })
+            Some(GitCommit {
+                hash,
+                message,
+                timestamp_secs: ts,
+            })
         })
         .collect();
 
@@ -758,6 +859,7 @@ pub fn run() {
         .manage(Arc::new(PtyRegistry::default()))
         .manage(Mutex::new(GridState::default()))
         .manage(Mutex::new(None::<Connection>))
+        .manage(SwarmWatchState::default())
         .manage(KeymapWatchState::default())
         .invoke_handler(tauri::generate_handler![
             get_theme_overrides,
@@ -786,6 +888,10 @@ pub fn run() {
             load_session,
             save_global_session,
             load_global_session,
+            get_env_var,
+            write_swarm_files,
+            watch_swarm_results,
+            stop_swarm_watcher,
             load_workspaces_index,
             save_workspaces_index,
             list_workspaces,
