@@ -279,9 +279,9 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
 
           {/* Voss panel */}
           <Show when={activeTab() === 'voss'}>
-            <div>
+            <div class="modal-section">
               <div class="modal-label">Command</div>
-              <div class="modal-segmented" style={{ 'margin-top': '4px' }}>
+              <div class="modal-segmented">
                 <For each={['chat', 'do', 'resume', 'agent'] as const}>
                   {(cmd) => (
                     <button
@@ -295,9 +295,9 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
               </div>
             </div>
 
-            <div>
+            <div class="modal-section">
               <div class="modal-label">Mode</div>
-              <div class="modal-segmented" style={{ 'margin-top': '4px' }}>
+              <div class="modal-segmented">
                 <For each={['edit', 'plan'] as const}>
                   {(m) => (
                     <button
@@ -311,50 +311,46 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
               </div>
             </div>
 
-            <div>
+            <div class="modal-section">
               <div class="modal-label">Auth</div>
               <input
                 class="modal-field"
                 placeholder="Auth choice (optional)"
                 value={vossAuth()}
                 onInput={(e) => setVossAuth(e.currentTarget.value)}
-                style={{ 'margin-top': '4px' }}
               />
             </div>
 
-            <div>
+            <div class="modal-section">
               <div class="modal-label">Task</div>
               <textarea
                 class="modal-field modal-textarea"
                 placeholder="Describe the task (optional — leave blank for interactive mode)"
                 value={taskPrompt()}
                 onInput={(e) => setTaskPrompt(e.currentTarget.value)}
-                style={{ 'margin-top': '4px' }}
               />
             </div>
           </Show>
 
           {/* Custom panel */}
           <Show when={activeTab() === 'custom'}>
-            <div>
+            <div class="modal-section">
               <div class="modal-label">Name</div>
               <input
                 class="modal-field"
                 placeholder="e.g. my-agent"
                 value={customName()}
                 onInput={(e) => setCustomName(e.currentTarget.value)}
-                style={{ 'margin-top': '4px' }}
               />
             </div>
 
-            <div>
+            <div class="modal-section">
               <div class="modal-label">Command</div>
               <input
                 class="modal-field modal-field--mono"
                 placeholder="e.g. /usr/local/bin/my-agent --flag"
                 value={customCommand()}
                 onInput={(e) => setCustomCommand(e.currentTarget.value)}
-                style={{ 'margin-top': '4px' }}
               />
             </div>
           </Show>
@@ -365,7 +361,6 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
           <span class="modal-footer__hint">Press Ctrl+Enter to start</span>
           <button
             class="modal-btn-primary"
-            style={{ 'border-radius': '3px' }}
             onClick={handleSubmit}
           >
             Launch Agent

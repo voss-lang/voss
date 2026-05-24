@@ -6,10 +6,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(2px);
 }
 
 .modal-panel {
-  width: 480px;
+  width: 520px;
   max-height: 80vh;
   background: var(--bg-3);
   border: 1px solid var(--border-bright);
@@ -17,68 +18,75 @@
   display: flex;
   flex-direction: column;
   opacity: 0;
-  transform: scale(0.96);
+  transform: translateY(8px);
   transition: opacity 150ms ease-out, transform 150ms ease-out;
 }
 
 .modal-panel--visible {
   opacity: 1;
-  transform: scale(1);
+  transform: translateY(0);
 }
 
+/* ---- Header ---- */
+
 .modal-header {
-  height: 48px;
+  height: 52px;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--border);
 }
 
 .modal-header__title {
   font-family: 'Poppins', system-ui, sans-serif;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--fg-0);
   flex: 1;
+  letter-spacing: -0.01em;
 }
 
 .modal-header__dismiss {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
-  color: var(--fg-2);
+  color: var(--fg-3);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 18px;
   padding: 0;
+  transition: color 120ms ease;
 }
 
 .modal-header__dismiss:hover {
   color: var(--fg-0);
 }
 
+/* ---- Tabs ---- */
+
 .modal-tabs {
   display: flex;
   gap: 0;
-  padding: 0 16px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
 }
 
 .modal-tab {
-  padding: 8px 12px;
+  padding: 10px 14px;
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 11px;
   font-weight: 500;
-  color: var(--fg-2);
+  color: var(--fg-3);
   cursor: pointer;
   border: none;
   background: transparent;
   border-bottom: 2px solid transparent;
   white-space: nowrap;
+  transition: color 120ms ease;
 }
 
 .modal-tab:hover {
@@ -90,77 +98,112 @@
   border-bottom-color: var(--focus);
 }
 
+/* ---- Body ---- */
+
 .modal-body {
-  padding: 16px;
+  padding: 20px;
   overflow-y: auto;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---- Footer ---- */
 
 .modal-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 14px 20px;
   border-top: 1px solid var(--border);
+  background: var(--bg-2);
 }
 
 .modal-footer__hint {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--fg-3);
 }
 
+/* ---- Fields ---- */
+
 .modal-field {
   width: 100%;
-  padding: 8px;
-  background: var(--bg-2);
+  padding: 8px 10px;
+  background: var(--bg-1);
   border: 1px solid var(--border);
   color: var(--fg-0);
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 12px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.modal-field::placeholder {
+  color: var(--fg-3);
 }
 
 .modal-field:focus {
   outline: none;
   border-color: var(--focus);
-  box-shadow: 0 0 0 2px var(--focus-glow);
+  box-shadow: 0 0 0 1px var(--focus-glow);
 }
 
 .modal-field--mono {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .modal-textarea {
-  min-height: 64px;
+  min-height: 72px;
   resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
 }
+
+/* ---- Primary button ---- */
 
 .modal-btn-primary {
   background: var(--focus);
-  color: white;
+  color: #fff;
   border: none;
-  padding: 6px 16px;
+  padding: 7px 20px;
   font-family: 'Poppins', system-ui, sans-serif;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: background 120ms ease, box-shadow 120ms ease;
 }
 
 .modal-btn-primary:hover {
-  background: var(--focus-hover);
+  background: var(--focus-hover, var(--focus));
+  box-shadow: 0 0 0 1px var(--focus-glow);
 }
 
-.modal-label {
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--fg-2);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.modal-btn-primary:active {
+  opacity: 0.9;
 }
+
+/* ---- Labels ---- */
+
+.modal-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ---- Layout ---- */
 
 .modal-row {
   display: flex;
@@ -168,55 +211,82 @@
   justify-content: space-between;
 }
 
+/* ---- Segmented controls ---- */
+
 .modal-segmented {
-  display: flex;
-  gap: 0;
+  display: inline-flex;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  padding: 2px;
+  gap: 2px;
 }
 
 .modal-segmented__btn {
-  padding: 4px 10px;
-  font-family: 'Inter', system-ui, sans-serif;
+  padding: 5px 14px;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
-  background: var(--bg-2);
+  background: transparent;
   color: var(--fg-2);
-  border: 1px solid var(--border);
+  border: none;
   cursor: pointer;
-  margin-left: -1px;
+  transition: color 100ms ease, background 100ms ease;
 }
 
-.modal-segmented__btn:first-child {
-  margin-left: 0;
+.modal-segmented__btn:hover {
+  color: var(--fg-1);
+  background: var(--bg-2);
 }
 
 .modal-segmented__btn--active {
   background: var(--focus);
-  color: var(--fg-0);
-  border-color: var(--focus);
-  z-index: 1;
-  position: relative;
+  color: #fff;
 }
 
-.modal-toggle {
+.modal-segmented__btn--active:hover {
+  background: var(--focus);
+  color: #fff;
+}
+
+/* ---- Toggle switches ---- */
+
+.modal-switch {
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
 }
 
-.modal-toggle__box {
-  width: 16px;
+.modal-switch__track {
+  width: 32px;
   height: 16px;
+  background: var(--bg-1);
   border: 1px solid var(--border);
-  background: var(--bg-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: var(--focus);
+  position: relative;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 
-.modal-toggle__label {
+.modal-switch__track--on {
+  background: var(--focus);
+  border-color: var(--focus);
+}
+
+.modal-switch__thumb {
+  width: 10px;
+  height: 10px;
+  background: var(--fg-2);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.modal-switch__track--on .modal-switch__thumb {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+.modal-switch__label {
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 12px;
   color: var(--fg-1);
