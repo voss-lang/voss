@@ -76,11 +76,11 @@ const AgentItem: Component<AgentItemProps> = (props) => {
         </div>
       </Show>
       {/* Row 3: token usage */}
-      <Show when={props.tokensUsed != null}>
-        <div style={{ 'font-family': "'JetBrains Mono', ui-monospace, monospace", 'font-size': '11px', color: tokenColor(), 'padding-left': '13px' }}>
+      <div style={{ 'font-family': "'JetBrains Mono', ui-monospace, monospace", 'font-size': '11px', color: tokenColor(), 'padding-left': '13px' }}>
+        <Show when={(props.tokensUsed ?? 0) > 0} fallback={<span style={{ color: 'var(--fg-3)' }}>awaiting usage data</span>}>
           {formatTokens(props.tokensUsed ?? 0)}{props.tokenLimit ? ` / ${formatTokens(props.tokenLimit)} tokens` : ' tokens'}
-        </div>
-      </Show>
+        </Show>
+      </div>
     </div>
   );
 };
