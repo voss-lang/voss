@@ -3,7 +3,7 @@
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure → desktop ADE scaffold
 **Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`)
-**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A12 (counts TBD by SPEC.md)
+**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A13 (counts TBD by SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
 **Last updated:** 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
@@ -47,6 +47,7 @@
 | A10 | voss-app Status Bar | Project · branch · pane count · cost meter stub · notifications bell · click-to-popover | BAR-01..0N (TBD by SPEC.md) | TBD |
 | A11 | voss-app Onboarding + Release Pipeline | First-run wizard, empty state, 24hr soak, **+ full release pipeline** (signing, 3 channels, auto-update). v0 SHIP GATE | OBD-01..0N + REL-01..0N (TBD by SPEC.md) | TBD |
 | A12 | voss-app ADE Visual Redesign | Left sidebar (agent list, quick launch, file tree, history) + warm site palette (#ff5b1f accent), pane chrome with role-color accents, branded titlebar. Transforms terminal multiplexer into SOTA ADE. | ADE-01..08 (TBD by SPEC.md) | TBD |
+| A13 | voss-app Agent Swarm Orchestration | File-mediated multi-agent swarm: coordinator decomposes tasks, spawns parallel agents, monitors via fs events, synthesizes results. Sidebar shows swarm status. | SWM-01..12 | 6 plans, 3 waves |
 | O1 | Session-Tree Substrate + Budget Fan-out | Parent→child session tree; per-card budget envelope; reserved drain budget; hard non-extendable caps (keystone) | OST-01..0N (TBD by SPEC.md) | TBD |
 | O2 | `.voss team{}` Spec + Specialist Roster | `team{}` parser → enriched SubagentSpec (model/mode/scope/budget/tools); EM-immutable ceiling/p; backend/frontend/ui/ai roster | OTEAM-01..0N (TBD by SPEC.md) | TBD |
 | O3 | Board State Machine + Gated Transitions | Columns, per-column WIP, gate predicates, →Done double gate, critic-loop ceiling+budget, timeout→Blocked | OBRD-01..0N (TBD by SPEC.md) | TBD |
@@ -1548,6 +1549,58 @@ Plans:
 - Grid resize must work correctly with sidebar open/closed (ResizeObserver, not manual width math).
 - Agent list derives from existing `agentConfigByPaneId` — no new backend required for P1-P3.
 - Design tokens reference: `.planning/ADE-REDESIGN.md` § Design Tokens Reference.
+
+---
+
+### Phase A13: voss-app Agent Swarm Orchestration
+
+**Goal:** File-mediated multi-agent swarm where a coordinator decomposes user goals into subtasks, spawns parallel agent panes, and synthesizes results. Agents communicate via `.voss/swarm/` filesystem convention — works with any CLI agent without modification.
+
+**Source:** `.planning/phases/A13-agent-swarm-orchestration/A13-CONTEXT.md`, `A13-SPEC.md`
+
+**Requirements:** SWM-01..SWM-12
+
+- SWM-01: User launches swarm from sidebar with natural language goal
+- SWM-02: Coordinator decomposes goal into 2-6 subtasks automatically
+- SWM-03: Each subtask spawns a dedicated agent pane with task context
+- SWM-04: Agents read task assignments from `.voss/swarm/tasks/` files
+- SWM-05: Agents write results to `.voss/swarm/results/` files
+- SWM-06: Host detects completion via result file creation + PTY idle
+- SWM-07: Coordinator synthesizes all results into summary
+- SWM-08: Sidebar shows per-agent swarm status (pending/running/complete)
+- SWM-09: User can stop individual agents or entire swarm
+- SWM-10: Swarm layout preset auto-applied on launch
+- SWM-11: Swarm state persisted in `.voss/swarm/manifest.json`
+- SWM-12: Swarm resumable after app restart
+
+**Depends on:** A12 (ADE sidebar + agent detection + launch modal), A4 (layout presets)
+
+**Plans:** 6 plans, 3 waves
+
+Plans:
+- [ ] A13-01-PLAN.md — SWM-01..04: Swarm file protocol + SwarmController
+- [ ] A13-02-PLAN.md — SWM-02,07: Task decomposition coordinator + synthesis
+- [ ] A13-03-PLAN.md — SWM-03,04: Agent spawn integration + prompt injection
+- [ ] A13-04-PLAN.md — SWM-05,06,07: Result watching + fan-in synthesis
+- [ ] A13-05-PLAN.md — SWM-08,09,10: Sidebar swarm UI + launch flow
+- [ ] A13-06-PLAN.md — SWM-11,12: Swarm persistence + resume
+
+| Wave | Plans | Parallel |
+|------|-------|----------|
+| 1 | A13-01 (file protocol), A13-02 (coordinator) | yes |
+| 2 | A13-03 (spawn integration), A13-04 (result watching) | yes, after W1 |
+| 3 | A13-05 (sidebar UI), A13-06 (persistence) | yes, after W2 |
+
+**Critical path:** A13-01 → A13-03 → A13-05
+
+**Success Criteria:**
+1. User types a goal, coordinator splits into 2-6 subtasks
+2. Each subtask spawns a pane with the right agent CLI + task file
+3. Agents read `.voss/swarm/tasks/` and write `.voss/swarm/results/`
+4. Sidebar shows per-agent swarm status (pending/running/complete)
+5. Coordinator synthesizes results when all agents finish
+6. User can stop individual agents or full swarm
+7. Swarm state survives app restart
 
 ---
 
