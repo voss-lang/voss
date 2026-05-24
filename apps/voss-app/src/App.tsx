@@ -1106,8 +1106,8 @@ export default function App() {
               });
             }}
             onLaunchAgent={() => setAgentModalOpen(true)}
-            sessions={sessionLog()}
-            projectPath={activeMounted()?.project()?.path ?? null}
+            activityEvents={activityLog()}
+            usageEntries={usageEntries()}
             workspacePath={workspacePath() ?? null}
           />
           <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: 'flex', 'flex-direction': 'column', position: 'relative' }}>
