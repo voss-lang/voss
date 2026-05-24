@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -406,6 +406,131 @@ fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Resu
     Ok(())
 }
 
+// ---- Swarm orchestration commands (A13) -------------------------------------
+
+const SWARM_RESULT_EVENT: &str = "voss://swarm-result-added";
+
+#[derive(Default)]
+struct SwarmWatchState {
+    stops: Mutex<HashMap<String, Arc<AtomicBool>>>,
+}
+
+fn emit_new_swarm_results(
+    app: &tauri::AppHandle,
+    swarm_id: &str,
+    results_path: &Path,
+    known: &mut HashSet<String>,
+) {
+    let entries = match std::fs::read_dir(results_path) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+    for entry in entries.filter_map(|entry| entry.ok()) {
+        let is_file = entry
+            .file_type()
+            .map(|file_type| file_type.is_file())
+            .unwrap_or(false);
+        if !is_file {
+            continue;
+        }
+        let filename = entry.file_name().to_string_lossy().into_owned();
+        if !filename.ends_with(".result.md") || !known.insert(filename.clone()) {
+            continue;
+        }
+        let payload = serde_json::json!({
+            "swarmId": swarm_id,
+            "resultFile": filename,
+        });
+        if let Err(e) = app.emit(SWARM_RESULT_EVENT, payload) {
+            eprintln!("[voss-app] swarm result event failed: {e}");
+        }
+    }
+}
+
+#[tauri::command]
+fn get_env_var(name: String) -> Result<String, String> {
+    std::env::var(&name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_swarm_files(
+    workspace_path: String,
+    manifest_json: String,
+    tasks: Vec<(String, String)>,
+    shared_context: String,
+) -> Result<(), String> {
+    if workspace_path.trim().is_empty() {
+        return Err("workspace_path must not be empty".to_string());
+    }
+
+    let swarm_dir = Path::new(&workspace_path).join(".voss").join("swarm");
+    let tasks_dir = swarm_dir.join("tasks");
+    let results_dir = swarm_dir.join("results");
+    let shared_dir = swarm_dir.join("shared");
+    std::fs::create_dir_all(&tasks_dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&results_dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&shared_dir).map_err(|e| e.to_string())?;
+
+    let manifest_target = swarm_dir.join("manifest.json");
+    let manifest_tmp = swarm_dir.join("manifest.json.tmp");
+    std::fs::write(&manifest_tmp, manifest_json).map_err(|e| e.to_string())?;
+    std::fs::rename(&manifest_tmp, &manifest_target).map_err(|e| e.to_string())?;
+
+    for (filename, content) in tasks {
+        std::fs::write(tasks_dir.join(filename), content).map_err(|e| e.to_string())?;
+    }
+
+    std::fs::write(shared_dir.join("context.md"), shared_context).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn watch_swarm_results(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SwarmWatchState>,
+    swarm_id: String,
+    results_dir: String,
+) -> Result<(), String> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let previous = state
+        .stops
+        .lock()
+        .map_err(|_| "could not watch swarm results".to_string())?
+        .insert(swarm_id.clone(), Arc::clone(&stop));
+    if let Some(previous) = previous {
+        previous.store(true, Ordering::Relaxed);
+    }
+
+    let results_path = PathBuf::from(results_dir);
+    std::thread::spawn(move || {
+        let mut known = HashSet::new();
+        emit_new_swarm_results(&app, &swarm_id, &results_path, &mut known);
+
+        while !stop.load(Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_millis(500));
+            emit_new_swarm_results(&app, &swarm_id, &results_path, &mut known);
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn stop_swarm_watcher(
+    state: tauri::State<'_, SwarmWatchState>,
+    swarm_id: String,
+) -> Result<(), String> {
+    if let Some(stop) = state
+        .stops
+        .lock()
+        .map_err(|_| "could not stop swarm watcher".to_string())?
+        .remove(&swarm_id)
+    {
+        stop.store(true, Ordering::Relaxed);
+    }
+    Ok(())
+}
+
 // ---- Project open commands (A5-02) ----------------------------------------
 // Thin app-level wrappers over `voss_app_core::project`. Same cross-crate
 // `generate_handler!` constraint as the PTY, grid, and layout commands above.
@@ -758,6 +883,7 @@ pub fn run() {
         .manage(Arc::new(PtyRegistry::default()))
         .manage(Mutex::new(GridState::default()))
         .manage(Mutex::new(None::<Connection>))
+        .manage(SwarmWatchState::default())
         .manage(KeymapWatchState::default())
         .invoke_handler(tauri::generate_handler![
             get_theme_overrides,
@@ -786,6 +912,10 @@ pub fn run() {
             load_session,
             save_global_session,
             load_global_session,
+            get_env_var,
+            write_swarm_files,
+            watch_swarm_results,
+            stop_swarm_watcher,
             load_workspaces_index,
             save_workspaces_index,
             list_workspaces,
