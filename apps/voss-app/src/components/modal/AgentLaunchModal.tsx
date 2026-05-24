@@ -1,7 +1,8 @@
-import { type Component, createSignal, onMount, Show, For } from 'solid-js';
+import { type Component, createSignal, createMemo, onMount, Show, For } from 'solid-js';
 import './modal.css';
 
 type CliTab = 'claude' | 'codex' | 'antigravity' | 'opencode' | 'voss' | 'custom';
+type EffortLevel = 'low' | 'medium' | 'high' | 'max' | 'xhigh';
 
 const CLI_TABS: { id: CliTab; label: string }[] = [
   { id: 'claude', label: 'Claude' },
@@ -12,7 +13,41 @@ const CLI_TABS: { id: CliTab; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ];
 
-const CLAUDE_MODELS = ['opus', 'sonnet', 'haiku'];
+interface CliProfile {
+  models?: string[];
+  effortLevels: EffortLevel[];
+  effortLabel: string;
+  effortDefault: EffortLevel;
+  effortFlag: string;
+}
+
+const CLI_PROFILES: Record<string, CliProfile> = {
+  claude: {
+    models: ['opus', 'sonnet', 'haiku'],
+    effortLevels: ['low', 'medium', 'high', 'max'],
+    effortLabel: 'Effort',
+    effortDefault: 'high',
+    effortFlag: '--effort',
+  },
+  codex: {
+    effortLevels: ['low', 'medium', 'high', 'xhigh'],
+    effortLabel: 'Reasoning',
+    effortDefault: 'medium',
+    effortFlag: '--reasoning-effort',
+  },
+  antigravity: {
+    effortLevels: ['low', 'medium', 'high'],
+    effortLabel: 'Effort',
+    effortDefault: 'medium',
+    effortFlag: '--effort',
+  },
+  opencode: {
+    effortLevels: ['low', 'medium', 'high'],
+    effortLabel: 'Effort',
+    effortDefault: 'medium',
+    effortFlag: '--effort',
+  },
+};
 
 export interface AgentLaunchConfig {
   cliBinary: string;
@@ -33,10 +68,19 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
 
   const [activeTab, setActiveTab] = createSignal<CliTab>('claude');
   const [model, setModel] = createSignal('');
-  const [effort, setEffort] = createSignal<'low' | 'medium' | 'high'>('medium');
+  const [effort, setEffort] = createSignal<EffortLevel>('high');
   const [planMode, setPlanMode] = createSignal(false);
   const [skipPermissions, setSkipPermissions] = createSignal(false);
   const [taskPrompt, setTaskPrompt] = createSignal('');
+
+  const profile = createMemo(() => CLI_PROFILES[activeTab()] as CliProfile | undefined);
+
+  const switchTab = (tab: CliTab) => {
+    setActiveTab(tab);
+    setModel('');
+    const p = CLI_PROFILES[tab];
+    if (p) setEffort(p.effortDefault);
+  };
   // Voss-specific
   const [vossCommand, setVossCommand] = createSignal<'chat' | 'do' | 'resume' | 'agent'>('chat');
   const [vossMode, setVossMode] = createSignal<'edit' | 'plan'>('edit');
@@ -85,8 +129,13 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
     };
     const binary = binaryMap[tab] || tab;
     const args: string[] = [];
+    const p = CLI_PROFILES[tab];
 
     if (model()) args.push('--model', model());
+
+    if (p && effort() !== p.effortDefault) {
+      args.push(p.effortFlag, effort());
+    }
 
     if (planMode()) {
       args.push('--plan');
@@ -150,7 +199,7 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
               <button
                 ref={(el: HTMLButtonElement) => { if (i() === 0) firstTabRef = el; }}
                 class={`modal-tab${activeTab() === tab.id ? ' modal-tab--active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => switchTab(tab.id)}
               >
                 {tab.label}
               </button>
