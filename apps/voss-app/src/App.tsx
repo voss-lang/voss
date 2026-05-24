@@ -313,12 +313,15 @@ export default function App() {
           role,
           costUsd: b?.cost_usd ?? 0,
           isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
+          tokensUsed: b?.tokens_used ?? 0,
+          tokenLimit: b?.token_limit ?? null,
+          taskPrompt: cfg.cliArgs.find((a) => !a.startsWith('-')) ?? '',
         };
       });
   });
 
-  const [sessionLog, setSessionLog] = createSignal<
-    { id: string; description: string; startedAt: number; stoppedAt: number | null }[]
+  const [activityLog, setActivityLog] = createSignal<
+    { id: string; type: 'completion' | 'error'; description: string; timestamp: number }[]
   >([]);
 
   // Track agent sessions — detect new and removed agents
@@ -333,12 +336,12 @@ export default function App() {
     for (const id of currentIds) {
       if (!prevAgentPaneIds.has(id)) {
         const cfg = configs[id];
-        setSessionLog((prev) => [
+        setActivityLog((prev) => [
           {
             id,
+            type: 'completion' as const,
             description: `${cfg.cliBinary} started`,
-            startedAt: Date.now(),
-            stoppedAt: null,
+            timestamp: Date.now(),
           },
           ...prev,
         ]);
@@ -348,17 +351,32 @@ export default function App() {
     // Stopped agents = in prev but not in current
     for (const id of prevAgentPaneIds) {
       if (!currentIds.has(id)) {
-        setSessionLog((prev) =>
-          prev.map((s) =>
-            s.id === id && s.stoppedAt === null
-              ? { ...s, stoppedAt: Date.now(), description: s.description.replace('started', 'stopped') }
-              : s,
-          ),
-        );
+        setActivityLog((prev) => [
+          {
+            id: `${id}-stop`,
+            type: 'completion' as const,
+            description: `agent stopped`,
+            timestamp: Date.now(),
+          },
+          ...prev,
+        ]);
       }
     }
 
     prevAgentPaneIds = currentIds;
+  });
+
+  const usageEntries = createMemo(() => {
+    const budgets = budgetByPaneId();
+    const ws = activeMounted();
+    if (!ws) return [];
+    const configs = ws.agentConfigByPaneId();
+    return Object.entries(budgets)
+      .filter(([paneId]) => configs[paneId] && isKnownAgentCli(configs[paneId].cliBinary))
+      .map(([paneId, b]) => ({
+        name: configs[paneId].cliBinary.charAt(0).toUpperCase() + configs[paneId].cliBinary.slice(1),
+        tokensUsed: b.tokens_used,
+      }));
   });
 
   // --- Command registry (D-01) -----------------------------------------------
