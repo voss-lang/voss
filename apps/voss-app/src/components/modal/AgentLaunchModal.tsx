@@ -211,12 +211,12 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
         <div class="modal-body">
           {/* Generic agent panel */}
           <Show when={isGenericTab()}>
-            {/* Model selector (Claude only) */}
-            <Show when={activeTab() === 'claude'}>
-              <div>
+            {/* Model selector */}
+            <Show when={profile()?.models}>
+              <div class="modal-section">
                 <div class="modal-label">Model</div>
-                <div class="modal-segmented" style={{ 'margin-top': '4px' }}>
-                  <For each={CLAUDE_MODELS}>
+                <div class="modal-segmented">
+                  <For each={profile()!.models!}>
                     {(m) => (
                       <button
                         class={`modal-segmented__btn${model() === m ? ' modal-segmented__btn--active' : ''}`}
@@ -230,44 +230,49 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
               </div>
             </Show>
 
-            {/* Effort */}
-            <div>
-              <div class="modal-label">Effort</div>
-              <div class="modal-segmented" style={{ 'margin-top': '4px' }}>
-                <For each={['low', 'medium', 'high'] as const}>
-                  {(e) => (
-                    <button
-                      class={`modal-segmented__btn${effort() === e ? ' modal-segmented__btn--active' : ''}`}
-                      onClick={() => setEffort(e)}
-                    >
-                      {e}
-                    </button>
-                  )}
-                </For>
+            {/* Effort / Reasoning */}
+            <Show when={profile()}>
+              <div class="modal-section">
+                <div class="modal-label">{profile()!.effortLabel}</div>
+                <div class="modal-segmented">
+                  <For each={profile()!.effortLevels}>
+                    {(e) => (
+                      <button
+                        class={`modal-segmented__btn${effort() === e ? ' modal-segmented__btn--active' : ''}`}
+                        onClick={() => setEffort(e)}
+                      >
+                        {e}
+                      </button>
+                    )}
+                  </For>
+                </div>
               </div>
-            </div>
+            </Show>
 
             {/* Toggles */}
             <div class="modal-row">
-              <div class="modal-toggle" onClick={() => setPlanMode(!planMode())}>
-                <div class="modal-toggle__box">{planMode() ? '\u2713' : ''}</div>
-                <span class="modal-toggle__label">Plan Mode</span>
-              </div>
-              <div class="modal-toggle" onClick={() => setSkipPermissions(!skipPermissions())}>
-                <div class="modal-toggle__box">{skipPermissions() ? '\u2713' : ''}</div>
-                <span class="modal-toggle__label">Skip Permissions</span>
-              </div>
+              <label class="modal-switch" onClick={() => setPlanMode(!planMode())}>
+                <div class={`modal-switch__track${planMode() ? ' modal-switch__track--on' : ''}`}>
+                  <div class="modal-switch__thumb" />
+                </div>
+                <span class="modal-switch__label">Plan Mode</span>
+              </label>
+              <label class="modal-switch" onClick={() => setSkipPermissions(!skipPermissions())}>
+                <div class={`modal-switch__track${skipPermissions() ? ' modal-switch__track--on' : ''}`}>
+                  <div class="modal-switch__thumb" />
+                </div>
+                <span class="modal-switch__label">Skip Permissions</span>
+              </label>
             </div>
 
             {/* Task prompt */}
-            <div>
+            <div class="modal-section">
               <div class="modal-label">Task</div>
               <textarea
                 class="modal-field modal-textarea"
                 placeholder="Describe the task (optional — leave blank for interactive mode)"
                 value={taskPrompt()}
                 onInput={(e) => setTaskPrompt(e.currentTarget.value)}
-                style={{ 'margin-top': '4px' }}
               />
             </div>
           </Show>
