@@ -1575,23 +1575,22 @@ Plans:
 
 **Depends on:** A12 (ADE sidebar + agent detection + launch modal), A4 (layout presets)
 
-**Plans:** 6 plans, 3 waves
+**Plans:** 5 plans, 3 waves
 
 Plans:
-- [ ] A13-01-PLAN.md — SWM-01..04: Swarm file protocol + SwarmController
-- [ ] A13-02-PLAN.md — SWM-02,07: Task decomposition coordinator + synthesis
-- [ ] A13-03-PLAN.md — SWM-03,04: Agent spawn integration + prompt injection
-- [ ] A13-04-PLAN.md — SWM-05,06,07: Result watching + fan-in synthesis
-- [ ] A13-05-PLAN.md — SWM-08,09,10: Sidebar swarm UI + launch flow
-- [ ] A13-06-PLAN.md — SWM-11,12: Swarm persistence + resume
+- [ ] A13-01-PLAN.md — Swarm type contracts + Rust file I/O commands + CSP update (SWM-04, SWM-05, SWM-06, SWM-11)
+- [ ] A13-02-PLAN.md — Coordinator LLM decomposition + result parser + npm deps (SWM-02, SWM-07)
+- [ ] A13-03-PLAN.md — SwarmController lifecycle + swarmRegistry signal store (SWM-03..06, SWM-10..12)
+- [ ] A13-04-PLAN.md — Sidebar swarm UI + launch modal Swarm tab (SWM-01, SWM-08, SWM-09)
+- [ ] A13-05-PLAN.md — App.tsx wiring + visual verification (SWM-01, SWM-03, SWM-08..10, SWM-12)
 
 | Wave | Plans | Parallel |
 |------|-------|----------|
-| 1 | A13-01 (file protocol), A13-02 (coordinator) | yes |
-| 2 | A13-03 (spawn integration), A13-04 (result watching) | yes, after W1 |
-| 3 | A13-05 (sidebar UI), A13-06 (persistence) | yes, after W2 |
+| 1 | A13-01 (types + Rust commands), A13-02 (coordinator + parser) | yes |
+| 2 | A13-03 (SwarmController), A13-04 (sidebar + modal UI) | yes, after W1 |
+| 3 | A13-05 (App.tsx wiring + visual verify) | after W2 |
 
-**Critical path:** A13-01 → A13-03 → A13-05
+**Critical path:** A13-01 -> A13-03 -> A13-05
 
 **Success Criteria:**
 1. User types a goal, coordinator splits into 2-6 subtasks
