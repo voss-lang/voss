@@ -28,6 +28,7 @@ import { contextByPaneId } from './pane/contextRegistry';
 import { procByPaneId } from './pane/procRegistry';
 import { budgetByPaneId } from './pane/budgetRegistry';
 import { isKnownAgentCli } from './pane/agentDetect';
+import { agentPaneById } from './pane/agentPaneRegistry';
 import AgentSidebar from './components/sidebar/AgentSidebar';
 import AgentLaunchModal from './components/modal/AgentLaunchModal';
 import AgentContextMenu from './components/sidebar/AgentContextMenu';
@@ -335,12 +336,32 @@ export default function App() {
     for (const [paneId, proc] of Object.entries(procs)) {
       if (seen.has(paneId)) continue;
       if (!isKnownAgentCli(proc)) continue;
+      seen.add(paneId);
       const b = budgets[paneId];
       result.push({
         paneId,
         cliBinary: proc,
         model: b?.model ?? 'default',
         role: mapRole(proc),
+        costUsd: b?.cost_usd ?? 0,
+        isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
+        tokensUsed: b?.tokens_used ?? 0,
+        tokenLimit: b?.token_limit ?? null,
+        taskPrompt: '',
+      });
+    }
+
+    // Source 3: latched agent detection (catches agents whose proc name
+    // changed from "claude" to "node" after pgid poll override)
+    const latched = agentPaneById();
+    for (const [paneId, agent] of Object.entries(latched)) {
+      if (seen.has(paneId)) continue;
+      const b = budgets[paneId];
+      result.push({
+        paneId,
+        cliBinary: agent.cliBinary,
+        model: b?.model ?? 'default',
+        role: mapRole(agent.cliBinary),
         costUsd: b?.cost_usd ?? 0,
         isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
         tokensUsed: b?.tokens_used ?? 0,
