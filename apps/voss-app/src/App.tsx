@@ -25,6 +25,7 @@ import ContextPanel from './components/ContextPanel';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
+import { procByPaneId } from './pane/procRegistry';
 import { budgetByPaneId } from './pane/budgetRegistry';
 import { isKnownAgentCli } from './pane/agentDetect';
 import AgentSidebar from './components/sidebar/AgentSidebar';
@@ -296,28 +297,59 @@ export default function App() {
     if (!ws) return [];
     const configs = ws.agentConfigByPaneId();
     const budgets = budgetByPaneId();
-    return Object.entries(configs)
-      .filter(([, cfg]) => isKnownAgentCli(cfg.cliBinary))
-      .map(([paneId, cfg]) => {
-        const b = budgets[paneId];
-        const model = cfg.cliArgs.find((a) => a.startsWith('--model'))?.split('=')[1] ?? 'default';
-        const role = cfg.cliBinary === 'claude' ? 'planner'
-          : cfg.cliBinary === 'codex' ? 'executor'
-          : cfg.cliBinary === 'gemini' ? 'reviewer'
-          : cfg.cliBinary === 'aider' ? 'executor'
-          : 'user';
-        return {
-          paneId,
-          cliBinary: cfg.cliBinary,
-          model,
-          role,
-          costUsd: b?.cost_usd ?? 0,
-          isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
-          tokensUsed: b?.tokens_used ?? 0,
-          tokenLimit: b?.token_limit ?? null,
-          taskPrompt: cfg.cliArgs.find((a) => !a.startsWith('-')) ?? '',
-        };
+    const procs = procByPaneId();
+    const seen = new Set<string>();
+
+    const mapRole = (cli: string) =>
+      cli === 'claude' ? 'planner'
+        : cli === 'codex' ? 'executor'
+        : cli === 'gemini' ? 'reviewer'
+        : cli === 'aider' ? 'executor'
+        : 'user';
+
+    const result: {
+      paneId: string; cliBinary: string; model: string; role: string;
+      costUsd: number; isStreaming: boolean; tokensUsed: number;
+      tokenLimit: number | null; taskPrompt: string;
+    }[] = [];
+
+    // Source 1: agents launched via spawn_agent (agentConfigByPaneId)
+    for (const [paneId, cfg] of Object.entries(configs)) {
+      if (!isKnownAgentCli(cfg.cliBinary)) continue;
+      seen.add(paneId);
+      const b = budgets[paneId];
+      result.push({
+        paneId,
+        cliBinary: cfg.cliBinary,
+        model: cfg.cliArgs.find((a) => a.startsWith('--model'))?.split('=')[1] ?? 'default',
+        role: mapRole(cfg.cliBinary),
+        costUsd: b?.cost_usd ?? 0,
+        isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
+        tokensUsed: b?.tokens_used ?? 0,
+        tokenLimit: b?.token_limit ?? null,
+        taskPrompt: cfg.cliArgs.find((a) => !a.startsWith('-')) ?? '',
       });
+    }
+
+    // Source 2: agents detected from foreground process name (manually typed)
+    for (const [paneId, proc] of Object.entries(procs)) {
+      if (seen.has(paneId)) continue;
+      if (!isKnownAgentCli(proc)) continue;
+      const b = budgets[paneId];
+      result.push({
+        paneId,
+        cliBinary: proc,
+        model: b?.model ?? 'default',
+        role: mapRole(proc),
+        costUsd: b?.cost_usd ?? 0,
+        isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
+        tokensUsed: b?.tokens_used ?? 0,
+        tokenLimit: b?.token_limit ?? null,
+        taskPrompt: '',
+      });
+    }
+
+    return result;
   });
 
   const [activityLog, setActivityLog] = createSignal<
