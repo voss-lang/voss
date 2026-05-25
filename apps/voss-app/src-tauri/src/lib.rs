@@ -151,9 +151,16 @@ fn is_voss_cli_binary(cli_binary: &str) -> bool {
         .is_some_and(|name| name == "voss" || name == "voss.exe")
 }
 
-fn env_for_embedded_cli(cli_binary: &str) -> Vec<(&'static str, &'static str)> {
+fn env_for_embedded_cli(
+    cli_binary: &str,
+    cli_args: &[String],
+) -> Vec<(&'static str, &'static str)> {
     if !is_voss_cli_binary(cli_binary) {
         return Vec::new();
+    }
+
+    if cli_args.first().is_some_and(|arg| arg == "chat") {
+        return vec![("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")];
     }
 
     vec![("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")]
@@ -178,7 +185,7 @@ async fn spawn_agent(
         .as_mut()
         .ok_or_else(|| "agent registry unavailable".to_string())?;
 
-    let embedded_env = env_for_embedded_cli(&cli_binary);
+    let embedded_env = env_for_embedded_cli(&cli_binary, &cli_args);
     let (session, reader, pause_rx) = spawn_command_session_with_env(
         &cli_binary,
         &cli_args,
@@ -211,24 +218,36 @@ mod tests {
     use super::env_for_embedded_cli;
 
     #[test]
-    fn voss_agent_command_gets_embedded_env() {
+    fn voss_chat_command_gets_embedded_tui_env() {
+        let args = vec!["chat".to_string()];
         assert_eq!(
-            env_for_embedded_cli("voss"),
+            env_for_embedded_cli("voss", &args),
+            vec![("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")]
+        );
+    }
+
+    #[test]
+    fn voss_non_chat_command_gets_compact_env() {
+        let args = vec!["do".to_string(), "task".to_string()];
+        assert_eq!(
+            env_for_embedded_cli("voss", &args),
             vec![("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")]
         );
     }
 
     #[test]
     fn path_voss_binary_gets_env_but_other_agents_do_not() {
+        let chat_args = vec!["chat".to_string()];
+        let claude_args = vec!["--model=opus".to_string()];
         assert_eq!(
-            env_for_embedded_cli("/opt/bin/voss"),
-            vec![("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")]
+            env_for_embedded_cli("/opt/bin/voss", &chat_args),
+            vec![("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")]
         );
         assert_eq!(
-            env_for_embedded_cli("voss.exe"),
-            vec![("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")]
+            env_for_embedded_cli("voss.exe", &chat_args),
+            vec![("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")]
         );
-        assert!(env_for_embedded_cli("claude").is_empty());
+        assert!(env_for_embedded_cli("claude", &claude_args).is_empty());
     }
 }
 

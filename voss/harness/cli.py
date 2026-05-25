@@ -669,7 +669,27 @@ def _get_code_service(cwd: Path, session_id: str | None = None):
     return CodeIntelService.for_cwd(cwd, session_id=session_id)
 
 
+def _looks_like_project_root(cwd: Path) -> bool:
+    try:
+        if cwd.resolve() == Path.home().resolve():
+            return False
+    except OSError:
+        pass
+    markers = (
+        ".git",
+        "pyproject.toml",
+        "package.json",
+        "Cargo.toml",
+        "go.mod",
+        "deno.json",
+        "pnpm-workspace.yaml",
+    )
+    return any((cwd / marker).exists() for marker in markers)
+
+
 def _render_project_index_text(cwd: Path, session_id: str | None = None) -> str:
+    if not _looks_like_project_root(cwd):
+        return ""
     try:
         from voss.harness.code.context import render_project_index_section
 
@@ -1618,6 +1638,8 @@ def _run_repl(
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode, plain=plain)
+    from .tui.renderer import TextualRenderer
+
     tools = make_toolset(
         cwd,
         renderer=renderer,
@@ -1644,7 +1666,10 @@ def _run_repl(
         for err in bundle.load_errors:
             click.echo(f"cognition error: {err}", err=True)
     voss_md_text = voss_md.read_and_inject(cwd)
-    project_index_text = _render_project_index_text(cwd, session_id=record.id)
+    project_index_text = (
+        "" if isinstance(renderer, TextualRenderer)
+        else _render_project_index_text(cwd, session_id=record.id)
+    )
 
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
@@ -1709,7 +1734,6 @@ def _run_repl(
 
     git_status = _git_status(cwd)
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=git_status)
-    from .tui.renderer import TextualRenderer
 
     if auth_detail and not isinstance(renderer, TextualRenderer):
         click.echo(f"  [auth: {auth_detail}]")
@@ -1749,11 +1773,17 @@ def _run_repl(
                         click.echo(str(exc), err=True)
                         return None
                     if handled:
+                        if ctx.should_exit:
+                            renderer.app.exit()
                         return None
                     click.echo(f"unknown command: {line}. /help for list.", err=True)
                     return None
                 renderer.show_user(line)
                 try:
+                    if not ctx.project_index_text:
+                        ctx.project_index_text = _render_project_index_text(
+                            cwd, session_id=record.id
+                        )
                     run_turn = _resolve_run_turn(cwd)
                     result = await _run_turn_with_teardown(
                         run_turn(

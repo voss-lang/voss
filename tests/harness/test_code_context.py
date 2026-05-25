@@ -16,6 +16,42 @@ from voss.harness.render import PlainRenderer
 from voss.harness.tools import make_toolset
 
 
+def test_repl_project_index_skips_non_project_directory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from voss.harness import cli
+
+    called = False
+
+    def fail_if_called(*args, **kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("non-project startup should not build code index")
+
+    monkeypatch.setattr(cli, "_get_code_service", fail_if_called)
+
+    assert cli._render_project_index_text(tmp_path) == ""
+    assert called is False
+
+
+def test_repl_project_index_skips_home_even_with_manifest(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from voss.harness import cli
+
+    (tmp_path / "package.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(
+        cli,
+        "_get_code_service",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("home startup should not build code index")
+        ),
+    )
+
+    assert cli._render_project_index_text(tmp_path) == ""
+
+
 class CapturingProvider:
     def __init__(self, plan: Plan):
         self.plan = plan

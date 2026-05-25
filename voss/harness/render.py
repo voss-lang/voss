@@ -68,7 +68,7 @@ def make_renderer(
     Decision order (M9-07 — default-path flip):
       1. json_mode=True → JsonRenderer (NDJSON on stdout; unchanged).
       2. plain=True or VOSS_PLAIN=1 → PlainRenderer.
-      3. VOSS_RENDERER=compact or VOSS_EMBEDDED=1 → CompactRenderer.
+      3. VOSS_RENDERER=compact → CompactRenderer.
       4. force_tui=True (or VOSS_FORCE_TUI=1) + size < 60x12 → stderr + exit(2).
       5. capability.tui_should_activate says yes → TextualRenderer (new default).
       6. capability rejected with Windows-console reason → emit locked stderr
@@ -90,7 +90,6 @@ def make_renderer(
         not force_tui
         and (
             os.environ.get("VOSS_RENDERER", "").lower() == "compact"
-            or os.environ.get("VOSS_EMBEDDED") == "1"
         )
     ):
         return CompactRenderer()

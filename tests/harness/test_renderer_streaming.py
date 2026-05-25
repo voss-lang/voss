@@ -164,10 +164,13 @@ class TestCompactRenderer:
         renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
         assert isinstance(renderer, CompactRenderer)
 
-    def test_make_renderer_embedded_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_make_renderer_embedded_env_does_not_force_compact(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("VOSS_EMBEDDED", "1")
+        monkeypatch.setattr("sys.stdout.isatty", lambda: False)
         renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
-        assert isinstance(renderer, CompactRenderer)
+        assert isinstance(renderer, PlainRenderer)
 
     def test_make_renderer_plain_wins_over_compact(
         self, monkeypatch: pytest.MonkeyPatch
