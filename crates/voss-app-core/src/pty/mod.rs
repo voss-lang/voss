@@ -141,6 +141,9 @@ pub fn spawn_session(
     let mut cmd = CommandBuilder::new(&shell);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    // Signal to child Voss processes that they are running inside the ADE.
+    // The Python renderer checks this to skip compact-only overrides.
+    cmd.env("VOSS_EMBEDDED", "1");
     let cwd_path = match cwd {
         Some(c) => {
             cmd.cwd(&c);

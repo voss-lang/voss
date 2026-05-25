@@ -151,6 +151,19 @@ fn is_voss_cli_binary(cli_binary: &str) -> bool {
         .is_some_and(|name| name == "voss" || name == "voss.exe")
 }
 
+/// Classify whether a Voss CLI invocation is interactive (→ full Textual TUI)
+/// or one-shot (→ compact renderer).
+///
+/// Interactive commands that enter the REPL: `chat`, `resume`, `edit`, and bare
+/// `voss` (no subcommand — click group defaults to `chat`).
+fn is_interactive_voss_command(cli_args: &[String]) -> bool {
+    match cli_args.first().map(|s| s.as_str()) {
+        None => true,                           // bare `voss` → defaults to chat
+        Some("chat" | "resume" | "edit") => true,
+        _ => false,
+    }
+}
+
 fn env_for_embedded_cli(
     cli_binary: &str,
     cli_args: &[String],
@@ -159,7 +172,7 @@ fn env_for_embedded_cli(
         return Vec::new();
     }
 
-    if cli_args.first().is_some_and(|arg| arg == "chat") {
+    if is_interactive_voss_command(cli_args) {
         return vec![("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")];
     }
 
@@ -215,38 +228,63 @@ async fn spawn_agent(
 
 #[cfg(test)]
 mod tests {
-    use super::env_for_embedded_cli;
+    use super::{env_for_embedded_cli, is_interactive_voss_command};
+
+    const TUI_ENV: [(&str, &str); 2] = [("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")];
+    const COMPACT_ENV: [(&str, &str); 2] = [("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")];
+
+    #[test]
+    fn interactive_commands_classified_correctly() {
+        // Bare voss (no subcommand) defaults to chat
+        assert!(is_interactive_voss_command(&[]));
+        assert!(is_interactive_voss_command(&["chat".into()]));
+        assert!(is_interactive_voss_command(&["chat".into(), "--model".into(), "gpt-4o".into()]));
+        assert!(is_interactive_voss_command(&["resume".into(), "session-123".into()]));
+        assert!(is_interactive_voss_command(&["edit".into(), "file.py".into()]));
+
+        // Non-interactive
+        assert!(!is_interactive_voss_command(&["do".into(), "task".into()]));
+        assert!(!is_interactive_voss_command(&["doctor".into()]));
+        assert!(!is_interactive_voss_command(&["agent".into(), "spawn".into()]));
+        assert!(!is_interactive_voss_command(&["sessions".into()]));
+        assert!(!is_interactive_voss_command(&["config".into()]));
+    }
 
     #[test]
     fn voss_chat_command_gets_embedded_tui_env() {
         let args = vec!["chat".to_string()];
-        assert_eq!(
-            env_for_embedded_cli("voss", &args),
-            vec![("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")]
-        );
+        assert_eq!(env_for_embedded_cli("voss", &args), TUI_ENV);
     }
 
     #[test]
-    fn voss_non_chat_command_gets_compact_env() {
+    fn bare_voss_gets_embedded_tui_env() {
+        assert_eq!(env_for_embedded_cli("voss", &[]), TUI_ENV);
+    }
+
+    #[test]
+    fn voss_resume_gets_embedded_tui_env() {
+        let args = vec!["resume".to_string(), "sess-abc".to_string()];
+        assert_eq!(env_for_embedded_cli("voss", &args), TUI_ENV);
+    }
+
+    #[test]
+    fn voss_edit_gets_embedded_tui_env() {
+        let args = vec!["edit".to_string(), "main.py".to_string()];
+        assert_eq!(env_for_embedded_cli("voss", &args), TUI_ENV);
+    }
+
+    #[test]
+    fn voss_non_interactive_command_gets_compact_env() {
         let args = vec!["do".to_string(), "task".to_string()];
-        assert_eq!(
-            env_for_embedded_cli("voss", &args),
-            vec![("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")]
-        );
+        assert_eq!(env_for_embedded_cli("voss", &args), COMPACT_ENV);
     }
 
     #[test]
     fn path_voss_binary_gets_env_but_other_agents_do_not() {
         let chat_args = vec!["chat".to_string()];
         let claude_args = vec!["--model=opus".to_string()];
-        assert_eq!(
-            env_for_embedded_cli("/opt/bin/voss", &chat_args),
-            vec![("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")]
-        );
-        assert_eq!(
-            env_for_embedded_cli("voss.exe", &chat_args),
-            vec![("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")]
-        );
+        assert_eq!(env_for_embedded_cli("/opt/bin/voss", &chat_args), TUI_ENV);
+        assert_eq!(env_for_embedded_cli("voss.exe", &chat_args), TUI_ENV);
         assert!(env_for_embedded_cli("claude", &claude_args).is_empty());
     }
 }
