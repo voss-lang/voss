@@ -182,11 +182,10 @@ pub fn get_active_agents(conn: &Connection) -> Result<Vec<AgentEntry>, AgentRegi
             eprintln!("[voss-app] agent registry query failed: {e}");
             AgentRegistryError::QueryFailed
         })?;
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|e| {
-            eprintln!("[voss-app] agent registry row map failed: {e}");
-            AgentRegistryError::QueryFailed
-        })
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| {
+        eprintln!("[voss-app] agent registry row map failed: {e}");
+        AgentRegistryError::QueryFailed
+    })
 }
 
 /// Mark active rows whose `pane_id` is not in `valid_pane_ids` as stopped.
@@ -218,8 +217,7 @@ pub fn sweep_orphans(
          WHERE status = 'active' AND pane_id NOT IN ({placeholders})"
     );
 
-    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> =
-        vec![Box::new(now)];
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(now)];
     for id in valid_pane_ids {
         param_values.push(Box::new(id.clone()));
     }
@@ -279,15 +277,7 @@ mod tests {
             "/repo",
         )
         .unwrap();
-        register_agent(
-            &conn,
-            "pane-b",
-            "sess-2",
-            "/usr/bin/codex",
-            &[],
-            "/other",
-        )
-        .unwrap();
+        register_agent(&conn, "pane-b", "sess-2", "/usr/bin/codex", &[], "/other").unwrap();
 
         let active = get_active_agents(&conn).unwrap();
         assert_eq!(active.len(), 2);
