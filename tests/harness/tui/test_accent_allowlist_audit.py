@@ -1,6 +1,6 @@
 """M9-07 UI-SPEC Acceptance Visual Check 3 — accent allow-list audit.
 
-The TUI palette has exactly one accent color (`#5FAFFF` / `$accent` / the
+The TUI palette has exactly one accent color (`#ff5b1f` / `$accent` / the
 `.accent` class). UI-SPEC line 145 restricts its application to six
 widgets plus the canonical declaration site in `styles.tcss`:
 
@@ -24,7 +24,7 @@ import re
 from pathlib import Path
 
 
-_ACCENT_PATTERN = re.compile(r"(?i)(\$accent|\.accent\b|#5FAFFF)")
+_ACCENT_PATTERN = re.compile(r"(?i)(\$accent|\.accent\b|#ff5b1f)")
 
 _ALLOWLIST = frozenset(
     {
@@ -83,4 +83,4 @@ def test_accent_declaration_site_present() -> None:
     tcss = _tui_root() / "styles.tcss"
     text = tcss.read_text(encoding="utf-8")
     assert "$accent" in text, "styles.tcss must declare $accent token"
-    assert "#5FAFFF" in text, "styles.tcss must bind $accent to #5FAFFF"
+    assert "#ff5b1f" in text, "styles.tcss must bind $accent to #ff5b1f"

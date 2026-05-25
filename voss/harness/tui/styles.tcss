@@ -7,7 +7,7 @@
  */
 
 /* UI-SPEC Color Contract row "Accent" — used ONLY for the 6 allow-list items. */
-$accent: #5FAFFF;
+$accent: #ff5b1f;
 
 /* UI-SPEC Color Contract row "Secondary (30%)" — borders, dim metadata. */
 $dim: #888888;
