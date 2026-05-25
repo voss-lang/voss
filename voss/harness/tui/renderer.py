@@ -132,6 +132,18 @@ class TextualRenderer:
             budget_total=getattr(self.app, "budget_total", 0),
             git_status=git_status,
         )
+        # Feed StatusLine with banner data so it shows provider/model/cwd
+        # from first paint (not only after the first status() callback).
+        status = self._status()
+        if status is not None:
+            cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
+            self._post(
+                status.set_status,
+                provider=getattr(self.app, "provider", ""),
+                model=model,
+                mode=getattr(self.app, "mode", ""),
+                git_status=git_status or cwd_str,
+            )
 
     def show_user(self, task: str) -> None:
         tv = self._turn_view()

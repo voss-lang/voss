@@ -57,4 +57,4 @@ VOSS_RENDERER=compact voss chat
 VOSS_EMBEDDED=1 voss do "summarize this repo"
 ```
 
-`VOSS_RENDERER=compact` selects the compact renderer directly. `VOSS_EMBEDDED=1` is the embedded-host signal and selects the same renderer unless JSON output, `--plain` / `VOSS_PLAIN=1`, or forced TUI mode takes precedence.
+`VOSS_RENDERER=compact` selects the compact renderer directly. `VOSS_EMBEDDED=1` is an embedded-host signal only; it does not force compact mode. Embedded hosts that want the full composer can pair it with `VOSS_FORCE_TUI=1`.

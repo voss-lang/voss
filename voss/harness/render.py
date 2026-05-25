@@ -14,8 +14,6 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
 
 
 ACCENT_ORANGE = "#ff5b1f"
@@ -70,8 +68,8 @@ def make_renderer(
     Decision order (M9-07 — default-path flip):
       1. json_mode=True → JsonRenderer (NDJSON on stdout; unchanged).
       2. plain=True or VOSS_PLAIN=1 → PlainRenderer.
-      3. VOSS_RENDERER=compact or VOSS_EMBEDDED=1 → CompactRenderer.
-      4. force_tui=True (or VOSS_FORCE_TUI=1) + size < 80x24 → stderr + exit(2).
+      3. VOSS_RENDERER=compact → CompactRenderer.
+      4. force_tui=True (or VOSS_FORCE_TUI=1) + size < 60x12 → stderr + exit(2).
       5. capability.tui_should_activate says yes → TextualRenderer (new default).
       6. capability rejected with Windows-console reason → emit locked stderr
          notice + PlainRenderer.
@@ -92,7 +90,6 @@ def make_renderer(
         not force_tui
         and (
             os.environ.get("VOSS_RENDERER", "").lower() == "compact"
-            or os.environ.get("VOSS_EMBEDDED") == "1"
         )
     ):
         return CompactRenderer()
@@ -104,7 +101,7 @@ def make_renderer(
         return PlainRenderer()
 
     if force_tui:
-        if decision.reason == "terminal below 80x24":
+        if decision.reason == "terminal below 60x12":
             size = shutil.get_terminal_size(fallback=(80, 24))
             sys.stderr.write(min_size_guard((size.columns, size.lines)) + "\n")
             sys.stderr.flush()
@@ -142,6 +139,11 @@ def make_renderer(
 GLYPH_TOOL = "⏵"
 GLYPH_WARN = "⚠"
 GLYPH_PROMPT = "▌"
+GLYPH_USER = "❯"
+
+
+def _glyph(value: str, fallback: str) -> str:
+    return fallback if os.environ.get("VOSS_NO_UNICODE") == "1" else value
 
 
 @dataclass
@@ -155,14 +157,18 @@ class TtyRenderer:
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
         cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
-        body = Text()
-        body.append("voss · agent\n", style="bold")
-        body.append(f"{model} · {cwd_str} · {git_status}\n", style="dim")
-        body.append("\nType a task, or /help.", style="dim")
-        self.console.print(Panel(body, border_style="dim", padding=(1, 2)))
+        prompt = _glyph(GLYPH_PROMPT, ">")
+        self.console.print(
+            f"[bold {ACCENT_ORANGE}]{prompt} voss[/bold {ACCENT_ORANGE}] "
+            f"[dim]{model} · {cwd_str} · {git_status}[/dim]"
+        )
+        self.console.print("[dim]  Type a task, or /help.[/dim]")
 
     def show_user(self, task: str) -> None:
-        self.console.print(f"\n[bold]{GLYPH_PROMPT}[/bold] {task}\n")
+        user = _glyph(GLYPH_USER, ">")
+        self.console.print(
+            f"\n[bold {ACCENT_ORANGE}]{user}[/bold {ACCENT_ORANGE}] {task}\n"
+        )
 
     def show_thinking(self, label: str) -> None:
         self.console.print(f"[dim]  … {label}[/dim]")
@@ -276,13 +282,15 @@ class CompactRenderer:
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
         cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
+        prompt = _glyph(GLYPH_PROMPT, ">")
         self.console.print(
-            f"[bold {ACCENT_ORANGE}]{GLYPH_PROMPT} voss[/bold {ACCENT_ORANGE}] "
+            f"[bold {ACCENT_ORANGE}]{prompt} voss[/bold {ACCENT_ORANGE}] "
             f"[dim]{model} · {cwd_str} · {git_status}[/dim]"
         )
 
     def show_user(self, task: str) -> None:
-        self.console.print(f"[bold {ACCENT_ORANGE}]❯[/bold {ACCENT_ORANGE}] {task}")
+        user = _glyph(GLYPH_USER, ">")
+        self.console.print(f"[bold {ACCENT_ORANGE}]{user}[/bold {ACCENT_ORANGE}] {task}")
 
     def show_thinking(self, label: str) -> None:
         self.console.print(f"[dim]  {label}[/dim]")

@@ -73,12 +73,13 @@ class InputBar(Widget):
 
     DEFAULT_CSS = """
     InputBar {
-        layout: horizontal;
-        height: auto;
-        min-height: 1;
-        max-height: 5;
-        padding: 0 1 0 0;
-        border-top: solid #888888 50%;
+        layout: vertical;
+        height: 7;
+        min-height: 4;
+        max-height: 8;
+        margin: 0 1;
+        padding: 0 1;
+        border: solid #ff5b1f;
         background: transparent;
     }
 
@@ -86,37 +87,50 @@ class InputBar(Widget):
         border-top: solid #ff5b1f;
     }
 
-    InputBar > #prompt-glyph {
-        width: 3;
+    InputBar > #input-row {
+        layout: horizontal;
         height: 1fr;
-        content-align: center middle;
-        text-style: bold;
     }
 
-    InputBar:focus > #prompt-glyph {
+    InputBar > #input-row > #prompt-glyph {
+        width: 3;
+        height: 1fr;
+        content-align: center top;
+        text-style: bold;
+        padding-top: 0;
+    }
+
+    InputBar:focus > #input-row > #prompt-glyph {
         background: #ff5b1f 15%;
     }
 
-    InputBar > #input-textarea {
-        height: auto;
-        min-height: 1;
-        max-height: 5;
+    InputBar > #input-row > #input-textarea {
+        height: 1fr;
+        min-height: 2;
+        max-height: 6;
         border: none;
         padding: 0 1 0 0;
         background: transparent;
     }
 
-    InputBar > #input-textarea:focus {
+    InputBar > #input-row > #input-textarea:focus {
         border: none;
     }
 
-    InputBar > #input-textarea .text-area--cursor {
+    InputBar > #input-row > #input-textarea .text-area--cursor {
         background: #ff5b1f;
         text-style: none;
     }
 
-    InputBar > #input-textarea .text-area--cursor-line {
-        background: #ff5b1f 8%;
+    InputBar > #input-row > #input-textarea .text-area--cursor-line {
+        background: transparent;
+    }
+
+    InputBar > #key-hints {
+        height: 1;
+        width: 100%;
+        content-align: right middle;
+        color: #888888;
     }
     """
 
@@ -138,36 +152,40 @@ class InputBar(Widget):
         self._pending_image = None
 
     def compose(self) -> ComposeResult:
-        yield Static(self._prompt_text, id="prompt-glyph", classes="accent")
-        yield _InputTextArea(
-            "",
-            id="input-textarea",
-            show_line_numbers=False,
-            soft_wrap=True,
-            tooltip=(
-                "Enter submits · Shift+Enter newline · / commands · Ctrl-R history"
-            ),
-        )
+        from textual.containers import Horizontal
+
+        with Horizontal(id="input-row"):
+            yield Static(self._prompt_text, id="prompt-glyph", classes="accent")
+            yield _InputTextArea(
+                "",
+                id="input-textarea",
+                show_line_numbers=False,
+                soft_wrap=True,
+                tooltip=(
+                    "Enter submits · Shift+Enter newline · / commands · Ctrl-R history"
+                ),
+            )
+        yield Static("Shift+↵ newline · ↵ send", id="key-hints")
 
     @property
     def text(self) -> str:
-        return self.query_one("#input-textarea", TextArea).text
+        return self.query_one("#input-textarea", _InputTextArea).text
 
     @property
     def search_mode(self) -> bool:
         return self._search_mode
 
     def load_text(self, text: str) -> None:
-        textarea = self.query_one("#input-textarea", TextArea)
+        textarea = self.query_one("#input-textarea", _InputTextArea)
         textarea.load_text(text)
         lines = text.split("\n")
         textarea.move_cursor((len(lines) - 1, len(lines[-1])))
 
     def insert(self, text: str) -> None:
-        self.query_one("#input-textarea", TextArea).insert(text)
+        self.query_one("#input-textarea", _InputTextArea).insert(text)
 
     async def _on_key(self, event) -> None:
-        textarea = self.query_one("#input-textarea", TextArea)
+        textarea = self.query_one("#input-textarea", _InputTextArea)
         if event.key == "ctrl+r":
             event.prevent_default()
             event.stop()
@@ -244,7 +262,7 @@ class InputBar(Widget):
             self._search_saved_text = self.text
             self._search_corpus = _build_corpus(getattr(self.app, "history", None))
             self._search_idx = 0
-            self.query_one("#input-textarea", TextArea).read_only = True
+            self.query_one("#input-textarea", _InputTextArea).read_only = True
             self._refresh_reverse_search()
             return
         if self._search_matches and self._search_idx < len(self._search_matches) - 1:
@@ -279,13 +297,13 @@ class InputBar(Widget):
 
     def _exit_reverse_search(self, *, restore: bool) -> None:
         self._search_mode = False
-        self.query_one("#input-textarea", TextArea).read_only = False
+        self.query_one("#input-textarea", _InputTextArea).read_only = False
         self.load_text(self._search_saved_text if restore else "")
 
     async def action_paste(self) -> None:
         image = _probe_clipboard_image()
         if image is None:
-            textarea = self.query_one("#input-textarea", TextArea)
+            textarea = self.query_one("#input-textarea", _InputTextArea)
             action = getattr(textarea, "action_paste", None)
             if action is not None:
                 result = action()
@@ -352,7 +370,7 @@ class InputBar(Widget):
 
     def action_open_palette(self) -> None:
         """Open the slash palette only when the input is empty."""
-        textarea = self.query_one("#input-textarea", TextArea)
+        textarea = self.query_one("#input-textarea", _InputTextArea)
         if textarea.text.strip():
             textarea.insert("/")
             return

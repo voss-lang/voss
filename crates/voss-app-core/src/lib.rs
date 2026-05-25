@@ -53,7 +53,7 @@ pub use agent_registry::{
     register_agent, registry_path, sweep_orphans, update_last_seen_all, AgentEntry,
     AgentRegistryError,
 };
-pub use pty::{spawn_command_session, PtyRegistry, PtySession};
+pub use pty::{spawn_command_session, spawn_command_session_with_env, PtyRegistry, PtySession};
 
 use std::sync::Arc;
 

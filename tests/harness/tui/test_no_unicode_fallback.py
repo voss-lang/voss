@@ -92,3 +92,10 @@ def test_no_unicode_flag_false_does_not_set(monkeypatch) -> None:
 
     _apply_no_unicode_env(False)
     assert __import__("os").environ.get("VOSS_NO_UNICODE") is None
+
+
+def test_repl_prompt_uses_ascii_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("VOSS_NO_UNICODE", "1")
+    from voss.harness.cli import _repl_prompt
+
+    assert _repl_prompt().endswith("> ")

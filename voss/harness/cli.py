@@ -669,7 +669,27 @@ def _get_code_service(cwd: Path, session_id: str | None = None):
     return CodeIntelService.for_cwd(cwd, session_id=session_id)
 
 
+def _looks_like_project_root(cwd: Path) -> bool:
+    try:
+        if cwd.resolve() == Path.home().resolve():
+            return False
+    except OSError:
+        pass
+    markers = (
+        ".git",
+        "pyproject.toml",
+        "package.json",
+        "Cargo.toml",
+        "go.mod",
+        "deno.json",
+        "pnpm-workspace.yaml",
+    )
+    return any((cwd / marker).exists() for marker in markers)
+
+
 def _render_project_index_text(cwd: Path, session_id: str | None = None) -> str:
+    if not _looks_like_project_root(cwd):
+        return ""
     try:
         from voss.harness.code.context import render_project_index_section
 
@@ -1254,6 +1274,22 @@ def _apply_no_unicode_env(no_unicode: bool) -> None:
         os.environ["VOSS_NO_UNICODE"] = "1"
 
 
+def _repl_prompt() -> str:
+    glyph = ">" if os.environ.get("VOSS_NO_UNICODE") == "1" else "❯"
+    if os.environ.get("NO_COLOR") == "1" or not sys.stdout.isatty():
+        return f"{glyph} "
+    return f"\x1b[1;38;2;255;91;31m{glyph}\x1b[0m "
+
+
+def _provider_label(auth_detail: str) -> str:
+    lower = auth_detail.lower()
+    if "openai" in lower or "codex" in lower:
+        return "OpenAI"
+    if "anthropic" in lower or "claude" in lower:
+        return "Anthropic"
+    return ""
+
+
 def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
     """If `renderer` is a TextualRenderer, install modal-driven permission prompts.
 
@@ -1602,6 +1638,8 @@ def _run_repl(
 ) -> None:
     cfg = get_config()
     renderer = make_renderer(json_mode=json_mode, plain=plain)
+    from .tui.renderer import TextualRenderer
+
     tools = make_toolset(
         cwd,
         renderer=renderer,
@@ -1628,7 +1666,10 @@ def _run_repl(
         for err in bundle.load_errors:
             click.echo(f"cognition error: {err}", err=True)
     voss_md_text = voss_md.read_and_inject(cwd)
-    project_index_text = _render_project_index_text(cwd, session_id=record.id)
+    project_index_text = (
+        "" if isinstance(renderer, TextualRenderer)
+        else _render_project_index_text(cwd, session_id=record.id)
+    )
 
     gate = PermissionGate(
         mode=mode,  # type: ignore[arg-type]
@@ -1691,8 +1732,10 @@ def _run_repl(
     except OSError as exc:
         click.echo(f"active session marker skipped: {exc}", err=True)
 
-    renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
-    if auth_detail:
+    git_status = _git_status(cwd)
+    renderer.banner(model=cfg.default_model, cwd=cwd, git_status=git_status)
+
+    if auth_detail and not isinstance(renderer, TextualRenderer):
         click.echo(f"  [auth: {auth_detail}]")
     if record.turns:
         click.echo(f"resumed: {record.name} ({len(record.turns)} prior turns)")
@@ -1711,13 +1754,16 @@ def _run_repl(
                 )
 
     try:
-        from .tui.renderer import TextualRenderer
-
         if isinstance(renderer, TextualRenderer):
             renderer.app.history = ctx.history
             renderer.app.cwd = cwd
             renderer.app.record = record
             renderer.app.slash_registry = slash_registry
+            renderer.app.model = cfg.default_model
+            renderer.app.git_status = git_status
+            renderer.app.provider = _provider_label(auth_detail)
+            renderer.app.mode = mode
+            renderer.app.total_cost = ctx.total_cost
 
             async def _dispatch_tui_turn(line: str):
                 if line.startswith("/"):
@@ -1727,11 +1773,17 @@ def _run_repl(
                         click.echo(str(exc), err=True)
                         return None
                     if handled:
+                        if ctx.should_exit:
+                            renderer.app.exit()
                         return None
                     click.echo(f"unknown command: {line}. /help for list.", err=True)
                     return None
                 renderer.show_user(line)
                 try:
+                    if not ctx.project_index_text:
+                        ctx.project_index_text = _render_project_index_text(
+                            cwd, session_id=record.id
+                        )
                     run_turn = _resolve_run_turn(cwd)
                     result = await _run_turn_with_teardown(
                         run_turn(
@@ -1781,7 +1833,7 @@ def _run_repl(
 
         while True:
             try:
-                line = input("▌ ")
+                line = input(_repl_prompt())
             except (EOFError, KeyboardInterrupt):
                 click.echo()
                 try:

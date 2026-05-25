@@ -11,10 +11,24 @@ from rich.text import Text
 from textual.widgets import RichLog
 
 
-EMPTY_BRAND = "VOSS"
-EMPTY_HEADING = "Ready for a focused turn."
-EMPTY_BODY = "Type a task below. Use / for commands, ? for help."
+EMPTY_HEADING = "type a message below to begin · / for commands"
 IGNITE_ORANGE = "#ff5b1f"
+
+
+VOSS_LOGO = [
+    "__      ______   _____ _____",
+    "\\ \\    / / __ \\ / ____/ ____|",
+    " \\ \\  / / |  | | (___| (___",
+    "  \\ \\/ /| |  | |\\___ \\\\___ \\",
+    "   \\  / | |__| |____) |___) |",
+    "    \\/   \\____/|_____/_____/",
+]
+
+
+def _center(line: str, width: int) -> str:
+    if width <= len(line):
+        return line
+    return " " * ((width - len(line)) // 2) + line
 
 
 class TurnView(RichLog):
@@ -27,12 +41,18 @@ class TurnView(RichLog):
 
     def on_mount(self) -> None:
         if self._turn_count == 0:
-            brand = Text(EMPTY_BRAND, style=f"bold {IGNITE_ORANGE}")
-            heading = Text(EMPTY_HEADING, style="bold")
-            body = Text(EMPTY_BODY, style="dim")
-            self.write(brand)
-            self.write(heading)
-            self.write(body)
+            width = max(40, getattr(self.app.console.size, "width", 80))
+            height = max(12, getattr(self.app.console.size, "height", 24))
+            for _ in range(max(1, min(4, height // 8))):
+                self.write(Text(""))
+            if width >= 70:
+                for line in VOSS_LOGO:
+                    self.write(Text(_center(line, width), style=f"bold {IGNITE_ORANGE}"))
+            else:
+                self.write(Text(_center("VOSS", width), style=f"bold {IGNITE_ORANGE}"))
+            self.write(Text(_center("v1", width), style="dim"))
+            self.write(Text(""))
+            self.write(Text(_center(EMPTY_HEADING, width), style="dim"))
 
     def append_turn(
         self,

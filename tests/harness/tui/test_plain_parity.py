@@ -187,7 +187,7 @@ def test_force_tui_small_terminal_exits_2(
     # CliRunner stdout is non-TTY; inject a synthetic decision surfacing the size failure.
     monkeypatch.setattr(
         "voss.harness.tui.capability.tui_should_activate",
-        lambda **_kw: TUIDecision(activate=False, reason="terminal below 80x24"),
+        lambda **_kw: TUIDecision(activate=False, reason="terminal below 60x12"),
     )
     runner = CliRunner()
     result = runner.invoke(
@@ -196,4 +196,4 @@ def test_force_tui_small_terminal_exits_2(
         catch_exceptions=False,
     )
     assert result.exit_code == 2
-    assert "terminal must be at least 80×24" in result.stderr
+    assert "terminal must be at least 60×12" in result.stderr

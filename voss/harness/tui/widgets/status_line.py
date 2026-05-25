@@ -8,9 +8,13 @@ from __future__ import annotations
 from rich.text import Text
 from textual.widgets import Static
 
+from .. import glyphs
+
+# Status line accent glyph — matches InputBar prompt for visual consistency.
+_BRAND_GLYPH = glyphs.PROMPT
+
 
 class StatusLine(Static):
-    DEFAULT_CLASSES = "dim"
 
     def __init__(self, **kw) -> None:
         super().__init__("", **kw)
@@ -64,41 +68,49 @@ class StatusLine(Static):
 
     def _render_text(self) -> Text:
         text = Text(no_wrap=True, overflow="ellipsis")
-        segments = 0
 
+        # Brand glyph
+        text.append(f" {_BRAND_GLYPH} voss", style="bold #ff5b1f")
+
+        # Provider / model
         provider_model = self._provider_model()
         if provider_model:
-            text.append(provider_model, style="accent")
-            segments += 1
+            text.append(" | ", style="dim")
+            text.append(provider_model)
 
-        if self._mode:
-            self._append_separator(text, segments)
-            text.append(f"mode {self._mode}", style="dim")
-            segments += 1
-
-        if self._git_status:
-            self._append_separator(text, segments)
-            text.append(f"git {self._git_status}", style="dim")
-            segments += 1
-
-        self._append_separator(text, segments)
-        ctx_style = "signal-warn" if self._ctx_pct > 0.8 else "dim"
-        text.append(f"ctx {self._ctx_pct:.0%}", style=ctx_style)
-        text.append(f"/{self._tokens:,} tok", style="dim")
+        # Context usage
         text.append(" | ", style="dim")
-        cost_style = "signal-error" if self._cost_usd > 1.0 else "dim"
-        text.append(f"${self._cost_usd:.3f}", style=cost_style)
+        ctx_style = "bold #FFD75F" if self._ctx_pct > 0.8 else ""
+        total_k = self._tokens / 1000 if self._tokens else 0
+        if 0 < self._ctx_pct <= 1 and self._tokens > 0:
+            ctx_total = int(self._tokens / self._ctx_pct) if self._ctx_pct > 0 else 0
+            ctx_total_k = ctx_total / 1000
+            text.append(f"{self._ctx_pct:.0%} ({total_k:.0f}K/{ctx_total_k:.0f}K)", style=ctx_style)
+        else:
+            text.append(f"{self._ctx_pct:.0%} ({total_k:.0f}K)", style=ctx_style)
+
+        # Cwd / git
+        if self._git_status:
+            text.append(" | ", style="dim")
+            text.append(self._git_status, style="dim")
+
+        # Cost
+        text.append(" | ", style="dim")
+        cost_style = "bold #FF5F5F" if self._cost_usd > 1.0 else ""
+        text.append(f"${self._cost_usd:.2f}", style=cost_style)
+
+        # Mode
+        if self._mode:
+            text.append(" | ", style="dim")
+            text.append(self._mode, style="dim")
+
+        # Toast
         if self._toast:
             text.append("  ")
-            text.append(self._toast, style="accent")
+            text.append(self._toast, style="#ff5b1f")
         return text
 
     def _provider_model(self) -> str:
         if self._provider and self._model:
-            return f"{self._provider}/{self._model}"
+            return f"{self._provider} / {self._model}"
         return self._provider or self._model
-
-    @staticmethod
-    def _append_separator(text: Text, existing_segments: int) -> None:
-        if existing_segments:
-            text.append(" | ", style="dim")

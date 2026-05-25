@@ -141,6 +141,9 @@ pub fn spawn_session(
     let mut cmd = CommandBuilder::new(&shell);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    // Signal to child Voss processes that they are running inside the ADE.
+    // The Python renderer checks this to skip compact-only overrides.
+    cmd.env("VOSS_EMBEDDED", "1");
     let cwd_path = match cwd {
         Some(c) => {
             cmd.cwd(&c);
@@ -181,6 +184,22 @@ pub fn spawn_command_session(
     Box<dyn Read + Send>,
     tokio::sync::mpsc::Receiver<bool>,
 )> {
+    spawn_command_session_with_env(cmd_binary, cmd_args, &[], rows, cols, cwd)
+}
+
+/// Spawn an arbitrary command with explicit environment overrides.
+pub fn spawn_command_session_with_env(
+    cmd_binary: &str,
+    cmd_args: &[String],
+    env: &[(&str, &str)],
+    rows: u16,
+    cols: u16,
+    cwd: Option<String>,
+) -> anyhow::Result<(
+    Arc<PtySession>,
+    Box<dyn Read + Send>,
+    tokio::sync::mpsc::Receiver<bool>,
+)> {
     let pair = native_pty_system()
         .openpty(PtySize {
             rows,
@@ -200,6 +219,9 @@ pub fn spawn_command_session(
     cmd.args(cmd_args);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
     let cwd_path = match cwd {
         Some(c) => {
             cmd.cwd(&c);

@@ -35,6 +35,28 @@ def _reset_turn():
 
 
 class TestTtyRenderer:
+    def test_banner_is_low_chrome_ignite_header(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        buf = io.StringIO()
+        tty = TtyRenderer(
+            console=Console(
+                file=buf,
+                width=80,
+                force_terminal=True,
+                color_system="truecolor",
+            )
+        )
+        tty.banner(model="model", cwd=Path.cwd(), git_status="clean")
+        out = buf.getvalue()
+        assert "voss" in out
+        assert "model" in out
+        assert "voss · agent" not in out
+        assert "╭" not in out
+        assert "╰" not in out
+        assert "38;2;255;91;31" in out
+
     def test_stream_delta_writes_to_console(self) -> None:
         buf = io.StringIO()
         tty = TtyRenderer(console=Console(file=buf, width=80, force_terminal=False))
@@ -142,10 +164,13 @@ class TestCompactRenderer:
         renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
         assert isinstance(renderer, CompactRenderer)
 
-    def test_make_renderer_embedded_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_make_renderer_embedded_env_does_not_force_compact(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("VOSS_EMBEDDED", "1")
+        monkeypatch.setattr("sys.stdout.isatty", lambda: False)
         renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
-        assert isinstance(renderer, CompactRenderer)
+        assert isinstance(renderer, PlainRenderer)
 
     def test_make_renderer_plain_wins_over_compact(
         self, monkeypatch: pytest.MonkeyPatch
@@ -153,6 +178,17 @@ class TestCompactRenderer:
         monkeypatch.setenv("VOSS_RENDERER", "compact")
         renderer = make_renderer(json_mode=False, plain=True, force_tui=False)
         assert isinstance(renderer, PlainRenderer)
+
+    def test_force_tui_env_wins_over_compact(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """VOSS_FORCE_TUI=1 overrides VOSS_RENDERER=compact (embedded pane fix)."""
+        monkeypatch.setenv("VOSS_RENDERER", "compact")
+        monkeypatch.setenv("VOSS_FORCE_TUI", "1")
+        from voss.harness.tui.renderer import TextualRenderer
+
+        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
+        assert isinstance(renderer, TextualRenderer)
 
 
 class TestTextualRendererDelegates:
