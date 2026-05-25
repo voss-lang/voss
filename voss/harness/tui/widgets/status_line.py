@@ -27,22 +27,29 @@ class StatusLine(Static):
     def set_status(
         self,
         *,
-        provider: str = "",
-        model: str = "",
-        mode: str = "",
-        git_status: str = "",
-        tokens: int = 0,
-        cost_usd: float = 0.0,
-        ctx_pct: float = 0.0,
+        provider: str | None = None,
+        model: str | None = None,
+        mode: str | None = None,
+        git_status: str | None = None,
+        tokens: int | None = None,
+        cost_usd: float | None = None,
+        ctx_pct: float | None = None,
         toast: str | None = None,
     ) -> None:
-        self._provider = provider
-        self._model = model
-        self._mode = mode
-        self._git_status = git_status
-        self._tokens = tokens
-        self._cost_usd = cost_usd
-        self._ctx_pct = ctx_pct
+        if provider is not None:
+            self._provider = provider
+        if model is not None:
+            self._model = model
+        if mode is not None:
+            self._mode = mode
+        if git_status is not None:
+            self._git_status = git_status
+        if tokens is not None:
+            self._tokens = tokens
+        if cost_usd is not None:
+            self._cost_usd = cost_usd
+        if ctx_pct is not None:
+            self._ctx_pct = ctx_pct
         if toast is not None:
             self._toast = toast
             try:

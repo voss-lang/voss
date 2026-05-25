@@ -78,12 +78,12 @@ class InputBar(Widget):
         min-height: 1;
         max-height: 5;
         padding: 0 1 0 0;
-        border-top: solid $dim 50%;
-        background: $surface;
+        border-top: solid #888888 50%;
+        background: transparent;
     }
 
     InputBar:focus {
-        border-top: solid $accent;
+        border-top: solid #ff5b1f;
     }
 
     InputBar > #prompt-glyph {
@@ -94,7 +94,7 @@ class InputBar(Widget):
     }
 
     InputBar:focus > #prompt-glyph {
-        background: $accent 15%;
+        background: #ff5b1f 15%;
     }
 
     InputBar > #input-textarea {
@@ -111,13 +111,12 @@ class InputBar(Widget):
     }
 
     InputBar > #input-textarea .text-area--cursor {
-        background: $accent;
-        color: $text;
+        background: #ff5b1f;
         text-style: none;
     }
 
     InputBar > #input-textarea .text-area--cursor-line {
-        background: $accent 8%;
+        background: #ff5b1f 8%;
     }
     """
 

@@ -54,7 +54,7 @@ class CodeIntelPanel(Vertical):
         for node in nodes[:50]:
             name = node.get("name", "?")
             kind = node.get("kind", "")
-            prefix = "📁 " if kind == "dir" else "  "
+            prefix = "[d] " if kind == "dir" else "    "
             self._add_line(f"{prefix}{name}")
 
     def set_results(self, query: str, hits: list[dict[str, Any]] | None = None) -> None:
