@@ -1261,6 +1261,15 @@ def _repl_prompt() -> str:
     return f"\x1b[1;38;2;255;91;31m{glyph}\x1b[0m "
 
 
+def _provider_label(auth_detail: str) -> str:
+    lower = auth_detail.lower()
+    if "openai" in lower or "codex" in lower:
+        return "OpenAI"
+    if "anthropic" in lower or "claude" in lower:
+        return "Anthropic"
+    return ""
+
+
 def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
     """If `renderer` is a TextualRenderer, install modal-driven permission prompts.
 
@@ -1698,8 +1707,11 @@ def _run_repl(
     except OSError as exc:
         click.echo(f"active session marker skipped: {exc}", err=True)
 
-    renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
-    if auth_detail:
+    git_status = _git_status(cwd)
+    renderer.banner(model=cfg.default_model, cwd=cwd, git_status=git_status)
+    from .tui.renderer import TextualRenderer
+
+    if auth_detail and not isinstance(renderer, TextualRenderer):
         click.echo(f"  [auth: {auth_detail}]")
     if record.turns:
         click.echo(f"resumed: {record.name} ({len(record.turns)} prior turns)")
@@ -1718,13 +1730,16 @@ def _run_repl(
                 )
 
     try:
-        from .tui.renderer import TextualRenderer
-
         if isinstance(renderer, TextualRenderer):
             renderer.app.history = ctx.history
             renderer.app.cwd = cwd
             renderer.app.record = record
             renderer.app.slash_registry = slash_registry
+            renderer.app.model = cfg.default_model
+            renderer.app.git_status = git_status
+            renderer.app.provider = _provider_label(auth_detail)
+            renderer.app.mode = mode
+            renderer.app.total_cost = ctx.total_cost
 
             async def _dispatch_tui_turn(line: str):
                 if line.startswith("/"):

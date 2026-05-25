@@ -9,7 +9,7 @@ The decision order in `tui_should_activate` is locked (first match wins):
   2. `VOSS_PLAIN=1` in env
   3. `json_mode` True
   4. stdout is not a TTY
-  5. terminal size < 80x24
+  5. terminal size < 60x12
   6. `textual` import unavailable
   7. activate
 """
@@ -22,8 +22,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-_MIN_COLS = 80
-_MIN_ROWS = 24
+_MIN_COLS = 60
+_MIN_ROWS = 12
 
 _AVAILABLE: Optional[bool] = None
 
@@ -89,7 +89,7 @@ def tui_should_activate(
     if sys.platform == "win32" and not env.get("WT_SESSION"):
         return TUIDecision(activate=False, reason="Windows console missing capability")
     if size[0] < _MIN_COLS or size[1] < _MIN_ROWS:
-        return TUIDecision(activate=False, reason="terminal below 80x24")
+        return TUIDecision(activate=False, reason="terminal below 60x12")
     if not tui_available():
         return TUIDecision(activate=False, reason="textual not installed")
     return TUIDecision(activate=True, reason="ok")
@@ -98,6 +98,6 @@ def tui_should_activate(
 def min_size_guard(size: tuple[int, int]) -> str:
     """Return the locked stderr string for a too-small terminal (UI-SPEC line 198)."""
     return (
-        f"voss: terminal must be at least 80×24 "
+        f"voss: terminal must be at least 60×12 "
         f"(current: {size[0]}×{size[1]}). Resize or use --plain."
     )

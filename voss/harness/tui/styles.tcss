@@ -28,8 +28,9 @@ $error: #FF5F5F;
 }
 
 #main {
-    width: 60%;
-    min-width: 60;
+    width: 100%;
+    min-width: 40;
+    padding: 0 1;
 }
 
 /* Side panel — hidden when no active spawn. M9-04 toggles display: block. */
@@ -43,14 +44,15 @@ $error: #FF5F5F;
 #status {
     dock: bottom;
     height: 1;
+    margin: 0 1;
     background: $dim 20%;
 }
 
 #input {
     dock: bottom;
-    height: auto;
-    min-height: 1;
-    max-height: 5;
+    height: 7;
+    min-height: 4;
+    max-height: 8;
 }
 
 .accent {

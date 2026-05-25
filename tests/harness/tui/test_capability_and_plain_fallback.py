@@ -62,7 +62,7 @@ def test_json_mode_returns_false() -> None:
     assert d == TUIDecision(activate=False, reason="--json mode")
 
 
-@pytest.mark.parametrize("size", [(79, 24), (80, 23), (50, 10)])
+@pytest.mark.parametrize("size", [(59, 24), (60, 11), (50, 10)])
 def test_too_small_returns_false(size: tuple[int, int]) -> None:
     d = tui_should_activate(
         argv=[],
@@ -71,7 +71,7 @@ def test_too_small_returns_false(size: tuple[int, int]) -> None:
         json_mode=False,
         size=size,
     )
-    assert d == TUIDecision(activate=False, reason="terminal below 80x24")
+    assert d == TUIDecision(activate=False, reason="terminal below 60x12")
 
 
 def test_happy_path_activates() -> None:
@@ -80,14 +80,14 @@ def test_happy_path_activates() -> None:
         env={},
         stdout_isatty=True,
         json_mode=False,
-        size=(80, 24),
+        size=(60, 12),
     )
     assert d == TUIDecision(activate=True, reason="ok")
 
 
 def test_min_size_guard_locked_string() -> None:
     assert min_size_guard((79, 24)) == (
-        "voss: terminal must be at least 80×24 "
+        "voss: terminal must be at least 60×12 "
         "(current: 79×24). Resize or use --plain."
     )
 

@@ -49,7 +49,7 @@ def test_win32_with_wt_session_proceeds(monkeypatch: pytest.MonkeyPatch) -> None
     # in the test env).
     assert d.activate is True or d.reason in (
         "textual not installed",
-        "terminal below 80x24",
+        "terminal below 60x12",
     )
     assert d.reason != WIN_NOTICE_REASON
 
@@ -69,7 +69,7 @@ def test_non_win32_unaffected_by_branch(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_win32_branch_fires_before_size_check(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Win-console reason wins over terminal-below-80x24 reason (order locked)."""
+    """Win-console reason wins over terminal-below-60x12 reason (order locked)."""
     monkeypatch.setattr("sys.platform", "win32")
     monkeypatch.setattr("voss.harness.tui.capability.sys.platform", "win32")
     d = tui_should_activate(

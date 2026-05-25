@@ -48,6 +48,9 @@ function findPlatformPackage() {
 
 const { pkg, pkgDir } = findPlatformPackage();
 const isWindows = process.platform === 'win32';
+const repoRoot = path.resolve(__dirname, '..', '..');
+const devCli = path.join(repoRoot, 'voss', 'cli.py');
+const useDevSource = fs.existsSync(devCli);
 
 function resolvePythonBin() {
   if (isWindows) {
@@ -69,9 +72,11 @@ function resolvePythonBin() {
   return candidates[0];
 }
 
-const pythonBin = resolvePythonBin();
+const pythonBin = useDevSource
+  ? (process.env.VOSS_DEV_PYTHON || 'python3')
+  : resolvePythonBin();
 
-if (!fs.existsSync(pythonBin)) {
+if (!useDevSource && !fs.existsSync(pythonBin)) {
   process.stderr.write(
     'voss: vendored Python not found at ' + pythonBin + '\n'
   );
@@ -82,10 +87,20 @@ if (!fs.existsSync(pythonBin)) {
 // which otherwise lets a same-named `voss/` directory in the user's cwd
 // (e.g. a Voss repo checkout) shadow the vendored `voss` package and
 // trigger ModuleNotFoundError for vendored-only deps like `portalocker`.
+const childEnv = { ...process.env };
+const pythonArgs = ['-P', '-m', 'voss.cli', ...process.argv.slice(2)];
+if (useDevSource) {
+  // Local npm-link/dev checkouts should exercise the live Python sources,
+  // not the older vendored wheel inside the platform package.
+  childEnv.PYTHONPATH = childEnv.PYTHONPATH
+    ? repoRoot + path.delimiter + childEnv.PYTHONPATH
+    : repoRoot;
+  pythonArgs.splice(0, 1);
+}
 const result = spawnSync(
   pythonBin,
-  ['-P', '-m', 'voss.cli', ...process.argv.slice(2)],
-  { shell: false, stdio: 'inherit', env: process.env }
+  pythonArgs,
+  { shell: false, stdio: 'inherit', env: childEnv }
 );
 
 if (result.error) {

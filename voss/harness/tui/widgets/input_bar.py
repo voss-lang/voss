@@ -74,11 +74,12 @@ class InputBar(Widget):
     DEFAULT_CSS = """
     InputBar {
         layout: horizontal;
-        height: auto;
-        min-height: 1;
-        max-height: 5;
-        padding: 0 1 0 0;
-        border-top: solid #888888 50%;
+        height: 7;
+        min-height: 4;
+        max-height: 8;
+        margin: 0 1;
+        padding: 0 1;
+        border: solid #ff5b1f;
         background: transparent;
     }
 
@@ -89,8 +90,9 @@ class InputBar(Widget):
     InputBar > #prompt-glyph {
         width: 3;
         height: 1fr;
-        content-align: center middle;
+        content-align: center top;
         text-style: bold;
+        padding-top: 1;
     }
 
     InputBar:focus > #prompt-glyph {
@@ -98,11 +100,11 @@ class InputBar(Widget):
     }
 
     InputBar > #input-textarea {
-        height: auto;
-        min-height: 1;
-        max-height: 5;
+        height: 1fr;
+        min-height: 3;
+        max-height: 6;
         border: none;
-        padding: 0 1 0 0;
+        padding: 1 1 0 0;
         background: transparent;
     }
 

@@ -48,7 +48,7 @@ async def test_first_stream_delta_clears_empty_state() -> None:
         # on_mount has placed the branded empty state.
         before = _flatten(tv)
         assert "VOSS" in before
-        assert "Ready for a focused turn." in before
+        assert "type a message below to begin" in before
 
         tv.stream_delta("first token")
         await pilot.pause()

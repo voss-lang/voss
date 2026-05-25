@@ -58,6 +58,11 @@ class VossTUIApp(App):
         self.budget_total = budget_total
         self.slash_registry = slash_registry or SlashRegistry()
         self.history = history
+        self.cwd: Path | None = None
+        self.git_status: str = ""
+        self.provider: str = ""
+        self.mode: str = ""
+        self.total_cost: float = 0.0
         self._turn_dispatch = None
         # M9-06 fork wiring. cli.py (M9-07) sets `record` on the live app.
         # `focused_turn_index` defaults to the most recent turn.
@@ -363,9 +368,25 @@ class VossTUIApp(App):
             budget_total=self.budget_total,
             git_status="",
         )
-        # M9-08: mount CodeIntelPanel as the default side-region occupant.
+        # M9-08: keep CodeIntelPanel ready, but start in the focused composer
+        # layout. Sub-agent/code-intel activity can reveal the side region.
         self._code_intel_panel = CodeIntelPanel()
         side = self.query_one("#side")
         side.mount(self._code_intel_panel)
-        # Start with code_intel visible (sub-agent will override on spawn).
-        side.display = True
+        side.display = False
+        side.styles.display = "none"
+        cwd_text = ""
+        if self.cwd is not None:
+            try:
+                cwd_text = str(self.cwd).replace(str(Path.home()), "~", 1)
+            except Exception:  # noqa: BLE001
+                cwd_text = str(self.cwd)
+        self.query_one("#status", StatusLine).set_status(
+            provider=self.provider,
+            model=self.model,
+            mode=self.mode,
+            git_status=self.git_status or cwd_text,
+            tokens=0,
+            cost_usd=self.total_cost,
+            ctx_pct=0.0,
+        )

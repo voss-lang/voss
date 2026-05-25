@@ -69,7 +69,7 @@ def make_renderer(
       1. json_mode=True → JsonRenderer (NDJSON on stdout; unchanged).
       2. plain=True or VOSS_PLAIN=1 → PlainRenderer.
       3. VOSS_RENDERER=compact or VOSS_EMBEDDED=1 → CompactRenderer.
-      4. force_tui=True (or VOSS_FORCE_TUI=1) + size < 80x24 → stderr + exit(2).
+      4. force_tui=True (or VOSS_FORCE_TUI=1) + size < 60x12 → stderr + exit(2).
       5. capability.tui_should_activate says yes → TextualRenderer (new default).
       6. capability rejected with Windows-console reason → emit locked stderr
          notice + PlainRenderer.
@@ -102,7 +102,7 @@ def make_renderer(
         return PlainRenderer()
 
     if force_tui:
-        if decision.reason == "terminal below 80x24":
+        if decision.reason == "terminal below 60x12":
             size = shutil.get_terminal_size(fallback=(80, 24))
             sys.stderr.write(min_size_guard((size.columns, size.lines)) + "\n")
             sys.stderr.flush()
