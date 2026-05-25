@@ -1578,7 +1578,7 @@ Plans:
 **Plans:** 5 plans, 3 waves
 
 Plans:
-- [ ] A13-01-PLAN.md — Swarm type contracts + Rust file I/O commands + CSP update (SWM-04, SWM-05, SWM-06, SWM-11)
+- [x] A13-01-PLAN.md — Swarm type contracts + Rust file I/O commands + CSP update (SWM-04, SWM-05, SWM-06, SWM-11)
 - [ ] A13-02-PLAN.md — Coordinator LLM decomposition + result parser + npm deps (SWM-02, SWM-07)
 - [ ] A13-03-PLAN.md — SwarmController lifecycle + swarmRegistry signal store (SWM-03..06, SWM-10..12)
 - [ ] A13-04-PLAN.md — Sidebar swarm UI + launch modal Swarm tab (SWM-01, SWM-08, SWM-09)
