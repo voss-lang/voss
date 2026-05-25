@@ -179,6 +179,17 @@ class TestCompactRenderer:
         renderer = make_renderer(json_mode=False, plain=True, force_tui=False)
         assert isinstance(renderer, PlainRenderer)
 
+    def test_force_tui_env_wins_over_compact(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """VOSS_FORCE_TUI=1 overrides VOSS_RENDERER=compact (embedded pane fix)."""
+        monkeypatch.setenv("VOSS_RENDERER", "compact")
+        monkeypatch.setenv("VOSS_FORCE_TUI", "1")
+        from voss.harness.tui.renderer import TextualRenderer
+
+        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
+        assert isinstance(renderer, TextualRenderer)
+
 
 class TestTextualRendererDelegates:
     def test_stream_delta_forwards_to_turn_view(self, monkeypatch) -> None:

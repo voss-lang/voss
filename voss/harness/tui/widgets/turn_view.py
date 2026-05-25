@@ -11,9 +11,7 @@ from rich.text import Text
 from textual.widgets import RichLog
 
 
-EMPTY_BRAND = "VOSS"
-EMPTY_HEADING = "type a message below to begin - / for commands"
-EMPTY_BODY = "Ask Voss anything..."
+EMPTY_HEADING = "type a message below to begin · / for commands"
 IGNITE_ORANGE = "#ff5b1f"
 
 
@@ -48,12 +46,10 @@ class TurnView(RichLog):
             for _ in range(max(1, min(4, height // 8))):
                 self.write(Text(""))
             if width >= 70:
-                self.write(Text(_center(EMPTY_BRAND, width), style=f"bold {IGNITE_ORANGE}"))
-                self.write(Text(""))
                 for line in VOSS_LOGO:
                     self.write(Text(_center(line, width), style=f"bold {IGNITE_ORANGE}"))
             else:
-                self.write(Text(_center(EMPTY_BRAND, width), style=f"bold {IGNITE_ORANGE}"))
+                self.write(Text(_center("VOSS", width), style=f"bold {IGNITE_ORANGE}"))
             self.write(Text(_center("v1", width), style="dim"))
             self.write(Text(""))
             self.write(Text(_center(EMPTY_HEADING, width), style="dim"))
