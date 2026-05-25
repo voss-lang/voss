@@ -45,7 +45,6 @@ $error: #FF5F5F;
     dock: bottom;
     height: 1;
     margin: 0 1;
-    background: $dim 40%;
 }
 
 #input {

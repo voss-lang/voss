@@ -76,7 +76,7 @@ async def test_header_renders_session_model_budget_git() -> None:
 async def test_status_line_renders_tokens_cost_ctx() -> None:
     status = StatusLine()
     status.set_status(model="m", tokens=1234, cost_usd=0.012, ctx_pct=0.42)
-    text = str(status._render_text())
+    text = str(status._render_markup())
     assert "m" in text
     assert "$0.01" in text
     assert "42%" in text
@@ -94,7 +94,7 @@ async def test_status_line_renders_dense_footer_metadata() -> None:
         cost_usd=1.234,
         ctx_pct=0.84,
     )
-    text = str(status._render_text())
+    text = str(status._render_markup())
     assert "anthropic / claude-sonnet-4" in text
     assert "auto" in text
     assert "dirty" in text
@@ -115,7 +115,7 @@ async def test_status_line_toast_only_preserves_existing_status() -> None:
         ctx_pct=0.2,
     )
     status.set_status(toast="thinking")
-    text = str(status._render_text())
+    text = str(status._render_markup())
     assert "openai / gpt-4.1" in text
     assert "plan" in text
     assert "clean" in text
