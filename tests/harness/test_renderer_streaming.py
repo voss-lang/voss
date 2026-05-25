@@ -35,7 +35,10 @@ def _reset_turn():
 
 
 class TestTtyRenderer:
-    def test_banner_is_low_chrome_ignite_header(self) -> None:
+    def test_banner_is_low_chrome_ignite_header(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("NO_COLOR", raising=False)
         buf = io.StringIO()
         tty = TtyRenderer(
             console=Console(
