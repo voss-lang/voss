@@ -177,7 +177,9 @@ pub fn save_project_less_session(
 
 /// Load a project-less workspace session. Returns `Ok(None)` for missing,
 /// corrupt, or unsupported files.
-pub fn load_project_less_session(workspace_id: &str) -> Result<Option<SessionFile>, SessionError> {
+pub fn load_project_less_session(
+    workspace_id: &str,
+) -> Result<Option<SessionFile>, SessionError> {
     if !is_filename_safe_workspace_id(workspace_id) {
         eprintln!("[voss-app] invalid project-less session workspace id");
         return Ok(None);
@@ -187,7 +189,10 @@ pub fn load_project_less_session(workspace_id: &str) -> Result<Option<SessionFil
 
 /// Workspace ids used in session filenames: alphanumeric + hyphen only.
 fn is_filename_safe_workspace_id(id: &str) -> bool {
-    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
 // --- Internal helpers --------------------------------------------------------
@@ -255,7 +260,8 @@ fn fail_safe_load(path: &Path) -> Result<Option<SessionFile>, SessionError> {
 
 /// Version-gated parse — same pattern as `layouts::parse_layout`.
 fn parse_session(raw: &str) -> Result<SessionFile, &'static str> {
-    let value: serde_json::Value = serde_json::from_str(raw).map_err(|_| "invalid JSON")?;
+    let value: serde_json::Value =
+        serde_json::from_str(raw).map_err(|_| "invalid JSON")?;
     let version = value.get("version").and_then(|v| v.as_u64());
     match version {
         Some(v) if v == CURRENT_SESSION_VERSION as u64 => {
@@ -318,7 +324,12 @@ mod tests {
     }
 
     fn sample_session() -> SessionFile {
-        SessionFile::new(sample_grid(), Some("fanout".into()), sample_panes(), false)
+        SessionFile::new(
+            sample_grid(),
+            Some("fanout".into()),
+            sample_panes(),
+            false,
+        )
     }
 
     fn isolate_global() -> TempDir {
@@ -385,19 +396,16 @@ mod tests {
             scrollback: Some(vec!["line1".into(), "line2".into()]),
         };
         let json = serde_json::to_string(&pane).unwrap();
-        assert!(json.contains("[\"line1\",\"line2\"]"), "array: {json}");
+        assert!(
+            json.contains("[\"line1\",\"line2\"]"),
+            "array: {json}"
+        );
     }
 
     #[test]
     fn session_error_display_strings() {
-        assert_eq!(
-            SessionError::SaveFailed.to_string(),
-            "could not save session"
-        );
-        assert_eq!(
-            SessionError::LoadFailed.to_string(),
-            "could not load session"
-        );
+        assert_eq!(SessionError::SaveFailed.to_string(), "could not save session");
+        assert_eq!(SessionError::LoadFailed.to_string(), "could not load session");
     }
 
     // --- Task 2: file I/O ------------------------------------------------
@@ -480,7 +488,12 @@ mod tests {
     #[test]
     fn save_then_load_round_trips_global_session() {
         let _g = isolate_global();
-        let session = SessionFile::new(sample_grid(), None, sample_panes(), true);
+        let session = SessionFile::new(
+            sample_grid(),
+            None,
+            sample_panes(),
+            true,
+        );
         save_global_session(&session).unwrap();
         let loaded = load_global_session().unwrap();
         assert_eq!(loaded, Some(session));
@@ -533,7 +546,10 @@ mod tests {
         let _dir = isolate_project_less();
         let session = SessionFile::new(sample_grid(), Some("fanout".into()), vec![], true);
         save_project_less_session("ws-1", &session).unwrap();
-        assert_eq!(load_project_less_session("ws-1").unwrap(), Some(session));
+        assert_eq!(
+            load_project_less_session("ws-1").unwrap(),
+            Some(session)
+        );
     }
 
     #[test]

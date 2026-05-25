@@ -13,11 +13,6 @@ pub mod session;
 pub mod themes;
 pub mod workspaces;
 
-pub use agent_registry::{
-    create_schema, get_active_agents, global_registry_path, mark_stopped, open_registry,
-    register_agent, registry_path, sweep_orphans, update_last_seen_all, AgentEntry,
-    AgentRegistryError,
-};
 pub use appearance::{
     load_appearance_settings, save_appearance_settings, AppearanceError, AppearanceSettings,
     BellBehavior, CursorBlink, CursorShape,
@@ -36,24 +31,29 @@ pub use project::{
     default_cwd, list_recents, open_project, ProjectError, ProjectInfo, RecentsFile,
     CURRENT_RECENTS_VERSION, RECENTS_CAP,
 };
-pub use pty::commands::{
-    get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty, PtyEvent,
+pub use themes::{
+    list_custom_themes, load_active_theme_id, load_custom_theme, save_active_theme_id,
+    save_custom_theme, CustomThemeFile, ThemeAppearance, ThemeError, CURRENT_THEME_VERSION,
 };
-pub use pty::{spawn_command_session, spawn_command_session_with_env, PtyRegistry, PtySession};
 pub use session::{
     load_global_session, load_project_less_session, load_session, save_global_session,
     save_project_less_session, save_session, SessionError, SessionFile, SessionPane,
     CURRENT_SESSION_VERSION,
 };
-pub use themes::{
-    list_custom_themes, load_active_theme_id, load_custom_theme, save_active_theme_id,
-    save_custom_theme, CustomThemeFile, ThemeAppearance, ThemeError, CURRENT_THEME_VERSION,
-};
 pub use workspaces::{
     default_workspaces_index, list_workspaces, load_workspaces_index, save_workspaces_index,
-    validate_workspace_id, workspace_session_path, WorkspaceEntry, WorkspacesError,
-    WorkspacesIndex, CURRENT_WORKSPACES_VERSION, DEFAULT_ACCENT_COLOR, DEFAULT_WORKSPACE_ID,
+    validate_workspace_id, workspace_session_path, WorkspacesError, WorkspacesIndex,
+    WorkspaceEntry, CURRENT_WORKSPACES_VERSION, DEFAULT_ACCENT_COLOR, DEFAULT_WORKSPACE_ID,
 };
+pub use pty::commands::{
+    get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty, PtyEvent,
+};
+pub use agent_registry::{
+    create_schema, get_active_agents, global_registry_path, mark_stopped, open_registry,
+    register_agent, registry_path, sweep_orphans, update_last_seen_all, AgentEntry,
+    AgentRegistryError,
+};
+pub use pty::{spawn_command_session, spawn_command_session_with_env, PtyRegistry, PtySession};
 
 use std::sync::Arc;
 
