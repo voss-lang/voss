@@ -11,16 +11,19 @@ from __future__ import annotations
 
 import io
 import json
+from pathlib import Path
 
 import pytest
 from rich.console import Console
 
 from voss.harness import telemetry
 from voss.harness.render import (
+    CompactRenderer,
     JsonRenderer,
     PlainRenderer,
     Renderer,
     TtyRenderer,
+    make_renderer,
 )
 
 
@@ -108,6 +111,43 @@ class TestJsonRenderer:
         assert ev["timestamp"] == "2026-05-15T12:00:00+00:00"
 
 
+class TestCompactRenderer:
+    def test_banner_is_low_chrome_without_panel_border(self) -> None:
+        buf = io.StringIO()
+        compact = CompactRenderer(
+            console=Console(file=buf, width=80, force_terminal=False)
+        )
+        compact.banner(model="model", cwd=Path.cwd(), git_status="clean")
+        out = buf.getvalue()
+        assert "voss" in out
+        assert "model" in out
+        assert "╭" not in out
+        assert "╰" not in out
+
+    def test_stream_delta_and_finalize_stream(self) -> None:
+        buf = io.StringIO()
+        compact = CompactRenderer(
+            console=Console(file=buf, width=80, force_terminal=False)
+        )
+        compact.stream_delta("hello ")
+        compact.stream_delta("world")
+        compact.finalize_stream(role="assistant", confidence=0.92, cost_usd=0.012)
+        out = buf.getvalue()
+        assert "hello world" in out
+        assert "assistant" in out
+        assert "conf 0.92" in out
+
+    def test_make_renderer_compact_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("VOSS_RENDERER", "compact")
+        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
+        assert isinstance(renderer, CompactRenderer)
+
+    def test_make_renderer_embedded_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("VOSS_EMBEDDED", "1")
+        renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
+        assert isinstance(renderer, CompactRenderer)
+
+
 class TestTextualRendererDelegates:
     def test_stream_delta_forwards_to_turn_view(self, monkeypatch) -> None:
         from voss.harness.tui.renderer import TextualRenderer
@@ -148,6 +188,7 @@ class TestProtocolMembership:
         # tested separately above) must now satisfy isinstance check after the
         # new method addition.
         assert isinstance(TtyRenderer(console=Console(file=io.StringIO())), Renderer)
+        assert isinstance(CompactRenderer(console=Console(file=io.StringIO())), Renderer)
         assert isinstance(PlainRenderer(), Renderer)
         assert isinstance(JsonRenderer(), Renderer)
 

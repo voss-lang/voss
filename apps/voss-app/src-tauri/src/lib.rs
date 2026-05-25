@@ -1,13 +1,19 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
 };
 use std::time::{Duration, SystemTime};
 
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
+use voss_app_core::agent_registry::{
+    AgentEntry, get_active_agents as registry_get_active_agents, global_registry_path,
+    mark_stopped, open_registry, register_agent, registry_path, sweep_orphans,
+    update_last_seen_all,
+};
 use voss_app_core::appearance::{self, AppearanceSettings};
 use voss_app_core::fonts;
 use voss_app_core::grid::{self, GridState};
@@ -16,16 +22,10 @@ use voss_app_core::layouts::{self, LayoutFile};
 use voss_app_core::profiles::{self, ProfileFile};
 use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
-use voss_app_core::themes::{self, CustomThemeFile};
-use rusqlite::Connection;
-use voss_app_core::agent_registry::{
-    get_active_agents as registry_get_active_agents, global_registry_path, mark_stopped,
-    open_registry, register_agent, registry_path, sweep_orphans, update_last_seen_all,
-    AgentEntry,
-};
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{foreground, spawn_command_session, spawn_session};
 use voss_app_core::session::{self, SessionFile};
+use voss_app_core::themes::{self, CustomThemeFile};
 use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
 
@@ -144,6 +144,27 @@ fn ensure_registry<'a>(
     Ok(guard)
 }
 
+fn is_voss_cli_binary(cli_binary: &str) -> bool {
+    Path::new(cli_binary)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .is_some_and(|name| name == "voss" || name == "voss.exe")
+}
+
+fn command_for_embedded_cli(cli_binary: &str, cli_args: &[String]) -> (String, Vec<String>) {
+    if !is_voss_cli_binary(cli_binary) {
+        return (cli_binary.to_string(), cli_args.to_vec());
+    }
+
+    let mut args = vec![
+        "VOSS_EMBEDDED=1".to_string(),
+        "VOSS_RENDERER=compact".to_string(),
+        cli_binary.to_string(),
+    ];
+    args.extend(cli_args.iter().cloned());
+    ("env".to_string(), args)
+}
+
 #[tauri::command]
 async fn spawn_agent(
     on_data: tauri::ipc::Channel<PtyEvent>,
@@ -163,25 +184,61 @@ async fn spawn_agent(
         .as_mut()
         .ok_or_else(|| "agent registry unavailable".to_string())?;
 
+    let (spawn_binary, spawn_args) = command_for_embedded_cli(&cli_binary, &cli_args);
     let (session, reader, pause_rx) =
-        spawn_command_session(&cli_binary, &cli_args, rows, cols, cwd.clone())
+        spawn_command_session(&spawn_binary, &spawn_args, rows, cols, cwd.clone())
             .map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(pty_state.inner());
     let pty_id = registry.insert(session);
     start_reader(pty_id.clone(), reader, pause_rx, on_data, registry);
 
     let cwd_str = cwd.as_deref().unwrap_or("");
-    register_agent(
-        conn,
-        &pane_id,
-        &session_id,
-        &cli_binary,
-        &cli_args,
-        cwd_str,
-    )
-    .map_err(|e| e.to_string())?;
+    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
+        .map_err(|e| e.to_string())?;
 
     Ok(pty_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command_for_embedded_cli;
+
+    #[test]
+    fn wraps_voss_agent_command_with_embedded_env() {
+        let args = vec!["chat".to_string(), "--auth".to_string(), "none".to_string()];
+
+        let (binary, wrapped_args) = command_for_embedded_cli("voss", &args);
+
+        assert_eq!(binary, "env");
+        assert_eq!(
+            wrapped_args,
+            vec![
+                "VOSS_EMBEDDED=1",
+                "VOSS_RENDERER=compact",
+                "voss",
+                "chat",
+                "--auth",
+                "none",
+            ]
+        );
+    }
+
+    #[test]
+    fn wraps_path_voss_binary_but_leaves_other_agents_alone() {
+        let args = vec!["do".to_string()];
+
+        let (binary, wrapped_args) = command_for_embedded_cli("/opt/bin/voss", &args);
+        assert_eq!(binary, "env");
+        assert_eq!(wrapped_args[0], "VOSS_EMBEDDED=1");
+        assert_eq!(wrapped_args[1], "VOSS_RENDERER=compact");
+        assert_eq!(wrapped_args[2], "/opt/bin/voss");
+        assert_eq!(wrapped_args[3], "do");
+
+        let claude_args = vec!["--model=opus".to_string()];
+        let (binary, passthrough_args) = command_for_embedded_cli("claude", &claude_args);
+        assert_eq!(binary, "claude");
+        assert_eq!(passthrough_args, claude_args);
+    }
 }
 
 #[tauri::command]
@@ -215,10 +272,7 @@ fn mark_agent_stopped(
 }
 
 #[tauri::command]
-fn update_agents_last_seen(
-    workspace_path: Option<String>,
-    db: AgentDb<'_>,
-) -> Result<(), String> {
+fn update_agents_last_seen(workspace_path: Option<String>, db: AgentDb<'_>) -> Result<(), String> {
     let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
     let conn = guard
         .as_mut()
@@ -247,8 +301,7 @@ async fn spawn_pty(
     cwd: Option<String>,
     state: Reg<'_>,
 ) -> Result<String, String> {
-    let (session, reader, pause_rx) =
-        spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
+    let (session, reader, pause_rx) = spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
     let id = registry.insert(session);
     start_reader(id.clone(), reader, pause_rx, on_data, registry);
@@ -256,11 +309,7 @@ async fn spawn_pty(
 }
 
 #[tauri::command]
-async fn pty_write(
-    session_id: String,
-    data: Vec<u8>,
-    state: Reg<'_>,
-) -> Result<(), String> {
+async fn pty_write(session_id: String, data: Vec<u8>, state: Reg<'_>) -> Result<(), String> {
     validate_write(&data)?;
     let session = state.get(&session_id).ok_or("unknown session")?;
     session.write(&data).map_err(|e| e.to_string())
@@ -298,10 +347,7 @@ async fn pty_kill(session_id: String, state: Reg<'_>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn get_fg_process(
-    session_id: String,
-    state: Reg<'_>,
-) -> Result<Option<String>, String> {
+async fn get_fg_process(session_id: String, state: Reg<'_>) -> Result<Option<String>, String> {
     let session = state.get(&session_id).ok_or("unknown session")?;
     let fd = match session.master_raw_fd() {
         Some(fd) => fd,
@@ -358,36 +404,23 @@ fn get_grid(state: GridSlot<'_>) -> Result<GridState, String> {
 // verbatim.
 
 #[tauri::command]
-fn save_layout(
-    workspace_path: String,
-    name: String,
-    layout: LayoutFile,
-) -> Result<(), String> {
-    layouts::save_layout(Path::new(&workspace_path), &name, &layout)
-        .map_err(|e| e.to_string())
+fn save_layout(workspace_path: String, name: String, layout: LayoutFile) -> Result<(), String> {
+    layouts::save_layout(Path::new(&workspace_path), &name, &layout).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn load_layout(
-    workspace_path: String,
-    name: String,
-) -> Result<LayoutFile, String> {
-    layouts::load_layout(Path::new(&workspace_path), &name)
-        .map_err(|e| e.to_string())
+fn load_layout(workspace_path: String, name: String) -> Result<LayoutFile, String> {
+    layouts::load_layout(Path::new(&workspace_path), &name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn list_layouts(workspace_path: String) -> Result<Vec<String>, String> {
-    layouts::list_layouts(Path::new(&workspace_path))
-        .map_err(|e| e.to_string())
+    layouts::list_layouts(Path::new(&workspace_path)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn load_default_layout(
-    workspace_path: String,
-) -> Result<Option<LayoutFile>, String> {
-    layouts::load_default_layout(Path::new(&workspace_path))
-        .map_err(|e| e.to_string())
+fn load_default_layout(workspace_path: String) -> Result<Option<LayoutFile>, String> {
+    layouts::load_default_layout(Path::new(&workspace_path)).map_err(|e| e.to_string())
 }
 
 // ---- Context pin commands (F4-04) -------------------------------------------
@@ -558,26 +591,22 @@ fn default_cwd(project_path: Option<String>) -> String {
 
 #[tauri::command]
 fn save_session(workspace_path: String, session: SessionFile) -> Result<(), String> {
-    session::save_session(Path::new(&workspace_path), &session)
-        .map_err(|e| e.to_string())
+    session::save_session(Path::new(&workspace_path), &session).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn load_session(workspace_path: String) -> Result<Option<SessionFile>, String> {
-    session::load_session(Path::new(&workspace_path))
-        .map_err(|e| e.to_string())
+    session::load_session(Path::new(&workspace_path)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn save_global_session(session: SessionFile) -> Result<(), String> {
-    session::save_global_session(&session)
-        .map_err(|e| e.to_string())
+    session::save_global_session(&session).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn load_global_session() -> Result<Option<SessionFile>, String> {
-    session::load_global_session()
-        .map_err(|e| e.to_string())
+    session::load_global_session().map_err(|e| e.to_string())
 }
 
 // ---- Workspace index + project-less sessions (A8-02) ------------------------
@@ -599,18 +628,12 @@ fn list_workspaces() -> Vec<workspaces::WorkspaceEntry> {
 }
 
 #[tauri::command]
-fn save_project_less_session(
-    workspace_id: String,
-    session: SessionFile,
-) -> Result<(), String> {
-    session::save_project_less_session(&workspace_id, &session)
-        .map_err(|e| e.to_string())
+fn save_project_less_session(workspace_id: String, session: SessionFile) -> Result<(), String> {
+    session::save_project_less_session(&workspace_id, &session).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn load_project_less_session(
-    workspace_id: String,
-) -> Result<Option<SessionFile>, String> {
+fn load_project_less_session(workspace_id: String) -> Result<Option<SessionFile>, String> {
     session::load_project_less_session(&workspace_id).map_err(|e| e.to_string())
 }
 
@@ -729,10 +752,7 @@ fn list_custom_themes(workspace_path: String) -> Vec<String> {
 }
 
 #[tauri::command]
-fn load_custom_theme(
-    workspace_path: String,
-    name: String,
-) -> Option<CustomThemeFile> {
+fn load_custom_theme(workspace_path: String, name: String) -> Option<CustomThemeFile> {
     themes::load_custom_theme(Path::new(&workspace_path), &name)
 }
 
@@ -742,8 +762,7 @@ fn save_custom_theme(
     name: String,
     theme: CustomThemeFile,
 ) -> Result<(), String> {
-    themes::save_custom_theme(Path::new(&workspace_path), &name, &theme)
-        .map_err(|e| e.to_string())
+    themes::save_custom_theme(Path::new(&workspace_path), &name, &theme).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -796,8 +815,16 @@ struct DirEntry {
 }
 
 const SKIP_DIRS: &[&str] = &[
-    "node_modules", "target", ".git", "__pycache__", ".next",
-    "dist", "build", ".venv", ".tox", ".mypy_cache",
+    "node_modules",
+    "target",
+    ".git",
+    "__pycache__",
+    ".next",
+    "dist",
+    "build",
+    ".venv",
+    ".tox",
+    ".mypy_cache",
 ];
 
 fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
@@ -826,7 +853,11 @@ fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
             } else {
                 Vec::new()
             };
-            Some(DirEntry { name, is_dir, children })
+            Some(DirEntry {
+                name,
+                is_dir,
+                children,
+            })
         })
         .collect();
     // Sort: dirs first, then alphabetical
@@ -850,7 +881,13 @@ struct GitCommit {
 #[tauri::command]
 fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, String> {
     let output = std::process::Command::new("git")
-        .args(["-C", &workspace_path, "log", &format!("-{}", limit), "--format=%H %ct %s"])
+        .args([
+            "-C",
+            &workspace_path,
+            "log",
+            &format!("-{}", limit),
+            "--format=%H %ct %s",
+        ])
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -868,7 +905,11 @@ fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, Strin
             let hash = parts.next()?.to_string();
             let ts: i64 = parts.next()?.parse().ok()?;
             let message = parts.next().unwrap_or("").to_string();
-            Some(GitCommit { hash, message, timestamp_secs: ts })
+            Some(GitCommit {
+                hash,
+                message,
+                timestamp_secs: ts,
+            })
         })
         .collect();
 
