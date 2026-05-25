@@ -55,7 +55,9 @@ pub fn start_reader(
                     if let Some((json_bytes, display_bytes)) =
                         extract_voss_osc(slice, BUDGET_PREFIX)
                     {
-                        if let Ok(data) = serde_json::from_slice::<BudgetData>(&json_bytes) {
+                        if let Ok(data) =
+                            serde_json::from_slice::<BudgetData>(&json_bytes)
+                        {
                             let _ = on_data.send(PtyEvent::BudgetUpdate(data));
                         }
                         if !display_bytes.is_empty()
@@ -73,7 +75,9 @@ pub fn start_reader(
                     if let Some((json_bytes, display_bytes)) =
                         extract_voss_osc(slice, CONTEXT_PREFIX)
                     {
-                        if let Ok(data) = serde_json::from_slice::<ContextData>(&json_bytes) {
+                        if let Ok(data) =
+                            serde_json::from_slice::<ContextData>(&json_bytes)
+                        {
                             let _ = on_data.send(PtyEvent::ContextUpdate(data));
                         }
                         if !display_bytes.is_empty()

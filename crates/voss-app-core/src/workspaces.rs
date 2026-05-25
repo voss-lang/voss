@@ -90,7 +90,10 @@ pub fn validate_workspace_id(id: &str) -> Result<(), WorkspacesError> {
     if id.is_empty() {
         return Err(WorkspacesError::InvalidId);
     }
-    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
         return Err(WorkspacesError::InvalidId);
     }
     Ok(())
@@ -238,8 +241,8 @@ thread_local! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::grid::{GridState, PaneLeaf, TreeNode};
     use crate::session::{load_project_less_session, save_project_less_session, SessionFile};
+    use crate::grid::{GridState, PaneLeaf, TreeNode};
     use tempfile::{tempdir, TempDir};
 
     fn isolate_index() -> TempDir {
@@ -351,7 +354,11 @@ mod tests {
     #[test]
     fn load_empty_workspaces_returns_default() {
         let _dir = isolate_index();
-        std::fs::write(workspaces_index_path(), r#"{"version":1,"workspaces":[]}"#).unwrap();
+        std::fs::write(
+            workspaces_index_path(),
+            r#"{"version":1,"workspaces":[]}"#,
+        )
+        .unwrap();
         assert_eq!(load_workspaces_index(), default_workspaces_index());
     }
 

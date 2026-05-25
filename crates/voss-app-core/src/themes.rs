@@ -207,8 +207,9 @@ fn parse_custom_theme(raw: &str) -> Result<CustomThemeFile, &'static str> {
     let version = value.get("version").and_then(|v| v.as_u64());
     match version {
         Some(v) if v == CURRENT_THEME_VERSION as u64 => {
-            let theme: CustomThemeFile =
-                serde_json::from_value(value).map_err(|_| "invalid theme file")?;
+            let theme: CustomThemeFile = serde_json::from_value(value).map_err(|_| {
+                "invalid theme file"
+            })?;
             if theme.ansi.len() != 16 {
                 return Err("ansi must contain 16 colors");
             }
@@ -344,7 +345,10 @@ mod tests {
     fn active_theme_id_round_trips() {
         let _s = isolate_settings();
         save_active_theme_id(Some("variant-b")).unwrap();
-        assert_eq!(load_active_theme_id().as_deref(), Some("variant-b"));
+        assert_eq!(
+            load_active_theme_id().as_deref(),
+            Some("variant-b")
+        );
         save_active_theme_id(None).unwrap();
         assert!(load_active_theme_id().is_none());
     }
@@ -376,12 +380,7 @@ mod tests {
         let dir = tempdir().unwrap();
         assert!(!dir.path().join(".voss").exists());
         save_custom_theme(dir.path(), "t", &sample_theme()).unwrap();
-        assert!(dir
-            .path()
-            .join(".voss")
-            .join("themes")
-            .join("t.json")
-            .exists());
+        assert!(dir.path().join(".voss").join("themes").join("t.json").exists());
     }
 
     #[test]
