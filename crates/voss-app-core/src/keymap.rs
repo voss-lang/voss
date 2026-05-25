@@ -178,9 +178,7 @@ pub fn load_keymap_overrides(workspace: &Path) -> Option<KeymapOverrideFile> {
     let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
     let version = value.get("version").and_then(|v| v.as_u64());
     match version {
-        Some(v) if v == CURRENT_KEYMAP_VERSION as u64 => {
-            serde_json::from_value(value).ok()
-        }
+        Some(v) if v == CURRENT_KEYMAP_VERSION as u64 => serde_json::from_value(value).ok(),
         Some(_) => {
             eprintln!("[voss-app] keymap.json: unsupported version");
             None
@@ -379,11 +377,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join(".voss");
         std::fs::create_dir_all(&path).unwrap();
-        std::fs::write(
-            path.join("keymap.json"),
-            r#"{"version":999,"bindings":{}}"#,
-        )
-        .unwrap();
+        std::fs::write(path.join("keymap.json"), r#"{"version":999,"bindings":{}}"#).unwrap();
         assert!(load_keymap_overrides(dir.path()).is_none());
     }
 
@@ -398,11 +392,7 @@ mod tests {
                 }),
             )]),
         };
-        let result = validate_keymap_overrides(
-            &file,
-            &["pane.splitRight".to_string()],
-            &[],
-        );
+        let result = validate_keymap_overrides(&file, &["pane.splitRight".to_string()], &[]);
         assert!(result.valid.is_empty());
         assert_eq!(result.issues.len(), 1);
         assert!(result.issues[0].reason.contains("unknown command"));

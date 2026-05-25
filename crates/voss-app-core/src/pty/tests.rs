@@ -161,7 +161,8 @@ fn test_extract_voss_osc_parses_well_formed() {
     let mut data = b"\x1b]1337;voss-budget=".to_vec();
     data.extend_from_slice(payload);
     data.push(0x07);
-    let (json, display) = extract_voss_osc(&data, b"\x1b]1337;voss-budget=").expect("should find the sequence");
+    let (json, display) =
+        extract_voss_osc(&data, b"\x1b]1337;voss-budget=").expect("should find the sequence");
     assert_eq!(json, payload.to_vec());
     assert!(display.is_empty());
 }
@@ -198,7 +199,8 @@ fn test_extract_context_osc_parses_well_formed() {
     let mut data = b"\x1b]1337;voss-context=".to_vec();
     data.extend_from_slice(payload);
     data.push(0x07);
-    let (json, display) = extract_voss_osc(&data, b"\x1b]1337;voss-context=").expect("should find context OSC");
+    let (json, display) =
+        extract_voss_osc(&data, b"\x1b]1337;voss-context=").expect("should find context OSC");
     assert_eq!(json, payload.to_vec());
     assert!(display.is_empty());
 }
@@ -225,7 +227,9 @@ fn test_extract_context_osc_returns_none_for_partial() {
 #[test]
 fn test_extract_context_osc_returns_none_for_budget_prefix() {
     let mut data = b"\x1b]1337;voss-budget=".to_vec();
-    data.extend_from_slice(br#"{"tokens_used":1,"token_limit":null,"cost_usd":0.0,"iteration":1,"model":"m"}"#);
+    data.extend_from_slice(
+        br#"{"tokens_used":1,"token_limit":null,"cost_usd":0.0,"iteration":1,"model":"m"}"#,
+    );
     data.push(0x07);
     assert!(extract_voss_osc(&data, b"\x1b]1337;voss-context=").is_none());
 }
