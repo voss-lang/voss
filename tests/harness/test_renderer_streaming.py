@@ -35,6 +35,25 @@ def _reset_turn():
 
 
 class TestTtyRenderer:
+    def test_banner_is_low_chrome_ignite_header(self) -> None:
+        buf = io.StringIO()
+        tty = TtyRenderer(
+            console=Console(
+                file=buf,
+                width=80,
+                force_terminal=True,
+                color_system="truecolor",
+            )
+        )
+        tty.banner(model="model", cwd=Path.cwd(), git_status="clean")
+        out = buf.getvalue()
+        assert "voss" in out
+        assert "model" in out
+        assert "voss · agent" not in out
+        assert "╭" not in out
+        assert "╰" not in out
+        assert "38;2;255;91;31" in out
+
     def test_stream_delta_writes_to_console(self) -> None:
         buf = io.StringIO()
         tty = TtyRenderer(console=Console(file=buf, width=80, force_terminal=False))

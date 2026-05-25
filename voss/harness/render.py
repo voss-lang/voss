@@ -14,8 +14,6 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
 
 
 ACCENT_ORANGE = "#ff5b1f"
@@ -142,6 +140,11 @@ def make_renderer(
 GLYPH_TOOL = "⏵"
 GLYPH_WARN = "⚠"
 GLYPH_PROMPT = "▌"
+GLYPH_USER = "❯"
+
+
+def _glyph(value: str, fallback: str) -> str:
+    return fallback if os.environ.get("VOSS_NO_UNICODE") == "1" else value
 
 
 @dataclass
@@ -155,14 +158,18 @@ class TtyRenderer:
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
         cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
-        body = Text()
-        body.append("voss · agent\n", style="bold")
-        body.append(f"{model} · {cwd_str} · {git_status}\n", style="dim")
-        body.append("\nType a task, or /help.", style="dim")
-        self.console.print(Panel(body, border_style="dim", padding=(1, 2)))
+        prompt = _glyph(GLYPH_PROMPT, ">")
+        self.console.print(
+            f"[bold {ACCENT_ORANGE}]{prompt} voss[/bold {ACCENT_ORANGE}] "
+            f"[dim]{model} · {cwd_str} · {git_status}[/dim]"
+        )
+        self.console.print("[dim]  Type a task, or /help.[/dim]")
 
     def show_user(self, task: str) -> None:
-        self.console.print(f"\n[bold]{GLYPH_PROMPT}[/bold] {task}\n")
+        user = _glyph(GLYPH_USER, ">")
+        self.console.print(
+            f"\n[bold {ACCENT_ORANGE}]{user}[/bold {ACCENT_ORANGE}] {task}\n"
+        )
 
     def show_thinking(self, label: str) -> None:
         self.console.print(f"[dim]  … {label}[/dim]")
@@ -276,13 +283,15 @@ class CompactRenderer:
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
         cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
+        prompt = _glyph(GLYPH_PROMPT, ">")
         self.console.print(
-            f"[bold {ACCENT_ORANGE}]{GLYPH_PROMPT} voss[/bold {ACCENT_ORANGE}] "
+            f"[bold {ACCENT_ORANGE}]{prompt} voss[/bold {ACCENT_ORANGE}] "
             f"[dim]{model} · {cwd_str} · {git_status}[/dim]"
         )
 
     def show_user(self, task: str) -> None:
-        self.console.print(f"[bold {ACCENT_ORANGE}]❯[/bold {ACCENT_ORANGE}] {task}")
+        user = _glyph(GLYPH_USER, ">")
+        self.console.print(f"[bold {ACCENT_ORANGE}]{user}[/bold {ACCENT_ORANGE}] {task}")
 
     def show_thinking(self, label: str) -> None:
         self.console.print(f"[dim]  {label}[/dim]")

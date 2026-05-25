@@ -1254,6 +1254,13 @@ def _apply_no_unicode_env(no_unicode: bool) -> None:
         os.environ["VOSS_NO_UNICODE"] = "1"
 
 
+def _repl_prompt() -> str:
+    glyph = ">" if os.environ.get("VOSS_NO_UNICODE") == "1" else "❯"
+    if os.environ.get("NO_COLOR") == "1" or not sys.stdout.isatty():
+        return f"{glyph} "
+    return f"\x1b[1;38;2;255;91;31m{glyph}\x1b[0m "
+
+
 def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
     """If `renderer` is a TextualRenderer, install modal-driven permission prompts.
 
@@ -1781,7 +1788,7 @@ def _run_repl(
 
         while True:
             try:
-                line = input("▌ ")
+                line = input(_repl_prompt())
             except (EOFError, KeyboardInterrupt):
                 click.echo()
                 try:
