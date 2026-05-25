@@ -1,4 +1,4 @@
-"""StatusLine widget — bottom-row metadata: model · tokens · cost · ctx%.
+"""StatusLine widget — bottom-row dense session metadata.
 
 UI-SPEC region "Status line" (1 row, full width, dim accent background).
 Toast field flashes for 1500ms then clears.
@@ -14,7 +14,10 @@ class StatusLine(Static):
 
     def __init__(self, **kw) -> None:
         super().__init__("", **kw)
+        self._provider: str = ""
         self._model: str = ""
+        self._mode: str = ""
+        self._git_status: str = ""
         self._tokens: int = 0
         self._cost_usd: float = 0.0
         self._ctx_pct: float = 0.0
@@ -24,16 +27,29 @@ class StatusLine(Static):
     def set_status(
         self,
         *,
-        model: str = "",
-        tokens: int = 0,
-        cost_usd: float = 0.0,
-        ctx_pct: float = 0.0,
+        provider: str | None = None,
+        model: str | None = None,
+        mode: str | None = None,
+        git_status: str | None = None,
+        tokens: int | None = None,
+        cost_usd: float | None = None,
+        ctx_pct: float | None = None,
         toast: str | None = None,
     ) -> None:
-        self._model = model
-        self._tokens = tokens
-        self._cost_usd = cost_usd
-        self._ctx_pct = ctx_pct
+        if provider is not None:
+            self._provider = provider
+        if model is not None:
+            self._model = model
+        if mode is not None:
+            self._mode = mode
+        if git_status is not None:
+            self._git_status = git_status
+        if tokens is not None:
+            self._tokens = tokens
+        if cost_usd is not None:
+            self._cost_usd = cost_usd
+        if ctx_pct is not None:
+            self._ctx_pct = ctx_pct
         if toast is not None:
             self._toast = toast
             try:
@@ -48,17 +64,41 @@ class StatusLine(Static):
 
     def _render_text(self) -> Text:
         text = Text(no_wrap=True, overflow="ellipsis")
-        if self._model:
-            text.append(self._model, style="bold")
-            text.append(" · ", style="dim")
-        text.append(f"{self._tokens:,} tok", style="dim")
-        text.append(" · ", style="dim")
-        cost_style = "signal-error" if self._cost_usd > 1.0 else "dim"
-        text.append(f"${self._cost_usd:.3f}", style=cost_style)
-        text.append(" · ", style="dim")
+        segments = 0
+
+        provider_model = self._provider_model()
+        if provider_model:
+            text.append(provider_model, style="accent")
+            segments += 1
+
+        if self._mode:
+            self._append_separator(text, segments)
+            text.append(f"mode {self._mode}", style="dim")
+            segments += 1
+
+        if self._git_status:
+            self._append_separator(text, segments)
+            text.append(f"git {self._git_status}", style="dim")
+            segments += 1
+
+        self._append_separator(text, segments)
         ctx_style = "signal-warn" if self._ctx_pct > 0.8 else "dim"
         text.append(f"ctx {self._ctx_pct:.0%}", style=ctx_style)
+        text.append(f"/{self._tokens:,} tok", style="dim")
+        text.append(" | ", style="dim")
+        cost_style = "signal-error" if self._cost_usd > 1.0 else "dim"
+        text.append(f"${self._cost_usd:.3f}", style=cost_style)
         if self._toast:
             text.append("  ")
-            text.append(self._toast, style="bold")
+            text.append(self._toast, style="accent")
         return text
+
+    def _provider_model(self) -> str:
+        if self._provider and self._model:
+            return f"{self._provider}/{self._model}"
+        return self._provider or self._model
+
+    @staticmethod
+    def _append_separator(text: Text, existing_segments: int) -> None:
+        if existing_segments:
+            text.append(" | ", style="dim")

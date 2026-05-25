@@ -71,6 +71,55 @@ class _InputTextArea(TextArea):
 class InputBar(Widget):
     """TextArea-backed input with locked prompt glyph + Submitted contract."""
 
+    DEFAULT_CSS = """
+    InputBar {
+        layout: horizontal;
+        height: auto;
+        min-height: 1;
+        max-height: 5;
+        padding: 0 1 0 0;
+        border-top: solid #888888 50%;
+        background: transparent;
+    }
+
+    InputBar:focus {
+        border-top: solid #ff5b1f;
+    }
+
+    InputBar > #prompt-glyph {
+        width: 3;
+        height: 1fr;
+        content-align: center middle;
+        text-style: bold;
+    }
+
+    InputBar:focus > #prompt-glyph {
+        background: #ff5b1f 15%;
+    }
+
+    InputBar > #input-textarea {
+        height: auto;
+        min-height: 1;
+        max-height: 5;
+        border: none;
+        padding: 0 1 0 0;
+        background: transparent;
+    }
+
+    InputBar > #input-textarea:focus {
+        border: none;
+    }
+
+    InputBar > #input-textarea .text-area--cursor {
+        background: #ff5b1f;
+        text-style: none;
+    }
+
+    InputBar > #input-textarea .text-area--cursor-line {
+        background: #ff5b1f 8%;
+    }
+    """
+
     BINDINGS = [
         ("slash", "open_palette", "Open slash palette"),
         ("ctrl+r", "reverse_search", "Reverse-search input history"),
@@ -95,6 +144,9 @@ class InputBar(Widget):
             id="input-textarea",
             show_line_numbers=False,
             soft_wrap=True,
+            tooltip=(
+                "Enter submits · Shift+Enter newline · / commands · Ctrl-R history"
+            ),
         )
 
     @property

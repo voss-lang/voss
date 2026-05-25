@@ -18,6 +18,9 @@ from rich.panel import Panel
 from rich.text import Text
 
 
+ACCENT_ORANGE = "#ff5b1f"
+
+
 # ---------------------------------------------------------------------------
 # Public protocol
 # ---------------------------------------------------------------------------
@@ -67,12 +70,13 @@ def make_renderer(
     Decision order (M9-07 — default-path flip):
       1. json_mode=True → JsonRenderer (NDJSON on stdout; unchanged).
       2. plain=True or VOSS_PLAIN=1 → PlainRenderer.
-      3. force_tui=True (or VOSS_FORCE_TUI=1) + size < 80x24 → stderr + exit(2).
-      4. capability.tui_should_activate says yes → TextualRenderer (new default).
-      5. capability rejected with Windows-console reason → emit locked stderr
+      3. VOSS_RENDERER=compact or VOSS_EMBEDDED=1 → CompactRenderer.
+      4. force_tui=True (or VOSS_FORCE_TUI=1) + size < 80x24 → stderr + exit(2).
+      5. capability.tui_should_activate says yes → TextualRenderer (new default).
+      6. capability rejected with Windows-console reason → emit locked stderr
          notice + PlainRenderer.
-      6. non-TTY stdout → PlainRenderer.
-      7. TTY but capability rejected (e.g. textual import failed, terminal
+      7. non-TTY stdout → PlainRenderer.
+      8. TTY but capability rejected (e.g. textual import failed, terminal
          too small without force_tui) → legacy TtyRenderer.
     """
     if json_mode:
@@ -81,10 +85,19 @@ def make_renderer(
     if not force_tui and os.environ.get("VOSS_FORCE_TUI") == "1":
         force_tui = True
 
-    from .tui.capability import min_size_guard, tui_should_activate
-
-    if plain:
+    if plain or os.environ.get("VOSS_PLAIN") == "1" or "--plain" in sys.argv[1:]:
         return PlainRenderer()
+
+    if (
+        not force_tui
+        and (
+            os.environ.get("VOSS_RENDERER", "").lower() == "compact"
+            or os.environ.get("VOSS_EMBEDDED") == "1"
+        )
+    ):
+        return CompactRenderer()
+
+    from .tui.capability import min_size_guard, tui_should_activate
 
     decision = tui_should_activate(json_mode=False)
     if decision.reason in ("--plain flag", "VOSS_PLAIN env"):
@@ -250,6 +263,119 @@ class TtyRenderer:
 
     def show_warning(self, msg: str) -> None:
         self.console.print(f"[yellow]{GLYPH_WARN} {msg}[/yellow]")
+
+
+@dataclass
+class CompactRenderer:
+    console: Console = None  # type: ignore[assignment]
+    quiet: bool = False
+
+    def __post_init__(self) -> None:
+        if self.console is None:
+            self.console = Console(highlight=False)
+
+    def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
+        cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
+        self.console.print(
+            f"[bold {ACCENT_ORANGE}]{GLYPH_PROMPT} voss[/bold {ACCENT_ORANGE}] "
+            f"[dim]{model} · {cwd_str} · {git_status}[/dim]"
+        )
+
+    def show_user(self, task: str) -> None:
+        self.console.print(f"[bold {ACCENT_ORANGE}]❯[/bold {ACCENT_ORANGE}] {task}")
+
+    def show_thinking(self, label: str) -> None:
+        self.console.print(f"[dim]  {label}[/dim]")
+
+    def show_plan(self, plan: Any, *, cost_usd: float) -> None:
+        steps = getattr(plan, "steps", [])
+        confidence = getattr(plan, "confidence", 0.0)
+        self.console.print(
+            f"[bold {ACCENT_ORANGE}]plan[/bold {ACCENT_ORANGE}] "
+            f"[dim]conf {confidence:.2f}[/dim]"
+        )
+        rationale = getattr(plan, "rationale", "")
+        if rationale:
+            self.console.print(f"[dim]  {rationale}[/dim]")
+        for step in steps:
+            why = f" — {step.why}" if step.why else ""
+            self.console.print(f"  [dim]-[/dim] {step.name}{why}")
+
+    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+        mark = {"ok": "✓", "error": "✗", "pending": "…"}[state]
+        state_style = {"ok": "green", "error": "red", "pending": ACCENT_ORANGE}.get(
+            state, "dim"
+        )
+        argstr = ", ".join(f"{k}={_short(v)}" for k, v in args.items())
+        call = f"{name}({argstr})" if argstr else f"{name}()"
+        self.console.print(
+            f"[{state_style}]{mark}[/{state_style}] {call} [dim]{summary}[/dim]"
+        )
+
+    def show_clarify(self, question: str, confidence: float) -> None:
+        self.console.print(
+            f"[bold {ACCENT_ORANGE}]?[/bold {ACCENT_ORANGE}] "
+            f"[dim]conf {confidence:.2f}[/dim] {question}"
+        )
+
+    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+        self.console.print(text)
+        self.console.print(
+            f"[dim]conf {confidence:.2f} · ${cost_usd:.4f}[/dim]"
+        )
+
+    def stream_delta(self, text: str) -> None:
+        self.console.print(text, end="", soft_wrap=True)
+
+    def finalize_stream(
+        self,
+        *,
+        role: str,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+    ) -> None:
+        self.console.print()
+        parts: list[str] = [role]
+        if timestamp is not None:
+            parts.append(timestamp)
+        if cost_usd is not None:
+            parts.append(f"${cost_usd:.4f}")
+        if confidence is not None:
+            parts.append(f"conf {confidence:.2f}")
+        self.console.print(f"[dim]{' · '.join(parts)}[/dim]")
+
+    def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
+        self.console.print(
+            f"[dim]{model} · {tokens:,} tok · ${cost_usd:.3f} · ctx {ctx_pct:.0%}[/dim]"
+        )
+
+    def show_cognition(
+        self,
+        *,
+        architecture_tokens: int,
+        constraints_count: int,
+        plans_loaded: int = 0,
+        decisions_loaded: int = 0,
+    ) -> None:
+        if self.quiet:
+            return
+        kilo = architecture_tokens / 1000
+        msg = f"cognition {kilo:.1f}k arch · {constraints_count} constraints"
+        if plans_loaded or decisions_loaded:
+            msg += f" · {plans_loaded} plans · {decisions_loaded} decisions"
+        self.console.print(f"[dim]{msg}[/dim]")
+
+    def show_cognition_overflow(
+        self, *, architecture_tokens: int, budget: int = 6000
+    ) -> None:
+        self.console.print(
+            f"[{ACCENT_ORANGE}]{GLYPH_WARN}[/{ACCENT_ORANGE}] "
+            f"architecture.md is {architecture_tokens} tokens (over {budget})"
+        )
+
+    def show_warning(self, msg: str) -> None:
+        self.console.print(f"[{ACCENT_ORANGE}]{GLYPH_WARN}[/{ACCENT_ORANGE}] {msg}")
 
 
 def _short(v: Any, limit: int = 40) -> str:

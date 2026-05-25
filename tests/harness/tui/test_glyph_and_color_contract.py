@@ -30,7 +30,7 @@ def test_glyph_not_in_allowlist_raises() -> None:
 
 def test_styles_tcss_has_accent_color() -> None:
     text = (Path(__file__).resolve().parents[3] / "voss" / "harness" / "tui" / "styles.tcss").read_text()
-    assert text.count("#5FAFFF") >= 1
+    assert text.count("#ff5b1f") >= 1
 
 
 def test_styles_tcss_has_only_locked_palette() -> None:
@@ -46,7 +46,7 @@ def test_styles_tcss_has_only_locked_palette() -> None:
     body = "\n".join(keep_lines)
     matches = re.findall(r"#[0-9A-Fa-f]{6}", body)
     assert len(matches) == 5, f"expected 5 hex colors, got {matches}"
-    locked = {"#5FAFFF", "#888888", "#5FD75F", "#FFD75F", "#FF5F5F"}
+    locked = {"#FF5B1F", "#888888", "#5FD75F", "#FFD75F", "#FF5F5F"}
     assert set(m.upper() for m in matches) == locked
 
 

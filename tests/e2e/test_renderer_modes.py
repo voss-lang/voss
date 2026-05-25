@@ -66,6 +66,17 @@ def test_plain_mode_does_not_emit_ndjson(cli_runner: CliRunner) -> None:
     assert not json_lines, f"plain mode leaked JSON lines: {json_lines}"
 
 
+def test_compact_renderer_env_is_low_chrome(cli_runner: CliRunner) -> None:
+    r = cli_runner.run("do", "task", env_overrides={"VOSS_RENDERER": "compact"})
+    assert r.returncode == 0, r.output
+    assert "voss" in r.stdout
+    assert "▌" in r.stdout
+    assert "╭" not in r.stdout
+    assert "╰" not in r.stdout
+    json_lines = [ln for ln in r.stdout.splitlines() if ln.strip().startswith('{"type":')]
+    assert not json_lines, f"compact mode leaked JSON lines: {json_lines}"
+
+
 def test_default_mode_runs_under_subprocess(cli_runner: CliRunner) -> None:
     """Default renderer falls through to PlainRenderer under non-TTY stdin."""
     r = cli_runner.run("do", "task")

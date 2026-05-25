@@ -11,8 +11,10 @@ from rich.text import Text
 from textual.widgets import RichLog
 
 
-EMPTY_HEADING = "No turns yet"
-EMPTY_BODY = "Type a task below to start. Use / for commands, ? for help."
+EMPTY_BRAND = "VOSS"
+EMPTY_HEADING = "Ready for a focused turn."
+EMPTY_BODY = "Type a task below. Use / for commands, ? for help."
+IGNITE_ORANGE = "#ff5b1f"
 
 
 class TurnView(RichLog):
@@ -25,8 +27,10 @@ class TurnView(RichLog):
 
     def on_mount(self) -> None:
         if self._turn_count == 0:
+            brand = Text(EMPTY_BRAND, style=f"bold {IGNITE_ORANGE}")
             heading = Text(EMPTY_HEADING, style="bold")
             body = Text(EMPTY_BODY, style="dim")
+            self.write(brand)
             self.write(heading)
             self.write(body)
 

@@ -1,7 +1,7 @@
 """M9-07 UI-SPEC Acceptance Visual Check 3 — accent allow-list audit.
 
-The TUI palette has exactly one accent color (`#5FAFFF` / `$accent` / the
-`.accent` class). UI-SPEC line 145 restricts its application to six
+The TUI palette has exactly one accent color (`#ff5b1f` / `$accent` / the
+`.accent` class). UI-SPEC line 145 restricts its application to audited
 widgets plus the canonical declaration site in `styles.tcss`:
 
     1. input_bar.py     — user-input glyph `▌`
@@ -10,6 +10,8 @@ widgets plus the canonical declaration site in `styles.tcss`:
     4. sub_agent_panel.py — active sub-agent banner
     5. slash_palette.py — current selection (combined with reverse-video)
     6. confidence_bar.py — agent's FINAL confidence value
+    7. code_intel_panel.py — side-region code intelligence header
+    8. turn_view.py      — empty-state brand wordmark
 
 Plus `styles.tcss` where the `$accent` design token is defined.
 
@@ -24,7 +26,7 @@ import re
 from pathlib import Path
 
 
-_ACCENT_PATTERN = re.compile(r"(?i)(\$accent|\.accent\b|#5FAFFF)")
+_ACCENT_PATTERN = re.compile(r"(?i)(\$accent|\.accent\b|#ff5b1f)")
 
 _ALLOWLIST = frozenset(
     {
@@ -33,6 +35,7 @@ _ALLOWLIST = frozenset(
         "status_line.py",
         "sub_agent_panel.py",
         "code_intel_panel.py",  # M9-08 side-region peer to SubAgentPanel
+        "turn_view.py",
         "slash_palette.py",
         "confidence_bar.py",
         "styles.tcss",
@@ -71,7 +74,7 @@ def test_accent_only_in_allowlist_files() -> None:
                 lines.append(f"  {path}:{lineno}: {line.strip()}")
         msg = (
             "UI-SPEC accent allow-list violation. Accent color appears in "
-            "files outside the locked six widgets + styles.tcss:\n"
+            "files outside the audited widgets + styles.tcss:\n"
             + "\n".join(lines)
             + f"\nAllow-list: {sorted(_ALLOWLIST)}"
         )
@@ -83,4 +86,4 @@ def test_accent_declaration_site_present() -> None:
     tcss = _tui_root() / "styles.tcss"
     text = tcss.read_text(encoding="utf-8")
     assert "$accent" in text, "styles.tcss must declare $accent token"
-    assert "#5FAFFF" in text, "styles.tcss must bind $accent to #5FAFFF"
+    assert "#ff5b1f" in text, "styles.tcss must bind $accent to #ff5b1f"
