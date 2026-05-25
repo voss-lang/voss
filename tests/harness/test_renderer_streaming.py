@@ -147,6 +147,13 @@ class TestCompactRenderer:
         renderer = make_renderer(json_mode=False, plain=False, force_tui=False)
         assert isinstance(renderer, CompactRenderer)
 
+    def test_make_renderer_plain_wins_over_compact(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("VOSS_RENDERER", "compact")
+        renderer = make_renderer(json_mode=False, plain=True, force_tui=False)
+        assert isinstance(renderer, PlainRenderer)
+
 
 class TestTextualRendererDelegates:
     def test_stream_delta_forwards_to_turn_view(self, monkeypatch) -> None:
