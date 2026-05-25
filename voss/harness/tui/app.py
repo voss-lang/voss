@@ -321,6 +321,14 @@ class VossTUIApp(App):
             task = asyncio.create_task(_done())
         self.register_turn_task(task)
 
+    def on_slash_palette_palette_submitted(self, event) -> None:
+        """Route slash palette selection through the normal dispatch path."""
+        cmd_name = getattr(event, "value", "")
+        if not cmd_name:
+            return
+        # Re-post as an InputBar.Submitted so _turn_dispatch handles it.
+        self.on_input_bar_submitted(InputBar.Submitted(f"/{cmd_name}"))
+
     def on_local_event(self, event_name: str, payload: dict) -> None:
         try:
             tv = self.query_one("#main", TurnView)
