@@ -21,13 +21,6 @@ def _esc(s: str) -> str:
 
 class StatusLine(Static):
 
-    DEFAULT_CSS = """
-    StatusLine {
-        background: #2a2a2a;
-        color: #cccccc;
-    }
-    """
-
     def __init__(self, **kw) -> None:
         super().__init__("", markup=True, **kw)
         self._provider: str = ""

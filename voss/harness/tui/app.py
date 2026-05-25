@@ -13,6 +13,7 @@ from typing import Optional
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.widget import Widget
 
 from voss.harness.session import SessionRecord
 from voss.harness.slash import SlashRegistry
