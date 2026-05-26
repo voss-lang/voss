@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import { Stagger, StaggerItem } from "./Reveal";
 
 const controls = [
@@ -5,21 +7,25 @@ const controls = [
     label: "Scope",
     title: "Writes stay bounded",
     body: "Edit mode starts from the path you named and keeps mutation inside explicit project boundaries.",
+    tone: "#FF5B1F",
   },
   {
     label: "Modes",
     title: "Planning and editing are separate",
     body: "Plan, edit, and auto modes make repo mutation a deliberate workflow choice.",
+    tone: "#2A6FDB",
   },
   {
     label: "Memory",
     title: "Context survives the session",
     body: "VOSS.md, project memory, and session records keep useful repo context inspectable.",
+    tone: "#1F8A4C",
   },
   {
     label: "Language",
     title: "Rules become code",
     body: ".voss captures confidence gates, budgets, routing, and fallbacks as durable workflow semantics.",
+    tone: "#C58A0F",
   },
 ] as const;
 
@@ -36,16 +42,13 @@ export default function FeatureGrid() {
         </div>
 
         <Stagger className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {controls.map((f, index) => (
+          {controls.map((f) => (
             <StaggerItem
               key={f.label}
-              className={`rounded-xl border border-[var(--border)] p-6 transition hover:border-[var(--accent)] ${
-                index === 0
-                  ? "bg-[color-mix(in_oklab,var(--accent)_18%,var(--surface))]"
-                  : "bg-[var(--surface)] hover:bg-[var(--surface-2)]"
-              }`}
+              style={{ "--card-tone": f.tone } as CSSProperties}
+              className="rounded-xl border border-[color-mix(in_oklab,var(--card-tone)_34%,var(--border))] bg-[color-mix(in_oklab,var(--card-tone)_18%,var(--surface))] p-6 transition hover:border-[color-mix(in_oklab,var(--card-tone)_72%,var(--border))] hover:bg-[color-mix(in_oklab,var(--card-tone)_23%,var(--surface))]"
             >
-              <div className="inline-flex w-fit rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1 font-mono text-xs text-[var(--accent)]">
+              <div className="inline-flex w-fit rounded-md border border-[color-mix(in_oklab,var(--card-tone)_34%,var(--border))] bg-[color-mix(in_oklab,var(--card-tone)_10%,var(--background))] px-2 py-1 font-mono text-xs text-[var(--card-tone)]">
                 {f.label}
               </div>
               <div className="mt-5">
