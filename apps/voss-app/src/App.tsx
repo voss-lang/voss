@@ -454,6 +454,13 @@ export default function App() {
     const id = activeId();
     const ws = id ? mountedById().get(id) : undefined;
     const ctrl = ws?.gridController;
+    console.log('[voss-app] onLayoutSelect called', {
+      preset,
+      activeId: id,
+      hasMounted: !!ws,
+      hasCtrl: !!ctrl,
+      mountedKeys: [...mountedById().keys()],
+    });
     if (!ctrl) {
       console.warn(
         '[voss-app] onLayoutSelect: gridController unavailable',
