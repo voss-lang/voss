@@ -699,6 +699,7 @@ async def _run_turn_exec(
                     ),
                     cost_usd=iter_cost,
                     timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    accumulated_text="".join(accumulated_text_buffer) or None,
                 )
 
                 if this_iter_plan is None:
