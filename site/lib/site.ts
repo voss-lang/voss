@@ -1,9 +1,3 @@
-export type Feature = {
-  name: string;
-  title: string;
-  body: string;
-};
-
 export type CliCommand = {
   cmd: string;
   desc: string;
@@ -28,45 +22,6 @@ export const site = {
     primaryNote: "Bundles the Voss Python harness with vendored Python 3.12.",
   },
 } as const;
-
-export const features: readonly Feature[] = [
-  {
-    name: "probable<T>",
-    title: "Confidence as a type",
-    body:
-      "Calls to a model return a value with a confidence score. Gates like `if intent @ 0.80` are checked by the compiler, so low-confidence output cannot slip through silently.",
-  },
-  {
-    name: "ctx",
-    title: "Token budgets, not prompt math",
-    body:
-      "`ContextScope(token_budget=3000)` is a language construct. Voss handles compression, eviction, and budget enforcement so your code stays declarative.",
-  },
-  {
-    name: "match",
-    title: "Semantic routing, compile-time",
-    body:
-      "Embedding-based `match` cases are computed at build time. Route by meaning without paying for an embedding call on every request.",
-  },
-  {
-    name: "spawn / gather",
-    title: "Agent concurrency primitives",
-    body:
-      "Spawn researchers in parallel, gather their results with a timeout, fall back gracefully on budget exhaustion. Like goroutines for agents.",
-  },
-  {
-    name: "providers",
-    title: "Anthropic, OpenAI, Ollama",
-    body:
-      "One runtime, swappable providers. Your Voss program does not care which model is behind it. Switch with config, not a rewrite.",
-  },
-  {
-    name: "compile",
-    title: "Readable Python out",
-    body:
-      "Voss compiles to debuggable Python you can read, diff, and own. No black-box runtime or hidden magic. Your generated code stays shippable.",
-  },
-];
 
 export const harness = {
   tagline: "A coding harness for bounded repo work.",
