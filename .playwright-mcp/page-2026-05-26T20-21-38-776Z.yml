@@ -1,0 +1,221 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Voss A coding harness for bounded AI work." [ref=e4] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e7]:
+          - generic [ref=e8]: Voss
+          - generic [ref=e9]: A coding harness for bounded AI work.
+      - navigation [ref=e10]:
+        - link "ADE" [ref=e11] [cursor=pointer]:
+          - /url: /ade/
+          - img
+          - text: ADE
+        - link "Harness" [ref=e12] [cursor=pointer]:
+          - /url: /harness/
+          - img
+          - text: Harness
+        - link "Docs" [ref=e13] [cursor=pointer]:
+          - /url: https://docs.tryvoss.dev
+          - img
+          - text: Docs
+        - link "Language" [ref=e14] [cursor=pointer]:
+          - /url: /language/
+          - img
+          - text: Language
+        - link "GitHub" [ref=e15] [cursor=pointer]:
+          - /url: https://github.com/bm9797/Voss
+          - img
+          - text: GitHub
+          - img
+  - main [ref=e16]:
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - paragraph [ref=e23]: Terminal harness + .voss control language
+        - heading "AI agents stay in their lane." [level=1] [ref=e25]:
+          - text: AI agents stay
+          - text: in their lane.
+        - paragraph [ref=e27]: Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - generic [ref=e30]:
+              - generic [ref=e31]: $
+              - generic [ref=e32]: npm i -g @vosslang/cli
+              - button "Copy to clipboard" [ref=e34]: Copy
+            - link "Read the PRD" [ref=e35] [cursor=pointer]:
+              - /url: https://github.com/bm9797/Voss/blob/main/PRD.md
+          - paragraph [ref=e36]: Bundles the Voss Python harness with vendored Python 3.12.
+      - img "Voss vdiff output showing a .voss source file beside generated Python." [ref=e39]
+    - generic [ref=e41]:
+      - generic [ref=e42]:
+        - heading "The harness proves the loop." [level=2] [ref=e43]
+        - paragraph [ref=e44]: "Voss makes the risky parts of AI-assisted repo work explicit: scope, modes, memory, tools, and the language rules that should outlive one chat."
+        - paragraph [ref=e45]: The .voss layer turns the repeated parts into code.
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - generic [ref=e48]: Scope
+          - heading "Writes stay bounded" [level=3] [ref=e49]
+          - paragraph [ref=e50]: Edit mode starts from the path you named and keeps mutation inside explicit project boundaries.
+        - generic [ref=e51]:
+          - generic [ref=e52]: Modes
+          - heading "Planning and editing are separate" [level=3] [ref=e53]
+          - paragraph [ref=e54]: Plan, edit, and auto modes make repo mutation a deliberate workflow choice.
+        - generic [ref=e55]:
+          - generic [ref=e56]: Memory
+          - heading "Context survives the session" [level=3] [ref=e57]
+          - paragraph [ref=e58]: VOSS.md, project memory, and session records keep useful repo context inspectable.
+        - generic [ref=e59]:
+          - generic [ref=e60]: Language
+          - heading "Rules become code" [level=3] [ref=e61]
+          - paragraph [ref=e62]: .voss captures confidence gates, budgets, routing, and fallbacks as durable workflow semantics.
+    - generic [ref=e64]:
+      - generic [ref=e65]:
+        - heading "Three workflows. One control layer." [level=2] [ref=e66]
+        - paragraph [ref=e67]:
+          - text: Run the canonical
+          - code [ref=e68]: samples/
+          - text: programs with
+          - code [ref=e69]: voss run
+          - text: ", or compare them with the raw Python equivalents in"
+          - code [ref=e70]: examples/raw_python/
+          - text: .
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - button "Classify" [ref=e73]
+          - button "Support" [ref=e74]
+          - button "Research" [ref=e75]
+        - generic [ref=e76]: Confidence-gated intent classification.
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - generic [ref=e79]: $
+            - generic [ref=e80]: voss run samples/classify.voss
+          - button "Copy to clipboard" [ref=e81]: Copy
+        - code [ref=e84]:
+          - generic [ref=e85]: "fn classifyIntent(input: string) -> string {"
+          - generic [ref=e86]: "let intent: probable<string> = ask(\"Classify the intent: \" + input)"
+          - generic [ref=e87]: "if intent @ p >= 0.80 {"
+          - generic [ref=e88]: return intent.value
+          - generic [ref=e89]: "} else {"
+          - generic [ref=e90]: return "unknown"
+          - generic [ref=e91]: "}"
+          - generic [ref=e92]: "}"
+    - generic [ref=e94]:
+      - generic [ref=e95]:
+        - heading "The CLI." [level=2] [ref=e96]
+        - paragraph [ref=e97]: One binary. Compiler verbs and agent verbs share a namespace, so you stay in flow whether you're shipping a program or asking it questions.
+      - list [ref=e98]:
+        - listitem [ref=e99]:
+          - generic [ref=e100]: $ voss init
+          - generic [ref=e101]: Scaffold a new project
+        - listitem [ref=e102]:
+          - generic [ref=e103]: $ voss run app.voss
+          - generic [ref=e104]: Compile and execute
+        - listitem [ref=e105]:
+          - generic [ref=e106]: $ voss compile app.voss
+          - generic [ref=e107]: Emit readable Python
+        - listitem [ref=e108]:
+          - generic [ref=e109]: $ voss check app.voss
+          - generic [ref=e110]: Type-check without running
+        - listitem [ref=e111]:
+          - generic [ref=e112]: $ voss do "summarize this PR"
+          - generic [ref=e113]: One-shot agent task
+        - listitem [ref=e114]:
+          - generic [ref=e115]: $ voss chat
+          - generic [ref=e116]: Interactive REPL
+        - listitem [ref=e117]:
+          - generic [ref=e118]: $ voss doctor
+          - generic [ref=e119]: Diagnose your environment
+    - generic [ref=e121]:
+      - generic [ref=e122]:
+        - heading "Install." [level=2] [ref=e123]
+        - paragraph [ref=e124]: The npm package vendors Python 3.12 and the Voss wheel. Use pip when you manage Python 3.11+ yourself.
+      - generic [ref=e125]:
+        - generic [ref=e126]:
+          - button "npm" [ref=e127]: npm
+          - button "pip" [ref=e129]
+          - button "semantic memory" [ref=e130]
+        - generic [ref=e131]:
+          - generic [ref=e132]:
+            - generic [ref=e133]: $
+            - generic [ref=e134]: npm i -g @vosslang/cli
+          - button "Copy to clipboard" [ref=e135]: Copy
+    - generic [ref=e138]:
+      - generic [ref=e139]:
+        - paragraph [ref=e140]: ADE
+        - heading "An agentic workspace with explicit boundaries." [level=2] [ref=e141]
+        - paragraph [ref=e142]: The Voss ADE brings tools, memory, permissions, sessions, replay, and inspection surfaces into one local environment.
+        - generic [ref=e143]:
+          - link "Explore ADE" [ref=e144] [cursor=pointer]:
+            - /url: /ade/
+          - link "Harness details" [ref=e145] [cursor=pointer]:
+            - /url: /harness/
+      - generic [ref=e146]:
+        - heading "Docs for the current harness." [level=2] [ref=e147]
+        - paragraph [ref=e148]: Install paths, harness commands, permission modes, project memory, language reference, and troubleshooting live in the public docs.
+        - generic [ref=e149]:
+          - link "Browse docs" [ref=e150] [cursor=pointer]:
+            - /url: https://docs.tryvoss.dev
+          - link "Read PRD" [ref=e151] [cursor=pointer]:
+            - /url: https://github.com/bm9797/Voss/blob/main/PRD.md
+  - contentinfo [ref=e152]:
+    - generic [ref=e153]:
+      - generic [ref=e154]:
+        - link "Voss A coding harness for bounded AI work." [ref=e155] [cursor=pointer]:
+          - /url: /
+          - img [ref=e157]
+          - generic [ref=e158]:
+            - generic [ref=e159]: Voss
+            - generic [ref=e160]: A coding harness for bounded AI work.
+        - paragraph [ref=e161]: Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.
+        - link "ADE" [ref=e163] [cursor=pointer]:
+          - /url: /ade/
+          - img
+          - text: ADE
+      - generic [ref=e164]:
+        - generic [ref=e165]:
+          - heading "Product" [level=2] [ref=e166]
+          - generic [ref=e167]:
+            - link "ADE" [ref=e168] [cursor=pointer]:
+              - /url: /ade/
+              - img
+              - text: ADE
+            - link "Harness" [ref=e169] [cursor=pointer]:
+              - /url: /harness/
+              - img
+              - text: Harness
+            - link "Docs" [ref=e170] [cursor=pointer]:
+              - /url: https://docs.tryvoss.dev
+              - img
+              - text: Docs
+            - link "Language" [ref=e171] [cursor=pointer]:
+              - /url: /language/
+              - img
+              - text: Language
+        - generic [ref=e172]:
+          - heading "Trust" [level=2] [ref=e173]
+          - generic [ref=e174]:
+            - link "Security" [ref=e175] [cursor=pointer]:
+              - /url: /security/
+              - img
+              - text: Security
+            - link "Roadmap" [ref=e176] [cursor=pointer]:
+              - /url: /roadmap/
+              - img
+              - text: Roadmap
+        - generic [ref=e177]:
+          - heading "Source" [level=2] [ref=e178]
+          - generic [ref=e179]:
+            - link "GitHub" [ref=e180] [cursor=pointer]:
+              - /url: https://github.com/bm9797/Voss
+              - img
+              - text: GitHub
+              - img
+            - link "PRD" [ref=e181] [cursor=pointer]:
+              - /url: https://github.com/bm9797/Voss/blob/main/PRD.md
+              - img
+              - text: PRD
+              - img
+  - button "Open Next.js Dev Tools" [ref=e187] [cursor=pointer]:
+    - img [ref=e188]
+  - alert [ref=e191]
