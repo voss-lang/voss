@@ -120,12 +120,13 @@ class VossTUIApp(App):
         self.refresh()
 
     def action_interrupt(self) -> None:
-        # T1-06: cancel the in-flight turn task. The agent loop's
-        # CancelledError handler in _run_turn_exec finalizes the recorder
-        # with exit_reason="interrupt".
+        # Ctrl+C behavior: if a turn is running, cancel it. If idle, exit app.
         task = self.active_turn_task
         if task is not None and not task.done():
             task.cancel()
+            return
+        # No active turn — exit the Textual app (returns to normal terminal).
+        self.exit()
 
     # ------------------------------------------------------------------
     # M9-06 fork-from-turn (TUI-08).
@@ -320,6 +321,14 @@ class VossTUIApp(App):
 
             task = asyncio.create_task(_done())
         self.register_turn_task(task)
+
+    def on_slash_palette_palette_submitted(self, event) -> None:
+        """Route slash palette selection through the normal dispatch path."""
+        cmd_name = getattr(event, "value", "")
+        if not cmd_name:
+            return
+        # Re-post as an InputBar.Submitted so _turn_dispatch handles it.
+        self.on_input_bar_submitted(InputBar.Submitted(f"/{cmd_name}"))
 
     def on_local_event(self, event_name: str, payload: dict) -> None:
         try:

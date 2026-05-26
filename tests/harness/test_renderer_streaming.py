@@ -222,6 +222,7 @@ class TestTextualRendererDelegates:
             "confidence": 0.92,
             "cost_usd": 0.012,
             "timestamp": "2026-05-15T00:00:00+00:00",
+            "accumulated_text": None,
         }
 
 

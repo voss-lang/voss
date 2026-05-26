@@ -59,7 +59,12 @@ def _model_supports_vision(model_name: str) -> bool:
 
 
 class _InputTextArea(TextArea):
-    """TextArea child with M9 main-context collisions stripped."""
+    """TextArea child with M9 main-context collisions stripped.
+
+    Intercepts Enter/Shift+Enter/slash/Ctrl+R and delegates to the parent
+    InputBar. This is necessary because clicking the TextArea gives it focus
+    directly, bypassing InputBar's _on_key handler.
+    """
 
     BINDINGS = [
         binding
@@ -67,13 +72,47 @@ class _InputTextArea(TextArea):
         if binding.key not in {"ctrl+f", "ctrl+u"}
     ]
 
+    async def _on_key(self, event) -> None:
+        bar = self.parent
+        if bar is None or not isinstance(bar, InputBar):
+            await super()._on_key(event)
+            return
+        # Delegate special keys to InputBar.
+        if event.key == "ctrl+r":
+            event.prevent_default()
+            event.stop()
+            bar.action_reverse_search()
+            return
+        if getattr(bar, "_search_mode", False):
+            # Reverse-search mode — let InputBar handle all keys.
+            event.prevent_default()
+            event.stop()
+            await bar._on_key(event)
+            return
+        if event.key == "enter":
+            event.prevent_default()
+            event.stop()
+            await bar.action_submit()
+            return
+        if event.key == "shift+enter":
+            event.prevent_default()
+            event.stop()
+            self.insert("\n")
+            return
+        if event.key == "slash" and not self.text.strip():
+            event.prevent_default()
+            event.stop()
+            bar.action_open_palette()
+            return
+        await super()._on_key(event)
+
 
 class InputBar(Widget):
     """TextArea-backed input with locked prompt glyph + Submitted contract."""
 
     DEFAULT_CSS = """
     InputBar {
-        layout: vertical;
+        layout: horizontal;
         height: 7;
         min-height: 4;
         max-height: 8;
@@ -87,50 +126,38 @@ class InputBar(Widget):
         border-top: solid #ff5b1f;
     }
 
-    InputBar > #input-row {
-        layout: horizontal;
-        height: 1fr;
-    }
-
-    InputBar > #input-row > #prompt-glyph {
+    InputBar > #prompt-glyph {
         width: 3;
         height: 1fr;
         content-align: center top;
         text-style: bold;
-        padding-top: 0;
+        padding-top: 1;
     }
 
-    InputBar:focus > #input-row > #prompt-glyph {
+    InputBar:focus > #prompt-glyph {
         background: #ff5b1f 15%;
     }
 
-    InputBar > #input-row > #input-textarea {
+    InputBar > #input-textarea {
         height: 1fr;
-        min-height: 2;
+        min-height: 3;
         max-height: 6;
         border: none;
-        padding: 0 1 0 0;
+        padding: 1 1 0 0;
         background: transparent;
     }
 
-    InputBar > #input-row > #input-textarea:focus {
+    InputBar > #input-textarea:focus {
         border: none;
     }
 
-    InputBar > #input-row > #input-textarea .text-area--cursor {
+    InputBar > #input-textarea .text-area--cursor {
         background: #ff5b1f;
         text-style: none;
     }
 
-    InputBar > #input-row > #input-textarea .text-area--cursor-line {
+    InputBar > #input-textarea .text-area--cursor-line {
         background: transparent;
-    }
-
-    InputBar > #key-hints {
-        height: 1;
-        width: 100%;
-        content-align: right middle;
-        color: #888888;
     }
     """
 
@@ -152,20 +179,16 @@ class InputBar(Widget):
         self._pending_image = None
 
     def compose(self) -> ComposeResult:
-        from textual.containers import Horizontal
-
-        with Horizontal(id="input-row"):
-            yield Static(self._prompt_text, id="prompt-glyph", classes="accent")
-            yield _InputTextArea(
-                "",
-                id="input-textarea",
-                show_line_numbers=False,
-                soft_wrap=True,
-                tooltip=(
-                    "Enter submits · Shift+Enter newline · / commands · Ctrl-R history"
-                ),
-            )
-        yield Static("Shift+↵ newline · ↵ send", id="key-hints")
+        yield Static(self._prompt_text, id="prompt-glyph", classes="accent")
+        yield _InputTextArea(
+            "",
+            id="input-textarea",
+            show_line_numbers=False,
+            soft_wrap=True,
+            tooltip=(
+                "Enter submits · Shift+Enter newline · / commands · Ctrl-R history"
+            ),
+        )
 
     @property
     def text(self) -> str:

@@ -1,11 +1,11 @@
 """StatusLine widget — bottom-row dense session metadata.
 
-UI-SPEC region "Status line" (1 row, full width, dim accent background).
+UI-SPEC region "Status line" (1 row, full width).
+Uses Textual markup (not Rich.Text) so CSS color rules apply correctly.
 Toast field flashes for 1500ms then clears.
 """
 from __future__ import annotations
 
-from rich.text import Text
 from textual.widgets import Static
 
 from .. import glyphs
@@ -14,10 +14,15 @@ from .. import glyphs
 _BRAND_GLYPH = glyphs.PROMPT
 
 
+def _esc(s: str) -> str:
+    """Escape Textual markup characters in user-supplied strings."""
+    return s.replace("[", "\\[").replace("]", "\\]")
+
+
 class StatusLine(Static):
 
     def __init__(self, **kw) -> None:
-        super().__init__("", **kw)
+        super().__init__("", markup=True, **kw)
         self._provider: str = ""
         self._model: str = ""
         self._mode: str = ""
@@ -60,55 +65,51 @@ class StatusLine(Static):
                 self._toast_timer = self.set_timer(1.5, self._clear_toast)
             except Exception:  # noqa: BLE001 — set_timer needs a running app loop
                 self._toast_timer = None
-        self.update(self._render_text())
+        self.update(self._render_markup())
 
     def _clear_toast(self) -> None:
         self._toast = None
-        self.update(self._render_text())
+        self.update(self._render_markup())
 
-    def _render_text(self) -> Text:
-        text = Text(no_wrap=True, overflow="ellipsis")
+    def _render_markup(self) -> str:
+        parts: list[str] = []
 
-        # Brand glyph
-        text.append(f" {_BRAND_GLYPH} voss", style="bold #ff5b1f")
+        # Brand
+        parts.append(f"[bold #ff5b1f] {_esc(_BRAND_GLYPH)} voss[/]")
 
         # Provider / model
-        provider_model = self._provider_model()
-        if provider_model:
-            text.append(" | ", style="dim")
-            text.append(provider_model)
+        pm = self._provider_model()
+        if pm:
+            parts.append(f"[#888888] | [/]{_esc(pm)}")
 
         # Context usage
-        text.append(" | ", style="dim")
-        ctx_style = "bold #FFD75F" if self._ctx_pct > 0.8 else ""
         total_k = self._tokens / 1000 if self._tokens else 0
+        ctx_color = "#FFD75F" if self._ctx_pct > 0.8 else "#cccccc"
         if 0 < self._ctx_pct <= 1 and self._tokens > 0:
             ctx_total = int(self._tokens / self._ctx_pct) if self._ctx_pct > 0 else 0
             ctx_total_k = ctx_total / 1000
-            text.append(f"{self._ctx_pct:.0%} ({total_k:.0f}K/{ctx_total_k:.0f}K)", style=ctx_style)
+            ctx_text = f"{self._ctx_pct:.0%} ({total_k:.0f}K/{ctx_total_k:.0f}K)"
         else:
-            text.append(f"{self._ctx_pct:.0%} ({total_k:.0f}K)", style=ctx_style)
+            ctx_text = f"{self._ctx_pct:.0%} ({total_k:.0f}K)"
+        parts.append(f"[#888888] | [/][{ctx_color}]{ctx_text}[/]")
 
         # Cwd / git
         if self._git_status:
-            text.append(" | ", style="dim")
-            text.append(self._git_status, style="dim")
+            parts.append(f"[#888888] | {_esc(self._git_status)}[/]")
 
         # Cost
-        text.append(" | ", style="dim")
-        cost_style = "bold #FF5F5F" if self._cost_usd > 1.0 else ""
-        text.append(f"${self._cost_usd:.2f}", style=cost_style)
+        cost_color = "#FF5F5F" if self._cost_usd > 1.0 else "#cccccc"
+        parts.append(f"[#888888] | [/][{cost_color}]${self._cost_usd:.2f}[/]")
 
         # Mode
         if self._mode:
-            text.append(" | ", style="dim")
-            text.append(self._mode, style="dim")
+            parts.append(f"[#888888] | {_esc(self._mode)}[/]")
 
         # Toast
         if self._toast:
-            text.append("  ")
-            text.append(self._toast, style="#ff5b1f")
-        return text
+            parts.append(f"  [#ff5b1f]{_esc(self._toast)}[/]")
+
+        return "".join(parts)
 
     def _provider_model(self) -> str:
         if self._provider and self._model:

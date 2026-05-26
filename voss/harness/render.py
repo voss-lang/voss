@@ -41,6 +41,7 @@ class Renderer(Protocol):
         confidence: float | None = None,
         cost_usd: float | None = None,
         timestamp: str | None = None,
+        accumulated_text: str | None = None,
     ) -> None: ...
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None: ...
     def show_cognition(
@@ -218,6 +219,7 @@ class TtyRenderer:
         confidence: float | None = None,
         cost_usd: float | None = None,
         timestamp: str | None = None,
+        accumulated_text: str | None = None,
     ) -> None:
         self.console.print()
         parts: list[str] = [role]
@@ -342,6 +344,7 @@ class CompactRenderer:
         confidence: float | None = None,
         cost_usd: float | None = None,
         timestamp: str | None = None,
+        accumulated_text: str | None = None,
     ) -> None:
         self.console.print()
         parts: list[str] = [role]
@@ -433,6 +436,7 @@ class PlainRenderer:
         confidence: float | None = None,
         cost_usd: float | None = None,
         timestamp: str | None = None,
+        accumulated_text: str | None = None,
     ) -> None:
         sys.stdout.write("\n")
         sys.stdout.flush()
@@ -522,6 +526,7 @@ class JsonRenderer:
         confidence: float | None = None,
         cost_usd: float | None = None,
         timestamp: str | None = None,
+        accumulated_text: str | None = None,
     ) -> None:
         self._emit(
             type="stream.finalize",

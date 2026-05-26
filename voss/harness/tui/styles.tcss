@@ -42,10 +42,11 @@ $error: #FF5F5F;
 }
 
 #status {
-    dock: bottom;
     height: 1;
+    min-height: 1;
     margin: 0 1;
-    background: $dim 20%;
+    background: $accent 15%;
+    color: white;
 }
 
 #input {

@@ -2,10 +2,18 @@
   "files.associations": {
     "*.voss": "python"
   },
-  "python.analysis.exclude": ["**/*.voss"],
-  "python.analysis.ignore": ["**/*.voss"],
-  "pylint.ignorePatterns": ["**/*.voss"],
-  "ruff.lint.ignore": ["**/*.voss"],
+  "python.analysis.exclude": [
+    "**/*.voss"
+  ],
+  "python.analysis.ignore": [
+    "**/*.voss"
+  ],
+  "pylint.ignorePatterns": [
+    "**/*.voss"
+  ],
+  "ruff.lint.ignore": [
+    "**/*.voss"
+  ],
   "haskell.plugin.hlint.globalOn": false,
   "haskell.plugin.hlint.diagnosticsOn": false,
   "files.exclude": {
@@ -19,5 +27,6 @@
   },
   "[python]": {
     "editor.formatOnSave": false
-  }
+  },
+  "workbench.colorTheme": "Bearded Theme Anthracite"
 }

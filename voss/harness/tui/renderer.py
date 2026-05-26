@@ -297,8 +297,8 @@ class TextualRenderer:
         if tv is None:
             return
         self._post(
-            tv.append_turn,
-            "final",
+            tv.append_markdown_turn,
+            "assistant",
             text,
             confidence=conf,
             cost_usd=float(cost_usd),
@@ -317,6 +317,7 @@ class TextualRenderer:
         confidence: float | None = None,
         cost_usd: float | None = None,
         timestamp: str | None = None,
+        accumulated_text: str | None = None,
     ) -> None:
         self._safe(
             self._turn_view,
@@ -325,6 +326,7 @@ class TextualRenderer:
             confidence=confidence,
             cost_usd=cost_usd,
             timestamp=timestamp,
+            accumulated_text=accumulated_text,
         )
 
     def _mount_confidence_bar(self, confidence: float, *, is_final: bool) -> None:
