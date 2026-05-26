@@ -4,8 +4,6 @@ import {
   ArrowRight,
   Boxes,
   BrainCircuit,
-  CheckCircle2,
-  CircleDollarSign,
   Code2,
   Download,
   Layers3,
@@ -19,13 +17,14 @@ import {
 import type { LucideIcon } from "lucide-react";
 import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
+import ProductScreenshot from "@/components/ProductScreenshot";
 import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: `Agentic Development Environment — ${site.name}`,
+  title: `Agentic Development Environment - ${site.name}`,
   description:
     "Voss is a local Agentic Development Environment for running, inspecting, and governing agent work.",
 };
@@ -140,7 +139,13 @@ export default function AdePage() {
               </Reveal>
             </div>
             <Reveal delay={0.1}>
-              <AdeMock />
+              <ProductScreenshot
+                src="/product/voss-tools.png"
+                alt="Voss tools output listing read-only and mutating harness tools."
+                width={1200}
+                height={780}
+                priority
+              />
             </Reveal>
           </div>
         </section>
@@ -284,112 +289,5 @@ export default function AdePage() {
       </main>
       <Footer />
     </>
-  );
-}
-
-function AdeMock() {
-  const sessionRows = ["M12 MCP bridge", "M11 inspect tools", "T8 input ergonomics"];
-  const toolRows = ["voss_py_diff", "voss_budget_trace", "mcp.tools.list"];
-
-  return (
-    <div
-      className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[color-mix(in_oklab,var(--surface)_82%,black)] shadow-2xl"
-      aria-label="Mock Voss ADE interface"
-    >
-      <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 font-mono text-xs text-[var(--muted)]">
-        <span>voss ade</span>
-        <span className="text-[var(--accent)]">plan | edit | auto</span>
-      </div>
-      <div className="space-y-4 p-4">
-        <section className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
-          <div className="flex items-center justify-between gap-4">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">
-              Workspace
-            </p>
-            <p className="truncate font-mono text-xs text-[var(--accent)]">~/Projects/Voss</p>
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {sessionRows.map((row, index) => (
-              <div
-                key={row}
-                className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
-              >
-                <p className="truncate font-mono text-xs text-[var(--foreground)]">{row}</p>
-                <p className="mt-1 font-mono text-[10px] text-[var(--muted)]">checkpoint 0{index + 1}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">
-              Active turn
-            </p>
-            <Badge variant="secondary" className="font-mono uppercase tracking-wider">
-              edit
-            </Badge>
-          </div>
-          <div className="rounded-lg border border-[var(--border)] bg-black/30 p-4 font-mono text-[11px] leading-6">
-            <p className="text-[var(--accent)]">$ voss do &quot;plan ADE page&quot;</p>
-            <div className="mt-3 grid gap-2">
-              <MockLine label="plan" value="route + scaffold + download placeholders" />
-              <MockLine label="read" value="site/app/page.tsx" />
-              <MockLine label="edit" value="site/components/Nav.tsx" />
-              <MockLine label="check" value="lint + build + mobile review" />
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-3">
-          <div className="grid grid-cols-3 gap-2">
-            {toolRows.map((row) => (
-              <div
-                key={row}
-                className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              >
-                <CheckCircle2 className="h-4 w-4 text-[var(--accent)]" />
-                <span className="min-w-0 truncate font-mono text-xs">{row}</span>
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Metric label="confidence" value="0.91" />
-            <Metric label="budget" value="$0.18" />
-            <Metric label="mode" value="edit" />
-          </div>
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-[var(--accent)]">
-              <CircleDollarSign className="h-4 w-4" />
-                <span className="font-mono text-xs">budget trace</span>
-              </div>
-              <span className="font-mono text-xs text-[var(--muted)]">inspectable</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-2)]">
-              <div className="h-full w-2/3 rounded-full bg-[var(--accent)]" />
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function MockLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-3">
-      <span className="font-mono text-xs text-[var(--muted)]">{label}</span>
-      <span className="min-w-0 truncate text-[var(--foreground)]">{value}</span>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">{label}</p>
-      <p className="mt-2 font-mono text-sm text-[var(--accent)]">{value}</p>
-    </div>
   );
 }

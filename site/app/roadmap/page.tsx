@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: `Roadmap — ${site.name}`,
+  title: `Roadmap - ${site.name}`,
   description: "The current Voss roadmap from the v0.1 harness to TUI, memory, and codebase intelligence.",
 };
 

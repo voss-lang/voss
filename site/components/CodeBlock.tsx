@@ -6,7 +6,7 @@ type Props = {
   className?: string;
 };
 
-// Server component — shiki runs at build time, ships zero JS.
+// Server component: shiki runs at build time, ships zero JS.
 export default async function CodeBlock({
   code,
   lang = "python",

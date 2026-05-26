@@ -3,28 +3,24 @@ import { ArrowUpRight, BookOpenText, Code2, GitBranch, Layers3, TerminalSquare }
 import { LogoMark } from "@/components/Logo";
 import MobileMenu from "@/components/MobileMenu";
 import TrackedOutboundLink from "@/components/TrackedOutboundLink";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { site } from "@/lib/site";
 
 export default function Nav() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--border)] bg-[color-mix(in_oklab,var(--background)_90%,transparent)] backdrop-blur-xl">
-      <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-5 md:min-h-24">
-        <Link href="/" className="group flex items-center gap-4">
-          <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] transition-colors group-hover:border-[var(--accent)] sm:h-14 sm:w-14">
-            <LogoMark className="h-9 w-9 sm:h-11 sm:w-11" />
+      <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3 md:min-h-16">
+        <Link href="/" className="group flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] transition-colors group-hover:border-[var(--accent)] sm:h-12 sm:w-12">
+            <LogoMark className="h-8 w-8 sm:h-9 sm:w-9" />
           </span>
           <span className="flex flex-col gap-1">
             <span className="font-mono text-xl font-semibold leading-none tracking-tight sm:text-2xl">{site.name}</span>
             <span className="hidden text-sm text-[var(--muted)] sm:block">{site.tagline}</span>
           </span>
-          <Badge variant="secondary" className="ml-1 hidden font-mono uppercase tracking-wider sm:inline-flex">
-            {site.version}
-          </Badge>
         </Link>
         <MobileMenu className="md:hidden" />
-        <nav className="hidden flex-wrap items-center gap-2 md:flex">
+        <nav className="hidden items-center gap-2 md:flex">
           <Button asChild variant="ghost" size="lg">
             <Link href="/ade">
               <Layers3 />

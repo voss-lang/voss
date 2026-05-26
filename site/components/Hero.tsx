@@ -2,8 +2,8 @@ import { site } from "@/lib/site";
 import CopyButton from "./CopyButton";
 import TrackedOutboundLink from "./TrackedOutboundLink";
 import Cursor from "./Cursor";
+import ProductScreenshot from "./ProductScreenshot";
 import Reveal from "./Reveal";
-import TerminalDemo from "./TerminalDemo";
 
 export default function Hero() {
   return (
@@ -13,8 +13,7 @@ export default function Hero() {
       <div className="mx-auto grid max-w-6xl gap-12 px-6 pt-24 pb-20 sm:pt-32 sm:pb-28 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
         <div className="min-w-0">
           <Reveal>
-            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 font-mono text-xs text-[var(--muted)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+            <p className="mb-6 inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 font-mono text-xs text-[var(--muted)]">
               Terminal harness + .voss control language
             </p>
           </Reveal>
@@ -43,7 +42,7 @@ export default function Hero() {
                 analyticsTarget="prd"
                 className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-3 text-sm text-[var(--foreground)] transition hover:border-[var(--accent)]"
               >
-                Read the PRD →
+                Read the PRD
               </TrackedOutboundLink>
             </div>
             <p className="mt-3 text-xs text-[var(--muted)]">{site.install.primaryNote}</p>
@@ -51,7 +50,14 @@ export default function Hero() {
         </div>
 
         <Reveal delay={0.2} className="min-w-0 lg:justify-self-end">
-          <TerminalDemo className="w-full rotate-[0.5deg] transition-transform duration-500 hover:rotate-0" />
+          <ProductScreenshot
+            src="/product/voss-vdiff.png"
+            alt="Voss vdiff output showing a .voss source file beside generated Python."
+            width={1200}
+            height={820}
+            priority
+            className="w-full rotate-[0.5deg] transition-transform duration-500 hover:rotate-0"
+          />
         </Reveal>
       </div>
     </section>

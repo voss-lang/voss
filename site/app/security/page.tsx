@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: `Security — ${site.name}`,
+  title: `Security - ${site.name}`,
   description: "How Voss approaches harness permissions, local credentials, project boundaries, and agent execution safety.",
 };
 
