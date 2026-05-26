@@ -59,13 +59,52 @@ def _model_supports_vision(model_name: str) -> bool:
 
 
 class _InputTextArea(TextArea):
-    """TextArea child with M9 main-context collisions stripped."""
+    """TextArea child with M9 main-context collisions stripped.
+
+    Intercepts Enter/Shift+Enter/slash/Ctrl+R and delegates to the parent
+    InputBar. This is necessary because clicking the TextArea gives it focus
+    directly, bypassing InputBar's _on_key handler.
+    """
 
     BINDINGS = [
         binding
         for binding in TextArea.BINDINGS
         if binding.key not in {"ctrl+f", "ctrl+u"}
     ]
+
+    async def _on_key(self, event) -> None:
+        bar = self.parent
+        if bar is None or not isinstance(bar, InputBar):
+            await super()._on_key(event)
+            return
+        # Delegate special keys to InputBar.
+        if event.key == "ctrl+r":
+            event.prevent_default()
+            event.stop()
+            bar.action_reverse_search()
+            return
+        if getattr(bar, "_search_mode", False):
+            # Reverse-search mode — let InputBar handle all keys.
+            event.prevent_default()
+            event.stop()
+            await bar._on_key(event)
+            return
+        if event.key == "enter":
+            event.prevent_default()
+            event.stop()
+            await bar.action_submit()
+            return
+        if event.key == "shift+enter":
+            event.prevent_default()
+            event.stop()
+            self.insert("\n")
+            return
+        if event.key == "slash" and not self.text.strip():
+            event.prevent_default()
+            event.stop()
+            bar.action_open_palette()
+            return
+        await super()._on_key(event)
 
 
 class InputBar(Widget):

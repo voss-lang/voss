@@ -120,12 +120,13 @@ class VossTUIApp(App):
         self.refresh()
 
     def action_interrupt(self) -> None:
-        # T1-06: cancel the in-flight turn task. The agent loop's
-        # CancelledError handler in _run_turn_exec finalizes the recorder
-        # with exit_reason="interrupt".
+        # Ctrl+C behavior: if a turn is running, cancel it. If idle, exit app.
         task = self.active_turn_task
         if task is not None and not task.done():
             task.cancel()
+            return
+        # No active turn — exit the Textual app (returns to normal terminal).
+        self.exit()
 
     # ------------------------------------------------------------------
     # M9-06 fork-from-turn (TUI-08).
