@@ -19,7 +19,7 @@ export default function Hero() {
           </Reveal>
           <Reveal delay={0.05}>
             <h1 className="display text-balance text-[clamp(2.5rem,6vw,4.5rem)]">
-              AI agents that stay<br />
+              AI agents stay<br />
               <span className="em">in their lane.</span>
             </h1>
           </Reveal>
