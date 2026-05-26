@@ -106,7 +106,8 @@ export default function AdePage() {
               </Reveal>
               <Reveal delay={0.05}>
                 <h1 className="display mt-5 text-[clamp(2.5rem,6vw,4.5rem)]">
-                  Agentic Development <span className="em">Environment</span>.
+                  Agentic workspace for<br />
+                  <span className="em">coding agents</span>.
                 </h1>
               </Reveal>
               <Reveal delay={0.1}>
@@ -119,7 +120,7 @@ export default function AdePage() {
                 <div className="mt-8 flex flex-wrap gap-3">
                   <Button asChild size="lg">
                     <Link href="#download">
-                      Install the ADE
+                      Setup options
                       <Download />
                     </Link>
                   </Button>
@@ -222,13 +223,12 @@ export default function AdePage() {
               </h2>
             </div>
             <div className="grid gap-4 md:grid-cols-4">
-              {WORKFLOW.map((item, index) => (
+              {WORKFLOW.map((item) => (
                 <article
                   key={item.step}
                   className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
                 >
-                  <p className="font-mono text-xs text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</p>
-                  <h3 className="mt-4 text-xl font-medium">{item.step}</h3>
+                  <h3 className="text-xl font-medium text-[var(--accent)]">{item.step}</h3>
                   <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.body}</p>
                 </article>
               ))}

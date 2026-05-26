@@ -45,6 +45,8 @@ const AUTH_PATHS = [
   },
 ];
 
+const PITCH_LABELS = ["Install", "Modes", "Memory"] as const;
+
 function valueClass(v: string): string {
   if (v === "auto") return "text-[var(--accent)]";
   if (v === "prompt") return "text-[var(--foreground)]";
@@ -106,7 +108,7 @@ export default function HarnessPage() {
                   key={i}
                   className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
                 >
-                  <p className="font-mono text-xs text-[var(--accent)]">{`0${i + 1}`}</p>
+                  <p className="font-mono text-xs text-[var(--accent)]">{PITCH_LABELS[i]}</p>
                   <p className="mt-2 text-sm leading-relaxed text-[var(--foreground)]">{p}</p>
                 </StaggerItem>
               ))}
