@@ -709,7 +709,7 @@ async def _run_turn_exec(
                     this_iter_plan = Plan(
                         rationale="(unparsed)",
                         steps=[],
-                        confidence=0.0,
+                        confidence=1.0,
                         final_when_done=final_text,
                     )
 
