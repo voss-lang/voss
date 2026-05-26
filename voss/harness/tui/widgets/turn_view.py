@@ -78,6 +78,32 @@ class TurnView(RichLog):
         # `body` is untrusted (LLM output) — render via plain Text, no markup.
         self.write(Text(body, no_wrap=False))
 
+    def append_markdown_turn(
+        self,
+        role: str,
+        body: str,
+        *,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+    ) -> None:
+        """Like append_turn but renders body as markdown with code highlighting."""
+        from rich.markdown import Markdown
+
+        if self._turn_count == 0:
+            self.clear()
+        self._turn_count += 1
+        head = Text()
+        head.append(role, style="bold")
+        if timestamp:
+            head.append(f"  · {timestamp}", style="dim")
+        if cost_usd is not None:
+            head.append(f"  · ${cost_usd:.4f}", style="dim")
+        if confidence is not None:
+            head.append(f"  · conf {confidence:.2f}", style="dim")
+        self.write(head)
+        self.write(Markdown(body, code_theme="monokai"))
+
     # T1-04: streaming entry points consumed by the iteration loop (T1-05).
     # CONTEXT.md locks "Append-only via RichLog.write on every TextDelta. No
     # in-place edits, no scroll jumps." RichLog has no edit-previous-line
@@ -101,12 +127,16 @@ class TurnView(RichLog):
         confidence: float | None = None,
         cost_usd: float | None = None,
         timestamp: str | None = None,
+        accumulated_text: str | None = None,
     ) -> None:
         """Seal the active streaming block by writing its trailing header.
 
         Header lands BELOW the streamed body — RichLog is append-only, so
         the role/cost/confidence row cannot be retro-prepended. Subsequent
         stream_delta calls start a new block.
+
+        If accumulated_text is provided, renders the complete response as
+        markdown with syntax-highlighted code blocks below the header.
         """
         if not self._streaming:
             return
@@ -120,6 +150,10 @@ class TurnView(RichLog):
         if confidence is not None:
             head.append(f"  · conf {confidence:.2f}", style="dim")
         self.write(head)
+        if accumulated_text:
+            from rich.markdown import Markdown
+
+            self.write(Markdown(accumulated_text, code_theme="monokai"))
         self._streaming = False
 
 

@@ -297,8 +297,8 @@ class TextualRenderer:
         if tv is None:
             return
         self._post(
-            tv.append_turn,
-            "final",
+            tv.append_markdown_turn,
+            "assistant",
             text,
             confidence=conf,
             cost_usd=float(cost_usd),
