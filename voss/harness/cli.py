@@ -1770,13 +1770,13 @@ def _run_repl(
                     try:
                         handled = slash_registry.dispatch(ctx, line)
                     except ValueError as exc:
-                        click.echo(str(exc), err=True)
+                        renderer.show_warning(str(exc))
                         return None
                     if handled:
                         if ctx.should_exit:
                             renderer.app.exit()
                         return None
-                    click.echo(f"unknown command: {line}. /help for list.", err=True)
+                    renderer.show_warning(f"unknown command: {line}. /help for list.")
                     return None
                 renderer.show_user(line)
                 try:
@@ -1805,7 +1805,7 @@ def _run_repl(
                     )
                     ctx.prior_context = None
                 except Exception as e:  # noqa: BLE001
-                    click.echo(f"error: {e}", err=True)
+                    renderer.show_warning(f"error: {e}")
                     return None
                 ctx.last_plan = result.plan
                 if result.run is not None:
