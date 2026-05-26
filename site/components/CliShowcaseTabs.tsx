@@ -44,7 +44,6 @@ export default function CliShowcaseTabs({ examples }: { examples: RenderedExampl
 
       <div
         className="overflow-x-auto p-5"
-        // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: active.html }}
       />
     </div>

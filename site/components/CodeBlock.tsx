@@ -19,7 +19,6 @@ export default async function CodeBlock({
   return (
     <div
       className={`overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 ${className}`}
-      // eslint-disable-next-line react/no-danger
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
