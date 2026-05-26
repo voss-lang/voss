@@ -1,0 +1,207 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Voss A coding harness for bounded AI work." [ref=e4] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e7]:
+          - generic [ref=e8]: Voss
+          - generic [ref=e9]: A coding harness for bounded AI work.
+      - navigation [ref=e10]:
+        - link "ADE" [ref=e11] [cursor=pointer]:
+          - /url: /ade/
+          - img
+          - text: ADE
+        - link "Harness" [ref=e12] [cursor=pointer]:
+          - /url: /harness/
+          - img
+          - text: Harness
+        - link "Docs" [ref=e13] [cursor=pointer]:
+          - /url: https://docs.tryvoss.dev
+          - img
+          - text: Docs
+        - link "Language" [ref=e14] [cursor=pointer]:
+          - /url: /language/
+          - img
+          - text: Language
+        - link "GitHub" [ref=e15] [cursor=pointer]:
+          - /url: https://github.com/bm9797/Voss
+          - img
+          - text: GitHub
+          - img
+  - main [ref=e16]:
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e23]: ADE
+        - heading "Agentic workspace for coding agents." [level=1] [ref=e25]:
+          - text: Agentic workspace for
+          - text: coding agents.
+        - paragraph [ref=e27]: "Voss gives coding agents a real workspace: tools, memory, permissions, sessions, replay, and inspection surfaces built for software work instead of chat drift."
+        - generic [ref=e29]:
+          - link "Setup options" [ref=e30] [cursor=pointer]:
+            - /url: "#download"
+            - text: Setup options
+            - img
+          - link "Harness details" [ref=e31] [cursor=pointer]:
+            - /url: /harness/
+            - text: Harness details
+            - img
+          - link "Read docs" [ref=e32] [cursor=pointer]:
+            - /url: https://docs.tryvoss.dev
+            - text: Read docs
+            - img
+      - img "Voss tools output listing read-only and mutating harness tools." [ref=e35]
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - paragraph [ref=e39]: Why ADE
+        - heading "Agents need an environment, not another text box." [level=2] [ref=e40]
+      - generic [ref=e41]:
+        - generic [ref=e42]:
+          - img [ref=e43]
+          - heading "Stateful workspaces" [level=3] [ref=e53]
+          - paragraph [ref=e54]: Keep sessions, project memory, phase context, and validation artifacts tied to the repo where the work happens.
+        - generic [ref=e55]:
+          - img [ref=e56]
+          - heading "Inspectable execution" [level=3] [ref=e68]
+          - paragraph [ref=e69]: Review tool calls, traces, diffs, confidence gates, budget records, and generated artifacts before they become opaque history.
+        - generic [ref=e70]:
+          - img [ref=e71]
+          - heading "Governed capabilities" [level=3] [ref=e74]
+          - paragraph [ref=e75]: Expose tools through explicit modes, MCP surfaces, permission gates, and mutation boundaries instead of all-or-nothing automation.
+    - generic [ref=e77]:
+      - generic [ref=e78]:
+        - paragraph [ref=e79]: Stack
+        - heading "The Voss ADE stack." [level=2] [ref=e80]
+        - paragraph [ref=e81]: The marketing page should name the real surfaces users will install and operate, from the CLI up through the desktop shell and MCP bridge.
+      - generic [ref=e82]:
+        - article [ref=e83]:
+          - img [ref=e85]
+          - heading "CLI" [level=3] [ref=e88]
+          - paragraph [ref=e89]: Scriptable one-shot and repo commands.
+        - article [ref=e90]:
+          - img [ref=e92]
+          - heading "TUI" [level=3] [ref=e95]
+          - paragraph [ref=e96]: Interactive turns, modals, and traces.
+        - article [ref=e97]:
+          - img [ref=e99]
+          - heading "Desktop Shell" [level=3] [ref=e101]
+          - paragraph [ref=e102]: A local app wrapper for the harness.
+        - article [ref=e103]:
+          - img [ref=e105]
+          - heading "MCP Server" [level=3] [ref=e110]
+          - paragraph [ref=e111]: Expose Voss tools to agent clients.
+        - article [ref=e112]:
+          - img [ref=e114]
+          - heading "Code Intelligence" [level=3] [ref=e118]
+          - paragraph [ref=e119]: Repo-aware context and navigation.
+        - article [ref=e120]:
+          - img [ref=e122]
+          - heading "Voss Tools" [level=3] [ref=e124]
+          - paragraph [ref=e125]: Diff, inspect, lint, and budget helpers.
+        - article [ref=e126]:
+          - img [ref=e128]
+          - heading "Planning + Validation" [level=3] [ref=e132]
+          - paragraph [ref=e133]: Phase plans, checks, and summaries.
+    - generic [ref=e135]:
+      - generic [ref=e136]:
+        - paragraph [ref=e137]: Workflow
+        - heading "Plan, run, inspect, ship." [level=2] [ref=e138]
+      - generic [ref=e139]:
+        - article [ref=e140]:
+          - heading "Plan" [level=3] [ref=e141]
+          - paragraph [ref=e142]: Start with bounded intent, phase context, and read-only analysis before edits.
+        - article [ref=e143]:
+          - heading "Run" [level=3] [ref=e144]
+          - paragraph [ref=e145]: Execute tool calls through declared modes and workspace-scoped capabilities.
+        - article [ref=e146]:
+          - heading "Inspect" [level=3] [ref=e147]
+          - paragraph [ref=e148]: Open traces, budget records, probable decisions, and Voss diffs while the work is fresh.
+        - article [ref=e149]:
+          - heading "Ship" [level=3] [ref=e150]
+          - paragraph [ref=e151]: Close the loop with validation checks, summaries, and PR-ready artifacts.
+    - generic [ref=e154]:
+      - paragraph [ref=e155]: Download
+      - generic [ref=e156]:
+        - generic [ref=e157]:
+          - heading "Install the Voss ADE." [level=2] [ref=e158]
+          - paragraph [ref=e159]: Desktop builds will package the Voss harness into a local Agentic Development Environment for running, inspecting, and governing agent work from your machine.
+        - generic [ref=e160]:
+          - article [ref=e161]:
+            - generic [ref=e162]:
+              - heading "macOS" [level=3] [ref=e163]
+              - generic [ref=e164]: Coming soon
+            - paragraph [ref=e165]: Apple Silicon + Intel builds planned
+            - button "Download .dmg" [disabled]
+          - article [ref=e166]:
+            - generic [ref=e167]:
+              - heading "Windows" [level=3] [ref=e168]
+              - generic [ref=e169]: Coming soon
+            - paragraph [ref=e170]: Windows 10/11 installer planned
+            - button "Download .exe" [disabled]
+      - generic [ref=e171]:
+        - paragraph [ref=e172]: Run Voss from source while desktop builds are finalized.
+        - link "View setup docs" [ref=e173] [cursor=pointer]:
+          - /url: https://docs.tryvoss.dev
+          - text: View setup docs
+          - img
+  - contentinfo [ref=e174]:
+    - generic [ref=e175]:
+      - generic [ref=e176]:
+        - link "Voss A coding harness for bounded AI work." [ref=e177] [cursor=pointer]:
+          - /url: /
+          - img [ref=e179]
+          - generic [ref=e180]:
+            - generic [ref=e181]: Voss
+            - generic [ref=e182]: A coding harness for bounded AI work.
+        - paragraph [ref=e183]: Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.
+        - link "ADE" [ref=e185] [cursor=pointer]:
+          - /url: /ade/
+          - img
+          - text: ADE
+      - generic [ref=e186]:
+        - generic [ref=e187]:
+          - heading "Product" [level=2] [ref=e188]
+          - generic [ref=e189]:
+            - link "ADE" [ref=e190] [cursor=pointer]:
+              - /url: /ade/
+              - img
+              - text: ADE
+            - link "Harness" [ref=e191] [cursor=pointer]:
+              - /url: /harness/
+              - img
+              - text: Harness
+            - link "Docs" [ref=e192] [cursor=pointer]:
+              - /url: https://docs.tryvoss.dev
+              - img
+              - text: Docs
+            - link "Language" [ref=e193] [cursor=pointer]:
+              - /url: /language/
+              - img
+              - text: Language
+        - generic [ref=e194]:
+          - heading "Trust" [level=2] [ref=e195]
+          - generic [ref=e196]:
+            - link "Security" [ref=e197] [cursor=pointer]:
+              - /url: /security/
+              - img
+              - text: Security
+            - link "Roadmap" [ref=e198] [cursor=pointer]:
+              - /url: /roadmap/
+              - img
+              - text: Roadmap
+        - generic [ref=e199]:
+          - heading "Source" [level=2] [ref=e200]
+          - generic [ref=e201]:
+            - link "GitHub" [ref=e202] [cursor=pointer]:
+              - /url: https://github.com/bm9797/Voss
+              - img
+              - text: GitHub
+              - img
+            - link "PRD" [ref=e203] [cursor=pointer]:
+              - /url: https://github.com/bm9797/Voss/blob/main/PRD.md
+              - img
+              - text: PRD
+              - img
+  - button "Open Next.js Dev Tools" [ref=e209] [cursor=pointer]:
+    - img [ref=e210]
+  - alert [ref=e213]
