@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: `Language — ${site.name}`,
+  title: `Language - ${site.name}`,
   description: "The Voss language surface: confidence, context, semantic routing, budgets, and agents as first-class constructs.",
 };
 

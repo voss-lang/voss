@@ -15,6 +15,7 @@ chroma/
 clipboard-*
 screenshot-*
 snapshot_report.html
+.playwright-mcp/
 
 # NDJSON artifacts/logs.
 *.nd.json

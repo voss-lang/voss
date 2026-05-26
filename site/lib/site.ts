@@ -1,9 +1,3 @@
-export type Feature = {
-  name: string;
-  title: string;
-  body: string;
-};
-
 export type CliCommand = {
   cmd: string;
   desc: string;
@@ -23,51 +17,11 @@ export const site = {
   prdUrl: "https://github.com/bm9797/Voss/blob/main/PRD.md",
   // Public Mintlify docs (repo voss-lang/voss, site/docs, branch master).
   docsUrl: "https://docs.tryvoss.dev",
-  version: "0.1.0",
   install: {
     primary: "npm i -g @vosslang/cli",
     primaryNote: "Bundles the Voss Python harness with vendored Python 3.12.",
   },
 } as const;
-
-export const features: readonly Feature[] = [
-  {
-    name: "probable<T>",
-    title: "Confidence as a type",
-    body:
-      "Calls to a model return a value with a confidence score. Gates like `if intent @ 0.80` are checked by the compiler — no more silently trusting low-confidence output.",
-  },
-  {
-    name: "ctx",
-    title: "Token budgets, not prompt math",
-    body:
-      "`ContextScope(token_budget=3000)` is a language construct. Voss handles compression, eviction, and budget enforcement so your code stays declarative.",
-  },
-  {
-    name: "match",
-    title: "Semantic routing, compile-time",
-    body:
-      "Embedding-based `match` cases are computed at build time. Route by meaning without paying for an embedding call on every request.",
-  },
-  {
-    name: "spawn / gather",
-    title: "Agent concurrency primitives",
-    body:
-      "Spawn researchers in parallel, gather their results with a timeout, fall back gracefully on budget exhaustion. Like goroutines for agents.",
-  },
-  {
-    name: "providers",
-    title: "Anthropic, OpenAI, Ollama",
-    body:
-      "One runtime, swappable providers. Your Voss program doesn't care which model is behind it — switch with a config flag, not a rewrite.",
-  },
-  {
-    name: "compile",
-    title: "Readable Python out",
-    body:
-      "Voss compiles to debuggable Python you can read, diff, and own. No black-box runtime, no magic — your generated code is shippable on its own.",
-  },
-];
 
 export const harness = {
   tagline: "A coding harness for bounded repo work.",
@@ -99,7 +53,7 @@ export const harnessFeatures: readonly HarnessFeature[] = [
   {
     title: "Confidence-gated planning",
     body:
-      "Each turn produces a `ProbableValue<Plan>`. Low-confidence plans get rerolled, not executed. Same primitive Voss programs use — eat your own dog food.",
+      "Each turn produces a `ProbableValue<Plan>`. Low-confidence plans get rerolled, not executed. It is the same primitive Voss programs use.",
   },
   {
     title: "Sessions you can resume",
@@ -109,7 +63,7 @@ export const harnessFeatures: readonly HarnessFeature[] = [
   {
     title: "Headless or interactive",
     body:
-      "`voss do \"ship the login flow\"` for one-shots. `voss chat` for the REPL. Same agent loop either way — script it in CI or babysit it locally.",
+      "`voss do \"ship the login flow\"` for one-shots. `voss chat` for the REPL. Same agent loop either way, whether scripted or supervised locally.",
   },
 ];
 
@@ -118,8 +72,8 @@ export const harnessCommands: readonly CliCommand[] = [
   { cmd: "voss chat", desc: "Interactive REPL with persistent session" },
   { cmd: "voss sessions", desc: "List saved project sessions" },
   { cmd: "voss resume <id>", desc: "Pick up where you left off" },
-  { cmd: "voss do --auth=claude ...", desc: "Prefer Claude Code auth" },
-  { cmd: "voss do --auth=api ...", desc: "Use API-key provider access" },
+  { cmd: "voss tools", desc: "Inspect available harness tools" },
+  { cmd: "voss config --show", desc: "Inspect local harness config" },
   { cmd: "voss doctor", desc: "Verify credentials, tools, sandbox" },
 ];
 

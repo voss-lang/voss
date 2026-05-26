@@ -11,7 +11,6 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { site } from "@/lib/site";
 
@@ -31,9 +30,6 @@ export default function Footer() {
           </Link>
           <p className="mt-6 text-base leading-7 text-[var(--muted)]">{site.description}</p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Badge variant="secondary" className="font-mono uppercase tracking-wider">
-              {site.version}
-            </Badge>
             <Button asChild variant="outline" size="lg">
               <Link href="/ade">
                 <Layers3 />

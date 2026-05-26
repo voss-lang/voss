@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 
 type Props = {
   className?: string;
-  /** When true, holds steady (no blink) — used for static prompts. */
+  /** When true, holds steady (no blink), used for static prompts. */
   steady?: boolean;
 };
 

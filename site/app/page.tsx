@@ -18,79 +18,68 @@ export default function Home() {
         <CliShowcase />
         <CommandList />
         <InstallTabs />
-        <AdeTeaser />
-        <DocsTeaser />
+        <ProductTeaser />
       </main>
       <Footer />
     </>
   );
 }
 
-function AdeTeaser() {
+function ProductTeaser() {
   return (
     <section className="border-b border-[var(--border)]">
       <div className="mx-auto max-w-6xl px-6 py-20">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 sm:p-14">
-          <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
-            ADE
-          </p>
-          <h2 className="display mt-3 text-4xl sm:text-5xl">
-            An agentic workspace with <span className="em">explicit boundaries</span>.
-          </h2>
-          <p className="mt-4 max-w-2xl text-[var(--muted)]">
-            The Voss ADE brings tools, memory, permissions, sessions, replay, and inspection
-            surfaces into one local environment, with the harness as its bounded execution layer.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/ade"
-              className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
-            >
-              Explore the ADE
-            </Link>
-            <Link
-              href="/harness"
-              className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"
-            >
-              Harness details
-            </Link>
+        <div className="grid overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] lg:grid-cols-2">
+          <div className="p-8 sm:p-12">
+            <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">ADE</p>
+            <h2 className="display mt-3 text-4xl sm:text-5xl">
+              An agentic workspace with <span className="em">explicit boundaries</span>.
+            </h2>
+            <p className="mt-4 text-[var(--muted)]">
+              The Voss ADE brings tools, memory, permissions, sessions, replay, and inspection
+              surfaces into one local environment.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/ade"
+                className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--background)] transition hover:opacity-90"
+              >
+                Explore ADE
+              </Link>
+              <Link
+                href="/harness"
+                className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"
+              >
+                Harness details
+              </Link>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DocsTeaser() {
-  return (
-    <section className="border-b border-[var(--border)]">
-      <div className="mx-auto max-w-6xl px-6 py-20">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 sm:p-14">
-          <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">Docs</p>
-          <h2 className="display mt-3 text-4xl sm:text-5xl">
-            The docs track the <span className="em">current harness</span>.
-          </h2>
-          <p className="mt-4 max-w-2xl text-[var(--muted)]">
-            Install paths, harness commands, permission modes, project memory, language reference,
-            and troubleshooting all live in the public docs.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href={site.docsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
-            >
-              Browse docs
-            </Link>
-            <Link
-              href="https://github.com/bm9797/Voss/blob/main/PRD.md"
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"
-            >
-              Read the PRD
-            </Link>
+          <div className="border-t border-[var(--border)] bg-[var(--background)] p-8 sm:p-12 lg:border-l lg:border-t-0">
+            <h2 className="display text-4xl sm:text-5xl">
+              Docs for the <span className="em">current harness</span>.
+            </h2>
+            <p className="mt-4 text-[var(--muted)]">
+              Install paths, harness commands, permission modes, project memory, language reference,
+              and troubleshooting live in the public docs.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href={site.docsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--background)] transition hover:opacity-90"
+              >
+                Browse docs
+              </Link>
+              <Link
+                href={site.prdUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"
+              >
+                Read PRD
+              </Link>
+            </div>
           </div>
         </div>
       </div>

@@ -79,6 +79,7 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
                 aria-pressed={active() ? 'true' : 'false'}
                 disabled={props.disabled}
                 onClick={() => {
+                  console.log('[PresetSwitcher] click', { preset, disabled: props.disabled });
                   if (props.disabled) return;
                   props.onSelect(preset);
                 }}

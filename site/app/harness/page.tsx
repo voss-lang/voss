@@ -9,7 +9,7 @@ import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
 import { harness, harnessFeatures, harnessCommands, site } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: `Harness — ${site.name}`,
+  title: `Harness - ${site.name}`,
   description: harness.description,
 };
 
@@ -29,21 +29,23 @@ const PERMISSION_MATRIX: PermissionRow[] = [
 
 const AUTH_PATHS = [
   {
-    name: "Claude Code OAuth",
-    detail: "Uses local Claude Code auth when available. API-key access remains the reliable fallback for automation.",
-    cmd: "claude login    # then: voss do --auth=claude ...",
+    name: "Interactive login",
+    detail: "Use the Voss login wizard when you want provider credentials managed outside the shell environment.",
+    cmd: "voss login",
   },
   {
-    name: "Codex / ChatGPT OAuth",
-    detail: "Uses the Codex CLI auth file when available. Codex OAuth is still marked experimental by the harness.",
-    cmd: "codex login     # then: voss do --auth=codex ...",
+    name: "Environment key",
+    detail: "Set a provider API key for CI or machines where interactive login is not the right fit.",
+    cmd: "export ANTHROPIC_API_KEY=sk-ant-...",
   },
   {
-    name: "Plain API key",
-    detail: "Drop ANTHROPIC_API_KEY or OPENAI_API_KEY in the env. Useful for CI.",
-    cmd: 'export ANTHROPIC_API_KEY=sk-ant-...',
+    name: "Doctor check",
+    detail: "Confirm Python, imports, credentials, git, writable directories, and project setup before running work.",
+    cmd: "voss doctor",
   },
 ];
+
+const PITCH_LABELS = ["Install", "Modes", "Memory"] as const;
 
 function valueClass(v: string): string {
   if (v === "auto") return "text-[var(--accent)]";
@@ -63,8 +65,7 @@ export default function HarnessPage() {
           <div className="glow absolute inset-0 -z-10" aria-hidden="true" />
           <div className="mx-auto max-w-6xl px-6 pt-24 pb-20 sm:pt-32 sm:pb-24">
             <Reveal>
-              <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 font-mono text-xs text-[var(--muted)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+              <p className="mb-6 inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 font-mono text-xs text-[var(--muted)]">
                 voss harness
               </p>
             </Reveal>
@@ -91,7 +92,7 @@ export default function HarnessPage() {
                   href="#install"
                   className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-3 text-sm transition hover:border-[var(--accent)]"
                 >
-                  Install →
+                  Install
                 </Link>
               </div>
             </Reveal>
@@ -107,7 +108,7 @@ export default function HarnessPage() {
                   key={i}
                   className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
                 >
-                  <p className="font-mono text-xs text-[var(--accent)]">{`0${i + 1}`}</p>
+                  <p className="font-mono text-xs text-[var(--accent)]">{PITCH_LABELS[i]}</p>
                   <p className="mt-2 text-sm leading-relaxed text-[var(--foreground)]">{p}</p>
                 </StaggerItem>
               ))}
@@ -130,7 +131,7 @@ export default function HarnessPage() {
                 validation loop. In plan mode, mutating tools are denied before they run.
               </p>
             </div>
-            <TerminalDemo title="~/voss-app — voss do" />
+            <TerminalDemo title="~/voss-app - voss do" />
           </div>
         </section>
 
@@ -143,7 +144,7 @@ export default function HarnessPage() {
               </h2>
               <p className="mt-4 text-[var(--muted)]">
                 You&apos;re shipping AI inside a product. The harness is the agent that helps you do
-                it — without leaving the terminal, without a second subscription, without
+                it, without leaving the terminal, without a second subscription, without
                 surrendering your repo.
               </p>
             </div>
@@ -161,7 +162,7 @@ export default function HarnessPage() {
           </div>
         </section>
 
-        {/* Permissions — redesigned as styled rows with hover accent strip */}
+        {/* Permissions redesigned as styled rows with hover accent strip */}
         <section className="border-b border-[var(--border)]">
           <div className="mx-auto max-w-6xl px-6 py-20">
             <div className="mb-10 max-w-2xl">

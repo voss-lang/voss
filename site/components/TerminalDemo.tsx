@@ -4,9 +4,9 @@ import Terminal from "./Terminal";
 export const SAMPLE_SESSION = `$ voss do --mode=auto "add a /healthz endpoint and a test for it"
 
 [plan]   confidence 0.92
-  1. fs_grep "FastAPI\\(" → app/main.py
-  2. fs_edit app/main.py → add @app.get("/healthz")
-  3. fs_write tests/test_health.py → pytest case
+  1. fs_grep "FastAPI\\(" -> app/main.py
+  2. fs_edit app/main.py -> add @app.get("/healthz")
+  3. fs_write tests/test_health.py -> pytest case
   4. shell_run pytest tests/test_health.py -q
 
 [edit]   app/main.py        +4 -0    ✓ allow (mode=auto)
@@ -14,20 +14,20 @@ export const SAMPLE_SESSION = `$ voss do --mode=auto "add a /healthz endpoint an
 [shell]  pytest tests/test_health.py -q
          1 passed in 0.18s              ✓
 
-done. token spend: 4,128 / budget 8,000 — saved as session 0193…`;
+done. token spend: 4,128 / budget 8,000, saved as session 0193...`;
 
 // Python-esque palette (github-dark family). One stable color per token kind.
 const C = {
   prompt: "#8b949e",
-  command: "#7ee787", // voss / subcommand — keyword
-  tool: "#79c0ff", // fs_grep, shell_run — function call
+  command: "#7ee787", // voss / subcommand keyword
+  tool: "#79c0ff", // fs_grep, shell_run function call
   string: "#a5d6ff",
   number: "#f2cc60",
   tag: "#d2a8ff", // [plan] [edit] [write] [shell]
   flag: "#ffa657", // --mode=auto
   path: "#56d4bb", // app/main.py
   ok: "#3fb950", // ✓
-  muted: "#6e7681", // → and trailing notes
+  muted: "#6e7681", // connectors and trailing notes
   text: "#c9d1d9",
 } as const;
 
@@ -40,11 +40,11 @@ const RULES: { re: RegExp; color: string }[] = [
   { re: /^[\w./-]+\.py\b/, color: C.path },
   { re: /^[+-]?\d[\d,]*(?:\.\d+)?s?/, color: C.number },
   { re: /^✓/, color: C.ok },
-  { re: /^[→—]/, color: C.muted },
+  { re: /^->/, color: C.muted },
 ];
 
 function tokenize(line: string, key: number): ReactNode {
-  // Prompt line: "$ voss do …" — color $ + first two words as command.
+  // Prompt line: "$ voss do ..."; color $ + first two words as command.
   let rest = line;
   const head: ReactNode[] = [];
   const prompt = rest.match(/^\$ /);
@@ -111,9 +111,9 @@ type Props = {
   className?: string;
 };
 
-// Server component — tokenizes at build time, ships zero JS.
+// Server component: tokenizes at build time, ships zero JS.
 export default function TerminalDemo({
-  title = "~/voss-app — voss do",
+  title = "~/voss-app - voss do",
   className = "",
 }: Props) {
   const lines = SAMPLE_SESSION.split("\n");

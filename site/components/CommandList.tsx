@@ -13,17 +13,17 @@ export default function CommandList() {
             you&apos;re shipping a program or asking it questions.
           </p>
         </div>
-        <ul className="divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] font-mono text-sm">
+        <ul className="grid gap-3 font-mono text-sm sm:grid-cols-2 lg:grid-cols-3">
           {cliCommands.map((c) => (
             <li
               key={c.cmd}
-              className="flex flex-col gap-1 px-5 py-4 transition hover:bg-[var(--surface-2)] sm:flex-row sm:items-center sm:justify-between"
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-4 transition hover:border-[var(--accent)] hover:bg-[var(--surface-2)]"
             >
-              <span className="text-[var(--foreground)]">
+              <span className="block text-[var(--foreground)]">
                 <span className="text-[var(--accent)]">$ </span>
                 {c.cmd}
               </span>
-              <span className="text-xs text-[var(--muted)] sm:text-sm">{c.desc}</span>
+              <span className="mt-2 block text-xs leading-5 text-[var(--muted)]">{c.desc}</span>
             </li>
           ))}
         </ul>
