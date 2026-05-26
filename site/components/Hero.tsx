@@ -19,8 +19,8 @@ export default function Hero() {
           </Reveal>
           <Reveal delay={0.05}>
             <h1 className="display text-balance text-[clamp(2.5rem,6vw,4.5rem)]">
-              AI agents stay<br />
-              <span className="em">in their lane.</span>
+              AI coding agents,<br />
+              <span className="em">bounded by design.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.1}>
@@ -54,8 +54,9 @@ export default function Hero() {
             src="/product/voss-vdiff.png"
             alt="Voss vdiff output showing a .voss source file beside generated Python."
             width={1200}
-            height={820}
+            height={1302}
             priority
+            sizes="(min-width: 1024px) 520px, calc(100vw - 48px)"
             className="w-full rotate-[0.5deg] transition-transform duration-500 hover:rotate-0"
           />
         </Reveal>

@@ -6,6 +6,7 @@ type Props = {
   width: number;
   height: number;
   priority?: boolean;
+  sizes?: string;
   className?: string;
 };
 
@@ -15,6 +16,7 @@ export default function ProductScreenshot({
   width,
   height,
   priority = false,
+  sizes = "(min-width: 1024px) 560px, calc(100vw - 48px)",
   className = "",
 }: Props) {
   return (
@@ -27,7 +29,7 @@ export default function ProductScreenshot({
         width={width}
         height={height}
         priority={priority}
-        sizes="(min-width: 1024px) 560px, calc(100vw - 48px)"
+        sizes={sizes}
         className="h-auto w-full"
       />
     </div>

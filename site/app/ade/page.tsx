@@ -5,7 +5,6 @@ import {
   Boxes,
   BrainCircuit,
   Code2,
-  Download,
   Layers3,
   Monitor,
   Network,
@@ -76,19 +75,6 @@ const WORKFLOW = [
   },
 ];
 
-const DOWNLOADS = [
-  {
-    platform: "macOS",
-    button: "Download .dmg",
-    meta: "Apple Silicon + Intel builds planned",
-  },
-  {
-    platform: "Windows",
-    button: "Download .exe",
-    meta: "Windows 10/11 installer planned",
-  },
-];
-
 export default function AdePage() {
   return (
     <>
@@ -121,7 +107,7 @@ export default function AdePage() {
                   <Button asChild size="lg">
                     <Link href="#download">
                       Setup options
-                      <Download />
+                      <ArrowRight />
                     </Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">
@@ -144,8 +130,9 @@ export default function AdePage() {
                 src="/product/voss-tools.png"
                 alt="Voss tools output listing read-only and mutating harness tools."
                 width={1200}
-                height={780}
+                height={853}
                 priority
+                sizes="(min-width: 1024px) 560px, calc(100vw - 48px)"
               />
             </Reveal>
           </div>
@@ -187,8 +174,8 @@ export default function AdePage() {
                 The Voss <span className="em">ADE stack</span>.
               </h2>
               <p className="mt-4 text-[var(--muted)]">
-                The marketing page should name the real surfaces users will install and operate,
-                from the CLI up through the desktop shell and MCP bridge.
+                Voss spans the CLI, TUI, desktop shell, MCP bridge, and code intelligence surfaces
+                users operate locally.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -240,36 +227,37 @@ export default function AdePage() {
           <div className="mx-auto max-w-6xl px-6 py-20">
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 sm:p-12">
               <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
-                Download
+                Desktop builds
               </p>
               <div className="mt-3 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
                 <div>
                   <h2 className="display text-4xl sm:text-5xl">
-                    Install the <span className="em">Voss ADE</span>.
+                    Use the CLI today. <span className="em">Desktop builds follow.</span>
                   </h2>
                   <p className="mt-4 text-[var(--muted)]">
-                    Desktop builds will package the Voss harness into a local Agentic Development
-                    Environment for running, inspecting, and governing agent work from your machine.
+                    The current setup path is the Voss CLI. The desktop shell will package the same
+                    harness into a local workspace when builds are ready.
                   </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {DOWNLOADS.map((item) => (
-                    <article
-                      key={item.platform}
-                      className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-5"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-xl font-medium">{item.platform}</h3>
-                        <Badge variant="secondary" className="font-mono uppercase tracking-wider">
-                          Coming soon
-                        </Badge>
-                      </div>
-                      <p className="mt-3 min-h-12 text-sm leading-6 text-[var(--muted)]">{item.meta}</p>
-                      <Button variant="outline" size="lg" disabled className="mt-5 w-full">
-                        {item.button}
-                      </Button>
-                    </article>
-                  ))}
+                  <article className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-5">
+                    <h3 className="text-xl font-medium">CLI</h3>
+                    <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                      Install with npm or pip and run Voss inside an existing repo.
+                    </p>
+                    <code className="mt-5 block rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 font-mono text-sm text-[var(--foreground)]">
+                      {site.install.primary}
+                    </code>
+                  </article>
+                  <article className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-5">
+                    <h3 className="text-xl font-medium">Desktop shell</h3>
+                    <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                      macOS and Windows packages are planned after the harness flow is stable.
+                    </p>
+                    <Badge variant="secondary" className="mt-5 font-mono uppercase tracking-wider">
+                      Planned
+                    </Badge>
+                  </article>
                 </div>
               </div>
               <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-6">
