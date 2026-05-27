@@ -21,6 +21,14 @@ pub const DENY_TOKENS: &[&str] = &[
     "mkfs",
 ];
 
+/// Shell metacharacters that change command-flow semantics. Mirrors
+/// `voss/harness/sandbox.py::SHELL_METACHARS`. Even though callers MAY use
+/// exec-style invocation (no shell), we reject these at allowlist time so a
+/// misuse of the API by a future caller can't re-enable shell parsing.
+pub const SHELL_METACHARS: &[&str] = &[
+    ";", "|", "&&", "||", "&", "$(", "`", ">", "<", ">>", "<<", "<(", ">(",
+];
+
 #[derive(thiserror::Error, Debug)]
 pub enum SandboxError {
     #[error("path escapes cwd: {0}")]
@@ -89,6 +97,11 @@ pub fn shell_allowed(cmd: &str, allowlist: &HashSet<String>) -> Result<(), Sandb
     for bad in DENY_TOKENS {
         if lowered.contains(bad) {
             return Err(SandboxError::DenyToken((*bad).to_string()));
+        }
+    }
+    for meta in SHELL_METACHARS {
+        if cmd.contains(meta) {
+            return Err(SandboxError::DenyToken((*meta).to_string()));
         }
     }
     let parts = shlex::split(cmd).ok_or_else(|| SandboxError::Unparseable(cmd.into()))?;

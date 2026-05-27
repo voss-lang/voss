@@ -51,8 +51,8 @@ $error: #FF5F5F;
 
 #input {
     dock: bottom;
-    height: 7;
-    min-height: 4;
+    height: auto;
+    min-height: 3;
     max-height: 8;
 }
 

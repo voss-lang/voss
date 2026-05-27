@@ -59,9 +59,14 @@ impl Tool for ShellRun {
         if let Err(e) = shell_allowed(&args.cmd, &load_allowlist()) {
             return Ok(format!("<denied: {e}>"));
         }
-        let mut cmd = Command::new("sh");
-        cmd.arg("-c")
-            .arg(&args.cmd)
+        // Split into argv and exec directly — no shell. Mirrors the Python
+        // harness which uses `create_subprocess_exec` (not `_shell`).
+        let argv = match shlex::split(&args.cmd) {
+            Some(v) if !v.is_empty() => v,
+            _ => return Ok("<denied: unparseable command>".into()),
+        };
+        let mut cmd = Command::new(&argv[0]);
+        cmd.args(&argv[1..])
             .current_dir(&self.cwd)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());

@@ -155,7 +155,7 @@ class TextualRenderer:
         status = self._status()
         if status is None:
             return
-        self._post(status.set_status, toast=f"⏵ {label}")
+        self._post(status.set_persistent_toast, f"⏵ {label}")
 
     def show_plan(self, plan: Any, *, cost_usd: float) -> None:
         rationale = getattr(plan, "rationale", "") or ""
@@ -304,6 +304,9 @@ class TextualRenderer:
             cost_usd=float(cost_usd),
         )
         self._mount_confidence_bar(conf, is_final=True)
+        status = self._status()
+        if status is not None:
+            self._post(status.clear_toast)
 
     # T1-05: streaming entry points — forward to TurnView via the _safe
     # lookup + _post forwarding pattern used by show_plan / show_final.
@@ -328,6 +331,9 @@ class TextualRenderer:
             timestamp=timestamp,
             accumulated_text=accumulated_text,
         )
+        status = self._status()
+        if status is not None:
+            self._post(status.clear_toast)
 
     def _mount_confidence_bar(self, confidence: float, *, is_final: bool) -> None:
         turn_view = self._turn_view()

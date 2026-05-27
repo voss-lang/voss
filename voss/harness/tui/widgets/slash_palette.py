@@ -59,6 +59,8 @@ class SlashPalette(ListView):
     }
     """
 
+    BINDINGS = [("escape", "dismiss", "Close palette")]
+
     class PaletteSubmitted(Message):
         def __init__(self, value: str) -> None:
             super().__init__()
@@ -105,4 +107,10 @@ class SlashPalette(ListView):
         self.action_dismiss()
 
     def action_dismiss(self) -> None:
-        self.remove()
+        # Refocus InputBar before removal so user can keep typing.
+        try:
+            input_bar = self.app.query_one("#input")
+            self.remove()
+            input_bar.focus()
+        except Exception:  # noqa: BLE001
+            self.remove()
