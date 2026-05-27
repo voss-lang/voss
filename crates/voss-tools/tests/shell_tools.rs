@@ -36,7 +36,7 @@ async fn shell_run_timeout() {
     let tmp = tempfile::tempdir().unwrap();
     let runner = ShellRun::new(tmp.path().to_path_buf()).with_timeout_secs(1);
     let res = runner
-        .invoke(json!({"cmd": "python3 -c \"import time; time.sleep(5)\""}))
+        .invoke(json!({"cmd": "python3 -c \"__import__('time').sleep(5)\""}))
         .await
         .unwrap();
     assert!(res.contains("<timeout: 1s>"), "got: {res}");

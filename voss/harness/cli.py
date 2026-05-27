@@ -1767,11 +1767,28 @@ def _run_repl(
 
             async def _dispatch_tui_turn(line: str):
                 if line.startswith("/"):
+                    import io
+                    old_stdout, old_stderr = sys.stdout, sys.stderr
+                    cap_out, cap_err = io.StringIO(), io.StringIO()
+                    handled = False
                     try:
+                        sys.stdout, sys.stderr = cap_out, cap_err
                         handled = slash_registry.dispatch(ctx, line)
                     except ValueError as exc:
                         renderer.show_warning(str(exc))
                         return None
+                    finally:
+                        sys.stdout, sys.stderr = old_stdout, old_stderr
+                    out = cap_out.getvalue().rstrip()
+                    err = cap_err.getvalue().rstrip()
+                    if out:
+                        try:
+                            tv = renderer.app.query_one("#main")
+                            renderer._post(tv.append_turn, "system", out)
+                        except Exception:  # noqa: BLE001
+                            pass
+                    if err:
+                        renderer.show_warning(err)
                     if handled:
                         if ctx.should_exit:
                             renderer.app.exit()

@@ -61,11 +61,32 @@ class StatusLine(Static):
             self._ctx_pct = ctx_pct
         if toast is not None:
             self._toast = toast
+            if self._toast_timer is not None:
+                try:
+                    self._toast_timer.stop()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._toast_timer = None
             try:
                 self._toast_timer = self.set_timer(1.5, self._clear_toast)
             except Exception:  # noqa: BLE001 — set_timer needs a running app loop
                 self._toast_timer = None
         self.update(self._render_markup())
+
+    def set_persistent_toast(self, text: str) -> None:
+        """Set a toast that stays until explicitly cleared."""
+        if self._toast_timer is not None:
+            try:
+                self._toast_timer.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            self._toast_timer = None
+        self._toast = text
+        self.update(self._render_markup())
+
+    def clear_toast(self) -> None:
+        """Clear any active toast (persistent or timed)."""
+        self._clear_toast()
 
     def _clear_toast(self) -> None:
         self._toast = None
