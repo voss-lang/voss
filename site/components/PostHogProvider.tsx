@@ -35,6 +35,9 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
       capture_pageleave: true,
       persistence: "localStorage+cookie",
       cross_subdomain_cookie: false,
+      // GDPR: opt out by default. Call posthog.opt_in_capturing() after
+      // obtaining user consent (e.g. via a cookie banner).
+      opt_out_capturing_by_default: true,
     });
   }, []);
 
