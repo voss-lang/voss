@@ -30,10 +30,9 @@ name: Release
 # of @vosslang/cli." Hardening contract:
 #   - permissions: contents: read at workflow root. No job opts in to
 #     write / id-token unless absolutely required (none today).
-#   - Action references use tag pins (`@v4`). Dependabot
-#     (.github/dependabot.yml, github-actions ecosystem) PRs commit-SHA pins
-#     on a weekly cadence; merge bumps to release.yml only after a manual
-#     review pass.
+#   - Action references use commit-SHA pins (hardened 2026-05-27).
+#     Dependabot (.github/dependabot.yml, github-actions ecosystem) PRs
+#     SHA pin bumps on a monthly cadence; merge only after manual review.
 #   - NPM_TOKEN is scoped to publish-only on the @vosslang org and gated
 #     behind branch protection on `master` + tag protection on `v*`.
 #   - build_platform.py refuses PENDING sha256 entries unless --allow-pending
@@ -88,13 +87,13 @@ jobs:
             python-bin: python/python.exe
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
           registry-url: 'https://registry.npmjs.org'
@@ -159,13 +158,13 @@ jobs:
       id-token: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
           registry-url: 'https://registry.npmjs.org'
