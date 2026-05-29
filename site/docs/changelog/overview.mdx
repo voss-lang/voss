@@ -1,0 +1,29 @@
+---
+title: "Changelog"
+description: "What's new in Voss."
+---
+
+Updates to the Voss harness and CLI. For deeper context, see the [Harness overview](/harness/overview) and [Roadmap](/roadmap/v0-1).
+
+<Update label="May 29, 2026">
+
+## New
+
+- **Compact renderer for embedded shells.** Voss now ships a low-chrome CLI renderer for use inside embedded terminals and pipelines. Output stays readable when the harness runs as a subprocess or inside another tool.
+- **Markdown turns with syntax highlighting.** Agent turns render as Markdown with syntax-highlighted code blocks, making plans, diffs, and explanations easier to scan. See [Modes](/harness/modes).
+- **Streaming model responses.** The provider layer now streams tokens as they arrive, so long planning turns no longer wait for a full completion before showing output.
+
+## Updated
+
+- **Refined CLI prompt and banner.** Updated prompt, banner, and status styling with a Unicode glyph fallback so the harness renders cleanly in terminals without full glyph support.
+- **Smarter project detection.** Interactive CLI detection has been tightened, and project cognition no longer indexes non-project directories or transient memory folders. See [Project cognition](/harness/project-cognition).
+- **`Ctrl+C` exits the harness.** The interactive harness now exits cleanly on `Ctrl+C` from the input bar. See [Commands](/harness/commands).
+- **Tighter input bar.** The input area uses a more compact layout with dynamic height, and `Esc` returns focus from the slash command palette.
+
+## Fixed & hardened
+
+- **Telemetry opt-out by default.** Analytics now default to opted out for GDPR compliance. Opt in explicitly if you want to share usage data. See [Security](/security/overview).
+- **Shell tool hardening.** Shell tool execution has been hardened against command injection. See [Tools](/harness/tools).
+- **Supply-chain hygiene.** Internal CI actions are pinned to commit SHAs.
+
+</Update>
