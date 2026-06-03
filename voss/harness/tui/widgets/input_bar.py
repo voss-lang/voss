@@ -117,7 +117,8 @@ class InputBar(Widget):
         background: transparent;
     }
 
-    InputBar:focus {
+    InputBar:focus,
+    InputBar:focus-within {
         border-top: solid #ff5b1f;
     }
 
@@ -129,7 +130,8 @@ class InputBar(Widget):
         padding-top: 0;
     }
 
-    InputBar:focus > #prompt-glyph {
+    InputBar:focus > #prompt-glyph,
+    InputBar:focus-within > #prompt-glyph {
         background: #ff5b1f 15%;
     }
 
@@ -271,7 +273,6 @@ class InputBar(Widget):
         if event.text_area is not self.query_one("#input-textarea", _InputTextArea):
             return
         await self._sync_slash_palette()
-        event.text_area.focus()
 
     async def _sync_slash_palette(self) -> None:
         from .slash_palette import SlashPalette
@@ -295,6 +296,7 @@ class InputBar(Widget):
             palette = SlashPalette(registry)
             await self.app.mount(palette, before=self)
         palette.update_query(text)
+        self.query_one("#input-textarea", _InputTextArea).focus()
 
     def action_reverse_search(self) -> None:
         if not self._search_mode:
