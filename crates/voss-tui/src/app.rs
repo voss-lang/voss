@@ -121,7 +121,7 @@ fn draw(f: &mut Frame, app: &App) {
     let avail = body.height.saturating_sub(2).max(1) as usize;
     let rows_of = |s: &str| -> usize {
         s.split('\n')
-            .map(|seg| (seg.chars().count().max(1) + inner_w - 1) / inner_w)
+            .map(|seg| seg.chars().count().max(1).div_ceil(inner_w))
             .sum::<usize>()
             .max(1)
     };
