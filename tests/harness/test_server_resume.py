@@ -38,12 +38,13 @@ def test_compose_single_run_is_backcompat():
 
 
 def test_compose_multi_run_list_renders_all_newest_first():
-    block = _compose_prior_context_block([{"goal": "first"}, {"goal": "second"}])
+    # distinct goals that don't collide with header words ("newest first")
+    block = _compose_prior_context_block([{"goal": "GOAL_ALPHA"}, {"goal": "GOAL_OMEGA"}])
     assert block.startswith("Prior context (resumed session")
-    assert "first" in block and "second" in block
+    assert "GOAL_ALPHA" in block and "GOAL_OMEGA" in block
     assert "[most-recent turn]" in block and "[turn -2]" in block
-    # newest first: "second" appears before "first"
-    assert block.index("second") < block.index("first")
+    # newest first: the last run (OMEGA) renders before the earlier run (ALPHA)
+    assert block.index("GOAL_OMEGA") < block.index("GOAL_ALPHA")
 
 
 def test_compose_empty_inputs():
