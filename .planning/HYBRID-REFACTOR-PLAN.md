@@ -167,14 +167,16 @@ Goal: adopt OpenCode's proven permission + agent-config patterns (as patterns, n
 
 Goal: single-command install.
 
-- **H6.1 — `cargo-dist`.** Signed `voss-tui` binaries (macOS arm64/x64, Linux x64/arm64) + Homebrew tap.
-  *Verify:* tagged release produces per-arch artifacts.
-- **H6.2 — Server bundling.** PyInstaller/PyOxidizer sidecar for the brew/curl path; vendored-Python provisioning for `pip install voss`.
-  *Verify:* `brew install` → `voss-tui` runs a turn with no user-managed Python.
-- **H6.3 — Dispatcher.** `voss.cli:main`: if `voss-tui` reachable, `exec` it for agent verbs; else in-process Python harness fallback (Textual). (Same spirit as RUST-PORT-PLAN §9.)
-  *Verify:* both paths run a turn.
+- **H6.1 — `cargo-dist`. DONE.** `dist-workspace.toml` now ships **`voss-tui`** (per-crate `[package.metadata.dist] dist = true`); the superseded `voss-cli` is excluded (`dist = false`). Existing config already covers 4 targets (macOS arm64/x64, Linux x64/arm64), shell + Homebrew installers (tap `bm9797/homebrew-voss`), macOS signing.
+  *Verified:* `dist plan --allow-dirty` lists `voss-tui` with `[bin] voss-tui` + `.rb`/installer across all 4 targets.
+  *⚠ Release-pipeline reconciliation needed (user decision):* `.github/workflows/release.yml` was hand-customized by **M6 for npm publish**, so `dist plan` reports it as stale vs the cargo-dist config. Running `dist init`/`generate` would regenerate it and **clobber M6's npm setup**. Decide: (a) let cargo-dist own `release.yml` and re-add npm publish as a custom job, or (b) keep M6's `release.yml` and hand-add the voss-tui build/publish steps. NOT auto-resolved.
+  *Note:* `voss-app` (Tauri) is also in the dist plan — pre-existing A-track quirk, left untouched.
+- **H6.2 — Server bundling. PARTIAL (honest).** The server is *already* distributable via the **M6 vendored-Python npm package** (`npm i -g voss`) and `pip install voss`. The brew/`voss-tui` binary path finds a `voss`-importable interpreter via `VOSS_PYTHON` → repo `.venv` → `python3` (`server.rs::python_path`). A **single-binary PyInstaller/PyOxidizer server bundle** (so brew needs zero user Python) is **deferred to a release-runner task** — building + signing it isn't verifiable in-dev and would be a fabricated artifact here.
+  *Current install matrix:* npm = client+server bundled (M6); pip = server (client optional); brew = `voss-tui` client + a `pip install voss` server (or `VOSS_PYTHON`).
+- **H6.3 — Dispatcher. DONE.** `voss/cli.py`: `voss ui` execs `voss-tui` (`$VOSS_TUI_BIN` → PATH), forwarding args; falls back to the in-process Textual REPL when absent. Bare `voss` stays Textual unless `VOSS_USE_TUI=1` (+ binary) — migration-safe per the "keep Textual default until parity" risk note.
+  *Verified:* 6 dispatcher tests + `voss --help` lists `ui` + live fallback.
 
-**Exit:** `brew install voss/tap/voss` → client → bundled server → working turn.
+**Exit (revised):** `npm i -g voss` → working turn today; `brew install` → `voss-tui` client + pip/`VOSS_PYTHON` server. Zero-Python brew binary = deferred. Release-pipeline reconciliation flagged above.
 
 ---
 
