@@ -112,6 +112,57 @@ impl HttpClient {
         Ok(())
     }
 
+    /// GET /sessions/saved — on-disk sessions resumable for this cwd.
+    pub async fn list_saved_sessions(
+        &self,
+        cwd: &str,
+    ) -> Result<Vec<crate::sessions::SavedSession>> {
+        let resp = self
+            .auth(
+                self.inner
+                    .get(format!("{}/sessions/saved", self.base))
+                    .query(&[("cwd", cwd)]),
+            )
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
+        let resp = ok_or_detail(resp).await?;
+        let v: serde_json::Value = resp.json().await?;
+        let list = v.get("sessions").cloned().unwrap_or_else(|| serde_json::json!([]));
+        Ok(serde_json::from_value(list)?)
+    }
+
+    /// POST /session {resume} — adopt a saved session; returns its id.
+    pub async fn create_session_resume(&self, resume_id: &str, cwd: &str) -> Result<String> {
+        let resp = self
+            .auth(self.inner.post(format!("{}/session", self.base)))
+            .timeout(REST_TIMEOUT)
+            .json(&serde_json::json!({ "resume": resume_id, "cwd": cwd }))
+            .send()
+            .await?;
+        let resp = ok_or_detail(resp).await?;
+        let v: serde_json::Value = resp.json().await?;
+        v.get("id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| anyhow!("resume: no id in response"))
+    }
+
+    /// GET /session/:id/cost — session cost total.
+    pub async fn cost(&self, sid: &str) -> Result<(f64, u64)> {
+        let resp = self
+            .auth(self.inner.get(format!("{}/session/{}/cost", self.base, sid)))
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
+        let resp = ok_or_detail(resp).await?;
+        let v: serde_json::Value = resp.json().await?;
+        Ok((
+            v.get("total_usd").and_then(serde_json::Value::as_f64).unwrap_or(0.0),
+            v.get("turns").and_then(serde_json::Value::as_u64).unwrap_or(0),
+        ))
+    }
+
     /// GET /doctor — server-side diagnostics (the client renders, never computes).
     pub async fn doctor(&self, cwd: &str) -> Result<crate::doctor::DoctorReport> {
         let resp = self

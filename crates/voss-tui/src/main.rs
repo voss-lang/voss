@@ -7,7 +7,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use voss_tui::{app, doctor, net::HttpClient, server};
+use voss_tui::{app, doctor, net::HttpClient, server, sessions};
 
 #[derive(Parser)]
 #[command(name = "voss-tui", version, about = "Voss thin terminal client")]
