@@ -376,14 +376,27 @@ def create_app(token: str | None = None) -> FastAPI:
     # -- doctor (H1.7 stub; H3.1 expands) -----------------------------------
 
     @app.get("/doctor")
-    def doctor(auth: str = "auto") -> dict:
+    def doctor(auth: str = "auto", cwd: str = ".") -> dict:
+        from .. import diagnostics as diag
+
         res, provider = _resolve_provider(auth)
+        checks = diag.run_all_checks(Path(cwd).resolve())
         return {
             "v": 1,
             "auth_source": res.source,
             "auth_detail": res.detail,
             "has_provider": provider is not None,
             "default_model": get_config().default_model,
+            "exit_code": diag.aggregate_exit_code(checks),
+            "checks": [
+                {
+                    "name": c.name,
+                    "status": c.result.name,
+                    "detail": c.detail,
+                    "fix": c.fix,
+                }
+                for c in checks
+            ],
         }
 
     # -- OpenAPI: force the event union into components (H1.14) --------------

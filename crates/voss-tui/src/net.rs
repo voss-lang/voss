@@ -112,6 +112,21 @@ impl HttpClient {
         Ok(())
     }
 
+    /// GET /doctor — server-side diagnostics (the client renders, never computes).
+    pub async fn doctor(&self, cwd: &str) -> Result<crate::doctor::DoctorReport> {
+        let resp = self
+            .auth(
+                self.inner
+                    .get(format!("{}/doctor", self.base))
+                    .query(&[("cwd", cwd)]),
+            )
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
+        let resp = ok_or_detail(resp).await?;
+        Ok(resp.json().await?)
+    }
+
     /// GET /session/:id/events — stream SSE, forwarding parsed events to `tx`.
     ///
     /// Returns when the turn ends (`session.idle`), the stream errors, or the

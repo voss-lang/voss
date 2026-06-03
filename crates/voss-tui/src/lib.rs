@@ -8,6 +8,7 @@
 //! `.planning/HYBRID-REFACTOR-PLAN.md` (H2) for the build plan.
 
 pub mod app;
+pub mod doctor;
 pub mod event;
 pub mod net;
 pub mod server;
