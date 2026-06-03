@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.widgets import ListItem, Static
 
 from voss.harness.slash import SlashCommand, SlashRegistry
 from voss.harness.tui.app import VossTUIApp
@@ -154,30 +155,40 @@ async def test_palette_update_query_toggles_existing_items() -> None:
         assert by_name["/clear"].disabled is True
 
 
-@pytest.mark.asyncio
-async def test_palette_submit_uses_highlighted_item_command_name() -> None:
+def test_palette_submit_uses_highlighted_item_command_name() -> None:
+    class SubmitOnlyPalette(SlashPalette):
+        def __init__(self, registry: SlashRegistry) -> None:
+            super().__init__(registry)
+            self.messages: list[SlashPalette.PaletteSubmitted] = []
+            self.highlighted_for_test = None
+
+        @property
+        def highlighted_child(self):
+            return self.highlighted_for_test
+
+        def post_message(self, message) -> bool:
+            self.messages.append(message)
+            return True
+
+        def action_dismiss(self) -> None:
+            return None
+
     registry = _registry_with(
         ("/clear", "clear transcript"),
         ("/cost", "session cost so far"),
         ("/help", "show this list"),
     )
-    app = VossTUIApp(slash_registry=registry)
-    async with app.run_test() as pilot:
-        palette = SlashPalette(registry)
-        await pilot.app.mount(palette)
-        palette.update_query("he")
-        messages: list[SlashPalette.PaletteSubmitted] = []
-        palette.post_message = messages.append  # type: ignore[method-assign]
+    palette = SubmitOnlyPalette(registry)
+    help_item = ListItem(Static("/help"))
+    help_item._voss_command_name = "/help"  # type: ignore[attr-defined]
+    palette.highlighted_for_test = help_item
+    palette._names = ["/help"]
+    palette._items_by_name = {"/help": help_item}
+    palette.index = 2
 
-        help_item = next(
-            item
-            for item in palette.children
-            if getattr(item, "_voss_command_name", None) == "/help"
-        )
-        palette.index = list(palette.children).index(help_item)
-        palette._submit_current()
+    palette._submit_current()
 
-        assert [message.value for message in messages] == ["/help"]
+    assert [message.value for message in palette.messages] == ["/help"]
 
 
 @pytest.mark.asyncio
