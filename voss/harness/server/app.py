@@ -233,6 +233,7 @@ class CreateSessionBody(BaseModel):
     cwd: str | None = None
     model: str | None = None
     auth: str = "auto"
+    resume: str | None = None  # id/name of a saved session to resume (H4.1)
 
 
 class MessagePart(BaseModel):
@@ -287,9 +288,24 @@ def create_app(token: str | None = None) -> FastAPI:
         res, provider = _resolve_provider(body.auth)
         if provider is None:
             raise HTTPException(400, f"no usable credentials ({res.detail})")
+        if body.resume:
+            try:
+                record, history = session_store.load(body.resume, cwd)
+            except FileNotFoundError:
+                raise HTTPException(404, f"no saved session {body.resume!r}")
+            except ValueError as exc:  # ambiguous id
+                raise HTTPException(409, str(exc))
+            # M2: forward ALL prior runs as prior context (consumed on turn 1).
+            s = mgr.adopt(
+                record=record,
+                history=history,
+                provider=provider,
+                prior_context=record.runs or None,
+            )
+            return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
         model = body.model or get_config().default_model
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
-        return {"v": 1, "id": s.id, "auth": res.source}
+        return {"v": 1, "id": s.id, "auth": res.source, "resumed": False}
 
     @app.get("/session")
     def list_sessions() -> dict:
@@ -298,6 +314,25 @@ def create_app(token: str | None = None) -> FastAPI:
             "sessions": [
                 {"id": s.id, "cwd": str(s.cwd), "model": s.model, "title": s.title, "busy": s.busy}
                 for s in mgr.list()
+            ],
+        }
+
+    @app.get("/sessions/saved")
+    def list_saved_sessions(cwd: str = ".") -> dict:
+        records = session_store.list_sessions(Path(cwd).resolve())
+        return {
+            "v": 1,
+            "sessions": [
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "cwd": r.cwd,
+                    "model": r.model,
+                    "updated_at": r.updated_at,
+                    "total_cost_usd": r.total_cost_usd,
+                    "turns": len(r.turns),
+                }
+                for r in records
             ],
         }
 

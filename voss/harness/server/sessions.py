@@ -38,6 +38,9 @@ class ServerSession:
     task: asyncio.Task | None = None
     pending: dict[str, Future] = field(default_factory=dict)
     title: str = ""
+    # M2: prior RunRecords from a resumed session, surfaced on the first turn
+    # then cleared (deep history thereafter flows via `history`).
+    prior_context: Any = None
 
     @property
     def busy(self) -> bool:
@@ -67,6 +70,28 @@ class SessionManager:
             record=record,
             history=EpisodicMemory(capacity=40),
             title=title,
+        )
+        self._sessions[session.id] = session
+        return session
+
+    def adopt(
+        self,
+        *,
+        record: session_store.SessionRecord,
+        history: EpisodicMemory,
+        provider: Any,
+        prior_context: Any = None,
+    ) -> ServerSession:
+        """Register a session resumed from disk (reuses the saved id + history)."""
+        session = ServerSession(
+            id=record.id,
+            cwd=Path(record.cwd),
+            model=record.model,
+            provider=provider,
+            record=record,
+            history=history,
+            title=record.name,
+            prior_context=prior_context,
         )
         self._sessions[session.id] = session
         return session
