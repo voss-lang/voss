@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::net::HttpClient;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct SavedSession {
     pub id: String,
     #[serde(default)]
@@ -25,19 +25,29 @@ pub struct SavedSession {
     pub turns: u64,
 }
 
-pub async fn list(http: &HttpClient, cwd: &str) -> Result<()> {
-    let sessions = http.list_saved_sessions(cwd).await?;
+fn print_sessions(cwd: &str, sessions: &[SavedSession]) {
     if sessions.is_empty() {
         println!("no saved sessions for {cwd}");
-        return Ok(());
+        return;
     }
     println!("{:<14} {:<24} {:>5} {:>9}  UPDATED", "ID", "NAME", "TURNS", "COST$");
-    for s in &sessions {
+    for s in sessions {
         println!(
             "{:<14} {:<24} {:>5} {:>9.4}  {}",
             s.id, s.name, s.turns, s.total_cost_usd, s.updated_at
         );
     }
     println!("\nresume with: voss-tui resume <id>");
+}
+
+/// List via the server's `/sessions/saved` (Python).
+pub async fn list(http: &HttpClient, cwd: &str) -> Result<()> {
+    print_sessions(cwd, &http.list_saved_sessions(cwd).await?);
+    Ok(())
+}
+
+/// List by reading `.voss/sessions/*.json` natively — no Python server (H7).
+pub fn list_native(cwd: &str) -> Result<()> {
+    print_sessions(cwd, &crate::store::read_saved_sessions(cwd));
     Ok(())
 }

@@ -13,3 +13,4 @@ pub mod event;
 pub mod net;
 pub mod server;
 pub mod sessions;
+pub mod store;
