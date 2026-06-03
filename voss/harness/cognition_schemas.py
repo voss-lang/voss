@@ -5,7 +5,7 @@ This is the "fail at REPL boot, not mid-turn" contract from D-07.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
