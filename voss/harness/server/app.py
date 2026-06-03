@@ -8,6 +8,7 @@ this module only adds transport: routes, an event bus, and a permission bridge.
 from __future__ import annotations
 
 import asyncio
+import os
 import secrets
 import uuid
 from concurrent.futures import Future
@@ -33,6 +34,18 @@ from .renderer import EventBusRenderer
 from .sessions import ServerSession, SessionManager
 
 PERMISSION_TIMEOUT_S = 300.0
+
+
+class _FakeResolution:
+    """Stand-in Resolution for the VOSS_SERVE_FAKE_TURN test seam."""
+
+    source = "fake"
+    detail = "VOSS_SERVE_FAKE_TURN"
+
+
+class _FakePlan:
+    confidence = 0.9
+    steps: list = []
 
 
 class _BearerASGI:
@@ -75,6 +88,10 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
     switch, but a missing credential is a caller error (raised by the route),
     not a login wizard / `sys.exit`.
     """
+    # Test seam: a hermetic fake turn needs a session without real creds.
+    if os.environ.get("VOSS_SERVE_FAKE_TURN"):
+        return _FakeResolution(), object()
+
     from voss_runtime.providers import LiteLLMProvider
 
     from ..providers import AnthropicOAuthProvider, OpenAIOAuthProvider
@@ -144,6 +161,22 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     """Drive one turn; publish events; persist. Runs as session.task."""
     loop = asyncio.get_running_loop()
     renderer = EventBusRenderer(session.queue, session_id=session.id, loop=loop)
+
+    # Test seam: emit a canned turn over the real event/SSE path (no provider).
+    if os.environ.get("VOSS_SERVE_FAKE_TURN"):
+        try:
+            renderer.show_user(text)
+            renderer.show_thinking("planning 1/1")
+            renderer.show_plan(_FakePlan(), cost_usd=0.0)
+            renderer.stream_delta("hello ")
+            renderer.stream_delta("from fake turn")
+            renderer.finalize_stream(role="assistant", confidence=0.9, cost_usd=0.0)
+            renderer.show_final(f"echo: {text}", confidence=0.9, cost_usd=0.0)
+        finally:
+            renderer.session_idle()
+            session.task = None
+        return
+
     try:
         renderer.show_user(text)
         tools = make_toolset(session.cwd, renderer=renderer)

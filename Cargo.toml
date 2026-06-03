@@ -9,6 +9,7 @@ members = [
     "crates/voss-render",
     "crates/voss-bridge",
     "crates/voss-app-core",
+    "crates/voss-tui",
     "apps/voss-app/src-tauri",
 ]
 
