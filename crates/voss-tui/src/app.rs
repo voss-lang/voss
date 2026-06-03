@@ -9,7 +9,8 @@ use anyhow::Result;
 use crossterm::event::{Event as CtEvent, EventStream, KeyCode, KeyEventKind, KeyModifiers};
 use futures_util::StreamExt;
 use ratatui::layout::{Constraint, Layout};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::{DefaultTerminal, Frame};
 use tokio::sync::mpsc;
@@ -121,21 +122,52 @@ impl App {
     }
 }
 
+const ACCENT: Color = Color::Cyan;
+
+/// Style a transcript line by its leading glyph (role distinction, TUI parity).
+fn line_to_styled(s: &str) -> Line<'static> {
+    let style = match s.chars().next() {
+        Some('\u{203A}') => Style::default().add_modifier(Modifier::BOLD), // › user
+        Some('=') => Style::default().fg(Color::Green),                    // = final
+        Some('\u{2699}') => Style::default().fg(Color::Yellow),            // ⚙ tool
+        Some('\u{2717}') => Style::default().fg(Color::Red),               // ✗ error
+        Some('\u{26A0}') => Style::default().fg(Color::Yellow),            // ⚠ warning
+        Some('?') => Style::default().fg(ACCENT),                          // ? clarify
+        _ => Style::default(),
+    };
+    Line::styled(s.to_string(), style)
+}
+
 fn draw(f: &mut Frame, app: &App) {
-    let [body, input, status] = Layout::vertical([
+    let [header, body, input, status] = Layout::vertical([
+        Constraint::Length(1),
         Constraint::Min(3),
         Constraint::Length(3),
         Constraint::Length(1),
     ])
     .areas(f.area());
 
+    // Header: model · session · tokens · cost.
+    let sid8 = app.session_id.chars().take(8).collect::<String>();
+    let header_text = format!(
+        " voss · {} · {} · {} tok · ${:.4}",
+        app.model, sid8, app.tokens, app.cost
+    );
+    f.render_widget(
+        Paragraph::new(header_text).style(
+            Style::default()
+                .fg(Color::Black)
+                .bg(ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ),
+        header,
+    );
+
+    // Transcript: role-styled, bottom-pinned by wrapped-row count.
     let mut lines: Vec<String> = app.transcript.clone();
     if !app.streaming.is_empty() {
         lines.push(app.streaming.clone());
     }
-    // Pin the newest output to the bottom by counting WRAPPED rows, not logical
-    // lines: one entry can wrap to many rows (long/multi-line answers), so a
-    // logical-line window clips the newest content. Width is char-approximated.
     let inner_w = body.width.saturating_sub(2).max(1) as usize;
     let avail = body.height.saturating_sub(2).max(1) as usize;
     let rows_of = |s: &str| -> usize {
@@ -154,10 +186,10 @@ fn draw(f: &mut Frame, app: &App) {
         used += r;
         start = i;
     }
-    let visible = lines[start..].join("\n");
+    let styled: Vec<Line> = lines[start..].iter().map(|s| line_to_styled(s)).collect();
 
     f.render_widget(
-        Paragraph::new(visible)
+        Paragraph::new(styled)
             .block(Block::default().borders(Borders::ALL).title("voss"))
             .wrap(Wrap { trim: false }),
         body,
@@ -170,8 +202,17 @@ fn draw(f: &mut Frame, app: &App) {
         ),
         input,
     );
+
+    // Status bar: spinner while busy + the latest status line.
+    const SPIN: [char; 4] = ['⠋', '⠙', '⠹', '⠸'];
+    let prefix = if app.busy {
+        format!("{} ", SPIN[app.spinner % SPIN.len()])
+    } else {
+        String::new()
+    };
     f.render_widget(
-        Paragraph::new(app.status.as_str()).style(Style::default().add_modifier(Modifier::DIM)),
+        Paragraph::new(format!("{prefix}{}", app.status))
+            .style(Style::default().add_modifier(Modifier::DIM)),
         status,
     );
 }
@@ -305,10 +346,10 @@ async fn handle_key(
 
 /// Run the UI loop until the user quits.
 pub async fn run(mut terminal: DefaultTerminal, http: HttpClient, sid: String) -> Result<()> {
-    let mut app = App::new();
+    let mut app = App::new(sid.clone());
     let (tx, mut rx) = mpsc::channel::<AppEvent>(256);
     let mut input_events = EventStream::new();
-    let mut ticker = interval(Duration::from_millis(50));
+    let mut ticker = interval(Duration::from_millis(120));
 
     terminal.draw(|f| draw(f, &app))?;
     loop {
@@ -322,7 +363,11 @@ pub async fn run(mut terminal: DefaultTerminal, http: HttpClient, sid: String) -
                 }
             }
             Some(ev) = rx.recv() => app.apply(ev),
-            _ = ticker.tick() => {}
+            _ = ticker.tick() => {
+                if app.busy {
+                    app.spinner = app.spinner.wrapping_add(1); // animate the spinner
+                }
+            }
         }
         if app.quit {
             break;
@@ -338,7 +383,7 @@ mod tests {
 
     #[test]
     fn error_flushes_partial_stream_and_clears_busy() {
-        let mut a = App::new();
+        let mut a = App::new("test-sid".into());
         a.busy = true;
         a.apply(AppEvent::StreamDelta("partial ".into()));
         a.apply(AppEvent::StreamDelta("answer".into()));
@@ -351,7 +396,7 @@ mod tests {
 
     #[test]
     fn idle_without_finalize_flushes_partial() {
-        let mut a = App::new();
+        let mut a = App::new("test-sid".into());
         a.busy = true;
         a.apply(AppEvent::StreamDelta("half".into()));
         a.apply(AppEvent::SessionIdle); // no stream.finalize arrived
@@ -362,7 +407,7 @@ mod tests {
 
     #[test]
     fn normal_path_leaves_no_orphan_and_no_contamination() {
-        let mut a = App::new();
+        let mut a = App::new("test-sid".into());
         a.apply(AppEvent::StreamDelta("hello".into()));
         a.apply(AppEvent::StreamFinalize); // drains "hello" -> transcript
         a.apply(AppEvent::Final {
