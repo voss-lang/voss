@@ -7,6 +7,10 @@ license.workspace = true
 description = "Voss thin terminal client (ratatui) over the harness REST+SSE protocol"
 repository.workspace = true
 
+# H6.1: ship this binary via cargo-dist (authoritative per-crate opt-in).
+[package.metadata.dist]
+dist = true
+
 [lib]
 name = "voss_tui"
 path = "src/lib.rs"

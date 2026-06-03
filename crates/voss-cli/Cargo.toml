@@ -8,6 +8,10 @@ description.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+# H6.1: superseded subprocess-bridge spike (RUST-PORT-PLAN) — not released.
+[package.metadata.dist]
+dist = false
+
 [[bin]]
 name = "voss-cli"
 path = "src/main.rs"

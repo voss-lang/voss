@@ -177,15 +177,67 @@ def main(ctx: click.Context) -> None:
     Interactive commands: run `voss chat`, then /help
     """
     if ctx.invoked_subcommand is None:
-        from .harness.cli import chat_cmd
-        ctx.invoke(
-            chat_cmd,
-            model=None,
-            cwd_str=".",
-            json_mode=False,
-            mode="plan",  # D-07: bare voss defaults to plan
-            auth_pref="auto",
+        # H6.3: opt-in native client. Default stays the in-process Textual REPL
+        # until the Rust client reaches parity; `VOSS_USE_TUI=1` (with the
+        # binary installed) execs voss-tui for bare `voss`.
+        if _should_use_native_tui():
+            binary = _find_voss_tui()
+            if binary:
+                os.execvp(binary, [binary])
+        _run_inprocess_chat(ctx)
+
+
+def _find_voss_tui() -> str | None:
+    """Locate the native client: $VOSS_TUI_BIN, else `voss-tui` on PATH."""
+    import shutil
+
+    explicit = os.environ.get("VOSS_TUI_BIN")
+    if explicit:
+        return explicit if Path(explicit).exists() else None
+    return shutil.which("voss-tui")
+
+
+def _should_use_native_tui() -> bool:
+    return os.environ.get("VOSS_USE_TUI", "").lower() in ("1", "true", "yes")
+
+
+def _run_inprocess_chat(ctx: click.Context) -> None:
+    """Fallback: the in-process Textual/plain REPL."""
+    from .harness.cli import chat_cmd
+
+    ctx.invoke(
+        chat_cmd,
+        model=None,
+        cwd_str=".",
+        json_mode=False,
+        mode="plan",  # D-07: bare voss defaults to plan
+        auth_pref="auto",
+    )
+
+
+@main.command(
+    "ui",
+    context_settings={"ignore_unknown_options": True, "help_option_names": []},
+)
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+@click.pass_context
+def ui_cmd(ctx: click.Context, args: tuple[str, ...]) -> None:
+    """Launch the native Rust terminal client (voss-tui).
+
+    Forwards extra arguments to voss-tui. Falls back to the in-process REPL
+    when the binary isn't installed. Install it (cargo-dist / brew) or point
+    VOSS_TUI_BIN at the binary.
+    """
+    binary = _find_voss_tui()
+    if binary is None:
+        click.echo(
+            "voss-tui not found — falling back to in-process REPL "
+            "(install the native client or set VOSS_TUI_BIN)",
+            err=True,
         )
+        _run_inprocess_chat(ctx)
+        return
+    os.execvp(binary, [binary, *args])
 
 
 @main.command("compile")
