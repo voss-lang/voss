@@ -264,3 +264,48 @@ pub async fn run(mut terminal: DefaultTerminal, http: HttpClient, sid: String) -
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_flushes_partial_stream_and_clears_busy() {
+        let mut a = App::new();
+        a.busy = true;
+        a.apply(AppEvent::StreamDelta("partial ".into()));
+        a.apply(AppEvent::StreamDelta("answer".into()));
+        a.apply(AppEvent::Error("boom".into()));
+        assert!(a.streaming.is_empty(), "partial must be flushed");
+        assert!(a.transcript.iter().any(|l| l == "partial answer"));
+        assert!(a.transcript.iter().any(|l| l.contains("boom")));
+        assert!(!a.busy);
+    }
+
+    #[test]
+    fn idle_without_finalize_flushes_partial() {
+        let mut a = App::new();
+        a.busy = true;
+        a.apply(AppEvent::StreamDelta("half".into()));
+        a.apply(AppEvent::SessionIdle); // no stream.finalize arrived
+        assert!(a.streaming.is_empty());
+        assert!(a.transcript.iter().any(|l| l == "half"));
+        assert!(!a.busy);
+    }
+
+    #[test]
+    fn normal_path_leaves_no_orphan_and_no_contamination() {
+        let mut a = App::new();
+        a.apply(AppEvent::StreamDelta("hello".into()));
+        a.apply(AppEvent::StreamFinalize); // drains "hello" -> transcript
+        a.apply(AppEvent::Final {
+            text: "hello".into(),
+            confidence: 0.9,
+        });
+        a.apply(AppEvent::SessionIdle);
+        assert!(a.streaming.is_empty());
+        // next turn must not inherit prior text
+        a.apply(AppEvent::StreamDelta("world".into()));
+        assert_eq!(a.streaming, "world");
+    }
+}
