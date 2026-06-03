@@ -3337,8 +3337,29 @@ def hooks_uninstall_cmd(cwd_str: str) -> None:
     click.echo("Removed pre-commit hook.")
 
 
+@click.command("serve")
+@click.option("--host", default="127.0.0.1", help="Bind host (loopback only).")
+@click.option("--port", default=0, type=int, help="Bind port; 0 = ephemeral.")
+@click.option("--token", default=None, help="Bearer token; auto-generated if omitted.")
+def serve_cmd(host: str, port: int, token: str | None) -> None:
+    """Run the REST+SSE harness server for thin clients (voss-tui).
+
+    Prints a one-line `{port, token}` handshake to stdout, then serves until
+    the parent process exits. Requires the `server` extra (`pip install
+    voss[server]`).
+    """
+    try:
+        from .server.serve import run_server
+    except ImportError as exc:  # pragma: no cover - missing optional dep
+        raise click.ClickException(
+            "the server extra is not installed — run: pip install 'voss[server]'"
+        ) from exc
+    run_server(host=host, port=port, token=token)
+
+
 AGENT_COMMANDS = (
     do_cmd,
+    serve_cmd,
     chat_cmd,
     edit_cmd,
     login_cmd,
