@@ -5,7 +5,7 @@
 **Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`)
 **Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A13 (counts TBD by SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Last updated:** 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -28,11 +28,11 @@
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..06 | **Complete** (6/6 plans, 2026-05-20) |
 | T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | **Complete** (3/3 plans, 2026-05-18) |
-| T1 | Iteration Loop + Streaming + Interrupt | Turn single-shot plan→exec→done into a real while-loop agent with streamed text + cancel | ITER-01..06 | TBD |
-| T4 | Prompt Caching + Cost Truthfulness | Cache cognition prefix; honest `/cost` including cache reads | CACHE-01..04 | TBD |
-| T2 | Parallel Tools + Multi-Edit | Read-only steps gather; `fs_edit_many` atomic batch | PAR-01..04 | TBD |
-| T3 | Network Surface (WebFetch + WebSearch + MCP client) | Live docs + MCP ecosystem, gated at the boundary | NET-01..07 | TBD |
-| T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | TBD |
+| T1 | Iteration Loop + Streaming + Interrupt | Turn single-shot plan→exec→done into a real while-loop agent with streamed text + cancel | ITER-01..06 | **Implemented** (code+tests verified 2026-06-02) |
+| T4 | Prompt Caching + Cost Truthfulness | Cache cognition prefix; honest `/cost` including cache reads | CACHE-01..04 | **Implemented** (code+tests verified 2026-06-02) |
+| T2 | Parallel Tools + Multi-Edit | Read-only steps gather; `fs_edit_many` atomic batch | PAR-01..04 | **Implemented** (code+tests verified 2026-06-02) |
+| T3 | Network Surface (WebFetch + WebSearch + MCP client) | Live docs + MCP ecosystem, gated at the boundary | NET-01..07 | **Implemented** (code+tests verified 2026-06-02) |
+| T5 | Shell Ergonomics | 30KB output, background mode, monitor, signal, `voss jobs` | SHELL-01..05 | **Implemented** (code+tests verified 2026-06-02) |
 | T7 | Skills Bootstrap | Ship 6 ready skills paired with M5 eval tasks | SKL-01..06 | TBD |
 | T8 | Input Bar Ergonomics | Multi-line, `!cmd`, `#mem`, Ctrl-R, paste-image | INPUT-01..05 | **Complete** (5/5 plans, 2026-05-18) |
 | A1 | voss-app Tauri Shell | Tauri + Solid empty window, titlebar + theme tokens, local build only (no release pipeline — deferred to A11) | SHL-01..06 | 4 plans, 4 waves |
@@ -709,6 +709,21 @@ the surface that already exists. They add no new product surface — they
 make `voss do` / `voss chat` feel like a coding agent users would reach
 for daily. Full audit, sequencing rationale, and per-phase requirements
 in [`notes/daily-driver-punch-list.md`](notes/daily-driver-punch-list.md).
+
+**Status reconciliation (2026-06-02, H0.2):** T1, T2, T3, T4, T5 are
+**implemented in code and covered by tests** — verified directly against the
+tree, not inferred. Evidence: iteration while-loop + `max_iterations`
+(`agent.py`), 3-provider `stream()` (`providers.py`), interrupt handler
+(`agent.py:1052`), `asyncio.gather` read-batches + `fs_read_many`/`fs_edit_many`
+(`agent.py`/`tools.py`), `web_fetch`/`web_search`/`net.py`/`mcp/` client+server,
+`cache_control: ephemeral` + `cache_read_input_tokens` accounting (`agent.py`),
+`shell_run_background` + `voss jobs` (`tools.py`/`cli.py`); test files
+`test_anthropic_stream`, `test_openai_stream`, `test_renderer_streaming`,
+`test_recorder_iterations`, `test_cache_*`, `test_cost_*`, `test_web_fetch`,
+`test_web_search`, `test_cli_mcp`, `test_t5_shell`, … The earlier `TBD` cells
+were stale; the harness is more capable than these docs claimed. T7 (Skills
+Bootstrap) is **not** verified here — left `TBD`. The "What M5/M6 don't fix"
+gap table in the punch-list predates these landings; read it as historical.
 
 **Versioning split:**
 - **v0.1.1 patch** — T6 only. PRD §2.4 promised those slashes; shipping

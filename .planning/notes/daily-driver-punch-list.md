@@ -8,6 +8,13 @@
 - **v0.3.0+:** M11–M15 (unfair-advantage features).
 - **v1.0.0:** API lock once dogfood signals stable public surface.
 
+> **UPDATE 2026-06-02 (H0.2):** T1, T2, T3, T4, T5, T6, T8 are now **implemented
+> and tested** in the tree (verified directly — see ROADMAP "Status
+> reconciliation"). The "What M5 and M6 don't fix" gap table below is the
+> **original 2026-05-15 audit** and is retained for history — most of its P0/P1
+> rows are now CLOSED. Do not read that table as the current state of the
+> harness. Only T7 (Skills Bootstrap) remains unverified.
+
 ## TL;DR
 
 M5 (Eval + Distribution Prep) and M6 (npm Wrapper) are correctly scoped for
