@@ -89,6 +89,35 @@ class _InputTextArea(TextArea):
             event.stop()
             await bar._on_key(event)
             return
+        # Slash palette open → route nav/select/dismiss keys to it. The textarea
+        # keeps focus (so printable keys + backspace still filter via Changed),
+        # so the palette's own bindings never fire — forward them explicitly.
+        palette = bar.mounted_slash_palette()
+        if palette is not None:
+            if event.key == "up":
+                event.prevent_default()
+                event.stop()
+                palette.action_cursor_up()
+                return
+            if event.key == "down":
+                event.prevent_default()
+                event.stop()
+                palette.action_cursor_down()
+                return
+            if event.key == "escape":
+                event.prevent_default()
+                event.stop()
+                palette.action_dismiss()
+                return
+            if event.key == "enter" and palette._names:
+                # Run the highlighted command instead of submitting raw text.
+                event.prevent_default()
+                event.stop()
+                palette._submit_current()
+                return
+            if event.key == "enter":
+                # No matching command — close palette, fall through to submit.
+                palette.action_dismiss()
         if event.key == "enter":
             event.prevent_default()
             event.stop()
@@ -98,11 +127,6 @@ class _InputTextArea(TextArea):
             event.prevent_default()
             event.stop()
             self.insert("\n")
-            return
-        if event.key == "slash" and not self.text.strip():
-            event.prevent_default()
-            event.stop()
-            bar.action_open_palette()
             return
         await super()._on_key(event)
 
@@ -122,7 +146,8 @@ class InputBar(Widget):
         background: transparent;
     }
 
-    InputBar:focus {
+    InputBar:focus,
+    InputBar:focus-within {
         border-top: solid #ff5b1f;
     }
 
@@ -134,7 +159,8 @@ class InputBar(Widget):
         padding-top: 0;
     }
 
-    InputBar:focus > #prompt-glyph {
+    InputBar:focus > #prompt-glyph,
+    InputBar:focus-within > #prompt-glyph {
         background: #ff5b1f 15%;
     }
 
@@ -162,7 +188,6 @@ class InputBar(Widget):
     """
 
     BINDINGS = [
-        ("slash", "open_palette", "Open slash palette"),
         ("ctrl+r", "reverse_search", "Reverse-search input history"),
     ]
     can_focus = True
@@ -242,11 +267,6 @@ class InputBar(Widget):
             event.stop()
             textarea.insert("\n")
             return
-        if event.key == "slash" and not textarea.text.strip():
-            event.prevent_default()
-            event.stop()
-            self.action_open_palette()
-            return
         await textarea._on_key(event)  # noqa: SLF001 - delegate editing to child TextArea.
 
     class Submitted(Message):
@@ -277,6 +297,44 @@ class InputBar(Widget):
                 await self._dispatch_note(note)
             return
         self.post_message(self.Submitted(value))
+
+    async def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if event.text_area is not self.query_one("#input-textarea", _InputTextArea):
+            return
+        await self._sync_slash_palette()
+
+    def mounted_slash_palette(self):
+        """The mounted SlashPalette, or None. Used to route nav keys to it."""
+        from .slash_palette import SlashPalette
+
+        try:
+            return self.app.query_one(SlashPalette)
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def _sync_slash_palette(self) -> None:
+        from .slash_palette import SlashPalette
+
+        try:
+            existing = self.app.query_one(SlashPalette)
+        except Exception:  # noqa: BLE001
+            existing = None
+
+        text = self.text
+        if not text.startswith("/"):
+            if existing is not None:
+                existing.remove()
+            return
+
+        registry = getattr(self.app, "slash_registry", None)
+        if registry is None:
+            return
+        palette = existing
+        if palette is None:
+            palette = SlashPalette(registry)
+            await self.app.mount(palette, before=self)
+        palette.update_query(text)
+        self.query_one("#input-textarea", _InputTextArea).focus()
 
     def action_reverse_search(self) -> None:
         if not self._search_mode:
@@ -391,22 +449,3 @@ class InputBar(Widget):
         turn_view._turn_count += 1  # noqa: SLF001 - matches TurnView append protocol.
         turn_view.write(block.render())
 
-    def action_open_palette(self) -> None:
-        """Open the slash palette only when the input is empty."""
-        textarea = self.query_one("#input-textarea", _InputTextArea)
-        if textarea.text.strip():
-            textarea.insert("/")
-            return
-        from .slash_palette import SlashPalette
-
-        registry = getattr(self.app, "slash_registry", None)
-        if registry is None:
-            return
-        try:
-            existing = self.app.query_one(SlashPalette)
-        except Exception:  # noqa: BLE001
-            existing = None
-        if existing is not None:
-            return
-        palette = SlashPalette(registry)
-        self.app.mount(palette, before=self)

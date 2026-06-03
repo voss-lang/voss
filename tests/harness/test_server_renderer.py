@@ -58,6 +58,7 @@ def test_each_method_enqueues_expected_event() -> None:
     while not q.empty():
         got.append(q.get_nowait())
 
+    # H5.2: show_clarify emits BOTH clarify and a gate.updated event.
     assert [e.type for e in got] == [
         "banner",
         "user",
@@ -65,6 +66,7 @@ def test_each_method_enqueues_expected_event() -> None:
         "plan",
         "tool",
         "clarify",
+        "gate.updated",
         "final",
         "stream.delta",
         "stream.finalize",
@@ -74,15 +76,16 @@ def test_each_method_enqueues_expected_event() -> None:
         "warning",
     ]
 
-    plan_ev = got[3]
-    assert plan_ev.confidence == 0.9
-    assert plan_ev.steps[0].name == "fs_read"
-    assert plan_ev.steps[0].args == {"path": "a"}
-    assert got[4].state == "ok"
-    assert got[7].text == "tok"
+    by_type = {e.type: e for e in got}
+    assert by_type["plan"].confidence == 0.9
+    assert by_type["plan"].steps[0].name == "fs_read"
+    assert by_type["plan"].steps[0].args == {"path": "a"}
+    assert by_type["tool"].state == "ok"
+    assert by_type["stream.delta"].text == "tok"
     # accumulated_text intentionally dropped on the wire
-    assert not hasattr(got[8], "accumulated_text")
-    assert got[8].role == "assistant"
+    assert not hasattr(by_type["stream.finalize"], "accumulated_text")
+    assert by_type["stream.finalize"].role == "assistant"
+    assert by_type["gate.updated"].gate == "confidence"
 
 
 def test_drop_oldest_on_full_queue() -> None:

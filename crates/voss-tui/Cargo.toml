@@ -1,0 +1,38 @@
+[package]
+name = "voss-tui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Voss thin terminal client (ratatui) over the harness REST+SSE protocol"
+repository.workspace = true
+
+# H6.1: ship this binary via cargo-dist (authoritative per-crate opt-in).
+[package.metadata.dist]
+dist = true
+
+[lib]
+name = "voss_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "voss-tui"
+path = "src/main.rs"
+
+[dependencies]
+# Reuse workspace pins (unifies the lock); add the features this crate needs.
+tokio = { workspace = true }
+clap = { workspace = true, features = ["env"] }
+reqwest = { workspace = true, features = ["stream"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+crossterm = { workspace = true, features = ["event-stream"] }
+# ratatui 0.29 tracks crossterm 0.28 (the workspace pin) — no second crossterm.
+ratatui = "0.29"
+eventsource-stream = "0.2"
+bytes = "1"
+futures-util = "0.3"
+
+[dev-dependencies]
+tempfile = { workspace = true }

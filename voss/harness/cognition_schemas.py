@@ -5,7 +5,7 @@ This is the "fail at REPL boot, not mid-turn" contract from D-07.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -54,6 +54,12 @@ class PermissionsConfig(BaseModel):
     tool_policy: ToolPolicy = Field(default_factory=ToolPolicy)
     path_scopes: list[PathScope] = Field(default_factory=list)
     mcp: dict[str, McpScope] = Field(default_factory=dict)
+    # H5.1: OpenCode-style wildcard rule map. Either a per-tool decision
+    # (`"bash": "ask"`) or per-command sub-map (`"bash": {"*": "ask",
+    # "git status *": "allow"}`). Values are "allow" | "ask" | "deny".
+    # Last-match-wins within a sub-map (put "*" first). Empty by default →
+    # existing tool_policy.deny behaviour is unchanged.
+    rules: dict[str, Any] = Field(default_factory=dict)
 
 
 # validation.yml

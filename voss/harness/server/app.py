@@ -8,6 +8,7 @@ this module only adds transport: routes, an event bus, and a permission bridge.
 from __future__ import annotations
 
 import asyncio
+import os
 import secrets
 import uuid
 from concurrent.futures import Future
@@ -33,6 +34,18 @@ from .renderer import EventBusRenderer
 from .sessions import ServerSession, SessionManager
 
 PERMISSION_TIMEOUT_S = 300.0
+
+
+class _FakeResolution:
+    """Stand-in Resolution for the VOSS_SERVE_FAKE_TURN test seam."""
+
+    source = "fake"
+    detail = "VOSS_SERVE_FAKE_TURN"
+
+
+class _FakePlan:
+    confidence = 0.9
+    steps: list = []
 
 
 class _BearerASGI:
@@ -75,6 +88,10 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
     switch, but a missing credential is a caller error (raised by the route),
     not a login wizard / `sys.exit`.
     """
+    # Test seam: a hermetic fake turn needs a session without real creds.
+    if os.environ.get("VOSS_SERVE_FAKE_TURN"):
+        return _FakeResolution(), object()
+
     from voss_runtime.providers import LiteLLMProvider
 
     from ..providers import AnthropicOAuthProvider, OpenAIOAuthProvider
@@ -144,6 +161,22 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     """Drive one turn; publish events; persist. Runs as session.task."""
     loop = asyncio.get_running_loop()
     renderer = EventBusRenderer(session.queue, session_id=session.id, loop=loop)
+
+    # Test seam: emit a canned turn over the real event/SSE path (no provider).
+    if os.environ.get("VOSS_SERVE_FAKE_TURN"):
+        try:
+            renderer.show_user(text)
+            renderer.show_thinking("planning 1/1")
+            renderer.show_plan(_FakePlan(), cost_usd=0.0)
+            renderer.stream_delta("hello ")
+            renderer.stream_delta("from fake turn")
+            renderer.finalize_stream(role="assistant", confidence=0.9, cost_usd=0.0)
+            renderer.show_final(f"echo: {text}", confidence=0.9, cost_usd=0.0)
+        finally:
+            renderer.session_idle()
+            session.task = None
+        return
+
     try:
         renderer.show_user(text)
         tools = make_toolset(session.cwd, renderer=renderer)
@@ -172,7 +205,10 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             history=session.history,
             session_id=session.id,
             voss_md_text=voss_md_text,
+            prior_context=session.prior_context,
         )
+        # Consume resume context once: deep history now flows via session.history.
+        session.prior_context = None
         renderer.show_final(
             result.final, confidence=result.confidence, cost_usd=result.cost_usd
         )
@@ -200,6 +236,7 @@ class CreateSessionBody(BaseModel):
     cwd: str | None = None
     model: str | None = None
     auth: str = "auto"
+    resume: str | None = None  # id/name of a saved session to resume (H4.1)
 
 
 class MessagePart(BaseModel):
@@ -254,9 +291,24 @@ def create_app(token: str | None = None) -> FastAPI:
         res, provider = _resolve_provider(body.auth)
         if provider is None:
             raise HTTPException(400, f"no usable credentials ({res.detail})")
+        if body.resume:
+            try:
+                record, history = session_store.load(body.resume, cwd)
+            except FileNotFoundError:
+                raise HTTPException(404, f"no saved session {body.resume!r}")
+            except ValueError as exc:  # ambiguous id
+                raise HTTPException(409, str(exc))
+            # M2: forward ALL prior runs as prior context (consumed on turn 1).
+            s = mgr.adopt(
+                record=record,
+                history=history,
+                provider=provider,
+                prior_context=record.runs or None,
+            )
+            return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
         model = body.model or get_config().default_model
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
-        return {"v": 1, "id": s.id, "auth": res.source}
+        return {"v": 1, "id": s.id, "auth": res.source, "resumed": False}
 
     @app.get("/session")
     def list_sessions() -> dict:
@@ -265,6 +317,25 @@ def create_app(token: str | None = None) -> FastAPI:
             "sessions": [
                 {"id": s.id, "cwd": str(s.cwd), "model": s.model, "title": s.title, "busy": s.busy}
                 for s in mgr.list()
+            ],
+        }
+
+    @app.get("/sessions/saved")
+    def list_saved_sessions(cwd: str = ".") -> dict:
+        records = session_store.list_sessions(Path(cwd).resolve())
+        return {
+            "v": 1,
+            "sessions": [
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "cwd": r.cwd,
+                    "model": r.model,
+                    "updated_at": r.updated_at,
+                    "total_cost_usd": r.total_cost_usd,
+                    "turns": len(r.turns),
+                }
+                for r in records
             ],
         }
 
@@ -297,6 +368,13 @@ def create_app(token: str | None = None) -> FastAPI:
         if s.busy and s.task is not None:
             s.task.cancel()
         return {"v": 1, "status": "aborting"}
+
+    @app.get("/session/{session_id}/cost")
+    def cost(session_id: str) -> dict:
+        s = _require(session_id)
+        runs = s.record.runs
+        total = sum(float(r.get("cost_usd", 0.0) or 0.0) for r in runs)
+        return {"v": 1, "total_usd": total, "turns": len(runs)}
 
     @app.post("/session/{session_id}/permission")
     def reply_permission(session_id: str, body: PermissionReply) -> dict:
@@ -343,14 +421,27 @@ def create_app(token: str | None = None) -> FastAPI:
     # -- doctor (H1.7 stub; H3.1 expands) -----------------------------------
 
     @app.get("/doctor")
-    def doctor(auth: str = "auto") -> dict:
+    def doctor(auth: str = "auto", cwd: str = ".") -> dict:
+        from .. import diagnostics as diag
+
         res, provider = _resolve_provider(auth)
+        checks = diag.run_all_checks(Path(cwd).resolve())
         return {
             "v": 1,
             "auth_source": res.source,
             "auth_detail": res.detail,
             "has_provider": provider is not None,
             "default_model": get_config().default_model,
+            "exit_code": diag.aggregate_exit_code(checks),
+            "checks": [
+                {
+                    "name": c.name,
+                    "status": c.result.name,
+                    "detail": c.detail,
+                    "fix": c.fix,
+                }
+                for c in checks
+            ],
         }
 
     # -- OpenAPI: force the event union into components (H1.14) --------------

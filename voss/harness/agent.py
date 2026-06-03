@@ -132,37 +132,65 @@ def _compose_cognition_prompt(
     return truncated + "\n\n(constraints truncated due to budget)"
 
 
-def _compose_prior_context_block(run_dict: dict | None) -> str:
-    if not run_dict:
-        return ""
+# M2: how much conversation history to inject into the per-turn prompt, and how
+# many prior RunRecords to summarise on resume. last(6) lost deep context on
+# `voss resume`; widen the window (bounded; EpisodicMemory summarises overflow).
+HISTORY_WINDOW = 30
+PRIOR_RUNS_WINDOW = 5
 
-    def _bullets(items, key: str | None = None) -> str:
-        if not items:
-            return "(none)"
-        lines: list[str] = []
-        for it in items:
-            if key and isinstance(it, dict):
-                v = it.get(key) or it.get("title") or ""
-                lines.append(f"  - {v}")
-            else:
-                lines.append(f"  - {it}")
-        return "\n".join(lines) or "(none)"
 
+def _prior_bullets(items, key: str | None = None) -> str:
+    if not items:
+        return "(none)"
+    lines: list[str] = []
+    for it in items:
+        if key and isinstance(it, dict):
+            v = it.get(key) or it.get("title") or ""
+            lines.append(f"  - {v}")
+        else:
+            lines.append(f"  - {it}")
+    return "\n".join(lines) or "(none)"
+
+
+def _render_one_run(run_dict: dict, label: str | None) -> str:
     goal = run_dict.get("goal", "") or ""
     plan_obj = run_dict.get("plan") or {}
     plan_rationale = plan_obj.get("rationale", "") if isinstance(plan_obj, dict) else ""
     decisions = run_dict.get("decisions") or []
     follow_ups = run_dict.get("follow_ups") or []
     risks = run_dict.get("risks") or []
-
+    head = f"[{label}]\n" if label else ""
     return (
-        "Prior context (most-recent turn):\n"
-        f"- goal: {goal}\n"
-        f"- plan rationale: {plan_rationale}\n"
-        f"- decisions:\n{_bullets(decisions, key='title')}\n"
-        f"- follow_ups:\n{_bullets(follow_ups)}\n"
-        f"- risks:\n{_bullets(risks)}"
+        head
+        + f"- goal: {goal}\n"
+        + f"- plan rationale: {plan_rationale}\n"
+        + f"- decisions:\n{_prior_bullets(decisions, key='title')}\n"
+        + f"- follow_ups:\n{_prior_bullets(follow_ups)}\n"
+        + f"- risks:\n{_prior_bullets(risks)}"
     )
+
+
+def _compose_prior_context_block(run: dict | list | None) -> str:
+    """Render prior-session context for resume.
+
+    Accepts a single RunRecord dict (legacy single-turn, byte-compatible) or a
+    LIST of RunRecord dicts (M2: the server forwards all prior runs so resume
+    surfaces more than just the last turn). The most recent ``PRIOR_RUNS_WINDOW``
+    runs are rendered, newest first.
+    """
+    if not run:
+        return ""
+    if isinstance(run, list):
+        runs = [r for r in run if r]
+        if not runs:
+            return ""
+        recent = list(reversed(runs))[:PRIOR_RUNS_WINDOW]
+        blocks = [
+            _render_one_run(r, "most-recent turn" if i == 0 else f"turn -{i + 1}")
+            for i, r in enumerate(recent)
+        ]
+        return "Prior context (resumed session, newest first):\n\n" + "\n\n".join(blocks)
+    return "Prior context (most-recent turn):\n" + _render_one_run(run, None)
 
 # ---------------------------------------------------------------------------
 # Plan schema — what the model must return
@@ -423,7 +451,7 @@ async def run_turn(
     permissions: PermissionGate | None = None,
     session_id: str | None = None,
     cognition=None,
-    prior_context: dict | None = None,
+    prior_context: dict | list | None = None,
     voss_md_text: str | None = None,
     project_index_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
@@ -494,7 +522,7 @@ async def _run_turn_exec(
     permissions: PermissionGate | None = None,
     session_id: str | None = None,
     cognition=None,
-    prior_context: dict | None = None,
+    prior_context: dict | list | None = None,
     voss_md_text: str | None = None,
     project_index_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
@@ -515,11 +543,18 @@ async def _run_turn_exec(
 
     history_block = ""
     if history is not None:
-        recent = history.last(6)
-        if recent:
-            history_block = "\n\nRecent conversation:\n" + "\n".join(
-                f"{m.get('role', 'user')}: {m.get('content', '')}" for m in recent
-            )
+        # M2: include the rolling summary (if any) + a wider window so resumed
+        # sessions see real conversation depth, not just the last 6 turns.
+        parts: list[str] = []
+        summary = getattr(history, "summary", "")
+        if summary:
+            parts.append(f"summary: {summary}")
+        parts.extend(
+            f"{m.get('role', 'user')}: {m.get('content', '')}"
+            for m in history.last(HISTORY_WINDOW)
+        )
+        if parts:
+            history_block = "\n\nRecent conversation:\n" + "\n".join(parts)
 
     user_prompt = (
         f"Task:\n{task}\n\n"
@@ -622,7 +657,7 @@ async def _run_turn_exec(
                 # synthetic next-iteration user message — a sibling of the
                 # replay messages above. This is the ONLY route that surfaces
                 # mid-loop: `history_block` is built ONCE before the while-loop
-                # from history.last(6) (agent.py:513-519) and is NEVER rebuilt
+                # from history.last(HISTORY_WINDOW) and is NEVER rebuilt
                 # per iteration, so mutating history/EpisodicMemory after turn
                 # start cannot reach the model. The `messages` list IS rebuilt
                 # every loop entry, so this append (then clear, inject-once) is
