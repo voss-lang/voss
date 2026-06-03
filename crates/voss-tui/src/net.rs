@@ -6,12 +6,35 @@
 //! `bytes_stream()` + `eventsource-stream` (avoids the stale
 //! `reqwest-eventsource` crate, which pins an incompatible reqwest).
 
+use std::time::Duration;
+
 use anyhow::{anyhow, Result};
 use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use tokio::sync::mpsc;
 
 use crate::event::AppEvent;
+
+/// Per-request timeout for the short REST calls. NOT applied to the SSE stream
+/// (long-lived); the client's connect_timeout covers establishing that.
+const REST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Turn a non-2xx response into an error that carries the server's `{detail}`
+/// (PROTOCOL.md §9) instead of reqwest's status-only message.
+async fn ok_or_detail(resp: reqwest::Response) -> Result<reqwest::Response> {
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(resp);
+    }
+    let body = resp.text().await.unwrap_or_default();
+    let detail = serde_json::from_str::<serde_json::Value>(&body)
+        .ok()
+        .and_then(|v| v.get("detail").and_then(|d| d.as_str()).map(String::from));
+    match detail {
+        Some(d) => Err(anyhow!("{d} ({status})")),
+        None => Err(anyhow!("HTTP {status}")),
+    }
+}
 
 #[derive(Clone)]
 pub struct HttpClient {
@@ -22,11 +45,13 @@ pub struct HttpClient {
 
 impl HttpClient {
     pub fn new(base: String, token: String) -> Self {
-        Self {
-            inner: reqwest::Client::new(),
-            base,
-            token,
-        }
+        // connect_timeout bounds connection establishment for ALL requests
+        // (incl. the SSE GET) without capping the long-lived stream body.
+        let inner = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        Self { inner, base, token }
     }
 
     fn auth(&self, rb: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -37,10 +62,11 @@ impl HttpClient {
     pub async fn create_session(&self, cwd: &str) -> Result<String> {
         let resp = self
             .auth(self.inner.post(format!("{}/session", self.base)))
+            .timeout(REST_TIMEOUT)
             .json(&serde_json::json!({ "cwd": cwd }))
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        let resp = ok_or_detail(resp).await?;
         let v: serde_json::Value = resp.json().await?;
         v.get("id")
             .and_then(serde_json::Value::as_str)
@@ -50,33 +76,39 @@ impl HttpClient {
 
     /// POST /session/:id/message — enqueue a turn (server returns 202).
     pub async fn post_message(&self, sid: &str, text: &str, mode: &str) -> Result<()> {
-        self.auth(self.inner.post(format!("{}/session/{}/message", self.base, sid)))
+        let resp = self
+            .auth(self.inner.post(format!("{}/session/{}/message", self.base, sid)))
+            .timeout(REST_TIMEOUT)
             .json(&serde_json::json!({
                 "parts": [{ "type": "text", "text": text }],
                 "mode": mode,
             }))
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        ok_or_detail(resp).await?;
         Ok(())
     }
 
     /// POST /session/:id/abort.
     pub async fn abort(&self, sid: &str) -> Result<()> {
-        self.auth(self.inner.post(format!("{}/session/{}/abort", self.base, sid)))
+        let resp = self
+            .auth(self.inner.post(format!("{}/session/{}/abort", self.base, sid)))
+            .timeout(REST_TIMEOUT)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        ok_or_detail(resp).await?;
         Ok(())
     }
 
     /// POST /session/:id/permission — reply to a pending request.
     pub async fn permission_reply(&self, sid: &str, id: &str, choice: &str) -> Result<()> {
-        self.auth(self.inner.post(format!("{}/session/{}/permission", self.base, sid)))
+        let resp = self
+            .auth(self.inner.post(format!("{}/session/{}/permission", self.base, sid)))
+            .timeout(REST_TIMEOUT)
             .json(&serde_json::json!({ "id": id, "choice": choice }))
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        ok_or_detail(resp).await?;
         Ok(())
     }
 
@@ -93,8 +125,8 @@ impl HttpClient {
                     .header("Accept", "text/event-stream"),
             )
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        let resp = ok_or_detail(resp).await?;
 
         let mut es = resp.bytes_stream().eventsource();
         while let Some(item) = es.next().await {

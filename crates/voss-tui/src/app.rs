@@ -24,6 +24,7 @@ pub struct App {
     pub input: String,
     pub status: String,
     pub pending_permission: Option<String>,
+    pub busy: bool,
     pub quit: bool,
 }
 
@@ -35,7 +36,18 @@ impl App {
             input: String::new(),
             status: "ready".into(),
             pending_permission: None,
+            busy: false,
             quit: false,
+        }
+    }
+
+    /// Commit any partially-streamed text to the transcript so a terminal event
+    /// (error / idle / final) never leaves an orphaned live line that re-renders
+    /// forever and contaminates the next turn's buffer.
+    fn flush_streaming(&mut self) {
+        if !self.streaming.is_empty() {
+            let s = std::mem::take(&mut self.streaming);
+            self.transcript.push(s);
         }
     }
 
@@ -58,6 +70,7 @@ impl App {
                 }
             }
             AppEvent::Final { text, confidence } => {
+                self.flush_streaming();
                 self.transcript.push(format!("= {text}  (conf {confidence:.2})"));
                 self.status = "ready".into();
             }
@@ -73,13 +86,17 @@ impl App {
             }
             AppEvent::Warning(m) => self.transcript.push(format!("⚠ {m}")),
             AppEvent::SessionIdle => {
-                if self.status.starts_with("PERMISSION") {
-                    // leave as-is
-                } else {
+                self.flush_streaming();
+                self.busy = false;
+                if !self.status.starts_with("PERMISSION") {
                     self.status = "ready".into();
                 }
             }
-            AppEvent::Error(e) => self.transcript.push(format!("✗ error: {e}")),
+            AppEvent::Error(e) => {
+                self.flush_streaming();
+                self.busy = false;
+                self.transcript.push(format!("✗ error: {e}"));
+            }
             AppEvent::Other(_) => {}
         }
     }
