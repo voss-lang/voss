@@ -7,6 +7,7 @@ CRUD, message->SSE event stream, abort, permission reply, OpenAPI event union.
 
 from __future__ import annotations
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -73,24 +74,38 @@ def test_session_crud(client):
     assert client.get(f"/session/{sid}", headers=_auth()).status_code == 404
 
 
-def test_message_streams_events(client):
-    sid = _new_session(client)
-    assert (
-        client.post(
+async def test_message_streams_events(monkeypatch, tmp_path):
+    # Async httpx + ASGITransport: single event loop, so the turn task and the
+    # SSE consumer interleave cleanly (the sync TestClient portal deadlocks on
+    # a concurrent in-flight task + open stream).
+    monkeypatch.setattr(appmod, "_resolve_provider", lambda pref: (_FakeRes(), object()))
+    monkeypatch.setattr(appmod, "run_turn", _fake_run_turn)
+    monkeypatch.setattr(appmod.session_store, "save", lambda record, history: None)
+    app = appmod.create_app(TOKEN)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as ac:
+        sid = (
+            await ac.post("/session", json={"cwd": str(tmp_path)}, headers=_auth())
+        ).json()["id"]
+        r = await ac.post(
             f"/session/{sid}/message",
             json={"parts": [{"type": "text", "text": "hi"}], "mode": "plan"},
             headers=_auth(),
-        ).status_code
-        == 202
-    )
-    seen: list[str] = []
-    with client.stream("GET", f"/session/{sid}/events", headers=_auth()) as s:
-        for line in s.iter_lines():
-            if line.startswith("event:"):
-                etype = line.split("event:", 1)[1].strip()
-                seen.append(etype)
-                if etype == "session.idle":
-                    break
+        )
+        assert r.status_code == 202
+
+        seen: list[str] = []
+        async with ac.stream(
+            "GET", f"/session/{sid}/events", headers=_auth()
+        ) as resp:
+            async for line in resp.aiter_lines():
+                if line.startswith("event:"):
+                    etype = line.split("event:", 1)[1].strip()
+                    seen.append(etype)
+                    if etype == "session.idle":
+                        break
+
     assert seen[0] == "server.connected"
     assert "user" in seen
     assert "plan" in seen
