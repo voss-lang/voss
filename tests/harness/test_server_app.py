@@ -7,7 +7,6 @@ CRUD, message->SSE event stream, abort, permission reply, OpenAPI event union.
 
 from __future__ import annotations
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -74,44 +73,32 @@ def test_session_crud(client):
     assert client.get(f"/session/{sid}", headers=_auth()).status_code == 404
 
 
-async def test_message_streams_events(monkeypatch, tmp_path):
-    # Async httpx + ASGITransport: single event loop, so the turn task and the
-    # SSE consumer interleave cleanly (the sync TestClient portal deadlocks on
-    # a concurrent in-flight task + open stream).
+async def test_turn_publishes_event_sequence_to_queue(monkeypatch, tmp_path):
+    # Drive _run_turn directly and drain the session queue. Verifies the real
+    # renderer -> queue -> event flow + ordering + session.idle terminator,
+    # without HTTP transport (over-the-wire SSE is verified in H2 with the
+    # Rust client). server.connected is emitted by the SSE generator, not by
+    # the turn, so it is correctly absent here.
     monkeypatch.setattr(appmod, "_resolve_provider", lambda pref: (_FakeRes(), object()))
     monkeypatch.setattr(appmod, "run_turn", _fake_run_turn)
     monkeypatch.setattr(appmod.session_store, "save", lambda record, history: None)
+
     app = appmod.create_app(TOKEN)
+    mgr = app.state.sessions
+    s = mgr.create(cwd=tmp_path, model="m", provider=object())
 
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://t") as ac:
-        sid = (
-            await ac.post("/session", json={"cwd": str(tmp_path)}, headers=_auth())
-        ).json()["id"]
-        r = await ac.post(
-            f"/session/{sid}/message",
-            json={"parts": [{"type": "text", "text": "hi"}], "mode": "plan"},
-            headers=_auth(),
-        )
-        assert r.status_code == 202
+    await appmod._run_turn(s, "hi", "plan")
 
-        seen: list[str] = []
-        async with ac.stream(
-            "GET", f"/session/{sid}/events", headers=_auth()
-        ) as resp:
-            async for line in resp.aiter_lines():
-                if line.startswith("event:"):
-                    etype = line.split("event:", 1)[1].strip()
-                    seen.append(etype)
-                    if etype == "session.idle":
-                        break
+    seen: list[str] = []
+    while not s.queue.empty():
+        seen.append(s.queue.get_nowait().type)
 
-    assert seen[0] == "server.connected"
-    assert "user" in seen
+    assert seen[0] == "user"
     assert "plan" in seen
     assert "stream.delta" in seen
     assert "final" in seen
-    assert "session.idle" in seen
+    assert seen[-1] == "session.idle"
+    assert s.task is None  # cleared in the finally block
 
 
 def test_empty_message_rejected(client):

@@ -46,6 +46,11 @@ def run_server(host: str = "127.0.0.1", port: int = 0, token: str | None = None)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((host, port))
+    # listen() BEFORE the handshake so the OS queues client connects that
+    # arrive before uvicorn's accept loop is up — otherwise a client that
+    # reads the handshake and connects immediately races to "connection
+    # refused". uvicorn re-listens on the same socket harmlessly.
+    sock.listen(128)
     chosen_port = sock.getsockname()[1]
 
     app = create_app(token)
