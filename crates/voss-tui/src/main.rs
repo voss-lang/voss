@@ -30,6 +30,13 @@ struct Cli {
 enum Cmd {
     /// Run server-side diagnostics and exit (no TUI).
     Doctor,
+    /// List resumable saved sessions and exit (no TUI).
+    Sessions,
+    /// Resume a saved session by id/name into the TUI.
+    Resume {
+        /// Saved session id or name.
+        id: String,
+    },
 }
 
 #[tokio::main]
@@ -53,7 +60,9 @@ async fn main() -> Result<()> {
     // (std::process::exit skips Drop, so shutdown must precede it explicitly).
     let outcome: Result<Option<i32>> = match cli.cmd {
         Some(Cmd::Doctor) => doctor::run(&http, &cli.cwd).await.map(Some),
-        None => run_tui(&http, &cli.cwd).await.map(|_| None),
+        Some(Cmd::Sessions) => sessions::list(&http, &cli.cwd).await.map(|()| Some(0)),
+        Some(Cmd::Resume { ref id }) => run_resume(&http, id, &cli.cwd).await.map(|()| None),
+        None => run_tui(&http, &cli.cwd).await.map(|()| None),
     };
 
     if let Some(h) = handle {
@@ -74,7 +83,18 @@ async fn run_tui(http: &HttpClient, cwd: &str) -> Result<()> {
         .create_session(cwd)
         .await
         .map_err(|e| anyhow::anyhow!("could not start session: {e}"))?;
+    enter_tui(http, sid).await
+}
 
+async fn run_resume(http: &HttpClient, id: &str, cwd: &str) -> Result<()> {
+    let sid = http
+        .create_session_resume(id, cwd)
+        .await
+        .map_err(|e| anyhow::anyhow!("could not resume {id}: {e}"))?;
+    enter_tui(http, sid).await
+}
+
+async fn enter_tui(http: &HttpClient, sid: String) -> Result<()> {
     let terminal = ratatui::init();
     let res = app::run(terminal, http.clone(), sid).await;
     ratatui::restore();

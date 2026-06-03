@@ -31,7 +31,9 @@ pub struct App {
 impl App {
     fn new() -> Self {
         App {
-            transcript: vec!["connected — type a message, Enter to send, Esc to quit".into()],
+            transcript: vec![
+                "connected — type a message + Enter; /help for commands; Esc to quit".into(),
+            ],
             streaming: String::new(),
             input: String::new(),
             status: "ready".into(),
@@ -167,6 +169,39 @@ fn submit(http: &HttpClient, sid: &str, tx: &mpsc::Sender<AppEvent>, text: Strin
     });
 }
 
+/// Handle a slash command typed in the TUI (H4.4, minimal).
+/// Edit/insight slashes (/diff /apply /budget /why) are deferred until the
+/// server models pending-edits + budget envelopes.
+fn slash(app: &mut App, cmd: &str, http: &HttpClient, sid: &str, tx: &mpsc::Sender<AppEvent>) {
+    match cmd {
+        "help" | "" => app
+            .transcript
+            .push("commands: /help /cost /clear /quit · Esc quit · Ctrl-C abort".into()),
+        "clear" => {
+            app.transcript.clear();
+            app.streaming.clear();
+        }
+        "quit" => app.quit = true,
+        "cost" => {
+            let http = http.clone();
+            let sid = sid.to_string();
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let msg = match http.cost(&sid).await {
+                    Ok((total, turns)) => AppEvent::Warning(format!(
+                        "cost: ${total:.4} over {turns} turn(s)"
+                    )),
+                    Err(e) => AppEvent::Error(e.to_string()),
+                };
+                let _ = tx.send(msg).await;
+            });
+        }
+        other => app
+            .transcript
+            .push(format!("unknown command: /{other} (try /help)")),
+    }
+}
+
 /// Spawn a one-shot REST call off the UI task; report failure as an error event.
 /// Keeps the select! loop responsive even if the server is slow/unreachable.
 fn spawn_fire<F, Fut>(
@@ -220,6 +255,9 @@ async fn handle_key(
             let text = app.input.trim().to_string();
             if text.is_empty() {
                 // ignore
+            } else if let Some(cmd) = text.strip_prefix('/') {
+                app.input.clear();
+                slash(app, cmd.trim(), http, sid, tx);
             } else if app.busy {
                 app.status = "turn in progress — wait or Ctrl-C to abort".into();
             } else {
