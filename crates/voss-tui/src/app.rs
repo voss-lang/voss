@@ -26,11 +26,17 @@ pub struct App {
     pub pending_permission: Option<String>,
     pub busy: bool,
     pub mode: String, // plan | edit | auto (Tab cycles)
+    // header state (TUI parity)
+    pub session_id: String,
+    pub model: String,
+    pub tokens: u64,
+    pub cost: f64,
+    pub spinner: usize,
     pub quit: bool,
 }
 
 impl App {
-    fn new() -> Self {
+    fn new(session_id: String) -> Self {
         App {
             transcript: vec![
                 "connected — type a message + Enter; /help for commands; Esc to quit".into(),
@@ -41,6 +47,11 @@ impl App {
             pending_permission: None,
             busy: false,
             mode: "plan".into(),
+            session_id,
+            model: "—".into(),
+            tokens: 0,
+            cost: 0.0,
+            spinner: 0,
             quit: false,
         }
     }
@@ -81,8 +92,12 @@ impl App {
             AppEvent::Clarify { question, confidence } => self
                 .transcript
                 .push(format!("? {question}  (conf {confidence:.2})")),
-            AppEvent::Status { tokens, cost_usd } => {
-                self.status = format!("tokens {tokens} · ${cost_usd:.4}")
+            AppEvent::Status { model, tokens, cost_usd, .. } => {
+                if !model.is_empty() {
+                    self.model = model;
+                }
+                self.tokens = tokens;
+                self.cost = cost_usd;
             }
             AppEvent::Permission { id, tool_name } => {
                 self.pending_permission = Some(id);
