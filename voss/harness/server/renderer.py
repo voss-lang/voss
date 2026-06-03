@@ -6,10 +6,17 @@ drains the queue. Because it satisfies the existing 13-method `Renderer`
 protocol, the agent loop (`agent.run_turn`) drives it unchanged — this is the
 seam that makes the server cheap.
 
-Renderer methods are SYNCHRONOUS (called from inside the async turn task), so
-they enqueue with `put_nowait`. On a full bounded queue the oldest event is
-dropped to keep the latest (lossy-latest); a single localhost SSE consumer
-normally keeps up, and dropping a stale token beats blocking the agent loop.
+Renderer methods are SYNCHRONOUS and may be called from TWO thread contexts:
+the event loop (streaming) and harness worker threads (tool/permission
+callbacks run via `asyncio.to_thread` — see `tui/permissions_bridge.py`).
+`asyncio.Queue.put_nowait` is NOT thread-safe across threads, so when a `loop`
+is supplied the renderer routes every enqueue through `loop.call_soon_threadsafe`
+from off-loop threads. On a full bounded queue the oldest event is dropped to
+keep the latest (lossy-latest); a single localhost SSE consumer normally keeps
+up, and dropping a stale token beats blocking the agent loop.
+
+`loop=None` (the default) keeps a direct synchronous `put_nowait` for tests
+that drive the renderer without a running loop.
 """
 
 from __future__ import annotations
@@ -24,13 +31,21 @@ from . import events as E
 class EventBusRenderer:
     """Publishes `render.Renderer` calls as protocol events to a queue."""
 
-    def __init__(self, queue: "asyncio.Queue[E._Base]", *, session_id: str = "") -> None:
+    def __init__(
+        self,
+        queue: "asyncio.Queue[E._Base]",
+        *,
+        session_id: str = "",
+        loop: "asyncio.AbstractEventLoop | None" = None,
+    ) -> None:
         self._q = queue
         self._sid = session_id
+        self._loop = loop
 
     # -- internal -----------------------------------------------------------
 
-    def _emit(self, ev: E._Base) -> None:
+    def _put(self, ev: E._Base) -> None:
+        """Enqueue on the loop thread; drop oldest if the queue is full."""
         try:
             self._q.put_nowait(ev)
         except asyncio.QueueFull:
@@ -42,6 +57,20 @@ class EventBusRenderer:
                 self._q.put_nowait(ev)
             except asyncio.QueueFull:
                 pass
+
+    def _emit(self, ev: E._Base) -> None:
+        loop = self._loop
+        if loop is None:
+            self._put(ev)
+            return
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is loop:
+            self._put(ev)
+        else:
+            loop.call_soon_threadsafe(self._put, ev)
 
     # -- Renderer protocol (13 methods) -------------------------------------
 
