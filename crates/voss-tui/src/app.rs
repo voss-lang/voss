@@ -114,9 +114,27 @@ fn draw(f: &mut Frame, app: &App) {
     if !app.streaming.is_empty() {
         lines.push(app.streaming.clone());
     }
-    // Keep the tail visible without a full scrollback model (MVP).
-    let height = body.height.saturating_sub(2) as usize;
-    let start = lines.len().saturating_sub(height.max(1));
+    // Pin the newest output to the bottom by counting WRAPPED rows, not logical
+    // lines: one entry can wrap to many rows (long/multi-line answers), so a
+    // logical-line window clips the newest content. Width is char-approximated.
+    let inner_w = body.width.saturating_sub(2).max(1) as usize;
+    let avail = body.height.saturating_sub(2).max(1) as usize;
+    let rows_of = |s: &str| -> usize {
+        s.split('\n')
+            .map(|seg| (seg.chars().count().max(1) + inner_w - 1) / inner_w)
+            .sum::<usize>()
+            .max(1)
+    };
+    let mut used = 0usize;
+    let mut start = lines.len();
+    for i in (0..lines.len()).rev() {
+        let r = rows_of(&lines[i]);
+        if used + r > avail && used > 0 {
+            break;
+        }
+        used += r;
+        start = i;
+    }
     let visible = lines[start..].join("\n");
 
     f.render_widget(
@@ -149,6 +167,28 @@ fn submit(http: &HttpClient, sid: &str, tx: &mpsc::Sender<AppEvent>, text: Strin
     });
 }
 
+/// Spawn a one-shot REST call off the UI task; report failure as an error event.
+/// Keeps the select! loop responsive even if the server is slow/unreachable.
+fn spawn_fire<F, Fut>(
+    http: &HttpClient,
+    sid: &str,
+    tx: &mpsc::Sender<AppEvent>,
+    label: &'static str,
+    f: F,
+) where
+    F: FnOnce(HttpClient, String) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = anyhow::Result<()>> + Send,
+{
+    let http = http.clone();
+    let sid = sid.to_string();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        if let Err(e) = f(http, sid).await {
+            let _ = tx.send(AppEvent::Error(format!("{label}: {e}"))).await;
+        }
+    });
+}
+
 async fn handle_key(
     app: &mut App,
     key: crossterm::event::KeyEvent,
@@ -162,20 +202,29 @@ async fn handle_key(
     match key.code {
         KeyCode::Esc => app.quit = true,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            let _ = http.abort(sid).await;
+            // Spawn — never await network on the UI task or a slow server
+            // freezes the whole loop (incl. Esc-to-quit).
+            spawn_fire(http, sid, tx, "abort", |h, s| async move { h.abort(&s).await });
             app.status = "aborting…".into();
         }
         KeyCode::Char(c) if app.pending_permission.is_some() && (c == 'y' || c == 'n') => {
             if let Some(id) = app.pending_permission.take() {
                 let choice = if c == 'y' { "a" } else { "d" };
-                let _ = http.permission_reply(sid, &id, choice).await;
+                spawn_fire(http, sid, tx, "permission", move |h, s| async move {
+                    h.permission_reply(&s, &id, choice).await
+                });
                 app.status = "ready".into();
             }
         }
         KeyCode::Enter => {
             let text = app.input.trim().to_string();
-            if !text.is_empty() {
+            if text.is_empty() {
+                // ignore
+            } else if app.busy {
+                app.status = "turn in progress — wait or Ctrl-C to abort".into();
+            } else {
                 app.input.clear();
+                app.busy = true;
                 submit(http, sid, tx, text);
             }
         }
