@@ -1,0 +1,145 @@
+"""EventBusRenderer (HYBRID-REFACTOR-PLAN H1.3).
+
+A `render.Renderer` implementation that publishes events onto an
+`asyncio.Queue` instead of writing to a terminal. The SSE endpoint (H1.8)
+drains the queue. Because it satisfies the existing 13-method `Renderer`
+protocol, the agent loop (`agent.run_turn`) drives it unchanged — this is the
+seam that makes the server cheap.
+
+Renderer methods are SYNCHRONOUS (called from inside the async turn task), so
+they enqueue with `put_nowait`. On a full bounded queue the oldest event is
+dropped to keep the latest (lossy-latest); a single localhost SSE consumer
+normally keeps up, and dropping a stale token beats blocking the agent loop.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from typing import Any
+
+from . import events as E
+
+
+class EventBusRenderer:
+    """Publishes `render.Renderer` calls as protocol events to a queue."""
+
+    def __init__(self, queue: "asyncio.Queue[E._Base]", *, session_id: str = "") -> None:
+        self._q = queue
+        self._sid = session_id
+
+    # -- internal -----------------------------------------------------------
+
+    def _emit(self, ev: E._Base) -> None:
+        try:
+            self._q.put_nowait(ev)
+        except asyncio.QueueFull:
+            try:
+                self._q.get_nowait()  # drop oldest
+            except asyncio.QueueEmpty:
+                pass
+            try:
+                self._q.put_nowait(ev)
+            except asyncio.QueueFull:
+                pass
+
+    # -- Renderer protocol (13 methods) -------------------------------------
+
+    def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
+        self._emit(E.BannerEvent(model=model, cwd=str(cwd), git=git_status))
+
+    def show_user(self, task: str) -> None:
+        self._emit(E.UserEvent(task=task))
+
+    def show_thinking(self, label: str) -> None:
+        self._emit(E.ThinkingEvent(label=label))
+
+    def show_plan(self, plan: Any, *, cost_usd: float) -> None:
+        steps = [
+            E.PlanStep(name=s.name, args=s.args) for s in getattr(plan, "steps", [])
+        ]
+        self._emit(
+            E.PlanEvent(
+                confidence=getattr(plan, "confidence", 0.0),
+                steps=steps,
+                cost_usd=cost_usd,
+            )
+        )
+
+    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+        self._emit(E.ToolEvent(name=name, args=args, summary=summary, state=state))
+
+    def show_clarify(self, question: str, confidence: float) -> None:
+        self._emit(E.ClarifyEvent(question=question, confidence=confidence))
+
+    def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
+        self._emit(E.FinalEvent(text=text, confidence=confidence, cost_usd=cost_usd))
+
+    def stream_delta(self, text: str) -> None:
+        self._emit(E.StreamDelta(text=text))
+
+    def finalize_stream(
+        self,
+        *,
+        role: str,
+        confidence: float | None = None,
+        cost_usd: float | None = None,
+        timestamp: str | None = None,
+        accumulated_text: str | None = None,
+    ) -> None:
+        self._emit(
+            E.StreamFinalize(
+                role=role,
+                confidence=confidence,
+                cost_usd=cost_usd,
+                timestamp=timestamp,
+            )
+        )
+
+    def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
+        self._emit(
+            E.StatusEvent(
+                model=model, tokens=tokens, cost_usd=cost_usd, ctx_pct=ctx_pct
+            )
+        )
+
+    def show_cognition(
+        self,
+        *,
+        architecture_tokens: int,
+        constraints_count: int,
+        plans_loaded: int = 0,
+        decisions_loaded: int = 0,
+    ) -> None:
+        self._emit(
+            E.CognitionLoaded(
+                architecture_tokens=architecture_tokens,
+                constraints_count=constraints_count,
+                plans_loaded=plans_loaded,
+                decisions_loaded=decisions_loaded,
+            )
+        )
+
+    def show_cognition_overflow(
+        self, *, architecture_tokens: int, budget: int = 6000
+    ) -> None:
+        self._emit(
+            E.CognitionOverflow(
+                architecture_tokens=architecture_tokens, budget=budget
+            )
+        )
+
+    def show_warning(self, msg: str) -> None:
+        self._emit(E.WarningEvent(message=msg))
+
+    # -- server-only helpers (not part of the Renderer protocol) ------------
+
+    def emit(self, ev: E._Base) -> None:
+        """Publish a server-originated event (handshake, permission, idle, Voss)."""
+        self._emit(ev)
+
+    def server_connected(self) -> None:
+        self._emit(E.ServerConnected())
+
+    def session_idle(self) -> None:
+        self._emit(E.SessionIdle(session_id=self._sid))
