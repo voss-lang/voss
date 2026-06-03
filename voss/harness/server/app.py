@@ -19,7 +19,6 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette import EventSourceResponse, ServerSentEvent
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
@@ -34,6 +33,34 @@ from .renderer import EventBusRenderer
 from .sessions import ServerSession, SessionManager
 
 PERMISSION_TIMEOUT_S = 300.0
+
+
+class _BearerASGI:
+    """Raw ASGI bearer-auth middleware.
+
+    Implemented at the ASGI layer (not BaseHTTPMiddleware) because
+    BaseHTTPMiddleware buffers response bodies, which breaks SSE streaming.
+    Rejects unauthenticated requests before they reach any route.
+    """
+
+    def __init__(self, app, token: str) -> None:
+        self._app = app
+        self._token = token
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = dict(scope.get("headers") or [])
+        auth = headers.get(b"authorization", b"").decode("latin-1")
+        ok = auth.startswith("Bearer ") and secrets.compare_digest(
+            auth[7:], self._token
+        )
+        if not ok:
+            resp = JSONResponse({"v": 1, "detail": "unauthorized"}, status_code=401)
+            await resp(scope, receive, send)
+            return
+        await self._app(scope, receive, send)
 
 
 # ---------------------------------------------------------------------------
@@ -211,17 +238,7 @@ def create_app(token: str | None = None) -> FastAPI:
     app.state.token = token
     app.state.sessions = mgr
 
-    class BearerAuth(BaseHTTPMiddleware):
-        async def dispatch(self, request: Request, call_next):
-            header = request.headers.get("authorization", "")
-            ok = header.startswith("Bearer ") and secrets.compare_digest(
-                header[7:], token
-            )
-            if not ok:
-                return JSONResponse({"v": 1, "detail": "unauthorized"}, status_code=401)
-            return await call_next(request)
-
-    app.add_middleware(BearerAuth)
+    app.add_middleware(_BearerASGI, token=token)
 
     def _require(session_id: str) -> ServerSession:
         s = mgr.get(session_id)
