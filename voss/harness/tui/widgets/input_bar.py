@@ -89,6 +89,35 @@ class _InputTextArea(TextArea):
             event.stop()
             await bar._on_key(event)
             return
+        # Slash palette open → route nav/select/dismiss keys to it. The textarea
+        # keeps focus (so printable keys + backspace still filter via Changed),
+        # so the palette's own bindings never fire — forward them explicitly.
+        palette = bar.mounted_slash_palette()
+        if palette is not None:
+            if event.key == "up":
+                event.prevent_default()
+                event.stop()
+                palette.action_cursor_up()
+                return
+            if event.key == "down":
+                event.prevent_default()
+                event.stop()
+                palette.action_cursor_down()
+                return
+            if event.key == "escape":
+                event.prevent_default()
+                event.stop()
+                palette.action_dismiss()
+                return
+            if event.key == "enter" and palette._names:
+                # Run the highlighted command instead of submitting raw text.
+                event.prevent_default()
+                event.stop()
+                palette._submit_current()
+                return
+            if event.key == "enter":
+                # No matching command — close palette, fall through to submit.
+                palette.action_dismiss()
         if event.key == "enter":
             event.prevent_default()
             event.stop()
@@ -274,6 +303,15 @@ class InputBar(Widget):
             return
         await self._sync_slash_palette()
 
+    def mounted_slash_palette(self):
+        """The mounted SlashPalette, or None. Used to route nav keys to it."""
+        from .slash_palette import SlashPalette
+
+        try:
+            return self.app.query_one(SlashPalette)
+        except Exception:  # noqa: BLE001
+            return None
+
     async def _sync_slash_palette(self) -> None:
         from .slash_palette import SlashPalette
 
@@ -411,7 +449,3 @@ class InputBar(Widget):
         turn_view._turn_count += 1  # noqa: SLF001 - matches TurnView append protocol.
         turn_view.write(block.render())
 
-    def action_open_palette(self) -> None:
-        """Insert slash text so TextArea.Changed owns palette sync."""
-        textarea = self.query_one("#input-textarea", _InputTextArea)
-        textarea.insert("/")

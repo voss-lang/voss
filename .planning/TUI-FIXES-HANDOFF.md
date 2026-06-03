@@ -72,3 +72,25 @@ Make `SlashPalette.update_query` cheap (toggle visibility, don't rebuild childre
 ## Don't redo
 - The Textual TUI is intact + the default for `voss chat`; do NOT rebuild it. These are two scoped bugs.
 - Ignore the Rust `voss-tui` and OpenCode-fork tracks for this work (separate; see memory `voss-opencode-tui-fork`, `voss-harness-hybrid-refactor`).
+
+---
+
+## REVIEW FINDINGS (2026-06-03, 13-agent adversarial review of commits 9cb7a79 / 4896f9d / 996a4a9)
+
+Swarm implemented the core asks correctly: **filter-as-you-type ✓, dismiss-on-`/`-delete ✓, perf toggle-visibility ✓.** One HIGH regression introduced by the focus fix.
+
+### 🔴 HIGH — palette is non-interactive (can't select a command)
+`_sync_slash_palette` refocuses the textarea on EVERY `TextArea.Changed` (`input_bar.py:299`, added in 4896f9d) → palette never holds focus → Enter/arrows/Escape never reach it (reproduced via Textual pilot):
+- Enter dispatches raw input text (e.g. bare `/`) as a turn instead of the highlighted command. Palette submit path `slash_palette.py:147-161` → `app.py:325 on_slash_palette_palette_submitted` is DEAD.
+- Arrow keys don't navigate (`palette.index` stays 0). Escape doesn't dismiss.
+- All 15 palette tests pass but NONE drive selection via pilot keystrokes — regression shipped green.
+- **VERIFIED: removing line 299 alone does NOT fix it** (focus leaves textarea, never reaches palette). Must add an interaction model:
+  - (a) keep textarea focus + forward up/down/enter/escape from `InputBar._on_key` to the mounted `SlashPalette` (Enter → select highlighted, not `action_submit` raw text), OR
+  - (b) focus the palette on open + route printable keys/backspace back to the textarea (its native ListView bindings then work).
+- **Add a pilot test**: press `/`, `down`, `enter` → assert `on_slash_palette_palette_submitted` fired with the highlighted command (e.g. `/agents`), NOT a raw `/` turn dispatch. (This gap is why it shipped green.)
+
+### 🟡 MEDIUM — Escape doesn't dismiss palette
+Same root cause (focus steal). `SlashPalette` escape→dismiss binding (`slash_palette.py:62`) unreachable; App-level `escape→dismiss_modal` (`app.py:113`, `keymap.py:27`) no-ops (palette is a mounted widget, not a Screen). Fixed by the same interaction-model fix, or handle Escape in `InputBar._on_key` while a palette is mounted → `palette.action_dismiss()`. Workaround today: backspace the leading `/`.
+
+### ⚪ LOW — dead keymap binding
+`slash→open_palette` (`keymap.py:25`) + `action_open_palette` (`input_bar.py:414`) now redundant (Changed handler drives open). Remove, or keep solely so the help overlay lists `/`. Not a blocker.
