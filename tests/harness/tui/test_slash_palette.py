@@ -127,6 +127,60 @@ async def test_palette_empty_state_copy() -> None:
 
 
 @pytest.mark.asyncio
+async def test_palette_update_query_toggles_existing_items() -> None:
+    registry = _registry_with(
+        ("/help", "show this list"),
+        ("/cost", "session cost so far"),
+        ("/clear", "clear transcript"),
+    )
+    app = VossTUIApp(slash_registry=registry)
+    async with app.run_test() as pilot:
+        palette = SlashPalette(registry)
+        await pilot.app.mount(palette)
+        children_before = tuple(palette.children)
+
+        palette.update_query("he")
+
+        assert tuple(palette.children) == children_before
+        by_name = {
+            getattr(item, "_voss_command_name", None): item
+            for item in palette.children
+        }
+        assert by_name["/help"].display is True
+        assert by_name["/help"].disabled is False
+        assert by_name["/cost"].display is False
+        assert by_name["/cost"].disabled is True
+        assert by_name["/clear"].display is False
+        assert by_name["/clear"].disabled is True
+
+
+@pytest.mark.asyncio
+async def test_palette_submit_uses_highlighted_item_command_name() -> None:
+    registry = _registry_with(
+        ("/clear", "clear transcript"),
+        ("/cost", "session cost so far"),
+        ("/help", "show this list"),
+    )
+    app = VossTUIApp(slash_registry=registry)
+    async with app.run_test() as pilot:
+        palette = SlashPalette(registry)
+        await pilot.app.mount(palette)
+        palette.update_query("he")
+        messages: list[SlashPalette.PaletteSubmitted] = []
+        palette.post_message = messages.append  # type: ignore[method-assign]
+
+        help_item = next(
+            item
+            for item in palette.children
+            if getattr(item, "_voss_command_name", None) == "/help"
+        )
+        palette.index = list(palette.children).index(help_item)
+        palette._submit_current()
+
+        assert [message.value for message in messages] == ["/help"]
+
+
+@pytest.mark.asyncio
 async def test_input_bar_open_palette_only_when_empty() -> None:
     registry = _registry_with(("/help", "show help"))
     app = VossTUIApp(slash_registry=registry)
@@ -144,7 +198,7 @@ async def test_input_bar_open_palette_only_when_empty() -> None:
         except Exception:
             opened = False
         assert opened, "palette did not open on `/` with empty input"
-        assert _input_text(input_bar) == ""
+        assert _input_text(input_bar) == "/"
 
 
 def test_app_bindings_populated_from_keymap() -> None:

@@ -99,11 +99,6 @@ class _InputTextArea(TextArea):
             event.stop()
             self.insert("\n")
             return
-        if event.key == "slash" and not self.text.strip():
-            event.prevent_default()
-            event.stop()
-            bar.action_open_palette()
-            return
         await super()._on_key(event)
 
 
@@ -162,7 +157,6 @@ class InputBar(Widget):
     """
 
     BINDINGS = [
-        ("slash", "open_palette", "Open slash palette"),
         ("ctrl+r", "reverse_search", "Reverse-search input history"),
     ]
     can_focus = True
@@ -242,11 +236,6 @@ class InputBar(Widget):
             event.stop()
             textarea.insert("\n")
             return
-        if event.key == "slash" and not textarea.text.strip():
-            event.prevent_default()
-            event.stop()
-            self.action_open_palette()
-            return
         await textarea._on_key(event)  # noqa: SLF001 - delegate editing to child TextArea.
 
     class Submitted(Message):
@@ -277,6 +266,35 @@ class InputBar(Widget):
                 await self._dispatch_note(note)
             return
         self.post_message(self.Submitted(value))
+
+    async def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if event.text_area is not self.query_one("#input-textarea", _InputTextArea):
+            return
+        await self._sync_slash_palette()
+        event.text_area.focus()
+
+    async def _sync_slash_palette(self) -> None:
+        from .slash_palette import SlashPalette
+
+        try:
+            existing = self.app.query_one(SlashPalette)
+        except Exception:  # noqa: BLE001
+            existing = None
+
+        text = self.text
+        if not text.startswith("/"):
+            if existing is not None:
+                existing.remove()
+            return
+
+        registry = getattr(self.app, "slash_registry", None)
+        if registry is None:
+            return
+        palette = existing
+        if palette is None:
+            palette = SlashPalette(registry)
+            await self.app.mount(palette, before=self)
+        palette.update_query(text)
 
     def action_reverse_search(self) -> None:
         if not self._search_mode:
@@ -392,21 +410,6 @@ class InputBar(Widget):
         turn_view.write(block.render())
 
     def action_open_palette(self) -> None:
-        """Open the slash palette only when the input is empty."""
+        """Insert slash text so TextArea.Changed owns palette sync."""
         textarea = self.query_one("#input-textarea", _InputTextArea)
-        if textarea.text.strip():
-            textarea.insert("/")
-            return
-        from .slash_palette import SlashPalette
-
-        registry = getattr(self.app, "slash_registry", None)
-        if registry is None:
-            return
-        try:
-            existing = self.app.query_one(SlashPalette)
-        except Exception:  # noqa: BLE001
-            existing = None
-        if existing is not None:
-            return
-        palette = SlashPalette(registry)
-        self.app.mount(palette, before=self)
+        textarea.insert("/")

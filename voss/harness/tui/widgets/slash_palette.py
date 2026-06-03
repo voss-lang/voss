@@ -71,36 +71,90 @@ class SlashPalette(ListView):
         self.registry = registry
         self.query_text = ""
         self.recency: list[str] = []
+        self._labels: list[str] = []
+        self._names: list[str] = []
+        self._items_by_name: dict[str, ListItem] = {}
+        self._labels_by_name: dict[str, str] = {}
+        self._empty_item: ListItem | None = None
 
     async def on_mount(self) -> None:
         self.update_query("")
 
     def update_query(self, query: str) -> None:
         self.query_text = query
-        self._labels: list[str] = []
-        self._names: list[str] = []
-        # ListView.clear is async; remove children directly so the new
-        # appends never collide with stale ids.
-        self._nodes._clear()  # type: ignore[attr-defined]
+        self._ensure_items()
         ranked = rank_commands(query, self.registry.ids(), recency=self.recency)
+        visible = set(ranked)
+        self._names = ranked
+        self._labels = [self._labels_by_name[name] for name in ranked]
+
+        for name, item in self._items_by_name.items():
+            is_visible = name in visible
+            item.display = is_visible
+            item.disabled = not is_visible
+
         if not ranked:
-            self.append(ListItem(Static("no matching commands")))
+            if self._empty_item is not None:
+                self._empty_item.display = True
+            self.index = None
             return
-        for name in ranked:
+
+        if self._empty_item is not None:
+            self._empty_item.display = False
+        self._reconcile_index(ranked)
+
+    def _ensure_items(self) -> None:
+        for name in self.registry.ids():
+            if name in self._items_by_name:
+                continue
             cmd = self.registry.lookup(name)
             label = f"{name:<16} {cmd.help if cmd else ''}"
-            self._labels.append(label)
-            self._names.append(name)
-            self.append(ListItem(Static(label)))
+            item = ListItem(Static(label), name=name)
+            item.display = False
+            item.disabled = True
+            item._voss_command_name = name  # type: ignore[attr-defined]
+            self._items_by_name[name] = item
+            self._labels_by_name[name] = label
+            self.append(item)
+
+        if self._empty_item is None:
+            self._empty_item = ListItem(Static("no matching commands"), disabled=True)
+            self._empty_item.display = False
+            self.append(self._empty_item)
+
+    def _reconcile_index(self, ranked: list[str]) -> None:
+        current = self.highlighted_child
+        if current is not None and self._command_name(current) in ranked:
+            return
+        first = self._items_by_name.get(ranked[0])
+        self.index = self._index_of(first)
+
+    def _index_of(self, item: ListItem | None) -> int | None:
+        if item is None:
+            return None
+        try:
+            return list(self._nodes).index(item)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _command_name(item: ListItem | None) -> str | None:
+        return getattr(item, "_voss_command_name", None)
 
     def action_select_cursor(self) -> None:
         self._submit_current()
 
     def _submit_current(self) -> None:
-        idx = self.index
-        if idx is None or idx >= len(self._names):
+        item = self.highlighted_child
+        name = self._command_name(item)
+        if name not in self._names:
+            if not self._names:
+                return
+            item = self._items_by_name.get(self._names[0])
+            name = self._command_name(item)
+            self.index = self._index_of(item)
+        if name not in self._names:
             return
-        name = self._names[idx]
         self.recency.insert(0, name)
         self.recency = self.recency[:10]
         self.post_message(self.PaletteSubmitted(name))
