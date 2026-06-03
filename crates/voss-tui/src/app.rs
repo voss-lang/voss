@@ -420,4 +420,19 @@ mod tests {
         a.apply(AppEvent::StreamDelta("world".into()));
         assert_eq!(a.streaming, "world");
     }
+
+    #[test]
+    fn status_event_updates_header_state() {
+        let mut a = App::new("sid12345xyz".into());
+        a.apply(AppEvent::Status {
+            model: "claude-sonnet".into(),
+            tokens: 1234,
+            cost_usd: 0.05,
+            ctx_pct: 0.3,
+        });
+        assert_eq!(a.model, "claude-sonnet");
+        assert_eq!(a.tokens, 1234);
+        assert!((a.cost - 0.05).abs() < 1e-9);
+        assert_eq!(a.session_id, "sid12345xyz");
+    }
 }
