@@ -61,7 +61,7 @@ async def test_slash_opens_filters_navigates_selects() -> None:
             await pilot.pause()
 
             assert submitted, "enter should select a palette command, not submit raw text"
-            assert submitted[0].startswith("/ag")
+            assert submitted[0] in ("agent", "agents")
             assert _palette(pilot.app) is None, "palette dismissed after select"
         finally:
             type(app).on_slash_palette_palette_submitted = orig  # type: ignore[assignment]
