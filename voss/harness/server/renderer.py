@@ -100,6 +100,10 @@ class EventBusRenderer:
 
     def show_clarify(self, question: str, confidence: float) -> None:
         self._emit(E.ClarifyEvent(question=question, confidence=confidence))
+        # H5.2: surface the confidence gate firing as an observable gate event.
+        self._emit(
+            E.GateUpdated(session_id=self._sid, gate="confidence", decision="ask")
+        )
 
     def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None:
         self._emit(E.FinalEvent(text=text, confidence=confidence, cost_usd=cost_usd))

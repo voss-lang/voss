@@ -25,6 +25,7 @@ pub struct App {
     pub status: String,
     pub pending_permission: Option<String>,
     pub busy: bool,
+    pub mode: String, // plan | edit | auto (Tab cycles)
     pub quit: bool,
 }
 
@@ -39,6 +40,7 @@ impl App {
             status: "ready".into(),
             pending_permission: None,
             busy: false,
+            mode: "plan".into(),
             quit: false,
         }
     }
@@ -146,8 +148,11 @@ fn draw(f: &mut Frame, app: &App) {
         body,
     );
     f.render_widget(
-        Paragraph::new(format!("› {}", app.input))
-            .block(Block::default().borders(Borders::ALL).title("input")),
+        Paragraph::new(format!("› {}", app.input)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!("input · {} mode · Tab cycles", app.mode)),
+        ),
         input,
     );
     f.render_widget(
@@ -156,12 +161,12 @@ fn draw(f: &mut Frame, app: &App) {
     );
 }
 
-fn submit(http: &HttpClient, sid: &str, tx: &mpsc::Sender<AppEvent>, text: String) {
+fn submit(http: &HttpClient, sid: &str, tx: &mpsc::Sender<AppEvent>, text: String, mode: String) {
     let http = http.clone();
     let sid = sid.to_string();
     let tx = tx.clone();
     tokio::spawn(async move {
-        if let Err(e) = http.post_message(&sid, &text, "plan").await {
+        if let Err(e) = http.post_message(&sid, &text, &mode).await {
             let _ = tx.send(AppEvent::Error(e.to_string())).await;
             return;
         }
@@ -236,6 +241,15 @@ async fn handle_key(
     }
     match key.code {
         KeyCode::Esc => app.quit = true,
+        KeyCode::Tab => {
+            app.mode = match app.mode.as_str() {
+                "plan" => "edit",
+                "edit" => "auto",
+                _ => "plan",
+            }
+            .into();
+            app.status = format!("mode: {}", app.mode);
+        }
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             // Spawn — never await network on the UI task or a slow server
             // freezes the whole loop (incl. Esc-to-quit).
@@ -263,7 +277,7 @@ async fn handle_key(
             } else {
                 app.input.clear();
                 app.busy = true;
-                submit(http, sid, tx, text);
+                submit(http, sid, tx, text, app.mode.clone());
             }
         }
         KeyCode::Backspace => {

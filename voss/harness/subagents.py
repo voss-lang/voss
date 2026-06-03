@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, FrozenSet, Optional
 
+import yaml
+
 from voss_runtime import EpisodicMemory, tool
 from voss_runtime.exceptions import BudgetExceededError
 
@@ -38,6 +40,7 @@ class SubagentSpec:
     budget: Optional[int] = None
     tools: Optional[FrozenSet[str]] = None
     net: bool = False
+    confidence_threshold: Optional[float] = None  # H5.2: per-agent gate
 
 
 class SubagentRegistry:
@@ -81,6 +84,86 @@ def default_subagent_registry() -> SubagentRegistry:
         )
     )
     return registry
+
+
+# ---------------------------------------------------------------------------
+# H5.4 — custom agents from `.voss/agents/*.md` (markdown + YAML frontmatter)
+# ---------------------------------------------------------------------------
+
+
+def _parse_frontmatter(text: str) -> tuple[dict, str]:
+    """Split `---\\n<yaml>\\n---\\n<body>` into (meta, body). Lenient."""
+    if not text.lstrip().startswith("---"):
+        return {}, text.strip()
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return {}, text.strip()
+    try:
+        meta = yaml.safe_load(parts[1]) or {}
+    except yaml.YAMLError:
+        meta = {}
+    return (meta if isinstance(meta, dict) else {}), parts[2].strip()
+
+
+def _as_float(v: Any) -> Optional[float]:
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_int(v: Any) -> Optional[int]:
+    try:
+        return int(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def load_agent_specs(cwd: Path) -> list[SubagentSpec]:
+    """Load custom agent definitions from `<cwd>/.voss/agents/*.md`.
+
+    Frontmatter keys (all optional except an implicit id from the filename):
+    id, description, mode (plan|edit|auto), model, tools (list), budget,
+    net, confidence_threshold. The markdown body is the role prompt.
+    """
+    agents_dir = Path(cwd) / ".voss" / "agents"
+    specs: list[SubagentSpec] = []
+    if not agents_dir.is_dir():
+        return specs
+    for path in sorted(agents_dir.glob("*.md")):
+        try:
+            text = path.read_text()
+        except OSError:
+            continue
+        meta, body = _parse_frontmatter(text)
+        mode = meta.get("mode")
+        if mode not in ("plan", "edit", "auto"):
+            mode = None
+        tools = meta.get("tools")
+        tools_fs = frozenset(str(t) for t in tools) if isinstance(tools, list) else None
+        specs.append(
+            SubagentSpec(
+                id=str(meta.get("id") or path.stem),
+                description=str(meta.get("description") or ""),
+                role_prompt=body,
+                model=meta.get("model"),
+                mode=mode,
+                budget=_as_int(meta.get("budget")),
+                tools=tools_fs,
+                net=bool(meta.get("net", False)),
+                confidence_threshold=_as_float(meta.get("confidence_threshold")),
+            )
+        )
+    return specs
+
+
+def register_agent_files(registry: SubagentRegistry, cwd: Path) -> int:
+    """Register every `.voss/agents/*.md` spec into `registry`. Returns count."""
+    count = 0
+    for spec in load_agent_specs(cwd):
+        registry.register(spec)
+        count += 1
+    return count
 
 
 def agent_task(spec: SubagentSpec, task: str) -> str:

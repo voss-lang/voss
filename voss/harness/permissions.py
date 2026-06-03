@@ -31,8 +31,9 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Literal, Optional
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional
 
 from .cognition_schemas import PermissionsConfig
 
@@ -44,6 +45,51 @@ Mode = Literal["plan", "edit", "auto"]
 READ_ONLY = {"fs_read", "fs_glob", "fs_grep", "git_status", "git_diff", "voss_check"}
 WRITE = {"fs_write", "fs_edit"}
 SHELL = {"shell_run", "shell_run_background", "shell_monitor", "shell_signal"}
+
+
+def _rule_command_arg(tool_name: str, args: dict) -> str:
+    """The argument string a per-command sub-map matches against."""
+    if tool_name in SHELL:
+        return str(args.get("cmd", ""))
+    if tool_name in WRITE:
+        return str(args.get("path", ""))
+    return str(args.get("cmd") or args.get("path") or "")
+
+
+def _decision_for(value: Any, arg_str: str) -> str | None:
+    """Resolve a rule value to a decision. Sub-maps: last matching wins."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        decision: str | None = None
+        for pattern, dec in value.items():
+            if fnmatch(arg_str, str(pattern)):
+                decision = dec
+        return decision
+    return None
+
+
+def match_permission_rules(
+    rules: dict | None, tool_name: str, args: dict
+) -> str | None:
+    """OpenCode-style wildcard rule lookup → "allow" | "ask" | "deny" | None.
+
+    A specific tool key wins over the "*" wildcard. For a per-command sub-map
+    (e.g. `{"*": "ask", "git status *": "allow"}`) the last matching pattern
+    wins, so callers list "*" first.
+    """
+    if not rules:
+        return None
+    arg_str = _rule_command_arg(tool_name, args)
+    if tool_name in rules:
+        d = _decision_for(rules[tool_name], arg_str)
+        if d is not None:
+            return d
+    if "*" in rules:
+        d = _decision_for(rules["*"], arg_str)
+        if d is not None:
+            return d
+    return None
 
 
 def mode_allows(mode: Mode, tool_name: str, is_mutating: bool) -> tuple[bool, str]:
@@ -224,9 +270,15 @@ class PermissionGate:
              the diff render, so user sees the diff before deciding.
           4. Within-mode interactive prompt or auto-yes path.
         """
+        rule_decision: str | None = None
         if self.project_policy is not None:
             if tool_name in self.project_policy.tool_policy.deny:
                 return False, "denied by .voss/permissions.yml"
+            rule_decision = match_permission_rules(
+                getattr(self.project_policy, "rules", None), tool_name, args
+            )
+            if rule_decision == "deny":
+                return False, "denied by permission rule (.voss/permissions.yml)"
 
         if is_network:
             if self.allow_net is False:
@@ -259,9 +311,16 @@ class PermissionGate:
                     self.edit_scope.expand(target)
                 return True, f"out-of-scope: {expand_kind}"
 
-        if not self.needs_prompt(tool_name):
+        # H5.1: rule "allow" auto-approves (within mode, checked above);
+        # rule "ask" forces a prompt even in auto-mode / over a remembered
+        # decision. Project policy is authoritative over session ergonomics.
+        if rule_decision == "allow":
+            return True, "allowed by permission rule (.voss/permissions.yml)"
+
+        needs = self.needs_prompt(tool_name) or rule_decision == "ask"
+        if not needs:
             return True, "auto"
-        if self.store is not None:
+        if self.store is not None and rule_decision != "ask":
             sig = self.signature(tool_name, args)
             if sig in self.store.always:
                 return True, "remembered"

@@ -31,10 +31,7 @@ pub async fn list(http: &HttpClient, cwd: &str) -> Result<()> {
         println!("no saved sessions for {cwd}");
         return Ok(());
     }
-    println!(
-        "{:<14} {:<24} {:>5} {:>9}  {}",
-        "ID", "NAME", "TURNS", "COST$", "UPDATED"
-    );
+    println!("{:<14} {:<24} {:>5} {:>9}  UPDATED", "ID", "NAME", "TURNS", "COST$");
     for s in &sessions {
         println!(
             "{:<14} {:<24} {:>5} {:>9.4}  {}",
