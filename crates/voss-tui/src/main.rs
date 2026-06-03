@@ -5,29 +5,38 @@
 //! on exit.
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
-use voss_tui::{app, net::HttpClient, server};
+use voss_tui::{app, doctor, net::HttpClient, server};
 
 #[derive(Parser)]
 #[command(name = "voss-tui", version, about = "Voss thin terminal client")]
 struct Cli {
+    #[command(subcommand)]
+    cmd: Option<Cmd>,
     /// Attach to an already-running server (e.g. http://127.0.0.1:PORT) instead
     /// of spawning one.
-    #[arg(long)]
+    #[arg(long, global = true)]
     attach: Option<String>,
     /// Bearer token for --attach (or VOSS_TUI_TOKEN).
-    #[arg(long, env = "VOSS_TUI_TOKEN")]
+    #[arg(long, global = true, env = "VOSS_TUI_TOKEN")]
     token: Option<String>,
     /// Project working directory for the session.
-    #[arg(long, default_value = ".")]
+    #[arg(long, global = true, default_value = ".")]
     cwd: String,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Run server-side diagnostics and exit (no TUI).
+    Doctor,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Resolve the server: attach to an existing one, or spawn + supervise.
     let (handle, http) = match cli.attach.clone() {
         Some(url) => {
             let token = cli.token.clone().unwrap_or_default();
@@ -40,25 +49,34 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Create the session before entering raw mode so credential/connection
-    // errors print normally instead of inside the alternate screen.
-    let sid = match http.create_session(&cli.cwd).await {
-        Ok(id) => id,
-        Err(e) => {
-            eprintln!("voss-tui: could not start session: {e}");
-            if let Some(h) = handle {
-                h.shutdown().await;
-            }
-            std::process::exit(1);
-        }
+    // Run the chosen command, ALWAYS shutting the server down before exiting
+    // (std::process::exit skips Drop, so shutdown must precede it explicitly).
+    let outcome: Result<Option<i32>> = match cli.cmd {
+        Some(Cmd::Doctor) => doctor::run(&http, &cli.cwd).await.map(Some),
+        None => run_tui(&http, &cli.cwd).await.map(|_| None),
     };
-
-    let terminal = ratatui::init();
-    let res = app::run(terminal, http, sid).await;
-    ratatui::restore();
 
     if let Some(h) = handle {
         h.shutdown().await;
     }
+
+    match outcome {
+        Ok(Some(code)) => std::process::exit(code),
+        Ok(None) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+async fn run_tui(http: &HttpClient, cwd: &str) -> Result<()> {
+    // Create the session before entering raw mode so credential/connection
+    // errors print normally instead of inside the alternate screen.
+    let sid = http
+        .create_session(cwd)
+        .await
+        .map_err(|e| anyhow::anyhow!("could not start session: {e}"))?;
+
+    let terminal = ratatui::init();
+    let res = app::run(terminal, http.clone(), sid).await;
+    ratatui::restore();
     res
 }
