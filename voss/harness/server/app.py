@@ -205,7 +205,10 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             history=session.history,
             session_id=session.id,
             voss_md_text=voss_md_text,
+            prior_context=session.prior_context,
         )
+        # Consume resume context once: deep history now flows via session.history.
+        session.prior_context = None
         renderer.show_final(
             result.final, confidence=result.confidence, cost_usd=result.cost_usd
         )
@@ -365,6 +368,13 @@ def create_app(token: str | None = None) -> FastAPI:
         if s.busy and s.task is not None:
             s.task.cancel()
         return {"v": 1, "status": "aborting"}
+
+    @app.get("/session/{session_id}/cost")
+    def cost(session_id: str) -> dict:
+        s = _require(session_id)
+        runs = s.record.runs
+        total = sum(float(r.get("cost_usd", 0.0) or 0.0) for r in runs)
+        return {"v": 1, "total_usd": total, "turns": len(runs)}
 
     @app.post("/session/{session_id}/permission")
     def reply_permission(session_id: str, body: PermissionReply) -> dict:
