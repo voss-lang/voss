@@ -18,7 +18,7 @@ pub enum AppEvent {
     StreamFinalize,
     Final { text: String, confidence: f64 },
     Clarify { question: String, confidence: f64 },
-    Status { tokens: u64, cost_usd: f64 },
+    Status { model: String, tokens: u64, cost_usd: f64, ctx_pct: f64 },
     Permission { id: String, tool_name: String },
     Warning(String),
     SessionIdle,
@@ -71,8 +71,10 @@ impl AppEvent {
                 confidence: f("confidence"),
             },
             "status" => AppEvent::Status {
+                model: s("model"),
                 tokens: v.get("tokens").and_then(serde_json::Value::as_u64).unwrap_or(0),
                 cost_usd: f("cost_usd"),
+                ctx_pct: f("ctx_pct"),
             },
             "permission.updated" => AppEvent::Permission {
                 id: s("id"),

@@ -12,6 +12,7 @@ use std::path::Path;
 
 use tokio::sync::mpsc;
 use voss_tui::event::AppEvent;
+use voss_tui::store::read_saved_sessions;
 use voss_tui::{net::HttpClient, server};
 
 fn venv_python() -> Option<String> {
@@ -82,6 +83,51 @@ async fn real_turn_over_the_wire() {
         !deltas.is_empty() || got_final,
         "expected streamed output or a final"
     );
+}
+
+/// H7 parity: the native Rust session reader produces the same listing the
+/// Python server's /sessions/saved returns for the same directory. Hermetic
+/// (crafted sessions in a tmp dir, no creds). Skips if no venv.
+#[tokio::test]
+async fn native_store_matches_server_listing() {
+    let Some(python) = venv_python() else {
+        eprintln!("skipping: .venv/bin/python not found");
+        return;
+    };
+    let tmp = tempfile::tempdir().unwrap();
+    let cwd = tmp.path().to_string_lossy().to_string();
+    let sessions = tmp.path().join(".voss").join("sessions");
+    std::fs::create_dir_all(&sessions).unwrap();
+    for (id, updated, turns) in [
+        ("aaaa00000001", "2026-05-01T00:00:00+00:00", 2usize),
+        ("bbbb00000002", "2026-05-09T00:00:00+00:00", 4),
+        ("cccc00000003", "2026-05-05T00:00:00+00:00", 1),
+    ] {
+        let tj: Vec<serde_json::Value> = (0..turns)
+            .map(|i| serde_json::json!({"role": "user", "content": format!("t{i}")}))
+            .collect();
+        let rec = serde_json::json!({
+            "id": id, "name": "s", "cwd": cwd, "model": "m",
+            "started_at": updated, "updated_at": updated,
+            "total_cost_usd": 0.0, "turns": tj, "runs": [],
+        });
+        std::fs::write(
+            sessions.join(format!("{id}.json")),
+            serde_json::to_string(&rec).unwrap(),
+        )
+        .unwrap();
+    }
+
+    let handle = server::spawn_server_with(&python, &[]).await.unwrap();
+    let http = HttpClient::new(handle.base.clone(), handle.token.clone());
+    let server_list = http.list_saved_sessions(&cwd).await.expect("server list");
+    handle.shutdown().await;
+
+    let native = read_saved_sessions(&cwd);
+
+    let s: Vec<(String, u64)> = server_list.iter().map(|x| (x.id.clone(), x.turns)).collect();
+    let n: Vec<(String, u64)> = native.iter().map(|x| (x.id.clone(), x.turns)).collect();
+    assert_eq!(n, s, "native reader must match Python server listing (id+order+turns)");
 }
 
 #[tokio::test]
