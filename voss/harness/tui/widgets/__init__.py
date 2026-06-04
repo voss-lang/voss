@@ -11,7 +11,6 @@ from .header import HeaderBar
 from .help_overlay import HelpOverlay
 from .input_bar import InputBar
 from .local_block import LocalBlock, LocalBlockNote, LocalBlockNotice, LocalBlockShell
-from .mention_palette import MentionPalette, gather_files, rank_files
 from .probable_modal import ProbableInspectModal
 from .permission_modal import (
     PermissionChoice,
@@ -45,7 +44,6 @@ __all__ = [
     "LocalBlockNote",
     "LocalBlockNotice",
     "LocalBlockShell",
-    "MentionPalette",
     "PermissionChoice",
     "PermissionModal",
     "ProbableInspectModal",
@@ -57,7 +55,5 @@ __all__ = [
     "SubAgentPanel",
     "TurnView",
     "VossPyDiffModal",
-    "gather_files",
     "rank_commands",
-    "rank_files",
 ]

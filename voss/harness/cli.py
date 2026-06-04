@@ -14,7 +14,7 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -201,9 +201,6 @@ class ReplContext:
     # T6 / SLASH-04 — session-scoped USD ceiling. None = unbounded.
     budget_usd: float | None = None
     project_index_text: str = ""
-    # Git-backed undo/redo (OpenCode-leverage port): each /undo snapshots the
-    # agent's content for the reverted files so /redo can restore them.
-    redo_stack: list = field(default_factory=list)
 
 
 def _resolve_default_model(user_explicit: str | None) -> None:
@@ -1032,77 +1029,6 @@ def _build_slash_registry() -> SlashRegistry:
             return
         click.echo(f"  reverted {len(changed)} file(s) via git checkout.")
 
-    def _undo(ctx: ReplContext, _args: list[str], _line: str) -> None:
-        # OpenCode-leverage port of /undo (ctrl+x u): git-backed revert of the
-        # last run's file changes, but reversible — snapshot the agent's content
-        # first so /redo can put it back. Unlike /discard, no --confirm (it's
-        # undoable) and it records a redo entry.
-        if not ctx.record.runs:
-            click.echo("  no runs yet — nothing to undo.")
-            return
-        changed = list(ctx.record.runs[-1].get("changed") or [])
-        if not changed:
-            click.echo("  last run changed no files — nothing to undo.")
-            return
-        snapshot: dict[str, bytes | None] = {}
-        for rel in changed:
-            p = ctx.cwd / rel
-            try:
-                snapshot[rel] = p.read_bytes() if p.exists() else None
-            except OSError:
-                snapshot[rel] = None
-        reverted: list[str] = []
-        failed: list[str] = []
-        for rel in changed:
-            try:
-                out = subprocess.run(
-                    ["git", "checkout", "--", rel],
-                    cwd=str(ctx.cwd),
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                )
-            except (OSError, subprocess.TimeoutExpired) as exc:
-                click.echo(f"/undo failed: {exc}", err=True)
-                return
-            (reverted if out.returncode == 0 else failed).append(rel)
-        if reverted:
-            ctx.redo_stack.append(
-                {"reverted": reverted, "snapshot": snapshot}
-            )
-            click.echo(
-                f"  undid {len(reverted)} file change(s) via git. /redo to restore."
-            )
-        if failed:
-            click.echo(
-                "  could not revert (untracked or not in git): "
-                + ", ".join(failed),
-                err=True,
-            )
-
-    def _redo(ctx: ReplContext, _args: list[str], _line: str) -> None:
-        # Restore the agent's content captured by the most recent /undo.
-        if not ctx.redo_stack:
-            click.echo("  nothing to redo.")
-            return
-        entry = ctx.redo_stack.pop()
-        snapshot = entry.get("snapshot", {})
-        restored = 0
-        for rel in entry.get("reverted", []):
-            content = snapshot.get(rel)
-            p = ctx.cwd / rel
-            try:
-                if content is None:
-                    if p.exists():
-                        p.unlink()
-                else:
-                    p.parent.mkdir(parents=True, exist_ok=True)
-                    p.write_bytes(content)
-                restored += 1
-            except OSError as exc:
-                click.echo(f"  /redo: could not restore {rel}: {exc}", err=True)
-        click.echo(f"  redid {restored} file change(s).")
-
     def _resume(ctx: ReplContext, args: list[str], _line: str) -> None:
         # T6 / SLASH-05. Live REPL resume: swap history + record without
         # restarting the process. Gate/cognition/tools stay bound to the
@@ -1298,18 +1224,6 @@ def _build_slash_registry() -> SlashRegistry:
             "/discard",
             "revert last run's changed files via `git checkout` (--confirm)",
             _discard,
-            mutating=True,
-        ),
-        SlashCommand(
-            "/undo",
-            "git-backed revert of the last run's file changes (reversible via /redo)",
-            _undo,
-            mutating=True,
-        ),
-        SlashCommand(
-            "/redo",
-            "restore the file changes undone by the most recent /undo",
-            _redo,
             mutating=True,
         ),
         SlashCommand(
