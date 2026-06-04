@@ -8,6 +8,7 @@ plans wire palette (M9-03), recorder (M9-04), modals (M9-05), resume
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -19,6 +20,23 @@ from voss.harness.slash import SlashRegistry
 from voss_runtime.memory.episodic import EpisodicMemory
 
 from .keymap import KEYMAP
+
+# Fenced code block: ```lang\n ...body... ```  (lang optional). DOTALL so a
+# block can span lines; non-greedy so adjacent blocks don't merge.
+_FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
+
+
+def extract_last_code_block(text: str) -> str | None:
+    """Return the body of the LAST fenced code block in `text`, or None.
+
+    Pure helper so the copy-code action can be unit-tested without an App.
+    """
+    if not text:
+        return None
+    blocks = _FENCE_RE.findall(text)
+    if not blocks:
+        return None
+    return blocks[-1].rstrip("\n")
 from .widgets import (
     CodeIntelPanel,
     ForkConfirmModal,
@@ -80,6 +98,9 @@ class VossTUIApp(App):
         self._side_owner: str = "code_intel"
         self._side_pinned: bool = False
         self._code_intel_panel: CodeIntelPanel | None = None
+        # Last assistant response text, captured by TextualRenderer so
+        # action_copy_code (ctrl+y) can yank its last fenced code block.
+        self._last_response_text: str = ""
 
     def register_turn_task(self, task: asyncio.Task) -> None:
         """Register the active agent-turn task (T1-06).
@@ -118,6 +139,34 @@ class VossTUIApp(App):
 
     def action_redraw(self) -> None:
         self.refresh()
+
+    def _toast(self, message: str) -> None:
+        try:
+            self.query_one("#status", StatusLine).set_status(toast=message)
+        except Exception:  # noqa: BLE001 — status widget absent in tests
+            pass
+
+    def note_response_text(self, text: str) -> None:
+        """Record the latest assistant response for the copy-code action."""
+        if text:
+            self._last_response_text = text
+
+    def action_copy_code(self) -> None:
+        """Yank the last fenced code block (or the whole last response) to the
+        system clipboard. Ported from OpenCode's copy ergonomics — RichLog has
+        no native selection at this Textual version, so we copy structurally."""
+        text = self._last_response_text or ""
+        block = extract_last_code_block(text)
+        payload = block if block is not None else text.strip()
+        if not payload:
+            self._toast("nothing to copy yet")
+            return
+        try:
+            self.copy_to_clipboard(payload)
+        except Exception:  # noqa: BLE001 — clipboard may be unavailable (no OSC52)
+            self._toast("copy failed")
+            return
+        self._toast("copied code block" if block is not None else "copied response")
 
     def action_interrupt(self) -> None:
         # Ctrl+C behavior: if a turn is running, cancel it. If idle, exit app.
