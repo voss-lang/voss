@@ -468,7 +468,9 @@ class AnthropicOAuthProvider:
 # ---------------------------------------------------------------------------
 
 
-_OPENAI_MODEL_DEFAULT = "gpt-5"
+# Current default for the ChatGPT-account Codex backend. gpt-5/gpt-5-codex were
+# retired April 2026 and the endpoint 400s on them; gpt-5.5 is the live default.
+_OPENAI_MODEL_DEFAULT = "gpt-5.5"
 
 
 class OpenAIOAuthProvider:
@@ -523,13 +525,33 @@ class OpenAIOAuthProvider:
         return
 
     @staticmethod
-    def _to_responses_input(messages: list[dict]) -> tuple[list[str], list[dict]]:
+    def _content_to_text(content: Any) -> str:
+        """Flatten message content to plain text.
+
+        Content may be a plain string or a list of Anthropic-style blocks
+        ({"type": "text"/"input_text", "text": ...}); the Responses API input
+        we build wants flat text either way.
+        """
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for block in content:
+                if isinstance(block, dict):
+                    parts.append(str(block.get("text", "")))
+                else:
+                    parts.append(str(block))
+            return "".join(parts)
+        return str(content)
+
+    @classmethod
+    def _to_responses_input(cls, messages: list[dict]) -> tuple[list[str], list[dict]]:
         """Split messages into (system_chunks, responses-API input list)."""
         system_chunks: list[str] = []
         items: list[dict] = []
         for m in messages:
             role = m.get("role", "user")
-            content = m.get("content", "")
+            content = cls._content_to_text(m.get("content", ""))
             if role == "system":
                 system_chunks.append(content)
                 continue

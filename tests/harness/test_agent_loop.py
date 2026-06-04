@@ -423,7 +423,11 @@ async def test_confidence_gate_clarifies_on_low_done_iter(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
-async def test_renderer_stream_delta_called_per_text_event(tmp_path: Path) -> None:
+async def test_renderer_does_not_render_plan_phase_deltas(tmp_path: Path) -> None:
+    # Plan-phase TextDeltas carry the structured-output JSON (some providers
+    # stream the schema body as text by contract). The loop must NOT render
+    # them — doing so leaked raw {"rationale":...} into the chat. It still
+    # finalizes the (empty) stream and surfaces the parsed plan / final answer.
     plan = _make_plan(steps=[], confidence=0.9, final_when_done="ok")
     script = [
         TextDelta(text="hel"),
@@ -444,9 +448,10 @@ async def test_renderer_stream_delta_called_per_text_event(tmp_path: Path) -> No
         model="stub-model",
     )
 
-    assert renderer.deltas == ["hel", "lo"]
+    assert renderer.deltas == []
     assert len(renderer.finalize_calls) == 1
     assert renderer.finalize_calls[0]["role"] == "assistant"
+    assert renderer.finalize_calls[0]["accumulated_text"] is None
     assert renderer.finalize_calls[0]["confidence"] == pytest.approx(0.9)
 
 
