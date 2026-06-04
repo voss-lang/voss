@@ -102,6 +102,22 @@ $error: #FF5F5F;
     color: $accent;
 }
 
+/* DiffModal — per-hunk approval gate. Colors come from Rich Text (Python)
+ * using the locked 5-color palette; these rules only frame the active hunk.
+ * No new hex here — the 5-color audit stays intact. */
+.diff-hunk {
+    height: auto;
+    padding: 0 1;
+    border-left: solid $dim;
+}
+.diff-hunk.current {
+    border-left: solid $accent;
+    background: $accent 8%;
+}
+.diff-hunk-header {
+    text-style: bold;
+}
+
 /* M9-08 CodeIntelPanel (side-region default, peer to SubAgentPanel) */
 CodeIntelPanel {
     border-left: solid $dim;
