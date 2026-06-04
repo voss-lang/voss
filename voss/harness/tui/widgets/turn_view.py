@@ -10,9 +10,12 @@ from typing import Iterable
 from rich.text import Text
 from textual.widgets import RichLog
 
+from .. import glyphs
+
 
 EMPTY_HEADING = "type a message below to begin · / for commands"
 IGNITE_ORANGE = "#ff5b1f"
+ASSISTANT_INDENT = 2
 
 
 VOSS_LOGO = [
@@ -54,6 +57,23 @@ class TurnView(RichLog):
             self.write(Text(""))
             self.write(Text(_center(EMPTY_HEADING, width), style="dim"))
 
+    def _begin_turn(self) -> None:
+        """Clear the splash on the first turn; otherwise blank-line separate."""
+        if self._turn_count == 0:
+            self.clear()
+        else:
+            self.write(Text(""))
+        self._turn_count += 1
+
+    def _write_user(self, body: str) -> None:
+        """Render a user message: accent prompt glyph + indented continuation."""
+        lines = body.split("\n") or [""]
+        first = Text(f"{glyphs.USER_INPUT} ", style=f"bold {IGNITE_ORANGE}")
+        first.append(lines[0])
+        self.write(first)
+        for ln in lines[1:]:
+            self.write(Text(f"  {ln}", no_wrap=False))
+
     def append_turn(
         self,
         role: str,
@@ -63,20 +83,18 @@ class TurnView(RichLog):
         cost_usd: float | None = None,
         timestamp: str | None = None,
     ) -> None:
-        if self._turn_count == 0:
-            self.clear()
-        self._turn_count += 1
-        head = Text()
-        head.append(role, style="bold")
-        if timestamp:
-            head.append(f"  · {timestamp}", style="dim")
-        if cost_usd is not None:
-            head.append(f"  · ${cost_usd:.4f}", style="dim")
-        if confidence is not None:
-            head.append(f"  · conf {confidence:.2f}", style="dim")
-        self.write(head)
+        # Chat layout: user gets a prompt glyph, everything else is indented
+        # under a dim role label. Cost/confidence/timestamp live on the status
+        # line, never inline (keeps the transcript reading like a chat).
+        self._begin_turn()
+        if role == "user":
+            self._write_user(body)
+            return
+        if role != "assistant":
+            self.write(Text(role, style="dim"))
         # `body` is untrusted (LLM output) — render via plain Text, no markup.
-        self.write(Text(body, no_wrap=False))
+        for ln in body.split("\n"):
+            self.write(Text(f"{' ' * ASSISTANT_INDENT}{ln}", no_wrap=False))
 
     def append_markdown_turn(
         self,
@@ -89,20 +107,16 @@ class TurnView(RichLog):
     ) -> None:
         """Like append_turn but renders body as markdown with code highlighting."""
         from rich.markdown import Markdown
+        from rich.padding import Padding
 
-        if self._turn_count == 0:
-            self.clear()
-        self._turn_count += 1
-        head = Text()
-        head.append(role, style="bold")
-        if timestamp:
-            head.append(f"  · {timestamp}", style="dim")
-        if cost_usd is not None:
-            head.append(f"  · ${cost_usd:.4f}", style="dim")
-        if confidence is not None:
-            head.append(f"  · conf {confidence:.2f}", style="dim")
-        self.write(head)
-        self.write(Markdown(body, code_theme="monokai"))
+        self._begin_turn()
+        if role == "user":
+            self._write_user(body)
+            return
+        if role != "assistant":
+            self.write(Text(role, style="dim"))
+        # Indent the whole rendered block (incl. code fences) under the turn.
+        self.write(Padding(Markdown(body, code_theme="monokai"), (0, 0, 0, ASSISTANT_INDENT)))
 
     # T1-04: streaming entry points consumed by the iteration loop (T1-05).
     # CONTEXT.md locks "Append-only via RichLog.write on every TextDelta. No
