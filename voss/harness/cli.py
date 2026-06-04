@@ -432,6 +432,14 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
             sys.exit(2)
 
     if res.source == "claude-oauth":
+        click.echo(
+            "  [deprecated: claude-oauth (Claude subscription) is no longer "
+            "supported. Anthropic prohibits subscription OAuth tokens in "
+            "third-party tools (Consumer ToS) and blocks them server-side since "
+            "2026-01-09, so calls will likely fail. Use --auth=api with "
+            "ANTHROPIC_API_KEY, or --auth=codex for a ChatGPT subscription.]",
+            err=True,
+        )
         provider: ModelProvider = AnthropicOAuthProvider(res.anthropic_oauth)  # type: ignore[arg-type]
     elif res.source == "codex-oauth":
         click.echo(

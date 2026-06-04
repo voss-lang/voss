@@ -566,14 +566,16 @@ class OpenAIOAuthProvider:
         if system_chunks:
             body["instructions"] = "\n\n".join(system_chunks)
         if response_format is not None and issubclass(response_format, BaseModel):
-            schema = response_format.model_json_schema()
-            schema["additionalProperties"] = False
+            # NON-strict json_schema. strict=True forces additionalProperties:false
+            # on every nested object and rejects open fields (Plan.args is an open
+            # dict) → the endpoint 400s. Non-strict still supplies the schema as
+            # guidance; we validate the returned JSON against the model ourselves.
             body["text"] = {
                 "format": {
                     "type": "json_schema",
                     "name": response_format.__name__,
-                    "strict": True,
-                    "schema": schema,
+                    "strict": False,
+                    "schema": response_format.model_json_schema(),
                 }
             }
         return body
