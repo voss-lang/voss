@@ -66,13 +66,24 @@ class TurnView(RichLog):
         self._turn_count += 1
 
     def _write_user(self, body: str) -> None:
-        """Render a user message: accent prompt glyph + indented continuation."""
+        """Render a user message Claude-style: dimmed, marker + continuation."""
         lines = body.split("\n") or [""]
-        first = Text(f"{glyphs.USER_INPUT} ", style=f"bold {IGNITE_ORANGE}")
-        first.append(lines[0])
+        first = Text(f"{glyphs.USER_INPUT} ", style="dim")
+        first.append(lines[0], style="dim")
         self.write(first)
         for ln in lines[1:]:
-            self.write(Text(f"  {ln}", no_wrap=False))
+            self.write(Text(f"  {ln}", style="dim", no_wrap=False))
+
+    def _write_assistant(self, renderable) -> None:
+        """Render an assistant message with an accent dot in a left gutter and
+        the body (Text or Markdown) wrapping to its right — Claude-style."""
+        from rich.table import Table
+
+        grid = Table.grid(padding=(0, 1, 0, 0))
+        grid.add_column(width=1, vertical="top")
+        grid.add_column(ratio=1)
+        grid.add_row(Text(glyphs.ASSISTANT, style=f"bold {IGNITE_ORANGE}"), renderable)
+        self.write(grid)
 
     def append_turn(
         self,
@@ -90,11 +101,13 @@ class TurnView(RichLog):
         if role == "user":
             self._write_user(body)
             return
-        if role != "assistant":
-            self.write(Text(role, style="dim"))
-        # `body` is untrusted (LLM output) — render via plain Text, no markup.
+        if role == "assistant":
+            # `body` is untrusted (LLM output) — render via plain Text, no markup.
+            self._write_assistant(Text(body, no_wrap=False))
+            return
+        self.write(Text(role, style="dim"))
         for ln in body.split("\n"):
-            self.write(Text(f"{' ' * ASSISTANT_INDENT}{ln}", no_wrap=False))
+            self.write(Text(f"{' ' * ASSISTANT_INDENT}{ln}", style="dim", no_wrap=False))
 
     def append_markdown_turn(
         self,
@@ -107,15 +120,16 @@ class TurnView(RichLog):
     ) -> None:
         """Like append_turn but renders body as markdown with code highlighting."""
         from rich.markdown import Markdown
-        from rich.padding import Padding
 
         self._begin_turn()
         if role == "user":
             self._write_user(body)
             return
-        if role != "assistant":
-            self.write(Text(role, style="dim"))
-        # Indent the whole rendered block (incl. code fences) under the turn.
+        if role == "assistant":
+            self._write_assistant(Markdown(body, code_theme="monokai"))
+            return
+        self.write(Text(role, style="dim"))
+        from rich.padding import Padding
         self.write(Padding(Markdown(body, code_theme="monokai"), (0, 0, 0, ASSISTANT_INDENT)))
 
     # T1-04: streaming entry points consumed by the iteration loop (T1-05).

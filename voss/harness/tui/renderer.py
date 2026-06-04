@@ -304,7 +304,8 @@ class TextualRenderer:
             confidence=conf,
             cost_usd=float(cost_usd),
         )
-        self._mount_confidence_bar(conf, is_final=True)
+        # No inline confidence bar in the chat — it reads as agent metadata,
+        # not conversation. Confidence still flows to telemetry / status.
         status = self._status()
         if status is not None:
             self._post(status.clear_toast)
