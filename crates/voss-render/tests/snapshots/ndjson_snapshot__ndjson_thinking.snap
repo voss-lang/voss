@@ -1,0 +1,5 @@
+---
+source: crates/voss-render/tests/ndjson_snapshot.rs
+expression: "capture(|r| r.show_thinking(\"planning\"))"
+---
+{"label":"planning","type":"thinking","v":1}

@@ -1,0 +1,5 @@
+---
+source: crates/voss-render/tests/ndjson_snapshot.rs
+expression: "capture(|r| r.show_final(\"done\", 0.9, 0.01))"
+---
+{"confidence":0.8999999761581421,"cost_usd":0.01,"text":"done","type":"final","v":1}
