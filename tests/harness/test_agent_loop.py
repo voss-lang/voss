@@ -137,10 +137,11 @@ class RecordingRenderer:
         self.final_calls.append((text, confidence, cost_usd))
     def stream_delta(self, text):
         self.deltas.append(text)
-    def finalize_stream(self, *, role, confidence=None, cost_usd=None, timestamp=None):
+    def finalize_stream(self, *, role, confidence=None, cost_usd=None, timestamp=None,
+                        accumulated_text=None):
         self.finalize_calls.append(
             {"role": role, "confidence": confidence, "cost_usd": cost_usd,
-             "timestamp": timestamp}
+             "timestamp": timestamp, "accumulated_text": accumulated_text}
         )
     def status(self, **kw): self.status_calls.append(kw)
     def show_cognition(self, **kw): pass

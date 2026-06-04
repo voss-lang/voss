@@ -553,18 +553,25 @@ class OpenAIOAuthProvider:
         max_tokens: Optional[int],
     ) -> dict[str, Any]:
         system_chunks, items = self._to_responses_input(messages)
+        # The ChatGPT-account Codex backend (chatgpt.com/backend-api/codex)
+        # diverges from the public Responses API: it REQUIRES a non-empty
+        # `instructions` field and REJECTS `temperature`. Gate on the endpoint.
+        is_codex = self.base_url.rstrip("/").endswith("/codex")
         body: dict[str, Any] = {
             "model": model or _OPENAI_MODEL_DEFAULT,
             "input": items,
             "store": False,
             "stream": False,
         }
-        if temperature is not None:
+        if temperature is not None and not is_codex:
             body["temperature"] = temperature
-        if max_tokens is not None:
+        if max_tokens is not None and not is_codex:
             body["max_output_tokens"] = max_tokens
-        if system_chunks:
-            body["instructions"] = "\n\n".join(system_chunks)
+        instructions = "\n\n".join(system_chunks).strip()
+        if not instructions and is_codex:
+            instructions = "You are a helpful coding assistant."
+        if instructions:
+            body["instructions"] = instructions
         if response_format is not None and issubclass(response_format, BaseModel):
             # NON-strict json_schema. strict=True forces additionalProperties:false
             # on every nested object and rejects open fields (Plan.args is an open
