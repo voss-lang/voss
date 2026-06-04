@@ -46,9 +46,13 @@ async fn real_turn_over_the_wire() {
         }
     };
 
-    http.post_message(&sid, "Reply with exactly the word PONG and nothing else.", "plan")
-        .await
-        .expect("post message");
+    http.post_message(
+        &sid,
+        "Reply with exactly the word PONG and nothing else.",
+        "plan",
+    )
+    .await
+    .expect("post message");
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<AppEvent>(256);
     let sid2 = sid.clone();
@@ -125,9 +129,15 @@ async fn native_store_matches_server_listing() {
 
     let native = read_saved_sessions(&cwd);
 
-    let s: Vec<(String, u64)> = server_list.iter().map(|x| (x.id.clone(), x.turns)).collect();
+    let s: Vec<(String, u64)> = server_list
+        .iter()
+        .map(|x| (x.id.clone(), x.turns))
+        .collect();
     let n: Vec<(String, u64)> = native.iter().map(|x| (x.id.clone(), x.turns)).collect();
-    assert_eq!(n, s, "native reader must match Python server listing (id+order+turns)");
+    assert_eq!(
+        n, s,
+        "native reader must match Python server listing (id+order+turns)"
+    );
 }
 
 #[tokio::test]
@@ -169,7 +179,8 @@ async fn fake_turn_streams_over_the_wire() {
     handle.shutdown().await;
 
     assert!(
-        matches!(seen.first(), Some(AppEvent::User(_))) || seen.iter().any(|e| matches!(e, AppEvent::User(_))),
+        matches!(seen.first(), Some(AppEvent::User(_)))
+            || seen.iter().any(|e| matches!(e, AppEvent::User(_))),
         "expected a user event, got {seen:?}"
     );
     assert!(

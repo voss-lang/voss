@@ -39,8 +39,7 @@ pub fn python_path() -> String {
         return p;
     }
     // crate dir = <repo>/crates/voss-tui -> repo root is two levels up.
-    let venv = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../.venv/bin/python");
+    let venv = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
     if venv.exists() {
         return venv.to_string_lossy().into_owned();
     }

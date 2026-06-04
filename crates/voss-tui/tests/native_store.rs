@@ -36,8 +36,20 @@ fn write_session(dir: &Path, id: &str, name: &str, updated: &str, turns: usize) 
 fn reads_and_orders_newest_first() {
     let tmp = tempfile::tempdir().unwrap();
     let cwd = tmp.path().to_string_lossy().to_string();
-    write_session(tmp.path(), "aaaa00000001", "older", "2026-05-01T00:00:00+00:00", 2);
-    write_session(tmp.path(), "bbbb00000002", "newer", "2026-05-09T00:00:00+00:00", 4);
+    write_session(
+        tmp.path(),
+        "aaaa00000001",
+        "older",
+        "2026-05-01T00:00:00+00:00",
+        2,
+    );
+    write_session(
+        tmp.path(),
+        "bbbb00000002",
+        "newer",
+        "2026-05-09T00:00:00+00:00",
+        4,
+    );
 
     let got = read_saved_sessions(&cwd);
     assert_eq!(got.len(), 2);
@@ -59,7 +71,13 @@ fn ignores_malformed_files() {
     let sessions = tmp.path().join(".voss").join("sessions");
     std::fs::create_dir_all(&sessions).unwrap();
     std::fs::write(sessions.join("bad.json"), "{not json").unwrap();
-    write_session(tmp.path(), "good00000001", "ok", "2026-05-01T00:00:00+00:00", 1);
+    write_session(
+        tmp.path(),
+        "good00000001",
+        "ok",
+        "2026-05-01T00:00:00+00:00",
+        1,
+    );
     let got = read_saved_sessions(&tmp.path().to_string_lossy());
     assert_eq!(got.len(), 1);
     assert_eq!(got[0].id, "good00000001");

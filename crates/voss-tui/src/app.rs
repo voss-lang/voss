@@ -75,9 +75,7 @@ impl App {
             AppEvent::Plan { confidence, steps } => self
                 .transcript
                 .push(format!("plan (conf {confidence:.2}): {}", steps.join(", "))),
-            AppEvent::Tool { name, state } => {
-                self.transcript.push(format!("⚙ {name} [{state}]"))
-            }
+            AppEvent::Tool { name, state } => self.transcript.push(format!("⚙ {name} [{state}]")),
             AppEvent::StreamDelta(t) => self.streaming.push_str(&t),
             AppEvent::StreamFinalize => {
                 if !self.streaming.is_empty() {
@@ -87,13 +85,22 @@ impl App {
             }
             AppEvent::Final { text, confidence } => {
                 self.flush_streaming();
-                self.transcript.push(format!("= {text}  (conf {confidence:.2})"));
+                self.transcript
+                    .push(format!("= {text}  (conf {confidence:.2})"));
                 self.status = "ready".into();
             }
-            AppEvent::Clarify { question, confidence } => self
+            AppEvent::Clarify {
+                question,
+                confidence,
+            } => self
                 .transcript
                 .push(format!("? {question}  (conf {confidence:.2})")),
-            AppEvent::Status { model, tokens, cost_usd, .. } => {
+            AppEvent::Status {
+                model,
+                tokens,
+                cost_usd,
+                ..
+            } => {
                 if !model.is_empty() {
                     self.model = model;
                 }
@@ -249,9 +256,9 @@ fn slash(app: &mut App, cmd: &str, http: &HttpClient, sid: &str, tx: &mpsc::Send
             let tx = tx.clone();
             tokio::spawn(async move {
                 let msg = match http.cost(&sid).await {
-                    Ok((total, turns)) => AppEvent::Warning(format!(
-                        "cost: ${total:.4} over {turns} turn(s)"
-                    )),
+                    Ok((total, turns)) => {
+                        AppEvent::Warning(format!("cost: ${total:.4} over {turns} turn(s)"))
+                    }
                     Err(e) => AppEvent::Error(e.to_string()),
                 };
                 let _ = tx.send(msg).await;
@@ -309,7 +316,13 @@ async fn handle_key(
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             // Spawn — never await network on the UI task or a slow server
             // freezes the whole loop (incl. Esc-to-quit).
-            spawn_fire(http, sid, tx, "abort", |h, s| async move { h.abort(&s).await });
+            spawn_fire(
+                http,
+                sid,
+                tx,
+                "abort",
+                |h, s| async move { h.abort(&s).await },
+            );
             app.status = "aborting…".into();
         }
         KeyCode::Char(c) if app.pending_permission.is_some() && (c == 'y' || c == 'n') => {
