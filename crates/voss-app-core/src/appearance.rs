@@ -241,9 +241,11 @@ mod tests {
         )
         .unwrap();
 
-        let mut settings = AppearanceSettings::default();
-        settings.font_size = 14;
-        settings.high_contrast_enabled = true;
+        let settings = AppearanceSettings {
+            font_size: 14,
+            high_contrast_enabled: true,
+            ..AppearanceSettings::default()
+        };
         save_appearance_settings(&settings).unwrap();
 
         let raw = std::fs::read_to_string(&path).unwrap();

@@ -22,8 +22,8 @@ snapshot_report.html
 *.ndjson
 nd.json
 
-# Local Rust/insta NDJSON snapshots.
-crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap
+# Local Rust/insta NDJSON snapshots. Accepted .snap files are committed (CI
+# needs them); only pending .snap.new are ignored.
 crates/voss-render/tests/snapshots/ndjson_snapshot__*.snap.new
 .vercel
 .env*.local

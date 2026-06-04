@@ -30,7 +30,10 @@ fn print_sessions(cwd: &str, sessions: &[SavedSession]) {
         println!("no saved sessions for {cwd}");
         return;
     }
-    println!("{:<14} {:<24} {:>5} {:>9}  UPDATED", "ID", "NAME", "TURNS", "COST$");
+    println!(
+        "{:<14} {:<24} {:>5} {:>9}  UPDATED",
+        "ID", "NAME", "TURNS", "COST$"
+    );
     for s in sessions {
         println!(
             "{:<14} {:<24} {:>5} {:>9.4}  {}",

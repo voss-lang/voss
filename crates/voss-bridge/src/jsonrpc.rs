@@ -98,10 +98,7 @@ impl PyBridge {
         let resp_bytes = read_frame(&mut bc.stdout).await?;
         let resp: Value = serde_json::from_slice(&resp_bytes)?;
         if let Some(err) = resp.get("error") {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("bridge error: {err}"),
-            ));
+            return Err(std::io::Error::other(format!("bridge error: {err}")));
         }
         Ok(resp.get("result").cloned().unwrap_or(Value::Null))
     }

@@ -103,8 +103,8 @@ impl PermissionStore {
                 always: self.always.iter().cloned().collect(),
             },
         );
-        let text = toml::to_string_pretty(&file)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        let text =
+            toml::to_string_pretty(&file).map_err(|e| std::io::Error::other(e.to_string()))?;
         std::fs::write(&path, text)?;
         Ok(())
     }

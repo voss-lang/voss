@@ -99,7 +99,7 @@ fn body_line(out: &mut Stdout, line: &str) {
 
 impl Render for TtyRender {
     fn banner(&mut self, model: &str, cwd: &Path, git: &str) {
-        open_card(&mut self.out, "voss · agent", &format!("{git}"));
+        open_card(&mut self.out, "voss · agent", git);
         body_line(&mut self.out, &format!("model  {CYAN}{model}{RESET}"));
         body_line(&mut self.out, &format!("cwd    {}", cwd.display()));
         body_line(&mut self.out, "type a task, or /help");

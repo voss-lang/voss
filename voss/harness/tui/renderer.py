@@ -296,6 +296,7 @@ class TextualRenderer:
         tv = self._turn_view()
         if tv is None:
             return
+        self._remember_response(text)
         self._post(
             tv.append_markdown_turn,
             "assistant",
@@ -322,6 +323,8 @@ class TextualRenderer:
         timestamp: str | None = None,
         accumulated_text: str | None = None,
     ) -> None:
+        if accumulated_text:
+            self._remember_response(accumulated_text)
         self._safe(
             self._turn_view,
             "finalize_stream",
@@ -334,6 +337,15 @@ class TextualRenderer:
         status = self._status()
         if status is not None:
             self._post(status.clear_toast)
+
+    def _remember_response(self, text: str) -> None:
+        """Store the latest assistant text on the app for action_copy_code."""
+        note = getattr(self.app, "note_response_text", None)
+        if note is not None:
+            try:
+                note(text)
+            except Exception:  # noqa: BLE001 — never let capture break a turn
+                pass
 
     def _mount_confidence_bar(self, confidence: float, *, is_final: bool) -> None:
         turn_view = self._turn_view()

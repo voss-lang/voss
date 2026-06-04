@@ -77,7 +77,10 @@ impl HttpClient {
     /// POST /session/:id/message — enqueue a turn (server returns 202).
     pub async fn post_message(&self, sid: &str, text: &str, mode: &str) -> Result<()> {
         let resp = self
-            .auth(self.inner.post(format!("{}/session/{}/message", self.base, sid)))
+            .auth(
+                self.inner
+                    .post(format!("{}/session/{}/message", self.base, sid)),
+            )
             .timeout(REST_TIMEOUT)
             .json(&serde_json::json!({
                 "parts": [{ "type": "text", "text": text }],
@@ -92,7 +95,10 @@ impl HttpClient {
     /// POST /session/:id/abort.
     pub async fn abort(&self, sid: &str) -> Result<()> {
         let resp = self
-            .auth(self.inner.post(format!("{}/session/{}/abort", self.base, sid)))
+            .auth(
+                self.inner
+                    .post(format!("{}/session/{}/abort", self.base, sid)),
+            )
             .timeout(REST_TIMEOUT)
             .send()
             .await?;
@@ -103,7 +109,10 @@ impl HttpClient {
     /// POST /session/:id/permission — reply to a pending request.
     pub async fn permission_reply(&self, sid: &str, id: &str, choice: &str) -> Result<()> {
         let resp = self
-            .auth(self.inner.post(format!("{}/session/{}/permission", self.base, sid)))
+            .auth(
+                self.inner
+                    .post(format!("{}/session/{}/permission", self.base, sid)),
+            )
             .timeout(REST_TIMEOUT)
             .json(&serde_json::json!({ "id": id, "choice": choice }))
             .send()
@@ -128,7 +137,10 @@ impl HttpClient {
             .await?;
         let resp = ok_or_detail(resp).await?;
         let v: serde_json::Value = resp.json().await?;
-        let list = v.get("sessions").cloned().unwrap_or_else(|| serde_json::json!([]));
+        let list = v
+            .get("sessions")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([]));
         Ok(serde_json::from_value(list)?)
     }
 
@@ -151,15 +163,22 @@ impl HttpClient {
     /// GET /session/:id/cost — session cost total.
     pub async fn cost(&self, sid: &str) -> Result<(f64, u64)> {
         let resp = self
-            .auth(self.inner.get(format!("{}/session/{}/cost", self.base, sid)))
+            .auth(
+                self.inner
+                    .get(format!("{}/session/{}/cost", self.base, sid)),
+            )
             .timeout(REST_TIMEOUT)
             .send()
             .await?;
         let resp = ok_or_detail(resp).await?;
         let v: serde_json::Value = resp.json().await?;
         Ok((
-            v.get("total_usd").and_then(serde_json::Value::as_f64).unwrap_or(0.0),
-            v.get("turns").and_then(serde_json::Value::as_u64).unwrap_or(0),
+            v.get("total_usd")
+                .and_then(serde_json::Value::as_f64)
+                .unwrap_or(0.0),
+            v.get("turns")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0),
         ))
     }
 

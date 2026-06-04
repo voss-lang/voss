@@ -34,6 +34,7 @@ KEYMAP: tuple[Binding, ...] = (
     Binding("f", "main", "fork_turn", "Fork session from focused turn"),
     Binding("ctrl+f", "main", "open_search", "Open in-pane search"),
     Binding("ctrl+o", "main", "toggle_subagent_detail", "Reveal/hide sub-agent step detail"),
+    Binding("ctrl+y", "global", "copy_code", "Copy last code block to clipboard"),
     Binding("ctrl+c", "global", "interrupt", "Interrupt turn; press again to exit"),
     Binding("ctrl+l", "global", "redraw", "Redraw screen"),
 )

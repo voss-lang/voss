@@ -1,0 +1,5 @@
+---
+source: crates/voss-render/tests/ndjson_snapshot.rs
+expression: "capture(|r| r.show_plan(&plan, 0.0))"
+---
+{"confidence":0.8999999761581421,"cost_usd":0.0,"steps":[{"args":{},"name":"fs_read"}],"type":"plan","v":1}

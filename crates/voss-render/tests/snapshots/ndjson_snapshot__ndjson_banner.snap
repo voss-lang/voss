@@ -1,0 +1,5 @@
+---
+source: crates/voss-render/tests/ndjson_snapshot.rs
+expression: "capture(|r| r.banner(\"claude-sonnet-4-5\", &PathBuf::from(\"/tmp/x\"), \"clean\"))"
+---
+{"cwd":"/tmp/x","git":"clean","model":"claude-sonnet-4-5","type":"banner","v":1}

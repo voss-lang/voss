@@ -128,7 +128,7 @@ impl AnthropicOAuthProvider {
         let mut creds = self.creds.lock().await;
         if creds.expired() {
             voss_auth::refresh::refresh_anthropic(
-                &mut *creds,
+                &mut creds,
                 &self.client,
                 self.token_url_override.as_deref(),
             )
@@ -140,7 +140,7 @@ impl AnthropicOAuthProvider {
     async fn force_refresh(&self) -> anyhow::Result<()> {
         let mut creds = self.creds.lock().await;
         voss_auth::refresh::refresh_anthropic(
-            &mut *creds,
+            &mut creds,
             &self.client,
             self.token_url_override.as_deref(),
         )

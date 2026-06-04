@@ -12,14 +12,34 @@ pub enum AppEvent {
     Connected,
     User(String),
     Thinking(String),
-    Plan { confidence: f64, steps: Vec<String> },
-    Tool { name: String, state: String },
+    Plan {
+        confidence: f64,
+        steps: Vec<String>,
+    },
+    Tool {
+        name: String,
+        state: String,
+    },
     StreamDelta(String),
     StreamFinalize,
-    Final { text: String, confidence: f64 },
-    Clarify { question: String, confidence: f64 },
-    Status { model: String, tokens: u64, cost_usd: f64, ctx_pct: f64 },
-    Permission { id: String, tool_name: String },
+    Final {
+        text: String,
+        confidence: f64,
+    },
+    Clarify {
+        question: String,
+        confidence: f64,
+    },
+    Status {
+        model: String,
+        tokens: u64,
+        cost_usd: f64,
+        ctx_pct: f64,
+    },
+    Permission {
+        id: String,
+        tool_name: String,
+    },
     Warning(String),
     SessionIdle,
     Error(String),
@@ -50,7 +70,9 @@ impl AppEvent {
                     .map(|a| {
                         a.iter()
                             .filter_map(|st| {
-                                st.get("name").and_then(serde_json::Value::as_str).map(String::from)
+                                st.get("name")
+                                    .and_then(serde_json::Value::as_str)
+                                    .map(String::from)
                             })
                             .collect()
                     })
@@ -72,7 +94,10 @@ impl AppEvent {
             },
             "status" => AppEvent::Status {
                 model: s("model"),
-                tokens: v.get("tokens").and_then(serde_json::Value::as_u64).unwrap_or(0),
+                tokens: v
+                    .get("tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0),
                 cost_usd: f("cost_usd"),
                 ctx_pct: f("ctx_pct"),
             },

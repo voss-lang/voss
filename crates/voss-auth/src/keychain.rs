@@ -7,18 +7,22 @@
 //! For tests, the service name can be overridden via `$VOSS_KEYCHAIN_SERVICE`
 //! to avoid touching the user's real credentials.
 
+#[cfg_attr(not(target_os = "macos"), allow(unused_imports))]
 use crate::anthropic::{AnthropicOAuthCreds, KEYCHAIN_SERVICE};
 
+#[cfg(target_os = "macos")]
 fn service() -> String {
     std::env::var("VOSS_KEYCHAIN_SERVICE").unwrap_or_else(|_| KEYCHAIN_SERVICE.to_string())
 }
 
+#[cfg(target_os = "macos")]
 fn account() -> String {
     std::env::var("USER").unwrap_or_else(|_| "voss".to_string())
 }
 
 /// When set to "1", all Keychain calls short-circuit. Tests use this to keep
 /// macOS from popping authentication dialogs during automated runs.
+#[cfg(target_os = "macos")]
 fn disabled() -> bool {
     std::env::var("VOSS_DISABLE_KEYCHAIN")
         .map(|v| v == "1")
@@ -48,7 +52,7 @@ pub fn write_anthropic(creds: &AnthropicOAuthCreds) -> std::io::Result<()> {
     }
     let bytes = serde_json::to_vec(&serialize_blob(creds))?;
     set_generic_password(&service(), &account(), &bytes)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        .map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 #[cfg(target_os = "macos")]
@@ -58,7 +62,7 @@ pub fn delete_anthropic() -> std::io::Result<()> {
         return Ok(());
     }
     delete_generic_password(&service(), &account())
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        .map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -79,6 +83,7 @@ pub fn delete_anthropic() -> std::io::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 fn parse_blob(bytes: &[u8]) -> Option<AnthropicOAuthCreds> {
     let blob: serde_json::Value = serde_json::from_slice(bytes).ok()?;
     let oauth = blob.get("claudeAiOauth")?.as_object()?;
@@ -98,6 +103,7 @@ fn parse_blob(bytes: &[u8]) -> Option<AnthropicOAuthCreds> {
     })
 }
 
+#[cfg(target_os = "macos")]
 fn serialize_blob(creds: &AnthropicOAuthCreds) -> serde_json::Value {
     serde_json::json!({
         "claudeAiOauth": {

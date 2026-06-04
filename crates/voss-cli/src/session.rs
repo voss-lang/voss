@@ -149,7 +149,7 @@ pub fn load(id_or_name: &str) -> std::io::Result<SessionRecord> {
         }
         for entry in std::fs::read_dir(&dir)? {
             let entry = entry?;
-            if !entry.path().extension().map_or(false, |e| e == "json") {
+            if !entry.path().extension().is_some_and(|e| e == "json") {
                 continue;
             }
             let bytes = std::fs::read(entry.path())?;
@@ -189,7 +189,7 @@ pub fn list_sessions() -> std::io::Result<Vec<SessionRecord>> {
     let mut entries: Vec<(std::time::SystemTime, SessionRecord)> = Vec::new();
     for entry in std::fs::read_dir(&dir)? {
         let entry = entry?;
-        if !entry.path().extension().map_or(false, |e| e == "json") {
+        if !entry.path().extension().is_some_and(|e| e == "json") {
             continue;
         }
         let mtime = entry
@@ -201,7 +201,7 @@ pub fn list_sessions() -> std::io::Result<Vec<SessionRecord>> {
             entries.push((mtime, rec));
         }
     }
-    entries.sort_by(|a, b| b.0.cmp(&a.0));
+    entries.sort_by_key(|entry| std::cmp::Reverse(entry.0));
     Ok(entries.into_iter().map(|(_, r)| r).collect())
 }
 

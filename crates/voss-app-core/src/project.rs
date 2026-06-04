@@ -148,8 +148,7 @@ fn save_recents(file: &RecentsFile) -> std::io::Result<()> {
 
     // Write recents.json.tmp before renaming over recents.json.
     let tmp = path.with_extension("json.tmp");
-    let json = serde_json::to_string_pretty(file)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let json = serde_json::to_string_pretty(file).map_err(std::io::Error::other)?;
     std::fs::write(&tmp, json)?;
     std::fs::rename(&tmp, &path)?;
     Ok(())

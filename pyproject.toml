@@ -62,6 +62,10 @@ dev = [
     # `dev` includes `search` so the test suite can exercise semantic memory.
     "chromadb>=0.5.0",
     "sentence-transformers>=2.7.0",
+    # `dev` includes `server` so the harness server tests can import FastAPI.
+    "fastapi>=0.136",
+    "sse-starlette>=3.4",
+    "uvicorn[standard]>=0.30",
 ]
 
 [project.scripts]

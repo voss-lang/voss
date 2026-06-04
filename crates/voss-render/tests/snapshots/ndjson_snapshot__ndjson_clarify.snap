@@ -1,0 +1,5 @@
+---
+source: crates/voss-render/tests/ndjson_snapshot.rs
+expression: "capture(|r| r.show_clarify(\"what?\", 0.4))"
+---
+{"confidence":0.4000000059604645,"question":"what?","type":"clarify","v":1}

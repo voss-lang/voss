@@ -159,8 +159,7 @@ pub fn save_allowlist_extra(extra: &[String]) -> std::io::Result<()> {
     let file = AllowlistFile {
         extra: extra.to_vec(),
     };
-    let text = toml::to_string(&file)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let text = toml::to_string(&file).map_err(|e| std::io::Error::other(e.to_string()))?;
     std::fs::write(&path, text)?;
     Ok(())
 }

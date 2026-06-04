@@ -235,7 +235,7 @@ pub async fn run_turn(
         final_text = final_text.replace(&format!("{{{{step_{i}}}}}"), r);
     }
 
-    if let Some(h) = history.as_deref_mut() {
+    if let Some(h) = history {
         h.add(&final_text, "assistant");
     }
 

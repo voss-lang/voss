@@ -1,0 +1,5 @@
+---
+source: crates/voss-render/tests/ndjson_snapshot.rs
+expression: "capture(|r|\nr.show_tool_call(\"fs_read\", &serde_json::json!({\"path\": \"a.txt\"}), \"ok\",\nToolState::Ok))"
+---
+{"args":{"path":"a.txt"},"name":"fs_read","state":"ok","summary":"ok","type":"tool","v":1}

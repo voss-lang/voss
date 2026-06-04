@@ -1,0 +1,5 @@
+---
+source: crates/voss-render/tests/ndjson_snapshot.rs
+expression: "capture(|r| r.status(\"claude-sonnet-4-5\", 1234, 0.05, 0.4))"
+---
+{"cost_usd":0.05,"ctx_pct":0.4000000059604645,"model":"claude-sonnet-4-5","tokens":1234,"type":"status","v":1}
