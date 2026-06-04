@@ -83,6 +83,13 @@ class _InputTextArea(TextArea):
             event.stop()
             bar.action_reverse_search()
             return
+        # Forward the global copy-code shortcut: a focused TextArea would
+        # otherwise swallow ctrl+y before the app-level binding fires.
+        if event.key == "ctrl+y":
+            event.prevent_default()
+            event.stop()
+            self.app.action_copy_code()
+            return
         if getattr(bar, "_search_mode", False):
             # Reverse-search mode — let InputBar handle all keys.
             event.prevent_default()
