@@ -31,7 +31,9 @@ async def test_app_default_focus_is_input_bar() -> None:
     async with app.run_test() as pilot:
         focused = pilot.app.focused
         assert focused is not None
-        assert focused.id == "input"
+        # InputBar forwards focus to its child TextArea so editing bindings
+        # (backspace, etc.) fire without the user clicking in first.
+        assert focused.id == "input-textarea"
 
 
 @pytest.mark.asyncio

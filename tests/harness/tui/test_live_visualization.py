@@ -63,15 +63,15 @@ async def test_show_clarify_mounts_confidence_bar() -> None:
 
 
 @pytest.mark.asyncio
-async def test_show_final_confidence_bar_is_final() -> None:
+async def test_show_final_omits_inline_confidence_bar() -> None:
+    # Chat-clean: a final answer no longer mounts an inline ConfidenceBar
+    # (it read as agent metadata). Confidence still flows to telemetry/status.
     app = VossTUIApp()
     async with app.run_test() as pilot:
         renderer = TextualRenderer(app=pilot.app)
         renderer.show_final("done", confidence=0.92, cost_usd=0.0)
         await pilot.pause()
-        bars = list(pilot.app.query(ConfidenceBar))
-        assert bars
-        assert bars[-1].is_final is True
+        assert list(pilot.app.query(ConfidenceBar)) == []
 
 
 @pytest.mark.asyncio
