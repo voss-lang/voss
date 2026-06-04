@@ -767,7 +767,12 @@ async def _run_turn_exec(
                         "cache_read_input_tokens": iter_cache_read,
                     },
                 )
-                renderer.show_plan(this_iter_plan, cost_usd=iter_cost)
+                # Only surface the plan when it proposes work. A terminating
+                # (stepless) plan's rationale is internal "thinking" — showing
+                # it makes a plain Q&A read like a log instead of a chat; the
+                # answer itself lands via show_final below.
+                if this_iter_plan.steps:
+                    renderer.show_plan(this_iter_plan, cost_usd=iter_cost)
                 telemetry.emit(
                     "plan.parsed",
                     "info",

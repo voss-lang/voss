@@ -116,7 +116,11 @@ class LiteLLMProvider:
             max_tokens=max_tokens,
             timeout=timeout,
         )
-        if response.text:
+        # A structured turn (response_format set) returns the schema JSON as
+        # `text`; that is NOT prose and must never surface as an assistant
+        # TextDelta (it leaks raw `{"rationale":...}` into the chat). Emit only
+        # the ParsedPlan in that case; stream text only for free-form turns.
+        if response.text and response_format is None:
             yield TextDelta(response.text)
         if response.parsed is not None:
             yield ParsedPlan(response.parsed)
