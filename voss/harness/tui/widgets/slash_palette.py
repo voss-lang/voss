@@ -144,6 +144,15 @@ class SlashPalette(ListView):
     def action_select_cursor(self) -> None:
         self._submit_current()
 
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Mouse: clicking a command row runs it (keyboard Enter is routed
+        from the InputBar, so this fires only for pointer selection)."""
+        event.stop()
+        name = self._command_name(event.item)
+        if name in self._names:
+            self.index = self._index_of(event.item)
+        self._submit_current()
+
     def _submit_current(self) -> None:
         item = self.highlighted_child
         name = self._command_name(item)
