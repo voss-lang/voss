@@ -127,21 +127,49 @@ class MentionPalette(ListView):
         self._files = files
         self.query_text = ""
         self._names: list[str] = []
+        # Fixed reusable pool (≤ _MAX_RESULTS) toggled per query rather than
+        # cleared+rebuilt — keeps click targets stable (the compositor's
+        # spatial map breaks when widgets are removed/re-added each keystroke)
+        # and avoids per-keystroke churn.
+        self._pool: list[ListItem] = []
+        self._pool_statics: list[Static] = []
+        self._empty_item: ListItem | None = None
 
-    async def update_query(self, query: str) -> None:
+    def _ensure_pool(self) -> None:
+        if self._pool:
+            return
+        for _ in range(_MAX_RESULTS):
+            static = Static("")
+            item = ListItem(static)
+            item.display = False
+            item.disabled = True
+            item._voss_path = None  # type: ignore[attr-defined]
+            self._pool.append(item)
+            self._pool_statics.append(static)
+            self.append(item)
+        self._empty_item = ListItem(Static("no matching files"), disabled=True)
+        self._empty_item.display = False
+        self.append(self._empty_item)
+
+    def update_query(self, query: str) -> None:
         self.query_text = query
+        self._ensure_pool()
         ranked = rank_files(query, self._files)
         self._names = ranked
-        await self.clear()
-        if not ranked:
-            await self.append(ListItem(Static("no matching files"), disabled=True))
-            self.index = None
-            return
-        for path in ranked:
-            item = ListItem(Static(path), name=path)
-            item._voss_path = path  # type: ignore[attr-defined]
-            await self.append(item)
-        self.index = 0
+        for i, item in enumerate(self._pool):
+            if i < len(ranked):
+                path = ranked[i]
+                self._pool_statics[i].update(path)
+                item._voss_path = path  # type: ignore[attr-defined]
+                item.display = True
+                item.disabled = False
+            else:
+                item._voss_path = None  # type: ignore[attr-defined]
+                item.display = False
+                item.disabled = True
+        if self._empty_item is not None:
+            self._empty_item.display = not ranked
+        self.index = 0 if ranked else None
 
     @staticmethod
     def _path_of(item: ListItem | None) -> str | None:

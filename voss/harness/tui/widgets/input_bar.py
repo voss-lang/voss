@@ -378,7 +378,7 @@ class InputBar(Widget):
         if palette is None:
             palette = MentionPalette(self._ensure_mention_files())
             await self.app.mount(palette, before=self)
-        await palette.update_query(query)
+        palette.update_query(query)
         self.query_one("#input-textarea", _InputTextArea).focus()
 
     def insert_mention(self, path: str) -> None:
