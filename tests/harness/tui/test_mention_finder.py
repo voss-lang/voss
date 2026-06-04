@@ -63,6 +63,17 @@ def _mk_app(tmp_path) -> VossTUIApp:
     return app
 
 
+def _mk_app_many(tmp_path) -> VossTUIApp:
+    # Several "al" matches so the finder is tall enough that its TOP row clears
+    # the InputBar overlay (the palette docks over the input — single-result
+    # rows sit under it and aren't clickable; this mirrors SlashPalette).
+    for name in ("alpha.py", "alpaca.py", "align.py", "alert.py", "also.py"):
+        (tmp_path / name).write_text("x\n")
+    app = VossTUIApp()
+    app.cwd = tmp_path
+    return app
+
+
 @pytest.mark.asyncio
 async def test_at_opens_finder(tmp_path) -> None:
     app = _mk_app(tmp_path)
@@ -116,15 +127,18 @@ async def test_slash_takes_precedence_over_mention(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_click_inserts_path(tmp_path) -> None:
-    app = _mk_app(tmp_path)
+    app = _mk_app_many(tmp_path)
     async with app.run_test() as pilot:
         ta = app.query_one("#input-textarea")
-        ta.insert("@alpha")
+        ta.insert("@al")
         await pilot.pause()
         pal = app.query(MentionPalette).first()
-        assert pal is not None and pal._names
-        item = pal.highlighted_child
-        await pilot.click(item)
+        assert pal is not None and len(pal._names) >= 2
+        from textual.widgets import ListItem
+
+        top = [i for i in pal.query(ListItem) if i.display][0]
+        chosen = pal._names[0]
+        await pilot.click(top)
         await pilot.pause()
-        assert ta.text.endswith(" ") and ta.text.strip() in pal._names + [ta.text.strip()]
-        assert not app.query(MentionPalette)
+        assert ta.text == f"{chosen} ", f"got {ta.text!r}"
+        assert not app.query(MentionPalette), "finder dismissed after click"
