@@ -115,7 +115,18 @@ $error: #FF5F5F;
     background: $accent 8%;
 }
 .diff-hunk-header {
+    color: $accent;
     text-style: bold;
+}
+
+/* @-mention file finder — peer to SlashPalette; the $accent border lives here
+ * (the allow-listed accent site) so mention_palette.py stays audit-clean. */
+MentionPalette {
+    dock: bottom;
+    offset-y: -1;
+    height: auto;
+    max-height: 8;
+    border: round $accent;
 }
 
 /* M9-08 CodeIntelPanel (side-region default, peer to SubAgentPanel) */

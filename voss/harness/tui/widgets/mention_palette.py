@@ -105,16 +105,8 @@ def find_mention_token(text: str, cursor: int) -> tuple[int, str] | None:
 
 
 class MentionPalette(ListView):
-    DEFAULT_CSS = """
-    MentionPalette {
-        dock: bottom;
-        offset-y: -1;
-        height: auto;
-        max-height: 8;
-        border: round $accent;
-    }
-    """
-
+    # Styling (incl. the accent border) lives in styles.tcss — the
+    # allow-listed accent site — so the UI-SPEC accent audit stays clean.
     BINDINGS = [("escape", "dismiss", "Close file finder")]
 
     class MentionSubmitted(Message):

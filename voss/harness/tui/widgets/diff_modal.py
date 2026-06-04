@@ -31,7 +31,9 @@ from textual.widgets import Static
 _C_ADD = "#5FD75F"     # $good   — added lines
 _C_DEL = "#FF5F5F"     # $error  — removed lines
 _C_DIM = "#888888"     # $dim    — context / metadata
-_C_ACCENT = "#ff5b1f"  # $accent — hunk header / active cursor
+# Hunk-header / active-cursor accent is applied via the `diff-hunk-header`
+# class in styles.tcss (the allow-listed accent site), NOT inline here — the
+# UI-SPEC accent audit forbids the raw accent hex outside the audited widgets.
 
 
 @dataclass(frozen=True)
@@ -139,7 +141,7 @@ class DiffModal(ModalScreen):
                 lexer = _guess_lexer(h.file)
                 with Vertical(id=f"diff-hunk-{i}", classes="diff-hunk"):
                     yield Static(
-                        Text(f"{h.file}:{h.start}", style=f"bold {_C_ACCENT}"),
+                        Text(f"{h.file}:{h.start}"),
                         id=f"diff-hunk-header-{i}",
                         classes="diff-hunk-header",
                     )
@@ -173,12 +175,14 @@ class DiffModal(ModalScreen):
             except Exception:  # noqa: BLE001 — mid-mount / test host
                 continue
             container.set_class(i == self.index, "current")
-            base = Text(f"{h.file}:{h.start}", style=f"bold {_C_ACCENT}")
+            # Base "file:line" inherits accent from the .diff-hunk-header class
+            # (styles.tcss); only the state-label spans set explicit colors.
+            base = Text(f"{h.file}:{h.start}")
             if i < len(decided_by_pos):
                 label, color = _STATE_LABEL.get(decided_by_pos[i], ("", _C_DIM))
                 base.append(label, style=color)
             elif i == self.index:
-                base.append("  < deciding", style=_C_ACCENT)
+                base.append("  < deciding", style=_C_DIM)
             header.update(base)
         if 0 <= self.index < len(self.hunks):
             try:
