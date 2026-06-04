@@ -203,6 +203,7 @@ class InputBar(Widget):
         self._search_idx = 0
         self._search_corpus: list[str] = []
         self._pending_image = None
+        self._mention_files: list[str] | None = None
 
     def compose(self) -> ComposeResult:
         yield Static(self._prompt_text, id="prompt-glyph", classes="accent")
@@ -212,7 +213,8 @@ class InputBar(Widget):
             show_line_numbers=False,
             soft_wrap=True,
             tooltip=(
-                "Enter submits · Shift+Enter newline · / commands · Ctrl-R history"
+                "Enter submits · Shift+Enter newline · / commands · "
+                "@ files · Ctrl-R history"
             ),
         )
 

@@ -371,6 +371,16 @@ class VossTUIApp(App):
             task = asyncio.create_task(_done())
         self.register_turn_task(task)
 
+    def on_mention_palette_mention_submitted(self, event) -> None:
+        """Insert the selected file path into the input, replacing the @token."""
+        path = getattr(event, "value", "")
+        if not path:
+            return
+        try:
+            self.query_one("#input", InputBar).insert_mention(path)
+        except Exception:  # noqa: BLE001 — input absent in tests
+            pass
+
     def on_slash_palette_palette_submitted(self, event) -> None:
         """Route slash palette selection through the normal dispatch path."""
         cmd_name = getattr(event, "value", "")
