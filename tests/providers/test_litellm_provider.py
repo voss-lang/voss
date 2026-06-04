@@ -81,6 +81,50 @@ async def test_response_format_sent_as_non_strict_json_schema(monkeypatch):
     assert out.parsed is not None and out.parsed.message == "hi"
 
 
+async def test_stream_structured_turn_emits_no_textdelta(monkeypatch):
+    # Regression: a structured turn (response_format set) returns the schema
+    # JSON as `text`. Streaming it as a TextDelta leaked raw {"rationale":...}
+    # into the chat. Structured turns must yield ParsedPlan only.
+    from voss.harness.providers import ParsedPlan, TextDelta
+
+    async def fake_acompletion(**kwargs):
+        return _fake_resp('{"message": "hi"}')
+
+    monkeypatch.setattr("litellm.acompletion", fake_acompletion)
+
+    p = LiteLLMProvider()
+    events = [
+        ev
+        async for ev in p.stream(
+            messages=[{"role": "user", "content": "hi"}],
+            model="gpt-4o",
+            response_format=_Greeting,
+        )
+    ]
+    assert not any(isinstance(e, TextDelta) for e in events)
+    assert any(isinstance(e, ParsedPlan) for e in events)
+
+
+async def test_stream_freeform_turn_still_emits_textdelta(monkeypatch):
+    from voss.harness.providers import TextDelta
+
+    async def fake_acompletion(**kwargs):
+        return _fake_resp("plain prose")
+
+    monkeypatch.setattr("litellm.acompletion", fake_acompletion)
+
+    p = LiteLLMProvider()
+    events = [
+        ev
+        async for ev in p.stream(
+            messages=[{"role": "user", "content": "hi"}],
+            model="gpt-4o",
+        )
+    ]
+    deltas = [e.text for e in events if isinstance(e, TextDelta)]
+    assert deltas == ["plain prose"]
+
+
 async def test_complete_network_failure_raises_providererror(monkeypatch):
     async def boom(**kwargs):
         raise RuntimeError("network down")
