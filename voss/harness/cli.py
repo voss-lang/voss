@@ -1301,6 +1301,18 @@ def _build_slash_registry() -> SlashRegistry:
             mutating=True,
         ),
         SlashCommand(
+            "/undo",
+            "git-backed revert of the last run's file changes (reversible via /redo)",
+            _undo,
+            mutating=True,
+        ),
+        SlashCommand(
+            "/redo",
+            "restore the file changes undone by the most recent /undo",
+            _redo,
+            mutating=True,
+        ),
+        SlashCommand(
             "/resume",
             "live-resume a saved session by id/name (same cwd only)",
             _resume,
