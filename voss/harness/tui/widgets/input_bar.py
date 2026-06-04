@@ -205,6 +205,16 @@ class InputBar(Widget):
         self._pending_image = None
         self._mention_files: list[str] | None = None
 
+    def on_focus(self, event) -> None:
+        # InputBar is focusable so the app can target `#input`, but editing
+        # bindings (backspace, arrows, etc.) only fire on the TextArea itself.
+        # Forward focus to the child so those keys work — without this, focus
+        # sits on InputBar and backspace silently no-ops.
+        try:
+            self.query_one("#input-textarea", _InputTextArea).focus()
+        except Exception:  # noqa: BLE001 — pre-mount focus event
+            pass
+
     def compose(self) -> ComposeResult:
         yield Static(self._prompt_text, id="prompt-glyph", classes="accent")
         yield _InputTextArea(
