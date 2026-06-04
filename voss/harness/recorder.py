@@ -105,7 +105,12 @@ def _emit_budget_osc(
 
     The Rust PTY reader (reader.rs extract_voss_osc) strips this sequence
     before bytes reach xterm, so the terminal never renders it.
+
+    Only meaningful to a PTY/terminal consumer; suppressed when stdout is not
+    a TTY (--plain, piped, CI) so it never pollutes scriptable output.
     """
+    if not sys.stdout.isatty():
+        return
     payload = json.dumps(
         {
             "tokens_used": tokens_used,
@@ -124,7 +129,10 @@ def _emit_context_osc(payload: dict) -> None:
     """Write an OSC 1337 voss-context= sequence to stdout (F4 D-23, D-24).
 
     Stripped by reader.rs extract_voss_osc before bytes reach xterm.
+    Suppressed on a non-TTY stdout (--plain, piped, CI).
     """
+    if not sys.stdout.isatty():
+        return
     json_str = json.dumps(payload, separators=(",", ":"))
     sys.stdout.write(f"\x1b]1337;voss-context={json_str}\x07")
     sys.stdout.flush()
