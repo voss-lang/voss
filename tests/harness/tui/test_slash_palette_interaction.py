@@ -89,3 +89,20 @@ async def test_escape_dismisses_palette() -> None:
         await pilot.press("escape")
         await pilot.pause()
         assert _palette(pilot.app) is None, "escape should dismiss the palette"
+
+
+@pytest.mark.asyncio
+async def test_backspace_deletes_chars_with_palette_open() -> None:
+    app = VossTUIApp(slash_registry=_registry())
+    async with app.run_test() as pilot:
+        await pilot.press("slash", "a", "g")
+        await pilot.pause()
+        ta = pilot.app.query_one("#input-textarea")
+        assert ta.text == "/ag", f"typing got {ta.text!r}"
+        await pilot.press("backspace")
+        await pilot.pause()
+        assert ta.text == "/a", f"backspace should delete; got {ta.text!r}"
+        await pilot.press("backspace", "backspace")
+        await pilot.pause()
+        assert ta.text == "", f"backspace to empty; got {ta.text!r}"
+        assert _palette(pilot.app) is None, "palette dismissed when empty"

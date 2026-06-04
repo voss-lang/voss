@@ -328,7 +328,9 @@ class VossTUIApp(App):
         if not cmd_name:
             return
         # Re-post as an InputBar.Submitted so _turn_dispatch handles it.
-        self.on_input_bar_submitted(InputBar.Submitted(f"/{cmd_name}"))
+        # cmd_name may already carry a leading "/" (registry ids do) — normalize
+        # so we never produce "//agent".
+        self.on_input_bar_submitted(InputBar.Submitted("/" + cmd_name.lstrip("/")))
 
     def on_local_event(self, event_name: str, payload: dict) -> None:
         try:
