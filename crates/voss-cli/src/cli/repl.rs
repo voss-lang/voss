@@ -282,8 +282,10 @@ pub async fn run_repl(
         cancel.store(false, Ordering::Relaxed);
 
         let mut adapter = GateAdapter { gate: &mut gate };
-        let mut cfg = TurnConfig::default();
-        cfg.cancel = Some(cancel.clone());
+        let cfg = TurnConfig {
+            cancel: Some(cancel.clone()),
+            ..TurnConfig::default()
+        };
 
         let result = match run_turn(
             &line,
@@ -322,7 +324,7 @@ fn build_reedline() -> std::io::Result<Reedline> {
     }
     let history = Box::new(
         FileBackedHistory::with_file(2_000, path)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?,
+            .map_err(|e| std::io::Error::other(e.to_string()))?,
     );
 
     // Emacs keybindings + Tab opens the completion menu.

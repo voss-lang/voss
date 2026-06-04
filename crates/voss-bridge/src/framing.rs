@@ -25,7 +25,7 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(r: &mut R) -> io::Result<Vec<u8
             ));
         }
         // Strip CRLF (or lone LF for tolerance).
-        let trimmed = line.trim_end_matches(|c| c == '\r' || c == '\n');
+        let trimmed = line.trim_end_matches(['\r', '\n']);
         if trimmed.is_empty() {
             break;
         }

@@ -18,17 +18,12 @@ use serde::{Deserialize, Serialize};
 // --- Profile -----------------------------------------------------------------
 
 /// Named keymap profiles (D-11). `vscode` is the default.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum KeymapProfile {
+    #[default]
     Vscode,
     Tmux,
-}
-
-impl Default for KeymapProfile {
-    fn default() -> Self {
-        KeymapProfile::Vscode
-    }
 }
 
 /// Subset of `settings.json` that carries the keymap profile (D-12).

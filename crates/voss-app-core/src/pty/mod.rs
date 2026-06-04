@@ -37,6 +37,12 @@ pub struct PtySession {
     cwd: PathBuf,
 }
 
+pub type SpawnedPtySession = (
+    Arc<PtySession>,
+    Box<dyn Read + Send>,
+    tokio::sync::mpsc::Receiver<bool>,
+);
+
 impl PtySession {
     /// Write bytes to the PTY master (shell stdin).
     pub fn write(&self, data: &[u8]) -> anyhow::Result<()> {
@@ -117,11 +123,7 @@ pub fn spawn_session(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
-) -> anyhow::Result<(
-    Arc<PtySession>,
-    Box<dyn Read + Send>,
-    tokio::sync::mpsc::Receiver<bool>,
-)> {
+) -> anyhow::Result<SpawnedPtySession> {
     let pair = native_pty_system()
         .openpty(PtySize {
             rows,
@@ -179,11 +181,7 @@ pub fn spawn_command_session(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
-) -> anyhow::Result<(
-    Arc<PtySession>,
-    Box<dyn Read + Send>,
-    tokio::sync::mpsc::Receiver<bool>,
-)> {
+) -> anyhow::Result<SpawnedPtySession> {
     spawn_command_session_with_env(cmd_binary, cmd_args, &[], rows, cols, cwd)
 }
 
@@ -195,11 +193,7 @@ pub fn spawn_command_session_with_env(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
-) -> anyhow::Result<(
-    Arc<PtySession>,
-    Box<dyn Read + Send>,
-    tokio::sync::mpsc::Receiver<bool>,
-)> {
+) -> anyhow::Result<SpawnedPtySession> {
     let pair = native_pty_system()
         .openpty(PtySize {
             rows,

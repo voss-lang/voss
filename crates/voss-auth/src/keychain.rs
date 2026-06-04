@@ -48,7 +48,7 @@ pub fn write_anthropic(creds: &AnthropicOAuthCreds) -> std::io::Result<()> {
     }
     let bytes = serde_json::to_vec(&serialize_blob(creds))?;
     set_generic_password(&service(), &account(), &bytes)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        .map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 #[cfg(target_os = "macos")]
@@ -58,7 +58,7 @@ pub fn delete_anthropic() -> std::io::Result<()> {
         return Ok(());
     }
     delete_generic_password(&service(), &account())
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        .map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 #[cfg(not(target_os = "macos"))]
