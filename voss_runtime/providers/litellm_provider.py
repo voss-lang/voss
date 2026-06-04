@@ -7,6 +7,29 @@ from ._cache_tokens import extract_cache_tokens
 from .base import ProviderResponse
 
 
+def _as_response_format_param(response_format):
+    """Convert a Pydantic response model into a NON-strict json_schema param.
+
+    Passing the raw model class makes litellm request OpenAI strict structured
+    outputs (strict=True), which require `additionalProperties: false` on every
+    object. Schemas with open/free-form fields (e.g. Plan's `args: dict`) cannot
+    satisfy that and OpenAI rejects them outright. Non-strict json_schema still
+    supplies the schema as guidance and returns JSON content, which we validate
+    ourselves against the original model.
+    """
+    schema_fn = getattr(response_format, "model_json_schema", None)
+    if not callable(schema_fn):
+        return response_format
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": getattr(response_format, "__name__", "Response"),
+            "schema": schema_fn(),
+            "strict": False,
+        },
+    }
+
+
 class LiteLLMProvider:
     async def complete(
         self,
@@ -31,7 +54,9 @@ class LiteLLMProvider:
         if tools is not None:
             kwargs["tools"] = tools
         if response_format is not None:
-            kwargs["response_format"] = response_format
+            # NB: keep `response_format` (the original model) for parsing below;
+            # only the wire param is converted to a non-strict json_schema.
+            kwargs["response_format"] = _as_response_format_param(response_format)
 
         try:
             resp = await litellm.acompletion(**kwargs)

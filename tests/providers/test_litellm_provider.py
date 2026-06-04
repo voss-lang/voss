@@ -54,6 +54,33 @@ async def test_complete_parse_failure_raises_parseerror(monkeypatch):
         )
 
 
+async def test_response_format_sent_as_non_strict_json_schema(monkeypatch):
+    # Regression: passing the raw model made litellm request OpenAI strict
+    # structured outputs, which reject open fields (e.g. Plan.args) for lack of
+    # additionalProperties:false. We now send a non-strict json_schema instead.
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_resp('{"message": "hi"}')
+
+    monkeypatch.setattr("litellm.acompletion", fake_acompletion)
+
+    p = LiteLLMProvider()
+    out = await p.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model="gpt-4o",
+        response_format=_Greeting,
+    )
+    rf = captured["response_format"]
+    assert rf["type"] == "json_schema"
+    assert rf["json_schema"]["strict"] is False
+    assert rf["json_schema"]["name"] == "_Greeting"
+    assert "properties" in rf["json_schema"]["schema"]
+    # parsing still validates the content against the ORIGINAL model
+    assert out.parsed is not None and out.parsed.message == "hi"
+
+
 async def test_complete_network_failure_raises_providererror(monkeypatch):
     async def boom(**kwargs):
         raise RuntimeError("network down")
