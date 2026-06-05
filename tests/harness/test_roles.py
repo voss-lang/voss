@@ -114,3 +114,28 @@ class TestBuildRoleProvider:
             "plan", groups=_groups(), chains={}, getter=lambda k: "k", keyring_get=lambda k: None
         )
         assert built is None
+
+
+class TestRoleOrDefault:
+    def test_returns_role_when_configured(self, tmp_path: Path) -> None:
+        chains = roles.load_role_chains(_write(tmp_path))
+        sentinel = object()
+        prov, mdl = roles.role_or_default(
+            "smol",
+            sentinel,
+            "default-model",
+            groups=_groups(),
+            chains=chains,
+            getter=lambda k: "k",
+            keyring_get=lambda k: None,
+        )
+        assert isinstance(prov, FallbackProvider)
+        assert mdl == "claude-haiku-4-5"
+
+    def test_returns_default_when_absent(self) -> None:
+        sentinel = object()
+        prov, mdl = roles.role_or_default(
+            "smol", sentinel, "default-model", groups=_groups(), chains={}
+        )
+        assert prov is sentinel
+        assert mdl == "default-model"

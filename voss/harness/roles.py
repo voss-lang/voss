@@ -120,3 +120,17 @@ def build_role_provider(
     if not built:
         return None
     return FallbackProvider(built), built[0][1]
+
+
+def role_or_default(
+    role: str,
+    default_provider: ModelProvider,
+    default_model: str,
+    **kw,
+) -> tuple[ModelProvider, str]:
+    """Resolve `role` to its `(provider, model)`, or `(default_provider,
+    default_model)` when the role chain is absent/unresolvable. The lookup is
+    network-free unless the role actually has a configured chain (see
+    `build_role_provider`)."""
+    built = build_role_provider(role, **kw)
+    return built if built is not None else (default_provider, default_model)
