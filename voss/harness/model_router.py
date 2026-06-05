@@ -116,6 +116,83 @@ def build_provider_for_model(
     return provider, model_string(entry)
 
 
+def flatten(groups: list[ProviderGroup]) -> list[ModelEntry]:
+    """All entries across groups, in display order."""
+    return [m for g in groups for m in g.models]
+
+
+def match_models(groups: list[ProviderGroup], query: str) -> list[ModelEntry]:
+    """Substring match (case-insensitive) on model id or display name."""
+    q = query.strip().lower()
+    if not q:
+        return flatten(groups)
+    return [
+        m
+        for m in flatten(groups)
+        if q in m.id.lower() or q in m.name.lower()
+    ]
+
+
+def find_by_id(
+    groups: list[ProviderGroup], model_id: str, *, provider_id: str | None = None
+) -> list[ModelEntry]:
+    """Exact model-id matches, optionally scoped to one provider.
+
+    Returns a list because the same model id can appear under multiple
+    providers (e.g. claude-opus-4-5 under both anthropic and opencode).
+    """
+    return [
+        m
+        for m in flatten(groups)
+        if m.id == model_id and (provider_id is None or m.provider_id == provider_id)
+    ]
+
+
+def find_entry(
+    groups: list[ProviderGroup], provider_id: str, model_id: str
+) -> ModelEntry | None:
+    """The single entry for (provider_id, model_id), or None."""
+    hits = find_by_id(groups, model_id, provider_id=provider_id)
+    return hits[0] if hits else None
+
+
+def boot_routed_provider(
+    *,
+    getter: KeyGetter = os.environ.get,
+    keyring_get: KeyGetter = auth.load_provider_key,
+    catalog_loader: Callable[[], list[ProviderGroup]] | None = None,
+    harness: dict | None = None,
+) -> tuple[ModelProvider, str] | None:
+    """Rebuild the live provider+model from a persisted routed selection.
+
+    Reads `[harness] preferred_provider/preferred_model`; if both are set and
+    the model is found in the (cached) catalog, returns (provider, model_string)
+    to override the auth-resolved default at boot. Returns None when there is no
+    routed selection or the catalog/entry is unavailable (caller keeps its
+    default). Never raises.
+    """
+    from . import config as _config
+    from . import model_catalog as _catalog
+
+    h = harness if harness is not None else _config.load_harness_config()
+    provider_id = h.get("preferred_provider")
+    model_id = h.get("preferred_model")
+    if not provider_id or not model_id:
+        return None
+
+    loader = catalog_loader or _catalog.load_catalog
+    try:
+        groups = loader()
+    except Exception:  # noqa: BLE001 — offline/parse: keep the default provider
+        return None
+
+    entry = find_entry(groups, provider_id, model_id)
+    if entry is None:
+        return None
+    key = resolve_key(entry, getter=getter, keyring_get=keyring_get)
+    return build_provider_for_model(entry, api_key=key)
+
+
 def prepare_model(
     entry: ModelEntry,
     *,
