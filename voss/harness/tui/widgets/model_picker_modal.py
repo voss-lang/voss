@@ -68,6 +68,9 @@ class _PickerList(ListView):
                 self._entries.append(m)
                 self._group_of.append(g.id)
         self.filter("")
+        # ListView assigns its own default index after mount; set the current
+        # model's row once that has settled.
+        self.call_after_refresh(self._highlight_current)
 
     # -- filtering -------------------------------------------------------
     def filter(self, query: str) -> None:
@@ -89,7 +92,7 @@ class _PickerList(ListView):
         for i, is_h in enumerate(self._is_header):
             if is_h:
                 self._rows()[i].display = group_has_visible.get(self._group_of[i], False)
-        self._select_first_visible(prefer_current=True)
+        self._select_first_visible()
 
     def _rows(self) -> list[ListItem]:
         return list(self.children)  # type: ignore[return-value]
