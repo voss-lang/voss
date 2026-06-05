@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import signal as _signal
@@ -19,6 +20,37 @@ if TYPE_CHECKING:
 
 
 SHELL_OUTPUT_CAP_BYTES = 30720
+
+
+def _line_anchor(line: str) -> str:
+    """First 8 hex of SHA-256 of a line's raw content (no newline). Mirrors
+    crates/voss-tools/src/anchor.rs for hashline-edit parity."""
+    return hashlib.sha256(line.encode("utf-8", "surrogatepass")).hexdigest()[:8]
+
+
+def _annotate(text: str) -> str:
+    """Render text with a per-line `{anchor}│{line}` gutter. Canonical line
+    list is `split("\\n")`; a trailing empty segment is not emitted."""
+    segs = text.split("\n")
+    n = len(segs)
+    out: list[str] = []
+    for i, seg in enumerate(segs):
+        if i + 1 == n and seg == "":
+            break
+        out.append(f"{_line_anchor(seg)}│{seg}")
+    return "\n".join(out) + ("\n" if out else "")
+
+
+def _resolve_anchor(segs: list[str], anchor: str) -> tuple[int | None, str]:
+    """Resolve anchor to a unique line index. Returns (index, "") or
+    (None, error_message)."""
+    hits = [i for i, seg in enumerate(segs) if _line_anchor(seg) == anchor]
+    if len(hits) == 0:
+        return None, f"anchor `{anchor}` not found (stale — re-read with annotate=true)"
+    if len(hits) > 1:
+        lns = ",".join(str(i + 1) for i in hits)
+        return None, f"anchor `{anchor}` matches lines {lns} — ambiguous, use `old` instead"
+    return hits[0], ""
 
 
 @dataclass(frozen=True)

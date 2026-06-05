@@ -12,6 +12,8 @@ use crate::tool_trait::Tool;
 pub struct FsReadArgs {
     /// Path relative to cwd.
     pub path: String,
+    /// When true, prefix each line with its `{anchor}│` content-hash gutter for hashline edits.
+    pub annotate: Option<bool>,
 }
 
 pub struct FsRead {
@@ -45,6 +47,7 @@ impl Tool for FsRead {
             return Ok(format!("<error: is a directory: {}>", args.path));
         }
         match std::fs::read_to_string(&p) {
+            Ok(s) if args.annotate.unwrap_or(false) => Ok(crate::anchor::annotate(&s)),
             Ok(s) => Ok(s),
             Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
                 Ok(format!("<error: binary file: {}>", args.path))
