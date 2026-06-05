@@ -227,6 +227,30 @@ def _resolve_default_model(user_explicit: str | None) -> None:
         configure(default_model=persisted)
 
 
+def _apply_boot_model(provider, *, user_explicit: str | None):
+    """Honor a persisted catalog-routed selection (/models) at boot.
+
+    When `[harness] preferred_provider` is set and the model resolves in the
+    cached catalog, rebuild the live provider for it and configure the routed
+    model string (e.g. ``openai/gemma3:27b``). Returns the provider to use
+    (possibly rebuilt). `--model` wins and skips the override. Never raises —
+    an offline/missing catalog leaves the auth-resolved provider in place.
+    """
+    if user_explicit:
+        return provider
+    from . import model_router
+
+    try:
+        routed = model_router.boot_routed_provider()
+    except Exception:  # noqa: BLE001 — boot must never crash on catalog issues
+        routed = None
+    if routed is None:
+        return provider
+    new_provider, model_string = routed
+    configure(default_model=model_string)
+    return new_provider
+
+
 def _resolve_run_turn(cwd: Path | None = None):
     from . import config as harness_config
 
@@ -1543,6 +1567,7 @@ def do_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -1703,6 +1728,7 @@ def chat_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -1772,6 +1798,7 @@ def edit_cmd(
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -3435,6 +3462,7 @@ def consensus_cmd(input_mode: str, ref: str | None, cwd_str: str, auth_pref: str
         sys.exit(0)
 
     res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
     result = asyncio.run(run_critique(provider, cfg.default_model, constraints, diff_text))
 

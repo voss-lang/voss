@@ -114,6 +114,79 @@ async def test_litellm_provider_forwards_api_base_and_key(monkeypatch) -> None:
     assert captured["model"] == "openai/gemma3:27b"
 
 
+from voss.harness.model_catalog import ProviderGroup
+
+
+def _group(pid, label, api_base, env_key, models):
+    return ProviderGroup(id=pid, label=label, api_base=api_base, env_key=env_key, models=tuple(models))
+
+
+GROUPS = [
+    _group("anthropic", "Anthropic", None, "ANTHROPIC_API_KEY", [
+        _entry(id="claude-opus-4-5", name="Claude Opus 4.5", provider_id="anthropic"),
+    ]),
+    _group("opencode", "OpenCode Zen", "https://opencode.ai/zen/v1", "OPENCODE_API_KEY", [
+        _entry(id="claude-opus-4-5", name="Claude Opus 4.5", provider_id="opencode",
+               api_base="https://opencode.ai/zen/v1", env_key="OPENCODE_API_KEY"),
+        _entry(id="mimo-v2-flash-free", name="MiMo V2 Flash Free", provider_id="opencode",
+               api_base="https://opencode.ai/zen/v1", env_key="OPENCODE_API_KEY", free=True),
+    ]),
+    _group("ollama-cloud", "Ollama Cloud", "https://ollama.com/v1", "OLLAMA_API_KEY", [
+        _entry(id="gemma3:27b", name="gemma3:27b", provider_id="ollama-cloud",
+               api_base="https://ollama.com/v1", env_key="OLLAMA_API_KEY", subscription=True),
+    ]),
+]
+
+
+def test_flatten_order() -> None:
+    ids = [m.id for m in mr.flatten(GROUPS)]
+    assert ids == ["claude-opus-4-5", "claude-opus-4-5", "mimo-v2-flash-free", "gemma3:27b"]
+
+
+def test_match_models_substring() -> None:
+    assert [m.id for m in mr.match_models(GROUPS, "gemma")] == ["gemma3:27b"]
+    assert {m.provider_id for m in mr.match_models(GROUPS, "opus")} == {"anthropic", "opencode"}
+
+
+def test_find_by_id_multi_provider_and_scoped() -> None:
+    assert len(mr.find_by_id(GROUPS, "claude-opus-4-5")) == 2  # native + zen
+    scoped = mr.find_by_id(GROUPS, "claude-opus-4-5", provider_id="opencode")
+    assert len(scoped) == 1 and scoped[0].provider_id == "opencode"
+
+
+def test_find_entry_exact() -> None:
+    e = mr.find_entry(GROUPS, "ollama-cloud", "gemma3:27b")
+    assert e is not None and e.api_base == "https://ollama.com/v1"
+    assert mr.find_entry(GROUPS, "ollama-cloud", "nope") is None
+
+
+def test_boot_routed_provider_rebuilds() -> None:
+    provider, model = mr.boot_routed_provider(
+        harness={"preferred_provider": "ollama-cloud", "preferred_model": "gemma3:27b"},
+        catalog_loader=lambda: GROUPS,
+        getter={"OLLAMA_API_KEY": "tok"}.get,
+        keyring_get={}.get,
+    )
+    assert model == "openai/gemma3:27b"
+    assert provider.api_base == "https://ollama.com/v1"
+    assert provider.api_key == "tok"
+
+
+def test_boot_routed_none_without_selection() -> None:
+    assert mr.boot_routed_provider(harness={}, catalog_loader=lambda: GROUPS) is None
+
+
+def test_boot_routed_none_when_offline() -> None:
+    def boom():
+        raise OSError("offline")
+
+    out = mr.boot_routed_provider(
+        harness={"preferred_provider": "ollama-cloud", "preferred_model": "gemma3:27b"},
+        catalog_loader=boom,
+    )
+    assert out is None
+
+
 @pytest.mark.asyncio
 async def test_litellm_provider_noarg_omits_routing(monkeypatch) -> None:
     captured: dict = {}
