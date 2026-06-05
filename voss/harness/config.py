@@ -283,6 +283,13 @@ def set_preferred_model(name: str) -> Path:
     return _write_harness({"preferred_model": name, "preferred_provider": None})
 
 
+def set_preferred_auth(pref: str) -> Path:
+    """Persist `[harness] auth` — the default credential source used when no
+    explicit --auth is given (e.g. "codex" so plain `voss chat` uses the
+    subscription regardless of exported API-key env vars)."""
+    return _write_harness({"auth": pref})
+
+
 def set_preferred_routed(model_id: str, provider_id: str) -> Path:
     """Persist a catalog-routed selection: `preferred_model` (catalog model id)
     + `preferred_provider` (models.dev provider id). Boot rebuilds the provider

@@ -433,6 +433,16 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
     still get the original exit-2 error so scripted invocations stay
     deterministic.
     """
+    # Honor a persisted default (`[harness] auth`) when the caller didn't force
+    # a specific source. Lets `voss chat` always use e.g. codex even when
+    # OPENAI_API_KEY is exported in the shell. Explicit --auth=<x> still wins.
+    if preference == "auto":
+        from . import config as _hc
+
+        saved = _hc.load_harness_config().get("auth")
+        if saved in AUTH_CHOICES and saved != "auto":
+            preference = saved
+
     res = auth_mod.resolve(preference)
     if res.source == "none":
         from . import login_wizard
@@ -1321,6 +1331,26 @@ def _build_slash_registry() -> SlashRegistry:
             "  select: /models <query>  or  /models set <id> [provider]"
         )
 
+    def _auth(ctx: ReplContext, args: list[str], _line: str) -> None:
+        """Show or persist the default credential source (`[harness] auth`).
+
+        Takes effect on the next launch. `/auth codex` -> plain `voss chat`
+        uses the ChatGPT subscription even if OPENAI_API_KEY is exported.
+        """
+        from . import config as harness_config
+
+        if not args:
+            saved = harness_config.load_harness_config().get("auth") or "auto"
+            click.echo(f"  default auth: {saved}")
+            click.echo(f"  choices: {', '.join(AUTH_CHOICES)}")
+            return
+        pref = args[0].strip().lower()
+        if pref not in AUTH_CHOICES:
+            click.echo(f"  invalid: {pref}. choices: {', '.join(AUTH_CHOICES)}", err=True)
+            return
+        harness_config.set_preferred_auth(pref)
+        click.echo(f"  default auth: {pref} (persisted — applies next launch)")
+
     def _mode(ctx: ReplContext, args: list[str], _line: str) -> None:
         if not args:
             click.echo(f"  mode: {ctx.gate.mode}")
@@ -1478,6 +1508,7 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
         SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
         SlashCommand("/models", "pick a model from the models.dev catalog (Zen, Ollama Cloud, …)", _models),
+        SlashCommand("/auth", "show/set default credential source (auto|claude|codex|api|none)", _auth),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
         SlashCommand("/save-session", "persist session snapshot", _save_session, mutating=True),
         SlashCommand("/recall", "search memory (top-N hits across sources)", _recall),
