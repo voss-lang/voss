@@ -25,28 +25,38 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, ListItem, ListView, Static
 
 from ...model_catalog import ModelEntry, ProviderGroup
-from ... import model_router
-
-
-def _row_text(entry: ModelEntry) -> Text:
-    """`model-id` with a trailing dim tag (Free / context), ASCII-safe."""
-    t = Text(entry.id)
-    if entry.free:
-        t.append("  · Free", style="dim")
-    elif entry.context:
-        t.append(f"  · {entry.context // 1000}k", style="dim")
-    return t
+from ... import glyphs, model_router
 
 
 class _PickerList(ListView):
-    """ListView of interleaved group headers (skipped) + model rows."""
+    """ListView of interleaved group headers (skipped) + model rows.
+
+    `synthetic_ids` names sections (Recent/Favorites) that render rows as
+    "name + dim provider label" instead of "model-id + tag".
+    """
 
     def __init__(self, groups: list[ProviderGroup], connected: dict[str, bool],
-                 current: str, **kw) -> None:
+                 current: str, *, synthetic_ids: frozenset[str] = frozenset(), **kw) -> None:
         super().__init__(**kw)
         self._groups = groups
         self._connected = connected
         self._current = current
+        self._synthetic = synthetic_ids
+
+    def _row_text(self, entry: ModelEntry, *, synthetic: bool) -> Text:
+        t = Text()
+        if self._matches_current(entry):
+            t.append(f"{glyphs.ASSISTANT} ", style="bold")
+        if synthetic:
+            t.append(entry.name)
+            t.append(f"  {entry.provider_label}", style="dim")
+        else:
+            t.append(entry.id)
+            if entry.free:
+                t.append("  · Free", style="dim")
+            elif entry.context:
+                t.append(f"  · {entry.context // 1000}k", style="dim")
+        return t
         # Parallel arrays describing every appended item.
         self._is_header: list[bool] = []
         self._entries: list[Optional[ModelEntry]] = []
@@ -69,8 +79,12 @@ class _PickerList(ListView):
             self._is_header.append(True)
             self._entries.append(None)
             self._group_of.append(g.id)
+            synthetic = g.id in self._synthetic
             for m in g.models:
-                item = ListItem(Static(_row_text(m)), classes="model-picker-row")
+                item = ListItem(
+                    Static(self._row_text(m, synthetic=synthetic)),
+                    classes="model-picker-row",
+                )
                 item._voss_entry = m  # type: ignore[attr-defined]
                 self.append(item)
                 self._is_header.append(False)
