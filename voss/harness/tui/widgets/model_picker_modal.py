@@ -19,6 +19,7 @@ from typing import Optional
 
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, ListItem, ListView, Static
@@ -186,7 +187,9 @@ class ModelPickerModal(ModalScreen):
         ("escape", "cancel", "Cancel"),
         ("down", "cursor_down", "Down"),
         ("up", "cursor_up", "Up"),
-        ("ctrl+a", "connect", "Connect provider"),
+        # priority: the focused search Input binds ctrl+a (line-home) and would
+        # otherwise swallow it before the screen sees it.
+        Binding("ctrl+a", "connect", "Connect provider", priority=True),
     ]
 
     def __init__(
@@ -198,7 +201,8 @@ class ModelPickerModal(ModalScreen):
     ) -> None:
         super().__init__(**kw)
         self._groups = groups
-        self._connected = connected
+        # Copy: connect-flow mutates this; never touch the caller's dict.
+        self._connected = dict(connected)
         self._current = current
 
     def compose(self) -> ComposeResult:
