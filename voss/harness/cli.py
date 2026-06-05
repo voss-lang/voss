@@ -227,14 +227,35 @@ def _resolve_default_model(user_explicit: str | None) -> None:
         configure(default_model=persisted)
 
 
+def _apply_default_role(provider):
+    """Wrap the live provider in the `default` role's fallback chain when one is
+    configured (`[harness.roles.default]`). 429/quota on the primary then
+    cascades to the next candidate within a turn. Returns the (possibly wrapped)
+    provider and points `default_model` at the chain's primary. Never raises —
+    a missing chain or offline catalog leaves the provider untouched.
+    """
+    from . import roles
+
+    try:
+        built = roles.build_role_provider("default")
+    except Exception:  # noqa: BLE001 — boot must never crash on catalog issues
+        built = None
+    if built is None:
+        return provider
+    new_provider, primary = built
+    configure(default_model=primary)
+    return new_provider
+
+
 def _apply_boot_model(provider, *, user_explicit: str | None):
-    """Honor a persisted catalog-routed selection (/models) at boot.
+    """Honor a persisted catalog-routed selection (/models) + default role chain.
 
     When `[harness] preferred_provider` is set and the model resolves in the
     cached catalog, rebuild the live provider for it and configure the routed
-    model string (e.g. ``openai/gemma3:27b``). Returns the provider to use
-    (possibly rebuilt). `--model` wins and skips the override. Never raises —
-    an offline/missing catalog leaves the auth-resolved provider in place.
+    model string (e.g. ``openai/gemma3:27b``). Then, if a `[harness.roles.default]`
+    chain is configured, wrap the result in its fallback cascade. `--model` wins
+    and skips both overrides. Never raises — an offline/missing catalog leaves
+    the auth-resolved provider in place.
     """
     if user_explicit:
         return provider
@@ -244,11 +265,11 @@ def _apply_boot_model(provider, *, user_explicit: str | None):
         routed = model_router.boot_routed_provider()
     except Exception:  # noqa: BLE001 — boot must never crash on catalog issues
         routed = None
-    if routed is None:
-        return provider
-    new_provider, model_string = routed
-    configure(default_model=model_string)
-    return new_provider
+    if routed is not None:
+        new_provider, model_string = routed
+        configure(default_model=model_string)
+        provider = new_provider
+    return _apply_default_role(provider)
 
 
 def _resolve_run_turn(cwd: Path | None = None):
