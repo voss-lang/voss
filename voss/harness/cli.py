@@ -1224,6 +1224,9 @@ def _build_slash_registry() -> SlashRegistry:
                 return
             configure(default_model=model_str)
             harness_config.set_preferred_routed(entry.id, entry.provider_id)
+            from . import model_prefs
+
+            model_prefs.record_recent(entry.provider_id, entry.id)
             ctx.provider = provider
             click.echo(f"  model: {entry.name} · {entry.provider_label} (persisted)")
 
@@ -1238,16 +1241,44 @@ def _build_slash_registry() -> SlashRegistry:
                 here = "  ←" if (m.id == current or f"openai/{m.id}" == current) else ""
                 click.echo(f"    {m.id}{tag}{here}")
 
-        # Bare `/models` in the TUI opens the searchable modal picker.
-        app = getattr(ctx.renderer, "app", None)
+        # Bare `/models` in the TUI opens the searchable modal picker, with
+        # Favorites + Recent sections pinned on top (models.dev catalog below).
+        app = getattr(getattr(ctx, "renderer", None), "app", None)
         if not args and app is not None and app.__class__.__name__ == "VossTUIApp":
+            from . import model_prefs
+            from .model_catalog import ProviderGroup
             from .tui.widgets.model_picker_modal import ModelPickerModal
+
+            def _resolve(pairs):
+                out = []
+                for pid, mid in pairs:
+                    e = model_router.find_entry(groups, pid, mid)
+                    if e is not None:
+                        out.append(e)
+                return out
+
+            synth, syn_ids, conn2 = [], set(), dict(connected)
+            fav = _resolve(model_prefs.favorites())
+            if fav:
+                synth.append(ProviderGroup("favorites", "Favorites", None, None, tuple(fav)))
+                syn_ids.add("favorites")
+                conn2["favorites"] = True
+            rec = _resolve(model_prefs.recent())
+            if rec:
+                synth.append(ProviderGroup("recent", "Recent", None, None, tuple(rec)))
+                syn_ids.add("recent")
+                conn2["recent"] = True
 
             def _on_pick(entry) -> None:
                 if entry is not None:
                     _apply(entry)
 
-            app.push_screen(ModelPickerModal(groups, connected, current), _on_pick)
+            app.push_screen(
+                ModelPickerModal(
+                    synth + groups, conn2, current, synthetic_ids=frozenset(syn_ids)
+                ),
+                _on_pick,
+            )
             return
 
         # `/models set <id> [provider]` — non-interactive, works in CLI + TUI.

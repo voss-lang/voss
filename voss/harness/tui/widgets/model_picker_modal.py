@@ -25,7 +25,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, ListItem, ListView, Static
 
 from ...model_catalog import ModelEntry, ProviderGroup
-from ... import glyphs, model_router
+from ... import model_router
+from .. import glyphs
 
 
 class _PickerList(ListView):
@@ -42,6 +43,12 @@ class _PickerList(ListView):
         self._connected = connected
         self._current = current
         self._synthetic = synthetic_ids
+        # Parallel arrays describing every appended item.
+        self._is_header: list[bool] = []
+        self._entries: list[Optional[ModelEntry]] = []
+        self._group_of: list[str] = []
+        self._header_static: dict[str, Static] = {}
+        self._group_label: dict[str, str] = {}
 
     def _row_text(self, entry: ModelEntry, *, synthetic: bool) -> Text:
         t = Text()
@@ -57,12 +64,6 @@ class _PickerList(ListView):
             elif entry.context:
                 t.append(f"  · {entry.context // 1000}k", style="dim")
         return t
-        # Parallel arrays describing every appended item.
-        self._is_header: list[bool] = []
-        self._entries: list[Optional[ModelEntry]] = []
-        self._group_of: list[str] = []
-        self._header_static: dict[str, Static] = {}
-        self._group_label: dict[str, str] = {}
 
     def _header_text(self, group_id: str, label: str) -> Text:
         mark = "" if self._connected.get(group_id, True) else "   (needs key)"
@@ -201,9 +202,10 @@ class ModelPickerModal(ModalScreen):
         ("escape", "cancel", "Cancel"),
         ("down", "cursor_down", "Down"),
         ("up", "cursor_up", "Up"),
-        # priority: the focused search Input binds ctrl+a (line-home) and would
-        # otherwise swallow it before the screen sees it.
+        # priority: the focused search Input binds ctrl+a/ctrl+f and would
+        # otherwise swallow them before the screen sees it.
         Binding("ctrl+a", "connect", "Connect provider", priority=True),
+        Binding("ctrl+f", "favorite", "Favorite", priority=True),
     ]
 
     def __init__(
@@ -211,6 +213,8 @@ class ModelPickerModal(ModalScreen):
         groups: list[ProviderGroup],
         connected: dict[str, bool],
         current: str,
+        *,
+        synthetic_ids: frozenset[str] = frozenset(),
         **kw,
     ) -> None:
         super().__init__(**kw)
@@ -218,15 +222,19 @@ class ModelPickerModal(ModalScreen):
         # Copy: connect-flow mutates this; never touch the caller's dict.
         self._connected = dict(connected)
         self._current = current
+        self._synthetic = synthetic_ids
 
     def compose(self) -> ComposeResult:
         with Vertical(id="picker-box"):
             yield Static("Select model", id="picker-title", classes="modal-title")
             yield Input(placeholder="Search", id="picker-search")
-            yield _PickerList(self._groups, self._connected, self._current, id="picker-list")
+            yield _PickerList(
+                self._groups, self._connected, self._current,
+                synthetic_ids=self._synthetic, id="picker-list",
+            )
             yield Static(
                 "type to filter · up/down move · enter select · "
-                "ctrl+a connect · esc cancel",
+                "ctrl+a connect · ctrl+f favorite · esc cancel",
                 id="picker-footer",
             )
 
@@ -284,6 +292,18 @@ class ModelPickerModal(ModalScreen):
             self.notify(f"{label} connected.")
 
         self.app.push_screen(ConnectProviderModal(label, env_key), _on_key)
+
+    def action_favorite(self) -> None:
+        """Toggle the highlighted model as a favorite (persisted; the Favorites
+        section reflects it on next open)."""
+        entry = self._list().current_entry()
+        if entry is None:
+            return
+        from ... import model_prefs
+
+        now = model_prefs.toggle_favorite(entry.provider_id, entry.id)
+        verb = "Favorited" if now else "Unfavorited"
+        self.notify(f"{verb} {entry.name}.")
 
     def _select_current(self) -> None:
         entry = self._list().current_entry()

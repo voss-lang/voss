@@ -151,6 +151,69 @@ async def test_ctrl_a_marks_group_connected(monkeypatch) -> None:
         assert lst._connected["opencode"] is True
 
 
+# --- Recent / Favorites sections + ctrl+f ---
+
+
+def _static_text(item) -> str:
+    st = item.query_one("Static")
+    r = st.renderable
+    return r.plain if hasattr(r, "plain") else str(r)
+
+
+class _RecentHost(App):
+    def __init__(self, current="openai/gemma3:27b"):
+        super().__init__()
+        self._current = current
+
+    def compose(self) -> ComposeResult:
+        return []
+
+    def open(self):
+        from voss.harness.tui.widgets.model_picker_modal import ModelPickerModal
+
+        entry = GROUPS[2].models[0]  # gemma3:27b (Ollama Cloud), shared object
+        recent = ProviderGroup("recent", "Recent", None, None, (entry,))
+        conn = {**CONNECTED, "recent": True}
+        self.push_screen(ModelPickerModal(
+            [recent] + GROUPS, conn, self._current,
+            synthetic_ids=frozenset({"recent"}),
+        ))
+
+
+@pytest.mark.asyncio
+async def test_recent_row_shows_name_and_provider_and_active_dot() -> None:
+    from voss.harness.tui import glyphs
+
+    app = _RecentHost(current="openai/gemma3:27b")
+    async with app.run_test() as pilot:
+        app.open()
+        await pilot.pause()
+        lst = app.query_one("#picker-list")
+        # rows: header(Recent), gemma row, header(Anthropic), ...
+        rows = [c for c in lst.children]
+        recent_row = rows[1]
+        txt = _static_text(recent_row)
+        assert "gemma3:27b" in txt
+        assert "ollama-cloud" in txt  # provider label (fixture uses pid as label)
+        assert glyphs.ASSISTANT in txt  # active marker (matches current)
+
+
+@pytest.mark.asyncio
+async def test_ctrl_f_toggles_favorite(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        "voss.harness.model_prefs.toggle_favorite",
+        lambda pid, mid: (calls.append((pid, mid)) or True),
+    )
+    app = _Host()
+    async with app.run_test() as pilot:
+        app.open(current="claude-sonnet-4-5")
+        await pilot.pause()
+        await pilot.press("ctrl+f")
+        await pilot.pause()
+    assert calls == [("anthropic", "claude-sonnet-4-5")]
+
+
 @pytest.mark.asyncio
 async def test_connect_modal_esc_does_not_save(monkeypatch) -> None:
     saved = {}
