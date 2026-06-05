@@ -5,8 +5,8 @@ filter, up/down to move (group headers are skipped), enter/click to choose,
 esc to cancel. `dismiss(entry)` returns the chosen `ModelEntry` (or None); the
 caller (cli `/models`) applies it via the model router.
 
-Design contract: NO accent literal here — all `$accent` styling lives in
-styles.tcss under `.model-picker-*` / `ModelPickerModal` (the allow-listed
+Design contract: no accent-color literal in this file — all such styling lives
+in styles.tcss under `.model-picker-*` / `ModelPickerModal` (the allow-listed
 site), so the accent audit stays clean. Tags/markers are ASCII so the
 --no-unicode contract holds.
 
@@ -105,17 +105,18 @@ class _PickerList(ListView):
             and rows[i].display
         )
 
-    def _select_first_visible(self, *, prefer_current: bool) -> None:
-        if prefer_current:
-            for i, entry in enumerate(self._entries):
-                if entry is not None and self._is_selectable(i) and self._matches_current(entry):
-                    self.index = i
-                    return
+    def _select_first_visible(self) -> None:
         for i in range(len(self._rows())):
             if self._is_selectable(i):
                 self.index = i
                 return
         self.index = None
+
+    def _highlight_current(self) -> None:
+        for i, entry in enumerate(self._entries):
+            if entry is not None and self._is_selectable(i) and self._matches_current(entry):
+                self.index = i
+                return
 
     def _matches_current(self, entry: ModelEntry) -> bool:
         return entry.id == self._current or f"openai/{entry.id}" == self._current
