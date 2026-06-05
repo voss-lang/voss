@@ -180,3 +180,23 @@ ModelPickerModal .model-picker-group {
 ModelPickerModal .model-picker-row.--highlight {
     background: $accent 15%;
 }
+
+/* ConnectProviderModal — API-key entry for /models connect (ctrl+a). */
+ConnectProviderModal {
+    align: center middle;
+}
+ConnectProviderModal #connect-box {
+    width: 60%;
+    max-width: 70;
+    height: auto;
+    border: round $accent;
+    padding: 1 2;
+}
+ConnectProviderModal #connect-help {
+    color: $dim;
+    margin: 1 0;
+}
+ConnectProviderModal #connect-footer {
+    color: $dim;
+    margin-top: 1;
+}
