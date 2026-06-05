@@ -1238,6 +1238,18 @@ def _build_slash_registry() -> SlashRegistry:
                 here = "  ←" if (m.id == current or f"openai/{m.id}" == current) else ""
                 click.echo(f"    {m.id}{tag}{here}")
 
+        # Bare `/models` in the TUI opens the searchable modal picker.
+        app = getattr(ctx.renderer, "app", None)
+        if not args and app is not None and app.__class__.__name__ == "VossTUIApp":
+            from .tui.widgets.model_picker_modal import ModelPickerModal
+
+            def _on_pick(entry) -> None:
+                if entry is not None:
+                    _apply(entry)
+
+            app.push_screen(ModelPickerModal(groups, connected, current), _on_pick)
+            return
+
         # `/models set <id> [provider]` — non-interactive, works in CLI + TUI.
         if args and args[0] == "set":
             if len(args) < 2:
