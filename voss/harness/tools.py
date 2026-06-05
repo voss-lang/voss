@@ -129,17 +129,18 @@ def make_toolset(
     subagents.py) at production startup.
     """
 
-    @tool(name="fs_read", description="Read a UTF-8 text file from the project. Path must be inside cwd.")
-    async def fs_read(path: str) -> str:
+    @tool(name="fs_read", description="Read a UTF-8 text file from the project. Path must be inside cwd. Pass annotate=true for per-line content-hash anchors usable by fs_edit.")
+    async def fs_read(path: str, annotate: bool = False) -> str:
         p = jail_path(cwd, path)
         if not p.exists():
             return f"<error: not found: {path}>"
         if p.is_dir():
             return f"<error: is a directory: {path}>"
         try:
-            return p.read_text()
+            text = p.read_text()
         except UnicodeDecodeError:
             return f"<error: binary file: {path}>"
+        return _annotate(text) if annotate else text
 
     @tool(
         name="fs_read_many",
@@ -323,21 +324,50 @@ def make_toolset(
     @tool(
         name="fs_edit",
         description=(
-            "Replace exact `old` text with `new` in a file. `old` must appear "
-            "exactly once. Returns line count delta."
+            "Replace text with `new` in a file. Supply either `old` (verbatim, "
+            "must match exactly once) or `anchor` (line content-hash from "
+            "fs_read annotate=true; add `end_anchor` for a multi-line span). "
+            "Returns line count delta."
         ),
     )
-    async def fs_edit(path: str, old: str, new: str) -> str:
+    async def fs_edit(
+        path: str,
+        new: str,
+        old: str | None = None,
+        anchor: str | None = None,
+        end_anchor: str | None = None,
+    ) -> str:
         p = jail_path(cwd, path)
         if not p.exists():
             return f"<error: not found: {path}>"
         text = p.read_text()
-        count = text.count(old)
-        if count == 0:
-            return f"<error: `old` not found in {path}>"
-        if count > 1:
-            return f"<error: `old` matches {count} times, must be unique>"
-        new_text = text.replace(old, new, 1)
+        if old is not None and anchor is not None:
+            return "<error: supply `old` OR `anchor`, not both>"
+        if anchor is None and end_anchor is not None:
+            return "<error: `end_anchor` requires `anchor`>"
+        if anchor is not None:
+            segs = text.split("\n")
+            start, err = _resolve_anchor(segs, anchor)
+            if start is None:
+                return f"<error: {err}>"
+            if end_anchor is not None:
+                end, err = _resolve_anchor(segs, end_anchor)
+                if end is None:
+                    return f"<error: {err}>"
+            else:
+                end = start
+            if end < start:
+                return "<error: `end_anchor` is before `anchor`>"
+            new_text = "\n".join(segs[:start] + new.split("\n") + segs[end + 1:])
+        elif old is not None:
+            count = text.count(old)
+            if count == 0:
+                return f"<error: `old` not found in {path}>"
+            if count > 1:
+                return f"<error: `old` matches {count} times, must be unique>"
+            new_text = text.replace(old, new, 1)
+        else:
+            return "<error: supply `old` or `anchor`>"
         p.write_text(new_text)
         delta = new_text.count("\n") - text.count("\n")
         sign = "+" if delta >= 0 else ""

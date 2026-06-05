@@ -40,6 +40,75 @@ class TestFsRead:
             _run(tools["fs_read"].invoke(path="../../../etc/passwd"))
 
 
+class TestHashlineEdits:
+    def test_annotate_emits_anchors(self, tmp_path: Path) -> None:
+        from voss.harness.tools import _line_anchor
+
+        (tmp_path / "f.txt").write_text("alpha\nbeta\n")
+        tools = make_toolset(tmp_path)
+        out = _run(tools["fs_read"].invoke(path="f.txt", annotate=True))
+        assert out == f"{_line_anchor('alpha')}│alpha\n{_line_anchor('beta')}│beta\n"
+
+    def test_edit_by_anchor(self, tmp_path: Path) -> None:
+        from voss.harness.tools import _line_anchor
+
+        (tmp_path / "f.txt").write_text("alpha\nbeta\ngamma\n")
+        tools = make_toolset(tmp_path)
+        out = _run(
+            tools["fs_edit"].invoke(path="f.txt", anchor=_line_anchor("beta"), new="BETA")
+        )
+        assert "edited f.txt" in out
+        assert (tmp_path / "f.txt").read_text() == "alpha\nBETA\ngamma\n"
+
+    def test_edit_span_anchor(self, tmp_path: Path) -> None:
+        from voss.harness.tools import _line_anchor
+
+        (tmp_path / "f.txt").write_text("a\nb\nc\nd\n")
+        tools = make_toolset(tmp_path)
+        _run(
+            tools["fs_edit"].invoke(
+                path="f.txt",
+                anchor=_line_anchor("b"),
+                end_anchor=_line_anchor("c"),
+                new="X\nY\nZ",
+            )
+        )
+        assert (tmp_path / "f.txt").read_text() == "a\nX\nY\nZ\nd\n"
+
+    def test_stale_anchor_errors(self, tmp_path: Path) -> None:
+        (tmp_path / "f.txt").write_text("alpha\n")
+        tools = make_toolset(tmp_path)
+        out = _run(tools["fs_edit"].invoke(path="f.txt", anchor="deadbeef", new="x"))
+        assert "stale" in out
+
+    def test_ambiguous_anchor_errors(self, tmp_path: Path) -> None:
+        from voss.harness.tools import _line_anchor
+
+        (tmp_path / "f.txt").write_text("dup\ndup\n")
+        tools = make_toolset(tmp_path)
+        out = _run(tools["fs_edit"].invoke(path="f.txt", anchor=_line_anchor("dup"), new="x"))
+        assert "ambiguous" in out
+
+    def test_old_still_works(self, tmp_path: Path) -> None:
+        (tmp_path / "f.txt").write_text("foo\n")
+        tools = make_toolset(tmp_path)
+        out = _run(tools["fs_edit"].invoke(path="f.txt", old="foo", new="bar"))
+        assert "edited f.txt" in out
+        assert (tmp_path / "f.txt").read_text() == "bar\n"
+
+    def test_old_and_anchor_conflict(self, tmp_path: Path) -> None:
+        from voss.harness.tools import _line_anchor
+
+        (tmp_path / "f.txt").write_text("alpha\n")
+        tools = make_toolset(tmp_path)
+        out = _run(
+            tools["fs_edit"].invoke(
+                path="f.txt", old="alpha", anchor=_line_anchor("alpha"), new="x"
+            )
+        )
+        assert "not both" in out
+
+
 class TestFsGlob:
     def test_lists_matching_files(self, project: Path) -> None:
         tools = make_toolset(project)
