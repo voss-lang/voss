@@ -18,10 +18,10 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
     "motion": "^12.40.0",
-    "next": "16.2.6",
-    "posthog-js": "^1.376.4",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
+    "next": "16.2.7",
+    "posthog-js": "^1.379.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "shiki": "^4.1.0",
     "tailwind-merge": "^3.6.0"
   },
@@ -34,7 +34,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
     "typescript": "^6"
   }
