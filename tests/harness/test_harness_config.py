@@ -30,6 +30,28 @@ class TestLoad:
         harness_config.set_preferred_model("model-b")
         assert harness_config.load_harness_config().get("preferred_model") == "model-b"
 
+    def test_routed_persists_both_keys(self, xdg):
+        harness_config.set_preferred_routed("gemma3:27b", "ollama-cloud")
+        cfg = harness_config.load_harness_config()
+        assert cfg.get("preferred_model") == "gemma3:27b"
+        assert cfg.get("preferred_provider") == "ollama-cloud"
+
+    def test_legacy_model_clears_routed_provider(self, xdg):
+        harness_config.set_preferred_routed("gemma3:27b", "ollama-cloud")
+        harness_config.set_preferred_model("claude-sonnet-4-5")
+        cfg = harness_config.load_harness_config()
+        assert cfg.get("preferred_model") == "claude-sonnet-4-5"
+        assert "preferred_provider" not in cfg
+
+    def test_routed_preserves_other_harness_keys(self, xdg):
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('[harness]\npreferred_model = "old"\nsomething = "keep"\n')
+        harness_config.set_preferred_routed("gemma3:27b", "ollama-cloud")
+        cfg = harness_config.load_harness_config()
+        assert cfg.get("something") == "keep"
+        assert cfg.get("preferred_provider") == "ollama-cloud"
+
 
 class TestPreservesOtherSections:
     def test_keeps_unrelated_section_intact(self, xdg):

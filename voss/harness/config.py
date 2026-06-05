@@ -246,15 +246,27 @@ def get_allow_net() -> bool:
     return default
 
 
-def set_preferred_model(name: str) -> Path:
-    """Persist `[harness] preferred_model = "<name>"`. Preserves other sections."""
+def _write_harness(updates: dict[str, str | None]) -> Path:
+    """Merge `updates` into the `[harness]` block (None value removes a key).
+
+    Preserves other harness keys and other config sections — unlike a naive
+    block-replace, so `preferred_model` and `preferred_provider` coexist.
+    """
     p = config_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     existing = p.read_text() if p.exists() else ""
 
-    new_block = f'[harness]\npreferred_model = "{name}"\n'
+    current = _parse_harness_section(existing)
+    for key, value in updates.items():
+        if value is None:
+            current.pop(key, None)
+        else:
+            current[key] = value
+
+    body = "".join(f'{k} = "{v}"\n' for k, v in current.items())
+    new_block = "[harness]\n" + body
     if _HARNESS_BLOCK.search(existing):
-        new_text = _HARNESS_BLOCK.sub(new_block, existing, count=1)
+        new_text = _HARNESS_BLOCK.sub(lambda _m: new_block, existing, count=1)
     elif existing.strip():
         new_text = existing.rstrip() + "\n\n" + new_block
     else:
@@ -263,6 +275,28 @@ def set_preferred_model(name: str) -> Path:
     p.write_text(new_text)
     p.chmod(0o600)
     return p
+
+
+def set_preferred_model(name: str) -> Path:
+    """Persist `[harness] preferred_model`. Clears any routed `preferred_provider`
+    (legacy raw-string switch via /model has no catalog route)."""
+    return _write_harness({"preferred_model": name, "preferred_provider": None})
+
+
+def set_preferred_auth(pref: str) -> Path:
+    """Persist `[harness] auth` — the default credential source used when no
+    explicit --auth is given (e.g. "codex" so plain `voss chat` uses the
+    subscription regardless of exported API-key env vars)."""
+    return _write_harness({"auth": pref})
+
+
+def set_preferred_routed(model_id: str, provider_id: str) -> Path:
+    """Persist a catalog-routed selection: `preferred_model` (catalog model id)
+    + `preferred_provider` (models.dev provider id). Boot rebuilds the provider
+    from these via the model router."""
+    return _write_harness(
+        {"preferred_model": model_id, "preferred_provider": provider_id}
+    )
 
 
 def set_max_iterations(n: int) -> Path:

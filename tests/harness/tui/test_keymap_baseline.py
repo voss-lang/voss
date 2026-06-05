@@ -17,7 +17,9 @@ def test_keymap_size_at_least_14() -> None:
         ("shift+tab", "global"),
         ("enter", "input"),
         ("shift+enter", "input"),
-        ("slash", "input"),
+        # NB: `/` is intentionally NOT a keybinding — the slash palette opens
+        # via text-change detection in InputBar so `/` stays typeable. See
+        # test_input_bar_slash_palette_sync.
         ("escape", "modal"),
         ("question_mark", "global"),
         ("j", "main"),

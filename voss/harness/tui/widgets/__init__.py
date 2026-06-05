@@ -6,6 +6,7 @@ from .budget_modal import BudgetChoice, BudgetExhaustedModal
 from .budget_trace_modal import BudgetTraceModal, BudgetTraceRow
 from .confidence_bar import ConfidenceBar
 from .diff_modal import DiffDecision, DiffModal, Hunk
+from .model_picker_modal import ConnectProviderModal, ModelPickerModal
 from .fork_modal import ForkConfirmModal
 from .header import HeaderBar
 from .help_overlay import HelpOverlay
@@ -36,6 +37,8 @@ __all__ = [
     "ConfidenceBar",
     "DiffDecision",
     "DiffModal",
+    "ModelPickerModal",
+    "ConnectProviderModal",
     "ForkConfirmModal",
     "HeaderBar",
     "HelpOverlay",

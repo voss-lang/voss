@@ -196,5 +196,6 @@ def test_permissions_py_signature_unchanged() -> None:
         "edit_scope",
         "scope_prompt_fn",
         "project_policy",
+        "allow_net",  # network-permission gate (added post-M9-05)
     }
     assert field_names == expected

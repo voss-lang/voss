@@ -31,6 +31,34 @@ def _as_response_format_param(response_format):
 
 
 class LiteLLMProvider:
+    def __init__(
+        self,
+        *,
+        api_base: str | None = None,
+        api_key: str | None = None,
+        custom_llm_provider: str | None = None,
+    ) -> None:
+        """Stateless by default; optional per-instance routing overrides.
+
+        `api_base`/`api_key` let one provider class target any OpenAI-compatible
+        endpoint (Ollama Cloud, OpenCode Zen, …) without env-var juggling. When
+        all are None the behaviour is identical to the historic no-arg provider
+        (litellm reads ANTHROPIC_API_KEY/OPENAI_API_KEY/etc. from the env).
+        """
+        self.api_base = api_base
+        self.api_key = api_key
+        self.custom_llm_provider = custom_llm_provider
+
+    def _route_kwargs(self) -> dict:
+        out: dict = {}
+        if self.api_base:
+            out["api_base"] = self.api_base
+        if self.api_key:
+            out["api_key"] = self.api_key
+        if self.custom_llm_provider:
+            out["custom_llm_provider"] = self.custom_llm_provider
+        return out
+
     async def complete(
         self,
         *,
@@ -46,6 +74,7 @@ class LiteLLMProvider:
             "model": model,
             "messages": messages,
             "temperature": temperature,
+            **self._route_kwargs(),
         }
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens

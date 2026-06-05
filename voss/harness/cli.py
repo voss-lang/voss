@@ -227,6 +227,30 @@ def _resolve_default_model(user_explicit: str | None) -> None:
         configure(default_model=persisted)
 
 
+def _apply_boot_model(provider, *, user_explicit: str | None):
+    """Honor a persisted catalog-routed selection (/models) at boot.
+
+    When `[harness] preferred_provider` is set and the model resolves in the
+    cached catalog, rebuild the live provider for it and configure the routed
+    model string (e.g. ``openai/gemma3:27b``). Returns the provider to use
+    (possibly rebuilt). `--model` wins and skips the override. Never raises —
+    an offline/missing catalog leaves the auth-resolved provider in place.
+    """
+    if user_explicit:
+        return provider
+    from . import model_router
+
+    try:
+        routed = model_router.boot_routed_provider()
+    except Exception:  # noqa: BLE001 — boot must never crash on catalog issues
+        routed = None
+    if routed is None:
+        return provider
+    new_provider, model_string = routed
+    configure(default_model=model_string)
+    return new_provider
+
+
 def _resolve_run_turn(cwd: Path | None = None):
     from . import config as harness_config
 
@@ -409,6 +433,16 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
     still get the original exit-2 error so scripted invocations stay
     deterministic.
     """
+    # Honor a persisted default (`[harness] auth`) when the caller didn't force
+    # a specific source. Lets `voss chat` always use e.g. codex even when
+    # OPENAI_API_KEY is exported in the shell. Explicit --auth=<x> still wins.
+    if preference == "auto":
+        from . import config as _hc
+
+        saved = _hc.load_harness_config().get("auth")
+        if saved in AUTH_CHOICES and saved != "auto":
+            preference = saved
+
     res = auth_mod.resolve(preference)
     if res.source == "none":
         from . import login_wizard
@@ -1175,6 +1209,148 @@ def _build_slash_registry() -> SlashRegistry:
         harness_config.set_preferred_model(new_model)
         click.echo(f"  model: {get_config().default_model} (persisted)")
 
+    def _models(ctx: ReplContext, args: list[str], _line: str) -> None:
+        """Catalog-driven model picker (models.dev). CLI: list/filter/select by
+        name; the TUI gets the searchable modal in P4."""
+        from . import config as harness_config
+        from . import model_catalog, model_router
+
+        try:
+            groups = model_catalog.load_catalog()
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"  models catalog unavailable: {exc}", err=True)
+            return
+        connected = model_router.connected_providers(groups)
+        current = get_config().default_model
+
+        def _apply(entry) -> None:
+            provider, model_str, key_present = model_router.prepare_model(entry)
+            if not key_present:
+                click.echo(
+                    f"  {entry.provider_label} needs an API key ({entry.env_key}). "
+                    f"Set the env var or connect via the picker (ctrl+a, P5).",
+                    err=True,
+                )
+                return
+            configure(default_model=model_str)
+            harness_config.set_preferred_routed(entry.id, entry.provider_id)
+            from . import model_prefs
+
+            model_prefs.record_recent(entry.provider_id, entry.id)
+            ctx.provider = provider
+            click.echo(f"  model: {entry.name} · {entry.provider_label} (persisted)")
+
+        def _print(entries) -> None:
+            last = None
+            for m in entries:
+                if m.provider_id != last:
+                    mark = "" if connected.get(m.provider_id) else "  (needs key)"
+                    click.echo(f"\n  {m.provider_label}{mark}")
+                    last = m.provider_id
+                tag = " · Free" if m.free else ""
+                here = "  ←" if (m.id == current or f"openai/{m.id}" == current) else ""
+                click.echo(f"    {m.id}{tag}{here}")
+
+        # Bare `/models` in the TUI opens the searchable modal picker, with
+        # Favorites + Recent sections pinned on top (models.dev catalog below).
+        app = getattr(getattr(ctx, "renderer", None), "app", None)
+        if not args and app is not None and app.__class__.__name__ == "VossTUIApp":
+            from . import model_prefs
+            from .model_catalog import ProviderGroup
+            from .tui.widgets.model_picker_modal import ModelPickerModal
+
+            def _resolve(pairs):
+                out = []
+                for pid, mid in pairs:
+                    e = model_router.find_entry(groups, pid, mid)
+                    if e is not None:
+                        out.append(e)
+                return out
+
+            synth, syn_ids, conn2 = [], set(), dict(connected)
+            fav = _resolve(model_prefs.favorites())
+            if fav:
+                synth.append(ProviderGroup("favorites", "Favorites", None, None, tuple(fav)))
+                syn_ids.add("favorites")
+                conn2["favorites"] = True
+            rec = _resolve(model_prefs.recent())
+            if rec:
+                synth.append(ProviderGroup("recent", "Recent", None, None, tuple(rec)))
+                syn_ids.add("recent")
+                conn2["recent"] = True
+
+            def _on_pick(entry) -> None:
+                if entry is not None:
+                    _apply(entry)
+
+            app.push_screen(
+                ModelPickerModal(
+                    synth + groups, conn2, current, synthetic_ids=frozenset(syn_ids)
+                ),
+                _on_pick,
+            )
+            return
+
+        # `/models set <id> [provider]` — non-interactive, works in CLI + TUI.
+        if args and args[0] == "set":
+            if len(args) < 2:
+                click.echo("  usage: /models set <model-id> [provider-id]", err=True)
+                return
+            model_id = args[1]
+            provider_id = args[2] if len(args) > 2 else None
+            hits = model_router.find_by_id(groups, model_id, provider_id=provider_id)
+            if not hits:
+                click.echo(f"  no model '{model_id}'", err=True)
+            elif len(hits) > 1:
+                click.echo(
+                    f"  '{model_id}' exists in {len(hits)} providers; add one of: "
+                    + ", ".join(h.provider_id for h in hits),
+                    err=True,
+                )
+            else:
+                _apply(hits[0])
+            return
+
+        query = " ".join(args).strip()
+        if query:
+            matches = model_router.match_models(groups, query)
+            if len(matches) == 1:
+                _apply(matches[0])
+            elif not matches:
+                click.echo(f"  no models match '{query}'", err=True)
+            else:
+                click.echo(f"  {len(matches)} match '{query}':")
+                _print(matches)
+                click.echo("\n  refine, or `/models set <id> [provider]`")
+            return
+
+        # No args: full grouped list + hint.
+        _print(model_router.flatten(groups))
+        click.echo(
+            f"\n  active: {current}\n"
+            "  select: /models <query>  or  /models set <id> [provider]"
+        )
+
+    def _auth(ctx: ReplContext, args: list[str], _line: str) -> None:
+        """Show or persist the default credential source (`[harness] auth`).
+
+        Takes effect on the next launch. `/auth codex` -> plain `voss chat`
+        uses the ChatGPT subscription even if OPENAI_API_KEY is exported.
+        """
+        from . import config as harness_config
+
+        if not args:
+            saved = harness_config.load_harness_config().get("auth") or "auto"
+            click.echo(f"  default auth: {saved}")
+            click.echo(f"  choices: {', '.join(AUTH_CHOICES)}")
+            return
+        pref = args[0].strip().lower()
+        if pref not in AUTH_CHOICES:
+            click.echo(f"  invalid: {pref}. choices: {', '.join(AUTH_CHOICES)}", err=True)
+            return
+        harness_config.set_preferred_auth(pref)
+        click.echo(f"  default auth: {pref} (persisted — applies next launch)")
+
     def _mode(ctx: ReplContext, args: list[str], _line: str) -> None:
         if not args:
             click.echo(f"  mode: {ctx.gate.mode}")
@@ -1331,6 +1507,8 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/tools", "list registered tools", _tools),
         SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
         SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
+        SlashCommand("/models", "pick a model from the models.dev catalog (Zen, Ollama Cloud, …)", _models),
+        SlashCommand("/auth", "show/set default credential source (auto|claude|codex|api|none)", _auth),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
         SlashCommand("/save-session", "persist session snapshot", _save_session, mutating=True),
         SlashCommand("/recall", "search memory (top-N hits across sources)", _recall),
@@ -1463,6 +1641,7 @@ def do_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -1623,6 +1802,7 @@ def chat_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -1692,6 +1872,7 @@ def edit_cmd(
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -1904,10 +2085,10 @@ def _run_repl(
                             tools=tools,
                             cwd=cwd,
                             renderer=renderer,
-                            model=cfg.default_model,
+                            model=get_config().default_model,
                             history=ctx.history,
                             permissions=gate,
-                            provider=provider,
+                            provider=ctx.provider,
                             session_id=record.id,
                             cognition=bundle,
                             prior_context=ctx.prior_context,
@@ -1995,10 +2176,10 @@ def _run_repl(
                             tools=tools,
                             cwd=cwd,
                             renderer=renderer,
-                            model=cfg.default_model,
+                            model=get_config().default_model,
                             history=ctx.history,
                             permissions=gate,
-                            provider=provider,
+                            provider=ctx.provider,
                             session_id=record.id,
                             cognition=bundle,
                             prior_context=ctx.prior_context,
@@ -3355,6 +3536,7 @@ def consensus_cmd(input_mode: str, ref: str | None, cwd_str: str, auth_pref: str
         sys.exit(0)
 
     res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
     result = asyncio.run(run_critique(provider, cfg.default_model, constraints, diff_text))
 

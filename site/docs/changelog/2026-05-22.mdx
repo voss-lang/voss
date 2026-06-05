@@ -1,0 +1,48 @@
+---
+title: "Week of May 22, 2026"
+description: "Voss ADE desktop shell, durable sessions, hybrid memory search, and skill bundles."
+---
+
+A busy week across the harness, the new Voss ADE desktop shell, and the underlying memory and review loops.
+
+## New features
+
+### Voss ADE desktop shell
+
+The Voss app is now branded **Voss ADE** and ships with platform-native window effects, a polished pane chrome, and a new appearance system. You can switch themes, reduce motion, and manage settings profiles from the command palette or native menu.
+
+- **Workspace tab bar** — open multiple workspaces side by side, rename and reorder tabs, and color-code them so you can tell projects apart at a glance.
+- **New workspace picker** — create or open a workspace with a keyboard shortcut, or from the command palette.
+- **Five bundled themes** — light, dark, and three new accent themes, validated against the theme schema so custom themes won't break the UI.
+- **Status bar** — a dedicated bar surfaces session, PID, and notification state, with dual-buffer notifications so transient messages don't clobber persistent ones.
+
+### Durable agent sessions
+
+Agent sessions now persist across app restarts. The ADE keeps a SQLite-backed registry of every agent pane, restores PTY scrollback, and cleans up workspaces on quit so you can pick up exactly where you left off — even after a crash or reboot. See [Sessions](/harness/sessions) for the harness-side commands.
+
+### Hybrid semantic search
+
+Project memory now combines BM25 lexical scoring with Chroma vector search using Reciprocal Rank Fusion. The result is noticeably better recall on identifier-heavy queries (function names, file paths, error strings) without losing semantic matches. No configuration required — it's on by default. Background in [Project cognition](/harness/project-cognition).
+
+### Skill bundles
+
+The harness can now discover, install, verify, and trust third-party `.voss` skill bundles from the CLI. New commands let you list installed skills, install a bundle, and manage trust. `voss doctor` also surfaces a gate-only confinement caveat so you can tell when a skill is sandboxed.
+
+### Command palette and tmux-style keymap
+
+The ADE has a typed command registry, a fuzzy-matching command palette, and a tmux-style prefix-mode state machine with a pane-header indicator. You can drop workspace-local keymap overrides into your project and they'll hot-reload as you edit them.
+
+## Updates
+
+- **Project open flow** — a new Setup window lets you pick a project folder from a native dialog and shows your recent projects. The titlebar updates dynamically to reflect the active project.
+- **Toast notifications** — a stacked toast system surfaces keymap validation errors and other transient feedback without blocking your work.
+- **Engineering Manager loop** — the autonomous EM coroutine now runs a full plan-tick cycle with structured LLM planning, gate predicates, and a Kanban board that enforces WIP caps and tracks card lifecycle. Reviewer responsibilities are split into a verification-authoring **Reviewer A** and a separate judge.
+- **Audit harness** — a new audit package captures session lineage and exit reasons for post-hoc analysis of agent runs.
+- **MCP server bridge** — Voss can now act as an MCP host, with `vdiff` tooling and inspect modals for examining tool calls.
+
+## Bug fixes
+
+- Fixed a BM25 recall fallback so hybrid search stays stable when the lexical index is cold.
+- Cleared a lingering blocked-state timer on pane unmount so panes don't get stuck mid-drag.
+- Bumped the Vite build target from `safari13` to `safari15` to unblock layout-preset builds.
+- Added a session-persistence timeout on quit so the app no longer hangs on shutdown when the registry is busy.
