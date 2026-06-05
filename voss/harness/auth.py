@@ -540,3 +540,50 @@ def delete_voss_creds(provider: StoredProvider) -> bool:
         return True
     except Exception:  # noqa: BLE001
         return False
+
+
+# ---------------------------------------------------------------------------
+# Generic provider keys, keyed by ENV-VAR NAME (e.g. "OLLAMA_API_KEY").
+# Used by the /models picker's connect-provider flow for endpoints that route
+# through env vars (Ollama Cloud, OpenCode Zen/Go). Distinct from the wizard's
+# "anthropic"/"openai" buckets above; keying by env var lets opencode + go
+# share one OPENCODE_API_KEY.
+# ---------------------------------------------------------------------------
+
+
+def load_provider_key(env_key: str) -> Optional[str]:
+    """Load a stored API key by its env-var name, or None if absent/unavailable."""
+    kr = _keyring_module()
+    if kr is None or not env_key:
+        return None
+    try:
+        value = kr.get_password(KEYRING_SERVICE, env_key)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        return None
+    if not value:
+        return None
+    return value.strip() or None
+
+
+def save_provider_key(env_key: str, key: str) -> bool:
+    """Persist an API key under its env-var name. Returns True on success."""
+    kr = _keyring_module()
+    if kr is None or not _keyring_available() or not env_key:
+        return False
+    try:
+        kr.set_password(KEYRING_SERVICE, env_key, key)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+def delete_provider_key(env_key: str) -> bool:
+    """Remove a stored provider key by env-var name. Returns True on success."""
+    kr = _keyring_module()
+    if kr is None or not env_key:
+        return False
+    try:
+        kr.delete_password(KEYRING_SERVICE, env_key)  # type: ignore[attr-defined]
+        return True
+    except Exception:  # noqa: BLE001
+        return False

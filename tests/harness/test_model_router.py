@@ -62,22 +62,29 @@ def test_build_compat_binds_api_base_and_key() -> None:
 
 def test_resolve_key_from_getter() -> None:
     getter = {"OLLAMA_API_KEY": "tok"}.get
-    assert mr.resolve_key(COMPAT, getter=getter) == "tok"
-    assert mr.resolve_key(_entry(env_key=None), getter=getter) is None
-    assert mr.resolve_key(COMPAT, getter={}.get) is None
+    none_kr = {}.get
+    assert mr.resolve_key(COMPAT, getter=getter, keyring_get=none_kr) == "tok"
+    assert mr.resolve_key(_entry(env_key=None), getter=getter, keyring_get=none_kr) is None
+    assert mr.resolve_key(COMPAT, getter={}.get, keyring_get=none_kr) is None
+
+
+def test_resolve_key_falls_back_to_keyring() -> None:
+    # env empty, keyring has it -> keyring wins.
+    assert mr.resolve_key(COMPAT, getter={}.get, keyring_get={"OLLAMA_API_KEY": "kr"}.get) == "kr"
 
 
 def test_prepare_model_key_present_and_missing() -> None:
-    _, _, present = mr.prepare_model(COMPAT, getter={"OLLAMA_API_KEY": "t"}.get)
+    none_kr = {}.get
+    _, _, present = mr.prepare_model(COMPAT, getter={"OLLAMA_API_KEY": "t"}.get, keyring_get=none_kr)
     assert present is True
-    _, _, missing = mr.prepare_model(COMPAT, getter={}.get)
+    _, _, missing = mr.prepare_model(COMPAT, getter={}.get, keyring_get=none_kr)
     assert missing is False
 
 
 def test_prepare_model_native_without_env_key_is_present() -> None:
     # A provider that needs no key (env_key None) is always "present".
     entry = _entry(env_key=None)
-    _, _, present = mr.prepare_model(entry, getter={}.get)
+    _, _, present = mr.prepare_model(entry, getter={}.get, keyring_get={}.get)
     assert present is True
 
 

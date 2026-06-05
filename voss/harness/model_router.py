@@ -22,19 +22,73 @@ from typing import Callable
 from voss_runtime.providers import LiteLLMProvider
 from voss_runtime.providers.base import ModelProvider
 
-from .model_catalog import ModelEntry
+from . import auth
+from .model_catalog import ModelEntry, ProviderGroup
+
+KeyGetter = Callable[[str], str | None]
 
 
 def resolve_key(
-    entry: ModelEntry, *, getter: Callable[[str], str | None] = os.environ.get
+    entry: ModelEntry,
+    *,
+    getter: KeyGetter = os.environ.get,
+    keyring_get: KeyGetter = auth.load_provider_key,
 ) -> str | None:
-    """Return the API key for `entry`'s provider, or None if unset.
+    """Return the API key for `entry`'s provider: env var first, keyring second.
 
-    `getter` defaults to env lookup; P2 passes a keyring-then-env resolver.
+    Both lookups are injectable for hermetic tests; live callers get the real
+    env + keyring by default.
     """
     if not entry.env_key:
         return None
-    return getter(entry.env_key)
+    return getter(entry.env_key) or keyring_get(entry.env_key)
+
+
+def _default_oauth_check(provider_id: str) -> bool:
+    """Native families are also 'connected' via existing OAuth/Codex creds."""
+    if provider_id == "anthropic":
+        return auth.load_anthropic_oauth() is not None
+    if provider_id == "openai":
+        codex = auth.load_codex()
+        return bool(codex and (codex.api_key or codex.has_oauth))
+    return False
+
+
+def provider_connected(
+    provider_id: str,
+    env_key: str | None,
+    *,
+    getter: KeyGetter = os.environ.get,
+    keyring_get: KeyGetter = auth.load_provider_key,
+    oauth_check: Callable[[str], bool] = _default_oauth_check,
+) -> bool:
+    """True if Voss can authenticate to `provider_id` right now.
+
+    Keyless providers (env_key None, e.g. local Ollama) are always connected;
+    otherwise an env var or stored key suffices, with an OAuth fallback for the
+    native Anthropic/OpenAI families.
+    """
+    if env_key is None:
+        return True
+    if getter(env_key) or keyring_get(env_key):
+        return True
+    return oauth_check(provider_id)
+
+
+def connected_providers(
+    groups: list[ProviderGroup],
+    *,
+    getter: KeyGetter = os.environ.get,
+    keyring_get: KeyGetter = auth.load_provider_key,
+    oauth_check: Callable[[str], bool] = _default_oauth_check,
+) -> dict[str, bool]:
+    """Map each group's provider_id -> connected? (for picker grey-out)."""
+    return {
+        g.id: provider_connected(
+            g.id, g.env_key, getter=getter, keyring_get=keyring_get, oauth_check=oauth_check
+        )
+        for g in groups
+    }
 
 
 def model_string(entry: ModelEntry) -> str:
@@ -63,7 +117,10 @@ def build_provider_for_model(
 
 
 def prepare_model(
-    entry: ModelEntry, *, getter: Callable[[str], str | None] = os.environ.get
+    entry: ModelEntry,
+    *,
+    getter: KeyGetter = os.environ.get,
+    keyring_get: KeyGetter = auth.load_provider_key,
 ) -> tuple[ModelProvider, str, bool]:
     """Convenience: resolve the key then build the provider.
 
@@ -71,7 +128,7 @@ def prepare_model(
     the provider needs a key (env_key set) but none is configured — the picker
     surfaces this as "needs connect" (P5) rather than failing a turn later.
     """
-    key = resolve_key(entry, getter=getter)
+    key = resolve_key(entry, getter=getter, keyring_get=keyring_get)
     provider, model = build_provider_for_model(entry, api_key=key)
     needs_key = entry.env_key is not None
     key_present = (key is not None) if needs_key else True
