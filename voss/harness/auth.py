@@ -363,14 +363,10 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
         if k := os.environ.get("OPENAI_API_KEY"):
             return Resolution(source="env-openai", detail="OPENAI_API_KEY", openai_api_key=k)
 
-    if preference in ("auto", "claude"):
-        if creds := load_anthropic_oauth():
-            return Resolution(
-                source="claude-oauth",
-                detail=f"keychain ({creds.subscription_type}, expires {creds.expires_in_seconds}s)",
-                anthropic_oauth=creds,
-            )
-
+    # Codex is preferred over Claude under `auto`: a ChatGPT subscription is
+    # the sanctioned third-party path (the Codex CLI writes ~/.codex/auth.json
+    # for exactly this reuse), whereas Anthropic's subscription OAuth is not
+    # intended for non-Claude clients. Explicit `--auth=claude` still wins.
     if preference in ("auto", "codex"):
         if codex := load_codex():
             if codex.api_key:
@@ -385,6 +381,14 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
                     detail=f"~/.codex/auth.json ({codex.auth_mode}, OAuth)",
                     codex_oauth=codex,
                 )
+
+    if preference in ("auto", "claude"):
+        if creds := load_anthropic_oauth():
+            return Resolution(
+                source="claude-oauth",
+                detail=f"keychain ({creds.subscription_type}, expires {creds.expires_in_seconds}s)",
+                anthropic_oauth=creds,
+            )
 
     if preference == "claude":
         return Resolution(source="none", detail="no Claude OAuth creds found")

@@ -83,6 +83,13 @@ class _InputTextArea(TextArea):
             event.stop()
             bar.action_reverse_search()
             return
+        # Forward the global copy-code shortcut: a focused TextArea would
+        # otherwise swallow ctrl+y before the app-level binding fires.
+        if event.key == "ctrl+y":
+            event.prevent_default()
+            event.stop()
+            self.app.action_copy_code()
+            return
         if getattr(bar, "_search_mode", False):
             # Reverse-search mode — let InputBar handle all keys.
             event.prevent_default()
@@ -204,6 +211,16 @@ class InputBar(Widget):
         self._search_corpus: list[str] = []
         self._pending_image = None
         self._mention_files: list[str] | None = None
+
+    def on_focus(self, event) -> None:
+        # InputBar is focusable so the app can target `#input`, but editing
+        # bindings (backspace, arrows, etc.) only fire on the TextArea itself.
+        # Forward focus to the child so those keys work — without this, focus
+        # sits on InputBar and backspace silently no-ops.
+        try:
+            self.query_one("#input-textarea", _InputTextArea).focus()
+        except Exception:  # noqa: BLE001 — pre-mount focus event
+            pass
 
     def compose(self) -> ComposeResult:
         yield Static(self._prompt_text, id="prompt-glyph", classes="accent")

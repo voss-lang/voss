@@ -28,6 +28,7 @@ BUDGET_EMPTY = "▱"   # U+25B1  budget bar empty
 NEST_LAST = "└─"     # U+2514 + U+2500  nested spawn last child
 NEST_MID = "├─"      # U+251C + U+2500  nested spawn sibling
 FORK = "⎇"           # U+2387  session-list fork marker
+ASSISTANT = "●"      # U+25CF  assistant message marker
 
 
 # UI-SPEC `--no-unicode` fallback table (M9-07 plan §interfaces).
@@ -45,6 +46,7 @@ NO_UNICODE_FALLBACK: dict[str, str] = {
     "NEST_LAST": "+-",
     "NEST_MID": "+-",
     "FORK": "+",
+    "ASSISTANT": "*",
 }
 
 
@@ -61,6 +63,7 @@ _ALLOWLIST = frozenset(
         "NEST_LAST",
         "NEST_MID",
         "FORK",
+        "ASSISTANT",
     }
 )
 

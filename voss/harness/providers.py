@@ -468,7 +468,9 @@ class AnthropicOAuthProvider:
 # ---------------------------------------------------------------------------
 
 
-_OPENAI_MODEL_DEFAULT = "gpt-5"
+# Current default for the ChatGPT-account Codex backend. gpt-5/gpt-5-codex were
+# retired April 2026 and the endpoint 400s on them; gpt-5.5 is the live default.
+_OPENAI_MODEL_DEFAULT = "gpt-5.5"
 
 
 class OpenAIOAuthProvider:
@@ -523,13 +525,33 @@ class OpenAIOAuthProvider:
         return
 
     @staticmethod
-    def _to_responses_input(messages: list[dict]) -> tuple[list[str], list[dict]]:
+    def _content_to_text(content: Any) -> str:
+        """Flatten message content to plain text.
+
+        Content may be a plain string or a list of Anthropic-style blocks
+        ({"type": "text"/"input_text", "text": ...}); the Responses API input
+        we build wants flat text either way.
+        """
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for block in content:
+                if isinstance(block, dict):
+                    parts.append(str(block.get("text", "")))
+                else:
+                    parts.append(str(block))
+            return "".join(parts)
+        return str(content)
+
+    @classmethod
+    def _to_responses_input(cls, messages: list[dict]) -> tuple[list[str], list[dict]]:
         """Split messages into (system_chunks, responses-API input list)."""
         system_chunks: list[str] = []
         items: list[dict] = []
         for m in messages:
             role = m.get("role", "user")
-            content = m.get("content", "")
+            content = cls._content_to_text(m.get("content", ""))
             if role == "system":
                 system_chunks.append(content)
                 continue
@@ -553,27 +575,36 @@ class OpenAIOAuthProvider:
         max_tokens: Optional[int],
     ) -> dict[str, Any]:
         system_chunks, items = self._to_responses_input(messages)
+        # The ChatGPT-account Codex backend (chatgpt.com/backend-api/codex)
+        # diverges from the public Responses API: it REQUIRES a non-empty
+        # `instructions` field and REJECTS `temperature`. Gate on the endpoint.
+        is_codex = self.base_url.rstrip("/").endswith("/codex")
         body: dict[str, Any] = {
             "model": model or _OPENAI_MODEL_DEFAULT,
             "input": items,
             "store": False,
             "stream": False,
         }
-        if temperature is not None:
+        if temperature is not None and not is_codex:
             body["temperature"] = temperature
-        if max_tokens is not None:
+        if max_tokens is not None and not is_codex:
             body["max_output_tokens"] = max_tokens
-        if system_chunks:
-            body["instructions"] = "\n\n".join(system_chunks)
+        instructions = "\n\n".join(system_chunks).strip()
+        if not instructions and is_codex:
+            instructions = "You are a helpful coding assistant."
+        if instructions:
+            body["instructions"] = instructions
         if response_format is not None and issubclass(response_format, BaseModel):
-            schema = response_format.model_json_schema()
-            schema["additionalProperties"] = False
+            # NON-strict json_schema. strict=True forces additionalProperties:false
+            # on every nested object and rejects open fields (Plan.args is an open
+            # dict) → the endpoint 400s. Non-strict still supplies the schema as
+            # guidance; we validate the returned JSON against the model ourselves.
             body["text"] = {
                 "format": {
                     "type": "json_schema",
                     "name": response_format.__name__,
-                    "strict": True,
-                    "schema": schema,
+                    "strict": False,
+                    "schema": response_format.model_json_schema(),
                 }
             }
         return body

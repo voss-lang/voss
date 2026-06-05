@@ -432,19 +432,29 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
             sys.exit(2)
 
     if res.source == "claude-oauth":
+        click.echo(
+            "  [deprecated: claude-oauth (Claude subscription) is no longer "
+            "supported. Anthropic prohibits subscription OAuth tokens in "
+            "third-party tools (Consumer ToS) and blocks them server-side since "
+            "2026-01-09, so calls will likely fail. Use --auth=api with "
+            "ANTHROPIC_API_KEY, or --auth=codex for a ChatGPT subscription.]",
+            err=True,
+        )
         provider: ModelProvider = AnthropicOAuthProvider(res.anthropic_oauth)  # type: ignore[arg-type]
     elif res.source == "codex-oauth":
         click.echo(
-            "  [warning: codex-oauth (ChatGPT subscription) is experimental — "
-            "chatgpt.com/backend-api/codex requires Codex-specific request shape "
-            "the harness doesn't fully match yet. Use --auth=api with "
-            "OPENAI_API_KEY for reliable OpenAI access.]",
+            "  [codex-oauth: using your ChatGPT subscription via "
+            "chatgpt.com/backend-api/codex (unofficial endpoint; $0 per-token "
+            "but ToS-gray and may change without notice).]",
             err=True,
         )
         provider = OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
         cfg = get_config()
-        if cfg.default_model.startswith("claude") or cfg.default_model == "gpt-5":
-            configure(default_model="gpt-5-codex")
+        # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
+        # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
+        # to the current best, gpt-5.5; leave an explicit gpt-5.x choice alone.
+        if not cfg.default_model.startswith("gpt-5."):
+            configure(default_model="gpt-5.5")
     elif res.source in ("env-anthropic", "voss-anthropic"):
         # `resolve()` already injected ANTHROPIC_API_KEY into env for the
         # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.

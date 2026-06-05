@@ -698,8 +698,12 @@ async def _run_turn_exec(
                     max_tokens=cfg.max_output_tokens,
                 ):
                     if isinstance(event, TextDelta):
+                        # Plan-phase deltas are the structured-output JSON, not
+                        # prose. Buffer for the unparsed-fallback below, but do
+                        # NOT render — streaming raw {"rationale":...} leaks the
+                        # schema into the chat (provider-agnostic fix; some
+                        # providers emit the JSON as TextDelta by contract).
                         accumulated_text_buffer.append(event.text)
-                        renderer.stream_delta(event.text)
                     elif isinstance(event, ParsedPlan):
                         this_iter_plan = event.plan
                     elif isinstance(event, Usage):
@@ -734,7 +738,9 @@ async def _run_turn_exec(
                     ),
                     cost_usd=iter_cost,
                     timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                    accumulated_text="".join(accumulated_text_buffer) or None,
+                    # accumulated_text is the structured-output JSON, not a
+                    # displayable assistant message — never surface it.
+                    accumulated_text=None,
                 )
 
                 if this_iter_plan is None:
@@ -767,7 +773,12 @@ async def _run_turn_exec(
                         "cache_read_input_tokens": iter_cache_read,
                     },
                 )
-                renderer.show_plan(this_iter_plan, cost_usd=iter_cost)
+                # Only surface the plan when it proposes work. A terminating
+                # (stepless) plan's rationale is internal "thinking" — showing
+                # it makes a plain Q&A read like a log instead of a chat; the
+                # answer itself lands via show_final below.
+                if this_iter_plan.steps:
+                    renderer.show_plan(this_iter_plan, cost_usd=iter_cost)
                 telemetry.emit(
                     "plan.parsed",
                     "info",

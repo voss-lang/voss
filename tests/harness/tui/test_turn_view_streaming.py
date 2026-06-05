@@ -92,7 +92,10 @@ async def test_append_turn_path_still_works() -> None:
         tv.append_turn("user", "write hello.py")
         await pilot.pause()
         flat = _flatten(tv)
-        assert "user" in flat
+        # Chat layout: user turns render with the prompt glyph, not a "user"
+        # label (metadata/role text moved off the transcript).
+        from voss.harness.tui import glyphs
+        assert glyphs.USER_INPUT in flat
         assert "write hello.py" in flat
 
 

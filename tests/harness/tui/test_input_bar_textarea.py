@@ -5,6 +5,23 @@ import pytest
 
 
 @pytest.mark.asyncio
+async def test_backspace_edits_with_default_focus() -> None:
+    # Regression: on mount focus lands on InputBar (focusable parent), but
+    # backspace is a TextArea binding that only fires on the TextArea itself.
+    # InputBar.on_focus must forward focus to the child so backspace works
+    # without the user first clicking into the field.
+    from voss.harness.tui.app import VossTUIApp
+
+    app = VossTUIApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#input-textarea")
+        await pilot.press("h", "i")
+        assert ta.text == "hi"
+        await pilot.press("backspace")
+        assert ta.text == "h"
+
+
+@pytest.mark.asyncio
 async def test_enter_submits_multiline_value() -> None:
     from voss.harness.tui.app import VossTUIApp
     from voss.harness.tui.widgets.input_bar import InputBar
