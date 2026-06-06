@@ -241,7 +241,9 @@ class Board:
         self,
         *,
         manager: SessionTreeManager,
-        reviewer: Reviewer,
+        reviewer: Optional[Reviewer] = None,
+        reviewer_a: Optional[Reviewer] = None,
+        reviewer_b: Optional[Reviewer] = None,
         cwd: Path,
         cfg: _BoardConfig,
         team_ceiling: TeamCeiling,
@@ -251,7 +253,12 @@ class Board:
         reserve: int = 0,
     ) -> None:
         self._manager = manager
-        self._reviewer = reviewer
+        # V6 (D-01): legacy single `reviewer` aliases both A and B slots. The
+        # legacy slot drives conf_meets_p at InProgress→InReview; when only the
+        # A/B slots are supplied it falls back to A so that gate still functions.
+        self._reviewer = reviewer if reviewer is not None else reviewer_a
+        self._reviewer_a = reviewer_a if reviewer_a is not None else reviewer
+        self._reviewer_b = reviewer_b if reviewer_b is not None else reviewer
         self._cwd = cwd
         self._cfg = cfg
         self._team_ceiling = team_ceiling
@@ -270,7 +277,9 @@ class Board:
         team_config: TeamConfig,
         *,
         recorder: SessionTreeManager,
-        reviewer: Reviewer,
+        reviewer: Optional[Reviewer] = None,
+        reviewer_a: Optional[Reviewer] = None,
+        reviewer_b: Optional[Reviewer] = None,
         cwd: Path,
         clock: Callable[[], float] = time.monotonic,
         parent_node_id: str | None = None,
@@ -285,6 +294,8 @@ class Board:
         board = cls(
             manager=recorder,
             reviewer=reviewer,
+            reviewer_a=reviewer_a,
+            reviewer_b=reviewer_b,
             cwd=cwd,
             cfg=cfg,
             team_ceiling=team_config.ceiling,
@@ -372,7 +383,8 @@ class Board:
                 ):
                     predicates = (
                         scope_clean(),
-                        conf_meets_p(),
+                        a_verification_passes(),
+                        b_passes(),
                         eval_meets_threshold(),
                     )
             node = self._manager.get_node(card.node_id)
@@ -387,14 +399,20 @@ class Board:
                 reserve=self._reserve,
                 now=self._clock(),
                 reviewer=self._reviewer,
+                reviewer_a=self._reviewer_a,
+                reviewer_b=self._reviewer_b,
             )
             failing: list[str] = []
             for p in predicates:
                 if not p.evaluate(ctx):
                     if p.name not in failing:
                         failing.append(p.name)
-            if ctx.verdict is not None:
-                verdict_snapshot = dataclasses.asdict(ctx.verdict)
+            # Snapshot whichever verdict the evaluated predicates produced:
+            # ctx.verdict at the intermediate (conf) gate; verdict_b/verdict_a
+            # at the two-source Done gate.
+            snap_verdict = ctx.verdict or ctx.verdict_b or ctx.verdict_a
+            if snap_verdict is not None:
+                verdict_snapshot = dataclasses.asdict(snap_verdict)
             if failing:
                 self._append_delta(
                     card,
@@ -445,7 +463,8 @@ class Board:
             ):
                 predicates = (
                     scope_clean(),
-                    conf_meets_p(),
+                    a_verification_passes(),
+                    b_passes(),
                     eval_meets_threshold(),
                 )
         node = self._manager.get_node(card.node_id)
@@ -458,6 +477,8 @@ class Board:
             reserve=self._reserve,
             now=self._clock(),
             reviewer=self._reviewer,
+            reviewer_a=self._reviewer_a,
+            reviewer_b=self._reviewer_b,
         )
         failing: list[str] = []
         for p in predicates:
