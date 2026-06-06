@@ -1858,6 +1858,13 @@ Plans:
 
 **Requirements (lock at SPEC):** VTEAM-01..10 (PRD TEAM-01..10).
 
+**Status:** Plans ready to execute (3 plans, 2 waves; build delta VTEAM-07/08/09/10, regression VTEAM-04/05/06; O2 superseded).
+
+**Plans:**
+- [ ] V3-01-PLAN.md — Seven-role roster + tier-based per-role defaults [VTEAM-09] and config-backed model-tier resolution in _parse_model_value [VTEAM-08].
+- [ ] V3-02-PLAN.md — `voss team check [path]` CLI wrapping compile_team with roster/ceiling summary + exit codes [VTEAM-10].
+- [ ] V3-03-PLAN.md — V1 capability-registry binding seam [VTEAM-07] + back-compat & shipped-surface regression (legacy roles, scope/budget containment, EM-invent guard, schema freeze) [VTEAM-04/05/06].
+
 **Cross-cutting:** Legacy `explorer`/`worker`/`reviewer` path stays backward-compatible. Invalid scope widening / unknown capability / unknown model fail at compile time.
 
 ---
