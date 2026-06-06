@@ -45,36 +45,121 @@ class VossTeamConfigError(Exception):
         self.ceiling_span = ceiling_span
 
 
-DEFAULT_ROSTER: tuple[str, ...] = ("backend", "frontend", "ui", "ai")
+DEFAULT_ROSTER: tuple[str, ...] = (
+    "architect",
+    "backend",
+    "frontend",
+    "tester",
+    "reviewer",
+    "skeptic",
+    "docs",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class RoleDefaults:
+    """Full per-role defaults for a built-in roster role (VTEAM-09).
+
+    ``model_tier`` is a tier keyword ({strong, cheap, fast}) resolved to a
+    concrete id at compile via :func:`_resolve_model_string` — no model NAME
+    strings live here (those live in ``config._DEFAULT_MODEL_TIERS``). ``scope``
+    globs must sit within the team ceiling scope (e.g. the PRD example ceiling
+    ``["src/**", "tests/**", "docs/**"]``). ``tools`` are toolset keys / group
+    aliases (see :data:`TOOL_GROUP_ALIASES`).
+    """
+
+    description: str
+    role_prompt: str
+    model_tier: str
+    scope: tuple[str, ...]
+    tools: tuple[str, ...]
+
+
+# The PRD seven specialist roles. architect/backend/reviewer follow the
+# ORCHESTRATION_LAYERS §"Example Syntax" template; tester/skeptic/frontend/docs
+# are authored in the same spirit. Tiers only — never concrete model names.
+_ROLE_DEFAULTS: dict[str, RoleDefaults] = {
+    "architect": RoleDefaults(
+        description="Architect",
+        role_prompt="You plan the smallest sound design before code; you own structure, not edits.",
+        model_tier="strong",
+        scope=("src/**", "docs/**"),
+        tools=("fs", "code", "git"),
+    ),
+    "backend": RoleDefaults(
+        description="Backend engineer",
+        role_prompt="You specialize in APIs, persistence, and server-side logic.",
+        model_tier="cheap",
+        scope=("src/server/**", "tests/server/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "frontend": RoleDefaults(
+        description="Frontend engineer",
+        role_prompt="You specialize in web clients, routing, and client-side state.",
+        model_tier="cheap",
+        scope=("src/client/**", "tests/client/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "tester": RoleDefaults(
+        description="Tester",
+        role_prompt="You write and run tests; you reproduce bugs before they are fixed.",
+        model_tier="cheap",
+        scope=("tests/**", "src/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "reviewer": RoleDefaults(
+        description="Reviewer",
+        role_prompt="You review diffs for correctness, scope, and quality; you do not widen the change.",
+        model_tier="strong",
+        scope=("src/**", "tests/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "skeptic": RoleDefaults(
+        description="Skeptic",
+        role_prompt="You stress-test claims and surface risks; no claim without evidence.",
+        model_tier="strong",
+        scope=("src/**", "tests/**", "docs/**"),
+        tools=("fs", "code", "git"),
+    ),
+    "docs": RoleDefaults(
+        description="Docs writer",
+        role_prompt="You write clear docs that match the code; you keep examples runnable.",
+        model_tier="cheap",
+        scope=("docs/**",),
+        tools=("fs", "code", "git"),
+    ),
+}
+
+# Legacy roster names (pre-V3) kept resolvable for back-compat (D-05). These are
+# only desc/prompt carriers; their scope/tools come from the explicit declaration.
+_LEGACY_ROLE_DESC: dict[str, tuple[str, str]] = {
+    "ui": (
+        "UI engineer",
+        "You specialize in components, layouts, and design-quality UI.",
+    ),
+    "ai": (
+        "AI / ML engineer",
+        "You specialize in models, pipelines, and AI integrations.",
+    ),
+}
+
+
+def role_full_defaults(role_name: str) -> RoleDefaults | None:
+    """Return the full :class:`RoleDefaults` for a built-in role, else ``None``."""
+    return _ROLE_DEFAULTS.get(role_name)
 
 
 def default_team_role_defaults(role_name: str) -> tuple[str, str]:
     """Return `(description, role_prompt)` for a roster role.
 
-    Placeholder defaults; full role prompts owned by O5 (EM loop).
-
-    Built-ins match `DEFAULT_ROSTER`; unknown names use opaque fallbacks (open roster, OQ-02-A).
+    Built-ins are the PRD seven (:data:`_ROLE_DEFAULTS`); legacy ui/ai retain
+    their carriers (D-05); unknown names use opaque fallbacks (open roster, OQ-02-A).
     """
-    builtins: dict[str, tuple[str, str]] = {
-        "backend": (
-            "Backend engineer",
-            "You specialize in APIs, persistence, and server-side logic.",
-        ),
-        "frontend": (
-            "Frontend engineer",
-            "You specialize in web clients, routing, and client-side state.",
-        ),
-        "ui": (
-            "UI engineer",
-            "You specialize in components, layouts, and design-quality UI.",
-        ),
-        "ai": (
-            "AI / ML engineer",
-            "You specialize in models, pipelines, and AI integrations.",
-        ),
-    }
-    if role_name in builtins:
-        return builtins[role_name]
+    rd = _ROLE_DEFAULTS.get(role_name)
+    if rd is not None:
+        return (rd.description, rd.role_prompt)
+    if role_name in _LEGACY_ROLE_DESC:
+        return _LEGACY_ROLE_DESC[role_name]
     desc = f"Team role `{role_name}`"
     rp = f"You are `{role_name}` on this roster; follow EM instructions and ceiling policy."
     return (desc, rp)
@@ -351,13 +436,19 @@ def subagent_spec_from_role(
     ceiling: TeamCeiling,
     ceiling_ast: CeilingDecl | None,
 ) -> SubagentSpec:
+    rd = role_full_defaults(role_name)
+
     parsed_scope_opt = (
         _parse_scope_literal(kvs["scope"]) if "scope" in kvs else None
     )
 
-    scope: TeamRoleScope | None = (
-        parsed_scope_opt if parsed_scope_opt is not None else ceiling.scope
-    )
+    # Precedence: declared scope > per-role default scope > ceiling scope.
+    if parsed_scope_opt is not None:
+        scope: TeamRoleScope | None = parsed_scope_opt
+    elif rd is not None:
+        scope = TeamRoleScope(rd.scope)
+    else:
+        scope = ceiling.scope
 
     if scope is not None and ceiling.scope is not None:
         if not scope.is_contained_in(ceiling.scope):
@@ -379,10 +470,22 @@ def subagent_spec_from_role(
                 ceiling_span=ceiling_ast.span if ceiling_ast else None,
             )
 
-    tools = _parse_tools_value(kvs["tools"]) if "tools" in kvs else frozenset()
+    # Precedence: declared tools > per-role default tools > empty.
+    if "tools" in kvs:
+        tools = _parse_tools_value(kvs["tools"])
+    elif rd is not None:
+        tools = frozenset(rd.tools)
+    else:
+        tools = frozenset()
     net = "net" in tools
 
-    model = _parse_model_value(kvs["model"]) if "model" in kvs else None
+    # Precedence: declared model > per-role default tier > none.
+    if "model" in kvs:
+        model = _parse_model_value(kvs["model"])
+    elif rd is not None:
+        model = _resolve_model_string(rd.model_tier)
+    else:
+        model = None
     mode = _parse_mode_value(kvs["mode"]) if "mode" in kvs else None
 
     description, rp = default_team_role_defaults(role_name)
