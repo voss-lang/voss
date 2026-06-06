@@ -1744,6 +1744,8 @@ Plans:
 
 ### Phase O4: Reviewer A/B Split
 
+> ⊘ **SUPERSEDED by V6** (2026-06-06). Shipped via V6-01..05. O4 artifacts (`voss/harness/board/reviewer_a.py`, `reviewer_b.py`, `verdict.py`) are RETAINED as the production reviewer surface — V6 extended them additively (7-field verdict, two-source Done gate, sidecar, `voss review`). The O4 plan list below is kept for lineage; do not re-execute.
+
 **Goal:** Independent bar/verification authoring (A) cleanly split from independent judgment (B), restoring two independent sources at →Done.
 
 **Scope:** Reviewer-A re-derives the bar from the original idea + authors verification (deterministic tests for code; eval harness for AI via `voss/eval/` reuse). Reviewer-B: independent session/model, no shared memory with A or EM, tiered (fast intermediate / strong at →Done), checks slop/errors/correctness, sees `[artifact, acceptance, repo, original_idea]`, **explicit authority to fail a card whose A-verification diverges from the idea** (residual-2 invariant). Depends O2, O3.
@@ -1910,14 +1912,14 @@ Plans:
 
 **Cross-cutting:** A and B see different context packets; B does not depend on EM summary; failed verification blocks Done; audit can explain why something passed.
 
-**Status:** Planned — 5 plans, 5 waves (planned 2026-06-06; supersedes O4).
+**Status:** Executed — 5 plans, 5 waves (completed 2026-06-06; supersedes O4). Full board suite green; frozen records (RunRecord/SessionRecord/BudgetScope) field-unchanged.
 
 **Plans:**
-- [ ] V6-01-PLAN.md — Wave 0: pre-existing red-baseline fix + RED scaffolds (two-source gate, domain_inferred, sidecar, CLI) + 6→7-field verdict edit
-- [ ] V6-02-PLAN.md — verdict.domain_inferred (7th defaulted field); B populates+clamps, A defaults (VREV-06)
-- [ ] V6-03-PLAN.md — two-source Done gate: GateContext A/B slots + predicates, Board reviewer_a/reviewer_b + back-compat alias, B-block→Blocked seam, .review.json sidecar (VREV-03/04/07/09)
-- [ ] V6-04-PLAN.md — `voss review <run_id>` read-only CLI over .review.json sidecars (VREV-10)
-- [ ] V6-05-PLAN.md — regression verify (REV-01..05,07,08) + frozen-schema diff gate + O4-superseded bookkeeping + human-verify review output (VREV-05)
+- [x] V6-01-PLAN.md — Wave 0: pre-existing red-baseline fix + RED scaffolds (two-source gate, domain_inferred, sidecar, CLI) + 6→7-field verdict edit
+- [x] V6-02-PLAN.md — verdict.domain_inferred (7th defaulted field); B populates+clamps, A defaults (VREV-06)
+- [x] V6-03-PLAN.md — two-source Done gate: GateContext A/B slots + predicates, Board reviewer_a/reviewer_b + back-compat alias, B-block→Blocked seam, .review.json sidecar (VREV-03/04/07/09)
+- [x] V6-04-PLAN.md — `voss review <run_id>` read-only CLI over .review.json sidecars (VREV-10)
+- [x] V6-05-PLAN.md — regression verify (REV-01..05,07,08) + frozen-schema diff gate + O4-superseded bookkeeping + human-verify review output (VREV-05)
 
 ---
 
