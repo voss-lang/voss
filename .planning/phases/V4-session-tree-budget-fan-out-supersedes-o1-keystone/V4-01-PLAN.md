@@ -88,6 +88,7 @@ From tests/harness/test_session_tree.py:
 
 <task type="auto" tdd="true">
   <name>Task 1: Add scope/role to SessionTreeNode + back-compat hydrate + allocate_child kwargs</name>
+  <files>voss/harness/session_tree.py, tests/harness/test_session_tree.py</files>
   <read_first>
     - voss/harness/session_tree.py (the file being modified — full read; lines 47-94 dataclass+hydrate, 165-192 allocate_child)
     - .planning/phases/V4-session-tree-budget-fan-out-supersedes-o1-keystone/V4-PATTERNS.md (sections 1-3, 6 under session_tree.py — exact insertion points)
@@ -117,6 +118,7 @@ From tests/harness/test_session_tree.py:
 
 <task type="auto">
   <name>Task 2: Add "error" to EXIT_REASONS (additive, schema-freeze-safe)</name>
+  <files>voss/harness/session.py</files>
   <read_first>
     - voss/harness/session.py (lines 74-79 — the EXIT_REASONS frozenset + additive-history comments)
     - tests/harness/test_session_redaction.py (lines 90-124 — TestRunRecordRedaction; confirms EXIT_REASONS is NOT a RunRecord field, so adding to it does not break the 24-field count)
@@ -137,6 +139,7 @@ From tests/harness/test_session_tree.py:
 
 <task type="auto">
   <name>Task 3: Update _NODE_JSON_KEYS + author TestSchemaExtension; verify VTREE-05/06 regression</name>
+  <files>tests/harness/test_session_tree.py</files>
   <read_first>
     - tests/harness/test_session_tree.py (full read — lines 1-40 imports + _NODE_JSON_KEYS; 123-149 TestCapRaiseGuard; 163-187 TestSchemaIsolation; for the class/method conventions to mirror)
     - .planning/phases/V4-session-tree-budget-fan-out-supersedes-o1-keystone/V4-PATTERNS.md (test patterns section — sync vs async class style, _NODE_JSON_KEYS update note)

@@ -89,6 +89,7 @@ From run_turn result:
 
 <task type="auto" tdd="true">
   <name>Task 1: Pre-emptive spend guard + post-run_turn spend wiring in run_subagent</name>
+  <files>voss/harness/subagents.py, tests/harness/test_session_tree.py</files>
   <read_first>
     - voss/harness/subagents.py (full read — lines 1-19 imports, 211-285 run_subagent body)
     - voss/harness/session_tree.py (finalize_node + mutate_envelope signatures; envelope dict shape)
@@ -120,6 +121,7 @@ From run_turn result:
 
 <task type="auto" tdd="true">
   <name>Task 2: All-reason finalize boundary (except TimeoutError / except Exception / finally)</name>
+  <files>voss/harness/subagents.py, tests/harness/test_session_tree.py</files>
   <read_first>
     - voss/harness/subagents.py (run_subagent try/except body as modified in Task 1)
     - voss/harness/session_tree.py (finalize_node idempotence via _finalized — lines 113-123)
@@ -152,6 +154,7 @@ From run_turn result:
 
 <task type="auto">
   <name>Task 3: Verify no-oversell concurrency regression (VTREE-02/04 invariant)</name>
+  <files>tests/harness/test_session_tree.py</files>
   <read_first>
     - tests/harness/test_session_tree.py (lines 99-162 — TestBudgetFanOut + TestConcurrency, the existing no-oversell tests that must regress green)
     - voss/harness/session_tree.py (allocate_child asyncio.Lock block, lines 165-192 — unchanged by V4; verify lock invariant)

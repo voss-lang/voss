@@ -64,7 +64,7 @@
 | V1 | Capability Surface Hardening | Normalized `Capability` schema over all tools (typed I/O, mutability, scope, network, audit); `voss capabilities list/inspect`; capability groups; unify MCP into registry | VCAP-01..10 | TBD by SPEC.md |
 | V2 | Principles Layer | First-class engineering principles (`.voss/principles.yml` + `principles{}`) injected into every agent context, audit-recorded, zero control-flow coupling | VPRIN-01..08 | Plans ready to execute (3 plans, 2 waves; VPRIN-01/03/04/05/06/07; VPRIN-02→V10, VPRIN-08→V9) |
 | V3 | Team Spec + Role Cage (supersedes O2) | `.voss team{}` canonical: frozen TeamConfig+SubagentRegistry, compile-time scope/budget containment, default roster, model tiering, `voss team check` | VTEAM-01..10 | TBD by SPEC.md |
-| V4 | Session Tree + Budget Fan-out (supersedes O1, KEYSTONE) | Every agent a durable recorded node w/ own budget/scope/status/artifacts; `sum(child)+reserve ≤ parent`; no orphan/overspend; `voss session tree` | VTREE-01..10 | TBD by SPEC.md |
+| V4 | Session Tree + Budget Fan-out (supersedes O1, KEYSTONE) | Every agent a durable recorded node w/ own budget/scope/status/artifacts; `sum(child)+reserve ≤ parent`; no orphan/overspend; `voss session tree` | VTREE-01..10 | Planned (3 plans, 3 waves) |
 | V5 | Board State Machine (supersedes O3) | Board columns/cards/WIP/gates as orchestrator state machine; artifact-gated transitions; agents can't self-Done; `voss board` | VBOARD-01..10 | TBD by SPEC.md |
 | V6 | Reviewer A/B Split (supersedes O4) | A authors bar+tests/eval from original idea; B judges narrative-blind w/ idea-divergence authority; persisted review artifacts; `voss review` | VREV-01..10 | TBD by SPEC.md |
 | V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | TBD by SPEC.md |
@@ -1876,6 +1876,13 @@ Plans:
 **Scope:** `SessionTreeNode` schema + `SessionTreeManager`; persist each node to `.voss/sessions/<root_id>/<node_id>.json`; enforce `sum(child budgets) + reserve ≤ parent budget`; prevent upward budget mutation after allocation; record rejected raise attempts; always finalize children (error/timeout/budget/killed/blocked); attach scope+role metadata per node; `voss session tree <root_id>`; machine-readable tree export for ADE. **Budget enforcement must be pre-emptive — a node cannot make the call that breaches its envelope** (post-hoc detection = cage leaked). Supersedes O1; reuses `SessionRecord`/`RunRecorder`/`BudgetScope`/`run_subagent`/M13 allocator.
 
 **Requirements (lock at SPEC):** VTREE-01..10 (PRD TREE-01..10).
+
+**Plans:** 3 plans (3 waves)
+
+Plans:
+- [ ] V4-01-PLAN.md — Additive scope/role schema + EXIT_REASONS "error" + schema-lock test update (VTREE-01, VTREE-08, VTREE-05, VTREE-06)
+- [ ] V4-02-PLAN.md — Keystone: pre-emptive spend guard + mutate_envelope wiring + all-reason finalize (VTREE-04, VTREE-07, VTREE-02)
+- [ ] V4-03-PLAN.md — export_tree + `voss session tree` CLI + disk-reconstruct verify (VTREE-10, VTREE-09, VTREE-03)
 
 **Cross-cutting:** No board/reviewers/EM here — pure substrate. `subagents.py` gains budget/scope/recorder plumbing it lacks today. No child overspend; no orphan sessions; tree reconstructs a full run without the chat transcript.
 
