@@ -1,8 +1,7 @@
-"""V1 capability-registry binding seam + exact-subset tool filtering (VTEAM-07).
+"""V1 capability-registry binding seam + alias/exact-subset tool filtering.
 
-The seam is comment-only — `filter_toolset_for_role` behavior is unchanged.
-These tests assert (a) exact-subset filtering with net opt-in, and (b) the
-greppable V1-capability seam marker is present in team.py.
+These tests assert (a) alias/exact-subset filtering with net opt-in, and (b)
+the greppable V1-capability seam marker is present in team.py.
 """
 
 from __future__ import annotations
