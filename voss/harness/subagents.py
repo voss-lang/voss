@@ -258,19 +258,32 @@ def attach_subagent_tool(
     gate: PermissionGate,
     cognition: Any = None,
 ) -> None:
+    # Resolve the `smol` role once: cheap-subagent chain when configured, else
+    # the parent provider. Network-free unless [harness.roles.smol] is set.
+    from . import roles
+
+    try:
+        smol = roles.build_role_provider("smol")
+    except Exception:  # noqa: BLE001 — never block subagent setup on catalog issues
+        smol = None
+
     @tool(
         name="subagent_run",
         description="Run a registered Voss subagent on a bounded task.",
     )
     async def subagent_run(agent: str, task: str) -> str:
-        picked_model = model() if callable(model) else model
+        if smol is not None:
+            picked_provider, picked_model = smol
+        else:
+            picked_provider = provider
+            picked_model = model() if callable(model) else model
         return await run_subagent(
             agent_id=agent,
             task=task,
             registry=registry,
             cwd=cwd,
             renderer=renderer,
-            provider=provider,
+            provider=picked_provider,
             model=picked_model,
             gate=gate,
             cognition=cognition,

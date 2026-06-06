@@ -1,6 +1,7 @@
 import os
 
 from .base import ModelProvider, ProviderResponse
+from .fallback import FallbackProvider, is_retryable_error
 from .litellm_provider import LiteLLMProvider
 from .stub import StubProvider
 
@@ -33,11 +34,13 @@ register("__default__", LiteLLMProvider())
 register("__stub__", StubProvider())
 
 __all__ = [
+    "FallbackProvider",
     "LiteLLMProvider",
     "ModelProvider",
     "ProviderResponse",
     "StubProvider",
     "get",
     "has",
+    "is_retryable_error",
     "register",
 ]

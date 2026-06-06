@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import signal as _signal
@@ -19,6 +20,37 @@ if TYPE_CHECKING:
 
 
 SHELL_OUTPUT_CAP_BYTES = 30720
+
+
+def _line_anchor(line: str) -> str:
+    """First 8 hex of SHA-256 of a line's raw content (no newline). Mirrors
+    crates/voss-tools/src/anchor.rs for hashline-edit parity."""
+    return hashlib.sha256(line.encode("utf-8", "surrogatepass")).hexdigest()[:8]
+
+
+def _annotate(text: str) -> str:
+    """Render text with a per-line `{anchor}│{line}` gutter. Canonical line
+    list is `split("\\n")`; a trailing empty segment is not emitted."""
+    segs = text.split("\n")
+    n = len(segs)
+    out: list[str] = []
+    for i, seg in enumerate(segs):
+        if i + 1 == n and seg == "":
+            break
+        out.append(f"{_line_anchor(seg)}│{seg}")
+    return "\n".join(out) + ("\n" if out else "")
+
+
+def _resolve_anchor(segs: list[str], anchor: str) -> tuple[int | None, str]:
+    """Resolve anchor to a unique line index. Returns (index, "") or
+    (None, error_message)."""
+    hits = [i for i, seg in enumerate(segs) if _line_anchor(seg) == anchor]
+    if len(hits) == 0:
+        return None, f"anchor `{anchor}` not found (stale — re-read with annotate=true)"
+    if len(hits) > 1:
+        lns = ",".join(str(i + 1) for i in hits)
+        return None, f"anchor `{anchor}` matches lines {lns} — ambiguous, use `old` instead"
+    return hits[0], ""
 
 
 @dataclass(frozen=True)
@@ -97,17 +129,18 @@ def make_toolset(
     subagents.py) at production startup.
     """
 
-    @tool(name="fs_read", description="Read a UTF-8 text file from the project. Path must be inside cwd.")
-    async def fs_read(path: str) -> str:
+    @tool(name="fs_read", description="Read a UTF-8 text file from the project. Path must be inside cwd. Pass annotate=true for per-line content-hash anchors usable by fs_edit.")
+    async def fs_read(path: str, annotate: bool = False) -> str:
         p = jail_path(cwd, path)
         if not p.exists():
             return f"<error: not found: {path}>"
         if p.is_dir():
             return f"<error: is a directory: {path}>"
         try:
-            return p.read_text()
+            text = p.read_text()
         except UnicodeDecodeError:
             return f"<error: binary file: {path}>"
+        return _annotate(text) if annotate else text
 
     @tool(
         name="fs_read_many",
@@ -291,21 +324,50 @@ def make_toolset(
     @tool(
         name="fs_edit",
         description=(
-            "Replace exact `old` text with `new` in a file. `old` must appear "
-            "exactly once. Returns line count delta."
+            "Replace text with `new` in a file. Supply either `old` (verbatim, "
+            "must match exactly once) or `anchor` (line content-hash from "
+            "fs_read annotate=true; add `end_anchor` for a multi-line span). "
+            "Returns line count delta."
         ),
     )
-    async def fs_edit(path: str, old: str, new: str) -> str:
+    async def fs_edit(
+        path: str,
+        new: str,
+        old: str | None = None,
+        anchor: str | None = None,
+        end_anchor: str | None = None,
+    ) -> str:
         p = jail_path(cwd, path)
         if not p.exists():
             return f"<error: not found: {path}>"
         text = p.read_text()
-        count = text.count(old)
-        if count == 0:
-            return f"<error: `old` not found in {path}>"
-        if count > 1:
-            return f"<error: `old` matches {count} times, must be unique>"
-        new_text = text.replace(old, new, 1)
+        if old is not None and anchor is not None:
+            return "<error: supply `old` OR `anchor`, not both>"
+        if anchor is None and end_anchor is not None:
+            return "<error: `end_anchor` requires `anchor`>"
+        if anchor is not None:
+            segs = text.split("\n")
+            start, err = _resolve_anchor(segs, anchor)
+            if start is None:
+                return f"<error: {err}>"
+            if end_anchor is not None:
+                end, err = _resolve_anchor(segs, end_anchor)
+                if end is None:
+                    return f"<error: {err}>"
+            else:
+                end = start
+            if end < start:
+                return "<error: `end_anchor` is before `anchor`>"
+            new_text = "\n".join(segs[:start] + new.split("\n") + segs[end + 1:])
+        elif old is not None:
+            count = text.count(old)
+            if count == 0:
+                return f"<error: `old` not found in {path}>"
+            if count > 1:
+                return f"<error: `old` matches {count} times, must be unique>"
+            new_text = text.replace(old, new, 1)
+        else:
+            return "<error: supply `old` or `anchor`>"
         p.write_text(new_text)
         delta = new_text.count("\n") - text.count("\n")
         sign = "+" if delta >= 0 else ""
