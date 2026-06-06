@@ -59,8 +59,9 @@ def test_reviewer_lives_in_both_registries_independently() -> None:
     assert legacy is not None and legacy.role_prompt
 
     # Team path: compile_team default-roster injection (empty roster -> seven roles).
+    # Ceiling scope must contain every default role's scope (skeptic = src/tests/docs).
     src = '''team Eng {
-  ceiling { budget: 100 tokens, scope: "src/**" }
+  ceiling { budget: 100 tokens, scope: ["src/**", "tests/**", "docs/**"] }
 }
 '''
     _config, registry = compile_team(_only_team(src))
