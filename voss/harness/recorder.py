@@ -167,6 +167,8 @@ class RunRecorder:
     # M15-05: skill install/run/deny audit events
     skill_events: list[dict] = field(default_factory=list)
     scope_denials: list[dict] = field(default_factory=list)
+    # V1-04 CAP-08: one audit row per capability invocation (all outcomes).
+    capability_invocations: list[dict] = field(default_factory=list)
     # T1-01: per-iteration sub-records appended via begin_iteration /
     # end_iteration; forwarded to RunRecord.iterations on finalize.
     _iterations: list[IterationRecord] = field(default_factory=list)
@@ -237,6 +239,42 @@ class RunRecorder:
             "tool": tool,
             "reason": reason,
         })
+
+    def observe_capability(
+        self,
+        name: str,
+        group: str,
+        args: dict,
+        *,
+        is_mutating: bool,
+        is_network: bool,
+        audit_behavior: str = "full",
+        ok: bool = True,
+    ) -> None:
+        """V1-04 CAP-08: structured audit row for a capability invocation.
+
+        Args are shaped by `audit_behavior`: `full` and `redact_args` both pass
+        through `telemetry.redact_tool_args` (we never store raw args — `full`
+        keeps the full *set* of args, redacted in value, not the raw secrets);
+        `metadata_only` omits args entirely. Never raises on malformed args.
+        """
+        from . import telemetry
+
+        event: dict = {
+            "name": name,
+            "group": group,
+            "is_mutating": is_mutating,
+            "is_network": is_network,
+            "ok": ok,
+        }
+        if audit_behavior == "metadata_only":
+            event["args"] = None
+        else:
+            try:
+                event["args"] = telemetry.redact_tool_args(dict(args))
+            except Exception:  # noqa: BLE001 — audit must never crash the run
+                event["args"] = None
+        self.capability_invocations.append(event)
 
     def absorb(self, semantics: Any, plan: Any = None) -> None:
         """Copy semantic fields from a duck-typed semantics object.
@@ -384,6 +422,7 @@ class RunRecorder:
             iteration_total_completion_tokens=total_completion,
             skill_events=list(self.skill_events),
             scope_denials=list(self.scope_denials),
+            capability_invocations=list(self.capability_invocations),
         )
 
 

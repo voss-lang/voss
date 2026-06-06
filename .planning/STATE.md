@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
-status: completed
-last_updated: "2026-05-22T23:59:54.822Z"
-last_activity: "2026-05-18 — Phase A1 complete (4 plans, 4 waves). A1-01 Tauri+Solid+Tailwind scaffold + Cargo/pnpm monorepo + pinned versions + icon set (icon repadded to Big Sur safe-area). A1-02 Variant B token taxonomy + @theme inline + get_theme_overrides theme seam (3-path verified: absent/valid/malformed). A1-03 22px titlebar + macOS traffic lights + platform gate + visual-only preset switcher + drag (2 in-flight visual-defect patches: spacer align-self stretch, title-text drag). A1-04 hardened CSP + unsigned ad-hoc build smoke + "Voss ADE" ship-name verify + A10 cert-procurement clock started. SHL-01..06 all satisfied. Carried-forward: 11px Retina legibility re-check in A2, drag-region count + App.tsx plan-defects logged for plan-checker, A10 cert clock started 2026-05-18."
+status: executing
+last_updated: "2026-06-06T18:19:53.315Z"
+last_activity: 2026-06-06
 progress:
-  total_phases: 16
+  total_phases: 33
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
+  percent: 0
 ---
 
 # State: Voss
@@ -24,12 +25,12 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ## Current Position
 
 **Phase:** A4 — voss-app Layout Presets
-**Status:** Planned (6 plans, 5 waves). A4-00 is a blocking preflight and must not pass until A3-06 integration/perf work is complete.
+**Status:** Ready to execute
 **Goal:** Add L1 visual layout presets (`fanout`, `pipeline`, `swarm`, `watchers`), `Cmd+G` cycling, non-destructive preset switching, and named layout save/load.
 **Critical build order:** A4 depends on the completed A3 grid substrate. A3-06 must integrate GridRoot into App and register Rust grid sync before A4 implementation starts.
 **Next move:** Finish/verify A3-06, then run `/gsd:execute-phase A4`.
 **Rust status:** `crates/` frozen-spike untouched. NEW `crates/voss-app-core` (A1, path-dep'd by src-tauri, populated A2+) + `apps/voss-app/src-tauri` are the live voss-app track members — distinct from the frozen v0.1-ship crates.
-**Last activity:** 2026-05-18 — Phase A1 complete (4 plans, 4 waves). A1-01 Tauri+Solid+Tailwind scaffold + Cargo/pnpm monorepo + pinned versions + icon set (icon repadded to Big Sur safe-area). A1-02 Variant B token taxonomy + @theme inline + get_theme_overrides theme seam (3-path verified: absent/valid/malformed). A1-03 22px titlebar + macOS traffic lights + platform gate + visual-only preset switcher + drag (2 in-flight visual-defect patches: spacer align-self stretch, title-text drag). A1-04 hardened CSP + unsigned ad-hoc build smoke + "Voss ADE" ship-name verify + A10 cert-procurement clock started. SHL-01..06 all satisfied. Carried-forward: 11px Retina legibility re-check in A2, drag-region count + App.tsx plan-defects logged for plan-checker, A10 cert clock started 2026-05-18.
+**Last activity:** 2026-06-06
 
 ## Phase Status
 
@@ -44,7 +45,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | M6 | npm Wrapper | Plans ready to execute (5 plans, 4 waves, verified iteration 2/3). |
 | M7 | SDK Polish | Plans ready to execute (6 plans, 6 waves, verified iter 2/3 PASS clean). |
 | M11 | Voss-aware Tools (CAPS-01b) | Plans ready to execute (5 plans, 5 waves, inline verification because local GSD agents are not installed). |
-| M13 | Multi-agent in Chat (CAPS-01d) | Plans ready to execute (6 plans, 5 waves, chunked; SPEC+CONTEXT+RESEARCH+VALIDATION+PATTERNS; plan-checker iter 2/3 PASS clean). |
+| M13 | Multi-agent in Chat (CAPS-01d) | ⊘ ABSORBED into V8 (2026-06-05). Ready plans (6) fold into V8 Multi-agent Chat + Live Steering. |
 | T8 | Input Bar Ergonomics | Complete (5/5 plans summarized, focused T8 suite green). |
 | F2 | Hybrid Semantic Search | Plans ready to execute (3 plans, 3 waves; BM25 lexical fallback, Chroma RRF hybrid, dependency closeout; inline planning because local GSD agents/check router are unavailable). |
 | A1 | voss-app Tauri Shell | Complete (4/4 plans executed + human-verified; SHL-01..06). |
@@ -58,12 +59,15 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | A10 | voss-app Status Bar | Plans ready to execute (4 plans, 3 waves; BAR-01..08 covered; plan-checker iter 2/3 PASS clean). |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | M14-01..02 complete; M14-03/M14-04 Wave 3 tool+CLI surfaces next. |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Complete (6/6 plans, 5 waves; SKILL-01..06 all GREEN; 2026-05-20). |
-| O6 | Audit Product + Calibration + Liveness Hardening | Plans ready to execute (6 plans, 5 waves; OAUD-01..08 derived from roadmap/context due missing O6-SPEC; execution blocked on O1-O5 substrate preflight). |
+| O6 | Audit Product + Calibration + Liveness Hardening | ⊘ SUPERSEDED by V9 (2026-06-05). 6 ready plans re-point to V9; O1–O6 archived-as-superseded (see ORCHESTRATION-PLAN.md banner). |
+| V0–V12 | Agent Engineering Organization Layer | Roadmap-listed (2026-06-05); supersedes O-track + absorbs M13. SPEC pending per phase. Design: docs/ORCHESTRATION_LAYERS.md. Build order V1→V3→V4(keystone)→V5→V6→V7→V9, then V2/V10/V11/V12. |
 | F3 | Budget & Token Visualization | Complete (3/3 plans; OSC budget pipeline, BudgetBar/BudgetPopover HUD, targeted Rust/Python/TS/app gates green; live visual checkpoint closed by operator-directed closeout on 2026-05-22). |
 | F4 | Visual Context Heatmap | Plans ready to execute (4 plans, 3 waves; D-01..D-27 covered; research deviation D-19 stdin→file-based pin channel). |
 | F5 | Commit with Critique Hook | Plans ready to execute (2 plans, 2 waves; D-01..D-16 covered; zero new deps). |
 
 ## Recent Activity
+
+- 2026-06-05 — **Added V0–V12 Agent Engineering Organization Layer track to ROADMAP.md.** New V-prefix track from `docs/ORCHESTRATION_LAYERS.md` PRD (P0–P12 → V0–V12). **V supersedes the O-track** (V3↔O2, V4↔O1, V5↔O3, V6↔O4, V7↔O5, V9↔O6 — O1–O6 archived-as-superseded with banner in ORCHESTRATION-PLAN.md; O6's 6 ready plans re-point to V9) and **absorbs M13** into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VAUD/VLANG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. No SPECs yet — next step per phase is `/gsd:spec-phase V{n}` to lock the namespaced requirements (keystone = V4 session-tree + pre-emptive budget fan-out). Current active focus unchanged (A4). Docs touched: ROADMAP.md, docs/ORCHESTRATION_LAYERS.md (status banner), ORCHESTRATION-PLAN.md (superseded banner), STATE.md.
 
 - 2026-05-22 — **Phase F5 (Commit with Critique Hook) planned — 2 plans, 2 waves.** W1 F5-01: consensus.py (Pydantic models, YAML constraints loading, single-shot provider.complete critique, structured output formatting) + consensus_cmd CLI registration + 15+ unit tests covering D-01..D-04, D-08..D-16. W2 F5-02: hooks_group (install/uninstall) + hook lifecycle tests covering D-05..D-07. Zero new deps (pyyaml, pydantic, click all already in pyproject.toml). All 16 CONTEXT decisions mapped. Resume: `/gsd:execute-phase F5`.
 
@@ -156,4 +160,5 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 **Planned Phase:** A8 (voss-app-workspaces-ux-polish-theming) — 7 plans — 2026-05-21T00:04:42.143Z
 
 ### Roadmap Evolution
+
 - Phase A12 added: voss-app ADE Visual Redesign — left sidebar + warm site palette + branded titlebar + pane chrome accent bars. 8 requirements (ADE-01..08), 8 plans (P1–P8). Source: sketch 002 Variant A winner. (2026-05-22)

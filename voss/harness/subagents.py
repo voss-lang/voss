@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json as _json
+import re as _re
 from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
@@ -170,6 +172,42 @@ def agent_task(spec: SubagentSpec, task: str) -> str:
     return f"Subagent role:\n{spec.role_prompt}\n\nTask:\n{task}"
 
 
+_JSON_FENCE = _re.compile(r"```(?:json)?\s*(.*?)```", _re.DOTALL)
+
+
+def _extract_json(text: str) -> str:
+    """Strip a leading/embedded ```json fence; otherwise return the trimmed
+    text. The model is asked for bare JSON, but tolerate the common fenced
+    form."""
+    s = text.strip()
+    m = _JSON_FENCE.search(s)
+    return m.group(1).strip() if m else s
+
+
+def validate_subagent_json(text: str, schema: dict[str, Any]) -> str:
+    """Parse `text` as JSON and validate against `schema` (JSON Schema).
+
+    Returns canonical JSON on success, or an `<error: ...>` envelope when the
+    subagent's output is not valid JSON, fails validation, or the schema itself
+    is malformed. Never raises — the agent loop treats the envelope as a tool
+    result it can react to.
+    """
+    import jsonschema
+
+    raw = _extract_json(text)
+    try:
+        instance = _json.loads(raw)
+    except (ValueError, TypeError):
+        return f"<error: subagent did not return valid JSON: {text[:200]!r}>"
+    try:
+        jsonschema.validate(instance, schema)
+    except jsonschema.SchemaError as e:
+        return f"<error: invalid schema: {e.message}>"
+    except jsonschema.ValidationError as e:
+        return f"<error: schema validation failed: {e.message}>"
+    return _json.dumps(instance)
+
+
 async def run_subagent(
     *,
     agent_id: str,
@@ -267,16 +305,17 @@ def attach_subagent_tool(
     except Exception:  # noqa: BLE001 — never block subagent setup on catalog issues
         smol = None
 
+    def _pick() -> tuple[Any, str]:
+        if smol is not None:
+            return smol
+        return provider, (model() if callable(model) else model)
+
     @tool(
         name="subagent_run",
         description="Run a registered Voss subagent on a bounded task.",
     )
     async def subagent_run(agent: str, task: str) -> str:
-        if smol is not None:
-            picked_provider, picked_model = smol
-        else:
-            picked_provider = provider
-            picked_model = model() if callable(model) else model
+        picked_provider, picked_model = _pick()
         return await run_subagent(
             agent_id=agent,
             task=task,
@@ -289,4 +328,42 @@ def attach_subagent_tool(
             cognition=cognition,
         )
 
-    tools["subagent_run"] = ToolEntry(descriptor=subagent_run, is_mutating=True)
+    tools["subagent_run"] = ToolEntry(
+        descriptor=subagent_run, is_mutating=True, group="review", scope_requirements=("review",)
+    )
+
+    @tool(
+        name="task",
+        description=(
+            "Run a registered subagent and return schema-validated JSON. Pass "
+            "`schema` (a JSON Schema object); the subagent's final answer is "
+            "parsed and validated against it, returning canonical JSON or an "
+            "error envelope. Without `schema`, returns the subagent's text."
+        ),
+    )
+    async def task(agent: str, task: str, schema: dict[str, Any] | None = None) -> str:
+        sub_task = task
+        if schema is not None:
+            sub_task = (
+                f"{task}\n\nReturn ONLY a JSON value matching this JSON Schema "
+                f"(no prose, no code fences):\n{_json.dumps(schema)}"
+            )
+        picked_provider, picked_model = _pick()
+        final = await run_subagent(
+            agent_id=agent,
+            task=sub_task,
+            registry=registry,
+            cwd=cwd,
+            renderer=renderer,
+            provider=picked_provider,
+            model=picked_model,
+            gate=gate,
+            cognition=cognition,
+        )
+        if schema is None:
+            return final
+        return validate_subagent_json(final, schema)
+
+    tools["task"] = ToolEntry(
+        descriptor=task, is_mutating=True, group="review", scope_requirements=("review",)
+    )

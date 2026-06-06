@@ -137,6 +137,12 @@ class CognitionOverflow(_Base):
     budget: int = 6000
 
 
+class PrinciplesOverflow(_Base):
+    type: Literal["principles_overflow"] = "principles_overflow"
+    principles_tokens: int
+    budget: int = 1000
+
+
 class WarningEvent(_Base):
     type: Literal["warning"] = "warning"
     message: str
@@ -199,6 +205,7 @@ AgentEvent = Annotated[
         StatusEvent,
         CognitionLoaded,
         CognitionOverflow,
+        PrinciplesOverflow,
         WarningEvent,
         ProbableEvent,
         BudgetUpdated,

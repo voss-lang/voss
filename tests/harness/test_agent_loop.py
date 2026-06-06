@@ -30,7 +30,7 @@ def _make_tool(name: str, result: str) -> ToolEntry:
         parameters={"type": "object", "properties": {}, "required": []},
         func=_impl,
     )
-    return ToolEntry(descriptor=desc, is_mutating=False)
+    return ToolEntry(descriptor=desc, is_mutating=False, group="fs")
 from voss.harness.providers import (
     Done,
     ParsedPlan,

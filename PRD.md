@@ -1,5 +1,7 @@
 # Voss Language — Product Requirements Document
 
+> ⊘ **SUPERSEDED** — This document is retained as the historical **language PRD** for the `.voss` language. The canonical PRD + architecture doc for Voss is now [`.planning/docs/ORCHESTRATION_LAYERS.md`](.planning/docs/ORCHESTRATION_LAYERS.md) — refer there for current product identity, the six primitives, and the roadmap. The `.voss` spec below remains accurate as the language-layer reference.
+
 **Version:** 0.1 (Inception)  
 **Status:** Pre-build  
 **Author:** Ben / Wineberry  

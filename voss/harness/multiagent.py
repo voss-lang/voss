@@ -521,15 +521,15 @@ def attach_multiagent_tools(
                 br.end_panel(1)
 
     tools["subagent_spawn"] = ToolEntry(
-        descriptor=subagent_spawn, is_mutating=True
+        descriptor=subagent_spawn, is_mutating=True, group="review", scope_requirements=("review",)
     )
     tools["subagent_steer"] = ToolEntry(
-        descriptor=subagent_steer, is_mutating=True
+        descriptor=subagent_steer, is_mutating=True, group="review", scope_requirements=("review",), is_stateful=True
     )
     tools["subagent_status"] = ToolEntry(
-        descriptor=subagent_status, is_mutating=False
+        descriptor=subagent_status, is_mutating=False, group="review", scope_requirements=("review",), is_stateful=True
     )
     tools["subagent_gather"] = ToolEntry(
-        descriptor=subagent_gather, is_mutating=True
+        descriptor=subagent_gather, is_mutating=True, group="review", scope_requirements=("review",), is_stateful=True
     )
     return _teardown_orphans

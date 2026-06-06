@@ -21,6 +21,14 @@ if TYPE_CHECKING:
 
 SHELL_OUTPUT_CAP_BYTES = 30720
 
+# V1-01 / D-05: the EXACTLY nine capability groups every ToolEntry must declare.
+# No tenth bucket (e.g. "orchestration") — the subagent/task family maps to
+# "review" (the run-artifact / meta-work bucket). Group + scope_requirements are
+# auditable data at registration (D-01), never name-prefix guesswork.
+CAPABILITY_GROUPS = ("fs", "git", "test", "shell", "net", "code", "memory", "review", "mcp")
+
+_AUDIT_BEHAVIORS = ("full", "redact_args", "metadata_only")
+
 
 def _line_anchor(line: str) -> str:
     """First 8 hex of SHA-256 of a line's raw content (no newline). Mirrors
@@ -67,7 +75,33 @@ class ToolEntry:
 
     descriptor: ToolDescriptor
     is_mutating: bool
+    # V1-01 CAP-01: `group` is REQUIRED (no default) so every construction site
+    # must tag it explicitly (D-01). It sits before the defaulted fields so the
+    # frozen dataclass allows a required field here; an untagged site TypeErrors
+    # loudly rather than mislabeling silently.
+    group: str
     is_network: bool = False
+    # CAP-03: coarse permission buckets (group-level only, D-03) drawn from
+    # CAPABILITY_GROUPS. CAP-06: audit shaping. is_stateful → order-dependent.
+    scope_requirements: tuple[str, ...] = ()
+    audit_behavior: str = "full"
+    is_stateful: bool = False
+    output_schema: dict | None = None
+
+    def __post_init__(self) -> None:
+        if self.group not in CAPABILITY_GROUPS:
+            raise ValueError(
+                f"ToolEntry group {self.group!r} not in CAPABILITY_GROUPS {CAPABILITY_GROUPS}"
+            )
+        for s in self.scope_requirements:
+            if s not in CAPABILITY_GROUPS:
+                raise ValueError(
+                    f"ToolEntry scope_requirement {s!r} not in CAPABILITY_GROUPS"
+                )
+        if self.audit_behavior not in _AUDIT_BEHAVIORS:
+            raise ValueError(
+                f"ToolEntry audit_behavior {self.audit_behavior!r} not in {_AUDIT_BEHAVIORS}"
+            )
 
     @property
     def name(self) -> str:
@@ -80,6 +114,21 @@ class ToolEntry:
     @property
     def parameters(self) -> dict:
         return self.descriptor.parameters
+
+    def capability_dict(self) -> dict:
+        """CAP-02 normalized capability view for downstream CLI/MCP/recorder."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "input_schema": self.parameters,
+            "output_schema": self.output_schema,
+            "is_mutating": self.is_mutating,
+            "is_network": self.is_network,
+            "group": self.group,
+            "scope_requirements": list(self.scope_requirements),
+            "audit_behavior": self.audit_behavior,
+            "is_stateful": self.is_stateful,
+        }
 
     def invoke(self, **kwargs: Any) -> Any:
         return self.descriptor.invoke(**kwargs)
@@ -105,6 +154,65 @@ def _read_one_for_bundle(cwd: Path, path: str) -> str:
     if len(text) > 30720:  # 30KB cap (T2-CONTEXT.md D-13)
         text = text[:30720] + f"\n<truncated, total {len(text)} bytes>"
     return text
+
+
+def attach_memory_tools(tools: dict[str, "ToolEntry"], *, store, session_id: str) -> None:
+    """Register agent-callable durable-memory tools backed by `MemoryStore`.
+
+    Exposes the recall/retain verbs the model can drive itself (previously
+    only user/CLI-driven via /recall and /save). `memory_recall` is read-only
+    (fans out concurrently); `memory_remember` writes a note (mutating). The
+    store is bound to a session elsewhere; `session_id` tags written notes.
+    """
+
+    @tool(
+        name="memory_recall",
+        description=(
+            "Search durable project memory by query. Covers past turns, "
+            "ledgers, decisions, conventions, and saved notes. Optional "
+            "`source` filters to one of: turns, ledgers, decisions, "
+            "conventions, notes. Returns top hits with source, locator, and a "
+            "short excerpt."
+        ),
+    )
+    async def memory_recall(query: str, top_k: int = 5, source: str | None = None) -> str:
+        query = query.strip()
+        if not query:
+            return "<error: empty query>"
+        try:
+            hits = store.recall(query, top_k=top_k, source=source)
+        except Exception as exc:  # noqa: BLE001 — recall must not crash the turn
+            return f"<error: recall failed: {exc}>"
+        if not hits:
+            return "(no hits)"
+        lines: list[str] = []
+        for h in hits:
+            lines.append(f"[{h.source}] {h.locator} (score {h.score:.2f})")
+            excerpt = (h.excerpt or "").replace("\n", " ")[:160]
+            if excerpt:
+                lines.append(f"  {excerpt}")
+        return "\n".join(lines)
+
+    @tool(
+        name="memory_remember",
+        description=(
+            "Persist a durable note to project memory for future sessions. "
+            "Use for facts, decisions, or gotchas worth recalling later. "
+            "Returns the saved note id."
+        ),
+    )
+    async def memory_remember(text: str) -> str:
+        text = text.strip()
+        if not text:
+            return "<error: empty note>"
+        try:
+            path = store.write_note(text, session_id=session_id)
+        except Exception as exc:  # noqa: BLE001 — persistence failure is recoverable
+            return f"<error: {exc}>"
+        return f"remembered: {path.name}"
+
+    tools["memory_recall"] = ToolEntry(descriptor=memory_recall, is_mutating=False, group="memory", scope_requirements=("memory",))
+    tools["memory_remember"] = ToolEntry(descriptor=memory_remember, is_mutating=True, group="memory", scope_requirements=("memory",))
 
 
 def make_toolset(
@@ -327,7 +435,9 @@ def make_toolset(
             "Replace text with `new` in a file. Supply either `old` (verbatim, "
             "must match exactly once) or `anchor` (line content-hash from "
             "fs_read annotate=true; add `end_anchor` for a multi-line span). "
-            "Returns line count delta."
+            "Routes through the diff modal (preview-then-accept) when a TUI "
+            "renderer is active; rejecting leaves the file untouched. Returns "
+            "line count delta."
         ),
     )
     async def fs_edit(
@@ -345,6 +455,8 @@ def make_toolset(
             return "<error: supply `old` OR `anchor`, not both>"
         if anchor is None and end_anchor is not None:
             return "<error: `end_anchor` requires `anchor`>"
+        # Resolve the change into (new_text, replaced-old-block, 1-based start
+        # line) so a single diff Hunk can be staged before any write.
         if anchor is not None:
             segs = text.split("\n")
             start, err = _resolve_anchor(segs, anchor)
@@ -359,6 +471,8 @@ def make_toolset(
             if end < start:
                 return "<error: `end_anchor` is before `anchor`>"
             new_text = "\n".join(segs[:start] + new.split("\n") + segs[end + 1:])
+            old_block = "\n".join(segs[start : end + 1])
+            line_start = start + 1
         elif old is not None:
             count = text.count(old)
             if count == 0:
@@ -366,8 +480,30 @@ def make_toolset(
             if count > 1:
                 return f"<error: `old` matches {count} times, must be unique>"
             new_text = text.replace(old, new, 1)
+            old_block = old
+            line_start = text.count("\n", 0, text.find(old)) + 1
         else:
             return "<error: supply `old` or `anchor`>"
+
+        # Preview-then-accept: stage one Hunk through the diff modal when the
+        # renderer supports it (TUI). Non-textual renderers (JSON/plain/None,
+        # e.g. tests) skip the modal and write after validation — same policy
+        # as fs_edit_many.
+        modal = getattr(renderer, "show_diff_modal", None) if renderer is not None else None
+        if modal is not None:
+            hunk = Hunk(
+                file=path,
+                start=line_start,
+                lines=[f"- {ln}" for ln in (old_block.splitlines() or [""])]
+                + [f"+ {ln}" for ln in (new.splitlines() or [""])],
+            )
+            decisions = modal([hunk], timeout_s=300.0)
+            if not decisions:
+                return "<denied: modal cancelled or timed out>"
+            # STRICT: skip is treated as reject (matches fs_edit_many).
+            if decisions[0].decision in ("reject", "skip"):
+                return "<denied: edit rejected>"
+
         p.write_text(new_text)
         delta = new_text.count("\n") - text.count("\n")
         sign = "+" if delta >= 0 else ""
@@ -604,42 +740,53 @@ def make_toolset(
         return await net.search(query, count)
 
     result = {
-        "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False),
-        "fs_read_many": ToolEntry(descriptor=fs_read_many, is_mutating=False),
-        "fs_glob": ToolEntry(descriptor=fs_glob, is_mutating=False),
-        "fs_grep": ToolEntry(descriptor=fs_grep, is_mutating=False),
-        "fs_write": ToolEntry(descriptor=fs_write, is_mutating=True),
-        "fs_edit": ToolEntry(descriptor=fs_edit, is_mutating=True),
-        "fs_edit_many": ToolEntry(descriptor=fs_edit_many, is_mutating=True),
-        "shell_run": ToolEntry(descriptor=shell_run, is_mutating=True),
+        "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False, group="fs", scope_requirements=("fs",)),
+        "fs_read_many": ToolEntry(descriptor=fs_read_many, is_mutating=False, group="fs", scope_requirements=("fs",)),
+        "fs_glob": ToolEntry(descriptor=fs_glob, is_mutating=False, group="fs", scope_requirements=("fs",)),
+        "fs_grep": ToolEntry(descriptor=fs_grep, is_mutating=False, group="fs", scope_requirements=("fs",)),
+        "fs_write": ToolEntry(descriptor=fs_write, is_mutating=True, group="fs", scope_requirements=("fs",)),
+        "fs_edit": ToolEntry(descriptor=fs_edit, is_mutating=True, group="fs", scope_requirements=("fs",)),
+        "fs_edit_many": ToolEntry(descriptor=fs_edit_many, is_mutating=True, group="fs", scope_requirements=("fs",)),
+        "shell_run": ToolEntry(descriptor=shell_run, is_mutating=True, group="shell", scope_requirements=("shell",)),
         "shell_run_background": ToolEntry(
             descriptor=shell_run_background,
             is_mutating=True,
+            group="shell",
+            scope_requirements=("shell",),
+            is_stateful=True,
         ),
-        "shell_monitor": ToolEntry(descriptor=shell_monitor, is_mutating=False),
-        "shell_signal": ToolEntry(descriptor=shell_signal, is_mutating=True),
-        "fs_watch": ToolEntry(descriptor=fs_watch, is_mutating=False),
-        "fs_watch_poll": ToolEntry(descriptor=fs_watch_poll, is_mutating=False),
-        "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
-        "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
-        "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),
+        "shell_monitor": ToolEntry(descriptor=shell_monitor, is_mutating=False, group="shell", scope_requirements=("shell",), is_stateful=True),
+        "shell_signal": ToolEntry(descriptor=shell_signal, is_mutating=True, group="shell", scope_requirements=("shell",), is_stateful=True),
+        "fs_watch": ToolEntry(descriptor=fs_watch, is_mutating=False, group="fs", scope_requirements=("fs",), is_stateful=True),
+        "fs_watch_poll": ToolEntry(descriptor=fs_watch_poll, is_mutating=False, group="fs", scope_requirements=("fs",), is_stateful=True),
+        "git_status": ToolEntry(descriptor=git_status, is_mutating=False, group="git", scope_requirements=("git",)),
+        "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False, group="git", scope_requirements=("git",)),
+        "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False, group="test", scope_requirements=("test",)),
         "voss_probable_inspect": ToolEntry(
             descriptor=voss_probable_inspect,
             is_mutating=False,
+            group="test",
+            scope_requirements=("test",),
         ),
         "voss_budget_trace": ToolEntry(
             descriptor=voss_budget_trace,
             is_mutating=False,
+            group="test",
+            scope_requirements=("test",),
         ),
         "voss_py_diff": ToolEntry(
             descriptor=voss_py_diff,
             is_mutating=False,
+            group="test",
+            scope_requirements=("test",),
         ),
-        "record_run": ToolEntry(descriptor=record_run, is_mutating=True),
+        # record_run writes the run artifact (potentially large payloads); audit
+        # keeps metadata only to avoid echoing the full run blob into the log.
+        "record_run": ToolEntry(descriptor=record_run, is_mutating=True, group="review", scope_requirements=("review",), audit_behavior="metadata_only"),
         "web_fetch": ToolEntry(
-            descriptor=web_fetch, is_mutating=False, is_network=True
+            descriptor=web_fetch, is_mutating=False, is_network=True, group="net", scope_requirements=("net",)
         ),
-        "web_search": ToolEntry(descriptor=web_search, is_mutating=False, is_network=True),
+        "web_search": ToolEntry(descriptor=web_search, is_mutating=False, is_network=True, group="net", scope_requirements=("net",)),
     }
     if net is not None:
         _merge_mcp_tools(result, cwd)
@@ -679,10 +826,10 @@ def make_toolset(
         res = await svc.code_refresh(paths)
         return json.dumps(res, indent=2)
 
-    result["code_search"] = ToolEntry(descriptor=code_search, is_mutating=False)
-    result["find_definition"] = ToolEntry(descriptor=find_definition, is_mutating=False)
-    result["find_references"] = ToolEntry(descriptor=find_references, is_mutating=False)
-    result["code_refresh"] = ToolEntry(descriptor=code_refresh, is_mutating=False)
+    result["code_search"] = ToolEntry(descriptor=code_search, is_mutating=False, group="code", scope_requirements=("code",))
+    result["find_definition"] = ToolEntry(descriptor=find_definition, is_mutating=False, group="code", scope_requirements=("code",))
+    result["find_references"] = ToolEntry(descriptor=find_references, is_mutating=False, group="code", scope_requirements=("code",))
+    result["code_refresh"] = ToolEntry(descriptor=code_refresh, is_mutating=False, group="code", scope_requirements=("code",))
 
     return result
 

@@ -65,10 +65,11 @@ class NetSession:
             self._client = None
 
     def acquire(self, tool_name: str) -> tuple[bool, float]:
-        # MCP namespaced names (server__tool) bypass the bucket entirely
-        # per D-16 + NET-07e.
-        if "__" in tool_name:
-            return True, 0.0
+        # V1-03 CAP-07: the prior blanket `if "__" in tool_name: return True`
+        # bypass (D-16 / NET-07e) is superseded by capability unification — MCP
+        # namespaced names now follow the same bucket lookup as native tools, so
+        # a configured MCP bucket is honored. Unconfigured names still fall
+        # through to no-limit below (unchanged behavior for native + MCP).
         bucket = self._buckets.get(tool_name)
         if bucket is None:
             return True, 0.0  # unknown tool — no limit configured

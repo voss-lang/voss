@@ -83,7 +83,11 @@ def _config() -> McpConfig:
 async def test_scope_denial() -> None:
     entries = register_mcp_tools(_config(), {}, FakeMcpClient())
 
-    assert entries["filesystem__write_file"].is_mutating is False
+    # V1-03 D-02 default-deny: mutability now reflects the tool's own
+    # readOnlyHint, independent of server scope (the old scope=="plan"→False
+    # short-circuit is removed). write_file (readOnlyHint=False) is mutating;
+    # the plan-scope denial below is still enforced in the descriptor's invoke.
+    assert entries["filesystem__write_file"].is_mutating is True
     result = await entries["filesystem__write_file"].invoke_dict({"path": "x"})
 
     assert result == (
@@ -143,7 +147,7 @@ def test_make_toolset_merges_mcp_tools(tmp_path: Path) -> None:
                     "name": "read_text_file",
                     "description": "Read text",
                     "inputSchema": {"type": "object"},
-                    "annotations": {"destructiveHint": False},
+                    "annotations": {"readOnlyHint": True, "destructiveHint": False},
                 }]},
             }) + "\\n")
             sys.stdout.flush()

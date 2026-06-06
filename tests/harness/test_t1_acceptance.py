@@ -67,7 +67,7 @@ def _make_tool(name: str, result: str) -> ToolEntry:
         parameters={"type": "object", "properties": {}, "required": []},
         func=_impl,
     )
-    return ToolEntry(descriptor=desc, is_mutating=name in {"fs_edit", "fs_write"})
+    return ToolEntry(descriptor=desc, is_mutating=name in {"fs_edit", "fs_write"}, group="fs")
 
 
 def _message_content_text(content) -> str:
@@ -699,7 +699,7 @@ async def test_permission_gate_fresh_per_iteration(
         parameters={"type": "object", "properties": {}, "required": []},
         func=_fs_edit_impl,
     )
-    tool = ToolEntry(descriptor=desc, is_mutating=True)
+    tool = ToolEntry(descriptor=desc, is_mutating=True, group="fs")
 
     iter0 = _plan(
         steps=[{"name": "fs_edit",

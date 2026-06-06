@@ -47,7 +47,7 @@ from .subagents import (
     default_subagent_registry,
     run_subagent,
 )
-from .tools import make_toolset
+from .tools import CAPABILITY_GROUPS, attach_memory_tools, make_toolset
 from .voss_inspect import (
     load_run,
     render_budget_timeline,
@@ -1712,6 +1712,7 @@ def do_cmd(
     do_record = session_store.SessionRecord.new(cwd=cwd, model=do_model)
     do_history = EpisodicMemory(capacity=40)
     do_memory_store = MemoryStore(cwd).bind(session_id=do_record.id)
+    attach_memory_tools(tools, store=do_memory_store, session_id=do_record.id)
 
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     click.echo(f"  [auth: {res.source} — {res.detail}]")
@@ -2008,6 +2009,7 @@ def _run_repl(
         gate=gate,
         cognition=bundle,
     )
+    attach_memory_tools(tools, store=ctx.memory_store, session_id=record.id)
     # M13-06: additively attach the non-blocking multi-agent fan-out toolset
     # (subagent_spawn/steer/status/gather) alongside the unchanged serial
     # subagent_run tool (D-02 back-compat). attach_multiagent_tools returns the
@@ -2926,6 +2928,11 @@ def _extension_context(
             gate=gate,
             cognition=ctx.cognition,
         )
+    attach_memory_tools(
+        tools,
+        store=MemoryStore(cwd).bind(session_id=ctx.record.id),
+        session_id=ctx.record.id,
+    )
     return ctx
 
 
@@ -3662,6 +3669,111 @@ def serve_cmd(host: str, port: int, token: str | None) -> None:
     run_server(host=host, port=port, token=token)
 
 
+@click.group("capabilities")
+def capabilities_group() -> None:
+    """List and inspect the agent capability registry (CAP-04/05)."""
+
+
+@capabilities_group.command("list")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def capabilities_list_cmd(cwd_str: str, json_mode: bool) -> None:
+    """List capabilities grouped by group (compact names)."""
+    import json as json_lib
+
+    cwd = Path(cwd_str).resolve()
+    tools = make_toolset(cwd)  # no session_id — listing never invokes tools
+    by_group: dict[str, list[str]] = {}
+    for name, entry in tools.items():
+        by_group.setdefault(entry.group, []).append(name)
+
+    if json_mode:
+        out = {g: sorted(by_group[g]) for g in CAPABILITY_GROUPS if g in by_group}
+        click.echo(json_lib.dumps(out))
+        return
+
+    for g in CAPABILITY_GROUPS:
+        names = by_group.get(g)
+        if not names:
+            continue  # omit empty groups
+        click.echo(f"{g}:")
+        for name in sorted(names):
+            click.echo(f"  {name}")
+
+
+@capabilities_group.command("inspect")
+@click.argument("name")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def capabilities_inspect_cmd(name: str, cwd_str: str, json_mode: bool) -> None:
+    """Show full normalized detail for one capability."""
+    import json as json_lib
+
+    cwd = Path(cwd_str).resolve()
+    tools = make_toolset(cwd)
+    entry = tools.get(name)
+    if entry is None:
+        click.echo(f"<error: unknown capability: {name}>", err=True)
+        raise click.exceptions.Exit(1)
+
+    cap = entry.capability_dict()
+    if json_mode:
+        click.echo(json_lib.dumps(cap, indent=2, default=str))
+        return
+
+    width = max(len(k) for k in cap)
+    for key in (
+        "name",
+        "description",
+        "group",
+        "is_mutating",
+        "is_network",
+        "is_stateful",
+        "scope_requirements",
+        "audit_behavior",
+        "input_schema",
+        "output_schema",
+    ):
+        click.echo(f"{key:<{width}} : {cap[key]}")
+
+
+@click.group("principles")
+def principles_group() -> None:
+    """Inspect the active engineering principles (VPRIN-07)."""
+
+
+@principles_group.command("show")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def principles_show_cmd(cwd_str: str, json_mode: bool) -> None:
+    """Show the merged active principles with each one's source."""
+    import json as json_lib
+
+    from voss.harness.principles import VossPrinciplesConfigError, resolve_with_sources
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        items = resolve_with_sources(cwd)
+    except VossPrinciplesConfigError as e:
+        click.echo(f"<error: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    if json_mode:
+        click.echo(
+            json_lib.dumps(
+                [{"key": k, "text": t, "source": s} for k, t, s in items]
+            )
+        )
+        return
+
+    if not items:
+        click.echo("(no active principles)")
+        return
+    key_w = max(len(k) for k, _, _ in items)
+    for key, text, source in items:
+        click.echo(f"{key:<{key_w}}  [{source}]  {text}")
+
+
 AGENT_COMMANDS = (
     do_cmd,
     serve_cmd,
@@ -3690,6 +3802,8 @@ AGENT_COMMANDS = (
     eval_cmd,
     consensus_cmd,
     hooks_group,
+    capabilities_group,
+    principles_group,
 )
 
 
