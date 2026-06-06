@@ -21,6 +21,14 @@ if TYPE_CHECKING:
 
 SHELL_OUTPUT_CAP_BYTES = 30720
 
+# V1-01 / D-05: the EXACTLY nine capability groups every ToolEntry must declare.
+# No tenth bucket (e.g. "orchestration") — the subagent/task family maps to
+# "review" (the run-artifact / meta-work bucket). Group + scope_requirements are
+# auditable data at registration (D-01), never name-prefix guesswork.
+CAPABILITY_GROUPS = ("fs", "git", "test", "shell", "net", "code", "memory", "review", "mcp")
+
+_AUDIT_BEHAVIORS = ("full", "redact_args", "metadata_only")
+
 
 def _line_anchor(line: str) -> str:
     """First 8 hex of SHA-256 of a line's raw content (no newline). Mirrors
@@ -67,7 +75,33 @@ class ToolEntry:
 
     descriptor: ToolDescriptor
     is_mutating: bool
+    # V1-01 CAP-01: `group` is REQUIRED (no default) so every construction site
+    # must tag it explicitly (D-01). It sits before the defaulted fields so the
+    # frozen dataclass allows a required field here; an untagged site TypeErrors
+    # loudly rather than mislabeling silently.
+    group: str
     is_network: bool = False
+    # CAP-03: coarse permission buckets (group-level only, D-03) drawn from
+    # CAPABILITY_GROUPS. CAP-06: audit shaping. is_stateful → order-dependent.
+    scope_requirements: tuple[str, ...] = ()
+    audit_behavior: str = "full"
+    is_stateful: bool = False
+    output_schema: dict | None = None
+
+    def __post_init__(self) -> None:
+        if self.group not in CAPABILITY_GROUPS:
+            raise ValueError(
+                f"ToolEntry group {self.group!r} not in CAPABILITY_GROUPS {CAPABILITY_GROUPS}"
+            )
+        for s in self.scope_requirements:
+            if s not in CAPABILITY_GROUPS:
+                raise ValueError(
+                    f"ToolEntry scope_requirement {s!r} not in CAPABILITY_GROUPS"
+                )
+        if self.audit_behavior not in _AUDIT_BEHAVIORS:
+            raise ValueError(
+                f"ToolEntry audit_behavior {self.audit_behavior!r} not in {_AUDIT_BEHAVIORS}"
+            )
 
     @property
     def name(self) -> str:
@@ -80,6 +114,21 @@ class ToolEntry:
     @property
     def parameters(self) -> dict:
         return self.descriptor.parameters
+
+    def capability_dict(self) -> dict:
+        """CAP-02 normalized capability view for downstream CLI/MCP/recorder."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "input_schema": self.parameters,
+            "output_schema": self.output_schema,
+            "is_mutating": self.is_mutating,
+            "is_network": self.is_network,
+            "group": self.group,
+            "scope_requirements": list(self.scope_requirements),
+            "audit_behavior": self.audit_behavior,
+            "is_stateful": self.is_stateful,
+        }
 
     def invoke(self, **kwargs: Any) -> Any:
         return self.descriptor.invoke(**kwargs)
