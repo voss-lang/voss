@@ -10,7 +10,7 @@ autonomous: true
 requirements: [VEM-CLI, VEM-PERSIST, VEM-SIGNOFF]
 must_haves:
   truths:
-    - "voss team run \"<goal>\" composes team + session-tree + board + reviewer + em_loop and runs autonomously to all-cards-terminal, exits 0 on stub"
+    - "voss team run \"<goal>\" composes team + session-tree + board + the REAL V6 Reviewer-A/B slots + em_loop and runs autonomously to all-cards-terminal, exits 0 on stub"
     - "With no .voss/team.voss the run uses the DEFAULT_ROSTER 7-role roster + default ceiling; an explicit file overrides"
     - "RunFinal persists to .voss/sessions/<root_id>/run-final.json (10 fields) and is re-readable"
     - "The CLI prints the RunFinal summary and prompts approve/reject; the decision is recorded into run-final.json; reject reverts nothing on disk"
@@ -26,6 +26,10 @@ must_haves:
       to: "voss.harness.em.loop.em_loop"
       via: "asyncio.run(em_loop(idea=goal, em_handle=..., em_agent=DeterministicEMStub, ...))"
       pattern: "asyncio\\.run\\(.*em_loop"
+    - from: "voss/harness/cli.py team_run_cmd"
+      to: "voss.harness.board.machine.Board.from_team_config"
+      via: "reviewer_a=DeterministicReviewerStub(source='A'), reviewer_b=DeterministicReviewerStub(source='B')"
+      pattern: "reviewer_a="
     - from: "voss/harness/cli.py _persist_run_final"
       to: ".voss/sessions/<root_id>/run-final.json"
       via: "path derived from rf.root_id; write_text(json.dumps(asdict(rf)+sign_off)); chmod 0o600"
@@ -37,11 +41,11 @@ must_haves:
 ---
 
 <objective>
-Implement `voss team run "<goal>"` and its two helpers in `voss/harness/cli.py`, turning the V7-01 RED scaffold GREEN. This is the entire VEM-CLI/PERSIST/SIGNOFF delta: a single click subcommand that composes the shipped V3–V6 + O5 stack, runs the async `em_loop` to terminal, persists RunFinal to a session-root sidecar, prints a summary, and records a human approve/reject decision.
+Implement `voss team run "<goal>"` and its two helpers in `voss/harness/cli.py`, turning the V7-01 RED scaffold GREEN. This is the entire VEM-CLI/PERSIST/SIGNOFF delta: a single click subcommand that composes the shipped V3–V6 + O5 stack — injecting the REAL V6 Reviewer-A/B slots — runs the async `em_loop` to terminal, persists RunFinal to a session-root sidecar, prints a summary, and records a human approve/reject decision.
 
-Purpose: Turn the shipped O5 pieces into a runnable product. Pure composition — no reimplementation of em_loop, the cage, the board, or the session tree.
+Purpose: Turn the shipped O5 pieces into a runnable product. Pure composition — no reimplementation of em_loop, the cage, the board, the reviewers, or the session tree.
 
-Output: Three additions to cli.py — `_default_team_config()` (module-level helper, no parser), `_persist_run_final()` (module-level helper mirroring `_write_node_file`), and `@team_group.command("run")` (`team_run_cmd`). The V7-01 suite goes from 10 RED to 10 GREEN; `tests/harness/em/` stays 79/79 green.
+Output: Three additions to cli.py — `_default_team_config()` (module-level helper, no parser), `_persist_run_final()` (module-level helper mirroring `_write_node_file`), and `@team_group.command("run")` (`team_run_cmd`). The V7-01 suite goes from 10 RED to 10 GREEN; `tests/harness/em/` stays green.
 </objective>
 
 <execution_context>
@@ -58,29 +62,34 @@ Output: Three additions to cli.py — `_default_team_config()` (module-level hel
 @.planning/phases/V7-engineering-manager-loop-supersedes-o5/V7-VALIDATION.md
 
 <interfaces>
-<!-- All VERIFIED via direct execution in V7-RESEARCH.md. Use these exact signatures — no codebase exploration needed. -->
+<!-- V6 is COMPLETE on disk (verified 2026-06-06: tests/harness/board/ AND tests/harness/em/ both 100% green). Use these exact signatures — no codebase exploration needed. The stale V7-RESEARCH "single reviewer slot / V6 unexecuted / Pitfall 2 TypeError" claims are SUPERSEDED by the CORRECTION BANNER at the top of V7-RESEARCH.md; inject the real reviewer_a + reviewer_b. -->
 
 em_loop (voss/harness/em/loop.py:88) — async, keyword-only:
   async def em_loop(*, idea: str, em_handle: EMBoardHandle, em_agent: object,
                     roster_descriptions: dict[str,str] | None = None,
                     max_iterations: int = 50) -> RunFinal
+  (loop force_block_all's the board on max-iter → card lands terminal → RunFinal; em_iterations is patched on)
 
 EMBoardHandle (voss/harness/em/handle.py:82) — keyword-only:
   EMBoardHandle(*, board, registry, team_config, manager, base_gate, cwd,
                 subagent_runner=None, renderer=None, provider=None, model="")
 
-Board.from_team_config (voss/harness/board/machine.py:266) — SINGLE reviewer slot (V6-03 NOT executed):
-  Board.from_team_config(team_config, *, recorder, reviewer, cwd,
-                         clock=time.monotonic, parent_node_id=None, per_card_budget=100_000)
-  board.spawn_card(risk_tier="med")  # async; call BEFORE em_loop so total_cards>=1
+Board.from_team_config (voss/harness/board/machine.py:275-312) — REAL A/B reviewer slots:
+  Board.from_team_config(team_config, *, recorder, reviewer=None, reviewer_a=None, reviewer_b=None,
+                         cwd, clock=time.monotonic, parent_node_id=None, per_card_budget=100_000)
+  - reviewer_a / reviewer_b are real kwargs (machine.py:281-283). Legacy reviewer= fans out to BOTH slots (machine.py:260-262) — NO TypeError.
+  - V7 injects BOTH: reviewer_a=DeterministicReviewerStub(conf=0.99, verdict="pass", source="A", tier="fast"), reviewer_b=DeterministicReviewerStub(conf=0.99, verdict="pass", source="B", tier="strong")
+  - This satisfies the V6 two-source Done gate (a_verification_passes + b_passes).
+  - board.spawn_card(risk_tier="med")  # async; call BEFORE em_loop so total_cards>=1
 
 SessionTreeManager (voss/harness/session_tree.py:147) — keyword-only:
   SessionTreeManager(root_node, *, reserve: int, cwd: Path)
   root: SessionTreeNode.create_root(cwd=cwd, limit=500_000)
   rf.root_id == manager root id
 
-Stubs:
-  DeterministicReviewerStub(conf=0.99, verdict="pass")  # voss.harness.board.stub
+Stubs (board stubs are the shipped reviewer stubs — production reviewers ReviewerA/ReviewerB also exist but need a live provider; for the stub smoke run use DeterministicReviewerStub for each slot):
+  DeterministicReviewerStub(conf=0.99, verdict="pass", source="A", tier="fast")   # voss.harness.board.stub
+  DeterministicReviewerStub(conf=0.99, verdict="pass", source="B", tier="strong") # voss.harness.board.stub
   DeterministicEMStub(scripted=[EMPlanResponse(ops=[CreateTicketOp(original_idea=..., worker_role="backend")]), EMPlanResponse(ops=[NoopOp(reason="waiting")])])  # voss.harness.em.stub / .schema
 
 Default-roster helper inputs (voss/harness/team.py):
@@ -125,7 +134,7 @@ Async-drive analog: cli.py:3575 consensus_cmd → asyncio.run(coro) in sync clic
     - .planning/phases/V7-engineering-manager-loop-supersedes-o5/V7-PATTERNS.md (_default_team_config + _persist_run_final analog sections)
   </read_first>
   <action>
-    Add two module-level helpers near the team subcommands in cli.py (above where team_run_cmd will live in Task 2). Follow the project-wide lazy-import-inside-function convention only where it avoids circular imports; team/session_tree/em imports are already safe at these call sites — match team_check_cmd's local-import style.
+    Add two module-level helpers near the team subcommands in cli.py (above where team_run_cmd will live in Task 2). Follow the project-wide lazy-import-inside-function convention only where it avoids circular imports; match team_check_cmd's local-import style.
 
     `_default_team_config() -> tuple[TeamConfig, SubagentRegistry]`: build TeamCeiling(budget_tokens=500_000, scope=None, latency_seconds=3600); create SubagentRegistry(); loop DEFAULT_ROSTER calling subagent_spec_from_role with keyword Span(file="<default>", line_start=0, col_start=0, line_end=0, col_end=0), kvs={}, ceiling=ceiling, ceiling_ast=None, apply_role_defaults=True; register each; return TeamConfig(name="default", ceiling=ceiling, policy=TeamPolicy(p=None), em_agent_id=None, roster_ids=frozenset(DEFAULT_ROSTER), board=BoardSpec(raw_items=()), rituals=()) and the registry. Do NOT construct AST TeamDecl — direct construction only (V7-RESEARCH anti-pattern). Note Pitfall 7: apply_role_defaults=True resolves model tiers via get_model_tiers(); production relies on a configured catalog; the V7-01 test fixture monkeypatches it.
 
@@ -134,24 +143,25 @@ Async-drive analog: cli.py:3575 consensus_cmd → asyncio.run(coro) in sync clic
     No fenced code in this action. Identifiers/signatures are in <interfaces>.
   </action>
   <verify>
-    <automated>.venv/bin/python -c "import ast,sys; src=open('voss/harness/cli.py').read(); assert '_default_team_config' in src and '_persist_run_final' in src and 'run-final.json' in src and 'chmod(0o600)' in src.replace(' ',''), 'helpers missing'; print('helpers present')" && .venv/bin/python -m pytest tests/harness/em/ -x -q 2>&1 | tail -3</automated>
+    <automated>.venv/bin/python -c "src=open('voss/harness/cli.py').read(); assert '_default_team_config' in src and '_persist_run_final' in src and 'run-final.json' in src and 'chmod(0o600)' in src.replace(' ',''), 'helpers missing'; print('helpers present')" && .venv/bin/python -m pytest tests/harness/em/ -x -q 2>&1 | tail -3</automated>
   </verify>
   <acceptance_criteria>
     - cli.py defines module-level `_default_team_config` and `_persist_run_final`.
     - `_persist_run_final` writes path `.voss/sessions/<rf.root_id>/run-final.json`, calls `mkdir(parents=True, exist_ok=True)`, serializes via `dataclasses.asdict(rf)`, and calls `chmod(0o600)`.
     - root_id is sourced from `rf.root_id` (grep shows no user-supplied root_id in the path build).
     - RunFinal is not mutated (no `rf.<attr> =` assignment; sign_off lives only in the JSON dict).
-    - `tests/harness/em/` still 79/79 green (no regression from the import/helper additions).
+    - `tests/harness/em/` still green (no regression from the import/helper additions).
   </acceptance_criteria>
   <done>Both helpers exist in cli.py with the verified signatures; default config builds the 7-role roster; sidecar writer mirrors _write_node_file with 0o600 and root_id-derived path; em suite green.</done>
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 2: Add @team_group.command("run") composing the stack, persisting, and prompting sign-off</name>
+  <name>Task 2: Add @team_group.command("run") composing the stack (V6 A/B reviewers), persisting, and prompting sign-off</name>
   <files>voss/harness/cli.py</files>
   <behavior>
     - `voss team run "<goal>"` with no .voss/team.voss → uses _default_team_config(); exits 0 on stub; produces ≥1 board card (pre-spawned med) and a RunFinal.
     - With .voss/team.voss present → parse + compile_team that roster/ceiling instead.
+    - Board is built with BOTH reviewer_a and reviewer_b injected (the real V6 two-source slots); the run reaches a terminal RunFinal.
     - After the loop, run-final.json exists under .voss/sessions/<root_id>/ with the 10 fields; CLI prints the RunFinal summary; click.prompt(approve/reject) records the decision into the sidecar (re-write with sign_off).
     - reject records decision="reject" and reverts nothing on disk (no node JSON added/removed by the sign-off path).
   </behavior>
@@ -159,10 +169,11 @@ Async-drive analog: cli.py:3575 consensus_cmd → asyncio.run(coro) in sync clic
     - voss/harness/cli.py:3540-3584 (consensus_cmd async-drive + echo + exit) and :3777-3816 (team_group + team_check_cmd team-file load branch)
     - voss/harness/em/loop.py:88 (em_loop keyword-only signature)
     - voss/harness/em/handle.py:82 (EMBoardHandle constructor)
-    - voss/harness/board/machine.py:266 (Board.from_team_config SINGLE reviewer slot) + spawn_card
+    - voss/harness/board/machine.py:275-312 (Board.from_team_config — reviewer_a/reviewer_b real slots + legacy alias) + spawn_card
+    - tests/harness/board/test_two_source_gate.py:38-90 (the exact reviewer_a/reviewer_b injection + DeterministicReviewerStub(source="A"/"B", tier=...) construction to mirror)
     - voss/harness/board/stub.py (DeterministicReviewerStub) ; voss/harness/em/stub.py + em/schema.py (DeterministicEMStub, EMPlanResponse, CreateTicketOp, NoopOp)
     - voss/harness/session_tree.py:147 (SessionTreeManager) + SessionTreeNode.create_root
-    - .planning/phases/V7-engineering-manager-loop-supersedes-o5/V7-RESEARCH.md (Pattern 1/3/5/6 + Pitfalls 1,2,4,6)
+    - .planning/phases/V7-engineering-manager-loop-supersedes-o5/V7-RESEARCH.md (Pattern 1/3/5/6 + Pitfalls 1,4,6; IGNORE stale Pitfall 2/Pattern 3's "single reviewer slot" — the CORRECTION BANNER supersedes it; inject reviewer_a + reviewer_b)
     - .planning/phases/V7-engineering-manager-loop-supersedes-o5/V7-PATTERNS.md (subcommand registration, async-drive, sign-off prompt, output echo)
   </read_first>
   <action>
@@ -170,26 +181,26 @@ Async-drive analog: cli.py:3575 consensus_cmd → asyncio.run(coro) in sync clic
 
     First action: `cwd = Path(cwd_str).resolve()`. Resolve team config: if `(cwd/".voss"/"team.voss").is_file()` → read, parse (append "\n" if missing), find the TeamDecl, compile_team(team_decl) → (config, registry); else → _default_team_config(). (Take the FALLBACK branch where team_check_cmd would _fail.)
 
-    Define an inner `async def _run() -> RunFinal` (or a module-level `_team_run_async`) that builds the stack in this exact order (V7-RESEARCH Pattern 3): SessionTreeNode.create_root(cwd=cwd, limit=500_000) → SessionTreeManager(root, reserve=0, cwd=cwd) → reviewer = DeterministicReviewerStub(conf=0.99, verdict="pass") → Board.from_team_config(config, recorder=manager, reviewer=reviewer, cwd=cwd, per_card_budget=100_000) → **await board.spawn_card(risk_tier="med")** (MANDATORY pre-spawn so RunFinal.total_cards>=1 — Pitfall 1) → base_gate = PermissionGate(mode="auto", auto_yes=True) → handle = EMBoardHandle(board=board, registry=registry, team_config=config, manager=manager, base_gate=base_gate, cwd=cwd) → roster_descs = {spec.id: spec.description for spec in registry.entries()} → em_agent = DeterministicEMStub(scripted=[EMPlanResponse(ops=[CreateTicketOp(original_idea=goal, worker_role=<a roster role, e.g. "backend">)]), EMPlanResponse(ops=[NoopOp(reason="waiting")])]) → return await em_loop(idea=goal, em_handle=handle, em_agent=em_agent, roster_descriptions=roster_descs, max_iterations=max_iterations).
+    Define an inner `async def _run() -> RunFinal` (or a module-level `_team_run_async`) that builds the stack in this exact order (V7-RESEARCH Pattern 3, with the CORRECTED reviewer injection): SessionTreeNode.create_root(cwd=cwd, limit=500_000) → SessionTreeManager(root, reserve=0, cwd=cwd) → reviewer_a = DeterministicReviewerStub(conf=0.99, verdict="pass", source="A", tier="fast") and reviewer_b = DeterministicReviewerStub(conf=0.99, verdict="pass", source="B", tier="strong") → Board.from_team_config(config, recorder=manager, reviewer_a=reviewer_a, reviewer_b=reviewer_b, cwd=cwd, per_card_budget=100_000) → **await board.spawn_card(risk_tier="med")** (MANDATORY pre-spawn so RunFinal.total_cards>=1 — Pitfall 1) → base_gate = PermissionGate(mode="auto", auto_yes=True) → handle = EMBoardHandle(board=board, registry=registry, team_config=config, manager=manager, base_gate=base_gate, cwd=cwd) → roster_descs = {spec.id: spec.description for spec in registry.entries()} → em_agent = DeterministicEMStub(scripted=[EMPlanResponse(ops=[CreateTicketOp(original_idea=goal, worker_role=<a roster role, e.g. "backend">)]), EMPlanResponse(ops=[NoopOp(reason="waiting")])]) → return await em_loop(idea=goal, em_handle=handle, em_agent=em_agent, roster_descriptions=roster_descs, max_iterations=max_iterations).
 
-    Drive it: `rf = asyncio.run(_run())`. Do NOT use reviewer_a/reviewer_b kwargs (V6-03 unexecuted — TypeError; Pitfall 2). Do NOT access rf.evidence_refs/diff_summary/residual (not on RunFinal; Pitfall 3).
+    Drive it: `rf = asyncio.run(_run())`. Inject BOTH reviewer_a and reviewer_b (the real V6 two-source slots) — this satisfies the V6 a_verification_passes + b_passes Done gate; do NOT collapse to a single reviewer= (the SPEC requires composing V6 Reviewer-A/B). Do NOT access rf.evidence_refs/diff_summary/residual (not on RunFinal; those are on Ticket — Pitfall 3).
 
     Persist initial: `_persist_run_final(rf, cwd)`. Print summary via click.echo — a readable RunFinal summary (idea, total_cards, done/blocked/killed/rescope counts, em_iterations); table-vs-text is Claude's discretion (CONTEXT). Then `decision = click.prompt("Sign off on this run", type=click.Choice(["approve", "reject"]))` (NOT click.confirm — testable via CliRunner input=). Re-persist with the decision: `_persist_run_final(rf, cwd, decision=decision)` (overwrites same path adding sign_off; Pitfall 6). reject is RECORD-ONLY: write the decision, touch nothing else (no revert). `sys.exit(0)` on success; error paths use click.echo(str(exc), err=True) + sys.exit(2) per cli.py conventions.
 
     No fenced code in this action.
   </action>
   <verify>
-    <automated>.venv/bin/python -c "src=open('voss/harness/cli.py').read(); assert 'team_group.command(\"run\")' in src, 'run subcommand missing'; assert 'spawn_card' in src, 'pre-spawn missing'; assert 'asyncio.run' in src, 'async-drive missing'; assert 'click.Choice' in src and 'approve' in src and 'reject' in src, 'signoff prompt missing'; print('cli surface present')" && .venv/bin/python -m pytest tests/harness/test_team_run_cli.py -q 2>&1 | tail -8 && .venv/bin/python -m pytest tests/harness/em/ -x -q 2>&1 | tail -3</automated>
+    <automated>.venv/bin/python -c "src=open('voss/harness/cli.py').read(); assert 'team_group.command(\"run\")' in src, 'run subcommand missing'; assert 'reviewer_a=' in src and 'reviewer_b=' in src, 'V6 A/B reviewer injection missing'; assert 'spawn_card' in src, 'pre-spawn missing'; assert 'asyncio.run' in src, 'async-drive missing'; assert 'click.Choice' in src and 'approve' in src and 'reject' in src, 'signoff prompt missing'; print('cli surface present')" && .venv/bin/python -m pytest tests/harness/test_team_run_cli.py -q 2>&1 | tail -8 && .venv/bin/python -m pytest tests/harness/em/ -x -q 2>&1 | tail -3</automated>
   </verify>
   <acceptance_criteria>
     - cli.py defines `@team_group.command("run")` (team_run_cmd) on the existing team group — NOT a new top-level group.
     - The command pre-spawns a board card via `await board.spawn_card(risk_tier="med")` BEFORE em_loop, and drives em_loop via `asyncio.run(...)`.
-    - Uses the SINGLE `reviewer=` slot (no reviewer_a/reviewer_b); never accesses evidence_refs/diff_summary/residual.
+    - The board is constructed with BOTH `reviewer_a=` and `reviewer_b=` (the real V6 two-source slots); never accesses evidence_refs/diff_summary/residual.
     - Sign-off uses `click.prompt(..., type=click.Choice(["approve","reject"]))`; the chosen decision is recorded into run-final.json's `sign_off` key; reject path writes only the sidecar (no other disk change).
     - All 10 V7-01 tests GREEN: `.venv/bin/python -m pytest tests/harness/test_team_run_cli.py -q` exits 0 with 10 passed.
-    - `tests/harness/em/` remains 79/79 green; `tests/harness/board/` is NOT in any V7 command (13 pre-existing RED from V6 scaffolds are out of scope).
+    - `tests/harness/em/` remains green; `tests/harness/board/` is also green (V6 complete) — optionally regress it, but `tests/harness/em/` is the required cage gate.
   </acceptance_criteria>
-  <done>`voss team run "<goal>"` composes the stack, pre-spawns ≥1 card, runs em_loop to terminal on the stub, persists RunFinal, prints the summary, prompts approve/reject, records the decision (reject record-only); V7-01 suite 10/10 GREEN; em suite 79/79 green.</done>
+  <done>`voss team run "<goal>"` composes the stack with the real V6 reviewer_a + reviewer_b slots, pre-spawns ≥1 card, runs em_loop to terminal on the stub, persists RunFinal, prints the summary, prompts approve/reject, records the decision (reject record-only); V7-01 suite 10/10 GREEN; em suite green.</done>
 </task>
 
 </tasks>
@@ -220,13 +231,13 @@ High-severity dispositions (T-V7-01..06) are all `mitigate` with concrete, testa
 </threat_model>
 
 <verification>
-- `voss team run "<goal>"` exits 0 on stub, produces ≥1 card + RunFinal, persists the sidecar, prompts + records sign-off.
-- Full V7 gate: `.venv/bin/python -m pytest tests/harness/em/ tests/harness/test_team_run_cli.py tests/harness/test_team_check_cli.py -q` (do NOT add tests/harness/board/).
+- `voss team run "<goal>"` exits 0 on stub, composes the V6 A/B reviewers, produces ≥1 card + RunFinal, persists the sidecar, prompts + records sign-off.
+- Full V7 gate: `.venv/bin/python -m pytest tests/harness/em/ tests/harness/test_team_run_cli.py tests/harness/test_team_check_cli.py -q` (em/ is the required cage gate; board/ is green and may be regressed optionally).
 - No new deps; cli.py is the only modified file.
 </verification>
 
 <success_criteria>
-All 10 V7-01 tests GREEN; em suite 79/79; the run-final.json sidecar carries the 10 RunFinal fields + sign_off and is re-readable; cage untouched (verified in V7-03).
+All 10 V7-01 tests GREEN; em suite green; the run-final.json sidecar carries the 10 RunFinal fields + sign_off and is re-readable; the board is composed with the real V6 reviewer_a + reviewer_b; cage untouched (verified in V7-03).
 </success_criteria>
 
 <output>
