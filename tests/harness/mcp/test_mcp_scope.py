@@ -147,7 +147,7 @@ def test_make_toolset_merges_mcp_tools(tmp_path: Path) -> None:
                     "name": "read_text_file",
                     "description": "Read text",
                     "inputSchema": {"type": "object"},
-                    "annotations": {"destructiveHint": False},
+                    "annotations": {"readOnlyHint": True, "destructiveHint": False},
                 }]},
             }) + "\\n")
             sys.stdout.flush()
