@@ -142,6 +142,8 @@ class RunRecord:
     # M15-05: skill audit events (additive, defaults for back-compat)
     skill_events: list[dict] = field(default_factory=list)
     scope_denials: list[dict] = field(default_factory=list)
+    # V1-04 CAP-08: capability-invocation audit rows (additive, back-compat default)
+    capability_invocations: list[dict] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.exit_reason is not None and self.exit_reason not in EXIT_REASONS:

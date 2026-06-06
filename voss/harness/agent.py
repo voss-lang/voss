@@ -1202,6 +1202,15 @@ async def _invoke_step_with_gate(
         )
         if recorder is not None:
             recorder.observe(step.name, step.args, text, ok=False)
+            recorder.observe_capability(
+                step.name,
+                getattr(entry, "group", "shell"),
+                step.args,
+                is_mutating=entry.is_mutating,
+                is_network=entry.is_network,
+                audit_behavior=getattr(entry, "audit_behavior", "full"),
+                ok=False,
+            )
         return text
     telemetry.emit(
         "tool.call",
@@ -1231,6 +1240,15 @@ async def _invoke_step_with_gate(
         )
         if recorder is not None:
             recorder.observe(step.name, step.args, text, ok=False)
+            recorder.observe_capability(
+                step.name,
+                getattr(entry, "group", "shell"),
+                step.args,
+                is_mutating=entry.is_mutating,
+                is_network=entry.is_network,
+                audit_behavior=getattr(entry, "audit_behavior", "full"),
+                ok=False,
+            )
         return text
     renderer.show_tool_call(step.name, step.args, _summarize(text), "ok")
     telemetry.emit(
@@ -1245,6 +1263,15 @@ async def _invoke_step_with_gate(
     )
     if recorder is not None:
         recorder.observe(step.name, step.args, text, ok=True)
+        recorder.observe_capability(
+            step.name,
+            getattr(entry, "group", "shell"),
+            step.args,
+            is_mutating=entry.is_mutating,
+            is_network=entry.is_network,
+            audit_behavior=getattr(entry, "audit_behavior", "full"),
+            ok=True,
+        )
     return text
 
 

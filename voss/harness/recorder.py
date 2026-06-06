@@ -422,6 +422,7 @@ class RunRecorder:
             iteration_total_completion_tokens=total_completion,
             skill_events=list(self.skill_events),
             scope_denials=list(self.scope_denials),
+            capability_invocations=list(self.capability_invocations),
         )
 
 
