@@ -210,6 +210,12 @@ def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGa
     )
 
 
+# V1-capability-seam (VTEAM-07): this raw toolset-key + net-alias filter is the
+# binding point where V1's capability registry will later resolve a role's
+# declared capabilities to a concrete toolset. The replacement is V1's concern;
+# the current behavior (alias expansion + exact-key match, net opt-in) is locked
+# and unchanged here. Do not add capability logic to this function — bind it at
+# this seam in V1.
 def filter_toolset_for_role(
     spec: SubagentSpec,
     base_toolset: Mapping[str, ToolEntry],
@@ -227,6 +233,8 @@ def filter_toolset_for_role(
         return dict(base_toolset)
     expanded: set[str] = set()
     for entry in spec.tools:
+        # V1-capability binding site: today raw alias/key expansion; in V1 a
+        # capability registry lookup replaces this branch (behavior unchanged now).
         if entry in TOOL_GROUP_ALIASES:
             expanded |= set(TOOL_GROUP_ALIASES[entry])
         else:
