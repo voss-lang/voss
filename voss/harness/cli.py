@@ -3669,6 +3669,74 @@ def serve_cmd(host: str, port: int, token: str | None) -> None:
     run_server(host=host, port=port, token=token)
 
 
+@click.group("capabilities")
+def capabilities_group() -> None:
+    """List and inspect the agent capability registry (CAP-04/05)."""
+
+
+@capabilities_group.command("list")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def capabilities_list_cmd(cwd_str: str, json_mode: bool) -> None:
+    """List capabilities grouped by group (compact names)."""
+    import json as json_lib
+
+    cwd = Path(cwd_str).resolve()
+    tools = make_toolset(cwd)  # no session_id — listing never invokes tools
+    by_group: dict[str, list[str]] = {}
+    for name, entry in tools.items():
+        by_group.setdefault(entry.group, []).append(name)
+
+    if json_mode:
+        out = {g: sorted(by_group[g]) for g in CAPABILITY_GROUPS if g in by_group}
+        click.echo(json_lib.dumps(out))
+        return
+
+    for g in CAPABILITY_GROUPS:
+        names = by_group.get(g)
+        if not names:
+            continue  # omit empty groups
+        click.echo(f"{g}:")
+        for name in sorted(names):
+            click.echo(f"  {name}")
+
+
+@capabilities_group.command("inspect")
+@click.argument("name")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def capabilities_inspect_cmd(name: str, cwd_str: str, json_mode: bool) -> None:
+    """Show full normalized detail for one capability."""
+    import json as json_lib
+
+    cwd = Path(cwd_str).resolve()
+    tools = make_toolset(cwd)
+    entry = tools.get(name)
+    if entry is None:
+        click.echo(f"<error: unknown capability: {name}>", err=True)
+        raise click.exceptions.Exit(1)
+
+    cap = entry.capability_dict()
+    if json_mode:
+        click.echo(json_lib.dumps(cap, indent=2, default=str))
+        return
+
+    width = max(len(k) for k in cap)
+    for key in (
+        "name",
+        "description",
+        "group",
+        "is_mutating",
+        "is_network",
+        "is_stateful",
+        "scope_requirements",
+        "audit_behavior",
+        "input_schema",
+        "output_schema",
+    ):
+        click.echo(f"{key:<{width}} : {cap[key]}")
+
+
 AGENT_COMMANDS = (
     do_cmd,
     serve_cmd,
@@ -3697,6 +3765,7 @@ AGENT_COMMANDS = (
     eval_cmd,
     consensus_cmd,
     hooks_group,
+    capabilities_group,
 )
 
 
