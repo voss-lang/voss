@@ -162,6 +162,15 @@ class EventBusRenderer:
             )
         )
 
+    def show_principles_overflow(
+        self, *, principles_tokens: int, budget: int = 1000
+    ) -> None:
+        self._emit(
+            E.PrinciplesOverflow(
+                principles_tokens=principles_tokens, budget=budget
+            )
+        )
+
     def show_warning(self, msg: str) -> None:
         self._emit(E.WarningEvent(message=msg))
 
