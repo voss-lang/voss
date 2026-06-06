@@ -4,6 +4,8 @@
 **Domain:** Python CLI composition — click group + async em_loop + session-tree + board + RunFinal persistence + sign-off
 **Confidence:** HIGH (all code verified against live source; compositions proven via direct execution)
 
+> ⚠️ **CORRECTION (2026-06-06, post-research — verified on disk):** This research ran against a **pre-merge tree** (V6 was merged to `dev` via `d35c7ae` during/after the run). Its "V6-02..05 NOT executed" findings are **STALE and WRONG**: V6 is COMPLETE — `Board.from_team_config` has `reviewer_a`/`reviewer_b` (machine.py:281-283, legacy `reviewer=` alias fans out to both → no `TypeError`), `ReviewerVerdict.domain_inferred` exists (verdict.py:34), `voss review` ships (cli.py:2487), and **both `tests/harness/board/` and `tests/harness/em/` are 100% green**. SUPERSEDED items below: OQ1, the "V6 readiness gap" finding, Pitfall 2 (reviewer_a/b TypeError), and the "exclude board/ — 13 RED" gate rationale. **V7 must inject the real `reviewer_a` + `reviewer_b` (SPEC: "compose V6 Reviewer-A/B").** Everything else (em_loop/Handle signatures, RunFinal 10 fields + `asdict`, pre-spawn card, async-drive, persistence, sign-off, cage verify) remains correct.
+
 ---
 
 <user_constraints>
