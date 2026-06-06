@@ -17,14 +17,15 @@ _SCHEMA = {
 }
 
 
-def _attach(tools: dict, final: str) -> dict:
+def _attach(monkeypatch, tools: dict, final: str) -> dict:
+    captured: dict = {}
+
     async def fake_run_subagent(**kw):
         captured["task"] = kw["task"]
         captured["provider"] = kw["provider"]
         return final
 
-    captured: dict = {}
-    subagents.run_subagent = fake_run_subagent  # type: ignore[assignment]
+    monkeypatch.setattr(subagents, "run_subagent", fake_run_subagent)
     attach_subagent_tool(
         tools,
         registry=object(),
@@ -70,7 +71,7 @@ class TestTaskTool:
     def test_schema_validated_return(self, monkeypatch) -> None:
         monkeypatch.setattr(roles, "build_role_provider", lambda role, **kw: None)
         tools: dict = {}
-        cap = _attach(tools, final='{"answer": "ok", "score": 9}')
+        cap = _attach(monkeypatch, tools, final='{"answer": "ok", "score": 9}')
         out = asyncio.run(tools["task"].invoke(agent="x", task="do it", schema=_SCHEMA))
         assert json.loads(out) == {"answer": "ok", "score": 9}
         # schema instruction injected into the subagent prompt
@@ -79,7 +80,7 @@ class TestTaskTool:
     def test_no_schema_returns_raw(self, monkeypatch) -> None:
         monkeypatch.setattr(roles, "build_role_provider", lambda role, **kw: None)
         tools: dict = {}
-        _attach(tools, final="free-form answer")
+        _attach(monkeypatch, tools, final="free-form answer")
         out = asyncio.run(tools["task"].invoke(agent="x", task="do it"))
         assert out == "free-form answer"
 
@@ -90,12 +91,12 @@ class TestTaskTool:
             lambda role, **kw: ("smol-provider", "smol-model") if role == "smol" else None,
         )
         tools: dict = {}
-        cap = _attach(tools, final='{"answer": "a", "score": 1}')
+        cap = _attach(monkeypatch, tools, final='{"answer": "a", "score": 1}')
         asyncio.run(tools["task"].invoke(agent="x", task="t", schema=_SCHEMA))
         assert cap["provider"] == "smol-provider"
 
     def test_registered_as_mutating(self, monkeypatch) -> None:
         monkeypatch.setattr(roles, "build_role_provider", lambda role, **kw: None)
         tools: dict = {}
-        _attach(tools, final="x")
+        _attach(monkeypatch, tools, final="x")
         assert tools["task"].is_mutating is True
