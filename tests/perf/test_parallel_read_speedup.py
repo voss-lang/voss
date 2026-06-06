@@ -37,7 +37,7 @@ async def _slow_read(path: str) -> str:
 
 
 SLOW_TOOLS: dict[str, ToolEntry] = {
-    "slow_read": ToolEntry(descriptor=_slow_read, is_mutating=False),
+    "slow_read": ToolEntry(descriptor=_slow_read, is_mutating=False, group="fs"),
 }
 
 

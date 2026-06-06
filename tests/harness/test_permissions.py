@@ -47,7 +47,7 @@ def _mk_tool(name: str, *, is_mutating: bool) -> ToolEntry:
         parameters={"type": "object", "properties": {}, "required": []},
         func=_impl,
     )
-    return ToolEntry(descriptor=desc, is_mutating=is_mutating)
+    return ToolEntry(descriptor=desc, is_mutating=is_mutating, group="fs")
 
 
 def _steps(*names: str) -> list[ToolCall]:

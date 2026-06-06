@@ -114,7 +114,7 @@ def _mk_tool(
         parameters={"type": "object", "properties": {}, "required": []},
         func=_impl,
     )
-    return ToolEntry(descriptor=desc, is_mutating=is_mutating)
+    return ToolEntry(descriptor=desc, is_mutating=is_mutating, group="fs")
 
 
 def _steps(*names: str) -> list[ToolCall]:
@@ -537,6 +537,7 @@ async def test_batch_end_ok_err_counts_on_mixed_pass_fail() -> None:
                     func=_ok,
                 ),
                 is_mutating=False,
+                group="fs",
             ),
             "bad": ToolEntry(
                 descriptor=ToolDescriptor(
@@ -546,6 +547,7 @@ async def test_batch_end_ok_err_counts_on_mixed_pass_fail() -> None:
                     func=_boom,
                 ),
                 is_mutating=False,
+                group="fs",
             ),
         }
         await _run_step_loop(
@@ -652,6 +654,7 @@ async def test_return_contract_length_and_strings() -> None:
                 func=_boom,
             ),
             is_mutating=False,
+            group="fs",
         ),
     }
     plan = _steps("a", "bad", "a", "unknown_tool")

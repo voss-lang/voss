@@ -44,7 +44,7 @@ def _mk_tool(name: str, result: str, *, mutating: bool = False) -> ToolEntry:
         parameters={"type": "object", "properties": {}, "required": []},
         func=_impl,
     )
-    return ToolEntry(descriptor=desc, is_mutating=mutating)
+    return ToolEntry(descriptor=desc, is_mutating=mutating, group="fs")
 
 
 def _mk_plan(
