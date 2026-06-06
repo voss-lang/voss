@@ -116,9 +116,12 @@ class TestRunRecordRedaction:
             # M15-05: skill audit events (additive, no credentials).
             "skill_events",
             "scope_denials",
+            # V1-04: capability-invocation audit (additive; args redacted via
+            # telemetry.redact_tool_args or omitted, no credentials).
+            "capability_invocations",
         }
         assert set(asdict(rec).keys()) == expected
-        assert len(dataclasses.fields(RunRecord)) == 23
+        assert len(dataclasses.fields(RunRecord)) == 24
 
     def test_run_record_no_secret_patterns(self, state_dir, tmp_path):
         record = SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")
