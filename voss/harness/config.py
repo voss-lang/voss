@@ -29,6 +29,7 @@ _TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
 # also matches `[netXrate_limits]` (any single char), corrupting the
 # bucket config. The escape is load-bearing.
 _NET_RATE_BLOCK = re.compile(r"^\[net\.rate_limits\][^\[]*", re.MULTILINE)
+_MODEL_TIERS_BLOCK = re.compile(r"^\[model_tiers\][^\[]*", re.MULTILINE)
 # `web_fetch = "60/min"` — quoted string form.
 _RATE_STR = re.compile(r'^\s*(\w+)\s*=\s*"(\d+)/min"\s*$', re.MULTILINE)
 # `web_fetch = { rate = 60, burst = 120 }` — one-line inline-table form.
@@ -164,6 +165,45 @@ def get_net_rate_limits() -> dict[str, dict[str, int]]:
     except OSError:
         return {}
     return _parse_net_rate_limits_section(text)
+
+
+# V3 (VTEAM-08): tier alias -> concrete model id. This dict is the ONLY place
+# concrete model NAME strings live for the team compiler; team.py references the
+# three tier keywords and resolves through get_model_tiers(). Ids target the
+# anthropic provider (model_catalog.TARGET_PROVIDERS[0]).
+_DEFAULT_MODEL_TIERS: dict[str, str] = {
+    "strong": "claude-opus-4-8",
+    "cheap": "claude-haiku-4-5",
+    "fast": "claude-haiku-4-5",
+}
+
+
+def _parse_model_tiers_section(text: str) -> dict[str, str]:
+    """Parse `[model_tiers]` quoted-string entries → ``{tier: model_id}``."""
+    m = _MODEL_TIERS_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    return {k: v for k, v in _KV.findall(block)}
+
+
+def get_model_tiers() -> dict[str, str]:
+    """Resolve tier alias -> concrete model id.
+
+    Returns the built-in `_DEFAULT_MODEL_TIERS` shallow-merged under any
+    `[model_tiers]` overrides in `config.toml`. Missing file / section -> the
+    built-in defaults. Mirrors `get_net_rate_limits` shape (plain dict accessor).
+    """
+    merged = dict(_DEFAULT_MODEL_TIERS)
+    p = config_path()
+    if not p.exists():
+        return merged
+    try:
+        text = p.read_text()
+    except OSError:
+        return merged
+    merged.update(_parse_model_tiers_section(text))
+    return merged
 
 
 def get_max_iterations() -> int:

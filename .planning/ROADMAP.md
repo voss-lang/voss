@@ -2252,3 +2252,35 @@ than building a standalone phase. Snap-locked tiling, no free-canvas resize
 
 Plans:
 - [ ] TBD (fold into A3 keymap on A3 execution / promote with /gsd:review-backlog)
+
+### Phase 999.3: Human Sprint Orchestration over Agent Board (BACKLOG)
+
+**Goal:** Human-facing sprint/kanban management layered on the V5 Board State
+Machine — time-boxed sprints, human+agent mixed assignment, estimation, and
+velocity/burndown. Distinct from V5/V7, which are *autonomous agent-org*
+orchestration (EM routes cards to an LLM roster, continuous flow, no human
+ceremonies).
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Context: V5 already ships the kanban substrate — columns
+`Backlog→Planned→InProgress→InReview→Blocked→Done`, per-column WIP limits,
+gated transitions, `Card` = ticket backed by a V4 session-tree node carrying
+idea/role/scope/risk/AC/budget/status. V7 EM loop converts idea→tickets/AC/DoD
+and routes by role. **What's missing for human sprint management:** (a) no
+sprints/iterations — board is continuous flow, no time-boxes; (b) no human
+assignee — cards route to LLM roster (backend/frontend/ui/ai), not human devs;
+(c) no estimation/velocity/burndown/story-points; (d) no human standup
+(line 1682 flags Standup→`semantic.memory` poisoning as an *unaddressed leak*,
+not a feature); (e) no human-facing ticket CRUD UI (`voss board` renders agent
+state, not a Jira-style board).
+
+Likely shape: extend `Card` schema (add `assignee`, `sprint_id`, `estimate`)
+rather than a parallel store; sprint grouping + velocity over the existing
+board; ADE sprint view as a V11 panel. Two build paths — (1) extend
+**V5 + V11** in place, or (2) standalone phase (V13 / A14) atop V5. Note: the
+external `/jira:*` skill covers Jira integration but is not native Voss board
+tooling. Decide native-vs-integration at promotion.
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)

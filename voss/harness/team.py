@@ -301,11 +301,37 @@ def _parse_mode_value(val: object) -> Mode | None:
     raise VossTeamConfigError(f"mode must be a string literal; got {type(val).__name__}")
 
 
+_MODEL_TIERS: frozenset[str] = frozenset({"strong", "cheap", "fast"})
+
+
 def _parse_model_value(val: object) -> str | None:
+    """Resolve a `model:` value to a concrete model id.
+
+    Closed-set / raw-passthrough rule (VTEAM-08, locked):
+
+    1. If the string is one of the CLOSED tier set {strong, cheap, fast}, resolve
+       it via :func:`voss.harness.config.get_model_tiers` to a concrete model id.
+       A tier mapped to an empty/missing id raises ``VossTeamConfigError`` naming
+       the tier (no silent fallback to a default model).
+    2. Otherwise the string is a RAW model id, returned unchanged. Raw ids are
+       NOT validated against the live catalog here — that keeps offline compile
+       (e.g. ``model: "opus"``) working; availability is a ``team check`` concern.
+
+    A typo like ``model: "strog"`` is outside the closed set, so it is treated as
+    a raw id and passes (consistent with raw passthrough).
+    """
     if val is None:
         return None
     if isinstance(val, StringLit):
-        return val.value
+        s = val.value
+        if s in _MODEL_TIERS:
+            from .config import get_model_tiers  # lazy: avoid import cycle
+
+            resolved = get_model_tiers().get(s, "")
+            if not resolved:
+                raise VossTeamConfigError(f"model tier {s!r} is not configured")
+            return resolved
+        return s
     raise VossTeamConfigError(f"model must be a string literal; got {type(val).__name__}")
 
 
