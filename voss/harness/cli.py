@@ -2928,6 +2928,11 @@ def _extension_context(
             gate=gate,
             cognition=ctx.cognition,
         )
+    attach_memory_tools(
+        tools,
+        store=MemoryStore(cwd).bind(session_id=ctx.record.id),
+        session_id=ctx.record.id,
+    )
     return ctx
 
 
