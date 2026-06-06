@@ -3774,6 +3774,76 @@ def principles_show_cmd(cwd_str: str, json_mode: bool) -> None:
         click.echo(f"{key:<{key_w}}  [{source}]  {text}")
 
 
+@click.group("team")
+def team_group() -> None:
+    """Inspect and validate the team cage (VTEAM-10)."""
+
+
+@team_group.command("check")
+@click.argument("path", required=False, default=".voss/team.voss")
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def team_check_cmd(path: str, json_mode: bool) -> None:
+    """Validate a .voss team file via the compile_team validator."""
+    import json as json_lib
+
+    from voss import parse
+    from voss.ast_nodes import TeamDecl
+    from voss.harness.team import VossTeamConfigError, compile_team
+
+    def _fail(msg: str) -> None:
+        if json_mode:
+            click.echo(json_lib.dumps({"ok": False, "error": msg}))
+        else:
+            click.echo(f"<error: {msg}>", err=True)
+        raise click.exceptions.Exit(1)
+
+    p = Path(path)
+    if not p.is_file():
+        _fail(f"team file not found: {path}")
+
+    src = p.read_text(encoding="utf-8")
+    program = parse(src if src.endswith("\n") else src + "\n", str(p))
+    team_decl = next(
+        (d for d in program.body if isinstance(d, TeamDecl)), None
+    )
+    if team_decl is None:
+        _fail(f"no team{{}} block in {path}")
+
+    try:
+        config, _registry = compile_team(team_decl)
+    except VossTeamConfigError as e:
+        _fail(str(e))
+        return  # unreachable; _fail raises. keeps type-checker happy.
+
+    ceiling = config.ceiling
+    scope_globs = list(ceiling.scope.globs) if ceiling.scope is not None else []
+    roster = sorted(config.roster_ids)
+
+    if json_mode:
+        click.echo(
+            json_lib.dumps(
+                {
+                    "ok": True,
+                    "team": config.name,
+                    "roster": roster,
+                    "ceiling": {
+                        "budget_tokens": ceiling.budget_tokens,
+                        "scope": scope_globs,
+                        "latency_seconds": ceiling.latency_seconds,
+                    },
+                }
+            )
+        )
+        return
+
+    click.echo(f"PASS  {config.name}")
+    click.echo(f"roster: {', '.join(roster)}")
+    click.echo(
+        f"ceiling: budget={ceiling.budget_tokens} "
+        f"scope={scope_globs} latency={ceiling.latency_seconds}"
+    )
+
+
 AGENT_COMMANDS = (
     do_cmd,
     serve_cmd,
@@ -3804,6 +3874,7 @@ AGENT_COMMANDS = (
     hooks_group,
     capabilities_group,
     principles_group,
+    team_group,
 )
 
 
