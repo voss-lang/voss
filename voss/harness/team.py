@@ -416,7 +416,7 @@ def _parse_model_value(val: object) -> str | None:
        the tier (no silent fallback to a default model).
     2. Otherwise the string is a RAW model id, returned unchanged. Raw ids are
        NOT validated against the live catalog here — that keeps offline compile
-       (e.g. ``model: "opus"``) working; availability is a ``team check`` concern.
+       of a literal model name working; availability is a ``team check`` concern.
 
     A typo like ``model: "strog"`` is outside the closed set, so it is treated as
     a raw id and passes (consistent with raw passthrough).
@@ -435,8 +435,13 @@ def subagent_spec_from_role(
     kvs: Mapping[str, object],
     ceiling: TeamCeiling,
     ceiling_ast: CeilingDecl | None,
+    apply_role_defaults: bool = False,
 ) -> SubagentSpec:
-    rd = role_full_defaults(role_name)
+    # Per-role tier/scope/tools defaults flow only for default-roster injection
+    # (VTEAM-09). Explicitly declared roles keep the shipped behavior — omitted
+    # scope inherits the ceiling, omitted tools/model stay empty/None — so
+    # existing O2 specs/tests compile unchanged (D-05 back-compat).
+    rd = role_full_defaults(role_name) if apply_role_defaults else None
 
     parsed_scope_opt = (
         _parse_scope_literal(kvs["scope"]) if "scope" in kvs else None
@@ -625,6 +630,7 @@ def compile_team(decl: TeamDecl) -> tuple[TeamConfig, SubagentRegistry]:
                 kvs={},
                 ceiling=ceiling_vo,
                 ceiling_ast=c_ast,
+                apply_role_defaults=True,
             )
             registry.register(spec_d)
             roster_id_set.add(name)
