@@ -25,6 +25,7 @@ dependencies = [
     "cryptography>=43.0.3",
     "tomli-w>=1.0",
     "rank-bm25>=0.2.2",
+    "jsonschema>=4.0",  # task tool: schema-validated subagent returns
 ]
 
 [project.optional-dependencies]
