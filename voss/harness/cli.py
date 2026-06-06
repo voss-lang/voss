@@ -47,7 +47,7 @@ from .subagents import (
     default_subagent_registry,
     run_subagent,
 )
-from .tools import attach_memory_tools, make_toolset
+from .tools import CAPABILITY_GROUPS, attach_memory_tools, make_toolset
 from .voss_inspect import (
     load_run,
     render_budget_timeline,
