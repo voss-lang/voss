@@ -41,6 +41,17 @@ def test_filter_net_alias(full_toolset) -> None:
     assert "fs_read" not in out
 
 
+def test_filter_code_alias(full_toolset) -> None:
+    spec = SubagentSpec("r", "d", "rp", tools=frozenset({"code"}))
+    out = filter_toolset_for_role(spec, full_toolset)
+    assert set(out.keys()) == {
+        "code_search",
+        "find_definition",
+        "find_references",
+        "code_refresh",
+    }
+
+
 def test_filter_excludes_net_when_net_absent(full_toolset) -> None:
     spec = SubagentSpec("r", "d", "rp", tools=frozenset({"fs", "test"}))
     out = filter_toolset_for_role(spec, full_toolset)
@@ -73,3 +84,6 @@ def test_filter_does_not_mutate_base(full_toolset) -> None:
 def test_tool_group_aliases_cover_expected_keys() -> None:
     assert "net" in TOOL_GROUP_ALIASES
     assert TOOL_GROUP_ALIASES["net"] == frozenset({"web_fetch", "web_search"})
+    assert TOOL_GROUP_ALIASES["code"] == frozenset(
+        {"code_search", "find_definition", "find_references", "code_refresh"}
+    )

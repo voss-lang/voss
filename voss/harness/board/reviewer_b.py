@@ -38,6 +38,7 @@ class _ReviewerBOutput(BaseModel):
     verdict: Literal["pass", "fail", "block"]
     notes: str
     evidence_refs: list[str] = []
+    domain_inferred: str = "unknown"  # VREV-06: clamped in _to_verdict
 
 
 REVIEWER_B_SYSTEM = """\
@@ -144,6 +145,10 @@ class ReviewerB:
             # No running loop — straightforward.
             return asyncio.run(coro)
 
+    # VREV-06 (T-V6-02-01): the LLM-controlled domain string is clamped to this
+    # closed set before it becomes a verdict value; anything else -> "unknown".
+    _ALLOWED_DOMAINS: frozenset[str] = frozenset({"code", "ai", "docs", "unknown"})
+
     @staticmethod
     def _to_verdict(
         resp: ProviderResponse,
@@ -164,6 +169,11 @@ class ReviewerB:
                 notes="structured output was None",
                 evidence_refs=(),
             )
+        domain = (
+            parsed.domain_inferred
+            if parsed.domain_inferred in ReviewerB._ALLOWED_DOMAINS
+            else "unknown"
+        )
         return ReviewerVerdict(
             conf=float(parsed.conf),
             source="B",
@@ -171,4 +181,5 @@ class ReviewerB:
             verdict=parsed.verdict,
             notes=parsed.notes,
             evidence_refs=tuple(parsed.evidence_refs),
+            domain_inferred=domain,  # type: ignore[arg-type]
         )

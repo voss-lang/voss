@@ -54,6 +54,12 @@ class GateContext:
     now: float
     reviewer: Optional[Reviewer] = None
     verdict: Optional[ReviewerVerdict] = None
+    # V6 (VREV-03/07): independent A/B reviewer slots + their cached verdicts.
+    # All defaulted — existing GateContext(...) constructions are unaffected.
+    reviewer_a: Optional[Reviewer] = None
+    reviewer_b: Optional[Reviewer] = None
+    verdict_a: Optional[ReviewerVerdict] = None
+    verdict_b: Optional[ReviewerVerdict] = None
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +102,36 @@ class conf_meets_p:
             _DEFAULT_RISK_THRESHOLDS[ctx.card.risk_tier],
         )
         return ctx.verdict.conf >= threshold
+
+
+class a_verification_passes:
+    """V6 (VREV-03): Reviewer-A's authored verification PASSES.
+
+    Lazy-cached to ctx.verdict_a (reviewer_a called at most once per move
+    attempt). Returns False when reviewer_a is absent — Done requires A.
+    """
+    name = "reviewer_a"
+    def evaluate(self, ctx: GateContext) -> bool:
+        if ctx.reviewer_a is None:
+            return False
+        if ctx.verdict_a is None:
+            ctx.verdict_a = ctx.reviewer_a.review(ctx.card)
+        return ctx.verdict_a.verdict == "pass"
+
+
+class b_passes:
+    """V6 (VREV-03): Reviewer-B's verdict == pass.
+
+    Lazy-cached to ctx.verdict_b. "block" AND "fail" both return False here —
+    block→Blocked terminal routing lives in Board.move, not in this predicate.
+    """
+    name = "reviewer_b"
+    def evaluate(self, ctx: GateContext) -> bool:
+        if ctx.reviewer_b is None:
+            return False
+        if ctx.verdict_b is None:
+            ctx.verdict_b = ctx.reviewer_b.review(ctx.card)
+        return ctx.verdict_b.verdict == "pass"
 
 
 class tests_pass:
@@ -142,8 +178,12 @@ class not_timed_out:
 # ---------------------------------------------------------------------------
 
 # Pre-built predicate tuples for the two Done variants.
-_CODE_DONE_PREDICATES = (scope_clean(), conf_meets_p(), tests_pass())
-_AI_DONE_PREDICATES = (scope_clean(), conf_meets_p(), eval_meets_threshold())
+# V6 (D-05): the Done gate is two-source — A verification AND B pass, both
+# independent. Ordering cheap→expensive: scope_clean, then A (test/LLM), then B
+# (one provider.complete), then the artifact check. conf_meets_p stays on the
+# intermediate (InProgress,InReview) gate only — Open Question 2.
+_CODE_DONE_PREDICATES = (scope_clean(), a_verification_passes(), b_passes(), tests_pass())
+_AI_DONE_PREDICATES = (scope_clean(), a_verification_passes(), b_passes(), eval_meets_threshold())
 
 
 @dataclass(frozen=True, slots=True)

@@ -12,15 +12,16 @@ from typing import Literal, Protocol, runtime_checkable
 
 @dataclass(frozen=True, slots=True)
 class ReviewerVerdict:
-    """Frozen 6-field verdict shape (SPEC OBRD-07).
+    """Frozen 7-field verdict shape (SPEC OBRD-07 + VREV-06).
 
     Fields:
-        conf:          [0.0, 1.0] confidence score from Reviewer B
-        source:        which reviewer authored this verdict (A or B)
-        tier:          B.fast at intermediate gates; B.strong at ->Done
-        verdict:       pass | fail | block (block = abort lineage)
-        notes:         reviewer-authored text; appended to retry_notes on fail
-        evidence_refs: pointers (file:line, test names, eval refs)
+        conf:           [0.0, 1.0] confidence score from Reviewer B
+        source:         which reviewer authored this verdict (A or B)
+        tier:           B.fast at intermediate gates; B.strong at ->Done
+        verdict:        pass | fail | block (block = abort lineage)
+        notes:          reviewer-authored text; appended to retry_notes on fail
+        evidence_refs:  pointers (file:line, test names, eval refs)
+        domain_inferred: inferred work domain; B populates (clamped), A defaults
     """
     conf: float
     source: Literal["A", "B"]
@@ -28,6 +29,9 @@ class ReviewerVerdict:
     verdict: Literal["pass", "fail", "block"]
     notes: str
     evidence_refs: tuple[str, ...]
+    # VREV-06 (D-06): additive, defaulted, MUST be last on this frozen+slots
+    # dataclass. B clamps the LLM value to this set; A leaves the default.
+    domain_inferred: Literal["code", "ai", "docs", "unknown"] = "unknown"
 
 
 @runtime_checkable

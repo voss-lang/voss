@@ -41,9 +41,13 @@ class TestReviewerVerdict:
         with pytest.raises(FrozenInstanceError):
             v.conf = 0.5  # type: ignore[misc]
 
-    def test_exactly_6_fields(self):
+    def test_exactly_7_fields(self):
+        # V6 (D-08): domain_inferred is the intended scoped 7th field.
         names = {f.name for f in fields(ReviewerVerdict)}
-        assert names == {"conf", "source", "tier", "verdict", "notes", "evidence_refs"}
+        assert names == {
+            "conf", "source", "tier", "verdict", "notes", "evidence_refs",
+            "domain_inferred",
+        }
 
 
 class TestReviewerProtocol:

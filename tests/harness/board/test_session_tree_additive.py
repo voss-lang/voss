@@ -82,4 +82,5 @@ class TestExitReasonsExtension:
     def test_exit_reasons_is_sorted_superset_of_pre_o3(self):
         pre_o3 = {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
         assert pre_o3.issubset(EXIT_REASONS)
-        assert EXIT_REASONS == pre_o3 | {"timeout"}
+        # "killed" added post-O3 by O5 for the EM kill-flow.
+        assert EXIT_REASONS == pre_o3 | {"timeout", "killed"}
