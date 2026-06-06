@@ -2,8 +2,8 @@
 phase: V2-principles-layer
 plan: 03
 type: execute
-wave: 2
-depends_on: [V2-01]
+wave: 3
+depends_on: [V2-01, V2-02]
 files_modified:
   - voss/harness/cli.py
   - tests/harness/test_principles_cli.py

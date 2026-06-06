@@ -117,7 +117,7 @@ reversibility: "Prefer reversible changes unless the user approves risk."
 - `voss/harness/config.py` — existing `.voss/` YAML load stack to reuse (no new deps).
 
 ### Frozen — must NOT change (schema-freeze constraint)
-- `voss/harness/recorder.py` `RunRecord`/`SessionRecord`, `voss_runtime` `BudgetScope` — zero field
+- `voss/harness/session.py` `RunRecord`/`SessionRecord`, `voss_runtime/budget.py` `BudgetScope` — zero field
   changes (O1/V4 redaction invariant); the redaction test must stay green. Audit recording of
   principles is V9, not V2.
 
