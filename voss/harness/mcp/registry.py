@@ -83,5 +83,7 @@ def register_mcp_tools(
                 descriptor=descriptor,
                 is_mutating=_is_mutating_from_descriptor(tool, scope),
                 is_network=True,
+                group="mcp",
+                scope_requirements=("mcp",),
             )
     return entries
