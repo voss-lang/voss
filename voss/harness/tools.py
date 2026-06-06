@@ -327,7 +327,9 @@ def make_toolset(
             "Replace text with `new` in a file. Supply either `old` (verbatim, "
             "must match exactly once) or `anchor` (line content-hash from "
             "fs_read annotate=true; add `end_anchor` for a multi-line span). "
-            "Returns line count delta."
+            "Routes through the diff modal (preview-then-accept) when a TUI "
+            "renderer is active; rejecting leaves the file untouched. Returns "
+            "line count delta."
         ),
     )
     async def fs_edit(
@@ -345,6 +347,8 @@ def make_toolset(
             return "<error: supply `old` OR `anchor`, not both>"
         if anchor is None and end_anchor is not None:
             return "<error: `end_anchor` requires `anchor`>"
+        # Resolve the change into (new_text, replaced-old-block, 1-based start
+        # line) so a single diff Hunk can be staged before any write.
         if anchor is not None:
             segs = text.split("\n")
             start, err = _resolve_anchor(segs, anchor)
@@ -359,6 +363,8 @@ def make_toolset(
             if end < start:
                 return "<error: `end_anchor` is before `anchor`>"
             new_text = "\n".join(segs[:start] + new.split("\n") + segs[end + 1:])
+            old_block = "\n".join(segs[start : end + 1])
+            line_start = start + 1
         elif old is not None:
             count = text.count(old)
             if count == 0:
@@ -366,8 +372,30 @@ def make_toolset(
             if count > 1:
                 return f"<error: `old` matches {count} times, must be unique>"
             new_text = text.replace(old, new, 1)
+            old_block = old
+            line_start = text.count("\n", 0, text.find(old)) + 1
         else:
             return "<error: supply `old` or `anchor`>"
+
+        # Preview-then-accept: stage one Hunk through the diff modal when the
+        # renderer supports it (TUI). Non-textual renderers (JSON/plain/None,
+        # e.g. tests) skip the modal and write after validation — same policy
+        # as fs_edit_many.
+        modal = getattr(renderer, "show_diff_modal", None) if renderer is not None else None
+        if modal is not None:
+            hunk = Hunk(
+                file=path,
+                start=line_start,
+                lines=[f"- {ln}" for ln in (old_block.splitlines() or [""])]
+                + [f"+ {ln}" for ln in (new.splitlines() or [""])],
+            )
+            decisions = modal([hunk], timeout_s=300.0)
+            if not decisions:
+                return "<denied: modal cancelled or timed out>"
+            # STRICT: skip is treated as reject (matches fs_edit_many).
+            if decisions[0].decision in ("reject", "skip"):
+                return "<denied: edit rejected>"
+
         p.write_text(new_text)
         delta = new_text.count("\n") - text.count("\n")
         sign = "+" if delta >= 0 else ""
