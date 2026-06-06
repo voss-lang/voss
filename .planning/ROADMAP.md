@@ -1821,6 +1821,14 @@ Plans:
 
 **Cross-cutting:** Extends existing `tools.py`/`permissions.py`/`sandbox.py`; preserve current call sites; metadata added incrementally; JSON-first output.
 
+**Plans:** 4 plans, 3 waves
+
+Plans:
+- [ ] V1-01-PLAN.md — Extend ToolEntry schema + hand-tag native registry (CAP-01/02/03/06)
+- [ ] V1-02-PLAN.md — `voss capabilities list` + `inspect` CLI, JSON-first (CAP-04/05)
+- [ ] V1-03-PLAN.md — Unify MCP into registry, default-deny gate-on-mutation, net-bucket close (CAP-07/09)
+- [ ] V1-04-PLAN.md — Recorder capability-invocation audit events + CAP-10 stub fixtures (CAP-08/10)
+
 ---
 
 ### Phase V2: Principles Layer
