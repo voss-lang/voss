@@ -1,7 +1,9 @@
 # Orchestration Plan: Caged Autonomous Eng Team (ADE Orchestration)
 
+> **⊘ SUPERSEDED (2026-06-05) by the V-track.** This O1–O6 design is retained as historical/reference. The canonical orchestration track is now **V0–V12** in `ROADMAP.md`, designed in `docs/ORCHESTRATION_LAYERS.md` (a superset that absorbs M13). Mapping: O1→V4, O2→V3, O3→V5, O4→V6, O5→V7, O6→V9. O6's 6 ready plans re-point to V9. The cage invariants, A/B-split rationale, decision log, and residual-risk analysis below remain valid input to the V-phase SPECs.
+
 **Created:** 2026-05-17
-**Status:** Design converged + stress-tested. Not yet planned/executed.
+**Status:** ⊘ SUPERSEDED by V-track (2026-06-05). Design converged + stress-tested; folded into V0–V12.
 **Track:** O-prefixed phases (O1–O6). Multi-agent orchestration layer on the Voss harness.
 **Relationship:** Sibling to `HARNESS-PLAN.md` (single-agent harness) and `MCP-PLAN.md`. Builds on M13 (Multi-agent in Chat — exposes raw `spawn`/`gather`). O-phases add the *caged orchestrator* on top: a board-driven autonomous eng team that cannot escape budget/scope/confidence.
 **Source:** Conversation 2026-05-17 — full Socratic decision tree + adversarial stress-test, decision log at bottom.
