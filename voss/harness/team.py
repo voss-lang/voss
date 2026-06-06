@@ -613,6 +613,22 @@ def compile_team(decl: TeamDecl) -> tuple[TeamConfig, SubagentRegistry]:
             registry.register(spec_r)
             roster_id_set.add(role.name)
 
+    # VTEAM-09: a team{} with no agents and no roster roles gets the PRD seven
+    # default roles, each carrying its full tier-based defaults (desc/prompt/
+    # model/scope/tools) via the same spec path. Declared cages are never
+    # overridden — injection only when both are empty (T-V3-02).
+    if not roster_id_set:
+        for name in DEFAULT_ROSTER:
+            spec_d = subagent_spec_from_role(
+                role_name=name,
+                role_decl_span=c_ast.span,
+                kvs={},
+                ceiling=ceiling_vo,
+                ceiling_ast=c_ast,
+            )
+            registry.register(spec_d)
+            roster_id_set.add(name)
+
     board_spec: BoardSpec | None = None
     if decl.board is not None:
         bd: BoardDecl = decl.board
