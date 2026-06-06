@@ -1796,16 +1796,21 @@ Plans:
 
 ### Phase V0: Reframe & Consolidate
 
-**Goal:** Reframe the repo + planning docs around the identity "Voss is an agent engineering organization layer, with `.voss` as its declarative control language" — so a new contributor understands the system in under 15 minutes and the six primitives are named consistently across docs.
+**Goal:** Reframe the canonical + planning identity docs around "Voss is an **agent engineering organization layer**, with the `.voss` language + harness as its substrate" — promoting `.planning/docs/ORCHESTRATION_LAYERS.md` to the canonical PRD + architecture doc, naming the six primitives, mapping every roadmap track to them, and adding a glossary, so a contributor can trace identity → primitives → phases from one source. Docs-only.
 
-**Scope:** Lead the product doc with "agent engineering organization" (not "Python fork"); add `docs/agent-org-architecture.md`; define the six primitives (capabilities, principles, orchestration, roles, memory, verification); map existing M/O/F/A phases onto those primitives; add a repo-wide terminology table (capability, role, agent, subagent, EM, card, board, gate, verifier, reviewer, audit). Docs-only — no runtime code.
+**Scope:** Add a canonical-PRD status declaration + a net-new phase→primitive map (M/T/A/O/F/V) + a net-new glossary to `.planning/docs/ORCHESTRATION_LAYERS.md`, and normalize its existing six-primitive table in place; prepend a `⊘ SUPERSEDED` banner to root `PRD.md` linking to the canonical doc; reframe the `.planning/PROJECT.md` lead to org-layer-atop-substrate. No new architecture doc — `.planning/docs/ORCHESTRATION_LAYERS.md` IS the architecture doc. README/npm `@vosslang` copy untouched (deferred). Docs-only — no runtime/CLI/grammar change. (Supersedes the earlier stale scope prose that referenced `docs/agent-org-architecture.md` and a 15-minute metric — governed by V0-SPEC.md acceptance checks.)
 
-**Requirements (lock at SPEC):** VRFM-01..05 (PRD P0-01..05).
+**Requirements:** VRFM-01, VRFM-02, VRFM-03, VRFM-04, VRFM-05 (PRD P0-01..05).
 
-**Cross-cutting:** Pure documentation/identity phase. No behavior change; nothing to verify beyond doc presence + consistency. Source: `docs/ORCHESTRATION_LAYERS.md` §"Phase 0".
+**Cross-cutting:** Pure documentation/identity phase. Acceptance is grep-checkable doc-presence; scope guard requires `README.md` byte-unchanged and zero non-`.md` files in the phase diff. Source: `.planning/docs/ORCHESTRATION_LAYERS.md` §"Phase 0".
+
+**Plans:** 2 plans (1 wave)
+
+Plans:
+- [ ] V0-01-PLAN.md — Canonical PRD: status declaration + six-primitive normalize + phase→primitive map + glossary + §1 thesis confirm
+- [ ] V0-02-PLAN.md — Satellite docs: PRD.md ⊘ SUPERSEDED banner + PROJECT.md org-layer lead reframe + scope guard
 
 ---
-
 ### Phase V1: Capability Surface Hardening
 
 **Goal:** Make the agent toolbelt a clean, composable, typed, permissioned, auditable capability registry — extending `ToolEntry`, not replacing it.
