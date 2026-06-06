@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
-status: completed
-last_updated: "2026-06-05T00:00:00.000Z"
-last_activity: "2026-05-18 — Phase A1 complete (4 plans, 4 waves). A1-01 Tauri+Solid+Tailwind scaffold + Cargo/pnpm monorepo + pinned versions + icon set (icon repadded to Big Sur safe-area). A1-02 Variant B token taxonomy + @theme inline + get_theme_overrides theme seam (3-path verified: absent/valid/malformed). A1-03 22px titlebar + macOS traffic lights + platform gate + visual-only preset switcher + drag (2 in-flight visual-defect patches: spacer align-self stretch, title-text drag). A1-04 hardened CSP + unsigned ad-hoc build smoke + "Voss ADE" ship-name verify + A10 cert-procurement clock started. SHL-01..06 all satisfied. Carried-forward: 11px Retina legibility re-check in A2, drag-region count + App.tsx plan-defects logged for plan-checker, A10 cert clock started 2026-05-18."
+status: executing
+last_updated: "2026-06-06T16:15:23.749Z"
+last_activity: 2026-06-06
 progress:
-  total_phases: 16
+  total_phases: 33
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
+  percent: 0
 ---
 
 # State: Voss
@@ -24,12 +25,12 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ## Current Position
 
 **Phase:** A4 — voss-app Layout Presets
-**Status:** Planned (6 plans, 5 waves). A4-00 is a blocking preflight and must not pass until A3-06 integration/perf work is complete.
+**Status:** Ready to execute
 **Goal:** Add L1 visual layout presets (`fanout`, `pipeline`, `swarm`, `watchers`), `Cmd+G` cycling, non-destructive preset switching, and named layout save/load.
 **Critical build order:** A4 depends on the completed A3 grid substrate. A3-06 must integrate GridRoot into App and register Rust grid sync before A4 implementation starts.
 **Next move:** Finish/verify A3-06, then run `/gsd:execute-phase A4`.
 **Rust status:** `crates/` frozen-spike untouched. NEW `crates/voss-app-core` (A1, path-dep'd by src-tauri, populated A2+) + `apps/voss-app/src-tauri` are the live voss-app track members — distinct from the frozen v0.1-ship crates.
-**Last activity:** 2026-05-18 — Phase A1 complete (4 plans, 4 waves). A1-01 Tauri+Solid+Tailwind scaffold + Cargo/pnpm monorepo + pinned versions + icon set (icon repadded to Big Sur safe-area). A1-02 Variant B token taxonomy + @theme inline + get_theme_overrides theme seam (3-path verified: absent/valid/malformed). A1-03 22px titlebar + macOS traffic lights + platform gate + visual-only preset switcher + drag (2 in-flight visual-defect patches: spacer align-self stretch, title-text drag). A1-04 hardened CSP + unsigned ad-hoc build smoke + "Voss ADE" ship-name verify + A10 cert-procurement clock started. SHL-01..06 all satisfied. Carried-forward: 11px Retina legibility re-check in A2, drag-region count + App.tsx plan-defects logged for plan-checker, A10 cert clock started 2026-05-18.
+**Last activity:** 2026-06-06
 
 ## Phase Status
 
@@ -159,4 +160,5 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 **Planned Phase:** A8 (voss-app-workspaces-ux-polish-theming) — 7 plans — 2026-05-21T00:04:42.143Z
 
 ### Roadmap Evolution
+
 - Phase A12 added: voss-app ADE Visual Redesign — left sidebar + warm site palette + branded titlebar + pane chrome accent bars. 8 requirements (ADE-01..08), 8 plans (P1–P8). Source: sketch 002 Variant A winner. (2026-05-22)
