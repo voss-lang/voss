@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Voss is an AI-native coding harness and programming language for controlled agentic software development. The harness is the first product surface: it helps developers plan, execute, inspect, and resume AI-assisted code work in real repositories. The `.voss` language remains the durable control layer for workflows that need explicit confidence gates, context budgets, semantic routing, tools, memory, agents, and fallbacks.
+Voss is an **agent engineering organization layer**: it lets AI coding agents work like a high-performing engineering organization — scoped, budgeted, reviewed, and replayable — rather than a rigid automation pipeline. That layer sits atop two named substrates. The **harness** is the first product surface: the `voss` CLI/TUI that helps developers plan, execute, inspect, and resume AI-assisted code work in real repositories. The **`.voss` language** is the durable, compiler-checkable control layer for workflows that need explicit confidence gates, context budgets, semantic routing, tools, memory, agents, and fallbacks. See [`.planning/docs/ORCHESTRATION_LAYERS.md`](docs/ORCHESTRATION_LAYERS.md) — the canonical PRD — for the full org-layer model.
 
 ## Core Value
 

@@ -1,5 +1,7 @@
 # Voss PRD: Agent Engineering Organization Layer
 
+> **Status:** This document is the **canonical PRD and architecture doc** for Voss — the single source of truth for product identity, the six product primitives, the roadmap-track → primitive mapping, and shared vocabulary. Other identity docs (root `PRD.md`, `.planning/PROJECT.md`) defer to it; the glossary and phase→primitive map below live here and are not duplicated elsewhere.
+
 > **Roadmap status (2026-06-05):** This PRD is the design source for the **V-track (V0–V12)** in `ROADMAP.md`. Its phases P0–P12 map 1:1 to V0–V12. The V-track **supersedes the O-track** (V3↔O2, V4↔O1, V5↔O3, V6↔O4, V7↔O5, V9↔O6) and **absorbs M13** into V8. Roadmap requirement IDs are namespaced `V*` (e.g. `CAP-*`→`VCAP-*`, `MAG-*`→`VMAG-*`, `LANG-*`→`VLANG-*`, `ADE-*`→`VADE-*`) to avoid collisions with M3/M13/A12; the un-prefixed IDs below remain canonical for design, and each `V{n}-SPEC.md` maps PRD-ID → roadmap-ID. Build keystone: **V4 (P4) session tree + budget fan-out**, budget enforced pre-emptively.
 
 ## 1. Product Thesis
@@ -108,6 +110,19 @@ Voss should support the same control model at multiple levels:
 | L2    | Team              | `.voss team{}` plus subagents             |
 | L3    | Organization      | EM loop plus board plus reviewers         |
 | L4    | Meta-organization | Review panels, calibration, audit product |
+
+### 4.3 Phase to Primitive Map
+
+Every roadmap track prefix in `ROADMAP.md` advances one or more of the six primitives above. This maps at track-prefix granularity (one row per prefix), not per phase.
+
+| Track | Roadmap meaning                                   | Primitives advanced                                  |
+| ----- | ------------------------------------------------- | ---------------------------------------------------- |
+| M     | Harness milestone phases (M0–M15)                 | Capabilities, Memory                                 |
+| T     | Gap-closure phases (daily-driver punch-list)      | Capabilities                                         |
+| A     | voss-app desktop ADE phases                       | Orchestration, Verification                          |
+| O     | ADE-orchestration phases — ⊘ **superseded / folded into the V-track** (V3↔O2, V4↔O1, V5↔O3, V6↔O4, V7↔O5, V9↔O6) | Orchestration, Roles, Verification |
+| F     | Substrate feature phases (v1 Layer 2)             | Capabilities, Memory                                 |
+| V     | Agent Engineering Organization Layer (V0–V12)     | Capabilities, Principles, Orchestration, Roles, Memory, Verification |
 
 ## 5. Required User Experience
 
@@ -832,3 +847,19 @@ MVP must prove:
 * Review is independent.
 * Done requires evidence.
 * User can understand the run from audit.
+
+## Glossary
+
+Shared vocabulary for this PRD. These terms are defined once here; other docs reference, never redefine them.
+
+* **capability** — A single tool in the agent toolbelt (e.g. `fs_edit`, `shell_run`); the L0 unit of what an agent can *do*. See the Capabilities primitive (§4.1).
+* **role** — A declared specialist lens (e.g. backend, reviewer) with its own scope, budget, and tool subset, expressed via `.voss team{}` / `SubagentSpec`. The Roles primitive.
+* **agent** — A single bounded run of the model-driven turn loop (harness `run_turn`) with a toolbelt, memory, and budget; the L1 unit.
+* **subagent** — A child agent spawned by a parent for a delegated, bounded task, returning its result to the parent (`run_subagent`, the `subagent_run`/`task` tools).
+* **EM** — Engineering Manager loop: the L3 orchestrator that decomposes work into cards, assigns roles, partitions budget, and integrates results. The Orchestration primitive.
+* **card** — A scoped unit of work the EM creates and assigns to a role, carrying its own budget and permission envelope.
+* **board** — The work-tracking surface holding cards and their state/gates; where a run's progress is made visible and gated.
+* **gate** — A blocking checkpoint a card must clear (e.g. review passed, verification green) before it can advance or be marked done.
+* **verifier** — An automated check (tests, evals, analyzers) that produces pass/fail evidence required to clear a verification gate. The Verification primitive.
+* **reviewer** — An independent agent (distinct from the worker) that critiques a card's output before it is accepted; independence is a core MVP invariant.
+* **audit** — The replayable, append-only history of every action, decision, and gate outcome in a run, enabling after-the-fact understanding (`voss audit`).
