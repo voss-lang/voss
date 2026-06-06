@@ -46,9 +46,16 @@ class VossTeamConfigError(Exception):
 
 
 DEFAULT_ROSTER: tuple[str, ...] = (
+    "product",
+    "ux",
     "architect",
     "backend",
     "frontend",
+    "ai",
+    "data",
+    "platform",
+    "reliability",
+    "security",
     "tester",
     "reviewer",
     "skeptic",
@@ -75,29 +82,78 @@ class RoleDefaults:
     tools: tuple[str, ...]
 
 
-# The PRD seven specialist roles. architect/backend/reviewer follow the
-# ORCHESTRATION_LAYERS §"Example Syntax" template; tester/skeptic/frontend/docs
-# are authored in the same spirit. Tiers only — never concrete model names.
+# Default product-engineering roster. It keeps the PRD specialist core and adds
+# product/design, platform/reliability/security, and data/AI lenses common in
+# engineering orgs. Tiers only — never concrete model names.
 _ROLE_DEFAULTS: dict[str, RoleDefaults] = {
+    "product": RoleDefaults(
+        description="Product engineer",
+        role_prompt="You clarify user value, requirements, acceptance criteria, and rollout tradeoffs before implementation.",
+        model_tier="strong",
+        scope=("docs/**", "src/**", "tests/**"),
+        tools=("fs_read", "fs_read_many", "fs_glob", "fs_grep", "code", "git"),
+    ),
+    "ux": RoleDefaults(
+        description="Product designer",
+        role_prompt="You shape user flows, interaction states, accessibility, and interface copy before UI work lands.",
+        model_tier="strong",
+        scope=("docs/**", "src/**", "tests/**"),
+        tools=("fs_read", "fs_read_many", "fs_glob", "fs_grep", "code", "git"),
+    ),
     "architect": RoleDefaults(
         description="Architect",
         role_prompt="You plan the smallest sound design before code; you own structure, not edits.",
         model_tier="strong",
         scope=("src/**", "docs/**"),
-        tools=("fs", "code", "git"),
+        tools=("fs_read", "fs_read_many", "fs_glob", "fs_grep", "code", "git"),
     ),
     "backend": RoleDefaults(
         description="Backend engineer",
         role_prompt="You specialize in APIs, persistence, and server-side logic.",
         model_tier="cheap",
-        scope=("src/server/**", "tests/server/**"),
+        scope=("src/**", "tests/**"),
         tools=("fs", "code", "test", "git"),
     ),
     "frontend": RoleDefaults(
         description="Frontend engineer",
         role_prompt="You specialize in web clients, routing, and client-side state.",
         model_tier="cheap",
-        scope=("src/client/**", "tests/client/**"),
+        scope=("src/**", "tests/**", "docs/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "ai": RoleDefaults(
+        description="AI / ML engineer",
+        role_prompt="You specialize in model integrations, evaluation loops, prompt contracts, and AI runtime behavior.",
+        model_tier="strong",
+        scope=("src/**", "tests/**", "docs/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "data": RoleDefaults(
+        description="Data engineer",
+        role_prompt="You specialize in data models, migrations, analytics paths, and durable data quality.",
+        model_tier="cheap",
+        scope=("src/**", "tests/**", "docs/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "platform": RoleDefaults(
+        description="Platform engineer",
+        role_prompt="You specialize in internal tooling, build systems, CI, packaging, and developer experience.",
+        model_tier="cheap",
+        scope=("src/**", "tests/**", "docs/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "reliability": RoleDefaults(
+        description="Reliability engineer",
+        role_prompt="You specialize in operability, telemetry, performance, capacity, and safe change management.",
+        model_tier="strong",
+        scope=("src/**", "tests/**", "docs/**"),
+        tools=("fs", "code", "test", "git"),
+    ),
+    "security": RoleDefaults(
+        description="Security engineer",
+        role_prompt="You identify abuse paths, permission flaws, data exposure, and supply-chain risks before release.",
+        model_tier="strong",
+        scope=("src/**", "tests/**", "docs/**"),
         tools=("fs", "code", "test", "git"),
     ),
     "tester": RoleDefaults(
@@ -137,10 +193,6 @@ _LEGACY_ROLE_DESC: dict[str, tuple[str, str]] = {
         "UI engineer",
         "You specialize in components, layouts, and design-quality UI.",
     ),
-    "ai": (
-        "AI / ML engineer",
-        "You specialize in models, pipelines, and AI integrations.",
-    ),
 }
 
 
@@ -152,8 +204,9 @@ def role_full_defaults(role_name: str) -> RoleDefaults | None:
 def default_team_role_defaults(role_name: str) -> tuple[str, str]:
     """Return `(description, role_prompt)` for a roster role.
 
-    Built-ins are the PRD seven (:data:`_ROLE_DEFAULTS`); legacy ui/ai retain
-    their carriers (D-05); unknown names use opaque fallbacks (open roster, OQ-02-A).
+    Built-ins are the default product-engineering roster (:data:`_ROLE_DEFAULTS`);
+    legacy ui retains its carrier (D-05); unknown names use opaque fallbacks
+    (open roster, OQ-02-A).
     """
     rd = _ROLE_DEFAULTS.get(role_name)
     if rd is not None:
@@ -171,6 +224,9 @@ EM_ROLE_PROMPT: str = "<EM role prompt — populated in O5>"
 # OQ-03-A: hybrid alias table (shorthand groups + exact tool names accepted separately).
 TOOL_GROUP_ALIASES: dict[str, frozenset[str]] = {
     "fs": frozenset({"fs_read", "fs_write", "fs_edit", "fs_glob", "fs_grep"}),
+    "code": frozenset(
+        {"code_search", "find_definition", "find_references", "code_refresh"}
+    ),
     "test": frozenset({"shell_run"}),
     "shell": frozenset(
         {"shell_run", "shell_run_background", "shell_monitor", "shell_signal"}
@@ -626,10 +682,10 @@ def compile_team(decl: TeamDecl) -> tuple[TeamConfig, SubagentRegistry]:
             registry.register(spec_r)
             roster_id_set.add(role.name)
 
-    # VTEAM-09: a team{} with no agents and no roster roles gets the PRD seven
-    # default roles, each carrying its full tier-based defaults (desc/prompt/
-    # model/scope/tools) via the same spec path. Declared cages are never
-    # overridden — injection only when both are empty (T-V3-02).
+    # VTEAM-09: a team{} with no agents and no roster roles gets the built-in
+    # product-engineering roster, each carrying its full tier-based defaults
+    # (desc/prompt/model/scope/tools) via the same spec path. Declared cages are
+    # never overridden — injection only when both are empty (T-V3-02).
     if not roster_id_set:
         for name in DEFAULT_ROSTER:
             spec_d = subagent_spec_from_role(

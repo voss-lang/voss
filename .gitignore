@@ -11,6 +11,10 @@ target/
 chroma/
 .env
 
+# Local codebase graph / context bundles.
+graphify-out/
+repomix-output.xml
+
 # Clipboard/screenshot artifacts dropped into workspace by tools.
 clipboard-*
 screenshot-*
