@@ -11,11 +11,11 @@ requirements: [VREV-05]
 must_haves:
   truths:
     - "All existing O4 reviewer tests regress green (REV-01..05,07,08 behavior intact)"
-    - "A's context excludes EM AC/DoD; B is EM-narrative-blind and sees a context packet distinct from A's"
+    - "(D-04, D-14) A's context excludes EM AC/DoD; B is EM-narrative-blind and sees a context packet distinct from A's"
     - "B retains Residual-2 block authority (blocks when A's verification diverges from the idea)"
-    - "git diff shows zero field changes on RunRecord / SessionRecord / BudgetScope"
+    - "(D-15) git diff shows zero field changes on RunRecord / SessionRecord / BudgetScope"
     - "The full board test suite is green before phase verification"
-    - "O4 is marked superseded in ROADMAP (bookkeeping)"
+    - "(D-14) O4 is marked superseded in ROADMAP (bookkeeping); existing O4 reviewer tests regress green"
   artifacts:
     - path: ".planning/ROADMAP.md"
       provides: "O4 marked superseded-by-V6; V6 plans listed"

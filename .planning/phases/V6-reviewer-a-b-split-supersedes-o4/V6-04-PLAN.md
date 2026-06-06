@@ -10,10 +10,10 @@ autonomous: true
 requirements: [VREV-10]
 must_haves:
   truths:
-    - "`voss review` with no arg prints the latest run's per-card A verification + B verdict + final outcome and exits 0"
+    - "(D-11, D-12) `voss review` with no arg prints the latest run's per-card A verification + B verdict + final outcome and exits 0 (mirrors sessions_cmd, latest-root default)"
     - "`voss review <run_id>` prints that run's per-card review and exits 0"
-    - "`voss review <unknown_run_id>` exits non-zero and writes an error to stderr"
-    - "The command is read-only from persisted .review.json sidecars — no live Board/SessionTreeManager constructed"
+    - "(D-13) `voss review <unknown_run_id>` exits non-zero and writes an error to stderr"
+    - "(D-11) The command is read-only from persisted .review.json sidecars — no live Board/SessionTreeManager constructed"
   artifacts:
     - path: "voss/harness/cli.py"
       provides: "review_cmd click command + _latest_root_id helper + AGENT_COMMANDS registration"

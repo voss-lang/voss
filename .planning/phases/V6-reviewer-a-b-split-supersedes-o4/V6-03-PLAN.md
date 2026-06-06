@@ -12,12 +12,12 @@ autonomous: true
 requirements: [VREV-03, VREV-04, VREV-07, VREV-09]
 must_haves:
   truths:
-    - "A card reaches Done only if A's authored verification PASSES AND B's verdict == pass"
+    - "(D-02, D-05) A card reaches Done only if A's authored verification PASSES AND B's verdict == pass (two distinct predicates extending the (InReview,Done) tuple, separate verdict_a/verdict_b slots)"
     - "A-verification failing refuses Done; B verdict != pass refuses Done"
-    - "A B `block` verdict at the Done gate moves the card to Blocked (terminal), not a retry"
-    - "Board accepts reviewer_a + reviewer_b; legacy single `reviewer` aliases both slots (back-compat)"
+    - "(D-03) A B `block` verdict at the Done gate moves the card to Blocked (terminal) via _force_terminal, not a retry"
+    - "(D-01) Board accepts reviewer_a + reviewer_b; legacy single `reviewer` aliases both slots (back-compat)"
     - "A and B are each invoked at most once per move attempt (cached to separate verdict_a/verdict_b slots)"
-    - "On Done or B-block, a .review.json sidecar is written (0o600) under the card's session-tree root dir"
+    - "(D-09, D-10) On Done or B-block, a .review.json sidecar (A verification + B full verdict + final outcome) is written (0o600) under the card's session-tree root dir; SessionTreeNode schema unchanged"
   artifacts:
     - path: "voss/harness/board/gates.py"
       provides: "GateContext verdict_a/verdict_b/reviewer_a/reviewer_b slots + a_verification_passes + b_passes predicates wired into the (InReview,Done) tuples"

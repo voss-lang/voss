@@ -12,9 +12,9 @@ autonomous: true
 requirements: [VREV-06]
 must_haves:
   truths:
-    - "ReviewerVerdict carries a 7th defaulted field domain_inferred ∈ {code,ai,docs,unknown}"
-    - "Existing keyword construction of ReviewerVerdict still works (additive, no breakage)"
-    - "Reviewer-B populates domain_inferred from the LLM output, clamped to the allowed set; garbage → unknown"
+    - "(D-06) ReviewerVerdict carries a 7th defaulted field domain_inferred ∈ {code,ai,docs,unknown}"
+    - "(D-08) Existing keyword construction of ReviewerVerdict still works (additive, no breakage); verdict.py keeps its zero-transitive-harness-import contract"
+    - "(D-07) Reviewer-B populates domain_inferred from the LLM output, clamped to the allowed set; garbage → unknown; Reviewer-A defaults it"
     - "Reviewer-A defaults domain_inferred (unknown, or a trivial card.domain map) without re-running"
   artifacts:
     - path: "voss/harness/board/verdict.py"
