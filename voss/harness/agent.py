@@ -39,6 +39,7 @@ from .providers import (
     ToolUseStart,
     Usage,
 )
+from .principles import resolve_principles
 from .recorder import RunRecorder, _emit_budget_osc, _emit_context_osc, write_decisions_md
 from .render import Renderer
 from .session import IterationRecord, RunRecord
@@ -51,6 +52,8 @@ except Exception:  # noqa: BLE001 — litellm absence must not break import
 
 
 COGNITION_BUDGET_TOKENS = 6000
+# V2-02 D-05: principles inject as their own ~1k-token block, mirroring cognition.
+PRINCIPLES_BUDGET_TOKENS = 1000
 
 
 class BatchInvariantError(Exception):
@@ -130,6 +133,70 @@ def _compose_cognition_prompt(
 
     truncated = _render(with_constraints=False)
     return truncated + "\n\n(constraints truncated due to budget)"
+
+
+def _compose_principles_block(
+    config,
+    *,
+    model: str,
+    token_count_fn=None,
+    renderer: Renderer | None = None,
+) -> str:
+    """Render the distinct `## Principles` block, enforcing the ~1k budget.
+
+    Opaque text only — iterates the config's ordered `principles` tuple and
+    never branches on a key. On overflow, drops whole principles from the END
+    of the ordered list until under budget (so earlier/default principles
+    survive deterministically), appends a truncation marker, and emits
+    `principles_overflow` via the renderer. Mirrors `_compose_cognition_prompt`.
+    """
+    items = list(config.principles) if config is not None else []
+    if not items:
+        return ""
+
+    def _render(pairs) -> str:
+        lines = ["## Principles", ""]
+        lines.extend(f"- {text}" for _, text in pairs)
+        return "\n".join(lines)
+
+    body = _render(items)
+    if token_count_fn is None:
+        return body
+
+    try:
+        measured = int(token_count_fn(body, model=model))
+    except Exception:  # noqa: BLE001 — never block a turn over a count
+        if renderer is not None:
+            try:
+                renderer.show_warning(
+                    "principles token-count unavailable; budget unchecked"
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        return body
+
+    if measured <= PRINCIPLES_BUDGET_TOKENS:
+        return body
+
+    if renderer is not None:
+        try:
+            renderer.show_principles_overflow(
+                principles_tokens=measured, budget=PRINCIPLES_BUDGET_TOKENS
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    marker = "\n\n(principles truncated due to budget)"
+    kept = list(items)
+    while kept:
+        kept.pop()
+        candidate = _render(kept) + marker
+        try:
+            if int(token_count_fn(candidate, model=model)) <= PRINCIPLES_BUDGET_TOKENS:
+                return candidate
+        except Exception:  # noqa: BLE001
+            return candidate
+    return "## Principles" + marker
 
 
 # M2: how much conversation history to inject into the per-turn prompt, and how
@@ -319,6 +386,7 @@ def _compose_system_blocks(
     *,
     voss_md_block: str,
     cognition_text: str,
+    principles_text: str = "",
     project_index_text: str = "",
     prior_context_text: str,
     loop_system: str,
@@ -326,12 +394,15 @@ def _compose_system_blocks(
     """Render the CACHE-01 static prefix as cacheable text blocks.
 
     M10-05 inserts the bounded `## Project Index` as its own slice after cognition.
+    V2-02 inserts the `## Principles` block as its OWN slice immediately after
+    cognition (static per run, so it belongs in the cacheable prefix).
     """
     blocks = [
         {"type": "text", "text": text}
         for text in (
             voss_md_block,
             cognition_text,
+            principles_text,
             project_index_text,
             prior_context_text,
             loop_system,
@@ -576,10 +647,19 @@ async def _run_turn_exec(
         )
         prior_context_text = _compose_prior_context_block(prior_context)
         voss_md_block = f"# VOSS.md\n{voss_md_text}" if voss_md_text else ""
+        # V2-02 VPRIN-04: resolve + inject the team's principles as a distinct
+        # cacheable block (capped, overflow-warned) alongside cognition.
+        principles_text = _compose_principles_block(
+            resolve_principles(cwd),
+            model=model,
+            token_count_fn=_default_token_count,
+            renderer=renderer,
+        )
         # T4 CACHE-01: cached static prefix as block list; rider (below, per-iter) stays a string and remains uncached.
         sys_blocks = _compose_system_blocks(
             voss_md_block=voss_md_block,
             cognition_text=cognition_text,
+            principles_text=principles_text,
             project_index_text=project_index_text,
             prior_context_text=prior_context_text,
             loop_system=_compose_loop_system(max_iterations),

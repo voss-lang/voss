@@ -55,6 +55,9 @@ class Renderer(Protocol):
     def show_cognition_overflow(
         self, *, architecture_tokens: int, budget: int = 6000
     ) -> None: ...
+    def show_principles_overflow(
+        self, *, principles_tokens: int, budget: int = 1000
+    ) -> None: ...
     def show_warning(self, msg: str) -> None: ...
 
 
@@ -269,6 +272,14 @@ class TtyRenderer:
             f"digest[/yellow]"
         )
 
+    def show_principles_overflow(
+        self, *, principles_tokens: int, budget: int = 1000
+    ) -> None:
+        self.console.print(
+            f"[yellow]{GLYPH_WARN} principles block is {principles_tokens} "
+            f"tokens (over {budget} budget) — truncated[/yellow]"
+        )
+
     def show_warning(self, msg: str) -> None:
         self.console.print(f"[yellow]{GLYPH_WARN} {msg}[/yellow]")
 
@@ -385,6 +396,14 @@ class CompactRenderer:
             f"architecture.md is {architecture_tokens} tokens (over {budget})"
         )
 
+    def show_principles_overflow(
+        self, *, principles_tokens: int, budget: int = 1000
+    ) -> None:
+        self.console.print(
+            f"[{ACCENT_ORANGE}]{GLYPH_WARN}[/{ACCENT_ORANGE}] "
+            f"principles block is {principles_tokens} tokens (over {budget})"
+        )
+
     def show_warning(self, msg: str) -> None:
         self.console.print(f"[{ACCENT_ORANGE}]{GLYPH_WARN}[/{ACCENT_ORANGE}] {msg}")
 
@@ -470,6 +489,14 @@ class PlainRenderer:
     ) -> None:
         print(
             f"cognition overflow: {architecture_tokens} > {budget}",
+            file=sys.stderr,
+        )
+
+    def show_principles_overflow(
+        self, *, principles_tokens: int, budget: int = 1000
+    ) -> None:
+        print(
+            f"principles overflow: {principles_tokens} > {budget}",
             file=sys.stderr,
         )
 
@@ -561,6 +588,15 @@ class JsonRenderer:
         self._emit(
             type="cognition_overflow",
             architecture_tokens=architecture_tokens,
+            budget=budget,
+        )
+
+    def show_principles_overflow(
+        self, *, principles_tokens: int, budget: int = 1000
+    ) -> None:
+        self._emit(
+            type="principles_overflow",
+            principles_tokens=principles_tokens,
             budget=budget,
         )
 
