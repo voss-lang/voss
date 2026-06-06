@@ -32,6 +32,8 @@ from .errors import BoardGateError, BoardWIPError
 from .gates import (
     Gates,
     GateContext,
+    a_verification_passes,
+    b_passes,
     conf_meets_p,
     eval_meets_threshold,
     scope_clean,
