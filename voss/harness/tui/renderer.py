@@ -409,6 +409,18 @@ class TextualRenderer:
             return
         self._post(tv.append_turn, "warning", body)
 
+    def show_principles_overflow(
+        self, *, principles_tokens: int, budget: int = 1000
+    ) -> None:
+        body = (
+            f"⚠ principles block is {principles_tokens} tokens "
+            f"(over {budget} budget) — truncated"
+        )
+        tv = self._turn_view()
+        if tv is None:
+            return
+        self._post(tv.append_turn, "warning", body)
+
     def show_warning(self, msg: str) -> None:
         tv = self._turn_view()
         if tv is None:
