@@ -650,22 +650,22 @@ This section does not apply — V6 is a pure code/wiring delta on the board and 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should V6 also ship `voss board`?**
    - What we know: V5 has not been executed; V5 is the specified source of `voss board`; V6-CONTEXT D-11 says to mirror it.
    - What's unclear: Should V6 ship a minimal `voss board` to satisfy D-11's reference, or should it accept that `sessions_cmd` is the pattern and ship only `voss review`?
-   - Recommendation: Ship only `voss review` using `sessions_cmd` as the pattern. The SPEC and CONTEXT both say V6 delivers `voss review`, not `voss board`. Note the V5 dependency in the plan commentary.
+   - RESOLVED: Ship only `voss review` using `sessions_cmd` as the pattern. The SPEC and CONTEXT both say V6 delivers `voss review`, not `voss board`. Note the V5 dependency in the plan commentary. (Baked into V6-04.)
 
 2. **A-slot reviewer at `InProgress→InReview` gate**
    - What we know: `conf_meets_p` uses `ctx.reviewer` (the legacy single slot) at `InProgress→InReview`. V6 adds A and B as separate slots only at the Done gate.
    - What's unclear: Should A also be invoked at `InProgress→InReview` (the intermediate gate) for the V6 two-source requirement? CONTEXT D-05 says "existing `scope_clean`/`conf`/`tests`/`eval` predicates are reused for A's verification arm" — this implies the intermediate gate stays as-is.
-   - Recommendation: Keep `InProgress→InReview` using the single `conf_meets_p` (legacy slot). Only the Done gate gets the two-source A+B predicates.
+   - RESOLVED: Keep `InProgress→InReview` using the single `conf_meets_p` (legacy slot). Only the Done gate gets the two-source A+B predicates. (Baked into V6-03.)
 
 3. **Sidecar on A-fail-only transitions (before B is called)**
    - What we know: If A fails, B may not be invoked. The sidecar needs B's verdict but B may be None.
    - What's unclear: Write a partial sidecar on A-fail (B null) or skip?
-   - Recommendation: Skip the sidecar write entirely on A-fail (B wasn't called; sidecar is incomplete). Write only when both verdicts are present. A-fail drives a critic retry; the next successful review will write the sidecar.
+   - RESOLVED: Skip the sidecar write entirely on A-fail (B wasn't called; sidecar is incomplete). Write only when both verdicts are present. A-fail drives a critic retry; the next successful review will write the sidecar. (Baked into V6-03 Task 3.)
 
 ---
 
