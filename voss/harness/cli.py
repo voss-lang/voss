@@ -3737,6 +3737,43 @@ def capabilities_inspect_cmd(name: str, cwd_str: str, json_mode: bool) -> None:
         click.echo(f"{key:<{width}} : {cap[key]}")
 
 
+@click.group("principles")
+def principles_group() -> None:
+    """Inspect the active engineering principles (VPRIN-07)."""
+
+
+@principles_group.command("show")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
+def principles_show_cmd(cwd_str: str, json_mode: bool) -> None:
+    """Show the merged active principles with each one's source."""
+    import json as json_lib
+
+    from voss.harness.principles import VossPrinciplesConfigError, resolve_with_sources
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        items = resolve_with_sources(cwd)
+    except VossPrinciplesConfigError as e:
+        click.echo(f"<error: {e}>", err=True)
+        raise click.exceptions.Exit(1) from e
+
+    if json_mode:
+        click.echo(
+            json_lib.dumps(
+                [{"key": k, "text": t, "source": s} for k, t, s in items]
+            )
+        )
+        return
+
+    if not items:
+        click.echo("(no active principles)")
+        return
+    key_w = max(len(k) for k, _, _ in items)
+    for key, text, source in items:
+        click.echo(f"{key:<{key_w}}  [{source}]  {text}")
+
+
 AGENT_COMMANDS = (
     do_cmd,
     serve_cmd,
@@ -3766,6 +3803,7 @@ AGENT_COMMANDS = (
     consensus_cmd,
     hooks_group,
     capabilities_group,
+    principles_group,
 )
 
 
