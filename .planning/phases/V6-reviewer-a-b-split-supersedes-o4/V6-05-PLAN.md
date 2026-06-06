@@ -69,6 +69,7 @@ ROADMAP V6 section (L1903) + O4 row (L54: "⊘ SUPERSEDED by V6") already marked
 
 <task type="auto">
   <name>Task 1: Full regression + frozen-schema diff gate</name>
+  <files>(verification-only — no production file modified; reads tests/ + git diff)</files>
   <read_first>
     - tests/harness/board/test_reviewer_a.py, tests/harness/board/test_reviewer_b.py, tests/harness/board/test_reviewer_integration.py (the O4 reviewer behavior tests — confirm A-excludes-EM-AC, B-narrative-blind, distinct context, Residual-2 block)
     - V6-VALIDATION.md Per-Requirement Verification Map + Sampling Rate
@@ -92,6 +93,7 @@ ROADMAP V6 section (L1903) + O4 row (L54: "⊘ SUPERSEDED by V6") already marked
 
 <task type="auto">
   <name>Task 2: Mark O4 superseded + record V6 plans in ROADMAP</name>
+  <files>.planning/ROADMAP.md</files>
   <read_first>
     - .planning/ROADMAP.md (O4 row at L54 — already "⊘ SUPERSEDED by V6"; the O4 phase block at L1745-1759; the V6 section at L1903-1911)
     - V6-CONTEXT.md D-14 (mark O4 superseded; O4 artifacts retained as reference)
@@ -115,9 +117,14 @@ ROADMAP V6 section (L1903) + O4 row (L54: "⊘ SUPERSEDED by V6") already marked
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
+  <name>Task 3: Human-verify voss review output legibility</name>
+  <files>(no file modified — operator-run inspection of `voss review` output)</files>
   <what-built>
     The `voss review` CLI now renders persisted per-card review artifacts. All automated gates (full board suite, frozen-schema diff, O4 regression) are green. The only behavior an automated test cannot judge is the human legibility of the `voss review` output layout (V6-VALIDATION manual-only row).
   </what-built>
+  <action>
+    Pause for human verification of the `voss review` output legibility. Present the operator with the run steps below and wait for an explicit "approved" (or a list of layout issues to fix) before closing the phase. No code is changed in this task — it is the manual-only verification from V6-VALIDATION.
+  </action>
   <how-to-verify>
     1. From a project dir that has at least one completed board run (a `.voss/sessions/<root_id>/` with `*.review.json` sidecars), run: `voss review`
     2. Confirm it prints, per card and ordered by card: A's verification (test path / rubric + pass/fail result), B's verdict (verdict / conf / tier / domain_inferred / evidence_refs / notes), and the final Done/Blocked outcome.
@@ -125,7 +132,11 @@ ROADMAP V6 section (L1903) + O4 row (L54: "⊘ SUPERSEDED by V6") already marked
     4. Run `voss review does-not-exist` and confirm a non-zero exit with an `unknown run_id` message on stderr.
     5. Judge: is the per-card A+B+outcome layout legible and unambiguous (matches the `voss board` / `voss sessions` house style)?
   </how-to-verify>
+  <verify>
+    <human-check>Operator runs `voss review` (latest), `voss review <run_id>`, and `voss review does-not-exist`; confirms per-card A+B+outcome renders legibly and the unknown run exits non-zero with stderr.</human-check>
+  </verify>
   <resume-signal>Type "approved" if the output is legible, or describe the layout issues to fix.</resume-signal>
+  <done>Operator has confirmed the `voss review` per-card output is legible and the unknown-run error path behaves correctly.</done>
 </task>
 
 </tasks>

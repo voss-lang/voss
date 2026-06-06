@@ -1910,6 +1910,15 @@ Plans:
 
 **Cross-cutting:** A and B see different context packets; B does not depend on EM summary; failed verification blocks Done; audit can explain why something passed.
 
+**Status:** Planned — 5 plans, 5 waves (planned 2026-06-06; supersedes O4).
+
+**Plans:**
+- [ ] V6-01-PLAN.md — Wave 0: pre-existing red-baseline fix + RED scaffolds (two-source gate, domain_inferred, sidecar, CLI) + 6→7-field verdict edit
+- [ ] V6-02-PLAN.md — verdict.domain_inferred (7th defaulted field); B populates+clamps, A defaults (VREV-06)
+- [ ] V6-03-PLAN.md — two-source Done gate: GateContext A/B slots + predicates, Board reviewer_a/reviewer_b + back-compat alias, B-block→Blocked seam, .review.json sidecar (VREV-03/04/07/09)
+- [ ] V6-04-PLAN.md — `voss review <run_id>` read-only CLI over .review.json sidecars (VREV-10)
+- [ ] V6-05-PLAN.md — regression verify (REV-01..05,07,08) + frozen-schema diff gate + O4-superseded bookkeeping + human-verify review output (VREV-05)
+
 ---
 
 ### Phase V7: Engineering Manager Loop (supersedes O5)

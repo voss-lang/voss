@@ -90,6 +90,8 @@ machine.py _append_delta (L467-493): node = self._manager.get_node(card.node_id)
 
 session_tree.py _write_node_file (L97-102) — the 0o600 mirror target:
   path = cwd/".voss"/"sessions"/node.root_id/f"{node.id}.json"; mkdir parents; write_text(json.dumps(...,indent=2)); chmod(0o600)
+
+Existing gate-predicate test file (regression target, NOT test_gates.py): tests/harness/board/test_gate_predicates_basic.py (also test_dry_run_gate.py, test_risk_thresholds.py)
 </interfaces>
 </context>
 
@@ -102,6 +104,7 @@ session_tree.py _write_node_file (L97-102) — the 0o600 mirror target:
     - V6-PATTERNS.md "gates.py" section (exact slot list, predicate class bodies, tuple extension)
     - voss/harness/board/verdict.py (ReviewerVerdict.verdict Literal — pass/fail/block)
     - tests/harness/board/test_two_source_gate.py (RED scaffold: two-source + back-compat assertions)
+    - tests/harness/board/test_gate_predicates_basic.py (existing predicate-registry regression target)
   </read_first>
   <behavior>
     - a_verification_passes.evaluate returns True iff ctx.verdict_a.verdict == "pass" (calling reviewer_a at most once, caching to ctx.verdict_a); False when reviewer_a is None
@@ -116,14 +119,14 @@ session_tree.py _write_node_file (L97-102) — the 0o600 mirror target:
     (3) Extend the Done predicate tuples preserving cheap→expensive ordering (D-05): `_CODE_DONE_PREDICATES = (scope_clean(), a_verification_passes(), b_passes(), tests_pass())` and `_AI_DONE_PREDICATES = (scope_clean(), a_verification_passes(), b_passes(), eval_meets_threshold())`. Leave `("InProgress","InReview")` using the legacy `conf_meets_p` unchanged (Open Question 2 — only Done gets the two-source arms).
   </action>
   <verify>
-    <automated>.venv/bin/python -m pytest tests/harness/board/test_two_source_gate.py::TestTwoSourceGate tests/harness/board/test_gates.py -x 2>&1 | tail -6</automated>
+    <automated>.venv/bin/python -m pytest tests/harness/board/test_two_source_gate.py::TestTwoSourceGate tests/harness/board/test_gate_predicates_basic.py tests/harness/board/test_dry_run_gate.py -x 2>&1 | tail -6</automated>
   </verify>
   <acceptance_criteria>
     - `grep -c 'verdict_a\|verdict_b\|reviewer_a\|reviewer_b' voss/harness/board/gates.py` ≥ 4 (slots present)
     - gates.py contains two predicate classes that read `ctx.verdict_a.verdict == "pass"` and `ctx.verdict_b.verdict == "pass"` respectively
     - Neither new predicate references `_force_terminal` or a board instance (Pitfall 2 — predicates stay boolean)
     - Both `_CODE_DONE_PREDICATES` and `_AI_DONE_PREDICATES` include the A and B predicates in cheap→expensive order
-    - Any existing gate-predicate test file (e.g. `test_gates.py`) still passes (no regression)
+    - `.venv/bin/python -m pytest tests/harness/board/test_gate_predicates_basic.py tests/harness/board/test_dry_run_gate.py -x` exits 0 (existing predicate tests, no regression)
   </acceptance_criteria>
   <done>GateContext has independent A/B reviewer+verdict slots; two boolean predicates gate Done on A-pass AND B-pass; existing predicate tests green.</done>
 </task>
