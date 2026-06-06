@@ -2448,6 +2448,76 @@ def sessions_cmd(include_legacy: bool) -> None:
         )
 
 
+def _latest_root_id(sessions_dir: Path) -> str | None:
+    """Name of the most-recently-modified session root dir, or None."""
+    try:
+        roots = [d for d in sessions_dir.iterdir() if d.is_dir()]
+    except OSError:
+        return None
+    if not roots:
+        return None
+    return max(roots, key=lambda d: d.stat().st_mtime).name
+
+
+def _render_review_card(node_id: str, data: dict) -> None:
+    """Print one card's A verification + B verdict + final outcome."""
+    click.echo(f"• {node_id}  [{data.get('final_outcome', '?')}]")
+    a = data.get("a_verification")
+    if a:
+        click.echo(
+            f"    A: {a.get('result', '?')}  "
+            f"({a.get('test_path_or_rubric') or 'no rubric'})  {a.get('notes', '')}"
+        )
+    else:
+        click.echo("    A: (none)")
+    b = data.get("b_verdict")
+    if b:
+        click.echo(
+            f"    B: {b.get('verdict', '?')}  conf={b.get('conf', '?')}  "
+            f"tier={b.get('tier', '?')}  domain={b.get('domain_inferred', '?')}"
+        )
+        if b.get("notes"):
+            click.echo(f"       {b['notes']}")
+        if b.get("evidence_refs"):
+            click.echo(f"       evidence: {', '.join(b['evidence_refs'])}")
+    else:
+        click.echo("    B: (none)")
+
+
+@click.command("review")
+@click.argument("run_id", required=False)
+def review_cmd(run_id: str | None) -> None:
+    """Show per-card A + B review for a run (latest if no run_id).
+
+    Read-only from the `.review.json` sidecars written by the board; no live
+    Board / SessionTreeManager / provider is constructed (VREV-10, D-11).
+    """
+    cwd = Path.cwd()
+    sessions_dir = cwd / ".voss" / "sessions"
+    if run_id is None:
+        run_id = _latest_root_id(sessions_dir)
+        if run_id is None:
+            click.echo("(no review runs found)", err=True)
+            raise SystemExit(1)
+    sidecar_dir = sessions_dir / run_id
+    if not sidecar_dir.is_dir():
+        click.echo(f"unknown run_id: {run_id}", err=True)
+        raise SystemExit(1)
+    sidecars = sorted(sidecar_dir.glob("*.review.json"))
+    if not sidecars:
+        click.echo("(no review artifacts for this run)")
+        return
+    click.echo(f"review {run_id}:")
+    for path in sidecars:
+        node_id = path.name[: -len(".review.json")]
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError) as e:
+            click.echo(f"  ! {node_id}: unreadable sidecar ({e})", err=True)
+            continue
+        _render_review_card(node_id, data)
+
+
 _JOB_META_FIELDS = (
     "handle",
     "pid",
@@ -3853,6 +3923,7 @@ AGENT_COMMANDS = (
     logout_cmd,
     doctor_cmd,
     sessions_cmd,
+    review_cmd,
     jobs_cmd,
     watch_cmd,
     inspect_group,
