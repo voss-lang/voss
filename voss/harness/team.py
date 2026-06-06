@@ -304,6 +304,22 @@ def _parse_mode_value(val: object) -> Mode | None:
 _MODEL_TIERS: frozenset[str] = frozenset({"strong", "cheap", "fast"})
 
 
+def _resolve_model_string(s: str) -> str:
+    """Resolve one model string under the closed-set / raw-passthrough rule.
+
+    See :func:`_parse_model_value` for the locked semantics; shared by the
+    declarative ``model:`` path and the per-role default tier injection.
+    """
+    if s in _MODEL_TIERS:
+        from .config import get_model_tiers  # lazy: avoid import cycle
+
+        resolved = get_model_tiers().get(s, "")
+        if not resolved:
+            raise VossTeamConfigError(f"model tier {s!r} is not configured")
+        return resolved
+    return s
+
+
 def _parse_model_value(val: object) -> str | None:
     """Resolve a `model:` value to a concrete model id.
 
@@ -323,15 +339,7 @@ def _parse_model_value(val: object) -> str | None:
     if val is None:
         return None
     if isinstance(val, StringLit):
-        s = val.value
-        if s in _MODEL_TIERS:
-            from .config import get_model_tiers  # lazy: avoid import cycle
-
-            resolved = get_model_tiers().get(s, "")
-            if not resolved:
-                raise VossTeamConfigError(f"model tier {s!r} is not configured")
-            return resolved
-        return s
+        return _resolve_model_string(val.value)
     raise VossTeamConfigError(f"model must be a string literal; got {type(val).__name__}")
 
 
