@@ -27,7 +27,8 @@ V7 sits on V3 (team), V4 (session tree), V5 (board), V6 (reviewers). It is **com
 
 ### `voss team run "goal"` CLI (VEM-CLI)
 - Add a **`run` subcommand to the EXISTING `team` click group** (`voss/harness/cli.py:3777`, alongside `team check`) — do not create a new top-level group.
-- Composition (reuse, no reimplementation): load team via V3 `compile_team` (`.voss/team.voss` if present) → build V4 `SessionTreeManager` (with its pre-emptive budget guard) → build V5 `Board` → build V6 Reviewer-A/B → run the shipped async `em_loop` autonomously until all cards terminal.
+- Composition (reuse, no reimplementation): load team via V3 `compile_team` (`.voss/team.voss` if present) → build `SessionTreeManager` → `Board.from_team_config(..., reviewer=...)` → run the shipped async `em_loop` autonomously until all cards terminal.
+- **V6 dependency reality (research-pinned):** V6-02..05 are NOT executed — `Board.from_team_config` currently takes a **single `reviewer=`** slot (not `reviewer_a`/`reviewer_b`), `ReviewerVerdict` has no `domain_inferred` field, `voss review` does not exist. V7 composes against the SHIPPED single-reviewer surface; the A/B split injection is re-wired when V6 lands (not V7's job).
 - `em_loop` is **async** → the command drives it via the harness's existing async-run pattern.
 - Acceptance: `voss team run "<goal>"` runs a full idea→cards→review→terminal run on the **stub provider**, produces ≥1 card + a `RunFinal`, exits 0.
 
@@ -38,9 +39,9 @@ V7 sits on V3 (team), V4 (session tree), V5 (board), V6 (reviewers). It is **com
 
 ### RunFinal persistence (VEM-PERSIST)
 - On completion, persist `RunFinal` to **`.voss/sessions/<root_id>/run-final.json`** — a read-only sidecar consumed by `voss audit` (V9).
-- Contents: `evidence_refs`, `diff_summary`, `residual`, `em_iterations`, plus the sign-off decision (added after the prompt).
-- `RunFinal` is **frozen** (`em/tickets.py:112`) — serialize its fields; do not mutate the dataclass.
-- Acceptance: after a run, `run-final.json` exists under the root, contains the RunFinal fields, and is re-readable without re-running.
+- **Shipped `RunFinal` fields (verified by research — `em/tickets.py:112`):** `root_id`, `idea`, `total_cards`, `done_count`, `blocked_count`, `killed_count`, `rescope_count`, `em_iterations`, `ts`, `kind`. (The earlier draft's `evidence_refs`/`diff_summary`/`residual` are NOT on RunFinal — those live on `Ticket`; do not invent them on the sidecar.)
+- Serialize via `dataclasses.asdict(rf)` (RunFinal is frozen+slots); write the 10 fields **plus a superset `sign_off` key** for the decision — do NOT mutate the frozen dataclass.
+- Acceptance: after a run, `run-final.json` exists under the root, contains the RunFinal fields + `sign_off`, and is re-readable without re-running.
 
 ### Human sign-off (VEM-SIGNOFF)
 - After the autonomous run completes, the CLI **prints the RunFinal summary** and **prompts approve/reject**.
@@ -100,8 +101,9 @@ V7 sits on V3 (team), V4 (session tree), V5 (board), V6 (reviewers). It is **com
 <specifics>
 ## Specific Ideas
 
-- `voss team run "<goal>"`: resolve team (file or `DEFAULT_ROSTER`) → `compile_team` → instantiate `SessionTreeManager` + `Board` + Reviewer-A/B → `asyncio`-drive `em_loop(goal, ...)` → `RunFinal` → write `.voss/sessions/<root_id>/run-final.json` → print summary → prompt approve/reject → record decision into the sidecar.
-- `run-final.json` is the V9 audit input — keep it a stable, flat JSON object (RunFinal fields + sign-off decision + timestamp).
+- `voss team run "<goal>"`: resolve team (file or `DEFAULT_ROSTER`) → `compile_team` → instantiate `SessionTreeManager` + `Board.from_team_config(..., reviewer=...)` (single reviewer slot — **V6's `reviewer_a`/`reviewer_b` split is NOT yet executed**) → **pre-spawn ≥1 board card** (`await board.spawn_card(risk_tier="med")`, since `em_loop` creates Tickets, not board cards) → `asyncio.run(em_loop(idea=goal, em_handle=..., em_agent=stub, ...))` → `RunFinal` → write `.voss/sessions/<root_id>/run-final.json` → print summary → prompt approve/reject → record decision into the sidecar.
+- `run-final.json` is the V9 audit input — keep it a stable, flat JSON object (`dataclasses.asdict(RunFinal)` 10 fields + `sign_off` decision).
+- **Acceptance gate = `tests/harness/em/` (79/79 green today), NOT `tests/harness/board/`** — V6-01 left board/ with 13 RED scaffolds (V6-02..05 unexecuted); V7 must not depend on them.
 - Reject is record-only: write `decision: "reject"` into the sidecar; touch nothing else on disk.
 - Cage stays intact: V7 only *injects* the handle; it adds no mutation methods. The "EM cannot mutate ceiling/p/roster" guarantee is the O5 `EMBoardHandle` omission, re-verified.
 - Tests: pytest, class-based, `tests/harness/` conventions; stub provider + `DeterministicEMStub` for the end-to-end run; click `CliRunner` for the CLI + sign-off prompt. **No new third-party deps.**
