@@ -415,6 +415,14 @@ class Board:
             if snap_verdict is not None:
                 verdict_snapshot = dataclasses.asdict(snap_verdict)
             if failing:
+                # V6 (D-03): a B `block` at the Done gate is TERMINAL, not a
+                # retry. Persist the review then force the card to Blocked.
+                if ctx.verdict_b is not None and ctx.verdict_b.verdict == "block":
+                    _write_review_sidecar(
+                        card, ctx, outcome="Blocked",
+                        cwd=self._cwd, manager=self._manager,
+                    )
+                    return self._force_terminal(card, reason="retry_ceiling")
                 self._append_delta(
                     card,
                     from_col=card.column,
@@ -426,6 +434,17 @@ class Board:
                 raise BoardGateError("gate refused", failing_clauses=failing)
 
         # 4. Emit passed delta + rebuild card with new column.
+        # V6 (VREV-09): on a successful two-source Done, persist the review
+        # sidecar. Guard on BOTH verdicts present so a pure A-fail (verdict_b
+        # never populated) cannot write a partial sidecar (Pitfall 5).
+        if (
+            transition == ("InReview", "Done")
+            and ctx.verdict_a is not None
+            and ctx.verdict_b is not None
+        ):
+            _write_review_sidecar(
+                card, ctx, outcome="Done", cwd=self._cwd, manager=self._manager,
+            )
         new_card = dataclasses.replace(card, column=to)
         self._cards = [
             new_card if c.node_id == card.node_id else c
