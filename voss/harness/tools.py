@@ -107,6 +107,65 @@ def _read_one_for_bundle(cwd: Path, path: str) -> str:
     return text
 
 
+def attach_memory_tools(tools: dict[str, "ToolEntry"], *, store, session_id: str) -> None:
+    """Register agent-callable durable-memory tools backed by `MemoryStore`.
+
+    Exposes the recall/retain verbs the model can drive itself (previously
+    only user/CLI-driven via /recall and /save). `memory_recall` is read-only
+    (fans out concurrently); `memory_remember` writes a note (mutating). The
+    store is bound to a session elsewhere; `session_id` tags written notes.
+    """
+
+    @tool(
+        name="memory_recall",
+        description=(
+            "Search durable project memory by query. Covers past turns, "
+            "ledgers, decisions, conventions, and saved notes. Optional "
+            "`source` filters to one of: turns, ledgers, decisions, "
+            "conventions, notes. Returns top hits with source, locator, and a "
+            "short excerpt."
+        ),
+    )
+    async def memory_recall(query: str, top_k: int = 5, source: str | None = None) -> str:
+        query = query.strip()
+        if not query:
+            return "<error: empty query>"
+        try:
+            hits = store.recall(query, top_k=top_k, source=source)
+        except Exception as exc:  # noqa: BLE001 — recall must not crash the turn
+            return f"<error: recall failed: {exc}>"
+        if not hits:
+            return "(no hits)"
+        lines: list[str] = []
+        for h in hits:
+            lines.append(f"[{h.source}] {h.locator} (score {h.score:.2f})")
+            excerpt = (h.excerpt or "").replace("\n", " ")[:160]
+            if excerpt:
+                lines.append(f"  {excerpt}")
+        return "\n".join(lines)
+
+    @tool(
+        name="memory_remember",
+        description=(
+            "Persist a durable note to project memory for future sessions. "
+            "Use for facts, decisions, or gotchas worth recalling later. "
+            "Returns the saved note id."
+        ),
+    )
+    async def memory_remember(text: str) -> str:
+        text = text.strip()
+        if not text:
+            return "<error: empty note>"
+        try:
+            path = store.write_note(text, session_id=session_id)
+        except Exception as exc:  # noqa: BLE001 — persistence failure is recoverable
+            return f"<error: {exc}>"
+        return f"remembered: {path.name}"
+
+    tools["memory_recall"] = ToolEntry(descriptor=memory_recall, is_mutating=False)
+    tools["memory_remember"] = ToolEntry(descriptor=memory_remember, is_mutating=True)
+
+
 def make_toolset(
     cwd: Path,
     *,

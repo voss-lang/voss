@@ -92,6 +92,8 @@ omp overlaps Voss heavily (terminal-first harness, multi-provider, multi-agent, 
 **Voss today:** `voss-agent/src/episodic.rs` exists; SecondBrain sidecar covers some of this externally.
 **Plan:** evaluate whether to extend `episodic.rs` in-harness vs. keep SecondBrain external. **Effort:** M. Decision-first, not build-first.
 
+**RESOLVED (2026-06-06):** Original framing under-counted Voss. The durable bank already exists in-harness: `voss/harness/memory_store.py` `MemoryStore` (839 lines — `.voss/memory/` fs mirror + chroma vector + BM25 recall + per-source quotas + tombstones). `episodic.{rs,py}` is only the rolling turn-summary tier, **not** the durable layer — do not extend it for this. SecondBrain has **zero references** in the Voss product; it is an external Claude Code dev sidecar (personal vault) — keep it external, do **not** bridge (wrong layer, would couple Voss to personal tooling). omp-verb mapping onto existing Voss: `recall` ✓ (`voss recall` CLI / `MemoryStore.recall`), `retain` ✓ (`MemoryStore.write_note`), `reflect` ≈ (`conventions.write_convention`, user-confirmed at session end). **Real gaps** (only if pursued): (a) expose `recall`+`retain` as **agent-callable tools** (today they are user/CLI-driven only) — cheap, wraps existing methods, enables model-driven memory; (b) `checkpoint`/`rewind` session snapshot+restore (no equivalent; `session_store`/`SessionRecord` is the foundation) — larger. **Decision: keep durable memory in-harness via MemoryStore; build nothing now; if demand appears, do (a) first.**
+
 ### Tier 3 — Rust core performance (already Rust client)
 
 - **In-process ripgrep/glob/find** — Voss has `fs_grep.rs`/`fs_glob.rs`; confirm no fork/exec on hot path, match omp's in-process model.
@@ -131,7 +133,7 @@ Rationale: 1 and 2 are single-crate, high-leverage, no UI risk — ship them to 
 
 ## Open questions
 
-1. Hashline anchor scheme — per-line hash vs. per-hunk? Collision handling on duplicate lines?
-2. Model-role config — new `~/.voss/models.yml` or extend existing config surface?
-3. Preview staging — extend `Tool` trait with `stage()` vs. add a `Staged` return variant? Affects every mutating tool.
-4. Memory bank — extend `episodic.rs` in-harness, or keep SecondBrain external and just bridge to it?
+1. ~~Hashline anchor scheme — per-line hash vs. per-hunk? Collision handling on duplicate lines?~~ **RESOLVED:** per-line anchor (first 8 hex SHA-256 of line content, `split('\n')` canonical both langs); duplicates → multi-match error → use `old` or `end_anchor` span. Shipped.
+2. ~~Model-role config — new `~/.voss/models.yml` or extend existing config surface?~~ **RESOLVED:** extend harness toml `[harness.roles.<role>] chain=[...]` (read via tomllib). Shipped.
+3. ~~Preview staging — extend `Tool` trait with `stage()` vs. add a `Staged` return variant?~~ **RESOLVED (Python live path):** reused existing `DiffModal`; single `fs_edit` now routes through it (builds one Hunk, approve-before-write). No `Tool`-trait change needed — non-textual renderers skip the modal. Rust trait change deferred (Rust UI is fallback). Shipped.
+4. ~~Memory bank — extend `episodic.rs` in-harness, or keep SecondBrain external and just bridge to it?~~ **RESOLVED:** keep in-harness via existing `MemoryStore` (the real durable bank); do not extend `episodic.{rs,py}` (wrong tier); do not bridge SecondBrain (external dev sidecar, wrong layer). See item 6 above. Build nothing now; if pursued, expose recall/retain as agent tools first.

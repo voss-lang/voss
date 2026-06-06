@@ -47,7 +47,7 @@ from .subagents import (
     default_subagent_registry,
     run_subagent,
 )
-from .tools import make_toolset
+from .tools import attach_memory_tools, make_toolset
 from .voss_inspect import (
     load_run,
     render_budget_timeline,
@@ -1712,6 +1712,7 @@ def do_cmd(
     do_record = session_store.SessionRecord.new(cwd=cwd, model=do_model)
     do_history = EpisodicMemory(capacity=40)
     do_memory_store = MemoryStore(cwd).bind(session_id=do_record.id)
+    attach_memory_tools(tools, store=do_memory_store, session_id=do_record.id)
 
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     click.echo(f"  [auth: {res.source} — {res.detail}]")
@@ -2008,6 +2009,7 @@ def _run_repl(
         gate=gate,
         cognition=bundle,
     )
+    attach_memory_tools(tools, store=ctx.memory_store, session_id=record.id)
     # M13-06: additively attach the non-blocking multi-agent fan-out toolset
     # (subagent_spawn/steer/status/gather) alongside the unchanged serial
     # subagent_run tool (D-02 back-compat). attach_multiagent_tools returns the
