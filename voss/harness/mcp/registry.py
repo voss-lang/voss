@@ -12,13 +12,19 @@ if TYPE_CHECKING:
     from voss.harness.mcp.config import McpConfig
 
 
-def _is_mutating_from_descriptor(tool: dict[str, Any], scope: str) -> bool:
-    """Map MCP destructiveHint into ToolEntry.is_mutating for a server scope."""
+def _is_mutating_from_descriptor(tool: dict[str, Any]) -> bool:
+    """V1-03 D-02 default-deny: an MCP tool is MUTATING unless the server
+    explicitly declares it read-only (`annotations.readOnlyHint is True`).
 
-    if scope == "plan":
-        return False
+    Absence of annotations ⇒ mutating. `destructiveHint=False` alone does NOT
+    make a tool read-only — only an explicit `readOnlyHint` does. Mutability is
+    independent of the server's configured scope; scope-based denial of
+    destructive tools at plan is enforced separately in the descriptor's invoke
+    (was a `scope == "plan" → False` short-circuit here, removed: it labelled
+    every plan-scoped tool non-mutating, defeating default-deny).
+    """
     annotations = tool.get("annotations") or {}
-    return bool(annotations.get("destructiveHint", True))
+    return annotations.get("readOnlyHint") is not True
 
 
 def _first_text_content(result: dict[str, Any]) -> str:
@@ -81,9 +87,11 @@ def register_mcp_tools(
             )
             entries[descriptor.name] = ToolEntry(
                 descriptor=descriptor,
-                is_mutating=_is_mutating_from_descriptor(tool, scope),
+                is_mutating=_is_mutating_from_descriptor(tool),
                 is_network=True,
                 group="mcp",
-                scope_requirements=("mcp",),
+                scope_requirements=("mcp", "net"),
+                audit_behavior="full",
+                is_stateful=False,
             )
     return entries

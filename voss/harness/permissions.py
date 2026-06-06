@@ -318,6 +318,14 @@ class PermissionGate:
             return True, "allowed by permission rule (.voss/permissions.yml)"
 
         needs = self.needs_prompt(tool_name) or rule_decision == "ask"
+        # V1-03 CAP-09: the WRITE/SHELL name-sets in needs_prompt do not include
+        # MCP-namespaced tools (server__tool), so a mutating MCP capability would
+        # otherwise run in edit mode with no prompt. Gate it on is_mutating so a
+        # hostile/mislabeled MCP server cannot run a mutating tool unprompted.
+        # Respects auto_yes / auto mode (which deliberately suppress prompts);
+        # plan mode already denied mutating tools in mode_allows above.
+        if is_mutating and "__" in tool_name and not self.auto_yes and self.mode != "auto":
+            needs = True
         if not needs:
             return True, "auto"
         if self.store is not None and rule_decision != "ask":
