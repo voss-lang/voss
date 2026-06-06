@@ -256,8 +256,8 @@ class Board:
         self._manager = manager
         # V6 (D-01): legacy single `reviewer` aliases both A and B slots. The
         # legacy slot drives conf_meets_p at InProgress→InReview; when only the
-        # A/B slots are supplied it falls back to A so that gate still functions.
-        self._reviewer = reviewer if reviewer is not None else reviewer_a
+        # A/B slots are supplied, B owns that intermediate confidence check.
+        self._reviewer = reviewer if reviewer is not None else reviewer_b
         self._reviewer_a = reviewer_a if reviewer_a is not None else reviewer
         self._reviewer_b = reviewer_b if reviewer_b is not None else reviewer
         self._cwd = cwd
