@@ -62,7 +62,7 @@
 | F6 | Multi-Model Agent Council | CLI-native multi-model deliberation panel; structured debate + consensus engine | FCNCL-01..0N (TBD by SPEC.md) | TBD |
 | V0 | Reframe & Consolidate | Repo/docs reframe to "agent engineering organization layer"; six primitives + terminology table; map M/O/F/A phases to primitives | VRFM-01..05 | TBD by SPEC.md |
 | V1 | Capability Surface Hardening | Normalized `Capability` schema over all tools (typed I/O, mutability, scope, network, audit); `voss capabilities list/inspect`; capability groups; unify MCP into registry | VCAP-01..10 | TBD by SPEC.md |
-| V2 | Principles Layer | First-class engineering principles (`.voss/principles.yml` + `principles{}`) injected into every agent context, audit-recorded, zero control-flow coupling | VPRIN-01..08 | TBD by SPEC.md |
+| V2 | Principles Layer | First-class engineering principles (`.voss/principles.yml` + `principles{}`) injected into every agent context, audit-recorded, zero control-flow coupling | VPRIN-01..08 | Plans ready to execute (3 plans, 2 waves; VPRIN-01/03/04/05/06/07; VPRIN-02→V10, VPRIN-08→V9) |
 | V3 | Team Spec + Role Cage (supersedes O2) | `.voss team{}` canonical: frozen TeamConfig+SubagentRegistry, compile-time scope/budget containment, default roster, model tiering, `voss team check` | VTEAM-01..10 | TBD by SPEC.md |
 | V4 | Session Tree + Budget Fan-out (supersedes O1, KEYSTONE) | Every agent a durable recorded node w/ own budget/scope/status/artifacts; `sum(child)+reserve ≤ parent`; no orphan/overspend; `voss session tree` | VTREE-01..10 | TBD by SPEC.md |
 | V5 | Board State Machine (supersedes O3) | Board columns/cards/WIP/gates as orchestrator state machine; artifact-gated transitions; agents can't self-Done; `voss board` | VBOARD-01..10 | TBD by SPEC.md |
@@ -1840,6 +1840,13 @@ Plans:
 **Requirements (lock at SPEC):** VPRIN-01..08 (PRD PRIN-01..08).
 
 **Cross-cutting:** Genuinely new surface. Changing principles changes subsequent runs, never historical audits.
+
+**Plans:** 3 plans (2 waves) — covers VPRIN-01/03/04/05/06/07. VPRIN-02 (grammar block) → V10; VPRIN-08 (audit recording) → V9.
+
+Plans:
+- [ ] V2-01-PLAN.md — principles.py: frozen PrinciplesConfig + .voss/principles.yml loader + six defaults + additive/disable merge (Wave 1)
+- [ ] V2-02-PLAN.md — inject distinct `## Principles` block into _compose_system_blocks; ~1k cap + principles_overflow event (Wave 2)
+- [ ] V2-03-PLAN.md — `voss principles show` (+--json); no-branching guard test + RunRecord/SessionRecord/BudgetScope schema-freeze assertion (Wave 2)
 
 ---
 
