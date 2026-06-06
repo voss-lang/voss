@@ -79,7 +79,7 @@ V7 supersedes O5 (ROADMAP); O5 artifacts retained as reference. V7 sits on V3 (t
 
 - [ ] `voss team run "<goal>"` composes team+session-tree+board+Reviewer-A/B+em_loop and runs autonomously to all-cards-terminal; produces ≥1 card + a RunFinal; exits 0 on stub provider.
 - [ ] No `.voss/team.voss` → default 7-role roster + default ceiling used; an explicit team file overrides.
-- [ ] On completion `RunFinal` persists to `.voss/sessions/<root_id>/run-final.json` (evidence_refs/diff_summary/residual/em_iterations) and is re-readable.
+- [ ] On completion `RunFinal` persists to `.voss/sessions/<root_id>/run-final.json` — the 10 shipped `RunFinal` fields (`root_id`/`idea`/`total_cards`/`done_count`/`blocked_count`/`killed_count`/`rescope_count`/`em_iterations`/`ts`/`kind`) plus a `sign_off` superset key — and is re-readable. *(Corrected 2026-06-06: `evidence_refs`/`diff_summary`/`residual` are `Ticket` fields, NOT on `RunFinal` — see V7-CONTEXT VEM-PERSIST.)*
 - [ ] The CLI prints the RunFinal summary + prompts approve/reject; the decision is recorded into `run-final.json`; reject leaves the working tree unchanged.
 - [ ] EM cage regress: dispatch to an undeclared role is denied; no set_ceiling/set_p/extend_budget on the handle; kill/rescope lineage + routing_rationale recorded.
 - [ ] Existing O5 em tests pass; idea→≥1 card→review→terminal→RunFinal proven on stub provider.

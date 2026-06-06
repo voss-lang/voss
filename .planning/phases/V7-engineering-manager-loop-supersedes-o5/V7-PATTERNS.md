@@ -379,7 +379,8 @@ Exactly 10 fields. `evidence_refs`, `diff_summary`, `residual` do NOT exist. `da
 # Per-wave gate:
 .venv/bin/python -m pytest tests/harness/em/ tests/harness/test_team_run_cli.py -q
 
-# DO NOT include tests/harness/board/ — 13 pre-existing RED failures from V6 scaffolds
+# CORRECTED 2026-06-06: tests/harness/board/ is GREEN (V6 complete, merged) — may be
+# included for optional regression. tests/harness/em/ is the REQUIRED V7 cage gate; board/ is not.
 ```
 
 ---
