@@ -328,7 +328,9 @@ def attach_subagent_tool(
             cognition=cognition,
         )
 
-    tools["subagent_run"] = ToolEntry(descriptor=subagent_run, is_mutating=True)
+    tools["subagent_run"] = ToolEntry(
+        descriptor=subagent_run, is_mutating=True, group="review", scope_requirements=("review",)
+    )
 
     @tool(
         name="task",
@@ -362,4 +364,6 @@ def attach_subagent_tool(
             return final
         return validate_subagent_json(final, schema)
 
-    tools["task"] = ToolEntry(descriptor=task, is_mutating=True)
+    tools["task"] = ToolEntry(
+        descriptor=task, is_mutating=True, group="review", scope_requirements=("review",)
+    )

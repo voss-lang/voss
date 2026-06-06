@@ -211,8 +211,8 @@ def attach_memory_tools(tools: dict[str, "ToolEntry"], *, store, session_id: str
             return f"<error: {exc}>"
         return f"remembered: {path.name}"
 
-    tools["memory_recall"] = ToolEntry(descriptor=memory_recall, is_mutating=False)
-    tools["memory_remember"] = ToolEntry(descriptor=memory_remember, is_mutating=True)
+    tools["memory_recall"] = ToolEntry(descriptor=memory_recall, is_mutating=False, group="memory", scope_requirements=("memory",))
+    tools["memory_remember"] = ToolEntry(descriptor=memory_remember, is_mutating=True, group="memory", scope_requirements=("memory",))
 
 
 def make_toolset(
@@ -740,42 +740,53 @@ def make_toolset(
         return await net.search(query, count)
 
     result = {
-        "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False),
-        "fs_read_many": ToolEntry(descriptor=fs_read_many, is_mutating=False),
-        "fs_glob": ToolEntry(descriptor=fs_glob, is_mutating=False),
-        "fs_grep": ToolEntry(descriptor=fs_grep, is_mutating=False),
-        "fs_write": ToolEntry(descriptor=fs_write, is_mutating=True),
-        "fs_edit": ToolEntry(descriptor=fs_edit, is_mutating=True),
-        "fs_edit_many": ToolEntry(descriptor=fs_edit_many, is_mutating=True),
-        "shell_run": ToolEntry(descriptor=shell_run, is_mutating=True),
+        "fs_read": ToolEntry(descriptor=fs_read, is_mutating=False, group="fs", scope_requirements=("fs",)),
+        "fs_read_many": ToolEntry(descriptor=fs_read_many, is_mutating=False, group="fs", scope_requirements=("fs",)),
+        "fs_glob": ToolEntry(descriptor=fs_glob, is_mutating=False, group="fs", scope_requirements=("fs",)),
+        "fs_grep": ToolEntry(descriptor=fs_grep, is_mutating=False, group="fs", scope_requirements=("fs",)),
+        "fs_write": ToolEntry(descriptor=fs_write, is_mutating=True, group="fs", scope_requirements=("fs",)),
+        "fs_edit": ToolEntry(descriptor=fs_edit, is_mutating=True, group="fs", scope_requirements=("fs",)),
+        "fs_edit_many": ToolEntry(descriptor=fs_edit_many, is_mutating=True, group="fs", scope_requirements=("fs",)),
+        "shell_run": ToolEntry(descriptor=shell_run, is_mutating=True, group="shell", scope_requirements=("shell",)),
         "shell_run_background": ToolEntry(
             descriptor=shell_run_background,
             is_mutating=True,
+            group="shell",
+            scope_requirements=("shell",),
+            is_stateful=True,
         ),
-        "shell_monitor": ToolEntry(descriptor=shell_monitor, is_mutating=False),
-        "shell_signal": ToolEntry(descriptor=shell_signal, is_mutating=True),
-        "fs_watch": ToolEntry(descriptor=fs_watch, is_mutating=False),
-        "fs_watch_poll": ToolEntry(descriptor=fs_watch_poll, is_mutating=False),
-        "git_status": ToolEntry(descriptor=git_status, is_mutating=False),
-        "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False),
-        "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False),
+        "shell_monitor": ToolEntry(descriptor=shell_monitor, is_mutating=False, group="shell", scope_requirements=("shell",), is_stateful=True),
+        "shell_signal": ToolEntry(descriptor=shell_signal, is_mutating=True, group="shell", scope_requirements=("shell",), is_stateful=True),
+        "fs_watch": ToolEntry(descriptor=fs_watch, is_mutating=False, group="fs", scope_requirements=("fs",), is_stateful=True),
+        "fs_watch_poll": ToolEntry(descriptor=fs_watch_poll, is_mutating=False, group="fs", scope_requirements=("fs",), is_stateful=True),
+        "git_status": ToolEntry(descriptor=git_status, is_mutating=False, group="git", scope_requirements=("git",)),
+        "git_diff": ToolEntry(descriptor=git_diff, is_mutating=False, group="git", scope_requirements=("git",)),
+        "voss_check": ToolEntry(descriptor=voss_check, is_mutating=False, group="test", scope_requirements=("test",)),
         "voss_probable_inspect": ToolEntry(
             descriptor=voss_probable_inspect,
             is_mutating=False,
+            group="test",
+            scope_requirements=("test",),
         ),
         "voss_budget_trace": ToolEntry(
             descriptor=voss_budget_trace,
             is_mutating=False,
+            group="test",
+            scope_requirements=("test",),
         ),
         "voss_py_diff": ToolEntry(
             descriptor=voss_py_diff,
             is_mutating=False,
+            group="test",
+            scope_requirements=("test",),
         ),
-        "record_run": ToolEntry(descriptor=record_run, is_mutating=True),
+        # record_run writes the run artifact (potentially large payloads); audit
+        # keeps metadata only to avoid echoing the full run blob into the log.
+        "record_run": ToolEntry(descriptor=record_run, is_mutating=True, group="review", scope_requirements=("review",), audit_behavior="metadata_only"),
         "web_fetch": ToolEntry(
-            descriptor=web_fetch, is_mutating=False, is_network=True
+            descriptor=web_fetch, is_mutating=False, is_network=True, group="net", scope_requirements=("net",)
         ),
-        "web_search": ToolEntry(descriptor=web_search, is_mutating=False, is_network=True),
+        "web_search": ToolEntry(descriptor=web_search, is_mutating=False, is_network=True, group="net", scope_requirements=("net",)),
     }
     if net is not None:
         _merge_mcp_tools(result, cwd)
@@ -815,10 +826,10 @@ def make_toolset(
         res = await svc.code_refresh(paths)
         return json.dumps(res, indent=2)
 
-    result["code_search"] = ToolEntry(descriptor=code_search, is_mutating=False)
-    result["find_definition"] = ToolEntry(descriptor=find_definition, is_mutating=False)
-    result["find_references"] = ToolEntry(descriptor=find_references, is_mutating=False)
-    result["code_refresh"] = ToolEntry(descriptor=code_refresh, is_mutating=False)
+    result["code_search"] = ToolEntry(descriptor=code_search, is_mutating=False, group="code", scope_requirements=("code",))
+    result["find_definition"] = ToolEntry(descriptor=find_definition, is_mutating=False, group="code", scope_requirements=("code",))
+    result["find_references"] = ToolEntry(descriptor=find_references, is_mutating=False, group="code", scope_requirements=("code",))
+    result["code_refresh"] = ToolEntry(descriptor=code_refresh, is_mutating=False, group="code", scope_requirements=("code",))
 
     return result
 
