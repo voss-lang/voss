@@ -39,6 +39,7 @@ from .gates import (
     scope_clean,
 )
 from .verdict import Reviewer, ReviewerVerdict
+from .review_persistence import _write_review_sidecar
 
 
 # ---------------------------------------------------------------------------
