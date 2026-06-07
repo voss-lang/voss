@@ -57,6 +57,8 @@ class SessionTreeNode:
     # O3 OBRD-01 / R-01+R-03: per-card transition + retry history on the node.
     transitions: list = field(default_factory=list)
     retry_notes: list = field(default_factory=list)
+    scope: Optional[str] = None
+    role: Optional[str] = None
     _budget: Optional[BudgetScope] = field(default=None, init=False, repr=False)
     _finalized: bool = field(default=False, init=False, repr=False)
 
@@ -91,6 +93,8 @@ def _hydrate_node(data: dict) -> SessionTreeNode:
     kept.setdefault("rejected_raises", [])
     kept.setdefault("transitions", [])
     kept.setdefault("retry_notes", [])
+    kept.setdefault("scope", None)    # V4 VTREE-08: pre-V4 files → null
+    kept.setdefault("role", None)     # V4 VTREE-08: pre-V4 files → null
     return SessionTreeNode(**kept)
 
 
@@ -162,7 +166,9 @@ class SessionTreeManager:
                 return child
         return None
 
-    async def allocate_child(self, limit: int) -> SessionTreeNode:
+    async def allocate_child(
+        self, limit: int, *, scope: str | None = None, role: str | None = None
+    ) -> SessionTreeNode:
         async with self._lock:
             allocated = sum(c.envelope["limit"] for c in self._children)
             available = (
@@ -185,6 +191,8 @@ class SessionTreeManager:
                 ),
                 ended_at=None,
                 rejected_raises=[],
+                scope=scope,
+                role=role,
             )
             self._children.append(child)
             _write_node_file(child, self._cwd)

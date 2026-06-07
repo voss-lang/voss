@@ -19,6 +19,7 @@ from voss.harness.session_tree import (
     BudgetCapRaiseError,
     SessionTreeManager,
     SessionTreeNode,
+    _hydrate_node,
     finalize_node,
     mutate_envelope,
 )
@@ -36,6 +37,9 @@ _NODE_JSON_KEYS = frozenset(
         # O3 OBRD-01: per-card transition + retry history (additive).
         "transitions",
         "retry_notes",
+        # V4 VTREE-08: nullable scope/role spawn metadata (additive).
+        "scope",
+        "role",
     }
 )
 
@@ -246,3 +250,39 @@ class TestNoOpenNodes:
         for path in tree_dir.glob("*.json"):
             blob = json.loads(path.read_text())
             assert blob.get("terminal_state") is not None
+
+
+class TestSchemaExtension:
+    def test_default_scope_role_null(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        assert root.scope is None
+        assert root.role is None
+
+    async def test_scope_role_spawn(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        child = await mgr.allocate_child(100, scope="review", role="worker")
+        assert child.scope == "review"
+        assert child.role == "worker"
+        on_disk = json.loads(_node_path(tmp_path, root.id, child.id).read_text())
+        assert on_disk["scope"] == "review"
+        assert on_disk["role"] == "worker"
+
+    async def test_spawn_without_scope_role_null(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        child = await mgr.allocate_child(100)
+        assert child.scope is None
+        assert child.role is None
+        on_disk = json.loads(_node_path(tmp_path, root.id, child.id).read_text())
+        assert on_disk["scope"] is None
+        assert on_disk["role"] is None
+
+    def test_pre_v4_file_hydrates_null(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        data = root.to_dict()
+        data.pop("scope", None)
+        data.pop("role", None)
+        node = _hydrate_node(data)
+        assert node.scope is None
+        assert node.role is None
