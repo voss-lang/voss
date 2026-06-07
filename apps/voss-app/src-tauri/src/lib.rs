@@ -293,6 +293,66 @@ mod tests {
         assert_eq!(env_for_embedded_cli("voss.exe", &chat_args), TUI_ENV);
         assert!(env_for_embedded_cli("claude", &claude_args).is_empty());
     }
+
+    // ---- V11 ADE org integration data-layer tests --------------------------
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::SystemTime;
+
+    /// Unique temp dir without pulling in the `tempfile` crate (no new deps).
+    fn unique_tmp(tag: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("voss_test_{tag}_{}_{}", std::process::id(), nanos))
+    }
+
+    #[test]
+    fn enumerate_runs_filters_flat_session_files() {
+        let base = unique_tmp("enum");
+        let sessions = base.join(".voss").join("sessions");
+        let run_dir = sessions.join("abc123run456");
+        fs::create_dir_all(&run_dir).unwrap();
+        fs::write(run_dir.join("node1.json"), "{}").unwrap();
+        // Legacy flat SessionRecord (Pitfall 1) — must be excluded.
+        fs::write(sessions.join("legacyflat999.json"), "{}").unwrap();
+
+        let runs = super::enumerate_runs(base.to_string_lossy().into_owned());
+        let ids: Vec<String> = runs.iter().map(|r| r.run_id.clone()).collect();
+        assert_eq!(ids, vec!["abc123run456".to_string()]);
+
+        fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn load_run_rejects_traversal() {
+        let res = super::load_run("../etc".into(), "/tmp".into(), "voss".into());
+        assert!(res.is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_decision_captures_nonzero_exit() {
+        use std::os::unix::fs::PermissionsExt;
+        let base = unique_tmp("decision");
+        fs::create_dir_all(&base).unwrap();
+        // Fake `voss` binary (filename passes is_voss_cli_binary) that exits 3.
+        let fake = base.join("voss");
+        fs::write(&fake, "#!/bin/sh\nexit 3\n").unwrap();
+        fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let res = super::run_decision(
+            fake.to_string_lossy().into_owned(),
+            base.to_string_lossy().into_owned(),
+            vec!["audit".into(), "deadbeef1234".into(), "--approve".into()],
+        )
+        .unwrap();
+        assert!(!res.success);
+        assert_eq!(res.exit_code, 3);
+
+        fs::remove_dir_all(&base).ok();
+    }
 }
 
 #[tauri::command]
@@ -970,6 +1030,201 @@ fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, Strin
     Ok(commits)
 }
 
+// ---- ADE org integration commands (V11) ------------------------------------
+// The single CLI-JSON data path for the org view. `load_run` aggregates a run's
+// node files + review sidecars + audit JSON + run-final into one typed payload
+// (D-01). `enumerate_runs` discovers V4+ session-tree dirs only (D-03).
+// `run_decision` shells the voss CLI — the sole non-interactive write path —
+// and captures stdout/stderr/exit (D-08). No `.voss/sessions` parsing happens
+// in the frontend.
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct RunData {
+    run_id: String,
+    session_tree: serde_json::Value,
+    review: serde_json::Value,
+    audit: serde_json::Value,
+    run_final: serde_json::Value,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct RunEntry {
+    run_id: String,
+    mtime_secs: u64,
+    has_run_final: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct DecisionResult {
+    success: bool,
+    stdout: String,
+    stderr: String,
+    exit_code: i32,
+}
+
+/// Reject run_ids that could escape the sessions directory (T-V11-03).
+fn is_safe_run_id(run_id: &str) -> bool {
+    !run_id.is_empty()
+        && !run_id.contains('/')
+        && !run_id.contains('\\')
+        && !run_id.contains("..")
+}
+
+fn sessions_dir(cwd: &str) -> PathBuf {
+    Path::new(cwd).join(".voss").join("sessions")
+}
+
+#[tauri::command]
+fn load_run(run_id: String, cwd: String, cli_binary: String) -> Result<RunData, String> {
+    // Path traversal guard BEFORE any filesystem access (mirror audit_cmd).
+    if !is_safe_run_id(&run_id) {
+        return Err(format!("invalid run_id: {run_id}"));
+    }
+    let run_dir = sessions_dir(&cwd).join(&run_id);
+    if !run_dir.is_dir() {
+        return Err(format!("run not found: {run_id}"));
+    }
+
+    // (a) node `.json` files (exclude run-final.json + *.review.json) and
+    // (b) `*.review.json` sidecars keyed by node id — direct Rust read per
+    // RESEARCH Open-Q2 (`voss board` has no JSON output; no session subprocess).
+    let mut node_files: Vec<PathBuf> = Vec::new();
+    let mut review = serde_json::Map::new();
+    if let Ok(rd) = std::fs::read_dir(&run_dir) {
+        for entry in rd.filter_map(|e| e.ok()) {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if !name.ends_with(".json") || name == "run-final.json" {
+                continue;
+            }
+            if name.ends_with(".review.json") {
+                if let Ok(raw) = std::fs::read_to_string(entry.path()) {
+                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
+                        let node_id = name.trim_end_matches(".review.json").to_string();
+                        review.insert(node_id, val);
+                    }
+                }
+                continue;
+            }
+            node_files.push(entry.path());
+        }
+    }
+    node_files.sort();
+    let mut nodes: Vec<serde_json::Value> = Vec::new();
+    for path in node_files {
+        if let Ok(raw) = std::fs::read_to_string(&path) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
+                nodes.push(val);
+            }
+        }
+    }
+    let session_tree = serde_json::json!({ "root_id": run_id, "nodes": nodes });
+
+    // (c) audit section: shell `voss audit <run_id> --cwd <cwd> --format json`
+    // via Command::args (NOT a shell string — T-V11-04). Degrade to null.
+    let audit = match std::process::Command::new(&cli_binary)
+        .args(["audit", run_id.as_str(), "--cwd", cwd.as_str(), "--format", "json"])
+        .output()
+    {
+        Ok(out) if out.status.success() => {
+            serde_json::from_slice::<serde_json::Value>(&out.stdout)
+                .unwrap_or(serde_json::Value::Null)
+        }
+        _ => serde_json::Value::Null,
+    };
+
+    // (d) optional run-final.json (Pitfall 5 — absence tolerated).
+    let run_final = std::fs::read_to_string(run_dir.join("run-final.json"))
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .unwrap_or(serde_json::Value::Null);
+
+    Ok(RunData {
+        run_id,
+        session_tree,
+        review: serde_json::Value::Object(review),
+        audit,
+        run_final,
+    })
+}
+
+#[tauri::command]
+fn enumerate_runs(cwd: String) -> Vec<RunEntry> {
+    let dir = sessions_dir(&cwd);
+    let rd = match std::fs::read_dir(&dir) {
+        Ok(rd) => rd,
+        Err(_) => return Vec::new(),
+    };
+    let mut entries: Vec<RunEntry> = rd
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            // Pitfall 1: flat `.json` files are legacy SessionRecords, not runs.
+            let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            if !is_dir {
+                return None;
+            }
+            let path = e.path();
+            // Require at least one node `.json` file inside (V4+ session tree).
+            let has_node = std::fs::read_dir(&path)
+                .ok()?
+                .filter_map(|f| f.ok())
+                .any(|f| {
+                    let n = f.file_name().to_string_lossy().into_owned();
+                    n.ends_with(".json") && n != "run-final.json"
+                });
+            if !has_node {
+                return None;
+            }
+            let mtime_secs = e
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            Some(RunEntry {
+                run_id: e.file_name().to_string_lossy().into_owned(),
+                mtime_secs,
+                has_run_final: path.join("run-final.json").is_file(),
+            })
+        })
+        .collect();
+    entries.sort_by(|a, b| b.mtime_secs.cmp(&a.mtime_secs));
+    entries
+}
+
+#[tauri::command]
+fn run_decision(
+    cli_binary: String,
+    cwd: String,
+    args: Vec<String>,
+) -> Result<DecisionResult, String> {
+    // Only the voss CLI may be exec'd (T-V11-06).
+    if !is_voss_cli_binary(&cli_binary) {
+        return Err(format!("not a voss CLI binary: {cli_binary}"));
+    }
+    // Validate run_id-shaped positionals — reject traversal (T-V11-03).
+    for arg in &args {
+        if arg.starts_with('-') {
+            continue;
+        }
+        if arg.contains('/') || arg.contains('\\') || arg.contains("..") {
+            return Err(format!("invalid argument: {arg}"));
+        }
+    }
+    // Command::args(vector) — never shell string interpolation (T-V11-04).
+    let output = std::process::Command::new(&cli_binary)
+        .args(&args)
+        .current_dir(&cwd)
+        .output()
+        .map_err(|e| e.to_string())?;
+    Ok(DecisionResult {
+        success: output.status.success(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        exit_code: output.status.code().unwrap_or(-1),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1039,6 +1294,9 @@ pub fn run() {
             save_custom_agents,
             list_dir,
             git_log,
+            load_run,
+            enumerate_runs,
+            run_decision,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
