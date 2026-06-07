@@ -71,7 +71,7 @@
 | V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat`; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | ✅ COMPLETE — 3 plans, 3 waves. V8 shipped the V4-backed persisted unification: every chat spawn is a persisted session-tree node; `M13Allocator` removed (single V4 `SessionTreeManager` governs spawns); per-node-manager recursion bounded by the viable-floor (no depth constant); chat-root envelope (60k + 30k reserve) finalized on session exit. MAG-01..09 regressed green; frozen schemas unchanged; no new deps. **ADE child-panel surface deferred to V11** (V8 uses the existing TUI only). |
 | V9 | Audit Product (supersedes O6) | Audit as primary trust product: idea/principles/team/budget/scope/board/reviewers/lineage/residual-risk; MD+JSON export; sign-off forcing function; reviewer calibration (AUD-09 ADE render → V11) | VAUD-01..10 | V9-01..06 SHIPPED (7 plans, 6 waves); V9-07 closeout: code+tests GREEN (78 audit tests, zero frozen-schema drift), human verify PENDING |
 | V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | Plans ready to execute (5 plans, 5 waves; VLANG-01a/01b/01c/02/08 + VERIFY/GUARD covered; SPEC ambiguity 0.137). |
-| V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | TBD by SPEC.md |
+| V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | Plans ready to execute (8 plans, 5 waves; VADE-01..10 + DATA/VIEW covered; CLI-JSON consumer, one-write-path) |
 | V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | Plans ready to execute (4 plans, 4 waves) |
 | V13 | External Developer SDK Surfaces (foundation) | SDK strategy (surface matrix, stability tiers, language priority, non-goals) + reconcile `sdk.md`↔`PROTOCOL.md` + Python/M7 linkage. **Docs-only** — the contract snapshot + codegen substrate moved to V13.1. Per-language clients = V13.1–.4 | VSDK-01..06 | TBD by SPEC.md |
 | V13.1 | TypeScript Local Client SDK | **Owns the shared contract snapshot** (static `openapi.json`+event-union export, committed, CI drift gate) + serve launcher, REST, SSE typed-event client, permission-reply helpers, typed event union; generated off its own snapshot | VSDK-TS-* | TBD by SPEC.md |
@@ -2028,6 +2028,18 @@ Plans:
 **Requirements (lock at SPEC):** VADE-01..10 (PRD ADE-01..10; namespaced to avoid clash with A12 ADE-01..08).
 
 **Cross-cutting:** User can watch many agents without terminal spam; inspect why a card is blocked; compare reviewer outputs; replay a run; sign off from the audit view.
+
+**Plans:** 8 plans across 5 waves (W0 contracts/reducer/fixtures -> W1 Rust data layer -> W2 view shell + panel stubs -> W3 structural/audit/budget/scope panels [parallel] -> W4 diff+blocked-decision + replay [parallel]).
+
+Plans:
+- [ ] V11-01-PLAN.md — Wave 0: hand-authored TS types (D-02 + V13.1 marker) + runtime guards + pure replay reducer (D-05/D-06) + golden JSON fixtures
+- [ ] V11-02-PLAN.md — Wave 1: aggregate `load_run` + `enumerate_runs` (dual-layout filter) + `run_decision` Tauri commands (D-01/D-03/D-08) + orgStore/decisionActions wrappers
+- [ ] V11-03-PLAN.md — Wave 2: `⌘⇧O` Org/Run view toggle (display:none, no PTY regression) + OrgViewShell (header/run-picker/10-tab) + StatusBar button + tokens + 10 panel stubs
+- [ ] V11-04-PLAN.md — Wave 3: Roster + Board panels (VADE-01/02) + tested board column/risk derivation
+- [ ] V11-05-PLAN.md — Wave 3: Session-tree (navigable) + Reviewer A/B verdict panels (VADE-03/05)
+- [ ] V11-06-PLAN.md — Wave 3: Audit (sections + unsupported-claim flag + residual-risk) + Budget + Scope panels (VADE-04/06/07)
+- [ ] V11-07-PLAN.md — Wave 4: Diff drilldown (a_verification surface + explicit no-diff state) + Blocked-card decision flow shelling the CLI (VADE-08/09, D-07/D-08, one-write-path)
+- [ ] V11-08-PLAN.md — Wave 4: Run replay panel — step scrubber + reducer-driven board snapshot (VADE-10)
 
 ---
 
