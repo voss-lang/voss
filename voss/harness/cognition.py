@@ -25,6 +25,7 @@ from .cognition_schemas import (
     ConstraintsConfig,
     PermissionsConfig,
     ProjectMeta,
+    SafetyConfig,
     ValidationConfig,
 )
 
