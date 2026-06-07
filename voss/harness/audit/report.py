@@ -1,6 +1,6 @@
 """V9 AuditReport aggregate — assembles all PRD §9 sections from persisted data.
 
-Read-only. No imports from ``voss.harness.board``, ``.em``, or ``.cli``.
+Read-only. Imports nothing from the board / EM / CLI layers.
 Principles and team config are loaded HERE (not in load.py) to satisfy the
 ``TestNoLiveImports`` guard — ``load.py`` is forbidden those imports.
 
