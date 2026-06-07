@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-07T16:13:02.871Z"
+last_updated: "2026-06-07T16:15:25.847Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 38
   completed_phases: 0
-  total_plans: 8
+  total_plans: 10
   completed_plans: 0
   percent: 0
 ---
