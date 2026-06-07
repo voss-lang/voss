@@ -5,7 +5,7 @@
 **Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`) · **V-prefixed agent-org phases** (Agent Engineering Organization Layer — design in `.planning/docs/ORCHESTRATION_LAYERS.md`; supersedes the O-track + absorbs M13)
 **Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A13 (counts TBD by SPEC.md); agent-org phases V0–V13 (requirements namespaced `V*`, locked per V{n}-SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-06-06 — added **V13 External Developer SDK Surfaces** (VSDK-01..12; strategy + protocol-generated TS/Rust/Go local clients off the LOCKED `PROTOCOL.md` v1 / `/openapi.json` / `EventEnvelope`; C = ABI/schema doc only; Python tracks M7; data-model-coupled reader SDKs deferred to downstream V-phases). | 2026-06-05 — added **V0–V12 Agent Engineering Organization Layer** track (design: `.planning/docs/ORCHESTRATION_LAYERS.md`). V supersedes the O-track (V3→O2, V4→O1, V5→O3, V6→O4, V7→O5, V9→O6 — O1–O6 archived-as-superseded; O6's ready plans re-point to V9) and absorbs M13 into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VAUD/VLANG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. | 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Last updated:** 2026-06-06 — added **V13 External Developer SDK Surfaces** — V13 foundation (VSDK-01..07: strategy/matrix/tiers + `sdk.md`↔`PROTOCOL.md` reconcile + codegen pipeline off the LOCKED `/openapi.json`/`EventEnvelope` + Python/M7 linkage); per-language clients are sub-phases **V13.1 TS / V13.2 Rust / V13.3 Go / V13.4 C-ABI-doc**, each with its own SPEC, generated off the V13 pipeline; deep reader SDKs gated on V1/V3/V4/V9. | 2026-06-05 — added **V0–V12 Agent Engineering Organization Layer** track (design: `.planning/docs/ORCHESTRATION_LAYERS.md`). V supersedes the O-track (V3→O2, V4→O1, V5→O3, V6→O4, V7→O5, V9→O6 — O1–O6 archived-as-superseded; O6's ready plans re-point to V9) and absorbs M13 into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VAUD/VLANG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. | 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -73,13 +73,17 @@
 | V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | TBD by SPEC.md |
 | V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | TBD by SPEC.md |
 | V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | Plans ready to execute (4 plans, 4 waves) |
-| V13 | External Developer SDK Surfaces | Lock the external-developer SDK strategy (surface matrix, stability tiers, language priority, non-goals) + reconcile `sdk.md`↔`PROTOCOL.md`; implement protocol-generated local client SDKs (TS/Rust/Go) off the LOCKED OpenAPI + `EventEnvelope`; C = ABI/schema doc only; Python tracks M7; deep reader SDKs (audit/team/capability) deferred to downstream V-phases | VSDK-01..12 | TBD by SPEC.md |
+| V13 | External Developer SDK Surfaces (foundation) | SDK strategy (surface matrix, stability tiers, language priority, non-goals) + reconcile `sdk.md`↔`PROTOCOL.md` + codegen pipeline (typed clients from `/openapi.json`+`EventEnvelope`, CI drift gate) + Python/M7 linkage. Per-language clients = V13.1–.4 | VSDK-01..07 | TBD by SPEC.md |
+| V13.1 | TypeScript Local Client SDK | serve launcher, REST, SSE typed-event client, permission-reply helpers, typed event union; generated off V13 pipeline | VSDK-TS-* | TBD by SPEC.md |
+| V13.2 | Rust Local/Native Client SDK | protocol/event types, local server supervisor (reuse voss-tui), auth helpers, session/audit readers; no orch reimpl | VSDK-RS-* | TBD by SPEC.md |
+| V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; no runtime reimpl | VSDK-GO-* | TBD by SPEC.md |
+| V13.4 | C ABI/Schema Doc | JSON-schema/ABI doc only; generated headers deferred; no full SDK | VSDK-C-* | TBD by SPEC.md |
 
 ---
 
 ## V-prefixed phases: Agent Engineering Organization Layer
 
-V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** — declared roles, first-class principles, bounded budget/scope, independent review, replayable audit. Full per-phase requirements, acceptance criteria, syntax, build order, and rationale live in [`docs/ORCHESTRATION_LAYERS.md`](docs/ORCHESTRATION_LAYERS.md) (the PRD). Each phase's `V{n}-SPEC.md` locks the namespaced requirements before planning (mechanism identical to the M/O/F tracks). **V13 (External Developer SDK Surfaces)** extends the track beyond the PRD's P0–P12 — it has no PRD §P section; its design source is `V13-SPEC.md` + the SDK Surface Matrix added to the PRD.
+V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** — declared roles, first-class principles, bounded budget/scope, independent review, replayable audit. Full per-phase requirements, acceptance criteria, syntax, build order, and rationale live in [`docs/ORCHESTRATION_LAYERS.md`](docs/ORCHESTRATION_LAYERS.md) (the PRD). Each phase's `V{n}-SPEC.md` locks the namespaced requirements before planning (mechanism identical to the M/O/F tracks). **V13 (External Developer SDK Surfaces)** extends the track beyond the PRD's P0–P12 — it has no PRD §P section; its design source is `V13-SPEC.md` + the SDK Surface Matrix added to the PRD. Per-language clients are sub-phases **V13.1–V13.4**, each with its own SPEC, all generated off the V13 codegen pipeline.
 
 **Supersession:** the V-track is a superset, not a parallel track. It retires the O-track and absorbs M13. O1–O6 stay in the repo as historical design (`ORCHESTRATION-PLAN.md`) but are archived-as-superseded; M13 scope + planned plans fold into V8. O6's 6 ready plans re-point to V9.
 
@@ -98,7 +102,11 @@ V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** �
 | V10 Voss Language as Coordination    | P10 | extends M3 grammar        | VLANG-01..08 |
 | V11 ADE Org Integration              | P11 | builds on A12/A13         | VADE-01..10 |
 | V12 Safety & Factory Fallbacks       | P12 | new                       | VSAFE-01..07 |
-| V13 External Developer SDK Surfaces  | —   | new (post-P12; tracks M7) | VSDK-01..12 |
+| V13 External Developer SDK Surfaces  | —   | new (post-P12; tracks M7)  | VSDK-01..07 |
+| V13.1 TypeScript Local Client SDK    | —   | generated off V13 pipeline | VSDK-TS-*   |
+| V13.2 Rust Local/Native Client SDK   | —   | generated off V13 pipeline | VSDK-RS-*   |
+| V13.3 Go Local/Headless Client SDK   | —   | generated off V13 pipeline | VSDK-GO-*   |
+| V13.4 C ABI/Schema Doc               | —   | doc-only (no full SDK)      | VSDK-C-*    |
 
 **ID namespacing:** PRD IDs are prefixed `V*` in the roadmap to avoid collisions — PRD `MAG-*`/`LANG-*`/`ADE-*` clash with M13/M3/A12 (different meanings). Inside `docs/ORCHESTRATION_LAYERS.md` the un-prefixed IDs remain; SPEC-phase maps PRD-ID → namespaced roadmap-ID.
 
@@ -2022,22 +2030,86 @@ Plans:
 
 ---
 
-### Phase V13: External Developer SDK Surfaces
+### Phase V13: External Developer SDK Surfaces (foundation)
 
-**Goal:** Lock the external-developer SDK strategy across languages and surfaces, then implement the SDKs that are unblocked today — the protocol-generated local client SDKs (TypeScript, Rust, Go) off the already-LOCKED `.planning/PROTOCOL.md` v1 wire contract (`/openapi.json` + the `EventEnvelope` discriminated union in `voss/harness/server/events.py`). No hosted/cloud SDK; data-model-coupled reader surfaces defer to downstream V-phases.
+**Goal:** Lock the external-developer SDK strategy across languages and surfaces, and build the shared contract foundation every language client generates from. Per-language client builds are sub-phases **V13.1–V13.4**. No hosted/cloud SDK; data-model-coupled reader surfaces defer until their upstream phases freeze.
 
-**Scope:** (1) **Strategy/contract docs** — add an SDK Surface Matrix (language × surface × tier) to `docs/ORCHESTRATION_LAYERS.md`; define five stability tiers (stable-now / experimental / generated-from-protocol / private-internal / deferred) and assign every public surface; lock language priority (Python in-process → TS local client → Rust local/native → Go local/headless → C ABI/schema-only); define non-goals; reconcile `docs/sdk.md` with `PROTOCOL.md` (local loopback client ≠ hosted/remote — remove the stale "no service, no client" claim, cross-link). (2) **Codegen pipeline** — typed clients generated from `/openapi.json` + `EventEnvelope`, with a CI drift gate against PROTOCOL v1 (extends the H3.3 parity test). (3) **TS local client SDK** — `voss serve` launcher wrapper, REST client, SSE typed-event client, permission-reply helpers, typed event union. (4) **Rust local/native SDK** — protocol/event types, local server supervisor (reuse `voss-tui` supervision), auth helpers, session/audit readers; no orchestration-semantics duplication. (5) **Go local/headless SDK** — start/attach to `voss serve`, create session, send message, stream events, approve/deny gates, export audit/session data; no runtime-semantics reimpl. (6) **C** — JSON schema/ABI documentation only (no full SDK; generated headers deferred). (7) **Python** — link gaps to M7 (SDK-01..05); enumerate org-layer read views to promote as V1/V3/V4/V9 harden; no duplicate spec.
+**Scope (V13 foundation):** (1) **SDK Surface Matrix** (language × surface × tier) in `docs/ORCHESTRATION_LAYERS.md`; (2) **five stability tiers** (stable-now / experimental / generated-from-protocol / private-internal / deferred), every public surface assigned; (3) **language priority** locked (Python in-process → TS → Rust → Go → C-ABI-only); (4) **non-goals**; (5) **reconcile** `docs/sdk.md` with `PROTOCOL.md` (local loopback client ≠ hosted/remote — remove the stale "no service, no client" claim, cross-link); (6) **Python SDK** = link gaps to M7 (SDK-01..05) + enumerate org-layer read views to promote as V1/V3/V4/V9 harden, no dup spec; (7) **codegen pipeline** — typed clients generated from `/openapi.json` + `EventEnvelope`, CI drift gate against PROTOCOL v1 (extends the H3.3 parity test). The pipeline is the substrate every V13.x consumes.
 
-**Requirements (lock at SPEC):** VSDK-01..12 (no PRD §P — V13 is post-P12; design source is `V13-SPEC.md` + the new SDK Surface Matrix in `docs/ORCHESTRATION_LAYERS.md`).
+**Requirements (lock at SPEC):** VSDK-01..07 (no PRD §P — V13 is post-P12; design source is `V13-SPEC.md` + the new SDK Surface Matrix in `docs/ORCHESTRATION_LAYERS.md`).
 
-**Cross-cutting:** Strategy/contract artifacts + the three protocol-generated clients are buildable now (PROTOCOL v1 is LOCKED; H1.14 already forces `EventEnvelope` into OpenAPI components for tagged-enum codegen). The **deep reader SDKs** (full audit/replay, team-compile helpers, capability introspection beyond what the protocol exposes) are GATED on V1 (capability schema) / V3 (team compile) / V4 (session tree — keystone) / V9 (audit product) freezing — those land as downstream V-phases (V14+), not here. No Rust/Go reimplementation of EM/board/runtime semantics. No formal marketplace/plugin sandbox unless separately scoped. If three language clients in one phase proves too fat at discuss/plan, split per-language (V13 = strategy + TS; Rust/Go promote to V14/V15).
+**Cross-cutting:** Buildable now — PROTOCOL v1 is LOCKED and H1.14 already forces `EventEnvelope` into OpenAPI components for tagged-enum codegen. **Deep reader SDKs** (full audit/replay, team-compile helpers, capability introspection beyond protocol-exposed data) are GATED on V1 (capability schema) / V3 (team compile) / V4 (session tree — keystone) / V9 (audit product) freezing — each V13.x ships protocol-exposed readers now and deep readers when its upstream freezes. No Rust/Go reimplementation of EM/board/runtime semantics. No marketplace/plugin sandbox unless separately scoped.
 
-**Acceptance (lock at SPEC):** a developer can tell which SDK to use per integration style; `docs/sdk.md` no longer contradicts `PROTOCOL.md`; public/private boundaries are explicit; the local-protocol SDK story has typed events + permission handling; Python SDK gaps are linked to M7 or superseded by V13.
+**Acceptance (lock at SPEC):** a developer can tell which SDK to use per integration style; `docs/sdk.md` no longer contradicts `PROTOCOL.md`; public/private boundaries are explicit; the codegen pipeline emits a typed client + event union and fails CI on PROTOCOL-v1 drift; Python SDK gaps are linked to M7 or superseded by V13.
 
 **Plans:** TBD by V13-SPEC.md.
 
 Plans:
-- [ ] TBD (run `/gsd:spec-phase` then `/gsd:discuss-phase` to lock VSDK-01..12 + plan split)
+- [ ] TBD (run `/gsd:spec-phase` to lock VSDK-01..07)
+
+---
+### Phase V13.1: TypeScript Local Client SDK
+
+**Goal:** Highest-leverage non-Python SDK — VS Code extension, web UI, Electron/Tauri frontends, external dashboards, devtools. Generated off the V13 pipeline with thin hand-written wrappers on top. **First sub-phase** (per language priority).
+
+**Scope:** `voss serve` launcher wrapper; REST client; SSE typed-event client; permission-reply helpers; typed event union (from `EventEnvelope`); audit/session-tree readers limited to protocol-exposed data (deep readers when V9 freezes). NOT a general in-process runtime SDK.
+
+**Requirements (lock at SPEC):** VSDK-TS-01..0N (`V13.1-SPEC.md`).
+
+**Cross-cutting:** Depends on V13 codegen pipeline + drift gate. No orchestration semantics reimplemented in TS.
+
+**Plans:** TBD by V13.1-SPEC.md.
+
+Plans:
+- [ ] TBD
+
+---
+### Phase V13.2: Rust Local / Native Client SDK
+
+**Goal:** Native/local client for `voss-tui`, Tauri core, native IDE surfaces, performance-sensitive local tooling.
+
+**Scope:** Protocol/event types (codegen tagged enum off `EventEnvelope`); local server supervisor (reuse `voss-tui` child-supervision); auth helpers (handshake + bearer); session/audit readers (protocol-exposed; deep readers when V4/V9 freeze). Avoid duplicating Python orchestration semantics.
+
+**Requirements (lock at SPEC):** VSDK-RS-01..0N (`V13.2-SPEC.md`).
+
+**Cross-cutting:** Depends on V13 pipeline. Reuses existing `crates/voss-tui` / `voss-bridge` / `voss-auth` supervision + auth surfaces where present.
+
+**Plans:** TBD by V13.2-SPEC.md.
+
+Plans:
+- [ ] TBD
+
+---
+### Phase V13.3: Go Local / Headless Client SDK
+
+**Goal:** Infra/headless automation — CI bots, devops tools, lightweight local runners, repo-automation daemons.
+
+**Scope:** Start/attach to `voss serve`; create session; send message; stream events; approve/deny permission gates; export audit/session data. Local REST/SSE only — no Python FFI, no runtime-semantics reimplementation.
+
+**Requirements (lock at SPEC):** VSDK-GO-01..0N (`V13.3-SPEC.md`).
+
+**Cross-cutting:** Depends on V13 pipeline. Go's value here is infra glue, not orchestration.
+
+**Plans:** TBD by V13.3-SPEC.md.
+
+Plans:
+- [ ] TBD
+
+---
+### Phase V13.4: C ABI / Schema Documentation
+
+**Goal:** NOT a full SDK. Stable JSON-schema / ABI documentation for native embedders, plus an optional tiny FFI around a local client only if a concrete native embedder demands it.
+
+**Scope:** JSON-schema/ABI doc for the protocol contract; (deferred) C headers generated from protocol structs much later. No high-level C ergonomics — Voss's value is orchestration, event streams, JSON contracts, and workflow state, all a poor C fit.
+
+**Requirements (lock at SPEC):** VSDK-C-01..0N (`V13.4-SPEC.md`).
+
+**Cross-cutting:** Doc-only unless a concrete native embedder appears. Lowest priority; may stay deferred indefinitely.
+
+**Plans:** TBD by V13.4-SPEC.md.
+
+Plans:
+- [ ] TBD
 
 ---
 

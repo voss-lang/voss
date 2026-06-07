@@ -223,3 +223,11 @@ class SessionTreeManager:
             _write_node_file(child, self._cwd)
             child._budget = BudgetScope(token_limit=limit, name=child.id)
             return child
+
+    def release_child(self, node_id: str) -> None:
+        """Drop a finished child from `_children` so its envelope no longer
+        counts against `available` in later `allocate_child` calls (frees the
+        budget for reallocation — mirrors `M13Allocator.release` semantics).
+        Idempotent: an unknown id is a no-op. Holds NO lock — callers invoke it
+        outside any `allocate_child` transaction."""
+        self._children = [c for c in self._children if c.id != node_id]
