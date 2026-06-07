@@ -70,7 +70,7 @@
 | V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | ✅ COMPLETE — `voss team run` composes V3–V6 (incl. V6 Reviewer-A/B) + em_loop, RunFinal sidecar persistence + record-only sign-off; cage re-verified; zero frozen-schema drift; O5 superseded |
 | V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat`; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | ✅ COMPLETE — 3 plans, 3 waves. V8 shipped the V4-backed persisted unification: every chat spawn is a persisted session-tree node; `M13Allocator` removed (single V4 `SessionTreeManager` governs spawns); per-node-manager recursion bounded by the viable-floor (no depth constant); chat-root envelope (60k + 30k reserve) finalized on session exit. MAG-01..09 regressed green; frozen schemas unchanged; no new deps. **ADE child-panel surface deferred to V11** (V8 uses the existing TUI only). |
 | V9 | Audit Product (supersedes O6) | Audit as primary trust product: idea/principles/team/budget/scope/board/reviewers/lineage/residual-risk; MD+JSON export; sign-off forcing function; reviewer calibration (AUD-09 ADE render → V11) | VAUD-01..10 | V9-01..06 SHIPPED (7 plans, 6 waves); V9-07 closeout: code+tests GREEN (78 audit tests, zero frozen-schema drift), human verify PENDING |
-| V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | Plans ready to execute (5 plans, 5 waves; VLANG-01a/01b/01c/02/08 + VERIFY/GUARD covered; SPEC ambiguity 0.137). |
+| V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | ✅ COMPLETE (5 plans, 5 waves; VLANG-01a/01b/01c/02/08 + VERIFY/GUARD all GREEN; zero frozen-schema drift; coordination-only). |
 | V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | Plans ready to execute (8 plans, 5 waves; VADE-01..10 + DATA/VIEW covered; CLI-JSON consumer, one-write-path) |
 | V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | Plans ready to execute (4 plans, 4 waves) |
 | V13 | External Developer SDK Surfaces (foundation) | SDK strategy (surface matrix, stability tiers, language priority, non-goals) + reconcile `sdk.md`↔`PROTOCOL.md` + Python/M7 linkage. **Docs-only** — the contract snapshot + codegen substrate moved to V13.1. Per-language clients = V13.1–.4 | VSDK-01..06 | TBD by SPEC.md |
@@ -2011,11 +2011,11 @@ Plans:
 **Plans:** 5 plans across 5 serial waves (RED scaffold -> grammar/AST/parser -> compile-to-config -> diagnostics -> examples/e2e/guards). V10-03 and V10-04 both edit `voss/harness/team.py`, so they are sequenced (compile before diagnostics) to avoid file-ownership conflict.
 
 Plans:
-- [ ] V10-01-PLAN.md — Wave-0 RED scaffold: 7 failing test files (principles/gate/memory parse + compile, diagnostics shape, org-loop examples, e2e team run) against the real planned surface (Wave 1)
-- [ ] V10-02-PLAN.md — grammar + AST nodes + parser transformers for `principles{}`/`gate{}`/`memory{}` (+ team_item/top_decl wiring); parse scaffolds GREEN (Wave 2)
-- [ ] V10-03-PLAN.md — compile-to-config: `GateConfig`/`MemoryConfig` + `compile_team(cwd=)` principles merge (V2 path) + 3 `TeamConfig` fields; compile scaffolds GREEN (Wave 3)
-- [ ] V10-04-PLAN.md — diagnostics bar: `VossTeamConfigError.construct`/`fix_hint`/`format_diagnostic()` + retrofit ~14 raise sites; diagnostic-shape scaffold GREEN (Wave 4)
-- [ ] V10-05-PLAN.md — three org-loop samples + end-to-end `team{}` on stub + verify/parity + frozen-schema git-diff guard + coordination-focus guard (Wave 5)
+- [x] V10-01-PLAN.md — Wave-0 RED scaffold: 7 failing test files (principles/gate/memory parse + compile, diagnostics shape, org-loop examples, e2e team run) against the real planned surface (Wave 1)
+- [x] V10-02-PLAN.md — grammar + AST nodes + parser transformers for `principles{}`/`gate{}`/`memory{}` (+ team_item/top_decl wiring); parse scaffolds GREEN (Wave 2)
+- [x] V10-03-PLAN.md — compile-to-config: `GateConfig`/`MemoryConfig` + `compile_team(cwd=)` principles merge (V2 path) + 3 `TeamConfig` fields; compile scaffolds GREEN (Wave 3)
+- [x] V10-04-PLAN.md — diagnostics bar: `VossTeamConfigError.construct`/`fix_hint`/`format_diagnostic()` + retrofit ~14 raise sites; diagnostic-shape scaffold GREEN (Wave 4)
+- [x] V10-05-PLAN.md — three org-loop samples + end-to-end `team{}` on stub + verify/parity + frozen-schema git-diff guard + coordination-focus guard (Wave 5)
 
 ---
 
