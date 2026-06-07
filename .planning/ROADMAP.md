@@ -69,7 +69,7 @@
 | V6 | Reviewer A/B Split (supersedes O4) | A authors bar+tests/eval from original idea; B judges narrative-blind w/ idea-divergence authority; persisted review artifacts; `voss review` | VREV-01..10 | TBD by SPEC.md |
 | V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | ✅ COMPLETE — `voss team run` composes V3–V6 (incl. V6 Reviewer-A/B) + em_loop, RunFinal sidecar persistence + record-only sign-off; cage re-verified; zero frozen-schema drift; O5 superseded |
 | V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat`; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | ✅ COMPLETE — 3 plans, 3 waves. V8 shipped the V4-backed persisted unification: every chat spawn is a persisted session-tree node; `M13Allocator` removed (single V4 `SessionTreeManager` governs spawns); per-node-manager recursion bounded by the viable-floor (no depth constant); chat-root envelope (60k + 30k reserve) finalized on session exit. MAG-01..09 regressed green; frozen schemas unchanged; no new deps. **ADE child-panel surface deferred to V11** (V8 uses the existing TUI only). |
-| V9 | Audit Product (supersedes O6) | Audit as primary trust product: idea/principles/team/budget/scope/board/reviewers/lineage/residual-risk; MD+JSON export; sign-off forcing function; reviewer calibration (AUD-09 ADE render → V11) | VAUD-01..10 | Plans ready to execute (7 plans, 6 waves; re-planned fresh against V4–V7 contracts, O6 = reference only) |
+| V9 | Audit Product (supersedes O6) | Audit as primary trust product: idea/principles/team/budget/scope/board/reviewers/lineage/residual-risk; MD+JSON export; sign-off forcing function; reviewer calibration (AUD-09 ADE render → V11) | VAUD-01..10 | V9-01..06 SHIPPED (7 plans, 6 waves); V9-07 closeout: code+tests GREEN (78 audit tests, zero frozen-schema drift), human verify PENDING |
 | V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | Plans ready to execute (5 plans, 5 waves; VLANG-01a/01b/01c/02/08 + VERIFY/GUARD covered; SPEC ambiguity 0.137). |
 | V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | TBD by SPEC.md |
 | V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | Plans ready to execute (4 plans, 4 waves) |
@@ -1988,13 +1988,13 @@ Plans:
 
 **Plans:** 7 plans, 6 waves (re-planned fresh 2026-06-06; O6 superseded).
 
-- [ ] V9-01-PLAN.md — Wave 0 RED scaffolds: 5 new test files + fixture/loader extension (.review.json + run-final.json) + glob-landmine fix expressed as a test
-- [ ] V9-02-PLAN.md — load.py (run_id param, glob-landmine filter, sidecar + run-final readers) + model.py (AuditReport + CalibrationReport dataclasses)
-- [ ] V9-03-PLAN.md — report.py AuditReport assembly + claims-vs-evidence tagging + residual-risk/Leak-6 synthesis + scope denials
-- [ ] V9-04-PLAN.md — render.py (deterministic MD/JSON/text) + __init__.py exports + voss audit CLI registered in AGENT_COMMANDS
-- [ ] V9-05-PLAN.md — calibration.py false-pass / slop-rejection rates + deterministic spot-audit hook
-- [ ] V9-06-PLAN.md — sign-off forcing function: ack gate in voss team run + .signoff-ack.json sidecar + audit approve readback
-- [ ] V9-07-PLAN.md — closeout: wire calibration into audit_cmd, full regression, frozen-schema diff guard, ROADMAP bookkeeping, human verify checkpoint
+- [x] V9-01-PLAN.md — Wave 0 RED scaffolds: 5 new test files + fixture/loader extension (.review.json + run-final.json) + glob-landmine fix expressed as a test
+- [x] V9-02-PLAN.md — load.py (run_id param, glob-landmine filter, sidecar + run-final readers) + model.py (AuditReport + CalibrationReport dataclasses)
+- [x] V9-03-PLAN.md — report.py AuditReport assembly + claims-vs-evidence tagging + residual-risk/Leak-6 synthesis + scope denials
+- [x] V9-04-PLAN.md — render.py (deterministic MD/JSON/text) + __init__.py exports + voss audit CLI registered in AGENT_COMMANDS
+- [x] V9-05-PLAN.md — calibration.py false-pass / slop-rejection rates + deterministic spot-audit hook
+- [x] V9-06-PLAN.md — sign-off forcing function: ack gate in voss team run + .signoff-ack.json sidecar + audit approve readback
+- [~] V9-07-PLAN.md — closeout: calibration wired into audit_cmd, full regression + frozen-schema diff guard GREEN, ROADMAP bookkeeping done; human verify checkpoint PENDING
 
 ---
 
