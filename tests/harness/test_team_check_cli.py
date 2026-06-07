@@ -14,6 +14,7 @@ import pytest
 from click.testing import CliRunner
 
 from voss.harness import cli
+from voss.harness import team as team_mod
 
 _VALID = '''team Eng {
   ceiling { budget: 100 tokens, scope: "src/**" }
@@ -62,6 +63,23 @@ def test_invalid_exits_one_with_error(root, tmp_path) -> None:
     res = CliRunner().invoke(root, ["team", "check", str(f)])
     assert res.exit_code == 1
     assert "200" in res.stderr and "100" in res.stderr
+    assert "[budget]" in res.stderr
+    assert "hint:" in res.stderr
+
+
+def test_team_check_passes_project_root_to_compile(root, tmp_path, monkeypatch) -> None:
+    captured: dict = {}
+    real_compile = team_mod.compile_team
+
+    def capture_compile(decl, *, cwd=None):
+        captured["cwd"] = cwd
+        return real_compile(decl, cwd=cwd)
+
+    monkeypatch.setattr(team_mod, "compile_team", capture_compile)
+    f = _write(tmp_path, _VALID)
+    res = CliRunner().invoke(root, ["team", "check", str(f)])
+    assert res.exit_code == 0, res.output
+    assert captured["cwd"] == tmp_path.resolve()
 
 
 def test_missing_file_exits_nonzero(root, tmp_path) -> None:

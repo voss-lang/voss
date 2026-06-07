@@ -169,6 +169,8 @@ class RunRecorder:
     scope_denials: list[dict] = field(default_factory=list)
     # V1-04 CAP-08: one audit row per capability invocation (all outcomes).
     capability_invocations: list[dict] = field(default_factory=list)
+    # V12 VSAFE-05: one row per safety factory-fallback route (additive).
+    factory_fallbacks: list[dict] = field(default_factory=list)
     # T1-01: per-iteration sub-records appended via begin_iteration /
     # end_iteration; forwarded to RunRecord.iterations on finalize.
     _iterations: list[IterationRecord] = field(default_factory=list)
@@ -275,6 +277,53 @@ class RunRecorder:
             except Exception:  # noqa: BLE001 — audit must never crash the run
                 event["args"] = None
         self.capability_invocations.append(event)
+
+    def observe_factory_fallback(
+        self,
+        name: str,
+        *,
+        label: str,
+        classes: Any = (),
+        trigger_rule: Optional[str] = None,
+        runbook: Optional[str] = None,
+        pipeline: Optional[str] = None,
+        actor_role: Optional[str] = None,
+        actor_model_tier: Optional[str] = None,
+        confirmation_required: bool = False,
+        confirmed: bool = False,
+        outcome: str = "denied",
+        args: Optional[dict] = None,
+    ) -> None:
+        """V12 VSAFE-05: durable evidence for one safety factory-fallback route.
+
+        Records classification, trigger rule, runbook/pipeline, actor role/tier,
+        confirmation flags, and outcome. Args are redacted via the same
+        telemetry path as capability rows — raw secrets are never stored. Never
+        raises (audit must not crash the run).
+        """
+        from . import telemetry
+
+        event: dict = {
+            "name": name,
+            "label": label,
+            "classes": list(classes) if classes else [],
+            "trigger_rule": trigger_rule,
+            "runbook": runbook,
+            "pipeline": pipeline,
+            "actor_role": actor_role,
+            "actor_model_tier": actor_model_tier,
+            "confirmation_required": confirmation_required,
+            "confirmed": confirmed,
+            "outcome": outcome,
+        }
+        if args is None:
+            event["args"] = None
+        else:
+            try:
+                event["args"] = telemetry.redact_tool_args(dict(args))
+            except Exception:  # noqa: BLE001 — audit must never crash the run
+                event["args"] = None
+        self.factory_fallbacks.append(event)
 
     def absorb(self, semantics: Any, plan: Any = None) -> None:
         """Copy semantic fields from a duck-typed semantics object.
@@ -423,6 +472,7 @@ class RunRecorder:
             skill_events=list(self.skill_events),
             scope_denials=list(self.scope_denials),
             capability_invocations=list(self.capability_invocations),
+            factory_fallbacks=list(self.factory_fallbacks),
         )
 
 
