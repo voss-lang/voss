@@ -36,10 +36,14 @@ __all__ = [
     "SafetyScaffoldRule",
     "SafetyActorContext",
     "SafetyClassification",
+    "SafetyConfirmRequest",
     "SafetyDecision",
     "DANGEROUS_CLASSES",
     "classify",
     "decide",
+    "build_confirm_request",
+    "confirmation_matches",
+    "exact_action_text",
 ]
 
 # Dangerous-operation classes routed to factory runbooks (VSAFE-02).
@@ -94,6 +98,21 @@ class SafetyDecision:
     pipeline: Optional[str] = None
     requires_confirmation: bool = False
     reason: str = ""
+
+
+@dataclass(frozen=True)
+class SafetyConfirmRequest:
+    """The exact-action confirmation contract for an irreversible op (VSAFE-01).
+
+    The runtime gate presents `risk_summary` + `exact_action`; the human (or an
+    injected confirmation fn) must echo `exact_action` verbatim to proceed —
+    `auto_yes` cannot satisfy this. See `confirmation_matches`.
+    """
+
+    tool_name: str
+    exact_action: str
+    risk_summary: str
+    classification: "SafetyClassification"
 
 
 def _first_str(args: Mapping[str, Any], keys: tuple[str, ...]) -> Optional[str]:
@@ -200,6 +219,40 @@ def classify(
             )
 
     return SafetyClassification(label="none", **base)
+
+
+def exact_action_text(tool_name: str, tool_args: Optional[Mapping[str, Any]]) -> str:
+    """The exact command/path/tool string the user must confirm."""
+    args: Mapping[str, Any] = tool_args or {}
+    return _arg_command(args) or _arg_path(args) or tool_name
+
+
+def build_confirm_request(
+    tool_name: str,
+    tool_args: Optional[Mapping[str, Any]],
+    classification: SafetyClassification,
+) -> SafetyConfirmRequest:
+    """Build the risk-summary + exact-action contract for a confirmation prompt."""
+    exact = exact_action_text(tool_name, tool_args)
+    classes = ", ".join(classification.classes) or "irreversible"
+    route = classification.runbook or classification.pipeline or "n/a"
+    risk = (
+        f"Irreversible operation ({classes}). Routed via '{route}'. "
+        f"Confirm by re-entering the exact action."
+    )
+    return SafetyConfirmRequest(
+        tool_name=tool_name,
+        exact_action=exact,
+        risk_summary=risk,
+        classification=classification,
+    )
+
+
+def confirmation_matches(request: SafetyConfirmRequest, response: Optional[str]) -> bool:
+    """True only when the response echoes the exact action verbatim (trimmed)."""
+    if not isinstance(response, str):
+        return False
+    return response.strip() == request.exact_action.strip()
 
 
 def decide(classification: SafetyClassification) -> SafetyDecision:
