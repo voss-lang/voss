@@ -10,9 +10,12 @@ import dataclasses
 import json
 import stat
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from voss.harness import subagents as subagents_mod
 from voss.harness.session import EXIT_REASONS, RunRecord, SessionRecord
 from voss.harness.session_tree import (
     BudgetAllocationError,
@@ -22,6 +25,11 @@ from voss.harness.session_tree import (
     _hydrate_node,
     finalize_node,
     mutate_envelope,
+)
+from voss.harness.subagents import (
+    SubagentRegistry,
+    SubagentSpec,
+    run_subagent,
 )
 
 _NODE_JSON_KEYS = frozenset(
@@ -286,3 +294,197 @@ class TestSchemaExtension:
         node = _hydrate_node(data)
         assert node.scope is None
         assert node.role is None
+
+
+# ---------------------------------------------------------------------------
+# V4-02: pre-emptive spend guard + spend wiring + all-reason finalize boundary.
+# ---------------------------------------------------------------------------
+
+
+def _registry() -> SubagentRegistry:
+    reg = SubagentRegistry()
+    reg.register(
+        SubagentSpec(id="worker", description="bounded task", role_prompt="do it")
+    )
+    return reg
+
+
+def _turn_result(*, final: str, prompt_tokens: int, completion_tokens: int, exit_reason):
+    """A minimal TurnResult stand-in with a RunRecord-like `.run`."""
+    run = SimpleNamespace(
+        iteration_total_prompt_tokens=prompt_tokens,
+        iteration_total_completion_tokens=completion_tokens,
+        exit_reason=exit_reason,
+    )
+    return SimpleNamespace(final=final, run=run)
+
+
+async def _run(node, tmp_path: Path) -> str:
+    return await run_subagent(
+        agent_id="worker",
+        task="t",
+        registry=_registry(),
+        cwd=tmp_path,
+        renderer=None,
+        provider=object(),
+        model="m",
+        gate=object(),
+        node=node,
+    )
+
+
+class TestSpendGuard:
+    async def test_guard_blocks_when_envelope_exhausted(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=100)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(100)
+        mutate_envelope(child, delta=-100, cwd=tmp_path)
+        assert child.envelope["spent"] >= child.envelope["limit"]
+
+        with patch.object(subagents_mod, "run_turn", new=AsyncMock()) as mock_turn:
+            out = await _run(child, tmp_path)
+
+        mock_turn.assert_not_called()
+        assert out == "<halted: budget — envelope exhausted>"
+        assert child._finalized is True
+        assert child.terminal_state is not None
+        assert child.terminal_state["exit_reason"] == "budget"
+
+    async def test_spent_updated_after_call(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+        assert child.envelope["spent"] == 0
+
+        result = _turn_result(
+            final="ok", prompt_tokens=30, completion_tokens=20, exit_reason=None
+        )
+        with patch.object(
+            subagents_mod, "run_turn", new=AsyncMock(return_value=result)
+        ):
+            out = await _run(child, tmp_path)
+
+        assert out == "ok"
+        assert child.envelope["spent"] == 50
+        assert child.terminal_state["exit_reason"] == "done"
+        on_disk = json.loads(_node_path(tmp_path, root.id, child.id).read_text())
+        assert on_disk["envelope"]["spent"] == 50
+
+    async def test_no_run_record_no_spend_update(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        result = SimpleNamespace(final="done", run=None)
+        with patch.object(
+            subagents_mod, "run_turn", new=AsyncMock(return_value=result)
+        ):
+            out = await _run(child, tmp_path)
+
+        assert out == "done"
+        assert child.envelope["spent"] == 0
+        assert child.terminal_state["exit_reason"] == "done"
+
+    async def test_soft_exit_budget_finalizes_budget(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        result = _turn_result(
+            final="hit cap", prompt_tokens=10, completion_tokens=5, exit_reason="budget"
+        )
+        with patch.object(
+            subagents_mod, "run_turn", new=AsyncMock(return_value=result)
+        ):
+            out = await _run(child, tmp_path)
+
+        assert out == "hit cap"
+        assert child.envelope["spent"] == 15
+        assert child.terminal_state["exit_reason"] == "budget"
+
+
+class TestAllReasonsFinalize:
+    @pytest.mark.parametrize("reason", sorted(EXIT_REASONS))
+    def test_finalize_accepts_every_exit_reason(
+        self, tmp_path: Path, reason: str
+    ) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=100)
+        finalize_node(root, exit_reason=reason, final="", cwd=tmp_path)
+        assert root._finalized is True
+        assert root.terminal_state is not None
+        assert root.terminal_state["exit_reason"] == reason
+        assert root.ended_at is not None
+
+    async def test_timeout_path(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        with patch.object(
+            subagents_mod,
+            "run_turn",
+            new=AsyncMock(side_effect=asyncio.TimeoutError()),
+        ):
+            with pytest.raises(asyncio.TimeoutError):
+                await _run(child, tmp_path)
+
+        assert child._finalized is True
+        assert child.terminal_state["exit_reason"] == "timeout"
+        assert child.ended_at is not None
+
+    async def test_error_path(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        with patch.object(
+            subagents_mod,
+            "run_turn",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            with pytest.raises(RuntimeError):
+                await _run(child, tmp_path)
+
+        assert child._finalized is True
+        assert child.terminal_state["exit_reason"] == "error"
+        assert "boom" in child.terminal_state["final"]
+        assert child.ended_at is not None
+
+    async def test_budget_exception_path(self, tmp_path: Path) -> None:
+        from voss_runtime.exceptions import BudgetExceededError
+
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        with patch.object(
+            subagents_mod,
+            "run_turn",
+            new=AsyncMock(
+                side_effect=BudgetExceededError(
+                    reason="cap", limit=1000, observed=1001
+                )
+            ),
+        ):
+            out = await _run(child, tmp_path)
+
+        assert out == "<halted: budget>"
+        assert child._finalized is True
+        assert child.terminal_state["exit_reason"] == "budget"
+
+    async def test_no_double_finalize_first_reason_wins(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        # Error branch finalizes with "error"; the finally net must NOT overwrite.
+        with patch.object(
+            subagents_mod,
+            "run_turn",
+            new=AsyncMock(side_effect=ValueError("nope")),
+        ):
+            with pytest.raises(ValueError):
+                await _run(child, tmp_path)
+
+        assert child.terminal_state["exit_reason"] == "error"
+        assert child.terminal_state["final"] == "<error: nope>"
