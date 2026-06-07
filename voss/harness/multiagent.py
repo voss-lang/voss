@@ -1,41 +1,20 @@
-"""M13 multi-agent-in-chat foundation — in-memory, chat-turn-scoped.
+"""Multi-agent-in-chat fan-out tools — V4-persisted (V8 VMAG-10/UNIFY/07/ROOT).
 
-This module is the pure, unit-testable core every later M13 wave builds on:
-the `M13Allocator` (even-split-of-reserve budget allocator with an
-`asyncio.Lock` race-safe check-and-allocate, idempotent exactly-once
-`release`, and a viable-floor spawn denial that bounds recursion WITHOUT a
-depth constant), plus the `ChildHandle` dataclass and `ChildRegistry`
-in-memory child tracker.
+The four non-blocking fan-out tools (`subagent_spawn`/`steer`/`status`/`gather`),
+the `ChildHandle` dataclass, the `ChildRegistry` in-memory child tracker, and the
+`PanelBridgeRenderer`. V8 unified the budget+persistence backend onto the V4
+`SessionTreeManager` (was the in-memory `M13Allocator`, removed): every spawn
+allocates a persisted `SessionTreeNode` child of the level's node, and recursion
+builds a per-node child manager (reserve = `VIABLE_FLOOR`) so each level divides
+only its own node's envelope. The chat-root manager is owned and injected by
+`cli.py`.
 
-It is a NEW module so `voss/harness/subagents.py` stays byte-stable and the
-`tests/harness/test_subagent_recursion.py` pinning test remains green. The
-allocator is LIFTED (copied, not imported) from O1-PATTERNS Pattern 2 — there
-is intentionally NO import of `voss/harness/session_tree.py` or any other O1
-module. O1 owns persistence; M13 keeps the registry/handle purely in memory
-(M13-CONTEXT D-02: no disk, no global singleton).
-
-────────────────────────────────────────────────────────────────────────────
-RESEARCH Open Question A1 — resolved in-module (M13-RESEARCH "Reserve source")
-────────────────────────────────────────────────────────────────────────────
-Chat does not pass a parent budget today: the chat `run_turn` call
-(cli.py:1695) passes NO `token_budget`, so `_run_turn_exec` falls back to the
-DEFAULT signature default — verbatim, `voss/harness/agent.py` line 419:
-
-    token_budget: int = 60_000
-
-(`async def run_turn(...)` signature; VERIFIED this plan). The parent turn is
-therefore wrapped in `ContextScope(token_budget=60_000, ...)` (agent.py:580).
-There is no per-spawn budget anywhere in chat today. M13 must INVENT the
-reserve (M13-CONTEXT D-05: "a parent reserve is carved"). The two constants
-below are the Claude's-discretion resolution of A1 (CONTEXT "Claude's
-Discretion": exact viable-budget-floor threshold is a sensible default that
-must bound recursion); both cite the agent.py:419 `token_budget: int = 60_000`
-anchor.
-
-NOTE: no `depth` / `max_depth` / `MAX_DEPTH` / `DEPTH_LIMIT` /
-`RECURSION_LIMIT` identifier appears anywhere in this module by design
-(M13-RESEARCH line 442; preserves `test_subagent_recursion.py`). Recursion is
-bounded ONLY by the viable-floor `None` return in `M13Allocator.allocate`.
+Budget constants `DEFAULT_PARENT_RESERVE` (30_000, the chat-root reserve, sourced
+from agent.py's `token_budget: int = 60_000` chat default) and `VIABLE_FLOOR`
+(2_000) live here. No `depth` / `MAX_DEPTH` / `DEPTH_LIMIT` / `RECURSION_LIMIT`
+identifier appears anywhere — recursion is bounded SOLELY by the viable-floor
+denial in `subagent_spawn` (budget-structural, preserves
+`test_subagent_recursion.py`).
 """
 from __future__ import annotations
 

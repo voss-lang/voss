@@ -74,10 +74,13 @@ def _role_routing_provider(f):
 
     def _role_for(messages) -> str:
         blob = json.dumps(messages, default=str)
-        # Longest role-name first so "grandchild-x" wins over a "child" prefix.
         for role in sorted(f.scripts, key=len, reverse=True):
             if role in blob:
+                import sys as _s
+                print(f"DEBUG route -> {role} (gc={'grandchild' in blob} ca={'child-a' in blob})", file=_s.stderr)
                 return role
+        import sys as _s
+        print(f"DEBUG route -> FALLBACK {next(iter(f.scripts))}", file=_s.stderr)
         return next(iter(f.scripts), "root")
 
     class _RoleRoutingProvider:
@@ -256,8 +259,11 @@ class TestPersistedRecursion:
         tools: dict = {}
         _attach(tools, provider_factory=f, cwd=tmp_path, node_manager=node_manager)
 
-        await tools["subagent_spawn"].invoke(agent="child-a", task="child-a task")
-        await tools["subagent_gather"].invoke()
+        import sys as _sys
+        _r1 = await tools["subagent_spawn"].invoke(agent="child-a", task="child-a task")
+        _rg = await tools["subagent_gather"].invoke()
+        print("DEBUG spawn:", _r1, file=_sys.stderr)
+        print("DEBUG gather:", _rg, file=_sys.stderr)
 
         # Per-node SessionTreeManager → nested nodes persist under their parent
         # node's root_id dir, so glob across ALL session dirs and follow the
@@ -267,6 +273,8 @@ class TestPersistedRecursion:
             d = json.loads(path.read_text())
             all_nodes[d["id"]] = d
 
+        import sys as _sys
+        print("DEBUG nodes:", [(d["id"], d.get("parent_run_id"), d.get("role")) for d in all_nodes.values()], file=_sys.stderr)
         child = next(d for d in all_nodes.values() if d.get("parent_run_id") == root.id)
         grandchild = next(
             (d for d in all_nodes.values() if d.get("parent_run_id") == child["id"]),
