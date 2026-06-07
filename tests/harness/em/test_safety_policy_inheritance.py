@@ -148,6 +148,39 @@ class TestWeakModelScaffoldViaRoleGate:
         assert _model_tier_for_spec(spec) in {"cheap", "fast"}
 
 
+class TestEMDispatchGateDerivation:
+    """EM handle derives role gates on the same path as dispatch_card."""
+
+    def test_direct_and_em_role_gate_share_safety_decision(self, make_handle) -> None:
+        policy = _factory_policy()
+        base_gate = _base_with_policy(policy)
+        handle = make_handle(base_gate=base_gate)
+        role_gate = handle._derive_role_gate("backend")
+        args = {"cmd": "git push origin main"}
+        direct_ok, direct_why = base_gate.check("shell_run", args, is_mutating=True)
+        em_ok, em_why = role_gate.check("shell_run", args, is_mutating=True)
+        assert direct_ok == em_ok
+        assert direct_why == em_why
+
+    def test_em_derived_gate_preserves_base_safety_policy(self, make_handle) -> None:
+        policy = _factory_policy()
+        base_gate = _base_with_policy(policy)
+        handle = make_handle(base_gate=base_gate)
+        role_gate = handle._derive_role_gate("backend")
+        assert role_gate.safety_policy is policy
+
+    def test_em_derived_gate_uses_registry_spec(self, make_handle) -> None:
+        policy = _scaffold_policy()
+        base_gate = _base_with_policy(policy)
+        handle = make_handle(base_gate=base_gate)
+        role_gate = handle._derive_role_gate("backend")
+        allowed, why = role_gate.check(
+            "fs_write", {"path": "src/x.py", "content": "y"}, is_mutating=True
+        )
+        assert allowed is False
+        assert "scaffold" in why
+
+
 class TestFactoryOnlyRoutingParity:
     """Factory-only operation routing works on derived role gates."""
 

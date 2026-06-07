@@ -111,6 +111,16 @@ class EMBoardHandle:
             self._node_audit[node_id] = _NodeAudit()
         return self._node_audit[node_id]
 
+    def _role_spec(self, role_id: str) -> SubagentSpec:
+        spec = self._registry.get(role_id)
+        if spec is None:
+            spec = SubagentSpec(id=role_id, description=f"role {role_id}", role_prompt="")
+        return spec
+
+    def _derive_role_gate(self, role_id: str) -> PermissionGate:
+        """Derive per-role gate via registry lookup + gate_for_role (dispatch_card path)."""
+        return gate_for_role(self._role_spec(role_id), self._base_gate)
+
     # --- READ ----------------------------------------------------------------
 
     def snapshot(self) -> BoardSnapshot:
@@ -208,11 +218,8 @@ class EMBoardHandle:
         self._get_audit(node_id).routing_rationales.append(rr)
 
         # Derive per-role gate + toolset via O2 helpers.
-        spec = self._registry.get(role_id)
-        if spec is None:
-            # Fallback spec for testing when registry is minimal.
-            spec = SubagentSpec(id=role_id, description=f"role {role_id}", role_prompt="")
-        role_gate = gate_for_role(spec, self._base_gate)
+        spec = self._role_spec(role_id)
+        role_gate = self._derive_role_gate(role_id)
         base_toolset = make_toolset(self._cwd, renderer=self._renderer)
         role_toolset = filter_toolset_for_role(spec, base_toolset)
 
