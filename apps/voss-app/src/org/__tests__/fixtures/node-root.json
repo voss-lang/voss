@@ -1,0 +1,29 @@
+{
+  "id": "a1b2c3d4e5f6",
+  "root_id": "a1b2c3d4e5f6",
+  "parent_run_id": null,
+  "envelope": { "limit": 500000, "spent": 30000 },
+  "terminal_state": null,
+  "created_at": "2026-06-07T10:00:00Z",
+  "ended_at": null,
+  "scope": "root org board view",
+  "role": "user",
+  "transitions": [
+    {
+      "kind": "em.ticket",
+      "id": "t-root-1",
+      "card_id": "a1b2c3d4e5f6",
+      "risk_tier": "med",
+      "ts": "2026-06-07T10:00:30Z"
+    },
+    {
+      "kind": "em.routing",
+      "id": "r-root-1",
+      "card_id": "a1b2c3d4e5f6",
+      "chosen_role": "planner",
+      "candidates_considered": ["planner", "backend"],
+      "rationale_text": "root requires up-front planning",
+      "ts": "2026-06-07T10:01:00Z"
+    }
+  ]
+}

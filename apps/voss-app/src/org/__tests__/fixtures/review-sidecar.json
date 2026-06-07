@@ -1,0 +1,16 @@
+{
+  "a_verification": {
+    "result": "pass",
+    "test_path_or_rubric": "tests/foo_test.py",
+    "notes": "test suite executed, all assertions green"
+  },
+  "b_verdict": {
+    "verdict": "pass",
+    "conf": 0.84,
+    "tier": "med",
+    "domain_inferred": "code",
+    "notes": "implementation matches scope",
+    "evidence_refs": ["tests/foo_test.py"]
+  },
+  "final_outcome": "pass"
+}
