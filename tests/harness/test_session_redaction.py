@@ -119,9 +119,12 @@ class TestRunRecordRedaction:
             # V1-04: capability-invocation audit (additive; args redacted via
             # telemetry.redact_tool_args or omitted, no credentials).
             "capability_invocations",
+            # V12 VSAFE-05: factory-fallback audit (additive; args redacted via
+            # telemetry.redact_tool_args or omitted, no credentials).
+            "factory_fallbacks",
         }
         assert set(asdict(rec).keys()) == expected
-        assert len(dataclasses.fields(RunRecord)) == 24
+        assert len(dataclasses.fields(RunRecord)) == 25
 
     def test_run_record_no_secret_patterns(self, state_dir, tmp_path):
         record = SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")
