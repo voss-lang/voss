@@ -2536,6 +2536,74 @@ def review_cmd(run_id: str | None) -> None:
         _render_review_card(node_id, data)
 
 
+@click.command("audit")
+@click.argument("run_id", required=False)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option(
+    "--format", "fmt",
+    type=click.Choice(["text", "json", "markdown"]),
+    default="text",
+)
+@click.option("--output", "output_path", default=None, type=click.Path())
+def audit_cmd(
+    run_id: str | None, cwd_str: str, fmt: str, output_path: str | None
+) -> None:
+    """Render a complete read-only audit for a run (latest if no run_id).
+
+    Read-only: assembles the audit from persisted session data; no live Board /
+    SessionTreeManager / provider is constructed (VAUD-01, mirrors review_cmd).
+    """
+    cwd = Path(cwd_str).resolve()
+    sessions_dir = cwd / ".voss" / "sessions"
+
+    if run_id is not None:
+        # T-V9-04-01: reject traversal BEFORE any FS read.
+        if "/" in run_id or "\\" in run_id or ".." in run_id:
+            click.echo(f"<error: invalid run_id {run_id!r}>", err=True)
+            raise SystemExit(1)
+        candidate = (sessions_dir / run_id).resolve()
+        if candidate.parent != sessions_dir.resolve():
+            click.echo(f"<error: invalid run_id {run_id!r}>", err=True)
+            raise SystemExit(1)
+        if not candidate.is_dir():
+            click.echo(f"unknown run_id: {run_id}", err=True)
+            raise SystemExit(1)
+    else:
+        run_id = _latest_root_id(sessions_dir)
+        if run_id is None:
+            click.echo("(no runs found)", err=True)
+            raise SystemExit(1)
+
+    from voss.harness.audit import (
+        build_audit_report,
+        render_json,
+        render_markdown,
+        render_text,
+    )
+
+    calibration = None
+    try:
+        from voss.harness.audit.calibration import compute_calibration
+
+        calibration = compute_calibration(sessions_dir)
+    except Exception:
+        calibration = None  # calibration optional; build tolerates None
+
+    report = build_audit_report(cwd, run_id=run_id, calibration=calibration)
+    renderer = {
+        "text": render_text,
+        "json": render_json,
+        "markdown": render_markdown,
+    }[fmt]
+    rendered = renderer(report)
+
+    if output_path is not None:
+        Path(output_path).write_text(rendered)
+    else:
+        click.echo(rendered)
+    raise click.exceptions.Exit(0)
+
+
 _JOB_META_FIELDS = (
     "handle",
     "pid",
@@ -4212,6 +4280,7 @@ AGENT_COMMANDS = (
     session_group,
     team_group,
     board_cmd,
+    audit_cmd,
 )
 
 
