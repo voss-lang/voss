@@ -95,6 +95,21 @@ class Card:
     scope: Optional[TeamRoleScope] = None
     artifact: Optional[object] = None
     eval_threshold: float = 1.0
+    # V5 additions — additive, back-compat defaults (VBOARD-03):
+    idea: str = ""
+    role: str = ""
+    acceptance_criteria: str = ""
+    verification_requirement: str = ""
+
+
+def card_status(card: "Card") -> str:
+    """Status derives from current column (VBOARD-03). Not a stored field."""
+    return card.column
+
+
+def card_budget(node_envelope: dict) -> tuple[int, int]:
+    """Returns (spent, limit) from a persisted node envelope (VBOARD-03)."""
+    return node_envelope.get("spent", 0), node_envelope.get("limit", 0)
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +275,13 @@ class Board:
         self._reviewer = reviewer if reviewer is not None else reviewer_b
         self._reviewer_a = reviewer_a if reviewer_a is not None else reviewer
         self._reviewer_b = reviewer_b if reviewer_b is not None else reviewer
+        # VBOARD-07: track whether ANY independent reviewer was injected. Note
+        # self._reviewer defaults to reviewer_b above, so a bare `is None` check
+        # on the legacy slot alone would misfire for A/B-only construction
+        # (two-source gate). Equivalent to `self._reviewer is not None`.
+        self._reviewer_injected = (
+            reviewer is not None or reviewer_a is not None or reviewer_b is not None
+        )
         self._cwd = cwd
         self._cfg = cfg
         self._team_ceiling = team_ceiling
@@ -371,6 +393,17 @@ class Board:
                     outcome="refused", failing_clauses=["wip"],
                 )
                 raise BoardWIPError(to, cap)
+
+        # 2.5 VBOARD-07: Done requires an independent reviewer (no self-Done).
+        if to == "Done" and not self._reviewer_injected:
+            self._append_delta(
+                card, from_col=card.column, to_col=to,
+                outcome="refused", failing_clauses=["no-reviewer"],
+            )
+            raise BoardGateError(
+                "Done requires an independent reviewer",
+                failing_clauses=["no-reviewer"],
+            )
 
         # 3. Gate predicate evaluation (O3-03).
         transition = (card.column, to)
