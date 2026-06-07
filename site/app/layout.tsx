@@ -7,7 +7,7 @@ import { rootMetadata } from "@/lib/metadata";
 
 const poppins = Poppins({
   variable: "--font-poppins",
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
   subsets: ["latin"],
 });
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
