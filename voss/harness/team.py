@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .principles import PrinciplesConfig
 
 from voss.ast_nodes import (
     BoardDecl,
@@ -356,6 +361,24 @@ class RitualSpec:
     raw_kvs: tuple[tuple[str, object], ...]
 
 
+# ----- V10 coordination configs (VLANG-01b/01c) — informational, compile-to-config only -----
+@dataclass(frozen=True, slots=True)
+class GateConfig:
+    """A `gate <name> { require ... }` block compiled to config (no enforcement)."""
+
+    name: str
+    requires: frozenset[str]
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryConfig:
+    """A `memory {}` block compiled to config; omitted keys default to convention."""
+
+    decisions: str = ".voss/decisions"
+    sessions: str = ".voss/sessions"
+    semantic: str = ".voss-cache/semantic"
+
+
 @dataclass(frozen=True, slots=True)
 class TeamConfig:
     name: str
@@ -365,6 +388,9 @@ class TeamConfig:
     roster_ids: frozenset[str]
     board: BoardSpec | None
     rituals: tuple[RitualSpec, ...]
+    principles: "PrinciplesConfig | None" = None
+    gate_configs: "tuple[GateConfig, ...]" = ()
+    memory: "MemoryConfig | None" = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -641,7 +667,49 @@ def subagent_spec_from_agent(
     )
 
 
-def compile_team(decl: TeamDecl) -> tuple[TeamConfig, SubagentRegistry]:
+def _compile_gate(g) -> GateConfig:
+    """Compile a `gate <name> { require ... }` block to an informational config."""
+    return GateConfig(name=g.name, requires=frozenset(g.requires))
+
+
+def _compile_memory(m) -> MemoryConfig | None:
+    """Compile a `memory {}` block; omitted keys fall back to convention defaults."""
+    if m is None:
+        return None
+    return MemoryConfig(
+        decisions=m.decisions or ".voss/decisions",
+        sessions=m.sessions or ".voss/sessions",
+        semantic=m.semantic or ".voss-cache/semantic",
+    )
+
+
+def _compile_principles(decl: TeamDecl, cwd: Path | None):
+    """Compile a `principles {}` block, merging with an optional .voss/principles.yml.
+
+    LOCKED merge order (VLANG-01a): merge(merge(DEFAULTS, file_layer), block_layer)
+    — the block overrides the file, which overrides the shipped defaults. Reuses
+    the V2 merge path (no new merge logic).
+    """
+    if decl.principles is None:
+        return None
+    from .principles import (
+        DEFAULT_PRINCIPLES,
+        _ProjectLayer,
+        load_principles,
+        merge_principles,
+    )
+
+    block_layer = _ProjectLayer(items=tuple(decl.principles.items), disable=())
+    if cwd is not None:
+        file_layer = load_principles(cwd)
+        base = merge_principles(DEFAULT_PRINCIPLES, file_layer)
+        return merge_principles(base.principles, block_layer)
+    return merge_principles(DEFAULT_PRINCIPLES, block_layer)
+
+
+def compile_team(
+    decl: TeamDecl, *, cwd: Path | None = None
+) -> tuple[TeamConfig, SubagentRegistry]:
     """Compile parsed `TeamDecl` into frozen runtime config + populated registry."""
 
     if decl.ceiling is None:
@@ -714,6 +782,9 @@ def compile_team(decl: TeamDecl) -> tuple[TeamConfig, SubagentRegistry]:
         roster_ids=frozenset(roster_id_set),
         board=board_spec,
         rituals=rituals,
+        principles=_compile_principles(decl, cwd),
+        gate_configs=tuple(_compile_gate(g) for g in decl.gates),
+        memory=_compile_memory(decl.memory),
     )
 
     return config, registry
