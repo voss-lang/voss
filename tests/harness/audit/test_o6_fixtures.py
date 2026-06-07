@@ -19,6 +19,16 @@ import pytest
 
 ROOT_ID = "root_aabbcc0001"
 
+# Returned-path keys that map to a session-tree node JSON (each has an `id`).
+# V9 added non-node keys (`*_review`, `run_final`) to the returned dict; tests
+# that read `["id"]` must restrict themselves to these.
+NODE_KEYS = frozenset(
+    {
+        "root", "node_done", "node_killed", "node_rescoped",
+        "node_successor", "node_misroute", "node_ab_block", "node_timeout",
+    }
+)
+
 
 def _ts(n: int) -> str:
     return f"2026-05-20T10:{n:02d}:00+00:00"
@@ -468,6 +478,8 @@ class TestFixtureData:
     def test_all_files_are_valid_json(self, tree: dict[str, Path]):
         for key, path in tree.items():
             data = json.loads(path.read_text())
+            if key not in NODE_KEYS:
+                continue  # .review.json / run-final.json have no `id`
             assert "id" in data, f"{key} missing 'id'"
             assert "root_id" in data, f"{key} missing 'root_id'"
 
@@ -514,13 +526,17 @@ class TestFixtureData:
         tree1 = build_fixture_tree(tmp_path / "a")
         tree2 = build_fixture_tree(tmp_path / "b")
         for key in tree1:
+            if key not in NODE_KEYS:
+                continue
             data1 = json.loads(tree1[key].read_text())
             data2 = json.loads(tree2[key].read_text())
             assert data1["id"] == data2["id"], f"{key} id not deterministic"
 
     def test_nodes_sorted_by_id(self, tree: dict[str, Path]):
         ids = []
-        for path in tree.values():
+        for key, path in tree.items():
+            if key not in NODE_KEYS:
+                continue
             data = json.loads(path.read_text())
             ids.append(data["id"])
         # root should be first alphabetically is not required, but ids should
