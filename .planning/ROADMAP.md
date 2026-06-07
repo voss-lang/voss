@@ -76,7 +76,7 @@
 | V13 | External Developer SDK Surfaces (foundation) | SDK strategy (surface matrix, stability tiers, language priority, non-goals) + reconcile `sdk.md`↔`PROTOCOL.md` + Python/M7 linkage. **Docs-only** — the contract snapshot + codegen substrate moved to V13.1. Per-language clients = V13.1–.4 | VSDK-01..06 | TBD by SPEC.md |
 | V13.1 | TypeScript Local Client SDK | **Owns the shared contract snapshot** (static `openapi.json`+event-union export, committed, CI drift gate) + serve launcher, REST, SSE typed-event client, permission-reply helpers, typed event union; generated off its own snapshot | VSDK-TS-* | TBD by SPEC.md |
 | V13.2 | Rust Local/Native Client SDK | protocol/event types, local server supervisor (reuse voss-tui), auth helpers, session/audit readers; generated off the V13.1 contract snapshot; no orch reimpl | VSDK-RS-* | TBD by SPEC.md |
-| V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; off the V13.1 contract snapshot; no runtime reimpl | VSDK-GO-* | TBD by SPEC.md |
+| V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; off the V13.1 contract snapshot; no runtime reimpl | VSDK-GO-* | Plans ready to execute (6 plans, 5 waves; Wave 0 fixture unblocks pre-V13.1; drift gate skips until V13.1 ships contracts/) |
 | V13.4 | C ABI/Schema Doc | JSON-schema/ABI doc only; generated headers deferred; no full SDK | VSDK-C-* | TBD by SPEC.md |
 
 ---
@@ -2129,14 +2129,19 @@ Plans:
 
 **Scope:** Start/attach to `voss serve`; create session; send message; stream events; approve/deny permission gates; export audit/session data. Local REST/SSE only — no Python FFI, no runtime-semantics reimplementation.
 
-**Requirements (lock at SPEC):** VSDK-GO-01..0N (`V13.3-SPEC.md`).
+**Requirements (lock at SPEC):** VSDK-GO-01..08 (`V13.3-SPEC.md`).
 
 **Cross-cutting:** Generates off the **V13.1 contract snapshot**. Go's value here is infra glue, not orchestration.
 
-**Plans:** TBD by V13.3-SPEC.md.
+**Plans:** 6 plans, 5 waves. Greenfield Go module at `sdk/go/` (stdlib net/http + oapi-codegen types-only). Wave 0 (Plan 01) captures a live-server OpenAPI fixture so codegen + all downstream work proceed NOW without V13.1; the drift gate `t.Skip`s until V13.1 ships `contracts/openapi.json` (D-08). DAG: W0 01 (module skeleton + fixture + codegen + Discriminator probe + RED scaffolds) -> W1 02 (event model: 21-member Decode dispatcher + VossError) -> W2 03 (handshake + AttachClient + 9 typed REST methods) ∥ 04 (channel SSE consumer, leak-free cancel) -> W3 05 (spawn supervisor, no-orphan PID) -> W4 06 (permission helper + no-FFI guard + real-server TestMain integration suite + drift finalize).
 
 Plans:
-- [ ] TBD
+- [ ] V13.3-01-PLAN.md — Module skeleton + openapi.fixture.json + oapi-codegen types.gen.go + Discriminator probe + drift gate + RED scaffolds (Wave 0) [VSDK-GO-01, VSDK-GO-08]
+- [ ] V13.3-02-PLAN.md — Full-fidelity event model: TypedEvent + 21 structs + exhaustive Decode() (incl. principles_overflow) + ErrUnknownEventType + VossError (Wave 1) [VSDK-GO-02]
+- [ ] V13.3-03-PLAN.md — Handshake parse + AttachClient + bearer chokepoint + 9 typed REST methods (round-trip/401/409) (Wave 2) [VSDK-GO-03, VSDK-GO-06]
+- [ ] V13.3-04-PLAN.md — Typed SSE consumer over <-chan TypedEvent (hand-parsed framing, context-cancel teardown, no leak) (Wave 2) [VSDK-GO-04]
+- [ ] V13.3-05-PLAN.md — Spawn supervisor (voss serve --port 0, stdin heartbeat, interpreter resolution, SpawnError, no-orphan Close) (Wave 3) [VSDK-GO-05]
+- [ ] V13.3-06-PLAN.md — PermissionReply + no-FFI/no-orchestration guard + shared TestMain real-server integration suite + drift gate finalize (Wave 4) [VSDK-GO-07, VSDK-GO-08, VSDK-GO-01]
 
 ---
 ### Phase V13.4: C ABI / Schema Documentation
