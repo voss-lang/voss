@@ -73,14 +73,20 @@ def _role_routing_provider(f):
     in test_multiagent_recursion.py:227)."""
 
     def _role_for(messages) -> str:
-        blob = json.dumps(messages, default=str)
-        for role in sorted(f.scripts, key=len, reverse=True):
-            if role in blob:
-                import sys as _s
-                print(f"DEBUG route -> {role} (gc={'grandchild' in blob} ca={'child-a' in blob})", file=_s.stderr)
-                return role
+        # Route on the LAST user-message text (the spawned task), NOT the whole
+        # transcript — the system prompt / prior assistant turns leak other role
+        # names and would misroute (mirrors test_multiagent_recursion.py's
+        # first-user-message routing).
+        task_text = ""
+        for m in messages:
+            if isinstance(m, dict) and m.get("role") == "user":
+                task_text = json.dumps(m.get("content", ""), default=str)
         import sys as _s
-        print(f"DEBUG route -> FALLBACK {next(iter(f.scripts))}", file=_s.stderr)
+        for role in sorted(f.scripts, key=len, reverse=True):
+            if role in task_text:
+                print(f"DEBUG decide -> {role} task={task_text[:80]!r}", file=_s.stderr)
+                return role
+        print(f"DEBUG decide -> FALLBACK {next(iter(f.scripts))} task={task_text[:80]!r}", file=_s.stderr)
         return next(iter(f.scripts), "root")
 
     class _RoleRoutingProvider:
