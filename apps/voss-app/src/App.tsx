@@ -22,6 +22,7 @@ import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import StatusBar from './components/StatusBar';
 import ContextPanel from './components/ContextPanel';
+import OrgViewShell from './org/OrgViewShell';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
@@ -236,6 +237,7 @@ export default function App() {
   const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
   const [paneCount, setPaneCount] = createSignal(0);
+  const [orgViewOpen, setOrgViewOpen] = createSignal(false);
   const [contextPanelOpen, setContextPanelOpen] = createSignal(
     localStorage.getItem('voss:contextPanelOpen') === 'true',
   );
