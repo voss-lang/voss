@@ -4113,6 +4113,33 @@ def _write_signoff_ack(
     return path
 
 
+def _enforce_signoff_ack(
+    cwd: Path, root_id: str, *, killed_count: int, misroute_count: int
+) -> None:
+    """Force acknowledgement of killed/misroute risks before approve (VAUD-SIGNOFF).
+
+    Pitfall 5: a clean run (no kills, no misroutes) returns immediately — no
+    empty-diff prompt. Otherwise displays the risk diff and prompts; a non-"yes"
+    answer aborts sign-off non-zero; "yes" records the ack in a new
+    .signoff-ack.json sidecar.
+    """
+    if killed_count <= 0 and misroute_count <= 0:
+        return
+    click.echo(
+        f"\nRisk summary: {killed_count} killed card(s), "
+        f"{misroute_count} misroute candidate(s)."
+    )
+    ack = click.prompt(
+        "Acknowledge killed/misroute risks? Type 'yes' to continue"
+    )
+    if ack.strip().lower() != "yes":
+        click.echo("Sign-off aborted — acknowledgement required.", err=True)
+        raise click.exceptions.Exit(1)
+    _write_signoff_ack(
+        cwd, root_id, killed_count=killed_count, misroute_count=misroute_count
+    )
+
+
 @team_group.command("run")
 @click.argument("goal")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
@@ -4241,26 +4268,9 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
     except Exception:
         misroute_count = 0
 
-    # Pitfall 5: a clean run (no kills, no misroutes) skips the ack gate.
-    if killed_count > 0 or misroute_count > 0:
-        click.echo(
-            f"\nRisk summary: {killed_count} killed card(s), "
-            f"{misroute_count} misroute candidate(s)."
-        )
-        ack = click.prompt(
-            "Acknowledge killed/misroute risks? Type 'yes' to continue"
-        )
-        if ack.strip().lower() != "yes":
-            click.echo(
-                "Sign-off aborted — acknowledgement required.", err=True
-            )
-            raise click.exceptions.Exit(1)
-        _write_signoff_ack(
-            cwd,
-            rf.root_id,
-            killed_count=killed_count,
-            misroute_count=misroute_count,
-        )
+    _enforce_signoff_ack(
+        cwd, rf.root_id, killed_count=killed_count, misroute_count=misroute_count
+    )
 
     decision = click.prompt(
         "Sign off on this run (approve/reject)",
