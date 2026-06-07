@@ -147,3 +147,6 @@ class AuditReport:
     calibration: CalibrationReport
     sections_missing: tuple[str, ...]
     unsupported_claims: tuple[str, ...] = ()
+    # V12 VSAFE-05: strict-runbook/factory-fallback marker. Default empty so old
+    # audit snapshots hydrate; populated from run records' factory_fallbacks.
+    factory_fallbacks: tuple[dict, ...] = ()

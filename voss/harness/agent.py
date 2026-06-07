@@ -1266,6 +1266,32 @@ async def _invoke_step_with_gate(
         is_mutating=entry.is_mutating,
         is_network=entry.is_network,
     )
+    # V12 VSAFE-05: persist factory-fallback evidence for every strict-procedure
+    # route (confirmed irreversible that proceeds, or routed/denied dangerous op).
+    if recorder is not None and getattr(gate, "safety_policy", None) is not None:
+        from .safety import classify as _safety_classify
+
+        _cls = _safety_classify(
+            gate.safety_policy,
+            step.name,
+            step.args,
+            actor=getattr(gate, "safety_actor", None),
+        )
+        if _cls.matched:
+            recorder.observe_factory_fallback(
+                step.name,
+                label=_cls.label,
+                classes=list(_cls.classes),
+                trigger_rule=_cls.trigger_rule_id,
+                runbook=_cls.runbook,
+                pipeline=_cls.pipeline,
+                actor_role=_cls.actor_role,
+                actor_model_tier=_cls.actor_model_tier,
+                confirmation_required=_cls.requires_confirmation,
+                confirmed=bool(allowed and _cls.requires_confirmation),
+                outcome=("allowed" if allowed else "denied"),
+                args=step.args,
+            )
     if not allowed:
         text = f"<denied: {why}>"
         renderer.show_tool_call(step.name, step.args, text, "error")
