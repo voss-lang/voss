@@ -30,6 +30,10 @@
         "href": "https://voss.dev"
       },
       {
+        "label": "Orchestration",
+        "href": "/orchestration/overview"
+      },
+      {
         "label": "Harness",
         "href": "/harness/overview"
       },

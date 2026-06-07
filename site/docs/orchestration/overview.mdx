@@ -1,0 +1,77 @@
+---
+title: "Orchestration overview"
+description: "How Voss runs AI agents as a constrained engineering organization — six primitives, a board, a session tree, declared roles, and independent review."
+---
+
+The harness gives one agent a bounded loop. Orchestration extends the same boundaries to a whole team: declared roles, partitioned budget, scoped tools, independent review, and a replayable trail.
+
+The promise:
+
+> Voss lets AI agents work like an engineering team while keeping every action scoped, budgeted, reviewed, and replayable.
+
+## The six primitives
+
+Every run is built from the same six primitives.
+
+| Primitive | Meaning | Where it lives |
+| --- | --- | --- |
+| Capabilities | The agent toolbelt — typed, permissioned, auditable | [`voss capabilities`](/reference/capabilities) |
+| Principles | Engineering culture injected into every agent | [`.voss/principles.yml`](/orchestration/principles) |
+| Orchestration | Delegation and integration | [Engineering Manager loop](/orchestration/em-loop) |
+| Roles | Specialist lenses with their own scope and budget | [`.voss team{}`](/orchestration/team-config) |
+| Memory | Institutional knowledge across runs | [Session tree](/orchestration/session-tree), project memory |
+| Verification | The independent review loop | [Reviewer A/B](/orchestration/reviewers) |
+
+## One run, end to end
+
+```text
+human idea
+  -> EM derives cards
+  -> assign roles from the declared roster
+  -> partition budget down the session tree
+  -> dispatch workers in parallel (within WIP limits)
+  -> Reviewer-A authors the bar from the idea
+  -> Reviewer-B judges narrative-blind
+  -> board gates Done on independent review
+  -> RunFinal record + review sidecars persisted
+```
+
+## The MVP flow
+
+A team is declared once in `.voss`, then a single goal runs as scoped, reviewed work.
+
+```bash
+voss team check
+voss team run "Add password reset flow with tests"
+voss board
+voss review latest
+```
+
+This run proves the core invariants:
+
+- The EM cannot invent roles outside the declared roster.
+- Workers cannot write outside their assigned scope.
+- Budget cannot be oversold — it is enforced down the session tree.
+- Agents cannot mark their own work Done.
+- Done requires independent reviewer evidence.
+
+<CardGroup cols={2}>
+  <Card title="Team config" icon="users" href="/orchestration/team-config">
+    Declare roles, scope, budget, and tools in `.voss team{}`.
+  </Card>
+  <Card title="Engineering Manager loop" icon="workflow" href="/orchestration/em-loop">
+    The constrained tech lead that decomposes and integrates.
+  </Card>
+  <Card title="Board" icon="kanban" href="/orchestration/board">
+    Columns, WIP limits, and artifact-gated transitions.
+  </Card>
+  <Card title="Reviewers" icon="scale" href="/orchestration/reviewers">
+    The independent Reviewer-A / Reviewer-B split.
+  </Card>
+  <Card title="Session tree" icon="git-branch" href="/orchestration/session-tree">
+    Per-agent budget fan-out and durable nodes.
+  </Card>
+  <Card title="Principles" icon="shield-check" href="/orchestration/principles">
+    Engineering culture as first-class config.
+  </Card>
+</CardGroup>

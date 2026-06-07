@@ -1,0 +1,60 @@
+---
+title: "Capabilities"
+description: "The agent toolbelt as a normalized, permissioned, auditable registry — capability groups, metadata fields, and the voss capabilities commands."
+---
+
+Every tool an agent can call is a **capability**: a normalized entry with declared mutability, network usage, scope requirements, and audit behavior. Roles grant capabilities by group, and every invocation can be recorded.
+
+```bash
+voss capabilities list            # grouped, compact names
+voss capabilities list --json
+voss capabilities inspect fs_edit # full normalized detail
+voss capabilities inspect fs_edit --json
+```
+
+## Groups
+
+Capabilities are bucketed into nine groups. Role `tools` lists reference these names:
+
+```text
+fs · git · test · shell · net · code · memory · review · mcp
+```
+
+| Group | Examples |
+| --- | --- |
+| `fs` | `fs_read`, `fs_glob`, `fs_grep`, `fs_write`, `fs_edit`, `fs_watch` |
+| `git` | `git_status`, `git_diff` |
+| `test` | `voss_check`, `voss_probable_inspect`, `voss_budget_trace`, `voss_py_diff` |
+| `shell` | `shell_run`, `shell_run_background`, `shell_monitor`, `shell_signal` |
+| `net` | `web_fetch`, `web_search` |
+| `code` | `code_search`, `find_definition`, `find_references`, `code_refresh` |
+| `memory` | `memory_recall`, `memory_remember` |
+| `review` | `record_run` |
+| `mcp` | dynamically loaded MCP tools |
+
+## Capability metadata
+
+Each entry declares:
+
+| Field | Meaning |
+| --- | --- |
+| `name` / `description` / `input_schema` | Identity and call shape |
+| `output_schema` | JSON-first output shape, when defined |
+| `is_mutating` | Drives mode-tier denial in the permission gate |
+| `is_network` | Gated independently of mutation — `net` is default-deny |
+| `group` | One of the nine groups above (required) |
+| `scope_requirements` | Coarse permission buckets |
+| `audit_behavior` | `full` · `redact_args` · `metadata_only` |
+| `is_stateful` | Order-dependent capabilities are marked explicitly |
+
+## Permissioning
+
+- **Mutating** capabilities require permission-gate approval unless the active role/mode already allows them.
+- **Network** capabilities are default-deny unless the role grants `net`.
+- Invocations emit recorder events; `audit_behavior` controls how arguments appear in the trail (`full`, redacted, or metadata-only).
+
+MCP tools are unified into the same registry — to an agent and to the audit, an MCP tool is just another capability.
+
+<Note>
+Capability groups are how a [role](/orchestration/team-config) is scoped: a role that lists `["fs", "code", "test"]` cannot reach `shell` or `net`. `voss team check` rejects an unknown group at compile time.
+</Note>

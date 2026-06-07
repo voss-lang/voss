@@ -1,0 +1,40 @@
+---
+title: "Audit trail"
+description: "The replayable record of a team run — RunFinal records, review sidecars, and the session tree — separating EM claims from verified evidence."
+---
+
+A multi-agent run is only useful if you can trust the result. Voss persists a deterministic, replayable trail of every run, so you can review it like a PR — and tell what the EM *claimed* apart from what was independently *verified*.
+
+The trail is built from three durable artifacts, all under `.voss/sessions/<root_id>/`.
+
+## What persists
+
+| Artifact | Where | Contents |
+| --- | --- | --- |
+| Run record | `RunFinal` (per run) | Goal, card counts, done/blocked/killed/rescope counts, EM iterations |
+| Review sidecars | `<node_id>.review.json` | Reviewer-A verification + Reviewer-B verdict + final outcome |
+| Session-tree nodes | `<node_id>.json` | Budget envelope, scope, role, transitions, terminal state, rejected raises |
+
+## Reading a run
+
+```bash
+voss board <root_id>          # cards and their final columns
+voss review <root_id>         # Reviewer-A + Reviewer-B per card
+voss session tree <root_id>   # per-node budget, scope, status
+voss session tree <root_id> --json
+```
+
+Together these answer:
+
+- **What changed** — transitions and outcomes per card, from the board and session tree.
+- **Claims vs. evidence** — the EM's routing rationale and `RunFinal` summary sit beside the independent reviewer verdicts and evidence references. Unsupported claims are detectable because the verdict carries `evidence_refs`.
+- **Why it passed — or didn't** — Reviewer-A's verification and Reviewer-B's verdict are recorded separately in each sidecar.
+- **What's still risky** — blocked, killed, and rescoped lineage stays inspectable; budget-raise attempts are recorded as `rejected_raises`.
+
+## Determinism
+
+The board and session-tree views are rendered from persisted node files, not from the live agents — so a run reconstructs identically after the fact, and the same `--json` export drives an ADE audit view rendered as a navigable session tree.
+
+<Note>
+A single unified `voss audit <run_id>` report and the navigable ADE audit panel are on the [roadmap](/roadmap/v0-1). Today the same evidence is available through `voss board`, `voss review`, and `voss session tree`.
+</Note>

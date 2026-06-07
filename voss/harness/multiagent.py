@@ -3,18 +3,17 @@
 The four non-blocking fan-out tools (`subagent_spawn`/`steer`/`status`/`gather`),
 the `ChildHandle` dataclass, the `ChildRegistry` in-memory child tracker, and the
 `PanelBridgeRenderer`. V8 unified the budget+persistence backend onto the V4
-`SessionTreeManager` (was the in-memory `M13Allocator`, removed): every spawn
-allocates a persisted `SessionTreeNode` child of the level's node, and recursion
-builds a per-node child manager (reserve = `VIABLE_FLOOR`) so each level divides
-only its own node's envelope. The chat-root manager is owned and injected by
-`cli.py`.
+`SessionTreeManager` (the prior in-memory even-split allocator was removed):
+every spawn allocates a persisted `SessionTreeNode` child of the level's node,
+and recursion builds a per-node child manager (reserve = `VIABLE_FLOOR`) so each
+level divides only its own node's envelope. The chat-root manager is owned and
+injected by `cli.py`.
 
 Budget constants `DEFAULT_PARENT_RESERVE` (30_000, the chat-root reserve, sourced
 from agent.py's `token_budget: int = 60_000` chat default) and `VIABLE_FLOOR`
-(2_000) live here. No `depth` / `MAX_DEPTH` / `DEPTH_LIMIT` / `RECURSION_LIMIT`
-identifier appears anywhere — recursion is bounded SOLELY by the viable-floor
-denial in `subagent_spawn` (budget-structural, preserves
-`test_subagent_recursion.py`).
+(2_000) live here. No recursion-depth ceiling constant appears anywhere —
+recursion is bounded SOLELY by the viable-floor denial in `subagent_spawn`
+(budget-structural, preserves `test_subagent_recursion.py`).
 """
 from __future__ import annotations
 
@@ -64,7 +63,7 @@ class ChildHandle:
     #: The detached ``asyncio.Task`` running the child ``run_turn`` (typed
     #: ``Any`` so M13-02 imports/awaits nothing; M13-03 populates it).
     task: Any = None
-    #: Budget slice received from ``M13Allocator.allocate``.
+    #: Budget slice (the child node's envelope limit) granted at spawn.
     allotment: int = 0
     #: Lifecycle flag flipped by the gather path.
     done: bool = False
@@ -123,9 +122,9 @@ def new_handle_id() -> str:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# M13-03 Wave 2A — non-blocking fan-out tools, panel bridge, attach entry,
-# defensive orphan-teardown net. EXTENDS this M13-02 module (no recreation of
-# M13Allocator / ChildHandle / ChildRegistry above; stdlib + in-repo only).
+# Non-blocking fan-out tools, panel bridge, attach entry, defensive
+# orphan-teardown net (extends the ChildHandle / ChildRegistry above;
+# stdlib + in-repo only).
 # ════════════════════════════════════════════════════════════════════════════
 
 from pathlib import Path  # noqa: E402  (in-repo, additive — Analog A param shape)
@@ -218,6 +217,17 @@ def attach_multiagent_tools(
     """
     base_renderer = renderer
     child_registry = ChildRegistry()
+    # V4-backed default when no manager is injected (e.g. a direct
+    # attach without a chat root). cli.py injects the real session-scoped
+    # chat-root manager; this fallback keeps the tool surface usable
+    # standalone. This is a real persisted V4 root, not the removed
+    # in-memory even-split allocator.
+    if node_manager is None:
+        node_manager = SessionTreeManager(
+            SessionTreeNode.create_root(cwd=cwd, limit=60_000),
+            reserve=DEFAULT_PARENT_RESERVE,
+            cwd=cwd,
+        )
     # handle id -> PanelBridgeRenderer (so gather/teardown can end_panel even
     # though M13-02's ChildHandle dataclass has no bridge field).
     bridges: dict[str, PanelBridgeRenderer] = {}
@@ -246,13 +256,21 @@ def attach_multiagent_tools(
             active_children = [
                 c for c in node_manager._children if c.terminal_state is None
             ]
-            n = len(active_children) + 1  # include the new child
             allocated = sum(c.envelope["limit"] for c in active_children)
             available = (
                 node_manager._root.envelope["limit"]
                 - node_manager._reserve
                 - allocated
             )
+            # Divide by active+2 (not active+1) so the new child takes only a
+            # SHARE of `available`, leaving headroom for further siblings. V4
+            # node limits are immutable (unlike M13's rebalancing allocator), so
+            # a greedy `// (active+1)` would let the first child swallow the
+            # whole envelope and deny every later sibling. Reserving headroom
+            # lets multiple sequential children coexist while no-oversell
+            # (allocate_child's BudgetAllocationError) and the viable-floor
+            # denial still hold.
+            n = len(active_children) + 2
             allotment = available // n
         if allotment < VIABLE_FLOOR:  # viable-floor denial -> bounds recursion
             return (

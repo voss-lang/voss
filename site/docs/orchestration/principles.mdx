@@ -1,0 +1,54 @@
+---
+title: "Principles"
+description: "Engineering principles as first-class config — injected into every agent context and recorded in the run, without hardcoding workflow steps."
+---
+
+Principles are the engineering culture every agent inherits. They are config, not control flow: injected into EM, worker, reviewer, and tester contexts, and recorded with the run — but no behavior branches on an individual principle string.
+
+Show the active set:
+
+```bash
+voss principles show
+voss principles show --json
+```
+
+The output lists each merged principle with its source (`default` or `project`).
+
+## Defaults
+
+Voss ships with six defaults:
+
+```yaml
+diff: "Make the smallest diff that solves the task."
+evidence: "No factual claim without evidence."
+tests: "Tests prove behavior, not coverage theater."
+scope: "Do not edit outside assigned scope."
+review: "Review intent and correctness before style."
+reversibility: "Prefer reversible changes unless the user approves risk."
+```
+
+## Project overrides
+
+Drop a `.voss/principles.yml` in the repo to extend or adjust the defaults:
+
+```yaml
+# .voss/principles.yml
+diff: "Keep diffs under ~50 lines unless asked"   # replaces the default text
+performance: "Measure before optimizing"          # adds a new principle
+
+disable:
+  - reversibility                                  # removes a default
+```
+
+Merge rules:
+
+- A key **not** in the defaults is **added**, after the defaults, in project order.
+- A key matching a default **replaces** its text in place (stable ordering).
+- A default is **removed** only when explicitly disabled — a `null` value or a name in `disable`.
+- Explicit disable wins over redefinition.
+
+A malformed `.voss/principles.yml` raises a config error rather than silently falling back, so a broken file is never ignored.
+
+<Note>
+Principles can be declared inline in a [`team{}`](/orchestration/team-config) block as well. Changing principles changes subsequent runs, but historical runs keep the principles that were active when they ran.
+</Note>

@@ -1,0 +1,72 @@
+---
+title: "Board"
+description: "The board state machine: columns, WIP limits, and artifact-gated transitions. Orchestration as a visible board, not an invisible prompt loop."
+---
+
+Orchestration is represented as a board, not a hidden prompt loop. Every card is backed by a session-tree node, and it advances only through gated transitions.
+
+Render it read-only from persisted nodes:
+
+```bash
+voss board                 # most recently modified run
+voss board <root_id>       # a specific run
+voss board --cwd .
+```
+
+## Columns
+
+```text
+Backlog -> Planned -> InProgress -> InReview -> Done
+                              \-> Blocked
+```
+
+| Column | Meaning |
+| --- | --- |
+| `Backlog` | Raw ideas, not yet scoped |
+| `Planned` | EM has authored acceptance criteria + role |
+| `InProgress` | Scope and budget allocated; worker running |
+| `InReview` | Artifact exists; awaiting independent review |
+| `Blocked` | Timeout, budget, scope error, or reviewer block |
+| `Done` | Tests/evals pass and independent review passed |
+
+`Done` and `Blocked` are terminal.
+
+## WIP limits
+
+Work-in-progress is capped per column to keep parallelism bounded:
+
+| Column | WIP cap |
+| --- | --- |
+| `InProgress` | 3 |
+| `InReview` | 2 |
+| others | unlimited |
+
+Exceeding a cap raises a board WIP error and the move is refused.
+
+## Transition gates
+
+Each transition must clear a set of predicate gates before a card advances:
+
+| Transition | Gate |
+| --- | --- |
+| `Backlog -> Planned` | scope contained in ceiling |
+| `Planned -> InProgress` | budget available + scope contained |
+| `InProgress -> InReview` | budget + scope + confidence meets the risk-tier threshold |
+| `InReview -> Done` | scope clean + Reviewer-A passes + Reviewer-B passes + tests pass (or eval meets threshold for AI work) |
+| `Any -> Blocked` | timeout, budget, retry ceiling, or reviewer block |
+
+Confidence thresholds default to `low: 0.60`, `med: 0.80`, `high: 0.95` and can be overridden per team.
+
+## Agents cannot self-approve
+
+A move to `Done` requires an injected independent reviewer. Without one, the board refuses the transition with a gate error whose failing clause is `no-reviewer`:
+
+```text
+BoardGateError: Done requires an independent reviewer  (no-reviewer)
+```
+
+A card forced terminal by deadline, budget, or retry ceiling moves to `Blocked` with the reason recorded — so every blocked card carries a why.
+
+<Note>
+The board is rendered deterministically from persisted session-tree nodes, so a run replays without reading the chat transcript. See the [session tree](/orchestration/session-tree).
+</Note>

@@ -10,7 +10,7 @@ import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: `Roadmap - ${site.name}`,
-  description: "The current Voss roadmap from the v0.1 harness to TUI, memory, and codebase intelligence.",
+  description: "The Voss roadmap: from the bounded harness substrate to a full agent engineering organization layer — board, reviewers, EM loop, audit, and ADE.",
 };
 
 const ROADMAP: {
@@ -22,39 +22,46 @@ const ROADMAP: {
 }[] = [
   {
     phase: "Shipped",
-    title: "Harness-led v0.1",
+    title: "The engineering org core",
     status: "Built",
-    body: "The Python harness, .voss language path, project cognition, evals, npm wrapper, SDK polish, and project memory foundation are in place.",
+    body: "Session tree + budget fan-out, the board state machine, the Reviewer-A/B split, and the Engineering Manager loop. `voss team run`, `voss board`, and `voss review` compose them into one run.",
+    icon: PackageCheck,
+  },
+  {
+    phase: "Shipped",
+    title: "Bounded harness substrate",
+    status: "Built",
+    body: "Plan/edit/auto modes, scoped writes, project memory, resumable sessions, the .voss control language, and the capability + principles layers the org runs on top of.",
     icon: PackageCheck,
   },
   {
     phase: "Now",
-    title: "TUI shell",
-    status: "Final verify",
-    body: "Replace line-streamed chat with a Textual interface for turn history, slash commands, permission modals, budget views, and session forking.",
+    title: "Multi-agent chat + live steering",
+    status: "Building",
+    body: "Non-blocking spawn, status, gather, and steer inside `voss chat` and the ADE. Child budget is drawn from the parent, the recursive budget invariant holds, and panels stay quiet by default.",
     icon: Milestone,
   },
   {
     phase: "Next",
-    title: "Codebase intelligence",
+    title: "Audit product + ADE panels",
     status: "Planned",
-    body: "Add a project index, LSP-backed symbol lookup, structural search, code_search/find_definition/find_references tools, and a TUI code panel.",
+    body: "Render the audit as a navigable session tree, with board, roster, reviewer-verdict, budget, and scope panels, blocked-card decision flows, and full run replay.",
     icon: Route,
   },
   {
     phase: "Later",
-    title: "Agent capability surface",
+    title: "Language as coordination spec",
     status: "Sequenced",
-    body: "Layer in Voss-aware tools, MCP bridge, multi-agent chat, long-running watch tasks, and a signed skill/plugin marketplace.",
+    body: "Stabilize the grammar for principles, team, role, gate, board, review, and memory, with compiler diagnostics clear enough for non-CS users and `voss run <file.voss>` for declared workflows.",
     icon: Workflow,
   },
 ];
 
 const NOT_NOW = [
   "Hosted SaaS control plane",
-  "Pricing or accounts",
-  "Unsigned third-party plugins",
-  "General-purpose workflow engine",
+  "Distributed multi-machine agent swarms",
+  "Autonomous deploy / delete / money without sign-off",
+  "Voss as a general-purpose programming language",
 ] as const;
 
 export default function RoadmapPage() {
@@ -70,15 +77,16 @@ export default function RoadmapPage() {
               Roadmap
             </Badge>
             <h1 className="display mt-5 max-w-4xl text-[clamp(2.5rem,6vw,4.5rem)]">
-              Ship the harness, then <span className="em">raise the ceiling</span>.
+              From bounded harness to <span className="em">engineering org</span>.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
-              Voss is early developer tooling. The roadmap now extends the local harness with a
-              full-screen TUI, persistent memory, codebase intelligence, and language-aware tools.
+              The org core is in: session tree, board, independent review, and the Engineering
+              Manager loop. From here, the work is live steering, the audit-centered ADE, and a
+              stable coordination language — kept local-first the whole way.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
-                <Link href="/harness">See harness</Link>
+                <Link href="/orchestration">See orchestration</Link>
               </Button>
               <Button asChild variant="outline" size="lg">
                 <Link href="/language">Language overview</Link>
@@ -101,7 +109,7 @@ export default function RoadmapPage() {
                     <span className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">
                       {item.phase}
                     </span>
-                    <Badge variant={item.status === "Final verify" ? "default" : "secondary"}>{item.status}</Badge>
+                    <Badge variant={item.status === "Built" ? "default" : "secondary"}>{item.status}</Badge>
                   </div>
                   <h2 className="mt-5 text-2xl font-semibold tracking-tight">{item.title}</h2>
                   <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.body}</p>

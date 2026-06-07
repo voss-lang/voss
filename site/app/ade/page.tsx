@@ -5,12 +5,18 @@ import {
   Boxes,
   BrainCircuit,
   Code2,
+  Gauge,
+  GitBranch,
+  KanbanSquare,
   Layers3,
   Monitor,
   Network,
+  Scale,
+  ScrollText,
   ShieldCheck,
   SquareTerminal,
   TerminalSquare,
+  Users,
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -54,6 +60,15 @@ const STACK: { name: string; desc: string; icon: LucideIcon }[] = [
   { name: "Code Intelligence", desc: "Repo-aware context and navigation.", icon: Code2 },
   { name: "Voss Tools", desc: "Diff, inspect, lint, and budget helpers.", icon: Wrench },
   { name: "Planning + Validation", desc: "Phase plans, checks, and summaries.", icon: Layers3 },
+];
+
+const PANELS: { name: string; desc: string; icon: LucideIcon }[] = [
+  { name: "Team roster", desc: "Declared roles, scope, budget, and model tier.", icon: Users },
+  { name: "Board", desc: "Cards moving across columns with WIP limits.", icon: KanbanSquare },
+  { name: "Session tree", desc: "Per-agent budget, scope, and status, live.", icon: GitBranch },
+  { name: "Reviewer verdicts", desc: "Reviewer-A and Reviewer-B output, side by side.", icon: Scale },
+  { name: "Budget meter", desc: "Allocation and consumption per root, card, and agent.", icon: Gauge },
+  { name: "Audit view", desc: "The run as a navigable, replayable trail.", icon: ScrollText },
 ];
 
 const WORKFLOW = [
@@ -180,6 +195,41 @@ export default function AdePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {STACK.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <article
+                    key={item.name}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition hover:border-[var(--accent)] hover:bg-[var(--surface-2)]"
+                  >
+                    <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--accent)]">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="mt-5 text-lg font-medium">{item.name}</h3>
+                    <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{item.desc}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-[var(--border)]">
+          <div className="mx-auto max-w-6xl px-6 py-20">
+            <div className="mb-12 max-w-2xl">
+              <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+                Orchestration panels
+              </p>
+              <h2 className="display mt-3 text-4xl sm:text-5xl">
+                Watch a team work, <span className="em">without the spam</span>.
+              </h2>
+              <p className="mt-4 text-[var(--muted)]">
+                The ADE centers the orchestration surfaces: roster, board, session tree, reviewer
+                verdicts, and the audit. Panels stay quiet by default and reveal detail on demand.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {PANELS.map((item) => {
                 const Icon = item.icon;
 
                 return (
