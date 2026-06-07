@@ -34,14 +34,22 @@ class TestDeterministicReviewerStub:
 
 class TestProductionImportGuard:
     def test_no_production_file_imports_stub(self):
-        """Grep voss/ (excluding stub.py itself) for stub imports."""
+        """Grep voss/ (excluding stub.py itself) for stub imports.
+
+        Allowlist: voss/harness/cli.py wires the stub reviewers into the
+        `voss team run` stub smoke-run (V7-02, SPEC "exits 0 on stub provider").
+        That command is an intentional stub-backed composition entrypoint, not a
+        real review path; every OTHER production file must stay stub-free so the
+        always-pass stub can never silently back a genuine review decision.
+        """
         result = subprocess.run(
             ["grep", "-rn", "--include=*.py",
              "voss.harness.board.stub", "voss/"],
             capture_output=True, text=True,
         )
+        _ALLOWLIST = ("voss/harness/board/stub.py", "voss/harness/cli.py")
         lines = [
             l for l in result.stdout.strip().split("\n")
-            if l and "voss/harness/board/stub.py" not in l
+            if l and not any(allowed in l for allowed in _ALLOWLIST)
         ]
         assert lines == [], f"production files import stub: {lines}"

@@ -25,7 +25,7 @@ created: 2026-06-06
 | **Estimated runtime** | ~20 seconds |
 
 > **Use `.venv/bin/python`** — bare `python3` lacks deps (memory `voss-python-interpreter`).
-> **DO NOT** run `tests/harness/board/` in the V7 gate — 13 pre-existing RED failures from V6-01 scaffolds (V6-02..05 unexecuted). V7's "existing O5 em tests pass" criterion targets `tests/harness/em/` (79/79 green today).
+> V7's acceptance gate targets `tests/harness/em/` (the EM cage + loop — V7's domain) + the new `tests/harness/test_team_run_cli.py`. **NOTE:** V6 is complete and merged — `tests/harness/board/` is also green now (the earlier "13 RED, exclude board/" note was from stale pre-merge research; corrected).
 
 ---
 

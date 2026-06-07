@@ -22,6 +22,8 @@ __all__ = [
     "BudgetCapRaiseError",
     "SessionTreeManager",
     "SessionTreeNode",
+    "SessionTreeNotFoundError",
+    "export_tree",
     "finalize_node",
     "mutate_envelope",
 ]
@@ -29,6 +31,10 @@ __all__ = [
 
 class BudgetAllocationError(Exception):
     """Raised when a child allocation would oversell the parent envelope."""
+
+
+class SessionTreeNotFoundError(Exception):
+    """Raised when no persisted tree exists for the given root_id."""
 
 
 class BudgetCapRaiseError(Exception):
@@ -57,6 +63,8 @@ class SessionTreeNode:
     # O3 OBRD-01 / R-01+R-03: per-card transition + retry history on the node.
     transitions: list = field(default_factory=list)
     retry_notes: list = field(default_factory=list)
+    scope: Optional[str] = None
+    role: Optional[str] = None
     _budget: Optional[BudgetScope] = field(default=None, init=False, repr=False)
     _finalized: bool = field(default=False, init=False, repr=False)
 
@@ -91,6 +99,8 @@ def _hydrate_node(data: dict) -> SessionTreeNode:
     kept.setdefault("rejected_raises", [])
     kept.setdefault("transitions", [])
     kept.setdefault("retry_notes", [])
+    kept.setdefault("scope", None)    # V4 VTREE-08: pre-V4 files → null
+    kept.setdefault("role", None)     # V4 VTREE-08: pre-V4 files → null
     return SessionTreeNode(**kept)
 
 
@@ -141,6 +151,25 @@ def mutate_envelope(node: SessionTreeNode, delta: int, cwd: Path) -> None:
     _write_node_file(node, cwd)
 
 
+def export_tree(root_id: str, cwd: Path) -> dict:
+    """Aggregate the per-node files for a root into one JSON-serializable dict.
+
+    Reads <cwd>/.voss/sessions/<root_id>/*.json; the on-disk dict IS the export
+    form (read-only — no re-serialization, no writes). Raises
+    SessionTreeNotFoundError when the directory is missing or holds no node files.
+    """
+    tree_dir = cwd / ".voss" / "sessions" / root_id
+    if not tree_dir.is_dir():
+        raise SessionTreeNotFoundError(root_id)
+    nodes = [
+        json.loads(path.read_text())
+        for path in sorted(tree_dir.glob("*.json"))
+    ]
+    if not nodes:
+        raise SessionTreeNotFoundError(root_id)
+    return {"root_id": root_id, "nodes": nodes}
+
+
 class SessionTreeManager:
     """Owns one tree's allocation state; one instance per running root."""
 
@@ -162,7 +191,9 @@ class SessionTreeManager:
                 return child
         return None
 
-    async def allocate_child(self, limit: int) -> SessionTreeNode:
+    async def allocate_child(
+        self, limit: int, *, scope: str | None = None, role: str | None = None
+    ) -> SessionTreeNode:
         async with self._lock:
             allocated = sum(c.envelope["limit"] for c in self._children)
             available = (
@@ -185,6 +216,8 @@ class SessionTreeManager:
                 ),
                 ended_at=None,
                 rejected_raises=[],
+                scope=scope,
+                role=role,
             )
             self._children.append(child)
             _write_node_file(child, self._cwd)

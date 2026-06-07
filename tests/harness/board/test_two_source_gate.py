@@ -45,6 +45,24 @@ class TestBoardSlotBackCompat:
         assert board._reviewer_a is stub
         assert board._reviewer_b is stub
 
+    @pytest.mark.asyncio
+    async def test_split_slots_use_b_for_intermediate_confidence(self, tmp_recorder):
+        manager, cwd = tmp_recorder
+        stub_a = DeterministicReviewerStub(conf=0.99, verdict="pass", source="A", tier="fast")
+        stub_b = DeterministicReviewerStub(conf=0.5, verdict="pass", source="B", tier="fast")
+        board = Board.from_team_config(
+            build_test_team(), recorder=manager,
+            reviewer_a=stub_a, reviewer_b=stub_b, cwd=cwd,
+        )
+        card = await board.spawn_card(risk_tier="high")
+        card = board.move(card, to="Planned")
+        card = board.move(card, to="InProgress")
+
+        with pytest.raises(BoardGateError) as exc:
+            board.move(card, to="InReview")
+
+        assert "conf" in exc.value.failing_clauses
+
 
 class TestTwoSourceGate:
     @pytest.mark.asyncio

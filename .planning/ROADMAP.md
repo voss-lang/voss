@@ -65,14 +65,14 @@
 | V2 | Principles Layer | First-class engineering principles (`.voss/principles.yml` + `principles{}`) injected into every agent context, audit-recorded, zero control-flow coupling | VPRIN-01..08 | Plans ready to execute (3 plans, 2 waves; VPRIN-01/03/04/05/06/07; VPRIN-02→V10, VPRIN-08→V9) |
 | V3 | Team Spec + Role Cage (supersedes O2) | `.voss team{}` canonical: frozen TeamConfig+SubagentRegistry, compile-time scope/budget containment, default roster, model tiering, `voss team check` | VTEAM-01..10 | TBD by SPEC.md |
 | V4 | Session Tree + Budget Fan-out (supersedes O1, KEYSTONE) | Every agent a durable recorded node w/ own budget/scope/status/artifacts; `sum(child)+reserve ≤ parent`; no orphan/overspend; `voss session tree` | VTREE-01..10 | Planned (3 plans, 3 waves) |
-| V5 | Board State Machine (supersedes O3) | Board columns/cards/WIP/gates as orchestrator state machine; artifact-gated transitions; agents can't self-Done; `voss board` | VBOARD-01..10 | TBD by SPEC.md |
+| V5 | Board State Machine (supersedes O3) | Board columns/cards/WIP/gates as orchestrator state machine; artifact-gated transitions; agents can't self-Done; `voss board` | VBOARD-01..10 | ✅ COMPLETE — Card fields + self-Done `no-reviewer` guard + `voss board` CLI; shipped O3 surface (VBOARD-01/02/04/05/06/08/09) regressed green |
 | V6 | Reviewer A/B Split (supersedes O4) | A authors bar+tests/eval from original idea; B judges narrative-blind w/ idea-divergence authority; persisted review artifacts; `voss review` | VREV-01..10 | TBD by SPEC.md |
 | V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | TBD by SPEC.md |
-| V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat` + ADE; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-01..10 | TBD by SPEC.md |
+| V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat` + ADE; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | Planned (3 plans, 3 waves; V8-01 RED scaffold -> V8-02 V4-backed unify+root+persist+recursion (allocator->node_manager, per-node-manager recursion, no depth constant) -> V8-03 verify+migrate+M13-absorbed) |
 | V9 | Audit Product (supersedes O6; reuse O6 plans) | Audit as primary trust product: idea/principles/team/board/diffs/tests/reviews/lineage/residual-risk; MD+JSON export; ADE session-tree render | VAUD-01..10 | TBD by SPEC.md |
 | V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | TBD by SPEC.md |
 | V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | TBD by SPEC.md |
-| V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | TBD by SPEC.md |
+| V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | Plans ready to execute (4 plans, 4 waves) |
 
 ---
 
@@ -1900,6 +1900,14 @@ Plans:
 
 **Cross-cutting:** Board state deterministic and replayable; every blocked card has a reason; renderable in CLI and ADE.
 
+**Status:** ✅ COMPLETE — 4 plans, 3 waves (completed 2026-06-06; supersedes O3, depends V4). Full board suite 121 green; frozen schemas (RunRecord/SessionRecord/BudgetScope/SessionTreeNode) field-unchanged.
+
+**Plans:**
+- [x] V5-01-PLAN.md — Wave 0 RED scaffolds (test_card_fields_v5 / test_self_done_guard / test_board_cli) driving the real planned API (VBOARD-03/07/10)
+- [x] V5-02-PLAN.md — machine.py: four additive Card fields + card_status/card_budget helpers + self-Done `no-reviewer` guard in Board.move (VBOARD-03/07)
+- [x] V5-03-PLAN.md — cli_view.py read-only renderer + `voss board [root_id]` board_cmd (mtime-latest, path-traversal-safe) (VBOARD-10)
+- [x] V5-04-PLAN.md — shipped-surface regression (BOARD-01/02/04/05/06/08/09) + stale-test fix + frozen-schema diff gate + O3-superseded bookkeeping (VBOARD-01/02/04/05/06/08/09)
+
 ---
 
 ### Phase V6: Reviewer A/B Split (supersedes O4)
@@ -1992,6 +2000,14 @@ Plans:
 **Requirements (lock at SPEC):** VSAFE-01..07 (PRD SAFE-01..07).
 
 **Cross-cutting:** Dangerous actions cannot be executed by the autonomous EM alone; factory fallback does not contaminate the normal autonomous path; audit clearly shows when strict runbook mode was used.
+
+**Plans:** 4 plans across 4 serial waves (policy foundation -> runtime gate -> audit persistence -> EM parity).
+
+Plans:
+- [ ] V12-01-PLAN.md — `.voss/safety.yml` schema/load + pure classifier for factory-only paths/operations, runbooks, pipelines, weak-model scaffolds (Wave 1)
+- [ ] V12-02-PLAN.md — PermissionGate/tool invocation safety overlay: irreversible confirmation, runbook/fixed-pipeline route-or-deny, normal-path preservation (Wave 2)
+- [ ] V12-03-PLAN.md — factory fallback audit persistence: additive RunRecorder/RunRecord evidence, audit marker, old-record hydration (Wave 3)
+- [ ] V12-04-PLAN.md — EM role-gate parity + weak-model scaffold context + full V12 regression selection (Wave 4)
 
 ---
 

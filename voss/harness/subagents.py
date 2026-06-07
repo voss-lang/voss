@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json as _json
 import re as _re
 from contextlib import nullcontext
@@ -15,7 +16,7 @@ from voss_runtime.exceptions import BudgetExceededError
 from .agent import run_turn
 from .permissions import Mode, PermissionGate
 from .render import Renderer
-from .session_tree import finalize_node
+from .session_tree import finalize_node, mutate_envelope
 from .tools import ToolEntry, make_toolset
 
 if TYPE_CHECKING:
@@ -225,6 +226,18 @@ async def run_subagent(
     spec = registry.get(agent_id)
     if spec is None:
         return f"<error: unknown subagent {agent_id!r}>"
+    # [VTREE-04] Pre-emptive spend guard: refuse to begin a call when the
+    # node's envelope is exhausted. Pure read of the node's own envelope with
+    # no lock and no await between check and return — atomic under asyncio.
+    if node is not None and node.envelope["spent"] >= node.envelope["limit"]:
+        if not node._finalized:
+            finalize_node(
+                node,
+                exit_reason="budget",
+                final="<halted: budget — envelope exhausted>",
+                cwd=cwd,
+            )
+        return "<halted: budget — envelope exhausted>"
     spendable = (node.envelope["limit"] - reserve) if node else None
     child_tools = make_toolset(cwd, renderer=renderer)
     scope = (
@@ -259,6 +272,15 @@ async def run_subagent(
                     permissions=gate,
                     cognition=cognition,
                 )
+        # [VTREE-04] Update spent from actual token usage so the pre-emptive
+        # guard is live (not dead code). Negative delta increments spent.
+        if node and result.run is not None:
+            tokens_used = (
+                (result.run.iteration_total_prompt_tokens or 0)
+                + (result.run.iteration_total_completion_tokens or 0)
+            )
+            if tokens_used > 0:
+                mutate_envelope(node, delta=-tokens_used, cwd=cwd)
         if node and result.run and result.run.exit_reason == "budget":
             finalize_node(
                 node,
@@ -283,6 +305,32 @@ async def run_subagent(
                 cwd=cwd,
             )
         return "<halted: budget>"
+    except asyncio.TimeoutError:  # [VTREE-07] — must precede except Exception
+        if node:
+            finalize_node(
+                node,
+                exit_reason="timeout",
+                final="<halted: timeout>",
+                cwd=cwd,
+            )
+        raise  # re-raise — caller defines timeout semantics
+    except Exception as exc:  # [VTREE-07]
+        if node:
+            finalize_node(
+                node,
+                exit_reason="error",
+                final=f"<error: {exc}>",
+                cwd=cwd,
+            )
+        raise
+    finally:  # [VTREE-07] safety net — guarantee no open node on any path
+        if node is not None and not node._finalized:
+            finalize_node(
+                node,
+                exit_reason="error",
+                final="<uncaught>",
+                cwd=cwd,
+            )
 
 
 def attach_subagent_tool(

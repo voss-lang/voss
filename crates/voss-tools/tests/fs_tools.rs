@@ -94,7 +94,11 @@ async fn fs_read_annotate_emits_anchors() {
         .unwrap();
     assert_eq!(
         res,
-        format!("{}│alpha\n{}│beta\n", line_anchor("alpha"), line_anchor("beta"))
+        format!(
+            "{}│alpha\n{}│beta\n",
+            line_anchor("alpha"),
+            line_anchor("beta")
+        )
     );
 }
 
@@ -191,7 +195,9 @@ async fn fs_edit_old_and_anchor_conflict_errors() {
         .await
         .unwrap();
     let res = editor
-        .invoke(json!({"path": "f.txt", "old": "alpha", "anchor": line_anchor("alpha"), "new": "x"}))
+        .invoke(
+            json!({"path": "f.txt", "old": "alpha", "anchor": line_anchor("alpha"), "new": "x"}),
+        )
         .await
         .unwrap();
     assert!(res.contains("not both"), "got: {res}");

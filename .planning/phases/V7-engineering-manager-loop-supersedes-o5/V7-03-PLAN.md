@@ -12,7 +12,7 @@ requirements: [VEM-CLI, VEM-PERSIST, VEM-SIGNOFF]
 must_haves:
   truths:
     - "EM cage regress green: dispatch to an undeclared role is denied (EMCageViolation); no set_ceiling/set_p/extend_budget on the handle; kill/rescope lineage + routing_rationale recorded"
-    - "Existing O5 em tests pass (79/79); idea→≥1 card→review→terminal→RunFinal proven on stub"
+    - "Existing O5 em tests pass; idea→≥1 card→review→terminal→RunFinal proven on stub"
     - "git diff shows zero field changes on RunRecord/SessionRecord/BudgetScope; V7 adds no schema fields and no new deps"
     - "O5 is marked superseded in ROADMAP and STATE; V7 acceptance criteria are all met"
   artifacts:
@@ -30,7 +30,7 @@ must_haves:
 ---
 
 <objective>
-Close the phase: verify the EM loop + cage invariants regress green after the V7-02 wiring, confirm zero frozen-schema drift and no new dependencies, and do the O5-superseded bookkeeping in ROADMAP/STATE. This proves the composition added in V7-02 did not weaken the cage and did not touch the frozen records.
+Close the phase: verify the EM loop + cage invariants regress green after the V7-02 wiring, confirm zero frozen-schema drift and no new dependencies, and do the O5-superseded bookkeeping in ROADMAP/STATE. This proves the composition added in V7-02 (including the V6 reviewer_a/reviewer_b injection) did not weaken the cage and did not touch the frozen records.
 
 Purpose: The acceptance criteria #5 (cage regress), #6 (O5 em tests pass), and #7 (zero field changes on RunRecord/SessionRecord/BudgetScope) plus the O5-supersession bookkeeping all land here.
 
@@ -68,11 +68,11 @@ Output: A verification record (em suite + schema-freeze green, git-diff zero-fie
     - Cage introspection: no set_ceiling/set_p/extend_budget path on EMBoardHandle.
     - Cage roster check: dispatch to an undeclared role raises EMCageViolation.
     - Lineage: kill/rescope lineage + routing_rationale recorded.
-    - Full O5 em suite passes (79/79).
+    - Full O5 em suite passes.
     - Schema-freeze: the backcompat regression `-k schema` is green AND `git diff` shows ZERO field add/remove/rename on RunRecord/SessionRecord/voss_runtime.BudgetScope. Inspect the diff of the session/recorder/voss_runtime budget modules; the only V7 code change should be in voss/harness/cli.py (the run subcommand + 2 helpers) and the new test file — assert no edits to the frozen-record dataclasses.
     - No new deps: confirm pyproject.toml is unchanged (git diff on pyproject.toml is empty for V7).
 
-    Use `.venv/bin/python -m pytest` (bare python3 lacks deps — memory voss-python-interpreter). DO NOT include tests/harness/board/ — 13 pre-existing RED from V6-02..05 (unexecuted) are not V7's concern. If any cage/lineage/em/schema test is RED, STOP and report — it is a V7 regression, not a pre-existing failure.
+    Use `.venv/bin/python -m pytest` (bare python3 lacks deps — memory voss-python-interpreter). The REQUIRED cage gate is `tests/harness/em/` (V7's domain — the EM cage + loop). V6 is COMPLETE and merged, so `tests/harness/board/` is ALSO green now — you MAY optionally regress board/ as a sanity check, but it is not the V7 cage gate. (The earlier "board/ has 13 RED, exclude it" rationale was from a stale pre-merge research tree and is WRONG — board/ is green.) If any cage/lineage/em/schema test is RED, STOP and report — it is a V7 regression.
 
     No fenced code in this action.
   </action>
@@ -81,26 +81,26 @@ Output: A verification record (em suite + schema-freeze green, git-diff zero-fie
   </verify>
   <acceptance_criteria>
     - `tests/harness/em/test_em_handle_cage.py`, `test_em_handle_dispatch.py`, `test_em_lineage.py` all green (cage intact: undeclared-role dispatch denied; no set_ceiling/set_p/extend_budget; kill/rescope lineage + routing_rationale recorded).
-    - `tests/harness/em/` 79/79 green (idea→≥1 card→review→terminal→RunFinal proven on stub).
+    - `tests/harness/em/` fully green (idea→≥1 card→review→terminal→RunFinal proven on stub).
     - `tests/voss/test_team_backcompat_regression.py -k schema` green; `git diff` confirms ZERO field changes on RunRecord/SessionRecord/BudgetScope.
     - `pyproject.toml` unchanged by V7 (no new third-party deps).
-    - `tests/harness/board/` is NOT referenced in any V7 verification command.
+    - `tests/harness/board/` may be optionally regressed (it is green — V6 complete) but is not the required V7 cage gate.
   </acceptance_criteria>
-  <done>Cage + lineage + full em suites green; schema-freeze green with zero RunRecord/SessionRecord/BudgetScope field changes; pyproject.toml unchanged; board/ excluded from the gate.</done>
+  <done>Cage + lineage + full em suites green; schema-freeze green with zero RunRecord/SessionRecord/BudgetScope field changes; pyproject.toml unchanged; em/ is the cage gate (board/ green, optional sanity check).</done>
 </task>
 
 <task type="auto">
   <name>Task 2: Mark O5 superseded by V7 in ROADMAP and STATE; finalize V7 entry</name>
   <files>.planning/ROADMAP.md, .planning/STATE.md</files>
   <read_first>
-    - .planning/ROADMAP.md (Phase V7 block ~line 1924; the existing O→V supersession banner convention from the V0–V12 STATE entry and ORCHESTRATION-PLAN.md)
-    - .planning/STATE.md (Phase Status table + Recent Activity format; O6/M13 supersession-marker precedent at lines 62-63)
+    - .planning/ROADMAP.md (Phase V7 block; the existing O→V supersession banner convention from the V0–V12 STATE entry and ORCHESTRATION-PLAN.md)
+    - .planning/STATE.md (Phase Status table + Recent Activity format; O6/M13 supersession-marker precedent)
     - .planning/phases/V7-engineering-manager-loop-supersedes-o5/V7-SPEC.md (the 7 acceptance criteria + "V7 supersedes O5" statement)
   </read_first>
   <action>
-    Bookkeeping only — no code. In ROADMAP.md: the V7 block (~1924) Goal/Scope currently restate the PRD EM-01..10 phase; update the plan list to reference the 3 V7 plans (V7-01 RED scaffold, V7-02 CLI+persist+sign-off, V7-03 verify+bookkeeping) and confirm the "supersedes O5" marker is explicit (the heading already says "supersedes O5"; add a one-line note that O5 artifacts are retained as reference and V7 ships the runnable delta: team run CLI + RunFinal persistence + sign-off). Do NOT rewrite the locked Scope/cage paragraph.
+    Bookkeeping only — no code. In ROADMAP.md: the V7 block Goal/Scope currently restate the PRD EM-01..10 phase; update the plan list to reference the 3 V7 plans (V7-01 RED scaffold, V7-02 CLI+persist+sign-off, V7-03 verify+bookkeeping) and confirm the "supersedes O5" marker is explicit (the heading already says "supersedes O5"; add a one-line note that O5 artifacts are retained as reference and V7 ships the runnable delta: team run CLI composing the V3–V6 stack incl. the V6 Reviewer-A/B slots + RunFinal persistence + sign-off). Do NOT rewrite the locked Scope/cage paragraph.
 
-    In STATE.md: update the Phase Status table to mark O5 superseded by V7 (mirror the O6→V9 "⊘ SUPERSEDED by V9" marker style at line 62) and add/refresh a V7 row reflecting completion status after V7-01/02/03. Add a Recent Activity bullet (dated 2026-06-06) summarizing V7: delta on shipped O5 — `voss team run` composing V3–V6 + em_loop, RunFinal sidecar persistence, human approve/reject sign-off (record-only), cage re-verified, zero frozen-schema drift, no new deps; O5 marked superseded. Keep "Current Position" focus unchanged unless the operator has moved it.
+    In STATE.md: update the Phase Status table to mark O5 superseded by V7 (mirror the O6→V9 "⊘ SUPERSEDED by V9" marker style) and add/refresh a V7 row reflecting completion status after V7-01/02/03. Add a Recent Activity bullet (dated 2026-06-06) summarizing V7: delta on shipped O5 — `voss team run` composing V3–V6 (incl. V6 Reviewer-A/B two-source slots) + em_loop, RunFinal sidecar persistence, human approve/reject sign-off (record-only), cage re-verified, zero frozen-schema drift, no new deps; O5 marked superseded. Keep "Current Position" focus unchanged unless the operator has moved it.
 
     Match the existing doc style (markers, table format, dated bullets — fold, don't sprawl). No fenced code.
   </action>
@@ -109,7 +109,7 @@ Output: A verification record (em suite + schema-freeze green, git-diff zero-fie
   </verify>
   <acceptance_criteria>
     - ROADMAP.md V7 block lists the 3 V7 plans and states O5 is superseded (artifacts retained as reference); the locked Scope/cage paragraph is unchanged.
-    - STATE.md marks O5 superseded by V7 (matching the O6→V9 marker style) and has a dated V7 Recent Activity bullet summarizing the delta + cage re-verify + zero-schema-drift + no-new-deps.
+    - STATE.md marks O5 superseded by V7 (matching the O6→V9 marker style) and has a dated V7 Recent Activity bullet summarizing the delta + V6 A/B reviewer composition + cage re-verify + zero-schema-drift + no-new-deps.
     - No source/code files modified by this task (planning docs only).
   </acceptance_criteria>
   <done>ROADMAP + STATE record O5-superseded-by-V7 and the finalized V7 plan list/summary; doc style matches existing supersession markers.</done>

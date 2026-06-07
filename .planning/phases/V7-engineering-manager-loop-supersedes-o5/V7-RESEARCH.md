@@ -4,6 +4,8 @@
 **Domain:** Python CLI composition — click group + async em_loop + session-tree + board + RunFinal persistence + sign-off
 **Confidence:** HIGH (all code verified against live source; compositions proven via direct execution)
 
+> ⚠️ **CORRECTION (2026-06-06, post-research — verified on disk):** This research ran against a **pre-merge tree** (V6 was merged to `dev` via `d35c7ae` during/after the run). Its "V6-02..05 NOT executed" findings are **STALE and WRONG**: V6 is COMPLETE — `Board.from_team_config` has `reviewer_a`/`reviewer_b` (machine.py:281-283, legacy `reviewer=` alias fans out to both → no `TypeError`), `ReviewerVerdict.domain_inferred` exists (verdict.py:34), `voss review` ships (cli.py:2487), and **both `tests/harness/board/` and `tests/harness/em/` are 100% green**. SUPERSEDED items below: OQ1, the "V6 readiness gap" finding, Pitfall 2 (reviewer_a/b TypeError), and the "exclude board/ — 13 RED" gate rationale. **V7 must inject the real `reviewer_a` + `reviewer_b` (SPEC: "compose V6 Reviewer-A/B").** Everything else (em_loop/Handle signatures, RunFinal 10 fields + `asdict`, pre-spawn card, async-drive, persistence, sign-off, cage verify) remains correct.
+
 ---
 
 <user_constraints>
@@ -220,7 +222,11 @@ from voss.harness.permissions import PermissionGate
 root_node = SessionTreeNode.create_root(cwd=cwd, limit=500_000)
 manager = SessionTreeManager(root_node, reserve=0, cwd=cwd)
 
-# Step 2: board (V5) — single-reviewer (pre-V6-03)
+# Step 2: board (V5) — SUPERSEDED single-reviewer example (see correction banner).
+# REAL V6 surface: inject reviewer_a + reviewer_b (both DeterministicReviewerStub).
+#   reviewer_a = DeterministicReviewerStub(conf=0.99, verdict="pass", source="A", tier="fast")
+#   reviewer_b = DeterministicReviewerStub(conf=0.99, verdict="pass", source="B", tier="strong")
+#   board = Board.from_team_config(team_config, recorder=manager, reviewer_a=reviewer_a, reviewer_b=reviewer_b, cwd=cwd, ...)
 reviewer = DeterministicReviewerStub(conf=0.99, verdict="pass")
 board = Board.from_team_config(
     team_config,
@@ -728,7 +734,7 @@ The `EMBoardHandle` is the primary trust boundary in this phase. V7 verifies tha
 
 1. **Full composition stack works today.** `SessionTreeManager → Board.from_team_config → EMBoardHandle → em_loop` is proven end-to-end in a tempdir with stub provider. All V4/V5/O5 modules are importable and functionally correct.
 
-2. **V6 plans 02-05 are NOT yet executed** — critical for planner. `Board.from_team_config` currently accepts only a single `reviewer` parameter (pre-V6-03). V7 must use `reviewer=DeterministicReviewerStub(...)` for tests. The 13 RED board test failures are pre-existing V6 scaffolds; V7 acceptance gate must target `tests/harness/em/` only.
+2. ~~**V6 plans 02-05 are NOT yet executed**~~ **[SUPERSEDED — see correction banner at top]** This finding is STALE (pre-merge tree). V6 IS complete: `Board.from_team_config` has `reviewer_a`/`reviewer_b` (+ `reviewer=` alias); board/ + em/ both 100% green. **V7 injects the real `reviewer_a` + `reviewer_b`.** The em/ acceptance gate stands (V7's cage domain), but NOT because board/ is broken — board/ is green.
 
 3. **RunFinal does not contain evidence_refs/diff_summary/residual.** The CONTEXT.md description was aspirational. The shipped RunFinal has 10 fields. The sidecar adds a `sign_off` superset key. `dataclasses.asdict(rf)` serializes correctly.
 

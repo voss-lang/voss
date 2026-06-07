@@ -10,17 +10,30 @@ import dataclasses
 import json
 import stat
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from click.testing import CliRunner
 
+from voss.harness import subagents as subagents_mod
+from voss.harness.cli import session_group
 from voss.harness.session import EXIT_REASONS, RunRecord, SessionRecord
 from voss.harness.session_tree import (
     BudgetAllocationError,
     BudgetCapRaiseError,
     SessionTreeManager,
     SessionTreeNode,
+    SessionTreeNotFoundError,
+    _hydrate_node,
+    export_tree,
     finalize_node,
     mutate_envelope,
+)
+from voss.harness.subagents import (
+    SubagentRegistry,
+    SubagentSpec,
+    run_subagent,
 )
 
 _NODE_JSON_KEYS = frozenset(
@@ -36,6 +49,9 @@ _NODE_JSON_KEYS = frozenset(
         # O3 OBRD-01: per-card transition + retry history (additive).
         "transitions",
         "retry_notes",
+        # V4 VTREE-08: nullable scope/role spawn metadata (additive).
+        "scope",
+        "role",
     }
 )
 
@@ -246,3 +262,340 @@ class TestNoOpenNodes:
         for path in tree_dir.glob("*.json"):
             blob = json.loads(path.read_text())
             assert blob.get("terminal_state") is not None
+
+
+class TestSchemaExtension:
+    def test_default_scope_role_null(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        assert root.scope is None
+        assert root.role is None
+
+    async def test_scope_role_spawn(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        child = await mgr.allocate_child(100, scope="review", role="worker")
+        assert child.scope == "review"
+        assert child.role == "worker"
+        on_disk = json.loads(_node_path(tmp_path, root.id, child.id).read_text())
+        assert on_disk["scope"] == "review"
+        assert on_disk["role"] == "worker"
+
+    async def test_spawn_without_scope_role_null(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        child = await mgr.allocate_child(100)
+        assert child.scope is None
+        assert child.role is None
+        on_disk = json.loads(_node_path(tmp_path, root.id, child.id).read_text())
+        assert on_disk["scope"] is None
+        assert on_disk["role"] is None
+
+    def test_pre_v4_file_hydrates_null(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        data = root.to_dict()
+        data.pop("scope", None)
+        data.pop("role", None)
+        node = _hydrate_node(data)
+        assert node.scope is None
+        assert node.role is None
+
+
+# ---------------------------------------------------------------------------
+# V4-02: pre-emptive spend guard + spend wiring + all-reason finalize boundary.
+# ---------------------------------------------------------------------------
+
+
+def _registry() -> SubagentRegistry:
+    reg = SubagentRegistry()
+    reg.register(
+        SubagentSpec(id="worker", description="bounded task", role_prompt="do it")
+    )
+    return reg
+
+
+def _turn_result(*, final: str, prompt_tokens: int, completion_tokens: int, exit_reason):
+    """A minimal TurnResult stand-in with a RunRecord-like `.run`."""
+    run = SimpleNamespace(
+        iteration_total_prompt_tokens=prompt_tokens,
+        iteration_total_completion_tokens=completion_tokens,
+        exit_reason=exit_reason,
+    )
+    return SimpleNamespace(final=final, run=run)
+
+
+async def _run(node, tmp_path: Path) -> str:
+    return await run_subagent(
+        agent_id="worker",
+        task="t",
+        registry=_registry(),
+        cwd=tmp_path,
+        renderer=None,
+        provider=object(),
+        model="m",
+        gate=object(),
+        node=node,
+    )
+
+
+class TestSpendGuard:
+    async def test_guard_blocks_when_envelope_exhausted(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=100)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(100)
+        mutate_envelope(child, delta=-100, cwd=tmp_path)
+        assert child.envelope["spent"] >= child.envelope["limit"]
+
+        with patch.object(subagents_mod, "run_turn", new=AsyncMock()) as mock_turn:
+            out = await _run(child, tmp_path)
+
+        mock_turn.assert_not_called()
+        assert out == "<halted: budget — envelope exhausted>"
+        assert child._finalized is True
+        assert child.terminal_state is not None
+        assert child.terminal_state["exit_reason"] == "budget"
+
+    async def test_spent_updated_after_call(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+        assert child.envelope["spent"] == 0
+
+        result = _turn_result(
+            final="ok", prompt_tokens=30, completion_tokens=20, exit_reason=None
+        )
+        with patch.object(
+            subagents_mod, "run_turn", new=AsyncMock(return_value=result)
+        ):
+            out = await _run(child, tmp_path)
+
+        assert out == "ok"
+        assert child.envelope["spent"] == 50
+        assert child.terminal_state["exit_reason"] == "done"
+        on_disk = json.loads(_node_path(tmp_path, root.id, child.id).read_text())
+        assert on_disk["envelope"]["spent"] == 50
+
+    async def test_no_run_record_no_spend_update(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        result = SimpleNamespace(final="done", run=None)
+        with patch.object(
+            subagents_mod, "run_turn", new=AsyncMock(return_value=result)
+        ):
+            out = await _run(child, tmp_path)
+
+        assert out == "done"
+        assert child.envelope["spent"] == 0
+        assert child.terminal_state["exit_reason"] == "done"
+
+    async def test_soft_exit_budget_finalizes_budget(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        result = _turn_result(
+            final="hit cap", prompt_tokens=10, completion_tokens=5, exit_reason="budget"
+        )
+        with patch.object(
+            subagents_mod, "run_turn", new=AsyncMock(return_value=result)
+        ):
+            out = await _run(child, tmp_path)
+
+        assert out == "hit cap"
+        assert child.envelope["spent"] == 15
+        assert child.terminal_state["exit_reason"] == "budget"
+
+
+class TestAllReasonsFinalize:
+    @pytest.mark.parametrize("reason", sorted(EXIT_REASONS))
+    def test_finalize_accepts_every_exit_reason(
+        self, tmp_path: Path, reason: str
+    ) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=100)
+        finalize_node(root, exit_reason=reason, final="", cwd=tmp_path)
+        assert root._finalized is True
+        assert root.terminal_state is not None
+        assert root.terminal_state["exit_reason"] == reason
+        assert root.ended_at is not None
+
+    async def test_timeout_path(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        with patch.object(
+            subagents_mod,
+            "run_turn",
+            new=AsyncMock(side_effect=asyncio.TimeoutError()),
+        ):
+            with pytest.raises(asyncio.TimeoutError):
+                await _run(child, tmp_path)
+
+        assert child._finalized is True
+        assert child.terminal_state["exit_reason"] == "timeout"
+        assert child.ended_at is not None
+
+    async def test_error_path(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        with patch.object(
+            subagents_mod,
+            "run_turn",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            with pytest.raises(RuntimeError):
+                await _run(child, tmp_path)
+
+        assert child._finalized is True
+        assert child.terminal_state["exit_reason"] == "error"
+        assert "boom" in child.terminal_state["final"]
+        assert child.ended_at is not None
+
+    async def test_budget_exception_path(self, tmp_path: Path) -> None:
+        from voss_runtime.exceptions import BudgetExceededError
+
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        with patch.object(
+            subagents_mod,
+            "run_turn",
+            new=AsyncMock(
+                side_effect=BudgetExceededError(
+                    reason="cap", limit=1000, observed=1001
+                )
+            ),
+        ):
+            out = await _run(child, tmp_path)
+
+        assert out == "<halted: budget>"
+        assert child._finalized is True
+        assert child.terminal_state["exit_reason"] == "budget"
+
+    async def test_no_double_finalize_first_reason_wins(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await mgr.allocate_child(1000)
+
+        # Error branch finalizes with "error"; the finally net must NOT overwrite.
+        with patch.object(
+            subagents_mod,
+            "run_turn",
+            new=AsyncMock(side_effect=ValueError("nope")),
+        ):
+            with pytest.raises(ValueError):
+                await _run(child, tmp_path)
+
+        assert child.terminal_state["exit_reason"] == "error"
+        assert child.terminal_state["final"] == "<error: nope>"
+
+
+# ---------------------------------------------------------------------------
+# V4-03: consolidated export (VTREE-10) + voss session tree CLI (VTREE-09).
+# ---------------------------------------------------------------------------
+
+
+class TestExport:
+    async def test_export_round_trips(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        n = 3
+        children = [
+            await mgr.allocate_child(100, scope="review", role="worker")
+            for _ in range(n)
+        ]
+
+        tree = export_tree(root.id, tmp_path)
+        assert tree["root_id"] == root.id
+        assert len(tree["nodes"]) == n + 1
+
+        by_id = {node["id"]: node for node in tree["nodes"]}
+        assert root.id in by_id
+        assert {c.id for c in children} <= set(by_id)
+
+        # Parent linkage + scope/role present; round-trip via _hydrate_node.
+        for child in children:
+            data = by_id[child.id]
+            assert data["parent_run_id"] == root.id
+            assert data["scope"] == "review"
+            assert data["role"] == "worker"
+            rehydrated = _hydrate_node(data)
+            assert rehydrated.id == child.id
+            assert rehydrated.envelope == child.envelope
+            assert rehydrated.scope == "review"
+            assert rehydrated.role == "worker"
+
+        root_data = by_id[root.id]
+        assert root_data["parent_run_id"] is None
+
+    async def test_reconstructs_from_disk_alone(self, tmp_path: Path) -> None:
+        # VTREE-03: N children → N node files; tree rebuilds from export only.
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        n = 4
+        children = [await mgr.allocate_child(100) for _ in range(n)]
+
+        tree_dir = _sessions_tree_dir(tmp_path, root.id)
+        assert len(list(tree_dir.glob("*.json"))) == n + 1
+
+        tree = export_tree(root.id, tmp_path)
+        rebuilt = {
+            node["id"]: _hydrate_node(node) for node in tree["nodes"]
+        }
+        assert set(rebuilt) == {root.id} | {c.id for c in children}
+        for child in children:
+            assert rebuilt[child.id].parent_run_id == root.id
+
+    def test_open_node_exports_null_terminal_state(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=500)
+        tree = export_tree(root.id, tmp_path)
+        assert tree["nodes"][0]["terminal_state"] is None
+
+    def test_export_unknown_root_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(SessionTreeNotFoundError):
+            export_tree("deadbeefcafe", tmp_path)
+
+    def test_export_empty_dir_raises(self, tmp_path: Path) -> None:
+        empty_dir = tmp_path / ".voss" / "sessions" / "emptyroot01"
+        empty_dir.mkdir(parents=True)
+        with pytest.raises(SessionTreeNotFoundError):
+            export_tree("emptyroot01", tmp_path)
+
+
+class TestCLI:
+    async def test_known_root_exit_zero(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        child = await mgr.allocate_child(100, scope="review", role="worker")
+
+        result = CliRunner().invoke(
+            session_group, ["tree", root.id, "--cwd", str(tmp_path)]
+        )
+        assert result.exit_code == 0
+        assert root.id in result.output
+        assert child.id in result.output
+
+    def test_unknown_root_exit_nonzero(self, tmp_path: Path) -> None:
+        result = CliRunner().invoke(
+            session_group, ["tree", "deadbeefcafe", "--cwd", str(tmp_path)]
+        )
+        assert result.exit_code != 0
+        assert result.output.strip() != ""
+
+    async def test_json_mode_parses(self, tmp_path: Path) -> None:
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=1000)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        await mgr.allocate_child(100)
+
+        result = CliRunner().invoke(
+            session_group, ["tree", root.id, "--cwd", str(tmp_path), "--json"]
+        )
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert "nodes" in payload
+        assert payload["root_id"] == root.id
+        assert len(payload["nodes"]) == 2
