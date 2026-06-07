@@ -83,5 +83,6 @@ class TestExitReasonsExtension:
         pre_o3 = {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
         assert pre_o3.issubset(EXIT_REASONS)
         # "killed" added post-O3 by O5 for the EM kill-flow; "error" added by
-        # V4-01 (VTREE-07) for the exception-path subagent finalize.
-        assert EXIT_REASONS == pre_o3 | {"timeout", "killed", "error"}
+        # V4-01 (VTREE-07) for the exception-path subagent finalize. Subset
+        # check (not ==) so additive EXIT_REASONS members don't churn this test.
+        assert (pre_o3 | {"timeout", "killed", "error"}).issubset(EXIT_REASONS)
