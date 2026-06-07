@@ -1,13 +1,13 @@
 """V10 RED scaffold — gate{} block compile to GateConfig (VLANG-01b).
 
 Targets the planned GateConfig (voss.harness.team) and TeamConfig.gate_configs.
-RED expected. No xfail masks (gsd-scaffold-fictional-api).
+RED expected. No expected-fail/skip masks (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations
 
 from voss import parse
 from voss.ast_nodes import TeamDecl
-from voss.harness.team import GateConfig, compile_team
+from voss.harness.team import compile_team
 
 
 def _prog(src: str, file: str = "<test>"):
@@ -32,6 +32,8 @@ _TEAM_WITH_GATE = """team Eng {
 
 
 def test_gate_block_compiles_to_gate_config() -> None:
+    from voss.harness.team import GateConfig
+
     config, _registry = compile_team(_only_team(_prog(_TEAM_WITH_GATE)))
     assert len(config.gate_configs) == 1
     gate = config.gate_configs[0]

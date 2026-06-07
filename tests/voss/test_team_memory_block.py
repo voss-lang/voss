@@ -1,13 +1,13 @@
 """V10 RED scaffold — memory{} block compile to MemoryConfig (VLANG-01c).
 
 Targets the planned MemoryConfig (voss.harness.team) + TeamConfig.memory, and
-the documented defaults. RED expected. No xfail masks (gsd-scaffold-fictional-api).
+the documented defaults. RED expected. No expected-fail/skip masks (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations
 
 from voss import parse
 from voss.ast_nodes import TeamDecl
-from voss.harness.team import MemoryConfig, compile_team
+from voss.harness.team import compile_team
 
 
 def _prog(src: str, file: str = "<test>"):
@@ -40,6 +40,8 @@ _TEAM_PARTIAL_MEMORY = """team Eng {
 
 
 def test_memory_block_compiles_to_memory_config() -> None:
+    from voss.harness.team import MemoryConfig
+
     config, _registry = compile_team(_only_team(_prog(_TEAM_FULL_MEMORY)))
     assert isinstance(config.memory, MemoryConfig)
     assert config.memory.decisions == "custom/dec"
