@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-07T22:42:32Z"
+last_updated: "2026-06-07T22:56:00Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 38
@@ -70,6 +70,10 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V12 | Safety & Factory Fallbacks | Plans ready to execute (4 plans, 4 waves; inline plan-check because local GSD agent/checker verbs are unavailable). Policy + audit first: `.voss/safety.yml`, runtime safety overlay, factory fallback audit, EM/direct parity. |
 
 ## Recent Activity
+
+- 2026-06-07 — **Phase V13.1 plan 04 EXECUTED — TypeScript SSE AgentEvent client verified.** `sdk/typescript/src/client/sse.ts` now exports `AgentEvent = components["schemas"]["EventEnvelope"]["event"]` and `subscribeToEvents(baseUrl, sessionId, token, signal?)`, opening `GET /session/:id/events` with `Authorization: Bearer <token>`, piping `fetch` body through `TextDecoderStream` + `EventSourceParserStream` from `eventsource-parser/stream`, JSON-parsing SSE `data`, and yielding typed AgentEvent values. Abort handling returns cleanly on `AbortError`/aborted signal and does not call `POST /abort` (PROTOCOL §8 client disconnect cancels server turn). Verification green: `npx tsc --noEmit`, `npm run build`, `npm run check:core-imports`, required-symbol checks, zero `node:` in `sse.ts`, no lints. Summary: `.planning/phases/V13.1-typescript-local-client-sdk/V13.1-04-SUMMARY.md`. Resume: V13.1 Plan 05 Node launcher/supervisor or Plan 06 integration gates once remaining SDK surfaces are ready.
+
+- 2026-06-07 — **Phase V13.1 plan 03 EXECUTED — TypeScript REST + permission client surface verified.** `sdk/typescript/src/client/rest.ts` now exposes `createVossClient(baseUrl, token)` over `openapi-fetch`, attaches `Authorization: Bearer <token>` via middleware, maps non-2xx responses to `VossApiError(status, detail)`, and provides typed helpers for create/list/get/delete session, message, abort, cost, saved sessions, and doctor. `sdk/typescript/src/client/permission.ts` exports strict `PermissionChoice = "a"|"A"|"d"|"y"|"n"` and `replyPermission(...)` posting `{v:1,id,choice}` through the REST client. Verification green: `npx tsc --noEmit`, `npm run build`, `npm run check:core-imports`, required-symbol checks, zero `node:` in REST/permission modules, no lints. Note: several REST success bodies currently codegen as generic JSON objects, so the SDK uses generated response bodies where present plus local JSON-object aliases. Summary: `.planning/phases/V13.1-typescript-local-client-sdk/V13.1-03-SUMMARY.md`. Resume: V13.1 Plan 04 SSE client (parallel Wave 2 companion) or Plan 06 integration gates after Wave 2/3.
 
 - 2026-06-07 — **Phase V13.1 plan 02 EXECUTED — TypeScript SDK scaffold + OpenAPI generated types verified.** `sdk/typescript` now provides `@vosslang/sdk` (ESM-only, `.` browser-safe core + `./node` launcher export), pinned npm tooling (`openapi-typescript` 7.13.0, `tsup`, `vitest`, `dependency-cruiser`), `VossApiError`, stable barrel, Wave-2 client stubs, checked-in `src/generated/types.ts`, and a 21-case exhaustive event type test. Verification green: `npm install --silent`, `npm run codegen` repeated byte-stable, `npx tsc --noEmit`, `npm run build`, `npm run check:core-imports`, package export check, exact 21 `case` labels, no lints. **A1 result:** event discriminators are string literals, but openapi-typescript emits the union as `components["schemas"]["EventEnvelope"]["event"]` rather than a named `AgentEvent` component; no generated types were hand-edited. Summary: `.planning/phases/V13.1-typescript-local-client-sdk/V13.1-02-SUMMARY.md`. Resume: V13.1 Wave 2 REST/SSE/permission modules against the generated types.
 
