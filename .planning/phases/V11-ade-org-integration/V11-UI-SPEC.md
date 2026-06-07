@@ -22,7 +22,7 @@ created: 2026-06-07
 | Preset | not applicable | project convention |
 | Component library | none — SolidJS + hand-rolled components | existing codebase |
 | Icon library | Unicode glyphs + inline SVG | A12 precedent |
-| Font: Display | Poppins 500/600 (bundled locally in `public/fonts/`) | A12-UI-SPEC |
+| Font: Display | Poppins 500 (bundled locally in `public/fonts/`) | A12-UI-SPEC |
 | Font: UI | Inter (already loaded) | A12-UI-SPEC |
 | Font: Terminal / Code | JetBrains Mono (already loaded) | A12-UI-SPEC |
 | Active theme | Voss Ignite (`voss-ignite.json`) | A12 ADE visual direction |
@@ -136,16 +136,16 @@ These extend A12 and must be declared in the V11 org-panel component scope (not 
 
 ## Typography
 
-All from A12 — inherited directly. No new tiers for V11.
+All from A12 — inherited directly. No new tiers for V11. Four sizes (11/12/14/16px), two weights (400/500).
 
 | Role | Font | Size | Weight | Line Height | Usage |
 |------|------|------|--------|-------------|-------|
 | Display | Poppins | 14px | 500 | 1.2 | Org/Run view header, panel section titles |
-| Display large | Poppins | 16px | 600 | 1.2 | Confirmation dialog title only |
+| Display large | Poppins | 16px | 500 | 1.2 | Confirmation dialog title only |
 | UI body | Inter | 12px | 400 | 1.5 | Sidebar agent names, roster entries, run-picker items |
 | UI label | Inter | 11px | 500 | 1.4 | Buttons, badges, board column headers, role pills, run-picker |
 | Mono body | JetBrains Mono | 11px | 400 | 1.5 | Card IDs, budget values, token counts, timestamps, CLI command preview in dialog, step counter, diff line numbers |
-| Section heading | Poppins | 11px | 600 | 1.2 | Uppercase panel section labels (ROSTER, BOARD, AUDIT, etc.) |
+| Section heading | Poppins | 11px | 500 | 1.2 | Uppercase panel section labels (ROSTER, BOARD, AUDIT, etc.) — distinguished by uppercase + letter-spacing, not weight |
 
 Section heading labels: uppercase, `letter-spacing: 0.08em`.
 
@@ -202,6 +202,8 @@ The Org/Run view is a new top-level view mode that replaces the GridRoot area wh
 
 **OrgViewShell:** fills the space normally occupied by `GridRoot`. Background `--bg-0`. `flex-direction: column`. The `AgentSidebar` and `StatusBar` remain mounted and unchanged.
 
+The `ActivePanelArea` is the primary visual anchor — it fills all remaining height after the fixed-height header and tab bar.
+
 **OrgViewHeader (28px, matches `--pane-header-height`):**
 - Left: `← Grid` text button (Inter 11px 500 `--fg-2`, hover `--fg-0`) — returns to grid view without disturbing pane layout.
 - Center: Run label + run-picker trigger. Format: `Run: <run_id_short>` followed by a `▾` glyph. Run ID truncated to 12 chars with ellipsis. Entire element is a button (Inter 11px 500 `--fg-1`). Click opens the run-picker dropdown.
@@ -255,12 +257,12 @@ Displays the team roster — agent roles, names, and assignments for the loaded 
 - Agent name / model: JetBrains Mono 11px `--fg-2`.
 - Right: status badge (see below).
 
-**Status badges:** pill shape (`border-radius: 9999px`, padding 0 6px, height 16px, Inter 11px 500).
+**Status badges:** pill shape (`border-radius: 9999px`, padding 0 4px, height 16px, Inter 11px 500).
 - `active` → `--accent-green` text, `rgba(94,194,106,0.12)` background.
 - `idle` → `--fg-3` text, `--bg-2` background.
 - `done` → `--fg-3` text, `--bg-2` background.
 
-**Section header:** Poppins 11px 600 uppercase `--fg-3` `letter-spacing: 0.08em`, padding 8px 16px 4px.
+**Section header:** Poppins 11px 500 uppercase `--fg-3` `letter-spacing: 0.08em`, padding 8px 16px 4px.
 
 **Empty state:** "No roster data for this run." (Inter 12px `--fg-3`, centered).
 
@@ -273,7 +275,7 @@ Displays the 6-column Kanban board from `voss board` output.
 **Column layout:** Horizontal flex, 6 equal-width columns. Each column scrolls independently (`overflow-y: auto`).
 
 **Column header (32px):**
-- Column name in the column's status color (see `--org-col-*` tokens). Poppins 11px 600 uppercase `letter-spacing: 0.08em`.
+- Column name in the column's status color (see `--org-col-*` tokens). Poppins 11px 500 uppercase `letter-spacing: 0.08em`.
 - Card count: JetBrains Mono 11px `--fg-3` `(N)`.
 - Column divider: `1px solid --border`.
 - Order: Backlog / Todo / In Progress / In Review / Done / Blocked.
@@ -289,7 +291,7 @@ Card contents (top-to-bottom):
 1. Card ID: JetBrains Mono 11px `--fg-3` (e.g. `card-0042`).
 2. Card title: Inter 12px 400 `--fg-0`, 2-line clamp (`overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2`).
 3. Role pill: Inter 11px 500, role color at 20% opacity background, role color text, `border-radius: 3px`, padding 0 4px.
-4. Risk badge: pill, `border-radius: 9999px`, padding 0 6px. Low → `--accent-green` tint; Med → `--accent-amber` text `--bg-2` background; High → `--accent-red` text `--bg-2` background.
+4. Risk badge: pill, `border-radius: 9999px`, padding 0 4px. Low → `--accent-green` tint; Med → `--accent-amber` text `--bg-2` background; High → `--accent-red` text `--bg-2` background.
 5. Budget micro-bar: 4px height bar (matches `BudgetBar` pattern). `--accent-green` < 70%, `--accent-amber` 70–90%, `--accent-red` > 90%. Width fills card, no label.
 
 Click on a card: selects it (focus ring) and navigates the Diff panel to show that card's diff. No other navigation change on click.
@@ -308,7 +310,7 @@ Displays the parent→child session tree, navigable.
 - Indent: 16px per level.
 - Expand/collapse toggle: `▸` (collapsed) / `▾` (expanded) — JetBrains Mono 11px `--fg-3`. Leaf nodes: `●` dot (4px, `--fg-3`).
 - Session ID: JetBrains Mono 11px `--fg-1`, truncated at 20 chars with ellipsis.
-- Role badge: same as Roster pill style but 10px font.
+- Role badge: same as Roster pill style, Inter 11px 500.
 - Status dot: 6px circle, `--accent-green` (done) / `--accent-amber` (in-review) / `--accent-red` (error/blocked) / `--fg-3` (idle).
 - Right: cost — JetBrains Mono 11px `--fg-3`.
 - Hover: `--bg-2` background.
@@ -325,7 +327,7 @@ Click on node: selects it and shows light metadata below the tree (node ID, role
 Renders the V9 audit JSON — §9 sections, claims-vs-evidence, residual-risk.
 
 **Section anatomy:**
-Section header row: Poppins 11px 600 uppercase `--fg-3` `letter-spacing: 0.08em`, padding 8px 16px 4px, `border-bottom: 1px solid --border`.
+Section header row: Poppins 11px 500 uppercase `--fg-3` `letter-spacing: 0.08em`, padding 8px 16px 4px, `border-bottom: 1px solid --border`.
 
 **Claims list:** Each claim is a row (min 32px).
 - Claim text: Inter 12px 400 `--fg-1`.
@@ -345,7 +347,7 @@ Displays Reviewer-A and Reviewer-B verdicts separately from `voss review` output
 **Layout:** Two vertical half-panes side-by-side, separated by `1px solid --border`. Each half scrolls independently.
 
 **Half-pane header (28px):**
-- Left half: `REVIEWER A` — Poppins 11px 600 `--role-reviewer` + `letter-spacing: 0.08em`.
+- Left half: `REVIEWER A` — Poppins 11px 500 `--role-reviewer` + `letter-spacing: 0.08em`.
 - Right half: `REVIEWER B` — same style but `--accent-magenta` color to distinguish the two sources.
 - Background: `--bg-1`. Border-bottom: `1px solid --border`.
 
@@ -366,7 +368,7 @@ Displays budget allocation and consumption: per root / per card / per agent.
 **Layout:** Three collapsible sections stacked vertically — `Per Root` / `Per Card` / `Per Agent`. Default: all sections expanded.
 
 **Section header (32px, clickable to collapse):**
-- `▾` / `▸` toggle glyph (JetBrains Mono 11px `--fg-3`) + section name (Poppins 11px 600 uppercase `--fg-3` `letter-spacing: 0.08em`).
+- `▾` / `▸` toggle glyph (JetBrains Mono 11px `--fg-3`) + section name (Poppins 11px 500 uppercase `--fg-3` `letter-spacing: 0.08em`).
 - Right: total allocated / consumed summary (JetBrains Mono 11px `--fg-2`).
 
 **Budget row (28px):**
@@ -408,11 +410,11 @@ Displays the diff and verification result for a specific card. This panel is nav
 - Addition lines: `--accent-cyan` text on `rgba(108,199,212,0.06)` background.
 - Removal lines: `--accent-red` text on `rgba(232,123,123,0.06)` background.
 - Context lines: `--fg-3` text, `--bg-1` background.
-- Line numbers: JetBrains Mono 10px `--fg-3`, right-aligned in a 36px wide column, `border-right: 1px solid --border`.
+- Line numbers: JetBrains Mono 11px `--fg-3`, right-aligned in a 36px wide column, `border-right: 1px solid --border`.
 - Filename header: `--bg-2` full-width row, Inter 11px 500 `--fg-1`, padding 4px 8px.
 
 **Verification result (below diff, separated by `1px solid --border`):**
-- Section header: Poppins 11px 600 `VERIFICATION` `--fg-3`.
+- Section header: Poppins 11px 500 `VERIFICATION` `--fg-3`.
 - Outcome badge: pill. `PASS` → `--accent-green`; `FAIL` → `--accent-red`; `SKIP` → `--fg-3`.
 - Test/eval summary: Inter 12px 400 `--fg-1`, `white-space: pre-wrap`.
 
@@ -443,10 +445,10 @@ Each row is 72px minimum height.
 - Transition: `opacity 150ms ease-out` + `transform scale(0.96→1.0) 150ms ease-out`. Respects `prefers-reduced-motion`.
 
 Dialog layout:
-1. **Header (48px):** Title: `{Action}: {card_id}` — Poppins 600 16px `--fg-0`. Dismiss `×` button top-right (`aria-label="Cancel"`).
-2. **CLI preview block:** `--bg-2` background, `border-left: 2px solid --focus`, padding 8px 12px, margin 16px. JetBrains Mono 11px `--fg-0`. Contains the **exact CLI command string** that will be shelled (e.g. `voss approve <run_id> <card_id>`). Label above block: `Command to run:` (Inter 11px 500 `--fg-3`).
+1. **Header (48px):** Title: `{Action}: {card_id}` — Poppins 500 16px `--fg-0`. Dismiss `×` button top-right (`aria-label="Close dialog"`).
+2. **CLI preview block:** `--bg-2` background, `border-left: 2px solid --focus`, padding 8px 16px, margin 16px. JetBrains Mono 11px `--fg-0`. Contains the **exact CLI command string** that will be shelled (e.g. `voss approve <run_id> <card_id>`). Label above block: `Command to run:` (Inter 11px 500 `--fg-3`).
 3. **Result area (appears after execution):** Initially hidden. On success: `✓ Done` (Inter 12px `--accent-green`) + first 200 chars of stdout (JetBrains Mono 11px `--fg-2`, `white-space: pre-wrap`). On failure: `✗ Failed` (`--accent-red`) + stderr (JetBrains Mono 11px `--fg-2`).
-4. **Footer:** Right-aligned. Cancel button (Inter 11px 500 `--fg-2`, transparent, `1px solid --border`, 3px radius) + Confirm button (Inter 11px 500 `--fg-0`, `--focus` background, 3px radius, Poppins 500 style). Confirm button disabled + `opacity: 0.5` while executing.
+4. **Footer:** Right-aligned. `Keep Viewing` button (Inter 11px 500 `--fg-2`, transparent, `1px solid --border`, 3px radius) + Confirm button (Inter 11px 500 `--fg-0`, `--focus` background, 3px radius, Poppins 500 style). Confirm button disabled + `opacity: 0.5` while executing.
 
 After success: dialog auto-closes after 1500ms AND triggers `load_run` refresh. User can dismiss early via `×` or Escape.
 
@@ -468,7 +470,7 @@ Steps through the run's persisted transition history to reconstruct board/card s
 
 **Board snapshot area:** Renders the board at step N using the client-side replay reducer output. Uses the exact same board layout as Panel 2, with these differences:
 - Non-interactive: card clicks are disabled (no `cursor: pointer`, no focus ring on click). Cards are read-only in replay.
-- Replay state badge: `REPLAY` watermark — Inter 10px 500 `--fg-3` positioned in the top-right of the board area, `letter-spacing: 0.12em`.
+- Replay state badge: `REPLAY` watermark — Inter 11px 500 `--fg-3` positioned in the top-right of the board area, `letter-spacing: 0.12em`.
 
 **Other-panels notice:** Below the controls bar and above the board snapshot: a 24px notice row — `Audit, Verdict, Budget, and Scope panels show final-run state only.` (Inter 11px `--fg-3`, centered). `border-bottom: 1px solid --border`.
 
@@ -480,7 +482,7 @@ Steps through the run's persisted transition history to reconstruct board/card s
 
 **Toggling to Org/Run view:**
 - Keyboard: `⌘⇧O` (Cmd+Shift+O). Not accessible from `⌘K` command palette in V11 (defer to A7 command registry phase).
-- Visual: a toggle button `Org` appears in the StatusBar left region, between workspace info and pane count. Inter 11px 500. Active state: `--focus` text, `rgba(255,91,31,0.15)` background, `1px solid --focus`. Inactive: `--fg-3` text, transparent background. Button padding: 0 6px, height 16px.
+- Visual: a toggle button `Org` appears in the StatusBar left region, between workspace info and pane count. Inter 11px 500. Active state: `--focus` text, `rgba(255,91,31,0.15)` background, `1px solid --focus`. Inactive: `--fg-3` text, transparent background. Button padding: 0 4px, height 16px.
 - On activation: GridRoot unmounts (or is hidden via `display: none`; implementation at executor's discretion — must restore unchanged). OrgViewShell mounts. Auto-loads most-recent run via D-04 behavior.
 - On return: OrgViewShell unmounts (or hidden). GridRoot shown. Grid state is exactly as the user left it.
 
@@ -516,7 +518,7 @@ Steps through the run's persisted transition history to reconstruct board/card s
 | Decision dialog title | `{Action}: {card_id}` (e.g. `Approve: card-0042`) |
 | Decision dialog CLI label | `Command to run:` |
 | Decision dialog confirm button | `Confirm` |
-| Decision dialog cancel button | `Cancel` |
+| Decision dialog cancel button | `Keep Viewing` |
 | Decision dialog success | `✓ Done` |
 | Decision dialog failure | `✗ Failed` |
 | Decision auto-close notice | (none — silent auto-close after 1500ms on success) |
@@ -525,7 +527,7 @@ Steps through the run's persisted transition history to reconstruct board/card s
 | Out-of-scope flag aria-label | `Out of scope` |
 | Back button aria-label (replay) | `Previous step` |
 | Forward button aria-label (replay) | `Next step` |
-| Dismiss dialog aria-label | `Cancel` |
+| Dismiss dialog aria-label | `Close dialog` |
 
 ---
 
@@ -614,3 +616,4 @@ No third-party component registries. All UI is hand-rolled SolidJS + CSS.
 
 *Phase: V11-ade-org-integration*
 *UI-SPEC created: 2026-06-07*
+*UI-SPEC revised: 2026-06-07 — checker fixes: "Cancel"→"Keep Viewing"/"Close dialog" (Dim 1); removed 10px tier (Dim 4); dropped 600 weight, all Poppins now 500 (Dim 4); 0 6px→0 4px padding + CLI block 8px 16px (Dim 5); added focal-point sentence (Dim 2)*
