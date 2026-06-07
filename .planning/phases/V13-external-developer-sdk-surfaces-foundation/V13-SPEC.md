@@ -114,12 +114,11 @@ Status: ✓ = met minimum, ⚠ = below minimum (planner treats as assumption)
 | Round | Perspective        | Question summary                          | Decision locked                                                        |
 |-------|--------------------|-------------------------------------------|------------------------------------------------------------------------|
 | 0     | Researcher (scout) | What exists for SDK/server today?         | `voss serve` + OpenAPI + locked EventEnvelope exist; codegen greenfield; M7 unshipped |
-| 1     | Boundary Keeper    | What does the V13 pipeline produce?       | Schema + drift gate only (language-agnostic); NO client code in V13    |
-| 1     | Researcher         | How is the schema captured?               | Static export from app object (`create_app().openapi()`); no live server |
-| 1     | Failure Analyst    | What does the drift gate cover + fail on? | REST OpenAPI + SSE EventEnvelope union; ANY diff fails CI (H3.3 pattern) |
+| 1     | Boundary Keeper    | What does V13 produce vs the sub-phases?  | V13 = strategy docs only; the contract snapshot + drift gate moved to V13.1 |
+| —     | Post-spec revision | Where should the shared snapshot live?    | In V13.1 (first client owns the artifact); V13.2–.4 reuse it (2026-06-07) |
 
 ---
 
 *Phase: V13-external-developer-sdk-surfaces-foundation*
-*Spec created: 2026-06-06*
-*Next step: /gsd-discuss-phase V13 — implementation decisions (codegen substrate layout, contract-artifact path, exporter + CI wiring)*
+*Spec created: 2026-06-06 (revised 2026-06-07 — snapshot moved to V13.1)*
+*Next step: /gsd-discuss-phase V13 — implementation decisions (matrix layout, tier assignments, sdk.md rewrite specifics)*
