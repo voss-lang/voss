@@ -1693,6 +1693,7 @@ def do_cmd(
         store=PermissionStore.load(cwd),
         auto_yes=yes_to_all or json_mode,
         project_policy=do_bundle.permissions if do_bundle.initialized else None,
+        safety_policy=do_bundle.safety if do_bundle.initialized else None,
     )
     _wire_tui_permissions_if_textual(gate, renderer)
     attach_subagent_tool(
@@ -1979,6 +1980,7 @@ def _run_repl(
         store=PermissionStore.load(cwd),
         edit_scope=edit_scope,
         project_policy=bundle.permissions if bundle.initialized else None,
+        safety_policy=bundle.safety if bundle.initialized else None,
     )
     _wire_tui_permissions_if_textual(gate, renderer)
     ctx = ReplContext(
