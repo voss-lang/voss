@@ -13,6 +13,11 @@ export const [runEntries, setRunEntries] = createSignal<RunEntry[]>([]);
 export const [loadError, setLoadError] = createSignal<string | null>(null);
 export const [loading, setLoading] = createSignal(false);
 export const [currentRunId, setCurrentRunId] = createSignal<string | null>(null);
+// Decision context for the CLI write path (D-07/D-08): the cwd + voss binary the
+// current run was loaded with. Panels (e.g. BlockedPanel) read these to shell a
+// decision via run_decision without re-threading them through the shell.
+export const [currentCwd, setCurrentCwd] = createSignal<string>('');
+export const [currentCliBinary, setCurrentCliBinary] = createSignal<string>('voss');
 
 /** Load + validate a single run (D-01/D-02). */
 export async function loadRun(
@@ -23,6 +28,8 @@ export async function loadRun(
   setLoading(true);
   setLoadError(null);
   setCurrentRunId(runId);
+  setCurrentCwd(cwd);
+  setCurrentCliBinary(cliBinary);
   try {
     const raw = await invoke<RunData>('load_run', { runId, cwd, cliBinary });
     // Boundary validation: drift → explicit error (D-02).
