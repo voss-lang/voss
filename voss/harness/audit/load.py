@@ -260,7 +260,15 @@ def load_audit_snapshot(root: Path) -> AuditSnapshot:
 
     # Load the first (or only) tree root.
     tree_dir = root_dirs[0]
-    node_files = sorted(tree_dir.glob("*.json"))
+    # Filter sidecars that are not session-tree nodes: run-final.json (no `id`)
+    # and *.review.json (per-card reviewer sidecars) live in the same dir but
+    # are loaded separately by report.py (V9-02). Globbing them as nodes trips
+    # the required-`id` check (V9 glob landmine).
+    node_files = [
+        p
+        for p in sorted(tree_dir.glob("*.json"))
+        if p.name != "run-final.json" and not p.name.endswith(".review.json")
+    ]
     if not node_files:
         raise AuditLoadError(tree_dir, "no node files found")
 
