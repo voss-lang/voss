@@ -376,13 +376,14 @@ def load_audit_snapshot(root: Path, run_id: str | None = None) -> AuditSnapshot:
             mitigation_present=False,
         )
 
-    # The separate run-final.json file is authoritative for real runs; fall
-    # back to the root node's em.run_final transition (the fixture path).
+    # The separate run-final.json file is authoritative for real runs; merge it
+    # over the root node's em.run_final transition (the fixture path) so file
+    # fields (sign_off, counts) win while transition-only keys are preserved.
     # NOTE: per-node scope denials (rejected_raises) live on the raw node dict
     # and are surfaced by report.py (V9-03), not on the frozen AuditNode.
     run_final_file = _load_run_final_file(tree_dir)
     if run_final_file is not None:
-        run_final = run_final_file
+        run_final = {**(run_final or {}), **run_final_file}
 
     return AuditSnapshot(
         root_id=root_id,
