@@ -2096,14 +2096,19 @@ Plans:
 
 **Scope:** Protocol/event types (codegen tagged enum off `EventEnvelope`); local server supervisor (reuse `voss-tui` child-supervision); auth helpers (handshake + bearer); session/audit readers (protocol-exposed; deep readers when V4/V9 freeze). Avoid duplicating Python orchestration semantics.
 
-**Requirements (lock at SPEC):** VSDK-RS-01..0N (`V13.2-SPEC.md`).
+**Requirements (locked at SPEC):** VSDK-RS-01..07 (`V13.2-SPEC.md`).
 
 **Cross-cutting:** Generates off the **V13.1 contract snapshot** (reuses the committed `openapi.json` + event-union schema; does not re-export). Reuses existing `crates/voss-tui` / `voss-bridge` / `voss-auth` supervision + auth surfaces where present.
 
-**Plans:** TBD by V13.2-SPEC.md.
+**Plans:** 6 plans, 5 waves. Most of the crate is built against a structurally-identical stub `AgentEvent` (Wave 0) so client/stream/supervisor/projection/tests proceed without the V13.1 snapshot; Wave 5 replaces the stub with real `cargo typify` output + the cargo drift gate, hard-blocking on V13.1 shipping `contracts/`.
 
 Plans:
-- [ ] TBD
+- [ ] V13.2-01-PLAN.md — Crate scaffold + workspace member + VossError + stub 21-member AgentEvent tagged enum + REST structs + cargo-typify/typify-tag coordination gate (Wave 1) [VSDK-RS-01, VSDK-RS-07]
+- [ ] V13.2-02-PLAN.md — VossClient typed REST surface (token-redacting Debug) + Handshake bearer auth helper (Wave 2) [VSDK-RS-02, VSDK-RS-05]
+- [ ] V13.2-03-PLAN.md — event_stream() typed SSE Stream + UiProjection lossy parity (21-member TryFrom) (Wave 3) [VSDK-RS-03, VSDK-RS-04]
+- [ ] V13.2-04-PLAN.md — Supervisor (spawn/handshake/kill-on-drop, no orphan) lifted from server.rs (Wave 3) [VSDK-RS-06]
+- [ ] V13.2-05-PLAN.md — FAKE_TURN integration suite: REST/401/409, SSE sequence + mid-stream drop, supervisor no-orphan (Wave 4) [VSDK-RS-02, VSDK-RS-03, VSDK-RS-05, VSDK-RS-06, VSDK-RS-07]
+- [ ] V13.2-06-PLAN.md — Replace stub with cargo typify output + cargo drift gate (D-08); HARD-BLOCKS on V13.1 contracts/ (Wave 5) [VSDK-RS-01, VSDK-RS-07]
 
 ---
 ### Phase V13.3: Go Local / Headless Client SDK
