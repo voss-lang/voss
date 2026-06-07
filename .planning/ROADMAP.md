@@ -1900,6 +1900,14 @@ Plans:
 
 **Cross-cutting:** Board state deterministic and replayable; every blocked card has a reason; renderable in CLI and ADE.
 
+**Status:** Planned — 4 plans, 3 waves (delta on shipped O3; supersedes O3, depends V4). Gaps: `voss board` CLI + Card field completeness + self-Done independence guard; rest of the shipped O3 surface verified/regressed.
+
+**Plans:**
+- [ ] V5-01-PLAN.md — Wave 0 RED scaffolds (test_card_fields_v5 / test_self_done_guard / test_board_cli) driving the real planned API (VBOARD-03/07/10)
+- [ ] V5-02-PLAN.md — machine.py: four additive Card fields + card_status/card_budget helpers + self-Done `no-reviewer` guard in Board.move (VBOARD-03/07)
+- [ ] V5-03-PLAN.md — cli_view.py read-only renderer + `voss board [root_id]` board_cmd (mtime-latest, path-traversal-safe) (VBOARD-10)
+- [ ] V5-04-PLAN.md — shipped-surface regression (BOARD-01/02/04/05/06/08/09) + stale-test fix + frozen-schema diff gate + O3-superseded bookkeeping (VBOARD-01/02/04/05/06/08/09)
+
 ---
 
 ### Phase V6: Reviewer A/B Split (supersedes O4)
