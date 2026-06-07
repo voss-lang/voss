@@ -42,7 +42,9 @@
 
 V8 is a unification phase with a concrete scope: swap the allocation backend of the existing M13 multi-agent chat system from an in-memory `M13Allocator` to the V4 `SessionTreeManager`, persist every chat child as a `SessionTreeNode`, extend `SessionTreeManager` to support depth>1 recursive fan-out (the piece V4 deliberately deferred), and give the chat session a V4 root node as its budget envelope. The M13 tool surface (`attach_multiagent_tools`, `subagent_spawn/steer/status/gather`, `ChildHandle`, `ChildRegistry`, `PanelBridgeRenderer`) is kept entirely intact — only the allocation backend changes.
 
-**Critical disk-state finding (2026-06-06):** V4-01 and V4-02 production code are BOTH executed on disk. V4-01 added `scope`/`role` to `SessionTreeNode` and `"error"` to `EXIT_REASONS`. V4-02 added the pre-emptive spend guard + `mutate_envelope` spend wiring + `except asyncio.TimeoutError` / `except Exception` / `finally` finalize net to `subagents.py`. V4-03 (export_tree + `voss session tree` CLI) is NOT yet executed — `export_tree` and `session_group` are absent from disk. M13 is **fully shipped** (all 10 xfail tests XPASSED, meaning all M13 code is live), including the in-memory recursive fan-out (depth>1 via `M13Allocator` + `sub_allocator`).
+> **⚠️ UPDATE (2026-06-06, post-research — verified on disk):** **V4 is now FULLY executed** (V4-01/02/03 SUMMARYs all present; `export_tree` at `session_tree.py:154` + `voss session tree` CLI at `cli.py:3922` ARE on disk). The "V4-03 NOT executed / `export_tree` ABSENT" statements below are STALE (research ran while V4 was mid-execution). **This does NOT affect the plans** — V8 uses inline glob reconstruction (still valid) and the plans never depend on a missing `export_tree`. V8's V4 + M13 dependency is now fully satisfied; V8 is executable. Everything else in this research is correct.
+
+**Critical disk-state finding (2026-06-06):** V4-01 and V4-02 production code are BOTH executed on disk. V4-01 added `scope`/`role` to `SessionTreeNode` and `"error"` to `EXIT_REASONS`. V4-02 added the pre-emptive spend guard + `mutate_envelope` spend wiring + `except asyncio.TimeoutError` / `except Exception` / `finally` finalize net to `subagents.py`. ~~V4-03 (export_tree + `voss session tree` CLI) is NOT yet executed~~ **[SUPERSEDED — V4-03 IS now on disk; see UPDATE banner above].** M13 is **fully shipped** (all 10 xfail tests XPASSED, meaning all M13 code is live), including the in-memory recursive fan-out (depth>1 via `M13Allocator` + `sub_allocator`).
 
 **Primary recommendation:** Extend `SessionTreeManager` with a per-node child allocation method (passing the parent node's envelope as the budget source), swap `M13Allocator` with a thin V4-backed adapter in `attach_multiagent_tools`, and add a chat-root creation step in `cli.py`. Even-split/viable-floor logic migrates as a helper alongside V4 allocation. Keep `ChildHandle.sub_allocator` field but replace its `M13Allocator` value with a `SessionTreeManager`-backed node.
 
@@ -642,9 +644,9 @@ Budget cage is a trust boundary. STRIDE analysis below.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does V8 need V4-03 (`export_tree`) to land first, or can it write its own glob-based reconstruction?**
+1. **Does V8 need V4-03 (`export_tree`) to land first, or can it write its own glob-based reconstruction?** *(Moot — V4-03 has since landed on disk; inline glob still used and valid.)*
    - What we know: V4-03 is NOT on disk. The acceptance criterion says "tree reconstructs from persisted nodes." The test only needs to verify the data is present and linkable.
    - What's unclear: Is the V8 planner expected to include a V4-03 execution wave, or just write an inline glob helper?
    - **Recommendation (RESOLVED):** V8 tests can use an inline `_glob_tree(cwd, root_id)` helper (same as `_load_nodes_from_disk` already in `test_session_tree.py`). The V8 acceptance criterion does not require the CLI subcommand. V4-03 can complete independently or be deferred; it does not block V8.
