@@ -4088,6 +4088,31 @@ def _persist_run_final(rf, cwd: Path, decision: str | None = None) -> Path:
     return persist_path
 
 
+def _write_signoff_ack(
+    cwd: Path, root_id: str, *, killed_count: int, misroute_count: int
+) -> Path:
+    """Write the killed/misroute acknowledgement to a NEW .signoff-ack.json (VAUD-SIGNOFF).
+
+    A governance record ALONGSIDE the audited run, never a mutation of
+    run-final.json or any node JSON. Mirrors _persist_run_final's 0o600
+    mkdir+write+chmod pattern. SECURITY (T-V9-06-03): root_id comes ONLY from
+    rf.root_id (a SessionTreeNode UUID), never user input — no path traversal.
+    """
+    from datetime import datetime, timezone
+
+    run_dir = cwd / ".voss" / "sessions" / root_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path = run_dir / ".signoff-ack.json"
+    data = {
+        "ack_ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "killed_count": killed_count,
+        "misroute_count": misroute_count,
+    }
+    path.write_text(json.dumps(data, indent=2))
+    path.chmod(0o600)
+    return path
+
+
 @team_group.command("run")
 @click.argument("goal")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
