@@ -34,6 +34,9 @@ _TEAM_WITH_PRINCIPLES = """team Eng {
     diff: "Block-level diff principle."
     evidence: "Block-level evidence principle."
   }
+  roster e {
+    backend { scope: "src/**" }
+  }
 }
 """
 

@@ -27,6 +27,9 @@ _TEAM_FULL_MEMORY = """team Eng {
     sessions: "custom/sess"
     semantic: "custom/sem"
   }
+  roster e {
+    backend { scope: "src/**" }
+  }
 }
 """
 
@@ -34,6 +37,9 @@ _TEAM_PARTIAL_MEMORY = """team Eng {
   ceiling { budget: 1000 tokens, scope: "src/**" }
   memory {
     decisions: "custom/dec"
+  }
+  roster e {
+    backend { scope: "src/**" }
   }
 }
 """

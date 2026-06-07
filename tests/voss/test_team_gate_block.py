@@ -27,6 +27,9 @@ _TEAM_WITH_GATE = """team Eng {
     require independent_review
     require evidence_refs
   }
+  roster e {
+    backend { scope: "src/**" }
+  }
 }
 """
 
