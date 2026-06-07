@@ -13,8 +13,8 @@ requirements: [VADE-01, VADE-02, VADE-03, VADE-04, VADE-05, VADE-06, VADE-07, VA
 user_setup: []
 must_haves:
   truths:
-    - "A single aggregate Tauri command load_run(run_id, cwd, cli_binary) returns typed RunData for a valid run"
-    - "enumerate_runs returns only V4+ session-tree subdirectories, never legacy flat .json session records"
+    - "D-01: A single aggregate Tauri command load_run(run_id, cwd, cli_binary) returns typed RunData for a valid run"
+    - "D-03: enumerate_runs returns only V4+ session-tree subdirectories, never legacy flat .json session records"
     - "run_decision shells the voss CLI and returns captured stdout/stderr/exit code"
     - "Invalid/missing run_id yields an error (not a crash or path traversal); run-final.json absence is tolerated"
     - "The frontend store wraps the commands and exposes runData/loadError/loading signals"

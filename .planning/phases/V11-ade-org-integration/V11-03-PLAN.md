@@ -26,7 +26,7 @@ must_haves:
   truths:
     - "Cmd+Shift+O toggles a dedicated Org/Run view that hosts the 10-tab panel shell"
     - "Toggling to Org view and back does NOT unmount/destroy the terminal grid (display:none, not Show)"
-    - "Opening the view auto-loads the most-recent run; a run-picker switches runs"
+    - "D-04: Opening the view auto-loads the most-recent run; a run-picker switches runs"
     - "A view-level loading and error state render without crashing on missing/invalid runs"
     - "An Org toggle button appears in the StatusBar left region with active/inactive styling"
   artifacts:
