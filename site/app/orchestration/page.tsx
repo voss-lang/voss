@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { codeToHtml } from "shiki";
 import {
@@ -17,13 +16,15 @@ import OrgLoop from "@/components/OrgLoop";
 import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/metadata";
 import { orgInvariants, site } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: `Orchestration - ${site.name}`,
   description:
     "Voss orchestrates AI agents as a constrained engineering organization: a board, a session tree, declared roles, an Engineering Manager loop, and independent review.",
-};
+  path: "/orchestration",
+});
 
 const BOARD_COLUMNS = [
   { name: "Backlog", body: "Raw ideas, not yet scoped." },

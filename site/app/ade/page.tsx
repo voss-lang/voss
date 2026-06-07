@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -26,13 +25,15 @@ import ProductScreenshot from "@/components/ProductScreenshot";
 import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/metadata";
 import { site } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: `Agentic Development Environment - ${site.name}`,
   description:
     "Voss is a local Agentic Development Environment for running, inspecting, and governing agent work.",
-};
+  path: "/ade",
+});
 
 const WHY_ADE: { title: string; body: string; icon: LucideIcon }[] = [
   {

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from voss.harness.cognition_schemas import PermissionsConfig
+from voss.harness.cognition_schemas import PermissionsConfig, SafetyConfig
 from voss.harness.edit_scope import EditScope
 from voss.harness.permissions import PermissionGate, PermissionStore
 from voss.harness.skill.scope import _min_mode as scope_min_mode
@@ -42,6 +42,23 @@ def test_gate_for_role_preserves_project_policy() -> None:
     spec = SubagentSpec("r", "d", "rp")
     g = gate_for_role(spec, base)
     assert g.project_policy is policy
+
+
+def test_gate_for_role_preserves_safety_policy() -> None:
+    policy = SafetyConfig.model_validate({"runbooks": [{"name": "rb", "steps": ["s"]}]})
+    base = PermissionGate(mode="edit", safety_policy=policy)
+    spec = SubagentSpec("r", "d", "rp")
+    g = gate_for_role(spec, base)
+    assert g.safety_policy is policy
+
+
+def test_gate_for_role_sets_safety_actor_role_and_tier() -> None:
+    base = PermissionGate(mode="auto", auto_yes=True)
+    spec = SubagentSpec("backend", "Backend", "rp", model="cheap")
+    g = gate_for_role(spec, base)
+    assert g.safety_actor is not None
+    assert g.safety_actor.role == "backend"
+    assert g.safety_actor.model_tier == "cheap"
 
 
 def test_gate_for_role_subagent_never_prompts() -> None:

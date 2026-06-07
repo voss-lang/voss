@@ -13,6 +13,19 @@ export const site = {
   tagline: "The operating layer for AI engineering teams.",
   description:
     "Voss runs AI coding agents like an engineering team: declared roles, hard budgets, scoped tools, independent review, and a replayable audit of every action. One goal in, audited work out.",
+  /** Canonical marketing origin (metadataBase, sitemap, robots, llms.txt). */
+  url: "https://voss.dev",
+  /** Static marketing routes (trailing slash applied in sitemap). */
+  routes: [
+    "",
+    "/harness",
+    "/ade",
+    "/language",
+    "/security",
+    "/roadmap",
+    "/orchestration",
+    "/audit",
+  ] as const,
   repoUrl: "https://github.com/bm9797/Voss",
   prdUrl: "https://github.com/bm9797/Voss/blob/main/PRD.md",
   // Public Mintlify docs (repo voss-lang/voss, site/docs, branch master).

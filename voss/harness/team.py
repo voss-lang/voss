@@ -30,6 +30,7 @@ from voss.ast_nodes import (
 )
 
 from .permissions import Mode, PermissionGate
+from .safety import SafetyActorContext
 from .skill.scope import _min_mode  # team compile reuse; see skill/scope.py:74
 from .subagents import SubagentRegistry, SubagentSpec
 from .tools import ToolEntry
@@ -254,6 +255,22 @@ TOOL_GROUP_ALIASES: dict[str, frozenset[str]] = {
 }
 
 
+def _model_tier_for_spec(spec: SubagentSpec) -> str | None:
+    """Resolve model tier for safety actor context on a derived role gate."""
+    if spec.model is not None:
+        if spec.model in _MODEL_TIERS:
+            return spec.model
+        from .config import get_model_tiers  # lazy: avoid import cycle
+
+        for tier, model_id in get_model_tiers().items():
+            if model_id == spec.model:
+                return tier
+    rd = role_full_defaults(spec.id)
+    if rd is not None:
+        return rd.model_tier
+    return None
+
+
 def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGate:
     """Compile a per-role PermissionGate from a SubagentSpec.
 
@@ -263,6 +280,10 @@ def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGa
     Per-gate network: ``spec.net`` maps to ``allow_net`` explicitly (``True`` or
     ``False``), never ``None``, so specialist roles stay netless even when the
     process is started with ``--allow-net``.
+
+    Safety: ``safety_policy`` and ``safety_confirm_fn`` are preserved from
+    ``base_gate`` (same object references). ``safety_actor`` is role-specific —
+    it carries ``spec.id`` and the resolved model tier, not the base actor.
 
     Subagent sessions do not use :class:`~voss.harness.edit_scope.EditScope`
     in this compile step (O5 may route per-role paths separately); ``edit_scope``
@@ -281,6 +302,11 @@ def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGa
         scope_prompt_fn=None,
         project_policy=base_gate.project_policy,
         allow_net=True if spec.net else False,
+        safety_policy=base_gate.safety_policy,
+        safety_actor=SafetyActorContext(
+            role=spec.id, model_tier=_model_tier_for_spec(spec)
+        ),
+        safety_confirm_fn=base_gate.safety_confirm_fn,
     )
 
 

@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { Ban, PackageCheck, Milestone, Route, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -6,12 +5,15 @@ import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/metadata";
 import { site } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: `Roadmap - ${site.name}`,
-  description: "The Voss roadmap: from the bounded harness substrate to a full agent engineering organization layer — board, reviewers, EM loop, audit, and ADE.",
-};
+  description:
+    "The Voss roadmap: from the bounded harness substrate to a full agent engineering organization layer — board, reviewers, EM loop, audit, and ADE.",
+  path: "/roadmap",
+});
 
 const ROADMAP: {
   phase: string;

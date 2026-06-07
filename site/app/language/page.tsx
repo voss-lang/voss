@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Boxes, CircleDollarSign, Code2, Database, Network, ShieldCheck, Users, Workflow } from "lucide-react";
 import { codeToHtml } from "shiki";
@@ -6,12 +5,15 @@ import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/metadata";
 import { site } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: `Language - ${site.name}`,
-  description: "The Voss language surface: confidence, context, semantic routing, budgets, and agents as first-class constructs.",
-};
+  description:
+    "The Voss language surface: confidence, context, semantic routing, budgets, and agents as first-class constructs.",
+  path: "/language",
+});
 
 const CONSTRUCTS = [
   {

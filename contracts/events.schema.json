@@ -1,0 +1,845 @@
+{
+  "$defs": {
+    "Alternative": {
+      "properties": {
+        "probability": {
+          "title": "Probability",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "probability"
+      ],
+      "title": "Alternative",
+      "type": "object"
+    },
+    "BannerEvent": {
+      "properties": {
+        "cwd": {
+          "title": "Cwd",
+          "type": "string"
+        },
+        "git": {
+          "title": "Git",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "type": {
+          "const": "banner",
+          "default": "banner",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "model",
+        "cwd",
+        "git"
+      ],
+      "title": "BannerEvent",
+      "type": "object"
+    },
+    "BudgetUpdated": {
+      "properties": {
+        "limit": {
+          "title": "Limit",
+          "type": "number"
+        },
+        "remaining": {
+          "title": "Remaining",
+          "type": "number"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "spent": {
+          "title": "Spent",
+          "type": "number"
+        },
+        "type": {
+          "const": "budget.updated",
+          "default": "budget.updated",
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "default": "tokens",
+          "enum": [
+            "tokens",
+            "usd"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "spent",
+        "limit",
+        "remaining"
+      ],
+      "title": "BudgetUpdated",
+      "type": "object"
+    },
+    "ClarifyEvent": {
+      "properties": {
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "type": {
+          "const": "clarify",
+          "default": "clarify",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "question",
+        "confidence"
+      ],
+      "title": "ClarifyEvent",
+      "type": "object"
+    },
+    "CognitionLoaded": {
+      "properties": {
+        "architecture_tokens": {
+          "title": "Architecture Tokens",
+          "type": "integer"
+        },
+        "constraints_count": {
+          "title": "Constraints Count",
+          "type": "integer"
+        },
+        "decisions_loaded": {
+          "default": 0,
+          "title": "Decisions Loaded",
+          "type": "integer"
+        },
+        "plans_loaded": {
+          "default": 0,
+          "title": "Plans Loaded",
+          "type": "integer"
+        },
+        "type": {
+          "const": "cognition_loaded",
+          "default": "cognition_loaded",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "architecture_tokens",
+        "constraints_count"
+      ],
+      "title": "CognitionLoaded",
+      "type": "object"
+    },
+    "CognitionOverflow": {
+      "properties": {
+        "architecture_tokens": {
+          "title": "Architecture Tokens",
+          "type": "integer"
+        },
+        "budget": {
+          "default": 6000,
+          "title": "Budget",
+          "type": "integer"
+        },
+        "type": {
+          "const": "cognition_overflow",
+          "default": "cognition_overflow",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "architecture_tokens"
+      ],
+      "title": "CognitionOverflow",
+      "type": "object"
+    },
+    "ConfidenceUpdated": {
+      "properties": {
+        "message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message Id"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "confidence.updated",
+          "default": "confidence.updated",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "score"
+      ],
+      "title": "ConfidenceUpdated",
+      "type": "object"
+    },
+    "FinalEvent": {
+      "properties": {
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        },
+        "cost_usd": {
+          "title": "Cost Usd",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "final",
+          "default": "final",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "confidence",
+        "cost_usd"
+      ],
+      "title": "FinalEvent",
+      "type": "object"
+    },
+    "GateUpdated": {
+      "properties": {
+        "decision": {
+          "title": "Decision",
+          "type": "string"
+        },
+        "gate": {
+          "title": "Gate",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "gate.updated",
+          "default": "gate.updated",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "gate",
+        "decision"
+      ],
+      "title": "GateUpdated",
+      "type": "object"
+    },
+    "PermissionUpdated": {
+      "properties": {
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        },
+        "dimension": {
+          "default": "tool",
+          "title": "Dimension",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "tool_name": {
+          "title": "Tool Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "permission.updated",
+          "default": "permission.updated",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "tool_name"
+      ],
+      "title": "PermissionUpdated",
+      "type": "object"
+    },
+    "PlanEvent": {
+      "properties": {
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        },
+        "cost_usd": {
+          "title": "Cost Usd",
+          "type": "number"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/components/schemas/PlanStep"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "type": {
+          "const": "plan",
+          "default": "plan",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "confidence",
+        "cost_usd"
+      ],
+      "title": "PlanEvent",
+      "type": "object"
+    },
+    "PlanStep": {
+      "properties": {
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "PlanStep",
+      "type": "object"
+    },
+    "PrinciplesOverflow": {
+      "properties": {
+        "budget": {
+          "default": 1000,
+          "title": "Budget",
+          "type": "integer"
+        },
+        "principles_tokens": {
+          "title": "Principles Tokens",
+          "type": "integer"
+        },
+        "type": {
+          "const": "principles_overflow",
+          "default": "principles_overflow",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "principles_tokens"
+      ],
+      "title": "PrinciplesOverflow",
+      "type": "object"
+    },
+    "ProbableEvent": {
+      "properties": {
+        "alternatives": {
+          "items": {
+            "$ref": "#/components/schemas/Alternative"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        },
+        "probability": {
+          "title": "Probability",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "probable",
+          "default": "probable",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "probability"
+      ],
+      "title": "ProbableEvent",
+      "type": "object"
+    },
+    "ServerConnected": {
+      "properties": {
+        "type": {
+          "const": "server.connected",
+          "default": "server.connected",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "title": "ServerConnected",
+      "type": "object"
+    },
+    "SessionIdle": {
+      "properties": {
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "session.idle",
+          "default": "session.idle",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "title": "SessionIdle",
+      "type": "object"
+    },
+    "StatusEvent": {
+      "properties": {
+        "cost_usd": {
+          "title": "Cost Usd",
+          "type": "number"
+        },
+        "ctx_pct": {
+          "title": "Ctx Pct",
+          "type": "number"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "tokens": {
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "type": {
+          "const": "status",
+          "default": "status",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "model",
+        "tokens",
+        "cost_usd",
+        "ctx_pct"
+      ],
+      "title": "StatusEvent",
+      "type": "object"
+    },
+    "StreamDelta": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "const": "stream.delta",
+          "default": "stream.delta",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "StreamDelta",
+      "type": "object"
+    },
+    "StreamFinalize": {
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timestamp"
+        },
+        "type": {
+          "const": "stream.finalize",
+          "default": "stream.finalize",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "title": "StreamFinalize",
+      "type": "object"
+    },
+    "ThinkingEvent": {
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "type": {
+          "const": "thinking",
+          "default": "thinking",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "ThinkingEvent",
+      "type": "object"
+    },
+    "ToolEvent": {
+      "properties": {
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        },
+        "summary": {
+          "default": "",
+          "title": "Summary",
+          "type": "string"
+        },
+        "type": {
+          "const": "tool",
+          "default": "tool",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "state"
+      ],
+      "title": "ToolEvent",
+      "type": "object"
+    },
+    "UserEvent": {
+      "properties": {
+        "task": {
+          "title": "Task",
+          "type": "string"
+        },
+        "type": {
+          "const": "user",
+          "default": "user",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "title": "UserEvent",
+      "type": "object"
+    },
+    "WarningEvent": {
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "type": {
+          "const": "warning",
+          "default": "warning",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "title": "WarningEvent",
+      "type": "object"
+    }
+  },
+  "description": "OpenAPI schema anchor (H1.14).\n\nForced into the OpenAPI components so a typed client codegens a tagged\nenum over the full event union, even though no route returns it directly.",
+  "properties": {
+    "event": {
+      "discriminator": {
+        "mapping": {
+          "banner": "#/components/schemas/BannerEvent",
+          "budget.updated": "#/components/schemas/BudgetUpdated",
+          "clarify": "#/components/schemas/ClarifyEvent",
+          "cognition_loaded": "#/components/schemas/CognitionLoaded",
+          "cognition_overflow": "#/components/schemas/CognitionOverflow",
+          "confidence.updated": "#/components/schemas/ConfidenceUpdated",
+          "final": "#/components/schemas/FinalEvent",
+          "gate.updated": "#/components/schemas/GateUpdated",
+          "permission.updated": "#/components/schemas/PermissionUpdated",
+          "plan": "#/components/schemas/PlanEvent",
+          "principles_overflow": "#/components/schemas/PrinciplesOverflow",
+          "probable": "#/components/schemas/ProbableEvent",
+          "server.connected": "#/components/schemas/ServerConnected",
+          "session.idle": "#/components/schemas/SessionIdle",
+          "status": "#/components/schemas/StatusEvent",
+          "stream.delta": "#/components/schemas/StreamDelta",
+          "stream.finalize": "#/components/schemas/StreamFinalize",
+          "thinking": "#/components/schemas/ThinkingEvent",
+          "tool": "#/components/schemas/ToolEvent",
+          "user": "#/components/schemas/UserEvent",
+          "warning": "#/components/schemas/WarningEvent"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/schemas/ServerConnected"
+        },
+        {
+          "$ref": "#/components/schemas/SessionIdle"
+        },
+        {
+          "$ref": "#/components/schemas/PermissionUpdated"
+        },
+        {
+          "$ref": "#/components/schemas/BannerEvent"
+        },
+        {
+          "$ref": "#/components/schemas/UserEvent"
+        },
+        {
+          "$ref": "#/components/schemas/ThinkingEvent"
+        },
+        {
+          "$ref": "#/components/schemas/PlanEvent"
+        },
+        {
+          "$ref": "#/components/schemas/ToolEvent"
+        },
+        {
+          "$ref": "#/components/schemas/ClarifyEvent"
+        },
+        {
+          "$ref": "#/components/schemas/FinalEvent"
+        },
+        {
+          "$ref": "#/components/schemas/StreamDelta"
+        },
+        {
+          "$ref": "#/components/schemas/StreamFinalize"
+        },
+        {
+          "$ref": "#/components/schemas/StatusEvent"
+        },
+        {
+          "$ref": "#/components/schemas/CognitionLoaded"
+        },
+        {
+          "$ref": "#/components/schemas/CognitionOverflow"
+        },
+        {
+          "$ref": "#/components/schemas/PrinciplesOverflow"
+        },
+        {
+          "$ref": "#/components/schemas/WarningEvent"
+        },
+        {
+          "$ref": "#/components/schemas/ProbableEvent"
+        },
+        {
+          "$ref": "#/components/schemas/BudgetUpdated"
+        },
+        {
+          "$ref": "#/components/schemas/ConfidenceUpdated"
+        },
+        {
+          "$ref": "#/components/schemas/GateUpdated"
+        }
+      ],
+      "title": "Event"
+    }
+  },
+  "required": [
+    "event"
+  ],
+  "title": "EventEnvelope",
+  "type": "object"
+}

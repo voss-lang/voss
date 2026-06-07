@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -16,12 +15,15 @@ import Nav from "@/components/Nav";
 import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/metadata";
 import { orgInvariants, site } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: `Security - ${site.name}`,
-  description: "How Voss approaches harness permissions, local credentials, project boundaries, and agent execution safety.",
-};
+  description:
+    "How Voss approaches harness permissions, local credentials, project boundaries, and agent execution safety.",
+  path: "/security",
+});
 
 const PRINCIPLES: { title: string; body: string; icon: LucideIcon }[] = [
   {
