@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-07T22:30:27Z"
+last_updated: "2026-06-07T22:42:32Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 38
@@ -70,6 +70,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V12 | Safety & Factory Fallbacks | Plans ready to execute (4 plans, 4 waves; inline plan-check because local GSD agent/checker verbs are unavailable). Policy + audit first: `.voss/safety.yml`, runtime safety overlay, factory fallback audit, EM/direct parity. |
 
 ## Recent Activity
+
+- 2026-06-07 — **Phase V13.1 plan 02 EXECUTED — TypeScript SDK scaffold + OpenAPI generated types verified.** `sdk/typescript` now provides `@vosslang/sdk` (ESM-only, `.` browser-safe core + `./node` launcher export), pinned npm tooling (`openapi-typescript` 7.13.0, `tsup`, `vitest`, `dependency-cruiser`), `VossApiError`, stable barrel, Wave-2 client stubs, checked-in `src/generated/types.ts`, and a 21-case exhaustive event type test. Verification green: `npm install --silent`, `npm run codegen` repeated byte-stable, `npx tsc --noEmit`, `npm run build`, `npm run check:core-imports`, package export check, exact 21 `case` labels, no lints. **A1 result:** event discriminators are string literals, but openapi-typescript emits the union as `components["schemas"]["EventEnvelope"]["event"]` rather than a named `AgentEvent` component; no generated types were hand-edited. Summary: `.planning/phases/V13.1-typescript-local-client-sdk/V13.1-02-SUMMARY.md`. Resume: V13.1 Wave 2 REST/SSE/permission modules against the generated types.
 
 - 2026-06-07 — **Phase V13.1 plan 01 EXECUTED — deterministic contract snapshot substrate shipped.** `scripts/export_contract.py` statically exports from `create_app(FIXED_TOKEN).openapi()` plus `EventEnvelope.model_json_schema(ref_template="#/components/schemas/{model}")`, writing stable `contracts/openapi.json` and `contracts/events.schema.json` with `indent=2`, `sort_keys=True`, and trailing newlines. Drift gate `tests/harness/server/test_contract_drift.py` re-generates both snapshots in-process, byte-compares committed contracts, and includes a synthetic-drift inequality test. Parent verification green: exporter content checks (`EventEnvelope`, `"server.connected"`), repeated-export diff clean for both JSON files, forbidden exporter paths absent (`uvicorn`/`socket`/`subprocess`/bare `FastAPI(`), `.venv/bin/python -m pytest tests/harness/server/test_contract_drift.py -q` → 3 passed. Summary: `.planning/phases/V13.1-typescript-local-client-sdk/V13.1-01-SUMMARY.md`. Resume: continue V13.1 next plan / TypeScript SDK codegen against `contracts/`.
 
