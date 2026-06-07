@@ -40,9 +40,7 @@ class TestKillFlow:
         manager, cwd = stub_recorder
         # Allocate a child so get_node finds it.
         import asyncio
-        child = asyncio.get_event_loop().run_until_complete(
-            manager.allocate_child(limit=10000)
-        )
+        child = asyncio.run(manager.allocate_child(limit=10000))
         stub_board.spawn_card(node_id=child.id, column="InProgress")
         h = make_handle()
         kr = h.kill_card(child.id, "scope too wide")
@@ -58,9 +56,7 @@ class TestKillFlow:
         """L-04: node JSON still exists after kill (append-not-delete)."""
         manager, cwd = stub_recorder
         import asyncio
-        child = asyncio.get_event_loop().run_until_complete(
-            manager.allocate_child(limit=10000)
-        )
+        child = asyncio.run(manager.allocate_child(limit=10000))
         stub_board.spawn_card(node_id=child.id, column="InProgress")
         node_path = cwd / ".voss" / "sessions" / child.root_id / f"{child.id}.json"
         assert node_path.exists()
@@ -73,9 +69,7 @@ class TestRescopeFlow:
     def test_rescope_produces_bidirectional_pointers(self, make_handle, stub_board, stub_recorder):
         manager, cwd = stub_recorder
         import asyncio
-        child = asyncio.get_event_loop().run_until_complete(
-            manager.allocate_child(limit=10000)
-        )
+        child = asyncio.run(manager.allocate_child(limit=10000))
         stub_board.spawn_card(node_id=child.id, column="InProgress")
         h = make_handle()
         rr = h.rescope_card(
