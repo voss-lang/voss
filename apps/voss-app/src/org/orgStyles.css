@@ -1,0 +1,269 @@
+/* V11 ADE org-view styles.
+ *
+ * Tokens are V11-specific extensions of the A12 / Voss Ignite system, scoped to
+ * `.org-view-shell` (per PATTERNS Theme Note — do NOT patch global :root). The
+ * base tokens (--bg-*, --fg-*, --accent-*, --focus, --role-*) are inherited
+ * from the active theme. No raw hex outside the V11 token declarations below.
+ */
+
+.org-view-shell {
+  /* Board column status colors */
+  --org-col-backlog: var(--fg-3);
+  --org-col-todo: var(--fg-2);
+  --org-col-in-progress: var(--accent-cyan);
+  --org-col-in-review: var(--accent-amber);
+  --org-col-done: var(--accent-green);
+  --org-col-blocked: var(--accent-red);
+  /* Audit unsupported-claim flag */
+  --unsupported-flag: var(--accent-red);
+  /* Board card risk tints */
+  --card-risk-low: rgba(94, 194, 106, 0.08);
+  --card-risk-med: rgba(232, 184, 108, 0.08);
+  --card-risk-high: rgba(232, 123, 123, 0.1);
+
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-0);
+  animation: org-fade-in 100ms ease-out;
+}
+
+@keyframes org-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --- Header (28px) -------------------------------------------------------- */
+
+.org-view-header {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  gap: 8px;
+  position: relative;
+}
+
+.org-header-btn {
+  background: transparent;
+  border: none;
+  color: var(--fg-2);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0 4px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.org-header-btn:hover {
+  color: var(--fg-0);
+}
+.org-header-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.org-run-label {
+  flex: 1;
+  text-align: center;
+  color: var(--fg-1);
+  font-family: var(--font-mono), monospace;
+}
+
+.org-refresh-glyph {
+  display: inline-block;
+}
+.org-refresh-glyph--spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Run-picker dropdown -------------------------------------------------- */
+
+.org-run-picker {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 280px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-3);
+  border: 1px solid var(--border-bright);
+  z-index: 40;
+  animation: org-fade-in 100ms ease-out;
+}
+.org-run-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  cursor: pointer;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--fg-0);
+}
+.org-run-picker__row:hover {
+  background: var(--bg-2);
+}
+.org-run-picker__row--active {
+  background: var(--focus-soft);
+  color: var(--fg-0);
+}
+.org-run-picker__mtime {
+  margin-left: auto;
+  color: var(--fg-3);
+}
+.org-run-picker__empty {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+}
+
+/* --- Panel tab bar (36px) ------------------------------------------------- */
+
+.org-tab-bar {
+  display: flex;
+  height: 36px;
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.org-tab {
+  padding: 0 14px;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-2);
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 120ms ease;
+}
+.org-tab:hover {
+  color: var(--fg-1);
+}
+.org-tab--active {
+  color: var(--fg-0);
+  border-bottom-color: var(--focus);
+}
+
+/* --- Active panel area ---------------------------------------------------- */
+
+.org-panel-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg-0);
+  position: relative;
+}
+
+.org-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.org-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 120px;
+  padding: 24px;
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* --- View-level states ---------------------------------------------------- */
+
+.org-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 120px;
+  color: var(--fg-2);
+  font-size: 16px;
+}
+.org-spinner__glyph {
+  animation: spin 0.8s linear infinite;
+}
+
+.org-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 160px;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.org-error-state__heading {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-0);
+  margin: 0;
+}
+.org-error-state__body {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--fg-2);
+  max-width: 320px;
+  margin: 0;
+}
+.org-error-state__refresh {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-2);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 12px;
+}
+
+/* --- Reduced motion ------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .org-view-shell,
+  .org-run-picker,
+  .org-refresh-glyph--spinning,
+  .org-spinner__glyph {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

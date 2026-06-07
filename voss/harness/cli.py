@@ -1693,6 +1693,7 @@ def do_cmd(
         store=PermissionStore.load(cwd),
         auto_yes=yes_to_all or json_mode,
         project_policy=do_bundle.permissions if do_bundle.initialized else None,
+        safety_policy=do_bundle.safety if do_bundle.initialized else None,
     )
     _wire_tui_permissions_if_textual(gate, renderer)
     attach_subagent_tool(
@@ -1979,6 +1980,7 @@ def _run_repl(
         store=PermissionStore.load(cwd),
         edit_scope=edit_scope,
         project_policy=bundle.permissions if bundle.initialized else None,
+        safety_policy=bundle.safety if bundle.initialized else None,
     )
     _wire_tui_permissions_if_textual(gate, renderer)
     ctx = ReplContext(
@@ -4003,6 +4005,7 @@ def team_check_cmd(path: str, json_mode: bool) -> None:
     p = Path(path)
     if not p.is_file():
         _fail(f"team file not found: {path}")
+    team_cwd = p.resolve().parent.parent if p.resolve().parent.name == ".voss" else p.resolve().parent
 
     src = p.read_text(encoding="utf-8")
     program = parse(src if src.endswith("\n") else src + "\n", str(p))
@@ -4013,9 +4016,9 @@ def team_check_cmd(path: str, json_mode: bool) -> None:
         _fail(f"no team{{}} block in {path}")
 
     try:
-        config, _registry = compile_team(team_decl)
+        config, _registry = compile_team(team_decl, cwd=team_cwd)
     except VossTeamConfigError as e:
-        _fail(str(e))
+        _fail(e.format_diagnostic())
         return  # unreachable; _fail raises. keeps type-checker happy.
 
     ceiling = config.ceiling
@@ -4203,9 +4206,9 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
             click.echo(f"<error: no team{{}} block in {team_file}>", err=True)
             raise click.exceptions.Exit(2)
         try:
-            config, registry = compile_team(team_decl)
+            config, registry = compile_team(team_decl, cwd=cwd)
         except VossTeamConfigError as e:
-            click.echo(str(e), err=True)
+            click.echo(e.format_diagnostic(), err=True)
             raise click.exceptions.Exit(2) from e
     else:
         config, registry = _default_team_config()

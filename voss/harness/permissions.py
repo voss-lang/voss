@@ -35,7 +35,15 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional
 
-from .cognition_schemas import PermissionsConfig
+from .cognition_schemas import PermissionsConfig, SafetyConfig
+from .safety import (
+    SafetyActorContext,
+    SafetyConfirmRequest,
+    build_confirm_request,
+    classify,
+    confirmation_matches,
+    decide,
+)
 
 if TYPE_CHECKING:
     from .edit_scope import EditScope
@@ -198,6 +206,12 @@ class PermissionGate:
     scope_prompt_fn: Optional[Callable] = None  # injected for tests
     project_policy: Optional[PermissionsConfig] = None  # .voss/permissions.yml
     allow_net: Optional[bool] = None  # per-gate override; None → process config
+    # V12 safety overlay (additive). When a safety_policy is attached, classified
+    # dangerous/factory-only operations are confirmed/routed/denied BEFORE the
+    # normal mode/prompt path — auto_yes cannot bypass irreversible confirmation.
+    safety_policy: Optional[SafetyConfig] = None  # .voss/safety.yml
+    safety_actor: Optional[SafetyActorContext] = None  # role/model-tier context
+    safety_confirm_fn: Optional[Callable] = None  # injected for tests; SafetyConfirmRequest -> str
 
     def needs_prompt(self, tool_name: str) -> bool:
         if self.auto_yes:
@@ -280,6 +294,13 @@ class PermissionGate:
             if rule_decision == "deny":
                 return False, "denied by permission rule (.voss/permissions.yml)"
 
+        # V12 safety overlay — runs before the net/mode/prompt path so that
+        # `auto_yes`/auto-mode cannot suppress irreversible confirmation or
+        # factory routing. A None result means "no safety match → continue".
+        safety_result = self._safety_check(tool_name, args)
+        if safety_result is not None:
+            return safety_result
+
         if is_network:
             if self.allow_net is False:
                 return False, "net disabled for this role (per-gate override)"
@@ -334,6 +355,67 @@ class PermissionGate:
                 return True, "remembered"
         return self._prompt(tool_name, args)
 
+    def _safety_check(self, tool_name: str, args: dict) -> tuple[bool, str] | None:
+        """V12 safety overlay. Returns:
+
+        - None: no safety rule matched, OR an irreversible action was confirmed
+          with the exact token → continue to the normal gate path.
+        - (False, reason): denied — confirmation failed, or a dangerous/factory
+          operation is routed to a runbook/pipeline (direct execution blocked).
+        """
+        if self.safety_policy is None:
+            return None
+        c = classify(self.safety_policy, tool_name, args, actor=self.safety_actor)
+        if not c.matched:
+            return None
+
+        # VSAFE-01: irreversible actions require exact-action confirmation; this
+        # path is evaluated even when auto_yes is True.
+        if c.requires_confirmation:
+            req = build_confirm_request(tool_name, args, c)
+            if self.safety_confirm_fn is None and not sys.stdin.isatty():
+                return False, (
+                    f"safety: irreversible action requires confirmation but none "
+                    f"available (non-interactive): {req.exact_action}"
+                )
+            fn = self.safety_confirm_fn or _interactive_safety_confirm
+            response = fn(req)
+            if not confirmation_matches(req, response):
+                return False, (
+                    f"safety: confirmation did not match exact action "
+                    f"'{req.exact_action}'"
+                )
+            return None  # confirmed → proceed to the existing mode/project gate
+
+        # VSAFE-02/03/04: route dangerous/factory operations through their named
+        # runbook/pipeline; V12 blocks direct execution before invocation.
+        d = decide(c)
+        if d.action == "runbook" and c.runbook is not None:
+            rb = next(
+                (r for r in self.safety_policy.runbooks if r.name == c.runbook), None
+            )
+            if rb is None or not rb.steps:
+                return False, (
+                    f"safety: runbook '{c.runbook}' has no defined procedure; "
+                    f"direct execution denied"
+                )
+            return False, (
+                f"safety: routed to runbook '{c.runbook}'; direct execution blocked"
+            )
+        if d.action == "runbook" and c.pipeline is not None:
+            return False, (
+                f"safety: routed to fixed pipeline '{c.pipeline}'; "
+                f"direct execution blocked"
+            )
+        if d.action == "scaffold":
+            target = c.runbook or "scaffold"
+            return False, (
+                f"safety: weak-model scaffold required ('{target}'); "
+                f"direct execution blocked"
+            )
+        # Matched but no actionable route (e.g. runbook field unexpectedly None).
+        return False, "safety: factory operation requires a runbook; none configured"
+
     def _render_diff_preview(self, tool_name: str, args: dict) -> None:
         """Render a unified diff to stderr before applying a write (CTRL-08).
 
@@ -375,6 +457,15 @@ class PermissionGate:
                 self.store.remember(self.signature(tool_name, args))
             return True, "allowed always"
         return False, "denied"
+
+
+def _interactive_safety_confirm(req: "SafetyConfirmRequest") -> str:
+    """TTY confirmation for an irreversible safety action (VSAFE-01)."""
+    sys.stderr.write(f"\n  ⛔ SAFETY: {req.risk_summary}\n")
+    sys.stderr.write(f"     exact action: {req.exact_action}\n")
+    sys.stderr.write("     re-type the exact action to confirm: ")
+    sys.stderr.flush()
+    return sys.stdin.readline().strip()
 
 
 def _interactive_expand_prompt(target: str) -> str:

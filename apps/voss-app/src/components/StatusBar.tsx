@@ -12,6 +12,8 @@ export type StatusBarProps = {
   agentCount: number;
   totalCost: number;
   onToggleSidebar: () => void;
+  orgViewOpen: boolean;
+  onToggleOrgView: () => void;
 };
 
 export default function StatusBar(props: StatusBarProps) {
@@ -42,12 +44,32 @@ export default function StatusBar(props: StatusBarProps) {
         overflow: 'hidden',
       }}
     >
-      {/* Left: workspace name + pane count */}
-      <div style={{ 'white-space': 'nowrap' }}>
+      {/* Left: workspace name + Org toggle + pane count */}
+      <div style={{ 'white-space': 'nowrap', display: 'flex', 'align-items': 'center', gap: '6px' }}>
         <Show when={props.workspaceName}>
           <span>{props.workspaceName}</span>
-          <span style={{ margin: '0 4px' }}>&middot;</span>
+          <span style={{ margin: '0 0 0 2px' }}>&middot;</span>
         </Show>
+        <button
+          type="button"
+          title="Toggle Org/Run view (Cmd+Shift+O)"
+          onClick={() => props.onToggleOrgView()}
+          style={{
+            background: props.orgViewOpen ? 'rgba(255,91,31,0.15)' : 'transparent',
+            border: props.orgViewOpen ? '1px solid var(--focus)' : '1px solid transparent',
+            color: props.orgViewOpen ? 'var(--focus)' : 'var(--fg-3)',
+            'font-family': 'var(--font-ui), Inter, system-ui, sans-serif',
+            'font-size': '11px',
+            'font-weight': '500',
+            cursor: 'pointer',
+            padding: '0 4px',
+            height: '16px',
+            display: 'inline-flex',
+            'align-items': 'center',
+          }}
+        >
+          Org
+        </button>
         <span>
           {props.paneCount} pane{props.paneCount !== 1 ? 's' : ''}
         </span>

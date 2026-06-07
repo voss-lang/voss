@@ -737,10 +737,22 @@ def _compile_memory(m) -> MemoryConfig | None:
     """Compile a `memory {}` block; omitted keys fall back to convention defaults."""
     if m is None:
         return None
+    for key, value in (
+        ("decisions", m.decisions),
+        ("sessions", m.sessions),
+        ("semantic", m.semantic),
+    ):
+        if value is not None and not value.strip():
+            raise VossTeamConfigError(
+                f"memory {key} path must not be empty",
+                construct="memory",
+                fix_hint=f"set memory {key} to a non-empty relative path",
+                role_span=m.span,
+            )
     return MemoryConfig(
-        decisions=m.decisions or ".voss/decisions",
-        sessions=m.sessions or ".voss/sessions",
-        semantic=m.semantic or ".voss-cache/semantic",
+        decisions=m.decisions if m.decisions is not None else ".voss/decisions",
+        sessions=m.sessions if m.sessions is not None else ".voss/sessions",
+        semantic=m.semantic if m.semantic is not None else ".voss-cache/semantic",
     )
 
 

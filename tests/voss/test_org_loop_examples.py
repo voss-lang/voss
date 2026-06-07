@@ -12,6 +12,7 @@ import pytest
 from click.testing import CliRunner
 
 from voss.cli import check
+from voss.harness.cli import team_check_cmd
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -27,4 +28,18 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 def test_org_loop_examples_check_clean(sample: str) -> None:
     path = _REPO_ROOT / sample
     result = CliRunner().invoke(check, [str(path)])
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    "sample",
+    [
+        "samples/team-orchestration.voss",
+        "samples/reviewer-split.voss",
+        "samples/audit-gates.voss",
+    ],
+)
+def test_org_loop_examples_team_check_clean(sample: str) -> None:
+    path = _REPO_ROOT / sample
+    result = CliRunner().invoke(team_check_cmd, [str(path)])
     assert result.exit_code == 0, result.output

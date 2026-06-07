@@ -2154,10 +2154,10 @@ Plans:
 
 **Cross-cutting:** Doc-only unless a concrete native embedder appears. Lowest priority; may stay deferred indefinitely.
 
-**Plans:** TBD by V13.4-SPEC.md.
+**Plans:** 1 plan.
 
 Plans:
-- [ ] TBD
+- [ ] V13.4-01-PLAN.md — author docs/native-embedding.md (native/C embedder contract reference: loopback+Bearer model, PROTOCOL/contracts pointers, JSON->native table, stability tiers, FFI deferral) + docs/check-native-embedding-refs.sh (references-resolve gate)
 
 ---
 

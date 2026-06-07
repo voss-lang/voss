@@ -18,6 +18,13 @@ _PROBABLE_WARNING_SOURCE = (
 )
 
 _CLEAN_SOURCE = "let x = 1\n"
+_INVALID_TEAM_SOURCE = '''team Eng {
+  ceiling { budget: 100 tokens, scope: "src/**" }
+  roster e {
+    backend { budget: 200 tokens, scope: "src/api/**", tools: ["fs"] }
+  }
+}
+'''
 _SEMANTIC_MATCH_SOURCE = (
     "fn route(x: string) -> string {\n"
     "    match x {\n"
@@ -77,6 +84,17 @@ def test_check_errors_exit_nonzero(monkeypatch):
         assert result.exit_code != 0
         assert "ANLY999" in result.output
         assert "forced error for test" in result.output
+
+
+def test_check_runs_team_semantic_validation() -> None:
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        path = _write("team.voss", _INVALID_TEAM_SOURCE)
+        result = runner.invoke(main, ["check", str(path)])
+        assert result.exit_code == 1
+        assert "team.budget" in result.output
+        assert "team.voss:4" in result.output
+        assert "hint:" in result.output
 
 
 def test_check_does_not_emit_indexes_or_cache_files():

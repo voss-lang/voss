@@ -1,0 +1,49 @@
+{
+  "run_id": "a1b2c3d4e5f6",
+  "idea": "Add ADE org board view",
+  "principles": [["clarity", "high"], ["safety", "med"]],
+  "team_config": { "source": "default", "roster_ids": ["planner", "backend", "reviewer"] },
+  "snapshot": {
+    "root_id": "a1b2c3d4e5f6",
+    "nodes": ["a1b2c3d4e5f6", "0f1e2d3c4b5a"],
+    "cards": [
+      { "node_id": "0f1e2d3c4b5a", "column": "Done", "risk_tier": "high", "retry_count": 0, "is_killed": false },
+      { "node_id": "bbb111222333", "column": "Blocked", "risk_tier": "med", "retry_count": 2, "is_killed": false },
+      { "node_id": "ccc444555666", "column": "InProgress", "risk_tier": "low", "retry_count": 0, "is_killed": false }
+    ],
+    "kills": [],
+    "rescopes": [],
+    "routings": [],
+    "verdicts": [],
+    "liveness": [],
+    "leak6": {
+      "status": "residual",
+      "evidence": "no external network access in test path",
+      "mitigation_present": true
+    },
+    "run_final": null
+  },
+  "review_sidecars": {
+    "0f1e2d3c4b5a": {
+      "a_verification": {
+        "result": "pass",
+        "test_path_or_rubric": "tests/foo_test.py",
+        "notes": "all green"
+      },
+      "b_verdict": {
+        "verdict": "pass",
+        "conf": 0.84,
+        "tier": "med",
+        "domain_inferred": "code",
+        "notes": "matches scope",
+        "evidence_refs": ["tests/foo_test.py"]
+      },
+      "final_outcome": "pass"
+    }
+  },
+  "run_final": null,
+  "signoff_ack": null,
+  "calibration": { "score": 0.8, "samples": 5 },
+  "sections_missing": ["diff_summary", "tests_evals"],
+  "unsupported_claims": ["bbb111222333"]
+}

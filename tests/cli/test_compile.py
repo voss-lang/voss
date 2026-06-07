@@ -13,6 +13,26 @@ from voss.diagnostics import AnalysisResult, Diagnostic
 
 
 _SOURCE = "let x = 1\n"
+_V10_TEAM_SOURCE = '''team Eng {
+  ceiling { budget: 1000 tokens, scope: "src/**" }
+  principles {
+    diff: "Make the smallest diff."
+  }
+  gate done {
+    require tests_passed
+  }
+  memory {
+    decisions: ".voss/decisions"
+  }
+  roster e {
+    backend { scope: "src/**" }
+  }
+}
+'''
+_V10_STANDALONE_COORDINATION_SOURCE = '''principles { diff: "Make the smallest diff." }
+gate done { require tests_passed }
+memory { decisions: ".voss/decisions" }
+'''
 
 
 def _write_source(name: str = "app.voss") -> Path:
@@ -132,6 +152,22 @@ def test_compile_blocks_on_analyzer_errors_without_write(monkeypatch):
         assert "ANLY999" in result.output
         assert not Path("app.py").exists()
         assert "generate_called" not in captured
+
+
+@pytest.mark.parametrize(
+    "body",
+    [_V10_TEAM_SOURCE, _V10_STANDALONE_COORDINATION_SOURCE],
+)
+def test_compile_accepts_v10_coordination_declarations(body: str) -> None:
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        path = Path("coord.voss")
+        path.write_text(body, encoding="utf-8")
+        result = runner.invoke(main, ["compile", str(path)])
+        assert result.exit_code == 0, result.output
+        out = Path("coord.py")
+        assert out.exists()
+        _ast.parse(out.read_text())
 
 
 def test_compile_passes_emit_indexes_true(monkeypatch):

@@ -24,6 +24,7 @@ from .ast_nodes import (
     ExprStmt,
     FloatLit,
     FnDecl,
+    GateBlockDecl,
     Identifier,
     IfStmt,
     IncludeStmt,
@@ -39,13 +40,16 @@ from .ast_nodes import (
     Node,
     Param,
     Program,
+    MemoryBlockDecl,
     PromptDecl,
+    PrinciplesBlockDecl,
     QualName,
     ReturnStmt,
     SimilarPattern,
     SpawnExpr,
     Stmt,
     StringLit,
+    TeamDecl,
     TryCatch,
     TypeExpr,
     TypeKwarg,
@@ -1196,6 +1200,7 @@ class StatementEmitter:
 
 
 _DECL_TYPES = (FnDecl, AgentDecl, PromptDecl, ClassDecl)
+_COORD_DECL_TYPES = (TeamDecl, PrinciplesBlockDecl, GateBlockDecl, MemoryBlockDecl)
 
 
 class ProgramEmitter:
@@ -1232,7 +1237,7 @@ class ProgramEmitter:
         decls: list[Stmt] = []
         execs: list[Stmt] = []
         for stmt in self.program.body:
-            if isinstance(stmt, UseStmt):
+            if isinstance(stmt, UseStmt) or isinstance(stmt, _COORD_DECL_TYPES):
                 continue
             if isinstance(stmt, _DECL_TYPES):
                 decls.append(stmt)

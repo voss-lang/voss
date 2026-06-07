@@ -43,6 +43,38 @@ def _print_diagnostics(diagnostics: Iterable[Diagnostic]) -> None:
         click.echo(str(diag))
 
 
+def _team_project_root(path: Path, project_root: Path | None) -> Path:
+    if project_root is not None:
+        return project_root
+    resolved = path.resolve()
+    if resolved.parent.name == ".voss":
+        return resolved.parent.parent
+    return resolved.parent
+
+
+def _team_config_diagnostics(program, path: Path, project_root: Path | None) -> tuple[Diagnostic, ...]:
+    from .ast_nodes import TeamDecl
+    from .harness.team import VossTeamConfigError, compile_team
+
+    cwd = _team_project_root(path, project_root)
+    diagnostics: list[Diagnostic] = []
+    for team_decl in (d for d in program.body if isinstance(d, TeamDecl)):
+        try:
+            compile_team(team_decl, cwd=cwd)
+        except VossTeamConfigError as exc:
+            span = exc.role_span or exc.ceiling_span or team_decl.span
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code=f"team.{exc.construct or 'config'}",
+                    message=str(exc),
+                    span=span,
+                    hint=exc.fix_hint or None,
+                )
+            )
+    return tuple(diagnostics)
+
+
 def _walk_voss_sources(source: Path) -> list[Path]:
     if source.is_file():
         return [source]
@@ -105,7 +137,9 @@ def _compile_source(
     except VossError as exc:
         raise click.ClickException(str(exc))
     _print_diagnostics(analysis.diagnostics)
-    if analysis.errors:
+    team_diagnostics = _team_config_diagnostics(program, source_path, project_root)
+    _print_diagnostics(team_diagnostics)
+    if analysis.errors or team_diagnostics:
         raise click.exceptions.Exit(code=1)
 
     try:
@@ -374,7 +408,9 @@ def check(
         except VossError as exc:
             raise click.ClickException(str(exc))
         _print_diagnostics(result.diagnostics)
-        error_count += len(result.errors)
+        team_diagnostics = _team_config_diagnostics(program, path, project_root)
+        _print_diagnostics(team_diagnostics)
+        error_count += len(result.errors) + len(team_diagnostics)
         warning_count += len(result.warnings)
 
     if len(sources) > 1:

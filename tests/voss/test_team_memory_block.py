@@ -5,9 +5,11 @@ the documented defaults. RED expected. No expected-fail/skip masks (gsd-scaffold
 """
 from __future__ import annotations
 
+import pytest
+
 from voss import parse
 from voss.ast_nodes import TeamDecl
-from voss.harness.team import compile_team
+from voss.harness.team import VossTeamConfigError, compile_team
 
 
 def _prog(src: str, file: str = "<test>"):
@@ -44,6 +46,17 @@ _TEAM_PARTIAL_MEMORY = """team Eng {
 }
 """
 
+_TEAM_EMPTY_MEMORY_PATH = """team Eng {
+  ceiling { budget: 1000 tokens, scope: "src/**" }
+  memory {
+    decisions: ""
+  }
+  roster e {
+    backend { scope: "src/**" }
+  }
+}
+"""
+
 
 def test_memory_block_compiles_to_memory_config() -> None:
     from voss.harness.team import MemoryConfig
@@ -60,3 +73,10 @@ def test_memory_block_defaults_when_keys_omitted() -> None:
     assert config.memory.decisions == "custom/dec"
     assert config.memory.sessions == ".voss/sessions"
     assert config.memory.semantic == ".voss-cache/semantic"
+
+
+def test_memory_block_rejects_empty_paths() -> None:
+    with pytest.raises(VossTeamConfigError) as ei:
+        compile_team(_only_team(_prog(_TEAM_EMPTY_MEMORY_PATH)))
+    assert ei.value.construct == "memory"
+    assert "must not be empty" in str(ei.value)

@@ -22,6 +22,7 @@ import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
 import StatusBar from './components/StatusBar';
 import ContextPanel from './components/ContextPanel';
+import OrgViewShell from './org/OrgViewShell';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
@@ -236,6 +237,7 @@ export default function App() {
   const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
   const [paneCount, setPaneCount] = createSignal(0);
+  const [orgViewOpen, setOrgViewOpen] = createSignal(false);
   const [contextPanelOpen, setContextPanelOpen] = createSignal(
     localStorage.getItem('voss:contextPanelOpen') === 'true',
   );
@@ -1003,6 +1005,14 @@ export default function App() {
       return;
     }
 
+    // Cmd+Shift+O: toggle the Org/Run view (grid stays mounted via display:none)
+    if (e.metaKey && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
+      setOrgViewOpen((p) => !p);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
     // F4: toggle context panel (D-01, D-06 persisted)
     if ((e.metaKey || e.ctrlKey) && e.key === 'i') {
       toggleContextPanel();
@@ -1170,7 +1180,7 @@ export default function App() {
             usageEntries={usageEntries()}
             workspacePath={workspacePath() ?? null}
           />
-          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: 'flex', 'flex-direction': 'column', position: 'relative' }}>
+          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: orgViewOpen() ? 'none' : 'flex', 'flex-direction': 'column', position: 'relative' }}>
             <For each={workspaceIds()}>
               {(workspaceId) => {
                 const ws = () => mountedById().get(workspaceId);
@@ -1248,6 +1258,15 @@ export default function App() {
               }}
             />
           </div>
+          {/* Org/Run view — sibling of the grid area; grid stays mounted
+              (display:none above) so PTY panes survive the toggle (Pitfall 6). */}
+          <Show when={orgViewOpen()}>
+            <OrgViewShell
+              cwd={workspacePath() ?? ''}
+              cliBinary="voss"
+              onClose={() => setOrgViewOpen(false)}
+            />
+          </Show>
         </div>
         <StatusBar
           workspaceName={
@@ -1261,6 +1280,8 @@ export default function App() {
           agentCount={agentListForSidebar().length}
           totalCost={Object.values(budgetByPaneId()).reduce((sum, b) => sum + b.cost_usd, 0)}
           onToggleSidebar={toggleSidebar}
+          orgViewOpen={orgViewOpen()}
+          onToggleOrgView={() => setOrgViewOpen((p) => !p)}
         />
       </Show>
       </div>
