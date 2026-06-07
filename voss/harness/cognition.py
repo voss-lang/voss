@@ -56,6 +56,7 @@ class CognitionBundle:
     constraints: Optional[ConstraintsConfig] = None
     permissions: Optional[PermissionsConfig] = None
     validation: Optional[ValidationConfig] = None
+    safety: Optional[SafetyConfig] = None
     architecture_tokens: int = 0
     load_errors: list[str] = field(default_factory=list)
 
@@ -262,6 +263,8 @@ def load(cwd: Path, *, token_count: "callable | None" = None) -> CognitionBundle
     constraints = _load_yaml(root / "constraints.yml", ConstraintsConfig, errors)
     permissions = _load_yaml(root / "permissions.yml", PermissionsConfig, errors)
     validation = _load_yaml(root / "validation.yml", ValidationConfig, errors)
+    # V12: optional project-local safety policy (missing file → None, no error).
+    safety = _load_yaml(root / "safety.yml", SafetyConfig, errors)
     tok = token_count(arch_body) if (token_count and arch_body) else 0
     return CognitionBundle(
         initialized=True,
@@ -271,6 +274,7 @@ def load(cwd: Path, *, token_count: "callable | None" = None) -> CognitionBundle
         constraints=constraints,
         permissions=permissions,
         validation=validation,
+        safety=safety,
         architecture_tokens=tok,
         load_errors=errors,
     )
