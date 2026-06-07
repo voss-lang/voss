@@ -70,7 +70,7 @@ class TestBudgetSection:
 
 class TestScopeDenials:
     def test_scope_denials(self, fixture_root: Path):
-        from voss.harness.audit.report import build_audit_report
+        from voss.harness.audit.report import build_audit_report, scope_denials
 
         # Inject a node carrying rejected_raises and re-run the report.
         run_dir = fixture_root / ".voss" / "sessions" / ROOT_ID
@@ -94,12 +94,13 @@ class TestScopeDenials:
         }
         (run_dir / "node_denied_1.json").write_text(json.dumps(node, indent=2))
         report = build_audit_report(fixture_root)
-        # The report must surface the rejected raise somewhere reachable.
-        denied = [
-            n for n in report.snapshot.nodes if n.id == "node_denied_1"
-        ]
-        assert denied and denied[0].rejected_raises
-        assert denied[0].rejected_raises[0]["reason"] == "over ceiling"
+        # rejected_raises lives on the raw node dict (NOT on the frozen
+        # AuditNode); report.py surfaces it via the scope_denials helper.
+        denials = scope_denials(report.snapshot, run_dir)
+        reasons = [d["reason"] for d in denials]
+        assert "over ceiling" in reasons
+        denied = [d for d in denials if d["node_id"] == "node_denied_1"]
+        assert denied and denied[0]["attempted_delta"] == 1000
 
 
 class TestReviewerSections:
