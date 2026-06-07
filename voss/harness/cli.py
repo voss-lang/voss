@@ -3844,6 +3844,24 @@ def principles_show_cmd(cwd_str: str, json_mode: bool) -> None:
         click.echo(f"{key:<{key_w}}  [{source}]  {text}")
 
 
+@click.command("board")
+@click.argument("root_id", required=False, default=None)
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root.",
+)
+def board_cmd(root_id: str | None, cwd_str: str) -> None:
+    """Render the board read-only from persisted session-tree nodes (VBOARD-10)."""
+    from voss.harness.board.cli_view import render_board
+
+    cwd = Path(cwd_str).resolve()
+    rc = render_board(cwd, root_id=root_id)
+    raise click.exceptions.Exit(code=rc)
+
+
 @click.group("team")
 def team_group() -> None:
     """Inspect and validate the team cage (VTEAM-10)."""
@@ -3987,6 +4005,7 @@ AGENT_COMMANDS = (
     principles_group,
     session_group,
     team_group,
+    board_cmd,
 )
 
 

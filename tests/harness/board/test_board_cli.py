@@ -44,7 +44,7 @@ class TestBoardCLI:
         from voss.harness.cli import board_cmd
 
         _write_node(tmp_path, "abc123", "n1")
-        result = CliRunner(mix_stderr=False).invoke(
+        result = CliRunner().invoke(
             board_cmd, ["does-not-exist", "--cwd", str(tmp_path)],
         )
         assert result.exit_code != 0
@@ -84,13 +84,13 @@ class TestBoardCLI:
 
         _write_node(tmp_path, "abc123", "n1")
         # T-V5-03: a traversal root_id must not escape .voss/sessions/.
-        traversal = CliRunner(mix_stderr=False).invoke(
+        traversal = CliRunner().invoke(
             board_cmd, ["../../etc", "--cwd", str(tmp_path)],
         )
         assert traversal.exit_code != 0
         assert traversal.stderr
         # A root_id containing a path separator is likewise rejected.
-        slashed = CliRunner(mix_stderr=False).invoke(
+        slashed = CliRunner().invoke(
             board_cmd, ["a/b", "--cwd", str(tmp_path)],
         )
         assert slashed.exit_code != 0
