@@ -37,6 +37,12 @@ Create the V12 safety policy foundation: strict `.voss/safety.yml` schema, pure 
 @/Users/benjaminmarks/Projects/Voss/.planning/phases/V12-safety-factory-fallbacks/V12-PATTERNS.md
 </execution_context>
 
+<threat_model>
+T-V12-01 Policy spoofing: a malformed or unknown-key `.voss/safety.yml` could silently disable safety rules. Mitigation: strict schema, unknown keys forbidden, missing runbook/pipeline refs fail closed.
+T-V12-02 Rule confusion: command/path patterns could classify the wrong operation. Mitigation: deterministic classifier tests for path globs, command patterns, latency rules, and role/tier scaffold rules.
+T-V12-03 Permissions conflation: adding factory policy to `.voss/permissions.yml` would blur allow/ask/deny with safety routing. Mitigation: separate safety file and tests proving permissions behavior remains unchanged.
+</threat_model>
+
 <tasks>
 
 <task type="auto">

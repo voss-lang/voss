@@ -34,6 +34,12 @@ Integrate the V12 safety policy with the runtime tool gate: classified irreversi
 @/Users/benjaminmarks/Projects/Voss/.planning/phases/V12-safety-factory-fallbacks/V12-01-PLAN.md
 </execution_context>
 
+<threat_model>
+T-V12-03 Confirmation bypass: `auto_yes` or auto mode could approve irreversible operations without a human seeing the exact action. Mitigation: safety confirmation runs before normal prompt suppression; tests assert `auto_yes` denial.
+T-V12-04 Direct execution bypass: dangerous operations could invoke the underlying tool instead of the runbook/pipeline route. Mitigation: route-or-deny before invocation and tests asserting the stub tool is not called.
+T-V12-05 Normal-path contamination: factory routing could accidentally affect ordinary tool calls. Mitigation: explicit unclassified-path tests covering existing PermissionGate behavior and read-batch checks.
+</threat_model>
+
 <tasks>
 
 <task type="auto">

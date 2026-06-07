@@ -35,6 +35,12 @@ Finish V12 by making safety policy apply equally to EM-dispatched worker work an
 @/Users/benjaminmarks/Projects/Voss/.planning/phases/V12-safety-factory-fallbacks/V12-03-PLAN.md
 </execution_context>
 
+<threat_model>
+T-V12-08 EM bypass: autonomous EM-dispatched work could use a derived role gate that lacks safety policy. Mitigation: `gate_for_role()` preserves safety policy and tests compare direct vs EM-derived decisions.
+T-V12-09 Weak-model overreach: cheap/fast role scaffold rules could widen or globally restrict permissions incorrectly. Mitigation: actor-context-only scaffold classification plus existing mode/network cap regression tests.
+T-V12-10 Cage regression: adding EM safety context could add new EM mutation APIs. Mitigation: tests assert forbidden EMBoardHandle verbs remain absent.
+</threat_model>
+
 <tasks>
 
 <task type="auto">

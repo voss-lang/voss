@@ -35,6 +35,12 @@ Persist factory fallback evidence for every strict-procedure route. The audit tr
 @/Users/benjaminmarks/Projects/Voss/.planning/phases/V12-safety-factory-fallbacks/V12-02-PLAN.md
 </execution_context>
 
+<threat_model>
+T-V12-05 Audit omission: strict-procedure routes could execute or deny without durable evidence. Mitigation: `observe_factory_fallback()` is called on every safety route/denial and verified alongside capability audit rows.
+T-V12-06 Secret leakage: factory fallback evidence could persist raw command args or tokens. Mitigation: reuse telemetry redaction patterns and add redaction tests.
+T-V12-07 Backward-compat break: adding audit fields could make old run/session JSON unreadable. Mitigation: additive defaults and old-record hydration tests.
+</threat_model>
+
 <tasks>
 
 <task type="auto">

@@ -72,7 +72,7 @@
 | V9 | Audit Product (supersedes O6; reuse O6 plans) | Audit as primary trust product: idea/principles/team/board/diffs/tests/reviews/lineage/residual-risk; MD+JSON export; ADE session-tree render | VAUD-01..10 | TBD by SPEC.md |
 | V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | TBD by SPEC.md |
 | V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | TBD by SPEC.md |
-| V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | TBD by SPEC.md |
+| V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | Plans ready to execute (4 plans, 4 waves) |
 
 ---
 
@@ -2000,6 +2000,14 @@ Plans:
 **Requirements (lock at SPEC):** VSAFE-01..07 (PRD SAFE-01..07).
 
 **Cross-cutting:** Dangerous actions cannot be executed by the autonomous EM alone; factory fallback does not contaminate the normal autonomous path; audit clearly shows when strict runbook mode was used.
+
+**Plans:** 4 plans across 4 serial waves (policy foundation -> runtime gate -> audit persistence -> EM parity).
+
+Plans:
+- [ ] V12-01-PLAN.md — `.voss/safety.yml` schema/load + pure classifier for factory-only paths/operations, runbooks, pipelines, weak-model scaffolds (Wave 1)
+- [ ] V12-02-PLAN.md — PermissionGate/tool invocation safety overlay: irreversible confirmation, runbook/fixed-pipeline route-or-deny, normal-path preservation (Wave 2)
+- [ ] V12-03-PLAN.md — factory fallback audit persistence: additive RunRecorder/RunRecord evidence, audit marker, old-record hydration (Wave 3)
+- [ ] V12-04-PLAN.md — EM role-gate parity + weak-model scaffold context + full V12 regression selection (Wave 4)
 
 ---
 
