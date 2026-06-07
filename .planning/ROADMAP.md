@@ -2008,6 +2008,15 @@ Plans:
 
 **Cross-cutting:** Static errors clear enough for non-CS users; runtime behavior matches compiled config; `.voss` shorter/clearer than equivalent Python.
 
+**Plans:** 5 plans across 5 serial waves (RED scaffold -> grammar/AST/parser -> compile-to-config -> diagnostics -> examples/e2e/guards). V10-03 and V10-04 both edit `voss/harness/team.py`, so they are sequenced (compile before diagnostics) to avoid file-ownership conflict.
+
+Plans:
+- [ ] V10-01-PLAN.md — Wave-0 RED scaffold: 7 failing test files (principles/gate/memory parse + compile, diagnostics shape, org-loop examples, e2e team run) against the real planned surface (Wave 1)
+- [ ] V10-02-PLAN.md — grammar + AST nodes + parser transformers for `principles{}`/`gate{}`/`memory{}` (+ team_item/top_decl wiring); parse scaffolds GREEN (Wave 2)
+- [ ] V10-03-PLAN.md — compile-to-config: `GateConfig`/`MemoryConfig` + `compile_team(cwd=)` principles merge (V2 path) + 3 `TeamConfig` fields; compile scaffolds GREEN (Wave 3)
+- [ ] V10-04-PLAN.md — diagnostics bar: `VossTeamConfigError.construct`/`fix_hint`/`format_diagnostic()` + retrofit ~14 raise sites; diagnostic-shape scaffold GREEN (Wave 4)
+- [ ] V10-05-PLAN.md — three org-loop samples + end-to-end `team{}` on stub + verify/parity + frozen-schema git-diff guard + coordination-focus guard (Wave 5)
+
 ---
 
 ### Phase V11: ADE Org Integration
