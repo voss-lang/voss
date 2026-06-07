@@ -1,0 +1,1477 @@
+{
+  "components": {
+    "schemas": {
+      "Alternative": {
+        "properties": {
+          "probability": {
+            "title": "Probability",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "probability"
+        ],
+        "title": "Alternative",
+        "type": "object"
+      },
+      "BannerEvent": {
+        "properties": {
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "git": {
+            "title": "Git",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "type": {
+            "const": "banner",
+            "default": "banner",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model",
+          "cwd",
+          "git"
+        ],
+        "title": "BannerEvent",
+        "type": "object"
+      },
+      "BudgetUpdated": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "number"
+          },
+          "remaining": {
+            "title": "Remaining",
+            "type": "number"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "spent": {
+            "title": "Spent",
+            "type": "number"
+          },
+          "type": {
+            "const": "budget.updated",
+            "default": "budget.updated",
+            "title": "Type",
+            "type": "string"
+          },
+          "unit": {
+            "default": "tokens",
+            "enum": [
+              "tokens",
+              "usd"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "spent",
+          "limit",
+          "remaining"
+        ],
+        "title": "BudgetUpdated",
+        "type": "object"
+      },
+      "ClarifyEvent": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "type": {
+            "const": "clarify",
+            "default": "clarify",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "question",
+          "confidence"
+        ],
+        "title": "ClarifyEvent",
+        "type": "object"
+      },
+      "CognitionLoaded": {
+        "properties": {
+          "architecture_tokens": {
+            "title": "Architecture Tokens",
+            "type": "integer"
+          },
+          "constraints_count": {
+            "title": "Constraints Count",
+            "type": "integer"
+          },
+          "decisions_loaded": {
+            "default": 0,
+            "title": "Decisions Loaded",
+            "type": "integer"
+          },
+          "plans_loaded": {
+            "default": 0,
+            "title": "Plans Loaded",
+            "type": "integer"
+          },
+          "type": {
+            "const": "cognition_loaded",
+            "default": "cognition_loaded",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "architecture_tokens",
+          "constraints_count"
+        ],
+        "title": "CognitionLoaded",
+        "type": "object"
+      },
+      "CognitionOverflow": {
+        "properties": {
+          "architecture_tokens": {
+            "title": "Architecture Tokens",
+            "type": "integer"
+          },
+          "budget": {
+            "default": 6000,
+            "title": "Budget",
+            "type": "integer"
+          },
+          "type": {
+            "const": "cognition_overflow",
+            "default": "cognition_overflow",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "architecture_tokens"
+        ],
+        "title": "CognitionOverflow",
+        "type": "object"
+      },
+      "ConfidenceUpdated": {
+        "properties": {
+          "message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Message Id"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "confidence.updated",
+            "default": "confidence.updated",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "score"
+        ],
+        "title": "ConfidenceUpdated",
+        "type": "object"
+      },
+      "CreateSessionBody": {
+        "properties": {
+          "auth": {
+            "default": "auto",
+            "title": "Auth",
+            "type": "string"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwd"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "parentID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parentid"
+          },
+          "resume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "CreateSessionBody",
+        "type": "object"
+      },
+      "EventEnvelope": {
+        "description": "OpenAPI schema anchor (H1.14).\n\nForced into the OpenAPI components so a typed client codegens a tagged\nenum over the full event union, even though no route returns it directly.",
+        "properties": {
+          "event": {
+            "discriminator": {
+              "mapping": {
+                "banner": "#/components/schemas/BannerEvent",
+                "budget.updated": "#/components/schemas/BudgetUpdated",
+                "clarify": "#/components/schemas/ClarifyEvent",
+                "cognition_loaded": "#/components/schemas/CognitionLoaded",
+                "cognition_overflow": "#/components/schemas/CognitionOverflow",
+                "confidence.updated": "#/components/schemas/ConfidenceUpdated",
+                "final": "#/components/schemas/FinalEvent",
+                "gate.updated": "#/components/schemas/GateUpdated",
+                "permission.updated": "#/components/schemas/PermissionUpdated",
+                "plan": "#/components/schemas/PlanEvent",
+                "principles_overflow": "#/components/schemas/PrinciplesOverflow",
+                "probable": "#/components/schemas/ProbableEvent",
+                "server.connected": "#/components/schemas/ServerConnected",
+                "session.idle": "#/components/schemas/SessionIdle",
+                "status": "#/components/schemas/StatusEvent",
+                "stream.delta": "#/components/schemas/StreamDelta",
+                "stream.finalize": "#/components/schemas/StreamFinalize",
+                "thinking": "#/components/schemas/ThinkingEvent",
+                "tool": "#/components/schemas/ToolEvent",
+                "user": "#/components/schemas/UserEvent",
+                "warning": "#/components/schemas/WarningEvent"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ServerConnected"
+              },
+              {
+                "$ref": "#/components/schemas/SessionIdle"
+              },
+              {
+                "$ref": "#/components/schemas/PermissionUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/BannerEvent"
+              },
+              {
+                "$ref": "#/components/schemas/UserEvent"
+              },
+              {
+                "$ref": "#/components/schemas/ThinkingEvent"
+              },
+              {
+                "$ref": "#/components/schemas/PlanEvent"
+              },
+              {
+                "$ref": "#/components/schemas/ToolEvent"
+              },
+              {
+                "$ref": "#/components/schemas/ClarifyEvent"
+              },
+              {
+                "$ref": "#/components/schemas/FinalEvent"
+              },
+              {
+                "$ref": "#/components/schemas/StreamDelta"
+              },
+              {
+                "$ref": "#/components/schemas/StreamFinalize"
+              },
+              {
+                "$ref": "#/components/schemas/StatusEvent"
+              },
+              {
+                "$ref": "#/components/schemas/CognitionLoaded"
+              },
+              {
+                "$ref": "#/components/schemas/CognitionOverflow"
+              },
+              {
+                "$ref": "#/components/schemas/PrinciplesOverflow"
+              },
+              {
+                "$ref": "#/components/schemas/WarningEvent"
+              },
+              {
+                "$ref": "#/components/schemas/ProbableEvent"
+              },
+              {
+                "$ref": "#/components/schemas/BudgetUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/ConfidenceUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/GateUpdated"
+              }
+            ],
+            "title": "Event"
+          }
+        },
+        "required": [
+          "event"
+        ],
+        "title": "EventEnvelope",
+        "type": "object"
+      },
+      "FinalEvent": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "final",
+            "default": "final",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "text",
+          "confidence",
+          "cost_usd"
+        ],
+        "title": "FinalEvent",
+        "type": "object"
+      },
+      "GateUpdated": {
+        "properties": {
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "gate": {
+            "title": "Gate",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "gate.updated",
+            "default": "gate.updated",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "gate",
+          "decision"
+        ],
+        "title": "GateUpdated",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "MessageBody": {
+        "properties": {
+          "mode": {
+            "default": "plan",
+            "title": "Mode",
+            "type": "string"
+          },
+          "parts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MessagePart"
+            },
+            "title": "Parts",
+            "type": "array"
+          }
+        },
+        "title": "MessageBody",
+        "type": "object"
+      },
+      "MessagePart": {
+        "properties": {
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "default": "text",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "MessagePart",
+        "type": "object"
+      },
+      "PermissionReply": {
+        "properties": {
+          "choice": {
+            "title": "Choice",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "choice"
+        ],
+        "title": "PermissionReply",
+        "type": "object"
+      },
+      "PermissionUpdated": {
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "dimension": {
+            "default": "tool",
+            "title": "Dimension",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "title": "Tool Name",
+            "type": "string"
+          },
+          "type": {
+            "const": "permission.updated",
+            "default": "permission.updated",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "tool_name"
+        ],
+        "title": "PermissionUpdated",
+        "type": "object"
+      },
+      "PlanEvent": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PlanStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "type": {
+            "const": "plan",
+            "default": "plan",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "confidence",
+          "cost_usd"
+        ],
+        "title": "PlanEvent",
+        "type": "object"
+      },
+      "PlanStep": {
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PlanStep",
+        "type": "object"
+      },
+      "PrinciplesOverflow": {
+        "properties": {
+          "budget": {
+            "default": 1000,
+            "title": "Budget",
+            "type": "integer"
+          },
+          "principles_tokens": {
+            "title": "Principles Tokens",
+            "type": "integer"
+          },
+          "type": {
+            "const": "principles_overflow",
+            "default": "principles_overflow",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "principles_tokens"
+        ],
+        "title": "PrinciplesOverflow",
+        "type": "object"
+      },
+      "ProbableEvent": {
+        "properties": {
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/Alternative"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "probability": {
+            "title": "Probability",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "probable",
+            "default": "probable",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "text",
+          "probability"
+        ],
+        "title": "ProbableEvent",
+        "type": "object"
+      },
+      "ServerConnected": {
+        "properties": {
+          "type": {
+            "const": "server.connected",
+            "default": "server.connected",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "title": "ServerConnected",
+        "type": "object"
+      },
+      "SessionIdle": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "session.idle",
+            "default": "session.idle",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "SessionIdle",
+        "type": "object"
+      },
+      "StatusEvent": {
+        "properties": {
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "ctx_pct": {
+            "title": "Ctx Pct",
+            "type": "number"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "type": {
+            "const": "status",
+            "default": "status",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model",
+          "tokens",
+          "cost_usd",
+          "ctx_pct"
+        ],
+        "title": "StatusEvent",
+        "type": "object"
+      },
+      "StreamDelta": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "stream.delta",
+            "default": "stream.delta",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "StreamDelta",
+        "type": "object"
+      },
+      "StreamFinalize": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Confidence"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cost Usd"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timestamp"
+          },
+          "type": {
+            "const": "stream.finalize",
+            "default": "stream.finalize",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "StreamFinalize",
+        "type": "object"
+      },
+      "ThinkingEvent": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "type": {
+            "const": "thinking",
+            "default": "thinking",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "ThinkingEvent",
+        "type": "object"
+      },
+      "ToolEvent": {
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          },
+          "type": {
+            "const": "tool",
+            "default": "tool",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "state"
+        ],
+        "title": "ToolEvent",
+        "type": "object"
+      },
+      "UserEvent": {
+        "properties": {
+          "task": {
+            "title": "Task",
+            "type": "string"
+          },
+          "type": {
+            "const": "user",
+            "default": "user",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task"
+        ],
+        "title": "UserEvent",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WarningEvent": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "const": "warning",
+            "default": "warning",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "WarningEvent",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "voss-harness",
+    "version": "1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/doctor": {
+      "get": {
+        "operationId": "doctor_doctor_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "auth",
+            "required": false,
+            "schema": {
+              "default": "auto",
+              "title": "Auth",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cwd",
+            "required": false,
+            "schema": {
+              "default": ".",
+              "title": "Cwd",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Doctor Doctor Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Doctor"
+      }
+    },
+    "/session": {
+      "get": {
+        "operationId": "list_sessions_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Sessions Session Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sessions"
+      },
+      "post": {
+        "operationId": "create_session_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Session Session Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session"
+      }
+    },
+    "/session/{session_id}": {
+      "delete": {
+        "operationId": "delete_session_session__session_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Session"
+      },
+      "get": {
+        "operationId": "get_session_session__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Session Session  Session Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session"
+      }
+    },
+    "/session/{session_id}/abort": {
+      "post": {
+        "operationId": "abort_session__session_id__abort_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Abort Session  Session Id  Abort Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Abort"
+      }
+    },
+    "/session/{session_id}/cost": {
+      "get": {
+        "operationId": "cost_session__session_id__cost_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cost Session  Session Id  Cost Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cost"
+      }
+    },
+    "/session/{session_id}/events": {
+      "get": {
+        "operationId": "events_session__session_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Events"
+      }
+    },
+    "/session/{session_id}/message": {
+      "post": {
+        "operationId": "post_message_session__session_id__message_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Message Session  Session Id  Message Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Message"
+      }
+    },
+    "/session/{session_id}/permission": {
+      "post": {
+        "operationId": "reply_permission_session__session_id__permission_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionReply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reply Permission Session  Session Id  Permission Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reply Permission"
+      }
+    },
+    "/sessions/saved": {
+      "get": {
+        "operationId": "list_saved_sessions_sessions_saved_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cwd",
+            "required": false,
+            "schema": {
+              "default": ".",
+              "title": "Cwd",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Saved Sessions Sessions Saved Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saved Sessions"
+      }
+    }
+  }
+}

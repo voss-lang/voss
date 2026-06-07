@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Nav from "@/components/Nav";
+import { pageMetadata } from "@/lib/metadata";
 import Hero from "@/components/Hero";
 import FeatureGrid from "@/components/FeatureGrid";
 import OrgLoop from "@/components/OrgLoop";
@@ -9,6 +10,12 @@ import CommandList from "@/components/CommandList";
 import InstallTabs from "@/components/InstallTabs";
 import Footer from "@/components/Footer";
 import { site } from "@/lib/site";
+
+export const metadata = pageMetadata({
+  title: `${site.name} - ${site.tagline}`,
+  description: site.description,
+  path: "/",
+});
 
 export default function Home() {
   return (

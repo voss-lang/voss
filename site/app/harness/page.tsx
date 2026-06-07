@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
@@ -6,12 +5,14 @@ import CopyButton from "@/components/CopyButton";
 import Cursor from "@/components/Cursor";
 import TerminalDemo from "@/components/TerminalDemo";
 import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
+import { pageMetadata } from "@/lib/metadata";
 import { harness, harnessFeatures, harnessCommands, site } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: `Harness - ${site.name}`,
   description: harness.description,
-};
+  path: "/harness",
+});
 
 type PermissionRow = {
   mode: "plan" | "edit" | "auto";

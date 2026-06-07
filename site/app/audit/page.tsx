@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -14,13 +13,15 @@ import Nav from "@/components/Nav";
 import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/metadata";
 import { auditSections, site } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: `Audit - ${site.name}`,
   description:
     "The Voss audit is the primary trust product: a replayable, deterministic trail of every action, decision, and gate outcome — with EM claims separated from verified evidence.",
-};
+  path: "/audit",
+});
 
 const ANSWERS: { title: string; body: string; icon: LucideIcon }[] = [
   {

@@ -4,6 +4,10 @@ import posthog from "posthog-js";
 import { PostHogProvider as PHProvider } from "posthog-js/react";
 import { Suspense, useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import {
+  ANALYTICS_CONSENT_ACCEPTED,
+  readAnalyticsConsent,
+} from "@/lib/analytics-consent";
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
@@ -35,10 +39,12 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
       capture_pageleave: true,
       persistence: "localStorage+cookie",
       cross_subdomain_cookie: false,
-      // GDPR: opt out by default. Call posthog.opt_in_capturing() after
-      // obtaining user consent (e.g. via a cookie banner).
       opt_out_capturing_by_default: true,
     });
+
+    if (readAnalyticsConsent() === ANALYTICS_CONSENT_ACCEPTED) {
+      posthog.opt_in_capturing();
+    }
   }, []);
 
   if (!POSTHOG_KEY) return <>{children}</>;
