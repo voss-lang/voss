@@ -10,9 +10,9 @@ export type HarnessFeature = {
 
 export const site = {
   name: "Voss",
-  tagline: "A coding harness for bounded AI work.",
+  tagline: "The operating layer for AI engineering teams.",
   description:
-    "Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.",
+    "Voss runs AI coding agents like an engineering team: declared roles, hard budgets, scoped tools, independent review, and a replayable audit of every action. One goal in, audited work out.",
   repoUrl: "https://github.com/bm9797/Voss",
   prdUrl: "https://github.com/bm9797/Voss/blob/main/PRD.md",
   // Public Mintlify docs (repo voss-lang/voss, site/docs, branch master).
@@ -78,11 +78,118 @@ export const harnessCommands: readonly CliCommand[] = [
 ];
 
 export const cliCommands: readonly CliCommand[] = [
-  { cmd: "voss init", desc: "Scaffold a new project" },
-  { cmd: "voss run app.voss", desc: "Compile and execute" },
-  { cmd: "voss compile app.voss", desc: "Emit readable Python" },
-  { cmd: "voss check app.voss", desc: "Type-check without running" },
-  { cmd: 'voss do "summarize this PR"', desc: "One-shot agent task" },
-  { cmd: "voss chat", desc: "Interactive REPL" },
+  { cmd: "voss team check", desc: "Validate roles, scope, budget, tools" },
+  { cmd: 'voss team run "add password reset"', desc: "Run the goal as an engineering team" },
+  { cmd: "voss board", desc: "Watch cards move across the board" },
+  { cmd: "voss review <run_id>", desc: "Inspect independent reviewer verdicts" },
+  { cmd: "voss audit <run_id>", desc: "Replayable trail of every action" },
+  { cmd: "voss session tree <root_id>", desc: "Per-agent budget, scope, status" },
+  { cmd: 'voss do "summarize this PR"', desc: "Single bounded agent task" },
+  { cmd: "voss chat", desc: "Interactive REPL with live subagents" },
   { cmd: "voss doctor", desc: "Diagnose your environment" },
+];
+
+export type Primitive = {
+  name: string;
+  label: string;
+  body: string;
+  tone: string;
+};
+
+// The six product primitives (ORCHESTRATION_LAYERS.md §4.1).
+export const primitives: readonly Primitive[] = [
+  {
+    name: "Capabilities",
+    label: "Toolbelt",
+    body: "Every tool is a typed, permissioned, auditable capability. Network and shell are default-deny unless a role is granted them.",
+    tone: "#FF5B1F",
+  },
+  {
+    name: "Principles",
+    label: "Culture",
+    body: "Engineering principles are first-class config in .voss, injected into every agent context and recorded in the audit.",
+    tone: "#C58A0F",
+  },
+  {
+    name: "Orchestration",
+    label: "Delegation",
+    body: "An Engineering Manager loop turns one idea into scoped cards, assigns roles, partitions budget, and integrates the result.",
+    tone: "#2A6FDB",
+  },
+  {
+    name: "Roles",
+    label: "Specialists",
+    body: "architect, backend, frontend, tester, reviewer, skeptic, docs — declared in .voss team{} with their own scope, budget, and model tier.",
+    tone: "#1F8A4C",
+  },
+  {
+    name: "Memory",
+    label: "Knowledge",
+    body: "VOSS.md, project memory, session trees, and decisions keep institutional context inspectable across runs.",
+    tone: "#8A5CF6",
+  },
+  {
+    name: "Verification",
+    label: "Review loop",
+    body: "Independent Reviewer-A and Reviewer-B gate completion. Agents cannot mark their own work done.",
+    tone: "#D6457A",
+  },
+];
+
+export type OrgStep = { step: string; title: string; body: string };
+
+// The Engineering Manager loop (ORCHESTRATION_LAYERS.md §3.1, §7).
+export const orgLoop: readonly OrgStep[] = [
+  { step: "01", title: "Scope into cards", body: "The EM converts one human idea into bounded work cards with acceptance criteria." },
+  { step: "02", title: "Assign roles", body: "Each card is routed to a declared role from the team roster, with a recorded rationale." },
+  { step: "03", title: "Partition budget", body: "Budget and scope fan out down the session tree. No child can overspend its parent." },
+  { step: "04", title: "Execute in parallel", body: "Workers run concurrently inside their scope, within WIP limits, where it is safe to." },
+  { step: "05", title: "Verify continuously", body: "Reviewer-A authors the verification bar from the original idea — not the EM's summary." },
+  { step: "06", title: "Review independently", body: "Reviewer-B judges the diff narrative-blind and can fail idea-divergent work." },
+  { step: "07", title: "Block or integrate", body: "Unverified or out-of-scope work is blocked with a reason. Clean work is integrated." },
+  { step: "08", title: "Audit and sign off", body: "A replayable audit report is produced. Humans sign off only at meaningful moments." },
+];
+
+// CLI demo for the MVP team-run flow (ORCHESTRATION_LAYERS.md §11).
+export const teamRunDemo = `$ voss team check
+  team "default" ok — 7 roles, budget 120k, scope src/** tests/** docs/**
+
+$ voss team run "Add password reset flow with tests"
+  → 4 cards derived · assigned architect, backend, tester, docs
+  → budget partitioned · 4 workers dispatched
+  → reviewer-A authored 6 checks · reviewer-B verdict: pass (0.91)
+  → run_id 7f3a9c · 1 card blocked (rescoped) · audit ready
+
+$ voss audit 7f3a9c
+  goal · principles · board · diffs · tests · reviews · residual risk`;
+
+export type AuditSection = { n: string; title: string };
+
+// The audit report sections (ORCHESTRATION_LAYERS.md §9).
+export const auditSections: readonly AuditSection[] = [
+  { n: "01", title: "Goal" },
+  { n: "02", title: "Active Team" },
+  { n: "03", title: "Principles" },
+  { n: "04", title: "Scope and Budget" },
+  { n: "05", title: "Board Timeline" },
+  { n: "06", title: "Work Cards" },
+  { n: "07", title: "Agent Actions" },
+  { n: "08", title: "Diff Summary" },
+  { n: "09", title: "Tests and Evals" },
+  { n: "10", title: "Reviewer-A Verification" },
+  { n: "11", title: "Reviewer-B Verdict" },
+  { n: "12", title: "Blocked / Killed / Rescoped" },
+  { n: "13", title: "Evidence References" },
+  { n: "14", title: "Residual Risks" },
+  { n: "15", title: "Final Human Decision" },
+];
+
+// Org-layer invariants the cage enforces (ORCHESTRATION_LAYERS.md §11).
+export const orgInvariants: readonly string[] = [
+  "The EM cannot invent roles outside the declared roster",
+  "Workers cannot write outside their assigned scope",
+  "Budget cannot be oversold — it is a security boundary",
+  "Agents cannot mark their own work Done",
+  "Done requires independent reviewer evidence",
+  "Ceiling, confidence threshold, and roster are immutable mid-run",
 ];

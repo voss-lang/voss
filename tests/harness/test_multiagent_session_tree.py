@@ -81,12 +81,13 @@ def _role_routing_provider(f):
         for m in messages:
             if isinstance(m, dict) and m.get("role") == "user":
                 task_text = json.dumps(m.get("content", ""), default=str)
-        import sys as _s
+        # Drop the "Working directory: <cwd>" suffix run_turn appends — the
+        # pytest tmp_path embeds the test name (which can contain a role token
+        # like "grandchild"), which would otherwise misroute.
+        task_text = task_text.split("Working directory")[0]
         for role in sorted(f.scripts, key=len, reverse=True):
             if role in task_text:
-                print(f"DEBUG decide -> {role} task={task_text[:80]!r}", file=_s.stderr)
                 return role
-        print(f"DEBUG decide -> FALLBACK {next(iter(f.scripts))} task={task_text[:80]!r}", file=_s.stderr)
         return next(iter(f.scripts), "root")
 
     class _RoleRoutingProvider:
@@ -265,11 +266,8 @@ class TestPersistedRecursion:
         tools: dict = {}
         _attach(tools, provider_factory=f, cwd=tmp_path, node_manager=node_manager)
 
-        import sys as _sys
-        _r1 = await tools["subagent_spawn"].invoke(agent="child-a", task="child-a task")
-        _rg = await tools["subagent_gather"].invoke()
-        print("DEBUG spawn:", _r1, file=_sys.stderr)
-        print("DEBUG gather:", _rg, file=_sys.stderr)
+        await tools["subagent_spawn"].invoke(agent="child-a", task="child-a task")
+        await tools["subagent_gather"].invoke()
 
         # Per-node SessionTreeManager → nested nodes persist under their parent
         # node's root_id dir, so glob across ALL session dirs and follow the
@@ -279,8 +277,6 @@ class TestPersistedRecursion:
             d = json.loads(path.read_text())
             all_nodes[d["id"]] = d
 
-        import sys as _sys
-        print("DEBUG nodes:", [(d["id"], d.get("parent_run_id"), d.get("role")) for d in all_nodes.values()], file=_sys.stderr)
         child = next(d for d in all_nodes.values() if d.get("parent_run_id") == root.id)
         grandchild = next(
             (d for d in all_nodes.values() if d.get("parent_run_id") == child["id"]),

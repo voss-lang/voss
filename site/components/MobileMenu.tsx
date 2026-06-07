@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowUpRight, BookOpenText, Code2, GitBranch, Layers3, Menu, TerminalSquare, X } from "lucide-react";
+import { ArrowUpRight, BookOpenText, Code2, GitBranch, Layers3, Menu, ScrollText, TerminalSquare, Workflow, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { captureOutboundClick } from "@/lib/analytics";
 import { site } from "@/lib/site";
@@ -16,6 +16,8 @@ type Item = {
 };
 
 const ITEMS: Item[] = [
+  { href: "/orchestration", label: "Orchestration", icon: Workflow },
+  { href: "/audit", label: "Audit", icon: ScrollText },
   { href: "/ade", label: "ADE", icon: Layers3 },
   { href: "/harness", label: "Harness", icon: TerminalSquare },
   { href: site.docsUrl, label: "Docs", icon: BookOpenText, external: true },
