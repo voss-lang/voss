@@ -633,32 +633,32 @@ No new dependencies. All required surfaces are importable (confirmed by `run_o6_
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`AuditReport` vs extending `AuditSnapshot`**
    - What we know: `AuditSnapshot` is a frozen dataclass with 11 fields covering node/card/verdict data
    - What's unclear: Should V9 extend `AuditSnapshot` with new fields (breaking the existing test baseline) or introduce a new `AuditReport` wrapper that embeds `AuditSnapshot`?
-   - Recommendation: Introduce `AuditReport` in a new `report.py` that wraps `AuditSnapshot` — avoids breaking the 37 existing tests and maintains the no-live-imports invariant in `model.py`
+   - RESOLVED: Introduce `AuditReport` in a new `report.py` that wraps `AuditSnapshot` — avoids breaking the 37 existing tests and maintains the no-live-imports invariant in `model.py`. (Baked into V9-02 T2 + V9-03.)
 
 2. **`voss audit approve <run_id>` vs `voss audit <run_id> --approve`**
    - What we know: The forcing function needs a gated approve action reachable from `voss audit`
    - What's unclear: Whether this is a flag, a subgroup, or a separate interactive prompt within `audit_cmd`
-   - Recommendation: Add an interactive forcing-function display to `audit_cmd` (read-only; shows the ack status). A separate `voss audit approve <run_id>` subcommand that writes the ack sidecar and then persists approval. This keeps `audit_cmd` truly read-only.
+   - RESOLVED: `audit_cmd` default path stays read-only; the gated approve is reached via an `--approve` flag that displays the killed-card+misroute diff, requires acknowledgement, and writes the `.signoff-ack.json` sidecar. (Baked into V9-06 T2.)
 
 3. **Forcing function in `team_run_cmd` vs `audit_cmd`**
    - What we know: SPEC requires the gate in BOTH `voss team run` sign-off AND `voss audit`
    - What's unclear: Whether `team_run_cmd` must check for an existing ack before allowing approve, or writes it fresh every run
-   - Recommendation: `team_run_cmd` writes the ack fresh (it has the live `rf` data). `voss audit approve` checks the ack; if absent and risks exist, refuses and instructs user to run `voss audit approve <run_id>` which displays and prompts.
+   - RESOLVED: Implement in BOTH sites — `team_run_cmd` sign-off (V9-06 T1, uses live `rf` data) and `audit_cmd --approve` (V9-06 T2); each gates approve behind the killed-card+misroute ack and writes `.signoff-ack.json`. (Baked into V9-06 T1+T2.)
 
 4. **Principles and team config in `AuditReport` when `.voss/team.voss` absent**
    - What we know: `team_run_cmd` falls back to `_default_team_config()` when no `.voss/team.voss` exists
    - What's unclear: How to represent the default config in the audit (it is never persisted separately)
-   - Recommendation: When `.voss/team.voss` is absent, read the `run-final.json` `idea` field and reconstruct a best-effort team summary from the node `role` fields; explicitly mark as "default roster (not persisted)"
+   - RESOLVED: When `.voss/team.voss` is absent, report.py emits a serializable dict explicitly marked `{"source": "default roster (not persisted)", ...}`, reconstructing a best-effort summary from node `role` fields. (Baked into V9-03 T1.)
 
 5. **`audit.leak6` transition injection**
    - What we know: The existing fixture injects `_leak6_accepted_gap()` as a root-node transition; real `voss team run` does NOT inject this
    - What's unclear: Should V9 inject the `audit.leak6` transition at `team_run_cmd` time, or should `AuditReport` synthesize the accepted-gap from the absence of a write path?
-   - Recommendation: V9's `report.py` synthesizes it: if no `audit.leak6` transition found in root node, and no standup-to-memory write path exists in the codebase, set `Leak6Assessment(status="accepted_gap", evidence="no standup-to-memory writer in V2–V7", mitigation_present=False)`. No injection at run time.
+   - RESOLVED: `report.py` SYNTHESIZES it at report-assembly time (no runtime injection): if no `audit.leak6` transition exists and no standup-to-memory write path is found, set `Leak6Assessment(status="accepted_gap", evidence="no standup-to-memory writer in V2–V7", mitigation_present=False)`. (Baked into V9-03 T2.)
 
 ---
 
