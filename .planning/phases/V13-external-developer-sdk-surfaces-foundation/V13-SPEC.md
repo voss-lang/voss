@@ -1,12 +1,13 @@
 # Phase V13: External Developer SDK Surfaces (foundation) — Specification
 
 **Created:** 2026-06-06
+**Updated:** 2026-06-07 — contract snapshot + codegen substrate + CI drift gate moved to V13.1; V13 is now docs-only (was 7 requirements, now 6).
 **Ambiguity score:** 0.148 (gate: ≤ 0.20)
-**Requirements:** 7 locked
+**Requirements:** 6 locked
 
 ## Goal
 
-Lock the external-developer SDK strategy (surface matrix, five stability tiers, language priority, non-goals), reconcile `docs/sdk.md` with `.planning/PROTOCOL.md`, and build the **language-agnostic codegen substrate** every per-language client (sub-phases V13.1–V13.4) generates from: a statically-exported, committed contract snapshot (`openapi.json` + SSE event-union schema) protected by a CI drift gate. V13 ships **no client code** — only the strategy docs + the contract substrate.
+Lock the external-developer SDK strategy (surface matrix, five stability tiers, language priority, non-goals), reconcile `docs/sdk.md` with `.planning/PROTOCOL.md`, and document the Python/M7 linkage. **Docs-only** — V13 ships no code and no CI. The contract snapshot + codegen substrate + drift gate that clients generate from live in **V13.1** (the first client owns the artifact); V13.2–.4 reuse it.
 
 ## Background
 
@@ -21,7 +22,7 @@ Grounded in the current repo (scouted 2026-06-06):
 - **Python SDK gaps are owned by M7.** `REQUIREMENTS.md` SDK-01..05 (Renderer/NullRenderer, `tool_entry_from_callable`, `SessionView`, `RuntimeConfig.from_toml`, provider `register`) are "plans ready" but NOT shipped.
 - **Reuse points for later sub-phases:** `crates/voss-tui` / `voss-auth` / `voss-bridge` / `voss-render` (V13.2 Rust); `npm/` M6 wrapper tree (V13.1 TS home).
 
-What does NOT exist yet: the SDK Surface Matrix, the stability-tier taxonomy, the reconciled `sdk.md`, a committed contract snapshot (`openapi.json` + event schema), and a CI drift gate. Those are this phase's deliverables.
+What does NOT exist yet: the SDK Surface Matrix, the stability-tier taxonomy, the reconciled `sdk.md`, and the documented Python/M7 linkage. Those are this phase's deliverables. (The committed contract snapshot + exporter + CI drift gate are deliverables of V13.1, not V13.)
 
 ## Requirements
 
@@ -55,10 +56,7 @@ What does NOT exist yet: the SDK Surface Matrix, the stability-tier taxonomy, th
    - Target: The matrix's Python row cites M7 `SDK-01..05` as the first-class in-process surface, and a "deferred read-views" list enumerates org-layer surfaces (capability list/inspect, team-compile helpers, session-tree readers, audit readers) each tagged with its gating phase (V1 / V3 / V4 / V9).
    - Acceptance: `docs/ORCHESTRATION_LAYERS.md` Python entry references SDK-01..05 and lists ≥4 deferred read-views each annotated with a gating V-phase; V13 introduces no code change to `voss.harness` / `voss_runtime` public surface (M7's job).
 
-7. **Codegen substrate + CI drift gate**: A statically-exported, committed contract snapshot exists and CI fails on any drift.
-   - Current: No committed `openapi.json` or event-union schema; no drift gate. The schema lives only in live code (`create_app().openapi()`, `EventEnvelope.model_json_schema()`).
-   - Target: A repo-committed contract snapshot — `openapi.json` (from `create_app(<fixed-token>).openapi()`) and an SSE event-union schema (from `EventEnvelope.model_json_schema()`) — plus an exporter script that regenerates them deterministically, plus a CI test that re-exports and compares against the committed snapshot, failing on ANY diff (REST schema OR event union), mirroring the existing H3.3 parity-test pattern. No live server is booted for export. No per-language client code is generated in V13.
-   - Acceptance: Committed `openapi.json` + event-union schema files exist; the exporter is re-runnable and deterministic (re-export with no code change produces byte-identical files); the drift-gate test passes on the committed snapshot AND fails when a synthetic field is added to any event model or route without re-snapshotting.
+> **Moved to V13.1 (2026-06-07):** the former requirement 7 — "Codegen substrate + CI drift gate" (committed `openapi.json` + event-union snapshot, deterministic exporter, REST+SSE any-diff-fails drift gate) — now lives in `V13.1-SPEC.md`. V13.1 (the first client) owns the artifact; V13.2–.4 reuse it.
 
 ## Boundaries
 
@@ -69,13 +67,11 @@ What does NOT exist yet: the SDK Surface Matrix, the stability-tier taxonomy, th
 - SDK-track non-goals list
 - `docs/sdk.md` rewrite reconciling it with `PROTOCOL.md` (kill "no service, no client", cross-link)
 - Python/M7 linkage documentation + enumerated deferred read-views with gating phases
-- Static contract export (`openapi.json` + event-union schema) committed to the repo
-- Deterministic exporter script
-- CI drift gate (REST + SSE union, any-diff-fails)
 
 **Out of scope:**
+- The contract snapshot, exporter, and CI drift gate — **moved to V13.1** (the first client owns the shared artifact; V13.2–.4 reuse it)
 - Any per-language client code (TS/Rust/Go/C) — that is sub-phases V13.1–V13.4
-- Codegen *tool* selection (openapi-typescript / oapi-codegen / progenitor / etc.) — each V13.x picks its own off this substrate
+- Codegen *tool* selection (openapi-typescript / oapi-codegen / progenitor / etc.) — each V13.x picks its own
 - Implementing M7 SDK-01..05 — owned by M7; V13 only documents the linkage
 - Deep reader SDKs (full audit/replay, team-compile helpers, capability introspection beyond protocol-exposed data) — gated on V1/V3/V4/V9 freezing, land inside the relevant V13.x when its upstream is ready
 - Any change to `PROTOCOL.md` v1 wire contract — it is LOCKED; V13 consumes it, never edits it
@@ -84,12 +80,10 @@ What does NOT exist yet: the SDK Surface Matrix, the stability-tier taxonomy, th
 
 ## Constraints
 
-- **Schema capture is static** — export from the app object (`create_app(<fixed-token>).openapi()`) and `EventEnvelope.model_json_schema()`; no live `voss serve` process in the export or the CI gate (hermetic, deterministic).
-- **A fixed token must be used for export** so `openapi.json` is byte-stable across runs (the live server uses a random token; the exporter must pin one).
-- **Drift gate covers BOTH** the REST OpenAPI schema and the SSE `EventEnvelope` union; ANY diff vs the committed snapshot fails CI (no additive-only allowance), forcing a deliberate snapshot bump — mirrors the H3.3 parity-test convention.
-- **No dependency on M7** — V13 must complete and pass CI whether or not M7 has shipped.
-- **`PROTOCOL.md` v1 is immutable in this phase** — a schema change that would alter the snapshot requires a PROTOCOL `v` bump + migration note, out of V13 scope.
-- Exact committed path for the snapshot artifacts (e.g. `contracts/openapi.json`, `contracts/events.schema.json`) and CI-wiring details are HOW — finalized in discuss-phase.
+- **Docs-only** — V13 produces only Markdown changes to `docs/ORCHESTRATION_LAYERS.md` + `docs/sdk.md`. No code, no CI, no committed artifacts. Acceptance is grep-checkable doc presence.
+- **No dependency on any other phase** — V13 can complete whether or not M7, V13.1, or anything else has shipped.
+- **`PROTOCOL.md` v1 is immutable in this phase** — V13 documents the contract surface, never edits it.
+- The contract snapshot + exporter + drift gate (former req 7) and their artifact paths / CI wiring are now V13.1 concerns.
 
 ## Acceptance Criteria
 
@@ -100,10 +94,8 @@ What does NOT exist yet: the SDK Surface Matrix, the stability-tier taxonomy, th
 - [ ] `docs/sdk.md` no longer contains "No service, no client"; it cross-links `PROTOCOL.md` and the V13.x local client SDKs; no in-scope contradiction remains between the two docs
 - [ ] Python matrix entry cites M7 `SDK-01..05` and lists ≥4 deferred read-views each tagged with a gating V-phase (V1/V3/V4/V9)
 - [ ] V13 changes zero lines of `voss.harness` / `voss_runtime` public `__all__`
-- [ ] Committed `openapi.json` + event-union schema files exist in the repo
-- [ ] Re-running the exporter with no code change produces byte-identical snapshot files (deterministic)
-- [ ] CI drift-gate test passes against the committed snapshot
-- [ ] CI drift-gate test FAILS when a synthetic field is added to any event model or route and the snapshot is not regenerated
+- [ ] V13 diff contains only `.md` files (docs-only; no code/CI/artifacts)
+- [ ] The Surface Matrix marks the contract snapshot + clients as V13.1+ deliverables (not V13)
 
 ## Ambiguity Report
 
@@ -111,8 +103,8 @@ What does NOT exist yet: the SDK Surface Matrix, the stability-tier taxonomy, th
 |--------------------|-------|------|--------|--------------------------------------------------------------|
 | Goal Clarity       | 0.88  | 0.75 | ✓      | Foundation-only; client code explicitly excluded             |
 | Boundary Clarity   | 0.88  | 0.70 | ✓      | V13-vs-V13.x split + deep-reader gating explicit             |
-| Constraint Clarity | 0.80  | 0.65 | ✓      | Static export, both schemas, any-diff-fails, no M7 dep       |
-| Acceptance Criteria| 0.82  | 0.70 | ✓      | 11 pass/fail checks incl. negative drift-gate test           |
+| Constraint Clarity | 0.80  | 0.65 | ✓      | Docs-only; no code/CI; no cross-phase dep (snapshot → V13.1) |
+| Acceptance Criteria| 0.82  | 0.70 | ✓      | 8 grep-checkable doc-presence checks                         |
 | **Ambiguity**      | 0.148 | ≤0.20| ✓      |                                                              |
 
 Status: ✓ = met minimum, ⚠ = below minimum (planner treats as assumption)
