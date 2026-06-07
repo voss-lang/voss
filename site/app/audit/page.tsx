@@ -75,7 +75,7 @@ export default function AuditPage() {
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 font-mono text-sm">
                   <span className="text-[var(--accent)]">$</span>
-                  <span className="select-all">voss audit &lt;run_id&gt;</span>
+                  <span className="select-all">voss review &lt;run_id&gt;</span>
                 </div>
                 <Button asChild variant="outline" size="lg">
                   <Link href="/orchestration">
@@ -174,10 +174,10 @@ export default function AuditPage() {
                 </div>
                 <ul className="grid gap-3 font-mono text-sm">
                   {[
-                    { cmd: "voss audit <run_id>", desc: "Full replayable report" },
-                    { cmd: "voss audit latest", desc: "Most recent run" },
-                    { cmd: "voss review <run_id>", desc: "Reviewer-A + Reviewer-B output" },
-                    { cmd: "voss board", desc: "Live card state" },
+                    { cmd: "voss review <run_id>", desc: "Reviewer-A + Reviewer-B per card" },
+                    { cmd: "voss board <root_id>", desc: "Card state from persisted nodes" },
+                    { cmd: "voss session tree <root_id>", desc: "Per-agent budget, scope, status" },
+                    { cmd: "voss team run \"<goal>\"", desc: "Run that produces the trail" },
                   ].map((c) => (
                     <li
                       key={c.cmd}

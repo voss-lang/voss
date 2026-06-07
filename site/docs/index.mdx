@@ -3,24 +3,35 @@ title: "Voss documentation"
 description: "Start here for the Voss coding harness and .voss workflow-control language."
 ---
 
-Voss is an AI-native coding harness and workflow-control language for controlled agentic software development.
+Voss is an agent engineering organization layer: it runs AI coding agents like an engineering team — declared roles, hard budgets, scoped tools, independent review, and a replayable trail of every action.
 
-The harness is the first product surface. It helps you plan, execute, inspect, and resume AI-assisted code work in real repositories. The `.voss` language is the durable control layer for workflows that need explicit confidence gates, context budgets, semantic routing, tools, memory, agents, and fallbacks.
+It has two surfaces. The **harness** is the bounded agent loop for a single repo task — plan, execute, inspect, resume. The **orchestration layer** runs a whole team from one goal, with a board, a session tree, and independent reviewers gating completion. Both are declared and controlled through the `.voss` language.
 
 <CardGroup cols={2}>
+  <Card title="Run a team" icon="workflow" href="/orchestration/overview">
+    Use `voss team run` to execute a goal as a reviewed team run.
+  </Card>
   <Card title="Run your first task" icon="terminal" href="/get-started/first-task">
     Use `voss do` for a bounded one-shot repo task.
   </Card>
   <Card title="Make a scoped edit" icon="file-pen-line" href="/get-started/first-edit">
     Use `voss edit` to constrain writes to a target and related tests.
   </Card>
-  <Card title="Understand modes" icon="shield-check" href="/harness/modes">
-    Learn the difference between plan, edit, and auto.
-  </Card>
   <Card title="Learn .voss" icon="code-2" href="/language/overview">
-    See how the language expresses AI workflow control.
+    See how the language expresses control — for one agent or a team.
   </Card>
 </CardGroup>
+
+## Run a team
+
+A team is declared once in `.voss`, then a single goal runs as scoped, budgeted, independently reviewed work:
+
+```bash
+voss team check
+voss team run "Add password reset flow with tests"
+voss board
+voss review latest
+```
 
 ## What Voss is for
 
@@ -31,6 +42,7 @@ Voss is for developers who already use AI coding tools and want stronger boundar
 - Scoped file writes for edit sessions
 - Resumable project context
 - Workflow rules that can move from prompts into `.voss` code
+- Multi-agent runs that stay scoped, budgeted, and independently reviewed
 
 <Note>
 Voss v0.1 is harness-led and ships through npm as `@vosslang/cli`. Rust, Homebrew, editor marketplace work, hosted teams, and broad launch polish remain deferred.
@@ -42,3 +54,4 @@ Voss v0.1 is harness-led and ships through npm as `@vosslang/cli`. Rust, Homebre
 2. Run a read-only one-shot task: [First task](/get-started/first-task)
 3. Try a scoped edit session: [First edit](/get-started/first-edit)
 4. Learn the safety model: [Modes](/harness/modes) and [Security](/security/overview)
+5. Run a whole team: [Orchestration overview](/orchestration/overview)

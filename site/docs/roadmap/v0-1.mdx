@@ -3,42 +3,43 @@ title: "Roadmap"
 description: "The Voss roadmap from harness-led v0.1 through TUI and codebase intelligence."
 ---
 
-Voss v0.1 is harness-led, with `.voss` preserved as the workflow-control language. The current roadmap extends that base with memory, TUI, codebase intelligence, and richer agent capabilities.
+Voss started as a bounded single-agent harness. It is now an agent engineering organization layer built on top of that substrate. The roadmap reflects that shift: the org core is in, and the work ahead is live steering, the audit-centered ADE, and a stable coordination language — kept local-first throughout.
 
-## Phase order
+## Shipped
 
-| Phase | Name | Goal |
-| --- | --- | --- |
-| M0 | Scope Lock | Align planning docs around harness-led v0.1 |
-| M1 | Harness Happy Path | Make `voss doctor`, `voss do`, and `voss edit` usable on a real repo |
-| M2 | Project Cognition | Persist project-local memory, plans, decisions, sessions, and validation state |
-| M3 | Language Validation | Prove `.voss` workflows check, compile, and run as AI workflow control |
-| M4 | Voss-authored Harness Loop | Dogfood the harness loop through `.voss` files |
-| M5 | Eval and Distribution Prep | Track quality and prepare packaging after Python harness usage is proven |
-| M6 | npm Wrapper | Ship `@vosslang/cli` with vendored Python 3.12 and the Voss wheel |
-| M7 | SDK Polish | Stabilize the public Python embedding surface |
-| M8 | Project Memory | Add `VOSS.md`, `.voss/memory`, recall, save, forget, and memory maintenance commands |
-| M9 | TUI Shell | Add the Textual interface, permission modals, slash palette, budget view, and session forking |
-| M10 | Codebase Intelligence | Add code search, symbol lookup, references, project index, and TUI code panel |
+The bounded harness substrate **and** the engineering-org core:
 
-## Current direction
+| Area | What shipped |
+| --- | --- |
+| Harness | Plan/edit/auto modes, scoped writes, resumable sessions, project memory, the `.voss` language |
+| Capabilities | A normalized, permissioned capability registry — `voss capabilities list` / `inspect` |
+| Principles | First-class engineering principles — `.voss/principles.yml`, `voss principles show` |
+| Team config | `.voss team{}` roster with compile-time scope/budget containment — `voss team check` |
+| Session tree | Durable per-agent nodes with budget fan-out — `voss session tree` |
+| Board | The board state machine with WIP limits and gated transitions — `voss board` |
+| Reviewers | The independent Reviewer-A / Reviewer-B split — `voss review` |
+| EM loop | The Engineering Manager loop — `voss team run` composes the whole run |
 
-The harness is the product surface users feel first. The language is the durable control layer. Python remains the canonical implementation path; npm distribution vendors that Python harness rather than reimplementing it in JavaScript.
+## Building
 
-## Deferred work
+| Area | Goal |
+| --- | --- |
+| Multi-agent chat + live steering | Non-blocking spawn, status, gather, and steer inside `voss chat` and the ADE, with recursive budget fan-out |
 
-The following work is strategically relevant but deferred from the first proof loop:
+## Planned
 
-- Rust as the canonical harness shell
-- MCP bridge before M12
-- Tree-sitter grammar
-- VS Code marketplace release
-- GitHub Linguist upstream PR
-- Broad telemetry
-- Hosted team features
-- Web UI
-- Homebrew distribution
+| Area | Goal |
+| --- | --- |
+| Audit product + ADE panels | A unified `voss audit` report and a navigable session-tree audit view, with roster, board, reviewer, budget, and scope panels and full run replay |
+| Language as coordination spec | Stabilize the grammar for `principles`, `team`, `role`, `gate`, `board`, `review`, and `memory`, with clear compiler diagnostics and `voss run <file.voss>` |
+
+## Deferred
+
+- Hosted SaaS control plane and accounts
+- Distributed, multi-machine agent swarms
+- Autonomous deploy / delete / migration / money actions without human sign-off
+- Voss as a general-purpose programming language
 
 <Note>
-Distribution work should not claim more safety, maturity, or language completeness than the harness currently proves.
+The roadmap stays local-first. Documentation should not claim more safety or completeness than the shipped surface proves.
 </Note>

@@ -1,0 +1,49 @@
+---
+title: "Week of June 6, 2026"
+description: "The agent engineering organization layer ships: team runs, the board, independent reviewers, the session tree, and full docs."
+---
+
+Voss is now an agent engineering organization layer. A single goal runs as a scoped, budgeted, independently reviewed team — and the whole orchestration surface is documented.
+
+## New features
+
+### Run a goal as a team
+
+`voss team run "<goal>"` composes the team config, session tree, board, and the Reviewer-A/B pair, then drives the Engineering Manager loop to completion and persists a final run record. Validate the cage first with `voss team check`.
+
+```bash
+voss team check
+voss team run "Add password reset flow with tests"
+voss board
+voss review latest
+```
+
+### The Engineering Manager loop
+
+The EM is a constrained tech lead: it derives cards from one idea, assigns roles from the declared roster, partitions budget, and integrates results. It cannot invent roles, raise budget, or widen scope — those methods don't exist on the handle it drives, and violations raise a cage error. See [Engineering Manager loop](/orchestration/em-loop).
+
+### Board state machine
+
+Orchestration is a visible board — `Backlog → Planned → InProgress → InReview → Done`, with a `Blocked` lane — rendered read-only with `voss board`. WIP is capped (InProgress 3, InReview 2), transitions are gated, and a card can't reach `Done` without an injected independent reviewer. See [Board](/orchestration/board).
+
+### Independent Reviewer A/B split
+
+Reviewer-A derives the verification bar from the original idea and authors the tests or rubric; Reviewer-B judges narrative-blind and can `block` idea-divergent work. Per-card verdicts persist as `.review.json` sidecars and surface through `voss review`. See [Reviewers](/orchestration/reviewers).
+
+### Session tree + budget fan-out
+
+Every agent is a durable node with its own budget, scope, and status. The fan-out invariant is hard — a child can never overspend its parent — and rejected budget-raise attempts are recorded. Inspect it with `voss session tree <root_id>`. See [Session tree](/orchestration/session-tree).
+
+### Capabilities and principles
+
+The agent toolbelt is now a normalized, permissioned registry (`voss capabilities list` / `inspect`), and engineering principles are first-class config in `.voss/principles.yml`, shown with `voss principles show`. See [Capabilities](/reference/capabilities) and [Principles](/orchestration/principles).
+
+## Documentation
+
+- **New [Orchestration](/orchestration/overview) section** — eight pages covering the six primitives, team config, the EM loop, the board, reviewers, the session tree, principles, and the audit trail.
+- **New reference pages** — [Capabilities](/reference/capabilities) and a [Glossary](/reference/glossary).
+- **Updated** — the [CLI reference](/reference/cli) lists the orchestration commands, [config and state](/reference/config-state) documents `principles.yml` / `team.voss` and the session-tree layout, the [core constructs](/language/core-constructs) page adds the coordination constructs, and the [roadmap](/roadmap/v0-1) reflects the V-track.
+
+<Note>
+A single unified `voss audit <run_id>` report and a navigable ADE audit panel are on the [roadmap](/roadmap/v0-1). Today the same evidence is available through `voss board`, `voss review`, and `voss session tree`.
+</Note>

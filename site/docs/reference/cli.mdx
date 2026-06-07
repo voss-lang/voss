@@ -27,6 +27,24 @@ voss init <name>
 voss ast <file.voss>
 ```
 
+## Orchestration commands
+
+Run and inspect a team — see [Orchestration](/orchestration/overview).
+
+```bash
+voss team check [path]              # validate .voss/team.voss (default), --json
+voss team run "<goal>" [--cwd .] [--max-iterations 50]
+
+voss board [root_id] [--cwd .]      # read-only board from persisted nodes
+voss review [run_id]                # Reviewer-A + Reviewer-B per card (latest if omitted)
+voss session tree <root_id> [--cwd .] [--json]
+
+voss capabilities list [--cwd .] [--json]
+voss capabilities inspect <name> [--cwd .] [--json]
+
+voss principles show [--cwd .] [--json]
+```
+
 ## Command boundary
 
 | Need | Use |
@@ -34,6 +52,9 @@ voss ast <file.voss>
 | Natural-language repo task | `voss do` |
 | Interactive agent session | `voss chat` or bare `voss` |
 | Scoped file edit | `voss edit <path>` |
+| Run a goal as a team | `voss team run "<goal>"` |
+| Validate the team cage | `voss team check` |
+| Inspect a team run | `voss board`, `voss review`, `voss session tree` |
 | Execute a `.voss` file | `voss run <file.voss>` |
 | Check `.voss` files | `voss check <path>` |
 

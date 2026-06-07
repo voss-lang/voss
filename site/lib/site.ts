@@ -82,8 +82,8 @@ export const cliCommands: readonly CliCommand[] = [
   { cmd: 'voss team run "add password reset"', desc: "Run the goal as an engineering team" },
   { cmd: "voss board", desc: "Watch cards move across the board" },
   { cmd: "voss review <run_id>", desc: "Inspect independent reviewer verdicts" },
-  { cmd: "voss audit <run_id>", desc: "Replayable trail of every action" },
   { cmd: "voss session tree <root_id>", desc: "Per-agent budget, scope, status" },
+  { cmd: "voss capabilities list", desc: "Inspect the agent toolbelt" },
   { cmd: 'voss do "summarize this PR"', desc: "Single bounded agent task" },
   { cmd: "voss chat", desc: "Interactive REPL with live subagents" },
   { cmd: "voss doctor", desc: "Diagnose your environment" },
@@ -160,8 +160,8 @@ $ voss team run "Add password reset flow with tests"
   → reviewer-A authored 6 checks · reviewer-B verdict: pass (0.91)
   → run_id 7f3a9c · 1 card blocked (rescoped) · audit ready
 
-$ voss audit 7f3a9c
-  goal · principles · board · diffs · tests · reviews · residual risk`;
+$ voss review 7f3a9c
+  per-card reviewer-A + reviewer-B verdicts · evidence refs · outcomes`;
 
 export type AuditSection = { n: string; title: string };
 
