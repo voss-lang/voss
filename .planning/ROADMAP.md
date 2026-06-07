@@ -2079,10 +2079,15 @@ Plans:
 
 **Cross-cutting:** Self-contained — produces its own contract snapshot from the LOCKED PROTOCOL v1 (no dependency on V13; V13 is docs-only). Types generate from that snapshot. Downstream V13.2–.4 consume the same committed snapshot. No orchestration semantics reimplemented in TS.
 
-**Plans:** TBD by V13.1-SPEC.md.
+**Plans:** 6 plans, 5 waves (Wave 0 contract snapshot substrate → Wave 1 TS scaffold+types → Wave 2 REST+SSE → Wave 3 launcher+boundary → Wave 4 integration suite).
 
 Plans:
-- [ ] TBD
+- [ ] V13.1-01-PLAN.md — Contract snapshot exporter + committed openapi.json/events.schema.json + Python drift gate (VSDK-TS-08)
+- [ ] V13.1-02-PLAN.md — @vosslang/sdk scaffold + generated TS types + TS drift gate + exhaustive-union check (VSDK-TS-01)
+- [ ] V13.1-03-PLAN.md — Typed REST client (Bearer + typed errors) + permission-reply helper (VSDK-TS-02, VSDK-TS-04)
+- [ ] V13.1-04-PLAN.md — SSE typed-event async-iterable client with abort teardown (VSDK-TS-03)
+- [ ] V13.1-05-PLAN.md — Node launcher/supervisor + build + zero-node:* core boundary enforcement (VSDK-TS-05, VSDK-TS-06)
+- [ ] V13.1-06-PLAN.md — Integration suite vs real voss serve (REST/SSE/permission/launcher) (VSDK-TS-07 + behavioral 02–05)
 
 ---
 ### Phase V13.2: Rust Local / Native Client SDK

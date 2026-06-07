@@ -692,7 +692,9 @@ The `decisions`/`sessions`/`semantic` values are user-declared strings compiled 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three locked during planning: Q1 in V10-05 `<interfaces>` (`voss check` = parse-only; `voss team check` = team-semantic), Q2 in V10-03 (`merge(merge(DEFAULTS, file_layer), block_layer)`), Q3 via tuple adoption (`gates: tuple[...] = ()`).
 
 1. **`voss check` semantic integration for team files**
    - What we know: `voss check` today calls `analyze()` which ignores `TeamDecl`; `voss team check` does semantic validation via `compile_team`.
