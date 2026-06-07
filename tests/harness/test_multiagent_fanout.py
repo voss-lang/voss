@@ -33,11 +33,6 @@ class _NullRenderer:
         return _noop
 
 
-@pytest.mark.xfail(
-    reason="W1 voss.harness.multiagent not yet implemented",
-    raises=(ImportError, AttributeError, AssertionError),
-    strict=False,
-)
 class TestConcurrentInFlight:
     """MAG-01: ≥2 children observably in-flight at the same instant.
 
@@ -168,100 +163,133 @@ class TestConcurrentInFlight:
         assert registry.active() == []
 
 
-@pytest.mark.xfail(
-    reason="W1 voss.harness.multiagent not yet implemented",
-    raises=(ImportError, AttributeError, AssertionError),
-    strict=False,
-)
 class TestEvenSplitRebalance:
-    """MAG-03: reserve R / N children → each ≈ R//N; rebalance on release.
+    """MAG-03 (V8 V4-backed): N children each get a positive, no-oversell slice;
+    releasing a child frees budget so a later spawn gets a larger slice.
 
-    After one child releases, a surviving child's allotment strictly
-    increases and the panel BudgetMeter reflects the new total.
+    V8-02 note: V4 node limits are immutable (unlike M13's in-memory rebalancing
+    allocator), so the split reserves headroom (`available // (active+2)`) rather
+    than dividing exactly into R//N; existing siblings are NOT shrunk. The MAG-03
+    intent (multiple children coexist + freed budget is reusable) holds.
     """
 
     async def test_even_split_then_rebalance(
         self, tmp_path, scripted_multiagent_provider
     ) -> None:
         from voss.harness import multiagent
+        from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
 
-        reserve = 60_000
-        allocator = multiagent.M13Allocator(reserve=reserve)
-        handles = ["child-a", "child-b", "child-c"]
-        for h in handles:
-            await allocator.allocate(h)
+        f = scripted_multiagent_provider
+        roles = ("child-a", "child-b", "child-c", "child-d")
+        for r in roles:
+            f.scripts[r] = [f.done_plan(f"{r} done")]
 
-        snap = allocator.snapshot()
-        for h in handles:
-            assert snap[h] == pytest.approx(reserve // len(handles), rel=0.05)
+        def _role_for(messages) -> str:
+            first = next(
+                (str(m.get("content", "")) for m in (messages or [])
+                 if m.get("role") == "user"),
+                "",
+            )
+            for r in roles:
+                if r in first:
+                    return r
+            return "child-a"
 
-        before = allocator.snapshot()["child-b"]
-        allocator.release("child-a")
-        await allocator.rebalance()
-        after = allocator.snapshot()["child-b"]
-        assert after > before, "survivor allotment did not increase on rebalance"
+        class _RR:
+            def stream(self, **kw):
+                return f.provider(_role_for(kw.get("messages", []))).stream(**kw)
+
+            async def complete(self, **kw):
+                return await f.provider("child-a").complete(**kw)
+
+            def count_tokens(self, *, text, model):
+                return max(len(text) // 4, 1)
+
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=60_000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        tools: dict = {}
+        multiagent.attach_multiagent_tools(
+            tools, registry=multiagent.SubagentRegistry(), cwd=tmp_path,
+            renderer=_NullRenderer(), provider=_RR(), model="stub",
+            gate=None, cognition=None, node_manager=mgr,
+        )
+
+        budgets = []
+        for r in ("child-a", "child-b", "child-c"):
+            ret = await tools["subagent_spawn"].invoke(agent=r, task=f"{r} task")
+            assert ret.startswith("spawned"), ret
+            budgets.append(int(ret.split("budget=")[1].split(" ")[0]))
+
+        # Each child got a positive slice ≥ the viable floor; no oversell.
+        assert all(b >= multiagent.VIABLE_FLOOR for b in budgets), budgets
+        assert sum(budgets) <= root.envelope["limit"]
+
+        # Rebalance-on-release: gather frees the children (release_child), so a
+        # subsequent spawn recomputes a LARGER slice than the last pre-gather one.
+        await tools["subagent_gather"].invoke()
+        ret = await tools["subagent_spawn"].invoke(agent="child-d", task="child-d task")
+        new_budget = int(ret.split("budget=")[1].split(" ")[0])
+        assert new_budget > budgets[-1], (new_budget, budgets)
 
 
-@pytest.mark.xfail(
-    reason="W1 voss.harness.multiagent not yet implemented",
-    raises=(ImportError, AttributeError, AssertionError),
-    strict=False,
-)
 class TestNoOversell:
-    """MAG-04 (must-not-happen) — recursive no-oversell invariant.
+    """MAG-04 (must-not-happen) — V4-backed no-oversell + exactly-once release +
+    per-node depth bound.
 
     Threats: T-M13-oversell (budget oversell race, Tampering) and
-    T-M13-recursion-DoS (unbounded recursive spawn, DoS — bounded here by
-    the viable-floor denial, NOT by any depth constant). See
-    M13-VALIDATION.md §"Security Domain".
+    T-M13-recursion-DoS (bounded by the viable-floor denial, NOT a depth
+    constant). V8 routes all of this through `SessionTreeManager` (the lock-held
+    `allocate_child` + idempotent `release_child`).
     """
 
     async def test_concurrent_allocation_never_oversells(
         self, tmp_path, scripted_multiagent_provider
     ) -> None:
         from voss.harness import multiagent
+        from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
 
-        reserve = 30_000
-        allocator = multiagent.M13Allocator(reserve=reserve)
-        many = [f"child-{i}" for i in range(64)]
-        await asyncio.gather(*[allocator.allocate(h) for h in many])
-
-        total = sum(allocator.snapshot().values())
-        assert total <= reserve, f"oversold: Σ={total} > reserve={reserve}"
-        granted = len(allocator.snapshot())
-        assert granted == reserve // multiagent.M13Allocator.VIABLE_FLOOR or (
-            granted <= reserve // multiagent.M13Allocator.VIABLE_FLOOR
-        ), "denied-count does not match viable-floor math"
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=30_000 + 100)
+        mgr = SessionTreeManager(root, reserve=100, cwd=tmp_path)
+        results = await asyncio.gather(
+            *[mgr.allocate_child(multiagent.VIABLE_FLOOR) for _ in range(64)],
+            return_exceptions=True,
+        )
+        granted = [r for r in results if isinstance(r, SessionTreeNode)]
+        total = sum(c.envelope["limit"] for c in granted)
+        assert total <= root.envelope["limit"] - mgr._reserve, (
+            f"oversold: Σ={total} > {root.envelope['limit'] - mgr._reserve}"
+        )
 
     async def test_double_release_credits_exactly_once(
         self, tmp_path, scripted_multiagent_provider
     ) -> None:
-        from voss.harness import multiagent
+        from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
 
-        reserve = 12_000
-        allocator = multiagent.M13Allocator(reserve=reserve)
-        for h in ("child-a", "child-b"):
-            await allocator.allocate(h)
-        allocator.release("child-a")
-        allocator.release("child-a")  # idempotent — must NOT double-credit
-        await allocator.rebalance()
-        assert sum(allocator.snapshot().values()) <= reserve
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=12_000)
+        mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        a = await mgr.allocate_child(4_000)
+        await mgr.allocate_child(4_000)  # child-b stays active
+        mgr.release_child(a.id)
+        mgr.release_child(a.id)  # idempotent — must NOT remove a second node
+        await mgr.allocate_child(4_000)  # fits in the freed budget
+        assert len(mgr._children) == 2, [c.id for c in mgr._children]
+        assert sum(c.envelope["limit"] for c in mgr._children) <= root.envelope["limit"]
 
     async def test_depth_bound_grandchild_le_child_le_parent(
         self, tmp_path, scripted_multiagent_provider
     ) -> None:
-        from voss.harness import multiagent
+        from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
 
-        parent_reserve = 60_000
-        parent = multiagent.M13Allocator(reserve=parent_reserve)
-        await parent.allocate("child-a")
-        child_slice = parent.snapshot()["child-a"]
-
-        child = multiagent.M13Allocator(reserve=child_slice)
-        await child.allocate("grandchild")
-        grandchild_slice = child.snapshot()["grandchild"]
-
-        assert grandchild_slice <= child_slice <= parent_reserve
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=60_000)
+        root_mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await root_mgr.allocate_child(30_000)
+        child_mgr = SessionTreeManager(child, reserve=0, cwd=tmp_path)
+        grandchild = await child_mgr.allocate_child(10_000)
+        assert (
+            grandchild.envelope["limit"]
+            <= child.envelope["limit"]
+            <= root.envelope["limit"]
+        )
 
 
 class _RecordingRenderer:

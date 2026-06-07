@@ -3,10 +3,11 @@ title: "Harness commands"
 description: "Use the Voss harness command surface for planning, editing, diagnostics, sessions, tools, and config."
 ---
 
-Voss uses one binary with two command families:
+Voss uses one binary with three command families:
 
-- Harness commands for natural-language agent work
+- Harness commands for single-agent natural-language work
 - Compiler commands for `.voss` programs
+- Orchestration commands for team runs — see [Orchestration](/orchestration/overview) and the [CLI reference](/reference/cli)
 
 ## Harness commands
 
@@ -35,6 +36,20 @@ Voss uses one binary with two command families:
 <Warning>
 `voss run` is not an agent command. Natural-language tasks use `voss do`.
 </Warning>
+
+## Orchestration commands
+
+For multi-agent team runs — full detail in [Orchestration](/orchestration/overview).
+
+| Command | Purpose |
+| --- | --- |
+| `voss team check` | Validate the team cage (roster, scope, budget, tools) |
+| `voss team run "<goal>"` | Run a goal as a reviewed team |
+| `voss board` | Render the board read-only from persisted nodes |
+| `voss review` | Show per-card Reviewer-A + Reviewer-B verdicts |
+| `voss session tree <root_id>` | Inspect per-agent budget, scope, and status |
+| `voss capabilities list` | List the capability registry |
+| `voss principles show` | Show the active engineering principles |
 
 ## Common flows
 

@@ -24,7 +24,7 @@
 | M10 | Codebase Intelligence (CAPS-01a) | LSP polyglot + ast-grep + project index — tools, slash, auto-injection, M9 TUI panel | CODE-01..07 | TBD |
 | M11 | Voss-aware Tools (CAPS-01b) | Probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss`→Python diff viewer | VTOOL-01..05 | 5 |
 | M12 | MCP Bridge (CAPS-01c, promotes DIST-03) | Consume external MCP tools + expose harness skills as MCP server | MCP-01..0N (TBD by SPEC.md) | TBD |
-| M13 | Multi-agent in Chat (CAPS-01d) — ⊘ ABSORBED into V8 | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel`. Scope + planned plans fold into V8 (Multi-agent Chat + Live Steering). | MAG-01..MAG-08 | 8 |
+| M13 | Multi-agent in Chat (CAPS-01d) — ⊘ ABSORBED into V8 (SHIPPED 2026-06-06) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel`. V8 delivered the persisted unification: the M13 in-memory `M13Allocator` is superseded by the V4-backed `SessionTreeManager`; M13 artifacts retained as reference. | MAG-01..MAG-08 | 8 |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..06 | **Complete** (6/6 plans, 2026-05-20) |
 | T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | **Complete** (3/3 plans, 2026-05-18) |
@@ -68,7 +68,7 @@
 | V5 | Board State Machine (supersedes O3) | Board columns/cards/WIP/gates as orchestrator state machine; artifact-gated transitions; agents can't self-Done; `voss board` | VBOARD-01..10 | ✅ COMPLETE — Card fields + self-Done `no-reviewer` guard + `voss board` CLI; shipped O3 surface (VBOARD-01/02/04/05/06/08/09) regressed green |
 | V6 | Reviewer A/B Split (supersedes O4) | A authors bar+tests/eval from original idea; B judges narrative-blind w/ idea-divergence authority; persisted review artifacts; `voss review` | VREV-01..10 | TBD by SPEC.md |
 | V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | ✅ COMPLETE — `voss team run` composes V3–V6 (incl. V6 Reviewer-A/B) + em_loop, RunFinal sidecar persistence + record-only sign-off; cage re-verified; zero frozen-schema drift; O5 superseded |
-| V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat` + ADE; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | Planned (3 plans, 3 waves; V8-01 RED scaffold -> V8-02 V4-backed unify+root+persist+recursion (allocator->node_manager, per-node-manager recursion, no depth constant) -> V8-03 verify+migrate+M13-absorbed) |
+| V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat`; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | ✅ COMPLETE — 3 plans, 3 waves. V8 shipped the V4-backed persisted unification: every chat spawn is a persisted session-tree node; `M13Allocator` removed (single V4 `SessionTreeManager` governs spawns); per-node-manager recursion bounded by the viable-floor (no depth constant); chat-root envelope (60k + 30k reserve) finalized on session exit. MAG-01..09 regressed green; frozen schemas unchanged; no new deps. **ADE child-panel surface deferred to V11** (V8 uses the existing TUI only). |
 | V9 | Audit Product (supersedes O6) | Audit as primary trust product: idea/principles/team/budget/scope/board/reviewers/lineage/residual-risk; MD+JSON export; sign-off forcing function; reviewer calibration (AUD-09 ADE render → V11) | VAUD-01..10 | Plans ready to execute (7 plans, 6 waves; re-planned fresh against V4–V7 contracts, O6 = reference only) |
 | V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | TBD by SPEC.md |
 | V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | TBD by SPEC.md |
@@ -648,6 +648,8 @@ Plans:
 ---
 
 ## Phase M13: Multi-agent in Chat (CAPS-01d)
+
+> ⊘ **ABSORBED into V8 — SHIPPED 2026-06-06.** V8 (V8-01/02/03) delivered the V4-backed persisted unification: the M13 in-memory `M13Allocator` was removed and replaced by the V4 `SessionTreeManager` (every chat spawn a persisted node; per-node-manager recursion bounded by the viable-floor, no depth constant; chat-root envelope finalized on exit). M13 artifacts/plans below are retained as reference (the in-memory design is superseded by V8); do not re-execute.
 
 **Goal:** Expose the runtime `spawn`/`gather` primitives (`voss_runtime/agent.py`) to the user-facing chat session. A `voss chat` user can say "research X" → harness spawns sub-agent in a side panel (M9 `SubAgentPanel`), each sub-agent has its own budget meter, message bus is visible in the TUI.
 

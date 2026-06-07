@@ -16,7 +16,7 @@ This file carries TWO distinct kinds of test, deliberately:
     `tests/harness/test_subagent_recursion.py`. It is NOT xfail-marked.
 
 Threat: T-M13-recursion-DoS (unbounded recursive spawn, DoS). Recursion is
-bounded by the viable-budget-floor denial in `M13Allocator.allocate`
+bounded by the viable-budget-floor denial in `subagent_spawn` (V8 V4-backed)
 (M13-VALIDATION.md §"Security Domain") — NOT by any depth constant. No test
 in this file introduces or references a depth/max_depth symbol for
 production use; the forbidden names appear only as negative assertions in
@@ -34,35 +34,40 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.xfail(
-    reason="W1 voss.harness.multiagent not yet implemented",
-    raises=(ImportError, AttributeError, AssertionError),
-    strict=False,
-)
 class TestDepth2:
-    """MAG-06: parent→child→grandchild nested budget + nested panels.
+    """MAG-06 (V8 V4-backed): parent→child→grandchild nested budget + panels.
 
     (a) 3 distinct panel_ids mounted concurrently;
     (b) grandchild allotment ≤ child slice ≤ parent reserve at all 3 levels;
     (c) post-gather zero SubAgentPanel (no leak).
-    Recursion bounded by viable-floor only (no depth constant).
+    Recursion bounded by viable-floor only (no depth constant). Each level is a
+    per-node `SessionTreeManager`; nested nodes persist with chained parent_run_id.
     """
 
     async def test_nested_budget_is_strictly_bounded(
         self, tmp_path, scripted_multiagent_provider
     ) -> None:
-        from voss.harness import multiagent
+        import json
 
-        parent_reserve = 60_000
-        parent = multiagent.M13Allocator(reserve=parent_reserve)
-        await parent.allocate("child-a")
-        child_slice = parent.snapshot()["child-a"]
+        from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
 
-        child = multiagent.M13Allocator(reserve=child_slice)
-        await child.allocate("grandchild")
-        grandchild_slice = child.snapshot()["grandchild"]
+        root = SessionTreeNode.create_root(cwd=tmp_path, limit=60_000)
+        root_mgr = SessionTreeManager(root, reserve=0, cwd=tmp_path)
+        child = await root_mgr.allocate_child(30_000)
+        child_mgr = SessionTreeManager(child, reserve=0, cwd=tmp_path)
+        grandchild = await child_mgr.allocate_child(10_000)
 
-        assert grandchild_slice <= child_slice <= parent_reserve
+        assert (
+            grandchild.envelope["limit"]
+            <= child.envelope["limit"]
+            <= root.envelope["limit"]
+        )
+        # The child node persisted under the root (V4-backed, not in-memory).
+        ids = {
+            json.loads(p.read_text())["id"]
+            for p in (tmp_path / ".voss" / "sessions").glob("*/*.json")
+        }
+        assert child.id in ids and grandchild.id in ids
 
     async def test_three_distinct_panels_then_clean_teardown(
         self, tmp_path, scripted_multiagent_provider
@@ -235,9 +240,17 @@ class TestDepth2:
             def count_tokens(self, *, text, model):
                 return max(len(text) // 4, 1)
 
+        from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
+
         renderer = _PanelRecordingRenderer()
         registry = multiagent.SubagentRegistry()
         tools: dict = {}
+        # V8: inject the chat-root V4 manager (reserve == DEFAULT_PARENT_RESERVE,
+        # the parent reserve the (b) assertion checks against).
+        _root = SessionTreeNode.create_root(cwd=tmp_path, limit=60_000)
+        _root_mgr = SessionTreeManager(
+            _root, reserve=multiagent.DEFAULT_PARENT_RESERVE, cwd=tmp_path
+        )
         multiagent.attach_multiagent_tools(
             tools,
             registry=registry,
@@ -247,13 +260,14 @@ class TestDepth2:
             model="stub",
             gate=None,
             cognition=None,
+            node_manager=_root_mgr,
         )
 
-        # Level 0 → 1: the parent (this chat turn) spawns child-a. The real
-        # M13Allocator (top-level reserve == DEFAULT_PARENT_RESERVE) grants
-        # child-a its slice; the child's run_turn toolset is recursively
-        # wired with a slice-scoped sub_allocator (reserve == child-a's
-        # allotment) so it can fan out to grandchildren (D-07).
+        # Level 0 → 1: the parent (this chat turn) spawns child-a. The injected
+        # V4 root manager (reserve == DEFAULT_PARENT_RESERVE) grants child-a its
+        # slice; the child's run_turn toolset is recursively wired with a
+        # per-node child manager (reserve == VIABLE_FLOOR) so it can fan out to
+        # grandchildren — each level divides only its own node's envelope.
         spawn_ret = await tools["subagent_spawn"].invoke(
             agent="child-a", task=S_CHILD
         )

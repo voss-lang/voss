@@ -3,7 +3,7 @@ title: "Harness overview"
 description: "Understand the Voss terminal harness and how it differs from open-ended AI chat."
 ---
 
-The Voss harness is a terminal-native agent loop for bounded, inspectable, resumable repo work.
+The Voss harness is a terminal-native agent loop for bounded, inspectable, resumable repo work. It is the **single-agent substrate** the [orchestration layer](/orchestration/overview) builds on: a team run is many of these loops, each a scoped node in a [session tree](/orchestration/session-tree).
 
 It is not a general chat box. Each turn goes through a small set of explicit systems:
 
@@ -43,8 +43,13 @@ Voss makes those decisions explicit through commands, modes, tool classification
   <Card title="voss sessions" icon="history" href="/harness/sessions">
     List and resume prior harness work.
   </Card>
+  <Card title="voss team run" icon="workflow" href="/orchestration/overview">
+    Run a goal as a whole team built from these loops.
+  </Card>
 </CardGroup>
 
 ## Product shape
 
-Voss v0.1 is harness-led. The Python harness is the current behavior source and the npm CLI vendors that Python implementation. The `.voss` language remains central as the workflow-control layer for confidence, context budgets, semantic routing, memory, tools, agents, and fallbacks.
+The harness is the substrate; the [orchestration layer](/orchestration/overview) is the product built on top of it. One harness loop is a single bounded agent. A team run dispatches many of them under an [Engineering Manager loop](/orchestration/em-loop), each owning a scoped, budgeted node in the [session tree](/orchestration/session-tree), gated by independent [review](/orchestration/reviewers).
+
+The Python harness is the canonical behavior source and the npm CLI vendors that implementation. The `.voss` language is the control layer at both levels — confidence, context budgets, routing, memory, tools, and fallbacks for one agent; [roles, principles, and gates](/language/core-constructs) for a team.
