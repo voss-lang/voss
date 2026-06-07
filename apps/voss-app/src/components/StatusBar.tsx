@@ -12,6 +12,8 @@ export type StatusBarProps = {
   agentCount: number;
   totalCost: number;
   onToggleSidebar: () => void;
+  orgViewOpen: boolean;
+  onToggleOrgView: () => void;
 };
 
 export default function StatusBar(props: StatusBarProps) {
