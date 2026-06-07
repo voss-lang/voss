@@ -65,7 +65,7 @@
 | V2 | Principles Layer | First-class engineering principles (`.voss/principles.yml` + `principles{}`) injected into every agent context, audit-recorded, zero control-flow coupling | VPRIN-01..08 | Plans ready to execute (3 plans, 2 waves; VPRIN-01/03/04/05/06/07; VPRIN-02→V10, VPRIN-08→V9) |
 | V3 | Team Spec + Role Cage (supersedes O2) | `.voss team{}` canonical: frozen TeamConfig+SubagentRegistry, compile-time scope/budget containment, default roster, model tiering, `voss team check` | VTEAM-01..10 | TBD by SPEC.md |
 | V4 | Session Tree + Budget Fan-out (supersedes O1, KEYSTONE) | Every agent a durable recorded node w/ own budget/scope/status/artifacts; `sum(child)+reserve ≤ parent`; no orphan/overspend; `voss session tree` | VTREE-01..10 | Planned (3 plans, 3 waves) |
-| V5 | Board State Machine (supersedes O3) | Board columns/cards/WIP/gates as orchestrator state machine; artifact-gated transitions; agents can't self-Done; `voss board` | VBOARD-01..10 | TBD by SPEC.md |
+| V5 | Board State Machine (supersedes O3) | Board columns/cards/WIP/gates as orchestrator state machine; artifact-gated transitions; agents can't self-Done; `voss board` | VBOARD-01..10 | ✅ COMPLETE — Card fields + self-Done `no-reviewer` guard + `voss board` CLI; shipped O3 surface (VBOARD-01/02/04/05/06/08/09) regressed green |
 | V6 | Reviewer A/B Split (supersedes O4) | A authors bar+tests/eval from original idea; B judges narrative-blind w/ idea-divergence authority; persisted review artifacts; `voss review` | VREV-01..10 | TBD by SPEC.md |
 | V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | TBD by SPEC.md |
 | V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat` + ADE; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | Planned (3 plans, 3 waves; V8-01 RED scaffold -> V8-02 V4-backed unify+root+persist+recursion (allocator->node_manager, per-node-manager recursion, no depth constant) -> V8-03 verify+migrate+M13-absorbed) |
@@ -1900,13 +1900,13 @@ Plans:
 
 **Cross-cutting:** Board state deterministic and replayable; every blocked card has a reason; renderable in CLI and ADE.
 
-**Status:** Planned — 4 plans, 3 waves (delta on shipped O3; supersedes O3, depends V4). Gaps: `voss board` CLI + Card field completeness + self-Done independence guard; rest of the shipped O3 surface verified/regressed.
+**Status:** ✅ COMPLETE — 4 plans, 3 waves (completed 2026-06-06; supersedes O3, depends V4). Full board suite 121 green; frozen schemas (RunRecord/SessionRecord/BudgetScope/SessionTreeNode) field-unchanged.
 
 **Plans:**
-- [ ] V5-01-PLAN.md — Wave 0 RED scaffolds (test_card_fields_v5 / test_self_done_guard / test_board_cli) driving the real planned API (VBOARD-03/07/10)
-- [ ] V5-02-PLAN.md — machine.py: four additive Card fields + card_status/card_budget helpers + self-Done `no-reviewer` guard in Board.move (VBOARD-03/07)
-- [ ] V5-03-PLAN.md — cli_view.py read-only renderer + `voss board [root_id]` board_cmd (mtime-latest, path-traversal-safe) (VBOARD-10)
-- [ ] V5-04-PLAN.md — shipped-surface regression (BOARD-01/02/04/05/06/08/09) + stale-test fix + frozen-schema diff gate + O3-superseded bookkeeping (VBOARD-01/02/04/05/06/08/09)
+- [x] V5-01-PLAN.md — Wave 0 RED scaffolds (test_card_fields_v5 / test_self_done_guard / test_board_cli) driving the real planned API (VBOARD-03/07/10)
+- [x] V5-02-PLAN.md — machine.py: four additive Card fields + card_status/card_budget helpers + self-Done `no-reviewer` guard in Board.move (VBOARD-03/07)
+- [x] V5-03-PLAN.md — cli_view.py read-only renderer + `voss board [root_id]` board_cmd (mtime-latest, path-traversal-safe) (VBOARD-10)
+- [x] V5-04-PLAN.md — shipped-surface regression (BOARD-01/02/04/05/06/08/09) + stale-test fix + frozen-schema diff gate + O3-superseded bookkeeping (VBOARD-01/02/04/05/06/08/09)
 
 ---
 
