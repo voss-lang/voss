@@ -1,7 +1,7 @@
 """V10 RED scaffold — org-loop sample files pass `voss check` (VLANG-08).
 
 Parametrizes the three planned sample files. They do not exist yet AND use the
-new V10 grammar, so `voss check` exits non-zero — RED expected. No xfail masks
+new V10 grammar, so `voss check` exits non-zero — RED expected. No expected-fail/skip masks
 (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations

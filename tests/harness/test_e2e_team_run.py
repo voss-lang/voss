@@ -3,7 +3,7 @@
 Writes a V10-grammar team file (principles + gate + memory blocks the grammar
 does not parse yet), runs the deterministic stub stack via team_run_cmd, and
 expects a clean completion + sign-off. RED today: the new blocks fail to parse
-(exit 2). No xfail masks (gsd-scaffold-fictional-api).
+(exit 2). No expected-fail/skip masks (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations
 

@@ -211,7 +211,7 @@ def test_ritual_block_round_trips_opaquely(parse_source):
 # ---------------------------------------------------------------------------
 # V10 Wave-0 RED: principles / gate / memory blocks (VLANG-01a/01b/01c).
 # These import planned AST nodes that DO NOT EXIST YET (created in V10-02) —
-# the four tests below are expected RED. No xfail masks (gsd-scaffold-fictional-api).
+# the four tests below are expected RED. No expected-fail/skip masks (gsd-scaffold-fictional-api).
 # ---------------------------------------------------------------------------
 
 

@@ -2,7 +2,7 @@
 
 Targets the planned surface: TeamConfig.principles (a PrinciplesConfig) and the
 `compile_team(decl, cwd=...)` keyword. These do not exist yet — RED expected.
-No xfail masks (gsd-scaffold-fictional-api).
+No expected-fail/skip masks (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations
 
