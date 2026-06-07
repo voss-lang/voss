@@ -1,6 +1,6 @@
 import { For, Show, createSignal } from 'solid-js';
 import type { RunData, SessionTreeNode, CardSnapshot } from '../types';
-import { computeBoardAtStep, CANONICAL_COLUMNS } from '../replayReducer';
+import { computeBoardAtStep } from '../replayReducer';
 
 // VADE-10 — step through persisted transitions; the board snapshot at each step
 // is computed by the pure client-side reducer (D-05/D-06: board/card only).
