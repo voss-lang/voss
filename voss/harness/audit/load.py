@@ -299,14 +299,16 @@ def load_audit_snapshot(root: Path, run_id: str | None = None) -> AuditSnapshot:
             raise AuditLoadError(sessions_dir, "no session tree directories found")
         # Select the latest run by mtime (mirrors cli._latest_root_id).
         tree_dir = max(root_dirs, key=lambda d: d.stat().st_mtime)
-    # Filter sidecars that are not session-tree nodes: run-final.json (no `id`)
-    # and *.review.json (per-card reviewer sidecars) live in the same dir but
-    # are loaded separately by report.py (V9-02). Globbing them as nodes trips
-    # the required-`id` check (V9 glob landmine).
+    # Filter sidecars that are not session-tree nodes: run-final.json (no `id`),
+    # *.review.json (per-card reviewer sidecars), and .signoff-ack.json (the
+    # governance ack record) live in the same dir but are loaded separately by
+    # report.py. Globbing them as nodes trips the required-`id` check (V9 glob
+    # landmine).
+    _non_node = {"run-final.json", ".signoff-ack.json"}
     node_files = [
         p
         for p in sorted(tree_dir.glob("*.json"))
-        if p.name != "run-final.json" and not p.name.endswith(".review.json")
+        if p.name not in _non_node and not p.name.endswith(".review.json")
     ]
     if not node_files:
         raise AuditLoadError(tree_dir, "no node files found")
