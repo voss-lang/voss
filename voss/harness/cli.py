@@ -2545,8 +2545,18 @@ def review_cmd(run_id: str | None) -> None:
     default="text",
 )
 @click.option("--output", "output_path", default=None, type=click.Path())
+@click.option(
+    "--approve",
+    "approve",
+    is_flag=True,
+    help="Approve the audited run; refused if killed/misroute risks are unacknowledged.",
+)
 def audit_cmd(
-    run_id: str | None, cwd_str: str, fmt: str, output_path: str | None
+    run_id: str | None,
+    cwd_str: str,
+    fmt: str,
+    output_path: str | None,
+    approve: bool,
 ) -> None:
     """Render a complete read-only audit for a run (latest if no run_id).
 
@@ -2592,6 +2602,23 @@ def audit_cmd(
         calibration = None  # calibration optional; build tolerates None
 
     report = build_audit_report(cwd, run_id=run_id, calibration=calibration)
+
+    # VAUD-SIGNOFF readback: approve is refused when killed/misroute risks exist
+    # and the .signoff-ack.json governance record is absent.
+    if approve:
+        risks = bool(report.snapshot.kills) or any(
+            r.confidence_hint is not None and r.confidence_hint < 0.7
+            for r in report.snapshot.routings
+        )
+        if risks and report.signoff_ack is None:
+            click.echo(
+                "approve refused: killed-card/misroute risks unacknowledged — "
+                "run `voss team run` sign-off to acknowledge.",
+                err=True,
+            )
+            raise SystemExit(1)
+        click.echo(f"approve: permitted for {report.run_id}")
+
     renderer = {
         "text": render_text,
         "json": render_json,

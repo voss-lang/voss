@@ -47,16 +47,63 @@ class TestAckWriter:
         assert (run_dir / "node_done_0001.json").read_text() == node_before
 
 
+def _gate_harness():
+    """A throwaway click command exercising the sign-off ack gate.
+
+    The gate lives inline in team_run_cmd, but the deterministic `team run`
+    produces a CLEAN run (0 killed, 0 misroute) so the risk path can't be driven
+    end-to-end. Test the extracted gate helper directly through a minimal
+    command so click.prompt input can be simulated.
+    """
+    import click
+
+    from voss.harness.cli import _enforce_signoff_ack
+
+    @click.command()
+    @click.option("--cwd", "cwd_str")
+    @click.option("--killed", type=int)
+    @click.option("--misroute", type=int)
+    def cmd(cwd_str: str, killed: int, misroute: int) -> None:
+        _enforce_signoff_ack(
+            Path(cwd_str), "rootX", killed_count=killed, misroute_count=misroute
+        )
+        click.echo("approve/reject reached")
+
+    return cmd
+
+
 class TestAckGate:
     def test_approve_refused_without_ack(self, tmp_path: Path):
-        from voss.harness.cli import team_run_cmd
-
-        # When killed/misroute risks exist, a non-"yes" acknowledgement must
-        # abort sign-off with a non-zero exit and an acknowledgement message.
+        # Risks present + a non-"yes" ack → abort non-zero with an
+        # acknowledgement message; the approve/reject prompt is never reached.
         result = CliRunner().invoke(
-            team_run_cmd,
-            ["build a thing", "--cwd", str(tmp_path)],
+            _gate_harness(),
+            ["--cwd", str(tmp_path), "--killed", "1", "--misroute", "2"],
             input="no\n",
         )
         assert result.exit_code != 0
         assert "acknowledg" in result.output.lower()
+        assert "approve/reject reached" not in result.output
+
+    def test_yes_ack_writes_sidecar_and_proceeds(self, tmp_path: Path):
+        result = CliRunner().invoke(
+            _gate_harness(),
+            ["--cwd", str(tmp_path), "--killed", "1", "--misroute", "0"],
+            input="yes\n",
+        )
+        assert result.exit_code == 0
+        assert "approve/reject reached" in result.output
+        ack = tmp_path / ".voss" / "sessions" / "rootX" / ".signoff-ack.json"
+        assert ack.exists()
+        assert json.loads(ack.read_text())["killed_count"] == 1
+
+    def test_clean_run_skips_gate(self, tmp_path: Path):
+        # Pitfall 5: zero killed + zero misroute → no prompt, gate falls through.
+        result = CliRunner().invoke(
+            _gate_harness(),
+            ["--cwd", str(tmp_path), "--killed", "0", "--misroute", "0"],
+            input="",
+        )
+        assert result.exit_code == 0
+        assert "approve/reject reached" in result.output
+        assert "acknowledg" not in result.output.lower()
