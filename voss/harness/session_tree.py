@@ -22,6 +22,8 @@ __all__ = [
     "BudgetCapRaiseError",
     "SessionTreeManager",
     "SessionTreeNode",
+    "SessionTreeNotFoundError",
+    "export_tree",
     "finalize_node",
     "mutate_envelope",
 ]
@@ -29,6 +31,10 @@ __all__ = [
 
 class BudgetAllocationError(Exception):
     """Raised when a child allocation would oversell the parent envelope."""
+
+
+class SessionTreeNotFoundError(Exception):
+    """Raised when no persisted tree exists for the given root_id."""
 
 
 class BudgetCapRaiseError(Exception):
@@ -143,6 +149,25 @@ def mutate_envelope(node: SessionTreeNode, delta: int, cwd: Path) -> None:
         raise BudgetCapRaiseError(node.id, delta, "non-extendable cap")
     node.envelope["spent"] += abs(delta)
     _write_node_file(node, cwd)
+
+
+def export_tree(root_id: str, cwd: Path) -> dict:
+    """Aggregate the per-node files for a root into one JSON-serializable dict.
+
+    Reads <cwd>/.voss/sessions/<root_id>/*.json; the on-disk dict IS the export
+    form (read-only — no re-serialization, no writes). Raises
+    SessionTreeNotFoundError when the directory is missing or holds no node files.
+    """
+    tree_dir = cwd / ".voss" / "sessions" / root_id
+    if not tree_dir.is_dir():
+        raise SessionTreeNotFoundError(root_id)
+    nodes = [
+        json.loads(path.read_text())
+        for path in sorted(tree_dir.glob("*.json"))
+    ]
+    if not nodes:
+        raise SessionTreeNotFoundError(root_id)
+    return {"root_id": root_id, "nodes": nodes}
 
 
 class SessionTreeManager:

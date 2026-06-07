@@ -3914,6 +3914,46 @@ def team_check_cmd(path: str, json_mode: bool) -> None:
     )
 
 
+@click.group("session")
+def session_group() -> None:
+    """Inspect persisted session trees (VTREE-09)."""
+
+
+@session_group.command("tree")
+@click.argument("root_id")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--json", "json_mode", is_flag=True, help="Machine-readable JSON export.")
+def session_tree_cmd(root_id: str, cwd_str: str, json_mode: bool) -> None:
+    """Show the session tree for a root node id."""
+    import json as json_lib
+
+    from .session_tree import SessionTreeNotFoundError, export_tree
+
+    cwd = Path(cwd_str).resolve()
+    try:
+        tree = export_tree(root_id, cwd)
+    except SessionTreeNotFoundError:
+        click.echo(f"<error: no session tree for root_id {root_id!r}>", err=True)
+        raise click.exceptions.Exit(1)
+
+    if json_mode:
+        click.echo(json_lib.dumps(tree, indent=2))
+        return
+
+    for node in tree["nodes"]:
+        indent = "  " if node["parent_run_id"] else ""
+        envelope = node["envelope"]
+        terminal = node["terminal_state"]
+        state = terminal["exit_reason"] if terminal else "open"
+        click.echo(
+            f"{indent}{node['id']}  "
+            f"parent={node['parent_run_id'] or '—'}  "
+            f"limit={envelope['limit']} spent={envelope['spent']}  "
+            f"state={state}  "
+            f"scope={node.get('scope') or '—'} role={node.get('role') or '—'}"
+        )
+
+
 AGENT_COMMANDS = (
     do_cmd,
     serve_cmd,
@@ -3945,6 +3985,7 @@ AGENT_COMMANDS = (
     hooks_group,
     capabilities_group,
     principles_group,
+    session_group,
     team_group,
 )
 
