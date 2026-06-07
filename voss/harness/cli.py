@@ -3932,6 +3932,194 @@ def team_check_cmd(path: str, json_mode: bool) -> None:
     )
 
 
+def _default_team_config():
+    """Build the DEFAULT_ROSTER team config + registry (no .voss/team.voss).
+
+    Direct construction (no AST TeamDecl). Mirrors compile_team's output shape:
+    a TeamConfig over the shipped DEFAULT_ROSTER and a SubagentRegistry holding
+    one spec per role (apply_role_defaults resolves model tiers via the
+    configured catalog — V7-RESEARCH Pitfall 7).
+    """
+    from voss.ast_nodes import Span
+    from voss.harness.subagents import SubagentRegistry
+    from voss.harness.team import (
+        DEFAULT_ROSTER,
+        BoardSpec,
+        TeamCeiling,
+        TeamConfig,
+        TeamPolicy,
+        subagent_spec_from_role,
+    )
+
+    ceiling = TeamCeiling(budget_tokens=500_000, scope=None, latency_seconds=3600)
+    registry = SubagentRegistry()
+    span = Span(file="<default>", line_start=0, col_start=0, line_end=0, col_end=0)
+    for role_name in DEFAULT_ROSTER:
+        spec = subagent_spec_from_role(
+            role_name=role_name,
+            role_decl_span=span,
+            kvs={},
+            ceiling=ceiling,
+            ceiling_ast=None,
+            apply_role_defaults=True,
+        )
+        registry.register(spec)
+    config = TeamConfig(
+        name="default",
+        ceiling=ceiling,
+        policy=TeamPolicy(p=None),
+        em_agent_id=None,
+        roster_ids=frozenset(DEFAULT_ROSTER),
+        board=BoardSpec(raw_items=()),
+        rituals=(),
+    )
+    return config, registry
+
+
+def _persist_run_final(rf, cwd: Path, decision: str | None = None) -> Path:
+    """Write RunFinal to <cwd>/.voss/sessions/<root_id>/run-final.json (0o600).
+
+    Mirrors session_tree._write_node_file (mkdir parents, write, chmod 0o600).
+    SECURITY (T-V7-05): root_id comes ONLY from rf.root_id (a SessionTreeNode
+    UUID), never user input — no path traversal. RunFinal is frozen+slots and is
+    never mutated; the sign_off decision lives only in the serialized dict.
+    """
+    from datetime import datetime, timezone
+
+    run_dir = cwd / ".voss" / "sessions" / rf.root_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    persist_path = run_dir / "run-final.json"
+    data = asdict(rf)
+    if decision is not None:
+        data["sign_off"] = {
+            "decision": decision,
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+    persist_path.write_text(json.dumps(data, indent=2))
+    persist_path.chmod(0o600)
+    return persist_path
+
+
+@team_group.command("run")
+@click.argument("goal")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--max-iterations", default=50, type=int, help="EM loop iteration ceiling.")
+def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
+    """Run the EM loop on a goal: compose team + board + V6 reviewers, sign off.
+
+    Composes the shipped V3 team config + V4 session tree + V5 board + the real
+    V6 Reviewer-A/B slots + the O5 em_loop, runs autonomously to terminal,
+    persists RunFinal, prints a summary, and records a human approve/reject.
+    """
+    from voss import parse
+    from voss.ast_nodes import TeamDecl
+    from voss.harness.board.machine import Board
+    from voss.harness.board.stub import DeterministicReviewerStub
+    from voss.harness.em.handle import EMBoardHandle
+    from voss.harness.em.loop import em_loop
+    from voss.harness.em.schema import CreateTicketOp, EMPlanResponse, NoopOp
+    from voss.harness.em.stub import DeterministicEMStub
+    from voss.harness.permissions import PermissionGate
+    from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
+    from voss.harness.team import VossTeamConfigError, compile_team
+
+    cwd = Path(cwd_str).resolve()
+
+    team_file = cwd / ".voss" / "team.voss"
+    if team_file.is_file():
+        src = team_file.read_text(encoding="utf-8")
+        program = parse(src if src.endswith("\n") else src + "\n", str(team_file))
+        team_decl = next(
+            (d for d in program.body if isinstance(d, TeamDecl)), None
+        )
+        if team_decl is None:
+            click.echo(f"<error: no team{{}} block in {team_file}>", err=True)
+            raise click.exceptions.Exit(2)
+        try:
+            config, registry = compile_team(team_decl)
+        except VossTeamConfigError as e:
+            click.echo(str(e), err=True)
+            raise click.exceptions.Exit(2) from e
+    else:
+        config, registry = _default_team_config()
+
+    async def _run():
+        root = SessionTreeNode.create_root(cwd=cwd, limit=500_000)
+        manager = SessionTreeManager(root, reserve=0, cwd=cwd)
+        reviewer_a = DeterministicReviewerStub(
+            conf=0.99, verdict="pass", source="A", tier="fast"
+        )
+        reviewer_b = DeterministicReviewerStub(
+            conf=0.99, verdict="pass", source="B", tier="strong"
+        )
+        board = Board.from_team_config(
+            config,
+            recorder=manager,
+            reviewer_a=reviewer_a,
+            reviewer_b=reviewer_b,
+            cwd=cwd,
+            per_card_budget=100_000,
+        )
+        # Pre-spawn >=1 card so RunFinal.total_cards >= 1 (Pitfall 1).
+        await board.spawn_card(risk_tier="med")
+        base_gate = PermissionGate(mode="auto", auto_yes=True)
+        handle = EMBoardHandle(
+            board=board,
+            registry=registry,
+            team_config=config,
+            manager=manager,
+            base_gate=base_gate,
+            cwd=cwd,
+        )
+        roster_descs = {spec.id: spec.description for spec in registry.entries()}
+        worker_role = "backend" if "backend" in config.roster_ids else sorted(config.roster_ids)[0]
+        em_agent = DeterministicEMStub(
+            scripted=[
+                EMPlanResponse(
+                    ops=[CreateTicketOp(original_idea=goal, worker_role=worker_role)]
+                ),
+                EMPlanResponse(ops=[NoopOp(reason="waiting")]),
+            ]
+        )
+        return await em_loop(
+            idea=goal,
+            em_handle=handle,
+            em_agent=em_agent,
+            roster_descriptions=roster_descs,
+            max_iterations=max_iterations,
+        )
+
+    try:
+        rf = asyncio.run(_run())
+    except Exception as exc:  # noqa: BLE001 — surface as a clean CLI error
+        click.echo(str(exc), err=True)
+        raise click.exceptions.Exit(2) from exc
+
+    # finalize_run() leaves idea="" (handle.py:352); thread the goal in via the
+    # frozen-replace mechanism em_loop itself uses for em_iterations.
+    import dataclasses
+
+    rf = dataclasses.replace(rf, idea=goal)
+
+    _persist_run_final(rf, cwd)
+
+    click.echo(f"run complete: {rf.idea}")
+    click.echo(
+        f"cards: total={rf.total_cards} done={rf.done_count} "
+        f"blocked={rf.blocked_count} killed={rf.killed_count} "
+        f"rescope={rf.rescope_count}"
+    )
+    click.echo(f"em_iterations: {rf.em_iterations}")
+
+    decision = click.prompt(
+        "Sign off on this run (approve/reject)",
+        type=click.Choice(["approve", "reject"]),
+    )
+    _persist_run_final(rf, cwd, decision=decision)
+    click.echo(f"sign-off recorded: {decision}")
+    raise click.exceptions.Exit(0)
+
+
 @click.group("session")
 def session_group() -> None:
     """Inspect persisted session trees (VTREE-09)."""
