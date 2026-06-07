@@ -1,0 +1,31 @@
+# team-orchestration.voss — V10 org-loop: a multi-role team with a Done gate.
+team Orchestration {
+  ceiling {
+    budget: 200000 tokens
+    scope: "src/**"
+    latency: 3600s
+  }
+
+  principles {
+    diff: "Make the smallest diff that solves the task."
+    evidence: "No factual claim without evidence."
+  }
+
+  gate done {
+    require tests_passed
+    require independent_review
+    require evidence_refs
+  }
+
+  memory {
+    decisions: ".voss/decisions"
+    sessions: ".voss/sessions"
+    semantic: ".voss-cache/semantic"
+  }
+
+  roster engineers {
+    backend { model: "cheap" }
+    frontend { model: "cheap" }
+    reviewer { model: "strong" }
+  }
+}
