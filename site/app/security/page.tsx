@@ -5,6 +5,7 @@ import {
   FolderLock,
   KeyRound,
   LockKeyhole,
+  ShieldCheck,
   SlidersHorizontal,
   SquareTerminal,
   TerminalSquare,
@@ -12,9 +13,10 @@ import {
 import type { LucideIcon } from "lucide-react";
 import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
+import Reveal, { Stagger, StaggerItem } from "@/components/Reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { site } from "@/lib/site";
+import { orgInvariants, site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: `Security - ${site.name}`,
@@ -70,9 +72,10 @@ export default function SecurityPage() {
               Agent power needs <span className="em">visible boundaries</span>.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
-              Voss treats repository automation as a security-sensitive workflow. The harness is
-              built around scoped file access, explicit permission modes, local auth, project
-              memory, and auditable sessions.
+              Voss treats repository automation as a security-sensitive workflow. The harness gives
+              one agent scoped access, explicit modes, and local auth — and the orchestration layer
+              extends the same boundaries to a whole team, where budget and scope are enforced, not
+              trusted.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
@@ -129,6 +132,45 @@ export default function SecurityPage() {
                 production sandbox, until the v0.1 security checklist is complete.
               </p>
             </aside>
+          </div>
+        </section>
+
+        <section className="border-b border-[var(--border)]">
+          <div className="mx-auto max-w-6xl px-6 py-20">
+            <div className="mb-12 max-w-2xl">
+              <Reveal>
+                <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+                  Orchestration cage
+                </p>
+              </Reveal>
+              <Reveal delay={0.05}>
+                <h2 className="display mt-3 text-4xl sm:text-5xl">
+                  Autonomy with <span className="em">hard limits</span>.
+                </h2>
+              </Reveal>
+              <Reveal delay={0.1}>
+                <p className="mt-4 text-[var(--muted)]">
+                  When Voss runs a team, the Engineering Manager is a constrained tech lead. These
+                  invariants are enforced by the runtime — they do not depend on the model behaving.
+                </p>
+              </Reveal>
+            </div>
+            <Stagger className="grid gap-3 sm:grid-cols-2">
+              {orgInvariants.map((inv) => (
+                <StaggerItem
+                  key={inv}
+                  className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--foreground)]"
+                >
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent)]" />
+                  {inv}
+                </StaggerItem>
+              ))}
+            </Stagger>
+            <div className="mt-8">
+              <Button asChild variant="outline" size="lg">
+                <Link href="/orchestration">How the cage works</Link>
+              </Button>
+            </div>
           </div>
         </section>
       </main>

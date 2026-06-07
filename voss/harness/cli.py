@@ -38,7 +38,8 @@ from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 from .render import make_renderer
 from .sandbox import SandboxError, jail_path
-from .multiagent import attach_multiagent_tools
+from .multiagent import DEFAULT_PARENT_RESERVE, attach_multiagent_tools
+from .session_tree import SessionTreeManager, SessionTreeNode, finalize_node
 from .skill_registry import SkillRegistry, default_skill_registry
 from .slash import SlashCommand, SlashRegistry
 from .subagents import (
@@ -2016,6 +2017,15 @@ def _run_repl(
     # defensive _teardown_orphans awaitable (M13-03) — captured here and run in
     # a finally on the per-turn run_turn await below so an un-gathered or
     # cancelled chat turn cannot leak orphan child tasks/panels (T-M13-02).
+    # V8 (VMAG-ROOT): create the chat session's V4 root node ONCE per REPL
+    # (session-scoped — NOT per-turn, Pitfall 4). 60_000 is the configurable
+    # chat-root envelope default (matches agent.py run_turn token_budget); the
+    # carved reserve is DEFAULT_PARENT_RESERVE (30_000). The manager is injected
+    # as node_manager so every chat spawn allocates a persisted child of it.
+    _chat_root = SessionTreeNode.create_root(cwd=cwd, limit=60_000)
+    _chat_tree = SessionTreeManager(
+        _chat_root, reserve=DEFAULT_PARENT_RESERVE, cwd=cwd
+    )
     _multiagent_teardown = attach_multiagent_tools(
         tools,
         registry=subagent_registry,
@@ -2025,6 +2035,7 @@ def _run_repl(
         model=lambda: get_config().default_model,
         gate=gate,
         cognition=bundle,
+        node_manager=_chat_tree,
     )
 
     jobs_root = jail_path(cwd, ".voss-cache") / "jobs"
@@ -2229,6 +2240,13 @@ def _run_repl(
                 result.final, confidence=result.confidence, cost_usd=result.cost_usd
             )
     finally:
+        # V8 (VMAG-ROOT): finalize the chat root on session exit (idempotent;
+        # safe on Ctrl+C / EOF / normal / TUI close). "done" is a valid existing
+        # EXIT_REASON — no new reason invented.
+        try:
+            finalize_node(_chat_root, exit_reason="done", final="", cwd=cwd)
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"chat root finalize skipped: {exc}", err=True)
         try:
             from . import lifecycle
 

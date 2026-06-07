@@ -3,9 +3,9 @@
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure → desktop ADE scaffold
 **Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`) · **V-prefixed agent-org phases** (Agent Engineering Organization Layer — design in `.planning/docs/ORCHESTRATION_LAYERS.md`; supersedes the O-track + absorbs M13)
-**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A13 (counts TBD by SPEC.md); agent-org phases V0–V12 (requirements namespaced `V*`, locked per V{n}-SPEC.md)
+**Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A13 (counts TBD by SPEC.md); agent-org phases V0–V13 (requirements namespaced `V*`, locked per V{n}-SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-06-05 — added **V0–V12 Agent Engineering Organization Layer** track (design: `.planning/docs/ORCHESTRATION_LAYERS.md`). V supersedes the O-track (V3→O2, V4→O1, V5→O3, V6→O4, V7→O5, V9→O6 — O1–O6 archived-as-superseded; O6's ready plans re-point to V9) and absorbs M13 into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VAUD/VLANG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. | 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Last updated:** 2026-06-06 — added **V13 External Developer SDK Surfaces** — V13 foundation (VSDK-01..07: strategy/matrix/tiers + `sdk.md`↔`PROTOCOL.md` reconcile + codegen pipeline off the LOCKED `/openapi.json`/`EventEnvelope` + Python/M7 linkage); per-language clients are sub-phases **V13.1 TS / V13.2 Rust / V13.3 Go / V13.4 C-ABI-doc**, each with its own SPEC, generated off the V13 pipeline; deep reader SDKs gated on V1/V3/V4/V9. | 2026-06-05 — added **V0–V12 Agent Engineering Organization Layer** track (design: `.planning/docs/ORCHESTRATION_LAYERS.md`). V supersedes the O-track (V3→O2, V4→O1, V5→O3, V6→O4, V7→O5, V9→O6 — O1–O6 archived-as-superseded; O6's ready plans re-point to V9) and absorbs M13 into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VAUD/VLANG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. | 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -24,7 +24,7 @@
 | M10 | Codebase Intelligence (CAPS-01a) | LSP polyglot + ast-grep + project index — tools, slash, auto-injection, M9 TUI panel | CODE-01..07 | TBD |
 | M11 | Voss-aware Tools (CAPS-01b) | Probable-value inspector, budget tracer, `.voss` lint-as-skill, `.voss`→Python diff viewer | VTOOL-01..05 | 5 |
 | M12 | MCP Bridge (CAPS-01c, promotes DIST-03) | Consume external MCP tools + expose harness skills as MCP server | MCP-01..0N (TBD by SPEC.md) | TBD |
-| M13 | Multi-agent in Chat (CAPS-01d) — ⊘ ABSORBED into V8 | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel`. Scope + planned plans fold into V8 (Multi-agent Chat + Live Steering). | MAG-01..MAG-08 | 8 |
+| M13 | Multi-agent in Chat (CAPS-01d) — ⊘ ABSORBED into V8 (SHIPPED 2026-06-06) | Expose runtime `spawn`/`gather` to chat session; render via M9 `SubAgentPanel`. V8 delivered the persisted unification: the M13 in-memory `M13Allocator` is superseded by the V4-backed `SessionTreeManager`; M13 artifacts retained as reference. | MAG-01..MAG-08 | 8 |
 | M14 | Long-running Tasks + Watch (CAPS-01e) | Background job manager, file-watch-driven re-checks, M9 TUI bottom-pane status strip | WATCH-01..0N (TBD by SPEC.md) | TBD |
 | M15 | Skill / Plugin Marketplace (CAPS-01f) | Third-party `.voss` skills installable via `voss skill add`; signed manifests + sandbox boundary | SKILL-01..06 | **Complete** (6/6 plans, 2026-05-20) |
 | T6 | PRD §2.4 Slash Debt (v0.1.1 patch) | Ship the slash commands PRD §2.4 promised in v0.1 (`/diff /apply /discard /budget /resume /why /cost --by-`) | SLASH-01..07 | **Complete** (3/3 plans, 2026-05-18) |
@@ -67,18 +67,23 @@
 | V4 | Session Tree + Budget Fan-out (supersedes O1, KEYSTONE) | Every agent a durable recorded node w/ own budget/scope/status/artifacts; `sum(child)+reserve ≤ parent`; no orphan/overspend; `voss session tree` | VTREE-01..10 | Planned (3 plans, 3 waves) |
 | V5 | Board State Machine (supersedes O3) | Board columns/cards/WIP/gates as orchestrator state machine; artifact-gated transitions; agents can't self-Done; `voss board` | VBOARD-01..10 | ✅ COMPLETE — Card fields + self-Done `no-reviewer` guard + `voss board` CLI; shipped O3 surface (VBOARD-01/02/04/05/06/08/09) regressed green |
 | V6 | Reviewer A/B Split (supersedes O4) | A authors bar+tests/eval from original idea; B judges narrative-blind w/ idea-divergence authority; persisted review artifacts; `voss review` | VREV-01..10 | TBD by SPEC.md |
-| V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | TBD by SPEC.md |
-| V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat` + ADE; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | Planned (3 plans, 3 waves; V8-01 RED scaffold -> V8-02 V4-backed unify+root+persist+recursion (allocator->node_manager, per-node-manager recursion, no depth constant) -> V8-03 verify+migrate+M13-absorbed) |
-| V9 | Audit Product (supersedes O6; reuse O6 plans) | Audit as primary trust product: idea/principles/team/board/diffs/tests/reviews/lineage/residual-risk; MD+JSON export; ADE session-tree render | VAUD-01..10 | TBD by SPEC.md |
+| V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | ✅ COMPLETE — `voss team run` composes V3–V6 (incl. V6 Reviewer-A/B) + em_loop, RunFinal sidecar persistence + record-only sign-off; cage re-verified; zero frozen-schema drift; O5 superseded |
+| V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat`; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | ✅ COMPLETE — 3 plans, 3 waves. V8 shipped the V4-backed persisted unification: every chat spawn is a persisted session-tree node; `M13Allocator` removed (single V4 `SessionTreeManager` governs spawns); per-node-manager recursion bounded by the viable-floor (no depth constant); chat-root envelope (60k + 30k reserve) finalized on session exit. MAG-01..09 regressed green; frozen schemas unchanged; no new deps. **ADE child-panel surface deferred to V11** (V8 uses the existing TUI only). |
+| V9 | Audit Product (supersedes O6) | Audit as primary trust product: idea/principles/team/budget/scope/board/reviewers/lineage/residual-risk; MD+JSON export; sign-off forcing function; reviewer calibration (AUD-09 ADE render → V11) | VAUD-01..10 | Plans ready to execute (7 plans, 6 waves; re-planned fresh against V4–V7 contracts, O6 = reference only) |
 | V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | TBD by SPEC.md |
 | V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | TBD by SPEC.md |
 | V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | Plans ready to execute (4 plans, 4 waves) |
+| V13 | External Developer SDK Surfaces (foundation) | SDK strategy (surface matrix, stability tiers, language priority, non-goals) + reconcile `sdk.md`↔`PROTOCOL.md` + codegen pipeline (typed clients from `/openapi.json`+`EventEnvelope`, CI drift gate) + Python/M7 linkage. Per-language clients = V13.1–.4 | VSDK-01..07 | TBD by SPEC.md |
+| V13.1 | TypeScript Local Client SDK | serve launcher, REST, SSE typed-event client, permission-reply helpers, typed event union; generated off V13 pipeline | VSDK-TS-* | TBD by SPEC.md |
+| V13.2 | Rust Local/Native Client SDK | protocol/event types, local server supervisor (reuse voss-tui), auth helpers, session/audit readers; no orch reimpl | VSDK-RS-* | TBD by SPEC.md |
+| V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; no runtime reimpl | VSDK-GO-* | TBD by SPEC.md |
+| V13.4 | C ABI/Schema Doc | JSON-schema/ABI doc only; generated headers deferred; no full SDK | VSDK-C-* | TBD by SPEC.md |
 
 ---
 
 ## V-prefixed phases: Agent Engineering Organization Layer
 
-V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** — declared roles, first-class principles, bounded budget/scope, independent review, replayable audit. Full per-phase requirements, acceptance criteria, syntax, build order, and rationale live in [`docs/ORCHESTRATION_LAYERS.md`](docs/ORCHESTRATION_LAYERS.md) (the PRD). Each phase's `V{n}-SPEC.md` locks the namespaced requirements before planning (mechanism identical to the M/O/F tracks).
+V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** — declared roles, first-class principles, bounded budget/scope, independent review, replayable audit. Full per-phase requirements, acceptance criteria, syntax, build order, and rationale live in [`docs/ORCHESTRATION_LAYERS.md`](docs/ORCHESTRATION_LAYERS.md) (the PRD). Each phase's `V{n}-SPEC.md` locks the namespaced requirements before planning (mechanism identical to the M/O/F tracks). **V13 (External Developer SDK Surfaces)** extends the track beyond the PRD's P0–P12 — it has no PRD §P section; its design source is `V13-SPEC.md` + the SDK Surface Matrix added to the PRD. Per-language clients are sub-phases **V13.1–V13.4**, each with its own SPEC, all generated off the V13 codegen pipeline.
 
 **Supersession:** the V-track is a superset, not a parallel track. It retires the O-track and absorbs M13. O1–O6 stay in the repo as historical design (`ORCHESTRATION-PLAN.md`) but are archived-as-superseded; M13 scope + planned plans fold into V8. O6's 6 ready plans re-point to V9.
 
@@ -97,6 +102,11 @@ V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** �
 | V10 Voss Language as Coordination    | P10 | extends M3 grammar        | VLANG-01..08 |
 | V11 ADE Org Integration              | P11 | builds on A12/A13         | VADE-01..10 |
 | V12 Safety & Factory Fallbacks       | P12 | new                       | VSAFE-01..07 |
+| V13 External Developer SDK Surfaces  | —   | new (post-P12; tracks M7)  | VSDK-01..07 |
+| V13.1 TypeScript Local Client SDK    | —   | generated off V13 pipeline | VSDK-TS-*   |
+| V13.2 Rust Local/Native Client SDK   | —   | generated off V13 pipeline | VSDK-RS-*   |
+| V13.3 Go Local/Headless Client SDK   | —   | generated off V13 pipeline | VSDK-GO-*   |
+| V13.4 C ABI/Schema Doc               | —   | doc-only (no full SDK)      | VSDK-C-*    |
 
 **ID namespacing:** PRD IDs are prefixed `V*` in the roadmap to avoid collisions — PRD `MAG-*`/`LANG-*`/`ADE-*` clash with M13/M3/A12 (different meanings). Inside `docs/ORCHESTRATION_LAYERS.md` the un-prefixed IDs remain; SPEC-phase maps PRD-ID → namespaced roadmap-ID.
 
@@ -638,6 +648,8 @@ Plans:
 ---
 
 ## Phase M13: Multi-agent in Chat (CAPS-01d)
+
+> ⊘ **ABSORBED into V8 — SHIPPED 2026-06-06.** V8 (V8-01/02/03) delivered the V4-backed persisted unification: the M13 in-memory `M13Allocator` was removed and replaced by the V4 `SessionTreeManager` (every chat spawn a persisted node; per-node-manager recursion bounded by the viable-floor, no depth constant; chat-root envelope finalized on exit). M13 artifacts/plans below are retained as reference (the in-memory design is superseded by V8); do not re-execute.
 
 **Goal:** Expose the runtime `spawn`/`gather` primitives (`voss_runtime/agent.py`) to the user-facing chat session. A `voss chat` user can say "research X" → harness spawns sub-agent in a side panel (M9 `SubAgentPanel`), each sub-agent has its own budget meter, message bus is visible in the TUI.
 
@@ -1764,6 +1776,8 @@ Plans:
 
 ### Phase O5: Engineering Manager Loop
 
+> ⊘ **SUPERSEDED by V7** (2026-06-06). Shipped via V7-01..03. O5 artifacts (`voss/harness/em/loop.py`, `handle.py`, `tickets.py`, `schema.py`, `stub.py`) are RETAINED as reference — V7 composed them unchanged behind `voss team run` (no reimplementation of `em_loop`, the cage, the board, or the reviewers; zero frozen-schema drift). The O5 plan list below is kept for lineage; do not re-execute.
+
 **Goal:** The EM autonomous lead loop — idea in, board run to Done, human sign-off only.
 
 **Scope:** Full-authority autonomous loop; idea→tickets/AC/DoD (worker scaffolding, not the audit bar); specialist dispatch from roster + `routing_rationale` per card; kill/re-scope with preserved lineage; board mutation bounded by the cage (cannot rewrite `ceiling`/`p`, cannot invent agents). Depends O1–O4.
@@ -1941,6 +1955,13 @@ Plans:
 
 **Cross-cutting:** EM decisions logged; misroutes auditable; killed cards inspectable; human reviews final rationale.
 
+**Status:** ✅ COMPLETE — 3 plans, 3 waves (completed 2026-06-06; supersedes O5, depends V3–V6). V7 ships the runnable delta on the shipped O5 pieces: `voss team run "<goal>"` composes the V3 team config + V4 session tree + V5 board + the V6 Reviewer-A/B two-source slots + the O5 `em_loop`, runs autonomously to all-cards-terminal on the stub provider, persists `RunFinal` to a `.voss/sessions/<root_id>/run-final.json` sidecar, and records a human approve/reject sign-off (record-only — reject reverts nothing). O5 artifacts retained as reference; cage re-verified (no `set_ceiling`/`set_p`/`extend_budget`; undeclared-role dispatch denied; kill/rescope lineage + routing_rationale intact); frozen records (RunRecord/SessionRecord/BudgetScope) field-unchanged; no new deps.
+
+Plans:
+- [x] V7-01-PLAN.md — RED scaffold `tests/harness/test_team_run_cli.py` (10 tests, real planned surface, no fictional API / no xfail mask) (VEM-CLI/PERSIST/SIGNOFF)
+- [x] V7-02-PLAN.md — `@team_group.command("run")` + `_default_team_config()` (DEFAULT_ROSTER) + `_persist_run_final()` (10-field `asdict` + `sign_off`, 0o600, root_id-derived path); pre-spawn `board.spawn_card("med")`; real V6 `reviewer_a`+`reviewer_b` injection; `asyncio.run(em_loop(...))`; `click.prompt(Choice[approve,reject])` (VEM-CLI/PERSIST/SIGNOFF)
+- [x] V7-03-PLAN.md — verify EM cage + lineage regress green; frozen-schema zero-drift + no-new-deps gate; O5-superseded bookkeeping (VEM-CLI/PERSIST/SIGNOFF)
+
 ---
 
 ### Phase V8: Multi-agent Chat + Live Steering (absorbs M13)
@@ -1959,11 +1980,21 @@ Plans:
 
 **Goal:** Make the audit trail the primary trust product.
 
-**Scope:** `voss audit <run_id>` showing original idea, active principles, team config, budget, scope, board, cards, agent actions, diffs, tests, reviews, blocked items, final status; audit distinguishes EM claims from verified evidence; shows budget allocation/consumption per node; shows scope violations + denied attempts; shows Reviewer-A and Reviewer-B outputs separately; shows killed/rescoped lineage; exports Markdown + JSON; ADE renders a navigable session tree; includes a residual-risk section. Supersedes O6 — **O6's 6 ready plans re-point here.** Depends V7.
+**Scope:** `voss audit <run_id>` (read-only, deterministic) showing original idea, active principles, team config, budget, scope, board, cards, agent actions, diffs, tests, reviews, blocked items, final status; distinguishes EM claims from verified evidence; per-node budget allocation/consumption; scope violations + denied attempts; Reviewer-A and Reviewer-B separately; killed/rescoped lineage; Markdown + JSON export; residual-risk + Leak-6; sign-off forcing function; reviewer calibration telemetry. **Re-planned fresh against the V4–V7 persistence contracts — O6 plans are reference only, not reused.** AUD-09 ADE navigable session-tree render is OUT OF SCOPE → V11. Depends V7.
 
 **Requirements (lock at SPEC):** VAUD-01..10 (PRD AUD-01..10; supersedes OAUD-01..08).
 
 **Cross-cutting:** Audit deterministic from persisted run data; usable for PR review; can detect unsupported claims. Closes/defers the `ORCHESTRATION-PLAN.md §7` residual register (incl. Leak-6).
+
+**Plans:** 7 plans, 6 waves (re-planned fresh 2026-06-06; O6 superseded).
+
+- [ ] V9-01-PLAN.md — Wave 0 RED scaffolds: 5 new test files + fixture/loader extension (.review.json + run-final.json) + glob-landmine fix expressed as a test
+- [ ] V9-02-PLAN.md — load.py (run_id param, glob-landmine filter, sidecar + run-final readers) + model.py (AuditReport + CalibrationReport dataclasses)
+- [ ] V9-03-PLAN.md — report.py AuditReport assembly + claims-vs-evidence tagging + residual-risk/Leak-6 synthesis + scope denials
+- [ ] V9-04-PLAN.md — render.py (deterministic MD/JSON/text) + __init__.py exports + voss audit CLI registered in AGENT_COMMANDS
+- [ ] V9-05-PLAN.md — calibration.py false-pass / slop-rejection rates + deterministic spot-audit hook
+- [ ] V9-06-PLAN.md — sign-off forcing function: ack gate in voss team run + .signoff-ack.json sidecar + audit approve readback
+- [ ] V9-07-PLAN.md — closeout: wire calibration into audit_cmd, full regression, frozen-schema diff guard, ROADMAP bookkeeping, human verify checkpoint
 
 ---
 
@@ -2008,6 +2039,89 @@ Plans:
 - [ ] V12-02-PLAN.md — PermissionGate/tool invocation safety overlay: irreversible confirmation, runbook/fixed-pipeline route-or-deny, normal-path preservation (Wave 2)
 - [ ] V12-03-PLAN.md — factory fallback audit persistence: additive RunRecorder/RunRecord evidence, audit marker, old-record hydration (Wave 3)
 - [ ] V12-04-PLAN.md — EM role-gate parity + weak-model scaffold context + full V12 regression selection (Wave 4)
+
+---
+
+### Phase V13: External Developer SDK Surfaces (foundation)
+
+**Goal:** Lock the external-developer SDK strategy across languages and surfaces, and build the shared contract foundation every language client generates from. Per-language client builds are sub-phases **V13.1–V13.4**. No hosted/cloud SDK; data-model-coupled reader surfaces defer until their upstream phases freeze.
+
+**Scope (V13 foundation):** (1) **SDK Surface Matrix** (language × surface × tier) in `docs/ORCHESTRATION_LAYERS.md`; (2) **five stability tiers** (stable-now / experimental / generated-from-protocol / private-internal / deferred), every public surface assigned; (3) **language priority** locked (Python in-process → TS → Rust → Go → C-ABI-only); (4) **non-goals**; (5) **reconcile** `docs/sdk.md` with `PROTOCOL.md` (local loopback client ≠ hosted/remote — remove the stale "no service, no client" claim, cross-link); (6) **Python SDK** = link gaps to M7 (SDK-01..05) + enumerate org-layer read views to promote as V1/V3/V4/V9 harden, no dup spec; (7) **codegen pipeline** — typed clients generated from `/openapi.json` + `EventEnvelope`, CI drift gate against PROTOCOL v1 (extends the H3.3 parity test). The pipeline is the substrate every V13.x consumes.
+
+**Requirements (lock at SPEC):** VSDK-01..07 (no PRD §P — V13 is post-P12; design source is `V13-SPEC.md` + the new SDK Surface Matrix in `docs/ORCHESTRATION_LAYERS.md`).
+
+**Cross-cutting:** Buildable now — PROTOCOL v1 is LOCKED and H1.14 already forces `EventEnvelope` into OpenAPI components for tagged-enum codegen. **Deep reader SDKs** (full audit/replay, team-compile helpers, capability introspection beyond protocol-exposed data) are GATED on V1 (capability schema) / V3 (team compile) / V4 (session tree — keystone) / V9 (audit product) freezing — each V13.x ships protocol-exposed readers now and deep readers when its upstream freezes. No Rust/Go reimplementation of EM/board/runtime semantics. No marketplace/plugin sandbox unless separately scoped.
+
+**Acceptance (lock at SPEC):** a developer can tell which SDK to use per integration style; `docs/sdk.md` no longer contradicts `PROTOCOL.md`; public/private boundaries are explicit; the codegen pipeline emits a typed client + event union and fails CI on PROTOCOL-v1 drift; Python SDK gaps are linked to M7 or superseded by V13.
+
+**Plans:** TBD by V13-SPEC.md.
+
+Plans:
+- [ ] TBD (run `/gsd:spec-phase` to lock VSDK-01..07)
+
+---
+### Phase V13.1: TypeScript Local Client SDK
+
+**Goal:** Highest-leverage non-Python SDK — VS Code extension, web UI, Electron/Tauri frontends, external dashboards, devtools. Generated off the V13 pipeline with thin hand-written wrappers on top. **First sub-phase** (per language priority).
+
+**Scope:** `voss serve` launcher wrapper; REST client; SSE typed-event client; permission-reply helpers; typed event union (from `EventEnvelope`); audit/session-tree readers limited to protocol-exposed data (deep readers when V9 freezes). NOT a general in-process runtime SDK.
+
+**Requirements (lock at SPEC):** VSDK-TS-01..0N (`V13.1-SPEC.md`).
+
+**Cross-cutting:** Depends on V13 codegen pipeline + drift gate. No orchestration semantics reimplemented in TS.
+
+**Plans:** TBD by V13.1-SPEC.md.
+
+Plans:
+- [ ] TBD
+
+---
+### Phase V13.2: Rust Local / Native Client SDK
+
+**Goal:** Native/local client for `voss-tui`, Tauri core, native IDE surfaces, performance-sensitive local tooling.
+
+**Scope:** Protocol/event types (codegen tagged enum off `EventEnvelope`); local server supervisor (reuse `voss-tui` child-supervision); auth helpers (handshake + bearer); session/audit readers (protocol-exposed; deep readers when V4/V9 freeze). Avoid duplicating Python orchestration semantics.
+
+**Requirements (lock at SPEC):** VSDK-RS-01..0N (`V13.2-SPEC.md`).
+
+**Cross-cutting:** Depends on V13 pipeline. Reuses existing `crates/voss-tui` / `voss-bridge` / `voss-auth` supervision + auth surfaces where present.
+
+**Plans:** TBD by V13.2-SPEC.md.
+
+Plans:
+- [ ] TBD
+
+---
+### Phase V13.3: Go Local / Headless Client SDK
+
+**Goal:** Infra/headless automation — CI bots, devops tools, lightweight local runners, repo-automation daemons.
+
+**Scope:** Start/attach to `voss serve`; create session; send message; stream events; approve/deny permission gates; export audit/session data. Local REST/SSE only — no Python FFI, no runtime-semantics reimplementation.
+
+**Requirements (lock at SPEC):** VSDK-GO-01..0N (`V13.3-SPEC.md`).
+
+**Cross-cutting:** Depends on V13 pipeline. Go's value here is infra glue, not orchestration.
+
+**Plans:** TBD by V13.3-SPEC.md.
+
+Plans:
+- [ ] TBD
+
+---
+### Phase V13.4: C ABI / Schema Documentation
+
+**Goal:** NOT a full SDK. Stable JSON-schema / ABI documentation for native embedders, plus an optional tiny FFI around a local client only if a concrete native embedder demands it.
+
+**Scope:** JSON-schema/ABI doc for the protocol contract; (deferred) C headers generated from protocol structs much later. No high-level C ergonomics — Voss's value is orchestration, event streams, JSON contracts, and workflow state, all a poor C fit.
+
+**Requirements (lock at SPEC):** VSDK-C-01..0N (`V13.4-SPEC.md`).
+
+**Cross-cutting:** Doc-only unless a concrete native embedder appears. Lowest priority; may stay deferred indefinitely.
+
+**Plans:** TBD by V13.4-SPEC.md.
+
+Plans:
+- [ ] TBD
 
 ---
 
@@ -2312,7 +2426,7 @@ state, not a Jira-style board).
 Likely shape: extend `Card` schema (add `assignee`, `sprint_id`, `estimate`)
 rather than a parallel store; sprint grouping + velocity over the existing
 board; ADE sprint view as a V11 panel. Two build paths — (1) extend
-**V5 + V11** in place, or (2) standalone phase (V13 / A14) atop V5. Note: the
+**V5 + V11** in place, or (2) standalone phase (A14 / next free V) atop V5. Note: the
 external `/jira:*` skill covers Jira integration but is not native Voss board
 tooling. Decide native-vs-integration at promotion.
 

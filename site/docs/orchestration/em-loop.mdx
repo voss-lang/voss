@@ -1,0 +1,71 @@
+---
+title: "Engineering Manager loop"
+description: "The autonomous orchestrator: a constrained tech lead that turns one idea into scoped cards, assigns roles, integrates results, and produces a final run record."
+---
+
+The Engineering Manager (EM) loop is the orchestrator. It is deliberately constrained — a tech lead that can decompose and delegate, but cannot invent roles, raise budget, or widen scope.
+
+Run it with:
+
+```bash
+voss team run "Add password reset flow with tests"
+voss team run "<goal>" --cwd . --max-iterations 50
+```
+
+## The loop
+
+`voss team run` composes the team config, board, session tree, and the Reviewer-A/B pair, then drives `em_loop` to completion and persists a final record.
+
+```text
+human idea
+  -> derive cards (acceptance criteria + domain + risk tier)
+  -> assign role from the declared roster (+ routing rationale)
+  -> allocate budget and scope down the session tree
+  -> dispatch workers
+  -> tick the board
+  -> route blockers (kill or rescope)
+  -> request independent review
+  -> integrate results
+  -> finalize the run record
+```
+
+Each iteration: check whether all cards are terminal, snapshot the board, ask the EM agent for a plan, execute its ops, then tick the board once. The loop ends when every card is `Done` or `Blocked`, when `max-iterations` is reached (default `50`), or when the budget is exhausted.
+
+## EM operations
+
+The EM agent emits a plan of typed ops — it never mutates state directly:
+
+| Op | Effect |
+| --- | --- |
+| `create_ticket` | Derive a card from the idea, with acceptance criteria, domain (`code`/`ai`), and risk tier (`low`/`med`/`high`) |
+| `set_ac` / `set_dod` | Set acceptance criteria / definition of done |
+| `dispatch_card` | Assign a card to a role, with a routing rationale and candidates considered |
+| `kill_card` | Terminate a card, recording a kill rationale |
+| `rescope_card` | Replace a card with a successor under a new role/scope |
+| `noop` | Explicit no-op |
+
+## The cage
+
+The cage is enforced by API surface, not by trusting the model. The handle the EM drives has **no** `set_ceiling`, `set_budget`, `extend_budget`, `register_role`, or `mutate_team_config` method. Violations raise `EMCageViolation(op, reason)`:
+
+- Dispatching or ticketing a `worker_role` not in the roster.
+- Rescoping to a scope not contained in the ceiling.
+- Killing or rescoping a card already in `Done`.
+
+A single violating op is logged and collected — it does not abort the iteration (audit-not-abort). Budget exhaustion forces all open cards to `Blocked` and ends the run.
+
+## The final record
+
+When the loop ends it persists a `RunFinal` record:
+
+| Field | Meaning |
+| --- | --- |
+| `root_id` | Session-tree root for the run |
+| `idea` | The original human idea |
+| `total_cards` | Cards created |
+| `done_count` / `blocked_count` | Terminal outcomes |
+| `killed_count` / `rescope_count` | Kill and rescope lineage counts |
+| `em_iterations` | Loop iterations consumed |
+| `ts` | Finalization timestamp |
+
+Kill and rescope events persist their own lineage records, so a killed or rescoped card stays inspectable. Inspect the result with [`voss review`](/orchestration/reviewers), [`voss board`](/orchestration/board), and [`voss session tree`](/orchestration/session-tree).

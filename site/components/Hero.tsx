@@ -14,13 +14,13 @@ export default function Hero() {
         <div className="min-w-0">
           <Reveal>
             <p className="mb-6 inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 font-mono text-xs text-[var(--muted)]">
-              Terminal harness + .voss control language
+              Agent engineering organization layer
             </p>
           </Reveal>
           <Reveal delay={0.05}>
             <h1 className="display text-balance text-[clamp(2.5rem,6vw,4.5rem)]">
-              AI coding agents,<br />
-              <span className="em">bounded by design.</span>
+              Run AI agents like an<br />
+              <span className="em">engineering team.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.1}>

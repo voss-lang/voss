@@ -1,0 +1,58 @@
+---
+title: "Reviewers"
+description: "The Reviewer-A / Reviewer-B split: independent, narrative-blind verification that gates Done. Worker agents cannot author their own final gate."
+---
+
+Verification is independent by construction. Two reviewers with different context packets gate completion, and neither is the worker who produced the artifact.
+
+Inspect a run's reviews:
+
+```bash
+voss review            # latest run
+voss review <run_id>   # a specific run
+```
+
+`voss review` is read-only — it reads persisted `.review.json` sidecars and constructs no live providers.
+
+## Reviewer-A — authors the bar
+
+Reviewer-A derives the verification bar from the **original human idea** — not the EM's acceptance criteria, tickets, or any prior review. It runs with a fresh memory per card so there is no cross-card bleed.
+
+- For **code** cards it authors a test, runs it via `shell_run`, and the exit code is the verdict.
+- For **AI** cards it authors a PASS/FAIL rubric, then judges against it.
+
+Worker agents cannot author their own final gate.
+
+## Reviewer-B — judges narrative-blind
+
+Reviewer-B judges the artifact, diff, and Reviewer-A's verification summary using **only the card's own attributes** — original idea, acceptance criteria, artifact, diff, and A's summary. It sees no EM plan, tickets, or A's reasoning process, so it cannot be talked into a pass by the orchestrator's narrative.
+
+It runs at two tiers: `fast` at intermediate gates, `strong` at the gate to `Done`. If Reviewer-A's verification has **diverged from what the original idea requires**, Reviewer-B can return `block` to abort the lineage.
+
+## The verdict
+
+Both reviewers emit a frozen `ReviewerVerdict`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `conf` | `float` 0–1 | Confidence |
+| `source` | `"A"` \| `"B"` | Which reviewer authored it |
+| `tier` | `"fast"` \| `"strong"` | Model tier used |
+| `verdict` | `"pass"` \| `"fail"` \| `"block"` | `block` aborts the lineage |
+| `notes` | `str` | Reviewer text; appended to retry notes on fail |
+| `evidence_refs` | `tuple[str, ...]` | `file:line`, test names, eval refs |
+| `domain_inferred` | `"code"` \| `"ai"` \| `"docs"` \| `"unknown"` | Inferred work domain |
+
+## Persisted artifacts
+
+Each card writes a `<node_id>.review.json` sidecar (mode `0o600`) next to its session-tree node, under `.voss/sessions/<root_id>/`:
+
+```json
+{
+  "a_verification": { "test_path_or_rubric": "...", "result": "pass", "notes": "..." },
+  "b_verdict": { "conf": 0.91, "source": "B", "verdict": "pass", "...": "..." },
+  "final_outcome": "Done"
+}
+```
+
+These sidecars are the evidence the [board](/orchestration/board) gates Done on, and the input to [`voss review`](/orchestration/reviewers).

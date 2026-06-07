@@ -16,15 +16,6 @@ export const metadata: Metadata = {
   title: `${site.name} - ${site.tagline}`,
   description: site.description,
   metadataBase: new URL("https://voss.dev"),
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "64x64", type: "image/x-icon" },
-      { url: "/icon.svg", sizes: "any", type: "image/svg+xml" },
-      { url: "/icon.png", sizes: "512x512", type: "image/png" },
-    ],
-    shortcut: "/favicon.ico",
-    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
-  },
   openGraph: {
     title: `${site.name} - ${site.tagline}`,
     description: site.description,

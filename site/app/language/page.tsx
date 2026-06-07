@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Boxes, CircleDollarSign, Code2, Network, Workflow } from "lucide-react";
+import { ArrowRight, Boxes, CircleDollarSign, Code2, Database, Network, ShieldCheck, Users, Workflow } from "lucide-react";
 import { codeToHtml } from "shiki";
 import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
@@ -46,6 +46,45 @@ const CONSTRUCTS = [
   },
 ] as const;
 
+const COORDINATION = [
+  {
+    name: "principles { }",
+    icon: ShieldCheck,
+    title: "Engineering culture as config",
+    body: "Declare the principles every agent inherits — smallest diff, no claim without evidence, stay in scope. They compile to immutable config and are recorded in the audit.",
+  },
+  {
+    name: "team \"name\" { }",
+    icon: Users,
+    title: "The roster is the source of truth",
+    body: "Roles, scope, budget, tools, and model tier compile to a frozen team config. The EM can only dispatch to declared roles, and scope can never widen past the ceiling.",
+  },
+  {
+    name: "gate done { }",
+    icon: Workflow,
+    title: "Completion has requirements",
+    body: "A done gate names what must hold before a card ships: tests passed, independent review, evidence references. Agents can't mark their own work done.",
+  },
+  {
+    name: "memory { }",
+    icon: Database,
+    title: "Institutional knowledge has a home",
+    body: "Point decisions, sessions, and semantic memory at durable paths so context — and the session tree — survives across runs.",
+  },
+] as const;
+
+const COORD_SAMPLE = `gate done {
+  require tests_passed
+  require independent_review
+  require evidence_refs
+}
+
+memory {
+  decisions: ".voss/decisions"
+  sessions:  ".voss/sessions"
+  semantic:  ".voss-cache/semantic"
+}`;
+
 const SAMPLE = `agent Classifier {
   ctx(token_budget: 1000) {
     intent = ask "Classify this request" probable<string>
@@ -60,6 +99,10 @@ const SAMPLE = `agent Classifier {
 
 export default async function LanguagePage() {
   const sampleHtml = await codeToHtml(SAMPLE.trimEnd(), {
+    lang: "python",
+    theme: "github-dark-default",
+  });
+  const coordHtml = await codeToHtml(COORD_SAMPLE.trimEnd(), {
     lang: "python",
     theme: "github-dark-default",
   });
@@ -108,9 +151,13 @@ export default async function LanguagePage() {
         <section className="border-b border-[var(--border)]">
           <div className="mx-auto max-w-6xl px-6 py-20">
             <div className="mb-12 max-w-2xl">
-              <h2 className="display text-4xl sm:text-5xl">The five constructs.</h2>
+              <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+                Runtime constructs
+              </p>
+              <h2 className="display mt-3 text-4xl sm:text-5xl">Inside one agent.</h2>
               <p className="mt-4 text-[var(--muted)]">
-                These are the pieces Voss treats as first-class instead of framework convention.
+                The pieces Voss treats as first-class instead of framework convention — confidence,
+                context, routing, budget, and concurrency.
               </p>
             </div>
             <div className="grid gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] md:grid-cols-2">
@@ -130,6 +177,60 @@ export default async function LanguagePage() {
                   </article>
                 );
               })}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-[var(--border)]">
+          <div className="mx-auto max-w-6xl px-6 py-20">
+            <div className="mb-12 max-w-2xl">
+              <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+                Coordination spec
+              </p>
+              <h2 className="display mt-3 text-4xl sm:text-5xl">
+                Across a whole <span className="em">team</span>.
+              </h2>
+              <p className="mt-4 text-[var(--muted)]">
+                The same language scales up from one agent to an engineering organization. Roles,
+                principles, gates, and memory become declared, compiler-checked coordination — so a
+                team run is shorter and clearer than the equivalent Python.
+              </p>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+              <div className="grid gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] sm:grid-cols-2">
+                {COORDINATION.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <article key={item.name} className="bg-[var(--surface)] p-6 transition hover:bg-[var(--surface-2)]">
+                      <div className="mb-4 flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--background)] text-[var(--accent)]">
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <span className="font-mono text-sm text-[var(--accent)]">{item.name}</span>
+                      </div>
+                      <h3 className="text-lg font-medium">{item.title}</h3>
+                      <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.body}</p>
+                    </article>
+                  );
+                })}
+              </div>
+              <div
+                className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 font-mono text-sm leading-7 [&_pre]:!bg-transparent [&_pre]:text-xs [&_pre]:leading-6 sm:[&_pre]:text-sm"
+                dangerouslySetInnerHTML={{ __html: coordHtml }}
+              />
+            </div>
+            <div className="mt-10 flex flex-wrap gap-3">
+              <Button asChild size="lg">
+                <Link href="/orchestration">
+                  See it orchestrate
+                  <ArrowRight />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href={site.prdUrl} target="_blank" rel="noreferrer">
+                  PRD
+                </Link>
+              </Button>
             </div>
           </div>
         </section>

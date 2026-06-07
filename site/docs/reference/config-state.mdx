@@ -28,6 +28,8 @@ VOSS.md
   constraints.yml
   permissions.yml
   validation.yml
+  principles.yml      # project engineering principles (orchestration)
+  team.voss           # declared role roster (orchestration)
   memory/
   plans/
   sessions/
@@ -35,6 +37,8 @@ VOSS.md
 ```
 
 `VOSS.md` is injected into harness context at session start. Machine fences inside it let Voss update architecture notes without overwriting surrounding human prose.
+
+`principles.yml` and `team.voss` drive the [orchestration layer](/orchestration/overview): `principles.yml` extends or overrides the six default [principles](/orchestration/principles), and `team.voss` declares the [role roster](/orchestration/team-config) validated by `voss team check`.
 
 ## Cache state
 
@@ -52,6 +56,18 @@ You should be able to delete cache state and rebuild it.
 ## Session state
 
 Current project sessions live under `.voss/sessions/`. Legacy sessions in the old user-state directory are read-only via `voss sessions --all`.
+
+A team run also persists its [session tree](/orchestration/session-tree) here, one file per agent node, plus per-card review sidecars:
+
+```text
+.voss/sessions/
+  <session_id>.json                 # harness session
+  <root_id>/
+    <node_id>.json                  # session-tree node (budget, scope, status)
+    <node_id>.review.json           # Reviewer-A + Reviewer-B sidecar
+```
+
+Node and review files are written with `0o600` permissions.
 
 <Note>
 Do not commit secrets to `VOSS.md`, `.voss/`, or `.voss-cache/`. Voss avoids storing provider credentials, but prompt text and project notes are still local files.

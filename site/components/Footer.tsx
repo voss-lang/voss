@@ -7,8 +7,10 @@ import {
   GitBranch,
   Layers3,
   Map,
+  ScrollText,
   ShieldCheck,
   TerminalSquare,
+  Workflow,
 } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -42,6 +44,18 @@ export default function Footer() {
           <div>
             <h2 className="font-mono text-sm uppercase tracking-widest text-[var(--foreground)]">Product</h2>
             <div className="mt-4 flex flex-col items-start gap-2">
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/orchestration">
+                  <Workflow />
+                  Orchestration
+                </Link>
+              </Button>
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/audit">
+                  <ScrollText />
+                  Audit
+                </Link>
+              </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
                 <Link href="/ade">
                   <Layers3 />

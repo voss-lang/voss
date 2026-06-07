@@ -1,0 +1,89 @@
+---
+title: "Team config"
+description: "Declare the role roster, scope, budget, tools, and model tier in .voss team{} — the compiler-checked source of truth for a team run."
+---
+
+A team is the declarative source of truth for who works on a run. It compiles to a frozen config plus a subagent registry, so the Engineering Manager can only dispatch to roles that were declared.
+
+By default `voss team check` reads `.voss/team.voss`.
+
+## Grammar
+
+```text
+team "default" {
+  ceiling {
+    budget: 120000 tokens
+    scope: ["src/**", "tests/**", "docs/**"]
+    latency: 30m
+  }
+
+  principles {
+    diff: "Smallest diff that solves it"
+    evidence: "No claim without evidence"
+  }
+
+  role architect {
+    model: "strong"
+    mode:  "plan"
+    scope: ["src/**", "docs/**"]
+    tools: ["fs", "code", "git"]
+    budget: 12000 tokens
+  }
+
+  role backend {
+    model: "cheap"
+    mode:  "edit"
+    scope: ["src/server/**", "tests/server/**"]
+    tools: ["fs", "code", "test", "git"]
+    budget: 24000 tokens
+  }
+
+  role reviewer {
+    model: "strong"
+    mode:  "plan"
+    scope: ["src/**", "tests/**"]
+    tools: ["fs", "code", "test", "git"]
+    budget: 16000 tokens
+  }
+}
+```
+
+## What a role carries
+
+Each role compiles to a spec with its own:
+
+- **model** tier — `strong` / `cheap` (mapped to concrete providers)
+- **mode** — `plan` (read-only) or `edit` (scoped writes)
+- **scope** — glob set, compile-time contained inside the ceiling
+- **tools** — [capability groups](/reference/capabilities): `fs`, `git`, `test`, `shell`, `net`, `code`, `memory`, `review`, `mcp`
+- **budget** — token allowance drawn from the ceiling
+
+## The default roster
+
+The shipped roster includes `architect`, `backend`, `frontend`, `tester`, `reviewer`, `skeptic`, and `docs`.
+
+## Validation
+
+`voss team check` runs the `compile_team` validator. It fails the build — not the run — when something is wrong.
+
+```bash
+voss team check                 # validates .voss/team.voss
+voss team check path/to.voss    # validate a specific file
+voss team check --json          # machine-readable result
+```
+
+Compile-time failures include:
+
+| Failure | Why it fails |
+| --- | --- |
+| Role scope widens past the ceiling | Scope must be contained in the global ceiling |
+| Role budget exceeds the ceiling | Budget is a hard boundary, not a hint |
+| Unknown capability group in `tools` | Tools are filtered through the capability registry |
+| Unknown model tier | Emits an actionable diagnostic |
+| Dispatch to an undeclared role | The EM cage rejects it at runtime |
+
+The legacy `explorer` / `worker` / `reviewer` subagent path remains backward-compatible.
+
+<Note>
+Scope and budget containment are checked at compile time so an invalid team can never start a run. See the [Engineering Manager loop](/orchestration/em-loop) for how the roster is enforced during dispatch.
+</Note>

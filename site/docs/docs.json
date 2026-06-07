@@ -30,6 +30,10 @@
         "href": "https://voss.dev"
       },
       {
+        "label": "Orchestration",
+        "href": "/orchestration/overview"
+      },
+      {
         "label": "Harness",
         "href": "/harness/overview"
       },
@@ -114,6 +118,19 @@
         ]
       },
       {
+        "group": "Orchestration",
+        "pages": [
+          "orchestration/overview",
+          "orchestration/team-config",
+          "orchestration/em-loop",
+          "orchestration/board",
+          "orchestration/reviewers",
+          "orchestration/session-tree",
+          "orchestration/principles",
+          "orchestration/audit"
+        ]
+      },
+      {
         "group": "Language",
         "pages": [
           "language/overview",
@@ -134,7 +151,9 @@
         "group": "Reference",
         "pages": [
           "reference/cli",
+          "reference/capabilities",
           "reference/config-state",
+          "reference/glossary",
           "reference/troubleshooting"
         ]
       },
@@ -148,6 +167,7 @@
       {
         "group": "Changelog",
         "pages": [
+          "changelog/2026-06-06",
           "changelog/2026-05-29",
           "changelog/2026-05-22"
         ]

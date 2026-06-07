@@ -1,0 +1,21 @@
+---
+title: "Glossary"
+description: "Shared vocabulary for the Voss agent engineering organization layer."
+---
+
+| Term | Meaning |
+| --- | --- |
+| **capability** | A single tool in the agent toolbelt (e.g. `fs_edit`, `shell_run`) — the unit of what an agent can *do*. See [Capabilities](/reference/capabilities). |
+| **role** | A declared specialist (e.g. `backend`, `reviewer`) with its own scope, budget, and tool subset, expressed in [`.voss team{}`](/orchestration/team-config). |
+| **agent** | A single bounded run of the model-driven turn loop, with a toolbelt, memory, and budget. |
+| **subagent** | A child agent spawned by a parent for a delegated, bounded task, returning its result to the parent. |
+| **EM** | [Engineering Manager loop](/orchestration/em-loop) — the orchestrator that decomposes work into cards, assigns roles, partitions budget, and integrates results. |
+| **card** | A scoped unit of work the EM creates and assigns to a role, carrying its own budget and permission envelope. Backed by a session-tree node. |
+| **board** | The [work-tracking surface](/orchestration/board) holding cards and their column/gate state. |
+| **gate** | A blocking predicate a card must clear (e.g. review passed, tests green) before it advances. |
+| **verifier** | An automated check (tests, evals) that produces the pass/fail evidence a gate requires. |
+| **reviewer** | An [independent agent](/orchestration/reviewers), distinct from the worker, that critiques a card before it is accepted. |
+| **session tree** | The [tree of durable nodes](/orchestration/session-tree) — one per agent — carrying budget, scope, status, and transitions. |
+| **audit** | The replayable [record of a run](/orchestration/audit): RunFinal records, review sidecars, and session-tree nodes. |
+| **principle** | A first-class [engineering-culture statement](/orchestration/principles) injected into every agent context. |
+| **ceiling** | The global budget + scope envelope a team declares; no role may exceed it. |

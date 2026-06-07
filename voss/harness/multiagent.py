@@ -1,41 +1,19 @@
-"""M13 multi-agent-in-chat foundation — in-memory, chat-turn-scoped.
+"""Multi-agent-in-chat fan-out tools — V4-persisted (V8 VMAG-10/UNIFY/07/ROOT).
 
-This module is the pure, unit-testable core every later M13 wave builds on:
-the `M13Allocator` (even-split-of-reserve budget allocator with an
-`asyncio.Lock` race-safe check-and-allocate, idempotent exactly-once
-`release`, and a viable-floor spawn denial that bounds recursion WITHOUT a
-depth constant), plus the `ChildHandle` dataclass and `ChildRegistry`
-in-memory child tracker.
+The four non-blocking fan-out tools (`subagent_spawn`/`steer`/`status`/`gather`),
+the `ChildHandle` dataclass, the `ChildRegistry` in-memory child tracker, and the
+`PanelBridgeRenderer`. V8 unified the budget+persistence backend onto the V4
+`SessionTreeManager` (the prior in-memory even-split allocator was removed):
+every spawn allocates a persisted `SessionTreeNode` child of the level's node,
+and recursion builds a per-node child manager (reserve = `VIABLE_FLOOR`) so each
+level divides only its own node's envelope. The chat-root manager is owned and
+injected by `cli.py`.
 
-It is a NEW module so `voss/harness/subagents.py` stays byte-stable and the
-`tests/harness/test_subagent_recursion.py` pinning test remains green. The
-allocator is LIFTED (copied, not imported) from O1-PATTERNS Pattern 2 — there
-is intentionally NO import of `voss/harness/session_tree.py` or any other O1
-module. O1 owns persistence; M13 keeps the registry/handle purely in memory
-(M13-CONTEXT D-02: no disk, no global singleton).
-
-────────────────────────────────────────────────────────────────────────────
-RESEARCH Open Question A1 — resolved in-module (M13-RESEARCH "Reserve source")
-────────────────────────────────────────────────────────────────────────────
-Chat does not pass a parent budget today: the chat `run_turn` call
-(cli.py:1695) passes NO `token_budget`, so `_run_turn_exec` falls back to the
-DEFAULT signature default — verbatim, `voss/harness/agent.py` line 419:
-
-    token_budget: int = 60_000
-
-(`async def run_turn(...)` signature; VERIFIED this plan). The parent turn is
-therefore wrapped in `ContextScope(token_budget=60_000, ...)` (agent.py:580).
-There is no per-spawn budget anywhere in chat today. M13 must INVENT the
-reserve (M13-CONTEXT D-05: "a parent reserve is carved"). The two constants
-below are the Claude's-discretion resolution of A1 (CONTEXT "Claude's
-Discretion": exact viable-budget-floor threshold is a sensible default that
-must bound recursion); both cite the agent.py:419 `token_budget: int = 60_000`
-anchor.
-
-NOTE: no `depth` / `max_depth` / `MAX_DEPTH` / `DEPTH_LIMIT` /
-`RECURSION_LIMIT` identifier appears anywhere in this module by design
-(M13-RESEARCH line 442; preserves `test_subagent_recursion.py`). Recursion is
-bounded ONLY by the viable-floor `None` return in `M13Allocator.allocate`.
+Budget constants `DEFAULT_PARENT_RESERVE` (30_000, the chat-root reserve, sourced
+from agent.py's `token_budget: int = 60_000` chat default) and `VIABLE_FLOOR`
+(2_000) live here. No recursion-depth ceiling constant appears anywhere —
+recursion is bounded SOLELY by the viable-floor denial in `subagent_spawn`
+(budget-structural, preserves `test_subagent_recursion.py`).
 """
 from __future__ import annotations
 
@@ -65,94 +43,10 @@ DEFAULT_PARENT_RESERVE: int = 30_000
 #: subagents.py module, not this one).
 DEFAULT_VIABLE_FLOOR: int = 2_000
 
-
-class M13Allocator:
-    """Even-split-of-reserve, in-memory, chat-turn-scoped budget allocator.
-
-    NOT the O1 ``SessionTreeManager`` — LIFTED (copied, not imported) from
-    O1-PATTERNS Pattern 2. The ``asyncio.Lock`` is what makes the
-    check-and-allocate atomic on the single asyncio loop (children are
-    ``create_task`` coroutines on it); ``asyncio.Lock`` not ``threading.Lock``
-    (M13-RESEARCH line 307 — a thread lock would deadlock the loop).
-
-    Invariant (asserted by ``TestNoOversell``): at all times, including under
-    racing ``asyncio.gather`` allocations and double ``release``,
-    ``sum(snapshot().values()) <= reserve``.
-
-    Recursion bound: ``allocate`` returns ``None`` once the even slice falls
-    below :attr:`VIABLE_FLOOR`. A child's sub-allocator is constructed with
-    ``reserve = child_allotment`` (D-07, slice-scoped); each level only ever
-    divides its OWN reserve, so the per-level invariant compounds to a global
-    one and recursion terminates without any depth/max_depth constant.
-    """
-
-    #: Class-level viable floor (the recursion bound). Read off the class by
-    #: ``TestNoOversell`` as ``M13Allocator.VIABLE_FLOOR``; also surfaced
-    #: per-instance via the :attr:`viable_floor` property so a recursive
-    #: sub-allocator can read it back (D-07).
-    VIABLE_FLOOR: int = DEFAULT_VIABLE_FLOOR
-
-    def __init__(self, *, reserve: int) -> None:
-        self._reserve = reserve
-        self._active: dict[str, int] = {}            # handle -> current allotment
-        self._lock = asyncio.Lock()                  # D-06 single-loop guard
-        self._credited_finished: set[str] = set()    # exactly-once rebalance guard
-
-    @property
-    def viable_floor(self) -> int:
-        """The recursion-bound floor (the recursive sub-allocator reads this
-        back per D-07)."""
-        return self.VIABLE_FLOOR
-
-    async def allocate(self, handle: str) -> int | None:
-        """Race-safe check-and-allocate. Returns the granted allotment, or
-        ``None`` when the even slice would fall below the viable floor (the
-        D-07 denial — this, and only this, bounds recursion)."""
-        async with self._lock:                       # D-06 race-safe check-and-allocate
-            n = len(self._active) + 1                # include the new child
-            even = self._reserve // n
-            if even < self.VIABLE_FLOOR:             # D-07 viable-floor -> bounds recursion
-                return None                          # caller emits <denied: ...>
-            self._active[handle] = even
-            self._rebalance_locked()                 # even-split existing too
-            return self._active[handle]
-
-    def release(self, handle: str) -> None:
-        """Mark a finished child's slice free. Idempotent: a second
-        ``release`` for the same handle is a no-op (MAG-04 exactly-once — the
-        must-not-happen double-credit guard). The freed slice is folded into
-        survivors on the next :meth:`rebalance` (or immediately here)."""
-        if handle in self._credited_finished:        # MAG-04 exactly-once
-            return
-        self._credited_finished.add(handle)
-        self._active.pop(handle, None)
-        self._rebalance_locked()                      # freed slice -> survivors
-
-    async def rebalance(self) -> None:
-        """Re-even-split the reserve across the currently-active handles.
-
-        Public async entry point (the locked ``TestEvenSplitRebalance`` /
-        ``TestNoOversell`` call ``await allocator.rebalance()`` after a
-        synchronous ``release``). Lock-guarded for parity with
-        :meth:`allocate` under racing callers."""
-        async with self._lock:
-            self._rebalance_locked()
-
-    def _rebalance_locked(self) -> None:
-        """Even-split the reserve across active handles. Caller already holds
-        (or does not need) the lock — the name encodes the precondition; do
-        NOT re-acquire ``self._lock`` here."""
-        if not self._active:
-            return
-        even = self._reserve // len(self._active)
-        for h in self._active:
-            self._active[h] = even
-        # INVARIANT: sum(self._active.values()) == even * len <= reserve
-
-    def snapshot(self) -> dict[str, int]:
-        """Defensive copy of the live handle -> allotment map (consumed later
-        by the panel BudgetMeter ticks)."""
-        return dict(self._active)
+#: V8 alias used by the inline even-split denial in ``subagent_spawn``. A
+#: budget floor (the recursion bound) — NOT a depth constant; it stays in this
+#: module and never appears in subagents.py (V8-RESEARCH Pitfall 6).
+VIABLE_FLOOR: int = DEFAULT_VIABLE_FLOOR
 
 
 @dataclass
@@ -169,7 +63,7 @@ class ChildHandle:
     #: The detached ``asyncio.Task`` running the child ``run_turn`` (typed
     #: ``Any`` so M13-02 imports/awaits nothing; M13-03 populates it).
     task: Any = None
-    #: Budget slice received from ``M13Allocator.allocate``.
+    #: Budget slice (the child node's envelope limit) granted at spawn.
     allotment: int = 0
     #: Lifecycle flag flipped by the gather path.
     done: bool = False
@@ -182,10 +76,13 @@ class ChildHandle:
     queue: Any = None
     #: M13-03 ADDITIVE: the ``SubAgentPanel`` parent_id (== :attr:`id`).
     panel_id: str = ""
-    #: M13-03 ADDITIVE (D-07, slice-scoped): an optional per-child
-    #: sub-allocator (``reserve = allotment``) the recursive wave (M13-05)
-    #: hands children of children; unused by first-level fan-out here.
+    #: DEPRECATED in V8 (kept only for positional back-compat; always set to
+    #: None at construction). The recursive sub-allocator is now a per-node V4
+    #: ``SessionTreeManager`` built in ``subagent_spawn``, not stored here.
     sub_allocator: Any = None
+    #: V8 ADDITIVE: the persisted V4 ``SessionTreeNode`` for this child, used to
+    #: ``finalize_node`` on gather/teardown. Last field (positional back-compat).
+    node: Any = None
 
 
 class ChildRegistry:
@@ -225,9 +122,9 @@ def new_handle_id() -> str:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# M13-03 Wave 2A — non-blocking fan-out tools, panel bridge, attach entry,
-# defensive orphan-teardown net. EXTENDS this M13-02 module (no recreation of
-# M13Allocator / ChildHandle / ChildRegistry above; stdlib + in-repo only).
+# Non-blocking fan-out tools, panel bridge, attach entry, defensive
+# orphan-teardown net (extends the ChildHandle / ChildRegistry above;
+# stdlib + in-repo only).
 # ════════════════════════════════════════════════════════════════════════════
 
 from pathlib import Path  # noqa: E402  (in-repo, additive — Analog A param shape)
@@ -237,6 +134,12 @@ from voss_runtime import EpisodicMemory, tool  # noqa: E402
 
 from .agent import run_turn  # noqa: E402
 from .permissions import PermissionGate  # noqa: E402
+from .session_tree import (  # noqa: E402
+    BudgetAllocationError,
+    SessionTreeManager,
+    SessionTreeNode,
+    finalize_node,
+)
 from .subagents import SubagentRegistry, agent_task  # noqa: E402
 from .tools import ToolEntry, make_toolset  # noqa: E402
 
@@ -286,28 +189,27 @@ def attach_multiagent_tools(
     model: str | Callable[[], str],
     gate: PermissionGate,
     cognition: Any = None,
-    allocator: M13Allocator | None = None,
+    node_manager: SessionTreeManager | None = None,
 ) -> Callable[[], Any]:
-    """Analog A — register the four non-blocking M13 fan-out tools.
+    """Analog A — register the four non-blocking fan-out tools (V8 V4-backed).
 
     SAME parameter list as ``subagents.attach_subagent_tool``, plus the
-    M13-05 ADDITIVE keyword-only ``allocator``. Closes over a fresh
+    keyword-only ``node_manager`` — the V4 :class:`SessionTreeManager` that
+    governs budget AND persistence for THIS nesting level. Closes over a fresh
     chat-turn-scoped :class:`ChildRegistry` and the base renderer.
 
-    ``allocator`` is the slice-scoped budget for THIS nesting level. When
-    omitted (the top-level chat-turn attach, M13-03 behavior) a fresh
-    :class:`M13Allocator` is constructed with the M13-02 OQ-A1
-    ``DEFAULT_PARENT_RESERVE`` reserve. The M13-05 recursive attach (below,
-    inside ``subagent_spawn``) passes the child's own slice-scoped
-    ``sub_allocator`` (``reserve = child.allotment``, D-07) so each nesting
-    level only ever divides its OWN reserve — the recursive no-oversell
-    invariant holds structurally with NO new accounting and recursion is
-    bounded SOLELY by the existing viable-floor ``None`` denial (no
-    depth/max_depth constant anywhere).
+    Each ``subagent_spawn`` allocates a persisted child node via
+    ``node_manager.allocate_child`` and, for recursion, builds a per-node child
+    ``SessionTreeManager`` (``reserve = VIABLE_FLOOR``) which it injects as the
+    recursive ``node_manager=``. Every level only ever divides its OWN node's
+    envelope, so the no-oversell invariant holds structurally and recursion is
+    bounded SOLELY by the viable-floor denial (no depth/max_depth constant).
+    The chat-root manager is owned and injected by ``cli.py`` — there is no
+    in-module construction; ``node_manager`` is required in practice.
 
-    Returns the ``_teardown_orphans`` callable so the cli wave (M13-06) can
-    invoke it at chat-turn exit; ``subagent_gather`` is itself idempotently
-    re-callable as a second safety net.
+    Returns the ``_teardown_orphans`` callable so the cli can invoke it at
+    chat-turn exit; ``subagent_gather`` is itself idempotently re-callable as a
+    second safety net.
 
     Tool names are FINAL and distinct from ``SPAWN_TOOL_NAME="subagent_run"``
     (the back-compat anchor, not shadowed): ``subagent_spawn`` /
@@ -315,14 +217,17 @@ def attach_multiagent_tools(
     """
     base_renderer = renderer
     child_registry = ChildRegistry()
-    # OQ-A1 reserve consumed from M13-02 (DEFAULT_PARENT_RESERVE=30_000);
-    # the viable floor is M13Allocator.VIABLE_FLOOR (== DEFAULT_VIABLE_FLOOR
-    # == 2_000), a class attr — M13Allocator takes ONLY reserve= (real API).
-    # M13-05: a recursive child passes its own slice-scoped sub_allocator
-    # (reserve == that child's allotment, D-07); only the top-level attach
-    # falls back to the synthetic parent reserve.
-    if allocator is None:
-        allocator = M13Allocator(reserve=DEFAULT_PARENT_RESERVE)
+    # V4-backed default when no manager is injected (e.g. a direct
+    # attach without a chat root). cli.py injects the real session-scoped
+    # chat-root manager; this fallback keeps the tool surface usable
+    # standalone. This is a real persisted V4 root, not the removed
+    # in-memory even-split allocator.
+    if node_manager is None:
+        node_manager = SessionTreeManager(
+            SessionTreeNode.create_root(cwd=cwd, limit=60_000),
+            reserve=DEFAULT_PARENT_RESERVE,
+            cwd=cwd,
+        )
     # handle id -> PanelBridgeRenderer (so gather/teardown can end_panel even
     # though M13-02's ChildHandle dataclass has no bridge field).
     bridges: dict[str, PanelBridgeRenderer] = {}
@@ -344,12 +249,45 @@ def attach_multiagent_tools(
         ),
     )
     async def subagent_spawn(agent: str, task: str) -> str:
-        handle = new_handle_id()
-        allotment = await allocator.allocate(handle)
-        if allotment is None:
+        # Inline even-split over the V4 node envelope. Compute the allotment
+        # under the manager lock (Pitfall 1 — but do NOT hold it across the
+        # allocate_child / create_task below).
+        async with node_manager._lock:
+            active_children = [
+                c for c in node_manager._children if c.terminal_state is None
+            ]
+            allocated = sum(c.envelope["limit"] for c in active_children)
+            available = (
+                node_manager._root.envelope["limit"]
+                - node_manager._reserve
+                - allocated
+            )
+            # Divide by active+2 (not active+1) so the new child takes only a
+            # SHARE of `available`, leaving headroom for further siblings. V4
+            # node limits are immutable (unlike M13's rebalancing allocator), so
+            # a greedy `// (active+1)` would let the first child swallow the
+            # whole envelope and deny every later sibling. Reserving headroom
+            # lets multiple sequential children coexist while no-oversell
+            # (allocate_child's BudgetAllocationError) and the viable-floor
+            # denial still hold.
+            n = len(active_children) + 2
+            allotment = available // n
+        if allotment < VIABLE_FLOOR:  # viable-floor denial -> bounds recursion
             return (
                 f"<denied: budget below viable floor — cannot spawn {agent!r}>"
             )
+        # OUTSIDE the lock: allocate the persisted node. allocate_child re-checks
+        # under its own lock and raises BudgetAllocationError — the authoritative
+        # guard against the TOCTOU window (Pitfall 1).
+        try:
+            child_node = await node_manager.allocate_child(
+                allotment, scope="chat", role=agent
+            )
+        except BudgetAllocationError as exc:
+            return f"<denied: {exc}>"
+        # Use the persisted node id as the handle so registry lookups, panel
+        # keying, and finalize_node all align on one id.
+        handle = child_node.id
         queue: asyncio.Queue = asyncio.Queue()
         panel_id = handle
         bridge = PanelBridgeRenderer(base_renderer, panel_id=panel_id)
@@ -357,21 +295,14 @@ def attach_multiagent_tools(
         bridges[handle] = bridge
         picked_model = model() if callable(model) else model
         child_tools = make_toolset(cwd, renderer=bridge)
-        # D-07 (M13-05) — slice-scoped sub-allocator: reserve == THIS child's
-        # allotment, so a grandchild's even slice == child.allotment // n
-        # (≤ child.allotment ≤ parent reserve at every nesting level). The
-        # viable floor is M13Allocator.VIABLE_FLOOR (class attr) — no ctor
-        # kwarg, no depth constant; recursion is bounded SOLELY by the
-        # existing viable-floor None denial.
-        sub_alloc = M13Allocator(reserve=allotment)
-        # Recursive attach (D-07 / Pitfall 5): re-register the four M13 tools
-        # onto the CHILD's own toolset so the child can itself fan out. It
-        # closes over its OWN fresh level-local ChildRegistry (constructed
-        # inside attach_multiagent_tools) + its slice-scoped sub_alloc, so a
-        # grandchild's subagent_gather awaits only the child's children and
-        # releases only on sub_alloc — never the parent allocator/registry.
-        # The child's renderer is its PanelBridgeRenderer base so a
-        # grandchild's subagent_spawn mounts its OWN fresh-uuid panel.
+        # Per-node recursion (Pitfall 5): the child becomes a parent via its OWN
+        # V4 manager rooted at child_node (reserve == VIABLE_FLOOR), injected as
+        # the recursive node_manager=. Each level divides only its own node's
+        # envelope; grandchildren persist under child_node.id. Recursion is
+        # bounded SOLELY by the viable-floor denial — no depth constant.
+        child_manager = SessionTreeManager(
+            child_node, reserve=VIABLE_FLOOR, cwd=cwd
+        )
         attach_multiagent_tools(
             child_tools,
             registry=registry,
@@ -381,7 +312,7 @@ def attach_multiagent_tools(
             model=model,
             gate=gate,
             cognition=cognition,
-            allocator=sub_alloc,
+            node_manager=child_manager,
         )
         coro = run_turn(
             _resolve_task(agent, task),
@@ -406,7 +337,8 @@ def attach_multiagent_tools(
                 allotment=allotment,
                 queue=queue,
                 panel_id=panel_id,
-                sub_allocator=sub_alloc,
+                sub_allocator=None,
+                node=child_node,
             )
         )
         # Pitfall 1: the return string makes the pending-gather obligation
@@ -443,7 +375,7 @@ def attach_multiagent_tools(
         ),
     )
     async def subagent_status(handle: str | None = None) -> str:
-        snap = allocator.snapshot()
+        snap = {c.id: c.envelope["limit"] for c in node_manager._children}
         if handle is not None:
             h = child_registry.get(handle)
             if h is None:
@@ -479,16 +411,23 @@ def attach_multiagent_tools(
         else:
             results = []
         for h, r in zip(pending, results):
-            allocator.release(h.id)  # sync release (real API) ...
-            await allocator.rebalance()  # ... then async rebalance (MAG-04)
             if isinstance(r, Exception):
                 h.done = True
                 h.result = h.result or f"<error: {r}>"
+                if h.node is not None:
+                    finalize_node(
+                        h.node, exit_reason="error", final=h.result, cwd=cwd
+                    )
             else:
                 h.done = True
                 h.result = h.result or (
                     r.final if hasattr(r, "final") else str(r)
                 )
+                if h.node is not None:
+                    finalize_node(
+                        h.node, exit_reason="done", final=h.result, cwd=cwd
+                    )
+            node_manager.release_child(h.id)  # free budget for reallocation
             br = bridges.get(h.id)
             if br is not None:
                 br.end_panel(1)  # -> app.collapse_subagent (M9-08 restore)
@@ -512,10 +451,13 @@ def attach_multiagent_tools(
                     await t
                 except (asyncio.CancelledError, Exception):  # noqa: BLE001
                     pass
-            allocator.release(h.id)
-            await allocator.rebalance()
             h.done = True
             h.result = h.result or "<orphan: cancelled at parent turn exit>"
+            if h.node is not None:
+                finalize_node(
+                    h.node, exit_reason="interrupt", final=h.result, cwd=cwd
+                )
+            node_manager.release_child(h.id)
             br = bridges.get(h.id)
             if br is not None:
                 br.end_panel(1)

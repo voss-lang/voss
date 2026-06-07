@@ -3,7 +3,9 @@ title: "Tool registry"
 description: "The controlled tool surface Voss exposes to the harness agent."
 ---
 
-The harness exposes a small local tool registry. Each tool is classified as read-only or mutating so permission modes can make reliable decisions.
+The harness exposes a local tool registry. Each tool is classified as read-only or mutating so permission modes can make reliable decisions.
+
+Each entry is a **capability** in the broader registry — it also declares a group, network usage, scope requirements, and audit behavior. [Roles](/orchestration/team-config) grant capabilities by group, and the full normalized schema lives in the [Capabilities reference](/reference/capabilities).
 
 ## Tool classes
 
@@ -32,5 +34,5 @@ voss tools
 The command shows registered tools and whether each one mutates state.
 
 <Tip>
-Tool mutability is data in the registry. Voss should not infer safety from a tool name alone.
+Tool mutability is data in the registry. Voss should not infer safety from a tool name alone. Inspect the full capability surface with `voss capabilities list` and `voss capabilities inspect <name>`.
 </Tip>

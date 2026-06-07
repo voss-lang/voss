@@ -1,0 +1,64 @@
+---
+title: "Session tree"
+description: "Every agent is a durable node with its own budget, scope, and status. Budget fans out down the tree and no child can overspend its parent."
+---
+
+Every agent and subagent in a run is a first-class, persisted node. The session tree is what makes a run reconstructable without reading the chat transcript — and what makes budget a hard boundary instead of telemetry.
+
+Inspect it:
+
+```bash
+voss session tree <root_id>
+voss session tree <root_id> --json   # machine-readable export
+```
+
+## The node
+
+Each `SessionTreeNode` carries:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Node id |
+| `root_id` | Root of this run |
+| `parent_run_id` | Parent node (`null` for the root) |
+| `envelope` | `{ "limit": <tokens>, "spent": <tokens> }` |
+| `terminal_state` | Exit reason + outcome once finalized |
+| `scope` | Glob scope assigned to this node |
+| `role` | Role that owns the node |
+| `rejected_raises` | Recorded budget-raise attempts that were denied |
+| `transitions` | Board transition deltas |
+| `created_at` / `ended_at` | Lifecycle timestamps |
+
+## Budget fan-out
+
+Children are allocated from the parent's envelope, and the manager enforces the invariant on every allocation:
+
+```text
+child.limit <= parent.limit - reserve - sum(existing child limits)
+```
+
+Over-allocation raises a budget allocation error. A node's cap is **non-extendable**: an attempt to raise it is rejected and appended to `rejected_raises` with `reason: "cap_raise_rejected"` — the attempt itself becomes part of the record.
+
+<Note>
+Budget is treated as a security boundary, not a counter. A child can never overspend its parent, and a rejected raise is auditable.
+</Note>
+
+## Terminal states
+
+Every spawned node reaches a terminal state — including failures. The exit reason is one of:
+
+```text
+done · max-iter · budget · interrupt · batch-invariant · timeout · killed · error
+```
+
+Failed, killed, and timed-out children are still finalized, so there are no orphan nodes.
+
+## Persistence and export
+
+Nodes persist as individual files (mode `0o600`):
+
+```text
+.voss/sessions/<root_id>/<node_id>.json
+```
+
+The export reads every node under a root and returns `{ "root_id": ..., "nodes": [...] }`, which is what the [`voss board`](/orchestration/board) renderer and `voss session tree --json` consume — and what an ADE audit view renders as a navigable tree.

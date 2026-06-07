@@ -71,6 +71,48 @@ let findings = gather(handles)
 
 Voss also includes memory primitives, `@tool` definitions, prompt classes, `try/catch`, and `use` imports.
 
+## Coordination constructs
+
+The same language scales from one agent to a whole team. These constructs declare an [engineering organization](/orchestration/overview) — roles, culture, gates, and memory — as compiler-checked config.
+
+```voss
+principles {
+  diff: "Smallest diff that solves it"
+  evidence: "No claim without evidence"
+}
+
+team "default" {
+  ceiling { budget: 120000 tokens; scope: ["src/**", "tests/**"] }
+
+  role backend {
+    model: "cheap"
+    mode:  "edit"
+    scope: ["src/server/**"]
+    tools: ["fs", "code", "test", "git"]
+    budget: 24000 tokens
+  }
+}
+
+gate done {
+  require tests_passed
+  require independent_review
+  require evidence_refs
+}
+
+memory {
+  decisions: ".voss/decisions"
+  sessions:  ".voss/sessions"
+  semantic:  ".voss-cache/semantic"
+}
+```
+
+| Construct | Purpose |
+| --- | --- |
+| `principles { }` | Engineering culture injected into every agent — see [Principles](/orchestration/principles) |
+| `team "name" { }` | The role roster, scope, budget, and tools — see [Team config](/orchestration/team-config) |
+| `gate done { }` | What must hold before a card ships — tests, independent review, evidence |
+| `memory { }` | Where decisions, sessions, and semantic memory persist |
+
 <Note>
-The goal is AI workflow control, not Python syntax parity.
+The goal is AI workflow control and team coordination, not Python syntax parity.
 </Note>
