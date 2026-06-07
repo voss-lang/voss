@@ -69,7 +69,7 @@
 | V6 | Reviewer A/B Split (supersedes O4) | A authors bar+tests/eval from original idea; B judges narrative-blind w/ idea-divergence authority; persisted review artifacts; `voss review` | VREV-01..10 | TBD by SPEC.md |
 | V7 | Engineering Manager Loop (supersedes O5) | Constrained tech-lead: idea→cards→roles→budget→dispatch→integrate→audit; immutable ceiling/p/roster; routing rationale + kill/rescope lineage | VEM-01..10 | ✅ COMPLETE — `voss team run` composes V3–V6 (incl. V6 Reviewer-A/B) + em_loop, RunFinal sidecar persistence + record-only sign-off; cage re-verified; zero frozen-schema drift; O5 superseded |
 | V8 | Multi-agent Chat + Live Steering (absorbs M13) | Non-blocking spawn/status/gather/steer in `voss chat` + ADE; child budget from parent; recursive budget invariant; quiet-by-default panels | VMAG-10/UNIFY/07/ROOT | Planned (3 plans, 3 waves; V8-01 RED scaffold -> V8-02 V4-backed unify+root+persist+recursion (allocator->node_manager, per-node-manager recursion, no depth constant) -> V8-03 verify+migrate+M13-absorbed) |
-| V9 | Audit Product (supersedes O6; reuse O6 plans) | Audit as primary trust product: idea/principles/team/board/diffs/tests/reviews/lineage/residual-risk; MD+JSON export; ADE session-tree render | VAUD-01..10 | TBD by SPEC.md |
+| V9 | Audit Product (supersedes O6) | Audit as primary trust product: idea/principles/team/budget/scope/board/reviewers/lineage/residual-risk; MD+JSON export; sign-off forcing function; reviewer calibration (AUD-09 ADE render → V11) | VAUD-01..10 | Plans ready to execute (7 plans, 6 waves; re-planned fresh against V4–V7 contracts, O6 = reference only) |
 | V10 | Voss Language as Coordination Spec | Stabilize grammar for principles/team/gate/board/review/memory; diagnostics; `voss ast/check/compile/run`; Python parity tests | VLANG-01..08 | TBD by SPEC.md |
 | V11 | ADE Org Integration | Desktop ADE org panels: roster/board/session-tree/audit/reviewer/budget/scope/diff-drilldown/blocked-decision/replay | VADE-01..10 | TBD by SPEC.md |
 | V12 | Safety & Factory Fallbacks | Strict rails where autonomy unsafe: irreversible-confirm, deploy/money runbooks, weak-model scaffolds, factory-marked-in-audit, per-dir factory-only | VSAFE-01..07 | Plans ready to execute (4 plans, 4 waves) |
@@ -1978,11 +1978,21 @@ Plans:
 
 **Goal:** Make the audit trail the primary trust product.
 
-**Scope:** `voss audit <run_id>` showing original idea, active principles, team config, budget, scope, board, cards, agent actions, diffs, tests, reviews, blocked items, final status; audit distinguishes EM claims from verified evidence; shows budget allocation/consumption per node; shows scope violations + denied attempts; shows Reviewer-A and Reviewer-B outputs separately; shows killed/rescoped lineage; exports Markdown + JSON; ADE renders a navigable session tree; includes a residual-risk section. Supersedes O6 — **O6's 6 ready plans re-point here.** Depends V7.
+**Scope:** `voss audit <run_id>` (read-only, deterministic) showing original idea, active principles, team config, budget, scope, board, cards, agent actions, diffs, tests, reviews, blocked items, final status; distinguishes EM claims from verified evidence; per-node budget allocation/consumption; scope violations + denied attempts; Reviewer-A and Reviewer-B separately; killed/rescoped lineage; Markdown + JSON export; residual-risk + Leak-6; sign-off forcing function; reviewer calibration telemetry. **Re-planned fresh against the V4–V7 persistence contracts — O6 plans are reference only, not reused.** AUD-09 ADE navigable session-tree render is OUT OF SCOPE → V11. Depends V7.
 
 **Requirements (lock at SPEC):** VAUD-01..10 (PRD AUD-01..10; supersedes OAUD-01..08).
 
 **Cross-cutting:** Audit deterministic from persisted run data; usable for PR review; can detect unsupported claims. Closes/defers the `ORCHESTRATION-PLAN.md §7` residual register (incl. Leak-6).
+
+**Plans:** 7 plans, 6 waves (re-planned fresh 2026-06-06; O6 superseded).
+
+- [ ] V9-01-PLAN.md — Wave 0 RED scaffolds: 5 new test files + fixture/loader extension (.review.json + run-final.json) + glob-landmine fix expressed as a test
+- [ ] V9-02-PLAN.md — load.py (run_id param, glob-landmine filter, sidecar + run-final readers) + model.py (AuditReport + CalibrationReport dataclasses)
+- [ ] V9-03-PLAN.md — report.py AuditReport assembly + claims-vs-evidence tagging + residual-risk/Leak-6 synthesis + scope denials
+- [ ] V9-04-PLAN.md — render.py (deterministic MD/JSON/text) + __init__.py exports + voss audit CLI registered in AGENT_COMMANDS
+- [ ] V9-05-PLAN.md — calibration.py false-pass / slop-rejection rates + deterministic spot-audit hook
+- [ ] V9-06-PLAN.md — sign-off forcing function: ack gate in voss team run + .signoff-ack.json sidecar + audit approve readback
+- [ ] V9-07-PLAN.md — closeout: wire calibration into audit_cmd, full regression, frozen-schema diff guard, ROADMAP bookkeeping, human verify checkpoint
 
 ---
 
