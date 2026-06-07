@@ -2585,7 +2585,9 @@ def audit_cmd(
     try:
         from voss.harness.audit.calibration import compute_calibration
 
-        calibration = compute_calibration(sessions_dir)
+        # Fixed seed → deterministic spot-audit selection (VAUD-08: audit output
+        # must be reproducible from persisted data).
+        calibration = compute_calibration(sessions_dir, seed=0)
     except Exception:
         calibration = None  # calibration optional; build tolerates None
 
