@@ -3,7 +3,7 @@ phase: V11-ade-org-integration
 plan: 07
 type: execute
 wave: 4
-depends_on: ["02", "03"]
+depends_on: ["02", "03", "04"]
 files_modified:
   - apps/voss-app/src/org/panels/DiffPanel.tsx
   - apps/voss-app/src/org/panels/BlockedPanel.tsx

@@ -44,6 +44,8 @@ Build the CLI-JSON data layer (VADE-DATA): the aggregate `load_run` Tauri comman
 
 Purpose: Wave 1 — every panel renders from `RunData` produced here; the view shell and decision flow consume these wrappers.
 Output: 3 Tauri commands in `lib.rs` (registered), `orgStore.ts`, `decisionActions.ts`, an `enumerate_runs` cargo test.
+
+**D-01 deviation note (verified):** D-01 listed `voss board` as a subprocess source for `load_run`. `voss board` has NO JSON output (verified — `board_cmd` in `voss/harness/cli.py` only renders text; no `--format json`/`--json` flag). `load_run` therefore reads the run-directory node files directly in Rust (enumerate `<root_id>/*.json`, exclude `.review.json`, derive column/risk per the verified algorithm) per RESEARCH Open-Question-2 resolution. This achieves D-01's intent (all run data via one aggregate command) via direct file read rather than shelling `voss board`. `voss audit --format json` IS still shelled for the audit section.
 </objective>
 
 <execution_context>

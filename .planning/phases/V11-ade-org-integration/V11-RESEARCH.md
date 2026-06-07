@@ -693,17 +693,17 @@ Note on A2: [VERIFIED: codebase] — confirmed at `cli.py:2542`: `type=click.Cho
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`voss` binary location in Tauri process context**
    - What we know: `spawn_agent` receives `cli_binary` from the frontend (the user-configured voss binary path).
    - What's unclear: How does `load_run` know the voss binary path? Either (a) accept it as a parameter from the frontend (same as `spawn_agent`), or (b) derive it from the Rust environment.
-   - Recommendation: Accept `cli_binary: String` parameter from frontend (mirror `spawn_agent` pattern). Frontend passes the configured voss path.
+   - **RESOLVED:** Accept `cli_binary: String` parameter from frontend (mirror `spawn_agent` pattern); frontend passes the configured voss path. Implemented in Plan 02 Task 1 (`load_run(run_id, cwd, cli_binary)`).
 
 2. **Board data source for `load_run`**
    - What we know: `voss board <root_id> --cwd <path>` shells into `board/cli_view.render_board()` which reads node files and outputs text, not JSON. No `--format json` or `--json` flag exists on `board_cmd`.
    - What's unclear: Should `load_run` (a) read node files directly in Rust (same as what `render_board` does), or (b) shell `voss session tree --json` to get all nodes and derive board state in Rust?
-   - Recommendation: Read node files directly in Rust (pattern: enumerate `<root_id>/*.json`, exclude `.review.json`, read each, derive column/risk per the verified algorithm). This avoids shelling `voss` for board data and matches the Rust-side `enumerate_runs` pattern.
+   - **RESOLVED:** Read node files directly in Rust (enumerate `<root_id>/*.json`, exclude `.review.json`, read each, derive column/risk per the verified algorithm). Avoids shelling `voss` for board data and matches the Rust-side `enumerate_runs` pattern. Implemented in Plan 02 Task 1.
 
 ---
 

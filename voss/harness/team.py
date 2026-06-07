@@ -42,12 +42,25 @@ class VossTeamConfigError(Exception):
         self,
         message: str,
         *,
+        construct: str = "",
+        fix_hint: str = "",
         role_span: Span | None = None,
         ceiling_span: Span | None = None,
     ) -> None:
         super().__init__(message)
+        self.construct = construct
+        self.fix_hint = fix_hint
         self.role_span = role_span
         self.ceiling_span = ceiling_span
+
+    def format_diagnostic(self) -> str:
+        """Render `[construct] <message> at file:line` (+ hint when present)."""
+        span = self.role_span or self.ceiling_span
+        location = f"{span.file}:{span.line_start}" if span is not None else "<unknown>"
+        out = f"[{self.construct}] {self} at {location}"
+        if self.fix_hint:
+            out += f"\n  hint: {self.fix_hint}"
+        return out
 
 
 DEFAULT_ROSTER: tuple[str, ...] = (
@@ -406,7 +419,7 @@ def _options_dict(opts: Iterable[tuple[str, object]]) -> dict[str, object]:
     return {k: v for k, v in opts}
 
 
-def _parse_scope_literal(val: object) -> TeamRoleScope | None:
+def _parse_scope_literal(val: object, span: Span | None = None) -> TeamRoleScope | None:
     """Build `TeamRoleScope` from roster/ceiling-style scope value or None."""
     if val is None:
         return None
@@ -419,15 +432,21 @@ def _parse_scope_literal(val: object) -> TeamRoleScope | None:
                 globs.append(it.value)
             else:
                 raise VossTeamConfigError(
-                    f"scope list entries must be string literals; got {type(it).__name__}"
+                    f"scope list entries must be string literals; got {type(it).__name__}",
+                    construct="scope",
+                    fix_hint="scope list entries must be string literals",
+                    role_span=span,
                 )
         return TeamRoleScope(tuple(globs))
     raise VossTeamConfigError(
-        f"scope must be a string literal or string list; got {type(val).__name__}"
+        f"scope must be a string literal or string list; got {type(val).__name__}",
+        construct="scope",
+        fix_hint="scope must be a string literal or string list",
+        role_span=span,
     )
 
 
-def _parse_budget_value(val: object, ceiling: TeamCeiling) -> int | None:
+def _parse_budget_value(val: object, ceiling: TeamCeiling, span: Span | None = None) -> int | None:
     if val is None:
         return None
     if isinstance(val, BudgetArg) and val.unit == "tokens":
@@ -437,11 +456,14 @@ def _parse_budget_value(val: object, ceiling: TeamCeiling) -> int | None:
         if raw == "ceiling":
             return ceiling.budget_tokens
     raise VossTeamConfigError(
-        f"budget must be a token BudgetArg or ceiling string sentinel; got {type(val).__name__}"
+        f"budget must be a token BudgetArg or ceiling string sentinel; got {type(val).__name__}",
+        construct="budget",
+        fix_hint="use a token budget like: budget: 100 tokens",
+        role_span=span,
     )
 
 
-def _parse_tools_value(val: object) -> frozenset[str]:
+def _parse_tools_value(val: object, span: Span | None = None) -> frozenset[str]:
     """Normalize tools to frozenset; accept list literal or single string."""
     if val is None:
         return frozenset()
@@ -452,17 +474,23 @@ def _parse_tools_value(val: object) -> frozenset[str]:
                 names.append(it.value)
             else:
                 raise VossTeamConfigError(
-                    f"tools list entries must be string literals; got {type(it).__name__}"
+                    f"tools list entries must be string literals; got {type(it).__name__}",
+                    construct="tools",
+                    fix_hint='tools must be a string literal or list: tools: ["fs", "test"]',
+                    role_span=span,
                 )
         return frozenset(names)
     if isinstance(val, StringLit):
         return frozenset([val.value])
     raise VossTeamConfigError(
-        f"tools must be a string literal or string list; got {type(val).__name__}"
+        f"tools must be a string literal or string list; got {type(val).__name__}",
+        construct="tools",
+        fix_hint='tools must be a string literal or list: tools: ["fs", "test"]',
+        role_span=span,
     )
 
 
-def _parse_mode_value(val: object) -> Mode | None:
+def _parse_mode_value(val: object, span: Span | None = None) -> Mode | None:
     if val is None:
         return None
     if isinstance(val, StringLit):
@@ -470,16 +498,23 @@ def _parse_mode_value(val: object) -> Mode | None:
         if m not in ("plan", "edit", "auto"):
             raise VossTeamConfigError(
                 f"unknown mode '{m}' (expected: plan, edit, auto)",
-                role_span=None,
+                construct="mode",
+                fix_hint="mode must be one of: plan, edit, auto",
+                role_span=span,
             )
         return m  # type: ignore[return-value]
-    raise VossTeamConfigError(f"mode must be a string literal; got {type(val).__name__}")
+    raise VossTeamConfigError(
+        f"mode must be a string literal; got {type(val).__name__}",
+        construct="mode",
+        fix_hint="mode must be a string literal",
+        role_span=span,
+    )
 
 
 _MODEL_TIERS: frozenset[str] = frozenset({"strong", "cheap", "fast"})
 
 
-def _resolve_model_string(s: str) -> str:
+def _resolve_model_string(s: str, span: Span | None = None) -> str:
     """Resolve one model string under the closed-set / raw-passthrough rule.
 
     See :func:`_parse_model_value` for the locked semantics; shared by the
@@ -490,12 +525,17 @@ def _resolve_model_string(s: str) -> str:
 
         resolved = get_model_tiers().get(s, "")
         if not resolved:
-            raise VossTeamConfigError(f"model tier {s!r} is not configured")
+            raise VossTeamConfigError(
+                f"model tier {s!r} is not configured",
+                construct="model",
+                fix_hint="configure the tier in [model_tiers]",
+                role_span=span,
+            )
         return resolved
     return s
 
 
-def _parse_model_value(val: object) -> str | None:
+def _parse_model_value(val: object, span: Span | None = None) -> str | None:
     """Resolve a `model:` value to a concrete model id.
 
     Closed-set / raw-passthrough rule (VTEAM-08, locked):
@@ -514,8 +554,13 @@ def _parse_model_value(val: object) -> str | None:
     if val is None:
         return None
     if isinstance(val, StringLit):
-        return _resolve_model_string(val.value)
-    raise VossTeamConfigError(f"model must be a string literal; got {type(val).__name__}")
+        return _resolve_model_string(val.value, span)
+    raise VossTeamConfigError(
+        f"model must be a string literal; got {type(val).__name__}",
+        construct="model",
+        fix_hint="model must be a string literal or tier keyword",
+        role_span=span,
+    )
 
 
 def subagent_spec_from_role(
@@ -534,7 +579,7 @@ def subagent_spec_from_role(
     rd = role_full_defaults(role_name) if apply_role_defaults else None
 
     parsed_scope_opt = (
-        _parse_scope_literal(kvs["scope"]) if "scope" in kvs else None
+        _parse_scope_literal(kvs["scope"], role_decl_span) if "scope" in kvs else None
     )
 
     # Precedence: declared scope > per-role default scope > ceiling scope.
@@ -550,24 +595,32 @@ def subagent_spec_from_role(
             ceil_msg = ceiling.scope.globs
             raise VossTeamConfigError(
                 f"role {role_name!r} scope {scope.globs} is outside ceiling scope {ceil_msg}",
+                construct="scope",
+                fix_hint="role scope must be within the ceiling scope globs",
                 role_span=role_decl_span,
                 ceiling_span=ceiling_ast.span if ceiling_ast else None,
             )
 
-    budget_raw = _parse_budget_value(kvs.get("budget"), ceiling) if "budget" in kvs else None
+    budget_raw = (
+        _parse_budget_value(kvs.get("budget"), ceiling, role_decl_span)
+        if "budget" in kvs
+        else None
+    )
     budget: int | None = budget_raw
     if budget is not None and ceiling.budget_tokens is not None:
         if budget > ceiling.budget_tokens:
             raise VossTeamConfigError(
                 f"role {role_name!r} budget {budget} exceeds ceiling "
                 f"budget_tokens {ceiling.budget_tokens}",
+                construct="budget",
+                fix_hint="role budget must not exceed the ceiling budget_tokens",
                 role_span=role_decl_span,
                 ceiling_span=ceiling_ast.span if ceiling_ast else None,
             )
 
     # Precedence: declared tools > per-role default tools > empty.
     if "tools" in kvs:
-        tools = _parse_tools_value(kvs["tools"])
+        tools = _parse_tools_value(kvs["tools"], role_decl_span)
     elif rd is not None:
         tools = frozenset(rd.tools)
     else:
@@ -576,12 +629,12 @@ def subagent_spec_from_role(
 
     # Precedence: declared model > per-role default tier > none.
     if "model" in kvs:
-        model = _parse_model_value(kvs["model"])
+        model = _parse_model_value(kvs["model"], role_decl_span)
     elif rd is not None:
-        model = _resolve_model_string(rd.model_tier)
+        model = _resolve_model_string(rd.model_tier, role_decl_span)
     else:
         model = None
-    mode = _parse_mode_value(kvs["mode"]) if "mode" in kvs else None
+    mode = _parse_mode_value(kvs["mode"], role_decl_span) if "mode" in kvs else None
 
     description, rp = default_team_role_defaults(role_name)
 
@@ -615,7 +668,7 @@ def subagent_spec_from_agent(
     kvs = _options_dict(agent_decl.options)
 
     parsed_scope_opt = (
-        _parse_scope_literal(kvs["scope"]) if "scope" in kvs else None
+        _parse_scope_literal(kvs["scope"], agent_decl.span) if "scope" in kvs else None
     )
 
     scope: TeamRoleScope | None
@@ -632,11 +685,17 @@ def subagent_spec_from_agent(
                 raise VossTeamConfigError(
                     f"agent {agent_decl.name!r} scope {scope.globs} is "
                     f"outside ceiling scope {ceiling.scope.globs}",
+                    construct="scope",
+                    fix_hint="agent scope must be within the ceiling scope globs",
                     role_span=agent_decl.span,
                     ceiling_span=ceiling_ast.span if ceiling_ast else None,
                 )
 
-    budget_raw = _parse_budget_value(kvs["budget"], ceiling) if "budget" in kvs else None
+    budget_raw = (
+        _parse_budget_value(kvs["budget"], ceiling, agent_decl.span)
+        if "budget" in kvs
+        else None
+    )
 
     budget: int | None = budget_raw
     if budget is not None and ceiling.budget_tokens is not None:
@@ -644,15 +703,17 @@ def subagent_spec_from_agent(
             raise VossTeamConfigError(
                 f"agent {agent_decl.name!r} budget {budget} exceeds ceiling "
                 f"budget_tokens {ceiling.budget_tokens}",
+                construct="budget",
+                fix_hint="agent budget must not exceed the ceiling budget_tokens",
                 role_span=agent_decl.span,
                 ceiling_span=ceiling_ast.span if ceiling_ast else None,
             )
 
-    tools = _parse_tools_value(kvs["tools"]) if "tools" in kvs else frozenset()
+    tools = _parse_tools_value(kvs["tools"], agent_decl.span) if "tools" in kvs else frozenset()
     net = "net" in tools
 
-    model = _parse_model_value(kvs["model"]) if "model" in kvs else None
-    mode = _parse_mode_value(kvs["mode"]) if "mode" in kvs else None
+    model = _parse_model_value(kvs["model"], agent_decl.span) if "model" in kvs else None
+    mode = _parse_mode_value(kvs["mode"], agent_decl.span) if "mode" in kvs else None
 
     return SubagentSpec(
         id=agent_decl.name,
@@ -713,7 +774,12 @@ def compile_team(
     """Compile parsed `TeamDecl` into frozen runtime config + populated registry."""
 
     if decl.ceiling is None:
-        raise VossTeamConfigError(f"team {decl.name!r} missing ceiling at compile")
+        raise VossTeamConfigError(
+            f"team {decl.name!r} missing ceiling at compile",
+            construct="ceiling",
+            fix_hint="add a ceiling { budget: N tokens } block to team",
+            ceiling_span=decl.span,
+        )
 
     c_ast = decl.ceiling
     ceiling_scope: TeamRoleScope | None = (
