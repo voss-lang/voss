@@ -21,6 +21,7 @@ from .ast_nodes import (
     FnDecl, AgentDecl, AgentOptions,
     CeilingDecl, TeamAgentDecl, RosterRoleDecl, RosterDecl, BoardGate, BoardDecl,
     RitualDecl, TeamDecl,
+    PrinciplesBlockDecl, GateBlockDecl, MemoryBlockDecl,
     PromptDecl, ClassDecl, ClassField, UseStmt, Decorator,
 )
 from .exceptions import VossParseError
@@ -808,6 +809,9 @@ class _Transformer(Transformer):
         rosters: list[RosterDecl] = []
         board: BoardDecl | None = None
         rituals: list[RitualDecl] = []
+        principles: PrinciplesBlockDecl | None = None
+        gates: list[GateBlockDecl] = []
+        memory: MemoryBlockDecl | None = None
 
         for item in items:
             if isinstance(item, CeilingDecl):
@@ -846,6 +850,28 @@ class _Transformer(Transformer):
                 board = item
             elif isinstance(item, RitualDecl):
                 rituals.append(item)
+            elif isinstance(item, PrinciplesBlockDecl):
+                if principles is not None:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=["at most one `principles` block per team"],
+                        got=f"team {name!r} has duplicate principles block",
+                    )
+                principles = item
+            elif isinstance(item, GateBlockDecl):
+                gates.append(item)
+            elif isinstance(item, MemoryBlockDecl):
+                if memory is not None:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=["at most one `memory` block per team"],
+                        got=f"team {name!r} has duplicate memory block",
+                    )
+                memory = item
 
         if ceiling is None:
             raise VossParseError(
@@ -866,6 +892,9 @@ class _Transformer(Transformer):
             board=board,
             rituals=tuple(rituals),
             decorators=(),
+            principles=principles,
+            gates=tuple(gates),
+            memory=memory,
         )
 
     def team_body(self, meta, children):
@@ -1155,6 +1184,66 @@ class _Transformer(Transformer):
                 got=key,
             )
         return (key, children[1])
+
+    # ----- V10 coordination blocks (VLANG-01a/01b/01c) -----
+    def principles_kv(self, meta, children):
+        key = str(children[0])
+        value = _decode_string_literal(str(children[1]))
+        return (key, value)
+
+    def principles_block(self, meta, children):
+        items: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        for c in children:
+            if isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str):
+                k, v = c
+                if k in seen:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=[f"unique `{k}` in principles block"],
+                        got="duplicate key",
+                    )
+                seen.add(k)
+                items.append((k, v))
+        return PrinciplesBlockDecl(span=_span(meta, self.file), items=tuple(items))
+
+    def gate_require(self, meta, children):
+        return str(children[0])
+
+    def gate_block(self, meta, children):
+        name = str(children[0])
+        reqs = [c for c in children[1:] if isinstance(c, str)]
+        return GateBlockDecl(
+            span=_span(meta, self.file), name=name, requires=tuple(reqs)
+        )
+
+    def memory_kv(self, meta, children):
+        key = str(children[0])
+        value = _decode_string_literal(str(children[1]))
+        return (key, value)
+
+    def memory_block(self, meta, children):
+        seen: dict[str, str] = {}
+        for c in children:
+            if isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str):
+                k, v = c
+                if k in seen:
+                    raise VossParseError(
+                        file=self.file,
+                        line=meta.line,
+                        col=meta.column,
+                        expected=[f"unique `{k}` in memory block"],
+                        got="duplicate key",
+                    )
+                seen[k] = v
+        return MemoryBlockDecl(
+            span=_span(meta, self.file),
+            decisions=seen.get("decisions"),
+            sessions=seen.get("sessions"),
+            semantic=seen.get("semantic"),
+        )
 
     def prompt_string(self, meta, children):
         raw = str(children[0])
