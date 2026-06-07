@@ -107,3 +107,29 @@ class TestAckGate:
         assert result.exit_code == 0
         assert "approve/reject reached" in result.output
         assert "acknowledg" not in result.output.lower()
+
+
+class TestAuditApproveReadback:
+    def test_approve_refused_when_risks_and_no_ack(self, tmp_path: Path):
+        from voss.harness.cli import audit_cmd
+
+        # Fixture has node_killed_01 (a killed card) and NO .signoff-ack.json.
+        build_fixture_tree(tmp_path)
+        result = CliRunner().invoke(
+            audit_cmd, ["--cwd", str(tmp_path), "--approve"]
+        )
+        assert result.exit_code != 0
+        assert "acknowledg" in result.output.lower()
+
+    def test_approve_permitted_with_ack(self, tmp_path: Path):
+        from voss.harness.cli import _write_signoff_ack, audit_cmd
+
+        build_fixture_tree(tmp_path)
+        _write_signoff_ack(
+            tmp_path, "root_aabbcc0001", killed_count=1, misroute_count=1
+        )
+        result = CliRunner().invoke(
+            audit_cmd, ["--cwd", str(tmp_path), "--approve"]
+        )
+        assert result.exit_code == 0
+        assert "permitted" in result.output.lower()
