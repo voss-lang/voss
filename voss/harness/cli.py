@@ -4224,6 +4224,44 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
     )
     click.echo(f"em_iterations: {rf.em_iterations}")
 
+    # VAUD-SIGNOFF: gate approve behind a forced acknowledgement of the
+    # killed-card + misroute risk diff. Misroute = a routing with a stated
+    # confidence_hint below 0.7 (read-only from the just-persisted snapshot).
+    killed_count = rf.killed_count
+    misroute_count = 0
+    try:
+        from voss.harness.audit.load import load_audit_snapshot
+
+        routings = load_audit_snapshot(cwd, run_id=rf.root_id).routings
+        misroute_count = sum(
+            1
+            for r in routings
+            if r.confidence_hint is not None and r.confidence_hint < 0.7
+        )
+    except Exception:
+        misroute_count = 0
+
+    # Pitfall 5: a clean run (no kills, no misroutes) skips the ack gate.
+    if killed_count > 0 or misroute_count > 0:
+        click.echo(
+            f"\nRisk summary: {killed_count} killed card(s), "
+            f"{misroute_count} misroute candidate(s)."
+        )
+        ack = click.prompt(
+            "Acknowledge killed/misroute risks? Type 'yes' to continue"
+        )
+        if ack.strip().lower() != "yes":
+            click.echo(
+                "Sign-off aborted — acknowledgement required.", err=True
+            )
+            raise click.exceptions.Exit(1)
+        _write_signoff_ack(
+            cwd,
+            rf.root_id,
+            killed_count=killed_count,
+            misroute_count=misroute_count,
+        )
+
     decision = click.prompt(
         "Sign off on this run (approve/reject)",
         type=click.Choice(["approve", "reject"]),
