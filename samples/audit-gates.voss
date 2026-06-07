@@ -1,0 +1,24 @@
+# audit-gates.voss — V10 org-loop: audit gates (evidence_refs) + memory paths.
+team AuditGates {
+  ceiling {
+    budget: 200000 tokens
+    scope: "src/**"
+  }
+
+  gate done {
+    require tests_passed
+    require independent_review
+    require evidence_refs
+  }
+
+  memory {
+    decisions: ".voss/decisions"
+    sessions: ".voss/sessions"
+    semantic: ".voss-cache/semantic"
+  }
+
+  roster engineers {
+    backend { model: "cheap" }
+    tester { model: "cheap" }
+  }
+}

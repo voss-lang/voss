@@ -120,6 +120,39 @@ def _extract_run_final(transitions: list[dict]) -> dict | None:
     return None
 
 
+def _load_run_final_file(run_dir: Path) -> dict | None:
+    """Read the separate ``run-final.json`` file (no ``id`` key).
+
+    Authoritative for real ``voss team run`` directories. Returns None when the
+    file is absent or unreadable (graceful — never crashes the loader).
+    """
+    path = run_dir / "run-final.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _load_review_sidecars(run_dir: Path) -> dict[str, dict]:
+    """Return ``{node_id: sidecar_dict}`` for every ``*.review.json`` sidecar.
+
+    Graceful: a corrupt/unreadable sidecar maps to ``{}`` rather than raising.
+    """
+    suffix = ".review.json"
+    result: dict[str, dict] = {}
+    for path in sorted(run_dir.glob(f"*{suffix}")):
+        node_id = path.name[: -len(suffix)]
+        try:
+            data = json.loads(path.read_text())
+            result[node_id] = data if isinstance(data, dict) else {}
+        except (OSError, json.JSONDecodeError):
+            result[node_id] = {}
+    return result
+
+
 def _extract_leak6(transitions: list[dict]) -> Leak6Assessment:
     for t in transitions:
         if t.get("kind") == "audit.leak6":
@@ -240,27 +273,43 @@ def _build_card(data: dict, *, is_root: bool) -> AuditCard | None:
     )
 
 
-def load_audit_snapshot(root: Path) -> AuditSnapshot:
+def load_audit_snapshot(root: Path, run_id: str | None = None) -> AuditSnapshot:
     """Load an audit snapshot from a session-tree directory.
 
     ``root`` should be the project root (parent of ``.voss/``).
-    Reads all node JSON files under ``.voss/sessions/<root_id>/``.
-    Never writes to disk.
+    When ``run_id`` is given, that named run dir is loaded; otherwise the
+    most-recently-modified run dir is selected (latest-by-mtime). Reads all
+    node JSON files under ``.voss/sessions/<run_id>/``. Never writes to disk.
+
+    run_id is treated as a dir name under sessions_dir; the path-traversal
+    guard is enforced at the CLI boundary (V9-04, T-V9-02-03).
     """
     sessions_dir = root / ".voss" / "sessions"
     if not sessions_dir.exists():
         raise AuditLoadError(sessions_dir, "sessions directory does not exist")
 
-    # Find root directories (each is a session tree).
-    root_dirs = sorted(
-        d for d in sessions_dir.iterdir() if d.is_dir()
-    )
-    if not root_dirs:
-        raise AuditLoadError(sessions_dir, "no session tree directories found")
-
-    # Load the first (or only) tree root.
-    tree_dir = root_dirs[0]
-    node_files = sorted(tree_dir.glob("*.json"))
+    if run_id is not None:
+        tree_dir = sessions_dir / run_id
+        if not tree_dir.is_dir():
+            raise AuditLoadError(sessions_dir, f"unknown run_id: {run_id}")
+    else:
+        # Find root directories (each is a session tree).
+        root_dirs = [d for d in sessions_dir.iterdir() if d.is_dir()]
+        if not root_dirs:
+            raise AuditLoadError(sessions_dir, "no session tree directories found")
+        # Select the latest run by mtime (mirrors cli._latest_root_id).
+        tree_dir = max(root_dirs, key=lambda d: d.stat().st_mtime)
+    # Filter sidecars that are not session-tree nodes: run-final.json (no `id`),
+    # *.review.json (per-card reviewer sidecars), and .signoff-ack.json (the
+    # governance ack record) live in the same dir but are loaded separately by
+    # report.py. Globbing them as nodes trips the required-`id` check (V9 glob
+    # landmine).
+    _non_node = {"run-final.json", ".signoff-ack.json"}
+    node_files = [
+        p
+        for p in sorted(tree_dir.glob("*.json"))
+        if p.name not in _non_node and not p.name.endswith(".review.json")
+    ]
     if not node_files:
         raise AuditLoadError(tree_dir, "no node files found")
 
@@ -328,6 +377,15 @@ def load_audit_snapshot(root: Path) -> AuditSnapshot:
             evidence="no Leak-6 assessment found",
             mitigation_present=False,
         )
+
+    # The separate run-final.json file is authoritative for real runs; merge it
+    # over the root node's em.run_final transition (the fixture path) so file
+    # fields (sign_off, counts) win while transition-only keys are preserved.
+    # NOTE: per-node scope denials (rejected_raises) live on the raw node dict
+    # and are surfaced by report.py (V9-03), not on the frozen AuditNode.
+    run_final_file = _load_run_final_file(tree_dir)
+    if run_final_file is not None:
+        run_final = {**(run_final or {}), **run_final_file}
 
     return AuditSnapshot(
         root_id=root_id,

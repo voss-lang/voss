@@ -198,3 +198,110 @@ class TestNoLiveImports:
             "import voss.harness.cli",
         ):
             assert forbidden not in src, f"load.py has forbidden import: {forbidden}"
+
+    def test_calibration_module_has_no_board_imports(self):
+        # RED until V9-05: voss.harness.audit.calibration does not exist yet.
+        import voss.harness.audit.calibration as cal  # noqa: F401
+
+        src = Path(cal.__file__).read_text()
+        for forbidden in (
+            "from voss.harness.board",
+            "import voss.harness.board",
+            "from voss.harness.em",
+            "import voss.harness.em",
+            "from voss.harness.cli",
+            "import voss.harness.cli",
+        ):
+            assert forbidden not in src, f"calibration.py has forbidden import: {forbidden}"
+
+
+# ---------------------------------------------------------------------------
+# V9 RED extensions (expected to fail until V9-02 lands)
+# ---------------------------------------------------------------------------
+
+
+class TestLandmineGlobFilter:
+    """The node glob must skip run-final.json + *.review.json (V9 landmine)."""
+
+    def test_load_does_not_raise_on_sidecars(self, fixture_root: Path):
+        # Fixture now writes run-final.json + *.review.json into the run dir.
+        # Loading must not raise AuditLoadError on those non-node files.
+        snap = load_audit_snapshot(fixture_root)
+        assert isinstance(snap, AuditSnapshot)
+
+    def test_sidecars_excluded_from_node_count(self, fixture_root: Path):
+        snap = load_audit_snapshot(fixture_root)
+        assert len(snap.nodes) == 8  # 8 node files; sidecars/run-final excluded
+
+    def test_run_final_populated(self, fixture_root: Path):
+        snap = load_audit_snapshot(fixture_root)
+        assert snap.run_final is not None
+
+
+class TestRunIdParameter:
+    """load_audit_snapshot gains a run_id param + latest-by-mtime fallback."""
+
+    def test_named_run_loads(self, fixture_root: Path):
+        snap = load_audit_snapshot(fixture_root, run_id="root_aabbcc0001")
+        assert snap.root_id == "root_aabbcc0001"
+
+    def test_unknown_run_raises(self, fixture_root: Path):
+        with pytest.raises(AuditLoadError):
+            load_audit_snapshot(fixture_root, run_id="does_not_exist")
+
+    def test_none_selects_latest_by_mtime(self, tmp_path: Path):
+        # First run dir (older).
+        build_fixture_tree(tmp_path)
+        sessions = tmp_path / ".voss" / "sessions"
+        # Second run dir (newer mtime, alphabetically LATER so it differs from
+        # the current sorted()[0] behavior — makes the RED assertion meaningful).
+        newer = sessions / "root_zzeeff0002"
+        newer.mkdir(parents=True)
+        node = newer / "root_zzeeff0002.json"
+        node.write_text(json.dumps({"id": "root_zzeeff0002", "root_id": "root_zzeeff0002"}))
+        # Force newer mtime explicitly (avoid same-second resolution).
+        old_mtime = (sessions / "root_aabbcc0001").stat().st_mtime
+        os.utime(newer, (old_mtime + 100, old_mtime + 100))
+        snap = load_audit_snapshot(tmp_path, run_id=None)
+        assert snap.root_id == "root_zzeeff0002"
+
+
+class TestSidecarLoad:
+    """_load_review_sidecars returns {node_id: sidecar_dict}, graceful on errors."""
+
+    def test_sidecars_keyed_by_node_id(self, fixture_root: Path):
+        from voss.harness.audit.load import _load_review_sidecars
+
+        run_dir = fixture_root / ".voss" / "sessions" / "root_aabbcc0001"
+        sidecars = _load_review_sidecars(run_dir)
+        assert "node_ab_block1" in sidecars
+        assert sidecars["node_ab_block1"]["b_verdict"]["verdict"] == "block"
+
+    def test_corrupt_sidecar_maps_to_empty(self, fixture_root: Path):
+        from voss.harness.audit.load import _load_review_sidecars
+
+        run_dir = fixture_root / ".voss" / "sessions" / "root_aabbcc0001"
+        bad = run_dir / "node_bad.review.json"
+        bad.write_text("{not valid json")
+        sidecars = _load_review_sidecars(run_dir)
+        assert sidecars["node_bad"] == {}
+
+
+class TestRunFinalSeparateRead:
+    """_load_run_final_file reads the separate run-final.json file."""
+
+    def test_reads_run_final(self, fixture_root: Path):
+        from voss.harness.audit.load import _load_run_final_file
+
+        run_dir = fixture_root / ".voss" / "sessions" / "root_aabbcc0001"
+        rf = _load_run_final_file(run_dir)
+        assert rf is not None
+        assert rf["idea"] == "fixture idea"
+        assert "sign_off" in rf
+
+    def test_absent_run_final_returns_none(self, tmp_path: Path):
+        from voss.harness.audit.load import _load_run_final_file
+
+        empty = tmp_path / "run_dir"
+        empty.mkdir()
+        assert _load_run_final_file(empty) is None

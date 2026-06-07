@@ -206,3 +206,82 @@ def test_ritual_block_round_trips_opaquely(parse_source):
     assert ritual.name == "ContextDigest"
     keys = {k for k, _ in ritual.kvs}
     assert "every" in keys
+
+
+# ---------------------------------------------------------------------------
+# V10 Wave-0 RED: principles / gate / memory blocks (VLANG-01a/01b/01c).
+# These import planned AST nodes that DO NOT EXIST YET (created in V10-02) —
+# the four tests below are expected RED. No expected-fail/skip masks (gsd-scaffold-fictional-api).
+# ---------------------------------------------------------------------------
+
+
+def test_principles_block_parses(parse_source):
+    from voss.ast_nodes import PrinciplesBlockDecl
+
+    prog = parse_source(
+        """principles {
+  diff: "Make the smallest diff that solves the task."
+  evidence: "No factual claim without evidence."
+}
+"""
+    )
+    blocks = [d for d in prog.body if isinstance(d, PrinciplesBlockDecl)]
+    assert len(blocks) == 1
+    assert blocks[0].items == (
+        ("diff", "Make the smallest diff that solves the task."),
+        ("evidence", "No factual claim without evidence."),
+    )
+
+
+def test_team_with_principles_block(parse_source):
+    from voss.ast_nodes import PrinciplesBlockDecl
+
+    prog = parse_source(
+        """team Eng {
+  ceiling { budget: 1000 tokens, scope: "src/**" }
+  principles {
+    diff: "Make the smallest diff that solves the task."
+  }
+}
+"""
+    )
+    td = next(d for d in prog.body if isinstance(d, TeamDecl))
+    assert isinstance(td.principles, PrinciplesBlockDecl)
+
+
+def test_gate_block_parses(parse_source):
+    from voss.ast_nodes import GateBlockDecl
+
+    prog = parse_source(
+        """gate done {
+  require tests_passed
+  require independent_review
+  require evidence_refs
+}
+"""
+    )
+    blocks = [d for d in prog.body if isinstance(d, GateBlockDecl)]
+    assert len(blocks) == 1
+    assert blocks[0].name == "done"
+    assert blocks[0].requires == (
+        "tests_passed",
+        "independent_review",
+        "evidence_refs",
+    )
+
+
+def test_memory_block_parses(parse_source):
+    from voss.ast_nodes import MemoryBlockDecl
+
+    prog = parse_source(
+        """memory {
+  decisions: "d"
+  sessions: "s"
+}
+"""
+    )
+    blocks = [d for d in prog.body if isinstance(d, MemoryBlockDecl)]
+    assert len(blocks) == 1
+    assert blocks[0].decisions == "d"
+    assert blocks[0].sessions == "s"
+    assert blocks[0].semantic is None

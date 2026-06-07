@@ -10,7 +10,7 @@ program: _NL* (top_stmt (_NL+ top_stmt)*)? _NL*
 // Plan 02-03 promotes top_stmt to the full statement umbrella.
 // Plan 02-04 extends it with top_decl (fn/agent/prompt/class/use/decorated).
 top_stmt: top_decl | stmt
-top_decl: decorated_decl | fn_decl | agent_decl | prompt_decl | class_decl | use_stmt | team_decl
+top_decl: decorated_decl | fn_decl | agent_decl | prompt_decl | class_decl | use_stmt | team_decl | principles_block | gate_block | memory_block
 expr_stmt: expr
 
 // ---- Type expressions (D-08, D-09) ----
@@ -179,7 +179,7 @@ use_path: IDENT ("::" IDENT)*
 team_decl:   "team" IDENT "{" team_body "}"
 team_body:   _NL* (team_item (_NL+ team_item)*)? _NL*
 
-team_item:   ceiling_block | policy_kv | team_agent | roster_block | board_block | ritual_block
+team_item:   ceiling_block | policy_kv | team_agent | roster_block | board_block | ritual_block | principles_block | gate_block | memory_block
 
 // `ceiling { k: v, k: v }` — every kv is required to be either a budget_literal
 // or a string literal (scope glob). Order-free; transformer validates required keys.
@@ -224,6 +224,21 @@ gate_predicate: expr
 ritual_block: "ritual" IDENT "{" _NL* ritual_kv (_NL+ ritual_kv)* _NL* "}"
 ritual_kv:    RITUAL_KEY ":" expr
 RITUAL_KEY:   "every" | "gather"
+
+// ---------- V10 coordination blocks (VLANG-01a/01b/01c) ----------
+// `principles { diff: "...", evidence: "..." }` — open-set IDENT keys, string values.
+principles_block: "principles" "{" _NL* principles_kv ((_NL* "," _NL* | _NL+) principles_kv)* _NL* ","? _NL* "}"
+principles_kv:    IDENT ":" STRING
+
+// Standalone `gate <name> { require <pred> ... }`. Distinct from board gate_decl
+// (line ~219) which uses the "->" target arrow; this form has "{" after IDENT.
+gate_block:   "gate" IDENT "{" _NL* gate_require (_NL+ gate_require)* _NL* "}"
+gate_require: "require" IDENT
+
+// `memory { decisions: "...", sessions: "...", semantic: "..." }` — closed-set keys.
+memory_block: "memory" "{" _NL* memory_kv ((_NL* "," _NL* | _NL+) memory_kv)* _NL* ","? _NL* "}"
+memory_kv:    MEMORY_KEY ":" STRING
+MEMORY_KEY:   "decisions" | "sessions" | "semantic"
 
 // ---------- Terminals ----------
 

@@ -1,0 +1,24 @@
+# reviewer-split.voss — V10 org-loop: reviewer split expressed via a Done gate
+# that requires independent review (no separate review{} block — deferred).
+team ReviewerSplit {
+  ceiling {
+    budget: 200000 tokens
+    scope: "src/**"
+  }
+
+  principles {
+    review: "Review intent and correctness before style."
+  }
+
+  gate done {
+    require tests_passed
+    require independent_review
+    require evidence_refs
+  }
+
+  roster engineers {
+    backend { model: "cheap" }
+    reviewer { model: "strong" }
+    tester { model: "cheap" }
+  }
+}

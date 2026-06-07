@@ -50,8 +50,8 @@ V11 is the render sink for everything V4–V9 persist and export: `voss board` (
 
 7. **Blocked-card decision flow** (VADE-09): blocked cards are actionable via the CLI.
    - Current: none.
-   - Target: a panel lists blocked cards with reasons; the approve/reject/unblock (and sign-off) action invokes the V7/V9 CLI — the ADE displays state and shells the decision; it never writes run decisions directly.
-   - Acceptance: blocked cards + reasons render; triggering a decision invokes the corresponding CLI command (observable), not a direct app write.
+   - Target: a panel lists blocked cards with reasons; the **approve** (and sign-off) action invokes the real V9 CLI (`voss audit <run_id> --cwd <path> --approve`) — the ADE displays state and shells the decision; it never writes run decisions directly. **Reject/unblock and per-card decisions are rendered disabled-with-explanation** because no non-interactive V7/V9 CLI command exists for them yet (verified in `voss/harness/cli.py`: sign-off via `voss team run` is interactive-only; there is no standalone `voss reject/unblock <card>`). Enabling them is a future harness phase, out of V11's consumer scope.
+   - Acceptance: blocked cards + reasons render; triggering the **approve** action invokes `voss audit <run_id> --approve` (observable CLI call), not a direct app write; reject/unblock affordances are present but disabled with an explanation until a non-interactive CLI command exists.
 
 8. **Run replay** (VADE-10): a run can be replayed.
    - Current: none.
@@ -90,7 +90,7 @@ V11 is the render sink for everything V4–V9 persist and export: `voss board` (
 - [ ] The audit panel renders the V9 audit JSON sections; unsupported EM claims are flagged; residual-risk is shown.
 - [ ] Budget viz shows per root/card/agent; scope viz shows per role/card.
 - [ ] A diff + verification drilldown opens from a card/review showing the diff + test/eval result.
-- [ ] The blocked-card panel lists blocked cards + reasons; a decision action invokes the V7/V9 CLI (observable), not a direct app write.
+- [ ] The blocked-card panel lists blocked cards + reasons; the approve action invokes `voss audit <run_id> --approve` (observable CLI call), not a direct app write; reject/unblock are rendered disabled-with-explanation (no non-interactive CLI command exists yet).
 - [ ] Run replay steps through a run's persisted transitions and reflects board/card state at each step.
 - [ ] `npm run build` + existing voss-app tests (vitest) + `tsc --noEmit` are green; the terminal-grid view does not regress.
 

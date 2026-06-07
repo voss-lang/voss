@@ -19,6 +19,16 @@ import pytest
 
 ROOT_ID = "root_aabbcc0001"
 
+# Returned-path keys that map to a session-tree node JSON (each has an `id`).
+# V9 added non-node keys (`*_review`, `run_final`) to the returned dict; tests
+# that read `["id"]` must restrict themselves to these.
+NODE_KEYS = frozenset(
+    {
+        "root", "node_done", "node_killed", "node_rescoped",
+        "node_successor", "node_misroute", "node_ab_block", "node_timeout",
+    }
+)
+
 
 def _ts(n: int) -> str:
     return f"2026-05-20T10:{n:02d}:00+00:00"
@@ -321,7 +331,110 @@ def build_fixture_tree(root: Path) -> dict[str, Path]:
         node_id = node_data["id"]
         path = sessions_dir / f"{node_id}.json"
         path.write_text(json.dumps(node_data, indent=2))
+        path.chmod(0o600)
         paths[key] = path
+
+    # ------------------------------------------------------------------
+    # V9 extension: per-node .review.json sidecars + a separate
+    # run-final.json. Schema mirrors voss.harness.board.review_persistence
+    # (a_verification / b_verdict / final_outcome) and cli._persist_run_final.
+    # These are NOT node files (run-final.json has no `id`; sidecars are
+    # named <node_id>.review.json) — the loader must filter them from the
+    # node glob (V9-02 landmine fix).
+    # ------------------------------------------------------------------
+    review_sidecars: dict[str, tuple[str, dict]] = {
+        # A pass, B block, strong tier — drives reviewer-sections + slop-rejection.
+        "node_ab_block_review": (
+            "node_ab_block1",
+            {
+                "a_verification": {
+                    "test_path_or_rubric": "test_ab",
+                    "result": "pass",
+                    "notes": "A verified",
+                },
+                "b_verdict": {
+                    "conf": 0.30,
+                    "source": "B",
+                    "tier": "strong",
+                    "verdict": "block",
+                    "notes": "B blocked",
+                    "evidence_refs": ["ev_b_1"],
+                    "domain_inferred": "backend",
+                },
+                "final_outcome": "Blocked",
+            },
+        ),
+        # A pass, B pass — clean Done card.
+        "node_done_review": (
+            "node_done_0001",
+            {
+                "a_verification": {
+                    "test_path_or_rubric": "test_done",
+                    "result": "pass",
+                    "notes": "A verified",
+                },
+                "b_verdict": {
+                    "conf": 0.92,
+                    "source": "B",
+                    "tier": "fast",
+                    "verdict": "pass",
+                    "notes": "B approved",
+                    "evidence_refs": ["ev_b_done"],
+                    "domain_inferred": "backend",
+                },
+                "final_outcome": "Done",
+            },
+        ),
+        # A pass, B fail — a false-pass calibration pair.
+        "node_misroute_review": (
+            "node_misroute1",
+            {
+                "a_verification": {
+                    "test_path_or_rubric": "test_misroute",
+                    "result": "pass",
+                    "notes": "A verified",
+                },
+                "b_verdict": {
+                    "conf": 0.55,
+                    "source": "B",
+                    "tier": "fast",
+                    "verdict": "fail",
+                    "notes": "B disagrees",
+                    "evidence_refs": ["ev_b_mis"],
+                    "domain_inferred": "frontend",
+                },
+                "final_outcome": "Done",
+            },
+        ),
+    }
+    # NOTE: node_killed_01 intentionally has NO sidecar (drives the
+    # VAUD-03 unsupported-claim test: em.ticket present, sidecar absent).
+    for key, (node_id, payload) in review_sidecars.items():
+        path = sessions_dir / f"{node_id}.review.json"
+        path.write_text(json.dumps(payload, indent=2))
+        path.chmod(0o600)
+        paths[key] = path
+
+    # Separate run-final.json (NOT a node file — no `id` key).
+    run_final_path = sessions_dir / "run-final.json"
+    run_final_path.write_text(
+        json.dumps(
+            {
+                "root_id": ROOT_ID,
+                "idea": "fixture idea",
+                "total_cards": 5,
+                "done_count": 1,
+                "blocked_count": 1,
+                "killed_count": 1,
+                "rescope_count": 1,
+                "em_iterations": 3,
+                "sign_off": {"decision": "approve", "ts": _ts(11)},
+            },
+            indent=2,
+        )
+    )
+    run_final_path.chmod(0o600)
+    paths["run_final"] = run_final_path
 
     return paths
 
@@ -358,11 +471,15 @@ class TestFixtureData:
             "root", "node_done", "node_killed", "node_rescoped",
             "node_successor", "node_misroute", "node_ab_block", "node_timeout",
         }
-        assert set(tree.keys()) == expected
+        # The 8 node entries must all be present. V9 added .review.json /
+        # run-final.json keys alongside them, so this is a subset check.
+        assert expected <= set(tree.keys())
 
     def test_all_files_are_valid_json(self, tree: dict[str, Path]):
         for key, path in tree.items():
             data = json.loads(path.read_text())
+            if key not in NODE_KEYS:
+                continue  # .review.json / run-final.json have no `id`
             assert "id" in data, f"{key} missing 'id'"
             assert "root_id" in data, f"{key} missing 'root_id'"
 
@@ -409,13 +526,17 @@ class TestFixtureData:
         tree1 = build_fixture_tree(tmp_path / "a")
         tree2 = build_fixture_tree(tmp_path / "b")
         for key in tree1:
+            if key not in NODE_KEYS:
+                continue
             data1 = json.loads(tree1[key].read_text())
             data2 = json.loads(tree2[key].read_text())
             assert data1["id"] == data2["id"], f"{key} id not deterministic"
 
     def test_nodes_sorted_by_id(self, tree: dict[str, Path]):
         ids = []
-        for path in tree.values():
+        for key, path in tree.items():
+            if key not in NODE_KEYS:
+                continue
             data = json.loads(path.read_text())
             ids.append(data["id"])
         # root should be first alphabetically is not required, but ids should

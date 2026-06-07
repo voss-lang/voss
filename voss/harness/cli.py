@@ -2536,6 +2536,103 @@ def review_cmd(run_id: str | None) -> None:
         _render_review_card(node_id, data)
 
 
+@click.command("audit")
+@click.argument("run_id", required=False)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option(
+    "--format", "fmt",
+    type=click.Choice(["text", "json", "markdown"]),
+    default="text",
+)
+@click.option("--output", "output_path", default=None, type=click.Path())
+@click.option(
+    "--approve",
+    "approve",
+    is_flag=True,
+    help="Approve the audited run; refused if killed/misroute risks are unacknowledged.",
+)
+def audit_cmd(
+    run_id: str | None,
+    cwd_str: str,
+    fmt: str,
+    output_path: str | None,
+    approve: bool,
+) -> None:
+    """Render a complete read-only audit for a run (latest if no run_id).
+
+    Read-only: assembles the audit from persisted session data; no live Board /
+    SessionTreeManager / provider is constructed (VAUD-01, mirrors review_cmd).
+    """
+    cwd = Path(cwd_str).resolve()
+    sessions_dir = cwd / ".voss" / "sessions"
+
+    if run_id is not None:
+        # T-V9-04-01: reject traversal BEFORE any FS read.
+        if "/" in run_id or "\\" in run_id or ".." in run_id:
+            click.echo(f"<error: invalid run_id {run_id!r}>", err=True)
+            raise SystemExit(1)
+        candidate = (sessions_dir / run_id).resolve()
+        if candidate.parent != sessions_dir.resolve():
+            click.echo(f"<error: invalid run_id {run_id!r}>", err=True)
+            raise SystemExit(1)
+        if not candidate.is_dir():
+            click.echo(f"unknown run_id: {run_id}", err=True)
+            raise SystemExit(1)
+    else:
+        run_id = _latest_root_id(sessions_dir)
+        if run_id is None:
+            click.echo("(no runs found)", err=True)
+            raise SystemExit(1)
+
+    from voss.harness.audit import (
+        build_audit_report,
+        render_json,
+        render_markdown,
+        render_text,
+    )
+
+    calibration = None
+    try:
+        from voss.harness.audit.calibration import compute_calibration
+
+        # Fixed seed → deterministic spot-audit selection (VAUD-08: audit output
+        # must be reproducible from persisted data).
+        calibration = compute_calibration(sessions_dir, seed=0)
+    except Exception:
+        calibration = None  # calibration optional; build tolerates None
+
+    report = build_audit_report(cwd, run_id=run_id, calibration=calibration)
+
+    # VAUD-SIGNOFF readback: approve is refused when killed/misroute risks exist
+    # and the .signoff-ack.json governance record is absent.
+    if approve:
+        risks = bool(report.snapshot.kills) or any(
+            r.confidence_hint is not None and r.confidence_hint < 0.7
+            for r in report.snapshot.routings
+        )
+        if risks and report.signoff_ack is None:
+            click.echo(
+                "approve refused: killed-card/misroute risks unacknowledged — "
+                "run `voss team run` sign-off to acknowledge.",
+                err=True,
+            )
+            raise SystemExit(1)
+        click.echo(f"approve: permitted for {report.run_id}")
+
+    renderer = {
+        "text": render_text,
+        "json": render_json,
+        "markdown": render_markdown,
+    }[fmt]
+    rendered = renderer(report)
+
+    if output_path is not None:
+        Path(output_path).write_text(rendered)
+    else:
+        click.echo(rendered)
+    raise click.exceptions.Exit(0)
+
+
 _JOB_META_FIELDS = (
     "handle",
     "pid",
@@ -4018,6 +4115,58 @@ def _persist_run_final(rf, cwd: Path, decision: str | None = None) -> Path:
     return persist_path
 
 
+def _write_signoff_ack(
+    cwd: Path, root_id: str, *, killed_count: int, misroute_count: int
+) -> Path:
+    """Write the killed/misroute acknowledgement to a NEW .signoff-ack.json (VAUD-SIGNOFF).
+
+    A governance record ALONGSIDE the audited run, never a mutation of
+    run-final.json or any node JSON. Mirrors _persist_run_final's 0o600
+    mkdir+write+chmod pattern. SECURITY (T-V9-06-03): root_id comes ONLY from
+    rf.root_id (a SessionTreeNode UUID), never user input — no path traversal.
+    """
+    from datetime import datetime, timezone
+
+    run_dir = cwd / ".voss" / "sessions" / root_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path = run_dir / ".signoff-ack.json"
+    data = {
+        "ack_ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "killed_count": killed_count,
+        "misroute_count": misroute_count,
+    }
+    path.write_text(json.dumps(data, indent=2))
+    path.chmod(0o600)
+    return path
+
+
+def _enforce_signoff_ack(
+    cwd: Path, root_id: str, *, killed_count: int, misroute_count: int
+) -> None:
+    """Force acknowledgement of killed/misroute risks before approve (VAUD-SIGNOFF).
+
+    Pitfall 5: a clean run (no kills, no misroutes) returns immediately — no
+    empty-diff prompt. Otherwise displays the risk diff and prompts; a non-"yes"
+    answer aborts sign-off non-zero; "yes" records the ack in a new
+    .signoff-ack.json sidecar.
+    """
+    if killed_count <= 0 and misroute_count <= 0:
+        return
+    click.echo(
+        f"\nRisk summary: {killed_count} killed card(s), "
+        f"{misroute_count} misroute candidate(s)."
+    )
+    ack = click.prompt(
+        "Acknowledge killed/misroute risks? Type 'yes' to continue"
+    )
+    if ack.strip().lower() != "yes":
+        click.echo("Sign-off aborted — acknowledgement required.", err=True)
+        raise click.exceptions.Exit(1)
+    _write_signoff_ack(
+        cwd, root_id, killed_count=killed_count, misroute_count=misroute_count
+    )
+
+
 @team_group.command("run")
 @click.argument("goal")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
@@ -4129,6 +4278,27 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
     )
     click.echo(f"em_iterations: {rf.em_iterations}")
 
+    # VAUD-SIGNOFF: gate approve behind a forced acknowledgement of the
+    # killed-card + misroute risk diff. Misroute = a routing with a stated
+    # confidence_hint below 0.7 (read-only from the just-persisted snapshot).
+    killed_count = rf.killed_count
+    misroute_count = 0
+    try:
+        from voss.harness.audit.load import load_audit_snapshot
+
+        routings = load_audit_snapshot(cwd, run_id=rf.root_id).routings
+        misroute_count = sum(
+            1
+            for r in routings
+            if r.confidence_hint is not None and r.confidence_hint < 0.7
+        )
+    except Exception:
+        misroute_count = 0
+
+    _enforce_signoff_ack(
+        cwd, rf.root_id, killed_count=killed_count, misroute_count=misroute_count
+    )
+
     decision = click.prompt(
         "Sign off on this run (approve/reject)",
         type=click.Choice(["approve", "reject"]),
@@ -4212,6 +4382,7 @@ AGENT_COMMANDS = (
     session_group,
     team_group,
     board_cmd,
+    audit_cmd,
 )
 
 

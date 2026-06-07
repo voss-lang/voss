@@ -120,3 +120,30 @@ class AuditSnapshot:
     liveness: tuple[LivenessEvent, ...]
     leak6: Leak6Assessment
     run_final: Optional[dict] = None
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationReport:
+    """Reviewer calibration metrics aggregated across runs (VAUD-CAL)."""
+    total_pairs: int
+    false_pass_count: int
+    slop_rejection_count: int
+    false_pass_rate: float
+    slop_rejection_rate: float
+    spot_audit_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AuditReport:
+    """Complete V9 audit report: wraps AuditSnapshot + all PRD §9 sections."""
+    run_id: str
+    idea: str
+    principles: tuple[tuple[str, str], ...]
+    team_config: dict
+    snapshot: AuditSnapshot
+    review_sidecars: dict
+    run_final: Optional[dict]
+    signoff_ack: Optional[dict]
+    calibration: CalibrationReport
+    sections_missing: tuple[str, ...]
+    unsupported_claims: tuple[str, ...] = ()

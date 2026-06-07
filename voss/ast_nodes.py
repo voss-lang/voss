@@ -333,6 +333,31 @@ class RitualDecl(Decl):
     kvs: tuple[tuple[str, object], ...]
 
 
+# ----- V10 coordination blocks (VLANG-01a/01b/01c) -----
+@dataclass(frozen=True, slots=True)
+class PrinciplesBlockDecl(Decl):
+    """`principles { key: "text"; ... }` — ordered (key, text) pairs."""
+
+    items: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class GateBlockDecl(Decl):
+    """Standalone `gate <name> { require <pred> ... }` (distinct from board gate_decl)."""
+
+    name: str
+    requires: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryBlockDecl(Decl):
+    """`memory { decisions: "..."; sessions: "..."; semantic: "..." }` — omitted keys → None."""
+
+    decisions: str | None = None
+    sessions: str | None = None
+    semantic: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class TeamDecl(Decl):
     name: str
@@ -343,6 +368,9 @@ class TeamDecl(Decl):
     board: BoardDecl | None
     rituals: tuple[RitualDecl, ...]
     decorators: tuple[Decorator, ...] = ()
+    principles: "PrinciplesBlockDecl | None" = None
+    gates: "tuple[GateBlockDecl, ...]" = ()
+    memory: "MemoryBlockDecl | None" = None
 
 
 @dataclass(frozen=True, slots=True)
