@@ -46,10 +46,7 @@ pub async fn spawn() -> Result<Supervisor, VossError> {
 }
 
 /// Spawn with an explicit interpreter and extra environment.
-pub async fn spawn_with(
-    python: &str,
-    extra_env: &[(&str, &str)],
-) -> Result<Supervisor, VossError> {
+pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supervisor, VossError> {
     let mut cmd = Command::new(python);
     cmd.args(["-m", "voss.cli", "serve", "--port", "0"])
         .stdin(Stdio::piped()) // held open = heartbeat; EOF terminates server
@@ -107,10 +104,10 @@ mod tests {
         )
         .await;
 
-        let error = result.expect("bad interpreter should not hang").unwrap_err();
-        assert!(matches!(
-            error,
-            VossError::Spawn(_) | VossError::Handshake(_)
-        ));
+        match result.expect("bad interpreter should not hang") {
+            Err(VossError::Spawn(_) | VossError::Handshake(_)) => {}
+            Err(other) => panic!("expected spawn or handshake error, got {other:?}"),
+            Ok(_) => panic!("bad interpreter unexpectedly spawned a supervisor"),
+        }
     }
 }
