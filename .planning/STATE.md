@@ -7,10 +7,10 @@ last_updated: "2026-06-08T22:30:00.000Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 55
-  completed_phases: 3
-  total_plans: 25
-  completed_plans: 22
-  percent: 5
+  completed_phases: 4
+  total_plans: 26
+  completed_plans: 23
+  percent: 7
 ---
 
 # State: Voss
@@ -24,10 +24,11 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** V13.3 — Go Local/Headless Client SDK — ✅ COMPLETE (2026-06-08)
-**Status:** All 6 plans executed; full suite green (`go test ./...` + real-server integration via `TestMain`/`VOSS_SERVE_FAKE_TURN`; drift gate live).
-**Goal (delivered):** Greenfield Go SDK at `sdk/go/` — generated+drift-gated contract types, full 21-member event model, typed REST, typed SSE, spawn/attach supervisor, handshake, permission helper, no-FFI/no-orchestration guard.
-**Next move:** V13.4 (C ABI/Schema doc — doc-only) remains; or resume the A-track (**A4 — voss-app Layout Presets**, ready to execute; A3 substrate in place).
+**Phase:** V13.4 — C ABI/Schema Documentation — ✅ COMPLETE (2026-06-08); V13.3 Go SDK also ✅ COMPLETE.
+**Status:** V13.4 (1/1 plan, doc-only) + V13.3 (6/6 plans) done. The V13.x external-SDK sub-track (V13.1 TS, V13.2 Rust, V13.3 Go, V13.4 C-doc) is fully executed; V13 itself is docs-only.
+**Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
+**Next move:** Resume the A-track — **A4 — voss-app Layout Presets** (ready to execute; A3 substrate in place). (V13 docs-only reframe + V14 ADE Run Cockpit remain SPEC-pending if the V-track is resumed.)
+**Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).
 **Carry-over deviations (V13.3):** go floor 1.24 (audited deps oapi-codegen v2.7.1 + runtime v1.4.1 force it); in-SDK 3.1→3.0 codegen normalizer (`sdk/go/internal/specgen`, oapi-codegen v2.7.1 can't read FastAPI's OpenAPI 3.1); 60s spawn handshake + `LITELLM_LOCAL_MODEL_COST_MAP=true`.
 **Rust status:** `crates/` frozen-spike untouched. NEW `crates/voss-app-core` (A1, path-dep'd by src-tauri, populated A2+) + `apps/voss-app/src-tauri` are the live voss-app track members — distinct from the frozen v0.1-ship crates.
 **Last activity:** 2026-06-08
@@ -72,6 +73,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | DESIGN-BRIEF drafted (`phases/V14-ade-run-cockpit-integrated-redesign-live-data-unification/V14-DESIGN-BRIEF.md`). Recompose V11 panels → cockpit (Board spine + detail drawer + timeline + gate bar) + RunCommandBar + AttentionQueue + unified live/snapshot data model w/ card↔session binding; live SSE gated on V13.1. VCKP-01..10; ~10 plans/7 waves. SPEC pending (`/gsd-spec-phase V14`). |
 
 ## Recent Activity
+
+- 2026-06-08 — **Phase V13.4 (C ABI/Schema Documentation) ✅ COMPLETE — 1/1 plan, doc-only, zero code.** Shipped `docs/native-embedding.md` (133 lines): native/C embedder consumption reference — spawn/attach `voss serve`, read the one-line `{v,port,token}` handshake, loopback `http://127.0.0.1:<port>` (no TLS), `Authorization: Bearer <token>` on every request incl. the SSE GET; cites `.planning/PROTOCOL.md` + `contracts/openapi.json` + `contracts/events.schema.json` by path (points-at, never forks the schema), cross-links `docs/sdk.md` + `docs/ORCHESTRATION_LAYERS.md`; JSON→native table names the `type` discriminator (= SSE event name = serde tag) + `v` version + required/optional + scalar/composite reading, with the event-union member set declared **authoritative-from `contracts/events.schema.json`** (not hardcoded); five-tier stability statement (stable-now/experimental/generated-from-protocol/private-internal/deferred verbatim) mapping the protocol surface to `generated-from-protocol` and C-headers/FFI to `deferred`; deferred subsection marks C headers/cbindgen/FFI-cgo not-built with the activation trigger (a concrete native embedder appears). Plus `docs/check-native-embedding-refs.sh` (exec, POSIX, no deps): enumerates the five cited paths, hard-fails on a missing always-expected path (PROTOCOL.md/sdk.md), warn-skips (exit 0) while upstream-gated paths absent, greps tier terms in `docs/ORCHESTRATION_LAYERS.md` once all resolve. **Verification:** 12/12 doc ACs + script ACs green; gate run → exit 0 with SKIP for the pending `docs/ORCHESTRATION_LAYERS.md` (V13); hard-fail proof (renamed PROTOCOL.md → exit 1) confirmed; `.planning/PROTOCOL.md` + `docs/sdk.md` byte-unchanged; no `.h/.c/.rs/.toml` added. **Notes:** plan's `<upstream_state>` was stale — `contracts/*.json` are present now (gate shows OK, still warn-skips on the pending V13 `docs/ORCHESTRATION_LAYERS.md`; the design PRD lives at `.planning/docs/ORCHESTRATION_LAYERS.md`). `docs/native-embedding.md` was already committed (`ae4c2c0`, byte-identical); net-new artifact = the refs-check script (untracked). Open: VSDK-C-01 prose-readability human-check (manual-only). VSDK-C-01..06 met. Summary: `.planning/phases/V13.4-c-abi-schema-documentation/V13.4-01-SUMMARY.md`. **The V13.x external-SDK sub-track (V13.1 TS / V13.2 Rust / V13.3 Go / V13.4 C-doc) is now fully executed.**
 
 - 2026-06-08 — **Phase V13.3 (Go Local/Headless Client SDK) ✅ COMPLETE — 6/6 plans, full suite green.** Greenfield Go SDK at `sdk/go/` (`module github.com/vosslang/voss/sdk/go`): generated+drift-gated contract types (`types.gen.go` via in-SDK normalizer), full 21-member `Decode()` event model + `ErrUnknownEventType` (no silent drop), `VossError`, typed REST client (10 `*Client` methods incl. `PermissionReply`, bearer single-chokepoint, 401/409 typed), typed SSE consumer (`Events() <-chan TypedEvent`, hand-parsed framing, leak-free context-cancel), spawn/attach supervisor (`Spawn`/`AttachClient`, stdin heartbeat, no-orphan PID-verified `Close`), handshake parse, and a `TestNoFFI` AST guard (no cgo, no `voss/harness` import; deps = stdlib + `oapi-codegen/runtime` only). Shared `TestMain` spawns one `VOSS_SERVE_FAKE_TURN` server for the real-server integration suite. **Verification:** `VOSS_PYTHON=.../.venv/bin/python go test ./... -timeout 180s` all green (17 PASS + drift live-PASS + 21-type parity; `TestIntegration409` clean-skips when the fast fake-turn won't trigger the race); `go build`/`go vet` clean; no orphan after run. **3 RESEARCH-assumption deviations (all forced/justified):** (1) go floor 1.22→**1.24** — oapi-codegen v2.7.1 AND runtime v1.4.1 both declare `go 1.24`, impossible to keep 1.22 with the audited versions; (2) **in-SDK 3.1→3.0 codegen normalizer** (`sdk/go/internal/specgen`) — oapi-codegen v2.7.1 can't parse FastAPI's OpenAPI 3.1.0 (9 null-union nullables), deterministic in-memory downgrade feeds the pinned `go tool oapi-codegen`, upstream `contracts/` untouched; (3) **60s spawn handshake + `LITELLM_LOCAL_MODEL_COST_MAP=true`** — cold litellm import exceeds 20s (same root cause as V13.2-06). D-08 premise was already stale (`contracts/openapi.json` exists, committed `8ea3e39`) so the `//go:generate` + drift gate target the live contract; fixture is the documented byte-identical fallback. D-09: permission route-contract automated, SSE-observed allow/deny loop manual/deferred (FAKE_TURN emits no `permission.updated`). VSDK-GO-01..08 all met. Not committed (operator's call). Summaries: `.planning/phases/V13.3-go-local-headless-client-sdk/V13.3-0{1..6}-SUMMARY.md`.
 
