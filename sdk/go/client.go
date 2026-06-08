@@ -49,11 +49,25 @@ func (c *Client) String() string {
 }
 
 // Close releases resources. For an attach client (spawn == nil) it is a no-op
-// for the process. Spawn teardown (kill + reap + stdin close) lands in Plan 05.
+// for the process. For a spawned client it closes the stdin heartbeat (so the
+// server's stdin-EOF supervision fires), kills the child, and reaps it — no
+// orphan. It is idempotent: once the child is reaped (cmd.ProcessState set), a
+// repeat Close is a no-op.
 func (c *Client) Close() error {
 	if c.spawn == nil {
 		return nil
 	}
+	s := c.spawn
+	if s.cmd == nil || s.cmd.ProcessState != nil {
+		return nil // already reaped
+	}
+	if s.stdinW != nil {
+		_ = s.stdinW.Close()
+	}
+	if s.cmd.Process != nil {
+		_ = s.cmd.Process.Kill()
+	}
+	_ = s.cmd.Wait() // reaps the zombie; the post-Kill error is expected and ignored
 	return nil
 }
 
