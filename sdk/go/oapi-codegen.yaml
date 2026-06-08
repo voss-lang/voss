@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/v2.7.1/configuration-schema.json
+# Types-only codegen: structs + the EventEnvelope oneOf union helpers.
+# The REST client and SSE consumer are hand-written (CONTEXT D-04), so no
+# client/server stubs are generated here.
+package: voss
+output: types.gen.go
+generate:
+  models: true
+  client: false
+  chi-server: false
+  std-http-server: false
+  embedded-spec: false
