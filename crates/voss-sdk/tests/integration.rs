@@ -7,6 +7,8 @@ use voss_sdk::error::VossError;
 use voss_sdk::types::events::AgentEvent;
 use voss_sdk::{event_stream, spawn_with, VossClient};
 
+static SERVER_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 fn venv_python() -> Option<String> {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
     p.exists().then(|| p.to_string_lossy().into_owned())
@@ -28,6 +30,7 @@ async fn rest_roundtrip() {
         return;
     };
 
+    let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
         let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
@@ -55,6 +58,7 @@ async fn auth_bad_token() {
         return;
     };
 
+    let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
         let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
@@ -77,6 +81,7 @@ async fn post_while_busy() {
         return;
     };
 
+    let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
         let supervisor = spawn_with(&python, &[]).await.expect("server should start");
         let client = supervisor.client.clone();
@@ -112,6 +117,7 @@ async fn sse_event_sequence() {
         return;
     };
 
+    let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
         let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
@@ -152,6 +158,7 @@ async fn sse_drop_midstream() {
         return;
     };
 
+    let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
         let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
@@ -184,6 +191,7 @@ async fn supervisor_no_orphan() {
         return;
     };
 
+    let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
         let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
@@ -219,6 +227,7 @@ async fn permission_roundtrip() {
         return;
     };
 
+    let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
         let supervisor = spawn_with(&python, &[]).await.expect("server should start");
         let client = supervisor.client.clone();

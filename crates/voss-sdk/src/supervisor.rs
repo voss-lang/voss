@@ -56,6 +56,7 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
         .stdin(Stdio::piped()) // held open = heartbeat; EOF terminates server
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
+        .env("PYDANTIC_DISABLE_PLUGINS", "1")
         .kill_on_drop(true);
     for (key, value) in extra_env {
         cmd.env(key, value);
