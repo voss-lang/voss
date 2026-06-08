@@ -217,7 +217,7 @@ wrapDecs ds = \case
   StmtPrompt p -> StmtPrompt p {prDecorators = ds}
   StmtClass c -> StmtClass c {clDecorators = ds}
   s -> s
-``
+
 decoratedTarget :: FilePath -> P Stmt
 decoratedTarget fp =
   choice [StmtFn <$> pFn fp, StmtAgent <$> pAgent fp, StmtPrompt <$> pPrompt fp, StmtClass <$> pClass fp]

@@ -1,52 +1,117 @@
 package voss
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+)
 
-// TestVossError lives in errors_test.go (Plan 02 implemented errors.go).
+// TestVossError lives in errors_test.go; permission tests live in
+// permission_test.go. These run against the shared TestMain fake-turn server.
 
-// TestBearerHeader will assert every REST method attaches
-// "Authorization: Bearer <token>" via a recording httptest server. RED until
-// Plan 03 (V13.3-03) lands rest.go.
-func TestBearerHeader(t *testing.T) {
-	// TODO(V13.3-03): drive a *Client (AttachClient) against an httptest server
-	// and assert the bearer header is present on every request, including SSE.
-	t.Skip("RED: rest.go bearer injection implemented in Plan 03 (V13.3-03)")
-}
-
-// TestIntegrationRestRoundTrip will exercise create -> message -> cost ->
-// delete against a real `voss serve` (VOSS_SERVE_FAKE_TURN) and assert the
-// 201/202/200/204 status mapping. RED until Plan 03/06.
+// TestIntegrationRestRoundTrip exercises create(201) -> message(202) -> drain ->
+// cost(200) -> delete(204) against the real server.
 func TestIntegrationRestRoundTrip(t *testing.T) {
-	// TODO(V13.3-03/06): full REST round-trip against the shared TestMain server.
-	t.Skip("RED: REST client + integration harness implemented in Plan 03/06")
+	c := requireShared(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	id, err := c.CreateSession(ctx, ".")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	ch, err := c.Events(ctx, id)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+	if err := c.PostMessage(ctx, id, "hi", ""); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if seen := drainTurn(t, ch, 30*time.Second); !seen["final"] {
+		t.Fatalf("turn produced no final; saw %v", seen)
+	}
+	if _, err := c.Cost(ctx, id); err != nil {
+		t.Fatalf("Cost: %v", err)
+	}
+	if err := c.DeleteSession(ctx, id); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
 }
 
-// TestIntegration401 will assert a wrong/absent bearer token yields a typed
-// VossError with Status 401. RED until Plan 03/06.
+// TestIntegration401 asserts a wrong bearer token yields *VossError{401}.
 func TestIntegration401(t *testing.T) {
-	// TODO(V13.3-03/06): post with a bad token, assert *VossError{Status:401}.
-	t.Skip("RED: 401 handling implemented in Plan 03/06")
+	c := requireShared(t)
+	bad := AttachClient(c.baseURL, "wrong-token")
+	_, err := bad.CreateSession(context.Background(), ".")
+	var ve *VossError
+	if !errors.As(err, &ve) || ve.Status != 401 {
+		t.Fatalf("err = %v, want *VossError{401}", err)
+	}
 }
 
-// TestIntegration409 will assert posting a second message while a turn is
-// running returns a typed VossError with Status 409. RED until Plan 03/06.
+// TestBearerHeader asserts the correct token succeeds and a wrong token 401s
+// against the real server (the bearer is attached via the single chokepoint).
+func TestBearerHeader(t *testing.T) {
+	c := requireShared(t)
+	ctx := context.Background()
+	if _, err := c.ListSessions(ctx); err != nil {
+		t.Fatalf("good token ListSessions: %v", err)
+	}
+	bad := AttachClient(c.baseURL, "nope")
+	_, err := bad.ListSessions(ctx)
+	var ve *VossError
+	if !errors.As(err, &ve) || ve.Status != 401 {
+		t.Fatalf("wrong token err = %v, want *VossError{401}", err)
+	}
+}
+
+// TestIntegration409 fires two concurrent PostMessage calls at one session and
+// asserts exactly one *VossError{409} when the race is triggered. The fake turn
+// can complete before the second post arrives, so the race is not always
+// observable — retry a few times and skip (not fail) if it never triggers
+// (RESEARCH Pitfall 7).
 func TestIntegration409(t *testing.T) {
-	// TODO(V13.3-03/06): fire two concurrent posts (sync.WaitGroup), assert one
-	// returns *VossError{Status:409} (RESEARCH Pitfall 7).
-	t.Skip("RED: 409 busy handling implemented in Plan 03/06")
-}
+	c := requireShared(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
-// TestPermissionAllow will assert PermissionReply with an allow choice maps to
-// status "ok". RED until Plan 06 (V13.3-06) per CONTEXT D-09 (route-contract
-// half is automated).
-func TestPermissionAllow(t *testing.T) {
-	// TODO(V13.3-06): assert PermissionReply(...,"a") -> ok (Stale=false).
-	t.Skip("RED: PermissionReply implemented in Plan 06 (V13.3-06)")
-}
+	for attempt := 0; attempt < 3; attempt++ {
+		id, err := c.CreateSession(ctx, ".")
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
 
-// TestPermissionDeny will assert PermissionReply with a deny choice maps to
-// status "ok"/denied, and a stale id maps to Stale=true. RED until Plan 06.
-func TestPermissionDeny(t *testing.T) {
-	// TODO(V13.3-06): assert PermissionReply(...,"d") and the stale-id path.
-	t.Skip("RED: PermissionReply implemented in Plan 06 (V13.3-06)")
+		var wg sync.WaitGroup
+		errs := make([]error, 2)
+		for i := 0; i < 2; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				errs[i] = c.PostMessage(ctx, id, "hi", "")
+			}(i)
+		}
+		wg.Wait()
+
+		var ok, conflict int
+		for _, e := range errs {
+			if e == nil {
+				ok++
+				continue
+			}
+			var ve *VossError
+			if errors.As(e, &ve) && ve.Status == 409 {
+				conflict++
+			} else {
+				t.Fatalf("unexpected PostMessage error: %v", e)
+			}
+		}
+		_ = c.DeleteSession(ctx, id)
+
+		if conflict == 1 && ok == 1 {
+			return // race observed, contract holds
+		}
+	}
+	t.Skip("409 race not reliably triggerable on this machine (fake turn completes too fast)")
 }
