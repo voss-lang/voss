@@ -3,19 +3,23 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.export_contract import FIXED_TOKEN
+from scripts.export_contract import (
+    EVENT_REF_TEMPLATE,
+    FIXED_TOKEN,
+    require_event_discriminators,
+)
 from voss.harness.server.app import create_app
 from voss.harness.server.events import EventEnvelope
 
 CONTRACTS = Path(__file__).resolve().parents[3] / "contracts"
-EVENT_REF_TEMPLATE = "#/components/schemas/{model}"
-
 
 def _regenerate() -> tuple[str, str]:
-    openapi_schema = create_app(FIXED_TOKEN).openapi()
+    openapi_schema = require_event_discriminators(create_app(FIXED_TOKEN).openapi())
     openapi_json = json.dumps(openapi_schema, indent=2, sort_keys=True) + "\n"
 
-    event_schema = EventEnvelope.model_json_schema(ref_template=EVENT_REF_TEMPLATE)
+    event_schema = require_event_discriminators(
+        EventEnvelope.model_json_schema(ref_template=EVENT_REF_TEMPLATE)
+    )
     events_json = json.dumps(event_schema, indent=2, sort_keys=True) + "\n"
 
     return openapi_json, events_json
