@@ -88,7 +88,7 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
     }
     let mut lines = BufReader::new(stdout).lines();
 
-    let handshake = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+    let handshake = tokio::time::timeout(std::time::Duration::from_secs(8), async {
         while let Some(line) = lines
             .next_line()
             .await
