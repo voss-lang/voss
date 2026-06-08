@@ -55,8 +55,14 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
     cmd.args(["-m", "voss.cli", "serve", "--port", "0"])
         .stdin(Stdio::piped()) // held open = heartbeat; EOF terminates server
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::piped())
         .env("PYDANTIC_DISABLE_PLUGINS", "1")
+        // litellm fetches its model-cost map over the network at import time,
+        // adding ~12s (and a hang risk) to server startup. Force the bundled
+        // local map so a freshly spawned server never blocks the handshake on
+        // a remote request. litellm matches this case-insensitively against
+        // "true".
+        .env("LITELLM_LOCAL_MODEL_COST_MAP", "true")
         .kill_on_drop(true);
     for (key, value) in extra_env {
         cmd.env(key, value);
@@ -67,9 +73,31 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
         .stdout
         .take()
         .ok_or_else(|| VossError::Handshake("server: no stdout pipe".into()))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| VossError::Handshake("server: no stderr pipe".into()))?;
+    // Continuously drain stderr so the pipe never fills (which would block the
+    // server) and so captured lines can be reported on a handshake failure.
+    let stderr_buf = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    {
+        let stderr_buf = std::sync::Arc::clone(&stderr_buf);
+        tokio::spawn(async move {
+            let mut err_lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = err_lines.next_line().await {
+                if let Ok(mut buf) = stderr_buf.lock() {
+                    buf.push_str(&line);
+                    buf.push('\n');
+                }
+            }
+        });
+    }
     let mut lines = BufReader::new(stdout).lines();
 
-    let handshake = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+    // litellm's import tree is large; a cold `.pyc` compile can take ~45s on
+    // first run, so the handshake budget must tolerate it (warm startup is
+    // ~15s). The stdin-EOF heartbeat reaps the server if we give up early.
+    let handshake = tokio::time::timeout(std::time::Duration::from_secs(60), async {
         while let Some(line) = lines
             .next_line()
             .await
@@ -85,7 +113,12 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
         ))
     })
     .await
-    .map_err(|_| VossError::Handshake("server handshake timed out".into()))??;
+    .map_err(|_| {
+        let captured = stderr_buf.lock().map(|b| b.clone()).unwrap_or_default();
+        VossError::Handshake(format!(
+            "server handshake timed out; stderr:\n{captured}"
+        ))
+    })??;
 
     // Drain remaining stdout so a full pipe buffer never blocks the server.
     tokio::spawn(async move { while let Ok(Some(_)) = lines.next_line().await {} });
