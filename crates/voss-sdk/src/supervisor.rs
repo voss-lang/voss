@@ -57,6 +57,12 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("PYDANTIC_DISABLE_PLUGINS", "1")
+        // litellm fetches its model-cost map over the network at import time,
+        // adding ~12s (and a hang risk) to server startup. Force the bundled
+        // local map so a freshly spawned server never blocks the handshake on
+        // a remote request. litellm matches this case-insensitively against
+        // "true".
+        .env("LITELLM_LOCAL_MODEL_COST_MAP", "true")
         .kill_on_drop(true);
     for (key, value) in extra_env {
         cmd.env(key, value);
@@ -88,7 +94,10 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
     }
     let mut lines = BufReader::new(stdout).lines();
 
-    let handshake = tokio::time::timeout(std::time::Duration::from_secs(8), async {
+    // litellm's import tree is large; a cold `.pyc` compile can take ~45s on
+    // first run, so the handshake budget must tolerate it (warm startup is
+    // ~15s). The stdin-EOF heartbeat reaps the server if we give up early.
+    let handshake = tokio::time::timeout(std::time::Duration::from_secs(60), async {
         while let Some(line) = lines
             .next_line()
             .await
