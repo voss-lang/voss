@@ -202,7 +202,7 @@ impl VossClient {
     }
 }
 
-async fn ok_or_detail(resp: reqwest::Response) -> Result<reqwest::Response, VossError> {
+pub(crate) async fn ok_or_detail(resp: reqwest::Response) -> Result<reqwest::Response, VossError> {
     let status = resp.status();
     if status.is_success() {
         return Ok(resp);
