@@ -63,7 +63,7 @@
 
 ## Agent spawn & adopt (mockup session, 2026-06-08 — added VCKP-11/12)
 
-Driven by mockup review of `.planning/sketches/V14-*-mockup.html`. Established that ad-hoc terminal spawn and Voss orchestration are peers, joined by an adopt flow.
+Driven by interactive review of throwaway HTML mockups (since removed). Established that ad-hoc terminal spawn and Voss orchestration are peers, joined by an adopt flow.
 
 **Ad-hoc spawn — is it an option, or only orchestration?** → Both, by design. Ad-hoc = first-class (Path 1); orchestration opt-in (Path 2). Quick-launch modal redesigned **sparse/premium**: preset+default-model, one optional prompt, dir/pane — dropped raw-command field + explainer per operator feedback ("simpler, premium, default to the user's CLI command"). → **VCKP-11**.
 

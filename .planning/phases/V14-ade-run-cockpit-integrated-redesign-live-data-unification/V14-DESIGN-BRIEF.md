@@ -139,7 +139,7 @@ Existing panels are reused as drawer/rail content:
 
 ## 12. Agent spawn & adopt (added 2026-06-08 — VCKP-11/12)
 
-Mockups (operator-reviewed): `.planning/sketches/V14-spawn-modals-mockup.html` (+ `V14-cockpit-mockup.html`, `V14-livework-mockup.html`).
+Design validated via throwaway HTML mockups (operator-reviewed 2026-06-08, since removed).
 
 **Two spawn paths, by design separate (research §execution-paths):**
 - **Path 1 — ad-hoc terminal agent (VCKP-11):** sidebar "Quick launch" → sparse premium modal: CLI preset (showing the user's default model) · one optional prompt · dir + pane placement. No raw-command field, no explainer. Spawns a PTY agent, no cage. Lands under "External Terminal Agents."
