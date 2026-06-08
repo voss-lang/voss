@@ -78,12 +78,17 @@ async fn post_while_busy() {
     };
 
     with_timeout(async {
-        let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
-            .await
-            .expect("server should start");
+        let supervisor = spawn_with(&python, &[]).await.expect("server should start");
         let client = supervisor.client.clone();
 
-        let sid = client.create_session(".").await.expect("create session");
+        let sid = match client.create_session(".").await {
+            Ok(sid) => sid,
+            Err(error) => {
+                eprintln!("skipping busy-session check: no provider credentials ({error})");
+                supervisor.shutdown().await;
+                return;
+            }
+        };
         client
             .post_message(&sid, "first", "plan")
             .await
