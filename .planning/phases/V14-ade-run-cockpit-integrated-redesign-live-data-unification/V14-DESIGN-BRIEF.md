@@ -155,4 +155,4 @@ Design validated via throwaway HTML mockups (operator-reviewed 2026-06-08, since
 
 ---
 
-*Next step: `/gsd-plan-phase V14` (SPEC + CONTEXT locked, VCKP-01..12). Optional `/gsd-ui-phase V14` for a UI-SPEC over the mockups before planning.*
+*Next step: `/gsd-plan-phase V14` (SPEC + CONTEXT locked, VCKP-01..13). Optional `/gsd-ui-phase V14` for a fresh UI-SPEC before planning.*
