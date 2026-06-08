@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -15,13 +14,9 @@ import (
 // hermetic-optional.
 func requirePython(t *testing.T) {
 	t.Helper()
-	if os.Getenv("VOSS_PYTHON") != "" {
-		return
+	if !pythonAvailable() {
+		t.Skip("no VOSS_PYTHON and no repo .venv/bin/python; skipping spawn integration")
 	}
-	if _, err := os.Stat(filepath.Join("..", "..", ".venv", "bin", "python")); err == nil {
-		return
-	}
-	t.Skip("no VOSS_PYTHON and no repo .venv/bin/python; skipping spawn integration")
 }
 
 // drainTurn reads from the SSE channel until session.idle (or timeout) and
@@ -147,13 +142,4 @@ func TestAttachRoundTrip(t *testing.T) {
 	if _, err := srv.CreateSession(ctx, "."); err != nil {
 		t.Fatalf("spawned server died after attach Close: %v", err)
 	}
-}
-
-// TestNoFFI will assert the SDK introduces no cgo/FFI and no orchestration
-// reimplementation (SPEC req 7 / VSDK-GO-07). RED until Plan 06 (V13.3-06)
-// owns the enforced grep guard.
-func TestNoFFI(t *testing.T) {
-	// TODO(V13.3-06): walk sdk/go and assert no cgo import and no import of
-	// orchestration-internal packages.
-	t.Skip("RED: no-FFI/no-reimpl guard enforced in Plan 06 (V13.3-06)")
 }
