@@ -137,3 +137,21 @@ func (c *Client) Doctor(ctx context.Context) (DoctorReport, error) {
 	}
 	return out, nil
 }
+
+// PermissionReply answers a pending permission gate identified by id. choice is
+// one of "a" (allow once), "A" (allow always), "d" (deny), "y", "n"
+// (PROTOCOL §7). POST /session/:id/permission {id,choice} -> 200 {status}.
+//
+// It returns stale=true when the gate was already resolved (timeout or
+// double-reply) — that is NOT an error, the server simply ignored the late
+// reply. A 401/404 surfaces as *VossError.
+func (c *Client) PermissionReply(ctx context.Context, sessionID, id, choice string) (bool, error) {
+	body := PermissionReply{Id: id, Choice: choice}
+	var out struct {
+		Status string `json:"status"`
+	}
+	if err := c.sendJSON(ctx, http.MethodPost, "/session/"+url.PathEscape(sessionID)+"/permission", body, &out, http.StatusOK); err != nil {
+		return false, err
+	}
+	return out.Status == "stale", nil
+}
