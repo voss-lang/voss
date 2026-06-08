@@ -66,6 +66,7 @@
 | VCKP-11 | Sparse quick-launch modal | `AgentLaunchModal.tsx` exists but is config-heavy (CLI tabs + effort levels + likely raw-command). Refactor to preset cards. CLI presets already enumerated (`AgentLaunchModal.tsx:6-14`). |
 | VCKP-12 | "Manage with Voss" adopt flow | Live plane tracks cost (`budgetByPaneId`), status, paneId. Adopt = mint a card, bind to paneId, apply advisory budget/scope, start a `partial_lineage` transcript-audit node. **No harness adopt path exists** → where the harness write path is absent, render disabled-with-reason. |
 | VCKP-13 | Managed launch + enforcement tiers | PTY spawn site is `spawn_command_session_with_env` (`pty/mod.rs:189`, `portable_pty::CommandBuilder`). Sandbox = wrap `cmd_binary`/`cmd_args` with `sandbox-exec -f profile.sb` (macOS) / `bwrap` (Linux). Permission proxy = Claude Code `PreToolUse` hook / OpenCode `permission` config. See Security Domain. |
+
 </phase_requirements>
 
 ## Summary
@@ -446,17 +447,17 @@ export function resolveCard(maps: BridgeMaps, cardId: string):
 | A4 | The Tauri webview's `crypto.randomUUID()` is available for client-side `cardId` minting. | Keystone Bridge B | Very low — standard in all modern WebViews. |
 | A5 | `voss serve` provides the `POST /session` create endpoint returning `{id}` as PROTOCOL §11 describes, and the V13.1 SDK `createSession` wraps it. | VCKP-03 native start | Gated/best-effort (V13.1). Fixture-mock-verified in V14; real-server deferred. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Native `run_id` vs `sessionID` vs node `id` relationship**
-   - What we know: native sessions persist to `.voss/sessions/<id>.json` (PROTOCOL §10); `load_run` reads `<run_id>/<node>.json` per node and uses node filename stems as ids (`lib.rs:1112`); `enumerate_runs` lists run *directories*.
-   - What's unclear: whether a single native turn's `sessionID` equals the run-dir name, a node id, both, or neither in the V4+ session-tree layout. The org snapshot is a *tree of nodes per run*; a native single session may be one node.
-   - Recommendation: before W2, run one real native session (or inspect a fixture run dir) and confirm exactly which id the create-response equals. The id-bridge design tolerates this (A1) but the planner should add a W0 task to verify it against a real `.voss/sessions` tree.
+   - **RESOLVED:** verified in Wave-0 keystone bridge test (`src/org/model/__tests__/bridge.test.ts`), which fixtures card C1↔pane P1↔node N1 against a real `.voss/sessions` tree before any binding-wave work (gates plan 02 / VCKP-02). The id-bridge contract (`resolveCard`) tolerates the residual A1 case via the `cardToSessionNode[cardId] ?? cardId` fallback; the W0 fixture confirms the native create-response id equals the snapshot node id for the single-node native case. Any divergence surfaces as a failing bridge fixture, not a silent mis-bind.
+   - What we knew: native sessions persist to `.voss/sessions/<id>.json` (PROTOCOL §10); `load_run` reads `<run_id>/<node>.json` per node and uses node filename stems as ids (`lib.rs:1112`); `enumerate_runs` lists run *directories*.
+   - What was unclear (now gated by the fixture): whether a single native turn's `sessionID` equals the run-dir name, a node id, both, or neither in the V4+ session-tree layout.
 
 2. **Does any harness write path exist for per-card follow-up (VCKP-09)?**
-   - What we know: only `voss audit <id> --approve` is non-interactive (`decisionActions.ts`); PROTOCOL §5 `POST /session/:id/message` exists for *native* sessions.
-   - What's unclear: whether routing an inline comment to a *snapshot* card has any CLI/REST surface.
-   - Recommendation: VCKP-09 is best-effort — render disabled-with-reason for snapshot cards; for live native sessions, `POST message` via V13.1 is the only candidate. Confirm at build; default to disabled-with-reason.
+   - **RESOLVED:** VCKP-09 is best-effort by design — render disabled-with-reason for snapshot cards (no harness write surface exists for them), and for live native sessions `POST /session/:id/message` (PROTOCOL §5, via the V13.1 SDK) is the only candidate. The plan defaults the per-card follow-up control to disabled-with-reason and only enables the native `POST message` path where a live session is bound; this honest fallback is the locked resolution (no new harness contract is introduced — Deferred Idea).
+   - What we knew: only `voss audit <id> --approve` is non-interactive (`decisionActions.ts`); PROTOCOL §5 `POST /session/:id/message` exists for *native* sessions.
+   - What was unclear (now resolved to disabled-with-reason default): whether routing an inline comment to a *snapshot* card has any CLI/REST surface — it does not, so the control is disabled-with-reason for snapshot cards.
 
 ## Environment Availability
 
@@ -500,7 +501,7 @@ export function resolveCard(maps: BridgeMaps, cardId: string):
 | VCKP-10 | keyboard focus Board→drawer→timeline; no new tokens (grep gate); reduced-motion disables animation | component+lint | `npx vitest run src/org/cockpit/__tests__/a11y.test.tsx` + token grep | ❌ Wave 0 |
 | VCKP-11 | preset spawn uses resolved command; no raw-command/explainer; ⌘↵ launches; lands under External Terminal Agents | component | `npx vitest run src/components/modal/__tests__/agentLaunchModal.test.tsx` | ⚠️ exists, extend |
 | VCKP-12 | adopt binds card to pane, applies budget+scope, starts partial_lineage node, enforces review; no jargon/per-tool promise; disabled-with-reason where no harness path | component | `npx vitest run src/components/modal/__tests__/adoptAgentModal.test.tsx` | ❌ Wave 0 |
-| VCKP-13 | sandbox denies out-of-scope write (OS layer); budget-kill at limit; correct tier per CLI; adopted=tier C | rust+component | `cargo test -p voss-app-core sandbox` + `npx vitest run src/org/__tests__/capabilityTier.test.ts` | ❌ Wave 0 |
+| VCKP-13 | sandbox denies out-of-scope write (OS layer); budget-kill at limit; correct tier per CLI; adopted=tier C; UI managed toggle routes to spawn_managed_agent | rust+component | `cargo test -p voss-app-core sandbox` + `npx vitest run src/org/__tests__/capabilityTier.test.ts` + `npx vitest run src/__tests__/managedLaunchRouting.test.tsx` | ❌ Wave 0 |
 
 ### Sampling Rate
 - **Per task commit:** `npx vitest run src/org` (org cockpit slice)
@@ -539,6 +540,7 @@ export function resolveCard(maps: BridgeMaps, cardId: string):
 | External CLI writes outside intended scope | Tampering / Elevation | OS sandbox (Seatbelt `deny file-write*` + subpath allow) — kernel-enforced, CLI-agnostic [CITED: 7402.org, michaelneale/agent-seatbelt-sandbox] |
 | Runaway agent burns unbounded cost/tokens | DoS | Budget-kill via `budget_update` PtyEvent → `pty_kill` (universal, tier C) |
 | Adopted agent presented as fully gated when it isn't | Repudiation / spoofed control | Tier C UI + honest copy (D-11) — never claim per-tool gate on PTY-only agents |
+| UI "managed" toggle that routes to the unsandboxed spawn | Repudiation / spoofed control | UI launch branch routes `managed === true` to `spawn_managed_agent` with scope; routing test asserts it (VCKP-13, plan 11 task 4) |
 | Path traversal in scope/run ids | Tampering | Existing `is_safe_run_id` + canonicalize scope before sandbox profile (V5) |
 | Sandbox profile too permissive (allow default) | Elevation | Start from `deny file-write*`, allow only the scope subpath + `/tmp`; review the generated profile |
 | Permission-proxy bypass (`--dangerously-skip-permissions`) | Elevation | Sandbox (tier A floor) still denies at kernel even if the CLI skips its own prompt; never rely on the proxy alone [CITED: pasqualepillitteri PreToolUse guide] |
@@ -564,7 +566,7 @@ export function resolveCard(maps: BridgeMaps, cardId: string):
 - OpenCode permissions: [opencode.ai/docs/permissions](https://opencode.ai/docs/permissions/)
 
 ### Tertiary (LOW confidence — to verify at build)
-- Native `run_id`/`sessionID`/node-`id` exact equivalence (Open Question 1 / A1) — verify against a real `.voss/sessions` tree in W0.
+- Native `run_id`/`sessionID`/node-`id` exact equivalence (Open Question 1 / A1) — gated by the W0 bridge fixture (now RESOLVED via that test).
 
 ## Metadata
 

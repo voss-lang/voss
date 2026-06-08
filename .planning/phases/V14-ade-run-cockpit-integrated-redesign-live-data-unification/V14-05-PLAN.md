@@ -10,7 +10,7 @@ files_modified:
   - apps/voss-app/src/org/attention/__tests__/attentionQueue.test.tsx
   - apps/voss-app/src/App.tsx
 autonomous: true
-requirements: [VCKP-04]
+requirements: [VCKP-04, VCKP-13b]
 must_haves:
   truths:
     - "A test injects a permission event, a budget-threshold event, and a sign-off-available event and asserts three queue items render, each with a working deep-link to its bound card/session via resolveCard"
@@ -18,9 +18,10 @@ must_haves:
     - "Surface = StatusBar count pill + dockable queue panel (D-05); blocking items pulse the pill, they do not hard-modal the cockpit (D-06)"
     - "Per-pane permission prompts in the live grid are unchanged (this queue is the global aggregator, not a replacement)"
     - "For adopted external agents the queue copy does NOT promise per-tool gating (Pitfall 6 / tier C)"
+    - "A simulated CLI-hook permission payload (VCKP-13b proxy, e.g. Claude Code PreToolUse shape) injected through the AttentionQueue ingest path surfaces as a permission item with tool + affected path (proxy routing is per-CLI best-effort; tier-B sandbox is the honest fallback when no hook fires)"
   artifacts:
     - path: "apps/voss-app/src/org/attention/attentionQueue.ts"
-      provides: "Aggregator signal (snapshot decisions + live events)"
+      provides: "Aggregator signal (snapshot decisions + live events + CLI-hook permission proxy)"
       contains: "createSignal"
     - path: "apps/voss-app/src/org/attention/AttentionPanel.tsx"
       provides: "Dockable queue panel + StatusBar pill"
@@ -29,13 +30,17 @@ must_haves:
       to: "apps/voss-app/src/org/model/bridge.ts"
       via: "resolveCard deep-link"
       pattern: "resolveCard"
+    - from: "CLI permission-proxy hook payload (VCKP-13b)"
+      to: "apps/voss-app/src/org/attention/attentionQueue.ts"
+      via: "ingestEvent maps a proxied permission payload to a permission AttentionItem"
+      pattern: "permission|ingestEvent"
 ---
 
 <objective>
-VCKP-04 global AttentionQueue (D-05/D-06). An aggregator signal sourced from snapshot decisions (Blocked column, sign-off, unsupported-claims) AND live SSE events (`permission.updated`, `gate.updated`, `budget.updated` threshold, `confidence.updated` below gate, `session.idle`, verification-failed). Each item deep-links to its card/session/evidence via `resolveCard`. Permission items show tool + args + dimension + affected path with allow-once/allow-scoped/deny. Surface = a StatusBar count pill (reusing the existing agent-pill pattern) + a dockable panel; blocking items pulse the pill (no hard modal).
+VCKP-04 global AttentionQueue (D-05/D-06). An aggregator signal sourced from snapshot decisions (Blocked column, sign-off, unsupported-claims) AND live SSE events (`permission.updated`, `gate.updated`, `budget.updated` threshold, `confidence.updated` below gate, `session.idle`, verification-failed). Each item deep-links to its card/session/evidence via `resolveCard`. Permission items show tool + args + dimension + affected path with allow-once/allow-scoped/deny. Surface = a StatusBar count pill (reusing the existing agent-pill pattern) + a dockable panel; blocking items pulse the pill (no hard modal). The same `ingestEvent` permission path is the destination for the VCKP-13b CLI permission-proxy (best-effort per-CLI hook → permission AttentionItem); this plan proves the routing with a fixture so it is not a silent drop.
 
-Purpose: Close G3 (no global attention queue — stalls stay hidden).
-Output: aggregator signal, AttentionPanel + StatusBar pill, test, StatusBar wiring in App.tsx.
+Purpose: Close G3 (no global attention queue — stalls stay hidden) and make the VCKP-13b permission-proxy → AttentionQueue route real (fixture-verified, best-effort with the tier-B sandbox fallback).
+Output: aggregator signal, AttentionPanel + StatusBar pill, test (incl. a CLI-hook permission fixture), StatusBar wiring in App.tsx.
 </objective>
 
 <execution_context>
@@ -58,6 +63,7 @@ From apps/voss-app/src/org/types.ts: `RunFinal.sign_off` (:99-116), `AuditReport
 From sdk/typescript/src/client/sse.ts:6: `AgentEvent` union — `permission.updated`/`gate.updated`/`budget.updated`/`confidence.updated`/`session.idle`, each with `sessionID`. PROTOCOL §6/§7: permission carries tool/args/dimension/affected-path.
 From apps/voss-app/src/org/model/bridge.ts (plan 02): `resolveCard(maps, cardId)` for deep-links.
 From apps/voss-app/src/App.tsx:1271-1302: StatusBar props (`agentCount`, `totalCost`, `orgViewOpen`) — pattern to extend with an attention pill.
+VCKP-13b proxy payload (RESEARCH A3 / Security Domain): a Claude Code `PreToolUse`-shaped hook payload (`{tool, input/args, cwd/affected path}`) is normalized into the same `permission` AttentionItem shape as `permission.updated`; per-CLI best-effort (tier-B sandbox floor when no hook).
 </interfaces>
 </context>
 
@@ -72,6 +78,7 @@ From apps/voss-app/src/App.tsx:1271-1302: StatusBar props (`agentCount`, `totalC
     - ingestSnapshotDecisions(runData) adds sign-off-available items (from RunFinal.sign_off) and Blocked items.
     - Each item exposes a deepLink resolved via resolveCard → {paneId?, sessionNodeId?}.
     - Duplicate ingest of the same event id does not add a second item (dedup).
+    - VCKP-13b: a simulated CLI-hook permission payload (Claude Code PreToolUse shape, normalized to the permission event) ingested through ingestEvent surfaces as a permission item carrying tool + affectedPath (proxy routing proven; best-effort).
   </behavior>
   <read_first>
     - apps/voss-app/src/pane/budgetRegistry.ts:10-37 (signal + dedup immutable update)
@@ -79,10 +86,11 @@ From apps/voss-app/src/App.tsx:1271-1302: StatusBar props (`agentCount`, `totalC
     - apps/voss-app/src/org/types.ts:99-116,182 (RunFinal.sign_off, unsupported_claims)
     - sdk/typescript/src/client/sse.ts:6 (AgentEvent union shape)
     - .planning/PROTOCOL.md §6/§7 (permission fields: tool/args/dimension/affected-path)
+    - .planning/phases/V14-ade-run-cockpit-integrated-redesign-live-data-unification/V14-RESEARCH.md (Security Domain VCKP-13b proxy hook payload shape; Assumption A3)
     - .planning/phases/V14-ade-run-cockpit-integrated-redesign-live-data-unification/V14-PATTERNS.md (attentionQueue pattern; Pitfall 6)
   </read_first>
   <action>
-    Create `attentionQueue.ts`: a module-level `createSignal<AttentionItem[]>([])` with dedup'd immutable updates (mirror budgetRegistry, NO produce). Export `ingestEvent(ev: AgentEvent)` mapping each SSE event type to an `AttentionItem` (permission → tool/args/dimension/affectedPath + actions allow-once/allow-scoped/deny; budget-threshold; confidence-below-gate; session.idle; gate.updated), and `ingestSnapshotDecisions(runData)` mapping Blocked column + `RunFinal.sign_off` + `unsupported_claims` to items. Every item computes `deepLink` via `resolveCard`. For items tied to an adopted external agent, the copy/actions must NOT include per-tool gating language (Pitfall 6 — tier C). Write `attentionQueue.test.tsx` covering all five behaviors: inject permission + budget-threshold + sign-off → 3 items, each deep-linking; permission item exposes the three actions + fields; dedup holds.
+    Create `attentionQueue.ts`: a module-level `createSignal<AttentionItem[]>([])` with dedup'd immutable updates (mirror budgetRegistry, NO produce). Export `ingestEvent(ev: AgentEvent)` mapping each SSE event type to an `AttentionItem` (permission → tool/args/dimension/affectedPath + actions allow-once/allow-scoped/deny; budget-threshold; confidence-below-gate; session.idle; gate.updated), and `ingestSnapshotDecisions(runData)` mapping Blocked column + `RunFinal.sign_off` + `unsupported_claims` to items. The permission branch is also the VCKP-13b proxy destination: a CLI permission-proxy hook (Claude Code `PreToolUse`, OpenCode `permission`) normalizes to the same `permission` event shape, so the proxy routes through `ingestEvent` with no separate path — per-CLI best-effort (tier-B sandbox is the honest floor when no hook fires; never promise gating it lacks). Every item computes `deepLink` via `resolveCard`. For items tied to an adopted external agent, the copy/actions must NOT include per-tool gating language (Pitfall 6 — tier C). Write `attentionQueue.test.tsx` covering all behaviors: inject permission + budget-threshold + sign-off → 3 items, each deep-linking; permission item exposes the three actions + fields; dedup holds; AND a VCKP-13b fixture — inject a simulated Claude Code `PreToolUse`-shaped permission payload (normalized) and assert it surfaces as a permission item with the right tool + affectedPath (proxy routing verified).
   </action>
   <verify>
     <automated>cd apps/voss-app && npx vitest run src/org/attention/__tests__/attentionQueue.test.tsx</automated>
@@ -91,9 +99,10 @@ From apps/voss-app/src/App.tsx:1271-1302: StatusBar props (`agentCount`, `totalC
     - Injecting permission + budget-threshold + sign-off yields exactly 3 items, each with a resolveCard deep-link.
     - The permission item carries tool/args/dimension/affectedPath and actions allow-once/allow-scoped/deny.
     - Dedup: re-ingesting the same event id does not duplicate.
+    - A simulated CLI-hook (PreToolUse) permission payload routes through ingestEvent and surfaces as a permission item (VCKP-13b proxy proven; best-effort).
     - No `produce`/`structuredClone` in the module.
   </acceptance_criteria>
-  <done>Aggregator merges both planes into one deep-linked queue; permission actions present; dedup works.</done>
+  <done>Aggregator merges both planes into one deep-linked queue; permission actions present; dedup works; VCKP-13b proxy routing fixture-verified.</done>
 </task>
 
 <task type="auto">
@@ -124,11 +133,12 @@ From apps/voss-app/src/App.tsx:1271-1302: StatusBar props (`agentCount`, `totalC
 <verification>
 - `npx vitest run src/org/attention` green; `npx tsc --noEmit` clean.
 - Queue items deep-link via resolveCard; dedup holds.
+- VCKP-13b: a simulated CLI-hook permission payload routes through ingestEvent and surfaces (fixture-verified; best-effort with tier-B fallback).
 - Existing per-pane permission modal + V11 tests unregressed.
 </verification>
 
 <success_criteria>
-A global attention queue aggregates snapshot decisions + live events, deep-links each item, exposes permission actions, and surfaces as a pulsing StatusBar pill + dockable panel without hard-modaling.
+A global attention queue aggregates snapshot decisions + live events (and the best-effort VCKP-13b CLI permission-proxy), deep-links each item, exposes permission actions, and surfaces as a pulsing StatusBar pill + dockable panel without hard-modaling.
 </success_criteria>
 
 <output>
