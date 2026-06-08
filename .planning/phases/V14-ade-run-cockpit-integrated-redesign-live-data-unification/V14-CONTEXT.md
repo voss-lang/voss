@@ -88,10 +88,12 @@ Downstream agents MUST read `V14-SPEC.md` before planning or implementing. Requi
 ### Research source
 - `.planning/research/ade-ui-design-contract-research.md` — Market design-contract analysis the phase closes (six UI primitives, two-mode ADE, attention queue, board-as-state-machine).
 
-### Visual mockups (operator-reviewed 2026-06-08) — build targets
-- `.planning/sketches/V14-cockpit-mockup.html` — Run Review cockpit (Board spine + detail drawer + timeline rail + gate bar + AttentionQueue pill). Render: `V14-cockpit-render.png`.
-- `.planning/sketches/V14-livework-mockup.html` — Live Work: 3 live agent terminals (Warp-tiled), per-pane chrome, inline permission gate, RunCommandBar, board summary strip. Render: `V14-livework-render.png`.
-- `.planning/sketches/V14-spawn-modals-mockup.html` — Quick-launch modal (VCKP-11) + "Manage with Voss" adopt modal (VCKP-12). Renders: `V14-spawn-launch-render.png`, `V14-spawn-promote-render.png`. **These are the visual contract for VCKP-03/05/11/12.**
+### Visual design — operator-reviewed 2026-06-08 (throwaway mockups, removed)
+Three HTML mockups were reviewed and approved, then deleted (throwaway). Their decisions are captured in `<decisions>` above and in SPEC VCKP-03/05/11/12:
+- Run Review cockpit — Board spine + detail drawer + timeline rail + gate bar + StatusBar AttentionQueue pill.
+- Live Work — 3 live agent terminals (Warp-tiled), per-pane role chrome, inline permission gate, RunCommandBar, board summary strip.
+- Quick-launch modal (VCKP-11) + "Manage with Voss" adopt modal (VCKP-12).
+Re-mockup via `/gsd-ui-phase V14` if a refreshed visual contract is wanted before build.
 
 ### V11 (built — the surface being recomposed)
 - `.planning/phases/V11-ade-org-integration/V11-SPEC.md` — Original 10-panel org contract (VADE-01..10), CLI-JSON consumer, one-write-path, D-02 snapshot guard.

@@ -3,7 +3,7 @@
 **Created:** 2026-06-08
 **Ambiguity score:** 0.141 (gate: ≤ 0.20)
 **Requirements:** 12 locked (9 must-ship core · 3 best-effort gated)
-**Revised:** 2026-06-08 — added VCKP-11 (quick-launch refresh) + VCKP-12 (adopt running agent / "Manage with Voss"); mockups under `.planning/sketches/`.
+**Revised:** 2026-06-08 — added VCKP-11 (quick-launch refresh) + VCKP-12 (adopt running agent / "Manage with Voss"). Design validated via throwaway HTML mockups (operator-reviewed, since removed); decisions captured below.
 
 ## Goal
 
@@ -75,12 +75,12 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
 
 11. **[CORE] Ad-hoc agent launch — refreshed quick-launch (VCKP-11)**: Sparse, premium launch modal for terminal agents.
     - Current: an A12 launch modal exists off `AgentSidebar` Quick-Launch, but is config-heavy (raw-command field + explainer copy).
-    - Target: a minimal launch modal — CLI preset cards (Claude/Codex/Gemini/OpenCode/Aider/Custom) each showing the user's **default model**, one optional "what should it work on?" prompt, working directory + pane placement (Right/Below/New tab). **No raw-command field, no explainer block** — the preset resolves the user's configured CLI command/model. Spawns a PTY terminal agent (Path 1, no cage). Mockup: `.planning/sketches/V14-spawn-modals-mockup.html` (Quick-launch).
+    - Target: a minimal launch modal — CLI preset cards (Claude/Codex/Gemini/OpenCode/Aider/Custom) each showing the user's **default model**, one optional "what should it work on?" prompt, working directory + pane placement (Right/Below/New tab). **No raw-command field, no explainer block** — the preset resolves the user's configured CLI command/model. Spawns a PTY terminal agent (Path 1, no cage).
     - Acceptance: launching from a preset spawns a PTY terminal agent in the chosen pane placement using the preset's resolved command; the modal exposes no raw-command field and no explainer paragraph; `⌘↵` launches, Esc/Cancel dismisses without spawning; the agent appears under "External Terminal Agents" in the roster.
 
 12. **[CORE] Adopt a running agent into a run — "Manage with Voss" (VCKP-12)**: Bring an ad-hoc terminal agent under run management, **forward-only**, in plain language.
     - Current: an ad-hoc terminal agent has no card, budget, scope, review, or audit, and no path to gain them after launch.
-    - Target: a plain-language "Let Voss manage this agent" flow — add to current/new run · bind as a task (role/risk, both pre-inferred + editable) · set budget + scope. From adoption forward, Voss **tracks cost, records the PTY transcript as an audit node, monitors the budget (stop/warn at limit), and requires review before the task is marked done**; scope is shown **advisory**. Copy states outcomes, not internal mechanics ("cage", "PermissionGate", "session-tree node" never appear). Pre-adoption activity is excluded; the audit node is marked **partial lineage**. Mockup: `.planning/sketches/V14-spawn-modals-mockup.html` (Manage with Voss).
+    - Target: a plain-language "Let Voss manage this agent" flow — add to current/new run · bind as a task (role/risk, both pre-inferred + editable) · set budget + scope. From adoption forward, Voss **tracks cost, records the PTY transcript as an audit node, monitors the budget (stop/warn at limit), and requires review before the task is marked done**; scope is shown **advisory**. Copy states outcomes, not internal mechanics ("cage", "PermissionGate", "session-tree node" never appear). Pre-adoption activity is excluded; the audit node is marked **partial lineage**.
     - **Honest limit (locked):** for an *external* CLI agent Voss sees the PTY stream, **not** the agent's internal tool loop — so true per-tool PermissionGate enforcement is **NOT** possible on adopted external agents (that remains Voss-native only). The adopt UI must not promise per-tool gating it cannot deliver; it offers budget-monitor + transcript-audit + review-gate + advisory-scope.
     - Acceptance: adopting a running pane creates/links a card bound to that pane's session, applies budget + scope, starts a transcript audit node marked `partial_lineage`, and enforces review-before-done; pre-adoption events are absent from its budget/audit; the modal copy contains no internal-mechanics jargon and makes no per-tool-gate promise for external agents. Where no harness adopt path exists yet, the action renders disabled-with-reason (no fake affordance).
 
