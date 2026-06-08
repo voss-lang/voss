@@ -19,6 +19,10 @@ impl Drop for Supervisor {
 }
 
 impl Supervisor {
+    pub fn pid(&self) -> Option<u32> {
+        self.child.id()
+    }
+
     /// Kill the server child and reap it, preventing a zombie process.
     pub async fn shutdown(mut self) {
         let _ = self.child.start_kill();

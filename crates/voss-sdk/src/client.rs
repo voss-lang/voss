@@ -36,6 +36,10 @@ impl VossClient {
         Self { inner, base, token }
     }
 
+    pub fn base_url(&self) -> &str {
+        &self.base
+    }
+
     pub(crate) fn auth(&self, rb: RequestBuilder) -> RequestBuilder {
         rb.bearer_auth(&self.token)
     }
