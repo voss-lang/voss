@@ -78,7 +78,7 @@
 | V13.2 | Rust Local/Native Client SDK | protocol/event types, local server supervisor (reuse voss-tui), auth helpers, session/audit readers; generated off the V13.1 contract snapshot; no orch reimpl | VSDK-RS-* | TBD by SPEC.md |
 | V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; off the V13.1 contract snapshot; no runtime reimpl | VSDK-GO-* | Plans ready to execute (6 plans, 5 waves; Wave 0 fixture unblocks pre-V13.1; drift gate skips until V13.1 ships contracts/) |
 | V13.4 | C ABI/Schema Doc | JSON-schema/ABI doc only; generated headers deferred; no full SDK | VSDK-C-* | TBD by SPEC.md |
-| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback). Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..10 | DESIGN-BRIEF drafted (`phases/V14-ade-run-cockpit/V14-DESIGN-BRIEF.md`); ~10 plans/7 waves; SPEC pending |
+| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback). Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..10 | DESIGN-BRIEF drafted (`phases/V14-ade-run-cockpit-integrated-redesign-live-data-unification/V14-DESIGN-BRIEF.md`); ~10 plans/7 waves; SPEC pending |
 
 ---
 
@@ -2160,6 +2160,22 @@ Plans:
 
 Plans:
 - [ ] V13.4-01-PLAN.md — author docs/native-embedding.md (native/C embedder contract reference: loopback+Bearer model, PROTOCOL/contracts pointers, JSON->native table, stability tiers, FFI deferral) + docs/check-native-embedding-refs.sh (references-resolve gate)
+
+---
+### Phase V14: ADE Run Cockpit (Integrated Redesign + Live Data Unification)
+
+**Goal:** Recompose V11's 10 built org panels into one integrated run cockpit and unify the live PTY/SSE agent registry with the static CLI-JSON `RunData` into a single UI model, closing the design-contract gaps in `research/ade-ui-design-contract-research.md`.
+
+**Scope:** Normalized UI data model (Run/Card/Agent/SessionNode/Evidence/Decision) merging live registry + snapshot; card↔session/pane binding; integrated cockpit layout (Board spine + Card detail drawer + Timeline/replay rail + gate bar, tabs demoted); RunCommandBar intake (mode/team/scope/budget/native-vs-terminal); global AttentionQueue; live SSE wiring gated on V13.1 (snapshot fallback); A13 swarm-manifest reconciliation; Live↔Review mode toggle; best-effort feedback write-path; dense/a11y pass on A12 Ignite tokens. Recomposes existing `org/panels/*` — not a panel rewrite.
+
+**Requirements (lock at SPEC):** VCKP-01..10. Design brief: `phases/V14-ade-run-cockpit-integrated-redesign-live-data-unification/V14-DESIGN-BRIEF.md`.
+
+**Cross-cutting:** Builds on V11 (built); reuses A12 tokens; live-SSE wave gated on V13.1 contract snapshot; swarm reconciliation gated on A13. Keystone risk = the id bridge correlating live pane/agent ids with snapshot card/session-node ids (verify before the binding wave). No new harness contracts — V14 is a PROTOCOL v1 client.
+
+**Plans:** ~10 plans across 7 waves (W0 scaffold/model-stubs/id-bridge fixture → W1 normalized model + adapters → W2 card↔session binding ∥ cockpit layout shell → W3 RunCommandBar ∥ AttentionQueue → W4 live SSE wiring → W5 swarm reconciliation ∥ Live↔Review toggle → W6 feedback write-path + a11y + human-verify).
+
+Plans:
+- [ ] TBD (run `/gsd:spec-phase V14` to lock VCKP-01..10)
 
 ---
 
