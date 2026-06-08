@@ -28,6 +28,8 @@ Downstream agents MUST read `V14-SPEC.md` before planning or implementing. Requi
 - Live Work ↔ Run Review mode toggle preserving the grid (VCKP-08).
 - Feedback write-path where the harness exposes one, disabled-with-reason otherwise (VCKP-09, best-effort).
 - Dense/keyboard/a11y pass on A12 tokens (VCKP-10).
+- Refreshed sparse quick-launch modal for ad-hoc terminal agents (VCKP-11).
+- "Manage with Voss" adopt flow — forward-only tracking/audit/review for a running agent (VCKP-12).
 
 **Out of scope (from SPEC.md):**
 - Rewriting panel internals (reuse, not rewrite).
@@ -59,6 +61,12 @@ Downstream agents MUST read `V14-SPEC.md` before planning or implementing. Requi
 - **D-07:** Clicking a board card bound to a LIVE pane **stays in the cockpit**: the detail drawer shows an embedded **read-only live-pane peek** (tail of pane output) plus an explicit **"Open in grid"** button that flips `orgViewOpen` (`App.tsx:240`) and focuses the full PTY pane. Jump-to-grid is opt-in, never automatic.
 - **D-08:** The detail drawer is **persistent** with a defined **no-selection empty state** (prompt to select a card). Selection is the single global `selectedCard` store driving Board highlight + drawer + timeline + gate bar together.
 
+### Agent spawn & adopt UX (mockup-validated)
+- **D-09 (VCKP-11) Quick-launch modal — sparse/premium.** CLI preset cards each show the user's **default model** (Claude Code · sonnet-4-6, Codex · gpt-5.1, …); one optional "what should it work on?" prompt; working dir + pane placement (Right/Below/New tab). **Removed: raw-command field + the "terminal agent" explainer block.** Preset resolves the user's configured CLI command/model. Mockup signed off by operator 2026-06-08.
+- **D-10 (VCKP-12) "Manage with Voss" adopt flow — plain language.** Title "Let Voss manage this agent"; sections "Add it to / As the task / Limits / From now on, Voss will". CTA "Hand to Voss". Outcomes not mechanics — **no** `cage`/`Voss-native`/`PermissionGate`/`session-tree`/`partial lineage`/`pane` in UI copy. Operator approved the friendlier rewrite 2026-06-08.
+- **D-11 Adoption is forward-only + best-effort for external agents.** Locked: keep the running work (don't discard/re-run-clean); audit node marked `partial_lineage`; pre-adoption activity excluded. **Engineering limit locked:** an external CLI agent is PTY-only — Voss cannot intercept its internal tool loop, so adoption gives cost-tracking + transcript-audit + budget-monitor + review-before-done + **advisory** scope, **NOT** per-tool PermissionGate enforcement (that stays Voss-native only). Adopt copy must not overstate control.
+- **D-12 Role/Risk on adopt** pre-inferred (risk from scope/budget, role from CLI) but **editable** — visible by default per mockup.
+
 ### Claude's Discretion
 - id-bridge correlation mechanism (how a card id maps to a live `paneId`/`sessionNodeId`) — technical; researcher investigates whether the harness emits a stable correlation id, else the run-launch correlation-id-stamp fallback from SPEC §Constraints applies. **This is the keystone risk — resolve before the binding wave.**
 - Adapter shapes (`snapshot→model`, `registry→model overlay`) and selection-store implementation (Solid signals vs store) — planner's call, consistent with existing `org/orgStore.ts` signal style.
@@ -79,6 +87,11 @@ Downstream agents MUST read `V14-SPEC.md` before planning or implementing. Requi
 
 ### Research source
 - `.planning/research/ade-ui-design-contract-research.md` — Market design-contract analysis the phase closes (six UI primitives, two-mode ADE, attention queue, board-as-state-machine).
+
+### Visual mockups (operator-reviewed 2026-06-08) — build targets
+- `.planning/sketches/V14-cockpit-mockup.html` — Run Review cockpit (Board spine + detail drawer + timeline rail + gate bar + AttentionQueue pill). Render: `V14-cockpit-render.png`.
+- `.planning/sketches/V14-livework-mockup.html` — Live Work: 3 live agent terminals (Warp-tiled), per-pane chrome, inline permission gate, RunCommandBar, board summary strip. Render: `V14-livework-render.png`.
+- `.planning/sketches/V14-spawn-modals-mockup.html` — Quick-launch modal (VCKP-11) + "Manage with Voss" adopt modal (VCKP-12). Renders: `V14-spawn-launch-render.png`, `V14-spawn-promote-render.png`. **These are the visual contract for VCKP-03/05/11/12.**
 
 ### V11 (built — the surface being recomposed)
 - `.planning/phases/V11-ade-org-integration/V11-SPEC.md` — Original 10-panel org contract (VADE-01..10), CLI-JSON consumer, one-write-path, D-02 snapshot guard.

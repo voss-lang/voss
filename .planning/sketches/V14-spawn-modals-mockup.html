@@ -9,7 +9,7 @@
   --bg-0:#0b0a09; --bg-1:#131110; --bg-2:#1a1714; --bg-3:#221f1b;
   --fg-0:#f5f1ea; --fg-1:#c4beb5; --fg-2:#8a847a; --fg-3:#5a554d;
   --border:#2a2622; --border-bright:#3a352f;
-  --focus:#ff5b1f; --focus-soft:rgba(255,91,31,0.14);
+  --focus:#ff5b1f; --focus-soft:rgba(255,91,31,0.10);
   --role-executor:#6cc7d4; --role-reviewer:#e8b86c;
   --ok:#7fb069; --warn:#e8b86c; --bad:#d9534f; --live:#6cc7d4;
   --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
@@ -21,14 +21,14 @@ body{background:var(--bg-0);color:var(--fg-1);font-family:var(--sans);font-size:
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .app{display:flex;flex-direction:column;height:100vh;position:relative}
 
-/* ── switcher (mockup control, not part of product) ── */
+/* switcher (mockup control) */
 .switch{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:4px;background:var(--bg-3);border:1px solid var(--border-bright);border-radius:8px;padding:3px}
 .switch button{font-size:11px;color:var(--fg-2);background:none;border:0;padding:5px 12px;border-radius:5px;cursor:pointer;font-family:var(--sans)}
 .switch button.on{background:var(--focus);color:#fff;font-weight:600}
 .switch .tag{font-size:9px;color:var(--fg-3);align-self:center;padding:0 6px}
 
-/* ── dimmed backdrop (Live Work grid, simplified) ── */
-.backdrop{position:absolute;inset:0;filter:blur(1.5px) brightness(.55);pointer-events:none}
+/* dimmed backdrop */
+.backdrop{position:absolute;inset:0;filter:blur(2px) brightness(.5);pointer-events:none}
 .titlebar{height:38px;background:var(--bg-1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 12px}
 .logo{width:16px;height:16px;border-radius:4px;background:var(--focus)}
 .brand{font-family:var(--disp);font-weight:600;color:var(--fg-0)}
@@ -37,147 +37,190 @@ body{background:var(--bg-0);color:var(--fg-1);font-family:var(--sans);font-size:
 .bpane::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--rc,var(--fg-3))}
 .bpane.e{--rc:var(--role-executor)}.bpane.r{--rc:var(--role-reviewer)}.bpane.x{--rc:var(--ok)}
 .bpane.tall{grid-row:1 / span 2}
-.bph{height:26px;background:var(--bg-1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px 0 13px;font-size:10px;color:var(--fg-2);gap:6px}
+.bph{height:26px;background:var(--bg-1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px 0 13px;font-size:10px;color:var(--fg-2)}
 .bpb{font-family:var(--mono);font-size:10px;color:var(--fg-3);padding:7px 10px;white-space:pre-wrap}
 
-/* ── modal scaffold ── */
-.scrim{position:absolute;inset:0;background:rgba(8,6,5,.55);display:flex;align-items:center;justify-content:center;z-index:40}
+/* modal scaffold */
+.scrim{position:absolute;inset:0;background:rgba(8,6,5,.6);display:flex;align-items:center;justify-content:center;z-index:40}
 .modal{display:none}
-.modal.active{display:block}
-.card{width:520px;background:var(--bg-3);border:1px solid var(--border-bright);box-shadow:0 24px 70px rgba(0,0,0,.65);border-radius:0;overflow:hidden}
-.mhead{height:48px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--bg-2)}
-.mhead .mt{font-family:var(--disp);font-weight:600;font-size:14px;color:var(--fg-0)}
+.modal.active{display:flex}
+.card{width:540px;background:var(--bg-2);border:1px solid var(--border-bright);box-shadow:0 30px 80px rgba(0,0,0,.7);border-radius:12px;overflow:hidden}
+.mhead{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--border)}
+.mhead .mt{font-family:var(--disp);font-weight:600;font-size:15px;color:var(--fg-0)}
 .mhead .ms{font-size:10px;color:var(--fg-3);margin-left:auto}
-.mhead .x{color:var(--fg-3);cursor:pointer;font-size:15px}
-.mbody{padding:14px 16px;max-height:72vh;overflow-y:auto}
-.mfoot{display:flex;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid var(--border);background:var(--bg-2)}
-.mfoot .hint{font-size:10px;color:var(--fg-3)}
+.mhead .x{color:var(--fg-3);cursor:pointer;font-size:15px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:5px}
+.mhead .x:hover{background:var(--bg-3);color:var(--fg-1)}
+.mbody{padding:16px 18px;max-height:74vh;overflow-y:auto}
+.mfoot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--border);background:var(--bg-1)}
+.mfoot .hint{font-size:10.5px;color:var(--fg-3)}
 .mfoot .grow{flex:1}
-.btn{font-size:12px;padding:8px 14px;border-radius:6px;border:1px solid var(--border-bright);background:var(--bg-2);color:var(--fg-1);cursor:pointer;font-family:var(--sans)}
+.btn{font-size:12.5px;padding:9px 15px;border-radius:7px;border:1px solid var(--border-bright);background:var(--bg-3);color:var(--fg-1);cursor:pointer;font-family:var(--sans)}
+.btn:hover{border-color:var(--fg-3)}
 .btn.primary{background:var(--focus);border-color:var(--focus);color:#fff;font-weight:600}
+.btn.primary:hover{background:#ff6d38}
 .btn.ghost{background:none}
 
-.lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);margin:13px 0 6px;display:block}
-.lbl:first-child{margin-top:0}
+/* section label */
+.lbl{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--fg-3);margin:0 0 8px;font-weight:600}
+.block{margin-bottom:16px}.block:last-child{margin-bottom:0}
 
-/* CLI preset tabs (quick launch) */
-.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-.preset{display:flex;flex-direction:column;gap:3px;align-items:flex-start;padding:9px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:7px;cursor:pointer}
+/* CLI preset cards — compact */
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.preset{position:relative;display:flex;align-items:center;gap:9px;padding:11px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:border-color .12s}
 .preset:hover{border-color:var(--border-bright)}
 .preset.sel{border-color:var(--focus);background:var(--focus-soft)}
-.preset .pi{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#0b0a09}
-.preset .pn{font-size:12px;color:var(--fg-0);font-weight:500}
-.preset .pc{font-size:9px;color:var(--fg-3);font-family:var(--mono)}
+.preset .pi{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0b0a09;flex:0 0 24px}
+.preset .ptxt{min-width:0}
+.preset .pn{font-size:12.5px;color:var(--fg-0);font-weight:500;line-height:1.2}
+.preset .pc{font-size:10px;color:var(--fg-3);font-family:var(--mono);margin-top:1px}
+.preset .tick{position:absolute;top:7px;right:8px;font-size:10px;color:var(--focus);display:none}
+.preset.sel .tick{display:block}
+/* premium hero variant */
+.presets.hero{gap:9px;margin-bottom:16px}
+.presets.hero .preset{padding:13px 13px}
+.presets.hero .pi{width:26px;height:26px;flex-basis:26px;font-size:12px}
+.presets.hero .pn{font-size:13px}
+.presets.hero .preset.sel{box-shadow:0 0 0 1px var(--focus)}
+/* prominent prompt bar */
+.promptbar{display:flex;align-items:center;gap:10px;background:var(--bg-0);border:1px solid var(--border-bright);border-radius:10px;padding:13px 15px;margin-bottom:13px}
+.promptbar:focus-within{border-color:var(--focus)}
+.promptbar .pg{color:var(--focus);font-size:14px}
+.promptbar input{flex:1;background:none;border:0;outline:0;color:var(--fg-0);font-family:var(--sans);font-size:14px}
+.promptbar input::placeholder{color:var(--fg-3)}
+/* meta row: dir + pane */
+.metarow{display:flex;align-items:center;gap:12px}
+.meta{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-size:12px}
+.meta .mk{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-3)}
+.meta .mv{color:var(--fg-1);font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta .medit{font-size:11px;color:var(--fg-3);cursor:pointer;border-bottom:1px dashed var(--border-bright);margin-left:2px}
+.meta .medit:hover{color:var(--focus);border-color:var(--focus)}
+.btn.lg{padding:10px 22px;font-size:13px}
 
-.field{display:flex;align-items:center;gap:9px;background:var(--bg-0);border:1px solid var(--border-bright);border-radius:6px;padding:8px 11px;margin-bottom:7px}
-.field .fk{font-size:10px;color:var(--fg-3);width:96px;flex:0 0 96px;text-transform:uppercase;letter-spacing:.04em}
-.field .fv{flex:1;font-size:12px;color:var(--fg-0);font-family:var(--mono);background:none;border:0;outline:none}
-.field .pick{font-size:11px;color:var(--fg-1);background:var(--bg-3);border:1px solid var(--border);border-radius:5px;padding:3px 8px;cursor:pointer}
-.seg{display:inline-flex;background:var(--bg-3);border-radius:6px;padding:2px}
-.seg button{font-size:11px;color:var(--fg-2);background:none;border:0;padding:4px 10px;border-radius:4px;cursor:pointer;font-family:var(--sans)}
+/* form fields — stacked label + input */
+.ff{margin-bottom:11px}.ff:last-child{margin-bottom:0}
+.ff > .fl{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-3);margin-bottom:5px;display:block}
+.inp{display:flex;align-items:center;gap:8px;background:var(--bg-0);border:1px solid var(--border-bright);border-radius:8px;padding:9px 12px}
+.inp:focus-within{border-color:var(--focus)}
+.inp input{flex:1;background:none;border:0;outline:0;color:var(--fg-0);font-family:var(--mono);font-size:12.5px}
+.inp .val{flex:1;color:var(--fg-0);font-family:var(--mono);font-size:12.5px}
+.inp input::placeholder{color:var(--fg-3)}
+.inp .mini{font-size:11px;color:var(--fg-1);background:var(--bg-3);border:1px solid var(--border-bright);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:var(--sans)}
+.inp .mini:hover{border-color:var(--fg-3)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+
+/* segmented */
+.seg{display:inline-flex;background:var(--bg-0);border:1px solid var(--border-bright);border-radius:8px;padding:3px}
+.seg button{font-size:11.5px;color:var(--fg-2);background:none;border:0;padding:6px 12px;border-radius:5px;cursor:pointer;font-family:var(--sans)}
 .seg button.on{background:var(--focus);color:#fff;font-weight:500}
-.note{font-size:11px;color:var(--fg-2);background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--role-executor);border-radius:5px;padding:8px 10px;margin-top:6px}
+.seg.full{display:flex}.seg.full button{flex:1}
+
+/* note callout */
+.note{font-size:11.5px;line-height:1.5;color:var(--fg-2);background:var(--bg-1);border:1px solid var(--border);border-left:3px solid var(--role-executor);border-radius:8px;padding:10px 12px}
 .note.warn{border-left-color:var(--warn)}
 .note.cage{border-left-color:var(--focus)}
-.note b{color:var(--fg-0)}
+.note b{color:var(--fg-0);font-weight:600}
 
-/* promote: from → to */
-.fromrow{display:flex;align-items:center;gap:9px;background:var(--bg-2);border:1px solid var(--border);border-radius:7px;padding:9px 11px}
-.fromrow .sdot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+/* promote from-row + checks */
+.fromrow{display:flex;align-items:center;gap:10px;background:var(--bg-3);border:1px solid var(--border);border-radius:9px;padding:11px 13px}
+.fromrow .sdot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:0 0 8px}
 .fromrow .nm{font-size:13px;color:var(--fg-0);font-weight:500}
-.fromrow .sub{font-size:10px;color:var(--fg-3);font-family:var(--mono)}
-.arrow{text-align:center;color:var(--focus);font-size:16px;margin:7px 0}
-.chk{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--fg-1);margin:7px 0}
-.chk .cb{width:15px;height:15px;border-radius:4px;border:1px solid var(--border-bright);flex:0 0 15px;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff}
+.fromrow .sub{font-size:10.5px;color:var(--fg-3);font-family:var(--mono);margin-top:1px}
+.fromrow .rt{margin-left:auto;font-size:10px;color:var(--ok)}
+.arrow{text-align:center;color:var(--focus);font-size:12px;font-weight:600;letter-spacing:.04em;margin:9px 0}
+.chk{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:var(--fg-1);margin:9px 0}
+.chk .cb{width:16px;height:16px;border-radius:5px;border:1px solid var(--border-bright);flex:0 0 16px;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;cursor:pointer}
 .chk .cb.on{background:var(--focus);border-color:var(--focus)}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- mockup switcher -->
   <div class="switch">
     <span class="tag">mockup ·</span>
     <button id="b-launch" class="on">Quick-launch modal</button>
-    <button id="b-promote">Promote → Voss-native</button>
+    <button id="b-promote">Manage with Voss</button>
   </div>
 
-  <!-- dimmed backdrop -->
+  <!-- backdrop -->
   <div class="backdrop">
     <div class="titlebar"><div class="logo"></div><div class="brand">Voss</div><span style="color:var(--fg-3);font-size:11px;margin-left:8px">Live Work · 3 panes</span></div>
     <div class="bgrid">
-      <div class="bpane e tall"><div class="bph">▸ executor-1 · C3 · pty 7</div><div class="bpb">⏺ fs_edit src/auth/passkey.ts +34 −2
-  export async function registerPasskey(…)
-⏺ shell_run npm test -- auth/passkey</div></div>
-      <div class="bpane e"><div class="bph">▸ executor-2 · C5 · pty 8</div><div class="bpb">⏺ shell_run npx prisma migrate dev
-⚠ permission — mutating</div></div>
-      <div class="bpane x"><div class="bph">▸ claude · pty 4 · ad-hoc</div><div class="bpb">› fixing flaky test in
-  tests/harness/test_stream.py …</div></div>
+      <div class="bpane e tall"><div class="bph">▸ executor-1 · C3 · pty 7</div><div class="bpb">⏺ fs_edit src/auth/passkey.ts +34 −2</div></div>
+      <div class="bpane e"><div class="bph">▸ executor-2 · C5 · pty 8</div><div class="bpb">⏺ shell_run npx prisma migrate dev</div></div>
+      <div class="bpane x"><div class="bph">▸ claude · pty 4 · ad-hoc</div><div class="bpb">› fixing flaky test…</div></div>
     </div>
   </div>
 
-  <!-- ── MODAL A: Quick-launch ───────────────────────────────── -->
+  <!-- MODAL A: Quick-launch -->
   <div class="scrim modal active" id="m-launch">
     <div class="card">
-      <div class="mhead"><div class="mt">Launch agent</div><div class="ms">ad-hoc terminal agent · no cage</div><div class="x">✕</div></div>
+      <div class="mhead"><div class="mt">Launch agent</div><div class="ms">terminal agent</div><div class="x">✕</div></div>
       <div class="mbody">
-        <span class="lbl">CLI preset</span>
-        <div class="presets">
-          <div class="preset sel"><div class="pi" style="background:var(--focus)">C</div><div class="pn">Claude Code</div><div class="pc">claude</div></div>
-          <div class="preset"><div class="pi" style="background:#8a847a">⌥</div><div class="pn">Codex</div><div class="pc">codex</div></div>
-          <div class="preset"><div class="pi" style="background:#6cc7d4">G</div><div class="pn">Gemini CLI</div><div class="pc">gemini</div></div>
-          <div class="preset"><div class="pi" style="background:#e8b86c">O</div><div class="pn">OpenCode</div><div class="pc">opencode</div></div>
-          <div class="preset"><div class="pi" style="background:#7fb069">A</div><div class="pn">Aider</div><div class="pc">aider</div></div>
-          <div class="preset"><div class="pi" style="background:var(--bg-1);color:var(--fg-1);border:1px solid var(--border-bright)">›_</div><div class="pn">Custom</div><div class="pc">shell cmd</div></div>
+
+        <div class="presets hero">
+          <div class="preset sel"><div class="pi" style="background:var(--focus)">C</div><div class="ptxt"><div class="pn">Claude Code</div><div class="pc">sonnet-4-6</div></div><span class="tick">●</span></div>
+          <div class="preset"><div class="pi" style="background:#8a847a">⌥</div><div class="ptxt"><div class="pn">Codex</div><div class="pc">gpt-5.1</div></div><span class="tick">●</span></div>
+          <div class="preset"><div class="pi" style="background:#6cc7d4">G</div><div class="ptxt"><div class="pn">Gemini</div><div class="pc">2.5-pro</div></div><span class="tick">●</span></div>
+          <div class="preset"><div class="pi" style="background:#e8b86c">O</div><div class="ptxt"><div class="pn">OpenCode</div><div class="pc">default</div></div><span class="tick">●</span></div>
+          <div class="preset"><div class="pi" style="background:#7fb069">A</div><div class="ptxt"><div class="pn">Aider</div><div class="pc">sonnet</div></div><span class="tick">●</span></div>
+          <div class="preset"><div class="pi" style="background:var(--bg-0);color:var(--fg-2);border:1px solid var(--border-bright)">›_</div><div class="ptxt"><div class="pn">Custom</div><div class="pc">shell cmd</div></div><span class="tick">●</span></div>
         </div>
 
-        <span class="lbl">Configure · claude</span>
-        <div class="field"><span class="fk">Command</span><input class="fv" value="claude --model sonnet-4-6"></div>
-        <div class="field"><span class="fk">Working dir</span><span class="fv">~/Projects/Voss</span><span class="pick">Change…</span></div>
-        <div class="field"><span class="fk">Pane</span>
-          <div class="seg" style="margin-left:auto"><button class="on">Split right ⌘D</button><button>Split below ⌘⇧D</button><button>New tab</button></div>
-        </div>
-        <div class="field"><span class="fk">Start prompt</span><input class="fv" placeholder="optional — e.g. 'review the diff on this branch'"></div>
+        <div class="promptbar"><span class="pg">▸</span><input placeholder="What should it work on?  (optional)"></div>
 
-        <div class="note"><b>Terminal agent.</b> Runs in its own PTY. You watch + steer by typing. No budget cage, no board card, no reviewer A/B, no audit/replay. Appears in roster under <b>External Terminal Agents</b>; permission prompts still surface in the AttentionQueue. Promote to a Voss-native run later to add the cage.</div>
+        <div class="metarow">
+          <div class="meta"><span class="mk">Dir</span><span class="mv">~/Projects/Voss</span><span class="medit">Change</span></div>
+          <div class="seg"><button class="on">Right</button><button>Below</button><button>New tab</button></div>
+        </div>
+
       </div>
-      <div class="mfoot"><span class="hint">Press <b>Ctrl+Enter</b> to launch · Esc to dismiss</span><span class="grow"></span><button class="btn ghost">Cancel</button><button class="btn primary">Launch Agent</button></div>
+      <div class="mfoot"><span class="hint"><b>⌘↵</b> launch · <b>Esc</b> dismiss</span><span class="grow"></span><button class="btn primary lg">Launch agent</button></div>
     </div>
   </div>
 
-  <!-- ── MODAL B: Promote to Voss-native ─────────────────────── -->
+  <!-- MODAL B: Promote -->
   <div class="scrim modal" id="m-promote">
     <div class="card">
-      <div class="mhead"><div class="mt">Promote to Voss-native</div><div class="ms">attach running pane to the run cage</div><div class="x">✕</div></div>
+      <div class="mhead"><div class="mt">Let Voss manage this agent</div><div class="ms">track budget, scope &amp; review</div><div class="x">✕</div></div>
       <div class="mbody">
-        <span class="lbl">Promoting</span>
-        <div class="fromrow"><span class="sdot"></span><div style="flex:1"><div class="nm">claude · pty 4</div><div class="sub">ad-hoc terminal agent · ~/Projects/Voss · $0.00 tracked</div></div><span style="font-size:10px;color:var(--ok)">running 6m</span></div>
-        <div class="arrow">↓ wrap in cage ↓</div>
 
-        <span class="lbl">Attach to</span>
-        <div class="seg" style="display:flex;width:100%"><button class="on" style="flex:1">Existing run · r-9f3a</button><button style="flex:1">New standalone run</button></div>
-
-        <span class="lbl">Bind to card</span>
-        <div class="field"><span class="fk">Card</span><span class="fv">＋ New card — "Fix flaky stream test"</span><span class="pick">Pick existing…</span></div>
-        <div class="row2">
-          <div class="field"><span class="fk">Role</span><span class="fv">executor</span></div>
-          <div class="field"><span class="fk">Risk</span><span class="fv">med</span></div>
+        <div class="block">
+          <div class="fromrow"><span class="sdot"></span><div style="flex:1"><div class="nm">claude · pty 4</div><div class="sub">running on its own · ~/Projects/Voss</div></div><span class="rt">6m</span></div>
         </div>
 
-        <span class="lbl">Cage it picks up (forward-only)</span>
-        <div class="row2">
-          <div class="field"><span class="fk">Budget</span><input class="fv" value="$0.80"></div>
-          <div class="field"><span class="fk">Scope</span><input class="fv" value="tests/**"></div>
+        <div class="block">
+          <div class="lbl">Add it to</div>
+          <div class="seg full"><button class="on">Current run</button><button>A new run</button></div>
         </div>
-        <div class="chk"><span class="cb on">✓</span> Route new tool calls through PermissionGate</div>
-        <div class="chk"><span class="cb on">✓</span> Start a session-tree node + begin audit recording</div>
-        <div class="chk"><span class="cb on">✓</span> Require Reviewer-A bar before →Done</div>
 
-        <div class="note warn"><b>Retroactive limit.</b> The 6 min already run are <b>not</b> audited or budgeted — only actions <b>after</b> promotion enter the cage. The audit will mark this node <b>“promoted — partial lineage”</b>.</div>
-        <div class="note cage"><b>After promote:</b> pane keeps streaming in the grid, now bound to a board card with budget/scope/reviewer/audit. Card↔pane link is live (Open-in-grid / jump-to-card both work).</div>
+        <div class="block">
+          <div class="lbl">As the task</div>
+          <div class="ff"><div class="inp"><span class="val">Fix flaky stream test</span><span class="mini">Pick existing…</span></div></div>
+          <div class="row2">
+            <div class="ff"><span class="fl">Role</span><div class="inp"><span class="val">executor</span></div></div>
+            <div class="ff"><span class="fl">Risk</span><div class="inp"><span class="val">medium</span></div></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="lbl">Limits</div>
+          <div class="row2">
+            <div class="ff"><span class="fl">Budget</span><div class="inp"><input value="$0.80"></div></div>
+            <div class="ff"><span class="fl">Stay inside</span><div class="inp"><input value="tests/**"></div></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="lbl">From now on, Voss will</div>
+          <div class="chk"><span class="cb on">✓</span> Keep it inside its budget and folders</div>
+          <div class="chk"><span class="cb on">✓</span> Ask you before anything risky</div>
+          <div class="chk"><span class="cb on">✓</span> Have a reviewer check its work before it's done</div>
+        </div>
+
+        <div class="note warn">Only what happens <b>from now on</b> is tracked — the last 6 minutes won't show up in the budget or history.</div>
+
       </div>
-      <div class="mfoot"><span class="hint">⚠ stretch idea — not yet in V14 SPEC (VCKP open question)</span><span class="grow"></span><button class="btn ghost">Cancel</button><button class="btn primary">Promote & cage forward</button></div>
+      <div class="mfoot"><span class="hint"><b>Esc</b> to cancel</span><span class="grow"></span><button class="btn ghost">Cancel</button><button class="btn primary lg">Hand to Voss</button></div>
     </div>
   </div>
 
@@ -185,17 +228,10 @@ body{background:var(--bg-0);color:var(--fg-1);font-family:var(--sans);font-size:
 <script>
 const ml=document.getElementById('m-launch'),mp=document.getElementById('m-promote');
 const bl=document.getElementById('b-launch'),bp=document.getElementById('b-promote');
-function show(which){
-  ml.classList.toggle('active',which==='l');mp.classList.toggle('active',which==='p');
-  bl.classList.toggle('on',which==='l');bp.classList.toggle('on',which==='p');
-}
+function show(w){ml.classList.toggle('active',w==='l');mp.classList.toggle('active',w==='p');bl.classList.toggle('on',w==='l');bp.classList.toggle('on',w==='p');}
 bl.onclick=()=>show('l');bp.onclick=()=>show('p');
-document.querySelectorAll('.preset').forEach(p=>p.onclick=()=>{
-  document.querySelectorAll('.preset.sel').forEach(x=>x.classList.remove('sel'));p.classList.add('sel');
-});
-document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{
-  b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
-});
+document.querySelectorAll('.preset').forEach(p=>p.onclick=()=>{p.parentElement.querySelectorAll('.preset').forEach(x=>x.classList.remove('sel'));p.classList.add('sel');});
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');});
 document.querySelectorAll('.chk .cb').forEach(c=>c.onclick=()=>c.classList.toggle('on'));
 </script>
 </body>

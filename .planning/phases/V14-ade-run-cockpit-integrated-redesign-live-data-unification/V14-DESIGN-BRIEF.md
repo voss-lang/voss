@@ -137,4 +137,22 @@ Existing panels are reused as drawer/rail content:
 
 ---
 
-*Next step: `/gsd-spec-phase V14` to lock VCKP-01..10 requirements + ambiguity gate, then `/gsd-ui-phase` for the cockpit UI-SPEC (recompose contract over the existing panels), then plan/execute.*
+## 12. Agent spawn & adopt (added 2026-06-08 — VCKP-11/12)
+
+Mockups (operator-reviewed): `.planning/sketches/V14-spawn-modals-mockup.html` (+ `V14-cockpit-mockup.html`, `V14-livework-mockup.html`).
+
+**Two spawn paths, by design separate (research §execution-paths):**
+- **Path 1 — ad-hoc terminal agent (VCKP-11):** sidebar "Quick launch" → sparse premium modal: CLI preset (showing the user's default model) · one optional prompt · dir + pane placement. No raw-command field, no explainer. Spawns a PTY agent, no cage. Lands under "External Terminal Agents."
+- **Path 2 — Voss-native orchestrated agent:** EM spawns card-bound agents via RunCommandBar (mode=Auto + team). Full cage (budget/scope/reviewer/audit).
+
+**Adopt = the hinge (VCKP-12, "Manage with Voss"):** take a running Path-1 agent under run management, **forward-only**. Gives: card binding · cost tracking · PTY-transcript audit (`partial_lineage`) · budget monitor (stop/warn at limit) · review-before-done · advisory scope.
+
+**Locked engineering limit (honest scope):** an external CLI agent is PTY-only — Voss cannot see its internal tool loop, so adoption **cannot** enforce per-tool PermissionGate (Voss-native only). Adopt UI must not promise per-tool gating for external agents; "ask before risky" applies to Voss-native, and for adopted external agents means budget-stop, not tool-gate. Correct copy at build time.
+
+**Copy rule (locked):** spawn/adopt UI states outcomes, never internal mechanics — `cage`/`Voss-native`/`PermissionGate`/`session-tree`/`partial lineage`/`pane` never appear in user-facing copy.
+
+**Considered + deferred:** "discard ad-hoc work, re-run clean as Voss-native" (keeps audit pure) — deferred in favor of keep-work + partial-lineage marker.
+
+---
+
+*Next step: `/gsd-plan-phase V14` (SPEC + CONTEXT locked, VCKP-01..12). Optional `/gsd-ui-phase V14` for a UI-SPEC over the mockups before planning.*

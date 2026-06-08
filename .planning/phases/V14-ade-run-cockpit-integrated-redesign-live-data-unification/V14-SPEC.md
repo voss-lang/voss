@@ -2,7 +2,8 @@
 
 **Created:** 2026-06-08
 **Ambiguity score:** 0.141 (gate: ≤ 0.20)
-**Requirements:** 10 locked (7 must-ship core · 3 best-effort gated)
+**Requirements:** 12 locked (9 must-ship core · 3 best-effort gated)
+**Revised:** 2026-06-08 — added VCKP-11 (quick-launch refresh) + VCKP-12 (adopt running agent / "Manage with Voss"); mockups under `.planning/sketches/`.
 
 ## Goal
 
@@ -72,6 +73,17 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
     - Target: keyboard navigation across Board → detail drawer → timeline; reduced-motion honored; state colors meet contrast; budget/cost/confidence rendered in monospace numerics; reuses A12 Ignite tokens only (no new theme).
     - Acceptance: a test drives keyboard focus Board→drawer→timeline and asserts focus order; a grep/lint check asserts no new theme tokens introduced (A12 tokens only); reduced-motion media query disables cockpit animations.
 
+11. **[CORE] Ad-hoc agent launch — refreshed quick-launch (VCKP-11)**: Sparse, premium launch modal for terminal agents.
+    - Current: an A12 launch modal exists off `AgentSidebar` Quick-Launch, but is config-heavy (raw-command field + explainer copy).
+    - Target: a minimal launch modal — CLI preset cards (Claude/Codex/Gemini/OpenCode/Aider/Custom) each showing the user's **default model**, one optional "what should it work on?" prompt, working directory + pane placement (Right/Below/New tab). **No raw-command field, no explainer block** — the preset resolves the user's configured CLI command/model. Spawns a PTY terminal agent (Path 1, no cage). Mockup: `.planning/sketches/V14-spawn-modals-mockup.html` (Quick-launch).
+    - Acceptance: launching from a preset spawns a PTY terminal agent in the chosen pane placement using the preset's resolved command; the modal exposes no raw-command field and no explainer paragraph; `⌘↵` launches, Esc/Cancel dismisses without spawning; the agent appears under "External Terminal Agents" in the roster.
+
+12. **[CORE] Adopt a running agent into a run — "Manage with Voss" (VCKP-12)**: Bring an ad-hoc terminal agent under run management, **forward-only**, in plain language.
+    - Current: an ad-hoc terminal agent has no card, budget, scope, review, or audit, and no path to gain them after launch.
+    - Target: a plain-language "Let Voss manage this agent" flow — add to current/new run · bind as a task (role/risk, both pre-inferred + editable) · set budget + scope. From adoption forward, Voss **tracks cost, records the PTY transcript as an audit node, monitors the budget (stop/warn at limit), and requires review before the task is marked done**; scope is shown **advisory**. Copy states outcomes, not internal mechanics ("cage", "PermissionGate", "session-tree node" never appear). Pre-adoption activity is excluded; the audit node is marked **partial lineage**. Mockup: `.planning/sketches/V14-spawn-modals-mockup.html` (Manage with Voss).
+    - **Honest limit (locked):** for an *external* CLI agent Voss sees the PTY stream, **not** the agent's internal tool loop — so true per-tool PermissionGate enforcement is **NOT** possible on adopted external agents (that remains Voss-native only). The adopt UI must not promise per-tool gating it cannot deliver; it offers budget-monitor + transcript-audit + review-gate + advisory-scope.
+    - Acceptance: adopting a running pane creates/links a card bound to that pane's session, applies budget + scope, starts a transcript audit node marked `partial_lineage`, and enforces review-before-done; pre-adoption events are absent from its budget/audit; the modal copy contains no internal-mechanics jargon and makes no per-tool-gate promise for external agents. Where no harness adopt path exists yet, the action renders disabled-with-reason (no fake affordance).
+
 ## Boundaries
 
 **In scope:**
@@ -85,9 +97,13 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
 - Live Work ↔ Run Review mode toggle preserving the grid (VCKP-08).
 - Feedback write-path where the harness exposes one, disabled-with-reason otherwise (VCKP-09, best-effort).
 - Dense/keyboard/a11y pass on A12 tokens (VCKP-10).
+- Refreshed sparse quick-launch modal for ad-hoc terminal agents (VCKP-11).
+- "Manage with Voss" adopt flow — forward-only tracking/audit/review for a running agent (VCKP-12).
 
 **Out of scope:**
 - Rewriting panel internals — V14 recomposes existing `org/panels/*`, it does not reimplement them. (Reuse, not rewrite.)
+- Retroactive audit/budget of pre-adoption activity — adoption is forward-only; the audit node is marked `partial_lineage`. (The alternative "discard + re-run clean as Voss-native" was considered and deferred — keep the running work, accept partial lineage.)
+- Per-tool PermissionGate enforcement on adopted *external* CLI agents — impossible from the PTY layer; remains Voss-native only.
 - New harness contracts / new SSE event types / new emit points — V14 is a PROTOCOL v1 client; new events are a separate harness phase.
 - Freeform/Studio infinite canvas — cockpit-first; canvas deferred indefinitely.
 - Embedded browser / VerificationArtifact panel — no webview infra; future phase.
@@ -103,6 +119,8 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
 - **Per-card field availability:** proposed card badges must be cross-checked against `org/types.ts` + PROTOCOL before use — `AuditCard.retry_count`/`is_killed` exist; per-card confidence is a live SSE event, NOT a snapshot field. Do not design fields the app cannot load.
 - **Dependency gating:** VCKP-06 gates on V13.1 (contract snapshot + SSE client); VCKP-07 gates on A13; VCKP-09 gates on a harness write path. Each degrades gracefully when its dependency is absent.
 - **No grid/PTY regression:** the terminal grid, `⌘⇧O` toggle, and live PTY panes must remain unaffected.
+- **Adoption is best-effort for external agents:** an adopted external CLI agent gets cost tracking, PTY-transcript audit (partial lineage), budget monitor (kill/warn at limit), review-before-done, and advisory scope — NOT per-tool gate enforcement. Adopt copy must reflect this; do not overstate control.
+- **Spawn-UX copy rule:** user-facing spawn/adopt surfaces state outcomes, never internal mechanics. Terms `cage`, `Voss-native`, `PermissionGate`, `session-tree node`, `partial lineage`, `pane` do not appear in the UI (they live in SPEC/code only).
 
 ## Acceptance Criteria
 
@@ -116,6 +134,8 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
 - [ ] Live↔Review toggle preserves selected run/card and leaves the terminal grid unchanged (VCKP-08).
 - [ ] Feedback comment dispatches to the correct `sessionNodeId` where a write path exists, else renders disabled-with-reason (no silent no-op) (VCKP-09, best-effort).
 - [ ] Keyboard focus traverses Board→drawer→timeline; no new theme tokens introduced (A12 only); reduced-motion disables cockpit animation (VCKP-10).
+- [ ] Quick-launch modal spawns a PTY agent from a preset (default model), with no raw-command field and no explainer block; agent lands under External Terminal Agents (VCKP-11).
+- [ ] "Manage with Voss" adopts a running pane: binds a card, applies budget+scope, starts a `partial_lineage` transcript-audit node, enforces review-before-done; copy carries no internal-mechanics jargon and no per-tool-gate promise for external agents (VCKP-12).
 - [ ] Existing V11/grid tests stay green; D-02 snapshot contract and `⌘⇧O` toggle do not regress.
 
 ## Ambiguity Report
@@ -139,6 +159,10 @@ Status: ✓ = met minimum. All dimensions met; no assumptions flagged.
 | 1     | Boundary/Simplifier| Irreducible must-ship core of the 10     | Core-7 (01/02/03/04/05/08/10) must-ship; 06/07/09 best-effort, degrade gracefully|
 | 1     | Boundary           | Does RunCommandBar start runs?           | Starts BOTH native + terminal; native start fixture-verifiable, rides V13.1 gate |
 | 1     | Failure Analyst    | Falsifiable bar for "live works"         | Fixture/mock SSE drives update + visible live/snapshot label; real-server deferred|
+| 2     | Simplifier (mockup)| Quick-launch modal scope                 | Sparse premium modal: preset+default-model, one prompt, dir/pane; drop raw-command + explainer (VCKP-11)|
+| 2     | Boundary (mockup)  | Can an ad-hoc agent be adopted?          | Yes — "Manage with Voss" adopt flow, forward-only, plain language (VCKP-12)      |
+| 2     | Failure Analyst    | Can adoption truly gate an external CLI? | No — PTY-only visibility; adoption = cost/audit/budget-monitor/review, NOT per-tool gate (locked limit)|
+| 2     | Boundary (mockup)  | Keep pre-adoption work or re-run clean?  | Keep running work; mark audit node `partial_lineage` (re-run-clean alternative deferred)|
 
 ---
 

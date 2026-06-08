@@ -61,6 +61,22 @@
 
 ---
 
+## Agent spawn & adopt (mockup session, 2026-06-08 — added VCKP-11/12)
+
+Driven by mockup review of `.planning/sketches/V14-*-mockup.html`. Established that ad-hoc terminal spawn and Voss orchestration are peers, joined by an adopt flow.
+
+**Ad-hoc spawn — is it an option, or only orchestration?** → Both, by design. Ad-hoc = first-class (Path 1); orchestration opt-in (Path 2). Quick-launch modal redesigned **sparse/premium**: preset+default-model, one optional prompt, dir/pane — dropped raw-command field + explainer per operator feedback ("simpler, premium, default to the user's CLI command"). → **VCKP-11**.
+
+**Can a user adopt a running ad-hoc agent into the cage?** → Yes — "Manage with Voss" flow. → **VCKP-12**. Copy rewritten to plain language per operator feedback ("not user-friendly… jargon"): "Let Voss manage this agent / Add it to / As the task / Limits / From now on, Voss will…" → CTA "Hand to Voss". Outcomes not mechanics.
+
+**Can adoption truly cage an external CLI?** → No (builder-surfaced limit). PTY-only visibility ⇒ no per-tool gate for external agents; adoption = cost/transcript-audit/budget-monitor/review/advisory-scope. Locked as honest scope; adopt copy must not overpromise.
+
+**Keep pre-adoption work or re-run clean?** → Keep running work; mark audit `partial_lineage`. Re-run-clean alternative considered, deferred.
+
+**Role/Risk on adopt** → pre-inferred but editable; visible by default.
+
+---
+
 ## Claude's Discretion
 
 - id-bridge correlation mechanism (card id → live `paneId`/`sessionNodeId`) — keystone technical risk, researcher resolves.
