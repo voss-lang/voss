@@ -2,15 +2,7 @@ package voss
 
 import "testing"
 
-// TestVossError will assert the typed REST error (VossError{Status, Detail})
-// decodes the server's {v, detail} body, maps non-2xx status codes, and never
-// leaks the bearer token in its Error() string. RED until Plan 02 (V13.3-02)
-// lands errors.go.
-func TestVossError(t *testing.T) {
-	// TODO(V13.3-02): construct a *http.Response with a {v:1, detail:"..."} body
-	// and a 401 status; assert checkResponse returns *VossError{Status:401,...}.
-	t.Skip("RED: VossError/checkResponse implemented in Plan 02 (V13.3-02)")
-}
+// TestVossError lives in errors_test.go (Plan 02 implemented errors.go).
 
 // TestBearerHeader will assert every REST method attaches
 // "Authorization: Bearer <token>" via a recording httptest server. RED until
