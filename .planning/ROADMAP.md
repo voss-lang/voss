@@ -2125,7 +2125,9 @@ Plans:
 - [ ] V13.2-06-PLAN.md — Replace stub with cargo typify output + cargo drift gate (D-08); HARD-BLOCKS on V13.1 contracts/ (Wave 5) [VSDK-RS-01, VSDK-RS-07]
 
 ---
-### Phase V13.3: Go Local / Headless Client SDK
+### Phase V13.3: Go Local / Headless Client SDK — ✅ COMPLETE (2026-06-08)
+
+> ✅ **COMPLETE (6/6 plans, full suite green).** Greenfield Go SDK at `sdk/go/`: generated+drift-gated types, 21-member `Decode()` event model, typed REST (10 methods), typed SSE (`<-chan TypedEvent`, leak-free cancel), spawn/attach supervisor (no-orphan), permission helper, no-FFI guard. `go test ./...` + real-server `TestMain`/`VOSS_SERVE_FAKE_TURN` integration all green; drift gate live. Deviations: go floor→1.24 (audited deps), in-SDK 3.1→3.0 codegen normalizer (`internal/specgen`, oapi-codegen can't read 3.1), 60s spawn handshake + `LITELLM_LOCAL_MODEL_COST_MAP=true`. VSDK-GO-01..08 met. Summaries: `V13.3-0{1..6}-SUMMARY.md`.
 
 **Goal:** Infra/headless automation — CI bots, devops tools, lightweight local runners, repo-automation daemons.
 
