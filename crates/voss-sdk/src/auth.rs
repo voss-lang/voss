@@ -45,7 +45,7 @@ mod tests {
     }
 
     #[test]
-    fn into_client_binds_loopback_base() {
+    fn handshake_into_client_binds_loopback_base() {
         let client = Handshake {
             port: 54321,
             token: "abc".into(),
@@ -56,7 +56,7 @@ mod tests {
     }
 
     #[test]
-    fn ignores_protocol_version_field() {
+    fn handshake_ignores_protocol_version_field() {
         let handshake = Handshake::from_line(r#"{"v":1,"port":54321,"token":"abc"}"#).unwrap();
 
         assert_eq!(handshake.port, 54321);
