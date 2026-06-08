@@ -26,7 +26,7 @@ pub enum UiProjection {
     },
     Status {
         model: String,
-        tokens: u64,
+        tokens: i64,
         cost_usd: f64,
         ctx_pct: f64,
     },
@@ -93,6 +93,13 @@ mod tests {
     use super::UiProjection;
     use crate::types::events::*;
 
+    fn object(value: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+        match value {
+            serde_json::Value::Object(map) => map,
+            _ => panic!("expected JSON object"),
+        }
+    }
+
     #[test]
     fn projection_server_connected() {
         let event = AgentEvent::ServerConnected(ServerConnected { v: 1 });
@@ -134,11 +141,11 @@ mod tests {
             steps: vec![
                 PlanStep {
                     name: "read".into(),
-                    args: serde_json::json!({"path":"README.md"}),
+                    args: object(serde_json::json!({"path":"README.md"})),
                 },
                 PlanStep {
                     name: "write".into(),
-                    args: serde_json::json!({}),
+                    args: serde_json::Map::new(),
                 },
             ],
             cost_usd: 0.01,
@@ -158,7 +165,7 @@ mod tests {
         let event = AgentEvent::ToolEvent(ToolEvent {
             v: 1,
             name: "shell".into(),
-            args: serde_json::json!({}),
+            args: serde_json::Map::new(),
             summary: "ran".into(),
             state: "ok".into(),
         });
@@ -263,7 +270,7 @@ mod tests {
             v: 1,
             id: "p1".into(),
             tool_name: "edit".into(),
-            args: serde_json::json!({}),
+            args: serde_json::Map::new(),
             dimension: "tool".into(),
         });
 
@@ -372,7 +379,7 @@ mod tests {
             spent: 1.0,
             limit: 10.0,
             remaining: 9.0,
-            unit: "usd".into(),
+            unit: Unit::Usd,
         });
 
         assert_eq!(UiProjection::try_from(&event), Err(()));

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+
+os.environ.setdefault("PYDANTIC_DISABLE_PLUGINS", "1")
 
 from voss.harness.server.app import create_app
 from voss.harness.server.events import EventEnvelope

@@ -47,7 +47,8 @@
       "required": [
         "model",
         "cwd",
-        "git"
+        "git",
+        "type"
       ],
       "title": "BannerEvent",
       "type": "object"
@@ -95,7 +96,8 @@
         "session_id",
         "spent",
         "limit",
-        "remaining"
+        "remaining",
+        "type"
       ],
       "title": "BudgetUpdated",
       "type": "object"
@@ -124,7 +126,8 @@
       },
       "required": [
         "question",
-        "confidence"
+        "confidence",
+        "type"
       ],
       "title": "ClarifyEvent",
       "type": "object"
@@ -163,7 +166,8 @@
       },
       "required": [
         "architecture_tokens",
-        "constraints_count"
+        "constraints_count",
+        "type"
       ],
       "title": "CognitionLoaded",
       "type": "object"
@@ -192,7 +196,8 @@
         }
       },
       "required": [
-        "architecture_tokens"
+        "architecture_tokens",
+        "type"
       ],
       "title": "CognitionOverflow",
       "type": "object"
@@ -233,7 +238,8 @@
       },
       "required": [
         "session_id",
-        "score"
+        "score",
+        "type"
       ],
       "title": "ConfidenceUpdated",
       "type": "object"
@@ -267,7 +273,8 @@
       "required": [
         "text",
         "confidence",
-        "cost_usd"
+        "cost_usd",
+        "type"
       ],
       "title": "FinalEvent",
       "type": "object"
@@ -301,7 +308,8 @@
       "required": [
         "session_id",
         "gate",
-        "decision"
+        "decision",
+        "type"
       ],
       "title": "GateUpdated",
       "type": "object"
@@ -340,7 +348,8 @@
       },
       "required": [
         "id",
-        "tool_name"
+        "tool_name",
+        "type"
       ],
       "title": "PermissionUpdated",
       "type": "object"
@@ -376,7 +385,8 @@
       },
       "required": [
         "confidence",
-        "cost_usd"
+        "cost_usd",
+        "type"
       ],
       "title": "PlanEvent",
       "type": "object"
@@ -423,7 +433,8 @@
         }
       },
       "required": [
-        "principles_tokens"
+        "principles_tokens",
+        "type"
       ],
       "title": "PrinciplesOverflow",
       "type": "object"
@@ -459,7 +470,8 @@
       },
       "required": [
         "text",
-        "probability"
+        "probability",
+        "type"
       ],
       "title": "ProbableEvent",
       "type": "object"
@@ -478,6 +490,9 @@
           "type": "integer"
         }
       },
+      "required": [
+        "type"
+      ],
       "title": "ServerConnected",
       "type": "object"
     },
@@ -500,7 +515,8 @@
         }
       },
       "required": [
-        "session_id"
+        "session_id",
+        "type"
       ],
       "title": "SessionIdle",
       "type": "object"
@@ -539,7 +555,8 @@
         "model",
         "tokens",
         "cost_usd",
-        "ctx_pct"
+        "ctx_pct",
+        "type"
       ],
       "title": "StatusEvent",
       "type": "object"
@@ -563,7 +580,8 @@
         }
       },
       "required": [
-        "text"
+        "text",
+        "type"
       ],
       "title": "StreamDelta",
       "type": "object"
@@ -623,7 +641,8 @@
         }
       },
       "required": [
-        "role"
+        "role",
+        "type"
       ],
       "title": "StreamFinalize",
       "type": "object"
@@ -647,7 +666,8 @@
         }
       },
       "required": [
-        "label"
+        "label",
+        "type"
       ],
       "title": "ThinkingEvent",
       "type": "object"
@@ -686,7 +706,8 @@
       },
       "required": [
         "name",
-        "state"
+        "state",
+        "type"
       ],
       "title": "ToolEvent",
       "type": "object"
@@ -710,7 +731,8 @@
         }
       },
       "required": [
-        "task"
+        "task",
+        "type"
       ],
       "title": "UserEvent",
       "type": "object"
@@ -734,7 +756,8 @@
         }
       },
       "required": [
-        "message"
+        "message",
+        "type"
       ],
       "title": "WarningEvent",
       "type": "object"
