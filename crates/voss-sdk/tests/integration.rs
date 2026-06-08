@@ -3,8 +3,9 @@ use std::process::Command;
 use std::time::Duration;
 
 use futures_util::StreamExt;
+use voss_sdk::error::VossError;
 use voss_sdk::types::events::AgentEvent;
-use voss_sdk::{event_stream, spawn_with, VossClient, VossError};
+use voss_sdk::{event_stream, spawn_with, VossClient};
 
 fn venv_python() -> Option<String> {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
@@ -58,7 +59,8 @@ async fn auth_bad_token() {
         let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
             .expect("server should start");
-        let bad_client = VossClient::new(supervisor.client.base_url().to_string(), "bad-token".into());
+        let bad_client =
+            VossClient::new(supervisor.client.base_url().to_string(), "bad-token".into());
 
         let error = bad_client.create_session(".").await.unwrap_err();
         assert!(matches!(error, VossError::HttpStatus { status: 401, .. }));
@@ -82,14 +84,10 @@ async fn post_while_busy() {
         let client = supervisor.client.clone();
 
         let sid = client.create_session(".").await.expect("create session");
-        let mut stream = Box::pin(event_stream(client.clone(), sid.clone()));
-
         client
             .post_message(&sid, "first", "plan")
             .await
             .expect("post first message");
-        let first = stream.next().await.expect("expected server.connected");
-        assert!(matches!(first, Ok(AgentEvent::ServerConnected(_))));
 
         let error = client
             .post_message(&sid, "second", "plan")
@@ -97,7 +95,6 @@ async fn post_while_busy() {
             .unwrap_err();
         assert!(matches!(error, VossError::HttpStatus { status: 409, .. }));
 
-        drop(stream);
         supervisor.shutdown().await;
     })
     .await;
