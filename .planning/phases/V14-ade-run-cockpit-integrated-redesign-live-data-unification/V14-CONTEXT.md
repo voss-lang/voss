@@ -30,6 +30,7 @@ Downstream agents MUST read `V14-SPEC.md` before planning or implementing. Requi
 - Dense/keyboard/a11y pass on A12 tokens (VCKP-10).
 - Refreshed sparse quick-launch modal for ad-hoc terminal agents (VCKP-11).
 - "Manage with Voss" adopt flow — forward-only tracking/audit/review for a running agent (VCKP-12).
+- Managed launch + enforcement tiers (OS scope-sandbox + permission-proxy + budget-kill; tiers A/B/C) (VCKP-13).
 
 **Out of scope (from SPEC.md):**
 - Rewriting panel internals (reuse, not rewrite).
@@ -66,6 +67,7 @@ Downstream agents MUST read `V14-SPEC.md` before planning or implementing. Requi
 - **D-10 (VCKP-12) "Manage with Voss" adopt flow — plain language.** Title "Let Voss manage this agent"; sections "Add it to / As the task / Limits / From now on, Voss will". CTA "Hand to Voss". Outcomes not mechanics — **no** `cage`/`Voss-native`/`PermissionGate`/`session-tree`/`partial lineage`/`pane` in UI copy. Operator approved the friendlier rewrite 2026-06-08.
 - **D-11 Adoption is forward-only + best-effort for external agents.** Locked: keep the running work (don't discard/re-run-clean); audit node marked `partial_lineage`; pre-adoption activity excluded. **Engineering limit locked:** an external CLI agent is PTY-only — Voss cannot intercept its internal tool loop, so adoption gives cost-tracking + transcript-audit + budget-monitor + review-before-done + **advisory** scope, **NOT** per-tool PermissionGate enforcement (that stays Voss-native only). Adopt copy must not overstate control.
 - **D-12 Role/Risk on adopt** pre-inferred (risk from scope/budget, role from CLI) but **editable** — visible by default per mockup.
+- **D-13 (VCKP-13) Mitigate external-CLI gating at the launch boundary.** Since a running external CLI can't be gated mid-flight, "managed launch" spawns it under enforcement from t0: (a) **OS scope-sandbox** (sandbox-exec / Landlock-bubblewrap / writable-scope bind-mount) — CLI-agnostic floor; (b) **permission proxy** for hook-capable CLIs (Claude Code hooks/MCP, OpenCode permission config) → approvals into AttentionQueue — per-CLI best-effort; (c) **budget-kill** — universal. UI shows **capability tier A/B/C**. Adopt of a running agent is always tier C (no retro-sandbox). Sandbox is the floor; proxy is the bonus. This supersedes the earlier "adopt can't really cage external" worry — control is recovered at launch, honestly tiered.
 
 ### Claude's Discretion
 - id-bridge correlation mechanism (how a card id maps to a live `paneId`/`sessionNodeId`) — technical; researcher investigates whether the harness emits a stable correlation id, else the run-launch correlation-id-stamp fallback from SPEC §Constraints applies. **This is the keystone risk — resolve before the binding wave.**

@@ -2,8 +2,8 @@
 
 **Created:** 2026-06-08
 **Ambiguity score:** 0.141 (gate: ≤ 0.20)
-**Requirements:** 12 locked (9 must-ship core · 3 best-effort gated)
-**Revised:** 2026-06-08 — added VCKP-11 (quick-launch refresh) + VCKP-12 (adopt running agent / "Manage with Voss"). Design validated via throwaway HTML mockups (operator-reviewed, since removed); decisions captured below.
+**Requirements:** 13 locked (10 must-ship core · 3 best-effort gated)
+**Revised:** 2026-06-08 — added VCKP-11 (quick-launch refresh) + VCKP-12 (adopt running agent / "Manage with Voss") + VCKP-13 (managed launch + enforcement tiers — the mitigation for external-CLI gating). Design validated via throwaway HTML mockups (operator-reviewed, since removed); decisions captured below.
 
 ## Goal
 
@@ -84,6 +84,15 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
     - **Honest limit (locked):** for an *external* CLI agent Voss sees the PTY stream, **not** the agent's internal tool loop — so true per-tool PermissionGate enforcement is **NOT** possible on adopted external agents (that remains Voss-native only). The adopt UI must not promise per-tool gating it cannot deliver; it offers budget-monitor + transcript-audit + review-gate + advisory-scope.
     - Acceptance: adopting a running pane creates/links a card bound to that pane's session, applies budget + scope, starts a transcript audit node marked `partial_lineage`, and enforces review-before-done; pre-adoption events are absent from its budget/audit; the modal copy contains no internal-mechanics jargon and makes no per-tool-gate promise for external agents. Where no harness adopt path exists yet, the action renders disabled-with-reason (no fake affordance).
 
+13. **[CORE] Managed launch + enforcement tiers (VCKP-13)**: Enforce the cage at the **launch boundary** for external CLI agents, since mid-run gating is impossible (mitigation for the VCKP-12 limit).
+    - Current: external terminal agents run unsandboxed; Voss has no enforcement over them — the only real cage is Voss-native (Voss owns the tool loop).
+    - Target: a **"managed launch"** option on Quick-launch (VCKP-11) that spawns the external CLI under enforcement from t0:
+      (a) **OS scope-sandbox** — macOS `sandbox-exec`/Seatbelt, Linux Landlock/bubblewrap, or a writable-scope bind-mount — so out-of-scope writes fail at the kernel regardless of the agent's tools (**CLI-agnostic**);
+      (b) **permission proxy** for hook-capable CLIs (Claude Code hooks / permission-prompt-tool / MCP; OpenCode permission config) routing tool approvals into Voss's AttentionQueue (**per-CLI best-effort**);
+      (c) **budget-kill** via cost meter (**universal**, coarse).
+      The launch/roster UI shows each agent's **capability tier**: **A** = per-tool gate + sandbox + budget; **B** = sandbox + budget (no per-tool prompt); **C** = observe-only (budget-kill + audit + review). Adopt (VCKP-12) of an already-running agent is always tier C — a live PID can't be retro-sandboxed.
+    - Acceptance: a managed-launch agent started with scope `tests/**` cannot write outside it — an out-of-scope write is denied at the OS layer in a test; budget-kill terminates the pane at the limit; the UI shows the correct tier per CLI (a non-hook CLI shows tier B with no per-tool prompt, no error; an adopted running agent shows tier C); a hook-capable CLI's tool approval surfaces in the AttentionQueue.
+
 ## Boundaries
 
 **In scope:**
@@ -99,11 +108,12 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
 - Dense/keyboard/a11y pass on A12 tokens (VCKP-10).
 - Refreshed sparse quick-launch modal for ad-hoc terminal agents (VCKP-11).
 - "Manage with Voss" adopt flow — forward-only tracking/audit/review for a running agent (VCKP-12).
+- Managed launch (OS scope-sandbox + permission-proxy-where-supported + budget-kill) + per-CLI enforcement tiers (VCKP-13).
 
 **Out of scope:**
 - Rewriting panel internals — V14 recomposes existing `org/panels/*`, it does not reimplement them. (Reuse, not rewrite.)
 - Retroactive audit/budget of pre-adoption activity — adoption is forward-only; the audit node is marked `partial_lineage`. (The alternative "discard + re-run clean as Voss-native" was considered and deferred — keep the running work, accept partial lineage.)
-- Per-tool PermissionGate enforcement on adopted *external* CLI agents — impossible from the PTY layer; remains Voss-native only.
+- Per-tool PermissionGate enforcement on *adopted / already-running* external CLI agents — impossible from the PTY layer (tier C). Mitigated only at **managed launch** for hook-capable CLIs (VCKP-13, tier A); not retroactively.
 - New harness contracts / new SSE event types / new emit points — V14 is a PROTOCOL v1 client; new events are a separate harness phase.
 - Freeform/Studio infinite canvas — cockpit-first; canvas deferred indefinitely.
 - Embedded browser / VerificationArtifact panel — no webview infra; future phase.
@@ -119,7 +129,8 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
 - **Per-card field availability:** proposed card badges must be cross-checked against `org/types.ts` + PROTOCOL before use — `AuditCard.retry_count`/`is_killed` exist; per-card confidence is a live SSE event, NOT a snapshot field. Do not design fields the app cannot load.
 - **Dependency gating:** VCKP-06 gates on V13.1 (contract snapshot + SSE client); VCKP-07 gates on A13; VCKP-09 gates on a harness write path. Each degrades gracefully when its dependency is absent.
 - **No grid/PTY regression:** the terminal grid, `⌘⇧O` toggle, and live PTY panes must remain unaffected.
-- **Adoption is best-effort for external agents:** an adopted external CLI agent gets cost tracking, PTY-transcript audit (partial lineage), budget monitor (kill/warn at limit), review-before-done, and advisory scope — NOT per-tool gate enforcement. Adopt copy must reflect this; do not overstate control.
+- **Enforcement lives at the launch boundary, not adoption:** real scope/permission enforcement on external CLIs is only achievable when Voss spawns them under a sandbox/permission-proxy (VCKP-13 managed launch). An *adopted* already-running agent is observe-only (tier C: cost + transcript-audit + budget-kill + review + advisory scope) — a live PID can't be retro-sandboxed. UI capability tiers (A/B/C) must reflect actual enforcement; never overstate control.
+- **Sandbox is the CLI-agnostic floor:** OS scope-sandbox (VCKP-13a) enforces filesystem blast-radius for ANY managed-launch CLI even without a permission hook; the permission proxy (VCKP-13b) is per-CLI best-effort on top.
 - **Spawn-UX copy rule:** user-facing spawn/adopt surfaces state outcomes, never internal mechanics. Terms `cage`, `Voss-native`, `PermissionGate`, `session-tree node`, `partial lineage`, `pane` do not appear in the UI (they live in SPEC/code only).
 
 ## Acceptance Criteria
@@ -136,6 +147,7 @@ Tiers: **[CORE]** = must ship for V14 to be DONE. **[GATED]** = best-effort; shi
 - [ ] Keyboard focus traverses Board→drawer→timeline; no new theme tokens introduced (A12 only); reduced-motion disables cockpit animation (VCKP-10).
 - [ ] Quick-launch modal spawns a PTY agent from a preset (default model), with no raw-command field and no explainer block; agent lands under External Terminal Agents (VCKP-11).
 - [ ] "Manage with Voss" adopts a running pane: binds a card, applies budget+scope, starts a `partial_lineage` transcript-audit node, enforces review-before-done; copy carries no internal-mechanics jargon and no per-tool-gate promise for external agents (VCKP-12).
+- [ ] Managed launch sandboxes scope at the OS layer (out-of-scope write denied in a test), budget-kills at limit, and shows the correct capability tier per CLI (A/B/C); adopted running agent shows tier C (VCKP-13).
 - [ ] Existing V11/grid tests stay green; D-02 snapshot contract and `⌘⇧O` toggle do not regress.
 
 ## Ambiguity Report
@@ -163,6 +175,7 @@ Status: ✓ = met minimum. All dimensions met; no assumptions flagged.
 | 2     | Boundary (mockup)  | Can an ad-hoc agent be adopted?          | Yes — "Manage with Voss" adopt flow, forward-only, plain language (VCKP-12)      |
 | 2     | Failure Analyst    | Can adoption truly gate an external CLI? | No — PTY-only visibility; adoption = cost/audit/budget-monitor/review, NOT per-tool gate (locked limit)|
 | 2     | Boundary (mockup)  | Keep pre-adoption work or re-run clean?  | Keep running work; mark audit node `partial_lineage` (re-run-clean alternative deferred)|
+| 3     | Failure Analyst    | Mitigate the external-CLI gating limit?  | Enforce at launch: OS scope-sandbox (CLI-agnostic) + permission-proxy (hook-capable) + budget-kill; capability tiers A/B/C; adopt stays tier C (VCKP-13)|
 
 ---
 
