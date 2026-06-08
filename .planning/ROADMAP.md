@@ -78,7 +78,7 @@
 | V13.2 | Rust Local/Native Client SDK | protocol/event types, local server supervisor (reuse voss-tui), auth helpers, session/audit readers; generated off the V13.1 contract snapshot; no orch reimpl | VSDK-RS-* | TBD by SPEC.md |
 | V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; off the V13.1 contract snapshot; no runtime reimpl | VSDK-GO-* | ✅ COMPLETE (6/6 plans; `sdk/go/` generated+drift-gated types, 21-member Decode, typed REST/SSE, spawn/attach no-orphan, permission, no-FFI guard; full suite + real-server TestMain green; VSDK-GO-01..08). Deviations: go floor→1.24, in-SDK 3.1→3.0 codegen normalizer, 60s spawn handshake. |
 | V13.4 | C ABI/Schema Doc | JSON-schema/ABI doc only; generated headers deferred; no full SDK | VSDK-C-* | ✅ COMPLETE (1/1 plan; `docs/native-embedding.md` native/C consumption reference + `docs/check-native-embedding-refs.sh` refs-resolve gate; VSDK-C-01..06; C headers/FFI deferred w/ trigger; zero code). |
-| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback); refreshed quick-launch modal + "Manage with Voss" adopt flow + managed-launch enforcement tiers (OS sandbox/permission-proxy/budget-kill) for external CLIs. Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..13 | ✅ SPEC + CONTEXT locked (13 reqs; 10 core · 3 gated; ambiguity 0.141); design operator-reviewed via throwaway mockups (removed); ~13 plans/8 waves; ready to plan |
+| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback); refreshed quick-launch modal + "Manage with Voss" adopt flow + managed-launch enforcement tiers (OS sandbox/permission-proxy/budget-kill) for external CLIs. Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..13 | ✅ SPEC + CONTEXT locked (13 reqs; 10 core · 3 gated; ambiguity 0.141); design operator-reviewed via throwaway mockups (removed); 13 plans/8 waves planned |
 
 ---
 
@@ -2176,10 +2176,22 @@ Plans:
 
 **Cross-cutting:** Builds on V11 (built); reuses A12 tokens; live-SSE wave gated on V13.1 contract snapshot; swarm reconciliation gated on A13. Keystone risk = the id bridge correlating live pane/agent ids with snapshot card/session-node ids (verify before the binding wave). **Locked engineering limit:** adopting an external CLI agent (VCKP-12) is PTY-only — cost/transcript-audit/budget-monitor/review/advisory-scope, NOT per-tool gate enforcement (Voss-native only). No new harness contracts — V14 is a PROTOCOL v1 client.
 
-**Plans:** ~13 plans across 8 waves (W0 scaffold/model-stubs/id-bridge fixture → W1 normalized model + adapters → W2 card↔session binding ∥ cockpit layout shell → W3 RunCommandBar ∥ AttentionQueue → W4 live SSE wiring → W5 swarm reconciliation ∥ Live↔Review toggle → W6 quick-launch refresh ∥ adopt flow ∥ managed-launch enforcement tiers → W7 feedback write-path + a11y + human-verify).
+**Plans:** 13 plans across 8 waves (W0 scaffold/model-stubs/id-bridge fixture + A1 keystone verification → W1 normalized model + adapters → W2 card↔session binding ∥ cockpit layout shell → W3 RunCommandBar ∥ AttentionQueue → W4 live SSE wiring → W5 swarm reconciliation ∥ Live↔Review toggle → W6 quick-launch refresh ∥ adopt flow → W7 managed-launch enforcement tiers ∥ feedback write-path + a11y + human-verify).
 
 Plans:
-- [ ] TBD (run `/gsd:plan-phase V14` — SPEC + CONTEXT already locked)
+- [ ] V14-00-PLAN.md — Wave 0 scaffold: normalized-model stubs + selection store + fixtures + mock SSE + A1 keystone verification
+- [ ] V14-01-PLAN.md — VCKP-01 normalized model adapter (snapshot spine + live overlay) + selection observed by ≥2 surfaces
+- [ ] V14-02-PLAN.md — VCKP-02 keystone id-bridge (resolveCard, two mechanisms: native echo + terminal cardId↔paneId)
+- [ ] V14-03-PLAN.md — VCKP-05 cockpit shell (4 regions, one selection) replacing the tab shell + CardDrawer + GateBar
+- [ ] V14-04-PLAN.md — VCKP-03 RunCommandBar intake starting terminal + native runs; Auto budget/scope gate
+- [ ] V14-05-PLAN.md — VCKP-04 global AttentionQueue (snapshot decisions + live events) + StatusBar pill
+- [ ] V14-06-PLAN.md — VCKP-06 live SSE wiring (mock-verified) + live/snapshot label + snapshot fallback [gated]
+- [ ] V14-07-PLAN.md — VCKP-07 swarm-manifest reconciliation into roster/board [gated]
+- [ ] V14-08-PLAN.md — VCKP-08 Live↔Review toggle preserving the grid + completed launch stub + D-07 Open-in-grid
+- [ ] V14-09-PLAN.md — VCKP-11 sparse preset quick-launch modal (drop raw-command/explainer) + tier surface
+- [ ] V14-10-PLAN.md — VCKP-12 'Manage with Voss' adopt flow (forward-only, tier C, no jargon)
+- [ ] V14-11-PLAN.md — VCKP-13 managed launch: OS scope-sandbox + budget-kill + honest capability tiers (Rust)
+- [ ] V14-12-PLAN.md — VCKP-09 feedback write-path [gated] + VCKP-10 dense/a11y pass + phase-final human-verify
 
 ---
 
