@@ -1,95 +1,89 @@
 import { type Component, createSignal, createMemo, onMount, Show, For } from 'solid-js';
 import './modal.css';
+import type { CapabilityTier } from '../../org/model/normalized';
+import {
+  MODEL_PRESETS,
+  MODEL_CLI_KEYS,
+  defaultModelFor,
+  saveDefaultModel,
+  type ModelCliKey,
+} from '../../agents/modelPrefs';
 
-type CliTab = 'claude' | 'codex' | 'antigravity' | 'opencode' | 'voss' | 'custom';
-type EffortLevel = 'low' | 'medium' | 'high' | 'max' | 'xhigh';
+// V14-09 (D-09 sparse premium): preset launcher for external agent CLIs.
+// Presets are the five known agent CLIs plus a plain Terminal. Native Voss runs
+// go through RunCommandBar (D-04) — they are intentionally NOT here. No raw
+// command, no effort matrices, no Skip-Permissions toggle.
 
-const CLI_TABS: { id: CliTab; label: string }[] = [
+type PresetId = ModelCliKey | 'terminal';
+
+const PRESETS: { id: PresetId; label: string }[] = [
   { id: 'claude', label: 'Claude' },
   { id: 'codex', label: 'Codex' },
-  { id: 'antigravity', label: 'Antigravity' },
+  { id: 'gemini', label: 'Gemini' },
   { id: 'opencode', label: 'OpenCode' },
-  { id: 'voss', label: 'Voss' },
-  { id: 'custom', label: 'Custom' },
+  { id: 'aider', label: 'Aider' },
+  { id: 'terminal', label: 'Terminal' },
 ];
 
-interface CliProfile {
-  models?: string[];
-  effortLevels: EffortLevel[];
-  effortLabel: string;
-  effortDefault: EffortLevel;
-  effortFlag: string;
-}
+type Placement = 'right' | 'below' | 'newtab';
 
-const CLI_PROFILES: Record<string, CliProfile> = {
-  claude: {
-    models: ['opus', 'sonnet', 'haiku'],
-    effortLevels: ['low', 'medium', 'high', 'max'],
-    effortLabel: 'Effort',
-    effortDefault: 'high',
-    effortFlag: '--effort',
-  },
-  codex: {
-    effortLevels: ['low', 'medium', 'high', 'xhigh'],
-    effortLabel: 'Reasoning',
-    effortDefault: 'medium',
-    effortFlag: '--reasoning-effort',
-  },
-  antigravity: {
-    effortLevels: ['low', 'medium', 'high'],
-    effortLabel: 'Effort',
-    effortDefault: 'medium',
-    effortFlag: '--effort',
-  },
-  opencode: {
-    effortLevels: ['low', 'medium', 'high'],
-    effortLabel: 'Effort',
-    effortDefault: 'medium',
-    effortFlag: '--effort',
-  },
-};
+const PLACEMENTS: { id: Placement; label: string }[] = [
+  { id: 'right', label: 'Right' },
+  { id: 'below', label: 'Below' },
+  { id: 'newtab', label: 'New tab' },
+];
 
 export interface AgentLaunchConfig {
   cliBinary: string;
   cliArgs: string[];
   taskPrompt: string;
+  placement: Placement;
+  managed: boolean;
+  tier: CapabilityTier;
+  kind?: 'agent' | 'terminal';
 }
 
 export interface AgentLaunchModalProps {
   onDismiss: () => void;
   onLaunch: (config: AgentLaunchConfig) => void;
-  customAgents?: { name: string; command: string }[];
-  onSaveCustomAgent?: (agent: { name: string; command: string }) => void;
 }
 
 const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
   let panelRef!: HTMLDivElement;
   let firstTabRef!: HTMLButtonElement;
 
-  const [activeTab, setActiveTab] = createSignal<CliTab>('claude');
+  const [activePreset, setActivePreset] = createSignal<PresetId>('claude');
   const [model, setModel] = createSignal('');
-  const [effort, setEffort] = createSignal<EffortLevel>('high');
-  const [planMode, setPlanMode] = createSignal(false);
-  const [skipPermissions, setSkipPermissions] = createSignal(false);
+  const [workingDir, setWorkingDir] = createSignal('');
   const [taskPrompt, setTaskPrompt] = createSignal('');
-
-  const profile = createMemo(() => CLI_PROFILES[activeTab()] as CliProfile | undefined);
-
-  const switchTab = (tab: CliTab) => {
-    setActiveTab(tab);
-    setModel('');
-    const p = CLI_PROFILES[tab];
-    if (p) setEffort(p.effortDefault);
-  };
-  // Voss-specific
-  const [vossCommand, setVossCommand] = createSignal<'chat' | 'do' | 'resume' | 'agent'>('chat');
-  const [vossMode, setVossMode] = createSignal<'edit' | 'plan'>('edit');
-  const [vossAuth, setVossAuth] = createSignal('');
-  // Custom
-  const [customName, setCustomName] = createSignal('');
-  const [customCommand, setCustomCommand] = createSignal('');
+  const [managed, setManaged] = createSignal(false);
+  const [placement, setPlacement] = createSignal<Placement>('right');
 
   const [visible, setVisible] = createSignal(false);
+
+  const isTerminal = () => activePreset() === 'terminal';
+  const cliKey = createMemo<ModelCliKey | null>(() =>
+    isTerminal() ? null : (activePreset() as ModelCliKey),
+  );
+  const preset = createMemo(() => {
+    const k = cliKey();
+    return k ? MODEL_PRESETS[k] : null;
+  });
+
+  // The effective model for the active preset: explicit selection, else the
+  // persisted/built-in default. `null` = no flag injected (CLI's own default).
+  const effectiveModel = createMemo<string | null>(() => {
+    const k = cliKey();
+    if (!k) return null;
+    const sel = model().trim();
+    if (sel) return sel;
+    return defaultModelFor(k);
+  });
+
+  const switchPreset = (id: PresetId) => {
+    setActivePreset(id);
+    setModel('');
+  };
 
   onMount(() => {
     requestAnimationFrame(() => setVisible(true));
@@ -97,58 +91,44 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
   });
 
   const buildConfig = (): AgentLaunchConfig => {
-    const tab = activeTab();
     const task = taskPrompt().trim();
+    const cwd = workingDir().trim();
 
-    if (tab === 'custom') {
-      const parts = customCommand().trim().split(/\s+/);
-      const binary = parts[0] || '';
-      const args = parts.slice(1);
-      if (customName() && customCommand()) {
-        props.onSaveCustomAgent?.({ name: customName(), command: customCommand() });
-      }
-      return { cliBinary: binary, cliArgs: args, taskPrompt: task };
+    if (isTerminal()) {
+      // Plain login shell — no agentConfig wired in App (see blankTerminalWiring).
+      return {
+        cliBinary: '',
+        cliArgs: [],
+        taskPrompt: '',
+        placement: placement(),
+        managed: false,
+        tier: 'C',
+        kind: 'terminal',
+      };
     }
 
-    if (tab === 'voss') {
-      const args: string[] = [vossCommand()];
-      if (vossCommand() === 'do' || vossCommand() === 'agent') {
-        args.push('--mode', vossMode());
-      }
-      if (vossAuth()) args.push('--auth', vossAuth());
-      if (task) args.push(task);
-      return { cliBinary: 'voss', cliArgs: args, taskPrompt: task };
-    }
-
-    // Generic: claude/codex/antigravity/opencode
-    const binaryMap: Record<string, string> = {
-      claude: 'claude',
-      codex: 'codex',
-      antigravity: 'gemini',
-      opencode: 'opencode',
-    };
-    const binary = binaryMap[tab] || tab;
+    const k = cliKey()!;
     const args: string[] = [];
-    const p = CLI_PROFILES[tab];
 
-    if (model()) args.push('--model', model());
+    // Persist the chosen default model so the next launch pre-fills it. Only
+    // when the user actively selected one (never overwrite with a blank).
+    const selected = model().trim();
+    if (selected) void saveDefaultModel(k, selected);
 
-    if (p && effort() !== p.effortDefault) {
-      args.push(p.effortFlag, effort());
-    }
-
-    if (planMode()) {
-      args.push('--plan');
-    }
-
-    if (skipPermissions()) {
-      if (tab === 'claude') args.push('--dangerously-skip-permissions');
-      else args.push('--skip-review');
-    }
-
+    const resolvedModel = effectiveModel();
+    if (resolvedModel) args.push('--model', resolvedModel);
+    if (cwd) args.push('--cwd', cwd);
     if (task) args.push(task);
 
-    return { cliBinary: binary, cliArgs: args, taskPrompt: task };
+    return {
+      cliBinary: k,
+      cliArgs: args,
+      taskPrompt: task,
+      placement: placement(),
+      managed: managed(),
+      tier: 'B',
+      kind: 'agent',
+    };
   };
 
   const handleSubmit = () => {
@@ -166,16 +146,14 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
       e.preventDefault();
       props.onDismiss();
     }
-    if (e.ctrlKey && e.key === 'Enter') {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleSubmit();
     }
   };
 
-  const isGenericTab = () => {
-    const t = activeTab();
-    return t === 'claude' || t === 'codex' || t === 'antigravity' || t === 'opencode';
-  };
+  const managedCopy = () =>
+    `External agent — uses your local ${preset()?.label ?? activePreset()} & credentials; advisory scope (full management arrives later).`;
 
   return (
     <div class="modal-backdrop" onClick={onBackdropClick} onKeyDown={onKeyDown}>
@@ -192,16 +170,16 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
           <button class="modal-header__dismiss" onClick={() => props.onDismiss()} aria-label="Dismiss">×</button>
         </div>
 
-        {/* Tabs */}
+        {/* Preset tabs */}
         <div class="modal-tabs">
-          <For each={CLI_TABS}>
-            {(tab, i) => (
+          <For each={PRESETS}>
+            {(p, i) => (
               <button
                 ref={(el: HTMLButtonElement) => { if (i() === 0) firstTabRef = el; }}
-                class={`modal-tab${activeTab() === tab.id ? ' modal-tab--active' : ''}`}
-                onClick={() => switchTab(tab.id)}
+                class={`modal-tab${activePreset() === p.id ? ' modal-tab--active' : ''}`}
+                onClick={() => switchPreset(p.id)}
               >
-                {tab.label}
+                {p.label}
               </button>
             )}
           </For>
@@ -209,149 +187,116 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
 
         {/* Body */}
         <div class="modal-body">
-          {/* Generic agent panel */}
-          <Show when={isGenericTab()}>
-            {/* Model selector */}
-            <Show when={profile()?.models}>
-              <div class="modal-section">
-                <div class="modal-label">Model</div>
+          {/* Agent preset panel */}
+          <Show when={!isTerminal()}>
+            {/* Model */}
+            <div class="modal-section">
+              <div class="modal-label">Model</div>
+              <Show
+                when={preset()!.modelVerified && preset()!.alternates.length > 0}
+                fallback={
+                  <input
+                    class="modal-field modal-field--mono"
+                    placeholder={`optional — leave blank for ${preset()!.label}'s own default`}
+                    value={model()}
+                    onInput={(e) => setModel(e.currentTarget.value)}
+                  />
+                }
+              >
                 <div class="modal-segmented">
-                  <For each={profile()!.models!}>
+                  <For each={preset()!.alternates}>
                     {(m) => (
                       <button
-                        class={`modal-segmented__btn${model() === m ? ' modal-segmented__btn--active' : ''}`}
-                        onClick={() => setModel(model() === m ? '' : m)}
+                        class={`modal-segmented__btn${effectiveModel() === m ? ' modal-segmented__btn--active' : ''}`}
+                        onClick={() => setModel(m)}
                       >
                         {m}
                       </button>
                     )}
                   </For>
                 </div>
+              </Show>
+              <div class="modal-hint">
+                {effectiveModel()
+                  ? `${preset()!.label} · ${effectiveModel()}`
+                  : `${preset()!.label} · uses its own default model`}
               </div>
-            </Show>
+            </div>
 
-            {/* Effort / Reasoning */}
-            <Show when={profile()}>
-              <div class="modal-section">
-                <div class="modal-label">{profile()!.effortLabel}</div>
-                <div class="modal-segmented">
-                  <For each={profile()!.effortLevels}>
-                    {(e) => (
-                      <button
-                        class={`modal-segmented__btn${effort() === e ? ' modal-segmented__btn--active' : ''}`}
-                        onClick={() => setEffort(e)}
-                      >
-                        {e}
-                      </button>
-                    )}
-                  </For>
-                </div>
-              </div>
-            </Show>
-
-            {/* Toggles */}
-            <div class="modal-row">
-              <label class="modal-switch" onClick={() => setPlanMode(!planMode())}>
-                <div class={`modal-switch__track${planMode() ? ' modal-switch__track--on' : ''}`}>
-                  <div class="modal-switch__thumb" />
-                </div>
-                <span class="modal-switch__label">Plan Mode</span>
-              </label>
-              <label class="modal-switch" onClick={() => setSkipPermissions(!skipPermissions())}>
-                <div class={`modal-switch__track${skipPermissions() ? ' modal-switch__track--on' : ''}`}>
-                  <div class="modal-switch__thumb" />
-                </div>
-                <span class="modal-switch__label">Skip Permissions</span>
-              </label>
+            {/* Working dir */}
+            <div class="modal-section">
+              <div class="modal-label">Working directory</div>
+              <input
+                class="modal-field modal-field--mono"
+                placeholder="optional — defaults to the workspace folder"
+                value={workingDir()}
+                onInput={(e) => setWorkingDir(e.currentTarget.value)}
+              />
             </div>
 
             {/* Task prompt */}
             <div class="modal-section">
-              <div class="modal-label">Task</div>
+              <div class="modal-label">What should it work on?</div>
               <textarea
                 class="modal-field modal-textarea"
-                placeholder="Describe the task (optional — leave blank for interactive mode)"
+                placeholder="optional"
                 value={taskPrompt()}
                 onInput={(e) => setTaskPrompt(e.currentTarget.value)}
               />
             </div>
-          </Show>
 
-          {/* Voss panel */}
-          <Show when={activeTab() === 'voss'}>
+            {/* Pane placement */}
             <div class="modal-section">
-              <div class="modal-label">Command</div>
+              <div class="modal-label">Placement</div>
               <div class="modal-segmented">
-                <For each={['chat', 'do', 'resume', 'agent'] as const}>
-                  {(cmd) => (
+                <For each={PLACEMENTS}>
+                  {(p) => (
                     <button
-                      class={`modal-segmented__btn${vossCommand() === cmd ? ' modal-segmented__btn--active' : ''}`}
-                      onClick={() => setVossCommand(cmd)}
+                      class={`modal-segmented__btn${placement() === p.id ? ' modal-segmented__btn--active' : ''}`}
+                      onClick={() => setPlacement(p.id)}
                     >
-                      {cmd}
+                      {p.label}
                     </button>
                   )}
                 </For>
               </div>
             </div>
 
+            {/* Managed-launch toggle (tier B honesty) */}
             <div class="modal-section">
-              <div class="modal-label">Mode</div>
-              <div class="modal-segmented">
-                <For each={['edit', 'plan'] as const}>
-                  {(m) => (
-                    <button
-                      class={`modal-segmented__btn${vossMode() === m ? ' modal-segmented__btn--active' : ''}`}
-                      onClick={() => setVossMode(m)}
-                    >
-                      {m}
-                    </button>
-                  )}
-                </For>
+              <label class="modal-switch" onClick={() => setManaged(!managed())}>
+                <div class={`modal-switch__track${managed() ? ' modal-switch__track--on' : ''}`}>
+                  <div class="modal-switch__thumb" />
+                </div>
+                <span class="modal-switch__label">Managed launch</span>
+              </label>
+              <div class="modal-hint">{managedCopy()}</div>
+            </div>
+          </Show>
+
+          {/* Terminal preset panel */}
+          <Show when={isTerminal()}>
+            <div class="modal-section">
+              <div class="modal-hint">
+                Opens a plain shell — type any CLI yourself. Voss injects nothing;
+                a missing command errors naturally.
               </div>
             </div>
 
             <div class="modal-section">
-              <div class="modal-label">Auth</div>
-              <input
-                class="modal-field"
-                placeholder="Auth choice (optional)"
-                value={vossAuth()}
-                onInput={(e) => setVossAuth(e.currentTarget.value)}
-              />
-            </div>
-
-            <div class="modal-section">
-              <div class="modal-label">Task</div>
-              <textarea
-                class="modal-field modal-textarea"
-                placeholder="Describe the task (optional — leave blank for interactive mode)"
-                value={taskPrompt()}
-                onInput={(e) => setTaskPrompt(e.currentTarget.value)}
-              />
-            </div>
-          </Show>
-
-          {/* Custom panel */}
-          <Show when={activeTab() === 'custom'}>
-            <div class="modal-section">
-              <div class="modal-label">Name</div>
-              <input
-                class="modal-field"
-                placeholder="e.g. my-agent"
-                value={customName()}
-                onInput={(e) => setCustomName(e.currentTarget.value)}
-              />
-            </div>
-
-            <div class="modal-section">
-              <div class="modal-label">Command</div>
-              <input
-                class="modal-field modal-field--mono"
-                placeholder="e.g. /usr/local/bin/my-agent --flag"
-                value={customCommand()}
-                onInput={(e) => setCustomCommand(e.currentTarget.value)}
-              />
+              <div class="modal-label">Placement</div>
+              <div class="modal-segmented">
+                <For each={PLACEMENTS}>
+                  {(p) => (
+                    <button
+                      class={`modal-segmented__btn${placement() === p.id ? ' modal-segmented__btn--active' : ''}`}
+                      onClick={() => setPlacement(p.id)}
+                    >
+                      {p.label}
+                    </button>
+                  )}
+                </For>
+              </div>
             </div>
           </Show>
         </div>
@@ -363,7 +308,7 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
             class="modal-btn-primary"
             onClick={handleSubmit}
           >
-            Launch Agent
+            {isTerminal() ? 'Open Terminal' : 'Launch Agent'}
           </button>
         </div>
       </div>

@@ -39,6 +39,7 @@ import { isKnownAgentCli } from './pane/agentDetect';
 import { agentPaneById } from './pane/agentPaneRegistry';
 import AgentSidebar from './components/sidebar/AgentSidebar';
 import AgentLaunchModal from './components/modal/AgentLaunchModal';
+import { loadModelPrefs } from './agents/modelPrefs';
 import AgentContextMenu from './components/sidebar/AgentContextMenu';
 import SetupWindow from './components/setup/SetupWindow';
 import CommandPalette from './command-palette/CommandPalette';
@@ -283,7 +284,15 @@ export default function App() {
   // this handler returns, and reads props.agentConfig live. Setting the
   // per-workspace agentConfigByPaneId map BEFORE returning guarantees doSpawn
   // takes the spawnAgent branch — no plain-shell race. NO await anywhere.
-  const handleLaunchAgent = (config: { cliBinary: string; cliArgs: string[]; taskPrompt: string }) => {
+  const handleLaunchAgent = (config: {
+    cliBinary: string;
+    cliArgs: string[];
+    taskPrompt: string;
+    placement?: 'right' | 'below' | 'newtab';
+    managed?: boolean;
+    tier?: 'A' | 'B' | 'C';
+    kind?: 'agent' | 'terminal';
+  }) => {
     setAgentModalOpen(false);
     const ws = activeMounted();
     if (!ws) return;
@@ -293,10 +302,17 @@ export default function App() {
     // GRD-05 guard: insertSibling silently no-ops on a min-size violation,
     // leaving store.focusedId unchanged. Compare before/after so we don't
     // overwrite the existing focused pane's config or spawn into it.
+    // NOTE: `placement` is carried in the config but not yet honored — App
+    // always splits horizontally; honoring right/below/newtab is a follow-up.
     const before = ctrl.snapshot().focusedId;
     ctrl.splitFocused('H');
     const newId = ctrl.snapshot().focusedId;
     if (newId === before) return; // split rejected — abort agent wiring.
+
+    // Terminal preset: plain shell. Leave agentConfigByPaneId unset so
+    // PaneComponent.doSpawn takes the plain transport.spawn() branch. The split
+    // already happened above (new focused pane), so the shell lands there.
+    if (config.kind === 'terminal') return;
 
     // Bridge B: mint the cardId and carry it as sessionId for correlation. The
     // task prompt is already encoded into config.cliArgs by buildConfig — do
@@ -1090,6 +1106,9 @@ export default function App() {
     void loadKeymapProfile()
       .then(setKeymapProfile)
       .catch(() => setKeymapProfile('vscode'));
+    // V14-09: hydrate persisted per-CLI default models so AgentLaunchModal
+    // pre-fills the user's last choice (rides the appearance store).
+    void loadModelPrefs().catch(() => ({}));
     void listRecents()
       .then(setRecents)
       .catch(() => setRecents([]));
