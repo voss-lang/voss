@@ -2,3 +2,4 @@
 *.jinja linguist-language=Jinja linguist-detectable=true
 *.jinja2 linguist-language=Jinja linguist-detectable=true
 *.j2 linguist-language=Jinja linguist-detectable=true
+*.mdx linguist-detectable=false
