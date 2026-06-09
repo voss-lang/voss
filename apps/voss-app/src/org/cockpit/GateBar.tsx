@@ -88,7 +88,7 @@ export default function GateBar(props: {
         }}
       >
         {/* Budget: monospace numerics + threshold-colored bar */}
-        <div style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
           <span style={{ color: 'var(--fg-3)' }}>Budget</span>
           <span style={{ ...mono, color: budgetColor(pct()) }}>
             {spent()}/{limit()}
@@ -109,7 +109,7 @@ export default function GateBar(props: {
           <span
             style={{
               ...mono,
-              padding: '1px 6px',
+              padding: '0 8px',
               'border-radius': '3px',
               background: 'var(--bg-2)',
               color: 'var(--fg-2)',

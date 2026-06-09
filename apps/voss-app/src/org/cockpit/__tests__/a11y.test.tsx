@@ -69,10 +69,15 @@ describe('VCKP-10 — keyboard focus order Board → drawer → timeline', () =>
     expect(drawer).toBeTruthy();
     expect(rail).toBeTruthy();
 
-    // Tabbable.
+    // Tabbable (incl. the gate bar — full traversal Board→drawer→rail→gate).
     expect(board.getAttribute('tabindex')).toBe('0');
     expect(drawer.getAttribute('tabindex')).toBe('0');
     expect(rail.getAttribute('tabindex')).toBe('0');
+    const gate = el.querySelector('.cockpit-gate') as HTMLElement;
+    expect(gate.getAttribute('tabindex')).toBe('0');
+    expect(
+      rail.compareDocumentPosition(gate) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     // Document order == tab order for tabindex=0: board precedes drawer
     // precedes rail.

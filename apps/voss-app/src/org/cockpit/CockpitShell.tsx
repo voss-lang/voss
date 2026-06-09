@@ -220,6 +220,7 @@ const CockpitShell: Component<{
                 focus traverses Board -> drawer -> timeline. */}
             <div class="cockpit-grid">
               <div class="cockpit-board" aria-label="Board spine" tabindex={0}>
+                <div class="cockpit-region__label">Board</div>
                 <BoardPanel
                   data={runData()}
                   onCardSelect={setSelectedCardId}
@@ -228,6 +229,7 @@ const CockpitShell: Component<{
               </div>
 
               <div class="cockpit-drawer" aria-label="Card detail" tabindex={0}>
+                <div class="cockpit-region__label">Details</div>
                 <CardDrawer />
               </div>
 
@@ -235,7 +237,9 @@ const CockpitShell: Component<{
                 class="cockpit-rail"
                 aria-label="Timeline and replay"
                 tabindex={0}
+                ref={railRef}
               >
+                <div class="cockpit-region__label">Timeline</div>
                 <SessionTreePanel data={runData()} />
                 <ReplayPanel data={runData()} />
                 {/* VCKP-07: swarm roster — rendered only when a manifest
@@ -256,7 +260,7 @@ const CockpitShell: Component<{
                 </Show>
               </div>
 
-              <div class="cockpit-gate" aria-label="Gate bar">
+              <div class="cockpit-gate" aria-label="Gate bar" tabindex={0}>
                 <GateBar />
               </div>
             </div>

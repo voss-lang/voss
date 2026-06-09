@@ -113,6 +113,10 @@ describe('D-03 — RunCommandBar is an always-on strip in BOTH modes', () => {
     // Back to Live: unchanged.
     setOrgViewOpen(false);
     expect(document.querySelectorAll('.run-command-bar')).toHaveLength(1);
+
+    // D-10 copy rule: internal-mechanics vocabulary never surfaces in the bar.
+    const barCopy = document.querySelector('.run-command-bar')!.textContent ?? '';
+    expect(barCopy).not.toMatch(/voss[- ]native/i);
   });
 
   it('CockpitShell renders NO RunCommandBar of its own (no double strip in Review)', async () => {

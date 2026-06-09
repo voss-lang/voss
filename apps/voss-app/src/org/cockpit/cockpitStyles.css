@@ -11,11 +11,11 @@
 /* VCKP-06 live/snapshot state label (header). Tokens only, monospace. */
 .cockpit-live-label {
   font-family: var(--font-mono), monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 0 6px;
+  padding: 0 8px;
   display: inline-flex;
   align-items: center;
 }
@@ -87,22 +87,78 @@
 }
 
 /* --- VCKP-10 keyboard navigation -----------------------------------------
- * The three cockpit regions carry tabindex="0" (CockpitShell) in DOM order
- * Board -> detail drawer -> timeline rail, so Tab traverses them in that
- * order. Focus is made visible with the A12 --focus token.
+ * The cockpit regions carry tabindex="0" (CockpitShell) in DOM order
+ * Board -> detail drawer -> timeline rail -> gate bar, so Tab traverses them
+ * in that order. Focus is made visible with the A12 --focus token.
  */
 .cockpit-board:focus-visible,
 .cockpit-drawer:focus-visible,
-.cockpit-rail:focus-visible {
+.cockpit-rail:focus-visible,
+.cockpit-gate:focus-visible {
   outline: 1px solid var(--focus);
   outline-offset: -1px;
+}
+
+/* Region headers (UI-REVIEW 2b): each cockpit region leads with a compact
+ * uppercase label so the 3-pane layout is parseable at first sight. Mirrors
+ * the sidebar section-heading pattern. */
+.cockpit-region__label {
+  flex-shrink: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Timeline rail selection highlight (UI-REVIEW 6a): applied by the
+ * CockpitShell selection effect to the matching data-node-id row. */
+.cockpit-rail__selected {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+  background: var(--focus-soft);
+}
+
+/* --- Card identity header (UI-REVIEW 2a) ---------------------------------- */
+.cockpit-drawer__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cockpit-drawer__title {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-0);
+  overflow-wrap: anywhere;
+}
+.cockpit-drawer__role {
+  align-self: flex-start;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 8px;
+}
+.cockpit-drawer__id {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
 }
 
 /* --- VCKP-09 follow-up comment affordance (tokens only) ------------------ */
 .cockpit-comment {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   border: 1px solid var(--border);
   background: var(--bg-2);
   padding: 8px;
@@ -115,7 +171,7 @@
   background: var(--bg-1);
   color: var(--fg-1);
   border: 1px solid var(--border);
-  padding: 6px;
+  padding: 8px;
 }
 .cockpit-comment__box:focus-visible {
   outline: 1px solid var(--focus);

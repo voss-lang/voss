@@ -40,7 +40,7 @@
 .modal-header__title {
   font-family: 'Poppins', system-ui, sans-serif;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--fg-0);
   flex: 1;
   letter-spacing: -0.01em;
@@ -56,7 +56,7 @@
   border: none;
   color: var(--fg-3);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 16px;
   padding: 0;
   transition: color 120ms ease;
 }
@@ -172,7 +172,7 @@
 
 .modal-btn-primary {
   background: var(--focus);
-  color: #fff;
+  color: var(--fg-0);
   border: none;
   padding: 7px 20px;
   font-family: 'Poppins', system-ui, sans-serif;
@@ -249,12 +249,12 @@
 
 .modal-segmented__btn--active {
   background: var(--focus);
-  color: #fff;
+  color: var(--fg-0);
 }
 
 .modal-segmented__btn--active:hover {
   background: var(--focus);
-  color: #fff;
+  color: var(--fg-0);
 }
 
 /* ---- Toggle switches ---- */
@@ -292,7 +292,7 @@
 
 .modal-switch__track--on .modal-switch__thumb {
   transform: translateX(16px);
-  background: #fff;
+  background: var(--fg-0);
 }
 
 .modal-switch__label {

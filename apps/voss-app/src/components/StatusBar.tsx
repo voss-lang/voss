@@ -127,7 +127,14 @@ export default function StatusBar(props: StatusBarProps) {
             }}
           >
             <span>{props.attentionBlocking ? '⚠' : '◆'}</span>
-            <span>{props.attentionCount}</span>
+            <span>
+              {props.attentionCount}{' '}
+              {props.attentionBlocking
+                ? 'blocking'
+                : props.attentionCount === 1
+                  ? 'item'
+                  : 'items'}
+            </span>
           </button>
         </Show>
         <Show when={props.agentCount > 0}>
