@@ -42,6 +42,18 @@ function snapshotPaneRects(): Map<string, Rect> {
   return out;
 }
 
+function targetAt(
+  rects: ReadonlyMap<string, Rect>,
+  dragId: string,
+  x: number,
+  y: number,
+): PaneDragState['target'] {
+  const hit = hitTest(rects, x, y);
+  if (!hit || hit === dragId) return null;
+  const r = rects.get(hit)!;
+  return { paneId: hit, zone: zoneAt(r, x, y) };
+}
+
 export function createPaneDrag(
   store: Store<GridStore>,
   setStore: SetStoreFunction<GridStore>,
@@ -54,14 +66,46 @@ export function createPaneDrag(
 
   let candidate: Candidate | null = null;
   let dragging = false;
+  let activePointerId: number | null = null;
+  let captureEl: HTMLElement | null = null;
+  let snapRects: ReadonlyMap<string, Rect> = new Map();
+  let dropTarget: PaneDragState['target'] = null;
   let escapeHandler: ((e: KeyboardEvent) => void) | null = null;
 
-  const cleanup = (el?: HTMLElement, pointerId?: number) => {
-    if (el && pointerId !== undefined && dragging) {
-      el.releasePointerCapture(pointerId);
-    }
+  const captureOpts: AddEventListenerOptions = { capture: true };
+
+  const removeWindowListeners = () => {
+    window.removeEventListener('pointermove', onWindowPointerMove, captureOpts);
+    window.removeEventListener('pointerup', onWindowPointerUp, captureOpts);
+    window.removeEventListener(
+      'pointercancel',
+      onWindowPointerCancel,
+      captureOpts,
+    );
+    window.removeEventListener(
+      'lostpointercapture',
+      onLostPointerCapture,
+      captureOpts,
+    );
+  };
+
+  const cleanup = () => {
+    const el = captureEl;
+    const pid = activePointerId;
     candidate = null;
     dragging = false;
+    activePointerId = null;
+    captureEl = null;
+    snapRects = new Map();
+    dropTarget = null;
+    removeWindowListeners();
+    if (el && pid !== null) {
+      try {
+        el.releasePointerCapture(pid);
+      } catch {
+        // capture already released
+      }
+    }
     setState(null);
     setRects(new Map());
     document.body.classList.remove('pane-dragging');
@@ -71,15 +115,13 @@ export function createPaneDrag(
     }
   };
 
-  const beginDrag = (
-    c: Candidate,
-    e: PointerEvent,
-  ) => {
+  const beginDrag = (c: Candidate, e: PointerEvent) => {
     dragging = true;
     c.el.setPointerCapture(e.pointerId);
     e.preventDefault();
-    const snap = snapshotPaneRects();
-    setRects(snap);
+    snapRects = snapshotPaneRects();
+    setRects(snapRects);
+    dropTarget = null;
     setState({
       paneId: c.paneId,
       ghost: { x: e.clientX, y: e.clientY },
@@ -88,13 +130,15 @@ export function createPaneDrag(
     });
     document.body.classList.add('pane-dragging');
     escapeHandler = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') cleanup(c.el, e.pointerId);
+      if (ev.key === 'Escape') cleanup();
     };
     window.addEventListener('keydown', escapeHandler);
   };
 
-  const onPointerMove = (e: PointerEvent) => {
+  const onWindowPointerMove = (e: PointerEvent) => {
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
     if (!candidate) return;
+
     if (!dragging) {
       const dx = e.clientX - candidate.startX;
       const dy = e.clientY - candidate.startY;
@@ -103,45 +147,49 @@ export function createPaneDrag(
       }
       return;
     }
-    const snap = rects();
+
     const x = e.clientX;
     const y = e.clientY;
-    const hit = hitTest(snap, x, y);
-    const dragId = state()!.paneId;
-    let target: PaneDragState['target'] = null;
-    if (hit && hit !== dragId) {
-      const r = snap.get(hit)!;
-      target = { paneId: hit, zone: zoneAt(r, x, y) };
-    }
+    const dragId = candidate.paneId;
+    dropTarget = targetAt(snapRects, dragId, x, y);
     setState((prev) =>
-      prev
-        ? { ...prev, ghost: { x, y }, target }
-        : null,
+      prev ? { ...prev, ghost: { x, y }, target: dropTarget } : null,
     );
   };
 
-  const onPointerUp = (e: PointerEvent) => {
+  const finishDrag = (e: PointerEvent) => {
     if (!candidate) return;
-    const c = candidate;
-    if (dragging) {
-      const cur = state();
-      if (cur?.target) {
-        const { paneId: dragId, target } = cur;
+    const dragId = candidate.paneId;
+    const wasDragging = dragging;
+
+    if (wasDragging) {
+      const target =
+        dropTarget ??
+        targetAt(snapRects, dragId, e.clientX, e.clientY);
+      if (target) {
         setStore(
           produce((s) =>
             movePane(s, dragId, target.paneId, target.zone, dims()),
           ),
         );
       }
-      cleanup(c.el, e.pointerId);
-    } else {
-      candidate = null;
     }
+    cleanup();
   };
 
-  const onPointerCancel = (e: PointerEvent) => {
-    if (!candidate) return;
-    cleanup(candidate.el, e.pointerId);
+  const onWindowPointerUp = (e: PointerEvent) => {
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    finishDrag(e);
+  };
+
+  const onWindowPointerCancel = (e: PointerEvent) => {
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    cleanup();
+  };
+
+  const onLostPointerCapture = (e: PointerEvent) => {
+    if (!dragging || activePointerId !== e.pointerId) return;
+    cleanup();
   };
 
   const onHeaderPointerDown = (e: PointerEvent, paneId: string) => {
@@ -161,23 +209,17 @@ export function createPaneDrag(
       cwd: leaf.cwd,
       index: leaf.index,
     };
+    activePointerId = e.pointerId;
+    captureEl = el;
 
-    const move = (ev: PointerEvent) => onPointerMove(ev);
-    const up = (ev: PointerEvent) => {
-      onPointerUp(ev);
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', cancel);
-    };
-    const cancel = (ev: PointerEvent) => {
-      onPointerCancel(ev);
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', cancel);
-    };
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', cancel);
+    window.addEventListener('pointermove', onWindowPointerMove, captureOpts);
+    window.addEventListener('pointerup', onWindowPointerUp, captureOpts);
+    window.addEventListener('pointercancel', onWindowPointerCancel, captureOpts);
+    window.addEventListener(
+      'lostpointercapture',
+      onLostPointerCapture,
+      captureOpts,
+    );
   };
 
   return { state, rects, onHeaderPointerDown };

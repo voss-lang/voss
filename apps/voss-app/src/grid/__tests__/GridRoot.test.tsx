@@ -243,8 +243,8 @@ describe('GridRoot — pane drag rearrange', () => {
         pointerId: 1,
       }),
     );
-    for (const m of moves.slice(1)) {
-      grab.dispatchEvent(
+    for (const m of moves.slice(1, -1)) {
+      window.dispatchEvent(
         new PointerEvent('pointermove', {
           bubbles: true,
           clientX: m.x,
@@ -254,7 +254,7 @@ describe('GridRoot — pane drag rearrange', () => {
       );
     }
     const last = moves[moves.length - 1];
-    grab.dispatchEvent(
+    window.dispatchEvent(
       new PointerEvent('pointerup', {
         bubbles: true,
         clientX: last.x,
