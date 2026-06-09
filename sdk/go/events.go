@@ -35,10 +35,8 @@ type ErrUnknownEventType struct{ Type string }
 
 func (e ErrUnknownEventType) Error() string { return "unknown event type: " + e.Type }
 
-// Decode dispatches an EventEnvelope to its typed Go value: it reads the
-// discriminator, then calls the matching generated AsX() accessor. An
-// unrecognized `type` returns (nil, ErrUnknownEventType{...}) — never a nil
-// error with a zero event (no-silent-drop).
+// Decode dispatches an EventEnvelope to its typed value via the discriminator.
+// An unknown `type` returns (nil, ErrUnknownEventType{...}) — no silent drop.
 func Decode(env EventEnvelope) (TypedEvent, error) {
 	disc, err := env.Event.Discriminator()
 	if err != nil {
