@@ -182,7 +182,11 @@ export default function GridRoot(props: {
     ch: DEFAULT_CH,
   });
 
-  const paneDrag = createPaneDrag(store, setStore, dims);
+  // Successful drag-rearrange is a manual structural edit — flips the
+  // titlebar layout switcher to `custom`, same as split/close/resize.
+  const paneDrag = createPaneDrag(store, setStore, dims, () =>
+    props.onLayoutChange?.('custom'),
+  );
 
   const geom = () => ({
     winW: grid().w,
