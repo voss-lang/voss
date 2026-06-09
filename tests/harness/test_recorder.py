@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from voss.harness.recorder import RunRecorder
+from voss.harness.session import RunRecord
 
 
 def test_inspect_captures_fs_read() -> None:
@@ -61,9 +63,50 @@ def test_diff_summary_from_git(git_repo: Path) -> None:
     assert "README.md" in result.diff_summary or "file" in result.diff_summary
 
 
-@pytest.mark.skip(reason="Wave 2 — pending plan M2-03")
-def test_decisions_mirror_to_markdown() -> None:
-    pass
+def test_decisions_mirror_to_markdown_renders_exact_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import voss.harness.cognition as cognition
+    import voss.harness.recorder as recorder
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 6, 9, 12, 34, 56, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(cognition, "datetime", FrozenDateTime)
+    monkeypatch.setattr(recorder, "datetime", FrozenDateTime)
+    run = RunRecord(
+        id="r1",
+        started_at="t0",
+        ended_at="t1",
+        decisions=[
+            {
+                "title": "choose X",
+                "body": "because Y",
+                "confidence": 0.85,
+            }
+        ],
+    )
+
+    paths = recorder.write_decisions_md(tmp_path, run, session_id="abc123")
+
+    assert [path.relative_to(tmp_path) for path in paths] == [
+        Path(".voss/decisions/2026-06-09-choose-x.md")
+    ]
+    assert paths[0].read_text() == (
+        "---\n"
+        "id: 2026-06-09-choose-x\n"
+        "status: active\n"
+        "related_session: abc123\n"
+        "confidence: 0.85\n"
+        "created_at: 2026-06-09T12:34:56+00:00\n"
+        "---\n"
+        "\n"
+        "# choose X\n"
+        "\n"
+        "because Y\n"
+    )
 
 
 # ---------------------------------------------------------------------------

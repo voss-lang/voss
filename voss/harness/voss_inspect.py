@@ -171,19 +171,6 @@ def _find_decision(sequence: list[DecisionView], decision_index: int) -> Decisio
     raise IndexError(f"decision_index {decision_index} out of range")
 
 
-def _render_decision(view: DecisionView) -> list[str]:
-    lines = [
-        "",
-        f"[{view.index}] {view.title or '(untitled decision)'}",
-        f"confidence: {_format_confidence(view.confidence)}",
-        f"previous: {_format_index(view.previous_index)}",
-        f"next: {_format_index(view.next_index)}",
-    ]
-    if view.body:
-        lines.extend(["body:", view.body])
-    return lines
-
-
 def _decision_context(view: DecisionView) -> dict[str, Any]:
     return {
         "index": view.index,
