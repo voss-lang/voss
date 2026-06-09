@@ -10,18 +10,14 @@ import (
 	"os/exec"
 )
 
-// spawnState holds the child-process handle for a spawned server. The attach
-// path leaves Client.spawn nil; spawn.go fills this struct and Close() owns the
-// teardown.
+// spawnState is the child-process handle for a spawned server (nil when attached).
 type spawnState struct {
 	cmd    *exec.Cmd
 	stdinW io.WriteCloser
 	pid    int
 }
 
-// Client is the loopback REST/SSE client for a `voss serve` process, created by
-// AttachClient (spawn == nil) or Spawn (spawn populated). Every request carries
-// the bearer token via the single newRequest chokepoint.
+// Client is the loopback REST/SSE client for a `voss serve` process.
 type Client struct {
 	http    *http.Client
 	baseURL string
@@ -29,9 +25,7 @@ type Client struct {
 	spawn   *spawnState
 }
 
-// AttachClient builds a Client for an already-running server at baseURL
-// authenticated with token. It owns no child process (spawn stays nil), so
-// Close() is a no-op for the process.
+// AttachClient builds a Client for an already-running server. Owns no process.
 func AttachClient(baseURL, token string) *Client {
 	return &Client{
 		http:    &http.Client{},
