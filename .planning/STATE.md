@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-08T23:38:37.591Z"
-last_activity: 2026-06-08
+last_updated: "2026-06-09T18:24:30.385Z"
+last_activity: 2026-06-09
 progress:
-  total_phases: 55
+  total_phases: 39
   completed_phases: 4
   total_plans: 19
   completed_plans: 19
-  percent: 7
+  percent: 10
 ---
 
 # State: Voss
@@ -70,9 +70,11 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V8 | Multi-agent Chat + Live Steering (absorbs M13) | ✅ COMPLETE — 3/3 plans, 3 waves. Shipped the V4-backed persisted unification: VMAG-10 (every chat spawn a persisted session-tree node), VMAG-UNIFY (single V4 `SessionTreeManager`; `M13Allocator` removed), VMAG-07 (per-node-manager recursion, viable-floor bound, no depth constant), VMAG-ROOT (chat-root 60k+30k-reserve envelope, finalized on exit). MAG-01..09 + steer + orphan-teardown regressed green; frozen schemas unchanged; no new deps. ADE child panels → V11. |
 | V12 | Safety & Factory Fallbacks | Plans ready to execute (4 plans, 4 waves; inline plan-check because local GSD agent/checker verbs are unavailable). Policy + audit first: `.voss/safety.yml`, runtime safety overlay, factory fallback audit, EM/direct parity. |
 | V11 | ADE Org Integration | ✅ BUILT (8/8 plans + summaries). 10-tab `OrgViewShell` + `org/` panels + CLI-JSON `RunData` + D-02 guard live in `apps/voss-app`. Cockpit redesign = V14. |
-| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | DESIGN-BRIEF drafted (`phases/V14-ade-run-cockpit-integrated-redesign-live-data-unification/V14-DESIGN-BRIEF.md`). Recompose V11 panels → cockpit (Board spine + detail drawer + timeline + gate bar) + RunCommandBar + AttentionQueue + unified live/snapshot data model w/ card↔session binding; live SSE gated on V13.1. VCKP-01..10; ~10 plans/7 waves. SPEC pending (`/gsd-spec-phase V14`). |
+| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Executing — 11/13 plans summarized (V14-00..10; V14-11/12 remain). SPEC+CONTEXT locked (VCKP-01..13); latest: V14-10 "Let Voss manage this agent" adopt flow (VCKP-12). |
 
 ## Recent Activity
+
+- 2026-06-09 — **V14-10 EXECUTED — "Let Voss manage this agent" adopt flow (VCKP-12, D-10/D-11/D-12).** Pure `apps/voss-app/src/org/adopt.ts`: `adoptAgent` binds a running pane to a card via `registerTerminalCard` (Bridge B; `sessionNodeId` = minted cardId per resolveCard convention), applies advisory budget+scope, audit node `{lineage:'partial_lineage', costBaselineUsd}` baselined at adoption-time pane spend (pre-adoption excluded), `reviewRequired:true`, tier **C always**; `harnessAdoptAvailable:false` → disabled-with-reason, nothing bound. `inferRole` (agent CLIs→executor, else user) + `inferRisk` (scope+budget→low/med/high) editable D-12 defaults. `AdoptAgentModal` on the AgentLaunchModal scaffold: D-10 sections (Add it to / As the task / Limits / From now on, Voss will), CTA "Hand to Voss", outcomes-only copy; forbidden-jargon (cage/Voss-native/PermissionGate/session-tree/partial lineage/pane) + no-per-tool-promise asserted in DOM tests. 22/22 new tests, modal suite 44/44, tsc clean. Note: auto-commit watcher interleaved `c29bd3d` mid-task (no divergence). Summary: `phases/V14-ade-run-cockpit-integrated-redesign-live-data-unification/V14-10-SUMMARY.md`.
 
 - 2026-06-08 — **Phase V13.4 (C ABI/Schema Documentation) ✅ COMPLETE — 1/1 plan, doc-only, zero code.** Shipped `docs/native-embedding.md` (133 lines): native/C embedder consumption reference — spawn/attach `voss serve`, read the one-line `{v,port,token}` handshake, loopback `http://127.0.0.1:<port>` (no TLS), `Authorization: Bearer <token>` on every request incl. the SSE GET; cites `.planning/PROTOCOL.md` + `contracts/openapi.json` + `contracts/events.schema.json` by path (points-at, never forks the schema), cross-links `docs/sdk.md` + `docs/ORCHESTRATION_LAYERS.md`; JSON→native table names the `type` discriminator (= SSE event name = serde tag) + `v` version + required/optional + scalar/composite reading, with the event-union member set declared **authoritative-from `contracts/events.schema.json`** (not hardcoded); five-tier stability statement (stable-now/experimental/generated-from-protocol/private-internal/deferred verbatim) mapping the protocol surface to `generated-from-protocol` and C-headers/FFI to `deferred`; deferred subsection marks C headers/cbindgen/FFI-cgo not-built with the activation trigger (a concrete native embedder appears). Plus `docs/check-native-embedding-refs.sh` (exec, POSIX, no deps): enumerates the five cited paths, hard-fails on a missing always-expected path (PROTOCOL.md/sdk.md), warn-skips (exit 0) while upstream-gated paths absent, greps tier terms in `docs/ORCHESTRATION_LAYERS.md` once all resolve. **Verification:** 12/12 doc ACs + script ACs green; gate run → exit 0 with SKIP for the pending `docs/ORCHESTRATION_LAYERS.md` (V13); hard-fail proof (renamed PROTOCOL.md → exit 1) confirmed; `.planning/PROTOCOL.md` + `docs/sdk.md` byte-unchanged; no `.h/.c/.rs/.toml` added. **Notes:** plan's `<upstream_state>` was stale — `contracts/*.json` are present now (gate shows OK, still warn-skips on the pending V13 `docs/ORCHESTRATION_LAYERS.md`; the design PRD lives at `.planning/docs/ORCHESTRATION_LAYERS.md`). `docs/native-embedding.md` was already committed (`ae4c2c0`, byte-identical); net-new artifact = the refs-check script (untracked). Open: VSDK-C-01 prose-readability human-check (manual-only). VSDK-C-01..06 met. Summary: `.planning/phases/V13.4-c-abi-schema-documentation/V13.4-01-SUMMARY.md`. **The V13.x external-SDK sub-track (V13.1 TS / V13.2 Rust / V13.3 Go / V13.4 C-doc) is now fully executed.**
 
@@ -214,3 +216,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ### Roadmap Evolution
 
 - Phase A12 added: voss-app ADE Visual Redesign — left sidebar + warm site palette + branded titlebar + pane chrome accent bars. 8 requirements (ADE-01..08), 8 plans (P1–P8). Source: sketch 002 Variant A winner. (2026-05-22)
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Notes |
+|-------|------|----------|-------|
+| Phase V14 P10 | 8 min | 2 tasks | 3 files |
