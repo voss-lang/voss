@@ -159,6 +159,13 @@ describe('VCKP-05 — one selection drives all four cockpit regions', () => {
     // The run loads asynchronously; wait until the C1 board card is rendered.
     await waitFor(() => !!root.querySelector('[data-card-id="C1"]'));
 
+    // VCKP-06 graceful-degrade: with no stream connected, the cockpit renders
+    // the live/snapshot label in its default 'snapshot' state and keeps the
+    // manual-refresh affordance visible.
+    const liveLabelEl = root.querySelector('.cockpit-live-label') as HTMLElement;
+    expect(liveLabelEl).toBeTruthy();
+    expect(liveLabelEl.textContent).toContain('snapshot');
+
     const board = region(root, 'Board spine');
     const drawer = region(root, 'Card detail');
     const rail = region(root, 'Timeline and replay');

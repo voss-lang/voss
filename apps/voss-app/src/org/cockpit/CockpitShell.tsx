@@ -32,6 +32,7 @@ import {
   refreshRun,
 } from '../orgStore';
 import { selectedCardId, setSelectedCardId } from '../selection';
+import { liveLabel } from '../live/sseClient';
 import BoardPanel from '../panels/BoardPanel';
 import SessionTreePanel from '../panels/SessionTreePanel';
 import ReplayPanel from '../panels/ReplayPanel';
@@ -112,6 +113,16 @@ const CockpitShell: Component<{
           </span>
           Refresh
         </button>
+        {/* VCKP-06: live/snapshot state label. Bound to the sseClient liveLabel
+            signal; default 'snapshot' (no auto-stream / handshake in V14). Flips
+            to 'live' only when a stream is connected (mock in tests / future
+            server). Snapshot mode keeps the manual-refresh affordance above. */}
+        <span
+          class={`cockpit-live-label cockpit-live-label--${liveLabel()}`}
+          aria-label={`Data source: ${liveLabel()}`}
+        >
+          {liveLabel() === 'live' ? '● live' : 'snapshot'}
+        </span>
 
         <Show when={pickerOpen()}>
           <div class="org-run-picker" role="listbox" ref={pickerRef}>

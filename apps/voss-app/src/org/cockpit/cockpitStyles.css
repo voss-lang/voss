@@ -8,6 +8,24 @@
  * Timeline/replay rail (right), with the bottom gate bar spanning all columns.
  */
 
+/* VCKP-06 live/snapshot state label (header). Tokens only, monospace. */
+.cockpit-live-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+}
+.cockpit-live-label--snapshot {
+  color: var(--fg-3);
+}
+.cockpit-live-label--live {
+  color: var(--accent-green);
+}
+
 .cockpit-body {
   flex: 1;
   min-height: 0;

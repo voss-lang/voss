@@ -47,6 +47,9 @@ function Harness() {
         onToggleSidebar={() => {}}
         orgViewOpen={open()}
         onToggleOrgView={() => setOpen((p) => !p)}
+        attentionCount={0}
+        attentionBlocking={false}
+        onToggleAttention={() => {}}
       />
     </div>
   );

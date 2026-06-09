@@ -1,0 +1,179 @@
+/* V14 AttentionPanel + StatusBar pill (D-05 / D-06).
+ *
+ * Consumes ONLY existing A12 / Voss Ignite tokens (--bg-*, --fg-*, --border,
+ * --focus, --font-mono, --font-ui, --accent-*). Declares NO new `--xxx`
+ * custom properties (token grep gate).
+ *
+ * The pill pulse (D-06) is a keyframe the plan-12 reduced-motion gate disables
+ * via the shared `@media (prefers-reduced-motion: reduce)` rule below.
+ */
+
+/* --- StatusBar pill pulse (D-06) ----------------------------------------- */
+
+.attn-pill--pulse {
+  animation: attn-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes attn-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--focus);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(255, 91, 31, 0.35);
+    opacity: 0.85;
+  }
+}
+
+/* --- Dockable panel (D-05, NON-modal — no backdrop) ----------------------- */
+
+.attn-panel {
+  position: absolute;
+  right: 8px;
+  bottom: 30px;
+  width: 360px;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+  overflow: hidden;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+}
+
+.attn-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-1);
+}
+
+.attn-panel__close {
+  background: transparent;
+  border: none;
+  color: var(--fg-2);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.attn-panel__close:hover {
+  color: var(--fg-0);
+}
+
+.attn-panel__body {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.attn-panel__empty {
+  padding: 16px 8px;
+  text-align: center;
+  color: var(--fg-3);
+  font-size: 11px;
+}
+
+/* --- Rows ---------------------------------------------------------------- */
+
+.attn-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.attn-row__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.attn-row__badge {
+  flex-shrink: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-0);
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+}
+
+.attn-row__badge--blocking {
+  color: var(--focus);
+  border-color: var(--focus);
+}
+
+.attn-row__summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attn-row__meta {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  color: var(--fg-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attn-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.attn-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-2);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.attn-btn:hover {
+  color: var(--fg-0);
+  border-color: var(--fg-2);
+}
+
+.attn-btn--focus {
+  color: var(--focus);
+  border-color: var(--focus);
+}
+
+.attn-btn--deny:hover {
+  color: var(--accent-red, var(--focus));
+  border-color: var(--accent-red, var(--focus));
+}
+
+/* --- Reduced motion (plan-12 gate target) -------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .attn-pill--pulse {
+    animation: none !important;
+  }
+}
