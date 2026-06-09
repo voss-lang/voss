@@ -391,7 +391,18 @@ export default function App() {
       result.push({
         paneId,
         cliBinary: cfg.cliBinary,
-        model: cfg.cliArgs.find((a) => a.startsWith('--model'))?.split('=')[1] ?? 'default',
+        model: ((): string => {
+          // Handle both `--model value` (separate elements, as the launch modal
+          // emits) and `--model=value` forms.
+          const i = cfg.cliArgs.findIndex(
+            (a) => a === '--model' || a.startsWith('--model='),
+          );
+          if (i < 0) return 'default';
+          const a = cfg.cliArgs[i];
+          return a.includes('=')
+            ? a.slice(a.indexOf('=') + 1)
+            : (cfg.cliArgs[i + 1] ?? 'default');
+        })(),
         role: mapRole(cfg.cliBinary),
         costUsd: b?.cost_usd ?? 0,
         isStreaming: b ? Date.now() - b.lastSeenMs < 3000 : false,
