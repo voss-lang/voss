@@ -1,0 +1,262 @@
+// VCKP-03 — RunCommandBar (D-03): an always-on top intake strip mounted above
+// the 4-region cockpit grid. It is the universal run-intake keystone (closes
+// G2): one bar that starts BOTH run types from the same captured context.
+//
+// Intake: goal/command input · mode segmented control (Plan/Edit/Auto — mode is
+// ALWAYS visible as segmented buttons, NEVER hidden in placeholder text) · team
+// selector · scope chip · budget chip · context-attach · an EXPLICIT
+// Voss-native vs terminal-agent target indicator (visible segmented control,
+// not placeholder).
+//
+// Two start paths (config-assembly mirrors AgentLaunchModal.buildConfig):
+//   Bridge B (terminal): registerTerminalCard(paneId) mints the cardId, then
+//     spawnAgent({..., sessionId: cardId, paneId}) — the cardId rides through as
+//     the spawn_agent `sessionId` arg (zero Rust change). mode/team/scope/budget
+//     are encoded into cliArgs so the launch carries the full intake context.
+//   Bridge A (native): the injected V13.1 client's createSession(spec) returns
+//     {id}; registerNativeCard(id, id) stores it (the create-response id IS the
+//     snapshot node id — A1 finding). The client is GATED/mock in V14: when no
+//     client is injected the native path is a disabled-with-reason no-op.
+//
+// Auto gating follows the decisionActions disabled-with-reason discipline: an
+// Auto start missing budget OR scope renders the reason INLINE and calls NO
+// start path (never a silent no-op).
+//
+// Styling: A12 tokens only (var(--bg-*), var(--accent-*), var(--border),
+// var(--font-mono)); reuses the modal-segmented classes from modal.css. No new
+// --xxx tokens.
+
+import { type Component, createSignal, For, Show } from 'solid-js';
+import { invoke } from '@tauri-apps/api/core';
+import '../../components/modal/modal.css';
+import './runCommandBar.css';
+import {
+  assembleRunSpec,
+  validateAutoStart,
+  type RunMode,
+  type RunSpec,
+  type RunTarget,
+} from './runIntake';
+import { registerTerminalCard, registerNativeCard } from '../model/bridge';
+
+/** Minimal V13.1-client surface RunCommandBar consumes (mock-injectable). */
+export interface RunNativeClient {
+  createSession(spec: RunSpec): Promise<{ id: string }>;
+}
+
+/**
+ * Default terminal launcher: invokes the existing `spawn_agent` Tauri command
+ * directly with the minted cardId as the `sessionId` arg (Bridge B). Mirrors
+ * pty-ipc.ts `spawnAgent` payload shape so the launch is wired identically to
+ * the pane path. Injectable so the test can assert the call without a real PTY.
+ */
+export type SpawnAgentFn = (o: {
+  cliBinary: string;
+  cliArgs: string[];
+  taskPrompt: string;
+  sessionId: string;
+  paneId: string;
+  cwd?: string;
+}) => Promise<unknown>;
+
+const defaultSpawnAgent: SpawnAgentFn = (o) =>
+  invoke('spawn_agent', {
+    cliBinary: o.cliBinary,
+    cliArgs: o.cliArgs,
+    sessionId: o.sessionId,
+    paneId: o.paneId,
+    cwd: o.cwd,
+  });
+
+export interface RunCommandBarProps {
+  cwd: string;
+  cliBinary: string;
+  /** Native (Voss harness) client — GATED/mock in V14. Native path is a
+   *  disabled-with-reason no-op when undefined. */
+  client?: RunNativeClient;
+  /** Terminal launch fn (Bridge B). Defaults to a direct spawn_agent invoke. */
+  spawnAgent?: SpawnAgentFn;
+  /** Pane id for the terminal launch. The cockpit has no active pane bound to
+   *  the bar, so a fresh pane id is minted per run by default (mirrors
+   *  PaneComponent using props.id as paneId). */
+  resolvePaneId?: () => string;
+}
+
+const MODES: RunMode[] = ['Plan', 'Edit', 'Auto'];
+const TARGETS: { id: RunTarget; label: string }[] = [
+  { id: 'native', label: 'Voss-native' },
+  { id: 'terminal', label: 'Terminal agent' },
+];
+const TEAMS = ['solo', 'core', 'review'];
+
+/**
+ * Encode the intake context into CLI args so the terminal launch carries
+ * mode/team/scope/budget (mirrors AgentLaunchModal.buildConfig arg assembly).
+ */
+function intakeCliArgs(spec: RunSpec): string[] {
+  const args: string[] = ['--mode', spec.mode, '--team', spec.team];
+  if (spec.scope) args.push('--scope', spec.scope);
+  if (spec.budget != null) args.push('--budget', String(spec.budget));
+  return args;
+}
+
+const RunCommandBar: Component<RunCommandBarProps> = (props) => {
+  const [goal, setGoal] = createSignal('');
+  const [mode, setMode] = createSignal<RunMode>('Plan');
+  const [team, setTeam] = createSignal<string>('solo');
+  const [scope, setScope] = createSignal('');
+  const [budget, setBudget] = createSignal('');
+  const [target, setTarget] = createSignal<RunTarget>('native');
+  const [contextAttached, setContextAttached] = createSignal(false);
+  const [blockReason, setBlockReason] = createSignal<string | null>(null);
+
+  const currentSpec = (): RunSpec => {
+    const b = budget().trim();
+    return assembleRunSpec({
+      goal: goal().trim(),
+      mode: mode(),
+      team: team(),
+      scope: scope().trim() || undefined,
+      budget: b ? Number(b) : undefined,
+      target: target(),
+    });
+  };
+
+  const handleStart = async () => {
+    setBlockReason(null);
+    const spec = currentSpec();
+
+    // Auto gating — disabled-with-reason discipline (decisionActions.ts:1-11).
+    const gate = validateAutoStart(spec);
+    if (!gate.ok) {
+      setBlockReason(gate.reason ?? 'Cannot start.');
+      return; // NO start path is invoked.
+    }
+
+    if (spec.target === 'terminal') {
+      // Bridge B: mint cardId, pass it through as the spawn_agent sessionId arg.
+      const paneId = (props.resolvePaneId ?? (() => crypto.randomUUID()))();
+      const cardId = registerTerminalCard(paneId);
+      const spawn = props.spawnAgent ?? defaultSpawnAgent;
+      await spawn({
+        cliBinary: props.cliBinary,
+        cliArgs: intakeCliArgs(spec),
+        taskPrompt: spec.goal,
+        sessionId: cardId,
+        paneId,
+        cwd: props.cwd,
+      });
+      return;
+    }
+
+    // Native (Bridge A) — gated/mock in V14.
+    if (!props.client) {
+      setBlockReason('Voss-native runs are not available yet (server gated).');
+      return;
+    }
+    const response = await props.client.createSession(spec);
+    // A1 finding: the create-response id IS the snapshot node id.
+    registerNativeCard(response.id, response.id);
+  };
+
+  return (
+    <div class="run-command-bar" role="region" aria-label="Run intake">
+      <input
+        class="run-bar__goal"
+        placeholder="Describe the run goal…"
+        value={goal()}
+        onInput={(e) => setGoal(e.currentTarget.value)}
+        aria-label="Run goal"
+      />
+
+      {/* Mode — visible segmented control, never placeholder. */}
+      <div class="run-bar__group" aria-label="Mode">
+        <div class="modal-segmented">
+          <For each={MODES}>
+            {(m) => (
+              <button
+                class={`modal-segmented__btn${mode() === m ? ' modal-segmented__btn--active' : ''}`}
+                onClick={() => setMode(m)}
+              >
+                {m}
+              </button>
+            )}
+          </For>
+        </div>
+      </div>
+
+      {/* Team selector */}
+      <select
+        class="run-bar__team"
+        value={team()}
+        onChange={(e) => setTeam(e.currentTarget.value)}
+        aria-label="Team"
+      >
+        <For each={TEAMS}>{(t) => <option value={t}>{t}</option>}</For>
+      </select>
+
+      {/* Scope chip */}
+      <input
+        class="run-bar__chip"
+        placeholder="scope (e.g. tests/**)"
+        value={scope()}
+        onInput={(e) => setScope(e.currentTarget.value)}
+        aria-label="Scope"
+      />
+
+      {/* Budget chip */}
+      <input
+        class="run-bar__chip run-bar__chip--budget"
+        type="number"
+        min="0"
+        placeholder="budget"
+        value={budget()}
+        onInput={(e) => setBudget(e.currentTarget.value)}
+        aria-label="Budget"
+      />
+
+      {/* Context-attach */}
+      <button
+        class={`run-bar__attach${contextAttached() ? ' run-bar__attach--on' : ''}`}
+        onClick={() => setContextAttached((v) => !v)}
+        aria-pressed={contextAttached()}
+        aria-label="Attach context"
+      >
+        {contextAttached() ? '📎 Context' : '📎 Attach'}
+      </button>
+
+      {/* Explicit target indicator — visible segmented control. */}
+      <div class="run-bar__group" aria-label="Run target">
+        <div class="modal-segmented">
+          <For each={TARGETS}>
+            {(t) => (
+              <button
+                class={`modal-segmented__btn${target() === t.id ? ' modal-segmented__btn--active' : ''}`}
+                onClick={() => setTarget(t.id)}
+              >
+                {t.label}
+              </button>
+            )}
+          </For>
+        </div>
+      </div>
+
+      <button
+        class="run-bar__start"
+        onClick={() => void handleStart()}
+        aria-label="Start run"
+      >
+        Start
+      </button>
+
+      {/* Inline disabled-with-reason (Auto gate / gated native). */}
+      <Show when={blockReason()}>
+        <span class="run-bar__reason" role="alert">
+          {blockReason()}
+        </span>
+      </Show>
+    </div>
+  );
+};
+
+export default RunCommandBar;
