@@ -6,7 +6,7 @@ import (
 	"net/url"
 )
 
-// SessionInfo is a live session as returned by GET /session and GET /session/:id.
+// SessionInfo is a live session (GET /session, GET /session/:id).
 type SessionInfo struct {
 	Id    string `json:"id"`
 	Cwd   string `json:"cwd"`
@@ -15,7 +15,7 @@ type SessionInfo struct {
 	Busy  bool   `json:"busy"`
 }
 
-// SavedSession is a persisted session as returned by GET /sessions/saved.
+// SavedSession is a persisted session (GET /sessions/saved).
 type SavedSession struct {
 	Id           string  `json:"id"`
 	Name         string  `json:"name"`
@@ -26,7 +26,7 @@ type SavedSession struct {
 	Turns        int     `json:"turns"`
 }
 
-// CostInfo is the cost rollup from GET /session/:id/cost.
+// CostInfo is the cost rollup (GET /session/:id/cost).
 type CostInfo struct {
 	TotalUsd float64 `json:"total_usd"`
 	Turns    int     `json:"turns"`
@@ -50,8 +50,7 @@ type DoctorReport struct {
 	Checks       []DoctorCheck `json:"checks"`
 }
 
-// CreateSession opens a new session rooted at cwd and returns its id.
-// POST /session -> 201 Created {v,id,auth,resumed}.
+// CreateSession opens a session rooted at cwd. POST /session -> 201.
 func (c *Client) CreateSession(ctx context.Context, cwd string) (string, error) {
 	body := CreateSessionBody{Cwd: &cwd}
 	var out struct {
