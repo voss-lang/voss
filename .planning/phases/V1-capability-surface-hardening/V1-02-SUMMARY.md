@@ -51,8 +51,8 @@ completed: 2026-06-06
 ## Accomplishments
 
 - Added `capabilities_group` (click.Group) with two subcommands, mirroring `mcp_group`, both taking `--cwd` + `--json`:
-  - **list** — groups entries by `entry.group`, iterates `CAPABILITY_GROUPS` for stable order, prints `group:` header + sorted indented names; `--json` emits `{group: sorted(names)}` for groups present.
-  - **inspect** — looks up the name in `make_toolset(cwd)`; unknown → `<error: unknown capability: NAME>` on stderr + `Exit(1)`; else renders `entry.capability_dict()` as aligned `field : value` lines, or `--json` as pretty JSON.
+  - **list** — groups static project entries by `entry.group`, iterates `CAPABILITY_GROUPS` for stable order, prints `group:` header + sorted indented names; `--json` emits `{group: sorted(names)}` for groups present.
+  - **inspect** — looks up the name in the static `make_toolset(cwd)` registry; unknown → `<error: unknown capability: NAME>` on stderr + `Exit(1)`; else renders `entry.capability_dict()` as aligned `field : value` lines, or `--json` as pretty JSON.
 - Imported `CAPABILITY_GROUPS` into cli; registered `capabilities_group` into `AGENT_COMMANDS` so it attaches to the main CLI group.
 - TDD test (`test_capabilities_cli.py`): list human + JSON shape, inspect JSON + human, unknown-errors-nonzero, registered-in-AGENT_COMMANDS.
 
@@ -65,4 +65,4 @@ completed: 2026-06-06
 
 ## Notes
 
-- `make_toolset(cwd)` with no `net` session means MCP tools are not merged into `list`/`inspect` output (consistent with `tools_cmd`); the `mcp` group simply won't appear unless MCP is active. Acceptable for a static capability listing.
+- `voss capabilities list/inspect` is a static project registry view: it builds `make_toolset(cwd)` without opening MCP sessions, so MCP server tools are not merged into this output. Use `voss mcp list` to inspect configured MCP servers separately.

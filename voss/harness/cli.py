@@ -3858,14 +3858,18 @@ def serve_cmd(host: str, port: int, token: str | None) -> None:
 
 @click.group("capabilities")
 def capabilities_group() -> None:
-    """List and inspect the agent capability registry (CAP-04/05)."""
+    """List and inspect the static project capability registry.
+
+    This view does not open MCP sessions; use `voss mcp list` for configured
+    MCP servers.
+    """
 
 
 @capabilities_group.command("list")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
 def capabilities_list_cmd(cwd_str: str, json_mode: bool) -> None:
-    """List capabilities grouped by group (compact names)."""
+    """List static capabilities grouped by group (compact names)."""
     import json as json_lib
 
     cwd = Path(cwd_str).resolve()
@@ -3893,7 +3897,7 @@ def capabilities_list_cmd(cwd_str: str, json_mode: bool) -> None:
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
 def capabilities_inspect_cmd(name: str, cwd_str: str, json_mode: bool) -> None:
-    """Show full normalized detail for one capability."""
+    """Show full normalized detail for one static capability."""
     import json as json_lib
 
     cwd = Path(cwd_str).resolve()
