@@ -153,7 +153,7 @@ export default function SplitNodeView(props: {
             <Show when={asLeaf().id} keyed>
               {(paneId) => (
                 <PaneComponent
-                  id={paneId()}
+                  id={paneId}
                   cwd={asLeaf().cwd}
                   shell={asLeaf().shell}
                   index={asLeaf().index}
