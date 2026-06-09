@@ -2318,6 +2318,11 @@ def logout_cmd(provider: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Mirrors diagnostics.Category values; kept literal so the click decorator
+# doesn't force an eager diagnostics import. Drift-guarded by test.
+_DOCTOR_CATEGORIES = ("env", "auth", "config", "state", "project")
+
+
 @click.command("doctor")
 @click.option(
     "--cwd",
@@ -2340,7 +2345,35 @@ def logout_cmd(provider: str) -> None:
     default=False,
     help="With --fix: skip confirmation; applies safe-tier repairs only.",
 )
-def doctor_cmd(cwd_str: str, do_fix: bool, assume_yes: bool) -> None:
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Emit machine-readable JSON (same check shape as server GET /doctor).",
+)
+@click.option(
+    "--only",
+    "only_ids",
+    multiple=True,
+    metavar="ID",
+    help="Run only the named check id(s); repeatable.",
+)
+@click.option(
+    "--category",
+    "category_strs",
+    multiple=True,
+    type=click.Choice(_DOCTOR_CATEGORIES),
+    help="Run only checks in the given category; repeatable.",
+)
+def doctor_cmd(
+    cwd_str: str,
+    do_fix: bool,
+    assume_yes: bool,
+    as_json: bool,
+    only_ids: tuple[str, ...],
+    category_strs: tuple[str, ...],
+) -> None:
     """Diagnose harness setup. Diagnose-only by default (D-13); repairs
     run only behind the explicit --fix opt-in, gated by RepairTier.
 
@@ -2351,24 +2384,49 @@ def doctor_cmd(cwd_str: str, do_fix: bool, assume_yes: bool) -> None:
     from . import diagnostics as diag
     from . import repair as repair_mod
 
+    if as_json and do_fix and not assume_yes:
+        raise click.UsageError("--json with --fix requires --yes (non-interactive)")
+
     cwd = Path(cwd_str).resolve()
-    results = diag.run_all_checks(cwd)
 
-    glyph = {
-        diag.CheckResult.OK: ("✓", "green"),
-        diag.CheckResult.WARN: ("⚠", "yellow"),
-        diag.CheckResult.FAIL: ("✗", "red"),
-    }
-    name_width = max(len(c.name) for c in results) + 2
-    for c in results:
-        g, color = glyph[c.result]
-        click.echo(f"  {click.style(g, fg=color)}  {c.name:<{name_width}} {c.detail}")
-        if c.fix and c.result is not diag.CheckResult.OK:
-            click.echo(f"     → {c.fix}")
+    ids = set(only_ids) if only_ids else None
+    if ids is not None:
+        valid = [s.id for s in diag.REGISTRY]
+        unknown = ids - set(valid)
+        if unknown:
+            raise click.UsageError(
+                f"unknown check id(s): {', '.join(sorted(unknown))}. "
+                f"valid ids: {', '.join(valid)}"
+            )
+    cats = {diag.Category(c) for c in category_strs} if category_strs else None
 
+    if ids is not None or cats is not None:
+        results = diag.run_checks(cwd, ids=ids, categories=cats)
+        if not results:
+            raise click.UsageError("no checks matched the given filters")
+    else:
+        results = diag.run_all_checks(cwd)
+
+    if not as_json:
+        glyph = {
+            diag.CheckResult.OK: ("✓", "green"),
+            diag.CheckResult.WARN: ("⚠", "yellow"),
+            diag.CheckResult.FAIL: ("✗", "red"),
+        }
+        name_width = max(len(c.name) for c in results) + 2
+        for c in results:
+            g, color = glyph[c.result]
+            click.echo(f"  {click.style(g, fg=color)}  {c.name:<{name_width}} {c.detail}")
+            if c.fix and c.result is not diag.CheckResult.OK:
+                click.echo(f"     → {c.fix}")
+
+    outcomes: list = []
     if do_fix:
         candidates = repair_mod.repair_candidates(results)
-        if not candidates:
+        if as_json:
+            outcomes = repair_mod.execute_repairs(candidates, cwd, assume_yes=True)
+            results = repair_mod.merge_results(results, outcomes)
+        elif not candidates:
             click.echo("\nno machine-repairable issues.")
         else:
             click.echo("\nplanned repairs:")
@@ -2407,6 +2465,29 @@ def doctor_cmd(cwd_str: str, do_fix: bool, assume_yes: bool) -> None:
                 results = repair_mod.merge_results(results, outcomes)
 
     code = diag.aggregate_exit_code(results)
+
+    if as_json:
+        payload: dict = {
+            "v": 1,
+            "exit_code": code,
+            "checks": [diag.to_dict(c) for c in results],
+        }
+        if do_fix:
+            payload["repairs"] = [
+                {
+                    "id": o.check.id,
+                    "name": o.check.name,
+                    "executed": o.executed,
+                    "skipped_reason": o.skipped_reason,
+                    "ok": o.result.ok if o.result else None,
+                    "detail": o.result.detail if o.result else "",
+                    "verified": o.verified,
+                    "recheck_status": o.recheck.result.name if o.recheck else "",
+                }
+                for o in outcomes
+            ]
+        click.echo(json.dumps(payload, indent=2))
+        sys.exit(code)
 
     warns = [c for c in results if c.result is diag.CheckResult.WARN]
     fails = [c for c in results if c.result is diag.CheckResult.FAIL]
