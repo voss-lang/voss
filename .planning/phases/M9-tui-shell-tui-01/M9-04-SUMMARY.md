@@ -103,3 +103,7 @@ No other deviations.
 - M9-05 builds the diff + permission `ModalScreen` overlays on top of M9-03's `escape` binding.
 - M9-06 implements `f` fork-from-turn + `ctrl+f` search.
 - M9-07 swaps the default `make_renderer` path to `TextualRenderer`, composes `StatusLine` + `BudgetMeter` so live budget rendering surfaces in default user flow, and wires `_build_slash_registry()` into `VossTUIApp.slash_registry` at boot.
+
+## Baseline Updates (post-phase)
+
+- 2026-06-09 — `runtime_surface.sha256` regenerated (`UPDATE_BASELINE=1`): `voss/harness/recorder.py` drifted via intentional feature commits 094a565/fad5631 (capability-invocation audit tracking in RunRecorder) and a6b21e5 (safety factory-fallback audit logging). No new runtime hooks added; other pinned files (`voss_runtime/{probable,budget,agent}.py`) unchanged.
