@@ -99,9 +99,7 @@ func (c *Client) DeleteSession(ctx context.Context, id string) error {
 	return c.sendJSON(ctx, http.MethodDelete, "/session/"+url.PathEscape(id), nil, nil, http.StatusNoContent)
 }
 
-// PostMessage submits a user turn. POST /session/:id/message -> 202 Accepted.
-// mode "" uses the server default. Returns *VossError{Status:409} when a turn is
-// already running.
+// PostMessage submits a user turn (mode "" = server default). POST -> 202; 409 if a turn is running.
 func (c *Client) PostMessage(ctx context.Context, id, text, mode string) error {
 	partType := "text"
 	body := MessageBody{
