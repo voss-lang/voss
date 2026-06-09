@@ -1,3 +1,4 @@
+import { Show } from 'solid-js';
 import WindowControls from './WindowControls';
 import PresetSwitcher from './PresetSwitcher';
 import type {
@@ -10,15 +11,26 @@ import type {
  * down to `PresetSwitcher`. Window controls, drag regions, title text,
  * and 22px height all stay unchanged.
  *
+ * V14 chunk A adds the right-side shell chrome from the cockpit mockup:
+ * a `[Live Work | Run Review]` segmented toggle and a LIVE/snapshot chip.
+ * Both are controlled — App owns the orgViewOpen signal (same source as
+ * ⌘⇧O and the StatusBar toggle) and passes the sseClient liveLabel down.
+ *
  * Props are optional so existing A1/A3 tests that render `<Titlebar />`
- * continue to work; when omitted, the switcher defaults to `custom` and
- * `onLayoutSelect` is a no-op.
+ * continue to work; when omitted, the switcher defaults to `custom`,
+ * `onLayoutSelect`/`onOrgViewChange` are no-ops, and the chip reads
+ * 'snapshot' (the sseClient default).
  */
 export type TitlebarProps = {
   activeLayout?: ActiveLayout;
   layoutDisabled?: boolean;
   onLayoutSelect?: (preset: LayoutPreset) => void;
   projectName?: string;
+  /** Run Review open? Drives the active segment of the mode toggle. */
+  orgViewOpen?: boolean;
+  onOrgViewChange?: (open: boolean) => void;
+  /** Live/snapshot data-source state (sseClient liveLabel, via App). */
+  liveState?: 'live' | 'snapshot';
 };
 
 export default function Titlebar(props: TitlebarProps = {}) {
@@ -27,6 +39,7 @@ export default function Titlebar(props: TitlebarProps = {}) {
     props.projectName && props.projectName.length > 0
       ? props.projectName
       : 'Voss ADE';
+  const liveState = () => props.liveState ?? 'snapshot';
 
   return (
     <div
