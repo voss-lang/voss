@@ -356,7 +356,20 @@ export default function PaneComponent(props: PaneProps) {
       },
       onBudgetUpdate: (data) => {
         setBudget(data);
-        if (props.id) registerPaneBudget(props.id, data);
+        if (props.id) {
+          registerPaneBudget(props.id, data);
+          // V14-12 (VCKP-12): adopted-agent budget-stop. Adoption happens
+          // AFTER spawn, so the limit is read per-event from the adoption
+          // registry instead of being frozen into the transport opts.
+          const adopted = adoptionByPaneId()[props.id];
+          if (
+            adopted &&
+            adopted.budgetUsd > 0 &&
+            data.cost_usd >= adopted.budgetUsd
+          ) {
+            transport?.kill();
+          }
+        }
       },
       onContextUpdate: (data) => {
         if (props.id) registerPaneContext(props.id, data);
