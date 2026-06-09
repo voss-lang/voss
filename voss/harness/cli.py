@@ -2327,7 +2327,12 @@ def logout_cmd(provider: str) -> None:
     help="Project root to check.",
 )
 def doctor_cmd(cwd_str: str) -> None:
-    """Diagnose harness setup. Diagnose-only; never executes fixes (D-13)."""
+    """Diagnose harness setup. Diagnose-only; never executes fixes (D-13).
+
+    Former ad-hoc rows (cognition init/staleness M2-06, legacy sessions,
+    third-party skill confinement M15-06) are folded into the check
+    registry in `diagnostics.REGISTRY` and render in the table below.
+    """
     from . import diagnostics as diag
 
     cwd = Path(cwd_str).resolve()
@@ -2344,43 +2349,6 @@ def doctor_cmd(cwd_str: str) -> None:
         click.echo(f"  {click.style(g, fg=color)}  {c.name:<{name_width}} {c.detail}")
         if c.fix and c.result is not diag.CheckResult.OK:
             click.echo(f"     → {c.fix}")
-
-    # M2-06: appended cognition rows (D-11 #8/#9, D-12).
-    bundle = cognition_mod.load(cwd)
-    click.echo(f"  {'.voss/ initialized':<20}: {'yes' if bundle.initialized else 'no'}")
-    if bundle.initialized and bundle.architecture_frontmatter:
-        try:
-            drift = cognition_mod.drift_check(cwd, bundle.architecture_frontmatter)
-        except (OSError, ValueError) as exc:
-            click.echo(f"  {'cognition staleness':<20}: error ({exc})")
-        else:
-            if drift.is_stale:
-                click.echo(
-                    f"  {'cognition staleness':<20}: stale ({drift.reason})"
-                )
-            else:
-                click.echo(f"  {'cognition staleness':<20}: fresh")
-    else:
-        click.echo(f"  {'cognition staleness':<20}: n/a")
-    legacy_dir = session_store.legacy_state_dir()
-    legacy_count = (
-        len(list(legacy_dir.glob("*.json"))) if legacy_dir.exists() else 0
-    )
-    if legacy_count:
-        click.echo(
-            f"  {'legacy sessions':<20}: {legacy_count} (read-only via voss sessions --all)"
-        )
-    else:
-        click.echo(f"  {'legacy sessions':<20}: 0")
-
-    # M15-06: surface gate-only confinement when third-party skills installed
-    third_party = [p for p in load_plugins(cwd) if p.skill_id and p.voss_entry]
-    if third_party:
-        ids = ", ".join(p.skill_id for p in third_party)
-        click.echo(f"  {'third-party skills':<20}: {len(third_party)} ({ids})")
-        click.echo(f"  {'skill confinement':<20}: gate-level only (OS-level sandbox deferred)")
-    else:
-        click.echo(f"  {'third-party skills':<20}: 0")
 
     code = diag.aggregate_exit_code(results)
 

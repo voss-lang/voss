@@ -1,9 +1,12 @@
-"""voss doctor checks. Diagnose only — never execute fixes (D-13).
+"""voss doctor checks. Diagnose-only by default (D-13); repairs run only
+via the explicit opt-in repair engine (`voss doctor --fix`).
 
 Each check is a pure function returning a `Check` carrying a CheckResult
-(✓/⚠/✗), a one-line detail, and an optional `fix` shell command suggestion.
+(✓/⚠/✗), a one-line detail, an optional `fix` shell command suggestion,
+and (when machine-repairable) a `repair` callable gated by a RepairTier.
 The CLI in `voss.harness.cli.doctor_cmd` renders the table and computes
-exit semantics per D-14.
+exit semantics per D-14. The check set itself never mutates state beyond
+the pre-existing mkdir probes.
 """
 from __future__ import annotations
 
@@ -11,9 +14,10 @@ import os
 import shutil
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Callable
 
 from voss.exceptions import VossError
 
@@ -30,12 +34,39 @@ class CheckResult(Enum):
     FAIL = "fail"
 
 
+class Category(str, Enum):
+    ENV = "env"
+    AUTH = "auth"
+    CONFIG = "config"
+    STATE = "state"
+    PROJECT = "project"
+
+
+class RepairTier(Enum):
+    """Safety gate for `--fix`: SAFE may auto-run, CONFIRM needs explicit
+    consent per run, MANUAL is never executed (suggestion text only)."""
+
+    SAFE = "safe"
+    CONFIRM = "confirm"
+    MANUAL = "manual"
+
+
+@dataclass
+class RepairResult:
+    ok: bool
+    detail: str = ""
+
+
 @dataclass
 class Check:
     name: str
     result: CheckResult
     detail: str = ""
     fix: str = ""
+    id: str = ""
+    category: Category | None = None
+    tier: RepairTier = RepairTier.MANUAL
+    repair: Callable[[], RepairResult] | None = field(default=None, repr=False)
 
 
 def check_python_version() -> Check:
@@ -203,18 +234,103 @@ def check_harness_cache(cwd: Path) -> Check:
     return Check("harness cache", CheckResult.OK, detail=".voss-cache/harness/ fresh")
 
 
+def check_cognition(cwd: Path) -> Check:
+    """Folded from doctor_cmd's M2-06 ad-hoc rows: .voss/ init + drift."""
+    from . import cognition as cognition_mod
+
+    bundle = cognition_mod.load(cwd)
+    if not bundle.initialized:
+        return Check("cognition", CheckResult.OK, detail=".voss/ not initialized")
+    if not bundle.architecture_frontmatter:
+        return Check(
+            "cognition", CheckResult.OK, detail="initialized; staleness n/a"
+        )
+    try:
+        drift = cognition_mod.drift_check(cwd, bundle.architecture_frontmatter)
+    except (OSError, ValueError) as exc:
+        return Check("cognition", CheckResult.WARN, detail=f"drift check error: {exc}")
+    if drift.is_stale:
+        return Check(
+            "cognition",
+            CheckResult.WARN,
+            detail=f"stale ({drift.reason})",
+            fix='voss do "refresh cognition"',
+        )
+    return Check("cognition", CheckResult.OK, detail="initialized, fresh")
+
+
+def check_legacy_sessions() -> Check:
+    """Informational: pre-migration session files in the legacy state dir."""
+    from . import session as session_mod
+
+    legacy_dir = session_mod.legacy_state_dir()
+    count = len(list(legacy_dir.glob("*.json"))) if legacy_dir.exists() else 0
+    if count:
+        return Check(
+            "legacy sessions",
+            CheckResult.OK,
+            detail=f"{count} (read-only via voss sessions --all)",
+        )
+    return Check("legacy sessions", CheckResult.OK, detail="none")
+
+
+def check_third_party_skills(cwd: Path) -> Check:
+    """Informational (M15-06): third-party skills run gate-level confined only."""
+    from .plugins import load_plugins
+
+    third_party = [p for p in load_plugins(cwd) if p.skill_id and p.voss_entry]
+    if third_party:
+        ids = ", ".join(p.skill_id for p in third_party)
+        return Check(
+            "third-party skills",
+            CheckResult.OK,
+            detail=(
+                f"{len(third_party)} ({ids}); "
+                "confinement gate-level only (OS-level sandbox deferred)"
+            ),
+        )
+    return Check("third-party skills", CheckResult.OK, detail="none")
+
+
+@dataclass(frozen=True)
+class CheckSpec:
+    """Static check metadata; `run` late-binds the module-level check
+    function so tests can monkeypatch individual checks."""
+
+    id: str
+    category: Category
+    run: Callable[[Path], Check]
+
+
+REGISTRY: tuple[CheckSpec, ...] = (
+    CheckSpec("python", Category.ENV, lambda cwd: check_python_version()),
+    CheckSpec("voss-import", Category.ENV, lambda cwd: check_voss_import()),
+    CheckSpec("provider-auth", Category.AUTH, lambda cwd: check_provider_auth()),
+    CheckSpec("git", Category.ENV, lambda cwd: check_git_on_path()),
+    CheckSpec("cwd-writable", Category.ENV, lambda cwd: check_cwd_writable(cwd)),
+    CheckSpec("config-dirs", Category.CONFIG, lambda cwd: check_config_dirs_creatable()),
+    CheckSpec("project-dirs", Category.PROJECT, lambda cwd: check_project_dirs(cwd)),
+    CheckSpec("harness-cache", Category.PROJECT, lambda cwd: check_harness_cache(cwd)),
+    CheckSpec("cognition", Category.PROJECT, lambda cwd: check_cognition(cwd)),
+    CheckSpec("legacy-sessions", Category.STATE, lambda cwd: check_legacy_sessions()),
+    CheckSpec(
+        "third-party-skills", Category.PROJECT, lambda cwd: check_third_party_skills(cwd)
+    ),
+)
+
+
 def run_all_checks(cwd: Path) -> list[Check]:
-    """Run checks in documented display order (D-11)."""
-    return [
-        check_python_version(),
-        check_voss_import(),
-        check_provider_auth(),
-        check_git_on_path(),
-        check_cwd_writable(cwd),
-        check_config_dirs_creatable(),
-        check_project_dirs(cwd),
-        check_harness_cache(cwd),
-    ]
+    """Run registry checks in documented display order (D-11); stamp each
+    result with its spec's id/category for rendering and JSON output."""
+    results: list[Check] = []
+    for spec in REGISTRY:
+        check = spec.run(cwd)
+        if not check.id:
+            check.id = spec.id
+        if check.category is None:
+            check.category = spec.category
+        results.append(check)
+    return results
 
 
 def aggregate_exit_code(results: list[Check]) -> int:

@@ -435,7 +435,9 @@ def create_app(token: str | None = None) -> FastAPI:
             "exit_code": diag.aggregate_exit_code(checks),
             "checks": [
                 {
+                    "id": c.id,
                     "name": c.name,
+                    "category": c.category.value if c.category else "",
                     "status": c.result.name,
                     "detail": c.detail,
                     "fix": c.fix,

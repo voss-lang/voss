@@ -191,26 +191,24 @@ class TestSessionsListing:
 
 
 class TestDoctorCognitionRows:
-    def test_doctor_cognition_rows(self, monkeypatch, tmp_path: Path) -> None:
+    def test_doctor_renders_folded_registry_rows(self, monkeypatch, tmp_path: Path) -> None:
+        """Cognition/legacy-session/skill rows come from the check registry
+        (folded from the old ad-hoc block) and render as glyph table rows."""
         from voss.harness import diagnostics as diag
 
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg-state"))
         monkeypatch.setattr(
-            diag, "run_all_checks",
-            lambda _cwd: [
-                diag.Check("python", diag.CheckResult.OK),
-                diag.Check("voss import", diag.CheckResult.OK),
-                diag.Check("provider auth", diag.CheckResult.OK),
-                diag.Check("git", diag.CheckResult.OK),
-                diag.Check("cwd writable", diag.CheckResult.OK),
-                diag.Check("config dirs", diag.CheckResult.OK),
-                diag.Check("project dirs", diag.CheckResult.OK),
-            ],
+            diag, "check_provider_auth",
+            lambda: diag.Check("provider auth", diag.CheckResult.OK, detail="creds"),
         )
         r = CliRunner().invoke(main, ["doctor", "--cwd", str(tmp_path)])
         assert r.exit_code == 0
-        assert ".voss/ initialized" in r.output
-        assert "cognition staleness" in r.output
+        assert "cognition" in r.output
         assert "legacy sessions" in r.output
+        assert "third-party skills" in r.output
+        # Old ad-hoc rendering path is gone.
+        assert ".voss/ initialized" not in r.output
+        assert "cognition staleness" not in r.output
 
 
 class TestProjectPolicyLayering:

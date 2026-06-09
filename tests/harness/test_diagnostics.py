@@ -161,10 +161,66 @@ class TestCheckProviderAuth:
         assert c.fix
 
 
+class TestCheckCognition:
+    def test_ok_when_not_initialized(self, tmp_path: Path):
+        c = diag.check_cognition(tmp_path)
+        assert c.result is diag.CheckResult.OK
+        assert "not initialized" in c.detail
+
+
+class TestCheckLegacySessions:
+    def test_ok_with_count(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+        legacy = tmp_path / "voss" / "sessions"
+        legacy.mkdir(parents=True)
+        (legacy / "a.json").write_text("{}")
+        c = diag.check_legacy_sessions()
+        assert c.result is diag.CheckResult.OK
+        assert "1" in c.detail
+
+    def test_ok_when_none(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+        c = diag.check_legacy_sessions()
+        assert c.result is diag.CheckResult.OK
+        assert c.detail == "none"
+
+
+class TestCheckThirdPartySkills:
+    def test_ok_when_empty(self, monkeypatch, tmp_path: Path):
+        from voss.harness import plugins as plugins_mod
+
+        monkeypatch.setattr(plugins_mod, "user_plugin_dir", lambda: tmp_path / "nope")
+        c = diag.check_third_party_skills(tmp_path)
+        assert c.result is diag.CheckResult.OK
+        assert c.detail == "none"
+
+
+class TestRegistry:
+    def test_ids_unique(self):
+        ids = [s.id for s in diag.REGISTRY]
+        assert len(ids) == len(set(ids))
+
+    def test_results_stamped_with_id_and_category(self, tmp_path: Path):
+        results = diag.run_all_checks(tmp_path)
+        for c in results:
+            assert c.id, f"check {c.name!r} missing id"
+            assert c.category is not None, f"check {c.name!r} missing category"
+
+    def test_registry_late_binds_check_functions(self, monkeypatch, tmp_path: Path):
+        # Monkeypatching a module-level check fn must affect REGISTRY runs.
+        monkeypatch.setattr(
+            diag, "check_python_version",
+            lambda: diag.Check("python", diag.CheckResult.FAIL, detail="patched"),
+        )
+        results = diag.run_all_checks(tmp_path)
+        python = next(c for c in results if c.name == "python")
+        assert python.detail == "patched"
+
+
 class TestRunAllChecks:
     def test_returns_checks_in_display_order(self, tmp_path: Path):
         results = diag.run_all_checks(tmp_path)
-        assert len(results) == 8
+        assert len(results) == 11
         names = [c.name for c in results]
         assert names == [
             "python",
@@ -175,6 +231,9 @@ class TestRunAllChecks:
             "config dirs",
             "project dirs",
             "harness cache",
+            "cognition",
+            "legacy sessions",
+            "third-party skills",
         ]
 
 
@@ -229,6 +288,18 @@ def _patch_all_ok(monkeypatch):
     monkeypatch.setattr(
         diag, "check_harness_cache",
         lambda _cwd: diag.Check("harness cache", diag.CheckResult.OK, detail="ok"),
+    )
+    monkeypatch.setattr(
+        diag, "check_cognition",
+        lambda _cwd: diag.Check("cognition", diag.CheckResult.OK, detail="not initialized"),
+    )
+    monkeypatch.setattr(
+        diag, "check_legacy_sessions",
+        lambda: diag.Check("legacy sessions", diag.CheckResult.OK, detail="none"),
+    )
+    monkeypatch.setattr(
+        diag, "check_third_party_skills",
+        lambda _cwd: diag.Check("third-party skills", diag.CheckResult.OK, detail="none"),
     )
 
 
