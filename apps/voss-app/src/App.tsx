@@ -1375,6 +1375,11 @@ export default function App() {
             spawnAgent={runBarSpawnAgent}
           />
           <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: orgViewOpen() ? 'none' : 'flex', 'flex-direction': 'column', position: 'relative' }}>
+            {/* V14 chunk C — board summary strip (Live Work only: this
+                container is display:none in Run Review, where the cockpit
+                shows the full board). Renders nothing until a run snapshot
+                is loaded. Chip click = opt-in jump to Run Review. */}
+            <BoardSummaryStrip onOpen={() => setOrgViewOpen(true)} />
             <For each={workspaceIds()}>
               {(workspaceId) => {
                 const ws = () => mountedById().get(workspaceId);
@@ -1474,6 +1479,8 @@ export default function App() {
           onToggleContextPanel={toggleContextPanel}
           agentCount={agentListForSidebar().length}
           totalCost={Object.values(budgetByPaneId()).reduce((sum, b) => sum + b.cost_usd, 0)}
+          budgetSpent={runBudgetTotals().spent}
+          budgetLimit={runBudgetTotals().limit}
           onToggleSidebar={toggleSidebar}
           orgViewOpen={orgViewOpen()}
           onToggleOrgView={() => setOrgViewOpen((p) => !p)}

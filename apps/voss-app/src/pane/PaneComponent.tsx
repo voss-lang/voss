@@ -24,6 +24,12 @@ import {
   unregisterScrollbackProvider,
 } from './scrollbackRegistry';
 import {
+  resolvePane,
+  cardToPane,
+  cardToSessionNode,
+} from '../org/model/bridge';
+import { requestOpenInReview } from '../org/selection';
+import {
   getCurrentXtermTheme,
   registerTerminal,
   unregisterTerminal,
@@ -106,6 +112,51 @@ export default function PaneComponent(props: PaneProps) {
     setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
   const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
   const isAgentCli = () => isKnownAgentCli(proc());
+
+  // --- V14 chunk C role chrome (mockup .pane::before / .ph) — AGENT panes
+  // only (props.agentConfig present). ---------------------------------------
+
+  // Role from the launch CLI — the same CLI→role mapping the sidebar/grid
+  // chrome use (App.mapRole / SplitNode.mapCliToRoleColor). Unknown agent CLIs
+  // default to executor: these panes are agent launches by construction.
+  const agentRole = (): 'planner' | 'executor' | 'reviewer' | 'watcher' => {
+    switch (props.agentConfig?.cliBinary) {
+      case 'claude':
+      case 'voss':
+        return 'planner';
+      case 'gemini':
+        return 'reviewer';
+      case 'opencode':
+        return 'watcher';
+      default:
+        return 'executor';
+    }
+  };
+  const roleColor = () => `var(--role-${agentRole()})`;
+
+  // Bound board card (Bridge B reverse lookup) — reactive via the live
+  // cardToPane signal; undefined until the bridge binds one.
+  const boundCardId = () => {
+    const paneId = props.id;
+    if (!paneId || !props.agentConfig) return undefined;
+    return resolvePane(
+      { cardToPane: cardToPane(), cardToSessionNode: cardToSessionNode() },
+      paneId,
+    );
+  };
+
+  // Honest streaming signal: budget telemetry seen within the last 3s — the
+  // SAME recency definition the sidebar + grid PaneHeader already use
+  // (budgetRegistry lastSeenMs < 3000). Event-driven decay via timeout; no
+  // fabricated state.
+  const [streaming, setStreaming] = createSignal(false);
+  let streamDecayTimer: ReturnType<typeof setTimeout> | undefined;
+  const markStreaming = () => {
+    setStreaming(true);
+    if (streamDecayTimer) clearTimeout(streamDecayTimer);
+    streamDecayTimer = setTimeout(() => setStreaming(false), 3000);
+  };
+
   const updateProc = (name: string) => {
     setProc(name);
     const paneId = props.id;
@@ -357,6 +408,7 @@ export default function PaneComponent(props: PaneProps) {
       },
       onBudgetUpdate: (data) => {
         setBudget(data);
+        markStreaming(); // V14 chunk C — honest streaming recency signal
         if (props.id) {
           registerPaneBudget(props.id, data);
           // V14-12 (VCKP-12): adopted-agent budget-stop. Adoption happens
@@ -483,6 +535,7 @@ export default function PaneComponent(props: PaneProps) {
     if (fgPoll) clearInterval(fgPoll);
     if (bellFlashTimer) clearTimeout(bellFlashTimer);
     if (bellBadgeTimer) clearTimeout(bellBadgeTimer);
+    if (streamDecayTimer) clearTimeout(streamDecayTimer);
     appearanceUnsub?.();
     observer?.disconnect();
     dprMedia?.removeEventListener('change', onDpr);
@@ -516,11 +569,25 @@ export default function PaneComponent(props: PaneProps) {
       class={focused() ? 'pane focused' : 'pane'}
       onClick={() => setFocused(true)}
     >
+      {/* V14 chunk C — role-colored full-height left edge (mockup
+          .pane::before), agent panes only. Color set inline from the
+          --role-* tokens (mirrors AgentItem); no new custom properties. */}
+      <Show when={props.agentConfig}>
+        <span
+          class="pane-role-edge"
+          style={{ background: roleColor() }}
+          aria-hidden="true"
+        />
+      </Show>
       <div
         ref={headerRef}
         class={`pane-header${headerFlash() ? ' bell-flash' : ''}${isAgentCli() ? ' agent-pane' : ''}`}
       >
-        <span class={`dot ${dot()}${isAgentCli() ? ' agent' : ''}`}>●</span>
+        <span
+          class={`dot ${dot()}${isAgentCli() ? ' agent' : ''}${streaming() ? ' pane-dot--streaming' : ''}`}
+        >
+          ●
+        </span>
         <span class="sep">·</span>
         <span class="idx">{props.index ?? 1}</span>
         <span class="sep">·</span>
