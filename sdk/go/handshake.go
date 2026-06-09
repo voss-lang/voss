@@ -22,10 +22,8 @@ func (h Handshake) baseURL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", h.Port)
 }
 
-// readHandshake scans r for the first line that parses as a Handshake with a
-// non-empty token, ignoring preceding non-JSON output (e.g. uvicorn logs). It
-// errors on EOF before a handshake, and on timeout if none arrives in time.
-// Mirrors voss-tui server.rs handshake loop.
+// readHandshake scans r for the first line parsing as a Handshake with a token,
+// ignoring preceding non-JSON output. Errors on EOF-before-handshake or timeout.
 func readHandshake(r io.Reader, timeout time.Duration) (Handshake, error) {
 	type result struct {
 		h   Handshake
