@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-09T18:24:30.385Z"
-last_activity: 2026-06-09
+last_updated: "2026-06-09T18:39:05.904Z"
+last_activity: 2026-06-08
 progress:
   total_phases: 39
   completed_phases: 4
@@ -70,9 +70,11 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V8 | Multi-agent Chat + Live Steering (absorbs M13) | ✅ COMPLETE — 3/3 plans, 3 waves. Shipped the V4-backed persisted unification: VMAG-10 (every chat spawn a persisted session-tree node), VMAG-UNIFY (single V4 `SessionTreeManager`; `M13Allocator` removed), VMAG-07 (per-node-manager recursion, viable-floor bound, no depth constant), VMAG-ROOT (chat-root 60k+30k-reserve envelope, finalized on exit). MAG-01..09 + steer + orphan-teardown regressed green; frozen schemas unchanged; no new deps. ADE child panels → V11. |
 | V12 | Safety & Factory Fallbacks | Plans ready to execute (4 plans, 4 waves; inline plan-check because local GSD agent/checker verbs are unavailable). Policy + audit first: `.voss/safety.yml`, runtime safety overlay, factory fallback audit, EM/direct parity. |
 | V11 | ADE Org Integration | ✅ BUILT (8/8 plans + summaries). 10-tab `OrgViewShell` + `org/` panels + CLI-JSON `RunData` + D-02 guard live in `apps/voss-app`. Cockpit redesign = V14. |
-| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Executing — 11/13 plans summarized (V14-00..10; V14-11/12 remain). SPEC+CONTEXT locked (VCKP-01..13); latest: V14-10 "Let Voss manage this agent" adopt flow (VCKP-12). |
+| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Executing — 12/13 plans summarized (V14-00..11; V14-12 remains). SPEC+CONTEXT locked (VCKP-01..13); latest: V14-11 managed launch + enforcement tiers (VCKP-13, kernel sandbox floor). |
 
 ## Recent Activity
+
+- 2026-06-09 — **V14-11 EXECUTED — managed launch + enforcement tiers (VCKP-13, D-13).** Kernel scope-sandbox floor: `crates/voss-app-core/src/sandbox.rs` (`validate_scope` canonicalize+traversal/injection reject (V5); `generate_profile` Seatbelt write-policy from `(deny file-write*)` allowing only canonical scope + temp dirs + `/dev/` (V12); `wrap_argv` macOS `sandbox-exec -f`/Linux `bwrap`/honest `Unavailable`); cargo test proves OS denial (out-of-scope `touch` → "Operation not permitted"). `spawn_command_session_managed` pty hook (unmanaged fns byte-unchanged); `spawn_managed_agent` Tauri command returns `{pty_id, tier, sandboxed}` w/ tier→C downgrade when no sandbox tool. `capabilityTier.ts` pure resolver (adopted→C always; managed+hook→A; managed→B; unmanaged→C; `hookCapableCli` false until VCKP-13b proxy ships — no fake tier A). Budget-kill (13c): `PtyTransport` budget_update ≥ `budgetUsd` → `pty_kill`. End-to-end honesty (T-V14-07): `handleLaunchAgent` records `resolveTier` for the command actually invoked (overrides modal static tier; managed w/o resolvable scope falls back unmanaged+C); `PaneComponent.doSpawn` branches managed→`spawnManagedAgent`. 3 Rule-1/2 deviations (PaneComponent seam, tier in frontend config map not sqlite, profile +/private/tmp+/private/var/folders+/dev for PTY). Verification: cargo sandbox 4/4 + builds clean; routing 7/7; tier 6/6; full suite 721/721; tsc clean. Summary: `phases/V14-.../V14-11-SUMMARY.md`.
 
 - 2026-06-09 — **V14-10 EXECUTED — "Let Voss manage this agent" adopt flow (VCKP-12, D-10/D-11/D-12).** Pure `apps/voss-app/src/org/adopt.ts`: `adoptAgent` binds a running pane to a card via `registerTerminalCard` (Bridge B; `sessionNodeId` = minted cardId per resolveCard convention), applies advisory budget+scope, audit node `{lineage:'partial_lineage', costBaselineUsd}` baselined at adoption-time pane spend (pre-adoption excluded), `reviewRequired:true`, tier **C always**; `harnessAdoptAvailable:false` → disabled-with-reason, nothing bound. `inferRole` (agent CLIs→executor, else user) + `inferRisk` (scope+budget→low/med/high) editable D-12 defaults. `AdoptAgentModal` on the AgentLaunchModal scaffold: D-10 sections (Add it to / As the task / Limits / From now on, Voss will), CTA "Hand to Voss", outcomes-only copy; forbidden-jargon (cage/Voss-native/PermissionGate/session-tree/partial lineage/pane) + no-per-tool-promise asserted in DOM tests. 22/22 new tests, modal suite 44/44, tsc clean. Note: auto-commit watcher interleaved `c29bd3d` mid-task (no divergence). Summary: `phases/V14-ade-run-cockpit-integrated-redesign-live-data-unification/V14-10-SUMMARY.md`.
 
@@ -222,3 +224,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
 | Phase V14 P10 | 8 min | 2 tasks | 3 files |
+| Phase V14 P11 | 12 min | 4 tasks | 10 files |
