@@ -33,6 +33,7 @@ import {
 } from '../orgStore';
 import { selectedCardId, setSelectedCardId } from '../selection';
 import { liveLabel } from '../live/sseClient';
+import { reconcileSwarm, type SwarmReconcileResult } from '../swarmReconcile';
 import BoardPanel from '../panels/BoardPanel';
 import SessionTreePanel from '../panels/SessionTreePanel';
 import ReplayPanel from '../panels/ReplayPanel';
@@ -51,6 +52,13 @@ const CockpitShell: Component<{
   onClose: () => void;
 }> = (props) => {
   const [pickerOpen, setPickerOpen] = createSignal(false);
+  const [swarmManifest, setSwarmManifest] = createSignal<unknown>(null);
+
+  // VCKP-07 (GATED A13, best-effort): the swarm roster derives from the A13
+  // .voss/swarm/manifest.json. reconcileSwarm is null-tolerant, so absence of a
+  // manifest yields empty roster/cards and the section below stays unrendered.
+  const swarm = (): SwarmReconcileResult =>
+    reconcileSwarm(swarmManifest() as any);
 
   let pickerRef: HTMLDivElement | undefined;
 
@@ -61,6 +69,13 @@ const CockpitShell: Component<{
         void loadRun(entries[0].run_id, props.cwd, props.cliBinary);
       }
     });
+
+    // VCKP-07 (GATED A13, best-effort): read .voss/swarm/manifest.json if a
+    // future read path exists. No read command / fs-plugin ships in V14, so this
+    // degrades silently to no-swarm. We do NOT call a non-existent invoke (avoids
+    // console noise); the "when present" path is covered by the swarmReconcile
+    // adapter test, not faked here. Establish the null default explicitly.
+    setSwarmManifest(null);
 
     const onDocKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && pickerOpen()) {
@@ -200,6 +215,22 @@ const CockpitShell: Component<{
               <div class="cockpit-rail" aria-label="Timeline and replay">
                 <SessionTreePanel data={runData()} />
                 <ReplayPanel data={runData()} />
+                {/* VCKP-07: swarm roster — rendered only when a manifest
+                    populated the roster. Invisible in the no-swarm default. */}
+                <Show when={swarm().rosterRows.length > 0}>
+                  <div class="cockpit-swarm" aria-label="Swarm roster">
+                    <div class="cockpit-swarm__goal">{swarm().idea}</div>
+                    <For each={swarm().rosterRows}>
+                      {(a) => (
+                        <div class="cockpit-swarm__row">
+                          <span>{a.id}</span>
+                          <span>{a.provider}</span>
+                          <span>{a.status}</span>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </Show>
               </div>
 
               <div class="cockpit-gate" aria-label="Gate bar">

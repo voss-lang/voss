@@ -39,9 +39,8 @@ func (c *Client) String() string {
 	return fmt.Sprintf("Client{baseURL:%q, token:<redacted>, spawned:%t}", c.baseURL, c.spawn != nil)
 }
 
-// Close releases resources. No-op for an attach client. For a spawned client it
-// closes the stdin heartbeat (firing the server's stdin-EOF supervision), kills
-// the child, and reaps it — no orphan. Idempotent once reaped.
+// Close closes the stdin heartbeat, kills, and reaps the spawned child (no-op
+// when attached). Idempotent.
 func (c *Client) Close() error {
 	if c.spawn == nil {
 		return nil
@@ -60,9 +59,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// newRequest is the single chokepoint that attaches Authorization: Bearer
-// <token> to every request — REST and the SSE GET both route through here. No
-// other site sets the Authorization header.
+// newRequest is the single chokepoint attaching the bearer token to every request.
 func (c *Client) newRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
@@ -72,9 +69,8 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body io.Re
 	return req, nil
 }
 
-// do sends req, maps non-2xx to a typed VossError (checkResponse), asserts the
-// exact expected success status, and decodes the JSON body into out (nil to
-// discard). It closes the body exactly once.
+// do sends req, maps non-2xx to a VossError, asserts status == want, and decodes
+// the body into out (nil to discard). Closes the body once.
 func (c *Client) do(req *http.Request, want int, out any) error {
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -96,7 +92,7 @@ func (c *Client) do(req *http.Request, want int, out any) error {
 	return nil
 }
 
-// getJSON issues a bearer-authenticated GET and decodes the response into out.
+// getJSON issues a GET and decodes the response into out.
 func (c *Client) getJSON(ctx context.Context, path string, want int, out any) error {
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -105,8 +101,7 @@ func (c *Client) getJSON(ctx context.Context, path string, want int, out any) er
 	return c.do(req, want, out)
 }
 
-// sendJSON issues a bearer-authenticated method request with an optional JSON
-// body (in) and decodes the response into out (both may be nil).
+// sendJSON issues method with optional JSON body in and decodes into out (both may be nil).
 func (c *Client) sendJSON(ctx context.Context, method, path string, in, out any, want int) error {
 	var body io.Reader
 	hasBody := in != nil
