@@ -19,7 +19,13 @@ pub enum AgentRegistryError {
 }
 
 /// One row in `agent_sessions`.
+///
+/// IPC contract: serialized camelCase — the frontend `AgentEntry` interface
+/// (App.tsx / org/model/adapters.ts) reads `paneId`/`cliBinary`/`lastSeen`.
+/// Without the rename the fields arrive undefined and the sidebar roster memo
+/// throws on `proc.toLowerCase`, killing project open/restore.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentEntry {
     pub pane_id: String,
     pub session_id: String,
@@ -246,6 +252,28 @@ mod tests {
     fn open_test_registry(dir: &Path) -> Connection {
         let path = registry_path(dir);
         open_registry(&path).expect("open test registry")
+    }
+
+    /// IPC casing contract: the frontend reads camelCase keys; snake_case
+    /// arrival makes every field undefined and crashes the roster memo
+    /// (proc.toLowerCase) during project open/restore.
+    #[test]
+    fn test_agent_entry_serializes_camel_case() {
+        let entry = AgentEntry {
+            pane_id: "pane-a".into(),
+            session_id: "sess-1".into(),
+            cli_binary: "claude".into(),
+            cli_args: "[]".into(),
+            cwd: "/tmp".into(),
+            status: "active".into(),
+            last_seen: 1,
+        };
+        let json = serde_json::to_value(&entry).unwrap();
+        let obj = json.as_object().unwrap();
+        for key in ["paneId", "sessionId", "cliBinary", "cliArgs", "cwd", "status", "lastSeen"] {
+            assert!(obj.contains_key(key), "missing camelCase key {key}");
+        }
+        assert!(!obj.contains_key("pane_id"), "snake_case leaked into IPC");
     }
 
     #[test]
