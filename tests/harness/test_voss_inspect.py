@@ -40,6 +40,33 @@ def test_two_decisions_render_in_order_with_confidence_values() -> None:
     assert "0.47" in text
 
 
+def test_decision_sequence_renders_exact_template_bytes() -> None:
+    run = {
+        "decisions": [
+            _decision("choose parser", "body-a", 0.82),
+            _decision("emit tests", "body-b", 0.47),
+        ]
+    }
+
+    assert render_decision_sequence(run) == (
+        "Recorded decision sequence (2 decisions)\n"
+        "\n"
+        "[0] choose parser\n"
+        "confidence: 0.82\n"
+        "previous: none\n"
+        "next: 1\n"
+        "body:\n"
+        "body-a\n"
+        "\n"
+        "[1] emit tests\n"
+        "confidence: 0.47\n"
+        "previous: 0\n"
+        "next: none\n"
+        "body:\n"
+        "body-b"
+    )
+
+
 def test_selected_decision_renders_only_that_decision_with_context_labels() -> None:
     run = {
         "decisions": [
@@ -59,6 +86,28 @@ def test_selected_decision_renders_only_that_decision_with_context_labels() -> N
     assert "next" in lower
     assert "decision-body-alpha" not in text
     assert "decision-body-gamma" not in text
+
+
+def test_selected_decision_renders_exact_template_bytes() -> None:
+    run = {
+        "decisions": [
+            _decision("choose parser", "body-a", 0.82),
+            _decision("emit tests", "body-b", 0.47),
+        ]
+    }
+
+    assert render_decision_sequence(run, decision_index=1) == (
+        "Recorded decision 1\n"
+        "Previous: [0] choose parser\n"
+        "Next: none\n"
+        "\n"
+        "[1] emit tests\n"
+        "confidence: 0.47\n"
+        "previous: 0\n"
+        "next: none\n"
+        "body:\n"
+        "body-b"
+    )
 
 
 def test_no_decisions_returns_clear_no_data_message() -> None:
@@ -111,6 +160,38 @@ def test_budget_timeline_counts_frame_and_cumulative_tokens_for_json_dict_run() 
     for expected in ("20", "48", "68", "3", "17"):
         assert expected in rendered
     assert "budget" in rendered.lower()
+
+
+def test_budget_timeline_renders_exact_template_bytes() -> None:
+    run = {
+        "iterations": [
+            {
+                "index": 0,
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "cache_creation_input_tokens": 3,
+                "cache_read_input_tokens": 2,
+                "cost_usd": 0.001,
+                "exit_reason": None,
+            },
+            {
+                "index": 1,
+                "prompt_tokens": 7,
+                "completion_tokens": 11,
+                "cache_creation_input_tokens": 13,
+                "cache_read_input_tokens": 17,
+                "cost_usd": 0.002,
+                "exit_reason": "budget",
+            },
+        ]
+    }
+
+    assert render_budget_timeline(run) == (
+        "Recorded budget timeline (2 iterations)\n"
+        "iter | prompt | completion | cache_create | cache_read | total | cumulative | cost_usd | exit\n"
+        "0 | 10 | 5 | 3 | 2 | 20 | 20 | 0.001 | -\n"
+        "1 | 7 | 11 | 13 | 17 | 48 | 68 | 0.002 | budget (budget exhausted)"
+    )
 
 
 def test_dataclass_shaped_run_supports_decisions_and_budget_iterations() -> None:

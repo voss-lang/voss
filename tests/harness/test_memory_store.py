@@ -102,6 +102,32 @@ def test_lazy_chroma_init_no_eager_import(tmp_path: Path) -> None:
     assert result.stdout.strip() == "ok"
 
 
+def test_summary_renders_exact_template_bytes(tmp_voss_repo: Path) -> None:
+    store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
+    (store.root / "notes" / "alpha.md").write_text("hello", encoding="utf-8")
+
+    assert store.summary() == (
+        "# Memory store contents\n"
+        "\n"
+        "- turns: 0 files, 0 bytes\n"
+        "- ledgers: 0 files, 0 bytes\n"
+        "- decisions: 0 files, 0 bytes\n"
+        "- conventions: 0 files, 0 bytes\n"
+        "- notes: 1 files, 5 bytes\n"
+        "\n"
+        "Total: 1 files, 5 bytes\n"
+        "Tombstoned: 0 ids\n"
+    )
+    assert store.summary(source="notes") == (
+        "# Memory store contents\n"
+        "\n"
+        "- notes: 1 files, 5 bytes\n"
+        "\n"
+        "Total: 1 files, 5 bytes\n"
+        "Tombstoned: 0 ids\n"
+    )
+
+
 def test_recall_source_filter(tmp_voss_repo: Path) -> None:
     store = MemoryStore(tmp_voss_repo).bind(session_id="s1")
     store.write_turn(

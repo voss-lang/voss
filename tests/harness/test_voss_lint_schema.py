@@ -7,7 +7,12 @@ from unittest.mock import patch
 import pytest
 
 from voss.harness.skill_registry import default_skill_registry
-from voss.harness.voss_lint_schema import FINDING_FIELDS, LintFinding, parse_lint_json
+from voss.harness.voss_lint_schema import (
+    FINDING_FIELDS,
+    LintFinding,
+    parse_lint_json,
+    render_lint_summary,
+)
 
 
 def _valid_payload() -> dict:
@@ -41,6 +46,35 @@ def test_voss_lint_valid_version_1_json_parses() -> None:
             hint=None,
         )
     ]
+
+
+def test_voss_lint_summary_renders_exact_template_bytes() -> None:
+    findings = [
+        LintFinding(
+            file="bad.voss",
+            line=3,
+            col=12,
+            rule="ANLY001",
+            severity="warning",
+            msg="bad probable",
+            hint="guard it",
+        ),
+        LintFinding(
+            file="ok.voss",
+            line=4,
+            col=2,
+            rule="STYLE001",
+            severity="info",
+            msg="style note",
+            hint=None,
+        ),
+    ]
+
+    assert render_lint_summary(findings) == (
+        "bad.voss:3:12: warning ANLY001: bad probable\n"
+        "  hint: guard it\n"
+        "ok.voss:4:2: info STYLE001: style note"
+    )
 
 
 def test_voss_lint_missing_field_fails() -> None:

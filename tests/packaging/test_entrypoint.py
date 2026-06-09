@@ -50,7 +50,12 @@ def test_installed_package_data_includes_grammar_and_init_templates():
     assert root.joinpath("templates/init/README.md.jinja").is_file()
     assert root.joinpath("templates/init/pyproject.toml.jinja").is_file()
     assert root.joinpath("templates/audit/markdown.md.jinja").is_file()
+    assert root.joinpath("templates/code/project_index.md.jinja").is_file()
     assert root.joinpath("templates/eval/summary.md.jinja").is_file()
+    assert root.joinpath("templates/inspect/budget_timeline.txt.jinja").is_file()
+    assert root.joinpath("templates/inspect/decision_sequence.txt.jinja").is_file()
+    assert root.joinpath("templates/lint/summary.txt.jinja").is_file()
+    assert root.joinpath("templates/memory/summary.md.jinja").is_file()
     assert root.joinpath("templates/recorder/decision.md.jinja").is_file()
 
 

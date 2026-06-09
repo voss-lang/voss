@@ -1,0 +1,18 @@
+{{ heading }}
+{% if previous_label %}
+{{ previous_label }}
+{% endif %}
+{% if next_label %}
+{{ next_label }}
+{% endif %}
+{% for decision in decisions %}
+
+[{{ decision.index }}] {{ decision.title }}
+confidence: {{ decision.confidence }}
+previous: {{ decision.previous }}
+next: {{ decision.next }}
+{% if decision.body %}
+body:
+{{ decision.body }}
+{% endif %}
+{% endfor %}

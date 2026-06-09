@@ -1,0 +1,6 @@
+{% for finding in findings %}
+{{ finding.file }}:{{ finding.line }}:{{ finding.col }}: {{ finding.severity }} {{ finding.rule }}: {{ finding.msg }}
+{% if finding.hint %}
+  hint: {{ finding.hint }}
+{% endif %}
+{% endfor %}
