@@ -14,6 +14,7 @@
 
 import {
   createSignal,
+  createEffect,
   onMount,
   onCleanup,
   Show,
@@ -60,6 +61,23 @@ const CockpitShell: Component<{
     reconcileSwarm(swarmManifest() as any);
 
   let pickerRef: HTMLDivElement | undefined;
+  let railRef: HTMLDivElement | undefined;
+
+  // UI-REVIEW 6a: the timeline rail REACTS to the global selection — selecting
+  // a board card scrolls/highlights the matching session-tree row. Thin
+  // adapter over the reused panel (D-02: no panel rewrite) via the
+  // data-node-id attr SessionTreePanel already renders.
+  createEffect(() => {
+    const id = selectedCardId();
+    if (!id || !railRef) return;
+    const row = railRef.querySelector<HTMLElement>(`[data-node-id="${id}"]`);
+    if (!row) return;
+    railRef
+      .querySelectorAll('.cockpit-rail__selected')
+      .forEach((el) => el.classList.remove('cockpit-rail__selected'));
+    row.classList.add('cockpit-rail__selected');
+    row.scrollIntoView?.({ block: 'nearest' });
+  });
 
   onMount(() => {
     // D-04: auto-load the most-recent run on open.

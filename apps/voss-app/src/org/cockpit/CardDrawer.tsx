@@ -96,62 +96,56 @@ export default function CardDrawer(props: {
           padding: '12px',
         }}
       >
-        {/* D-07: read-only live-pane peek (stub — pane-output tail lands later) */}
-        <section
-          style={{
-            border: '1px solid var(--border)',
-            background: 'var(--bg-2)',
-            padding: '8px',
-            display: 'flex',
-            'flex-direction': 'column',
-            gap: '8px',
-          }}
-        >
-          <div
-            style={{
-              'font-family': 'var(--font-mono), monospace',
-              'font-size': '11px',
-              color: 'var(--fg-3)',
-            }}
-          >
-            {selectedCardId()}
+        {/* Card identity header (UI-REVIEW 2a): title + role, id demoted to a
+            small mono subline. */}
+        <header class="cockpit-drawer__head">
+          <div class="cockpit-drawer__title">
+            {selectedNode()?.scope ?? selectedCardId()}
           </div>
-          <Show
-            when={boundPaneId()}
-            fallback={
-              <div style={{ color: 'var(--fg-3)', 'font-size': '11px' }}>
-                No live pane bound to this card.
-              </div>
-            }
+          <Show when={selectedNode()?.role}>
+            <span class="cockpit-drawer__role">{selectedNode()!.role}</span>
+          </Show>
+          <div class="cockpit-drawer__id">{selectedCardId()}</div>
+        </header>
+
+        {/* D-07: read-only live-pane peek — rendered ONLY when a live pane is
+            bound (UI-REVIEW 2c: no dead chrome on snapshot cards). */}
+        <Show when={boundPaneId()}>
+          <section
+            style={{
+              border: '1px solid var(--border)',
+              background: 'var(--bg-2)',
+              padding: '8px',
+              display: 'flex',
+              'flex-direction': 'column',
+              gap: '8px',
+            }}
           >
             <div style={{ color: 'var(--fg-3)', 'font-size': '11px' }}>
-              Live pane output preview unavailable.
+              Output preview coming soon — use Open in grid to see live output.
             </div>
-          </Show>
-          <button
-            type="button"
-            onClick={() => {
-              const p = boundPaneId();
-              if (p) requestOpenInGrid(p);
-            }}
-            disabled={!boundPaneId()}
-            title={
-              boundPaneId() ? 'Open this card in the grid' : 'No live pane bound to this card'
-            }
-            style={{
-              'align-self': 'flex-start',
-              'font-family': 'var(--font-ui), Inter, system-ui, sans-serif',
-              'font-size': '11px',
-              padding: '4px 8px',
-              background: 'var(--bg-3)',
-              color: boundPaneId() ? 'var(--fg-0)' : 'var(--fg-3)',
-              border: '1px solid var(--border)',
-              cursor: boundPaneId() ? 'pointer' : 'not-allowed',
-            }}
-          >
-            Open in grid
-          </button>
-        </section>
+            <button
+              type="button"
+              onClick={() => {
+                const p = boundPaneId();
+                if (p) requestOpenInGrid(p);
+              }}
+              title="Open this card in the grid"
+              style={{
+                'align-self': 'flex-start',
+                'font-family': 'var(--font-ui), Inter, system-ui, sans-serif',
+                'font-size': '11px',
+                padding: '4px 8px',
+                background: 'var(--bg-3)',
+                color: 'var(--fg-0)',
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+              }}
+            >
+              Open in grid
+            </button>
+          </section>
+        </Show>
 
         {/* VCKP-09: inline follow-up comment — active only on a native session. */}
         <section class="cockpit-comment" aria-label="Follow-up comment">
