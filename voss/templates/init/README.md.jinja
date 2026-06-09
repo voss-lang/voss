@@ -1,4 +1,4 @@
-# my-voss-project
+# {{ project_name }}
 
 A new Voss project scaffolded by `voss init`.
 

@@ -68,7 +68,7 @@ M1 makes the Python harness usable on a real repo for the four canonical entry p
   6. `~/.config/voss/` and `~/.local/state/voss/sessions/` creatable.
   7. `.voss/` and `.voss-cache/` creatable in cwd (informational for M1 — M2 enforces).
 - **D-12:** Output is a traffic-light table: ✓ / ⚠ / ✗ per row, with a one-line reason for non-✓.
-- **D-13:** Diagnose-and-suggest only. Failed rows print the exact command to fix (e.g. `Run: claude /login` for missing Anthropic auth, `pyenv install 3.10` for Python too old). Doctor never executes a fix itself.
+- **D-13:** Diagnose-and-suggest only. Failed rows print the exact command to fix (e.g. `Run: claude /login` for missing Anthropic auth, `pyenv install 3.10` for Python too old). Doctor never executes a fix itself. *(Amended 2026-06-09: default unchanged — plain `voss doctor` never mutates. `voss doctor --fix` adds explicit opt-in repairs gated per-check by RepairTier (safe/confirm/manual), each verified by re-running its check; see `voss/harness/repair.py`. Repairs stay CLI-local; the server `/doctor` endpoint remains read-only.)*
 - **D-14:** Exit code: 0 if all ✓, 1 if any ✗, 0 with non-zero stderr message if only ⚠ (informational misses).
 
 ### Session snapshot

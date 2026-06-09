@@ -16,6 +16,7 @@ dependencies = [
     "openai>=1.50.0",
     "tiktoken>=0.7.0",
     "click>=8.1.0",
+    "jinja2>=3.1,<4",
     "rich>=13.0.0",
     "textual>=0.58,<9.0",
     "pyyaml>=6.0",
@@ -84,6 +85,7 @@ voss = [
     "grammar.lark",
     "py.typed",
     "templates/init/*",
+    "templates/audit/*",
     "harness/agent/*.voss",
     "harness/code/defaults/lsp.yml",
 ]

@@ -60,3 +60,10 @@ def test_registered_in_main_cli() -> None:
     from voss.harness.cli import AGENT_COMMANDS
 
     assert capabilities_group in AGENT_COMMANDS
+
+
+def test_help_labels_capabilities_as_static_registry() -> None:
+    res = _run(["--help"])
+    assert res.exit_code == 0, res.output
+    assert "static project capability registry" in res.output
+    assert "does not open MCP sessions" in res.output

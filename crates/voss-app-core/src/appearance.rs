@@ -31,6 +31,11 @@ pub struct AppearanceSettings {
     pub high_contrast_enabled: bool,
     #[serde(default)]
     pub reduced_motion_enabled: bool,
+    /// Per-CLI chosen default model (V14-09). Keyed by CLI binary
+    /// (`claude`/`codex`/...) → model alias/id. Round-trips through the
+    /// existing appearance flatten store; absent → preset built-in default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cli_default_models: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -97,6 +102,7 @@ impl Default for AppearanceSettings {
             bell_behavior: default_bell_behavior(),
             high_contrast_enabled: false,
             reduced_motion_enabled: false,
+            cli_default_models: None,
         }
     }
 }

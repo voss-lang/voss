@@ -203,6 +203,15 @@
   letter-spacing: 0.08em;
 }
 
+/* ---- Hint copy ---- */
+
+.modal-hint {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-3);
+}
+
 /* ---- Layout ---- */
 
 .modal-row {

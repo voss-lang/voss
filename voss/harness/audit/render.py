@@ -16,6 +16,7 @@ import dataclasses
 import json
 
 from voss.harness.audit.model import AuditReport
+from voss.template_render import render_package_template
 
 # PRD §9 audit sections, in fixed order (ORCHESTRATION_LAYERS.md §9).
 _SECTIONS: tuple[tuple[int, str], ...] = (
@@ -190,13 +191,15 @@ def _section_body(report: AuditReport, num: int) -> list[str]:
 
 def render_markdown(report: AuditReport) -> str:
     """Markdown export: one ``## §N <Section>`` header per PRD §9 section."""
-    lines: list[str] = [f"# Audit: {report.run_id}", ""]
-    for num, name in _SECTIONS:
-        lines.append(f"## §{num} {name}")
-        lines.append("")
-        lines.extend(_section_body(report, num))
-        lines.append("")
-    return "\n".join(lines)
+    sections = [
+        {"num": num, "name": name, "body": _section_body(report, num)}
+        for num, name in _SECTIONS
+    ]
+    return render_package_template(
+        "voss",
+        "templates/audit/markdown.md.jinja",
+        {"run_id": report.run_id, "sections": sections},
+    )
 
 
 def render_text(report: AuditReport) -> str:

@@ -418,7 +418,8 @@ def create_app(token: str | None = None) -> FastAPI:
 
         return EventSourceResponse(gen(), ping=15, send_timeout=30)
 
-    # -- doctor (H1.7 stub; H3.1 expands) -----------------------------------
+    # -- doctor (H1.7; expanded H3.1 — full registry via diagnostics.to_dict;
+    #    read-only by design: repairs are CLI-local `voss doctor --fix` only) --
 
     @app.get("/doctor")
     def doctor(auth: str = "auto", cwd: str = ".") -> dict:
@@ -433,15 +434,7 @@ def create_app(token: str | None = None) -> FastAPI:
             "has_provider": provider is not None,
             "default_model": get_config().default_model,
             "exit_code": diag.aggregate_exit_code(checks),
-            "checks": [
-                {
-                    "name": c.name,
-                    "status": c.result.name,
-                    "detail": c.detail,
-                    "fix": c.fix,
-                }
-                for c in checks
-            ],
+            "checks": [diag.to_dict(c) for c in checks],
         }
 
     # -- OpenAPI: force the event union into components (H1.14) --------------

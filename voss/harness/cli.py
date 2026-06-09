@@ -852,6 +852,19 @@ def _refresh(ctx: ReplContext, args: list[str], _line: str) -> None:
     click.echo(f"refresh failed: {res}", err=True)
 
 
+def _doctor(ctx: ReplContext, args: list[str], _line: str) -> None:
+    if args and args[0] in ("--help", "-h"):
+        click.echo("usage: /doctor   run health checks (repairs: `voss doctor --fix` in shell)")
+        return
+    from . import diagnostics as diag
+    from . import repair as repair_mod
+
+    results = diag.run_all_checks(ctx.cwd)
+    _render_doctor_table(results)
+    if repair_mod.repair_candidates(results):
+        click.echo("  machine-repairable issues found — run: voss doctor --fix")
+
+
 def _build_slash_registry() -> SlashRegistry:
     registry = SlashRegistry()
 
@@ -1552,6 +1565,7 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/symbol", "find symbols matching <name> (uses index + LSP)", _symbol),
         SlashCommand("/refs", "find references to <symbol>", _refs),
         SlashCommand("/refresh", "rebuild code index (and optionally refresh cognition)", _refresh, mutating=False),
+        SlashCommand("/doctor", "run health checks (diagnose-only; repairs via `voss doctor --fix`)", _doctor),
     ):
         registry.register(command)
     return registry
@@ -2318,20 +2332,14 @@ def logout_cmd(provider: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-@click.command("doctor")
-@click.option(
-    "--cwd",
-    "cwd_str",
-    default=".",
-    type=click.Path(file_okay=False),
-    help="Project root to check.",
-)
-def doctor_cmd(cwd_str: str) -> None:
-    """Diagnose harness setup. Diagnose-only; never executes fixes (D-13)."""
-    from . import diagnostics as diag
+# Mirrors diagnostics.Category values; kept literal so the click decorator
+# doesn't force an eager diagnostics import. Drift-guarded by test.
+_DOCTOR_CATEGORIES = ("env", "auth", "config", "state", "project")
 
-    cwd = Path(cwd_str).resolve()
-    results = diag.run_all_checks(cwd)
+
+def _render_doctor_table(results) -> None:
+    """Glyph table shared by `voss doctor` and the REPL `/doctor` command."""
+    from . import diagnostics as diag
 
     glyph = {
         diag.CheckResult.OK: ("✓", "green"),
@@ -2345,44 +2353,162 @@ def doctor_cmd(cwd_str: str) -> None:
         if c.fix and c.result is not diag.CheckResult.OK:
             click.echo(f"     → {c.fix}")
 
-    # M2-06: appended cognition rows (D-11 #8/#9, D-12).
-    bundle = cognition_mod.load(cwd)
-    click.echo(f"  {'.voss/ initialized':<20}: {'yes' if bundle.initialized else 'no'}")
-    if bundle.initialized and bundle.architecture_frontmatter:
-        try:
-            drift = cognition_mod.drift_check(cwd, bundle.architecture_frontmatter)
-        except (OSError, ValueError) as exc:
-            click.echo(f"  {'cognition staleness':<20}: error ({exc})")
-        else:
-            if drift.is_stale:
-                click.echo(
-                    f"  {'cognition staleness':<20}: stale ({drift.reason})"
-                )
-            else:
-                click.echo(f"  {'cognition staleness':<20}: fresh")
-    else:
-        click.echo(f"  {'cognition staleness':<20}: n/a")
-    legacy_dir = session_store.legacy_state_dir()
-    legacy_count = (
-        len(list(legacy_dir.glob("*.json"))) if legacy_dir.exists() else 0
-    )
-    if legacy_count:
-        click.echo(
-            f"  {'legacy sessions':<20}: {legacy_count} (read-only via voss sessions --all)"
-        )
-    else:
-        click.echo(f"  {'legacy sessions':<20}: 0")
 
-    # M15-06: surface gate-only confinement when third-party skills installed
-    third_party = [p for p in load_plugins(cwd) if p.skill_id and p.voss_entry]
-    if third_party:
-        ids = ", ".join(p.skill_id for p in third_party)
-        click.echo(f"  {'third-party skills':<20}: {len(third_party)} ({ids})")
-        click.echo(f"  {'skill confinement':<20}: gate-level only (OS-level sandbox deferred)")
+@click.command("doctor")
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root to check.",
+)
+@click.option(
+    "--fix",
+    "do_fix",
+    is_flag=True,
+    default=False,
+    help="Apply machine repairs after diagnosis (one confirmation for the plan).",
+)
+@click.option(
+    "--yes",
+    "assume_yes",
+    is_flag=True,
+    default=False,
+    help="With --fix: skip confirmation; applies safe-tier repairs only.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Emit machine-readable JSON (same check shape as server GET /doctor).",
+)
+@click.option(
+    "--only",
+    "only_ids",
+    multiple=True,
+    metavar="ID",
+    help="Run only the named check id(s); repeatable.",
+)
+@click.option(
+    "--category",
+    "category_strs",
+    multiple=True,
+    type=click.Choice(_DOCTOR_CATEGORIES),
+    help="Run only checks in the given category; repeatable.",
+)
+def doctor_cmd(
+    cwd_str: str,
+    do_fix: bool,
+    assume_yes: bool,
+    as_json: bool,
+    only_ids: tuple[str, ...],
+    category_strs: tuple[str, ...],
+) -> None:
+    """Diagnose harness setup. Diagnose-only by default (D-13); repairs
+    run only behind the explicit --fix opt-in, gated by RepairTier.
+
+    Former ad-hoc rows (cognition init/staleness M2-06, legacy sessions,
+    third-party skill confinement M15-06) are folded into the check
+    registry in `diagnostics.REGISTRY` and render in the table below.
+    """
+    from . import diagnostics as diag
+    from . import repair as repair_mod
+
+    if as_json and do_fix and not assume_yes:
+        raise click.UsageError("--json with --fix requires --yes (non-interactive)")
+
+    cwd = Path(cwd_str).resolve()
+
+    ids = set(only_ids) if only_ids else None
+    if ids is not None:
+        valid = [s.id for s in diag.REGISTRY]
+        unknown = ids - set(valid)
+        if unknown:
+            raise click.UsageError(
+                f"unknown check id(s): {', '.join(sorted(unknown))}. "
+                f"valid ids: {', '.join(valid)}"
+            )
+    cats = {diag.Category(c) for c in category_strs} if category_strs else None
+
+    if ids is not None or cats is not None:
+        results = diag.run_checks(cwd, ids=ids, categories=cats)
+        if not results:
+            raise click.UsageError("no checks matched the given filters")
     else:
-        click.echo(f"  {'third-party skills':<20}: 0")
+        results = diag.run_all_checks(cwd)
+
+    if not as_json:
+        _render_doctor_table(results)
+
+    outcomes: list = []
+    if do_fix:
+        candidates = repair_mod.repair_candidates(results)
+        if as_json:
+            outcomes = repair_mod.execute_repairs(candidates, cwd, assume_yes=True)
+            results = repair_mod.merge_results(results, outcomes)
+        elif not candidates:
+            click.echo("\nno machine-repairable issues.")
+        else:
+            click.echo("\nplanned repairs:")
+            for c in candidates:
+                click.echo(f"  [{c.tier.value}] {c.name} — {c.fix or c.detail}")
+            proceed = assume_yes or click.confirm(
+                f"apply {len(candidates)} repair(s)?"
+            )
+            if proceed:
+                outcomes = repair_mod.execute_repairs(
+                    candidates, cwd, assume_yes=assume_yes
+                )
+                for o in outcomes:
+                    if not o.executed:
+                        click.echo(f"  -  {o.check.name}: skipped ({o.skipped_reason})")
+                    elif o.verified:
+                        detail = o.result.detail if o.result else ""
+                        click.echo(
+                            f"  {click.style('✓', fg='green')}  "
+                            f"{o.check.name}: repaired ({detail})"
+                        )
+                    elif o.result is not None and o.result.ok:
+                        state = o.recheck.result.value if o.recheck else "unverified"
+                        click.echo(
+                            f"  {click.style('✗', fg='red')}  "
+                            f"{o.check.name}: repair ran but re-check is {state}",
+                            err=True,
+                        )
+                    else:
+                        detail = o.result.detail if o.result else ""
+                        click.echo(
+                            f"  {click.style('✗', fg='red')}  "
+                            f"{o.check.name}: repair failed ({detail})",
+                            err=True,
+                        )
+                results = repair_mod.merge_results(results, outcomes)
 
     code = diag.aggregate_exit_code(results)
+
+    if as_json:
+        payload: dict = {
+            "v": 1,
+            "exit_code": code,
+            "checks": [diag.to_dict(c) for c in results],
+        }
+        if do_fix:
+            payload["repairs"] = [
+                {
+                    "id": o.check.id,
+                    "name": o.check.name,
+                    "executed": o.executed,
+                    "skipped_reason": o.skipped_reason,
+                    "ok": o.result.ok if o.result else None,
+                    "detail": o.result.detail if o.result else "",
+                    "verified": o.verified,
+                    "recheck_status": o.recheck.result.name if o.recheck else "",
+                }
+                for o in outcomes
+            ]
+        click.echo(json.dumps(payload, indent=2))
+        sys.exit(code)
 
     warns = [c for c in results if c.result is diag.CheckResult.WARN]
     fails = [c for c in results if c.result is diag.CheckResult.FAIL]
@@ -3858,14 +3984,18 @@ def serve_cmd(host: str, port: int, token: str | None) -> None:
 
 @click.group("capabilities")
 def capabilities_group() -> None:
-    """List and inspect the agent capability registry (CAP-04/05)."""
+    """List and inspect the static project capability registry.
+
+    This view does not open MCP sessions; use `voss mcp list` for configured
+    MCP servers.
+    """
 
 
 @capabilities_group.command("list")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
 def capabilities_list_cmd(cwd_str: str, json_mode: bool) -> None:
-    """List capabilities grouped by group (compact names)."""
+    """List static capabilities grouped by group (compact names)."""
     import json as json_lib
 
     cwd = Path(cwd_str).resolve()
@@ -3893,7 +4023,7 @@ def capabilities_list_cmd(cwd_str: str, json_mode: bool) -> None:
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
 @click.option("--json", "json_mode", is_flag=True, help="Emit machine-readable JSON.")
 def capabilities_inspect_cmd(name: str, cwd_str: str, json_mode: bool) -> None:
-    """Show full normalized detail for one capability."""
+    """Show full normalized detail for one static capability."""
     import json as json_lib
 
     cwd = Path(cwd_str).resolve()

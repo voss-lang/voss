@@ -148,10 +148,49 @@ def test_m11_voss_diff_slash_command_registered() -> None:
     assert registry.lookup("/vdiff") is not None, "slash /vdiff not registered"
 
 
+def test_doctor_slash_command_registered() -> None:
+    from voss.harness.cli import _build_slash_registry
+
+    registry = _build_slash_registry()
+    assert registry.lookup("/doctor") is not None, "slash /doctor not registered"
+
+
+def test_doctor_slash_command_executes(monkeypatch, tmp_path, capsys) -> None:
+    from types import SimpleNamespace
+
+    from voss.harness import diagnostics as diag
+    from voss.harness.cli import _build_slash_registry
+
+    monkeypatch.setattr(
+        diag, "run_all_checks",
+        lambda _cwd: [
+            diag.Check("python", diag.CheckResult.OK, detail="3.13", id="python"),
+            diag.Check(
+                "harness cache", diag.CheckResult.WARN, detail="stale",
+                fix="voss compile voss/harness/agent/", id="harness-cache",
+                tier=diag.RepairTier.SAFE,
+                repair=lambda: diag.RepairResult(ok=True),
+            ),
+        ],
+    )
+    ctx = SimpleNamespace(cwd=tmp_path)
+    reg = _build_slash_registry()
+    assert reg.dispatch(ctx, "/doctor")
+    out = capsys.readouterr().out
+    assert "python" in out
+    assert "✓" in out and "⚠" in out
+    assert "voss compile voss/harness/agent/" in out
+    # repairable finding present -> pointer to the CLI repair path
+    assert "voss doctor --fix" in out
+
+
 def test_m10_code_slash_commands_execute(tmp_path, capsys) -> None:
     from types import SimpleNamespace
     from voss.harness.cli import _build_slash_registry
 
+    # _render_project_index_text only renders inside a project root
+    # (f2cc75d gate) — tmp_path needs a marker file.
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 't'\n", encoding="utf-8")
     (tmp_path / "app.py").write_text(
         "def shared_entry(x):\n"
         "    return x\n\n"

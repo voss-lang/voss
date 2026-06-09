@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.resources
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,9 @@ def test_init_creates_minimal_project_scaffold():
         for name in _SCAFFOLD_FILES:
             assert (target / name).exists(), name
         assert _LINGUIST_LINE in (target / ".gitattributes").read_text()
+        data = tomllib.loads((target / "pyproject.toml").read_text())
+        assert data["project"]["name"] == "my-project"
+        assert (target / "README.md").read_text().startswith("# my-project")
 
 
 def test_init_hello_voss_parses():
@@ -32,6 +36,16 @@ def test_init_hello_voss_parses():
         assert result.exit_code == 0, result.output
         hello = Path("proj/hello.voss")
         parse(hello.read_text(), file=str(hello))
+
+
+def test_init_name_option_controls_template_context():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(main, ["init", "proj", "--name", "Ben's Demo"])
+        assert result.exit_code == 0, result.output
+        data = tomllib.loads(Path("proj/pyproject.toml").read_text())
+        assert data["project"]["name"] == "ben-s-demo"
+        assert Path("proj/README.md").read_text().startswith("# ben-s-demo")
 
 
 def test_init_refuses_non_empty_directory_without_force():
@@ -74,4 +88,8 @@ def test_init_writes_only_under_target_directory():
 def test_init_templates_are_package_resources():
     template_root = importlib.resources.files("voss").joinpath("templates/init")
     for name in _SCAFFOLD_FILES:
-        assert template_root.joinpath(name).is_file(), name
+        resource_name = {
+            "pyproject.toml": "pyproject.toml.jinja",
+            "README.md": "README.md.jinja",
+        }.get(name, name)
+        assert template_root.joinpath(resource_name).is_file(), resource_name

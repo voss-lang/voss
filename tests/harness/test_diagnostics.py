@@ -161,21 +161,203 @@ class TestCheckProviderAuth:
         assert c.fix
 
 
+class TestCheckCognition:
+    def test_ok_when_not_initialized(self, tmp_path: Path):
+        c = diag.check_cognition(tmp_path)
+        assert c.result is diag.CheckResult.OK
+        assert "not initialized" in c.detail
+
+
+class TestCheckLegacySessions:
+    def test_ok_with_count(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+        legacy = tmp_path / "voss" / "sessions"
+        legacy.mkdir(parents=True)
+        (legacy / "a.json").write_text("{}")
+        c = diag.check_legacy_sessions()
+        assert c.result is diag.CheckResult.OK
+        assert "1" in c.detail
+
+    def test_ok_when_none(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+        c = diag.check_legacy_sessions()
+        assert c.result is diag.CheckResult.OK
+        assert c.detail == "none"
+
+
+class TestCheckThirdPartySkills:
+    def test_ok_when_empty(self, monkeypatch, tmp_path: Path):
+        from voss.harness import plugins as plugins_mod
+
+        monkeypatch.setattr(plugins_mod, "user_plugin_dir", lambda: tmp_path / "nope")
+        c = diag.check_third_party_skills(tmp_path)
+        assert c.result is diag.CheckResult.OK
+        assert c.detail == "none"
+
+
+class TestRegistry:
+    def test_ids_unique(self):
+        ids = [s.id for s in diag.REGISTRY]
+        assert len(ids) == len(set(ids))
+
+    def test_results_stamped_with_id_and_category(self, tmp_path: Path):
+        results = diag.run_all_checks(tmp_path)
+        for c in results:
+            assert c.id, f"check {c.name!r} missing id"
+            assert c.category is not None, f"check {c.name!r} missing category"
+
+    def test_registry_late_binds_check_functions(self, monkeypatch, tmp_path: Path):
+        # Monkeypatching a module-level check fn must affect REGISTRY runs.
+        monkeypatch.setattr(
+            diag, "check_python_version",
+            lambda: diag.Check("python", diag.CheckResult.FAIL, detail="patched"),
+        )
+        results = diag.run_all_checks(tmp_path)
+        python = next(c for c in results if c.name == "python")
+        assert python.detail == "patched"
+
+
 class TestRunAllChecks:
     def test_returns_checks_in_display_order(self, tmp_path: Path):
         results = diag.run_all_checks(tmp_path)
-        assert len(results) == 8
+        assert len(results) == 16
         names = [c.name for c in results]
         assert names == [
             "python",
             "voss import",
             "provider auth",
+            "keyring",
+            "codex auth",
             "git",
             "cwd writable",
             "config dirs",
+            "model prefs",
             "project dirs",
             "harness cache",
+            "cognition",
+            "session store",
+            "legacy sessions",
+            "third-party skills",
+            "toolchain",
         ]
+
+
+class TestCheckKeyring:
+    def test_warn_when_not_importable(self, monkeypatch):
+        from voss.harness import auth as auth_mod
+
+        monkeypatch.setattr(auth_mod, "_keyring_module", lambda: None)
+        c = diag.check_keyring()
+        assert c.result is diag.CheckResult.WARN
+        assert "env vars still work" in c.detail
+
+    def test_warn_when_no_backend(self, monkeypatch):
+        from voss.harness import auth as auth_mod
+
+        monkeypatch.setattr(auth_mod, "_keyring_module", lambda: object())
+        monkeypatch.setattr(auth_mod, "_keyring_available", lambda: False)
+        c = diag.check_keyring()
+        assert c.result is diag.CheckResult.WARN
+
+
+class TestCheckCodexAuth:
+    def test_ok_when_absent(self, monkeypatch):
+        from voss.harness import auth as auth_mod
+
+        monkeypatch.setattr(auth_mod, "load_codex", lambda: None)
+        c = diag.check_codex_auth()
+        assert c.result is diag.CheckResult.OK
+        assert c.detail == "not configured"
+
+    def test_warn_when_unusable(self, monkeypatch):
+        from voss.harness import auth as auth_mod
+
+        creds = auth_mod.CodexCreds(
+            api_key=None, access_token=None, refresh_token=None,
+            account_id=None, auth_mode="ChatGPT",
+        )
+        monkeypatch.setattr(auth_mod, "load_codex", lambda: creds)
+        c = diag.check_codex_auth()
+        assert c.result is diag.CheckResult.WARN
+        assert c.fix == "codex login"
+
+
+class TestCheckModelPrefs:
+    def _write_prefs(self, tmp_path: Path, monkeypatch, pairs):
+        import json as json_mod
+
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+        from voss.harness import model_prefs
+
+        p = model_prefs.prefs_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json_mod.dumps({"recent": pairs, "favorites": []}))
+
+    def test_ok_when_no_prefs(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+        c = diag.check_model_prefs()
+        assert c.result is diag.CheckResult.OK
+        assert c.detail == "none recorded"
+
+    def test_ok_without_catalog_cache(self, monkeypatch, tmp_path: Path):
+        from voss.harness import model_catalog
+
+        self._write_prefs(tmp_path, monkeypatch, [["prov", "model-x"]])
+        monkeypatch.setattr(
+            model_catalog, "cache_path", lambda: tmp_path / "no-cache.json"
+        )
+        c = diag.check_model_prefs()
+        assert c.result is diag.CheckResult.OK
+        assert "no catalog cache" in c.detail
+
+    def test_warn_on_dangling_with_confirm_repair(self, monkeypatch, tmp_path: Path):
+        from voss.harness import model_catalog, model_router
+
+        self._write_prefs(tmp_path, monkeypatch, [["prov", "gone-model"]])
+        monkeypatch.setattr(
+            model_catalog, "_read_cache", lambda _p: ({"some": "data"}, 1.0)
+        )
+        monkeypatch.setattr(model_catalog, "parse_catalog", lambda _d: [])
+        monkeypatch.setattr(model_router, "find_entry", lambda _g, _p, _m: None)
+        c = diag.check_model_prefs()
+        assert c.result is diag.CheckResult.WARN
+        assert "prov/gone-model" in c.detail
+        assert c.tier is diag.RepairTier.CONFIRM
+        assert c.repair is not None
+
+
+class TestCheckSessionStore:
+    def test_ok_when_empty(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+        c = diag.check_session_store(tmp_path)
+        assert c.result is diag.CheckResult.OK
+
+    def test_warn_on_corrupt_and_repair_quarantines(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+        sessions = tmp_path / ".voss" / "sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "good.json").write_text("{}")
+        bad = sessions / "bad.json"
+        bad.write_text("{not json")
+        c = diag.check_session_store(tmp_path)
+        assert c.result is diag.CheckResult.WARN
+        assert "1 corrupt of 2" in c.detail
+        assert c.tier is diag.RepairTier.CONFIRM
+        res = c.repair()
+        assert res.ok
+        assert not bad.exists()
+        assert (sessions / "bad.json.corrupt").exists()
+        # re-check now passes
+        c2 = diag.check_session_store(tmp_path)
+        assert c2.result is diag.CheckResult.OK
+
+
+class TestCheckToolchain:
+    def test_always_ok(self, monkeypatch):
+        monkeypatch.setattr(diag.shutil, "which", lambda _n: None)
+        c = diag.check_toolchain()
+        assert c.result is diag.CheckResult.OK
+        assert "missing: node, pnpm, cargo" in c.detail
 
 
 class TestAggregateExitCode:
@@ -229,6 +411,38 @@ def _patch_all_ok(monkeypatch):
     monkeypatch.setattr(
         diag, "check_harness_cache",
         lambda _cwd: diag.Check("harness cache", diag.CheckResult.OK, detail="ok"),
+    )
+    monkeypatch.setattr(
+        diag, "check_cognition",
+        lambda _cwd: diag.Check("cognition", diag.CheckResult.OK, detail="not initialized"),
+    )
+    monkeypatch.setattr(
+        diag, "check_legacy_sessions",
+        lambda: diag.Check("legacy sessions", diag.CheckResult.OK, detail="none"),
+    )
+    monkeypatch.setattr(
+        diag, "check_third_party_skills",
+        lambda _cwd: diag.Check("third-party skills", diag.CheckResult.OK, detail="none"),
+    )
+    monkeypatch.setattr(
+        diag, "check_keyring",
+        lambda: diag.Check("keyring", diag.CheckResult.OK, detail="ok"),
+    )
+    monkeypatch.setattr(
+        diag, "check_codex_auth",
+        lambda: diag.Check("codex auth", diag.CheckResult.OK, detail="not configured"),
+    )
+    monkeypatch.setattr(
+        diag, "check_model_prefs",
+        lambda: diag.Check("model prefs", diag.CheckResult.OK, detail="none recorded"),
+    )
+    monkeypatch.setattr(
+        diag, "check_session_store",
+        lambda _cwd: diag.Check("session store", diag.CheckResult.OK, detail="0"),
+    )
+    monkeypatch.setattr(
+        diag, "check_toolchain",
+        lambda: diag.Check("toolchain", diag.CheckResult.OK, detail="found: all"),
     )
 
 
@@ -304,3 +518,137 @@ class TestDoctorCmd:
         result = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path)])
         assert result.exit_code == 1
         assert "brew install git" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Filtering (--only / --category) and JSON output
+# ---------------------------------------------------------------------------
+
+
+class TestRunChecksFiltering:
+    def test_filter_by_id(self, monkeypatch, tmp_path: Path):
+        _patch_all_ok(monkeypatch)
+        results = diag.run_checks(tmp_path, ids={"python", "git"})
+        assert [c.id for c in results] == ["python", "git"]
+
+    def test_filter_by_category(self, monkeypatch, tmp_path: Path):
+        _patch_all_ok(monkeypatch)
+        results = diag.run_checks(tmp_path, categories={diag.Category.AUTH})
+        assert [c.id for c in results] == ["provider-auth", "keyring", "codex-auth"]
+
+    def test_filter_intersection(self, monkeypatch, tmp_path: Path):
+        _patch_all_ok(monkeypatch)
+        results = diag.run_checks(
+            tmp_path, ids={"python", "provider-auth"}, categories={diag.Category.ENV}
+        )
+        assert [c.id for c in results] == ["python"]
+
+    def test_no_filters_runs_all(self, monkeypatch, tmp_path: Path):
+        _patch_all_ok(monkeypatch)
+        assert len(diag.run_checks(tmp_path)) == len(diag.REGISTRY)
+
+
+class TestDoctorCmdFilters:
+    def test_only_runs_named_check(self, monkeypatch, tmp_path):
+        _patch_all_ok(monkeypatch)
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--only", "python"])
+        assert r.exit_code == 0
+        assert "python" in r.output
+        assert "provider auth" not in r.output
+
+    def test_unknown_only_id_is_usage_error(self, tmp_path):
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--only", "nope"])
+        assert r.exit_code == 2
+        assert "unknown check id" in r.output
+        assert "valid ids" in r.output
+
+    def test_category_filters(self, monkeypatch, tmp_path):
+        _patch_all_ok(monkeypatch)
+        r = CliRunner().invoke(
+            doctor_cmd, ["--cwd", str(tmp_path), "--category", "auth"]
+        )
+        assert r.exit_code == 0
+        assert "provider auth" in r.output
+        assert "git" not in r.output
+
+    def test_cli_category_choices_match_enum(self):
+        from voss.harness.cli import _DOCTOR_CATEGORIES
+
+        assert set(_DOCTOR_CATEGORIES) == {c.value for c in diag.Category}
+
+    def test_exit_code_aggregates_filtered_set_only(self, monkeypatch, tmp_path):
+        _patch_all_ok(monkeypatch)
+        monkeypatch.setattr(
+            diag, "check_git_on_path",
+            lambda: diag.Check("git", diag.CheckResult.FAIL, detail="missing"),
+        )
+        # git excluded by filter -> failure invisible -> exit 0
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--only", "python"])
+        assert r.exit_code == 0
+
+
+class TestDoctorCmdJson:
+    def test_json_shape(self, monkeypatch, tmp_path):
+        import json
+
+        _patch_all_ok(monkeypatch)
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--json"])
+        assert r.exit_code == 0
+        payload = json.loads(r.output)
+        assert payload["v"] == 1
+        assert payload["exit_code"] == 0
+        assert len(payload["checks"]) == len(diag.REGISTRY)
+        first = payload["checks"][0]
+        assert set(first) == {"id", "name", "category", "status", "detail", "fix"}
+        assert "repairs" not in payload
+
+    def test_json_no_stderr_chrome_on_warn(self, monkeypatch, tmp_path):
+        import json
+
+        _patch_all_ok(monkeypatch)
+        monkeypatch.setattr(
+            diag, "check_provider_auth",
+            lambda: diag.Check("provider auth", diag.CheckResult.WARN, detail="meh"),
+        )
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--json"])
+        assert r.exit_code == 0
+        json.loads(r.output)  # pure JSON on stdout
+        assert r.stderr.strip() == ""
+
+    def test_json_exit_one_on_fail(self, monkeypatch, tmp_path):
+        import json
+
+        _patch_all_ok(monkeypatch)
+        monkeypatch.setattr(
+            diag, "check_git_on_path",
+            lambda: diag.Check("git", diag.CheckResult.FAIL, detail="missing"),
+        )
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--json"])
+        assert r.exit_code == 1
+        assert json.loads(r.output)["exit_code"] == 1
+
+    def test_json_fix_requires_yes(self, tmp_path):
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--json", "--fix"])
+        assert r.exit_code == 2
+        assert "requires --yes" in r.output
+
+    def test_json_fix_yes_includes_repairs(self, monkeypatch, tmp_path):
+        import json
+
+        _patch_all_ok(monkeypatch)
+        monkeypatch.setattr(
+            diag, "check_harness_cache",
+            lambda _cwd: diag.Check(
+                "harness cache", diag.CheckResult.WARN, detail="stale",
+                tier=diag.RepairTier.SAFE,
+                repair=lambda: diag.RepairResult(ok=True, detail="rebuilt"),
+            ),
+        )
+        r = CliRunner().invoke(
+            doctor_cmd, ["--cwd", str(tmp_path), "--json", "--fix", "--yes"]
+        )
+        payload = json.loads(r.output)
+        assert "repairs" in payload
+        [rep] = payload["repairs"]
+        assert rep["executed"] is True
+        assert rep["ok"] is True

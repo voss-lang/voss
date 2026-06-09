@@ -137,6 +137,7 @@ class FakeStreamingProvider:
 class RecordingRenderer:
     deltas: list[tuple[float, str]] = field(default_factory=list)
     finalize_calls: list[dict] = field(default_factory=list)
+    finalize_times: list[float] = field(default_factory=list)
     clarify_calls: list[tuple] = field(default_factory=list)
 
     def banner(self, **kw): pass
@@ -148,7 +149,9 @@ class RecordingRenderer:
     def show_final(self, *a, **k): pass
     def stream_delta(self, text):
         self.deltas.append((time.monotonic(), text))
-    def finalize_stream(self, **kw): self.finalize_calls.append(kw)
+    def finalize_stream(self, **kw):
+        self.finalize_times.append(time.monotonic())
+        self.finalize_calls.append(kw)
     def status(self, **kw): pass
     def show_cognition(self, **kw): pass
     def show_cognition_overflow(self, **kw): pass
@@ -333,7 +336,13 @@ def test_iter_03_anthropic_openai_stream_exist() -> None:
 
 @pytest.mark.asyncio
 async def test_iter_03_first_token_under_500ms(tmp_path: Path) -> None:
-    """First TurnView token visible <=500ms after provider HTTP 200."""
+    """First visible turn signal <=500ms after provider HTTP 200.
+
+    Plan-phase TextDeltas are intentionally NOT rendered (the deltas are
+    structured-output JSON; streaming them would leak the schema into chat
+    — see the plan loop in agent.py), so the first user-visible signal is
+    finalize_stream. Measure its latency instead of stream_delta.
+    """
     http_200_t = [0.0]
     plan = _plan(steps=[], confidence=0.9, final_when_done="ok")
 
@@ -365,10 +374,10 @@ async def test_iter_03_first_token_under_500ms(tmp_path: Path) -> None:
         "x", tools={}, cwd=tmp_path, renderer=renderer,
         provider=TimedProvider(), model="stub",
     )
-    assert renderer.deltas, "no stream_delta emitted"
-    first_delta_t = renderer.deltas[0][0]
-    latency = first_delta_t - http_200_t[0]
-    assert latency <= 0.5, f"first-token latency {latency:.3f}s > 500ms"
+    assert not renderer.deltas, "plan-phase deltas must not be rendered (schema leak)"
+    assert renderer.finalize_times, "no finalize_stream emitted"
+    latency = renderer.finalize_times[0] - http_200_t[0]
+    assert latency <= 0.5, f"first-signal latency {latency:.3f}s > 500ms"
 
 
 # ===========================================================================
@@ -537,12 +546,21 @@ async def test_iter_06_note_turn_carries_iteration_count_and_exit_reason(
 def test_iter_06_runrecord_exit_reason_validated() -> None:
     with pytest.raises(ValueError):
         RunRecord(id="x", started_at="a", ended_at="b", exit_reason="quit")
-    # Valid values do not raise. T2-03 added "batch-invariant" (5th additive).
-    for reason in ("done", "max-iter", "budget", "interrupt", "batch-invariant"):
-        RunRecord(id="x", started_at="a", ended_at="b", exit_reason=reason)
-    assert EXIT_REASONS == frozenset(
-        {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
+    # Valid values do not raise. Additive history: T2-03 "batch-invariant";
+    # 74a328f "timeout"; 6361c51 "error"; a666646 "killed".
+    valid = (
+        "done",
+        "max-iter",
+        "budget",
+        "interrupt",
+        "batch-invariant",
+        "timeout",
+        "killed",
+        "error",
     )
+    for reason in valid:
+        RunRecord(id="x", started_at="a", ended_at="b", exit_reason=reason)
+    assert EXIT_REASONS == frozenset(valid)
 
 
 # ===========================================================================

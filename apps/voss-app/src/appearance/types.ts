@@ -16,6 +16,12 @@ export interface AppearanceSettings {
   bellBehavior: BellBehavior;
   highContrastEnabled: boolean;
   reducedMotionEnabled: boolean;
+  /**
+   * Per-CLI chosen default model (V14-09), keyed by CLI binary
+   * (`claude`/`codex`/...) → model alias/id. Absent → preset built-in default.
+   * Rides the existing appearance flatten store (no new Tauri command).
+   */
+  cliDefaultModels?: Record<string, string>;
 }
 
 export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {

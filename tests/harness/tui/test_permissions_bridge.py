@@ -197,5 +197,10 @@ def test_permissions_py_signature_unchanged() -> None:
         "scope_prompt_fn",
         "project_policy",
         "allow_net",  # network-permission gate (added post-M9-05)
+        # V12 safety overlay (552cd00) — irreversible-operation validation;
+        # added by the safety phase, not this bridge.
+        "safety_policy",
+        "safety_actor",
+        "safety_confirm_fn",
     }
     assert field_names == expected

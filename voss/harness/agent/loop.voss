@@ -67,7 +67,7 @@ fn clarify(plan: Plan, confidence_threshold: float) -> TurnResult {
     return make_result(plan, plan.confidence, question, results, 0.0)
 }
 
-fn run_turn(task: string, tools: dict<string, ToolEntry>, cwd: Path, renderer: Renderer, confidence_threshold: float = 0.60, token_budget: int = 60000, model = null, provider = null, history = null, permissions: PermissionGate = null, session_id: string = null, cognition = null, prior_context = null, voss_md_text = null) -> TurnResult {
+fn run_turn(task: string, tools: dict<string, ToolEntry>, cwd: Path, renderer: Renderer, confidence_threshold: float = 0.60, token_budget: int = 60000, model = null, provider = null, history = null, permissions: PermissionGate = null, session_id: string = null, cognition = null, prior_context = null, voss_md_text = null, project_index_text = null) -> TurnResult {
     ctx(budget: 60000 tokens) {
         let route = route_intent(task)
         let plan = plan_task(task, route, tools, cwd, renderer, model, provider, history, cognition, prior_context)

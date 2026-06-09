@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.resources
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,7 @@ from .diagnostics import AnalysisResult, Diagnostic
 from .exceptions import VossError
 from .harness import auth as auth_mod
 from .parser import VossParseError, parse
+from .template_render import render_package_template
 
 
 def _read_source(path: Path) -> str:
@@ -429,8 +431,18 @@ _INIT_TEMPLATE_NAMES = (
     "hello.voss",
 )
 
+_INIT_TEMPLATE_RESOURCES = {
+    "pyproject.toml": "pyproject.toml.jinja",
+    "README.md": "README.md.jinja",
+}
 
-def _scaffold_target(target: Path, *, force: bool) -> None:
+
+def _normalize_project_name(name: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9_.-]+", "-", name.strip()).strip("-.").lower()
+    return normalized or "my-voss-project"
+
+
+def _scaffold_target(target: Path, *, force: bool, name: str | None = None) -> None:
     target_resolved = target.resolve()
     if target_resolved.exists():
         if not target_resolved.is_dir():
@@ -442,24 +454,37 @@ def _scaffold_target(target: Path, *, force: bool) -> None:
     else:
         target_resolved.mkdir(parents=True)
 
+    project_name = _normalize_project_name(name or target_resolved.name)
     template_root = importlib.resources.files("voss").joinpath("templates/init")
+    template_context = {"project_name": project_name}
     for name in _INIT_TEMPLATE_NAMES:
-        template = template_root.joinpath(name)
+        resource_name = _INIT_TEMPLATE_RESOURCES.get(name, name)
+        template = template_root.joinpath(resource_name)
         if not template.is_file():
-            raise click.ClickException(f"missing scaffold template: {name}")
+            raise click.ClickException(f"missing scaffold template: {resource_name}")
         dest = (target_resolved / name).resolve()
         if not dest.is_relative_to(target_resolved):
             raise click.ClickException(f"refused to write outside target: {dest}")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(template.read_text())
+        dest.write_text(
+            render_package_template(
+                "voss", f"templates/init/{resource_name}", template_context
+            )
+        )
 
 
 @main.command("init")
 @click.argument("target", type=click.Path(path_type=Path))
 @click.option("--force", is_flag=True, default=False)
-def init(target: Path, force: bool) -> None:
+@click.option(
+    "--name",
+    "project_name",
+    default=None,
+    help="Project name written into generated scaffold files.",
+)
+def init(target: Path, force: bool, project_name: str | None) -> None:
     """Scaffold a new Voss project."""
-    _scaffold_target(target, force=force)
+    _scaffold_target(target, force=force, name=project_name)
     click.echo(f"initialized voss project at {target}")
 
 
