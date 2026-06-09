@@ -1,0 +1,10 @@
+{
+  "id": "swarm-1716900000",
+  "goal": "Refactor auth module and add tests",
+  "status": "running",
+  "created": 1716900000,
+  "agents": [
+    { "id": "agent-1", "paneId": "pane-abc", "cli": "claude", "status": "running", "task": "refactor" },
+    { "id": "agent-2", "paneId": "pane-def", "cli": "codex", "status": "complete", "task": "tests" }
+  ]
+}

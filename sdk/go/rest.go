@@ -6,7 +6,7 @@ import (
 	"net/url"
 )
 
-// SessionInfo is a live session as returned by GET /session and GET /session/:id.
+// SessionInfo is a live session (GET /session, GET /session/:id).
 type SessionInfo struct {
 	Id    string `json:"id"`
 	Cwd   string `json:"cwd"`
@@ -15,7 +15,7 @@ type SessionInfo struct {
 	Busy  bool   `json:"busy"`
 }
 
-// SavedSession is a persisted session as returned by GET /sessions/saved.
+// SavedSession is a persisted session (GET /sessions/saved).
 type SavedSession struct {
 	Id           string  `json:"id"`
 	Name         string  `json:"name"`
@@ -26,7 +26,7 @@ type SavedSession struct {
 	Turns        int     `json:"turns"`
 }
 
-// CostInfo is the cost rollup from GET /session/:id/cost.
+// CostInfo is the cost rollup (GET /session/:id/cost).
 type CostInfo struct {
 	TotalUsd float64 `json:"total_usd"`
 	Turns    int     `json:"turns"`
@@ -50,8 +50,7 @@ type DoctorReport struct {
 	Checks       []DoctorCheck `json:"checks"`
 }
 
-// CreateSession opens a new session rooted at cwd and returns its id.
-// POST /session -> 201 Created {v,id,auth,resumed}.
+// CreateSession opens a session rooted at cwd. POST /session -> 201.
 func (c *Client) CreateSession(ctx context.Context, cwd string) (string, error) {
 	body := CreateSessionBody{Cwd: &cwd}
 	var out struct {
@@ -100,9 +99,7 @@ func (c *Client) DeleteSession(ctx context.Context, id string) error {
 	return c.sendJSON(ctx, http.MethodDelete, "/session/"+url.PathEscape(id), nil, nil, http.StatusNoContent)
 }
 
-// PostMessage submits a user turn. POST /session/:id/message -> 202 Accepted.
-// mode may be "" to use the server default. Returns *VossError{Status:409} when
-// a turn is already running.
+// PostMessage submits a user turn (mode "" = server default). POST -> 202; 409 if a turn is running.
 func (c *Client) PostMessage(ctx context.Context, id, text, mode string) error {
 	partType := "text"
 	body := MessageBody{
@@ -138,13 +135,9 @@ func (c *Client) Doctor(ctx context.Context) (DoctorReport, error) {
 	return out, nil
 }
 
-// PermissionReply answers a pending permission gate identified by id. choice is
-// one of "a" (allow once), "A" (allow always), "d" (deny), "y", "n"
-// (PROTOCOL §7). POST /session/:id/permission {id,choice} -> 200 {status}.
-//
-// It returns stale=true when the gate was already resolved (timeout or
-// double-reply) — that is NOT an error, the server simply ignored the late
-// reply. A 401/404 surfaces as *VossError.
+// PermissionReply answers a pending gate. choice: "a"/"A"/"d"/"y"/"n" (PROTOCOL
+// §7). POST -> 200. stale=true means already resolved (not an error); 401/404
+// surface as *VossError.
 func (c *Client) PermissionReply(ctx context.Context, sessionID, id, choice string) (bool, error) {
 	body := PermissionReply{Id: id, Choice: choice}
 	var out struct {

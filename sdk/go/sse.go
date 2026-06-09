@@ -11,21 +11,12 @@ import (
 	"strings"
 )
 
-// sseMaxLineBytes bounds a single SSE field line so a malformed/never-ending
-// `data:` line cannot exhaust memory. 1 MiB comfortably exceeds any real event.
+// sseMaxLineBytes caps a single SSE line so a runaway `data:` can't exhaust memory.
 const sseMaxLineBytes = 1 << 20
 
-// Events opens GET /session/:id/events and delivers typed events on the
-// returned channel. The request carries the bearer header (via the shared
-// newRequest chokepoint) and Accept: text/event-stream. A non-200 open returns
-// a *VossError before any channel is created.
-//
-// The stream is consumed by one goroutine that hand-parses SSE frames (stdlib
-// bufio, no third-party lib — D-04) and decodes each frame's data payload
-// through Decode(). Cancelling ctx (or the server closing the stream) tears down
-// the underlying TCP read — which cancels the in-flight turn server-side
-// (disconnect-cancels, PROTOCOL §8) — and closes the channel. There is no
-// goroutine or connection leak: resp.Body.Close() and close(ch) are deferred.
+// Events streams typed events from GET /session/:id/events. A non-200 open
+// returns a *VossError. Cancelling ctx tears down the TCP read (cancelling the
+// turn server-side, PROTOCOL §8) and closes the channel; no leak.
 func (c *Client) Events(ctx context.Context, sessionID string) (<-chan TypedEvent, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, "/session/"+url.PathEscape(sessionID)+"/events", nil)
 	if err != nil {
@@ -55,13 +46,9 @@ func (c *Client) Events(ctx context.Context, sessionID string) (<-chan TypedEven
 	return ch, nil
 }
 
-// parseSSE reads SSE frames from r and sends decoded typed events to ch until
-// the context is cancelled or the stream ends. It accumulates `data:` lines per
-// frame, decodes the joined payload on the blank-line boundary, and ignores
-// `:` comment lines (sse-starlette ping keepalives), `event:` lines (the type
-// is read from the data JSON), and `id:` lines. Malformed JSON or an unknown
-// event type is skipped (not deliverable on a TypedEvent channel) rather than
-// panicking.
+// parseSSE accumulates `data:` lines, decodes each frame on the blank-line
+// boundary, and ignores comment/event/id lines. Bad JSON or unknown types are
+// skipped, not panicked.
 func parseSSE(ctx context.Context, r io.Reader, ch chan<- TypedEvent) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), sseMaxLineBytes)

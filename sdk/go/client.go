@@ -10,21 +10,14 @@ import (
 	"os/exec"
 )
 
-// spawnState holds the child-process handle for a spawned (non-attached)
-// server. It is defined here as a STUB so client.go compiles standalone — the
-// attach path leaves Client.spawn nil. Plan 05's spawn.go CONSTRUCTS and FILLS
-// this struct (and owns the teardown in Close()); it must not re-declare the
-// type. The three fields are the spawn-state contract between Plan 03 and 05.
+// spawnState is the child-process handle for a spawned server (nil when attached).
 type spawnState struct {
 	cmd    *exec.Cmd
 	stdinW io.WriteCloser
 	pid    int
 }
 
-// Client is the loopback REST/SSE client for a `voss serve` process. It is
-// created either by AttachClient (caller-owned server, spawn == nil) or by the
-// spawn constructor in Plan 05 (spawn populated). Every request it issues
-// carries the bearer token via the single newRequest chokepoint.
+// Client is the loopback REST/SSE client for a `voss serve` process.
 type Client struct {
 	http    *http.Client
 	baseURL string
@@ -32,9 +25,7 @@ type Client struct {
 	spawn   *spawnState
 }
 
-// AttachClient builds a Client for an already-running server at baseURL
-// authenticated with token. It owns no child process (spawn stays nil), so
-// Close() is a no-op for the process.
+// AttachClient builds a Client for an already-running server. Owns no process.
 func AttachClient(baseURL, token string) *Client {
 	return &Client{
 		http:    &http.Client{},
@@ -48,11 +39,8 @@ func (c *Client) String() string {
 	return fmt.Sprintf("Client{baseURL:%q, token:<redacted>, spawned:%t}", c.baseURL, c.spawn != nil)
 }
 
-// Close releases resources. For an attach client (spawn == nil) it is a no-op
-// for the process. For a spawned client it closes the stdin heartbeat (so the
-// server's stdin-EOF supervision fires), kills the child, and reaps it — no
-// orphan. It is idempotent: once the child is reaped (cmd.ProcessState set), a
-// repeat Close is a no-op.
+// Close closes the stdin heartbeat, kills, and reaps the spawned child (no-op
+// when attached). Idempotent.
 func (c *Client) Close() error {
 	if c.spawn == nil {
 		return nil
@@ -71,9 +59,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// newRequest is the single chokepoint that attaches Authorization: Bearer
-// <token> to every request — REST methods (rest.go) and the SSE GET (sse.go,
-// Plan 04) both route through here. No other site sets the Authorization header.
+// newRequest is the single chokepoint attaching the bearer token to every request.
 func (c *Client) newRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
@@ -83,9 +69,8 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body io.Re
 	return req, nil
 }
 
-// do sends req, maps non-2xx to a typed VossError (checkResponse), asserts the
-// exact expected success status, and decodes the JSON body into out (nil to
-// discard). It closes the body exactly once.
+// do sends req, maps non-2xx to a VossError, asserts status == want, and decodes
+// the body into out (nil to discard). Closes the body once.
 func (c *Client) do(req *http.Request, want int, out any) error {
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -107,7 +92,7 @@ func (c *Client) do(req *http.Request, want int, out any) error {
 	return nil
 }
 
-// getJSON issues a bearer-authenticated GET and decodes the response into out.
+// getJSON issues a GET and decodes the response into out.
 func (c *Client) getJSON(ctx context.Context, path string, want int, out any) error {
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -116,8 +101,7 @@ func (c *Client) getJSON(ctx context.Context, path string, want int, out any) er
 	return c.do(req, want, out)
 }
 
-// sendJSON issues a bearer-authenticated method request with an optional JSON
-// body (in) and decodes the response into out (both may be nil).
+// sendJSON issues method with optional JSON body in and decodes into out (both may be nil).
 func (c *Client) sendJSON(ctx context.Context, method, path string, in, out any, want int) error {
 	var body io.Reader
 	hasBody := in != nil
