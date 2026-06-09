@@ -1,0 +1,14 @@
+{
+  "_comment": "Canonical keystone case (V14 A1). cardToPane maps card C1 -> live pane P1; cardToSessionNode maps card C1 -> snapshot node N1. For native runs the create-response id (harness sessionID, uuid4().hex[:12]) IS the node id, so cardToSessionNode stores it directly.",
+  "cardToPane": {
+    "C1": "P1"
+  },
+  "cardToSessionNode": {
+    "C1": "N1"
+  },
+  "expected": {
+    "cardId": "C1",
+    "paneId": "P1",
+    "sessionNodeId": "N1"
+  }
+}

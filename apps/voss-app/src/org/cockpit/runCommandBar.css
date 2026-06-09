@@ -1,0 +1,99 @@
+/* VCKP-03 RunCommandBar (D-03) — always-on top intake strip.
+ *
+ * Consumes ONLY existing A12 / Voss Ignite tokens (--bg-*, --fg-*, --border,
+ * --focus, --accent-red, --font-mono) inherited from `.org-view-shell`. Declares
+ * NO new `--xxx` custom properties (token grep gate). Segmented controls reuse
+ * the `.modal-segmented` classes from modal.css; the Start button mirrors
+ * `.modal-btn-primary` (background var(--focus)).
+ */
+
+.run-command-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+}
+
+.run-bar__goal {
+  flex: 1 1 220px;
+  min-width: 160px;
+  height: 26px;
+  padding: 0 8px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg-0);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.run-bar__group {
+  display: flex;
+  align-items: center;
+}
+
+.run-bar__team,
+.run-bar__chip {
+  height: 26px;
+  padding: 0 8px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg-0);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.run-bar__chip {
+  width: 130px;
+}
+
+.run-bar__chip--budget {
+  width: 80px;
+}
+
+.run-bar__attach {
+  height: 26px;
+  padding: 0 10px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg-1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.run-bar__attach--on {
+  color: var(--focus);
+  border-color: var(--focus);
+}
+
+.run-bar__start {
+  height: 26px;
+  padding: 0 14px;
+  background: var(--focus);
+  border: 1px solid var(--focus);
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.run-bar__start:hover {
+  background: var(--focus-hover, var(--focus));
+  box-shadow: 0 0 0 1px var(--focus-glow);
+}
+
+.run-bar__reason {
+  flex: 1 1 100%;
+  color: var(--accent-red);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}

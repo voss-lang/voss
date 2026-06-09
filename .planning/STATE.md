@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-08T22:30:00.000Z"
+last_updated: "2026-06-08T23:38:37.591Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 55
   completed_phases: 4
-  total_plans: 26
-  completed_plans: 23
+  total_plans: 19
+  completed_plans: 19
   percent: 7
 ---
 
@@ -25,7 +25,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ## Current Position
 
 **Phase:** V13.4 — C ABI/Schema Documentation — ✅ COMPLETE (2026-06-08); V13.3 Go SDK also ✅ COMPLETE.
-**Status:** V13.4 (1/1 plan, doc-only) + V13.3 (6/6 plans) done. The V13.x external-SDK sub-track (V13.1 TS, V13.2 Rust, V13.3 Go, V13.4 C-doc) is fully executed; V13 itself is docs-only.
+**Status:** Ready to execute
 **Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
 **Next move:** Resume the A-track — **A4 — voss-app Layout Presets** (ready to execute; A3 substrate in place). (V13 docs-only reframe + V14 ADE Run Cockpit remain SPEC-pending if the V-track is resumed.)
 **Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).

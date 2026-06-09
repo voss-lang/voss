@@ -1,6 +1,7 @@
 import { Show, createMemo } from 'solid-js';
 import { procByPaneId } from '../pane/procRegistry';
 import { isKnownAgentCli } from '../pane/agentDetect';
+import '../org/attention/attentionPanel.css';
 
 export type StatusBarProps = {
   workspaceName: string | undefined;
@@ -14,6 +15,11 @@ export type StatusBarProps = {
   onToggleSidebar: () => void;
   orgViewOpen: boolean;
   onToggleOrgView: () => void;
+  // VCKP-04 AttentionQueue pill (D-05/D-06). Count + blocking flag flow from App
+  // (mirrors agentCount); clicking toggles the dockable AttentionPanel.
+  attentionCount: number;
+  attentionBlocking: boolean;
+  onToggleAttention: () => void;
 };
 
 export default function StatusBar(props: StatusBarProps) {
@@ -98,6 +104,32 @@ export default function StatusBar(props: StatusBarProps) {
 
       {/* Right: context panel toggle (F4 D-09) + git branch */}
       <div style={{ 'white-space': 'nowrap', display: 'flex', 'align-items': 'center', gap: '4px' }}>
+        <Show when={props.attentionCount > 0}>
+          <button
+            type="button"
+            class={props.attentionBlocking ? 'attn-pill--pulse' : undefined}
+            title="Toggle attention queue"
+            onClick={() => props.onToggleAttention()}
+            style={{
+              background: 'rgba(255,91,31,0.15)',
+              border: '1px solid var(--focus)',
+              color: 'var(--focus)',
+              'border-radius': '9999px',
+              padding: '0 8px',
+              height: '16px',
+              display: 'inline-flex',
+              'align-items': 'center',
+              'font-family': 'var(--font-mono)',
+              'font-size': '11px',
+              cursor: 'pointer',
+              'white-space': 'nowrap',
+              gap: '4px',
+            }}
+          >
+            <span>{props.attentionBlocking ? '⚠' : '◆'}</span>
+            <span>{props.attentionCount}</span>
+          </button>
+        </Show>
         <Show when={props.agentCount > 0}>
           <button
             type="button"

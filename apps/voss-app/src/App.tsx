@@ -23,6 +23,8 @@ import GridRoot, { type GridController } from './grid/GridRoot';
 import StatusBar from './components/StatusBar';
 import ContextPanel from './components/ContextPanel';
 import OrgViewShell from './org/OrgViewShell';
+import AttentionPanel from './org/attention/AttentionPanel';
+import { attentionQueue } from './org/attention/attentionQueue';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
@@ -238,6 +240,12 @@ export default function App() {
   const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
   const [paneCount, setPaneCount] = createSignal(0);
   const [orgViewOpen, setOrgViewOpen] = createSignal(false);
+  // VCKP-04 AttentionQueue (D-05/D-06). Open/close state lives here (mirrors
+  // orgViewOpen/contextPanelOpen) and flows to StatusBar + AttentionPanel props.
+  const [attentionOpen, setAttentionOpen] = createSignal(false);
+  const attentionBlocking = createMemo(() =>
+    attentionQueue().some((i) => i.kind === 'permission' || i.kind === 'signoff'),
+  );
   const [contextPanelOpen, setContextPanelOpen] = createSignal(
     localStorage.getItem('voss:contextPanelOpen') === 'true',
   );
@@ -1282,6 +1290,13 @@ export default function App() {
           onToggleSidebar={toggleSidebar}
           orgViewOpen={orgViewOpen()}
           onToggleOrgView={() => setOrgViewOpen((p) => !p)}
+          attentionCount={attentionQueue().length}
+          attentionBlocking={attentionBlocking()}
+          onToggleAttention={() => setAttentionOpen((p) => !p)}
+        />
+        <AttentionPanel
+          open={attentionOpen()}
+          onClose={() => setAttentionOpen(false)}
         />
       </Show>
       </div>

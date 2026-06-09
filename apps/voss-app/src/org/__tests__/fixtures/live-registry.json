@@ -1,0 +1,20 @@
+[
+  {
+    "paneId": "P1",
+    "sessionId": "0139377ff590",
+    "cliBinary": "voss",
+    "cliArgs": "[\"chat\"]",
+    "cwd": "/Users/benjaminmarks/Projects/Voss",
+    "status": "running",
+    "lastSeen": 1749384474
+  },
+  {
+    "paneId": "P2",
+    "sessionId": "claude-pane-2",
+    "cliBinary": "claude",
+    "cliArgs": "[]",
+    "cwd": "/Users/benjaminmarks/Projects/Voss",
+    "status": "idle",
+    "lastSeen": 1749384400
+  }
+]

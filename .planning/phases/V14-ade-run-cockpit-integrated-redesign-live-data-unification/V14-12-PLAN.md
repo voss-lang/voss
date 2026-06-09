@@ -105,7 +105,7 @@ From apps/voss-app/src/org/panels/BoardPanel.tsx:76: `var(--font-mono)` monospac
     - .planning/phases/A12-voss-app-ade-visual-redesign/A12-UI-SPEC.md (Ignite tokens)
   </read_first>
   <action>
-    In `cockpitStyles.css`: add keyboard-focus order (tabindex/roving-tabindex) so focus traverses Board → detail drawer → timeline; add a `@media (prefers-reduced-motion: reduce)` block disabling all cockpit animations including the AttentionQueue pulse; ensure budget/cost/confidence use `var(--font-mono)`; verify state colors meet contrast (A12 accent tokens). Create `scripts/token-grep-gate.mjs`: parse `voss-ignite.json` for the allowed `--xxx` token names, grep all `src/org/cockpit/*.css` + new cockpit components for `--` custom properties, and exit non-zero if any token NOT in the A12 set is introduced (filter comments: `grep -v '^#'` discipline). Create `a11y.test.tsx`: assert focus order Board→drawer→timeline (drive Tab via testing-library), and assert that under a mocked `prefers-reduced-motion` the pulse/animation classes are disabled.
+    In `cockpitStyles.css`: add keyboard-focus order (tabindex/roving-tabindex) so focus traverses Board → detail drawer → timeline; add a `@media (prefers-reduced-motion: reduce)` block disabling all cockpit animations including the AttentionQueue pulse; ensure budget/cost/confidence use `var(--font-mono)`; verify state colors meet contrast (A12 accent tokens). Create `scripts/token-grep-gate.mjs`: parse `voss-ignite.json` for the allowed `--xxx` token names, grep all `src/org/cockpit/*.css` + new cockpit components for `--` custom properties, and exit non-zero if any token NOT in the A12 set is introduced (filter comment lines, e.g. `grep -v '^#'`/strip CSS comments, to avoid header prose self-invalidating the gate). Create `a11y.test.tsx`: assert focus order Board→drawer→timeline (drive Tab via testing-library), and assert that under a mocked `prefers-reduced-motion` the pulse/animation classes are disabled.
   </action>
   <verify>
     <automated>cd apps/voss-app && node scripts/token-grep-gate.mjs && npx vitest run src/org/cockpit/__tests__/a11y.test.tsx</automated>
@@ -121,8 +121,11 @@ From apps/voss-app/src/org/panels/BoardPanel.tsx:76: `var(--font-mono)` monospac
 
 <task type="checkpoint:human-verify" gate="blocking">
   <name>Task 3: Phase-final human verification (Tauri-runtime visuals)</name>
+  <action>
+    All automated checks (vitest + cargo + token gate) are green; this task is the human verification of Tauri-runtime visuals that cannot run headless on macOS (WebDriver blocked). Present the verification steps below to the operator and pause for approval. Do not auto-advance — `gate="blocking"`.
+  </action>
   <what-built>
-    The full V14 cockpit: RunCommandBar intake (always-on strip), 4-region cockpit (Board + drawer + timeline + gate bar) driven by one selection, AttentionQueue pill + dockable panel, Live↔Review toggle preserving the grid, sparse quick-launch + adopt modals, managed-launch tier surface, live/snapshot label. All unit/component/cargo tests are green; these checks cover the Tauri-runtime visuals that cannot run headless on macOS (WebDriver blocked).
+    The full V14 cockpit: RunCommandBar intake (always-on strip), 4-region cockpit (Board + drawer + timeline + gate bar) driven by one selection, AttentionQueue pill + dockable panel, Live↔Review toggle preserving the grid, sparse quick-launch + adopt modals, managed-launch tier surface, live/snapshot label. All unit/component/cargo tests are green; these checks cover the Tauri-runtime visuals that cannot run headless on macOS.
   </what-built>
   <how-to-verify>
     1. `cd apps/voss-app && npm run tauri dev` (or the project's dev command).
@@ -134,7 +137,17 @@ From apps/voss-app/src/org/panels/BoardPanel.tsx:76: `var(--font-mono)` monospac
     7. Confirm the AttentionQueue pill appears in the StatusBar and pulses on a blocking item without hard-modaling.
     8. Toggle OS reduced-motion → confirm the pulse/animation stops.
   </how-to-verify>
+  <verify>
+    <human-check>Operator confirms steps 1-8 pass in the running Tauri app.</human-check>
+  </verify>
+  <acceptance_criteria>
+    - Operator confirms one click drives all four cockpit regions.
+    - Live↔Review preserves selection + grid scrollback.
+    - Quick-launch is sparse (no raw-command/explainer); adopt copy carries no jargon/per-tool promise.
+    - Reduced-motion stops the pulse.
+  </acceptance_criteria>
   <resume-signal>Type "approved" or describe issues to fix.</resume-signal>
+  <done>Operator-approved Tauri-runtime verification of the V14 cockpit.</done>
 </task>
 
 </tasks>
