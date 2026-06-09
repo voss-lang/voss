@@ -70,7 +70,7 @@ describe('VADE-VIEW — Org/Run view toggle', () => {
     expect(orgButton(root).style.color).toContain('--fg-3');
   });
 
-  it('toggling Org mounts the shell but KEEPS the grid mounted (display:none)', () => {
+  it('toggling Org mounts the cockpit but KEEPS the grid mounted (display:none)', () => {
     const root = mount(() => <Harness />);
     orgButton(root).click();
 
@@ -79,33 +79,34 @@ describe('VADE-VIEW — Org/Run view toggle', () => {
     expect(grid).toBeTruthy();
     expect(grid.style.display).toBe('none');
 
-    // OrgViewShell mounted with its region role + 10-tab tablist.
+    // V14 D-01: the tab shell is gone — OrgViewShell now mounts the 4-region
+    // Run cockpit. Assert the cockpit region + that NO tablist survives.
     const shell = root.querySelector('[role="region"]');
     expect(shell).toBeTruthy();
-    expect(shell?.getAttribute('aria-label')).toBe('Org/Run view');
-    expect(root.querySelectorAll('[role="tab"]').length).toBe(10);
+    expect(shell?.getAttribute('aria-label')).toBe('Run cockpit');
+    expect(root.querySelectorAll('[role="tab"]').length).toBe(0);
 
     // Org button now in active styling.
     expect(orgButton(root).style.color).toContain('--focus');
   });
 
-  it('the 10 tab labels match the UI-SPEC exactly', () => {
+  it('the cockpit renders its four regions, not a tab bar (V14 D-01)', () => {
     const root = mount(() => <Harness />);
     orgButton(root).click();
-    const labels = [...root.querySelectorAll('[role="tab"]')].map((t) =>
-      t.textContent?.trim(),
+    // The cockpit composes four labelled regions from one shell; the old
+    // ORG_TABS tab switcher is removed (D-01/D-02 — no legacy tab escape hatch).
+    const regionLabels = [
+      ...root.querySelectorAll('[aria-label]'),
+    ]
+      .map((el) => el.getAttribute('aria-label'))
+      .filter((l): l is string =>
+        ['Board spine', 'Card detail', 'Timeline and replay', 'Gate bar'].includes(
+          l ?? '',
+        ),
+      );
+    expect(new Set(regionLabels)).toEqual(
+      new Set(['Board spine', 'Card detail', 'Timeline and replay', 'Gate bar']),
     );
-    expect(labels).toEqual([
-      'Roster',
-      'Board',
-      'Tree',
-      'Audit',
-      'Verdict',
-      'Budget',
-      'Scope',
-      'Diff',
-      'Blocked',
-      'Replay',
-    ]);
+    expect(root.querySelectorAll('[role="tab"]').length).toBe(0);
   });
 });
