@@ -28,6 +28,7 @@ import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
 import { resolveTier, hookCapableCli } from './org/capabilityTier';
 import RunCommandBar, { type SpawnAgentFn } from './org/cockpit/RunCommandBar';
+import { liveLabel } from './org/live/sseClient';
 import AdoptAgentModal from './components/modal/AdoptAgentModal';
 import { registerAdoption } from './pane/adoptionRegistry';
 import { currentRunId } from './org/orgStore';
@@ -1257,6 +1258,9 @@ export default function App() {
         projectName={activeMounted()?.project()?.name}
         activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
         onLayoutSelect={onLayoutSelect}
+        orgViewOpen={orgViewOpen()}
+        onOrgViewChange={(open) => setOrgViewOpen(open)}
+        liveState={liveLabel()}
       />
       <WorkspaceTabBar
         workspaces={workspaceStore.workspaces()}

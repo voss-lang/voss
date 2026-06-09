@@ -104,6 +104,42 @@ export default function Titlebar(props: TitlebarProps = {}) {
         disabled={props.layoutDisabled}
         onSelect={(p) => props.onLayoutSelect?.(p)}
       />
+
+      {/* V14 chunk A — [Live Work | Run Review] mode toggle (mockup
+          .modetoggle). Drives the SAME App-owned orgViewOpen signal as the
+          ⌘⇧O shortcut and the StatusBar org toggle — a third controlled
+          entry point, never a second source of truth. */}
+      <div class="titlebar-modetoggle" role="group" aria-label="View mode">
+        <button
+          type="button"
+          class={`titlebar-modetoggle__btn${!props.orgViewOpen ? ' titlebar-modetoggle__btn--active' : ''}`}
+          aria-pressed={!props.orgViewOpen ? 'true' : 'false'}
+          onClick={() => props.onOrgViewChange?.(false)}
+        >
+          Live Work
+        </button>
+        <button
+          type="button"
+          class={`titlebar-modetoggle__btn${props.orgViewOpen ? ' titlebar-modetoggle__btn--active' : ''}`}
+          aria-pressed={props.orgViewOpen ? 'true' : 'false'}
+          onClick={() => props.onOrgViewChange?.(true)}
+        >
+          Run Review
+        </button>
+      </div>
+
+      {/* V14 chunk A — LIVE/snapshot chip (mockup .livechip). Pulsing cyan
+          dot only while a live stream is connected; muted 'snapshot'
+          otherwise. The CockpitShell header keeps its own VCKP-06 label. */}
+      <div
+        class={`titlebar-livechip titlebar-livechip--${liveState()}`}
+        aria-label={`Data source: ${liveState()}`}
+      >
+        <Show when={liveState() === 'live'}>
+          <span class="titlebar-livechip__dot" />
+        </Show>
+        {liveState() === 'live' ? 'LIVE' : 'snapshot'}
+      </div>
     </div>
   );
 }

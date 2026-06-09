@@ -129,6 +129,77 @@ html.reduced-motion *::after {
   animation: voss-pulse 0.8s ease-in-out infinite alternate;
 }
 
+/* ---- V14 titlebar shell chrome (chunk A): mode toggle + live chip ---- */
+
+.titlebar-modetoggle {
+  display: flex;
+  background: var(--bg-3);
+  border-radius: 6px;
+  padding: 2px;
+  margin-right: 8px;
+  flex-shrink: 0;
+  /* Ensure Tauri drag-region siblings don't swallow pointer events. */
+  pointer-events: auto;
+}
+
+.titlebar-modetoggle__btn {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--fg-2);
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.titlebar-modetoggle__btn--active {
+  background: var(--focus);
+  color: var(--fg-0);
+  font-weight: 500;
+}
+
+.titlebar-livechip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--fg-3);
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.titlebar-livechip--live {
+  color: var(--accent-cyan);
+  border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+}
+
+.titlebar-livechip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  animation: voss-pulse 0.9s ease-in-out infinite alternate;
+}
+
+/* Explicit reduced-motion guard for the chip pulse. The global A8 kill
+   switch above already covers it, but the titlebar sits OUTSIDE the
+   cockpit's .org-view-shell reduced-motion scope — keep a local guard so
+   the chip stays still even if the global rule is ever narrowed. */
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-livechip__dot {
+    animation: none;
+  }
+}
+
 .grid-pane-leaf > div:first-of-type {
   transition:
     background-color var(--transition-focus),
