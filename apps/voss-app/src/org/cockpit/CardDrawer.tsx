@@ -12,7 +12,7 @@
 import { Show } from 'solid-js';
 import type { RunData } from '../types';
 import { runData } from '../orgStore';
-import { selectedCardId, setSelectedCardId } from '../selection';
+import { selectedCardId, setSelectedCardId, requestOpenInGrid } from '../selection';
 import { paneIdForCard } from '../model/bridge';
 import AuditPanel from '../panels/AuditPanel';
 import VerdictPanel from '../panels/VerdictPanel';
@@ -88,7 +88,10 @@ export default function CardDrawer(props: { data?: RunData | null }) {
           </Show>
           <button
             type="button"
-            // D-07: actual orgViewOpen flip + pane focus lands in plan 08.
+            onClick={() => {
+              const p = boundPaneId();
+              if (p) requestOpenInGrid(p);
+            }}
             disabled={!boundPaneId()}
             title={
               boundPaneId() ? 'Open this card in the grid' : 'No live pane bound to this card'

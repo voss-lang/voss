@@ -25,6 +25,11 @@ import ContextPanel from './components/ContextPanel';
 import OrgViewShell from './org/OrgViewShell';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
+import { registerTerminalCard } from './org/model/bridge';
+import {
+  openInGridRequest,
+  setOpenInGridRequest,
+} from './org/selection';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
@@ -273,11 +278,49 @@ export default function App() {
     costUsd: number;
   } | null>(null);
 
-  const handleLaunchAgent = (_config: { cliBinary: string; cliArgs: string[]; taskPrompt: string }) => {
+  // V14-08 Task 1 — real agent spawn via Bridge B. Must be fully SYNCHRONOUS:
+  // the new PaneComponent's onMount (queued createEffect) flushes only after
+  // this handler returns, and reads props.agentConfig live. Setting the
+  // per-workspace agentConfigByPaneId map BEFORE returning guarantees doSpawn
+  // takes the spawnAgent branch — no plain-shell race. NO await anywhere.
+  const handleLaunchAgent = (config: { cliBinary: string; cliArgs: string[]; taskPrompt: string }) => {
     setAgentModalOpen(false);
-    gridController()?.splitFocused('H');
-    // Agent spawn will be wired to the new pane in a future plan
+    const ws = activeMounted();
+    if (!ws) return;
+    const ctrl = ws.gridController;
+    if (!ctrl) return;
+
+    // GRD-05 guard: insertSibling silently no-ops on a min-size violation,
+    // leaving store.focusedId unchanged. Compare before/after so we don't
+    // overwrite the existing focused pane's config or spawn into it.
+    const before = ctrl.snapshot().focusedId;
+    ctrl.splitFocused('H');
+    const newId = ctrl.snapshot().focusedId;
+    if (newId === before) return; // split rejected — abort agent wiring.
+
+    // Bridge B: mint the cardId and carry it as sessionId for correlation. The
+    // task prompt is already encoded into config.cliArgs by buildConfig — do
+    // NOT re-append it.
+    const cardId = registerTerminalCard(newId);
+    const cfg: AgentConfig = {
+      cliBinary: config.cliBinary,
+      cliArgs: config.cliArgs,
+      sessionId: cardId,
+    };
+    ws.setAgentConfigByPaneId({ ...ws.agentConfigByPaneId(), [newId]: cfg });
   };
+
+  // D-07 Open-in-grid host. CardDrawer fires requestOpenInGrid(paneId) from the
+  // Review plane; we flip back to the grid (orgViewOpen=false, which swaps the
+  // display:none above) and focus the bound pane. Opt-in only — never automatic.
+  // Clear the request so it doesn't re-fire on unrelated re-renders.
+  createEffect(() => {
+    const paneId = openInGridRequest();
+    if (!paneId) return;
+    setOrgViewOpen(false);
+    gridController()?.focusPaneById(paneId);
+    setOpenInGridRequest(null);
+  });
 
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
