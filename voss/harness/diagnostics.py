@@ -374,6 +374,19 @@ def run_all_checks(cwd: Path) -> list[Check]:
     return run_checks(cwd)
 
 
+def to_dict(check: Check) -> dict:
+    """Wire shape for a check — single source for CLI --json and the
+    server GET /doctor payload."""
+    return {
+        "id": check.id,
+        "name": check.name,
+        "category": check.category.value if check.category else "",
+        "status": check.result.name,
+        "detail": check.detail,
+        "fix": check.fix,
+    }
+
+
 def aggregate_exit_code(results: list[Check]) -> int:
     """Per D-14: 0 if all OK or only WARN; 1 if any FAIL."""
     if any(c.result is CheckResult.FAIL for c in results):

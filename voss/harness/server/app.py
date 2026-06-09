@@ -433,17 +433,7 @@ def create_app(token: str | None = None) -> FastAPI:
             "has_provider": provider is not None,
             "default_model": get_config().default_model,
             "exit_code": diag.aggregate_exit_code(checks),
-            "checks": [
-                {
-                    "id": c.id,
-                    "name": c.name,
-                    "category": c.category.value if c.category else "",
-                    "status": c.result.name,
-                    "detail": c.detail,
-                    "fix": c.fix,
-                }
-                for c in checks
-            ],
+            "checks": [diag.to_dict(c) for c in checks],
         }
 
     # -- OpenAPI: force the event union into components (H1.14) --------------
