@@ -852,6 +852,19 @@ def _refresh(ctx: ReplContext, args: list[str], _line: str) -> None:
     click.echo(f"refresh failed: {res}", err=True)
 
 
+def _doctor(ctx: ReplContext, args: list[str], _line: str) -> None:
+    if args and args[0] in ("--help", "-h"):
+        click.echo("usage: /doctor   run health checks (repairs: `voss doctor --fix` in shell)")
+        return
+    from . import diagnostics as diag
+    from . import repair as repair_mod
+
+    results = diag.run_all_checks(ctx.cwd)
+    _render_doctor_table(results)
+    if repair_mod.repair_candidates(results):
+        click.echo("  machine-repairable issues found — run: voss doctor --fix")
+
+
 def _build_slash_registry() -> SlashRegistry:
     registry = SlashRegistry()
 
@@ -1552,6 +1565,7 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/symbol", "find symbols matching <name> (uses index + LSP)", _symbol),
         SlashCommand("/refs", "find references to <symbol>", _refs),
         SlashCommand("/refresh", "rebuild code index (and optionally refresh cognition)", _refresh, mutating=False),
+        SlashCommand("/doctor", "run health checks (diagnose-only; repairs via `voss doctor --fix`)", _doctor),
     ):
         registry.register(command)
     return registry
@@ -2323,6 +2337,23 @@ def logout_cmd(provider: str) -> None:
 _DOCTOR_CATEGORIES = ("env", "auth", "config", "state", "project")
 
 
+def _render_doctor_table(results) -> None:
+    """Glyph table shared by `voss doctor` and the REPL `/doctor` command."""
+    from . import diagnostics as diag
+
+    glyph = {
+        diag.CheckResult.OK: ("✓", "green"),
+        diag.CheckResult.WARN: ("⚠", "yellow"),
+        diag.CheckResult.FAIL: ("✗", "red"),
+    }
+    name_width = max(len(c.name) for c in results) + 2
+    for c in results:
+        g, color = glyph[c.result]
+        click.echo(f"  {click.style(g, fg=color)}  {c.name:<{name_width}} {c.detail}")
+        if c.fix and c.result is not diag.CheckResult.OK:
+            click.echo(f"     → {c.fix}")
+
+
 @click.command("doctor")
 @click.option(
     "--cwd",
@@ -2408,17 +2439,7 @@ def doctor_cmd(
         results = diag.run_all_checks(cwd)
 
     if not as_json:
-        glyph = {
-            diag.CheckResult.OK: ("✓", "green"),
-            diag.CheckResult.WARN: ("⚠", "yellow"),
-            diag.CheckResult.FAIL: ("✗", "red"),
-        }
-        name_width = max(len(c.name) for c in results) + 2
-        for c in results:
-            g, color = glyph[c.result]
-            click.echo(f"  {click.style(g, fg=color)}  {c.name:<{name_width}} {c.detail}")
-            if c.fix and c.result is not diag.CheckResult.OK:
-                click.echo(f"     → {c.fix}")
+        _render_doctor_table(results)
 
     outcomes: list = []
     if do_fix:
