@@ -96,3 +96,12 @@ export function paneIdForCard(cardId: string): string | undefined {
 }
 
 export { cardToPane, cardToSessionNode };
+
+/**
+ * Test-only reset: clears both live maps back to {}. The module signals are
+ * global, so tests call this in afterEach to prevent register* state leakage.
+ */
+export function __resetBridgeMaps(): void {
+  setCardToPane({});
+  setCardToSessionNode({});
+}

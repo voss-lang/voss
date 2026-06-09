@@ -9,6 +9,7 @@ import {
   paneIdForCard,
   cardToPane,
   cardToSessionNode,
+  __resetBridgeMaps,
 } from '../bridge';
 
 // VCKP-02 keystone: the id-bridge. `resolveCard(maps, cardId) -> { paneId?,
@@ -19,19 +20,10 @@ import {
 //   Bridge B (terminal): client-minted cardId mapped to paneId via cardToPane.
 // registry.session_id is NEVER joined to SessionTreeNode.id directly (Pitfall 1).
 
-// The module-level signal maps are GLOBAL — reset them between register* tests
-// so state does not leak.
+// The module-level signal maps are GLOBAL — reset them after every test so
+// register* state does not leak across tests.
 afterEach(() => {
-  cardToPane()
-    ? Object.keys(cardToPane()).forEach(() => {})
-    : undefined;
-  // Reset via the register paths is not exposed; clear by re-seeding empty maps
-  // through the public surface would require setters. Instead reset directly.
-  // The signals' setters are not exported, so we mutate via a fresh empty spread
-  // by re-registering nothing — but the cleanest reset is to clear the snapshot
-  // signal accessors. Since setters are private, we rely on each test seeding its
-  // own unique cardIds (crypto.randomUUID / explicit), so cross-test leakage is
-  // benign. We still assert isolation below by reading only the ids we wrote.
+  __resetBridgeMaps();
 });
 
 describe('bridge.resolveCard — VCKP-02 (pure resolver)', () => {
