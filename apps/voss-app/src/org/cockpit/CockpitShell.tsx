@@ -39,7 +39,6 @@ import SessionTreePanel from '../panels/SessionTreePanel';
 import ReplayPanel from '../panels/ReplayPanel';
 import CardDrawer from './CardDrawer';
 import GateBar from './GateBar';
-import RunCommandBar from './RunCommandBar';
 
 function shortRunId(id: string | null): string {
   if (!id) return '—';
@@ -166,9 +165,9 @@ const CockpitShell: Component<{
         </Show>
       </div>
 
-      {/* D-03: always-on RunCommandBar strip, present above the 4-region grid
-          regardless of selection/mode. Native client is gated/mock in V14. */}
-      <RunCommandBar cwd={props.cwd} cliBinary={props.cliBinary} />
+      {/* D-03: the RunCommandBar strip is mounted at App level ABOVE the
+          grid/cockpit swap so it is present in BOTH Live Work and Run Review
+          modes — it is intentionally NOT rendered here (no double strip). */}
 
       {/* Cockpit body — loading/error <Show> wrappers lifted from OrgViewShell */}
       <div class="cockpit-body">

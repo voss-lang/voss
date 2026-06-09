@@ -11,6 +11,7 @@ import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
 import { isKnownAgentCli } from './agentDetect';
 import { registerPaneProc, unregisterPaneProc } from './procRegistry';
 import { registerPaneBudget, unregisterPaneBudget } from './budgetRegistry';
+import { adoptionByPaneId } from './adoptionRegistry';
 import { registerPaneContext, unregisterPaneContext } from './contextRegistry';
 import { maybeLatchAgent, unregisterAgentPane } from './agentPaneRegistry';
 import BudgetBar from '../grid/BudgetBar';

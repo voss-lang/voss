@@ -27,6 +27,10 @@ import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
 import { resolveTier, hookCapableCli } from './org/capabilityTier';
+import RunCommandBar, { type SpawnAgentFn } from './org/cockpit/RunCommandBar';
+import AdoptAgentModal from './components/modal/AdoptAgentModal';
+import { registerAdoption } from './pane/adoptionRegistry';
+import { currentRunId } from './org/orgStore';
 import {
   openInGridRequest,
   setOpenInGridRequest,
@@ -348,6 +352,38 @@ export default function App() {
     };
     ws.setAgentConfigByPaneId({ ...ws.agentConfigByPaneId(), [newId]: cfg });
   };
+
+  // V14-12 gap-fix (D-03): the RunCommandBar terminal launch in Live Work
+  // splits a REAL grid pane and routes through the per-pane agentConfig map
+  // (PaneComponent spawns it), instead of the bar's default direct
+  // spawn_agent invoke — which would create a PTY bound to no visible pane.
+  const runBarResolvePaneId = (): string => {
+    const ws = activeMounted();
+    const ctrl = ws?.gridController;
+    if (!ws || !ctrl) return crypto.randomUUID();
+    const before = ctrl.snapshot().focusedId;
+    ctrl.splitFocused('H');
+    const newId = ctrl.snapshot().focusedId;
+    return newId === before ? crypto.randomUUID() : newId;
+  };
+  const runBarSpawnAgent: SpawnAgentFn = async (o) => {
+    const ws = activeMounted();
+    if (!ws) return;
+    const cfg: AgentConfig = {
+      cliBinary: o.cliBinary,
+      cliArgs: o.cliArgs,
+      sessionId: o.sessionId, // bar-minted cardId (Bridge B)
+      managed: false,
+      tier: 'C', // unmanaged spawn — observe-only (resolveTier rule)
+    };
+    ws.setAgentConfigByPaneId({ ...ws.agentConfigByPaneId(), [o.paneId]: cfg });
+  };
+
+  // VCKP-12 adopt entry point: "Manage with Voss" on a sidebar agent row.
+  const [adoptTarget, setAdoptTarget] = createSignal<{
+    paneId: string;
+    cliBinary: string;
+  } | null>(null);
 
   // D-07 Open-in-grid host. CardDrawer fires requestOpenInGrid(paneId) from the
   // Review plane; we flip back to the grid (orgViewOpen=false, which swaps the
@@ -1284,6 +1320,15 @@ export default function App() {
             usageEntries={usageEntries()}
             workspacePath={workspacePath() ?? null}
           />
+          {/* Work-surface column: D-03 always-on RunCommandBar strip ABOVE the
+              grid/cockpit swap — present in BOTH Live Work and Run Review. */}
+          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: 'flex', 'flex-direction': 'column', position: 'relative' }}>
+          <RunCommandBar
+            cwd={workspacePath() ?? ''}
+            cliBinary="voss"
+            resolvePaneId={runBarResolvePaneId}
+            spawnAgent={runBarSpawnAgent}
+          />
           <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: orgViewOpen() ? 'none' : 'flex', 'flex-direction': 'column', position: 'relative' }}>
             <For each={workspaceIds()}>
               {(workspaceId) => {
@@ -1371,6 +1416,7 @@ export default function App() {
               onClose={() => setOrgViewOpen(false)}
             />
           </Show>
+          </div>
         </div>
         <StatusBar
           workspaceName={
@@ -1424,6 +1470,32 @@ export default function App() {
           onStopAgent={(id) => { void invoke('pty_kill', { sessionId: id }); }}
           onRestartAgent={() => {}}
           onDetachAgent={() => {}}
+          onManageAgent={(id) => {
+            const cfg = activeMounted()?.agentConfigByPaneId()[id];
+            setAdoptTarget({ paneId: id, cliBinary: cfg?.cliBinary ?? '' });
+          }}
+        />
+      </Show>
+
+      {/* VCKP-12: "Let Voss manage this agent" — adopt a running sidebar agent.
+          Forward-only, tier C; the adoption registry drives the budget-stop. */}
+      <Show when={adoptTarget()}>
+        <AdoptAgentModal
+          paneId={adoptTarget()!.paneId}
+          cliBinary={adoptTarget()!.cliBinary}
+          runId={currentRunId() ?? null}
+          harnessAdoptAvailable={true}
+          onDismiss={() => setAdoptTarget(null)}
+          onAdopt={(res) => {
+            if (!res.disabled) {
+              registerAdoption(res.paneId, {
+                cardId: res.cardId,
+                budgetUsd: res.budget,
+                tier: res.tier,
+              });
+            }
+            setAdoptTarget(null);
+          }}
         />
       </Show>
 
