@@ -39,6 +39,7 @@ type AppearanceWire = {
   bellBehavior?: string;
   highContrastEnabled?: boolean;
   reducedMotionEnabled?: boolean;
+  cliDefaultModels?: unknown;
 };
 
 const listeners = new Set<(settings: AppearanceSettings) => void>();
@@ -96,6 +97,17 @@ export function parseAppearanceSettings(wire: unknown): AppearanceSettings {
   }
   if (typeof w.reducedMotionEnabled === 'boolean') {
     base.reducedMotionEnabled = w.reducedMotionEnabled;
+  }
+  if (
+    typeof w.cliDefaultModels === 'object' &&
+    w.cliDefaultModels !== null &&
+    !Array.isArray(w.cliDefaultModels)
+  ) {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(w.cliDefaultModels as Record<string, unknown>)) {
+      if (typeof v === 'string' && v.trim()) out[k] = v.trim();
+    }
+    if (Object.keys(out).length > 0) base.cliDefaultModels = out;
   }
 
   return base;
