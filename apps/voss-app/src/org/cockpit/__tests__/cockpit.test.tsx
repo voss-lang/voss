@@ -195,14 +195,14 @@ describe('VCKP-05 — one selection drives all four cockpit regions', () => {
     expect(drawer.textContent).toContain('tests/c1_test.py');
     expect(drawer.textContent).toContain('C1 verification notes');
 
-    // 3. Timeline rail references C1's node. C1 is a child of the root node, so
-    //    the session-tree rail renders it under the (collapsed-by-default) root
-    //    row — expand root and assert C1's node row is keyed in the rail's tree.
-    expect(rail.querySelector('[data-node-id="root1"]')).toBeTruthy();
-    const toggle = rail.querySelector('.org-tree-toggle') as HTMLElement;
-    expect(toggle).toBeTruthy();
-    toggle.click();
-    expect(rail.querySelector('[data-node-id="C1"]')).toBeTruthy();
+    // 3. Timeline rail references C1's node. V14 chunk B: the rail is the
+    //    horizontal milestone track (one data-node-id node per card), so C1's
+    //    node is addressable directly — and the selection effect highlights it
+    //    (.cockpit-rail__selected). Same selection-drives-rail semantic, new
+    //    DOM (selector adaptation only).
+    const railNode = rail.querySelector('[data-node-id="C1"]') as HTMLElement;
+    expect(railNode).toBeTruthy();
+    await waitFor(() => railNode.classList.contains('cockpit-rail__selected'));
 
     // 4. Gate bar reflects C1's envelope {limit:200000, spent:145000} and the
     //    audit's unsupported-claims count (2).

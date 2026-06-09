@@ -4,7 +4,7 @@ import type { RunData, SessionTreeNode } from '../types';
 // VADE-01 — team roster: role rows with role-color dots + status badges,
 // derived from audit.team_config.roster_ids ∪ distinct node roles.
 
-interface RosterRow {
+export interface RosterRow {
   role: string;
   status: 'active' | 'idle' | 'done';
 }
@@ -39,7 +39,10 @@ function statusForRole(
   return 'idle';
 }
 
-function rosterRows(data: RunData): RosterRow[] {
+// Exported for the V14 cockpit team sidebar (chunk B): the sidebar reuses this
+// derivation (audit.team_config.roster_ids ∪ distinct node roles + status) but
+// renders the mockup .arow visual instead of this panel's row style.
+export function rosterRows(data: RunData): RosterRow[] {
   const rosterIds = data.audit?.team_config?.roster_ids ?? [];
   const nodeRoles = data.session_tree.nodes
     .map((n) => n.role)
