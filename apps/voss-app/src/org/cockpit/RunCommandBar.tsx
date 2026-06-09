@@ -83,8 +83,10 @@ export interface RunCommandBarProps {
 }
 
 const MODES: RunMode[] = ['Plan', 'Edit', 'Auto'];
+// D-10 copy rule: internal-mechanics vocabulary (incl. "Voss-native") never
+// surfaces in UI strings — the native target reads "Voss run".
 const TARGETS: { id: RunTarget; label: string }[] = [
-  { id: 'native', label: 'Voss-native' },
+  { id: 'native', label: 'Voss run' },
   { id: 'terminal', label: 'Terminal agent' },
 ];
 const TEAMS = ['solo', 'core', 'review'];
@@ -109,6 +111,15 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
   const [target, setTarget] = createSignal<RunTarget>('native');
   const [contextAttached, setContextAttached] = createSignal(false);
   const [blockReason, setBlockReason] = createSignal<string | null>(null);
+  // 6b: transient post-launch confirmation — the bar must acknowledge a
+  // successful start, not only failures.
+  const [startedMsg, setStartedMsg] = createSignal<string | null>(null);
+  let startedTimer: ReturnType<typeof setTimeout> | undefined;
+  const flashStarted = (msg: string) => {
+    setStartedMsg(msg);
+    clearTimeout(startedTimer);
+    startedTimer = setTimeout(() => setStartedMsg(null), 2000);
+  };
 
   const currentSpec = (): RunSpec => {
     const b = budget().trim();
@@ -146,17 +157,20 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
         paneId,
         cwd: props.cwd,
       });
+      flashStarted('Run started');
       return;
     }
 
-    // Native (Bridge A) — gated/mock in V14.
+    // Native (Bridge A) — gated/mock in V14. D-10: plain language, no
+    // internal-mechanics vocabulary in the reason string.
     if (!props.client) {
-      setBlockReason('Voss-native runs are not available yet (server gated).');
+      setBlockReason('Voss runs need the Voss server — not available in this build.');
       return;
     }
     const response = await props.client.createSession(spec);
     // A1 finding: the create-response id IS the snapshot node id.
     registerNativeCard(response.id, response.id);
+    flashStarted('Run started');
   };
 
   return (
@@ -222,7 +236,7 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
         aria-pressed={contextAttached()}
         aria-label="Attach context"
       >
-        {contextAttached() ? '📎 Context' : '📎 Attach'}
+        {contextAttached() ? '✓ ctx' : '+ ctx'}
       </button>
 
       {/* Explicit target indicator — visible segmented control. */}
@@ -253,6 +267,13 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
       <Show when={blockReason()}>
         <span class="run-bar__reason" role="alert">
           {blockReason()}
+        </span>
+      </Show>
+
+      {/* 6b: transient success confirmation. */}
+      <Show when={startedMsg()}>
+        <span class="run-bar__started" role="status">
+          {startedMsg()}
         </span>
       </Show>
     </div>

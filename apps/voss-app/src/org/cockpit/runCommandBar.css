@@ -11,11 +11,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  padding: 6px 10px;
+  /* Warp-style: the strip NEVER wraps to a second line — overflow scrolls. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 4px 8px;
   background: var(--bg-1);
   border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
 }
 
 .run-bar__goal {
@@ -27,13 +29,14 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg-0);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
   font-size: 12px;
 }
 
 .run-bar__group {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .run-bar__team,
@@ -44,8 +47,16 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg-0);
-  font-family: var(--font-mono);
   font-size: 12px;
+}
+
+/* Team is a UI control (Inter); scope/budget chips hold path/number VALUES —
+   monospace per the A12 reserved-for list. */
+.run-bar__team {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+}
+.run-bar__chip {
+  font-family: var(--font-mono), monospace;
 }
 
 .run-bar__chip {
@@ -58,14 +69,15 @@
 
 .run-bar__attach {
   height: 26px;
-  padding: 0 10px;
+  padding: 0 8px;
   background: var(--bg-0);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg-1);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
   font-size: 12px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .run-bar__attach--on {
@@ -75,15 +87,16 @@
 
 .run-bar__start {
   height: 26px;
-  padding: 0 14px;
+  padding: 0 12px;
   background: var(--focus);
   border: 1px solid var(--focus);
   border-radius: 4px;
-  color: #fff;
-  font-family: var(--font-mono);
-  font-size: 12px;
+  color: var(--fg-0);
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .run-bar__start:hover {
@@ -92,8 +105,16 @@
 }
 
 .run-bar__reason {
-  flex: 1 1 100%;
+  flex-shrink: 0;
   color: var(--accent-red);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+}
+
+/* Transient post-launch confirmation (6b): same slot as the reason, green. */
+.run-bar__started {
+  flex-shrink: 0;
+  color: var(--accent-green);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
   font-size: 11px;
 }
