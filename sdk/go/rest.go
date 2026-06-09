@@ -135,12 +135,8 @@ func (c *Client) Doctor(ctx context.Context) (DoctorReport, error) {
 	return out, nil
 }
 
-// PermissionReply answers a pending permission gate. choice is one of "a"
-// (allow once), "A" (allow always), "d" (deny), "y", "n" (PROTOCOL §7).
-// POST /session/:id/permission {id,choice} -> 200 {status}.
-//
-// Returns stale=true when the gate was already resolved (timeout or
-// double-reply) — not an error, the server ignored the late reply. 401/404
+// PermissionReply answers a pending gate. choice: "a"/"A"/"d"/"y"/"n" (PROTOCOL
+// §7). POST -> 200. stale=true means already resolved (not an error); 401/404
 // surface as *VossError.
 func (c *Client) PermissionReply(ctx context.Context, sessionID, id, choice string) (bool, error) {
 	body := PermissionReply{Id: id, Choice: choice}
