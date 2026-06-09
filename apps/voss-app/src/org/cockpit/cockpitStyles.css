@@ -85,3 +85,73 @@
   background: var(--bg-1);
   border-top: 1px solid var(--border);
 }
+
+/* --- VCKP-10 keyboard navigation -----------------------------------------
+ * The three cockpit regions carry tabindex="0" (CockpitShell) in DOM order
+ * Board -> detail drawer -> timeline rail, so Tab traverses them in that
+ * order. Focus is made visible with the A12 --focus token.
+ */
+.cockpit-board:focus-visible,
+.cockpit-drawer:focus-visible,
+.cockpit-rail:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* --- VCKP-09 follow-up comment affordance (tokens only) ------------------ */
+.cockpit-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 8px;
+}
+.cockpit-comment__box {
+  font-family: var(--font-ui), system-ui, sans-serif;
+  font-size: 11px;
+  min-height: 44px;
+  resize: vertical;
+  background: var(--bg-1);
+  color: var(--fg-1);
+  border: 1px solid var(--border);
+  padding: 6px;
+}
+.cockpit-comment__box:focus-visible {
+  outline: 1px solid var(--focus);
+}
+.cockpit-comment__box:disabled {
+  color: var(--fg-3);
+  cursor: not-allowed;
+}
+.cockpit-comment__send {
+  align-self: flex-start;
+  font-family: var(--font-ui), system-ui, sans-serif;
+  font-size: 11px;
+  padding: 4px 8px;
+  background: var(--bg-3);
+  color: var(--fg-0);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.cockpit-comment__send:disabled {
+  color: var(--fg-3);
+  cursor: not-allowed;
+}
+.cockpit-comment__reason {
+  color: var(--fg-3);
+  font-size: 11px;
+}
+
+/* --- VCKP-10 reduced motion ----------------------------------------------
+ * Disables ALL cockpit animation, including the AttentionQueue pill pulse
+ * (attentionPanel.css .attn-pill--pulse) and the header refresh spinner.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .org-view-shell *,
+  .attn-pill--pulse,
+  .org-refresh-glyph--spinning {
+    animation: none !important;
+    transition: none !important;
+  }
+}

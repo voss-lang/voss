@@ -199,8 +199,10 @@ const CockpitShell: Component<{
             }
           >
             {/* 4-region grid: board spine | drawer | timeline rail / gate bar */}
+            {/* VCKP-10: regions carry tabindex=0 in DOM order so keyboard
+                focus traverses Board -> drawer -> timeline. */}
             <div class="cockpit-grid">
-              <div class="cockpit-board" aria-label="Board spine">
+              <div class="cockpit-board" aria-label="Board spine" tabindex={0}>
                 <BoardPanel
                   data={runData()}
                   onCardSelect={setSelectedCardId}
@@ -208,11 +210,15 @@ const CockpitShell: Component<{
                 />
               </div>
 
-              <div class="cockpit-drawer" aria-label="Card detail">
+              <div class="cockpit-drawer" aria-label="Card detail" tabindex={0}>
                 <CardDrawer />
               </div>
 
-              <div class="cockpit-rail" aria-label="Timeline and replay">
+              <div
+                class="cockpit-rail"
+                aria-label="Timeline and replay"
+                tabindex={0}
+              >
                 <SessionTreePanel data={runData()} />
                 <ReplayPanel data={runData()} />
                 {/* VCKP-07: swarm roster — rendered only when a manifest
