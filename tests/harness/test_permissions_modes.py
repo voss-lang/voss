@@ -78,6 +78,57 @@ class TestGateStructuralDenial:
         allowed, why = gate.check("fs_write", {"path": "x", "content": "y"}, is_mutating=True)
         assert allowed is True
 
+    def test_edit_mode_prompts_for_mutating_capability_metadata(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        calls: list[str] = []
+
+        def prompt_fn(name, args):
+            calls.append(name)
+            return "a"
+
+        gate = PermissionGate(
+            mode="edit",
+            auto_yes=False,
+            store=PermissionStore(cwd=tmp_path),
+            prompt_fn=prompt_fn,
+        )
+        allowed, why = gate.check("memory_remember", {"text": "note"}, is_mutating=True)
+        assert allowed is True
+        assert why == "allowed once"
+        assert calls == ["memory_remember"]
+
+    def test_edit_mode_prompts_for_mutating_review_capability(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        calls: list[str] = []
+
+        def prompt_fn(name, args):
+            calls.append(name)
+            return "a"
+
+        gate = PermissionGate(
+            mode="edit",
+            auto_yes=False,
+            store=PermissionStore(cwd=tmp_path),
+            prompt_fn=prompt_fn,
+        )
+        allowed, why = gate.check("subagent_run", {"agent": "reviewer"}, is_mutating=True)
+        assert allowed is True
+        assert why == "allowed once"
+        assert calls == ["subagent_run"]
+
+    def test_edit_mode_auto_allows_non_mutating_capability(
+        self, tmp_path: Path
+    ) -> None:
+        gate = PermissionGate(mode="edit", auto_yes=False, store=PermissionStore(cwd=tmp_path))
+        gate.prompt_fn = _fail_prompt
+        allowed, why = gate.check("memory_recall", {"query": "x"}, is_mutating=False)
+        assert allowed is True
+        assert why == "auto"
+
     def test_auto_mode_allows_shell(self, tmp_path: Path) -> None:
         gate = PermissionGate(mode="auto", store=PermissionStore(cwd=tmp_path))
         gate.prompt_fn = _fail_prompt

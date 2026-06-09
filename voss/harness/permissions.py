@@ -213,7 +213,7 @@ class PermissionGate:
     safety_actor: Optional[SafetyActorContext] = None  # role/model-tier context
     safety_confirm_fn: Optional[Callable] = None  # injected for tests; SafetyConfirmRequest -> str
 
-    def needs_prompt(self, tool_name: str) -> bool:
+    def needs_prompt(self, tool_name: str, *, is_mutating: bool = False) -> bool:
         if self.auto_yes:
             return False
         if self.mode == "auto":
@@ -221,7 +221,7 @@ class PermissionGate:
         if self.mode == "plan":
             return tool_name not in READ_ONLY
         # edit
-        return tool_name in WRITE or tool_name in SHELL
+        return is_mutating or tool_name in WRITE or tool_name in SHELL
 
     def signature(self, tool_name: str, args: dict) -> str:
         if tool_name == "shell_run":
@@ -338,15 +338,9 @@ class PermissionGate:
         if rule_decision == "allow":
             return True, "allowed by permission rule (.voss/permissions.yml)"
 
-        needs = self.needs_prompt(tool_name) or rule_decision == "ask"
-        # V1-03 CAP-09: the WRITE/SHELL name-sets in needs_prompt do not include
-        # MCP-namespaced tools (server__tool), so a mutating MCP capability would
-        # otherwise run in edit mode with no prompt. Gate it on is_mutating so a
-        # hostile/mislabeled MCP server cannot run a mutating tool unprompted.
-        # Respects auto_yes / auto mode (which deliberately suppress prompts);
-        # plan mode already denied mutating tools in mode_allows above.
-        if is_mutating and "__" in tool_name and not self.auto_yes and self.mode != "auto":
-            needs = True
+        # V1 CAP-09: mutability is capability metadata, not a tool-name guess.
+        # This covers native, attached, and MCP tools uniformly in edit mode.
+        needs = self.needs_prompt(tool_name, is_mutating=is_mutating) or rule_decision == "ask"
         if not needs:
             return True, "auto"
         if self.store is not None and rule_decision != "ask":
