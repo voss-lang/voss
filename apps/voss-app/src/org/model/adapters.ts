@@ -1,6 +1,6 @@
 // V14 snapshot+live adapters (VCKP-01). Pure module: no Solid imports, no
-// produce/structuredClone — plain reads + hand-built object literals. Mirrors
-// the boardDerive.ts convention so buildModel stays fixture-testable.
+// reactive-store cloning helpers — plain reads + hand-built object literals.
+// Mirrors the boardDerive.ts convention so buildModel stays fixture-testable.
 //
 // buildModel takes the snapshot `RunData` as the spine (via cardsFromRunData)
 // and overlays live registry/budget fields by card->pane, WITHOUT touching the
