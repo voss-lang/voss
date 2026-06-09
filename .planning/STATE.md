@@ -220,6 +220,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ### Roadmap Evolution
 
 - Phase A12 added: voss-app ADE Visual Redesign — left sidebar + warm site palette + branded titlebar + pane chrome accent bars. 8 requirements (ADE-01..08), 8 plans (P1–P8). Source: sketch 002 Variant A winner. (2026-05-22)
+- Phase V15 added: Live Plane Integration — sidecar `{v,port,token}` handshake (keystone, spike first) + plug V14's injectable client sockets + structured protocol pane rendering + inline permission gate. Source: `.planning/notes/seed-structured-pane-rendering.md` (V14-12 close-out). UI-SPEC before planning. (2026-06-09)
 
 ## Performance Metrics
 

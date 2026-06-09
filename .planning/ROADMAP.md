@@ -78,7 +78,8 @@
 | V13.2 | Rust Local/Native Client SDK | protocol/event types, local server supervisor (reuse voss-tui), auth helpers, session/audit readers; generated off the V13.1 contract snapshot; no orch reimpl | VSDK-RS-* | TBD by SPEC.md |
 | V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; off the V13.1 contract snapshot; no runtime reimpl | VSDK-GO-* | ✅ COMPLETE (6/6 plans; `sdk/go/` generated+drift-gated types, 21-member Decode, typed REST/SSE, spawn/attach no-orphan, permission, no-FFI guard; full suite + real-server TestMain green; VSDK-GO-01..08). Deviations: go floor→1.24, in-SDK 3.1→3.0 codegen normalizer, 60s spawn handshake. |
 | V13.4 | C ABI/Schema Doc | JSON-schema/ABI doc only; generated headers deferred; no full SDK | VSDK-C-* | ✅ COMPLETE (1/1 plan; `docs/native-embedding.md` native/C consumption reference + `docs/check-native-embedding-refs.sh` refs-resolve gate; VSDK-C-01..06; C headers/FFI deferred w/ trigger; zero code). |
-| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback); refreshed quick-launch modal + "Manage with Voss" adopt flow + managed-launch enforcement tiers (OS sandbox/permission-proxy/budget-kill) for external CLIs. Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..13 | ✅ SPEC + CONTEXT locked (13 reqs; 10 core · 3 gated; ambiguity 0.141); design operator-reviewed via throwaway mockups (removed); 13 plans/8 waves planned |
+| V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback); refreshed quick-launch modal + "Manage with Voss" adopt flow + managed-launch enforcement tiers (OS sandbox/permission-proxy/budget-kill) for external CLIs. Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..13 | ✅ COMPLETE (13/13 plans, operator-approved 2026-06-09; visual contract = recovered mockups in `.planning/sketches/`) |
+| V15 | Live Plane Integration (sidecar handshake + structured pane rendering) | Plug the cockpit into a real `voss serve`: Tauri sidecar command spawns/attaches the server and hands the `{v,port,token}` stdout handshake to the webview (port `voss-sdk` `spawn_with` incl. 60s cold-start + `LITELLM_LOCAL_MODEL_COST_MAP=true`); construct the V13.1 TS client and plug V14's injectable sockets (RunCommandBar native `createSession`, drawer `followUpClient`, SSE → AttentionQueue + model overlay — live label flips for real); Voss-native panes graduate from raw PTY to structured protocol rendering (PROTOCOL §6 event union → DOM: EM task header, tool lines, plan prose, stream deltas) with the inline permission gate (`permission.updated` → Allow/Deny → `POST /permission`, shared with the queue). Visual contract: the pane-content of `.planning/sketches/V14-livework-mockup.html`. Seed: `.planning/notes/seed-structured-pane-rendering.md`. | TBD (SPEC pending) | Added 2026-06-09. Keystone = sidecar handshake (webview cannot spawn `voss serve` — V14 Pitfall 4); spike it first. UI-SPEC before planning (V14 lesson). Out: VCKP-13b permission proxy, rollback/re-run, embedded browser. |
 
 ---
 
@@ -109,6 +110,7 @@ V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** �
 | V13.3 Go Local/Headless Client SDK   | —   | off V13.1 snapshot          | VSDK-GO-*   |
 | V13.4 C ABI/Schema Doc               | —   | doc-only (no full SDK)      | VSDK-C-*    |
 | V14 ADE Run Cockpit                  | —   | recomposes **V11**; on A13/V13.1 | VCKP-01..13 |
+| V15 Live Plane Integration           | —   | on **V14** + V13.1 SDK + real `voss serve` | TBD (SPEC pending) |
 
 **ID namespacing:** PRD IDs are prefixed `V*` in the roadmap to avoid collisions — PRD `MAG-*`/`LANG-*`/`ADE-*` clash with M13/M3/A12 (different meanings). Inside `docs/ORCHESTRATION_LAYERS.md` the un-prefixed IDs remain; SPEC-phase maps PRD-ID → namespaced roadmap-ID.
 
@@ -2192,6 +2194,29 @@ Plans:
 - [ ] V14-10-PLAN.md — VCKP-12 'Manage with Voss' adopt flow (forward-only, tier C, no jargon)
 - [ ] V14-11-PLAN.md — VCKP-13 managed launch: OS scope-sandbox + budget-kill + honest capability tiers (Rust)
 - [ ] V14-12-PLAN.md — VCKP-09 feedback write-path [gated] + VCKP-10 dense/a11y pass + phase-final human-verify
+
+---
+### Phase V15: Live Plane Integration (sidecar handshake + structured pane rendering)
+
+**Goal:** Plug the V14 cockpit into a real `voss serve` and graduate Voss-native panes from raw PTY output to structured protocol rendering — the live plane V14 mock-gated, plus the one approved-mockup element V14 deliberately skipped.
+
+**Scope:**
+- **Sidecar + handshake (keystone, spike first):** Tauri command `start_voss_serve` — spawn/attach `voss serve` as an app-owned child, read the one-line `{v,port,token}` stdout handshake, return `{port, token}` to the webview, own lifecycle (one server per workspace, reuse-if-alive, kill on app quit). Port `crates/voss-sdk` `spawn_with` (60s cold-start timeout, `LITELLM_LOCAL_MODEL_COST_MAP=true`). Resolves V14 Pitfall 4 (webview cannot spawn the server).
+- **Plug the injectable sockets:** construct the V13.1 TS client from the handshake; RunCommandBar native target → real `createSession` (delete the disabled-with-reason gate); drawer comments → live `followUpClient`; `sseClient` consumes the real stream (live/snapshot label flips for real); SSE events → AttentionQueue + normalized-model overlay on real payloads (expect fixture-vs-real drift fixes).
+- **Structured pane rendering:** Voss-native sessions get a protocol-backed pane body — PROTOCOL §6 event union → DOM (EM task header w/ scope·budget·risk line, `fs_read`/`fs_edit`/`code_search` tool lines, plan prose, `stream.delta`, `final`); external CLI panes stay PTY/xterm. Visual contract: the pane-content of `.planning/sketches/V14-livework-mockup.html` (distill to UI-SPEC before planning — V14 lesson).
+- **Inline permission gate:** `permission.updated` renders Allow once / Allow for scope / Deny inside the pane AND feeds the global AttentionQueue (D-06 stays the aggregator); replies via `POST /session/:id/permission`.
+- Statusbar `● live · voss serve :<port>` once a session is attached.
+
+**Out of scope:** VCKP-13b permission proxy (hook-capable CLI gating — separate phase); replay rollback/re-run; embedded browser; new harness contracts (V15 remains a PROTOCOL v1 client).
+
+**Requirements:** TBD — run `/gsd-ui-phase V15` (distill the livework mockup pane-content) then `/gsd-spec-phase V15`.
+
+**Cross-cutting:** Builds on V14 (complete) + V13.1 TS SDK (shipped) + the real `voss serve` (validated by V13.2/V13.3 integration suites). Keystone risk = the sidecar handshake; everything downstream is plumbing clients V14 already left sockets for. Seed: `.planning/notes/seed-structured-pane-rendering.md`.
+
+**Plans:** TBD (~5 expected: sidecar/handshake → client plumbing → SSE-on-real-events → structured pane renderer → inline permission gate).
+
+Plans:
+- [ ] TBD (run /gsd-ui-phase V15, then /gsd-spec-phase V15, then /gsd-plan-phase V15)
 
 ---
 
