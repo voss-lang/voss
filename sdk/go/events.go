@@ -43,11 +43,10 @@ type ErrUnknownEventType struct{ Type string }
 
 func (e ErrUnknownEventType) Error() string { return "unknown event type: " + e.Type }
 
-// Decode dispatches an EventEnvelope to its typed Go value. It reads the
-// discriminator (the verified EventEnvelope_Event.Discriminator() (string,
-// error) accessor from Plan 01's probe), then calls the matching generated
-// AsX() accessor. An unrecognized `type` returns (nil, ErrUnknownEventType{...})
-// — never a nil error with a nil/zero event (VSDK-GO-02 no-silent-drop).
+// Decode dispatches an EventEnvelope to its typed Go value: it reads the
+// discriminator, then calls the matching generated AsX() accessor. An
+// unrecognized `type` returns (nil, ErrUnknownEventType{...}) — never a nil
+// error with a zero event (no-silent-drop).
 func Decode(env EventEnvelope) (TypedEvent, error) {
 	disc, err := env.Event.Discriminator()
 	if err != nil {
