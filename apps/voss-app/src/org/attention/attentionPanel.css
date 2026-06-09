@@ -29,7 +29,9 @@
 /* --- Dockable panel (D-05, NON-modal — no backdrop) ----------------------- */
 
 .attn-panel {
-  position: absolute;
+  /* Fixed to the viewport (UI-REVIEW 6c): immune to ancestor clipping; sits
+     just above the StatusBar. */
+  position: fixed;
   right: 8px;
   bottom: 30px;
   width: 360px;
@@ -45,6 +47,8 @@
   font-family: var(--font-ui), Inter, system-ui, sans-serif;
 }
 
+/* V14 chunk C polish (mockup .ah): uppercase fg-3 header strip (mockup 10px →
+   11px A12 floor). */
 .attn-panel__header {
   display: flex;
   align-items: center;
@@ -56,7 +60,9 @@
   border-bottom: 1px solid var(--border);
   font-size: 11px;
   font-weight: 600;
-  color: var(--fg-1);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg-3);
 }
 
 .attn-panel__close {
@@ -64,7 +70,7 @@
   border: none;
   color: var(--fg-2);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
   padding: 2px 4px;
 }
@@ -94,20 +100,34 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* V14 chunk C polish (mockup .ai:hover). */
+.attn-row:hover {
+  background: var(--bg-3);
+}
+
 .attn-row__head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+
+/* V14 chunk C polish (mockup .ai .aic): colored kind-dot, tint set inline
+   from existing tokens (red permission / focus sign-off / amber budget). */
+.attn-row__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .attn-row__badge {
   flex-shrink: 0;
   font-family: var(--font-mono), monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: 3px;
   background: var(--bg-0);
   color: var(--fg-2);
@@ -119,11 +139,13 @@
   border-color: var(--focus);
 }
 
+/* V14 chunk C polish: title treatment (mockup .at — 12px fg-0); the meta line
+   below keeps the 11px fg-3 sub treatment (mockup .as). */
 .attn-row__summary {
   flex: 1;
   min-width: 0;
   font-size: 12px;
-  color: var(--fg-1);
+  color: var(--fg-0);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -131,7 +153,7 @@
 
 .attn-row__meta {
   font-family: var(--font-mono), monospace;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--fg-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -150,7 +172,7 @@
   border: 1px solid var(--border);
   color: var(--fg-2);
   font-family: var(--font-ui), Inter, system-ui, sans-serif;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
   padding: 2px 8px;
   border-radius: 3px;

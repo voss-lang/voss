@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from voss.template_render import render_package_template
+
 from .models import IndexSummary
 
 
@@ -29,30 +31,28 @@ def render_project_index_section(
     if summary is None or summary.file_count == 0:
         return ""
 
-    lines: list[str] = ["## Project Index", ""]
-
-    # Language counts
+    languages = ""
     if summary.languages:
-        lang_line = ", ".join(f"{lang} ({cnt})" for lang, cnt in sorted(summary.languages.items(), key=lambda x: -x[1]))
-        lines.append(f"**Files by language:** {lang_line}")
-        lines.append("")
+        languages = ", ".join(
+            f"{lang} ({cnt})"
+            for lang, cnt in sorted(summary.languages.items(), key=lambda x: -x[1])
+        )
+    top_modules = [
+        {"path": module, "count": count} for module, count in summary.top_modules[:10]
+    ]
+    entry_points = ", ".join(f"`{entry}`" for entry in summary.entry_points[:5])
 
-    # Top modules
-    if summary.top_modules:
-        lines.append("**Top modules by symbol count:**")
-        for mod, cnt in summary.top_modules[:10]:
-            lines.append(f"- `{mod}` — {cnt} symbols")
-        lines.append("")
-
-    # Entry points
-    if summary.entry_points:
-        eps = ", ".join(f"`{e}`" for e in summary.entry_points[:5])
-        lines.append(f"**Entry points:** {eps}")
-        lines.append("")
-
-    lines.append(f"_Total: {summary.file_count} files, {summary.symbol_count} symbols_")
-
-    body = "\n".join(lines)
+    body = render_package_template(
+        "voss",
+        "templates/code/project_index.md.jinja",
+        {
+            "languages": languages,
+            "top_modules": top_modules,
+            "entry_points": entry_points,
+            "file_count": summary.file_count,
+            "symbol_count": summary.symbol_count,
+        },
+    ).removesuffix("\n")
 
     # Simple truncation guard (real token count would be better, but this satisfies the plan for v0.2)
     if len(body) > max_tokens * 3.5:  # rough chars-to-tokens

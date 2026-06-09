@@ -10,6 +10,8 @@ export interface AgentContextMenuProps {
   onStopAgent: (paneId: string) => void;
   onRestartAgent: (paneId: string) => void;
   onDetachAgent: (paneId: string) => void;
+  /** VCKP-12: open the "Let Voss manage this agent" adopt flow. */
+  onManageAgent: (paneId: string) => void;
 }
 
 const menuItemStyle = {
@@ -89,6 +91,18 @@ const AgentContextMenu: Component<AgentContextMenuProps> = (props) => {
         >
           <span style={{ width: '16px' }}>◎</span>
           <span>Focus pane</span>
+        </button>
+
+        <div style={separatorStyle} />
+
+        <button
+          style={menuItemStyle}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-2)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          onClick={() => act(() => props.onManageAgent(props.paneId))}
+        >
+          <span style={{ width: '16px' }}>◈</span>
+          <span>Manage with Voss</span>
         </button>
       </div>
     </Popover>

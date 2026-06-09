@@ -190,7 +190,7 @@ describe('start paths', () => {
     ));
 
     setInput(byLabel(root, 'Run goal'), 'Ship it');
-    clickSegment(root, 'Run target', 'Voss-native');
+    clickSegment(root, 'Run target', 'Voss run');
 
     (byLabel(root, 'Start run') as HTMLButtonElement).click();
     await Promise.resolve();

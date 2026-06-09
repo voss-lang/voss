@@ -27,10 +27,19 @@ import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
 import { resolveTier, hookCapableCli } from './org/capabilityTier';
+import RunCommandBar, { type SpawnAgentFn } from './org/cockpit/RunCommandBar';
+import { liveLabel } from './org/live/sseClient';
+import AdoptAgentModal from './components/modal/AdoptAgentModal';
+import { registerAdoption, adoptionByPaneId } from './pane/adoptionRegistry';
+import { currentRunId } from './org/orgStore';
 import {
   openInGridRequest,
   setOpenInGridRequest,
+  openInReviewRequest,
+  setOpenInReviewRequest,
+  setSelectedCardId,
 } from './org/selection';
+import BoardSummaryStrip from './components/BoardSummaryStrip';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
@@ -349,6 +358,38 @@ export default function App() {
     ws.setAgentConfigByPaneId({ ...ws.agentConfigByPaneId(), [newId]: cfg });
   };
 
+  // V14-12 gap-fix (D-03): the RunCommandBar terminal launch in Live Work
+  // splits a REAL grid pane and routes through the per-pane agentConfig map
+  // (PaneComponent spawns it), instead of the bar's default direct
+  // spawn_agent invoke — which would create a PTY bound to no visible pane.
+  const runBarResolvePaneId = (): string => {
+    const ws = activeMounted();
+    const ctrl = ws?.gridController;
+    if (!ws || !ctrl) return crypto.randomUUID();
+    const before = ctrl.snapshot().focusedId;
+    ctrl.splitFocused('H');
+    const newId = ctrl.snapshot().focusedId;
+    return newId === before ? crypto.randomUUID() : newId;
+  };
+  const runBarSpawnAgent: SpawnAgentFn = async (o) => {
+    const ws = activeMounted();
+    if (!ws) return;
+    const cfg: AgentConfig = {
+      cliBinary: o.cliBinary,
+      cliArgs: o.cliArgs,
+      sessionId: o.sessionId, // bar-minted cardId (Bridge B)
+      managed: false,
+      tier: 'C', // unmanaged spawn — observe-only (resolveTier rule)
+    };
+    ws.setAgentConfigByPaneId({ ...ws.agentConfigByPaneId(), [o.paneId]: cfg });
+  };
+
+  // VCKP-12 adopt entry point: "Manage with Voss" on a sidebar agent row.
+  const [adoptTarget, setAdoptTarget] = createSignal<{
+    paneId: string;
+    cliBinary: string;
+  } | null>(null);
+
   // D-07 Open-in-grid host. CardDrawer fires requestOpenInGrid(paneId) from the
   // Review plane; we flip back to the grid (orgViewOpen=false, which swaps the
   // display:none above) and focus the bound pane. Opt-in only — never automatic.
@@ -359,6 +400,17 @@ export default function App() {
     setOrgViewOpen(false);
     gridController()?.focusPaneById(paneId);
     setOpenInGridRequest(null);
+  });
+
+  // V14 chunk C — the reverse jump: a pane-header card chip fires
+  // requestOpenInReview(cardId); we select the card and flip to Run Review.
+  // Opt-in only (chip click), mirroring the D-07 effect above.
+  createEffect(() => {
+    const cardId = openInReviewRequest();
+    if (!cardId) return;
+    setSelectedCardId(cardId);
+    setOrgViewOpen(true);
+    setOpenInReviewRequest(null);
   });
 
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
@@ -520,6 +572,32 @@ export default function App() {
     }
 
     prevAgentPaneIds = currentIds;
+  });
+
+  // V14 chunk C — honest run-budget denominator for the StatusBar mini-bar:
+  // the sum of per-agent budgetUsd limits (launch configs + adopted agents).
+  // `spent` counts ONLY panes that carry a limit so the fraction compares like
+  // with like. No limits set anywhere → limit 0 → StatusBar keeps the plain
+  // mono cost text and renders NO percentage bar (nothing faked).
+  const runBudgetTotals = createMemo(() => {
+    const configs = activeMounted()?.agentConfigByPaneId() ?? {};
+    const adoptions = adoptionByPaneId();
+    const budgets = budgetByPaneId();
+    let limit = 0;
+    let spent = 0;
+    const counted = new Set<string>();
+    for (const [paneId, cfg] of Object.entries(configs)) {
+      if (cfg.budgetUsd == null || cfg.budgetUsd <= 0) continue;
+      counted.add(paneId);
+      limit += cfg.budgetUsd;
+      spent += budgets[paneId]?.cost_usd ?? 0;
+    }
+    for (const [paneId, entry] of Object.entries(adoptions)) {
+      if (counted.has(paneId) || entry.budgetUsd <= 0) continue;
+      limit += entry.budgetUsd;
+      spent += budgets[paneId]?.cost_usd ?? 0;
+    }
+    return { limit, spent };
   });
 
   const usageEntries = createMemo(() => {
@@ -1221,6 +1299,9 @@ export default function App() {
         projectName={activeMounted()?.project()?.name}
         activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
         onLayoutSelect={onLayoutSelect}
+        orgViewOpen={orgViewOpen()}
+        onOrgViewChange={(open) => setOrgViewOpen(open)}
+        liveState={liveLabel()}
       />
       <WorkspaceTabBar
         workspaces={workspaceStore.workspaces()}
@@ -1284,7 +1365,21 @@ export default function App() {
             usageEntries={usageEntries()}
             workspacePath={workspacePath() ?? null}
           />
+          {/* Work-surface column: D-03 always-on RunCommandBar strip ABOVE the
+              grid/cockpit swap — present in BOTH Live Work and Run Review. */}
+          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: 'flex', 'flex-direction': 'column', position: 'relative' }}>
+          <RunCommandBar
+            cwd={workspacePath() ?? ''}
+            cliBinary="voss"
+            resolvePaneId={runBarResolvePaneId}
+            spawnAgent={runBarSpawnAgent}
+          />
           <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: orgViewOpen() ? 'none' : 'flex', 'flex-direction': 'column', position: 'relative' }}>
+            {/* V14 chunk C — board summary strip (Live Work only: this
+                container is display:none in Run Review, where the cockpit
+                shows the full board). Renders nothing until a run snapshot
+                is loaded. Chip click = opt-in jump to Run Review. */}
+            <BoardSummaryStrip onOpen={() => setOrgViewOpen(true)} />
             <For each={workspaceIds()}>
               {(workspaceId) => {
                 const ws = () => mountedById().get(workspaceId);
@@ -1371,6 +1466,7 @@ export default function App() {
               onClose={() => setOrgViewOpen(false)}
             />
           </Show>
+          </div>
         </div>
         <StatusBar
           workspaceName={
@@ -1383,6 +1479,8 @@ export default function App() {
           onToggleContextPanel={toggleContextPanel}
           agentCount={agentListForSidebar().length}
           totalCost={Object.values(budgetByPaneId()).reduce((sum, b) => sum + b.cost_usd, 0)}
+          budgetSpent={runBudgetTotals().spent}
+          budgetLimit={runBudgetTotals().limit}
           onToggleSidebar={toggleSidebar}
           orgViewOpen={orgViewOpen()}
           onToggleOrgView={() => setOrgViewOpen((p) => !p)}
@@ -1424,6 +1522,32 @@ export default function App() {
           onStopAgent={(id) => { void invoke('pty_kill', { sessionId: id }); }}
           onRestartAgent={() => {}}
           onDetachAgent={() => {}}
+          onManageAgent={(id) => {
+            const cfg = activeMounted()?.agentConfigByPaneId()[id];
+            setAdoptTarget({ paneId: id, cliBinary: cfg?.cliBinary ?? '' });
+          }}
+        />
+      </Show>
+
+      {/* VCKP-12: "Let Voss manage this agent" — adopt a running sidebar agent.
+          Forward-only, tier C; the adoption registry drives the budget-stop. */}
+      <Show when={adoptTarget()}>
+        <AdoptAgentModal
+          paneId={adoptTarget()!.paneId}
+          cliBinary={adoptTarget()!.cliBinary}
+          runId={currentRunId() ?? null}
+          harnessAdoptAvailable={true}
+          onDismiss={() => setAdoptTarget(null)}
+          onAdopt={(res) => {
+            if (!res.disabled) {
+              registerAdoption(res.paneId, {
+                cardId: res.cardId,
+                budgetUsd: res.budget,
+                tier: res.tier,
+              });
+            }
+            setAdoptTarget(null);
+          }}
         />
       </Show>
 

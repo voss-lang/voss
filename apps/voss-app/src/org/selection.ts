@@ -17,3 +17,12 @@ export const [openInGridRequest, setOpenInGridRequest] = createSignal<string | n
 export function requestOpenInGrid(paneId: string): void {
   setOpenInGridRequest(paneId);
 }
+
+// V14 chunk C — the reverse jump: a live-grid surface (the pane header card
+// chip) fires this with a bound card id; App watches it, selects the card and
+// flips orgViewOpen(true), then clears the request. Opt-in only (chip click).
+export const [openInReviewRequest, setOpenInReviewRequest] = createSignal<string | null>(null);
+
+export function requestOpenInReview(cardId: string): void {
+  setOpenInReviewRequest(cardId);
+}

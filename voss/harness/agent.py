@@ -17,6 +17,7 @@ from typing import Any, Awaitable, Callable
 
 from pydantic import BaseModel, Field
 
+from voss.template_render import render_package_template
 from voss_runtime import (
     ContextScope,
     EpisodicMemory,
@@ -98,10 +99,15 @@ def _compose_cognition_prompt(
     constraints_bullets = cognition_mod.render_constraints_bullets(bundle.constraints)
 
     def _render(with_constraints: bool) -> str:
-        parts = ["# Project cognition", "", "## Architecture", "", arch]
-        if with_constraints and constraints_bullets:
-            parts.extend(["", "## Constraints", "", constraints_bullets])
-        return "\n".join(parts)
+        return render_package_template(
+            "voss",
+            "templates/agent/cognition_block.md.jinja",
+            {
+                "architecture": arch,
+                "with_constraints": with_constraints,
+                "constraints_bullets": constraints_bullets,
+            },
+        )
 
     body = _render(with_constraints=True)
 
@@ -155,9 +161,11 @@ def _compose_principles_block(
         return ""
 
     def _render(pairs) -> str:
-        lines = ["## Principles", ""]
-        lines.extend(f"- {text}" for _, text in pairs)
-        return "\n".join(lines)
+        return render_package_template(
+            "voss",
+            "templates/agent/principles_block.md.jinja",
+            {"principles": [text for _, text in pairs]},
+        )
 
     body = _render(items)
     if token_count_fn is None:
@@ -206,35 +214,27 @@ HISTORY_WINDOW = 30
 PRIOR_RUNS_WINDOW = 5
 
 
-def _prior_bullets(items, key: str | None = None) -> str:
-    if not items:
-        return "(none)"
-    lines: list[str] = []
-    for it in items:
-        if key and isinstance(it, dict):
-            v = it.get(key) or it.get("title") or ""
-            lines.append(f"  - {v}")
-        else:
-            lines.append(f"  - {it}")
-    return "\n".join(lines) or "(none)"
-
-
-def _render_one_run(run_dict: dict, label: str | None) -> str:
-    goal = run_dict.get("goal", "") or ""
+def _normalize_run_for_template(run_dict: dict, label: str | None) -> dict:
     plan_obj = run_dict.get("plan") or {}
     plan_rationale = plan_obj.get("rationale", "") if isinstance(plan_obj, dict) else ""
-    decisions = run_dict.get("decisions") or []
-    follow_ups = run_dict.get("follow_ups") or []
-    risks = run_dict.get("risks") or []
-    head = f"[{label}]\n" if label else ""
-    return (
-        head
-        + f"- goal: {goal}\n"
-        + f"- plan rationale: {plan_rationale}\n"
-        + f"- decisions:\n{_prior_bullets(decisions, key='title')}\n"
-        + f"- follow_ups:\n{_prior_bullets(follow_ups)}\n"
-        + f"- risks:\n{_prior_bullets(risks)}"
-    )
+
+    def _bullet_items(items, key: str | None = None) -> list[str]:
+        result: list[str] = []
+        for it in items:
+            if key and isinstance(it, dict):
+                result.append(it.get(key) or it.get("title") or "")
+            else:
+                result.append(str(it))
+        return result
+
+    return {
+        "label": label,
+        "goal": run_dict.get("goal", "") or "",
+        "plan_rationale": plan_rationale,
+        "decisions": _bullet_items(run_dict.get("decisions") or [], key="title"),
+        "follow_ups": _bullet_items(run_dict.get("follow_ups") or []),
+        "risks": _bullet_items(run_dict.get("risks") or []),
+    }
 
 
 def _compose_prior_context_block(run: dict | list | None) -> str:
@@ -252,12 +252,26 @@ def _compose_prior_context_block(run: dict | list | None) -> str:
         if not runs:
             return ""
         recent = list(reversed(runs))[:PRIOR_RUNS_WINDOW]
-        blocks = [
-            _render_one_run(r, "most-recent turn" if i == 0 else f"turn -{i + 1}")
+        normalized = [
+            _normalize_run_for_template(
+                r,
+                "most-recent turn" if i == 0 else f"turn -{i + 1}",
+            )
             for i, r in enumerate(recent)
         ]
-        return "Prior context (resumed session, newest first):\n\n" + "\n\n".join(blocks)
-    return "Prior context (most-recent turn):\n" + _render_one_run(run, None)
+        return render_package_template(
+            "voss",
+            "templates/agent/prior_context.md.jinja",
+            {"multi_run": True, "runs": normalized},
+        )
+    return render_package_template(
+        "voss",
+        "templates/agent/prior_context.md.jinja",
+        {
+            "multi_run": False,
+            "runs": [_normalize_run_for_template(run, None)],
+        },
+    )
 
 # ---------------------------------------------------------------------------
 # Plan schema — what the model must return
@@ -310,64 +324,28 @@ class RunSemantics(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-PLAN_SYSTEM = """You are Voss, a coding agent running in a terminal.
-
-You receive a task and a list of tools. Produce a Plan: rationale, sequential
-tool calls, self-rated confidence (0.0-1.0), and the final answer to surface
-to the user once tools have run.
-
-Confidence rubric:
-- 0.95+: trivial, deterministic, single-step
-- 0.80-0.94: clear path, normal risk
-- 0.60-0.79: ambiguity present; consider asking
-- below 0.60: unclear; populate open_question and leave steps empty
-
-Only call tools from the provided list. Reference tool result placeholders
-({{step_0}}, {{step_1}}, ...) inside `final_when_done` if the answer depends
-on them. Keep `final_when_done` short — under 200 words.
-"""
+PLAN_SYSTEM = render_package_template(
+    "voss",
+    "templates/prompts/plan_system.txt.jinja",
+    {},
+)
 
 
-RECORD_RUN_SYSTEM = """You are closing out an agent turn. Summarize it as a
-RunSemantics object capturing the user-visible goal, decisions you made and
-why, assumptions made, risks introduced, and follow-up work. Keep each
-decision title under 8 words; body under 3 sentences. If a field has no
-content, return an empty list — do not invent.
-"""
+RECORD_RUN_SYSTEM = render_package_template(
+    "voss",
+    "templates/prompts/record_run_system.txt.jinja",
+    {},
+)
 
 
 # T1-05: PLAN_LOOP_SYSTEM is the iteration-loop system prompt. The
 # `{max_iterations}` token is filled by _compose_loop_system via str.replace
 # (NOT f-string) so the prefix stays cacheable across calls for future T4.
-PLAN_LOOP_SYSTEM = """You are Voss, a coding agent running in a terminal. You operate in an
-iterative plan-then-execute-then-re-plan loop.
-
-You receive a task and a list of tools. On each iteration:
-- Review prior iterations' plans and tool results (in messages above).
-- Produce a Plan: rationale, sequential tool calls for THIS iteration,
-  self-rated confidence (0.0-1.0), and the final answer ONCE you are
-  done.
-
-To signal "done", return a Plan with:
-  - steps: []  (empty list)
-  - final_when_done: <the user-facing answer, fully realized, NO
-    placeholders like {{step_0}}>
-
-If you still need tool calls, return a non-empty `steps` list and the
-loop will execute them and call you again on the next iteration.
-
-You have at most {max_iterations} iterations. Use them frugally.
-
-Confidence rubric:
-- 0.95+: trivial, deterministic, single-step
-- 0.80-0.94: clear path, normal risk
-- 0.60-0.79: ambiguity present; consider asking — but ONLY on the done
-  iteration. Mid-loop low confidence is fine; just keep iterating.
-- below 0.60 on the done iteration: populate open_question and leave
-  steps empty.
-
-Only call tools from the provided list.
-"""
+PLAN_LOOP_SYSTEM = render_package_template(
+    "voss",
+    "templates/prompts/plan_loop_system.txt.jinja",
+    {},
+)
 
 
 # T1-05: exact final-string sentinels for hit-cap and budget-exhaustion
@@ -500,12 +478,16 @@ class TurnResult:
 
 
 def _format_tools(tools: dict[str, ToolEntry]) -> str:
-    lines = []
+    catalog = []
     for name, td in tools.items():
         params = td.parameters.get("properties", {})
         sig = ", ".join(f"{k}: {v.get('type', 'any')}" for k, v in params.items())
-        lines.append(f"- {name}({sig}) — {td.description}")
-    return "\n".join(lines)
+        catalog.append({"name": name, "signature": sig, "description": td.description})
+    return render_package_template(
+        "voss",
+        "templates/agent/tool_catalog.txt.jinja",
+        {"tools": catalog},
+    )
 
 
 async def run_turn(

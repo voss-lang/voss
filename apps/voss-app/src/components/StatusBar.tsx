@@ -12,6 +12,17 @@ export type StatusBarProps = {
   onToggleContextPanel: () => void;
   agentCount: number;
   totalCost: number;
+  /**
+   * V14 chunk C (mockup .budgmini) — run-budget mini-bar inputs. `budgetLimit`
+   * is the HONEST denominator: the sum of per-agent budgetUsd limits (launch
+   * configs + adoptions); `budgetSpent` is the spend of those limited agents
+   * only. The bar renders ONLY when budgetLimit > 0 — with no limits set there
+   * is no real denominator, so the plain mono cost text in the agents pill
+   * stands alone and no percentage is faked. Optional: harnesses that predate
+   * the bar omit them.
+   */
+  budgetSpent?: number;
+  budgetLimit?: number;
   onToggleSidebar: () => void;
   orgViewOpen: boolean;
   onToggleOrgView: () => void;
@@ -33,6 +44,21 @@ export default function StatusBar(props: StatusBarProps) {
     const proc = focusedProc();
     return proc ? isKnownAgentCli(proc) : false;
   });
+
+  // Mini-bar fill, BudgetBar D-08 color convention: <70% green, <90% amber,
+  // else red. Clamped so over-limit never overflows the track.
+  const budgetPct = createMemo(() => {
+    const limit = props.budgetLimit ?? 0;
+    if (limit <= 0) return 0;
+    return Math.min(((props.budgetSpent ?? 0) / limit) * 100, 100);
+  });
+  const budgetFillColor = createMemo(() =>
+    budgetPct() < 70
+      ? 'var(--accent-green)'
+      : budgetPct() < 90
+        ? 'var(--accent-amber)'
+        : 'var(--accent-red)',
+  );
 
   return (
     <div
@@ -104,6 +130,44 @@ export default function StatusBar(props: StatusBarProps) {
 
       {/* Right: context panel toggle (F4 D-09) + git branch */}
       <div style={{ 'white-space': 'nowrap', display: 'flex', 'align-items': 'center', gap: '4px' }}>
+        {/* V14 chunk C (mockup .budgmini): rendered ONLY with an honest
+            denominator (see budgetLimit prop docs) — never a fake 43% bar. */}
+        <Show when={(props.budgetLimit ?? 0) > 0}>
+          <span
+            title="Spend of budget-limited agents against their combined limit"
+            style={{
+              display: 'inline-flex',
+              'align-items': 'center',
+              gap: '4px',
+              'white-space': 'nowrap',
+            }}
+          >
+            <span style={{ 'font-family': 'var(--font-ui), Inter, system-ui, sans-serif' }}>run</span>
+            <span
+              aria-hidden="true"
+              style={{
+                width: '120px',
+                height: '4px',
+                background: 'var(--bg-3)',
+                'border-radius': '2px',
+                overflow: 'hidden',
+                display: 'inline-block',
+              }}
+            >
+              <span
+                style={{
+                  display: 'block',
+                  height: '100%',
+                  width: `${budgetPct()}%`,
+                  background: budgetFillColor(),
+                }}
+              />
+            </span>
+            <span style={{ 'font-family': 'var(--font-mono)', color: 'var(--fg-2)' }}>
+              ${(props.budgetSpent ?? 0).toFixed(2)} / ${(props.budgetLimit ?? 0).toFixed(2)}
+            </span>
+          </span>
+        </Show>
         <Show when={props.attentionCount > 0}>
           <button
             type="button"
@@ -127,7 +191,14 @@ export default function StatusBar(props: StatusBarProps) {
             }}
           >
             <span>{props.attentionBlocking ? '⚠' : '◆'}</span>
-            <span>{props.attentionCount}</span>
+            <span>
+              {props.attentionCount}{' '}
+              {props.attentionBlocking
+                ? 'blocking'
+                : props.attentionCount === 1
+                  ? 'item'
+                  : 'items'}
+            </span>
           </button>
         </Show>
         <Show when={props.agentCount > 0}>

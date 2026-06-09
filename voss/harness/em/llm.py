@@ -6,35 +6,18 @@ and temperature=0.0. On ParseError or parsed=None, returns a Noop fallback
 """
 from __future__ import annotations
 
+from voss.template_render import render_package_template
 from voss_runtime.exceptions import ParseError
 from voss_runtime.providers.base import ModelProvider
 
 from .schema import EMPlanResponse, NoopOp
 
 
-EM_SYSTEM = """\
-You are the Engineering Manager (EM) in a caged autonomous engineering team.
-
-Your authority:
-  - Create tickets from the original human idea
-  - Dispatch cards to roster roles (backend, frontend, ui, ai)
-  - Kill or rescope cards that are off-track
-  - Set acceptance criteria and definition of done
-
-Cage rules (immutable — you CANNOT override these):
-  - You cannot change the ceiling or risk thresholds
-  - You cannot invent new agents or register roles outside the declared roster
-  - You cannot extend or reallocate budget
-  - The audit bar is the original idea, not your AC/DoD
-
-If nothing needs to happen this iteration, emit a noop op with a reason.
-
-Return a JSON object matching the EMPlanResponse schema:
-{
-  "ops": [{"op": "create_ticket", ...}, {"op": "dispatch_card", ...}, ...],
-  "reasoning": "<your scratchpad>"
-}
-"""
+EM_SYSTEM = render_package_template(
+    "voss",
+    "templates/prompts/em_system.txt.jinja",
+    {},
+)
 
 
 async def em_plan(

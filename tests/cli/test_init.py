@@ -48,6 +48,62 @@ def test_init_name_option_controls_template_context():
         assert Path("proj/README.md").read_text().startswith("# ben-s-demo")
 
 
+def test_init_renders_exact_template_bytes():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(main, ["init", "proj", "--name", "Ben's Demo"])
+        assert result.exit_code == 0, result.output
+
+        target = Path("proj")
+        assert (target / ".gitattributes").read_text() == (
+            "*.voss linguist-language=Voss linguist-detectable=true\n"
+        )
+        assert (target / ".gitignore").read_text() == (
+            "__pycache__/\n"
+            "*.pyc\n"
+            "*.pyo\n"
+            ".voss-cache/\n"
+            "build/\n"
+            "dist/\n"
+            "*.egg-info/\n"
+            ".venv/\n"
+            ".env\n"
+        )
+        assert (target / "pyproject.toml").read_text() == (
+            "[project]\n"
+            'name = "ben-s-demo"\n'
+            'version = "0.1.0"\n'
+            'description = "A Voss project."\n'
+            'requires-python = ">=3.11"\n'
+            "dependencies = [\n"
+            '    "voss",\n'
+            "]\n"
+        )
+        assert (target / "README.md").read_text() == (
+            "# ben-s-demo\n"
+            "\n"
+            "A new Voss project scaffolded by `voss init`.\n"
+            "\n"
+            "## Quick start\n"
+            "\n"
+            "```sh\n"
+            "voss check hello.voss\n"
+            "voss compile hello.voss\n"
+            "voss run hello.voss\n"
+            "```\n"
+            "\n"
+            "## Linguist\n"
+            "\n"
+            "`.gitattributes` overrides this repository so `*.voss` files render as Voss on\n"
+            "hosting providers that respect Linguist overrides.\n"
+        )
+        assert (target / "hello.voss").read_text() == (
+            "# hello.voss\n"
+            'let greeting = "hello, voss"\n'
+            "print(greeting)\n"
+        )
+
+
 def test_init_refuses_non_empty_directory_without_force():
     runner = CliRunner()
     with runner.isolated_filesystem():

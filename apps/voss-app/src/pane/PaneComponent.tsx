@@ -11,6 +11,7 @@ import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
 import { isKnownAgentCli } from './agentDetect';
 import { registerPaneProc, unregisterPaneProc } from './procRegistry';
 import { registerPaneBudget, unregisterPaneBudget } from './budgetRegistry';
+import { adoptionByPaneId } from './adoptionRegistry';
 import { registerPaneContext, unregisterPaneContext } from './contextRegistry';
 import { maybeLatchAgent, unregisterAgentPane } from './agentPaneRegistry';
 import BudgetBar from '../grid/BudgetBar';
@@ -22,6 +23,12 @@ import {
   registerScrollbackProvider,
   unregisterScrollbackProvider,
 } from './scrollbackRegistry';
+import {
+  resolvePane,
+  cardToPane,
+  cardToSessionNode,
+} from '../org/model/bridge';
+import { requestOpenInReview } from '../org/selection';
 import {
   getCurrentXtermTheme,
   registerTerminal,
@@ -105,6 +112,51 @@ export default function PaneComponent(props: PaneProps) {
     setBudgetPopoverAnchor((prev) => (prev === anchor ? null : anchor));
   const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
   const isAgentCli = () => isKnownAgentCli(proc());
+
+  // --- V14 chunk C role chrome (mockup .pane::before / .ph) — AGENT panes
+  // only (props.agentConfig present). ---------------------------------------
+
+  // Role from the launch CLI — the same CLI→role mapping the sidebar/grid
+  // chrome use (App.mapRole / SplitNode.mapCliToRoleColor). Unknown agent CLIs
+  // default to executor: these panes are agent launches by construction.
+  const agentRole = (): 'planner' | 'executor' | 'reviewer' | 'watcher' => {
+    switch (props.agentConfig?.cliBinary) {
+      case 'claude':
+      case 'voss':
+        return 'planner';
+      case 'gemini':
+        return 'reviewer';
+      case 'opencode':
+        return 'watcher';
+      default:
+        return 'executor';
+    }
+  };
+  const roleColor = () => `var(--role-${agentRole()})`;
+
+  // Bound board card (Bridge B reverse lookup) — reactive via the live
+  // cardToPane signal; undefined until the bridge binds one.
+  const boundCardId = () => {
+    const paneId = props.id;
+    if (!paneId || !props.agentConfig) return undefined;
+    return resolvePane(
+      { cardToPane: cardToPane(), cardToSessionNode: cardToSessionNode() },
+      paneId,
+    );
+  };
+
+  // Honest streaming signal: budget telemetry seen within the last 3s — the
+  // SAME recency definition the sidebar + grid PaneHeader already use
+  // (budgetRegistry lastSeenMs < 3000). Event-driven decay via timeout; no
+  // fabricated state.
+  const [streaming, setStreaming] = createSignal(false);
+  let streamDecayTimer: ReturnType<typeof setTimeout> | undefined;
+  const markStreaming = () => {
+    setStreaming(true);
+    if (streamDecayTimer) clearTimeout(streamDecayTimer);
+    streamDecayTimer = setTimeout(() => setStreaming(false), 3000);
+  };
+
   const updateProc = (name: string) => {
     setProc(name);
     const paneId = props.id;
@@ -356,7 +408,21 @@ export default function PaneComponent(props: PaneProps) {
       },
       onBudgetUpdate: (data) => {
         setBudget(data);
-        if (props.id) registerPaneBudget(props.id, data);
+        markStreaming(); // V14 chunk C — honest streaming recency signal
+        if (props.id) {
+          registerPaneBudget(props.id, data);
+          // V14-12 (VCKP-12): adopted-agent budget-stop. Adoption happens
+          // AFTER spawn, so the limit is read per-event from the adoption
+          // registry instead of being frozen into the transport opts.
+          const adopted = adoptionByPaneId()[props.id];
+          if (
+            adopted &&
+            adopted.budgetUsd > 0 &&
+            data.cost_usd >= adopted.budgetUsd
+          ) {
+            transport?.kill();
+          }
+        }
       },
       onContextUpdate: (data) => {
         if (props.id) registerPaneContext(props.id, data);
@@ -469,6 +535,7 @@ export default function PaneComponent(props: PaneProps) {
     if (fgPoll) clearInterval(fgPoll);
     if (bellFlashTimer) clearTimeout(bellFlashTimer);
     if (bellBadgeTimer) clearTimeout(bellBadgeTimer);
+    if (streamDecayTimer) clearTimeout(streamDecayTimer);
     appearanceUnsub?.();
     observer?.disconnect();
     dprMedia?.removeEventListener('change', onDpr);
@@ -502,11 +569,25 @@ export default function PaneComponent(props: PaneProps) {
       class={focused() ? 'pane focused' : 'pane'}
       onClick={() => setFocused(true)}
     >
+      {/* V14 chunk C — role-colored full-height left edge (mockup
+          .pane::before), agent panes only. Color set inline from the
+          --role-* tokens (mirrors AgentItem); no new custom properties. */}
+      <Show when={props.agentConfig}>
+        <span
+          class="pane-role-edge"
+          style={{ background: roleColor() }}
+          aria-hidden="true"
+        />
+      </Show>
       <div
         ref={headerRef}
         class={`pane-header${headerFlash() ? ' bell-flash' : ''}${isAgentCli() ? ' agent-pane' : ''}`}
       >
-        <span class={`dot ${dot()}${isAgentCli() ? ' agent' : ''}`}>●</span>
+        <span
+          class={`dot ${dot()}${isAgentCli() ? ' agent' : ''}${streaming() ? ' pane-dot--streaming' : ''}`}
+        >
+          ●
+        </span>
         <span class="sep">·</span>
         <span class="idx">{props.index ?? 1}</span>
         <span class="sep">·</span>
@@ -517,7 +598,22 @@ export default function PaneComponent(props: PaneProps) {
           <span class="sep">·</span>
           <span class={isAgentCli() ? 'proc agent-proc' : 'proc'}>{proc()}</span>
         </Show>
-        <Show when={isAgentCli() && !budget()}>
+        {/* V14 chunk C — role pill (mockup .ppill, 11px ≥ A12 floor). For
+            configured agent panes it supersedes the generic "agent" hint
+            below (same slot, more specific). */}
+        <Show when={props.agentConfig}>
+          <span class="sep">·</span>
+          <span
+            class="role-pill"
+            style={{
+              color: roleColor(),
+              background: `color-mix(in srgb, ${roleColor()} 16%, transparent)`,
+            }}
+          >
+            {agentRole()}
+          </span>
+        </Show>
+        <Show when={isAgentCli() && !budget() && !props.agentConfig}>
           <span class="sep">·</span>
           <span style={{ color: 'var(--accent-cyan)', 'font-size': '11px' }}>agent</span>
         </Show>
@@ -532,6 +628,23 @@ export default function PaneComponent(props: PaneProps) {
           </span>
         </Show>
         <span class="spacer" />
+        {/* V14 chunk C — bound-card chip (mockup .pcard): Bridge B reverse
+            lookup; clicking selects the card and jumps to Run Review. */}
+        <Show when={boundCardId()}>
+          {(cardId) => (
+            <button
+              type="button"
+              class="card-chip"
+              title="Open this card in Run Review"
+              onClick={(e) => {
+                e.stopPropagation();
+                requestOpenInReview(cardId());
+              }}
+            >
+              ▦ {cardId().slice(0, 8)}
+            </button>
+          )}
+        </Show>
         <Show when={budget()}>
           {(b) => (
             <BudgetBar
@@ -539,6 +652,11 @@ export default function PaneComponent(props: PaneProps) {
               onClickDetail={(anchor) => openBudgetPopover(anchor)}
             />
           )}
+        </Show>
+        {/* V14 chunk C — streaming flag (mockup .pstream): budget-event
+            recency (<3s), the registry signal the sidebar already shows. */}
+        <Show when={props.agentConfig && streaming()}>
+          <span class="stream-flag">streaming</span>
         </Show>
         <button class="menu" title="menu" type="button">
           ⋯

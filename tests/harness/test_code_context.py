@@ -9,6 +9,7 @@ from voss_runtime.providers.base import ProviderResponse
 
 from voss.harness.agent import Plan, run_turn
 from voss.harness.code.context import render_project_index_section
+from voss.harness.code.models import IndexSummary
 from voss.harness.code.service import CodeIntelService
 from voss.harness.permissions import PermissionGate
 from voss.harness.providers import Done, ParsedPlan, TextDelta, Usage
@@ -121,3 +122,27 @@ def test_project_index_text_is_injected_into_system_context(tmp_path: Path) -> N
     sys_text = _system_text(provider)
     assert "## Project Index" in sys_text
     assert "app.py" in sys_text
+
+
+def test_project_index_renderer_exact_markdown() -> None:
+    summary = IndexSummary(
+        file_count=3,
+        symbol_count=12,
+        languages={"Python": 2, "Voss": 1},
+        top_modules=[("b.py", 5), ("a.py", 4)],
+        entry_points=["main.py", "cli.py"],
+    )
+
+    assert render_project_index_section(summary) == (
+        "## Project Index\n"
+        "\n"
+        "**Files by language:** Python (2), Voss (1)\n"
+        "\n"
+        "**Top modules by symbol count:**\n"
+        "- `b.py` — 5 symbols\n"
+        "- `a.py` — 4 symbols\n"
+        "\n"
+        "**Entry points:** `main.py`, `cli.py`\n"
+        "\n"
+        "_Total: 3 files, 12 symbols_"
+    )

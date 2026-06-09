@@ -1,0 +1,5 @@
+Recorded budget timeline ({{ frames|length }} iterations)
+iter | prompt | completion | cache_create | cache_read | total | cumulative | cost_usd | exit
+{% for row in frames %}
+{{ row.frame.index }} | {{ row.frame.prompt_tokens }} | {{ row.frame.completion_tokens }} | {{ row.frame.cache_creation_input_tokens }} | {{ row.frame.cache_read_input_tokens }} | {{ row.frame.total_tokens }} | {{ row.frame.cumulative_tokens }} | {{ row.frame.cost_usd }} | {{ row.exit_reason }}
+{% endfor %}

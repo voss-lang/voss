@@ -1,0 +1,53 @@
+{% if multi_run -%}
+Prior context (resumed session, newest first):
+
+{% for run in runs -%}
+{% if run.label %}[{{ run.label }}]
+{% endif %}- goal: {{ run.goal }}
+- plan rationale: {{ run.plan_rationale }}
+- decisions:
+{% for item in run.decisions -%}
+{{- "  - " }}{{ item }}
+{% else -%}
+(none)
+{% endfor -%}
+- follow_ups:
+{% for item in run.follow_ups -%}
+{{- "  - " }}{{ item }}
+{% else -%}
+(none)
+{% endfor -%}
+- risks:
+{% for item in run.risks -%}
+{{- "  - " }}{{ item }}
+{% else -%}
+(none)
+{% endfor -%}
+{% if not loop.last %}
+
+{% endif -%}
+{% endfor -%}
+{% else -%}
+Prior context (most-recent turn):
+{% set run = runs[0] -%}
+- goal: {{ run.goal }}
+- plan rationale: {{ run.plan_rationale }}
+- decisions:
+{% for item in run.decisions -%}
+{{- "  - " }}{{ item }}
+{% else -%}
+(none)
+{% endfor -%}
+- follow_ups:
+{% for item in run.follow_ups -%}
+{{- "  - " }}{{ item }}
+{% else -%}
+(none)
+{% endfor -%}
+- risks:
+{% for item in run.risks -%}
+{{- "  - " }}{{ item }}
+{% else -%}
+(none)
+{% endfor -%}
+{% endif %}

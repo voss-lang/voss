@@ -43,6 +43,50 @@ def test_summary_has_required_sections(tmp_path: Path) -> None:
     assert "| task | runs | pass rate | mean cost |" in text
 
 
+def test_summary_renders_exact_markdown_bytes(tmp_path: Path) -> None:
+    run_dir = tmp_path / "eval-run"
+    run_dir.mkdir()
+    jsonl = run_dir / "runs.jsonl"
+    rows = [
+        {
+            "task_id": "01-alpha",
+            "success": True,
+            "cost_usd": 0.02,
+            "confidence": 0.9,
+            "provider": "StubProvider",
+            "model": "__stub__",
+        },
+        {
+            "task_id": "02-beta",
+            "success": False,
+            "cost_usd": 0.04,
+            "confidence": 0.3,
+            "provider": "StubProvider",
+            "model": "__stub__",
+        },
+    ]
+    _write_rows(jsonl, rows)
+
+    text = write_summary(jsonl, run_dir / "summary.md").read_text()
+
+    assert text == (
+        "# voss eval — eval-run\n"
+        "\n"
+        "- runs: 2\n"
+        "- provider: `StubProvider` · model: `__stub__`\n"
+        "- overall success rate: 50% (1/2)\n"
+        "- mean cost: $0.0300\n"
+        "- conf_corr_r: 1.000 (n=2)\n"
+        "\n"
+        "## Per-task\n"
+        "\n"
+        "| task | runs | pass rate | mean cost |\n"
+        "|------|-----:|----------:|----------:|\n"
+        "| `01-alpha` | 1 | 100% | $0.0200 |\n"
+        "| `02-beta` | 1 | 0% | $0.0400 |\n"
+    )
+
+
 def test_summary_handles_all_null_cost(tmp_path: Path) -> None:
     jsonl = tmp_path / "runs.jsonl"
     rows = [

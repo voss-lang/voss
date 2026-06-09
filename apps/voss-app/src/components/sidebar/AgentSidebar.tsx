@@ -123,6 +123,16 @@ const AgentSidebar: Component<AgentSidebarProps> = (props) => {
               )}
             </For>
           </Show>
+          {/* V14 chunk C — quick-launch row (mockup .qlbtn): same launch
+              path as the header + button. */}
+          <button
+            type="button"
+            class="sidebar-quick-launch"
+            aria-label="Quick-launch agent"
+            onClick={() => props.onLaunchAgent()}
+          >
+            + Quick-launch agent
+          </button>
         </div>
 
         {/* ACTIVITY section */}

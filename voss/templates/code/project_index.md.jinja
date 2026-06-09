@@ -1,0 +1,18 @@
+## Project Index
+
+{% if languages %}
+**Files by language:** {{ languages }}
+
+{% endif %}
+{% if top_modules %}
+**Top modules by symbol count:**
+{% for module in top_modules %}
+- `{{ module.path }}` — {{ module.count }} symbols
+{% endfor %}
+
+{% endif %}
+{% if entry_points %}
+**Entry points:** {{ entry_points }}
+
+{% endif %}
+_Total: {{ file_count }} files, {{ symbol_count }} symbols_

@@ -23,12 +23,13 @@
 // start path (never a silent no-op).
 //
 // Styling: A12 tokens only (var(--bg-*), var(--accent-*), var(--border),
-// var(--font-mono)); reuses the modal-segmented classes from modal.css. No new
-// --xxx tokens.
+// var(--font-mono)); V14 chunk A restyles the strip to the cockpit mockup
+// `.cmdbar` look (goal container with ▸ prefix, key:value chips, .seg
+// segmented controls, focus-filled Start) via own run-bar__* classes in
+// runCommandBar.css. No new --xxx tokens.
 
 import { type Component, createSignal, For, Show } from 'solid-js';
 import { invoke } from '@tauri-apps/api/core';
-import '../../components/modal/modal.css';
 import './runCommandBar.css';
 import {
   assembleRunSpec,
@@ -83,8 +84,10 @@ export interface RunCommandBarProps {
 }
 
 const MODES: RunMode[] = ['Plan', 'Edit', 'Auto'];
+// D-10 copy rule: internal-mechanics vocabulary (incl. "Voss-native") never
+// surfaces in UI strings — the native target reads "Voss run".
 const TARGETS: { id: RunTarget; label: string }[] = [
-  { id: 'native', label: 'Voss-native' },
+  { id: 'native', label: 'Voss run' },
   { id: 'terminal', label: 'Terminal agent' },
 ];
 const TEAMS = ['solo', 'core', 'review'];
@@ -109,6 +112,15 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
   const [target, setTarget] = createSignal<RunTarget>('native');
   const [contextAttached, setContextAttached] = createSignal(false);
   const [blockReason, setBlockReason] = createSignal<string | null>(null);
+  // 6b: transient post-launch confirmation — the bar must acknowledge a
+  // successful start, not only failures.
+  const [startedMsg, setStartedMsg] = createSignal<string | null>(null);
+  let startedTimer: ReturnType<typeof setTimeout> | undefined;
+  const flashStarted = (msg: string) => {
+    setStartedMsg(msg);
+    clearTimeout(startedTimer);
+    startedTimer = setTimeout(() => setStartedMsg(null), 2000);
+  };
 
   const currentSpec = (): RunSpec => {
     const b = budget().trim();
@@ -146,36 +158,45 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
         paneId,
         cwd: props.cwd,
       });
+      flashStarted('Run started');
       return;
     }
 
-    // Native (Bridge A) — gated/mock in V14.
+    // Native (Bridge A) — gated/mock in V14. D-10: plain language, no
+    // internal-mechanics vocabulary in the reason string.
     if (!props.client) {
-      setBlockReason('Voss-native runs are not available yet (server gated).');
+      setBlockReason('Voss runs need the Voss server — not available in this build.');
       return;
     }
     const response = await props.client.createSession(spec);
     // A1 finding: the create-response id IS the snapshot node id.
     registerNativeCard(response.id, response.id);
+    flashStarted('Run started');
   };
 
   return (
     <div class="run-command-bar" role="region" aria-label="Run intake">
-      <input
-        class="run-bar__goal"
-        placeholder="Describe the run goal…"
-        value={goal()}
-        onInput={(e) => setGoal(e.currentTarget.value)}
-        aria-label="Run goal"
-      />
+      {/* Goal — rounded container with the ▸ prefix (mockup .goal). */}
+      <div class="run-bar__goal">
+        <span class="run-bar__goal-icon" aria-hidden="true">
+          ▸
+        </span>
+        <input
+          class="run-bar__goal-input"
+          placeholder="Describe the run goal…"
+          value={goal()}
+          onInput={(e) => setGoal(e.currentTarget.value)}
+          aria-label="Run goal"
+        />
+      </div>
 
       {/* Mode — visible segmented control, never placeholder. */}
       <div class="run-bar__group" aria-label="Mode">
-        <div class="modal-segmented">
+        <div class="run-bar__seg">
           <For each={MODES}>
             {(m) => (
               <button
-                class={`modal-segmented__btn${mode() === m ? ' modal-segmented__btn--active' : ''}`}
+                class={`run-bar__seg-btn${mode() === m ? ' run-bar__seg-btn--active' : ''}`}
                 onClick={() => setMode(m)}
               >
                 {m}
@@ -185,35 +206,44 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
         </div>
       </div>
 
-      {/* Team selector */}
-      <select
-        class="run-bar__team"
-        value={team()}
-        onChange={(e) => setTeam(e.currentTarget.value)}
-        aria-label="Team"
-      >
-        <For each={TEAMS}>{(t) => <option value={t}>{t}</option>}</For>
-      </select>
+      {/* Team — key:value chip (mockup .chip), value stays a select. */}
+      <label class="run-bar__chip">
+        <span class="run-bar__chip-key">team</span>
+        <select
+          class="run-bar__team"
+          value={team()}
+          onChange={(e) => setTeam(e.currentTarget.value)}
+          aria-label="Team"
+        >
+          <For each={TEAMS}>{(t) => <option value={t}>{t}</option>}</For>
+        </select>
+      </label>
 
-      {/* Scope chip */}
-      <input
-        class="run-bar__chip"
-        placeholder="scope (e.g. tests/**)"
-        value={scope()}
-        onInput={(e) => setScope(e.currentTarget.value)}
-        aria-label="Scope"
-      />
+      {/* Scope — key:value chip, value stays an editable input. */}
+      <label class="run-bar__chip">
+        <span class="run-bar__chip-key">scope</span>
+        <input
+          class="run-bar__chip-input run-bar__chip-input--scope"
+          placeholder="e.g. tests/**"
+          value={scope()}
+          onInput={(e) => setScope(e.currentTarget.value)}
+          aria-label="Scope"
+        />
+      </label>
 
-      {/* Budget chip */}
-      <input
-        class="run-bar__chip run-bar__chip--budget"
-        type="number"
-        min="0"
-        placeholder="budget"
-        value={budget()}
-        onInput={(e) => setBudget(e.currentTarget.value)}
-        aria-label="Budget"
-      />
+      {/* Budget — key:value chip, value stays an editable input. */}
+      <label class="run-bar__chip">
+        <span class="run-bar__chip-key">budget</span>
+        <input
+          class="run-bar__chip-input run-bar__chip-input--budget"
+          type="number"
+          min="0"
+          placeholder="$"
+          value={budget()}
+          onInput={(e) => setBudget(e.currentTarget.value)}
+          aria-label="Budget"
+        />
+      </label>
 
       {/* Context-attach */}
       <button
@@ -222,16 +252,18 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
         aria-pressed={contextAttached()}
         aria-label="Attach context"
       >
-        {contextAttached() ? '📎 Context' : '📎 Attach'}
+        {contextAttached() ? '✓ ctx' : '+ ctx'}
       </button>
 
-      {/* Explicit target indicator — visible segmented control. */}
+      {/* Explicit target indicator — visible segmented control. The native
+          'Voss run' segment carries the mockup .chip.native accent when
+          active (focus-tinted ring + focus text). */}
       <div class="run-bar__group" aria-label="Run target">
-        <div class="modal-segmented">
+        <div class="run-bar__seg">
           <For each={TARGETS}>
             {(t) => (
               <button
-                class={`modal-segmented__btn${target() === t.id ? ' modal-segmented__btn--active' : ''}`}
+                class={`run-bar__seg-btn${t.id === 'native' ? ' run-bar__seg-btn--native' : ''}${target() === t.id ? ' run-bar__seg-btn--active' : ''}`}
                 onClick={() => setTarget(t.id)}
               >
                 {t.label}
@@ -246,13 +278,20 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
         onClick={() => void handleStart()}
         aria-label="Start run"
       >
-        Start
+        Start ⏎
       </button>
 
       {/* Inline disabled-with-reason (Auto gate / gated native). */}
       <Show when={blockReason()}>
         <span class="run-bar__reason" role="alert">
           {blockReason()}
+        </span>
+      </Show>
+
+      {/* 6b: transient success confirmation. */}
+      <Show when={startedMsg()}>
+        <span class="run-bar__started" role="status">
+          {startedMsg()}
         </span>
       </Show>
     </div>

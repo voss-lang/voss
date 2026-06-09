@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from voss.harness import session as session_store
+from voss.template_render import render_package_template
 
 
 @dataclass(frozen=True)
@@ -104,19 +105,30 @@ def render_decision_sequence(run: object, decision_index: int | None = None) -> 
         return "No recorded decisions."
 
     if decision_index is None:
-        lines = [f"Recorded decision sequence ({len(sequence)} decisions)"]
-        for view in sequence:
-            lines.extend(_render_decision(view))
-        return "\n".join(lines)
+        return render_package_template(
+            "voss",
+            "templates/inspect/decision_sequence.txt.jinja",
+            {
+                "heading": f"Recorded decision sequence ({len(sequence)} decisions)",
+                "previous_label": None,
+                "next_label": None,
+                "decisions": [_decision_context(view) for view in sequence],
+            },
+        ).removesuffix("\n")
 
     selected = _find_decision(sequence, decision_index)
-    lines = [
-        f"Recorded decision {selected.index}",
-        _context_label("Previous", sequence, selected.previous_index),
-        _context_label("Next", sequence, selected.next_index),
-    ]
-    lines.extend(_render_decision(selected))
-    return "\n".join(lines)
+    return render_package_template(
+        "voss",
+        "templates/inspect/decision_sequence.txt.jinja",
+        {
+            "heading": f"Recorded decision {selected.index}",
+            "previous_label": _context_label(
+                "Previous", sequence, selected.previous_index
+            ),
+            "next_label": _context_label("Next", sequence, selected.next_index),
+            "decisions": [_decision_context(selected)],
+        },
+    ).removesuffix("\n")
 
 
 def render_budget_timeline(run: object) -> str:
@@ -125,30 +137,17 @@ def render_budget_timeline(run: object) -> str:
     if not frames:
         return "No recorded budget timeline."
 
-    lines = [
-        f"Recorded budget timeline ({len(frames)} iterations)",
-        "iter | prompt | completion | cache_create | cache_read | total | cumulative | cost_usd | exit",
-    ]
+    rows = []
     for frame in frames:
         exit_reason = frame.exit_reason or "-"
         if frame.exit_reason == "budget":
             exit_reason = "budget (budget exhausted)"
-        lines.append(
-            " | ".join(
-                [
-                    str(frame.index),
-                    str(frame.prompt_tokens),
-                    str(frame.completion_tokens),
-                    str(frame.cache_creation_input_tokens),
-                    str(frame.cache_read_input_tokens),
-                    str(frame.total_tokens),
-                    str(frame.cumulative_tokens),
-                    str(frame.cost_usd),
-                    exit_reason,
-                ]
-            )
-        )
-    return "\n".join(lines)
+        rows.append({"frame": frame, "exit_reason": exit_reason})
+    return render_package_template(
+        "voss",
+        "templates/inspect/budget_timeline.txt.jinja",
+        {"frames": rows},
+    ).removesuffix("\n")
 
 
 def load_run(cwd: Path, session_id_or_name: str, run_index: int = -1) -> object:
@@ -172,17 +171,15 @@ def _find_decision(sequence: list[DecisionView], decision_index: int) -> Decisio
     raise IndexError(f"decision_index {decision_index} out of range")
 
 
-def _render_decision(view: DecisionView) -> list[str]:
-    lines = [
-        "",
-        f"[{view.index}] {view.title or '(untitled decision)'}",
-        f"confidence: {_format_confidence(view.confidence)}",
-        f"previous: {_format_index(view.previous_index)}",
-        f"next: {_format_index(view.next_index)}",
-    ]
-    if view.body:
-        lines.extend(["body:", view.body])
-    return lines
+def _decision_context(view: DecisionView) -> dict[str, Any]:
+    return {
+        "index": view.index,
+        "title": view.title or "(untitled decision)",
+        "confidence": _format_confidence(view.confidence),
+        "previous": _format_index(view.previous_index),
+        "next": _format_index(view.next_index),
+        "body": view.body,
+    }
 
 
 def _context_label(

@@ -25,6 +25,26 @@ import { setSelectedCardId } from '../selection';
 /** Blocking kinds drive the pill pulse; here they only tint the row badge. */
 const BLOCKING_KINDS = new Set<AttentionItem['kind']>(['permission', 'signoff']);
 
+/**
+ * V14 chunk C row polish (mockup .ai colored kind-dot): red for the hard
+ * blockers (permission / blocked), focus-orange for sign-off, amber for the
+ * advisory kinds (budget / confidence / gate / unsupported), neutral for idle.
+ * Existing A12 tokens only.
+ */
+function kindDotColor(kind: AttentionItem['kind']): string {
+  switch (kind) {
+    case 'permission':
+    case 'blocked':
+      return 'var(--accent-red)';
+    case 'signoff':
+      return 'var(--focus)';
+    case 'idle':
+      return 'var(--fg-3)';
+    default:
+      return 'var(--accent-amber)';
+  }
+}
+
 export type AttentionPanelProps = {
   open: boolean;
   onClose: () => void;
@@ -72,6 +92,11 @@ export default function AttentionPanel(props: AttentionPanelProps) {
                 return (
                   <div class="attn-row">
                     <div class="attn-row__head">
+                      <span
+                        class="attn-row__dot"
+                        style={{ background: kindDotColor(item.kind) }}
+                        aria-hidden="true"
+                      />
                       <span
                         class={`attn-row__badge${blocking ? ' attn-row__badge--blocking' : ''}`}
                       >

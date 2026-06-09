@@ -17,6 +17,8 @@ from typing import Any, Optional
 import json
 import sys
 
+from voss.template_render import render_package_template
+
 from .session import EXIT_REASONS, BatchRecord, IterationRecord, RunRecord
 
 
@@ -508,16 +510,17 @@ def write_decisions_md(cwd: Path, run, session_id: str) -> list[Path]:
         path = reserve_filename(decisions_dir, slug(title))
         id_str = path.stem
         created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        content = (
-            "---\n"
-            f"id: {id_str}\n"
-            "status: active\n"
-            f"related_session: {session_id}\n"
-            f"confidence: {conf:.2f}\n"
-            f"created_at: {created_at}\n"
-            "---\n\n"
-            f"# {title}\n\n"
-            f"{body}\n"
+        content = render_package_template(
+            "voss",
+            "templates/recorder/decision.md.jinja",
+            {
+                "id": id_str,
+                "session_id": session_id,
+                "confidence": f"{conf:.2f}",
+                "created_at": created_at,
+                "title": title,
+                "body": body,
+            },
         )
         path.write_text(content)
         paths.append(path)

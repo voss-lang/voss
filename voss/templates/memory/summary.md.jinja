@@ -1,0 +1,8 @@
+# Memory store contents
+
+{% for source in sources %}
+- {{ source.name }}: {{ source.files }} files, {{ source.bytes }} bytes
+{% endfor %}
+
+Total: {{ total_files }} files, {{ total_bytes }} bytes
+Tombstoned: {{ tombstoned_count }} ids

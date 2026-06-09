@@ -1,17 +1,22 @@
 from __future__ import annotations
 
-import importlib.resources
+from functools import lru_cache
 from collections.abc import Mapping
 from typing import Any
 
-from jinja2 import Environment, StrictUndefined
+from jinja2 import Environment, PackageLoader, StrictUndefined
 
 
-_ENV = Environment(
-    autoescape=False,
-    keep_trailing_newline=True,
-    undefined=StrictUndefined,
-)
+@lru_cache(maxsize=None)
+def _environment(package: str) -> Environment:
+    return Environment(
+        autoescape=False,
+        keep_trailing_newline=True,
+        loader=PackageLoader(package, ""),
+        lstrip_blocks=True,
+        trim_blocks=True,
+        undefined=StrictUndefined,
+    )
 
 
 def render_package_template(
@@ -19,5 +24,5 @@ def render_package_template(
     resource: str,
     context: Mapping[str, Any],
 ) -> str:
-    template = importlib.resources.files(package).joinpath(resource)
-    return _ENV.from_string(template.read_text()).render(**context)
+    template = _environment(package).get_template(resource)
+    return template.render(**context)

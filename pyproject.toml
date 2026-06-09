@@ -86,6 +86,12 @@ voss = [
     "py.typed",
     "templates/init/*",
     "templates/audit/*",
+    "templates/code/*",
+    "templates/eval/*",
+    "templates/inspect/*",
+    "templates/lint/*",
+    "templates/memory/*",
+    "templates/recorder/*",
     "harness/agent/*.voss",
     "harness/code/defaults/lsp.yml",
 ]
