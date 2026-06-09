@@ -49,10 +49,14 @@ export default function BudgetBar(props: BudgetBarProps) {
       }}
       onClick={() => props.onClickDetail(buttonRef)}
     >
+      {/* V14 chunk C — mono cost with the hot treatment ≥ $1 (mockup
+          .pcost.hot), matching the grid PaneHeader's agent-cost colors. */}
       <span
         style={{
-          color: 'var(--fg-2)',
+          color: props.budget.cost_usd >= 1 ? 'var(--focus)' : 'var(--fg-2)',
+          'font-family': 'var(--font-mono)',
           'font-size': '11px',
+          'font-weight': props.budget.cost_usd >= 1 ? '600' : '400',
           'max-width': '44px',
           'white-space': 'nowrap',
           overflow: 'hidden',
