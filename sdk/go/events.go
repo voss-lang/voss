@@ -36,10 +36,9 @@ func (BudgetUpdated) eventType() string      { return "budget.updated" }
 func (ConfidenceUpdated) eventType() string  { return "confidence.updated" }
 func (GateUpdated) eventType() string        { return "gate.updated" }
 
-// ErrUnknownEventType is returned by Decode for any `type` value not in the
-// 21-member set (e.g. a future protocol-v2 event). It carries the raw type
-// string so callers can log or forward it — Decode never silently drops an
-// event. Match it via errors.As.
+// ErrUnknownEventType is returned by Decode for any `type` not in the 21-member
+// set (e.g. a future protocol-v2 event). It carries the raw type string so
+// callers can log or forward it. Match via errors.As.
 type ErrUnknownEventType struct{ Type string }
 
 func (e ErrUnknownEventType) Error() string { return "unknown event type: " + e.Type }
