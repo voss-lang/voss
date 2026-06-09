@@ -71,8 +71,19 @@ class TestRunRecordAdditive:
             assert rec.exit_reason == reason
 
     def test_exit_reasons_constant_is_authoritative(self) -> None:
+        # Additive history: T2-03 "batch-invariant"; 74a328f "timeout"
+        # (session timeout support); 6361c51 "error"; a666646 "killed".
         assert EXIT_REASONS == frozenset(
-            {"done", "max-iter", "budget", "interrupt", "batch-invariant"}
+            {
+                "done",
+                "max-iter",
+                "budget",
+                "interrupt",
+                "batch-invariant",
+                "timeout",
+                "killed",
+                "error",
+            }
         )
 
 
