@@ -93,12 +93,40 @@ await page.evaluate(() => {
   );
 });
 
-await page.keyboard.press('Meta+KeyD');
-await page.waitForTimeout(800);
-console.log('--- after Meta+D, panes:', await page.$$eval('[data-pane-id]', (e) => e.length));
+const rects = async () =>
+  (
+    await page.$$eval('[data-pane-id]', (els) =>
+      els
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            id: el.getAttribute('data-pane-id'),
+            x: r.x,
+            y: r.y,
+            w: r.width,
+            h: r.height,
+          };
+        })
+        .filter((r) => r.w > 0),
+    )
+  ).sort((a, b) => a.x - b.x || a.y - b.y);
 
-await page.keyboard.press('Meta+Backslash');
-await page.waitForTimeout(800);
-console.log('--- after Meta+\\, panes:', await page.$$eval('[data-pane-id]', (e) => e.length));
+await page.keyboard.press('Meta+KeyD');
+await page.waitForTimeout(400);
+await page.keyboard.press('Meta+KeyD');
+await page.waitForTimeout(400);
+console.log('--- 3 panes:', JSON.stringify(await rects(), null, 1));
+
+// drag A header onto B center
+const [a, b] = await rects();
+const hx = a.x + a.w / 2;
+const hy = a.y + 11;
+await page.mouse.move(hx, hy);
+await page.mouse.down();
+await page.mouse.move(hx + 12, hy + 4, { steps: 2 });
+await page.mouse.move(b.x + b.w / 2, b.y + b.h / 2, { steps: 10 });
+await page.mouse.up();
+await page.waitForTimeout(600);
+console.log('--- after center drop:', JSON.stringify(await rects(), null, 1));
 
 await browser.close();

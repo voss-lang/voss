@@ -174,14 +174,10 @@ export function createPaneDrag(
       const target =
         dropTarget ?? targetAt(snapRects, dragId, x, y);
       // TEMP-DEBUG
-      console.debug('[paneDrag] finishDrag', {
-        dragId,
-        wasDragging,
-        x,
-        y,
-        target: target ? { ...target } : null,
-        dims: dims(),
-      });
+      console.debug(
+        '[paneDrag] finishDrag',
+        JSON.stringify({ dragId, wasDragging, x, y, target, dims: dims() }),
+      );
       if (target) {
         let moved = false;
         setStore(
