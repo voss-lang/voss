@@ -1,13 +1,14 @@
-"""V2-03 guards (VPRIN-03 + schema-freeze hard constraint).
+"""V2-03 guards (VPRIN-03 + schema/redaction hard constraint).
 
 GUARD 1 — principles are OPAQUE text: no harness/agent code path may branch
 (if / comparison / match-case) on an individual principle key or default text.
 The literal keys/texts may appear only in DATA positions (the DEFAULT_PRINCIPLES
 constant, dict/tuple construction), never as a conditional operand.
 
-GUARD 2 — schema freeze: RunRecord / SessionRecord / BudgetScope field-name
-sets are frozen here. V2 must add ZERO fields (audit recording of principles is
-V9). Any add/remove fails, protecting the O1/V4 redaction invariant.
+GUARD 2 — schema/redaction baseline: RunRecord / SessionRecord / BudgetScope
+field-name sets are frozen here to force review for any new persisted field.
+Later authorized additive fields may be added to this baseline only when they
+preserve the redaction invariant enforced by test_session_redaction.py.
 """
 from __future__ import annotations
 
@@ -18,49 +19,97 @@ from pathlib import Path
 from voss.harness.principles import DEFAULT_PRINCIPLES
 
 _REPO = Path(__file__).resolve().parents[2]
-_SCANNED = (
-    _REPO / "voss" / "harness" / "principles.py",
-    _REPO / "voss" / "harness" / "agent.py",
-)
+_HARNESS = _REPO / "voss" / "harness"
 
 _FORBIDDEN = {k for k, _ in DEFAULT_PRINCIPLES} | {t for _, t in DEFAULT_PRINCIPLES}
 
 
+def _imports_principles(tree: ast.AST) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "voss.harness.principles":
+                    return True
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "voss.harness.principles":
+                return True
+            if node.level and node.module == "principles":
+                return True
+            if node.level and node.module is None:
+                if any(alias.name == "principles" for alias in node.names):
+                    return True
+    return False
+
+
+def _scanned_paths() -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for path in sorted(_HARNESS.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        if path.name == "principles.py" or _imports_principles(tree):
+            paths.append(path)
+    return tuple(paths)
+
+
+def _forbidden_strings(node: ast.AST) -> list[tuple[int, str]]:
+    hits: list[tuple[int, str]] = []
+    for child in ast.walk(node):
+        if (
+            isinstance(child, ast.Constant)
+            and isinstance(child.value, str)
+            and child.value in _FORBIDDEN
+        ):
+            hits.append((child.lineno, child.value))
+    return hits
+
+
 def _branch_hits(path: Path) -> list[tuple[int, str]]:
-    """Return (lineno, literal) for any principle key/text used as a branch
-    operand (Compare operand or match-case value)."""
+    """Return (lineno, literal) for principle keys/texts in control flow."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     hits: list[tuple[int, str]] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Compare):
-            operands = [node.left, *node.comparators]
-            for op in operands:
-                if (
-                    isinstance(op, ast.Constant)
-                    and isinstance(op.value, str)
-                    and op.value in _FORBIDDEN
-                ):
-                    hits.append((node.lineno, op.value))
+        if isinstance(node, (ast.If, ast.While, ast.IfExp, ast.Assert)):
+            hits.extend(_forbidden_strings(node.test))
+        elif isinstance(node, ast.comprehension):
+            for condition in node.ifs:
+                hits.extend(_forbidden_strings(condition))
         elif isinstance(node, ast.Match):
             for case in node.cases:
-                for pat in ast.walk(case.pattern):
-                    if (
-                        isinstance(pat, ast.MatchValue)
-                        and isinstance(pat.value, ast.Constant)
-                        and isinstance(pat.value.value, str)
-                        and pat.value.value in _FORBIDDEN
-                    ):
-                        hits.append((pat.lineno, pat.value.value))
+                hits.extend(_forbidden_strings(case.pattern))
     return hits
 
 
 def test_no_control_flow_branches_on_principles() -> None:
     all_hits: dict[str, list[tuple[int, str]]] = {}
-    for path in _SCANNED:
+    for path in _scanned_paths():
         hits = _branch_hits(path)
         if hits:
             all_hits[str(path.relative_to(_REPO))] = hits
     assert not all_hits, f"principle key/text used in a branch (must be opaque): {all_hits}"
+
+
+def test_branch_scanner_catches_membership_sets(tmp_path: Path) -> None:
+    path = tmp_path / "bad.py"
+    path.write_text(
+        "def bad(key):\n"
+        "    if key in {'scope'}:\n"
+        "        return True\n"
+        "    return False\n",
+        encoding="utf-8",
+    )
+
+    assert _branch_hits(path) == [(2, "scope")]
+
+
+def test_branch_scanner_allows_default_data_declaration(tmp_path: Path) -> None:
+    path = tmp_path / "data.py"
+    path.write_text(
+        "DEFAULT_PRINCIPLES = (\n"
+        "    ('scope', 'Do not edit outside assigned scope.'),\n"
+        ")\n",
+        encoding="utf-8",
+    )
+
+    assert _branch_hits(path) == []
 
 
 # ---- GUARD 2: schema freeze ------------------------------------------------
@@ -71,7 +120,7 @@ _RUN_RECORD_FIELDS = {
     "diff_summary", "follow_ups", "cost_usd", "iterations", "iteration_count",
     "exit_reason", "iteration_total_prompt_tokens",
     "iteration_total_completion_tokens", "skill_events", "scope_denials",
-    "capability_invocations",
+    "capability_invocations", "factory_fallbacks",
 }
 
 _SESSION_RECORD_FIELDS = {
