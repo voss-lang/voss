@@ -346,11 +346,21 @@ REGISTRY: tuple[CheckSpec, ...] = (
 )
 
 
-def run_all_checks(cwd: Path) -> list[Check]:
-    """Run registry checks in documented display order (D-11); stamp each
-    result with its spec's id/category for rendering and JSON output."""
+def run_checks(
+    cwd: Path,
+    *,
+    ids: set[str] | None = None,
+    categories: set[Category] | None = None,
+) -> list[Check]:
+    """Run registry checks in documented display order (D-11), optionally
+    filtered by spec id and/or category (intersection when both given);
+    stamp each result with its spec's id/category for rendering and JSON."""
     results: list[Check] = []
     for spec in REGISTRY:
+        if ids is not None and spec.id not in ids:
+            continue
+        if categories is not None and spec.category not in categories:
+            continue
         check = spec.run(cwd)
         if not check.id:
             check.id = spec.id
@@ -358,6 +368,10 @@ def run_all_checks(cwd: Path) -> list[Check]:
             check.category = spec.category
         results.append(check)
     return results
+
+
+def run_all_checks(cwd: Path) -> list[Check]:
+    return run_checks(cwd)
 
 
 def aggregate_exit_code(results: list[Check]) -> int:
