@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -798,6 +798,22 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9d/a4/e44218c2b394e31a6dd0d6b095c4e1f32d0be54c2a4b250032d717647bab/durationpy-0.10.tar.gz", hash = "sha256:1fa6893409a6e739c9c72334fc65cca1f355dbdd93405d30f726deb5bde42fba", size = 3335, upload-time = "2025-05-17T13:52:37.26Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b0/0d/9feae160378a3553fa9a339b0e9c1a048e147a4127210e286ef18b730f03/durationpy-0.10-py3-none-any.whl", hash = "sha256:3b41e1b601234296b4fb368338fdcd3e13e0b4fb5b67345948f4f2bf9868b286", size = 3922, upload-time = "2025-05-17T13:52:36.463Z" },
+]
+
+[[package]]
+name = "fastapi"
+version = "0.136.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/81/2d/ff8d91d7b564d464629a0fd50a4489c97fcb836ac230bf3a7269232a9b1f/fastapi-0.136.3.tar.gz", hash = "sha256:e487fae93ad408e6f47641ee4dfe389864fd7bec92e547ea8498fc13f43e83ab", size = 396410, upload-time = "2026-05-23T18:53:15.192Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e0/82/45359b62a067409bd929ae8a56b8ed13e5a8c8a61194b3c236920999ab83/fastapi-0.136.3-py3-none-any.whl", hash = "sha256:3d2a69bdf04b7e9f3afa292c3bc7a98816bbfafa10bc9b45f3f3700d2f761620", size = 117481, upload-time = "2026-05-23T18:53:16.924Z" },
 ]
 
 [[package]]
@@ -3587,6 +3603,32 @@ wheels = [
 ]
 
 [[package]]
+name = "sse-starlette"
+version = "3.4.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "starlette" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/2b/58abc2d1fd397e7dde08e947e05c884d8ef2f78d5e2588c17a12d42d6994/sse_starlette-3.4.4.tar.gz", hash = "sha256:07e0fa0460138baf25cdd5fb28683472c3995dc1642225191b3832d62526bcb0", size = 31819, upload-time = "2026-05-12T17:37:17.019Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dc/67/805710444ea8cc75fbf70b920ed431a560c4bf9c57f7d5a3117213189399/sse_starlette-3.4.4-py3-none-any.whl", hash = "sha256:3f4dd50d8aed2771a091f3a83000323fc3844541c16b4fe585ae2420cc6df973", size = 16514, upload-time = "2026-05-12T17:37:15.601Z" },
+]
+
+[[package]]
+name = "starlette"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/25/44/ec35f1b6e83094b997da438a02c8c9b0ade2b1e84cfc48bd4656780760a6/starlette-1.2.1.tar.gz", hash = "sha256:9b9b5ebb992e67d6093741e63c2f59e4f6fff986f81163c087867bd7b924b3f6", size = 2701854, upload-time = "2026-05-31T01:07:51.847Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1c/54/196d0c1db10af76baa4f64894448505d60d3cdf70ef92cbb35f46a4e4c71/starlette-1.2.1-py3-none-any.whl", hash = "sha256:4de0082d08c8f6764a85a54cf1120d6939507a19905c7768acad2a9f875d2b89", size = 73350, upload-time = "2026-05-31T01:07:50.09Z" },
+]
+
+[[package]]
 name = "sympy"
 version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4022,6 +4064,8 @@ dependencies = [
     { name = "anthropic" },
     { name = "click" },
     { name = "cryptography" },
+    { name = "jinja2" },
+    { name = "jsonschema" },
     { name = "keyring" },
     { name = "lark" },
     { name = "litellm" },
@@ -4045,6 +4089,7 @@ code = [
 ]
 dev = [
     { name = "chromadb" },
+    { name = "fastapi" },
     { name = "pillow" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -4053,12 +4098,19 @@ dev = [
     { name = "pytest-textual-snapshot" },
     { name = "respx" },
     { name = "sentence-transformers" },
+    { name = "sse-starlette" },
+    { name = "uvicorn", extra = ["standard"] },
     { name = "vcrpy" },
     { name = "watchdog" },
 ]
 search = [
     { name = "chromadb" },
     { name = "sentence-transformers" },
+]
+server = [
+    { name = "fastapi" },
+    { name = "sse-starlette" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.metadata]
@@ -4069,6 +4121,10 @@ requires-dist = [
     { name = "chromadb", marker = "extra == 'search'", specifier = ">=0.5.0" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "cryptography", specifier = ">=43.0.3" },
+    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.136" },
+    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.136" },
+    { name = "jinja2", specifier = ">=3.1,<4" },
+    { name = "jsonschema", specifier = ">=4.0" },
     { name = "keyring", specifier = ">=24.0" },
     { name = "lark", specifier = ">=1.1.9" },
     { name = "litellm", specifier = ">=1.74.0" },
@@ -4089,14 +4145,18 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0.0" },
     { name = "sentence-transformers", marker = "extra == 'dev'", specifier = ">=2.7.0" },
     { name = "sentence-transformers", marker = "extra == 'search'", specifier = ">=2.7.0" },
+    { name = "sse-starlette", marker = "extra == 'dev'", specifier = ">=3.4" },
+    { name = "sse-starlette", marker = "extra == 'server'", specifier = ">=3.4" },
     { name = "textual", specifier = ">=0.58,<9.0" },
     { name = "tiktoken", specifier = ">=0.7.0" },
     { name = "tomli-w", specifier = ">=1.0" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'dev'", specifier = ">=0.30" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.30" },
     { name = "vcrpy", marker = "extra == 'dev'", specifier = ">=8.0.0,<9" },
     { name = "watchdog", specifier = ">=4.0,<7" },
     { name = "watchdog", marker = "extra == 'dev'", specifier = ">=4.0,<7" },
 ]
-provides-extras = ["search", "code", "dev"]
+provides-extras = ["search", "code", "server", "dev"]
 
 [[package]]
 name = "watchdog"
