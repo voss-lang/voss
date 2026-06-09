@@ -32,6 +32,7 @@ interface Candidate {
 }
 
 const THRESHOLD_PX = 5;
+const captureOpts: AddEventListenerOptions = { capture: true };
 
 function snapshotPaneRects(): Map<string, Rect> {
   const out = new Map<string, Rect>();
@@ -60,6 +61,8 @@ export function createPaneDrag(
   store: Store<GridStore>,
   setStore: SetStoreFunction<GridStore>,
   dims: () => Dims,
+  /** Called once after a successful drop (layout becomes `custom`). */
+  onMoved?: () => void,
 ): PaneDragController {
   const [state, setState] = createSignal<PaneDragState | null>(null);
   const [rects, setRects] = createSignal<ReadonlyMap<string, Rect>>(
@@ -68,41 +71,37 @@ export function createPaneDrag(
 
   let candidate: Candidate | null = null;
   let dragging = false;
-  let activePointerId: number | null = null;
   let captureEl: HTMLElement | null = null;
+  let capturePointerId: number | null = null;
   let snapRects: ReadonlyMap<string, Rect> = new Map();
   let dropTarget: PaneDragState['target'] = null;
+  let lastX = 0;
+  let lastY = 0;
   let escapeHandler: ((e: KeyboardEvent) => void) | null = null;
-
-  const captureOpts: AddEventListenerOptions = { capture: true };
 
   const removeWindowListeners = () => {
     window.removeEventListener('pointermove', onWindowPointerMove, captureOpts);
     window.removeEventListener('pointerup', onWindowPointerUp, captureOpts);
-    window.removeEventListener(
-      'pointercancel',
-      onWindowPointerCancel,
-      captureOpts,
-    );
+    window.removeEventListener('pointercancel', onWindowPointerCancel, captureOpts);
+    window.removeEventListener('mouseup', onWindowMouseUp, captureOpts);
   };
 
   const cleanup = () => {
     const el = captureEl;
-    const pid = activePointerId;
     candidate = null;
     dragging = false;
-    activePointerId = null;
     captureEl = null;
     snapRects = new Map();
     dropTarget = null;
     removeWindowListeners();
-    if (el && pid !== null) {
+    if (el && capturePointerId !== null) {
       try {
-        el.releasePointerCapture(pid);
+        el.releasePointerCapture(capturePointerId);
       } catch {
-        // capture already released
+        // ignore
       }
     }
+    capturePointerId = null;
     setState(null);
     setRects(new Map());
     document.body.classList.remove('pane-dragging');
@@ -114,14 +113,21 @@ export function createPaneDrag(
 
   const beginDrag = (c: Candidate, e: PointerEvent) => {
     dragging = true;
-    c.el.setPointerCapture(e.pointerId);
+    capturePointerId = e.pointerId;
+    try {
+      c.el.setPointerCapture(e.pointerId);
+    } catch {
+      // WKWebView may reject capture — window listeners still handle the drag.
+    }
     e.preventDefault();
     snapRects = snapshotPaneRects();
     setRects(snapRects);
     dropTarget = null;
+    lastX = e.clientX;
+    lastY = e.clientY;
     setState({
       paneId: c.paneId,
-      ghost: { x: e.clientX, y: e.clientY },
+      ghost: { x: lastX, y: lastY },
       header: { title: c.title, index: c.index },
       target: null,
     });
@@ -133,7 +139,6 @@ export function createPaneDrag(
   };
 
   const onWindowPointerMove = (e: PointerEvent) => {
-    if (activePointerId !== null && e.pointerId !== activePointerId) return;
     if (!candidate) return;
 
     if (!dragging) {
@@ -145,43 +150,53 @@ export function createPaneDrag(
       return;
     }
 
-    const x = e.clientX;
-    const y = e.clientY;
+    lastX = e.clientX;
+    lastY = e.clientY;
     const dragId = candidate.paneId;
-    dropTarget = targetAt(snapRects, dragId, x, y);
+    dropTarget = targetAt(snapRects, dragId, lastX, lastY);
     setState((prev) =>
-      prev ? { ...prev, ghost: { x, y }, target: dropTarget } : null,
+      prev ? { ...prev, ghost: { x: lastX, y: lastY }, target: dropTarget } : null,
     );
   };
 
-  const finishDrag = (e: PointerEvent) => {
+  const finishDrag = (clientX: number, clientY: number) => {
     if (!candidate) return;
     const dragId = candidate.paneId;
     const wasDragging = dragging;
 
     if (wasDragging) {
+      const x = clientX || lastX;
+      const y = clientY || lastY;
       const target =
-        dropTarget ??
-        targetAt(snapRects, dragId, e.clientX, e.clientY);
+        dropTarget ?? targetAt(snapRects, dragId, x, y);
       if (target) {
+        let moved = false;
         setStore(
-          produce((s) =>
-            movePane(s, dragId, target.paneId, target.zone, dims()),
-          ),
+          produce((s) => {
+            moved = movePane(s, dragId, target.paneId, target.zone, dims());
+          }),
         );
+        if (moved) onMoved?.();
       }
     }
     cleanup();
   };
 
   const onWindowPointerUp = (e: PointerEvent) => {
-    if (activePointerId !== null && e.pointerId !== activePointerId) return;
-    finishDrag(e);
+    if (!candidate) return;
+    finishDrag(e.clientX, e.clientY);
   };
 
-  const onWindowPointerCancel = (e: PointerEvent) => {
-    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+  const onWindowPointerCancel = () => {
+    if (!candidate) return;
     cleanup();
+  };
+
+  /** WKWebView/Tauri sometimes delivers mouseup without a matching pointerup. */
+  const onWindowMouseUp = (e: MouseEvent) => {
+    if (!candidate || !dragging) return;
+    if (e.button !== 0) return;
+    finishDrag(e.clientX, e.clientY);
   };
 
   const onHeaderPointerDown = (e: PointerEvent, paneId: string) => {
@@ -201,12 +216,14 @@ export function createPaneDrag(
       title: leaf.title,
       index: leaf.index,
     };
-    activePointerId = e.pointerId;
     captureEl = el;
+    lastX = e.clientX;
+    lastY = e.clientY;
 
     window.addEventListener('pointermove', onWindowPointerMove, captureOpts);
     window.addEventListener('pointerup', onWindowPointerUp, captureOpts);
     window.addEventListener('pointercancel', onWindowPointerCancel, captureOpts);
+    window.addEventListener('mouseup', onWindowMouseUp, captureOpts);
   };
 
   return { state, rects, onHeaderPointerDown };

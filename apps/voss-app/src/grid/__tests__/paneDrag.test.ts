@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createStore } from 'solid-js/store';
-import { createGridStore, makePane, makeSplit } from '../tree';
+import {
+  createGridStore,
+  makePane,
+  makeSplit,
+  type GridStore,
+} from '../tree';
 
-const movePaneMock = vi.hoisted(() => vi.fn(() => true));
+const movePaneMock = vi.hoisted(() =>
+  vi.fn((..._args: unknown[]) => true),
+);
 vi.mock('../rearrange', () => ({
   movePane: (...args: unknown[]) => movePaneMock(...args),
 }));
@@ -15,7 +22,7 @@ function stubPointerCapture(el: HTMLElement) {
 }
 
 function dispatch(
-  el: HTMLElement,
+  el: EventTarget,
   type: string,
   init: PointerEventInit = {},
 ) {
@@ -169,7 +176,7 @@ describe('paneDrag controller', () => {
   });
 
   it('drop with target calls movePane once', () => {
-    const [store, setStore] = createStore({ root: makePane(), focusedId: '' });
+    const [store, setStore] = createStore<GridStore>({ root: makePane(), focusedId: '' });
     const a = makePane();
     const b = makePane();
     setStore({ root: makeSplit('H', a, b), focusedId: a.id });
@@ -207,8 +214,41 @@ describe('paneDrag controller', () => {
     );
   });
 
+  it('mouseup on window completes drop when pointerup is missing (Tauri)', () => {
+    const [store, setStore] = createStore<GridStore>({ root: makePane(), focusedId: '' });
+    const a = makePane();
+    const b = makePane();
+    setStore({ root: makeSplit('H', a, b), focusedId: a.id });
+
+    const paneA = document.createElement('div');
+    paneA.setAttribute('data-pane-id', a.id);
+    paneA.getBoundingClientRect = () =>
+      ({ x: 0, y: 0, width: 400, height: 300, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+    const paneB = document.createElement('div');
+    paneB.setAttribute('data-pane-id', b.id);
+    paneB.getBoundingClientRect = () =>
+      ({ x: 400, y: 0, width: 400, height: 300, top: 0, left: 400, right: 800, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+    document.body.append(paneA, paneB);
+
+    const header = document.createElement('div');
+    stubPointerCapture(header);
+    const dims = { winW: 800, winH: 600, cw: 8, ch: 16 };
+    const drag = createPaneDrag(store, setStore, () => dims);
+
+    drag.onHeaderPointerDown(
+      { button: 0, clientX: 10, clientY: 150, currentTarget: header, target: header, pointerId: 1 } as unknown as PointerEvent,
+      a.id,
+    );
+    dispatch(window, 'pointermove', { clientX: 20, clientY: 150 });
+    dispatch(window, 'pointermove', { clientX: 500, clientY: 150 });
+    dispatch(window, 'mouseup', { clientX: 500, clientY: 150, button: 0 });
+
+    expect(movePaneMock).toHaveBeenCalledTimes(1);
+    expect(drag.state()).toBeNull();
+  });
+
   it('pointerup on window completes drop when released away from header', () => {
-    const [store, setStore] = createStore({ root: makePane(), focusedId: '' });
+    const [store, setStore] = createStore<GridStore>({ root: makePane(), focusedId: '' });
     const a = makePane();
     const b = makePane();
     setStore({ root: makeSplit('H', a, b), focusedId: a.id });
@@ -239,6 +279,90 @@ describe('paneDrag controller', () => {
     expect(movePaneMock).toHaveBeenCalledTimes(1);
     expect(drag.state()).toBeNull();
     expect(document.body.classList.contains('pane-dragging')).toBe(false);
+  });
+
+  it('pointerup followed by trailing mouseup commits exactly once', () => {
+    const [store, setStore] = createStore<GridStore>({ root: makePane(), focusedId: '' });
+    const a = makePane();
+    const b = makePane();
+    setStore({ root: makeSplit('H', a, b), focusedId: a.id });
+
+    const paneB = document.createElement('div');
+    paneB.setAttribute('data-pane-id', b.id);
+    paneB.getBoundingClientRect = () =>
+      ({ x: 400, y: 0, width: 400, height: 300, top: 0, left: 400, right: 800, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+    document.body.append(paneB);
+
+    const header = document.createElement('div');
+    stubPointerCapture(header);
+    const drag = createPaneDrag(store, setStore, () => ({
+      winW: 800,
+      winH: 600,
+      cw: 8,
+      ch: 16,
+    }));
+
+    drag.onHeaderPointerDown(
+      { button: 0, clientX: 10, clientY: 150, currentTarget: header, target: header, pointerId: 1 } as unknown as PointerEvent,
+      a.id,
+    );
+    dispatch(window, 'pointermove', { clientX: 20, clientY: 150 });
+    dispatch(window, 'pointermove', { clientX: 500, clientY: 150 });
+    // WKWebView can deliver both — the second must be a no-op.
+    dispatch(window, 'pointerup', { clientX: 500, clientY: 150 });
+    dispatch(window, 'mouseup', { clientX: 500, clientY: 150 });
+
+    expect(movePaneMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('onMoved fires once on successful drop, never on no-op or cancel', () => {
+    const [store, setStore] = createStore<GridStore>({ root: makePane(), focusedId: '' });
+    const a = makePane();
+    const b = makePane();
+    setStore({ root: makeSplit('H', a, b), focusedId: a.id });
+
+    const paneB = document.createElement('div');
+    paneB.setAttribute('data-pane-id', b.id);
+    paneB.getBoundingClientRect = () =>
+      ({ x: 400, y: 0, width: 400, height: 300, top: 0, left: 400, right: 800, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+    document.body.append(paneB);
+
+    const header = document.createElement('div');
+    stubPointerCapture(header);
+    const onMoved = vi.fn();
+    const drag = createPaneDrag(
+      store,
+      setStore,
+      () => ({ winW: 800, winH: 600, cw: 8, ch: 16 }),
+      onMoved,
+    );
+
+    const begin = () =>
+      drag.onHeaderPointerDown(
+        { button: 0, clientX: 10, clientY: 150, currentTarget: header, target: header, pointerId: 1 } as unknown as PointerEvent,
+        a.id,
+      );
+
+    // Successful drop → exactly one onMoved.
+    begin();
+    dispatch(window, 'pointermove', { clientX: 20, clientY: 150 });
+    dispatch(window, 'pointermove', { clientX: 500, clientY: 150 });
+    dispatch(window, 'pointerup', { clientX: 500, clientY: 150 });
+    expect(onMoved).toHaveBeenCalledTimes(1);
+
+    // movePane returns false (e.g. floor guard) → no onMoved.
+    movePaneMock.mockReturnValueOnce(false);
+    begin();
+    dispatch(window, 'pointermove', { clientX: 20, clientY: 150 });
+    dispatch(window, 'pointermove', { clientX: 500, clientY: 150 });
+    dispatch(window, 'pointerup', { clientX: 500, clientY: 150 });
+    expect(onMoved).toHaveBeenCalledTimes(1);
+
+    // Escape cancel → no onMoved.
+    begin();
+    dispatch(window, 'pointermove', { clientX: 20, clientY: 150 });
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(onMoved).toHaveBeenCalledTimes(1);
   });
 
   it('drop with null target mutates nothing', () => {
