@@ -30,12 +30,16 @@ import { resolveTier, hookCapableCli } from './org/capabilityTier';
 import RunCommandBar, { type SpawnAgentFn } from './org/cockpit/RunCommandBar';
 import { liveLabel } from './org/live/sseClient';
 import AdoptAgentModal from './components/modal/AdoptAgentModal';
-import { registerAdoption } from './pane/adoptionRegistry';
+import { registerAdoption, adoptionByPaneId } from './pane/adoptionRegistry';
 import { currentRunId } from './org/orgStore';
 import {
   openInGridRequest,
   setOpenInGridRequest,
+  openInReviewRequest,
+  setOpenInReviewRequest,
+  setSelectedCardId,
 } from './org/selection';
+import BoardSummaryStrip from './components/BoardSummaryStrip';
 import { collectLeaves } from './grid/tree';
 import type { AgentConfig } from './pane/pty-ipc';
 import { contextByPaneId } from './pane/contextRegistry';
@@ -398,6 +402,17 @@ export default function App() {
     setOpenInGridRequest(null);
   });
 
+  // V14 chunk C — the reverse jump: a pane-header card chip fires
+  // requestOpenInReview(cardId); we select the card and flip to Run Review.
+  // Opt-in only (chip click), mirroring the D-07 effect above.
+  createEffect(() => {
+    const cardId = openInReviewRequest();
+    if (!cardId) return;
+    setSelectedCardId(cardId);
+    setOrgViewOpen(true);
+    setOpenInReviewRequest(null);
+  });
+
   const [recentCommandIds] = createSignal<Set<string>>(new Set());
   let closeSaveUnlisten: (() => void) | undefined;
   let keymapUnlisten: (() => void) | undefined;
@@ -557,6 +572,32 @@ export default function App() {
     }
 
     prevAgentPaneIds = currentIds;
+  });
+
+  // V14 chunk C — honest run-budget denominator for the StatusBar mini-bar:
+  // the sum of per-agent budgetUsd limits (launch configs + adopted agents).
+  // `spent` counts ONLY panes that carry a limit so the fraction compares like
+  // with like. No limits set anywhere → limit 0 → StatusBar keeps the plain
+  // mono cost text and renders NO percentage bar (nothing faked).
+  const runBudgetTotals = createMemo(() => {
+    const configs = activeMounted()?.agentConfigByPaneId() ?? {};
+    const adoptions = adoptionByPaneId();
+    const budgets = budgetByPaneId();
+    let limit = 0;
+    let spent = 0;
+    const counted = new Set<string>();
+    for (const [paneId, cfg] of Object.entries(configs)) {
+      if (cfg.budgetUsd == null || cfg.budgetUsd <= 0) continue;
+      counted.add(paneId);
+      limit += cfg.budgetUsd;
+      spent += budgets[paneId]?.cost_usd ?? 0;
+    }
+    for (const [paneId, entry] of Object.entries(adoptions)) {
+      if (counted.has(paneId) || entry.budgetUsd <= 0) continue;
+      limit += entry.budgetUsd;
+      spent += budgets[paneId]?.cost_usd ?? 0;
+    }
+    return { limit, spent };
   });
 
   const usageEntries = createMemo(() => {
