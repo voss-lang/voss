@@ -57,6 +57,8 @@ export interface PaneProps {
   onFirstInput?: () => void;
   agentConfig?: AgentConfig;
   workspacePath?: string;
+  /** Grid supplies PaneHeader; hide this pane's duplicate chrome row. */
+  embeddedInGrid?: boolean;
 }
 
 function basename(p: string): string {
@@ -563,10 +565,17 @@ export default function PaneComponent(props: PaneProps) {
     term?.focus();
   };
 
+  const paneClass = () => {
+    const base = props.embeddedInGrid ? 'pane pane--embedded' : 'pane';
+    return focused() && !props.embeddedInGrid
+      ? `${base} focused`
+      : base;
+  };
+
   return (
     <div
       ref={containerRef}
-      class={focused() ? 'pane focused' : 'pane'}
+      class={paneClass()}
       onClick={() => setFocused(true)}
     >
       {/* V14 chunk C — role-colored full-height left edge (mockup
@@ -579,6 +588,7 @@ export default function PaneComponent(props: PaneProps) {
           aria-hidden="true"
         />
       </Show>
+      <Show when={!props.embeddedInGrid}>
       <div
         ref={headerRef}
         class={`pane-header${headerFlash() ? ' bell-flash' : ''}${isAgentCli() ? ' agent-pane' : ''}`}
@@ -662,6 +672,7 @@ export default function PaneComponent(props: PaneProps) {
           ⋯
         </button>
       </div>
+      </Show>
       <div ref={bodyRef} class="pane-body" />
 
       <Show when={showFind()}>

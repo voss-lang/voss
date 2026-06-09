@@ -5,58 +5,58 @@
     "root": {
       "kind": "split",
       "orientation": "H",
-      "ratio": 0.2857143,
+      "ratio": 0.14285715,
       "left": {
+        "kind": "pane",
+        "id": "9285aef2-b809-441c-8aec-02574bd58029",
+        "cwd": "",
+        "shell": "",
+        "index": 1
+      },
+      "right": {
         "kind": "split",
         "orientation": "V",
-        "ratio": 0.5,
+        "ratio": 0.16666667,
         "left": {
           "kind": "pane",
           "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
           "cwd": "/Users/benjaminmarks/Projects/Voss",
           "shell": "",
-          "index": 1
-        },
-        "right": {
-          "kind": "pane",
-          "id": "9d3f4d2c-6248-4d41-b1c5-aef4a36e650e",
-          "cwd": "",
-          "shell": "",
           "index": 2
-        }
-      },
-      "right": {
-        "kind": "split",
-        "orientation": "V",
-        "ratio": 0.2,
-        "left": {
-          "kind": "pane",
-          "id": "9285aef2-b809-441c-8aec-02574bd58029",
-          "cwd": "",
-          "shell": "",
-          "index": 3
         },
         "right": {
           "kind": "split",
           "orientation": "V",
-          "ratio": 0.25,
+          "ratio": 0.2,
           "left": {
             "kind": "pane",
             "id": "499e6ae2-00f1-4984-bb66-45c0e2cde8c9",
             "cwd": "",
             "shell": "",
-            "index": 4
+            "index": 3
           },
           "right": {
             "kind": "split",
             "orientation": "V",
-            "ratio": 0.33333334,
+            "ratio": 0.5,
             "left": {
-              "kind": "pane",
-              "id": "1f47e240-2630-41b8-9e2f-3afef7897695",
-              "cwd": "",
-              "shell": "",
-              "index": 5
+              "kind": "split",
+              "orientation": "H",
+              "ratio": 0.5,
+              "left": {
+                "kind": "pane",
+                "id": "9d3f4d2c-6248-4d41-b1c5-aef4a36e650e",
+                "cwd": "",
+                "shell": "",
+                "index": 4
+              },
+              "right": {
+                "kind": "pane",
+                "id": "1f47e240-2630-41b8-9e2f-3afef7897695",
+                "cwd": "",
+                "shell": "",
+                "index": 5
+              }
             },
             "right": {
               "kind": "split",
@@ -81,23 +81,23 @@
         }
       }
     },
-    "focusedId": "9285aef2-b809-441c-8aec-02574bd58029"
+    "focusedId": "9d3f4d2c-6248-4d41-b1c5-aef4a36e650e"
   },
   "panes": [
-    {
-      "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
-      "scrollback": null
-    },
-    {
-      "id": "9d3f4d2c-6248-4d41-b1c5-aef4a36e650e",
-      "scrollback": null
-    },
     {
       "id": "9285aef2-b809-441c-8aec-02574bd58029",
       "scrollback": null
     },
     {
+      "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
+      "scrollback": null
+    },
+    {
       "id": "499e6ae2-00f1-4984-bb66-45c0e2cde8c9",
+      "scrollback": null
+    },
+    {
+      "id": "9d3f4d2c-6248-4d41-b1c5-aef4a36e650e",
       "scrollback": null
     },
     {

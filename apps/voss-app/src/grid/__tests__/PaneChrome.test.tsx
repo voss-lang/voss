@@ -21,7 +21,7 @@ const ops = vi.hoisted(() => ({
 vi.mock('../operations', () => ops);
 
 import { type GridStore, makePane, makeSplit, recomputeIndices } from '../tree';
-import PaneHeader from '../PaneHeader';
+import PaneHeader, { paneSessionTitle } from '../PaneHeader';
 import DotMenu from '../DotMenu';
 import CloseConfirmBanner, { requestCloseGated } from '../CloseConfirmBanner';
 import SplitNodeView from '../SplitNode';
@@ -44,8 +44,15 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('PaneHeader — 22px Variant B header (GRD-06, GRD-07)', () => {
-  it('renders the locked segment order, index digit, aria-labels', () => {
+describe('PaneHeader — Warp-style single row (GRD-06, GRD-07)', () => {
+  it('paneSessionTitle prefers process, then cwd, then shell', () => {
+    expect(paneSessionTitle('claude', '/repo', 'zsh')).toBe('claude');
+    expect(paneSessionTitle('', '/Users/me/Projects/Voss', 'zsh')).toBe('Voss');
+    expect(paneSessionTitle('', '', 'zsh')).toBe('zsh');
+    expect(paneSessionTitle('', '', '')).toBe('Terminal');
+  });
+
+  it('renders centered session title, index, menu, drag grab target', () => {
     const toggle = vi.fn();
     const el = mount(() => (
       <PaneHeader
@@ -59,18 +66,19 @@ describe('PaneHeader — 22px Variant B header (GRD-06, GRD-07)', () => {
     ));
     const hdr = el.firstElementChild as HTMLElement;
     expect(hdr.style.height).toBe('var(--pane-header-height, 22px)');
-    expect(hdr.className).toContain('bg-bg-2'); // focused bg-lift
+    expect(hdr.className).toContain('bg-bg-2');
+    expect(hdr.getAttribute('data-pane-header-grab')).toBe('');
     expect(el.querySelector('[data-pane-index="3"]')?.textContent).toBe('3');
     expect(el.querySelector('[aria-label="Pane menu"]')).toBeTruthy();
     expect(el.querySelector('[aria-label="Shell running"]')).toBeTruthy();
-    expect(el.textContent).toContain('voss-app');
-    expect(el.textContent).toContain('zsh');
-    expect(el.textContent).toContain('vim');
+    expect(el.querySelector('[data-testid="pane-session-title"]')?.textContent).toBe(
+      'vim',
+    );
     fireEvent.click(el.querySelector('[aria-label="Pane menu"]')!);
     expect(toggle).toHaveBeenCalled();
   });
 
-  it('unfocused → bg-bg-1; empty process is hidden (not a dash)', () => {
+  it('unfocused → bg-bg-1; title falls back to cwd basename', () => {
     const el = mount(() => (
       <PaneHeader
         index={1}
@@ -82,8 +90,9 @@ describe('PaneHeader — 22px Variant B header (GRD-06, GRD-07)', () => {
       />
     ));
     expect((el.firstElementChild as HTMLElement).className).toContain('bg-bg-1');
-    expect(el.textContent).not.toContain('vim');
-    expect(el.textContent).not.toContain('-'); // no dash placeholder
+    expect(el.querySelector('[data-testid="pane-session-title"]')?.textContent).toBe(
+      'x',
+    );
   });
 });
 

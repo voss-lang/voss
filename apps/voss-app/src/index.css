@@ -200,7 +200,7 @@ html.reduced-motion *::after {
   }
 }
 
-.grid-pane-leaf > div:first-of-type {
+.pane-header-bar {
   transition:
     background-color var(--transition-focus),
     color var(--transition-focus),

@@ -170,9 +170,14 @@ export default function GridRoot(props: {
     h: window.innerHeight,
   });
 
+  const grid = () => {
+    const m = minGridSize(store.root, DEFAULT_CW, DEFAULT_CH);
+    return { w: Math.max(win().w, m.w), h: Math.max(win().h, m.h) };
+  };
+
   const dims = (): Dims => ({
-    winW: win().w,
-    winH: win().h,
+    winW: grid().w,
+    winH: grid().h,
     cw: DEFAULT_CW,
     ch: DEFAULT_CH,
   });
@@ -180,16 +185,11 @@ export default function GridRoot(props: {
   const paneDrag = createPaneDrag(store, setStore, dims);
 
   const geom = () => ({
-    winW: win().w,
-    winH: win().h,
+    winW: grid().w,
+    winH: grid().h,
     cw: DEFAULT_CW,
     ch: DEFAULT_CH,
   });
-
-  const grid = () => {
-    const m = minGridSize(store.root, DEFAULT_CW, DEFAULT_CH);
-    return { w: Math.max(win().w, m.w), h: Math.max(win().h, m.h) };
-  };
 
   /**
    * Apply a preset to the live store. Leaves are spread-cloned into plain

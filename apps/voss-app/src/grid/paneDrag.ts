@@ -6,11 +6,13 @@ import type { Rect } from './geometry';
 import type { Dims } from './DragHandle';
 import { hitTest, zoneAt, type DropZone } from './dropZone';
 import { movePane } from './rearrange';
+import { paneSessionTitle } from './PaneHeader';
+import { procByPaneId } from '../pane/procRegistry';
 
 export interface PaneDragState {
   paneId: string;
   ghost: { x: number; y: number };
-  header: { cwd: string; index: number };
+  header: { title: string; index: number };
   target: { paneId: string; zone: DropZone } | null;
 }
 
@@ -25,7 +27,7 @@ interface Candidate {
   startX: number;
   startY: number;
   el: HTMLElement;
-  cwd: string;
+  title: string;
   index: number;
 }
 
@@ -82,11 +84,6 @@ export function createPaneDrag(
       onWindowPointerCancel,
       captureOpts,
     );
-    window.removeEventListener(
-      'lostpointercapture',
-      onLostPointerCapture,
-      captureOpts,
-    );
   };
 
   const cleanup = () => {
@@ -125,7 +122,7 @@ export function createPaneDrag(
     setState({
       paneId: c.paneId,
       ghost: { x: e.clientX, y: e.clientY },
-      header: { cwd: c.cwd, index: c.index },
+      header: { title: c.title, index: c.index },
       target: null,
     });
     document.body.classList.add('pane-dragging');
@@ -187,11 +184,6 @@ export function createPaneDrag(
     cleanup();
   };
 
-  const onLostPointerCapture = (e: PointerEvent) => {
-    if (!dragging || activePointerId !== e.pointerId) return;
-    cleanup();
-  };
-
   const onHeaderPointerDown = (e: PointerEvent, paneId: string) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('button')) return;
@@ -206,7 +198,7 @@ export function createPaneDrag(
       startX: e.clientX,
       startY: e.clientY,
       el,
-      cwd: leaf.cwd,
+      title: leaf.title,
       index: leaf.index,
     };
     activePointerId = e.pointerId;
@@ -215,11 +207,6 @@ export function createPaneDrag(
     window.addEventListener('pointermove', onWindowPointerMove, captureOpts);
     window.addEventListener('pointerup', onWindowPointerUp, captureOpts);
     window.addEventListener('pointercancel', onWindowPointerCancel, captureOpts);
-    window.addEventListener(
-      'lostpointercapture',
-      onLostPointerCapture,
-      captureOpts,
-    );
   };
 
   return { state, rects, onHeaderPointerDown };
@@ -228,9 +215,17 @@ export function createPaneDrag(
 function findPaneMeta(
   root: TreeNode,
   id: string,
-): { cwd: string; index: number } | null {
+): { title: string; index: number } | null {
   if (root.kind === 'pane') {
-    return root.id === id ? { cwd: root.cwd, index: root.index } : null;
+    if (root.id !== id) return null;
+    return {
+      title: paneSessionTitle(
+        procByPaneId()[id],
+        root.cwd,
+        root.shell,
+      ),
+      index: root.index,
+    };
   }
   return (
     findPaneMeta(root.left, id) ?? findPaneMeta(root.right, id)

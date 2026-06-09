@@ -38,7 +38,7 @@ export default function PaneDragLayer(props: { drag: PaneDragController }) {
               transform: `translate3d(${state().ghost.x + 8}px, ${state().ghost.y + 8}px, 0)`,
             }}
           >
-            {state().header.index} │ {state().header.cwd || '—'}
+            {state().header.index} · {state().header.title}
           </div>
         </div>
       )}
