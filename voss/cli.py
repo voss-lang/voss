@@ -431,6 +431,11 @@ _INIT_TEMPLATE_NAMES = (
     "hello.voss",
 )
 
+_INIT_TEMPLATE_RESOURCES = {
+    "pyproject.toml": "pyproject.toml.jinja",
+    "README.md": "README.md.jinja",
+}
+
 
 def _normalize_project_name(name: str) -> str:
     normalized = re.sub(r"[^A-Za-z0-9_.-]+", "-", name.strip()).strip("-.").lower()
@@ -453,15 +458,18 @@ def _scaffold_target(target: Path, *, force: bool, name: str | None = None) -> N
     template_root = importlib.resources.files("voss").joinpath("templates/init")
     template_context = {"project_name": project_name}
     for name in _INIT_TEMPLATE_NAMES:
-        template = template_root.joinpath(name)
+        resource_name = _INIT_TEMPLATE_RESOURCES.get(name, name)
+        template = template_root.joinpath(resource_name)
         if not template.is_file():
-            raise click.ClickException(f"missing scaffold template: {name}")
+            raise click.ClickException(f"missing scaffold template: {resource_name}")
         dest = (target_resolved / name).resolve()
         if not dest.is_relative_to(target_resolved):
             raise click.ClickException(f"refused to write outside target: {dest}")
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(
-            render_package_template("voss", f"templates/init/{name}", template_context)
+            render_package_template(
+                "voss", f"templates/init/{resource_name}", template_context
+            )
         )
 
 

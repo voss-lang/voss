@@ -197,7 +197,7 @@ def render_markdown(report: AuditReport) -> str:
     ]
     return render_package_template(
         "voss",
-        "templates/audit/markdown.md",
+        "templates/audit/markdown.md.jinja",
         {"run_id": report.run_id, "sections": sections},
     )
 

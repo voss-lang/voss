@@ -88,4 +88,8 @@ def test_init_writes_only_under_target_directory():
 def test_init_templates_are_package_resources():
     template_root = importlib.resources.files("voss").joinpath("templates/init")
     for name in _SCAFFOLD_FILES:
-        assert template_root.joinpath(name).is_file(), name
+        resource_name = {
+            "pyproject.toml": "pyproject.toml.jinja",
+            "README.md": "README.md.jinja",
+        }.get(name, name)
+        assert template_root.joinpath(resource_name).is_file(), resource_name
