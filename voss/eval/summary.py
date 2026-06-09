@@ -6,6 +6,8 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
+from voss.template_render import render_package_template
+
 
 def _read_rows(jsonl_path: Path) -> list[dict]:
     rows: list[dict] = []
@@ -59,21 +61,7 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
     provider = _common_value(rows, "provider")
     model = _common_value(rows, "model")
 
-    lines = [
-        f"# voss eval — {jsonl_path.parent.name}",
-        "",
-        f"- runs: {total}",
-        f"- provider: `{provider}` · model: `{model}`",
-        f"- overall success rate: {overall_rate:.0%} ({passes}/{len(scored)})",
-        f"- mean cost: {('$%.4f' % mean_cost) if mean_cost is not None else 'n/a'}",
-        f"- conf_corr_r: {('%.3f' % corr) if corr is not None else 'n/a'} (n={n})",
-        "",
-        "## Per-task",
-        "",
-        "| task | runs | pass rate | mean cost |",
-        "|------|-----:|----------:|----------:|",
-    ]
-
+    tasks: list[dict[str, str | int]] = []
     for task_id in sorted(by_task):
         task_rows = by_task[task_id]
         task_scored = [row for row in task_rows if row.get("success") is not None]
@@ -81,10 +69,35 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
         rate = f"{task_passes / len(task_scored):.0%}" if task_scored else "n/a"
         task_mean_cost = _mean_cost(task_rows)
         cost_s = f"${task_mean_cost:.4f}" if task_mean_cost is not None else "n/a"
-        lines.append(f"| `{task_id}` | {len(task_rows)} | {rate} | {cost_s} |")
+        tasks.append(
+            {
+                "id": task_id,
+                "runs": len(task_rows),
+                "pass_rate": rate,
+                "mean_cost": cost_s,
+            }
+        )
+
+    rendered = render_package_template(
+        "voss",
+        "templates/eval/summary.md.jinja",
+        {
+            "run_name": jsonl_path.parent.name,
+            "total": total,
+            "provider": provider,
+            "model": model,
+            "overall_rate": f"{overall_rate:.0%}",
+            "passes": passes,
+            "scored_count": len(scored),
+            "mean_cost": f"${mean_cost:.4f}" if mean_cost is not None else "n/a",
+            "conf_corr_r": f"{corr:.3f}" if corr is not None else "n/a",
+            "corr_n": n,
+            "tasks": tasks,
+        },
+    )
 
     summary_path.parent.mkdir(parents=True, exist_ok=True)
-    summary_path.write_text("\n".join(lines) + "\n")
+    summary_path.write_text(rendered)
     return summary_path
 
 

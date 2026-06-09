@@ -1,0 +1,15 @@
+# voss eval — {{ run_name }}
+
+- runs: {{ total }}
+- provider: `{{ provider }}` · model: `{{ model }}`
+- overall success rate: {{ overall_rate }} ({{ passes }}/{{ scored_count }})
+- mean cost: {{ mean_cost }}
+- conf_corr_r: {{ conf_corr_r }} (n={{ corr_n }})
+
+## Per-task
+
+| task | runs | pass rate | mean cost |
+|------|-----:|----------:|----------:|
+{% for task in tasks -%}
+| `{{ task.id }}` | {{ task.runs }} | {{ task.pass_rate }} | {{ task.mean_cost }} |
+{% endfor %}

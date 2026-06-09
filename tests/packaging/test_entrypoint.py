@@ -50,6 +50,8 @@ def test_installed_package_data_includes_grammar_and_init_templates():
     assert root.joinpath("templates/init/README.md.jinja").is_file()
     assert root.joinpath("templates/init/pyproject.toml.jinja").is_file()
     assert root.joinpath("templates/audit/markdown.md.jinja").is_file()
+    assert root.joinpath("templates/eval/summary.md.jinja").is_file()
+    assert root.joinpath("templates/recorder/decision.md.jinja").is_file()
 
 
 @pytest.mark.parametrize(
