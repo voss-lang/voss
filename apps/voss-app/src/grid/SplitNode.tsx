@@ -5,12 +5,14 @@ import { focusByClick } from './focus';
 import PaneComponent from '../pane/PaneComponent';
 import type { AgentConfig } from '../pane/pty-ipc';
 import { budgetByPaneId } from '../pane/budgetRegistry';
+import { procByPaneId } from '../pane/procRegistry';
 import { isKnownAgentCli } from '../pane/agentDetect';
 import DragHandle, { type Dims } from './DragHandle';
 import PaneHeader from './PaneHeader';
 import DotMenu from './DotMenu';
 import CloseConfirmBanner, { requestCloseGated } from './CloseConfirmBanner';
 import RestoreBanner from './RestoreBanner';
+import type { PaneDragController } from './paneDrag';
 
 /**
  * A3-05 close gate injection (A2 D-07 black box). A2's `PaneComponent` does
@@ -65,6 +67,7 @@ export default function SplitNodeView(props: {
   prefixReserved?: boolean;
   agentConfigByPaneId?: Record<string, AgentConfig>;
   workspacePath?: string;
+  paneDrag?: PaneDragController;
 }) {
   const asSplit = () => props.node as SplitNode;
   const asLeaf = () => props.node as PaneLeaf;
@@ -108,15 +111,18 @@ export default function SplitNodeView(props: {
           style={{ display: 'flex', 'flex-direction': 'column' }}
           onClick={focus}
         >
-          {/* A3-05 seam: Variant B header + ⋯ menu + close-confirm banner */}
           <PaneHeader
             index={asLeaf().index}
             focused={isFocused()}
             cwd={asLeaf().cwd}
             shell={asLeaf().shell}
+            process={procByPaneId()[asLeaf().id]}
             prefixActive={isFocused() && props.prefixActive}
             prefixReserved={props.prefixReserved}
             onToggleMenu={() => setMenuOpen((v) => !v)}
+            onDragPointerDown={(e) =>
+              props.paneDrag?.onHeaderPointerDown(e, asLeaf().id)
+            }
             isAgent={!!props.agentConfigByPaneId?.[asLeaf().id] && isKnownAgentCli(props.agentConfigByPaneId[asLeaf().id].cliBinary)}
             roleColor={mapCliToRoleColor(props.agentConfigByPaneId?.[asLeaf().id]?.cliBinary)}
             isStreaming={(() => { const b = budgetByPaneId()[asLeaf().id]; return b ? Date.now() - b.lastSeenMs < 3000 : false; })()}
@@ -149,6 +155,7 @@ export default function SplitNodeView(props: {
               cwd={asLeaf().cwd}
               shell={asLeaf().shell}
               index={asLeaf().index}
+              embeddedInGrid
               restoredScrollback={props.restoredScrollbackByPaneId?.[asLeaf().id]}
               onFirstInput={() => props.onPaneFirstInput?.(asLeaf().id)}
               agentConfig={props.agentConfigByPaneId?.[asLeaf().id]}
@@ -204,6 +211,7 @@ export default function SplitNodeView(props: {
               prefixReserved={props.prefixReserved}
               agentConfigByPaneId={props.agentConfigByPaneId}
               workspacePath={props.workspacePath}
+              paneDrag={props.paneDrag}
             />
             <DragHandle
               store={props.store}
@@ -236,6 +244,7 @@ export default function SplitNodeView(props: {
               prefixReserved={props.prefixReserved}
               agentConfigByPaneId={props.agentConfigByPaneId}
               workspacePath={props.workspacePath}
+              paneDrag={props.paneDrag}
             />
           </div>
         </div>

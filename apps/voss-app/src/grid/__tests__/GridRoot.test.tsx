@@ -26,11 +26,12 @@ vi.mock('../keymap', async (importOriginal) => {
 import {
   type GridStore,
   type TreeNode,
+  collectLeaves,
   makePane,
   makeSplit,
 } from '../tree';
 import SplitNodeView from '../SplitNode';
-import GridRoot, { minGridSize } from '../GridRoot';
+import GridRoot, { minGridSize, type GridController } from '../GridRoot';
 
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown) {
@@ -218,6 +219,116 @@ describe('GridRoot — container + keymap mount (GRD-01, GRD-03)', () => {
     expect(active).toBe('pipeline');
     fireEvent.keyDown(window, { code: 'KeyD', key: 'd', metaKey: true });
     expect(active).toBe('custom');
+  });
+});
+
+describe('GridRoot — pane drag rearrange', () => {
+  function stubPointerCapture(el: Element) {
+    const h = el as HTMLElement;
+    h.setPointerCapture ??= () => {};
+    h.releasePointerCapture ??= () => {};
+  }
+
+  function dragHeader(
+    grab: HTMLElement,
+    moves: { x: number; y: number }[],
+  ) {
+    stubPointerCapture(grab);
+    grab.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        clientX: moves[0].x,
+        clientY: moves[0].y,
+        pointerId: 1,
+      }),
+    );
+    for (const m of moves.slice(1, -1)) {
+      window.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          clientX: m.x,
+          clientY: m.y,
+          pointerId: 1,
+        }),
+      );
+    }
+    const last = moves[moves.length - 1];
+    window.dispatchEvent(
+      new PointerEvent('pointerup', {
+        bubbles: true,
+        clientX: last.x,
+        clientY: last.y,
+        pointerId: 1,
+      }),
+    );
+  }
+
+  it('header drag over another pane center swaps ids and syncs once', () => {
+    let ctrl: GridController | undefined;
+    const el = mount(() => (
+      <GridRoot controllerRef={(c) => { ctrl = c; }} />
+    ));
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'd', metaKey: true });
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'd', metaKey: true });
+    expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(3);
+
+    const before = collectLeaves(ctrl!.snapshot().root);
+    const dragId = before[0].id;
+    const targetId = before[1].id;
+
+    const dragPane = el.querySelector(
+      `[data-pane-id="${dragId}"]`,
+    ) as HTMLElement;
+    const targetPane = el.querySelector(
+      `[data-pane-id="${targetId}"]`,
+    ) as HTMLElement;
+    dragPane.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+        top: 0,
+        left: 0,
+        right: 400,
+        bottom: 300,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    targetPane.getBoundingClientRect = () =>
+      ({
+        x: 400,
+        y: 0,
+        width: 400,
+        height: 300,
+        top: 0,
+        left: 400,
+        right: 800,
+        bottom: 300,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    const dragRect = dragPane.getBoundingClientRect();
+    const targetRect = targetPane.getBoundingClientRect();
+    const grab = dragPane.querySelector(
+      '[data-pane-header-grab]',
+    ) as HTMLElement;
+
+    h.invoke.mockClear();
+    dragHeader(grab, [
+      { x: dragRect.left + 10, y: dragRect.top + 10 },
+      { x: dragRect.left + 20, y: dragRect.top + 10 },
+      {
+        x: targetRect.left + targetRect.width / 2,
+        y: targetRect.top + targetRect.height / 2,
+      },
+    ]);
+
+    const after = collectLeaves(ctrl!.snapshot().root);
+    expect(after[0].id).toBe(targetId);
+    expect(after[1].id).toBe(dragId);
+    expect(ctrl!.snapshot().focusedId).toBe(dragId);
+    expect(h.invoke).toHaveBeenCalledTimes(1);
+    expect(h.invoke).toHaveBeenCalledWith('sync_grid', expect.anything());
   });
 });
 

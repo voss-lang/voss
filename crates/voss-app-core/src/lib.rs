@@ -11,6 +11,7 @@ pub mod project;
 pub mod pty;
 pub mod sandbox;
 pub mod session;
+pub mod sidecar;
 pub mod themes;
 pub mod workspaces;
 

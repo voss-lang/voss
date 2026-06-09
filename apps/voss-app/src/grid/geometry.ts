@@ -85,7 +85,7 @@ export function wouldViolateFloor(
  * (DATA_CLONE_ERR). The tree is a tiny discriminated union, so a hand walk
  * is both proxy-safe and faster.
  */
-function cloneTree(n: TreeNode): TreeNode {
+export function cloneTree(n: TreeNode): TreeNode {
   return n.kind === 'pane'
     ? { ...n }
     : { ...n, left: cloneTree(n.left), right: cloneTree(n.right) };

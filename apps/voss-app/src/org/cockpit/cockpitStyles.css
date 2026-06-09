@@ -7,7 +7,7 @@
  * properties (token grep gate); tints derive from tokens via color-mix.
  * Mockup hex -> token map: #ff5b1f -> --focus, #6cc7d4 -> --accent-cyan,
  * #7fb069 -> --accent-green, #e8b86c -> --accent-amber, #d9534f ->
- * --accent-red, greys -> --bg-*/--fg-*/--border*, role colors -> --role-*.
+ * --accent-red, greys -> --bg-, --fg-, --border tokens, role colors -> --role-*.
  * Mockup 8/9/10px labels round up to the 11px A12 floor; 6/7/9px paddings
  * round to the 4px spacing scale.
  *

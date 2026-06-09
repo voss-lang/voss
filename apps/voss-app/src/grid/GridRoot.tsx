@@ -26,6 +26,8 @@ import SplitNodeView, { type CloseUI } from './SplitNode';
 import type { AgentConfig } from '../pane/pty-ipc';
 import { requestCloseGated } from './CloseConfirmBanner';
 import type { Dims } from './DragHandle';
+import { createPaneDrag } from './paneDrag';
+import PaneDragLayer from './PaneDragLayer';
 
 /**
  * Grid container (GRD-01) + global keymap host + GRD-05 window-shrink floor.
@@ -168,24 +170,26 @@ export default function GridRoot(props: {
     h: window.innerHeight,
   });
 
-  const dims = (): Dims => ({
-    winW: win().w,
-    winH: win().h,
-    cw: DEFAULT_CW,
-    ch: DEFAULT_CH,
-  });
-
-  const geom = () => ({
-    winW: win().w,
-    winH: win().h,
-    cw: DEFAULT_CW,
-    ch: DEFAULT_CH,
-  });
-
   const grid = () => {
     const m = minGridSize(store.root, DEFAULT_CW, DEFAULT_CH);
     return { w: Math.max(win().w, m.w), h: Math.max(win().h, m.h) };
   };
+
+  const dims = (): Dims => ({
+    winW: grid().w,
+    winH: grid().h,
+    cw: DEFAULT_CW,
+    ch: DEFAULT_CH,
+  });
+
+  const paneDrag = createPaneDrag(store, setStore, dims);
+
+  const geom = () => ({
+    winW: grid().w,
+    winH: grid().h,
+    cw: DEFAULT_CW,
+    ch: DEFAULT_CH,
+  });
 
   /**
    * Apply a preset to the live store. Leaves are spread-cloned into plain
@@ -434,8 +438,10 @@ export default function GridRoot(props: {
           prefixReserved={props.prefixReserved}
           agentConfigByPaneId={props.agentConfigByPaneId}
           workspacePath={props.workspacePath}
+          paneDrag={paneDrag}
         />
       </div>
+      <PaneDragLayer drag={paneDrag} />
     </div>
   );
 }

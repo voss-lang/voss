@@ -29,7 +29,7 @@ export interface GridGeom {
 }
 
 /** Replace the leaf `id` with `replacement`, rebuilding the spine. */
-function replaceLeaf(
+export function replaceLeaf(
   node: TreeNode,
   id: string,
   replacement: TreeNode,

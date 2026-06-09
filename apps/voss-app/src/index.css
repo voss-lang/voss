@@ -200,7 +200,7 @@ html.reduced-motion *::after {
   }
 }
 
-.grid-pane-leaf > div:first-of-type {
+.pane-header-bar {
   transition:
     background-color var(--transition-focus),
     color var(--transition-focus),
@@ -267,4 +267,40 @@ html.reduced-motion *::after {
 
 [data-drag-handle][data-hot='true'] {
   background: color-mix(in srgb, var(--border-bright) 35%, transparent);
+}
+
+.pane-drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.pane-drag-highlight {
+  position: fixed;
+  background: color-mix(in srgb, var(--focus) 18%, transparent);
+  border: 1px solid var(--focus);
+}
+
+.pane-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-2);
+  color: var(--fg-1);
+  border: 1px solid var(--border-bright);
+  white-space: nowrap;
+  will-change: transform;
+}
+
+body.pane-dragging {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+body.pane-dragging * {
+  cursor: grabbing !important;
 }
