@@ -9,10 +9,7 @@ import (
 	"time"
 )
 
-// spawnHandshakeTimeout bounds the wait for the handshake line. 60s because
-// `voss serve` eagerly imports litellm, whose cold import (cost-map fetch +
-// compile) can take tens of seconds on a first run. Spawn also sets
-// LITELLM_LOCAL_MODEL_COST_MAP=true to drop the network fetch.
+// spawnHandshakeTimeout is 60s: litellm's cold import can take tens of seconds.
 const spawnHandshakeTimeout = 60 * time.Second
 
 // SpawnError is returned when launching or handshaking with `voss serve` fails.
@@ -27,9 +24,8 @@ func (e *SpawnError) Error() string {
 
 func (e *SpawnError) Unwrap() error { return e.Err }
 
-// interpreterPath resolves the Python interpreter via the fixed chain
-// VOSS_PYTHON → repo .venv/bin/python → "python3". The chain is fixed (no
-// caller-supplied path), so no injection. Mirrors voss-tui server.rs python_path().
+// interpreterPath resolves Python: VOSS_PYTHON → repo .venv/bin/python →
+// "python3". Fixed chain, no caller input. Mirrors voss-tui python_path().
 func interpreterPath() string {
 	if v := os.Getenv("VOSS_PYTHON"); v != "" {
 		return v
@@ -44,11 +40,9 @@ func interpreterPath() string {
 	return "python3"
 }
 
-// Spawn launches `<python> -m voss.cli serve --port 0`, reads its handshake, and
-// returns a Client bound to the ephemeral loopback port + token with spawnState
-// populated. The child's stdin is held open as the EOF-supervision heartbeat
-// (never written); Close() (or ctx cancel) tears it down with no orphan.
-// extraEnv augments the inherited environment (e.g. VOSS_SERVE_FAKE_TURN=1).
+// Spawn launches `voss serve --port 0`, reads its handshake, and returns a
+// Client bound to the ephemeral port. stdin is held open as the EOF heartbeat;
+// Close()/ctx-cancel tears it down. extraEnv augments the environment.
 func Spawn(ctx context.Context, extraEnv map[string]string) (*Client, error) {
 	python := interpreterPath()
 	cmd := exec.CommandContext(ctx, python, "-m", "voss.cli", "serve", "--port", "0")

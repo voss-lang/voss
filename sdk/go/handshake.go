@@ -9,12 +9,8 @@ import (
 	"time"
 )
 
-// Handshake is the one-line JSON `voss serve` prints on stdout after binding
-// its ephemeral loopback port:
-//
-//	{"v":1,"port":51234,"token":"<url-safe-token>"}
-//
-// Token is an ephemeral per-process secret.
+// Handshake is the one-line JSON `voss serve` prints after binding its port:
+// {"v":1,"port":51234,"token":"..."}. Token is a per-process secret.
 type Handshake struct {
 	V     int    `json:"v"`
 	Port  uint16 `json:"port"`
