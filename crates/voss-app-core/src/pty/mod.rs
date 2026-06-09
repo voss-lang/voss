@@ -244,6 +244,45 @@ pub fn spawn_command_session_with_env(
     Ok((session, reader, pause_rx))
 }
 
+/// VCKP-13a managed-launch wrap hook: spawn a command under the OS
+/// scope-sandbox. Generates the per-run profile, wraps the argv via
+/// `sandbox::wrap_argv`, and delegates to `spawn_command_session_with_env`
+/// (the unmanaged path is untouched). Returns the spawned session plus
+/// `sandboxed: false` when no sandbox tool exists on this host — the caller
+/// MUST downgrade the recorded capability tier honestly in that case.
+pub fn spawn_command_session_managed(
+    cmd_binary: &str,
+    cmd_args: &[String],
+    env: &[(&str, &str)],
+    rows: u16,
+    cols: u16,
+    cwd: Option<String>,
+    scope: &str,
+) -> anyhow::Result<(SpawnedPtySession, bool)> {
+    let canon_scope = crate::sandbox::validate_scope(scope)?;
+    let profile = crate::sandbox::generate_profile(scope)?;
+    let profile_path =
+        std::env::temp_dir().join(format!("voss-sandbox-{}.sb", uuid::Uuid::new_v4()));
+    std::fs::write(&profile_path, profile).context("write sandbox profile")?;
+
+    match crate::sandbox::wrap_argv(
+        cmd_binary,
+        cmd_args,
+        profile_path.to_str().unwrap_or_default(),
+        &canon_scope.to_string_lossy(),
+        std::env::consts::OS,
+    ) {
+        crate::sandbox::WrapOutcome::Sandboxed { binary, args } => {
+            spawn_command_session_with_env(&binary, &args, env, rows, cols, cwd)
+                .map(|s| (s, true))
+        }
+        crate::sandbox::WrapOutcome::Unavailable => {
+            spawn_command_session_with_env(cmd_binary, cmd_args, env, rows, cols, cwd)
+                .map(|s| (s, false))
+        }
+    }
+}
+
 /// Registry of live PTY sessions, managed as Tauri state.
 #[derive(Default)]
 pub struct PtyRegistry {

@@ -9,6 +9,7 @@ pub mod layouts;
 pub mod profiles;
 pub mod project;
 pub mod pty;
+pub mod sandbox;
 pub mod session;
 pub mod themes;
 pub mod workspaces;
@@ -39,7 +40,10 @@ pub use project::{
 pub use pty::commands::{
     get_fg_process, pty_kill, pty_pause, pty_resize, pty_resume, pty_write, spawn_pty, PtyEvent,
 };
-pub use pty::{spawn_command_session, spawn_command_session_with_env, PtyRegistry, PtySession};
+pub use pty::{
+    spawn_command_session, spawn_command_session_managed, spawn_command_session_with_env,
+    PtyRegistry, PtySession,
+};
 pub use session::{
     load_global_session, load_project_less_session, load_session, save_global_session,
     save_project_less_session, save_session, SessionError, SessionFile, SessionPane,
