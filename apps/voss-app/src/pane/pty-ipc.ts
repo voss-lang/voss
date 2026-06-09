@@ -43,7 +43,23 @@ export interface AgentConfig {
   cliBinary: string;
   cliArgs: string[];
   sessionId: string;
+  /** VCKP-13 managed launch: route to spawn_managed_agent (OS scope-sandbox). */
+  managed?: boolean;
+  /** Sandbox write-scope (absolute path) — required for a managed launch. */
+  scope?: string;
+  /** Honest capability tier recorded for this launch (resolveTier output). */
+  tier?: 'A' | 'B' | 'C';
+  /** Budget-kill threshold (USD): at/over → pty_kill (VCKP-13c). */
+  budgetUsd?: number;
 }
+
+/** Result of `spawn_managed_agent` — `tier` is the EFFECTIVE tier (downgraded
+ * to 'C' when no sandbox tool exists on the host; never overstated). */
+export type ManagedSpawnResult = {
+  pty_id: string;
+  tier: 'A' | 'B' | 'C';
+  sandboxed: boolean;
+};
 
 /** D-02 watermark thresholds — locked constants (do not tune). */
 export const HIGH_WATERMARK = 100_000; // 100 KB → pause
@@ -59,6 +75,9 @@ export interface PtyTransportOpts {
   onContextUpdate?: (data: ContextData) => void;
   agentPaneId?: string;
   workspacePath?: string;
+  /** VCKP-13c budget-kill: cost_usd at/over this → pty_kill the pane. */
+  budgetKillLimitUsd?: number;
+  onBudgetKill?: (costUsd: number) => void;
 }
 
 function mergeChunks(chunks: Uint8Array[]): Uint8Array {
@@ -119,7 +138,7 @@ export class PtyTransport {
       case 'title_change':
         this.opts.onTitle?.(ev.title);
         break;
-      case 'budget_update':
+      case 'budget_update': {
         this.opts.onBudgetUpdate?.({
           tokens_used: ev.tokens_used,
           token_limit: ev.token_limit,
@@ -127,7 +146,15 @@ export class PtyTransport {
           iteration: ev.iteration,
           model: ev.model,
         });
+        // VCKP-13c budget-kill — the universal (tier-C-and-up) hard control:
+        // at/over the limit, terminate the pane via the existing pty_kill path.
+        const limit = this.opts.budgetKillLimitUsd;
+        if (limit != null && ev.cost_usd >= limit && this.sessionId) {
+          this.opts.onBudgetKill?.(ev.cost_usd);
+          this.kill();
+        }
         break;
+      }
       case 'context_update':
         this.opts.onContextUpdate?.({
           system_tokens: ev.system_tokens,
@@ -183,6 +210,35 @@ export class PtyTransport {
       workspacePath: o.workspacePath,
     });
     return this.sessionId;
+  }
+
+  /** VCKP-13: managed launch under the OS scope-sandbox. Mirrors spawnAgent
+   * but invokes `spawn_managed_agent` with the scope + requested tier; returns
+   * the EFFECTIVE tier (honestly downgraded when no sandbox tool exists). */
+  async spawnManagedAgent(o: {
+    rows: number;
+    cols: number;
+    cwd?: string;
+    paneId: string;
+    workspacePath?: string;
+    scope: string;
+    tier: 'A' | 'B' | 'C';
+  } & AgentConfig): Promise<ManagedSpawnResult> {
+    const res = await invoke<ManagedSpawnResult>('spawn_managed_agent', {
+      onData: this.channel,
+      rows: o.rows,
+      cols: o.cols,
+      cwd: o.cwd,
+      cliBinary: o.cliBinary,
+      cliArgs: o.cliArgs,
+      sessionId: o.sessionId,
+      paneId: o.paneId,
+      workspacePath: o.workspacePath,
+      scope: o.scope,
+      tier: o.tier,
+    });
+    this.sessionId = res.pty_id;
+    return res;
   }
 
   write(bytes: Uint8Array): void {
