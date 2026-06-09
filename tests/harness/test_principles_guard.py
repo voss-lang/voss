@@ -62,16 +62,47 @@ def _forbidden_strings(node: ast.AST) -> list[tuple[int, str]]:
     return hits
 
 
+def _mentions_principles(node: ast.AST) -> bool:
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and "principle" in child.id:
+            return True
+        if isinstance(child, ast.Attribute) and "principle" in child.attr:
+            return True
+    return False
+
+
+def _condition_hits(node: ast.AST) -> list[tuple[int, str]]:
+    if isinstance(node, ast.BoolOp):
+        hits: list[tuple[int, str]] = []
+        for value in node.values:
+            hits.extend(_condition_hits(value))
+        return hits
+    if isinstance(node, ast.UnaryOp):
+        return _condition_hits(node.operand)
+    if isinstance(node, ast.Compare):
+        hits: list[tuple[int, str]] = []
+        for op, comparator in zip(node.ops, node.comparators):
+            if isinstance(op, (ast.In, ast.NotIn)):
+                hits.extend(_forbidden_strings(comparator))
+                if _mentions_principles(comparator):
+                    hits.extend(_forbidden_strings(node.left))
+            else:
+                hits.extend(_forbidden_strings(node.left))
+                hits.extend(_forbidden_strings(comparator))
+        return hits
+    return _forbidden_strings(node)
+
+
 def _branch_hits(path: Path) -> list[tuple[int, str]]:
     """Return (lineno, literal) for principle keys/texts in control flow."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     hits: list[tuple[int, str]] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.If, ast.While, ast.IfExp, ast.Assert)):
-            hits.extend(_forbidden_strings(node.test))
+            hits.extend(_condition_hits(node.test))
         elif isinstance(node, ast.comprehension):
             for condition in node.ifs:
-                hits.extend(_forbidden_strings(condition))
+                hits.extend(_condition_hits(condition))
         elif isinstance(node, ast.Match):
             for case in node.cases:
                 hits.extend(_forbidden_strings(case.pattern))
@@ -112,7 +143,7 @@ def test_branch_scanner_allows_default_data_declaration(tmp_path: Path) -> None:
     assert _branch_hits(path) == []
 
 
-# ---- GUARD 2: schema freeze ------------------------------------------------
+# ---- GUARD 2: schema/redaction baseline ------------------------------------
 
 _RUN_RECORD_FIELDS = {
     "id", "started_at", "ended_at", "goal", "plan", "inspected", "changed",
