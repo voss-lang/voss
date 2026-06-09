@@ -1,4 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render } from 'solid-js/web';
+import { fireEvent } from '@testing-library/dom';
 import {
   adoptAgent,
   inferRole,
@@ -14,6 +16,7 @@ import {
   registerPaneBudget,
   unregisterPaneBudget,
 } from '../../../pane/budgetRegistry';
+import AdoptAgentModal from '../AdoptAgentModal';
 
 // V14-10 (VCKP-12): forward-only adopt logic + "Let Voss manage this agent"
 // modal. The adopt-logic suite covers the five behaviors from Task 1; the modal
@@ -30,7 +33,18 @@ const baseInput = () => ({
   harnessAdoptAvailable: true,
 });
 
+let dispose: (() => void) | undefined;
+function mount(ui: () => unknown) {
+  const root = document.createElement('div');
+  document.body.appendChild(root);
+  dispose = render(ui as () => never, root);
+  return root;
+}
+
 afterEach(() => {
+  dispose?.();
+  dispose = undefined;
+  document.body.innerHTML = '';
   __resetBridgeMaps();
   unregisterPaneBudget(PANE);
 });
