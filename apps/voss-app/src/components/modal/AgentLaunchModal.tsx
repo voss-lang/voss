@@ -3,7 +3,6 @@ import './modal.css';
 import type { CapabilityTier } from '../../org/model/normalized';
 import {
   MODEL_PRESETS,
-  MODEL_CLI_KEYS,
   defaultModelFor,
   saveDefaultModel,
   type ModelCliKey,
@@ -11,8 +10,8 @@ import {
 
 // V14-09 (D-09 sparse premium): preset launcher for external agent CLIs.
 // Presets are the five known agent CLIs plus a plain Terminal. Native Voss runs
-// go through RunCommandBar (D-04) — they are intentionally NOT here. No raw
-// command, no effort matrices, no Skip-Permissions toggle.
+// go through RunCommandBar (D-04) — they are intentionally NOT here. No free-form
+// command field, no effort matrices, no permission-bypass toggle.
 
 type PresetId = ModelCliKey | 'terminal';
 
