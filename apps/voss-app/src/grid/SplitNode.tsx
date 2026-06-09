@@ -11,6 +11,7 @@ import PaneHeader from './PaneHeader';
 import DotMenu from './DotMenu';
 import CloseConfirmBanner, { requestCloseGated } from './CloseConfirmBanner';
 import RestoreBanner from './RestoreBanner';
+import type { PaneDragController } from './paneDrag';
 
 /**
  * A3-05 close gate injection (A2 D-07 black box). A2's `PaneComponent` does
@@ -65,6 +66,7 @@ export default function SplitNodeView(props: {
   prefixReserved?: boolean;
   agentConfigByPaneId?: Record<string, AgentConfig>;
   workspacePath?: string;
+  paneDrag?: PaneDragController;
 }) {
   const asSplit = () => props.node as SplitNode;
   const asLeaf = () => props.node as PaneLeaf;
@@ -108,20 +110,27 @@ export default function SplitNodeView(props: {
           style={{ display: 'flex', 'flex-direction': 'column' }}
           onClick={focus}
         >
-          {/* A3-05 seam: Variant B header + ⋯ menu + close-confirm banner */}
-          <PaneHeader
-            index={asLeaf().index}
-            focused={isFocused()}
-            cwd={asLeaf().cwd}
-            shell={asLeaf().shell}
-            prefixActive={isFocused() && props.prefixActive}
-            prefixReserved={props.prefixReserved}
-            onToggleMenu={() => setMenuOpen((v) => !v)}
-            isAgent={!!props.agentConfigByPaneId?.[asLeaf().id] && isKnownAgentCli(props.agentConfigByPaneId[asLeaf().id].cliBinary)}
-            roleColor={mapCliToRoleColor(props.agentConfigByPaneId?.[asLeaf().id]?.cliBinary)}
-            isStreaming={(() => { const b = budgetByPaneId()[asLeaf().id]; return b ? Date.now() - b.lastSeenMs < 3000 : false; })()}
-            costUsd={budgetByPaneId()[asLeaf().id]?.cost_usd}
-          />
+          <div
+            data-pane-header-grab
+            style={{ 'touch-action': 'none' }}
+            onPointerDown={(e) =>
+              props.paneDrag?.onHeaderPointerDown(e, asLeaf().id)
+            }
+          >
+            <PaneHeader
+              index={asLeaf().index}
+              focused={isFocused()}
+              cwd={asLeaf().cwd}
+              shell={asLeaf().shell}
+              prefixActive={isFocused() && props.prefixActive}
+              prefixReserved={props.prefixReserved}
+              onToggleMenu={() => setMenuOpen((v) => !v)}
+              isAgent={!!props.agentConfigByPaneId?.[asLeaf().id] && isKnownAgentCli(props.agentConfigByPaneId[asLeaf().id].cliBinary)}
+              roleColor={mapCliToRoleColor(props.agentConfigByPaneId?.[asLeaf().id]?.cliBinary)}
+              isStreaming={(() => { const b = budgetByPaneId()[asLeaf().id]; return b ? Date.now() - b.lastSeenMs < 3000 : false; })()}
+              costUsd={budgetByPaneId()[asLeaf().id]?.cost_usd}
+            />
+          </div>
           <Show when={menuOpen()}>
             <DotMenu
               store={props.store}
