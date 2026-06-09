@@ -54,12 +54,10 @@ func (c *Client) Events(ctx context.Context, sessionID string) (<-chan TypedEven
 }
 
 // parseSSE reads SSE frames from r and sends decoded typed events to ch until
-// the context is cancelled or the stream ends. It accumulates `data:` lines per
-// frame, decodes the joined payload on the blank-line boundary, and ignores
-// `:` comment lines (sse-starlette ping keepalives), `event:` lines (the type
-// is read from the data JSON), and `id:` lines. Malformed JSON or an unknown
-// event type is skipped (not deliverable on a TypedEvent channel) rather than
-// panicking.
+// ctx is cancelled or the stream ends. It accumulates `data:` lines per frame,
+// decodes the joined payload on the blank-line boundary, and ignores `:`
+// comment/ping lines, `event:` lines (type comes from the data JSON), and `id:`
+// lines. Malformed JSON or an unknown event type is skipped, not panicked.
 func parseSSE(ctx context.Context, r io.Reader, ch chan<- TypedEvent) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), sseMaxLineBytes)
