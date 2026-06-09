@@ -3,7 +3,6 @@ import {
   type PaneLeaf,
   type TreeNode,
   balanceRatios,
-  collectLeaves,
   findLeaf,
   makeSplit,
   recomputeIndices,

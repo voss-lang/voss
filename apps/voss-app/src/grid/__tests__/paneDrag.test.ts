@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createStore } from 'solid-js/store';
-import { createGridStore, makePane, makeSplit } from '../tree';
+import {
+  createGridStore,
+  makePane,
+  makeSplit,
+  type GridStore,
+} from '../tree';
 
-const movePaneMock = vi.hoisted(() => vi.fn(() => true));
+const movePaneMock = vi.hoisted(() =>
+  vi.fn((..._args: unknown[]) => true),
+);
 vi.mock('../rearrange', () => ({
   movePane: (...args: unknown[]) => movePaneMock(...args),
 }));
@@ -15,7 +22,7 @@ function stubPointerCapture(el: HTMLElement) {
 }
 
 function dispatch(
-  el: HTMLElement,
+  el: EventTarget,
   type: string,
   init: PointerEventInit = {},
 ) {
@@ -169,7 +176,7 @@ describe('paneDrag controller', () => {
   });
 
   it('drop with target calls movePane once', () => {
-    const [store, setStore] = createStore({ root: makePane(), focusedId: '' });
+    const [store, setStore] = createStore<GridStore>({ root: makePane(), focusedId: '' });
     const a = makePane();
     const b = makePane();
     setStore({ root: makeSplit('H', a, b), focusedId: a.id });
@@ -208,7 +215,7 @@ describe('paneDrag controller', () => {
   });
 
   it('mouseup on window completes drop when pointerup is missing (Tauri)', () => {
-    const [store, setStore] = createStore({ root: makePane(), focusedId: '' });
+    const [store, setStore] = createStore<GridStore>({ root: makePane(), focusedId: '' });
     const a = makePane();
     const b = makePane();
     setStore({ root: makeSplit('H', a, b), focusedId: a.id });
@@ -241,7 +248,7 @@ describe('paneDrag controller', () => {
   });
 
   it('pointerup on window completes drop when released away from header', () => {
-    const [store, setStore] = createStore({ root: makePane(), focusedId: '' });
+    const [store, setStore] = createStore<GridStore>({ root: makePane(), focusedId: '' });
     const a = makePane();
     const b = makePane();
     setStore({ root: makeSplit('H', a, b), focusedId: a.id });
