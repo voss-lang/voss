@@ -16,6 +16,13 @@ import { test, expect, type Page } from '@playwright/test';
 
 const APP_URL = process.env.VOSS_APP_URL ?? 'http://localhost:5173';
 
+// PW_BROWSER=webkit approximates Tauri's WKWebView on macOS.
+test.use({
+  browserName:
+    (process.env.PW_BROWSER as 'chromium' | 'webkit' | 'firefox') ??
+    'chromium',
+});
+
 declare global {
   interface Window {
     __SYNCS__: unknown[];
