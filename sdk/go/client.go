@@ -10,11 +10,9 @@ import (
 	"os/exec"
 )
 
-// spawnState holds the child-process handle for a spawned (non-attached)
-// server. It is defined here as a STUB so client.go compiles standalone — the
-// attach path leaves Client.spawn nil. Plan 05's spawn.go CONSTRUCTS and FILLS
-// this struct (and owns the teardown in Close()); it must not re-declare the
-// type. The three fields are the spawn-state contract between Plan 03 and 05.
+// spawnState holds the child-process handle for a spawned server. The attach
+// path leaves Client.spawn nil; spawn.go fills this struct and Close() owns the
+// teardown.
 type spawnState struct {
 	cmd    *exec.Cmd
 	stdinW io.WriteCloser
