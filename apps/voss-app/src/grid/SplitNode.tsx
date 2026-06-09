@@ -213,6 +213,7 @@ export default function SplitNodeView(props: {
               prefixReserved={props.prefixReserved}
               agentConfigByPaneId={props.agentConfigByPaneId}
               workspacePath={props.workspacePath}
+              paneDrag={props.paneDrag}
             />
             <DragHandle
               store={props.store}
@@ -245,6 +246,7 @@ export default function SplitNodeView(props: {
               prefixReserved={props.prefixReserved}
               agentConfigByPaneId={props.agentConfigByPaneId}
               workspacePath={props.workspacePath}
+              paneDrag={props.paneDrag}
             />
           </div>
         </div>

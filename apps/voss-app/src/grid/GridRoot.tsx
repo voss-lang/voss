@@ -26,6 +26,8 @@ import SplitNodeView, { type CloseUI } from './SplitNode';
 import type { AgentConfig } from '../pane/pty-ipc';
 import { requestCloseGated } from './CloseConfirmBanner';
 import type { Dims } from './DragHandle';
+import { createPaneDrag } from './paneDrag';
+import PaneDragLayer from './PaneDragLayer';
 
 /**
  * Grid container (GRD-01) + global keymap host + GRD-05 window-shrink floor.
@@ -174,6 +176,8 @@ export default function GridRoot(props: {
     cw: DEFAULT_CW,
     ch: DEFAULT_CH,
   });
+
+  const paneDrag = createPaneDrag(store, setStore, dims);
 
   const geom = () => ({
     winW: win().w,
@@ -434,8 +438,10 @@ export default function GridRoot(props: {
           prefixReserved={props.prefixReserved}
           agentConfigByPaneId={props.agentConfigByPaneId}
           workspacePath={props.workspacePath}
+          paneDrag={paneDrag}
         />
       </div>
+      <PaneDragLayer drag={paneDrag} />
     </div>
   );
 }
