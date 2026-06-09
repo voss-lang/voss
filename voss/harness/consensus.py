@@ -13,6 +13,8 @@ from typing import Optional
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 
+from voss.template_render import render_package_template
+
 MAX_DIFF_CHARS = 30_000
 
 
@@ -121,23 +123,13 @@ def capture_diff(mode: str, cwd: Path, ref: Optional[str] = None) -> str:
 
 def build_prompt(constraints: ConstraintsConfig, diff_text: str) -> str:
     """Build system prompt injecting constraint rules and the diff."""
-    numbered = "\n".join(
-        f"{i}. {rule}" for i, rule in enumerate(constraints.rules, 1)
-    )
-    return (
-        "You are a code review assistant. Review the diff below against "
-        "the following constraints. Only report violations — do not list "
-        "passing rules.\n\n"
-        "## Constraints\n"
-        f"{numbered}\n\n"
-        "## Diff\n"
-        f"```\n{diff_text}\n```\n\n"
-        "For each violation, include the exact constraint text in the "
-        "'constraint' field, the file path in 'file', the line number in "
-        "'line' (null if not determinable), and an explanation in "
-        "'explanation'. Return a JSON object with 'violations' (list) and "
-        "'summary' with 'total_checked' (number of constraints checked) "
-        "and 'violation_count'."
+    return render_package_template(
+        "voss",
+        "templates/prompts/consensus.txt.jinja",
+        {
+            "rules": list(constraints.rules),
+            "diff_text": diff_text,
+        },
     )
 
 

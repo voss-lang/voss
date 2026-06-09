@@ -189,24 +189,26 @@ def _section_body(report: AuditReport, num: int) -> list[str]:
     return builder() if builder else [_NONE]
 
 
-def render_markdown(report: AuditReport) -> str:
-    """Markdown export: one ``## §N <Section>`` header per PRD §9 section."""
-    sections = [
+def _audit_sections(report: AuditReport) -> list[dict]:
+    return [
         {"num": num, "name": name, "body": _section_body(report, num)}
         for num, name in _SECTIONS
     ]
+
+
+def render_markdown(report: AuditReport) -> str:
+    """Markdown export: one ``## §N <Section>`` header per PRD §9 section."""
     return render_package_template(
         "voss",
         "templates/audit/markdown.md.jinja",
-        {"run_id": report.run_id, "sections": sections},
+        {"run_id": report.run_id, "sections": _audit_sections(report)},
     )
 
 
 def render_text(report: AuditReport) -> str:
     """Compact plain-text export (default --format text)."""
-    lines: list[str] = [f"Audit: {report.run_id}"]
-    for num, name in _SECTIONS:
-        lines.append(f"[{num}] {name}")
-        for body in _section_body(report, num):
-            lines.append(f"    {body}")
-    return "\n".join(lines)
+    return render_package_template(
+        "voss",
+        "templates/audit/text.txt.jinja",
+        {"run_id": report.run_id, "sections": _audit_sections(report)},
+    )

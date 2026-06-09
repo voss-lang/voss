@@ -15,6 +15,7 @@ from typing import Iterable
 import click
 from pydantic import BaseModel, Field, ValidationError
 
+from voss.template_render import render_package_template
 from voss_runtime.memory import EpisodicMemory
 
 
@@ -78,28 +79,12 @@ def has_signal(turns: Iterable, *, runs=None) -> bool:
     return signal_a or signal_b
 
 
-_EXTRACTION_PROMPT = """You are reviewing a coding-agent session for durable user conventions.
-
-A "convention" is a rule, preference, or workflow instruction the USER stated
-that should apply to ALL future sessions in this project (not just this one).
-Examples: "always use snake_case in Python", "never store secrets in env",
-"prefer pytest fixtures over setUp methods".
-
-NOT conventions: one-off facts about this codebase, debugging context,
-task-specific instructions, assistant restatements.
-
-Output ONLY a JSON array (no prose, no markdown). Each element is an object
-with exactly these fields:
-- statement (string, 1-500 chars): the convention restated imperatively
-- confidence (float 0.0..1.0): how confident you are this is a durable rule
-- evidence_quote (string): verbatim user quote that supports it
-- evidence_turn_idx (int >= 0): 0-based index of the user turn in the transcript
-
-Emit [] if no conventions are present.
-
-Transcript:
-{transcript}
-"""
+def _extraction_prompt(transcript: str) -> str:
+    return render_package_template(
+        "voss",
+        "templates/prompts/conventions_extraction.txt.jinja",
+        {"transcript": transcript},
+    )
 
 
 def _render_transcript(history) -> str:
@@ -136,7 +121,7 @@ async def extract_conventions(
       - Any provider exception (logged to stderr).
     """
     transcript = _render_transcript(history)
-    prompt = _EXTRACTION_PROMPT.format(transcript=transcript)
+    prompt = _extraction_prompt(transcript)
     messages = [{"role": "user", "content": prompt}]
 
     try:

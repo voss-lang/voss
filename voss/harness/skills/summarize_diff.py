@@ -17,23 +17,14 @@ from pathlib import Path
 
 import click
 
+from voss.template_render import render_package_template
+
 from ..agent import run_turn
 
-_PROMPT = (
-    "Summarize the current working-tree changes as a pull-request "
-    "description.\n\n"
-    "First call the `git_diff` tool to obtain the unstaged diff. Then write "
-    "the PR description as your final answer.\n\n"
-    "Output ONLY structured markdown with EXACTLY these three sections, in "
-    "this order, using these exact headers:\n"
-    "## Title\n"
-    "(a one-line summary)\n"
-    "## Summary\n"
-    "(a short paragraph on why the change exists)\n"
-    "## Changes\n"
-    "(a bullet list of the notable changes)\n\n"
-    "Do not write or modify any file. The markdown response is the only "
-    "deliverable."
+_PROMPT = render_package_template(
+    "voss",
+    "templates/prompts/skill_summarize_diff.txt.jinja",
+    {},
 )
 
 

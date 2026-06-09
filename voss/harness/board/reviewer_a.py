@@ -23,6 +23,7 @@ from typing import Callable, Optional
 from voss_runtime import EpisodicMemory
 from voss_runtime.providers.base import ModelProvider
 
+from voss.template_render import render_package_template
 from voss.eval.judge import Verdict, judge_run
 from voss.harness.agent import TurnResult, run_turn
 from voss.harness.permissions import PermissionGate
@@ -34,25 +35,11 @@ from voss.harness.tools import make_toolset
 from .verdict import ReviewerVerdict
 
 
-REVIEWER_A_ROLE_PROMPT = """\
-You are Reviewer-A in a caged autonomous engineering team.
-
-Your task: derive what "done" means from the ORIGINAL HUMAN IDEA below,
-then produce verification artifacts.
-
-For CODE cards:
-  1. Read the original idea and the produced artifact.
-  2. Write a test file that verifies the artifact meets the idea's intent.
-  3. Run the test file via shell_run. Exit 0 = pass, non-zero = fail.
-
-For AI cards:
-  1. Read the original idea and the produced artifact.
-  2. Write a rubric (plain-text PASS/FAIL criteria) derived from the idea.
-  3. Return the rubric as your final answer — the judge will score it.
-
-CRITICAL: derive the bar from the ORIGINAL IDEA only. Do NOT consult EM
-plans, EM tickets, EM AC/DoD, or prior Reviewer-A reviews.
-"""
+REVIEWER_A_ROLE_PROMPT = render_package_template(
+    "voss",
+    "templates/prompts/reviewer_a_role.txt.jinja",
+    {},
+)
 
 
 def _reviewer_a_task(original_idea: str, artifact_text: str, domain: str) -> str:

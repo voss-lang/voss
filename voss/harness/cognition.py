@@ -21,6 +21,8 @@ from typing import Optional
 import yaml
 from pydantic import ValidationError
 
+from voss.template_render import render_package_template
+
 from .cognition_schemas import (
     ConstraintsConfig,
     PermissionsConfig,
@@ -661,68 +663,22 @@ def bootstrap_prompt(inventory: dict, *, target_path: str = ".voss/architecture.
     Post-M8: callers pass `.voss/.analyze.staging.md`; the harness folds the
     staged file into VOSS.md's id=architecture fence via voss_md.write_fence_body.
     """
-    dir_tree_lines = "\n".join(
-        f"  - {name}/ ({count} files)" for name, count in inventory["dir_tree"]
-    ) or "  (none)"
-
-    manifest_block = (
-        f"### Manifest: `{inventory['manifest_path']}`\n```\n{inventory['manifest_head']}\n```\n"
-        if inventory["manifest_path"]
-        else "### Manifest: (none detected)\n"
+    return render_package_template(
+        "voss",
+        "templates/cognition/bootstrap.md.jinja",
+        {
+            "name": inventory["name"],
+            "target_path": target_path,
+            "git_head": inventory["git_head"],
+            "analyzed_at": inventory["analyzed_at"],
+            "file_count": inventory["file_count"],
+            "primary_language": inventory["primary_language"],
+            "dir_tree": inventory["dir_tree"],
+            "manifest_path": inventory["manifest_path"],
+            "manifest_head": inventory["manifest_head"],
+            "readme_head": inventory["readme_head"],
+        },
     )
-    readme_block = (
-        f"### README.md (head)\n```\n{inventory['readme_head']}\n```\n"
-        if inventory["readme_head"]
-        else "### README.md: (missing)\n"
-    )
-
-    return f"""You are running the Voss bootstrap turn for project `{inventory['name']}`.
-
-Your ONLY job: produce a Plan with EXACTLY ONE fs_write step targeting
-`{target_path}`. The harness has already pre-computed all inventory
-you need. do not use fs_glob, do not use fs_read, do not use shell_run,
-do not use git_status. All required facts are in this prompt.
-
-## Inventory (pre-computed by harness — use these values verbatim)
-
-- name: {inventory['name']}
-- git_head: {inventory['git_head']}
-- analyzed_at: {inventory['analyzed_at']}
-- file_count: {inventory['file_count']}
-- primary_language: {inventory['primary_language']}
-
-### Top-level directory tree
-{dir_tree_lines}
-
-{manifest_block}
-{readme_block}
-
-## architecture.md contract
-
-The fs_write content MUST begin with this YAML frontmatter, values verbatim:
-
-```
----
-git_head: {inventory['git_head']}
-analyzed_at: {inventory['analyzed_at']}
-file_count: {inventory['file_count']}
-analyzer_version: 1
----
-```
-
-Body sections in order (Markdown):
-1. `# Project` — one-paragraph summary.
-2. `## Primary language` — one line.
-3. `## Entry points` — bullet list (or "(none detected)").
-4. `## Module map` — 5-10 directories, one line each.
-5. `## Key dependencies` — extracted from manifest above.
-6. `## Testing approach` — inferred from layout.
-
-Total length: ≤ 150 lines.
-
-Set `final_when_done` to a one-line summary of what you wrote.
-Set confidence high (≥ 0.85) — the inventory is authoritative.
-"""
 
 
 def _render_steps_for_plan_md(steps) -> str:

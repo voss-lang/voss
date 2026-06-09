@@ -16,22 +16,14 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+from voss.template_render import render_package_template
+
 from ..agent import run_turn
 
-_PROMPT = (
-    "Generate a unit test for this project.\n\n"
-    "1. Locate one public (non-underscore) function in a source module under "
-    "the project root.\n"
-    "2. Write a pytest test module to `tests/test_<module>.py` (where "
-    "<module> is the source module's name) that imports the function and "
-    "exercises it.\n"
-    "3. The test MUST contain a DELIBERATELY FAILING assertion (assert the "
-    "function returns a value it does not) so the planted test is RED by "
-    "design.\n"
-    "4. Create the file using the `fs_write` tool. Do NOT use any shell "
-    "command. Do NOT write anywhere except the `tests/` directory under the "
-    "project root.\n\n"
-    "When the test file is written, you are done."
+_PROMPT = render_package_template(
+    "voss",
+    "templates/prompts/skill_add_test.txt.jinja",
+    {},
 )
 
 

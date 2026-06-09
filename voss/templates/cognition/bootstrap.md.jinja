@@ -1,0 +1,67 @@
+You are running the Voss bootstrap turn for project `{{ name }}`.
+
+Your ONLY job: produce a Plan with EXACTLY ONE fs_write step targeting
+`{{ target_path }}`. The harness has already pre-computed all inventory
+you need. do not use fs_glob, do not use fs_read, do not use shell_run,
+do not use git_status. All required facts are in this prompt.
+
+## Inventory (pre-computed by harness — use these values verbatim)
+
+- name: {{ name }}
+- git_head: {{ git_head }}
+- analyzed_at: {{ analyzed_at }}
+- file_count: {{ file_count }}
+- primary_language: {{ primary_language }}
+
+### Top-level directory tree
+{% for name, count in dir_tree -%}
+{{- "  - " }}{{ name }}/ ({{ count }} files)
+{% else -%}
+{{- "  (none)" }}
+{% endfor -%}
+
+{% if manifest_path -%}
+### Manifest: `{{ manifest_path }}`
+```
+{{ manifest_head }}
+```
+
+{% else -%}
+### Manifest: (none detected)
+
+{% endif -%}
+{% if readme_head -%}
+### README.md (head)
+```
+{{ readme_head }}
+```
+
+{% else -%}
+### README.md: (missing)
+
+{% endif -%}
+## architecture.md contract
+
+The fs_write content MUST begin with this YAML frontmatter, values verbatim:
+
+```
+---
+git_head: {{ git_head }}
+analyzed_at: {{ analyzed_at }}
+file_count: {{ file_count }}
+analyzer_version: 1
+---
+```
+
+Body sections in order (Markdown):
+1. `# Project` — one-paragraph summary.
+2. `## Primary language` — one line.
+3. `## Entry points` — bullet list (or "(none detected)").
+4. `## Module map` — 5-10 directories, one line each.
+5. `## Key dependencies` — extracted from manifest above.
+6. `## Testing approach` — inferred from layout.
+
+Total length: ≤ 150 lines.
+
+Set `final_when_done` to a one-line summary of what you wrote.
+Set confidence high (≥ 0.85) — the inventory is authoritative.
