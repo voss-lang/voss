@@ -152,6 +152,9 @@ def test_m10_code_slash_commands_execute(tmp_path, capsys) -> None:
     from types import SimpleNamespace
     from voss.harness.cli import _build_slash_registry
 
+    # _render_project_index_text only renders inside a project root
+    # (f2cc75d gate) — tmp_path needs a marker file.
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 't'\n", encoding="utf-8")
     (tmp_path / "app.py").write_text(
         "def shared_entry(x):\n"
         "    return x\n\n"
