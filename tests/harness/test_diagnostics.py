@@ -375,3 +375,137 @@ class TestDoctorCmd:
         result = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path)])
         assert result.exit_code == 1
         assert "brew install git" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Filtering (--only / --category) and JSON output
+# ---------------------------------------------------------------------------
+
+
+class TestRunChecksFiltering:
+    def test_filter_by_id(self, monkeypatch, tmp_path: Path):
+        _patch_all_ok(monkeypatch)
+        results = diag.run_checks(tmp_path, ids={"python", "git"})
+        assert [c.id for c in results] == ["python", "git"]
+
+    def test_filter_by_category(self, monkeypatch, tmp_path: Path):
+        _patch_all_ok(monkeypatch)
+        results = diag.run_checks(tmp_path, categories={diag.Category.AUTH})
+        assert [c.id for c in results] == ["provider-auth"]
+
+    def test_filter_intersection(self, monkeypatch, tmp_path: Path):
+        _patch_all_ok(monkeypatch)
+        results = diag.run_checks(
+            tmp_path, ids={"python", "provider-auth"}, categories={diag.Category.ENV}
+        )
+        assert [c.id for c in results] == ["python"]
+
+    def test_no_filters_runs_all(self, monkeypatch, tmp_path: Path):
+        _patch_all_ok(monkeypatch)
+        assert len(diag.run_checks(tmp_path)) == len(diag.REGISTRY)
+
+
+class TestDoctorCmdFilters:
+    def test_only_runs_named_check(self, monkeypatch, tmp_path):
+        _patch_all_ok(monkeypatch)
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--only", "python"])
+        assert r.exit_code == 0
+        assert "python" in r.output
+        assert "provider auth" not in r.output
+
+    def test_unknown_only_id_is_usage_error(self, tmp_path):
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--only", "nope"])
+        assert r.exit_code == 2
+        assert "unknown check id" in r.output
+        assert "valid ids" in r.output
+
+    def test_category_filters(self, monkeypatch, tmp_path):
+        _patch_all_ok(monkeypatch)
+        r = CliRunner().invoke(
+            doctor_cmd, ["--cwd", str(tmp_path), "--category", "auth"]
+        )
+        assert r.exit_code == 0
+        assert "provider auth" in r.output
+        assert "git" not in r.output
+
+    def test_cli_category_choices_match_enum(self):
+        from voss.harness.cli import _DOCTOR_CATEGORIES
+
+        assert set(_DOCTOR_CATEGORIES) == {c.value for c in diag.Category}
+
+    def test_exit_code_aggregates_filtered_set_only(self, monkeypatch, tmp_path):
+        _patch_all_ok(monkeypatch)
+        monkeypatch.setattr(
+            diag, "check_git_on_path",
+            lambda: diag.Check("git", diag.CheckResult.FAIL, detail="missing"),
+        )
+        # git excluded by filter -> failure invisible -> exit 0
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--only", "python"])
+        assert r.exit_code == 0
+
+
+class TestDoctorCmdJson:
+    def test_json_shape(self, monkeypatch, tmp_path):
+        import json
+
+        _patch_all_ok(monkeypatch)
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--json"])
+        assert r.exit_code == 0
+        payload = json.loads(r.output)
+        assert payload["v"] == 1
+        assert payload["exit_code"] == 0
+        assert len(payload["checks"]) == len(diag.REGISTRY)
+        first = payload["checks"][0]
+        assert set(first) == {"id", "name", "category", "status", "detail", "fix"}
+        assert "repairs" not in payload
+
+    def test_json_no_stderr_chrome_on_warn(self, monkeypatch, tmp_path):
+        import json
+
+        _patch_all_ok(monkeypatch)
+        monkeypatch.setattr(
+            diag, "check_provider_auth",
+            lambda: diag.Check("provider auth", diag.CheckResult.WARN, detail="meh"),
+        )
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--json"])
+        assert r.exit_code == 0
+        json.loads(r.output)  # pure JSON on stdout
+        assert r.stderr.strip() == ""
+
+    def test_json_exit_one_on_fail(self, monkeypatch, tmp_path):
+        import json
+
+        _patch_all_ok(monkeypatch)
+        monkeypatch.setattr(
+            diag, "check_git_on_path",
+            lambda: diag.Check("git", diag.CheckResult.FAIL, detail="missing"),
+        )
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--json"])
+        assert r.exit_code == 1
+        assert json.loads(r.output)["exit_code"] == 1
+
+    def test_json_fix_requires_yes(self, tmp_path):
+        r = CliRunner().invoke(doctor_cmd, ["--cwd", str(tmp_path), "--json", "--fix"])
+        assert r.exit_code == 2
+        assert "requires --yes" in r.output
+
+    def test_json_fix_yes_includes_repairs(self, monkeypatch, tmp_path):
+        import json
+
+        _patch_all_ok(monkeypatch)
+        monkeypatch.setattr(
+            diag, "check_harness_cache",
+            lambda _cwd: diag.Check(
+                "harness cache", diag.CheckResult.WARN, detail="stale",
+                tier=diag.RepairTier.SAFE,
+                repair=lambda: diag.RepairResult(ok=True, detail="rebuilt"),
+            ),
+        )
+        r = CliRunner().invoke(
+            doctor_cmd, ["--cwd", str(tmp_path), "--json", "--fix", "--yes"]
+        )
+        payload = json.loads(r.output)
+        assert "repairs" in payload
+        [rep] = payload["repairs"]
+        assert rep["executed"] is True
+        assert rep["ok"] is True
