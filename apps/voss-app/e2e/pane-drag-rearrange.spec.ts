@@ -134,6 +134,27 @@ async function paneRects(page: Page): Promise<PaneRect[]> {
   );
 }
 
+/** Rects once they are identical across two consecutive frames. */
+async function stableRects(page: Page, count: number): Promise<PaneRect[]> {
+  let prev = '';
+  let rects: PaneRect[] = [];
+  await expect
+    .poll(
+      async () => {
+        rects = (await paneRects(page)).sort(
+          (a, b) => a.x - b.x || a.y - b.y,
+        );
+        const sig = JSON.stringify(rects);
+        const settled = rects.length === count && sig === prev;
+        prev = sig;
+        return settled;
+      },
+      { timeout: 7000 },
+    )
+    .toBe(true);
+  return rects;
+}
+
 async function bootThreePanes(page: Page): Promise<PaneRect[]> {
   await installTauriMock(page);
   await page.setViewportSize({ width: 1400, height: 900 });
@@ -142,17 +163,9 @@ async function bootThreePanes(page: Page): Promise<PaneRect[]> {
 
   // ⌘D = pane.splitRight (vscode profile) — build a 3-pane row.
   await page.keyboard.press('Meta+KeyD');
-  await expect
-    .poll(async () => (await paneRects(page)).length, { timeout: 5000 })
-    .toBe(2);
+  await stableRects(page, 2);
   await page.keyboard.press('Meta+KeyD');
-  await expect
-    .poll(async () => (await paneRects(page)).length, { timeout: 5000 })
-    .toBe(3);
-
-  const rects = await paneRects(page);
-  rects.sort((a, b) => a.x - b.x || a.y - b.y);
-  return rects;
+  return stableRects(page, 3);
 }
 
 /** Drag from a pane's header to a point, with threshold-crossing moves. */
@@ -189,10 +202,7 @@ test.describe('pane drag-rearrange (real browser)', () => {
       .toEqual([b.id, a.id]);
 
     // Same panes, same geometry — only the slot contents swapped.
-    const after = (await paneRects(page)).sort(
-      (p, q) => p.x - q.x || p.y - q.y,
-    );
-    expect(after.length).toBe(3);
+    const after = await stableRects(page, 3);
     expect(after.map((r) => ({ x: r.x, w: r.w }))).toEqual(
       before.map((r) => ({ x: r.x, w: r.w })),
     );

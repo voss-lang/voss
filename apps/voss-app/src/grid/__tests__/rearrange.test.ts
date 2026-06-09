@@ -253,4 +253,26 @@ describe('rearrange — floor guard (GRD-05)', () => {
     simulateMoveViolates(root, a.id, c.id, 'bottom', TIGHT);
     expect(JSON.stringify(root)).toBe(JSON.stringify(before));
   });
+
+  it('7-pane dense column at laptop dims: edge drop is a silent no-op, center swap still works', () => {
+    // Dropping the left pane under the bottom of a 6-deep V stack would make
+    // a 7-deep stack: at 1400×800 every row falls below 5 rows of 20px.
+    const real = { winW: 1400, winH: 800, cw: 8, ch: 20 };
+    const root = stack7Panes();
+    const leaves = collectLeaves(root);
+    const s = store(root, leaves[0].id);
+    const before = deepCloneTree(s.root);
+
+    expect(movePane(s, leaves[0].id, leaves[6].id, 'bottom', real)).toBe(
+      false,
+    );
+    expect(JSON.stringify(s.root)).toBe(JSON.stringify(before));
+    expect(h.invoke).not.toHaveBeenCalled();
+
+    // Center drop has no geometry change — never floor-gated.
+    expect(movePane(s, leaves[0].id, leaves[6].id, 'center', real)).toBe(
+      true,
+    );
+    expect(h.invoke).toHaveBeenCalledTimes(1);
+  });
 });

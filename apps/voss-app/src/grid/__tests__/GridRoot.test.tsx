@@ -7,10 +7,14 @@ const h = vi.hoisted(() => ({ invoke: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: h.invoke }));
 // Lightweight A2 pane stub — never boots a real PTY/xterm. Plain DOM node
 // (no JSX in a hoisted factory); path is relative to THIS test file.
+// MUST read `p.id` like the real component does: Solid JSX props are lazy
+// getters, so a prop expression that throws only surfaces when accessed —
+// a mock that ignores `id` masks render-time crashes in the leaf branch.
 vi.mock('../../pane/PaneComponent', () => ({
-  default: (p: { index?: number }) => {
+  default: (p: { id: string; index?: number }) => {
     const d = document.createElement('div');
     d.setAttribute('data-testid', 'pane');
+    d.setAttribute('data-mock-pane-id', String(p.id));
     d.setAttribute('data-idx', String(p.index ?? 1));
     return d;
   },
@@ -329,6 +333,15 @@ describe('GridRoot — pane drag rearrange', () => {
     expect(ctrl!.snapshot().focusedId).toBe(dragId);
     expect(h.invoke).toHaveBeenCalledTimes(1);
     expect(h.invoke).toHaveBeenCalledWith('sync_grid', expect.anything());
+
+    // The DOM must reflect the swap, not just the store: each leaf wrapper
+    // re-rendered its PaneComponent keyed by the (swapped) pane id.
+    for (const wrap of el.querySelectorAll('[data-pane-id]')) {
+      const inner = wrap.querySelector('[data-mock-pane-id]');
+      expect(inner?.getAttribute('data-mock-pane-id')).toBe(
+        wrap.getAttribute('data-pane-id'),
+      );
+    }
   });
 });
 

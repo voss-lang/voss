@@ -30,7 +30,7 @@ created: 2026-06-09
 
 **No new npm or cargo dependencies.** All new visual elements use the existing
 token vocabulary (`--bg-*`, `--fg-*`, `--accent-*`, `--focus`, `--border*`,
-`--role-*`, `--focus-soft`). No raw hex values in component code.
+`--role-*`, `--focus-soft`, `--tool`). No raw hex values in component code.
 
 **Variant B radius rule:** `border-radius: 0` everywhere except traffic-light
 circles (50%) and scrollbar thumbs (4px). This rule extends to all new V15
@@ -45,9 +45,8 @@ No new spacing tokens.
 
 | Value | Existing Usage | V15 Usage |
 |-------|---------------|-----------|
-| 2px | — | Tool-line collapse chevron margin |
-| 4px | Icon gaps, inline padding (`xs`) | Transcript row vertical padding; permission-gate button gap |
-| 8px | Compact element spacing (`sm`) | Tool-line collapsed row height padding; boot-placeholder icon gap |
+| 4px | Icon gaps, inline padding (`xs`) | Transcript row vertical padding; tool-line collapse chevron margin; statusbar indicator gap |
+| 8px | Compact element spacing (`sm`) | Tool-line collapsed row height padding; boot-placeholder icon gap; permission-gate label and button gaps |
 | 12px | Section padding (cockpit) | Transcript body horizontal padding; session-list row padding |
 | 16px | Default element spacing (`md`) | Permission-gate block margin top/bottom |
 | 24px | Section breaks | Boot-placeholder vertical centering padding |
@@ -56,6 +55,7 @@ Exceptions:
 - Permission gate border-radius: 0 (Variant B rule)
 - Transcript scroll area: `padding: 8px 12px` (8 vertical, 12 horizontal — matches existing `.cockpit-peek__body`)
 - Session-list row height: 28px (matches `.org-run-picker__row`)
+- `outline-offset` values (`-1px`, `2px`) are visual-alignment values for focus rings, exempt from the 4-point layout grid
 
 ---
 
@@ -63,11 +63,12 @@ Exceptions:
 
 All type in V15 structured pane uses existing font families. New elements
 follow the size floor of 11px (A12 rule — 9px/10px mockup labels round up).
+Exactly two weights: 400 (body) and 600 (anchors, labels, primary actions).
 
 | Role | Family | Size | Weight | Line Height | Usage |
 |------|--------|------|--------|-------------|-------|
 | Transcript body | `--font-mono` | 11px | 400 | 1.62 | Tool lines, stream text, generic fallback rows |
-| Task header | `--font-mono` | 11px | 500 | 1.4 | EM task header line (user task echo) |
+| Task header | `--font-mono` | 11px | 600 | 1.4 | EM task header line (user task echo) — primary anchor |
 | Section label | `--font-display` (Poppins) | 11px | 600 | 1 | "Server sessions" sidebar section header |
 | Session meta | `--font-ui` | 11px | 400 | 1.4 | Session list id/title/age in sidebar |
 | Permission gate label | `--font-ui` | 11px | 600 | 1.4 | Gate warning line |
@@ -91,11 +92,12 @@ V15 consumes the existing token palette. No new custom properties.
 | Surface-top | `--bg-3` | `#1f232e` | Boot placeholder surface; ended banner background |
 | Border default | `--border` | `#262b38` | Tool-line separator; gate border |
 | Border bright | `--border-bright` | `#353b4a` | Permission gate button border; session-list dividers |
-| Accent (10%) — Focus / CTA | `--focus` | `#5a7cff` | Attach button; Retry button in spawn-failure state; focus rings |
+| Accent (10%) — Focus / CTA | `--focus` | `#5a7cff` | Attach button; Retry start button in spawn-failure state; focus rings |
 | Accent — Live stream | `--accent-cyan` | `#6cc7d4` | Streaming pulse dot; `● live` statusbar indicator color |
 | Accent — Tool success | `--accent-green` | `#6fd28f` | Tool state `ok` glyph; `liveLabel` 'live' color; stream settled text |
 | Accent — Permission / gate | `--accent-red` | `#e87b7b` | Permission gate border tint; Deny button color; spawn-failure error text |
 | Accent — Reviewer / warning | `--accent-amber` | `#e8b86c` | Warning event row; `probable` event row; gate `dimension="confidence"` label |
+| Tool glyph | `--tool` | `#c084d4` | Tool event glyph in `pending` state — role-semantic token from `variant-b.css` |
 | Foreground 0 | `--fg-0` | `#e8eaf0` | Task text; stream.delta growing text; final text |
 | Foreground 1 | `--fg-1` | `#aab0c0` | Tool line collapsed label; session list item text |
 | Foreground 2 | `--fg-2` | `#6a7080` | Tool args summary (collapsed); plan prose; generic fallback row type label |
@@ -103,11 +105,12 @@ V15 consumes the existing token palette. No new custom properties.
 | Destructive | `--accent-red` | `#e87b7b` | Deny button + gate border — permission gates only |
 
 **Accent reserved for:**
-- `--focus` (`#5a7cff`): Attach and Retry interactive buttons; keyboard focus rings
+- `--focus` (`#5a7cff`): Attach and Retry start interactive buttons; keyboard focus rings
 - `--accent-cyan` (`#6cc7d4`): Streaming pulse dot; statusbar live indicator dot
 - `--accent-green` (`#6fd28f`): Tool `ok` state glyph; liveLabel 'live' text; stream settled paragraph
 - `--accent-red` (`#e87b7b`): Permission gate border/background tint; Deny button; spawn-failure error; ended-state dot (err tier from ExitBanner)
 - `--accent-amber` (`#e8b86c`): Warning and probable event rows; permission gate `dimension="confidence"` or `dimension="budget"` label
+- `--tool` (`#c084d4`): Tool event glyph (pending state) only
 
 **Honest-data discipline (V14 rule — carried forward):**
 - `--accent-cyan` streaming pulse animates ONLY while `stream.delta` events are actively arriving (SSE connected and turn in flight). Remove the animation class on `stream.finalize`, `session.idle`, stream disconnect, or server death.
@@ -116,6 +119,11 @@ V15 consumes the existing token palette. No new custom properties.
 ---
 
 ## Component Inventory
+
+**Focal-point declaration:** the task header row is the transcript's primary
+anchor at full contrast (`--fg-0`, weight 600); every downstream row descends
+the foreground scale `--fg-1` → `--fg-2` → `--fg-3` so the eye lands on the
+task first and reads activity in decreasing emphasis.
 
 ### 1. Structured Protocol Pane Body (`<ProtocolPane>`)
 
@@ -160,7 +168,7 @@ First row in the transcript. Echoes the user's task.
   margin-bottom: 4px
 
   .proto-task-hdr__glyph   color: var(--focus); content: "▸"; font-size: 11px
-  .proto-task-hdr__text    color: var(--fg-0); font-weight: 500; white-space: pre-wrap
+  .proto-task-hdr__text    color: var(--fg-0); font-weight: 600; white-space: pre-wrap
 ```
 
 Sourced from the `user` event `task` field. Not from run metadata — the server
@@ -178,10 +186,11 @@ echoes the user input on turn start.
   cursor: pointer
   user-select: none
 
-  .proto-tool-row__glyph   "⏺" color: var(--tool) = var(--accent-magenta) → #c084d4
-                           OR color: var(--accent-green) if state="ok"
-                           OR color: var(--accent-red) if state="error"
-  .proto-tool-row__name    color: var(--fg-1); font-weight: 500
+  .proto-tool-row__glyph   "⏺"
+                           state="pending": color: var(--tool)
+                           state="ok":     color: var(--accent-green)
+                           state="error":  color: var(--accent-red)
+  .proto-tool-row__name    color: var(--fg-1); font-weight: 400
   .proto-tool-row__summary color: var(--fg-2); overflow: hidden; text-overflow: ellipsis
                            white-space: nowrap; max-width: 48ch
   .proto-tool-row__state   margin-left: auto; flex-shrink: 0
@@ -189,6 +198,7 @@ echoes the user input on turn start.
                            state="ok":     color: var(--accent-green); content: "✓"
                            state="error":  color: var(--accent-red); content: "✗"
   .proto-tool-row__chevron "›" color: var(--fg-3); font-size: 10px; flex-shrink: 0
+                           margin-left: 4px
 ```
 
 **Expanded (click to toggle — D-07):**
@@ -344,7 +354,7 @@ Pinned — never trimmed by the transcript cap (D-08).
   (border-radius: 0 — Variant B)
 
   .proto-permission-gate__label
-    display: flex; align-items: center; gap: 6px
+    display: flex; align-items: center; gap: 8px
     font-family: var(--font-ui)
     font-size: 11px; font-weight: 600
     color: color-mix(in srgb, var(--accent-red) 80%, var(--fg-0))
@@ -361,12 +371,12 @@ Pinned — never trimmed by the transcript cap (D-08).
     "{tool_name}: {args summary}"
 
   .proto-permission-gate__btns
-    display: flex; gap: 6px
+    display: flex; gap: 8px
 
   .proto-pgbtn
     font-family: var(--font-ui)
     font-size: 11px
-    padding: 4px 10px
+    padding: 4px 12px
     background: var(--bg-2)
     border: 1px solid var(--border-bright)
     color: var(--fg-1)
@@ -382,7 +392,7 @@ Pinned — never trimmed by the transcript cap (D-08).
 
   .proto-pgbtn:focus-visible
     outline: 1px solid var(--focus)
-    outline-offset: -1px
+    outline-offset: -1px   (visual-alignment value — exempt from 4-point grid)
 
   .proto-pgbtn:disabled
     opacity: 0.4
@@ -458,7 +468,7 @@ Replaces the boot placeholder when `start_voss_serve` returns an error.
 
   .proto-spawn-error__heading
     font-family: var(--font-ui)
-    font-size: 13px; font-weight: 500
+    font-size: 13px; font-weight: 600
     color: var(--fg-0)
     "Could not start — {one-line reason}"
 
@@ -477,20 +487,22 @@ Replaces the boot placeholder when `start_voss_serve` returns an error.
   .proto-spawn-error__retry
     align-self: flex-start
     font-family: var(--font-ui)
-    font-size: 11px; font-weight: 500
-    padding: 6px 16px
+    font-size: 11px; font-weight: 600
+    padding: 8px 16px
     background: var(--focus)
     color: var(--fg-0)
     border: none
     cursor: pointer
     border-radius: 0   (Variant B)
+    "Retry start"
 
   .proto-spawn-error__retry:focus-visible
     outline: 1px solid var(--focus)
-    outline-offset: 2px
+    outline-offset: 2px   (visual-alignment value — exempt from 4-point grid)
 ```
 
-Retry invokes `start_voss_serve(cwd)` again (same command that was attempted).
+Retry start invokes `start_voss_serve(cwd)` again (same command that was
+attempted).
 
 ---
 
@@ -561,7 +573,7 @@ New section below the existing sidebar agent list in the cockpit sidebar.
                     (e.g. "3m", "2h", "1d" — relative time)
   .css-row__attach  (Attach button, right-aligned)
     font-family: var(--font-ui); font-size: 11px
-    padding: 2px 8px
+    padding: 4px 8px
     background: transparent
     border: 1px solid var(--border)
     color: var(--focus)
@@ -576,7 +588,7 @@ New section below the existing sidebar agent list in the cockpit sidebar.
 
   .css-row__attach:focus-visible
     outline: 1px solid var(--focus)
-    outline-offset: -1px
+    outline-offset: -1px   (visual-alignment value — exempt from 4-point grid)
 ```
 
 **Empty state (no sessions returned by GET /session):**
@@ -596,7 +608,7 @@ When a real server session backs the selected pane (liveLabel = 'live'):
 
 ```
 .statusbar-live-indicator
-  display: flex; align-items: center; gap: 5px
+  display: flex; align-items: center; gap: 4px
   font-family: var(--font-mono)
   font-size: 11px
   color: var(--accent-cyan)
@@ -654,7 +666,7 @@ shell-wide `.org-view-shell * { animation: none !important }` rule already in
 | Boot placeholder elapsed | "{N}s" |
 | Boot placeholder cold-start hint (appears after 5s) | "Cold start takes up to 60s" |
 | Spawn-failure heading | "Could not start — {one-line reason from stderr}" |
-| Spawn-failure retry button | "Retry" |
+| Spawn-failure retry button | "Retry start" |
 | Ended banner message | "[session ended]" |
 | Permission gate warning label | "⚠ needs your approval · {dimension}" |
 | Permission gate deny button | "Deny" |
@@ -747,7 +759,6 @@ No member silently dropped.
 | `banner` | Generic Fallback Row | no — generic |
 | `clarify` | Generic Fallback Row | no — generic |
 | `status` | Generic Fallback Row (silent — may omit from transcript, reflected in overlay instead) | no |
-| `thinking` | Thinking Row | yes |
 | `cognition_loaded` | Generic Fallback Row | no — generic |
 | `cognition_overflow` | Generic Fallback Row (`--accent-amber` type label) | no — generic |
 | `principles_overflow` | Generic Fallback Row (`--accent-amber` type label) | no — generic |
@@ -796,6 +807,7 @@ No third-party registries. All components are custom Solid TSX.
 |---------|--------|
 | Token palette | `apps/voss-app/src/styles/variant-b.css` (detected, not invented) |
 | Role colors | `apps/voss-app/src/themes/bundled/voss-ignite.json` |
+| `--tool` token | `apps/voss-app/src/styles/variant-b.css` line 36 (role-semantic block) — verified existing |
 | Font families | `apps/voss-app/src/styles/variant-b.css` + `src/index.css` |
 | Spacing values | Existing CSS (`cockpitStyles.css`, `pane.css`, `orgStyles.css`) — no new tokens |
 | Pane chrome | `apps/voss-app/src/pane/pane.css` — new body uses same `.pane-body` container |
