@@ -193,6 +193,13 @@
   font-family: var(--font-mono), monospace;
   font-variant-numeric: tabular-nums;
 }
+/* The shared dropdown (orgStyles .org-run-picker) anchors under this header
+ * row instead of the removed 28px shell header. */
+.cockpit-runhdr .org-run-picker {
+  top: 100%;
+  left: 12px;
+  transform: none;
+}
 .cockpit-runhdr__idea {
   font-family: var(--font-ui), Inter, system-ui, sans-serif;
   font-size: 13px;
