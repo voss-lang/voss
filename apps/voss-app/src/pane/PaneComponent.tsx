@@ -229,14 +229,29 @@ export default function PaneComponent(props: PaneProps) {
 
   const doSpawn = async (t: Terminal) => {
     if (props.agentConfig) {
-      await transport!.spawnAgent({
-        rows: t.rows,
-        cols: t.cols,
-        cwd: props.cwd,
-        paneId: props.id ?? '',
-        workspacePath: props.workspacePath,
-        ...props.agentConfig,
-      });
+      // VCKP-13: the managed toggle routes to the SANDBOXED command — never a
+      // no-op security switch. Unmanaged configs keep the unchanged spawnAgent.
+      if (props.agentConfig.managed) {
+        await transport!.spawnManagedAgent({
+          rows: t.rows,
+          cols: t.cols,
+          cwd: props.cwd,
+          paneId: props.id ?? '',
+          workspacePath: props.workspacePath,
+          ...props.agentConfig,
+          scope: props.agentConfig.scope ?? props.cwd ?? '',
+          tier: props.agentConfig.tier ?? 'B',
+        });
+      } else {
+        await transport!.spawnAgent({
+          rows: t.rows,
+          cols: t.cols,
+          cwd: props.cwd,
+          paneId: props.id ?? '',
+          workspacePath: props.workspacePath,
+          ...props.agentConfig,
+        });
+      }
     } else {
       await transport!.spawn({ rows: t.rows, cols: t.cols, cwd: props.cwd });
     }
@@ -350,6 +365,8 @@ export default function PaneComponent(props: PaneProps) {
         ? {
             agentPaneId: props.id,
             workspacePath: props.workspacePath,
+            // VCKP-13c: budget-kill threshold for managed launches.
+            budgetKillLimitUsd: props.agentConfig.budgetUsd,
           }
         : {}),
     });

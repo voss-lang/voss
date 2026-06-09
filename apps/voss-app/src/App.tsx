@@ -26,6 +26,7 @@ import OrgViewShell from './org/OrgViewShell';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
+import { resolveTier, hookCapableCli } from './org/capabilityTier';
 import {
   openInGridRequest,
   setOpenInGridRequest,
@@ -292,6 +293,8 @@ export default function App() {
     managed?: boolean;
     tier?: 'A' | 'B' | 'C';
     kind?: 'agent' | 'terminal';
+    scope?: string;
+    budgetUsd?: number;
   }) => {
     setAgentModalOpen(false);
     const ws = activeMounted();
@@ -318,10 +321,30 @@ export default function App() {
     // task prompt is already encoded into config.cliArgs by buildConfig — do
     // NOT re-append it.
     const cardId = registerTerminalCard(newId);
+
+    // VCKP-13: a managed launch needs a sandbox scope; default to the
+    // workspace root. With no resolvable scope the sandbox cannot be built —
+    // fall back to an UNMANAGED spawn so the recorded tier stays honest.
+    const scope = config.scope ?? workspacePath() ?? undefined;
+    const managed = config.managed === true && !!scope;
+
+    // The recorded tier reflects the command actually invoked (resolveTier),
+    // NEVER the modal's static value: managed → A/B, unmanaged → C.
+    const tier = resolveTier({
+      cli: config.cliBinary,
+      managed,
+      hookCapable: hookCapableCli(config.cliBinary),
+      adopted: false,
+    });
+
     const cfg: AgentConfig = {
       cliBinary: config.cliBinary,
       cliArgs: config.cliArgs,
       sessionId: cardId,
+      managed,
+      tier,
+      ...(managed ? { scope } : {}),
+      ...(config.budgetUsd != null ? { budgetUsd: config.budgetUsd } : {}),
     };
     ws.setAgentConfigByPaneId({ ...ws.agentConfigByPaneId(), [newId]: cfg });
   };
