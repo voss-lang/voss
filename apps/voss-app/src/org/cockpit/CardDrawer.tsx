@@ -46,6 +46,16 @@ export default function CardDrawer(props: {
     return id ? paneIdForCard(id) : undefined;
   };
 
+  // UI-REVIEW 2a: the drawer leads with the card's TITLE (scope), never the
+  // raw internal id. Falls back to the id only when the node isn't in the
+  // snapshot (e.g. live-only cards).
+  const selectedNode = () => {
+    const id = selectedCardId();
+    const d = data();
+    if (!id || !d) return undefined;
+    return d.session_tree.nodes.find((n) => n.id === id);
+  };
+
   // VCKP-09: a comment can dispatch only when a live client exists AND the
   // selected card is bound to a NATIVE session (snapshot cards have no write
   // path → disabled-with-reason, never a silent no-op).
