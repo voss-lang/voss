@@ -9,11 +9,17 @@
 // is selected the drawer renders a no-selection empty state (D-08), mirroring
 // the `<Show ... fallback>` idiom in BoardPanel.tsx:149-155.
 
-import { Show } from 'solid-js';
+import { Show, createSignal } from 'solid-js';
 import type { RunData } from '../types';
 import { runData } from '../orgStore';
 import { selectedCardId, setSelectedCardId, requestOpenInGrid } from '../selection';
 import { paneIdForCard } from '../model/bridge';
+import {
+  dispatchFollowUp,
+  nativeSessionNodeId,
+  FOLLOWUP_DISABLED_REASON,
+  type FollowUpClient,
+} from '../feedbackWritePath';
 import AuditPanel from '../panels/AuditPanel';
 import VerdictPanel from '../panels/VerdictPanel';
 import DiffPanel from '../panels/DiffPanel';
@@ -26,7 +32,11 @@ import BlockedPanel from '../panels/BlockedPanel';
  * `data` prop is accepted so CockpitShell may pass the snapshot explicitly, but
  * it defaults to the global `runData()` accessor to keep the shell wiring thin.
  */
-export default function CardDrawer(props: { data?: RunData | null }) {
+export default function CardDrawer(props: {
+  data?: RunData | null;
+  /** V13.1 client for the VCKP-09 follow-up write path (absent = no live wiring). */
+  followUpClient?: FollowUpClient;
+}) {
   const data = (): RunData | null =>
     props.data !== undefined ? props.data : runData();
   // D-07: the bound live pane for the selected card (undefined for pure
@@ -34,6 +44,28 @@ export default function CardDrawer(props: { data?: RunData | null }) {
   const boundPaneId = (): string | undefined => {
     const id = selectedCardId();
     return id ? paneIdForCard(id) : undefined;
+  };
+
+  // VCKP-09: a comment can dispatch only when a live client exists AND the
+  // selected card is bound to a NATIVE session (snapshot cards have no write
+  // path → disabled-with-reason, never a silent no-op).
+  const [comment, setComment] = createSignal('');
+  const canComment = (): boolean => {
+    const id = selectedCardId();
+    return !!props.followUpClient && !!id && !!nativeSessionNodeId(id);
+  };
+  const sendFollowUp = () => {
+    const id = selectedCardId();
+    const text = comment().trim();
+    if (!id || !text) return;
+    void dispatchFollowUp({
+      cardId: id,
+      comment: text,
+      client: props.followUpClient,
+      hasNativePath: !!props.followUpClient,
+    }).then((res) => {
+      if (!res.disabled) setComment('');
+    });
   };
 
   return (
@@ -109,6 +141,33 @@ export default function CardDrawer(props: { data?: RunData | null }) {
           >
             Open in grid
           </button>
+        </section>
+
+        {/* VCKP-09: inline follow-up comment — active only on a native session. */}
+        <section class="cockpit-comment" aria-label="Follow-up comment">
+          <textarea
+            class="cockpit-comment__box"
+            placeholder="Add a follow-up for this task"
+            value={comment()}
+            onInput={(e) => setComment(e.currentTarget.value)}
+            disabled={!canComment()}
+          />
+          <button
+            type="button"
+            class="cockpit-comment__send"
+            disabled={!canComment()}
+            title={
+              canComment()
+                ? 'Send this follow-up to the running session'
+                : FOLLOWUP_DISABLED_REASON
+            }
+            onClick={sendFollowUp}
+          >
+            Send follow-up
+          </button>
+          <Show when={!canComment()}>
+            <div class="cockpit-comment__reason">{FOLLOWUP_DISABLED_REASON}</div>
+          </Show>
         </section>
 
         {/* Existing panel bodies reused verbatim (D-02). */}
