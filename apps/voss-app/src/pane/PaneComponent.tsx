@@ -598,7 +598,22 @@ export default function PaneComponent(props: PaneProps) {
           <span class="sep">·</span>
           <span class={isAgentCli() ? 'proc agent-proc' : 'proc'}>{proc()}</span>
         </Show>
-        <Show when={isAgentCli() && !budget()}>
+        {/* V14 chunk C — role pill (mockup .ppill, 11px ≥ A12 floor). For
+            configured agent panes it supersedes the generic "agent" hint
+            below (same slot, more specific). */}
+        <Show when={props.agentConfig}>
+          <span class="sep">·</span>
+          <span
+            class="role-pill"
+            style={{
+              color: roleColor(),
+              background: `color-mix(in srgb, ${roleColor()} 16%, transparent)`,
+            }}
+          >
+            {agentRole()}
+          </span>
+        </Show>
+        <Show when={isAgentCli() && !budget() && !props.agentConfig}>
           <span class="sep">·</span>
           <span style={{ color: 'var(--accent-cyan)', 'font-size': '11px' }}>agent</span>
         </Show>
@@ -613,6 +628,23 @@ export default function PaneComponent(props: PaneProps) {
           </span>
         </Show>
         <span class="spacer" />
+        {/* V14 chunk C — bound-card chip (mockup .pcard): Bridge B reverse
+            lookup; clicking selects the card and jumps to Run Review. */}
+        <Show when={boundCardId()}>
+          {(cardId) => (
+            <button
+              type="button"
+              class="card-chip"
+              title="Open this card in Run Review"
+              onClick={(e) => {
+                e.stopPropagation();
+                requestOpenInReview(cardId());
+              }}
+            >
+              ▦ {cardId().slice(0, 8)}
+            </button>
+          )}
+        </Show>
         <Show when={budget()}>
           {(b) => (
             <BudgetBar
@@ -620,6 +652,11 @@ export default function PaneComponent(props: PaneProps) {
               onClickDetail={(anchor) => openBudgetPopover(anchor)}
             />
           )}
+        </Show>
+        {/* V14 chunk C — streaming flag (mockup .pstream): budget-event
+            recency (<3s), the registry signal the sidebar already shows. */}
+        <Show when={props.agentConfig && streaming()}>
+          <span class="stream-flag">streaming</span>
         </Show>
         <button class="menu" title="menu" type="button">
           ⋯
