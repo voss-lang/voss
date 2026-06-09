@@ -22,7 +22,9 @@ use voss_app_core::profiles::{self, ProfileFile};
 use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
 use voss_app_core::pty::writer::validate_write;
-use voss_app_core::pty::{foreground, spawn_command_session_with_env, spawn_session};
+use voss_app_core::pty::{
+    foreground, spawn_command_session_managed, spawn_command_session_with_env, spawn_session,
+};
 use voss_app_core::session::{self, SessionFile};
 use voss_app_core::themes::{self, CustomThemeFile};
 use voss_app_core::workspaces::{self, WorkspacesIndex};
@@ -217,6 +219,73 @@ async fn spawn_agent(
         .map_err(|e| e.to_string())?;
 
     Ok(pty_id)
+}
+
+/// VCKP-13 managed launch result. `tier` is the EFFECTIVE capability tier:
+/// when no sandbox tool exists on this host the requested tier is downgraded
+/// to "C" (observe-only) — the UI must never claim enforcement that is not
+/// active (T-V14-03).
+#[derive(Serialize, Clone)]
+struct ManagedSpawnResult {
+    pty_id: String,
+    tier: String,
+    sandboxed: bool,
+}
+
+/// VCKP-13: clone of `spawn_agent` that launches the CLI under the OS
+/// scope-sandbox (Seatbelt/bwrap) from t0. Identical body except the spawn
+/// goes through `spawn_command_session_managed` (per-run profile + wrapped
+/// argv) and the effective tier is returned for honest recording. Bridge B
+/// sessionId passthrough is preserved.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn spawn_managed_agent(
+    on_data: tauri::ipc::Channel<PtyEvent>,
+    rows: u16,
+    cols: u16,
+    cwd: Option<String>,
+    cli_binary: String,
+    cli_args: Vec<String>,
+    session_id: String,
+    pane_id: String,
+    workspace_path: Option<String>,
+    scope: String,
+    tier: String,
+    db: AgentDb<'_>,
+    pty_state: Reg<'_>,
+) -> Result<ManagedSpawnResult, String> {
+    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let conn = guard
+        .as_mut()
+        .ok_or_else(|| "agent registry unavailable".to_string())?;
+
+    let embedded_env = env_for_embedded_cli(&cli_binary, &cli_args);
+    let ((session, reader, pause_rx), sandboxed) = spawn_command_session_managed(
+        &cli_binary,
+        &cli_args,
+        &embedded_env,
+        rows,
+        cols,
+        cwd.clone(),
+        &scope,
+    )
+    .map_err(|e| e.to_string())?;
+    let registry: Arc<PtyRegistry> = Arc::clone(pty_state.inner());
+    let pty_id = registry.insert(session);
+    start_reader(pty_id.clone(), reader, pause_rx, on_data, registry);
+
+    // Roster shows the REAL CLI, not the sandbox launcher argv.
+    let cwd_str = cwd.as_deref().unwrap_or("");
+    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
+        .map_err(|e| e.to_string())?;
+
+    // Honest tier: sandbox unavailable → downgrade to observe-only.
+    let effective_tier = if sandboxed { tier } else { "C".to_string() };
+    Ok(ManagedSpawnResult {
+        pty_id,
+        tier: effective_tier,
+        sandboxed,
+    })
 }
 
 #[cfg(test)]
@@ -1245,6 +1314,7 @@ pub fn run() {
             pty_kill,
             get_fg_process,
             spawn_agent,
+            spawn_managed_agent,
             get_active_agents,
             mark_agent_stopped,
             update_agents_last_seen,
