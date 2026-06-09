@@ -93,6 +93,11 @@ export default function AttentionPanel(props: AttentionPanelProps) {
                   <div class="attn-row">
                     <div class="attn-row__head">
                       <span
+                        class="attn-row__dot"
+                        style={{ background: kindDotColor(item.kind) }}
+                        aria-hidden="true"
+                      />
+                      <span
                         class={`attn-row__badge${blocking ? ' attn-row__badge--blocking' : ''}`}
                       >
                         {item.kind}

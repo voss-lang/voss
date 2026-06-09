@@ -114,6 +114,29 @@
   padding: 8px 12px;
 }
 
+/* V14 chunk C — quick-launch row (mockup .qlbtn). Existing tokens only. */
+.sidebar-quick-launch {
+  margin: 8px 12px 4px;
+  width: calc(100% - 24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-1);
+  background: var(--bg-2);
+  border: 1px dashed var(--border-bright);
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.sidebar-quick-launch:hover {
+  border-color: var(--focus);
+  color: var(--focus);
+}
+
 .agent-item {
   min-height: 32px;
   display: flex;

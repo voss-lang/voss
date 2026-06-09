@@ -47,6 +47,8 @@
   font-family: var(--font-ui), Inter, system-ui, sans-serif;
 }
 
+/* V14 chunk C polish (mockup .ah): uppercase fg-3 header strip (mockup 10px →
+   11px A12 floor). */
 .attn-panel__header {
   display: flex;
   align-items: center;
@@ -58,7 +60,9 @@
   border-bottom: 1px solid var(--border);
   font-size: 11px;
   font-weight: 600;
-  color: var(--fg-1);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg-3);
 }
 
 .attn-panel__close {
@@ -96,10 +100,24 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* V14 chunk C polish (mockup .ai:hover). */
+.attn-row:hover {
+  background: var(--bg-3);
+}
+
 .attn-row__head {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* V14 chunk C polish (mockup .ai .aic): colored kind-dot, tint set inline
+   from existing tokens (red permission / focus sign-off / amber budget). */
+.attn-row__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .attn-row__badge {
@@ -121,11 +139,13 @@
   border-color: var(--focus);
 }
 
+/* V14 chunk C polish: title treatment (mockup .at — 12px fg-0); the meta line
+   below keeps the 11px fg-3 sub treatment (mockup .as). */
 .attn-row__summary {
   flex: 1;
   min-width: 0;
   font-size: 12px;
-  color: var(--fg-1);
+  color: var(--fg-0);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
