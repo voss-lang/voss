@@ -164,6 +164,11 @@ def _patch_single_warn(monkeypatch, *, tier=diag.RepairTier.SAFE, repair=_ok_rep
         "check_third_party_skills": lambda _cwd: diag.Check(
             "third-party skills", diag.CheckResult.OK
         ),
+        "check_keyring": lambda: diag.Check("keyring", diag.CheckResult.OK),
+        "check_codex_auth": lambda: diag.Check("codex auth", diag.CheckResult.OK),
+        "check_model_prefs": lambda: diag.Check("model prefs", diag.CheckResult.OK),
+        "check_session_store": lambda _cwd: diag.Check("session store", diag.CheckResult.OK),
+        "check_toolchain": lambda: diag.Check("toolchain", diag.CheckResult.OK),
     }
     for name, fn in fns.items():
         monkeypatch.setattr(diag, name, fn)
@@ -250,3 +255,31 @@ def test_repair_harness_cache_no_sources(tmp_path: Path):
     res = diag.repair_harness_cache(tmp_path)
     assert not res.ok
     assert "no .voss sources" in res.detail
+
+
+def test_repair_model_prefs_prunes_dangling(monkeypatch, tmp_path: Path):
+    import json
+
+    from voss.harness import model_catalog, model_prefs, model_router
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    p = model_prefs.prefs_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        json.dumps(
+            {"recent": [["prov", "live"], ["prov", "gone"]], "favorites": [["prov", "gone"]]}
+        )
+    )
+    monkeypatch.setattr(model_catalog, "_read_cache", lambda _p: ({"d": 1}, 1.0))
+    monkeypatch.setattr(model_catalog, "parse_catalog", lambda _d: [])
+    monkeypatch.setattr(
+        model_router,
+        "find_entry",
+        lambda _g, _prov, model_id: object() if model_id == "live" else None,
+    )
+
+    res = diag.repair_model_prefs()
+    assert res.ok
+    assert "pruned 2" in res.detail
+    assert model_prefs.recent() == [("prov", "live")]
+    assert model_prefs.favorites() == []

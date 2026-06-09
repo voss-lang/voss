@@ -418,7 +418,8 @@ def create_app(token: str | None = None) -> FastAPI:
 
         return EventSourceResponse(gen(), ping=15, send_timeout=30)
 
-    # -- doctor (H1.7 stub; H3.1 expands) -----------------------------------
+    # -- doctor (H1.7; expanded H3.1 — full registry via diagnostics.to_dict;
+    #    read-only by design: repairs are CLI-local `voss doctor --fix` only) --
 
     @app.get("/doctor")
     def doctor(auth: str = "auto", cwd: str = ".") -> dict:

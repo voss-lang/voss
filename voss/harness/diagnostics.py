@@ -10,6 +10,7 @@ the pre-existing mkdir probes.
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -319,6 +320,163 @@ def check_third_party_skills(cwd: Path) -> Check:
     return Check("third-party skills", CheckResult.OK, detail="none")
 
 
+def check_keyring() -> Check:
+    """OS keychain availability for voss-stored API keys (env vars and
+    upstream-CLI creds still work without it, hence WARN not FAIL)."""
+    kr = auth_mod._keyring_module()
+    if kr is None:
+        return Check(
+            "keyring",
+            CheckResult.WARN,
+            detail="keyring package not importable; voss-stored keys unavailable (env vars still work)",
+            fix="pip install keyring",
+        )
+    if not auth_mod._keyring_available():
+        return Check(
+            "keyring",
+            CheckResult.WARN,
+            detail="no usable keyring backend; voss-stored keys unavailable (env vars still work)",
+        )
+    try:
+        backend = type(kr.get_keyring()).__name__
+    except Exception:  # noqa: BLE001 — backend probing mirrors auth module
+        backend = "unknown backend"
+    return Check("keyring", CheckResult.OK, detail=backend)
+
+
+def check_codex_auth() -> Check:
+    """Informational: Codex (~/.codex/auth.json) credential state.
+
+    CodexCreds carries no expiry timestamp, so this reports auth mode only.
+    """
+    codex = auth_mod.load_codex()
+    if codex is None:
+        return Check("codex auth", CheckResult.OK, detail="not configured")
+    if codex.api_key:
+        return Check("codex auth", CheckResult.OK, detail=f"API key ({codex.auth_mode})")
+    if codex.has_oauth:
+        return Check("codex auth", CheckResult.OK, detail=f"OAuth tokens ({codex.auth_mode})")
+    return Check(
+        "codex auth",
+        CheckResult.WARN,
+        detail=f"auth.json present but no usable credentials ({codex.auth_mode})",
+        fix="codex login",
+    )
+
+
+def repair_model_prefs() -> RepairResult:
+    """Prune (provider, model) pairs absent from the cached model catalog."""
+    from . import model_catalog, model_prefs, model_router
+
+    data, _ = model_catalog._read_cache(model_catalog.cache_path())
+    if data is None:
+        return RepairResult(ok=False, detail="no catalog cache to validate against")
+    groups = model_catalog.parse_catalog(data)
+    prefs = model_prefs._load()
+    removed = 0
+    for key in ("recent", "favorites"):
+        pairs = model_prefs._pairs(prefs, key)
+        kept = [
+            list(p) for p in pairs if model_router.find_entry(groups, *p) is not None
+        ]
+        removed += len(pairs) - len(kept)
+        prefs[key] = kept
+    if not model_prefs._save(prefs):
+        return RepairResult(ok=False, detail="could not write model_prefs.json")
+    return RepairResult(ok=True, detail=f"pruned {removed} dangling pair(s)")
+
+
+def check_model_prefs() -> Check:
+    """Recents/favorites must reference models present in the cached
+    catalog. Validates offline only — never fetches the catalog."""
+    from . import model_catalog, model_prefs, model_router
+
+    pairs = model_prefs.recent() + model_prefs.favorites()
+    if not pairs:
+        return Check("model prefs", CheckResult.OK, detail="none recorded")
+    data, _ = model_catalog._read_cache(model_catalog.cache_path())
+    if data is None:
+        return Check(
+            "model prefs",
+            CheckResult.OK,
+            detail=f"{len(pairs)} pair(s); no catalog cache to validate against",
+        )
+    groups = model_catalog.parse_catalog(data)
+    dangling = sorted(
+        {f"{p}/{m}" for (p, m) in pairs if model_router.find_entry(groups, p, m) is None}
+    )
+    if dangling:
+        shown = ", ".join(dangling[:4]) + ("…" if len(dangling) > 4 else "")
+        return Check(
+            "model prefs",
+            CheckResult.WARN,
+            detail=f"{len(dangling)} dangling pair(s): {shown}",
+            fix="voss doctor --fix  # prunes dangling picker entries",
+            tier=RepairTier.CONFIRM,
+            repair=repair_model_prefs,
+        )
+    return Check(
+        "model prefs",
+        CheckResult.OK,
+        detail=f"{len(pairs)} pair(s) valid against catalog cache",
+    )
+
+
+def repair_session_store(paths: list[Path]) -> RepairResult:
+    """Quarantine corrupt session files by renaming to *.corrupt."""
+    moved = 0
+    for p in paths:
+        try:
+            p.rename(p.with_name(p.name + ".corrupt"))
+            moved += 1
+        except OSError as e:
+            return RepairResult(
+                ok=False, detail=f"{p.name}: {e} (quarantined {moved} before failure)"
+            )
+    return RepairResult(ok=True, detail=f"quarantined {moved} file(s) as *.corrupt")
+
+
+def check_session_store(cwd: Path) -> Check:
+    """Session JSON files (project + legacy stores) must parse."""
+    from . import session as session_mod
+
+    dirs = [session_mod._sessions_dir(cwd), session_mod.legacy_state_dir()]
+    corrupt: list[Path] = []
+    total = 0
+    for d in dirs:
+        if not d.exists():
+            continue
+        for p in sorted(d.glob("*.json")):
+            total += 1
+            try:
+                json.loads(p.read_text())
+            except (OSError, ValueError):
+                corrupt.append(p)
+    if corrupt:
+        names = ", ".join(p.name for p in corrupt[:3])
+        return Check(
+            "session store",
+            CheckResult.WARN,
+            detail=f"{len(corrupt)} corrupt of {total} session file(s) ({names})",
+            fix="voss doctor --fix  # quarantines corrupt files as *.corrupt",
+            tier=RepairTier.CONFIRM,
+            repair=lambda: repair_session_store(corrupt),
+        )
+    return Check("session store", CheckResult.OK, detail=f"{total} session file(s) parseable")
+
+
+def check_toolchain() -> Check:
+    """Informational: optional toolchains for app/crate development.
+    Always OK — doctor is not a package manager."""
+    tools = {name: shutil.which(name) for name in ("node", "pnpm", "cargo")}
+    found = [n for n, p in tools.items() if p]
+    missing = [n for n, p in tools.items() if not p]
+    detail = f"found: {', '.join(found) or 'none'}"
+    if missing:
+        detail += f"; missing: {', '.join(missing)} (only needed for app/crate dev)"
+    return Check("toolchain", CheckResult.OK, detail=detail)
+
+
 @dataclass(frozen=True)
 class CheckSpec:
     """Static check metadata; `run` late-binds the module-level check
@@ -333,16 +491,21 @@ REGISTRY: tuple[CheckSpec, ...] = (
     CheckSpec("python", Category.ENV, lambda cwd: check_python_version()),
     CheckSpec("voss-import", Category.ENV, lambda cwd: check_voss_import()),
     CheckSpec("provider-auth", Category.AUTH, lambda cwd: check_provider_auth()),
+    CheckSpec("keyring", Category.AUTH, lambda cwd: check_keyring()),
+    CheckSpec("codex-auth", Category.AUTH, lambda cwd: check_codex_auth()),
     CheckSpec("git", Category.ENV, lambda cwd: check_git_on_path()),
     CheckSpec("cwd-writable", Category.ENV, lambda cwd: check_cwd_writable(cwd)),
     CheckSpec("config-dirs", Category.CONFIG, lambda cwd: check_config_dirs_creatable()),
+    CheckSpec("model-prefs", Category.CONFIG, lambda cwd: check_model_prefs()),
     CheckSpec("project-dirs", Category.PROJECT, lambda cwd: check_project_dirs(cwd)),
     CheckSpec("harness-cache", Category.PROJECT, lambda cwd: check_harness_cache(cwd)),
     CheckSpec("cognition", Category.PROJECT, lambda cwd: check_cognition(cwd)),
+    CheckSpec("session-store", Category.STATE, lambda cwd: check_session_store(cwd)),
     CheckSpec("legacy-sessions", Category.STATE, lambda cwd: check_legacy_sessions()),
     CheckSpec(
         "third-party-skills", Category.PROJECT, lambda cwd: check_third_party_skills(cwd)
     ),
+    CheckSpec("toolchain", Category.ENV, lambda cwd: check_toolchain()),
 )
 
 
