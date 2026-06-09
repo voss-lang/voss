@@ -1,0 +1,69 @@
+/* V14 Run cockpit layout (VCKP-05).
+ *
+ * Consumes ONLY existing A12 / Voss Ignite + V11-scoped tokens (--bg-*, --fg-*,
+ * --border, --font-mono, --accent-*) inherited from `.org-view-shell` and the
+ * active theme. Declares NO new `--xxx` custom properties (token grep gate).
+ *
+ * Four regions in a CSS grid: Board spine (left) | Card drawer (center) |
+ * Timeline/replay rail (right), with the bottom gate bar spanning all columns.
+ */
+
+.cockpit-body {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-0);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.cockpit-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 1.4fr) minmax(320px, 1.6fr) minmax(280px, 1fr);
+  grid-template-rows: 1fr 40px;
+  grid-template-areas:
+    'board drawer rail'
+    'gate  gate   gate';
+}
+
+.cockpit-board {
+  grid-area: board;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+
+.cockpit-drawer {
+  grid-area: drawer;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+}
+
+.cockpit-rail {
+  grid-area: rail;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-0);
+}
+
+.cockpit-gate {
+  grid-area: gate;
+  min-width: 0;
+  height: 40px;
+  overflow: hidden;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+}
