@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createStore, produce } from 'solid-js/store';
 
 const h = vi.hoisted(() => ({ invoke: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: h.invoke }));
@@ -177,6 +178,44 @@ describe('rearrange — movePane edge', () => {
     expect(movePane(s, 'a', 'a', 'right', GENEROUS)).toBe(false);
     expect(JSON.stringify(s.root)).toBe(JSON.stringify(before));
     expect(h.invoke).not.toHaveBeenCalled();
+  });
+});
+
+function stack7Panes(): TreeNode {
+  const panes = Array.from({ length: 7 }, () => makePane());
+  let right: TreeNode = panes[6];
+  for (let i = 5; i >= 1; i--) {
+    right = makeSplit('V', panes[i], right);
+  }
+  return makeSplit('H', panes[0], right);
+}
+
+describe('rearrange — produce integration', () => {
+  beforeEach(() => h.invoke.mockClear());
+
+  it('7-pane edge move mutates store.root inside produce', () => {
+    const root = stack7Panes();
+    const leaves = collectLeaves(root);
+    const [store, setStore] = createStore({
+      root,
+      focusedId: leaves[1].id,
+    });
+    const before = JSON.stringify(store.root);
+
+    setStore(
+      produce((s) =>
+        movePane(s, leaves[1].id, leaves[0].id, 'bottom', {
+          winW: 1400,
+          winH: 900,
+          cw: 8,
+          ch: 20,
+        }),
+      ),
+    );
+
+    expect(JSON.stringify(store.root)).not.toBe(before);
+    expect(collectLeaves(store.root)).toHaveLength(7);
+    expect(h.invoke).toHaveBeenCalledTimes(1);
   });
 });
 

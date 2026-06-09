@@ -123,14 +123,13 @@ export function movePane(
     return true;
   }
 
-  if (
-    geom &&
-    simulateMoveViolates(store.root, dragId, targetId, zone, geom)
-  ) {
+  // Operate on a plain tree clone (proxy-safe; matches layoutCommands pattern).
+  const working = cloneTree(store.root);
+  if (geom && simulateMoveViolates(working, dragId, targetId, zone, geom)) {
     return false;
   }
 
-  const { root, leaf } = detachLeaf(store.root, dragId);
+  const { root, leaf } = detachLeaf(working, dragId);
   if (!root || !leaf) return false;
 
   const target = findLeaf(root, targetId);

@@ -207,6 +207,39 @@ describe('paneDrag controller', () => {
     );
   });
 
+  it('mouseup on window completes drop when pointerup is missing (Tauri)', () => {
+    const [store, setStore] = createStore({ root: makePane(), focusedId: '' });
+    const a = makePane();
+    const b = makePane();
+    setStore({ root: makeSplit('H', a, b), focusedId: a.id });
+
+    const paneA = document.createElement('div');
+    paneA.setAttribute('data-pane-id', a.id);
+    paneA.getBoundingClientRect = () =>
+      ({ x: 0, y: 0, width: 400, height: 300, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+    const paneB = document.createElement('div');
+    paneB.setAttribute('data-pane-id', b.id);
+    paneB.getBoundingClientRect = () =>
+      ({ x: 400, y: 0, width: 400, height: 300, top: 0, left: 400, right: 800, bottom: 300, toJSON: () => ({}) }) as DOMRect;
+    document.body.append(paneA, paneB);
+
+    const header = document.createElement('div');
+    stubPointerCapture(header);
+    const dims = { winW: 800, winH: 600, cw: 8, ch: 16 };
+    const drag = createPaneDrag(store, setStore, () => dims);
+
+    drag.onHeaderPointerDown(
+      { button: 0, clientX: 10, clientY: 150, currentTarget: header, target: header, pointerId: 1 } as unknown as PointerEvent,
+      a.id,
+    );
+    dispatch(window, 'pointermove', { clientX: 20, clientY: 150 });
+    dispatch(window, 'pointermove', { clientX: 500, clientY: 150 });
+    dispatch(window, 'mouseup', { clientX: 500, clientY: 150, button: 0 });
+
+    expect(movePaneMock).toHaveBeenCalledTimes(1);
+    expect(drag.state()).toBeNull();
+  });
+
   it('pointerup on window completes drop when released away from header', () => {
     const [store, setStore] = createStore({ root: makePane(), focusedId: '' });
     const a = makePane();

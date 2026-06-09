@@ -150,17 +150,23 @@ export default function SplitNodeView(props: {
             />
           </Show>
           <div style={{ flex: 1, 'min-height': 0, position: 'relative' }}>
-            <PaneComponent
-              id={asLeaf().id}
-              cwd={asLeaf().cwd}
-              shell={asLeaf().shell}
-              index={asLeaf().index}
-              embeddedInGrid
-              restoredScrollback={props.restoredScrollbackByPaneId?.[asLeaf().id]}
-              onFirstInput={() => props.onPaneFirstInput?.(asLeaf().id)}
-              agentConfig={props.agentConfigByPaneId?.[asLeaf().id]}
-              workspacePath={props.workspacePath}
-            />
+            <Show when={asLeaf().id} keyed>
+              {(paneId) => (
+                <PaneComponent
+                  id={paneId()}
+                  cwd={asLeaf().cwd}
+                  shell={asLeaf().shell}
+                  index={asLeaf().index}
+                  embeddedInGrid
+                  restoredScrollback={
+                    props.restoredScrollbackByPaneId?.[asLeaf().id]
+                  }
+                  onFirstInput={() => props.onPaneFirstInput?.(asLeaf().id)}
+                  agentConfig={props.agentConfigByPaneId?.[asLeaf().id]}
+                  workspacePath={props.workspacePath}
+                />
+              )}
+            </Show>
           </div>
         </div>
       </Match>
