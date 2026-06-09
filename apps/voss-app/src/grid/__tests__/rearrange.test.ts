@@ -38,15 +38,17 @@ describe('rearrange — swapPanes', () => {
   it('2-pane H tree: swaps ids/cwd/shell, ratio untouched, indices reassigned', () => {
     const a = makePane({ cwd: '/a', shell: 'zsh' });
     const b = makePane({ cwd: '/b', shell: 'bash' });
+    const aId = a.id;
+    const bId = b.id;
     const root = makeSplit('H', a, b);
     const origRatio = (root as SplitNode).ratio;
 
-    swapPanes(root, a.id, b.id);
+    swapPanes(root, aId, bId);
 
     const leaves = collectLeaves(root);
-    expect(leaves[0].id).toBe(b.id);
+    expect(leaves[0].id).toBe(bId);
     expect(leaves[0].cwd).toBe('/b');
-    expect(leaves[1].id).toBe(a.id);
+    expect(leaves[1].id).toBe(aId);
     expect(leaves[1].cwd).toBe('/a');
     expect((root as SplitNode).ratio).toBe(origRatio);
     expect(leaves.map((l) => l.index)).toEqual([1, 2]);
@@ -84,11 +86,12 @@ describe('rearrange — movePane center', () => {
   it('delegates to swap, sets focusedId = dragId, syncs once', () => {
     const a = makePane();
     const b = makePane();
-    const s = store(makeSplit('H', a, b), a.id);
+    const dragId = a.id;
+    const s = store(makeSplit('H', a, b), dragId);
 
-    expect(movePane(s, a.id, b.id, 'center')).toBe(true);
-    expect(s.focusedId).toBe(a.id);
-    expect(findLeaf(s.root, a.id)?.index).toBe(2);
+    expect(movePane(s, dragId, b.id, 'center')).toBe(true);
+    expect(s.focusedId).toBe(dragId);
+    expect(findLeaf(s.root, dragId)?.index).toBe(2);
     expect(h.invoke).toHaveBeenCalledTimes(1);
     expect(h.invoke).toHaveBeenCalledWith('sync_grid', expect.anything());
   });
