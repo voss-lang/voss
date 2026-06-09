@@ -22,17 +22,19 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import { render } from 'solid-js/web';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import CockpitShell from '../CockpitShell';
+// Source files are read via fs (NOT a vite `?raw` import): the css is also a
+// regular style import, and the transformed-module cache can serve stale
+// content for the `?raw` variant.
+// @ts-ignore -- node builtin available in the vitest runtime; the app tsconfig is browser-lib only.
+import { readFileSync } from 'node:fs';
 
-// Read the stylesheet/component SOURCE directly (fs, not a vite ?raw import —
-// the css is also consumed as a regular style module, and the transformed
-// module cache can shadow the raw text).
-const here = dirname(fileURLToPath(import.meta.url));
-const rawCockpitCss = readFileSync(join(here, '../cockpitStyles.css'), 'utf8');
-const rawGateBar = readFileSync(join(here, '../GateBar.tsx'), 'utf8');
+// Paths are relative to the vitest root (apps/voss-app — vitest.config.ts).
+const rawCockpitCss: string = readFileSync(
+  'src/org/cockpit/cockpitStyles.css',
+  'utf8',
+);
+const rawGateBar: string = readFileSync('src/org/cockpit/GateBar.tsx', 'utf8');
 
 let dispose: (() => void) | undefined;
 async function mountCockpit(): Promise<HTMLElement> {
@@ -105,17 +107,19 @@ describe('VCKP-10 — keyboard focus order Board → drawer → timeline', () =>
 
 describe('VCKP-10 — reduced motion disables cockpit animation', () => {
   it('cockpitStyles.css has a prefers-reduced-motion block covering the AttentionQueue pulse', () => {
-    const mediaIdx = rawCockpitCss.indexOf('@media (prefers-reduced-motion: reduce)');
-    expect(mediaIdx).toBeGreaterThan(-1);
-    const block = rawCockpitCss.slice(mediaIdx);
+    const media = rawCockpitCss.match(
+      /@media\s*\(\s*prefers-reduced-motion:\s*reduce\s*\)/,
+    );
+    expect(media, 'reduced-motion media query present').toBeTruthy();
+    const block = rawCockpitCss.slice(media!.index!);
     // The pulse + spinner selectors are inside the block, and animation is
-    // forced off.
+    // forced off (assertions tolerate minified whitespace).
     expect(block).toContain('.attn-pill--pulse');
     expect(block).toContain('.org-refresh-glyph--spinning');
-    expect(block).toContain('animation: none !important');
-    expect(block).toContain('transition: none !important');
+    expect(block).toMatch(/animation:\s*none\s*!important/);
+    expect(block).toMatch(/transition:\s*none\s*!important/);
     // The cockpit-wide kill switch covers every animated descendant.
-    expect(block).toContain('.org-view-shell *');
+    expect(block).toMatch(/\.org-view-shell\s*\*/);
   });
 });
 
