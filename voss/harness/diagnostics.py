@@ -215,6 +215,31 @@ def check_project_dirs(cwd: Path) -> Check:
     return Check("project dirs", CheckResult.OK, detail=".voss/, .voss-cache/ creatable")
 
 
+def repair_harness_cache(cwd: Path) -> RepairResult:
+    """Mirror `voss compile voss/harness/agent/`: recompile sources into
+    .voss-cache/harness/ and rewrite the freshness manifest."""
+    from voss.cli import compile_voss_file
+
+    from . import cache as harness_cache
+
+    source_dir = cwd / harness_cache.HARNESS_AGENT_DIR
+    files = sorted(source_dir.glob("*.voss"))
+    if not files:
+        return RepairResult(ok=False, detail=f"no .voss sources in {source_dir}")
+    cache_dir = Path(".voss-cache")
+    try:
+        for path in files:
+            target = cwd / cache_dir / "harness" / path.with_suffix(".py").name
+            compile_voss_file(
+                path, target, project_root=cwd, cache_dir=cache_dir
+            )
+        entries = harness_cache.compute_source_shas(cwd)
+        harness_cache.write_manifest(cwd, entries)
+    except Exception as exc:  # compile/codegen errors -> failed repair, not crash
+        return RepairResult(ok=False, detail=f"compile failed: {exc}")
+    return RepairResult(ok=True, detail=f"recompiled {len(files)} sources + manifest")
+
+
 def check_harness_cache(cwd: Path) -> Check:
     source_dir = cwd / "voss" / "harness" / "agent"
     if not source_dir.exists():
@@ -230,6 +255,8 @@ def check_harness_cache(cwd: Path) -> Check:
             CheckResult.WARN,
             detail="stale — compiled artifacts out of sync with .voss sources",
             fix="voss compile voss/harness/agent/",
+            tier=RepairTier.SAFE,
+            repair=lambda: repair_harness_cache(cwd),
         )
     return Check("harness cache", CheckResult.OK, detail=".voss-cache/harness/ fresh")
 

@@ -2326,14 +2326,30 @@ def logout_cmd(provider: str) -> None:
     type=click.Path(file_okay=False),
     help="Project root to check.",
 )
-def doctor_cmd(cwd_str: str) -> None:
-    """Diagnose harness setup. Diagnose-only; never executes fixes (D-13).
+@click.option(
+    "--fix",
+    "do_fix",
+    is_flag=True,
+    default=False,
+    help="Apply machine repairs after diagnosis (one confirmation for the plan).",
+)
+@click.option(
+    "--yes",
+    "assume_yes",
+    is_flag=True,
+    default=False,
+    help="With --fix: skip confirmation; applies safe-tier repairs only.",
+)
+def doctor_cmd(cwd_str: str, do_fix: bool, assume_yes: bool) -> None:
+    """Diagnose harness setup. Diagnose-only by default (D-13); repairs
+    run only behind the explicit --fix opt-in, gated by RepairTier.
 
     Former ad-hoc rows (cognition init/staleness M2-06, legacy sessions,
     third-party skill confinement M15-06) are folded into the check
     registry in `diagnostics.REGISTRY` and render in the table below.
     """
     from . import diagnostics as diag
+    from . import repair as repair_mod
 
     cwd = Path(cwd_str).resolve()
     results = diag.run_all_checks(cwd)
@@ -2349,6 +2365,46 @@ def doctor_cmd(cwd_str: str) -> None:
         click.echo(f"  {click.style(g, fg=color)}  {c.name:<{name_width}} {c.detail}")
         if c.fix and c.result is not diag.CheckResult.OK:
             click.echo(f"     → {c.fix}")
+
+    if do_fix:
+        candidates = repair_mod.repair_candidates(results)
+        if not candidates:
+            click.echo("\nno machine-repairable issues.")
+        else:
+            click.echo("\nplanned repairs:")
+            for c in candidates:
+                click.echo(f"  [{c.tier.value}] {c.name} — {c.fix or c.detail}")
+            proceed = assume_yes or click.confirm(
+                f"apply {len(candidates)} repair(s)?"
+            )
+            if proceed:
+                outcomes = repair_mod.execute_repairs(
+                    candidates, cwd, assume_yes=assume_yes
+                )
+                for o in outcomes:
+                    if not o.executed:
+                        click.echo(f"  -  {o.check.name}: skipped ({o.skipped_reason})")
+                    elif o.verified:
+                        detail = o.result.detail if o.result else ""
+                        click.echo(
+                            f"  {click.style('✓', fg='green')}  "
+                            f"{o.check.name}: repaired ({detail})"
+                        )
+                    elif o.result is not None and o.result.ok:
+                        state = o.recheck.result.value if o.recheck else "unverified"
+                        click.echo(
+                            f"  {click.style('✗', fg='red')}  "
+                            f"{o.check.name}: repair ran but re-check is {state}",
+                            err=True,
+                        )
+                    else:
+                        detail = o.result.detail if o.result else ""
+                        click.echo(
+                            f"  {click.style('✗', fg='red')}  "
+                            f"{o.check.name}: repair failed ({detail})",
+                            err=True,
+                        )
+                results = repair_mod.merge_results(results, outcomes)
 
     code = diag.aggregate_exit_code(results)
 
