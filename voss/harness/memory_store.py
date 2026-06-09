@@ -20,6 +20,7 @@ from typing import Optional
 import portalocker
 from rank_bm25 import BM25Okapi
 
+from voss.template_render import render_package_template
 from voss_runtime.memory import EpisodicMemory, SemanticMemory, Turn  # noqa: F401  (imported for downstream waves)
 
 
@@ -683,27 +684,33 @@ class MemoryStore:
         return len(matched)
 
     def summary(self, *, source: str | None = None) -> str:
-        lines = ["# Memory store contents", ""]
         total_bytes = 0
         total_files = 0
         tombstoned = self._load_tombstones()
+        sources = []
         for src in _SOURCES:
             if source is not None and source != src:
                 continue
             src_dir = self.root / src
             if not src_dir.exists():
-                lines.append(f"- {src}: 0 files, 0 bytes")
+                sources.append({"name": src, "files": 0, "bytes": 0})
                 continue
             files = [p for p in src_dir.rglob("*") if p.is_file()]
             n = len(files)
             size = sum(p.stat().st_size for p in files)
             total_bytes += size
             total_files += n
-            lines.append(f"- {src}: {n} files, {size} bytes")
-        lines.append("")
-        lines.append(f"Total: {total_files} files, {total_bytes} bytes")
-        lines.append(f"Tombstoned: {len(tombstoned)} ids")
-        return "\n".join(lines) + "\n"
+            sources.append({"name": src, "files": n, "bytes": size})
+        return render_package_template(
+            "voss",
+            "templates/memory/summary.md.jinja",
+            {
+                "sources": sources,
+                "total_files": total_files,
+                "total_bytes": total_bytes,
+                "tombstoned_count": len(tombstoned),
+            },
+        )
 
     def vacuum(self) -> int:
         """Compact chroma + physically delete tombstoned entries; returns bytes reclaimed.

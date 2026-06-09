@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import json
 from typing import Any
 
+from voss.template_render import render_package_template
+
 
 FINDING_FIELDS = ("file", "line", "col", "rule", "severity", "msg", "hint")
 
@@ -63,15 +65,11 @@ def render_lint_summary(findings: list[LintFinding]) -> str:
     if not findings:
         return "No lint findings."
 
-    lines: list[str] = []
-    for finding in findings:
-        lines.append(
-            f"{finding.file}:{finding.line}:{finding.col}: "
-            f"{finding.severity} {finding.rule}: {finding.msg}"
-        )
-        if finding.hint:
-            lines.append(f"  hint: {finding.hint}")
-    return "\n".join(lines)
+    return render_package_template(
+        "voss",
+        "templates/lint/summary.txt.jinja",
+        {"findings": findings},
+    ).removesuffix("\n")
 
 
 def _lint_finding_from_dict(finding: dict[str, Any]) -> LintFinding:
