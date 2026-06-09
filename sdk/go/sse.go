@@ -12,20 +12,18 @@ import (
 )
 
 // sseMaxLineBytes bounds a single SSE field line so a malformed/never-ending
-// `data:` line cannot exhaust memory. 1 MiB comfortably exceeds any real event.
+// `data:` line cannot exhaust memory. 1 MiB exceeds any real event.
 const sseMaxLineBytes = 1 << 20
 
-// Events opens GET /session/:id/events and delivers typed events on the
-// returned channel. The request carries the bearer header (via the shared
-// newRequest chokepoint) and Accept: text/event-stream. A non-200 open returns
-// a *VossError before any channel is created.
+// Events opens GET /session/:id/events and delivers typed events on the returned
+// channel. The request carries the bearer header and Accept: text/event-stream;
+// a non-200 open returns a *VossError before any channel is created.
 //
-// The stream is consumed by one goroutine that hand-parses SSE frames (stdlib
-// bufio, no third-party lib — D-04) and decodes each frame's data payload
-// through Decode(). Cancelling ctx (or the server closing the stream) tears down
-// the underlying TCP read — which cancels the in-flight turn server-side
-// (disconnect-cancels, PROTOCOL §8) — and closes the channel. There is no
-// goroutine or connection leak: resp.Body.Close() and close(ch) are deferred.
+// One goroutine hand-parses SSE frames and decodes each through Decode().
+// Cancelling ctx (or the server closing the stream) tears down the TCP read —
+// cancelling the in-flight turn server-side (disconnect-cancels, PROTOCOL §8) —
+// and closes the channel. resp.Body.Close() and close(ch) are deferred, so no
+// goroutine or connection leak.
 func (c *Client) Events(ctx context.Context, sessionID string) (<-chan TypedEvent, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, "/session/"+url.PathEscape(sessionID)+"/events", nil)
 	if err != nil {

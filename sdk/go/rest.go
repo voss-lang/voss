@@ -101,8 +101,8 @@ func (c *Client) DeleteSession(ctx context.Context, id string) error {
 }
 
 // PostMessage submits a user turn. POST /session/:id/message -> 202 Accepted.
-// mode may be "" to use the server default. Returns *VossError{Status:409} when
-// a turn is already running.
+// mode "" uses the server default. Returns *VossError{Status:409} when a turn is
+// already running.
 func (c *Client) PostMessage(ctx context.Context, id, text, mode string) error {
 	partType := "text"
 	body := MessageBody{
@@ -138,13 +138,13 @@ func (c *Client) Doctor(ctx context.Context) (DoctorReport, error) {
 	return out, nil
 }
 
-// PermissionReply answers a pending permission gate identified by id. choice is
-// one of "a" (allow once), "A" (allow always), "d" (deny), "y", "n"
-// (PROTOCOL §7). POST /session/:id/permission {id,choice} -> 200 {status}.
+// PermissionReply answers a pending permission gate. choice is one of "a"
+// (allow once), "A" (allow always), "d" (deny), "y", "n" (PROTOCOL §7).
+// POST /session/:id/permission {id,choice} -> 200 {status}.
 //
-// It returns stale=true when the gate was already resolved (timeout or
-// double-reply) — that is NOT an error, the server simply ignored the late
-// reply. A 401/404 surfaces as *VossError.
+// Returns stale=true when the gate was already resolved (timeout or
+// double-reply) — not an error, the server ignored the late reply. 401/404
+// surface as *VossError.
 func (c *Client) PermissionReply(ctx context.Context, sessionID, id, choice string) (bool, error) {
 	body := PermissionReply{Id: id, Choice: choice}
 	var out struct {

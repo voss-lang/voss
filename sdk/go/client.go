@@ -19,10 +19,9 @@ type spawnState struct {
 	pid    int
 }
 
-// Client is the loopback REST/SSE client for a `voss serve` process. It is
-// created either by AttachClient (caller-owned server, spawn == nil) or by the
-// spawn constructor in Plan 05 (spawn populated). Every request it issues
-// carries the bearer token via the single newRequest chokepoint.
+// Client is the loopback REST/SSE client for a `voss serve` process, created by
+// AttachClient (spawn == nil) or Spawn (spawn populated). Every request carries
+// the bearer token via the single newRequest chokepoint.
 type Client struct {
 	http    *http.Client
 	baseURL string
@@ -46,11 +45,9 @@ func (c *Client) String() string {
 	return fmt.Sprintf("Client{baseURL:%q, token:<redacted>, spawned:%t}", c.baseURL, c.spawn != nil)
 }
 
-// Close releases resources. For an attach client (spawn == nil) it is a no-op
-// for the process. For a spawned client it closes the stdin heartbeat (so the
-// server's stdin-EOF supervision fires), kills the child, and reaps it — no
-// orphan. It is idempotent: once the child is reaped (cmd.ProcessState set), a
-// repeat Close is a no-op.
+// Close releases resources. No-op for an attach client. For a spawned client it
+// closes the stdin heartbeat (firing the server's stdin-EOF supervision), kills
+// the child, and reaps it — no orphan. Idempotent once reaped.
 func (c *Client) Close() error {
 	if c.spawn == nil {
 		return nil
@@ -70,8 +67,8 @@ func (c *Client) Close() error {
 }
 
 // newRequest is the single chokepoint that attaches Authorization: Bearer
-// <token> to every request — REST methods (rest.go) and the SSE GET (sse.go,
-// Plan 04) both route through here. No other site sets the Authorization header.
+// <token> to every request — REST and the SSE GET both route through here. No
+// other site sets the Authorization header.
 func (c *Client) newRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
