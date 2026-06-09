@@ -132,3 +132,193 @@ describe('inferRole / inferRisk — editable adopt defaults (D-12)', () => {
     expect(res.risk).toBe('low'); // scoped + bounded → low
   });
 });
+
+// --- Modal (Task 2) ----------------------------------------------------------
+
+const modalProps = () => ({
+  paneId: PANE,
+  cliBinary: 'claude',
+  runId: 'run-7' as string | null,
+  harnessAdoptAvailable: true,
+  onDismiss: vi.fn(),
+  onAdopt: vi.fn(),
+});
+
+function ctaBtn(el: HTMLElement) {
+  return el.querySelector('.modal-btn-primary') as HTMLButtonElement;
+}
+
+function inputByPlaceholder(el: HTMLElement, fragment: string) {
+  return Array.from(el.querySelectorAll('input')).find((i) =>
+    (i.getAttribute('placeholder') ?? '').includes(fragment),
+  ) as HTMLInputElement;
+}
+
+function segBtn(el: HTMLElement, label: string) {
+  return Array.from(el.querySelectorAll('.modal-segmented__btn')).find(
+    (b) => b.textContent?.trim() === label,
+  ) as HTMLButtonElement;
+}
+
+/** Every user-visible string: rendered text + placeholder/aria-label/title attrs. */
+function allCopy(el: HTMLElement): string {
+  const attrs = Array.from(
+    el.querySelectorAll('[placeholder],[aria-label],[title]'),
+  )
+    .flatMap((n) => [
+      n.getAttribute('placeholder'),
+      n.getAttribute('aria-label'),
+      n.getAttribute('title'),
+    ])
+    .filter(Boolean)
+    .join(' ');
+  return `${el.textContent ?? ''} ${attrs}`;
+}
+
+describe('AdoptAgentModal — adopt copy is plain language (D-10)', () => {
+  it('renders the D-10 title, sections, and "Hand to Voss" CTA', () => {
+    const el = mount(() => <AdoptAgentModal {...modalProps()} />);
+    expect(el.querySelector('#modal-title')?.textContent).toBe(
+      'Let Voss manage this agent',
+    );
+    const text = el.textContent ?? '';
+    expect(text).toContain('Add it to');
+    expect(text).toContain('As the task');
+    expect(text).toContain('Limits');
+    expect(text).toContain('From now on, Voss will');
+    expect(ctaBtn(el).textContent?.trim()).toBe('Hand to Voss');
+  });
+
+  it('adopt copy contains NONE of the internal-mechanics jargon terms', () => {
+    const el = mount(() => <AdoptAgentModal {...modalProps()} />);
+    const copy = allCopy(el);
+    const forbidden = [
+      /cage/i,
+      /voss[- ]?native/i,
+      /permission\s*gate/i,
+      /session[- ]?tree/i,
+      /partial[\s_-]?lineage/i,
+      /\bpanes?\b/i,
+    ];
+    for (const re of forbidden) {
+      expect(copy, `forbidden term ${re} found in modal copy`).not.toMatch(re);
+    }
+  });
+
+  it('adopt copy makes NO per-tool-gate promise (tier C: budget-stop, never tool-gate)', () => {
+    const el = mount(() => <AdoptAgentModal {...modalProps()} />);
+    const copy = allCopy(el);
+    const gating = [/\btools?\b/i, /\bblock(s|ed|ing)?\b/i, /approve each/i, /per[- ]tool/i];
+    for (const re of gating) {
+      expect(copy, `per-tool gating language ${re} found in modal copy`).not.toMatch(re);
+    }
+    // The honest promises ARE present: budget stop/warn + review-before-done.
+    expect(copy).toMatch(/stop it at the limit/i);
+    expect(copy).toMatch(/review the result/i);
+  });
+
+  it('adopt copy states forward-only honestly (pre-adoption work not counted)', () => {
+    const el = mount(() => <AdoptAgentModal {...modalProps()} />);
+    expect(el.textContent).toContain('Tracking starts now');
+  });
+});
+
+describe('AdoptAgentModal — adopt action wiring', () => {
+  it('"Hand to Voss" calls adoptAgent: bind + budget + scope + partial_lineage + review + tier C', () => {
+    const p = modalProps();
+    const el = mount(() => <AdoptAgentModal {...p} />);
+    fireEvent.input(inputByPlaceholder(el, 'folder it should stay inside'), {
+      target: { value: 'src/' },
+    });
+    fireEvent.click(ctaBtn(el));
+    expect(p.onAdopt).toHaveBeenCalledOnce();
+    const res = p.onAdopt.mock.calls[0][0];
+    expect(res.disabled).toBe(false);
+    expect(paneIdForCard(res.cardId)).toBe(PANE); // card bound to the running pane
+    expect(res.budget).toBe(10); // default budget field applied
+    expect(res.scope).toBe('src/');
+    expect(res.auditNode.lineage).toBe('partial_lineage');
+    expect(res.reviewRequired).toBe(true);
+    expect(res.tier).toBe('C');
+    expect(res.runId).toBe('run-7'); // default destination = current run
+  });
+
+  it('adopt role is pre-inferred from the CLI, visible, and editable (D-12)', () => {
+    const p = modalProps();
+    const el = mount(() => <AdoptAgentModal {...p} />);
+    const roleInput = inputByPlaceholder(el, 'e.g. executor');
+    expect(roleInput.value).toBe('executor'); // claude → executor, shown by default
+    fireEvent.input(roleInput, { target: { value: 'reviewer' } });
+    fireEvent.click(ctaBtn(el));
+    expect(p.onAdopt.mock.calls[0][0].role).toBe('reviewer');
+  });
+
+  it('adopt risk is pre-inferred from scope/budget, visible, and editable (D-12)', () => {
+    const p = modalProps();
+    const el = mount(() => <AdoptAgentModal {...p} />);
+    // Pre-inferred: budget 10 + empty scope → med is the active chip.
+    expect(segBtn(el, 'med').className).toContain('modal-segmented__btn--active');
+    fireEvent.click(segBtn(el, 'high'));
+    fireEvent.click(ctaBtn(el));
+    expect(p.onAdopt.mock.calls[0][0].risk).toBe('high');
+  });
+
+  it('adopt budget edits are applied to the result', () => {
+    const p = modalProps();
+    const el = mount(() => <AdoptAgentModal {...p} />);
+    fireEvent.input(inputByPlaceholder(el, 'spending limit'), {
+      target: { value: '25' },
+    });
+    fireEvent.click(ctaBtn(el));
+    expect(p.onAdopt.mock.calls[0][0].budget).toBe(25);
+  });
+
+  it('choosing "A new run" adopts with runId null', () => {
+    const p = modalProps();
+    const el = mount(() => <AdoptAgentModal {...p} />);
+    fireEvent.click(segBtn(el, 'A new run'));
+    fireEvent.click(ctaBtn(el));
+    expect(p.onAdopt.mock.calls[0][0].runId).toBeNull();
+  });
+});
+
+describe('AdoptAgentModal — adopt disabled-with-reason (no fake affordance)', () => {
+  it('renders the CTA disabled with a visible reason when no harness adopt path exists', () => {
+    const p = { ...modalProps(), harnessAdoptAvailable: false };
+    const el = mount(() => <AdoptAgentModal {...p} />);
+    expect(ctaBtn(el).disabled).toBe(true);
+    expect(el.textContent).toContain(ADOPT_UNAVAILABLE_REASON);
+    fireEvent.click(ctaBtn(el));
+    expect(p.onAdopt).not.toHaveBeenCalled();
+    // Nothing was bound — no card minted.
+    expect(Object.keys(cardToPane())).toHaveLength(0);
+  });
+});
+
+describe('AdoptAgentModal — adopt keyboard + dismissal', () => {
+  it('Escape dismisses without adopting', () => {
+    const p = modalProps();
+    mount(() => <AdoptAgentModal {...p} />);
+    fireEvent.keyDown(document.querySelector('.modal-backdrop')!, { key: 'Escape' });
+    expect(p.onDismiss).toHaveBeenCalledOnce();
+    expect(p.onAdopt).not.toHaveBeenCalled();
+  });
+
+  it('Cmd/Ctrl+Enter hands to Voss', () => {
+    const p = modalProps();
+    mount(() => <AdoptAgentModal {...p} />);
+    fireEvent.keyDown(document.querySelector('.modal-backdrop')!, {
+      key: 'Enter',
+      metaKey: true,
+    });
+    expect(p.onAdopt).toHaveBeenCalledOnce();
+  });
+
+  it('clicking the backdrop dismisses without adopting', () => {
+    const p = modalProps();
+    const el = mount(() => <AdoptAgentModal {...p} />);
+    fireEvent.click(el.querySelector('.modal-backdrop')!);
+    expect(p.onDismiss).toHaveBeenCalledOnce();
+    expect(p.onAdopt).not.toHaveBeenCalled();
+  });
+});
