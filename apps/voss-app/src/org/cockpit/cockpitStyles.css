@@ -1,14 +1,22 @@
-/* V14 Run cockpit layout (VCKP-05).
+/* V14 Run cockpit layout (VCKP-05, recomposed in chunk B to the cockpit
+ * mockup .planning/sketches/V14-cockpit-mockup.html).
  *
- * Consumes ONLY existing A12 / Voss Ignite + V11-scoped tokens (--bg-*, --fg-*,
- * --border, --font-mono, --accent-*) inherited from `.org-view-shell` and the
- * active theme. Declares NO new `--xxx` custom properties (token grep gate).
+ * Consumes ONLY existing A12 / Voss Ignite + base tokens (--bg-*, --fg-*,
+ * --border*, --focus*, --accent-*, --role-*, --font-*) inherited from
+ * `.org-view-shell` and the active theme. Declares NO new `--xxx` custom
+ * properties (token grep gate); tints derive from tokens via color-mix.
+ * Mockup hex -> token map: #ff5b1f -> --focus, #6cc7d4 -> --accent-cyan,
+ * #7fb069 -> --accent-green, #e8b86c -> --accent-amber, #d9534f ->
+ * --accent-red, greys -> --bg-*/--fg-*/--border*, role colors -> --role-*.
+ * Mockup 8/9/10px labels round up to the 11px A12 floor; 6/7/9px paddings
+ * round to the 4px spacing scale.
  *
- * Four regions in a CSS grid: Board spine (left) | Card drawer (center) |
- * Timeline/replay rail (right), with the bottom gate bar spanning all columns.
+ * Regions (mockup .body): team sidebar 252px | main (run header + board +
+ * horizontal timeline rail) | card drawer 372px, with the gate bar (38px)
+ * spanning all columns.
  */
 
-/* VCKP-06 live/snapshot state label (header). Tokens only, monospace. */
+/* VCKP-06 live/snapshot state label (run header). Tokens only, monospace. */
 .cockpit-live-label {
   font-family: var(--font-mono), monospace;
   font-size: 11px;
@@ -18,6 +26,7 @@
   padding: 0 8px;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
 }
 .cockpit-live-label--snapshot {
   color: var(--fg-3);
@@ -39,22 +48,301 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(280px, 1.4fr) minmax(320px, 1.6fr) minmax(280px, 1fr);
-  grid-template-rows: 1fr 40px;
+  grid-template-columns: 252px minmax(320px, 1fr) 372px;
+  grid-template-rows: minmax(0, 1fr) 38px;
   grid-template-areas:
-    'board drawer rail'
-    'gate  gate   gate';
+    'sidebar main drawer'
+    'gate    gate gate';
+}
+
+/* --- Team sidebar (mockup .sidebar) --------------------------------------- */
+
+.cockpit-sidebar {
+  grid-area: sidebar;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  padding: 4px 0;
+}
+
+.cockpit-sect {
+  padding: 12px 12px 4px;
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.cockpit-sidebar__goal {
+  padding: 0 12px 4px;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cockpit-sidebar__empty {
+  padding: 4px 12px 8px;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+/* Agent/lineage rows (mockup .arow). */
+.cockpit-arow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.cockpit-arow:hover {
+  background: var(--bg-2);
+}
+.cockpit-arow--sel {
+  background: var(--focus-soft);
+  border-left-color: var(--focus);
+}
+.cockpit-arow__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+}
+.cockpit-arow__meta {
+  flex: 1;
+  min-width: 0;
+}
+.cockpit-arow__nm {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--fg-0);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cockpit-rolepill {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.cockpit-arow__sub {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cockpit-arow__sub--mono {
+  font-family: var(--font-mono), monospace;
+}
+.cockpit-arow__cost {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--fg-2);
+  flex-shrink: 0;
+}
+
+/* Collapsible session-tree host under the SESSIONS row. */
+.cockpit-sidebar__tree {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Main column: run header + board + timeline rail ----------------------- */
+
+.cockpit-main {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-0);
+}
+
+/* Run header (mockup .runhdr) — also hosts the lifted run-picker / refresh /
+ * "← Grid" controls so they stay reachable in every load state. */
+.cockpit-runhdr {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.cockpit-runhdr__pick {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+.cockpit-runhdr__idea {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-0);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cockpit-runhdr__prog {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+.cockpit-runhdr__prog b {
+  font-weight: 600;
+}
+.cockpit-runhdr__prog .cockpit-prog--done {
+  color: var(--fg-1);
+}
+.cockpit-runhdr__prog .cockpit-prog--inflight {
+  color: var(--accent-cyan);
+}
+.cockpit-runhdr__prog .cockpit-prog--blocked {
+  color: var(--accent-red);
 }
 
 .cockpit-board {
-  grid-area: board;
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
 }
+
+/* --- Horizontal timeline rail (mockup .timeline / .tl-track) --------------- */
+
+.cockpit-rail {
+  flex: 0 0 auto;
+  min-width: 0;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+  padding: 8px 12px;
+  overflow-x: auto;
+}
+
+.cockpit-tl-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin-bottom: 8px;
+}
+.cockpit-tl-hdr__meta {
+  margin-left: auto;
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--fg-2);
+}
+
+.cockpit-tl-empty {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+  padding: 4px 0;
+}
+
+.cockpit-tl-track {
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+  min-height: 36px;
+}
+.cockpit-tl-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 12px;
+  height: 2px;
+  background: var(--border-bright);
+}
+.cockpit-tl-node {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 0;
+}
+.cockpit-tl-node--card {
+  cursor: pointer;
+}
+.cockpit-tl-node__pt {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bg-3);
+  border: 2px solid var(--border-bright);
+}
+.cockpit-tl-node--done .cockpit-tl-node__pt {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+}
+.cockpit-tl-node--blocked .cockpit-tl-node__pt {
+  background: var(--accent-red);
+  border-color: var(--accent-red);
+}
+.cockpit-tl-node--cur .cockpit-tl-node__pt {
+  background: var(--focus);
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px var(--focus-soft);
+}
+.cockpit-tl-node__lb {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+.cockpit-tl-node--cur .cockpit-tl-node__lb {
+  color: var(--focus);
+}
+.cockpit-tl-node--done .cockpit-tl-node__lb {
+  color: var(--fg-2);
+}
+
+/* Timeline rail selection highlight (UI-REVIEW 6a): applied by the
+ * CockpitShell selection effect to the matching data-node-id node. */
+.cockpit-rail__selected {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+  background: var(--focus-soft);
+  border-radius: 4px;
+}
+
+/* --- Card detail drawer (mockup .drawer) ----------------------------------- */
 
 .cockpit-drawer {
   grid-area: drawer;
@@ -64,23 +352,302 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-1);
-  border-right: 1px solid var(--border);
+  border-left: 1px solid var(--border);
 }
 
-.cockpit-rail {
-  grid-area: rail;
-  min-width: 0;
+.cockpit-drawer__body {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  background: var(--bg-0);
 }
+
+/* Drawer header (mockup .dhdr): mono id line, 14px/600 title, 2x2 kv grid. */
+.cockpit-dhdr {
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cockpit-dhdr__id {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+.cockpit-drawer__title {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-0);
+  overflow-wrap: anywhere;
+  margin-bottom: 4px;
+}
+.cockpit-kvgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.cockpit-kv {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+.cockpit-kv__k {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.cockpit-kv__v {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--fg-0);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cockpit-kv__v--mono {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Drawer sections (mockup .dsec). */
+.cockpit-dsec {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.cockpit-dsec__title {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cockpit-dsec__body {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+/* Acceptance-criteria checklist rows (mockup .ac). */
+.cockpit-ac {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--fg-1);
+  display: flex;
+  gap: 8px;
+  margin: 4px 0;
+}
+.cockpit-ac__mk {
+  flex: 0 0 auto;
+  color: var(--accent-amber);
+}
+
+/* Reviewer verdict rows (mockup .verdict). */
+.cockpit-verdict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 8px;
+  margin-bottom: 8px;
+}
+.cockpit-verdict:last-child {
+  margin-bottom: 0;
+}
+.cockpit-verdict__who {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+  width: 72px;
+  flex-shrink: 0;
+}
+.cockpit-verdict__res {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+}
+.cockpit-verdict__res--pass {
+  color: var(--accent-green);
+}
+.cockpit-verdict__res--fail {
+  color: var(--accent-red);
+}
+.cockpit-verdict__res--pend {
+  color: var(--accent-amber);
+}
+.cockpit-verdict__conf {
+  margin-left: auto;
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--fg-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Live pane peek (mockup .peek) — cyan-tinted live frame over tokens. */
+.cockpit-peek {
+  background: var(--bg-0);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cockpit-peek__hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--accent-cyan);
+}
+.cockpit-peek__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  animation: cockpit-pulse 1.8s infinite;
+}
+.cockpit-peek__body {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 8px;
+  color: var(--fg-3);
+}
+
+/* Diff container (mockup .diff): mono body; add/del tints over tokens. */
+.cockpit-diff {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cockpit-diff__ln {
+  padding: 0 8px;
+  white-space: pre-wrap;
+}
+.cockpit-diff__ln--add {
+  background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+  color: var(--fg-1);
+}
+.cockpit-diff__ln--del {
+  background: color-mix(in srgb, var(--accent-red) 12%, transparent);
+  color: var(--fg-1);
+}
+.cockpit-diff__empty {
+  padding: 8px;
+  color: var(--fg-3);
+}
+.cockpit-diff__verification {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.cockpit-diff__rubric {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+.cockpit-diff__notes {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--fg-1);
+  white-space: pre-wrap;
+}
+
+/* Compact collapsibles hosting the Audit / Blocked panel bodies. */
+.cockpit-dcollapse {
+  border-bottom: 1px solid var(--border);
+}
+.cockpit-dcollapse__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+  text-align: left;
+}
+.cockpit-dcollapse__head:hover {
+  color: var(--fg-0);
+}
+.cockpit-dcollapse__body {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+/* Bottom action row (mockup .dactions). */
+.cockpit-dactions {
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+.cockpit-dactions button {
+  flex: 1;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  cursor: pointer;
+}
+.cockpit-dactions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cockpit-dactions .cockpit-dactions__primary {
+  background: var(--focus);
+  color: var(--fg-0);
+  border-color: var(--focus);
+  font-weight: 600;
+}
+.cockpit-dactions .cockpit-dactions__primary:not(:disabled):hover {
+  box-shadow: 0 0 0 1px var(--focus-glow);
+}
+
+/* --- Gate bar --------------------------------------------------------------- */
 
 .cockpit-gate {
   grid-area: gate;
   min-width: 0;
-  height: 40px;
+  height: 38px;
   overflow: hidden;
   background: var(--bg-1);
   border-top: 1px solid var(--border);
@@ -88,9 +655,11 @@
 
 /* --- VCKP-10 keyboard navigation -----------------------------------------
  * The cockpit regions carry tabindex="0" (CockpitShell) in DOM order
- * Board -> detail drawer -> timeline rail -> gate bar, so Tab traverses them
- * in that order. Focus is made visible with the A12 --focus token.
+ * Team sidebar -> Board -> timeline rail -> detail drawer -> gate bar, so Tab
+ * traverses them in that order. Focus is made visible with the A12 --focus
+ * token.
  */
+.cockpit-sidebar:focus-visible,
 .cockpit-board:focus-visible,
 .cockpit-drawer:focus-visible,
 .cockpit-rail:focus-visible,
@@ -99,78 +668,24 @@
   outline-offset: -1px;
 }
 
-/* Region headers (UI-REVIEW 2b): each cockpit region leads with a compact
- * uppercase label so the 3-pane layout is parseable at first sight. Mirrors
- * the sidebar section-heading pattern. */
-.cockpit-region__label {
-  flex-shrink: 0;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  font-family: var(--font-display), Poppins, system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  border-bottom: 1px solid var(--border);
-}
-
-/* Timeline rail selection highlight (UI-REVIEW 6a): applied by the
- * CockpitShell selection effect to the matching data-node-id row. */
-.cockpit-rail__selected {
-  outline: 1px solid var(--focus);
-  outline-offset: -1px;
-  background: var(--focus-soft);
-}
-
-/* --- Card identity header (UI-REVIEW 2a) ---------------------------------- */
-.cockpit-drawer__head {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.cockpit-drawer__title {
-  font-family: var(--font-display), Poppins, system-ui, sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--fg-0);
-  overflow-wrap: anywhere;
-}
-.cockpit-drawer__role {
-  align-self: flex-start;
-  font-family: var(--font-ui), Inter, system-ui, sans-serif;
-  font-size: 11px;
-  color: var(--fg-2);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0 8px;
-}
-.cockpit-drawer__id {
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-  color: var(--fg-3);
-  overflow-wrap: anywhere;
-}
-
 /* --- VCKP-09 follow-up comment affordance (tokens only) ------------------ */
 .cockpit-comment {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-2);
-  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 12px;
 }
 .cockpit-comment__box {
   font-family: var(--font-ui), system-ui, sans-serif;
   font-size: 11px;
   min-height: 44px;
   resize: vertical;
-  background: var(--bg-1);
+  background: var(--bg-0);
   color: var(--fg-1);
   border: 1px solid var(--border);
+  border-radius: 6px;
   padding: 8px;
 }
 .cockpit-comment__box:focus-visible {
@@ -187,7 +702,8 @@
   padding: 4px 8px;
   background: var(--bg-3);
   color: var(--fg-0);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
   cursor: pointer;
 }
 .cockpit-comment__send:disabled {
@@ -199,9 +715,20 @@
   font-size: 11px;
 }
 
+@keyframes cockpit-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
 /* --- VCKP-10 reduced motion ----------------------------------------------
  * Disables ALL cockpit animation, including the AttentionQueue pill pulse
- * (attentionPanel.css .attn-pill--pulse) and the header refresh spinner.
+ * (attentionPanel.css .attn-pill--pulse), the header refresh spinner, and the
+ * chunk-B peek live-dot pulse (cockpit-pulse) via the shell-wide kill switch.
  */
 @media (prefers-reduced-motion: reduce) {
   .org-view-shell *,
