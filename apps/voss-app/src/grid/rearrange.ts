@@ -126,14 +126,24 @@ export function movePane(
   // Operate on a plain tree clone (proxy-safe; matches layoutCommands pattern).
   const working = cloneTree(store.root);
   if (geom && simulateMoveViolates(working, dragId, targetId, zone, geom)) {
+    // TEMP-DEBUG
+    console.debug('[movePane] floor violation — silent no-op', { zone, geom });
     return false;
   }
 
   const { root, leaf } = detachLeaf(working, dragId);
-  if (!root || !leaf) return false;
+  if (!root || !leaf) {
+    // TEMP-DEBUG
+    console.debug('[movePane] detach failed', { root: !!root, leaf: !!leaf });
+    return false;
+  }
 
   const target = findLeaf(root, targetId);
-  if (!target) return false;
+  if (!target) {
+    // TEMP-DEBUG
+    console.debug('[movePane] target not found post-detach', targetId);
+    return false;
+  }
 
   const orientation = zone === 'left' || zone === 'right' ? 'H' : 'V';
   const dragFirst = zone === 'left' || zone === 'top';

@@ -119,6 +119,12 @@ export function createPaneDrag(
     }
     e.preventDefault();
     snapRects = snapshotPaneRects();
+    // TEMP-DEBUG
+    console.debug(
+      '[paneDrag] beginDrag',
+      c.paneId,
+      JSON.stringify([...snapRects.entries()]),
+    );
     setRects(snapRects);
     dropTarget = null;
     lastX = e.clientX;
@@ -167,29 +173,60 @@ export function createPaneDrag(
       const y = clientY || lastY;
       const target =
         dropTarget ?? targetAt(snapRects, dragId, x, y);
+      // TEMP-DEBUG
+      console.debug('[paneDrag] finishDrag', {
+        dragId,
+        wasDragging,
+        x,
+        y,
+        target: target ? { ...target } : null,
+        dims: dims(),
+      });
       if (target) {
+        let moved = false;
         setStore(
-          produce((s) =>
-            movePane(s, dragId, target.paneId, target.zone, dims()),
-          ),
+          produce((s) => {
+            moved = movePane(s, dragId, target.paneId, target.zone, dims());
+          }),
         );
+        // TEMP-DEBUG
+        console.debug('[paneDrag] movePane returned', moved);
       }
     }
     cleanup();
   };
 
   const onWindowPointerUp = (e: PointerEvent) => {
+    // TEMP-DEBUG
+    console.debug('[paneDrag] pointerup', {
+      hasCandidate: !!candidate,
+      dragging,
+      x: e.clientX,
+      y: e.clientY,
+    });
     if (!candidate) return;
     finishDrag(e.clientX, e.clientY);
   };
 
   const onWindowPointerCancel = () => {
+    // TEMP-DEBUG
+    console.debug('[paneDrag] pointercancel', {
+      hasCandidate: !!candidate,
+      dragging,
+    });
     if (!candidate) return;
     cleanup();
   };
 
   /** WKWebView/Tauri sometimes delivers mouseup without a matching pointerup. */
   const onWindowMouseUp = (e: MouseEvent) => {
+    // TEMP-DEBUG
+    console.debug('[paneDrag] mouseup', {
+      hasCandidate: !!candidate,
+      dragging,
+      x: e.clientX,
+      y: e.clientY,
+    });
     if (!candidate || !dragging) return;
     if (e.button !== 0) return;
     finishDrag(e.clientX, e.clientY);
