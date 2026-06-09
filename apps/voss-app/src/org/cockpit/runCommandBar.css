@@ -6,7 +6,7 @@
  * --focus*, --accent-*, --font-*) inherited from the active theme. Declares NO
  * new `--xxx` custom properties (token grep gate); tinted borders/rings derive
  * from tokens via color-mix. Mockup hex → token map: #ff5b1f→--focus,
- * #fff-on-focus→--fg-0, greys→--bg-*/--fg-*/--border*. Mockup 7px/9px paddings
+ * #fff-on-focus→--fg-0, greys→--bg-, --fg-, --border tokens. Mockup 7px/9px paddings
  * round to the 4px scale; font sizes stay on the 11/12/13 ramp.
  */
 
