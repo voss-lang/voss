@@ -1,9 +1,9 @@
 """V17 claims engine — advisory pre-edit conflict guards (VBUS-01/02).
 
 Pure overlap algorithms (glob + URI), serverless SQLite storage at
-<cwd>/.voss-cache/claims.sqlite (D-02 locked location), and the atomic
-check-and-stake transaction. The click CLI verbs land in V17-03 on top of
-this engine.
+<cwd>/.voss-cache/claims.sqlite (D-02 locked location), the atomic
+check-and-stake transaction, and the `voss claims` click verbs
+(stake/check/release/extend/list — exit 0 clear, 1 conflict, 2 identity/usage).
 
 Overlap is conservative static pattern-vs-pattern analysis: no filesystem
 reads (D-05). URIs (`card://123`, `port://8080`) overlap on exact match or
@@ -19,12 +19,16 @@ isolation would make claims invisible across CLI processes).
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
 import os
 import sqlite3
+import sys
 import time
 import uuid
 from pathlib import Path, PurePosixPath
+
+import click
 
 DEFAULT_TTL_SECONDS = 1800
 
@@ -242,16 +246,27 @@ def release_claims(
 def extend_claim(
     conn: sqlite3.Connection,
     agent_id: str,
-    claim_id: str,
+    claim_id: str | None = None,
     ttl: float = DEFAULT_TTL_SECONDS,
 ) -> bool:
-    """Refresh expires_at for an unexpired claim owned by agent_id (D-03)."""
+    """Refresh expires_at for unexpired claims owned by agent_id (D-03).
+
+    With claim_id, refreshes that one claim set; bare, refreshes all of the
+    agent's unexpired claims.
+    """
     now = time.time()
-    cur = conn.execute(
-        "UPDATE claims SET expires_at = ? "
-        "WHERE agent_id = ? AND id = ? AND expires_at > ?",
-        (now + ttl, agent_id, claim_id, now),
-    )
+    if claim_id is None:
+        cur = conn.execute(
+            "UPDATE claims SET expires_at = ? "
+            "WHERE agent_id = ? AND expires_at > ?",
+            (now + ttl, agent_id, now),
+        )
+    else:
+        cur = conn.execute(
+            "UPDATE claims SET expires_at = ? "
+            "WHERE agent_id = ? AND id = ? AND expires_at > ?",
+            (now + ttl, agent_id, claim_id, now),
+        )
     conn.commit()
     return cur.rowcount > 0
 
@@ -262,3 +277,202 @@ def prune_expired(conn: sqlite3.Connection, now: float | None = None) -> int:
     cur = conn.execute("DELETE FROM claims WHERE expires_at <= ?", (now,))
     conn.commit()
     return cur.rowcount
+
+
+# ---------------------------------------------------------------------------
+# CLI verbs (VBUS-01) — exit contract: 0 clear/success, 1 conflict, 2 usage/identity
+# ---------------------------------------------------------------------------
+
+
+def _resolve_agent_id() -> str:
+    agent_id = os.environ.get("VOSS_AGENT_ID", "").strip()
+    if not agent_id:
+        click.echo(
+            "VOSS_AGENT_ID not set. Set it to your agent id "
+            "(e.g. export VOSS_AGENT_ID=claude-1), or run inside a "
+            "voss-managed pane.",
+            err=True,
+        )
+        sys.exit(2)
+    return agent_id
+
+
+def _canonicalize_all(patterns: tuple[str, ...], cwd: Path) -> list[str]:
+    try:
+        return [canonicalize_pattern(p, cwd) for p in patterns]
+    except ValueError as exc:
+        click.echo(f"invalid pattern: {exc}", err=True)
+        sys.exit(2)
+
+
+def _claim_id_for(agent_id: str, canonical: list[str]) -> str:
+    """Deterministic per pattern-set: re-staking the same set refreshes (D-04)."""
+    digest = hashlib.sha1(json.dumps(sorted(canonical)).encode()).hexdigest()[:8]
+    return f"{agent_id}:{digest}"
+
+
+def _advice_for_conflict(
+    owner: str, requested: tuple[str, ...], verb_args: list[str]
+) -> list[str]:
+    # D-07/VBUS-06: first entry is a runnable bus message naming the owner.
+    want = requested[0] if requested else "this scope"
+    return [
+        f'voss bus send "@{owner} I need {want} — when are you done?"',
+        "voss claims check " + " ".join(verb_args),
+    ]
+
+
+def _find_conflicts(
+    conn: sqlite3.Connection, agent_id: str, canonical: list[str]
+) -> list[tuple]:
+    return [
+        row
+        for row in active_claims(conn, exclude_agent=agent_id)
+        if patterns_overlap(canonical, json.loads(row[2]))
+    ]
+
+
+def _emit_conflict(
+    conflicts: list[tuple],
+    requested: tuple[str, ...],
+    verb_args: list[str],
+    json_mode: bool,
+) -> None:
+    owner = conflicts[0][1]
+    if json_mode:
+        for row in conflicts:
+            click.echo(
+                json.dumps(
+                    {
+                        "conflict": True,
+                        "claim_id": row[0],
+                        "owner": row[1],
+                        "patterns": json.loads(row[2]),
+                        "expires_at": row[3],
+                        "advice": _advice_for_conflict(owner, requested, verb_args),
+                    }
+                )
+            )
+    else:
+        for row in conflicts:
+            click.echo(
+                f"conflict: {row[1]} holds claim {row[0]} on "
+                f"{', '.join(json.loads(row[2]))}"
+            )
+    sys.exit(1)
+
+
+@click.group("claims")
+def claims_group() -> None:
+    """Advisory pre-edit conflict guards (file globs + card://-style URIs)."""
+
+
+@claims_group.command("stake")
+@click.argument("patterns", nargs=-1, required=True)
+@click.option("--ttl", default=DEFAULT_TTL_SECONDS, type=float, show_default=True,
+              help="Claim lifetime in seconds.")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--json", "json_mode", is_flag=True, help="One JSON record per line.")
+def claims_stake_cmd(patterns: tuple[str, ...], ttl: float, cwd_str: str,
+                     json_mode: bool) -> None:
+    """Register a claim; atomically rejected on overlap with another agent."""
+    agent_id = _resolve_agent_id()
+    cwd = Path(cwd_str)
+    canonical = _canonicalize_all(patterns, cwd)
+    conn = open_claims_db(cwd)
+    claim_id = _claim_id_for(agent_id, canonical)
+    won, conflicts = atomic_stake(conn, agent_id, claim_id, canonical, ttl)
+    if not won:
+        _emit_conflict(conflicts, patterns, list(patterns), json_mode)
+    if json_mode:
+        click.echo(json.dumps({
+            "staked": True,
+            "claim_id": claim_id,
+            "agent_id": agent_id,
+            "patterns": canonical,
+            "ttl": ttl,
+        }))
+    else:
+        click.echo(f"staked {claim_id}: {', '.join(patterns)} (ttl {ttl:.0f}s)")
+
+
+@claims_group.command("check")
+@click.argument("patterns", nargs=-1, required=True)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--json", "json_mode", is_flag=True, help="One JSON record per line.")
+def claims_check_cmd(patterns: tuple[str, ...], cwd_str: str,
+                     json_mode: bool) -> None:
+    """Pre-edit guard: exit 0 when clear, 1 when another agent's claim overlaps."""
+    agent_id = _resolve_agent_id()
+    cwd = Path(cwd_str)
+    canonical = _canonicalize_all(patterns, cwd)
+    conn = open_claims_db(cwd)
+    conflicts = _find_conflicts(conn, agent_id, canonical)
+    if conflicts:
+        _emit_conflict(conflicts, patterns, list(patterns), json_mode)
+    if json_mode:
+        click.echo(json.dumps({"conflict": False, "patterns": canonical}))
+    else:
+        click.echo("clear")
+
+
+@claims_group.command("release")
+@click.argument("claim_id", required=False)
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--json", "json_mode", is_flag=True, help="One JSON record per line.")
+def claims_release_cmd(claim_id: str | None, cwd_str: str, json_mode: bool) -> None:
+    """Free one claim by id, or all own claims when no id is given (D-03)."""
+    agent_id = _resolve_agent_id()
+    conn = open_claims_db(Path(cwd_str))
+    released = release_claims(conn, agent_id, claim_id)
+    if json_mode:
+        click.echo(json.dumps({"released": released, "agent_id": agent_id}))
+    else:
+        click.echo(f"released {released} claim(s)")
+
+
+@claims_group.command("extend")
+@click.argument("claim_id", required=False)
+@click.option("--ttl", default=DEFAULT_TTL_SECONDS, type=float, show_default=True,
+              help="New lifetime in seconds from now.")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--json", "json_mode", is_flag=True, help="One JSON record per line.")
+def claims_extend_cmd(claim_id: str | None, ttl: float, cwd_str: str,
+                      json_mode: bool) -> None:
+    """Refresh the TTL of one claim by id, or all own unexpired claims."""
+    agent_id = _resolve_agent_id()
+    conn = open_claims_db(Path(cwd_str))
+    refreshed = extend_claim(conn, agent_id, claim_id, ttl)
+    if not refreshed:
+        click.echo("no matching unexpired claim to extend", err=True)
+        sys.exit(2)
+    if json_mode:
+        click.echo(json.dumps({"extended": True, "claim_id": claim_id, "ttl": ttl}))
+    else:
+        click.echo(f"extended (ttl {ttl:.0f}s)")
+
+
+@claims_group.command("list")
+@click.option("--all", "show_all", is_flag=True, help="Include expired claims.")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+@click.option("--json", "json_mode", is_flag=True, help="One JSON record per line.")
+def claims_list_cmd(show_all: bool, cwd_str: str, json_mode: bool) -> None:
+    """Show active claims (expired hidden unless --all)."""
+    _resolve_agent_id()
+    conn = open_claims_db(Path(cwd_str))
+    rows = all_claims(conn) if show_all else active_claims(conn)
+    now = time.time()
+    for row in rows:
+        if json_mode:
+            click.echo(json.dumps({
+                "claim_id": row[0],
+                "agent_id": row[1],
+                "patterns": json.loads(row[2]),
+                "expires_at": row[3],
+            }))
+        else:
+            expires_in = row[3] - now
+            state = f"{expires_in:.0f}s" if expires_in > 0 else "expired"
+            click.echo(
+                f"{row[0]}  {row[1]}  {', '.join(json.loads(row[2]))}  {state}"
+            )

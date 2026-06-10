@@ -1,7 +1,7 @@
-"""VBUS-02 TTL behavior — Wave 0 RED scaffold.
+"""VBUS-02 TTL behavior.
 
-`--ttl <seconds>` on stake (default 1800); expired claims stop blocking
-`check` and are ignored by `stake`.
+GREEN as of V17-03. `--ttl <seconds>` on stake (default 1800); expired
+claims stop blocking `check` and are ignored by `stake`.
 """
 from __future__ import annotations
 
@@ -12,29 +12,14 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-try:
-    from voss.harness.claims import claims_group
-    _CLAIMS_AVAILABLE = True
-except ImportError:
-    claims_group = None  # type: ignore[assignment]
-    _CLAIMS_AVAILABLE = False
-
-pytestmark = pytest.mark.xfail(
-    reason="claims module not yet implemented (V17-02/03)", strict=False
-)
+from voss.harness.claims import claims_group
 
 AGENT_A = {"VOSS_AGENT_ID": "agent-a"}
 AGENT_B = {"VOSS_AGENT_ID": "agent-b"}
 
 
-def _require_claims() -> None:
-    if not _CLAIMS_AVAILABLE:
-        pytest.fail("voss.harness.claims not importable yet (V17-02/03)")
-
-
 @pytest.mark.slow
 def test_ttl_expiry_unblocks_check(tmp_path: Path) -> None:
-    _require_claims()
     runner = CliRunner()
     cwd = ["--cwd", str(tmp_path)]
 
@@ -57,7 +42,6 @@ def test_ttl_expiry_unblocks_check(tmp_path: Path) -> None:
 
 
 def test_default_ttl_applied_when_flag_absent(tmp_path: Path) -> None:
-    _require_claims()
     runner = CliRunner()
     before = time.time()
 

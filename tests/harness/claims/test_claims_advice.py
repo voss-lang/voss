@@ -1,8 +1,8 @@
-"""VBUS-06 advice arrays on conflict — Wave 0 RED scaffold.
+"""VBUS-06 advice arrays on conflict.
 
-`claims check --json` on conflict emits a dict with a non-empty "advice"
-list containing a runnable `voss bus send` command naming the conflicting
-owner (D-07).
+GREEN as of V17-03. `claims check --json` on conflict emits a dict with a
+non-empty "advice" list containing a runnable `voss bus send` command
+naming the conflicting owner (D-07).
 """
 from __future__ import annotations
 
@@ -12,26 +12,11 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-try:
-    from voss.harness.claims import claims_group
-    _CLAIMS_AVAILABLE = True
-except ImportError:
-    claims_group = None  # type: ignore[assignment]
-    _CLAIMS_AVAILABLE = False
-
-pytestmark = pytest.mark.xfail(
-    reason="claims module not yet implemented (V17-02/03)", strict=False
-)
-
-
-def _require_claims() -> None:
-    if not _CLAIMS_AVAILABLE:
-        pytest.fail("voss.harness.claims not importable yet (V17-02/03)")
+from voss.harness.claims import claims_group
 
 
 @pytest.mark.acceptance
 def test_check_conflict_json_emits_advice(tmp_path: Path) -> None:
-    _require_claims()
     runner = CliRunner()
     cwd = ["--cwd", str(tmp_path)]
 
