@@ -110,7 +110,7 @@ V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** �
 | V13.3 Go Local/Headless Client SDK   | —   | off V13.1 snapshot          | VSDK-GO-*   |
 | V13.4 C ABI/Schema Doc               | —   | doc-only (no full SDK)      | VSDK-C-*    |
 | V14 ADE Run Cockpit                  | —   | recomposes **V11**; on A13/V13.1 | VCKP-01..13 |
-| V15 Live Plane Integration           | —   | on **V14** + V13.1 SDK + real `voss serve` | TBD (SPEC pending) |
+| V15 Live Plane Integration           | —   | on **V14** + V13.1 SDK + real `voss serve` | VLIVE-01..08 (SPEC locked) |
 
 **ID namespacing:** PRD IDs are prefixed `V*` in the roadmap to avoid collisions — PRD `MAG-*`/`LANG-*`/`ADE-*` clash with M13/M3/A12 (different meanings). Inside `docs/ORCHESTRATION_LAYERS.md` the un-prefixed IDs remain; SPEC-phase maps PRD-ID → namespaced roadmap-ID.
 
@@ -2209,14 +2209,19 @@ Plans:
 
 **Out of scope:** VCKP-13b permission proxy (hook-capable CLI gating — separate phase); replay rollback/re-run; embedded browser; new harness contracts (V15 remains a PROTOCOL v1 client).
 
-**Requirements:** TBD — run `/gsd-ui-phase V15` (distill the livework mockup pane-content) then `/gsd-spec-phase V15`.
+**Requirements:** VLIVE-01, VLIVE-02, VLIVE-03, VLIVE-04, VLIVE-05, VLIVE-06, VLIVE-07, VLIVE-08 (locked in `V15-SPEC.md`, ambiguity 0.123).
 
 **Cross-cutting:** Builds on V14 (complete) + V13.1 TS SDK (shipped) + the real `voss serve` (validated by V13.2/V13.3 integration suites). Keystone risk = the sidecar handshake; everything downstream is plumbing clients V14 already left sockets for. Seed: `.planning/notes/seed-structured-pane-rendering.md`.
 
-**Plans:** TBD (~5 expected: sidecar/handshake → client plumbing → SSE-on-real-events → structured pane renderer → inline permission gate).
+**Plans:** 6 plans, 5 waves (sequential keystone chain: sidecar command → client+sockets → structured pane → permission gate+lifecycle ∥ attach → hermetic AC suite + human checkpoint).
 
 Plans:
-- [ ] TBD (run /gsd-ui-phase V15, then /gsd-spec-phase V15, then /gsd-plan-phase V15)
+- [ ] V15-01-PLAN.md — Sidecar Tauri command + managed per-workspace lifecycle (VLIVE-01) [wave 1]
+- [ ] V15-02-PLAN.md — V13.1 client construction + three V14 sockets + live SSE (VLIVE-02, VLIVE-03) [wave 2]
+- [ ] V15-03-PLAN.md — ProtocolPane structured rendering + native-pane threading (VLIVE-04) [wave 3]
+- [ ] V15-04-PLAN.md — Inline permission gate + lifecycle states (VLIVE-05, VLIVE-07) [wave 4]
+- [ ] V15-05-PLAN.md — Attach-to-existing server sessions sidebar (VLIVE-06) [wave 4]
+- [ ] V15-06-PLAN.md — Hermetic stub-provider AC suite + human real-run checkpoint (VLIVE-08) [wave 5]
 
 ---
 ### Phase V16: Managed Docs & Prompt Generation (Jinja2 layout-aware doc sync)
