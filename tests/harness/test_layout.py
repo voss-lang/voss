@@ -82,3 +82,15 @@ class TestNonGitFallback:
         assert layout.is_worktree is False
         assert layout.project_root == plain.resolve()
         assert layout.project_name == "plain"
+
+
+class TestNestedVossProject:
+    def test_voss_dir_at_cwd_wins_over_enclosing_toplevel(self, repo: Path) -> None:
+        # A .voss project nested inside a larger git checkout (dotfiles repo,
+        # monorepo) must root at the .voss dir, not the enclosing toplevel.
+        nested = repo / "sub" / "myproj"
+        (nested / ".voss").mkdir(parents=True)
+        layout = derive_layout(nested)
+        assert layout.project_root == nested.resolve()
+        assert layout.project_name == "myproj"
+        assert layout.voss_dir == nested.resolve() / ".voss"

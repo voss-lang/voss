@@ -220,6 +220,9 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
     Docs are machine-owned (R3): always regenerated, no edit guard.
     The fence goes through voss_md.write_fence_body without adopt (D-16):
     hash drift raises HashMismatch instead of silently overwriting (R4).
+    The drift gate runs before any write, so a refused sync leaves the
+    tree untouched; dry_run shares the gate (drift is a real failure per
+    D-15, even when reporting-only).
     dry_run (D-14) runs the identical diff pass and writes nothing.
     force (D-16) applies to synced prompts ONLY: it overwrites edited
     prompts and re-adopts when the manifest is missing (D-11). It has no

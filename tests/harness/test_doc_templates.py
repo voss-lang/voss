@@ -22,7 +22,7 @@ def _ctx(**overrides) -> SyncContext:
         tools=("ruff",),
         review=ReviewFacts(enabled=True, reviewers=("alice", "bob")),
         capabilities=("memory", "conventions", "review"),
-        detected=frozenset({"type"}),
+        detected=(("type", "python"),),
     )
     return dataclasses.replace(base, **overrides)
 
@@ -36,7 +36,7 @@ def _bare_ctx() -> SyncContext:
         tools=(),
         review=ReviewFacts(),
         capabilities=(),
-        detected=frozenset(),
+        detected=(),
     )
 
 

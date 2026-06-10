@@ -501,13 +501,18 @@ def sync_cmd(dry_run: bool, force: bool) -> None:
     except HashMismatch as exc:
         raise click.ClickException(
             f"VOSS.md fence id={exc.fence_id} has drifted from its recorded hash; "
-            "run `voss memory adopt` to accept the edits, then re-run `voss sync`"
+            f"run `voss memory adopt --id {exc.fence_id}` from the project root "
+            "to accept the edits, then re-run `voss sync`"
         )
+    except (OSError, UnicodeDecodeError) as exc:
+        raise click.ClickException(f"sync failed: {exc}")
     for status in result.statuses:
         click.echo(f"{status.path}: {status.status}")
     for key, value in result.detected:
         click.echo(f"project.{key}: {value} (detected)")
-    written = sum(1 for s in result.statuses if s.status in ("written", "fence-updated"))
+    written = sum(
+        1 for s in result.statuses if s.status in ("written", "fence-updated", "removed")
+    )
     unchanged = sum(1 for s in result.statuses if s.status == "unchanged")
     skipped = sum(1 for s in result.statuses if s.status.startswith("skipped"))
     summary = f"{written} written, {unchanged} unchanged, {skipped} skipped"
