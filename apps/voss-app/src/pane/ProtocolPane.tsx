@@ -10,8 +10,8 @@
 //       stream.finalize settles it. Sticky-bottom autoscroll unless the user
 //       scrolled up >20px.
 //
-// T-V15-05: ALL event text renders via Solid text bindings ({…}) — never
-// innerHTML. Pitfall 4: transcript signals are LOCAL per pane instance.
+// T-V15-05: ALL event text renders via Solid text bindings ({…}) — no raw
+// HTML injection. Pitfall 4: transcript signals are LOCAL per pane instance.
 // The permission gate here is a pinned placeholder; Plan 04 makes it live.
 
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, Switch, Match } from 'solid-js';
