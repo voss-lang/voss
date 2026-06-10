@@ -148,7 +148,7 @@ Possible CI-only tool:
 | TUI hermetic | Stub journey twins and component regressions | `python3 -m pytest tests/harness/tui/test_e5_journeys.py tests/harness/tui/test_full_flow_pilot.py tests/harness/tui/test_diff_modal.py tests/harness/tui/test_slash_palette_interaction.py -q -m "not live"` |
 | TUI live | On-demand live proof through Textual journey path | `python3 -m pytest tests/harness/tui/test_e5_live_journeys.py -q -m live` |
 | voss-app unit/build | App contract sanity before e2e | `pnpm --dir apps/voss-app test && pnpm --dir apps/voss-app build` |
-| voss-app targeted e2e | Local/browser contract subset if Vite-mocked | `pnpm --dir apps/voss-app exec playwright test e2e/command-palette.spec.ts e2e/themes.spec.ts --reporter=list` |
+| voss-app targeted e2e | Tauri-driver/WebDriver contract subset for the selected preserved contracts | `pnpm --dir apps/voss-app run test:e2e:tauri -- --spec e2e-tauri/command-palette.wdio.mjs,e2e-tauri/project-open.wdio.mjs,e2e-tauri/themes.wdio.mjs` |
 | Linux Tauri e2e | Manual CI proof under `tauri-driver` | `gh workflow run voss-app-e2e.yml` then inspect linked run artifacts |
 
 ### Sampling
@@ -191,5 +191,13 @@ If planning proceeds, use four serial-ish plans:
 - **E5-02:** TUI live journey layer and proof command.
 - **E5-03:** voss-app e2e contract un-skip subset and test-build seams.
 - **E5-04:** Linux manual `tauri-driver` workflow, artifacts, and human checkpoint.
+
+### 2026-06-10 planner addendum: tauri-driver runner correction
+
+During plan-phase, the Tauri 2 WebDriver docs were checked directly. The official path is `cargo install tauri-driver --locked`, Linux `webkit2gtk-driver` plus `xvfb`, and a WebDriver client such as WebdriverIO or Selenium. The docs state desktop WebDriver support is Linux and Windows because macOS has no WKWebView driver. Source: https://v2.tauri.app/develop/tests/webdriver/
+
+Implication for E5: the existing `apps/voss-app/e2e/*.spec.ts` Playwright files remain the preserved contract source, but the Linux Tauri-driver proof should not assume Playwright can speak to `tauri-driver` directly. The executable desktop plan should either port the selected contract assertions into a Tauri-driver/WebDriver runner while preserving contract names and assertion intent, or include an explicit compatibility gate that fails fast before claiming the Playwright files are driven by Tauri-driver.
+
+Because E5 needs end-to-end desktop proof rather than only Vite browser proof, the recommended plan is to add the smallest WebDriverIO-based Tauri runner for the first three contracts and document why the new test dependency is permitted by `E5-UI-SPEC.md` registry safety: the existing Playwright stack cannot drive the required Tauri-driver WebDriver target.
 
 ## RESEARCH COMPLETE

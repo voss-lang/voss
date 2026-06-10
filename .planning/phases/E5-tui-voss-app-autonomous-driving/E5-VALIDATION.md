@@ -17,10 +17,10 @@ created: 2026-06-10
 
 | Property | Value |
 |----------|-------|
-| **Framework** | pytest + pytest-asyncio + Textual Pilot; Vitest/Playwright; GitHub Actions manual workflow |
-| **Config file** | `pyproject.toml`, `apps/voss-app/playwright.config.ts`, future `.github/workflows/voss-app-e2e.yml` |
+| **Framework** | pytest + pytest-asyncio + Textual Pilot; Vitest/WebdriverIO; GitHub Actions manual workflow |
+| **Config file** | `pyproject.toml`, future `apps/voss-app/wdio.conf.mjs`, future `.github/workflows/voss-app-e2e.yml` |
 | **Quick run command** | `python3 -m pytest tests/harness/tui/test_e5_journeys.py -q -m "not live"` |
-| **Full suite command** | `python3 -m pytest tests/harness/tui/test_e5_journeys.py tests/harness/tui/test_e5_live_journeys.py -q && pnpm --dir apps/voss-app test && pnpm --dir apps/voss-app build` |
+| **Full suite command** | `python3 -m pytest tests/harness/tui/test_e5_journeys.py tests/harness/tui/test_e5_live_journeys.py -q && pnpm --dir apps/voss-app test && pnpm --dir apps/voss-app build && pnpm --dir apps/voss-app run test:e2e:tauri -- --spec e2e-tauri/command-palette.wdio.mjs,e2e-tauri/project-open.wdio.mjs,e2e-tauri/themes.wdio.mjs` |
 | **Estimated runtime** | ~120s local excluding live model calls; manual Linux workflow separately bounded by GitHub Actions timeout |
 
 ---
@@ -42,7 +42,7 @@ Requirement IDs are not yet minted because `E5-SPEC.md` is absent. Until that fi
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | E5-01-01 | 01 | 1 | D-01, D-03 | T-E5-01 | Stub TUI journeys run in normal suite without provider credentials | unit/integration | `python3 -m pytest tests/harness/tui/test_e5_journeys.py -q -m "not live"` | no | pending |
 | E5-02-01 | 02 | 2 | D-02, D-07, D-09 | T-E5-02 | Live journeys skip without credentials and never run in normal suite | live/integration | `python3 -m pytest tests/harness/tui/test_e5_live_journeys.py -q -m live` | no | pending |
-| E5-03-01 | 03 | 3 | D-05, D-06 | T-E5-03 | Un-skipped Playwright contracts assert real DOM/protocol outcomes and use fake-turn seam | e2e | `pnpm --dir apps/voss-app exec playwright test e2e/command-palette.spec.ts e2e/themes.spec.ts --reporter=list` | yes | pending |
+| E5-03-01 | 03 | 1 | D-05, D-06 | T-E5-03 | Selected preserved app contracts assert real DOM/protocol outcomes through Tauri-driver/WebDriver and use fake-turn seam | e2e | `pnpm --dir apps/voss-app run test:e2e:tauri -- --spec e2e-tauri/command-palette.wdio.mjs,e2e-tauri/project-open.wdio.mjs,e2e-tauri/themes.wdio.mjs` | no | pending |
 | E5-04-01 | 04 | 4 | D-04, D-07, D-08 | T-E5-04 | Manual workflow is dispatch-only, read-only permissions, no provider secrets | CI/manual | `gh workflow run voss-app-e2e.yml` | no | pending |
 
 *Status: pending, green, red, flaky*
@@ -55,7 +55,7 @@ Requirement IDs are not yet minted because `E5-SPEC.md` is absent. Until that fi
 - [ ] `tests/harness/tui/test_e5_journeys.py` exists with hermetic stub twins.
 - [ ] `tests/harness/tui/test_e5_live_journeys.py` exists with `@pytest.mark.live` and credential-gated skip behavior.
 - [ ] `.github/workflows/voss-app-e2e.yml` exists as a manual `workflow_dispatch` workflow before desktop closeout.
-- [ ] At least three selected app contracts are identified before any un-skip edits.
+- [ ] At least three selected app contracts are identified before any Tauri-driver/WebDriver port edits.
 
 ---
 
