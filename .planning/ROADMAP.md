@@ -2245,7 +2245,7 @@ Plans:
 Plans:
 - [x] V16-01-PLAN.md — Layout derivation + project: config reader + SyncContext contract (wave 1) — executed 2026-06-10
 - [x] V16-02-PLAN.md — Doc + fence-body Jinja templates (wave 2) — executed 2026-06-10
-- [ ] V16-03-PLAN.md — voss sync orchestrator + CLI + manifest + idempotency (wave 3)
+- [x] V16-03-PLAN.md — voss sync orchestrator + CLI + manifest + idempotency (wave 3) — executed 2026-06-10
 - [ ] V16-04-PLAN.md — Prompt sync + ${} override loader + hash-guard (stretch R5/R6, wave 4)
 
 ---

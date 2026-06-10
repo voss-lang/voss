@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-10T17:40:50.959Z"
+last_updated: "2026-06-10T17:49:20.529Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 43
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-10 — **V16-03 EXECUTED — `voss sync` orchestrator + CLI (R1, R3, R4).** `voss/sync.py` `sync(cwd, *, dry_run, force)`: renders docs (+review.md only when review.enabled, D-08) + fence body from one `asdict(SyncContext)`; byte-diff-first writes (atomic, is_relative_to traversal guard T-V16-03); fence equality via `read_fence_body` compare BEFORE `write_fence_body` (same HashMismatch gate, no adopt, D-16 — avoids mtime churn, keeps R1); manifest `.voss/sync-state.json` path→sha256 sorted-deterministic (D-10/D-12); `--dry-run` identical diff pass zero writes (D-14); `force` accepted but prompts-only (Plan 04). `voss/cli.py` `@main.command("sync")`: status lines + `project.type: x (detected)` block + summary count (D-13), exit 0 non-errors, HashMismatch→ClickException w/ `voss memory adopt` remediation (D-15). NEW `voss/__main__.py` (Rule-3 fix: `python -m voss` never worked — no __main__). Live smoke: run 1 = 4 written, run 2 = 0 written/4 unchanged. 10 CLI tests green; full V16+cli+fence regression green. Auto-committer absorbed Task-2 commit again (b3ccb33, content verified). Summary: `phases/V16-managed-docs-prompt-generation/V16-03-SUMMARY.md`.
 
 - 2026-06-10 — **V16-02 EXECUTED — four Jinja doc/fence templates (R3, R4).** `voss/templates/docs/`: `cheatsheet.md.jinja` (D-06 operating guide, imperative D-09), `commands.md.jinja` (D-07 worktree-vs-repo-root invocation divergence + capability-gated memory/review/eval sections, real CLI verbs only), `review.md.jinja` (D-08 content gated on review.enabled; orchestrator skips writing when disabled), `voss_md_fence.md.jinja` (R4 full struct, marker-free — write_fence_body owns markers per D-17; review.md link conditional). All render from `dataclasses.asdict(SyncContext)` through `render_package_template` only; `{% if %}` guards every optional fact (D-04, bare-context test proves no UndefinedError). 11 tests green. Deviation (Rule 2): `templates/docs/*` added to pyproject package-data (wheels would ship templateless); pre-existing gap noted — `templates/prompts/*` also unlisted, matters for V16-04. Summary: `phases/V16-managed-docs-prompt-generation/V16-02-SUMMARY.md`.
 
@@ -252,3 +254,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase V15 P05 | 7 min | 2 tasks | 8 files |
 | Phase V16 P01 | 7 min | 3 tasks | 5 files |
 | Phase V16 P02 | 5 min | 2 tasks | 6 files |
+| Phase V16 P03 | 8 min | 2 tasks | 4 files |
