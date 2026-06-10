@@ -13,7 +13,8 @@ conflict — re-stake is an idempotent refresh (D-04).
 Concurrency: WAL + `BEGIN IMMEDIATE` acquires the write lock at transaction
 start, so N processes racing to stake an overlapping pattern get exactly one
 winner. Never use `with conn:` for the stake transaction (deferred BEGIN
-allows a double-grant) and never `:memory:` (per-process isolation).
+allows a double-grant) and never an in-memory database (per-process
+isolation would make claims invisible across CLI processes).
 """
 from __future__ import annotations
 
