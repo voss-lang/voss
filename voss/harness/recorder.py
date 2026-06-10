@@ -140,6 +140,56 @@ def _emit_context_osc(payload: dict) -> None:
     sys.stdout.flush()
 
 
+def _append_savings_record(cwd, session_id: str, record: dict) -> None:
+    """V18 VOPT-05: append one token-savings row to the session ledger.
+
+    Ledger path: `.voss/sessions/<id>/token-savings.jsonl` — a SUBDIRECTORY
+    of the sessions dir, not the flat `<id>.json` session-file convention
+    (RESEARCH A7). Clamps packed <= original and saved >= 0 BEFORE the
+    write so phantom savings are impossible by construction (Pitfall 4).
+    """
+    from .session import _sessions_dir
+
+    row = dict(record)
+    original = int(row.get("original_tokens_est", 0))
+    packed = min(int(row.get("packed_tokens_est", 0)), original)
+    row["packed_tokens_est"] = packed
+    row["saved_tokens_est"] = max(original - packed, 0)
+    path = _sessions_dir(Path(cwd)) / str(session_id) / "token-savings.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as fh:
+        fh.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+def estimate_savings_usd(
+    saved_tokens: int, cache_read_tokens: int, model: str
+) -> float | None:
+    """V18 D-04: cache-netted dollar estimate of packing savings.
+
+    Cache reads already bill at the reduced cache_read rate, so the naive
+    saved_tokens * input_rate figure is reduced by the cache delta
+    (Pitfall 3 — never inflated). Unknown model -> None (ledger records
+    null; no fabricated figure). Never negative, never raises.
+    """
+    try:
+        import litellm
+    except Exception:  # pragma: no cover - litellm always in venv
+        return None
+    try:
+        entry = litellm.model_cost.get(model) or litellm.model_cost.get(
+            f"anthropic.{model}"
+        )
+    except Exception:
+        return None
+    if not entry:
+        return None
+    input_rate = entry.get("input_cost_per_token", 0) or 0
+    cache_read_rate = entry.get("cache_read_input_token_cost", 0) or 0
+    gross = saved_tokens * input_rate
+    cache_reduction = cache_read_tokens * (input_rate - cache_read_rate)
+    return max(gross - cache_reduction, 0.0)
+
+
 INSPECT_TOOLS = {"fs_read", "fs_glob", "fs_grep"}
 CHANGE_TOOLS = {"fs_write", "fs_edit"}
 VALIDATE_TOOLS = {"shell_run", "voss_check"}

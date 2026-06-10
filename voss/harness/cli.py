@@ -917,6 +917,40 @@ def _build_slash_registry() -> SlashRegistry:
             )
         else:
             click.echo(f"session cost: ${ctx.total_cost:.4f}")
+        # V18 VOPT-05 (D-01/D-03): one labeled savings line from the session
+        # ledger. Silent when no ledger (short runs / --no-pack feels like
+        # nothing changed); a malformed ledger never breaks /cost.
+        try:
+            from voss.harness.session import _sessions_dir
+
+            ledger = (
+                _sessions_dir(Path(getattr(ctx, "cwd", None) or ctx.record.cwd))
+                / str(ctx.record.id)
+                / "token-savings.jsonl"
+            )
+            if ledger.is_file():
+                rows = [
+                    json.loads(line)
+                    for line in ledger.read_text().splitlines()
+                    if line.strip()
+                ]
+                original = sum(int(r.get("original_tokens_est", 0)) for r in rows)
+                packed = sum(int(r.get("packed_tokens_est", 0)) for r in rows)
+                if rows and original > 0:
+                    save_pct = round((1 - packed / original) * 100)
+                    usd_vals = [r.get("saved_usd_est") for r in rows]
+                    line = (
+                        f"context packed: ~{original:,}→~{packed:,} tokens "
+                        f"(−{save_pct}%)"
+                    )
+                    if any(isinstance(v, (int, float)) for v in usd_vals):
+                        usd = sum(
+                            v for v in usd_vals if isinstance(v, (int, float))
+                        )
+                        line += f"  ~${usd:.4f} saved"
+                    click.echo(line)
+        except Exception:  # noqa: BLE001 — estimates line is best-effort
+            pass
 
     def _budget(ctx: ReplContext, args: list[str], _line: str) -> None:
         # T6 / SLASH-04. No args → show current. One arg → set USD ceiling.

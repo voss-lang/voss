@@ -42,7 +42,14 @@ from .providers import (
     Usage,
 )
 from .principles import resolve_principles
-from .recorder import RunRecorder, _emit_budget_osc, _emit_context_osc, write_decisions_md
+from .recorder import (
+    RunRecorder,
+    _append_savings_record,
+    _emit_budget_osc,
+    _emit_context_osc,
+    estimate_savings_usd,
+    write_decisions_md,
+)
 from .render import Renderer
 from .session import IterationRecord, RunRecord
 from .tools import ToolEntry
@@ -741,11 +748,33 @@ async def _run_turn_exec(
                         + cfg.max_output_tokens
                     )
                     _packing_budget = max(token_budget - _reserve, 0)
-                    for a_msg, u_msg in _allocator.pack(
+                    _replay_pairs = _allocator.pack(
                         all_iter_records, _packing_budget, _packing_profile
-                    ):
+                    )
+                    for a_msg, u_msg in _replay_pairs:
                         messages.append(a_msg)
                         messages.append(u_msg)
+                    # V18 VOPT-05: honest baseline — render the full replay
+                    # for MEASUREMENT only (never sent when packing is on).
+                    _full_pairs = [
+                        _serialize_iter_for_replay(p) for p in all_iter_records
+                    ]
+                    _orig_est = sum(
+                        _default_token_count(str(m["content"]), model=model)
+                        for pair in _full_pairs
+                        for m in pair
+                    )
+                    _packed_est = sum(
+                        _default_token_count(str(m["content"]), model=model)
+                        for pair in _replay_pairs
+                        for m in pair
+                    )
+                    _pack_method = (
+                        "full"
+                        if _replay_pairs == _full_pairs
+                        else f"tiered-K{_packing_profile.recent_full_k}"
+                        f"-M{_packing_profile.digest_cutoff_m}"
+                    )
                 else:
                     # V18 VOPT-06 disabled branch: the ORIGINAL replay loop,
                     # verbatim — byte-identity by code path, not by golden.
@@ -753,6 +782,19 @@ async def _run_turn_exec(
                         a_msg, u_msg = _serialize_iter_for_replay(prior)
                         messages.append(a_msg)
                         messages.append(u_msg)
+                    # V18 VOPT-05: no packing — original == packed by definition.
+                    _orig_est = _packed_est = sum(
+                        _default_token_count(str(m["content"]), model=model)
+                        for m in messages[3:]
+                    )
+                    _pack_method = "no-pack" if not packing_enabled else "full"
+                _savings_osc = {
+                    "original": _orig_est,
+                    "packed": _packed_est,
+                    "pct": round((1 - _packed_est / _orig_est) * 100)
+                    if _orig_est
+                    else 0,
+                }
 
                 # M13-03 OQ-A2 (RESEARCH Pattern 3): land a parent steer as ONE
                 # synthetic next-iteration user message — a sibling of the
@@ -831,6 +873,33 @@ async def _run_turn_exec(
                     if this_iter_usage
                     else 0
                 )
+
+                # V18 VOPT-05: one ledger row per assembled turn. Best-effort
+                # only — a ledger failure must never crash the turn.
+                if session_id is not None:
+                    try:
+                        _saved_tokens = max(_orig_est - _packed_est, 0)
+                        _append_savings_record(
+                            cwd,
+                            session_id,
+                            {
+                                "iter": iteration_index,
+                                "original_tokens_est": _orig_est,
+                                "packed_tokens_est": _packed_est,
+                                "method": _pack_method,
+                                "cache_read_tokens": iter_cache_read,
+                                "saved_tokens_est": _saved_tokens,
+                                "saved_usd_est": estimate_savings_usd(
+                                    _saved_tokens, iter_cache_read, model
+                                ),
+                                "model": model,
+                                "ts": datetime.now(timezone.utc).isoformat(
+                                    timespec="seconds"
+                                ),
+                            },
+                        )
+                    except Exception:
+                        pass
 
                 renderer.finalize_stream(
                     role="assistant",
@@ -915,7 +984,7 @@ async def _run_turn_exec(
                             iteration=iteration_index + 1,
                             model=model,
                         )
-                        _emit_context_osc(rec._context_tracker.snapshot())
+                        _emit_context_osc({**rec._context_tracker.snapshot(), "savings": _savings_osc})
                         telemetry.emit(
                             "iteration.end",
                             "info",
@@ -962,7 +1031,7 @@ async def _run_turn_exec(
                         iteration=iteration_index + 1,
                         model=model,
                     )
-                    _emit_context_osc(rec._context_tracker.snapshot())
+                    _emit_context_osc({**rec._context_tracker.snapshot(), "savings": _savings_osc})
                     telemetry.emit(
                         "iteration.end",
                         "info",
@@ -1013,7 +1082,7 @@ async def _run_turn_exec(
                     iteration=iteration_index + 1,
                     model=model,
                 )
-                _emit_context_osc(rec._context_tracker.snapshot())
+                _emit_context_osc({**rec._context_tracker.snapshot(), "savings": _savings_osc})
                 telemetry.emit(
                     "iteration.end",
                     "info",
