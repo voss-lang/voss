@@ -14,6 +14,8 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import click
+
 from voss.harness import voss_md
 from voss.harness.conventions import _load_memory_config, load_project_facts
 from voss.layout import Layout, derive_layout
@@ -259,6 +261,42 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
         if not dry_run:
             voss_md.write_fence_body(voss_md_path, fence_id=_FENCE_ID, body=fence_body)
         statuses.append(ArtifactStatus("VOSS.md", "fence-updated"))
+
+    # Synced prompts (R5/R6): hash-guard — never clobber a user edit without
+    # hash evidence (D-11), --force overwrites (D-16). Sync-time render only;
+    # ${} runtime placeholders pass through untouched (D-18).
+    for name, resource in _PROMPT_TEMPLATES:
+        rendered = render_package_template(
+            "voss", f"templates/prompts/{resource}", {}
+        )
+        dest = (voss_root / "prompts" / f"{name}.txt").resolve()
+        if not dest.is_relative_to(voss_root):
+            raise ValueError(f"refused to write outside .voss: {dest}")
+        rel = _rel(dest, project_root)
+        new_hash = hashlib.sha256(rendered.encode()).hexdigest()
+        if not dest.exists():
+            if not dry_run:
+                _write_text_atomic(dest, rendered)
+            statuses.append(ArtifactStatus(rel, "written"))
+            manifest[rel] = new_hash
+            continue
+        on_disk = dest.read_text()
+        recorded = recorded_hashes.get(rel)
+        on_disk_hash = hashlib.sha256(on_disk.encode()).hexdigest()
+        edited = recorded is None or on_disk_hash != recorded  # D-11: no evidence => edited
+        if edited and not force:
+            click.echo(f"warning: {rel} has local edits; skipped (--force to overwrite)", err=True)
+            statuses.append(ArtifactStatus(rel, "skipped (edited)"))
+            if recorded is not None:
+                manifest[rel] = recorded  # keep drift evidence; never adopt silently
+            continue
+        if on_disk == rendered:
+            statuses.append(ArtifactStatus(rel, "unchanged"))
+        else:
+            if not dry_run:
+                _write_text_atomic(dest, rendered)
+            statuses.append(ArtifactStatus(rel, "written"))
+        manifest[rel] = new_hash
 
     manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     statuses.append(

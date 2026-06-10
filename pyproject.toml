@@ -86,6 +86,7 @@ voss = [
     "py.typed",
     "templates/init/*",
     "templates/docs/*",
+    "templates/prompts/*",
     "templates/audit/*",
     "templates/code/*",
     "templates/eval/*",
