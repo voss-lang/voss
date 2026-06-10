@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-10T16:18:21.038Z"
+last_updated: "2026-06-10T17:34:37.297Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 43
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-10 — **V16-01 EXECUTED — deterministic input layer for `voss sync` (R2).** `voss/layout.py` `derive_layout(cwd)`: git rev-parse probes (timeout=5, (OSError, SubprocessError) guard, fs fallback) deriving project name/root + repo-root-vs-worktree via `--git-dir` vs `--git-common-dir` divergence (new logic, no prior analog); byte-deterministic. `voss/harness/conventions.py`: `_load_project_config` (mirrors `_load_memory_config`, never raises) + `load_project_facts` → (facts, detected_keys) — fs detection (pyproject→python, package.json→node) under config precedence (D-01), detected-keys frozenset feeds the D-03 `(detected)` marker. `voss/sync.py`: `SyncContext` + `ReviewFacts` frozen dataclasses (D-02 1:1 fence shape, D-04 absent-markers) + `build_sync_context` wiring layout+facts+capabilities (D-05 probes: .voss/memory|eval dirs, memory config, review.enabled); write-loop deferred to Plan 03. 14 new tests green (real `git worktree add` fixture). Deviation: Task-1 feat commit absorbed by concurrent auto-committer (25e2b8f) — content verified intact. Summary: `phases/V16-managed-docs-prompt-generation/V16-01-SUMMARY.md`.
 
 - 2026-06-10 — **V15-05 EXECUTED — "Server sessions" attach sidebar (VLIVE-06).** `org/cockpit/serverSessions.ts`: module signal + `refreshSessions(client)` (newest-first, silent degrade), defensive accessors for the real live-row shape `{id, cwd, model, title, busy}` (no timestamp → age blank; title→id fallback), `attachSession` = ensureClient (respawn-if-cold via Plan-02 ensureVossClient, T-V15-08) → `registerNativeCard(id,id)` (D-06 attached≡started) → openNativePane (D-02 seam); NO history fetch (T-V15-12, test-pinned). Sidebar: 4th collapsible section, refresh-on-open, unfiltered rows (D-05) + hover-reveal Attach + "No previous sessions"; hidden without a client. Threading App→OrgViewShell→CockpitShell→CockpitSidebar. **SDK Rule-1 fix:** `rest.ts listSessions/listSaved` could NEVER decode the real server's `{v, sessions:[...]}` envelope (expectArray threw unconditionally; zero SDK test coverage) — `expectSessionsArray` accepts envelope or bare array; SDK e2e baseline unchanged (7 pre-existing env failures, identical w/ fix stashed). Plan's `voss/api/routes/session.py` read_first path didn't exist — real route = `voss/harness/server/app.py`. Verification: serverSessions 5/5, cockpit suite green, full 811/811, tsc clean. Summary: `phases/V15-live-plane-integration/V15-05-SUMMARY.md`.
 
@@ -246,3 +248,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase V15 P03 | 13 min | 2 tasks | 8 files |
 | Phase V15 P04 | 11 min | 2 tasks | 7 files |
 | Phase V15 P05 | 7 min | 2 tasks | 8 files |
+| Phase V16 P01 | 7 min | 3 tasks | 5 files |
