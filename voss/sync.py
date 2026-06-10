@@ -1,17 +1,23 @@
-"""`voss sync` shared render-context contract (V16-01).
+"""`voss sync` context contract + orchestrator (V16-01/V16-03).
 
 SyncContext is the single frozen struct every synced artifact renders from
-(D-17): layout vars + project facts + capabilities. This module deliberately
-contains ONLY the contract and its builder — the sync write-loop (render,
-diff, apply, manifest) lands in Plan 03.
+(D-17): layout vars + project facts + capabilities. sync() renders the
+managed docs and the VOSS.md workflow fence from one SyncContext, diffs
+byte-for-byte against disk, and writes only on difference (R1 idempotency).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+import json
+import os
+import tempfile
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from voss.harness import voss_md
 from voss.harness.conventions import _load_memory_config, load_project_facts
 from voss.layout import Layout, derive_layout
+from voss.template_render import render_package_template
 
 
 @dataclass(frozen=True)
@@ -108,4 +114,157 @@ def build_sync_context(cwd: Path) -> SyncContext:
     )
 
 
-__all__ = ["ReviewFacts", "SyncContext", "build_sync_context"]
+@dataclass(frozen=True)
+class ArtifactStatus:
+    path: str
+    status: str  # written | unchanged | fence-updated | skipped (edited)
+
+
+@dataclass(frozen=True)
+class SyncResult:
+    statuses: tuple[ArtifactStatus, ...]
+    detected: tuple[tuple[str, str], ...]  # (fact key, value) pairs from fs detection (D-03)
+
+
+_DOC_TEMPLATES = (
+    ("cheatsheet.md", "cheatsheet.md.jinja"),
+    ("commands.md", "commands.md.jinja"),
+)
+_REVIEW_DOC = ("review.md", "review.md.jinja")
+_FENCE_TEMPLATE = "voss_md_fence.md.jinja"
+_FENCE_ID = "workflow"
+_MANIFEST_NAME = "sync-state.json"
+
+
+def _write_text_atomic(path: Path, text: str) -> None:
+    """mkstemp in dest dir -> write -> os.replace (mirrors voss/cli.py)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.name + ".",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(text)
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _rel(path: Path, root: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
+def _diff_write(
+    dest: Path,
+    rendered: str,
+    *,
+    voss_root: Path,
+    project_root: Path,
+    dry_run: bool,
+) -> ArtifactStatus:
+    """Byte-diff rendered text against disk; write atomically only on difference."""
+    resolved = dest.resolve()
+    if not resolved.is_relative_to(voss_root):
+        raise ValueError(f"refused to write outside .voss: {resolved}")
+    rel = _rel(resolved, project_root)
+    existing: str | None = None
+    if resolved.exists():
+        existing = resolved.read_text()
+    if existing == rendered:
+        return ArtifactStatus(rel, "unchanged")
+    if not dry_run:
+        _write_text_atomic(resolved, rendered)
+    return ArtifactStatus(rel, "written")
+
+
+def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult:
+    """Regenerate the managed docs, VOSS.md workflow fence, and manifest.
+
+    Idempotent (R1): every artifact is rendered from one SyncContext and
+    byte-diffed against disk; an unchanged tree produces zero writes.
+    Docs are machine-owned (R3): always regenerated, no edit guard.
+    The fence goes through voss_md.write_fence_body without adopt (D-16):
+    hash drift raises HashMismatch instead of silently overwriting (R4).
+    dry_run (D-14) runs the identical diff pass and writes nothing.
+    force is accepted for the prompts surface (D-16, Plan 04); it has no
+    effect on docs or the fence.
+    """
+    del force  # prompts-only (D-16); wired in Plan 04
+    context = build_sync_context(cwd)
+    ctx_map = asdict(context)
+    voss_root = context.voss_dir.resolve()
+    project_root = context.project_root
+    statuses: list[ArtifactStatus] = []
+    manifest: dict[str, str] = {}
+
+    docs = list(_DOC_TEMPLATES)
+    if context.review.enabled:
+        docs.append(_REVIEW_DOC)  # D-08: review.md skipped entirely when disabled
+
+    for name, resource in docs:
+        rendered = render_package_template("voss", f"templates/docs/{resource}", ctx_map)
+        dest = context.docs_dir / name
+        manifest[_rel(dest.resolve(), project_root)] = hashlib.sha256(
+            rendered.encode()
+        ).hexdigest()
+        statuses.append(
+            _diff_write(
+                dest,
+                rendered,
+                voss_root=voss_root,
+                project_root=project_root,
+                dry_run=dry_run,
+            )
+        )
+
+    fence_body = render_package_template(
+        "voss", f"templates/docs/{_FENCE_TEMPLATE}", ctx_map
+    )
+    voss_md_path = project_root / "VOSS.md"
+    # Same drift gate as write_fence_body: HashMismatch propagates (D-16, R4).
+    existing_body = voss_md.read_fence_body(voss_md_path, fence_id=_FENCE_ID)
+    manifest[f"VOSS.md#{_FENCE_ID}"] = hashlib.sha256(fence_body.encode()).hexdigest()
+    if existing_body == fence_body:
+        statuses.append(ArtifactStatus("VOSS.md", "unchanged"))
+    else:
+        if not dry_run:
+            voss_md.write_fence_body(voss_md_path, fence_id=_FENCE_ID, body=fence_body)
+        statuses.append(ArtifactStatus("VOSS.md", "fence-updated"))
+
+    manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    statuses.append(
+        _diff_write(
+            voss_root / _MANIFEST_NAME,
+            manifest_text,
+            voss_root=voss_root,
+            project_root=project_root,
+            dry_run=dry_run,
+        )
+    )
+
+    detected: list[tuple[str, str]] = []
+    for key in sorted(context.detected):
+        value = getattr(context, key, None)
+        if value:
+            detected.append((key, str(value)))
+
+    return SyncResult(statuses=tuple(statuses), detected=tuple(detected))
+
+
+__all__ = [
+    "ArtifactStatus",
+    "ReviewFacts",
+    "SyncContext",
+    "SyncResult",
+    "build_sync_context",
+    "sync",
+]
