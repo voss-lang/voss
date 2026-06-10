@@ -170,3 +170,93 @@ def test_sync_help_registered():
     runner = CliRunner()
     result = runner.invoke(main, ["sync", "--help"])
     assert result.exit_code == 0
+
+
+PROMPT_FILES = (
+    ".voss/prompts/reviewer_a_role.txt",
+    ".voss/prompts/reviewer_b_system.txt",
+    ".voss/prompts/em_system.txt",
+)
+
+
+def test_sync_writes_three_prompts_with_hashes():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        result = runner.invoke(main, ["sync"])
+        assert result.exit_code == 0, result.output
+        import json
+
+        manifest = json.loads(Path(".voss/sync-state.json").read_text())
+        for rel in PROMPT_FILES:
+            assert Path(rel).exists(), rel  # .jinja suffix stripped
+            body = Path(rel).read_text()
+            assert manifest[rel] == hashlib.sha256(body.encode()).hexdigest()
+
+
+def test_edited_prompt_skipped_with_warning_exit_zero():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        prompt = Path(PROMPT_FILES[0])
+        edited = prompt.read_text() + "\nUSER EDIT\n"
+        prompt.write_text(edited)
+        result = runner.invoke(main, ["sync"])
+        assert result.exit_code == 0, result.output  # warning, not failure (D-15)
+        assert prompt.read_text() == edited  # R6: never silently clobbered
+        assert "skipped (edited)" in result.output
+        assert "reviewer_a_role.txt" in result.output + result.stderr  # warning names file
+
+
+def test_force_overwrites_edited_prompt_and_updates_hash():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        prompt = Path(PROMPT_FILES[0])
+        pristine = prompt.read_text()
+        prompt.write_text(pristine + "\nUSER EDIT\n")
+        result = runner.invoke(main, ["sync", "--force"])
+        assert result.exit_code == 0, result.output
+        assert prompt.read_text() == pristine  # D-16: --force overwrites
+        import json
+
+        manifest = json.loads(Path(".voss/sync-state.json").read_text())
+        assert manifest[PROMPT_FILES[0]] == hashlib.sha256(pristine.encode()).hexdigest()
+
+
+def test_missing_manifest_treats_prompts_as_edited():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        Path(".voss/sync-state.json").unlink()
+        before = {rel: Path(rel).read_bytes() for rel in PROMPT_FILES}
+        result = runner.invoke(main, ["sync"])
+        assert result.exit_code == 0, result.output
+        # D-11: no hash evidence -> skip + warn, files untouched.
+        assert "skipped (edited)" in result.output
+        for rel in PROMPT_FILES:
+            assert Path(rel).read_bytes() == before[rel]
+        # --force re-adopts: hashes recorded again.
+        result = runner.invoke(main, ["sync", "--force"])
+        assert result.exit_code == 0, result.output
+        import json
+
+        manifest = json.loads(Path(".voss/sync-state.json").read_text())
+        for rel in PROMPT_FILES:
+            assert rel in manifest
+
+
+def test_prompt_idempotency_two_clean_syncs():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        before = {rel: Path(rel).read_bytes() for rel in PROMPT_FILES}
+        result = runner.invoke(main, ["sync"])
+        assert result.exit_code == 0, result.output
+        for rel in PROMPT_FILES:
+            assert Path(rel).read_bytes() == before[rel]
+        assert "0 written" in result.output

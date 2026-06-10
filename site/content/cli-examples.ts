@@ -4,7 +4,7 @@ export type CliExample = {
   blurb: string;
   command: string;
   code: string;
-  lang: "text";
+  lang: "python";
 };
 
 export const cliExamples: CliExample[] = [
@@ -13,7 +13,7 @@ export const cliExamples: CliExample[] = [
     label: "Classify",
     blurb: "Confidence-gated intent classification.",
     command: "voss run samples/classify.voss",
-    lang: "text",
+    lang: "python",
     code: `fn classifyIntent(input: string) -> string {
     let intent: probable<string> = ask("Classify the intent: " + input)
 
@@ -29,7 +29,7 @@ export const cliExamples: CliExample[] = [
     label: "Support",
     blurb: "Semantic routing for a support inbox.",
     command: "voss run samples/support.voss",
-    lang: "text",
+    lang: "python",
     code: `prompt SupportAgent {
     "You are a customer support agent for a SaaS product."
 }
@@ -56,7 +56,7 @@ fn handleMessage(userMessage: string) -> string {
     label: "Research",
     blurb: "Parallel agents with timeout and graceful fallback.",
     command: "voss run samples/research.voss",
-    lang: "text",
+    lang: "python",
     code: `agent Researcher(topic: string) -> string {
     system: "You are a research analyst."
 
