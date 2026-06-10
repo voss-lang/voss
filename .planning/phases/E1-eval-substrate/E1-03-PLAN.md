@@ -103,6 +103,7 @@ judge_model_eff = judge_model or model_eff or get_config().default_model
 
 <task type="auto" tdd="true">
   <name>Task 1: Wire checks into rows + turn cap + capped-skip-judge + run header</name>
+  <files>voss/eval/runner.py, tests/eval/test_hybrid_gate.py</files>
   <read_first>
     - voss/eval/runner.py (FULL — run_suite loop lines 272-381, _drive_task lines 198-239, _drive_resume lines 149-195, judge guard 339-356, row dict 358-377)
     - voss/eval/suite.py (TaskSpec.checks field from E1-01; the AnyCheck typed objects _run_checks consumes)
@@ -152,6 +153,7 @@ judge_model_eff = judge_model or model_eff or get_config().default_model
 
 <task type="auto" tdd="true">
   <name>Task 2: Extend summary.py + jinja template with gate-pass and judge-rate columns; update golden-bytes sentinel</name>
+  <files>voss/eval/summary.py, voss/templates/eval/summary.md.jinja, tests/eval/test_summary_md.py</files>
   <read_first>
     - voss/eval/summary.py (FULL — aggregation lines 49-101, _mean_cost, _pearson, render context dict)
     - voss/templates/eval/summary.md.jinja (FULL 16 lines — current header + per-task table)
@@ -187,6 +189,7 @@ judge_model_eff = judge_model or model_eff or get_config().default_model
 
 <task type="auto">
   <name>Task 3: Update REQUIRED_FIELDS sentinel in test_voss_eval_stub.py</name>
+  <files>tests/eval/test_voss_eval_stub.py</files>
   <read_first>
     - tests/eval/test_voss_eval_stub.py (REQUIRED_FIELDS set lines 11-28; assertions `set(row) == REQUIRED_FIELDS` at lines 87 and 223)
     - voss/eval/runner.py (the row dict after Task 1 — confirm the exact new keys gate_pass/capped/checks)

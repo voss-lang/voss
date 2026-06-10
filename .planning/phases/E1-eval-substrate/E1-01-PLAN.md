@@ -79,6 +79,7 @@ Verdict in voss/eval/judge.py is the Literal-discriminator analog to copy for th
 
 <task type="auto" tdd="true">
   <name>Task 1: Add AnyCheck discriminated union + TaskSpec.checks field</name>
+  <files>voss/eval/suite.py, tests/eval/test_task_spec.py</files>
   <read_first>
     - voss/eval/suite.py (current TaskSpec; extra="forbid"; load_task/load_suite — do not change loader logic)
     - voss/eval/judge.py (Literal-discriminator pydantic pattern to copy)
@@ -113,6 +114,7 @@ Verdict in voss/eval/judge.py is the Literal-discriminator analog to copy for th
 
 <task type="auto" tdd="true">
   <name>Task 2: Add _run_checks executor (pure function) + unit tests</name>
+  <files>voss/eval/runner.py, tests/eval/test_checks.py</files>
   <read_first>
     - voss/eval/runner.py (lines 1-115 — imports already include subprocess, Path; _file_diff is the subprocess analog; _prepare_fixture shows the temp-git cwd shape checks run inside)
     - .planning/phases/E1-eval-substrate/E1-PATTERNS.md (runner.py section, lines 128-159 — exact _run_checks shape per D-02/D-03)

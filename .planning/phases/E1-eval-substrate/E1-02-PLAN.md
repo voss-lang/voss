@@ -81,6 +81,7 @@ Click Exit pattern for non-zero exit (voss/eval/runner.py:247): raise click.exce
 
 <task type="auto" tdd="true">
   <name>Task 1: Add [eval] config section + get_eval_max_turns + get_eval_judge_model</name>
+  <files>voss/harness/config.py</files>
   <read_first>
     - voss/harness/config.py (the [agent] section: _AGENT_BLOCK regex, _parse_agent_section, load_agent_config, get_max_iterations with warnings.warn — copy this exact shape)
     - .planning/phases/E1-eval-substrate/E1-PATTERNS.md (config.py section, lines 367-461 — exact [eval] reader shape per D-06)
@@ -112,6 +113,7 @@ Click Exit pattern for non-zero exit (voss/eval/runner.py:247): raise click.exce
 
 <task type="auto" tdd="true">
   <name>Task 2: Dev gate on eval_cmd + --max-turns flag + autouse conftest + gate tests</name>
+  <files>voss/harness/cli.py, tests/eval/conftest.py, tests/eval/test_dev_gate.py</files>
   <read_first>
     - voss/harness/cli.py (eval_cmd at ~line 3491 — options + body that calls run_suite; AUTH_CHOICES; existing import of os at top of file)
     - voss/cli.py (lines 236-238 — os.environ.get env-check pattern to copy)

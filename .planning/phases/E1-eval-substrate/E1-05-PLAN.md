@@ -66,6 +66,7 @@ Expected: 6 rows; ≥5 gate_pass:true; 0 capped:true; model != judge_model per r
 
 <task type="checkpoint:human-verify" gate="blocking">
   <name>Task 1: Operator runs the live full-suite proof on codex auth</name>
+  <files>(none — human-driven live run; produces git-ignored .voss/eval/e1-proof/ artifacts, no tracked repo files)</files>
   <what-built>
     The hybrid eval substrate is complete (E1-01..04): deterministic checks, hybrid gate/judge scoring, turn cap with upfront print, dev gate, judge-model split, and 6 golden tasks retrofitted with checks. This checkpoint runs the suite LIVE on the operator's codex subscription to prove EVSUB-07.
   </what-built>
@@ -88,6 +89,7 @@ Expected: 6 rows; ≥5 gate_pass:true; 0 capped:true; model != judge_model per r
 
 <task type="auto">
   <name>Task 2: Record the live-run evidence in E1-05-SUMMARY.md</name>
+  <files>.planning/phases/E1-eval-substrate/E1-05-SUMMARY.md</files>
   <read_first>
     - .voss/eval/e1-proof/runs.jsonl (the live run output — 6 rows)
     - .voss/eval/e1-proof/summary.md (the human-read summary)

@@ -84,6 +84,7 @@ Output: 6 task.toml files with grounded checks + a coverage test.
 
 <task type="auto">
   <name>Task 1: Retrofit [[checks]] onto all 6 golden task.toml files</name>
+  <files>tests/eval/golden/01-analyze/task.toml, tests/eval/golden/02-plan-only/task.toml, tests/eval/golden/03-approved-edit/task.toml, tests/eval/golden/04-validation/task.toml, tests/eval/golden/05-resume/task.toml, tests/eval/golden/06-fetch-summarize/task.toml</files>
   <read_first>
     - tests/eval/golden/01-analyze/task.toml AND its fixture/ (README.md, main.py)
     - tests/eval/golden/02-plan-only/task.toml AND fixture/calc.py
@@ -127,6 +128,7 @@ Output: 6 task.toml files with grounded checks + a coverage test.
 
 <task type="auto">
   <name>Task 2: Coverage test — all tasks have checks + stub suite runs checks cleanly</name>
+  <files>tests/eval/test_golden_checks.py</files>
   <read_first>
     - tests/eval/test_voss_eval_stub.py (subprocess _run_eval harness + golden-suite stub-run pattern to mirror; conftest from E1-02 supplies VOSS_DEV=1)
     - voss/eval/suite.py (load_suite signature)
