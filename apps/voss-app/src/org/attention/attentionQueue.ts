@@ -87,6 +87,16 @@ function pushItem(item: AttentionItem): void {
   });
 }
 
+/**
+ * V15-04 (VLIVE-05): the inverse of pushItem — remove one row by id
+ * (immutable filter). Permission rows use the prefixed id
+ * `permission:${ev.id}` — callers MUST pass the identical prefixed id
+ * (load-bearing, T-V15-11) so the inline gate and the queue stay in sync.
+ */
+export function resolveAttentionItem(id: string): void {
+  setAttentionQueue((prev) => prev.filter((item) => item.id !== id));
+}
+
 /** Current live bridge maps, read at ingest time (Bridge A/B correlation). */
 function liveMaps() {
   return { cardToPane: cardToPane(), cardToSessionNode: cardToSessionNode() };

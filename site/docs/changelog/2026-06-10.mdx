@@ -1,0 +1,34 @@
+---
+title: "June 10, 2026"
+description: "Live workspace preview, managed instructions, external-agent handoffs, and budget-aware context enter the Voss roadmap."
+---
+
+The Voss roadmap has moved from static cockpit views toward live local supervision. The CLI remains the stable setup path, while the desktop workspace is in verification for live runs, inline approvals, reconnecting to recent work, and review-ready inspection.
+
+## Live workspace preview
+
+The desktop workspace is being verified as a local review cockpit:
+
+- Start a native Voss run from the workspace.
+- Watch task progress, tool activity, model output, and final results in a structured run view.
+- Resolve approvals where the work is happening, with the same pending item visible in the attention queue.
+- Reconnect to recent local work when the workspace is available.
+- See starting, ended, failed, and disconnected states honestly instead of guessing whether a run is live.
+
+This path is still preview/in verification. The CLI remains the recommended setup path for day-to-day use.
+
+## Managed project instructions
+
+Voss is adding a sync path for project-owned workflow docs and review prompts. The goal is simple: external agents and Voss-native runs should read the same local instructions, while human-written project notes stay separate from generated sections.
+
+## External-agent handoffs
+
+Voss is also formalizing how adopted terminal agents coordinate with Voss-native work. The public goal is not to claim full control over tools Voss did not launch. The goal is clearer identity, ownership, handoffs, and review requests that can feed the same board and audit expectations.
+
+## Budget-aware context
+
+Long-running agent work needs context discipline. Voss is planning budget-aware context packing so recent work stays detailed, older work becomes compact, and any claimed savings are measured as estimates instead of used as marketing math.
+
+<Note>
+This changelog describes public product direction and verification status. It intentionally omits internal implementation details.
+</Note>

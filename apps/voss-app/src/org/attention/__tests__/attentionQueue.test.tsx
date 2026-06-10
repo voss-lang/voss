@@ -12,6 +12,7 @@ import {
   ingestEvent,
   ingestSnapshotDecisions,
   normalizeCliPermission,
+  resolveAttentionItem,
   __resetAttentionQueue,
 } from '../attentionQueue';
 
@@ -175,5 +176,45 @@ describe('AttentionQueue — VCKP-13b CLI permission-proxy (best-effort)', () =>
     // cwd folded into args for downstream consumers.
     expect(item.args?.cwd).toBe('/proj');
     expect(item.deepLink.paneId).toBe('PANE-CLI');
+  });
+});
+
+// --- V15-04: resolveAttentionItem (dual-surface clear inverse of pushItem) ---
+
+describe('AttentionQueue — resolveAttentionItem (V15-04)', () => {
+  it('removes exactly the row with the prefixed permission id, leaving others intact', () => {
+    ingestEvent(
+      {
+        type: 'permission.updated',
+        v: 1,
+        id: 'abc',
+        tool_name: 'bash',
+        args: {},
+        dimension: 'tool',
+      } as unknown as AgentEvent,
+      { cardId: 'card-1' },
+    );
+    ingestEvent(
+      {
+        type: 'permission.updated',
+        v: 1,
+        id: 'def',
+        tool_name: 'fs_edit',
+        args: {},
+        dimension: 'tool',
+      } as unknown as AgentEvent,
+      { cardId: 'card-1' },
+    );
+    expect(attentionQueue().length).toBe(2);
+
+    resolveAttentionItem('permission:abc');
+
+    const ids = attentionQueue().map((i) => i.id);
+    expect(ids).toEqual(['permission:def']);
+  });
+
+  it('is a no-op for an unknown id', () => {
+    resolveAttentionItem('permission:nope');
+    expect(attentionQueue()).toEqual([]);
   });
 });

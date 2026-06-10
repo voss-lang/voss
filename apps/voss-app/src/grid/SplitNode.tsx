@@ -25,6 +25,13 @@ export interface CloseUI {
   fgName: (paneId: string) => string;
 }
 
+/** V15-03 (VLIVE-04): native server session backing a structured pane. */
+export interface NativeSessionRecord {
+  sessionId: string;
+  baseUrl: string;
+  token: string;
+}
+
 /**
  * Recursive binary-split renderer (GRD-01). `H` = flex row (side-by-side),
  * `V` = flex column (stacked); each leaf wraps the A2 `PaneComponent` (a
@@ -66,6 +73,8 @@ export default function SplitNodeView(props: {
   /** A7: reserve prefix indicator width (tmux profile). */
   prefixReserved?: boolean;
   agentConfigByPaneId?: Record<string, AgentConfig>;
+  /** V15-03: per-pane native session — leaf renders ProtocolPane when set. */
+  nativeSessionByPaneId?: Record<string, NativeSessionRecord>;
   workspacePath?: string;
   paneDrag?: PaneDragController;
 }) {
@@ -164,6 +173,13 @@ export default function SplitNodeView(props: {
                   onFirstInput={() => props.onPaneFirstInput?.(asLeaf().id)}
                   agentConfig={props.agentConfigByPaneId?.[asLeaf().id]}
                   workspacePath={props.workspacePath}
+                  nativeSessionId={
+                    props.nativeSessionByPaneId?.[asLeaf().id]?.sessionId
+                  }
+                  nativeBaseUrl={
+                    props.nativeSessionByPaneId?.[asLeaf().id]?.baseUrl
+                  }
+                  nativeToken={props.nativeSessionByPaneId?.[asLeaf().id]?.token}
                 />
               )}
             </Show>
@@ -216,6 +232,7 @@ export default function SplitNodeView(props: {
               prefixActive={props.prefixActive}
               prefixReserved={props.prefixReserved}
               agentConfigByPaneId={props.agentConfigByPaneId}
+              nativeSessionByPaneId={props.nativeSessionByPaneId}
               workspacePath={props.workspacePath}
               paneDrag={props.paneDrag}
             />
@@ -249,6 +266,7 @@ export default function SplitNodeView(props: {
               prefixActive={props.prefixActive}
               prefixReserved={props.prefixReserved}
               agentConfigByPaneId={props.agentConfigByPaneId}
+              nativeSessionByPaneId={props.nativeSessionByPaneId}
               workspacePath={props.workspacePath}
               paneDrag={props.paneDrag}
             />

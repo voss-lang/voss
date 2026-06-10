@@ -6,6 +6,7 @@ import type { Rect } from './geometry';
 import type { Dims } from './DragHandle';
 import { hitTest, zoneAt, type DropZone } from './dropZone';
 import { movePane } from './rearrange';
+import { getPaneSession } from '../pane/paneSessionRegistry';
 import { paneSessionTitle } from './PaneHeader';
 import { procByPaneId } from '../pane/procRegistry';
 
@@ -176,7 +177,13 @@ export function createPaneDrag(
             moved = movePane(s, dragId, target.paneId, target.zone, dims());
           }),
         );
-        if (moved) onMoved?.();
+        if (moved) {
+          onMoved?.();
+          // The remounted pane re-adopts its live session; restore xterm
+          // keyboard focus after Solid settles (store focusedId is already
+          // the dragged pane — movePane sets it).
+          queueMicrotask(() => getPaneSession(dragId)?.term.focus());
+        }
       }
     }
     cleanup();

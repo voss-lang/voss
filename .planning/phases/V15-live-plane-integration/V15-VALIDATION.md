@@ -3,7 +3,7 @@ phase: V15
 slug: live-plane-integration
 status: ready
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-06-09
 ---
 
@@ -49,17 +49,17 @@ to the baseline. Capture the baseline failing-test count at Wave 0 and compare.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| V15-01-01 | 01 | 1 | VLIVE-01 | T-V15-01 | `cwd` canonicalized + rejected if outside workspace roots before spawn | integration (cargo) | `VOSS_SIDECAR_SPIKE=1 cargo test -p voss-app-core sidecar` | ✅ sidecar.rs | ⬜ pending |
-| V15-01-02 | 01 | 1 | VLIVE-01 | T-V15-02 | reuse-if-alive: stale `pid()==None` entry respawned, no orphan on exit | integration (cargo) + unit | `cargo test -p voss-app-core reuse_if_alive` ; `cd apps/voss-app && npx --no vitest run src/org/live/__tests__/sidecarCommand.test.ts` | ❌ W0 | ⬜ pending |
-| V15-02-01 | 02 | 2 | VLIVE-02 | T-V15-03 | client built with Bearer token from handshake; no token logged | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/org/live/__tests__/clientBuild.test.ts src/org/cockpit/__tests__/runCommandBar.test.tsx` | ❌ W0 (clientBuild) / ✅ (runCommandBar) | ⬜ pending |
-| V15-02-02 | 02 | 2 | VLIVE-02, VLIVE-03 | T-V15-04 | sidecar-absent path renders disabled-with-reason unchanged (no silent enable) | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/org/live/__tests__/sseClient.test.ts src/org/feedbackWritePath.test.ts` | ✅ extends existing | ⬜ pending |
-| V15-03-01 | 03 | 2 | VLIVE-04 | T-V15-05 | every §6 union member renders a row; out-of-set member → generic row, nothing dropped | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/pane/__tests__/ProtocolPane.test.tsx` | ❌ W0 | ⬜ pending |
-| V15-03-02 | 03 | 2 | VLIVE-04 | T-V15-06 | PTY pane suite passes unmodified (protocol branch additive) | regression (vitest) | `cd apps/voss-app && npx --no vitest run src/pane/__tests__/` | ✅ existing | ⬜ pending |
-| V15-04-01 | 04 | 3 | VLIVE-05 | T-V15-07 | permission reply requires valid Bearer (server 401 without); one reply clears both surfaces | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/pane/__tests__/ProtocolPane.test.tsx src/org/attention/__tests__/attentionQueue.test.tsx` | ❌ W0 (extends) | ⬜ pending |
-| V15-04-02 | 04 | 3 | VLIVE-06 | T-V15-08 | attach via live `GET /session` only; respawn sidecar before list; no transcript fabrication | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/org/cockpit/__tests__/serverSessions.test.ts` | ❌ W0 | ⬜ pending |
-| V15-05-01 | 05 | 3 | VLIVE-07 | T-V15-09 | server death → label 'snapshot', ended state, write disabled-with-reason; next run respawns | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/pane/__tests__/ProtocolPane.test.tsx src/org/live/__tests__/sseClient.test.ts` | ❌ W0 (extends) | ⬜ pending |
-| V15-06-01 | 06 | 4 | VLIVE-08 | T-V15-SC | AC suite spawns real `voss serve` (stub provider, no creds, no network) and drives the spine | integration (vitest + real spawn) | `cd apps/voss-app && VOSS_AC_LIVE=1 npx --no vitest run src/org/live/__tests__/liveSpine.ac.test.ts` | ❌ W0 | ⬜ pending |
-| V15-06-02 | 06 | 4 | VLIVE-08 | — | human walks full spine on a real provider; sign-off recorded | manual (human-verify) | N/A — checkpoint | ❌ N/A | ⬜ pending |
+| V15-01-01 | 01 | 1 | VLIVE-01 | T-V15-01 | `cwd` canonicalized + rejected if outside workspace roots before spawn | integration (cargo) | `VOSS_SIDECAR_SPIKE=1 cargo test -p voss-app-core sidecar` | ✅ sidecar.rs | ✅ green |
+| V15-01-02 | 01 | 1 | VLIVE-01 | T-V15-02 | reuse-if-alive: stale `pid()==None` entry respawned, no orphan on exit | integration (cargo) + unit | `cargo test -p voss-app-core reuse_if_alive` ; `cd apps/voss-app && npx --no vitest run src/org/live/__tests__/sidecarCommand.test.ts` | ✅ created | ✅ green |
+| V15-02-01 | 02 | 2 | VLIVE-02 | T-V15-03 | client built with Bearer token from handshake; no token logged | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/org/live/__tests__/clientBuild.test.ts src/org/cockpit/__tests__/runCommandBar.test.tsx` | ✅ created | ✅ green |
+| V15-02-02 | 02 | 2 | VLIVE-02, VLIVE-03 | T-V15-04 | sidecar-absent path renders disabled-with-reason unchanged (no silent enable) | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/org/live/__tests__/sseClient.test.ts src/org/__tests__/feedbackWritePath.test.ts` | ✅ extends existing | ✅ green |
+| V15-03-01 | 03 | 2 | VLIVE-04 | T-V15-05 | every §6 union member renders a row; out-of-set member → generic row, nothing dropped | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/pane/__tests__/ProtocolPane.test.tsx` | ✅ created | ✅ green |
+| V15-03-02 | 03 | 2 | VLIVE-04 | T-V15-06 | PTY pane suite passes unmodified (protocol branch additive) | regression (vitest) | `cd apps/voss-app && npx --no vitest run src/pane/__tests__/` | ✅ existing | ✅ green (suite unmodified) |
+| V15-04-01 | 04 | 3 | VLIVE-05 | T-V15-07 | permission reply requires valid Bearer (server 401 without); one reply clears both surfaces | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/pane/__tests__/ProtocolPane.test.tsx src/org/attention/__tests__/attentionQueue.test.tsx` | ✅ extended | ✅ green |
+| V15-04-02 | 04 | 3 | VLIVE-06 | T-V15-08 | attach via live `GET /session` only; respawn sidecar before list; no transcript fabrication | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/org/cockpit/__tests__/serverSessions.test.ts` | ✅ created | ✅ green |
+| V15-05-01 | 05 | 3 | VLIVE-07 | T-V15-09 | server death → label 'snapshot', ended state, write disabled-with-reason; next run respawns | unit (vitest) | `cd apps/voss-app && npx --no vitest run src/pane/__tests__/ProtocolPane.test.tsx src/org/live/__tests__/sseClient.test.ts` | ✅ extended | ✅ green |
+| V15-06-01 | 06 | 4 | VLIVE-08 | T-V15-SC | AC suite spawns real `voss serve` (stub provider, no creds, no network) and drives the spine | integration (vitest + real spawn) | `cd apps/voss-app && VOSS_AC_LIVE=1 npx --no vitest run src/org/live/__tests__/liveSpine.ac.test.ts` | ✅ created | ✅ green (5/5, credless, no orphan) |
+| V15-06-02 | 06 | 4 | VLIVE-08 | — | human walks full spine on a real provider; sign-off recorded | manual (human-verify) | N/A — checkpoint | ❌ N/A | ⬜ pending (checkpoint presented 2026-06-10) |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -73,12 +73,12 @@ behavior, then implementation turns them green (RED→GREEN). All Wave 0 files a
 created inside the FIRST task of the plan that owns the requirement (no separate
 Wave 0 plan — scaffolds ride the owning task's first commit).
 
-- [ ] `apps/voss-app/src/org/live/__tests__/sidecarCommand.test.ts` — VLIVE-01 frontend `invoke('start_voss_serve')` contract (mocked invoke), handshake shape `{port:number, token:string}` (owned by Plan 01)
-- [ ] `apps/voss-app/src/org/live/__tests__/clientBuild.test.ts` — VLIVE-02 `buildVossClientFromHandshake` adapter: createSession string→`{id}` wrap; baseUrl `http://127.0.0.1:<port>` (owned by Plan 02)
-- [ ] `apps/voss-app/src/pane/__tests__/ProtocolPane.test.tsx` — VLIVE-04/05/07 transcript rows, generic fallback, inline gate, boot/ended/error states (owned by Plan 03; extended by Plans 04, 05)
-- [ ] `apps/voss-app/src/org/cockpit/__tests__/serverSessions.test.ts` — VLIVE-06 session-list signal + attach handler (owned by Plan 04)
-- [ ] `apps/voss-app/src/org/live/__tests__/liveSpine.ac.test.ts` — VLIVE-08 hermetic AC suite, gated on `VOSS_AC_LIVE=1`, spawns real `voss serve` stub provider (owned by Plan 06)
-- [ ] Rust: extend `crates/voss-app-core/src/sidecar.rs` `#[cfg(test)] mod tests` with `reuse_if_alive` + `cwd_validation` gated cases (owned by Plan 01)
+- [x] `apps/voss-app/src/org/live/__tests__/sidecarCommand.test.ts` — VLIVE-01 frontend `invoke('start_voss_serve')` contract (mocked invoke), handshake shape `{port:number, token:string}` (owned by Plan 01)
+- [x] `apps/voss-app/src/org/live/__tests__/clientBuild.test.ts` — VLIVE-02 `buildVossClientFromHandshake` adapter: createSession string→`{id}` wrap; baseUrl `http://127.0.0.1:<port>` (owned by Plan 02)
+- [x] `apps/voss-app/src/pane/__tests__/ProtocolPane.test.tsx` — VLIVE-04/05/07 transcript rows, generic fallback, inline gate, boot/ended/error states (owned by Plan 03; extended by Plans 04, 05)
+- [x] `apps/voss-app/src/org/cockpit/__tests__/serverSessions.test.ts` — VLIVE-06 session-list signal + attach handler (owned by Plan 04)
+- [x] `apps/voss-app/src/org/live/__tests__/liveSpine.ac.test.ts` — VLIVE-08 hermetic AC suite, gated on `VOSS_AC_LIVE=1`, spawns real `voss serve` stub provider (owned by Plan 06)
+- [x] Rust: extend `crates/voss-app-core/src/sidecar.rs` `#[cfg(test)] mod tests` with `reuse_if_alive` + `cwd_validation` gated cases (owned by Plan 01)
 
 Existing infrastructure (`sseClient.test.ts`, `attentionQueue.test.tsx`,
 `runCommandBar.test.tsx`, `mockSseStream.ts`, the gated sidecar spike test)

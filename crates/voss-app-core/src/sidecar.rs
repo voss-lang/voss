@@ -63,6 +63,25 @@ pub fn python_path() -> String {
     "python3".to_string()
 }
 
+/// T-V15-01: canonicalize and validate a webview-supplied workspace `cwd`
+/// before it becomes a process-spawn argument. With empty `allowed_roots`,
+/// any existing directory is accepted (single-user local default); otherwise
+/// the canonical path must equal or descend from one of the roots.
+pub fn validate_workspace_cwd(
+    cwd: &str,
+    allowed_roots: &[std::path::PathBuf],
+) -> Result<std::path::PathBuf, String> {
+    let canonical = std::fs::canonicalize(cwd)
+        .map_err(|_| "workspace path does not exist".to_string())?;
+    if !canonical.is_dir() {
+        return Err("workspace path is not a directory".to_string());
+    }
+    if !allowed_roots.is_empty() && !allowed_roots.iter().any(|root| canonical.starts_with(root)) {
+        return Err("workspace path is outside allowed roots".to_string());
+    }
+    Ok(canonical)
+}
+
 /// Spawn `voss serve --port 0` in `cwd` and complete the startup handshake.
 ///
 /// litellm's import tree cold-compiles in ~45s on first run (warm ~15s), so
@@ -218,6 +237,76 @@ mod tests {
             assert!(!alive, "voss serve pid {pid} still alive after shutdown");
 
             let _ = std::fs::remove_dir_all(&cwd);
+        });
+    }
+
+    /// V15-01: cwd validation (T-V15-01) — pure path checks, no spawn, ungated.
+    #[test]
+    fn cwd_validation() {
+        assert!(validate_workspace_cwd("/definitely/not/a/real/path/xyz", &[]).is_err());
+
+        let dir_a = std::env::temp_dir().join(format!("voss-cwd-valid-a-{}", uuid::Uuid::new_v4()));
+        let dir_b = std::env::temp_dir().join(format!("voss-cwd-valid-b-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir_a).unwrap();
+        std::fs::create_dir_all(&dir_b).unwrap();
+
+        // Empty roots: any existing directory is accepted (canonicalized).
+        let ok = validate_workspace_cwd(dir_a.to_str().unwrap(), &[]).expect("existing dir ok");
+        assert!(ok.is_dir());
+
+        // A path outside every allowed root is rejected; inside its root passes.
+        let canon_b = std::fs::canonicalize(&dir_b).unwrap();
+        assert!(validate_workspace_cwd(dir_a.to_str().unwrap(), &[canon_b.clone()]).is_err());
+        assert!(validate_workspace_cwd(dir_b.to_str().unwrap(), &[canon_b]).is_ok());
+
+        let _ = std::fs::remove_dir_all(&dir_a);
+        let _ = std::fs::remove_dir_all(&dir_b);
+    }
+
+    /// V15-01 reuse-if-alive sentinel proof: different cwds spawn different
+    /// server processes, and after kill+reap `pid()` returns `None` — the
+    /// stale-map signal `start_voss_serve` keys respawn on (Pitfall 5).
+    ///
+    /// Heavy (real server spawns): gated exactly like the spike test.
+    #[test]
+    fn reuse_if_alive() {
+        if std::env::var("VOSS_SIDECAR_SPIKE").as_deref() != Ok("1") {
+            eprintln!("skipping reuse_if_alive (set VOSS_SIDECAR_SPIKE=1)");
+            return;
+        }
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let cwd_a = std::env::temp_dir().join(format!("voss-reuse-a-{}", uuid::Uuid::new_v4()));
+            let cwd_b = std::env::temp_dir().join(format!("voss-reuse-b-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&cwd_a).unwrap();
+            std::fs::create_dir_all(&cwd_b).unwrap();
+
+            let serve_a = spawn_voss_serve(&python_path(), &cwd_a)
+                .await
+                .expect("spawn voss serve (cwd A)");
+            let pid_a = serve_a.pid().expect("pid A");
+
+            let mut serve_b = spawn_voss_serve(&python_path(), &cwd_b)
+                .await
+                .expect("spawn voss serve (cwd B)");
+            let pid_b = serve_b.pid().expect("pid B");
+            assert_ne!(pid_a, pid_b, "different cwds must spawn different servers");
+
+            // Kill + reap B in place (same-module access to the private child),
+            // then assert the stale-entry sentinel: pid() is None after reap.
+            let _ = serve_b.child.start_kill();
+            let _ = serve_b.child.wait().await;
+            assert!(
+                serve_b.pid().is_none(),
+                "pid() must return None after the child is reaped"
+            );
+
+            serve_a.shutdown().await;
+            let _ = std::fs::remove_dir_all(&cwd_a);
+            let _ = std::fs::remove_dir_all(&cwd_b);
         });
     }
 }

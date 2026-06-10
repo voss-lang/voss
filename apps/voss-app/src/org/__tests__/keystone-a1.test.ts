@@ -25,9 +25,9 @@
 import { describe, it, expect } from 'vitest';
 // Node builtins are resolved by vitest at runtime; this app's tsconfig has no
 // @types/node, so declare the tiny surface we use locally to keep `tsc` clean.
-// @ts-expect-error node:fs has no types in this tsconfig (runtime-only, vitest provides it)
+// @ts-ignore node:fs may lack types in this tsconfig (runtime-only, vitest provides it)
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
-// @ts-expect-error node:path has no types in this tsconfig (runtime-only, vitest provides it)
+// @ts-ignore node:path may lack types in this tsconfig (runtime-only, vitest provides it)
 import { join, dirname, basename } from 'node:path';
 declare const process: { cwd(): string };
 

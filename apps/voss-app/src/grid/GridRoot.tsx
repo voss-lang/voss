@@ -18,11 +18,18 @@ import {
   type LayoutPreset,
 } from './layoutPresets';
 import { markStructuralChange } from './sync';
+import {
+  destroyPaneSession,
+  reapOrphanPaneSessions,
+} from '../pane/paneSessionRegistry';
 import { applyLoadedLayout } from './layoutCommands';
 import { applySessionFile } from './sessionCommands';
 import type { LayoutFile } from './layoutStorage';
 import type { SessionFile } from './sessionStorage';
-import SplitNodeView, { type CloseUI } from './SplitNode';
+import SplitNodeView, {
+  type CloseUI,
+  type NativeSessionRecord,
+} from './SplitNode';
 import type { AgentConfig } from '../pane/pty-ipc';
 import { requestCloseGated } from './CloseConfirmBanner';
 import type { Dims } from './DragHandle';
@@ -135,6 +142,8 @@ export default function GridRoot(props: {
    */
   active?: () => boolean;
   agentConfigByPaneId?: Record<string, AgentConfig>;
+  /** V15-03: per-pane native session map — leaves render ProtocolPane. */
+  nativeSessionByPaneId?: Record<string, NativeSessionRecord>;
   workspacePath?: string;
   onFocusChange?: (paneId: string) => void;
   onLeafCountChange?: (count: number) => void;
@@ -202,6 +211,7 @@ export default function GridRoot(props: {
    * voss-app-solid-produce-no-structuredclone).
    */
   const applyPresetToStore = (preset: LayoutPreset) => {
+    const before = collectLeaves(store.root).map((l) => l.id);
     setStore(
       produce((s) => {
         const leaves: PaneLeaf[] = collectLeaves(s.root).map(
@@ -211,6 +221,9 @@ export default function GridRoot(props: {
       }),
     );
     // Pane ids preserved; mirror the new geometry to the Rust side once.
+    // Root replacement remounts panes — sessions survive via adoption; reap
+    // any id the new tree dropped (defensive: presets preserve all ids).
+    reapOrphanPaneSessions(before, collectLeaves(store.root).map((l) => l.id));
     markStructuralChange(store);
     props.onLayoutChange?.(preset);
   };
@@ -224,6 +237,7 @@ export default function GridRoot(props: {
    */
   const applyLoadedLayoutToStore = (file: LayoutFile) => {
     let nextActive: ActiveLayout = 'custom';
+    const before = collectLeaves(store.root).map((l) => l.id);
     setStore(
       produce((s) => {
         const leaves: PaneLeaf[] = collectLeaves(s.root).map(
@@ -235,6 +249,9 @@ export default function GridRoot(props: {
         nextActive = result.activeLayout;
       }),
     );
+    // Root replacement — reap sessions whose pane id left the tree (A4-04
+    // guarantees none today; this keeps any future remap leak-proof).
+    reapOrphanPaneSessions(before, collectLeaves(store.root).map((l) => l.id));
     markStructuralChange(store);
     props.onLayoutChange?.(nextActive);
   };
@@ -418,6 +435,11 @@ export default function GridRoot(props: {
   onCleanup(() => {
     window.removeEventListener('keydown', onKey);
     window.removeEventListener('resize', onResize);
+    // True workspace teardown (tab SWITCH is display:none and never disposes
+    // this component — D-01): kill every live pane session this grid owns.
+    for (const leaf of collectLeaves(store.root)) {
+      destroyPaneSession(leaf.id);
+    }
   });
 
   return (
@@ -441,6 +463,7 @@ export default function GridRoot(props: {
           prefixActive={props.prefixActive}
           prefixReserved={props.prefixReserved}
           agentConfigByPaneId={props.agentConfigByPaneId}
+          nativeSessionByPaneId={props.nativeSessionByPaneId}
           workspacePath={props.workspacePath}
           paneDrag={paneDrag}
         />

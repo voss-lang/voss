@@ -2,6 +2,10 @@
 export interface ExitBannerProps {
   exitCode: number;
   onRestart: () => void;
+  /** V15 D-11: override message (e.g. "[session ended]"); default "[exited {code}]". */
+  message?: string;
+  /** V15 D-11: hide Restart for server-death (default true = current behavior). */
+  showRestart?: boolean;
 }
 
 type Tier = 'ok' | 'warn' | 'err';
@@ -17,15 +21,19 @@ export default function ExitBanner(props: ExitBannerProps) {
   return (
     <div class="exit-banner">
       <span class={`eb-dot ${t()}`}>●</span>
-      <span class={`eb-msg ${t()}`}>[exited {props.exitCode}]</span>
+      <span class={`eb-msg ${t()}`}>
+        {props.message ?? `[exited ${props.exitCode}]`}
+      </span>
       <span class="eb-spacer" />
-      <button
-        class="eb-restart"
-        type="button"
-        onClick={() => props.onRestart()}
-      >
-        Restart
-      </button>
+      {props.showRestart !== false && (
+        <button
+          class="eb-restart"
+          type="button"
+          onClick={() => props.onRestart()}
+        >
+          Restart
+        </button>
+      )}
     </div>
   );
 }

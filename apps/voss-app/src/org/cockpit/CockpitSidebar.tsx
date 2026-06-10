@@ -14,12 +14,21 @@
 //      clicking reveals the full SessionTreePanel in a collapsible so its
 //      data-node-id tree stays reachable.
 
-import { For, Show, createSignal } from 'solid-js';
+import { For, Show, createEffect, createSignal } from 'solid-js';
 import type { RunData } from '../types';
 import type { SwarmReconcileResult } from '../swarmReconcile';
+import type { VossClient } from '../../../../../sdk/typescript/src/client/rest';
 import { rosterRows, type RosterRow } from '../panels/RosterPanel';
 import { cardToPane } from '../model/bridge';
 import SessionTreePanel from '../panels/SessionTreePanel';
+import {
+  refreshSessions,
+  serverSessions,
+  sessionAgeLabel,
+  sessionId,
+  sessionTitle,
+} from './serverSessions';
+import './serverSessions.css';
 
 // COPIED from RosterPanel.tsx (private helper; copy not import — the GateBar
 // budgetColor precedent).
@@ -62,8 +71,20 @@ interface ExternalRow {
 export default function CockpitSidebar(props: {
   data: RunData | null;
   swarm: SwarmReconcileResult;
+  /** V15-05: live sidecar client — the "Server sessions" section is hidden
+   *  entirely without it (nothing to list). */
+  vossClient?: VossClient;
+  /** V15-05: Attach action → App attachSession/openAttachedPane seam. */
+  onAttach?: (sessionId: string) => void;
 }) {
   const [sessionsOpen, setSessionsOpen] = createSignal(false);
+  const [serverSessionsOpen, setServerSessionsOpen] = createSignal(false);
+
+  // D-04: refresh the honest GET /session mirror whenever the section opens.
+  createEffect(() => {
+    const client = props.vossClient;
+    if (serverSessionsOpen() && client) void refreshSessions(client);
+  });
 
   const nodes = () => props.data?.session_tree.nodes ?? [];
   const roster = () => (props.data ? rosterRows(props.data) : []);
@@ -197,6 +218,54 @@ export default function CockpitSidebar(props: {
             </Show>
           </>
         )}
+      </Show>
+
+      {/* 4 — Server sessions (V15-05, D-04/D-05): honest GET /session mirror,
+          newest first, unfiltered. Hidden entirely without a live client. */}
+      <Show when={props.vossClient}>
+        <div
+          class="cockpit-sect"
+          role="button"
+          aria-expanded={serverSessionsOpen()}
+          onClick={() => setServerSessionsOpen((o) => !o)}
+          style={{ cursor: 'pointer' }}
+        >
+          Server sessions {serverSessionsOpen() ? '▾' : '▸'}
+        </div>
+        <Show when={serverSessionsOpen()}>
+          <Show
+            when={serverSessions().length > 0}
+            fallback={
+              <div class="cockpit-sidebar__empty">No previous sessions</div>
+            }
+          >
+            <div class="cockpit-server-session-list">
+              <For each={serverSessions()}>
+                {(info) => (
+                  <Show when={sessionId(info)}>
+                    <div class="cockpit-server-session-row">
+                      <span class="css-row__id">
+                        {sessionId(info).slice(0, 8)}
+                      </span>
+                      <span class="css-row__title">{sessionTitle(info)}</span>
+                      <span class="css-row__age">{sessionAgeLabel(info)}</span>
+                      <button
+                        type="button"
+                        class="css-row__attach"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          props.onAttach?.(sessionId(info));
+                        }}
+                      >
+                        Attach
+                      </button>
+                    </div>
+                  </Show>
+                )}
+              </For>
+            </div>
+          </Show>
+        </Show>
       </Show>
     </>
   );

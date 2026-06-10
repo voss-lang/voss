@@ -39,6 +39,8 @@ import {
   refreshRun,
 } from '../orgStore';
 import { selectedCardId, setSelectedCardId } from '../selection';
+import type { FollowUpClient } from '../feedbackWritePath';
+import type { VossClient } from '../../../../../sdk/typescript/src/client/rest';
 import { liveLabel } from '../live/sseClient';
 import { cardsFromRunData } from '../boardDerive';
 import { reconcileSwarm, type SwarmReconcileResult } from '../swarmReconcile';
@@ -57,6 +59,12 @@ const CockpitShell: Component<{
   cwd: string;
   cliBinary: string;
   onClose: () => void;
+  /** V15-02: live follow-up write client, forwarded to the CardDrawer. */
+  followUpClient?: FollowUpClient;
+  /** V15-05: live sidecar client for the sidebar "Server sessions" section. */
+  vossClient?: VossClient;
+  /** V15-05: Attach action — App attachSession/openAttachedPane seam. */
+  onAttach?: (sessionId: string) => void;
 }> = (props) => {
   const [pickerOpen, setPickerOpen] = createSignal(false);
   const [swarmManifest, setSwarmManifest] = createSignal<unknown>(null);
@@ -153,7 +161,12 @@ const CockpitShell: Component<{
         <div class="cockpit-grid">
           {/* 1 — Team sidebar (mockup .sidebar) */}
           <aside class="cockpit-sidebar" aria-label="Team sidebar" tabindex={0}>
-            <CockpitSidebar data={runData()} swarm={swarm()} />
+            <CockpitSidebar
+              data={runData()}
+              swarm={swarm()}
+              vossClient={props.vossClient}
+              onAttach={props.onAttach}
+            />
           </aside>
 
           {/* 2/3 — Main column: run header + board + horizontal timeline */}
@@ -292,7 +305,7 @@ const CockpitShell: Component<{
 
           {/* 4 — Card detail drawer (mockup .drawer) */}
           <div class="cockpit-drawer" aria-label="Card detail" tabindex={0}>
-            <CardDrawer />
+            <CardDrawer followUpClient={props.followUpClient} />
           </div>
 
           {/* 5 — Gate bar */}

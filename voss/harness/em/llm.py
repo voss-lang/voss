@@ -6,7 +6,10 @@ and temperature=0.0. On ParseError or parsed=None, returns a Noop fallback
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from voss.template_render import render_package_template
+from voss.harness.prompt_override import default_runtime_vars, load_prompt
 from voss_runtime.exceptions import ParseError
 from voss_runtime.providers.base import ModelProvider
 
@@ -27,6 +30,7 @@ async def em_plan(
     idea: str,
     snapshot: str,
     roster_descriptions: dict[str, str] | None = None,
+    cwd: Path | None = None,
 ) -> EMPlanResponse:
     """Call the EM LLM and parse the structured response.
 
@@ -44,10 +48,19 @@ async def em_plan(
         f"{roster_text}"
     )
 
+    # Prompt resolved at load time so a project copy under .voss/prompts/
+    # is honored; absent copy is byte-identical to EM_SYSTEM (R5). Callers
+    # with a real workspace root pass cwd; None falls back to process cwd.
+    prompt_root = (cwd or Path.cwd()).resolve()
+    system = load_prompt(
+        "em_system",
+        cwd=prompt_root,
+        runtime_vars=default_runtime_vars("em", prompt_root),
+    )
     try:
         resp = await provider.complete(
             messages=[
-                {"role": "system", "content": EM_SYSTEM},
+                {"role": "system", "content": system},
                 {"role": "user", "content": user_msg},
             ],
             model=model,

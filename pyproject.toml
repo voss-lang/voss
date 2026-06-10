@@ -85,6 +85,8 @@ voss = [
     "grammar.lark",
     "py.typed",
     "templates/init/*",
+    "templates/docs/*",
+    "templates/prompts/*",
     "templates/audit/*",
     "templates/code/*",
     "templates/eval/*",
@@ -104,6 +106,7 @@ markers = [
     "slow: takes > 1s",
     "t1: T1 acceptance suite (run with -m t1)",
     "acceptance: SPEC-level acceptance contract tests",
+    "integration: cross-process / server integration tests",
 ]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"

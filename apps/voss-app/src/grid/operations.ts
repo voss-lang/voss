@@ -10,6 +10,7 @@ import {
 } from './tree';
 import { simulateSplitViolates } from './geometry';
 import { markStructuralChange } from './sync';
+import { destroyPaneSession } from '../pane/paneSessionRegistry';
 
 /**
  * Structural tree mutations (GRD-02) with the 20×5 floor guard (GRD-05) and
@@ -128,6 +129,7 @@ export function forkFocused(store: GridStore, geom?: GridGeom): void {
 
 /** ⌘W — close: sibling expands + focus moves; last pane respawns (D-04). */
 export function closeFocused(store: GridStore): void {
+  const closedId = store.focusedId;
   const res = closeLeaf(store.root, store.focusedId);
   if (res.root === null) {
     const fresh = makePane();
@@ -135,6 +137,8 @@ export function closeFocused(store: GridStore): void {
     store.focusedId = fresh.id;
     recomputeIndices(store.root);
     markStructuralChange(store);
+    // A real close is THE pane-session kill path (sessions survive remounts).
+    destroyPaneSession(closedId);
     return;
   }
   store.root = res.root;
@@ -142,6 +146,8 @@ export function closeFocused(store: GridStore): void {
   recomputeIndices(store.root);
   balanceRatios(store.root); // remaining panes re-spread evenly (Warp)
   markStructuralChange(store);
+  // Destroy only if the leaf actually left the tree (unknown-id no-op guard).
+  if (!findLeaf(store.root, closedId)) destroyPaneSession(closedId);
 }
 
 /** ⌘= — Warp locked-tiling equalize: every leaf the same size on its axis. */

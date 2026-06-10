@@ -1,0 +1,386 @@
+/* V15-03 — Structured Protocol Pane (V15-UI-SPEC §1-2).
+ * Token vocabulary only (variant-b.css) — no raw hex. Variant B: radius 0.
+ * Plan 04/05 shells included (.proto-permission-gate buttons, .proto-boot,
+ * .proto-spawn-error, .proto-ended-row, .statusbar-live-indicator) so later
+ * plans only fill behavior. Animations rely on the shell-wide reduced-motion
+ * kill switch — no per-rule !important. */
+
+/* §1 — container */
+.protocol-pane {
+  overflow-y: auto;
+  height: 100%;
+  padding: 8px 12px;
+  background: var(--bg-0);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.62;
+  scrollbar-color: var(--bg-3) transparent;
+  user-select: text;
+}
+
+/* §2a — task header row (user event) */
+.proto-task-hdr {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.proto-task-hdr__glyph {
+  color: var(--focus);
+  font-size: 11px;
+}
+.proto-task-hdr__text {
+  color: var(--fg-0);
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
+/* §2b — tool line row (collapsed default, D-07) */
+.proto-tool-row {
+  padding: 4px 0;
+  cursor: pointer;
+  user-select: none;
+}
+.proto-tool-row__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.proto-tool-row__glyph--pending {
+  color: var(--tool);
+}
+.proto-tool-row__glyph--ok {
+  color: var(--accent-green);
+}
+.proto-tool-row__glyph--error {
+  color: var(--accent-red);
+}
+.proto-tool-row__name {
+  color: var(--fg-1);
+  font-weight: 400;
+}
+.proto-tool-row__summary {
+  color: var(--fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 48ch;
+}
+.proto-tool-row__state {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.proto-tool-row__state--pending {
+  color: var(--fg-3);
+}
+.proto-tool-row__state--ok {
+  color: var(--accent-green);
+}
+.proto-tool-row__state--error {
+  color: var(--accent-red);
+}
+.proto-tool-row__chevron {
+  color: var(--fg-3);
+  font-size: 10px;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+.proto-tool-row--expanded .proto-tool-row__expanded-body {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 0; /* Variant B */
+  padding: 8px;
+  margin-top: 4px;
+  width: 100%;
+  white-space: pre-wrap;
+  color: var(--fg-1);
+  font-size: 11px;
+  user-select: text;
+}
+
+/* §2c — plan row */
+.proto-plan-row {
+  padding: 4px 0 8px;
+  color: var(--fg-2);
+  white-space: pre-wrap;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.5;
+  border-left: 2px solid var(--border-bright);
+  padding-left: 8px;
+  margin: 4px 0;
+}
+.proto-plan-conf {
+  display: inline-block;
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+}
+.proto-plan-conf--low {
+  color: var(--accent-amber);
+}
+
+/* §2d — stream block (growing / settled) */
+.proto-stream-block {
+  white-space: pre-wrap;
+  color: var(--fg-0);
+  padding: 4px 0;
+}
+.proto-stream-block--settled {
+  color: var(--fg-1);
+}
+.proto-stream-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  background: var(--accent-cyan);
+  vertical-align: text-bottom;
+  animation: proto-cursor-blink 1.1s step-end infinite;
+}
+
+/* §2e — final row */
+.proto-final-row {
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.proto-final-row__text {
+  color: var(--fg-0);
+  white-space: pre-wrap;
+}
+.proto-final-row__meta {
+  color: var(--fg-3);
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+/* §2f — thinking row */
+.proto-thinking-row {
+  color: var(--fg-3);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* §2g — generic fallback row */
+.proto-generic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--fg-3);
+  font-size: 10px;
+}
+.proto-generic-row__type {
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+}
+.proto-generic-row__type--amber {
+  color: var(--accent-amber);
+}
+.proto-generic-row__summary {
+  color: var(--fg-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* §3 — inline permission gate (placeholder here; Plan 04 wires buttons) */
+.proto-permission-gate {
+  margin: 8px 0;
+  border: 1px solid color-mix(in srgb, var(--accent-red) 50%, transparent);
+  background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+  padding: 8px 12px;
+  border-radius: 0; /* Variant B */
+}
+.proto-permission-gate__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--accent-red) 80%, var(--fg-0));
+}
+.proto-permission-gate__args {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  margin: 4px 0 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.proto-permission-gate__btns {
+  display: flex;
+  gap: 8px;
+}
+.proto-pgbtn {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  padding: 4px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-bright);
+  color: var(--fg-1);
+  cursor: pointer;
+  border-radius: 0; /* Variant B */
+}
+.proto-pgbtn--deny {
+  border-color: color-mix(in srgb, var(--accent-red) 50%, transparent);
+  color: color-mix(in srgb, var(--accent-red) 80%, var(--fg-0));
+}
+.proto-pgbtn--allow-scope {
+  border-color: var(--border-bright);
+}
+.proto-pgbtn:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.proto-pgbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.proto-permission-gate--resolved {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.proto-permission-gate--resolved .proto-permission-gate__btns {
+  display: none;
+}
+.proto-permission-gate__resolved-label {
+  font-size: 10px;
+  color: var(--fg-3);
+}
+
+/* §4 — boot placeholder shell (D-10; Plan 04/05 behavior) */
+.proto-boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  padding: 24px;
+  background: var(--bg-0);
+  color: var(--fg-2);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+.proto-boot__label {
+  color: var(--fg-1);
+}
+.proto-boot__elapsed {
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.proto-boot__sub {
+  color: var(--fg-3);
+  font-size: 11px;
+}
+
+/* §5 — spawn-failure error state shell (D-12) */
+.proto-spawn-error {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  height: 100%;
+  background: var(--bg-0);
+}
+.proto-spawn-error__heading {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-0);
+}
+.proto-spawn-error__stderr {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  max-height: 200px;
+}
+.proto-spawn-error__retry {
+  align-self: flex-start;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 8px 16px;
+  background: var(--focus);
+  color: var(--fg-0);
+  border: none;
+  cursor: pointer;
+  border-radius: 0; /* Variant B */
+}
+.proto-spawn-error__retry:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* §6 — ended banner row shell (D-11; rendered inline in transcript flow) */
+.proto-ended-row {
+  margin-top: 8px;
+}
+.pane--proto-ended {
+  opacity: 0.75;
+  transition: opacity 200ms ease;
+}
+html.reduced-motion .pane--proto-ended {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane--proto-ended {
+    transition: none;
+  }
+}
+
+/* §8 — statusbar live indicator shell */
+.statusbar-live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-cyan);
+}
+.statusbar-live-indicator .sli__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  animation: proto-pulse 1.2s infinite;
+}
+.statusbar-live-indicator--snapshot {
+  color: var(--fg-3);
+}
+.statusbar-live-indicator--snapshot .sli__dot {
+  background: var(--fg-3);
+  animation: none;
+}
+
+/* Animations (covered by the VCKP-10 reduced-motion kill switches) */
+@keyframes proto-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes proto-cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}

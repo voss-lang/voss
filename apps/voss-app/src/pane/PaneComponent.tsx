@@ -1,40 +1,34 @@
 import { onMount, onCleanup, createSignal, Show } from 'solid-js';
-import { Terminal, type ILink, type ILinkProvider } from '@xterm/xterm';
-import { CanvasAddon } from '@xterm/addon-canvas';
-import { FitAddon } from '@xterm/addon-fit';
-import { SearchAddon } from '@xterm/addon-search';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
-import { PtyTransport, type AgentConfig, type BudgetState } from './pty-ipc';
+import { type AgentConfig, type BudgetState } from './pty-ipc';
 import { isKnownAgentCli } from './agentDetect';
-import { registerPaneProc, unregisterPaneProc } from './procRegistry';
-import { registerPaneBudget, unregisterPaneBudget } from './budgetRegistry';
-import { adoptionByPaneId } from './adoptionRegistry';
-import { registerPaneContext, unregisterPaneContext } from './contextRegistry';
-import { maybeLatchAgent, unregisterAgentPane } from './agentPaneRegistry';
 import BudgetBar from '../grid/BudgetBar';
 import BudgetPopover from '../grid/BudgetPopover';
 import PasteGuard from './PasteGuard';
 import ExitBanner from './ExitBanner';
+import ProtocolPane from './ProtocolPane';
 import FindBar from './FindBar';
 import {
-  registerScrollbackProvider,
-  unregisterScrollbackProvider,
-} from './scrollbackRegistry';
+  getPaneSession,
+  type PaneSession,
+  type PaneSink,
+} from './paneSessionRegistry';
+import {
+  adoptPaneSession,
+  createPaneSession,
+  releasePaneSession,
+  reportPaneProc,
+  respawnPaneSession,
+  spawnPaneSession,
+} from './paneSession';
 import {
   resolvePane,
   cardToPane,
   cardToSessionNode,
 } from '../org/model/bridge';
 import { requestOpenInReview } from '../org/selection';
-import {
-  getCurrentXtermTheme,
-  registerTerminal,
-  unregisterTerminal,
-  applyAppearanceToTerminal,
-} from '../themes/themeRuntime';
+import { applyAppearanceToTerminal } from '../themes/themeRuntime';
 import {
   loadAppearanceSettings,
   subscribeAppearanceSettings,
@@ -59,6 +53,11 @@ export interface PaneProps {
   workspacePath?: string;
   /** Grid supplies PaneHeader; hide this pane's duplicate chrome row. */
   embeddedInGrid?: boolean;
+  /** V15-03 (VLIVE-04): native server session — when set, the pane body is a
+   *  structured ProtocolPane and NO PTY is spawned (discriminator). */
+  nativeSessionId?: string;
+  nativeBaseUrl?: string;
+  nativeToken?: string;
 }
 
 function basename(p: string): string {
@@ -66,31 +65,25 @@ function basename(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
-type DotState = 'loading' | 'running' | 'exited';
+type DotState = import('./paneSessionRegistry').DotState;
 
 /** D-06 copy/interrupt mode. 'smart' = selection→copy else SIGINT. A8 surfaces UI. */
 type CopyMode = 'smart' | 'copy' | 'sigint';
 
-// OSC8 / file-path link scheme allowlist (T-A2-09).
-const ALLOWED_SCHEMES = ['http:', 'https:', 'mailto:', 'file:'];
-// File-path detection (UI-SPEC §3 link handling).
-const FILE_PATH_RE = /(\/[^\s'"]+|~\/[^\s'"]+|\.[./][^\s'"]+)/g;
-
 export default function PaneComponent(props: PaneProps) {
   let containerRef!: HTMLDivElement;
   let bodyRef!: HTMLDivElement;
-  let term: Terminal | undefined;
-  let fitAddon: FitAddon | undefined;
-  let searchAddon: SearchAddon | undefined;
-  let transport: PtyTransport | undefined;
+  // The live session (Terminal + transport + host element) persists in the
+  // paneSession registry across remounts (drag/swap/layout) — this component
+  // only ADOPTS it. See paneSessionRegistry.ts.
+  let session: PaneSession | undefined;
+  let adoptToken: symbol | undefined;
   let observer: ResizeObserver | undefined;
   let resizeTimer: ReturnType<typeof setTimeout> | undefined;
   let dprMedia: MediaQueryList | undefined;
   let fgPoll: ReturnType<typeof setInterval> | undefined;
   let perfStop = false; // stops the test-only rAF perf probe on cleanup
   let bypassFlag = false; // one-shot ⌘⇧V paste bypass
-  let firstInputFired = false; // A6: one-shot first-input callback guard
-  let lastOscTitleAt = 0; // ms; D-07 OSC-vs-pgid arbitration
   let bellFlashTimer: ReturnType<typeof setTimeout> | undefined;
   let bellBadgeTimer: ReturnType<typeof setTimeout> | undefined;
   let appearanceUnsub: (() => void) | undefined;
@@ -159,20 +152,11 @@ export default function PaneComponent(props: PaneProps) {
     streamDecayTimer = setTimeout(() => setStreaming(false), 3000);
   };
 
-  const updateProc = (name: string) => {
-    setProc(name);
-    const paneId = props.id;
-    if (paneId) {
-      registerPaneProc(paneId, name);
-      maybeLatchAgent(paneId, name);
-    }
-  };
-
   const cwdBase = () => basename(props.cwd ?? '~');
   const shellName = () => props.shell ?? 'shell';
-  const onDpr = () => fitAddon?.fit();
+  const onDpr = () => session?.fitAddon.fit();
 
-  const writeBytes = (b: Uint8Array) => transport?.write(b);
+  const writeBytes = (b: Uint8Array) => session?.transport.write(b);
   const writeStr = (s: string) => writeBytes(new TextEncoder().encode(s));
 
   const playAudibleBell = () => {
@@ -219,105 +203,15 @@ export default function PaneComponent(props: PaneProps) {
     bellFlashTimer = setTimeout(() => setHeaderFlash(false), 200);
   };
 
-  const buildTerminalOptions = (settings: AppearanceSettings) => ({
-    scrollback: 10_000,
-    fontFamily: `"${settings.fontFamily}", "SF Mono", "Menlo", ui-monospace, monospace`,
-    fontSize: settings.fontSize,
-    lineHeight: settings.lineHeight,
-    letterSpacing: settings.letterSpacing,
-    customGlyphs: settings.ligatures,
-    theme: getCurrentXtermTheme(),
-    cursorStyle: settings.cursorShape,
-    cursorBlink: settings.cursorBlink !== 'off',
-    macOptionIsMeta: true,
-    rightClickSelectsWord: false,
-    allowProposedApi: false,
-    linkHandler: {
-      activate: (event: MouseEvent, uri: string) => {
-        if (event.metaKey) openLink(uri);
-      },
-      allowNonHttpProtocols: true,
-    },
-  });
-
   const SEARCH_DECORATIONS = {
     activeMatchBackground: 'rgba(90,124,255,0.35)',
     matchOverviewRuler: 'rgba(90,124,255,0.35)',
     activeMatchColorOverviewRuler: 'rgba(90,124,255,0.35)',
   } as const;
 
-  const openLink = (uri: string) => {
-    try {
-      const u = new URL(uri);
-      if (ALLOWED_SCHEMES.includes(u.protocol)) {
-        void invoke('open_url', { url: uri });
-      }
-      // Any other scheme is silently rejected (T-A2-09).
-    } catch {
-      /* not a valid URL — ignore */
-    }
-  };
-
-  const filePathLinkProvider = (t: Terminal): ILinkProvider => ({
-    provideLinks(y, callback) {
-      const line = t.buffer.active.getLine(y - 1);
-      if (!line) return callback(undefined);
-      const text = line.translateToString(true);
-      const links: ILink[] = [];
-      for (const m of text.matchAll(FILE_PATH_RE)) {
-        const idx = m.index ?? 0;
-        links.push({
-          text: m[0],
-          range: {
-            start: { x: idx + 1, y },
-            end: { x: idx + m[0].length, y },
-          },
-          activate: (e: MouseEvent, path: string) => {
-            if (e.metaKey) void invoke('open_path', { path });
-          },
-        });
-      }
-      callback(links.length ? links : undefined);
-    },
-  });
-
-  const doSpawn = async (t: Terminal) => {
-    if (props.agentConfig) {
-      // VCKP-13: the managed toggle routes to the SANDBOXED command — never a
-      // no-op security switch. Unmanaged configs keep the unchanged spawnAgent.
-      if (props.agentConfig.managed) {
-        await transport!.spawnManagedAgent({
-          rows: t.rows,
-          cols: t.cols,
-          cwd: props.cwd,
-          paneId: props.id ?? '',
-          workspacePath: props.workspacePath,
-          ...props.agentConfig,
-          scope: props.agentConfig.scope ?? props.cwd ?? '',
-          tier: props.agentConfig.tier ?? 'B',
-        });
-      } else {
-        await transport!.spawnAgent({
-          rows: t.rows,
-          cols: t.cols,
-          cwd: props.cwd,
-          paneId: props.id ?? '',
-          workspacePath: props.workspacePath,
-          ...props.agentConfig,
-        });
-      }
-    } else {
-      await transport!.spawn({ rows: t.rows, cols: t.cols, cwd: props.cwd });
-    }
-    setDot('running');
-  };
-
   const restart = async () => {
-    if (!term) return;
-    transport?.kill();
-    setExitCode(null);
-    setDot('loading');
-    await doSpawn(term); // scrollback preserved — Terminal NOT disposed
+    if (!session) return;
+    await respawnPaneSession(session); // scrollback preserved — same Terminal
   };
 
   const keyHandler = (e: KeyboardEvent): boolean => {
@@ -332,7 +226,7 @@ export default function PaneComponent(props: PaneProps) {
     }
     // ⌘⇧K — clear scrollback.
     if (e.shiftKey && k === 'k') {
-      term?.clear();
+      session?.term.clear();
       return false;
     }
     // ⌘F — open find bar.
@@ -342,11 +236,11 @@ export default function PaneComponent(props: PaneProps) {
     }
     // ⌘C — selection ⇒ copy; no selection ⇒ SIGINT (D-06, configurable).
     if (!e.shiftKey && k === 'c') {
-      const hasSel = !!term?.hasSelection();
+      const hasSel = !!session?.term.hasSelection();
       if (copyMode !== 'sigint' && hasSel) {
-        const sel = term?.getSelection() ?? '';
+        const sel = session?.term.getSelection() ?? '';
         void navigator.clipboard?.writeText(sel);
-        term?.clearSelection();
+        session?.term.clearSelection();
         return false;
       }
       if (copyMode !== 'copy') {
@@ -370,6 +264,12 @@ export default function PaneComponent(props: PaneProps) {
   };
 
   onMount(async () => {
+    // V15-03: native protocol panes render <ProtocolPane> instead of xterm —
+    // skip terminal/transport setup entirely (the body div is swapped out).
+    if (props.nativeSessionId) {
+      setDot('running');
+      return;
+    }
     let settings = DEFAULT_APPEARANCE_SETTINGS;
     try {
       settings = await loadAppearanceSettings();
@@ -378,120 +278,58 @@ export default function PaneComponent(props: PaneProps) {
       /* use defaults when settings unavailable (tests) */
     }
 
-    term = new Terminal(buildTerminalOptions(settings));
+    // Adopt the existing live session (remount after drag/swap/layout) or
+    // create a fresh one. Only creation spawns — adoption never respawns.
+    const paneId = props.id ?? String(props.index ?? 1);
+    let created = false;
+    session = getPaneSession(paneId);
+    if (!session) {
+      created = true;
+      session = createPaneSession({
+        paneId,
+        cwd: props.cwd,
+        agentConfig: props.agentConfig,
+        workspacePath: props.workspacePath,
+        restoredScrollback: props.restoredScrollback,
+        settings,
+      });
+    }
+    const s = session;
 
-    fitAddon = new FitAddon();
-    searchAddon = new SearchAddon();
-    term.loadAddon(fitAddon);
-    term.loadAddon(searchAddon);
-    term.loadAddon(new WebLinksAddon());
-    term.open(bodyRef);
-    // D-01 Pitfall 2: CanvasAddon MUST load strictly AFTER term.open().
-    term.loadAddon(new CanvasAddon());
-    fitAddon.fit();
+    const sink: PaneSink = {
+      setDot,
+      setExitCode,
+      setBudget,
+      setProc,
+      bell: () => triggerBell(appearance().bellBehavior),
+      markStreaming,
+      onFirstInput: () => props.onFirstInput?.(),
+    };
+    adoptToken = adoptPaneSession(s, bodyRef, sink, keyHandler, settings);
 
-    const t = term;
-    applyAppearanceToTerminal(t, settings);
-    t.onBell(() => triggerBell(appearance().bellBehavior));
-    t.registerLinkProvider(filePathLinkProvider(t));
-    t.attachCustomKeyEventHandler(keyHandler);
+    // Hydrate component signals from the session's canonical state — the
+    // process may have progressed or exited while detached.
+    setDot(s.dot);
+    setExitCode(s.lastExitCode);
+    if (s.lastBudget) setBudget(s.lastBudget);
+    if (s.lastProc) setProc(s.lastProc);
+
     containerRef.addEventListener('paste', onPaste, true); // capture phase
 
-    transport = new PtyTransport({
-      write: (data, cb) => t.write(data, cb),
-      onExit: (code) => {
-        setDot('exited');
-        setExitCode(code);
-      },
-      onFgProcess: (name) => updateProc(name),
-      onTitle: (title) => {
-        lastOscTitleAt = Date.now();
-        updateProc(title);
-      },
-      onBudgetUpdate: (data) => {
-        setBudget(data);
-        markStreaming(); // V14 chunk C — honest streaming recency signal
-        if (props.id) {
-          registerPaneBudget(props.id, data);
-          // V14-12 (VCKP-12): adopted-agent budget-stop. Adoption happens
-          // AFTER spawn, so the limit is read per-event from the adoption
-          // registry instead of being frozen into the transport opts.
-          const adopted = adoptionByPaneId()[props.id];
-          if (
-            adopted &&
-            adopted.budgetUsd > 0 &&
-            data.cost_usd >= adopted.budgetUsd
-          ) {
-            transport?.kill();
-          }
-        }
-      },
-      onContextUpdate: (data) => {
-        if (props.id) registerPaneContext(props.id, data);
-      },
-      ...(props.agentConfig
-        ? {
-            agentPaneId: props.id,
-            workspacePath: props.workspacePath,
-            // VCKP-13c: budget-kill threshold for managed launches.
-            budgetKillLimitUsd: props.agentConfig.budgetUsd,
-          }
-        : {}),
-    });
-
-    // D-07 primary: OSC 0/2 title → process slot.
-    t.onTitleChange((title) => {
-      lastOscTitleAt = Date.now();
-      updateProc(title);
-    });
-    // Keystrokes → PTY. Fire onFirstInput once for restore-banner dismiss (A6 D-09).
-    t.onData((d) => {
-      if (!firstInputFired && props.onFirstInput) {
-        firstInputFired = true;
-        props.onFirstInput();
-      }
-      writeStr(d);
-    });
-
-    // A6: seed restored scrollback before shell spawns (context only, not re-executed).
-    if (props.restoredScrollback && props.restoredScrollback.length > 0) {
-      t.write(props.restoredScrollback.join('\r\n') + '\r\n');
-    }
-
-    // A6: register scrollback provider — extracts plain text from buffer.normal (D-02/D-03).
-    const paneId = props.id ?? String(props.index ?? 1);
-    registerTerminal(paneId, t);
-    registerScrollbackProvider(paneId, () => {
-      const buf = t.buffer.normal;
-      const lines: string[] = [];
-      const totalRows = buf.length;
-      for (let i = 0; i < totalRows; i++) {
-        const line = buf.getLine(i);
-        if (line) {
-          lines.push(line.translateToString(true));
-        }
-      }
-      // Trim trailing empty lines (xterm pads the buffer to viewport height).
-      while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
-        lines.pop();
-      }
-      return lines;
-    });
-
-    await doSpawn(t);
+    if (created) await spawnPaneSession(s);
 
     appearanceUnsub = subscribeAppearanceSettings((next) => {
       setAppearance(next);
-      applyAppearanceToTerminal(t, next);
+      applyAppearanceToTerminal(s.term, next);
     });
 
     // D-07 fallback: poll pgid only when no recent OSC title (>2s).
     fgPoll = setInterval(() => {
-      if (Date.now() - lastOscTitleAt < 2000) return;
-      transport
-        ?.fgProcess()
+      if (Date.now() - s.lastOscTitleAt < 2000) return;
+      s.transport
+        .fgProcess()
         .then((name) => {
-          if (name) updateProc(name);
+          if (name) reportPaneProc(s, name);
         })
         .catch(() => {});
     }, 500);
@@ -500,8 +338,8 @@ export default function PaneComponent(props: PaneProps) {
     observer = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        fitAddon?.fit();
-        if (term) transport?.resize(term.rows, term.cols);
+        s.fitAddon.fit();
+        s.transport.resize(s.term.rows, s.term.cols);
       }, 150);
     });
     observer.observe(containerRef);
@@ -542,15 +380,10 @@ export default function PaneComponent(props: PaneProps) {
     observer?.disconnect();
     dprMedia?.removeEventListener('change', onDpr);
     containerRef?.removeEventListener('paste', onPaste, true);
-    const paneId = props.id ?? String(props.index ?? 1);
-    unregisterTerminal(paneId);
-    unregisterScrollbackProvider(paneId);
-    if (props.id) unregisterPaneProc(props.id);
-    if (props.id) unregisterPaneContext(props.id);
-    if (props.id) unregisterPaneBudget(props.id);
-    if (props.id) unregisterAgentPane(props.id);
-    transport?.kill();
-    term?.dispose();
+    // The session SURVIVES this unmount (drag/swap/layout rearrange). It is
+    // killed only via destroyPaneSession (real close, orphan reap, workspace
+    // teardown). A stale token (swap re-adopted first) makes this a no-op.
+    if (session && adoptToken) releasePaneSession(session, adoptToken);
   });
 
   const sendPaste = () => {
@@ -562,7 +395,7 @@ export default function PaneComponent(props: PaneProps) {
 
   const closeFind = () => {
     setShowFind(false);
-    term?.focus();
+    session?.term.focus();
   };
 
   const paneClass = () => {
@@ -673,15 +506,29 @@ export default function PaneComponent(props: PaneProps) {
         </button>
       </div>
       </Show>
-      <div ref={bodyRef} class="pane-body" />
+      <Show
+        when={props.nativeSessionId}
+        fallback={<div ref={bodyRef} class="pane-body" />}
+      >
+        <ProtocolPane
+          sessionId={props.nativeSessionId!}
+          baseUrl={props.nativeBaseUrl!}
+          token={props.nativeToken!}
+          onEnded={() => {
+            // D-11: ProtocolPane renders its own inline ended banner — the
+            // header dot reflects the state; no absolute PTY ExitBanner here.
+            setDot('exited');
+          }}
+        />
+      </Show>
 
       <Show when={showFind()}>
         <FindBar
           onNext={(q) =>
-            searchAddon?.findNext(q, { decorations: SEARCH_DECORATIONS })
+            session?.searchAddon.findNext(q, { decorations: SEARCH_DECORATIONS })
           }
           onPrev={(q) =>
-            searchAddon?.findPrevious(q, { decorations: SEARCH_DECORATIONS })
+            session?.searchAddon.findPrevious(q, { decorations: SEARCH_DECORATIONS })
           }
           onClose={closeFind}
         />
@@ -695,7 +542,7 @@ export default function PaneComponent(props: PaneProps) {
         />
       </Show>
 
-      <Show when={exitCode() !== null}>
+      <Show when={exitCode() !== null && !props.nativeSessionId}>
         <ExitBanner exitCode={exitCode() as number} onRestart={restart} />
       </Show>
 

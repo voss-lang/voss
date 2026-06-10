@@ -1,5 +1,17 @@
 import Link from "next/link";
-import { ArrowRight, Boxes, CircleDollarSign, Code2, Database, Network, ShieldCheck, Users, Workflow } from "lucide-react";
+import {
+  ArrowRight,
+  Boxes,
+  CircleDollarSign,
+  Code2,
+  Database,
+  FileCheck2,
+  Network,
+  RefreshCcw,
+  ShieldCheck,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { codeToHtml } from "shiki";
 import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
@@ -75,6 +87,24 @@ const COORDINATION = [
   },
 ] as const;
 
+const LANGUAGE_PROGRESS = [
+  {
+    title: "Failure paths are explicit",
+    body: "Retries, fail-fast gathers, budget fallbacks, and bounded review loops are becoming part of the workflow model instead of hidden control flow.",
+    icon: RefreshCcw,
+  },
+  {
+    title: "Editor help is arriving",
+    body: "Formatting, completions, hover text, and go-to-definition make .voss files easier to read and maintain in normal editor workflows.",
+    icon: FileCheck2,
+  },
+  {
+    title: "Context stays budgeted",
+    body: "The roadmap treats long-running context as a budgeted resource: recent work stays detailed, older work is summarized, and savings must be measurable.",
+    icon: CircleDollarSign,
+  },
+] as const;
+
 const COORD_SAMPLE = `gate done {
   require tests_passed
   require independent_review
@@ -147,6 +177,36 @@ export default async function LanguagePage() {
               className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 font-mono text-sm leading-7 [&_code]:font-mono [&_pre]:!bg-transparent [&_pre]:text-sm [&_pre]:leading-7"
               dangerouslySetInnerHTML={{ __html: sampleHtml }}
             />
+          </div>
+        </section>
+
+        <section className="border-b border-[var(--border)]">
+          <div className="mx-auto max-w-6xl px-6 py-20">
+            <div className="mb-12 max-w-2xl">
+              <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+                Recent direction
+              </p>
+              <h2 className="display mt-3 text-4xl sm:text-5xl">
+                More workflow, <span className="em">less ceremony</span>.
+              </h2>
+              <p className="mt-4 text-[var(--muted)]">
+                The language track is tightening the parts of agent work that usually leak into
+                prompts: failure behavior, editor ergonomics, and context budgets.
+              </p>
+            </div>
+            <div className="grid gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] md:grid-cols-3">
+              {LANGUAGE_PROGRESS.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <article key={item.title} className="bg-[var(--surface)] p-6">
+                    <Icon className="h-6 w-6 text-[var(--accent)]" />
+                    <h3 className="mt-5 text-xl font-medium">{item.title}</h3>
+                    <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.body}</p>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </section>
 

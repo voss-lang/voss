@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Ban, PackageCheck, Milestone, Route, Workflow } from "lucide-react";
+import { Ban, FileText, MessagesSquare, Milestone, PackageCheck, Route, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Footer from "@/components/Footer";
 import Nav from "@/components/Nav";
@@ -11,7 +11,7 @@ import { site } from "@/lib/site";
 export const metadata = pageMetadata({
   title: `Roadmap - ${site.name}`,
   description:
-    "The Voss roadmap: from the bounded harness substrate to a full agent engineering organization layer — board, reviewers, EM loop, audit, and ADE.",
+    "The Voss roadmap: local agent workspaces, managed project instructions, external-agent handoffs, and budget-aware context.",
   path: "/roadmap",
 });
 
@@ -24,37 +24,37 @@ const ROADMAP: {
 }[] = [
   {
     phase: "Shipped",
-    title: "The engineering org core",
+    title: "Bounded harness + engineering org core",
     status: "Built",
-    body: "Session tree + budget fan-out, the board state machine, the Reviewer-A/B split, and the Engineering Manager loop. `voss team run`, `voss board`, and `voss review` compose them into one run.",
+    body: "The CLI harness, scoped tools, project memory, sessions, team roles, board, independent review, and run audit are the current product foundation.",
     icon: PackageCheck,
   },
   {
-    phase: "Shipped",
-    title: "Bounded harness substrate",
-    status: "Built",
-    body: "Plan/edit/auto modes, scoped writes, project memory, resumable sessions, the .voss control language, and the capability + principles layers the org runs on top of.",
-    icon: PackageCheck,
-  },
-  {
-    phase: "Now",
-    title: "Multi-agent chat + live steering",
-    status: "Building",
-    body: "Non-blocking spawn, status, gather, and steer inside `voss chat` and the ADE. Child budget is drawn from the parent, the recursive budget invariant holds, and panels stay quiet by default.",
+    phase: "Preview",
+    title: "Live desktop workspace",
+    status: "In verification",
+    body: "The desktop path is moving from a terminal grid into a live local workspace: structured run views, inline approvals, reconnectable recent work, and honest lifecycle states.",
     icon: Milestone,
   },
   {
+    phase: "Now",
+    title: "Managed project instructions",
+    status: "Building",
+    body: "Voss is adding a sync path for generated workflow docs and project-editable review prompts, so external agents and the harness read the same local instructions.",
+    icon: FileText,
+  },
+  {
     phase: "Next",
-    title: "Audit product + ADE panels",
+    title: "External-agent handoffs",
     status: "Planned",
-    body: "Render the audit as a navigable session tree, with board, roster, reviewer-verdict, budget, and scope panels, blocked-card decision flows, and full run replay.",
-    icon: Route,
+    body: "Adopted tools and external CLI agents should coordinate through clear ownership, identity, and handoff signals without pretending Voss fully controls tools it did not launch.",
+    icon: MessagesSquare,
   },
   {
     phase: "Later",
-    title: "Language as coordination spec",
+    title: "Budget-aware context",
     status: "Sequenced",
-    body: "Stabilize the grammar for principles, team, role, gate, board, review, and memory, with compiler diagnostics clear enough for non-CS users and `voss run <file.voss>` for declared workflows.",
+    body: "Long-running work should keep recent context full, compress older work, and report estimated savings honestly without adding another retrieval system.",
     icon: Workflow,
   },
 ];
@@ -79,12 +79,12 @@ export default function RoadmapPage() {
               Roadmap
             </Badge>
             <h1 className="display mt-5 max-w-4xl text-[clamp(2.5rem,6vw,4.5rem)]">
-              From bounded harness to <span className="em">engineering org</span>.
+              From bounded harness to <span className="em">live agent workspace</span>.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
-              The org core is in: session tree, board, independent review, and the Engineering
-              Manager loop. From here, the work is live steering, the audit-centered ADE, and a
-              stable coordination language — kept local-first the whole way.
+              The org core is in: scoped tools, sessions, board, independent review, and replayable
+              audit. From here, the work is live local supervision, shared project instructions,
+              external-agent handoffs, and context that stays useful as runs get longer.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">

@@ -54,6 +54,12 @@ function mergeOverlay(key: string, patch: LiveOverlayEntry): void {
 
 const [liveLabel, setLiveLabel] = createSignal<'live' | 'snapshot'>('snapshot');
 
+// Session-keyed live-handle set (V15-02): which sessionIds have an actively
+// connected stream. Fixes the multi-session label problem — one stream ending
+// must not read 'snapshot' while another session is still live. Immutable
+// Set copies only (no produce/structuredClone — Pitfall 5).
+const [liveHandles, setLiveHandles] = createSignal<Set<string>>(new Set());
+
 // --- session correlation key --------------------------------------------------
 
 /**
@@ -113,6 +119,23 @@ export interface ConnectLiveStreamArgs {
   sessionId: string;
   token: string;
   /**
+   * The card bound to this stream (Bridge A: the native session id IS the
+   * cardId). Threaded into ingestEvent so permission.updated rows carry a
+   * defined cardId (Pitfall 3 — the event itself has no session field).
+   */
+  cardId?: string;
+  /**
+   * Per-pane sink (V15-02): invoked for EVERY yielded event, after ingest +
+   * overlay. Plan 03 points this at the ProtocolPane transcript.
+   */
+  onEvent?: (ev: AgentEvent) => void;
+  /**
+   * Invoked once when the stream ends for ANY reason (clean end, server
+   * death, abort) — after the label/handle bookkeeping. protocolSessions
+   * derives ended/error states from this.
+   */
+  onEnd?: () => void;
+  /**
    * Test/mock injection: an async-iterable of AgentEvents to consume instead of
    * the real `subscribeToEvents` fetch. When omitted, the real SDK consumer is
    * used with the AbortController's signal.
@@ -140,18 +163,26 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
     subscribeToEvents(args.baseUrl, args.sessionId, args.token, ac.signal);
 
   setLiveLabel('live');
+  setLiveHandles((prev) => new Set([...prev, args.sessionId]));
 
   void (async () => {
     try {
       for await (const ev of stream) {
         if (ac.signal.aborted) break;
-        ingestEvent(ev);
+        ingestEvent(ev, args.cardId ? { cardId: args.cardId } : {});
         applyOverlay(ev);
+        args.onEvent?.(ev);
       }
     } catch {
       // Aborted / ended / network error — degrade to snapshot, never throw.
     } finally {
+      setLiveHandles((prev) => {
+        const s = new Set(prev);
+        s.delete(args.sessionId);
+        return s;
+      });
       setLiveLabel('snapshot');
+      args.onEnd?.();
     }
   })();
 
@@ -163,7 +194,7 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
   };
 }
 
-export { liveLabel, liveOverlay };
+export { liveLabel, liveOverlay, liveHandles };
 
 /**
  * Test-only reset: clears the live overlay and resets the label to its default
@@ -173,4 +204,5 @@ export { liveLabel, liveOverlay };
 export function __resetLiveStream(): void {
   setLiveOverlay({});
   setLiveLabel('snapshot');
+  setLiveHandles(new Set<string>());
 }

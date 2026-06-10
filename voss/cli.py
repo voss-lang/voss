@@ -488,6 +488,39 @@ def init(target: Path, force: bool, project_name: str | None) -> None:
     click.echo(f"initialized voss project at {target}")
 
 
+@main.command("sync")
+@click.option("--dry-run", "dry_run", is_flag=True, default=False)
+@click.option("--force", is_flag=True, default=False)
+def sync_cmd(dry_run: bool, force: bool) -> None:
+    """Regenerate managed docs and the VOSS.md workflow fence. Idempotent."""
+    from voss.harness.voss_md import HashMismatch
+    from voss.sync import sync as run_sync
+
+    try:
+        result = run_sync(Path.cwd(), dry_run=dry_run, force=force)
+    except HashMismatch as exc:
+        raise click.ClickException(
+            f"VOSS.md fence id={exc.fence_id} has drifted from its recorded hash; "
+            f"run `voss memory adopt --id {exc.fence_id}` from the project root "
+            "to accept the edits, then re-run `voss sync`"
+        )
+    except (OSError, UnicodeDecodeError) as exc:
+        raise click.ClickException(f"sync failed: {exc}")
+    for status in result.statuses:
+        click.echo(f"{status.path}: {status.status}")
+    for key, value in result.detected:
+        click.echo(f"project.{key}: {value} (detected)")
+    written = sum(
+        1 for s in result.statuses if s.status in ("written", "fence-updated", "removed")
+    )
+    unchanged = sum(1 for s in result.statuses if s.status == "unchanged")
+    skipped = sum(1 for s in result.statuses if s.status.startswith("skipped"))
+    summary = f"{written} written, {unchanged} unchanged, {skipped} skipped"
+    if dry_run:
+        summary += " (dry-run)"
+    click.echo(summary)
+
+
 @main.command("ast")
 @click.argument("source", type=click.Path(path_type=Path))
 @click.option("--normalize-spans", "normalize_spans", is_flag=True, default=False)

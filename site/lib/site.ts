@@ -10,9 +10,9 @@ export type HarnessFeature = {
 
 export const site = {
   name: "Voss",
-  tagline: "The operating layer for AI engineering teams.",
+  tagline: "A local control plane for coding agents.",
   description:
-    "Voss runs AI coding agents like an engineering team: declared roles, hard budgets, scoped tools, independent review, and a replayable audit of every action. One goal in, audited work out.",
+    "Voss gives coding agents a local control plane: scoped tools, visible live work, approval gates, independent review, and a replayable audit. One goal in, inspected work out.",
   /** Canonical marketing origin (metadataBase, sitemap, robots, llms.txt). */
   url: "https://voss.dev",
   /** Static marketing routes (trailing slash applied in sitemap). */
@@ -61,7 +61,7 @@ export const harnessFeatures: readonly HarnessFeature[] = [
   {
     title: "Real tools, not toys",
     body:
-      "fs_read, fs_glob, fs_grep, fs_write, fs_edit, shell_run with an allowlist, git_status, git_diff, and voss_check. Everything jailed to your cwd.",
+      "fs_read, fs_glob, fs_grep, fs_write, fs_edit, shell_run with an allowlist, git_status, git_diff, and voss_check. Core file tools stay project-scoped and mutating actions pass through explicit permission metadata.",
   },
   {
     title: "Confidence-gated planning",

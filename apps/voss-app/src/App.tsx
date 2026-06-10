@@ -20,6 +20,7 @@ import NewWorkspacePicker, {
 } from './components/workspace/NewWorkspacePicker';
 import './components/workspace/workspace.css';
 import GridRoot, { type GridController } from './grid/GridRoot';
+import type { NativeSessionRecord } from './grid/SplitNode';
 import StatusBar from './components/StatusBar';
 import ContextPanel from './components/ContextPanel';
 import OrgViewShell from './org/OrgViewShell';
@@ -27,8 +28,19 @@ import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
 import { resolveTier, hookCapableCli } from './org/capabilityTier';
-import RunCommandBar, { type SpawnAgentFn } from './org/cockpit/RunCommandBar';
-import { liveLabel } from './org/live/sseClient';
+import RunCommandBar, {
+  type RunNativeClient,
+  type SpawnAgentFn,
+} from './org/cockpit/RunCommandBar';
+import { connectLiveStream, liveLabel } from './org/live/sseClient';
+import {
+  buildVossClientFromHandshake,
+  type BuiltVossClient,
+} from './org/live/vossClientBuild';
+import { startVossServe } from './org/live/sidecarClient';
+import { attachSession } from './org/cockpit/serverSessions';
+import { registerPaneDestroyHook } from './pane/paneSessionRegistry';
+import { destroyProtocolSession } from './org/live/protocolSessions';
 import AdoptAgentModal from './components/modal/AdoptAgentModal';
 import { registerAdoption, adoptionByPaneId } from './pane/adoptionRegistry';
 import { currentRunId } from './org/orgStore';
@@ -174,6 +186,11 @@ export type MountedWorkspace = {
   setEverMounted: (next: boolean) => void;
   agentConfigByPaneId: Accessor<Record<string, AgentConfig>>;
   setAgentConfigByPaneId: (next: Record<string, AgentConfig>) => void;
+  /** V15-03: per-pane native server session — pane renders ProtocolPane. */
+  nativeSessionByPaneId: Accessor<Record<string, NativeSessionRecord>>;
+  setNativeSessionByPaneId: (
+    next: Record<string, NativeSessionRecord>,
+  ) => void;
   orphanSweepDone: boolean;
   gridController?: GridController;
   sessionCleanup?: () => void;
@@ -192,6 +209,9 @@ function createMountedWorkspace(id: string): MountedWorkspace {
   const [agentConfigByPaneId, setAgentConfigByPaneId] = createSignal<
     Record<string, AgentConfig>
   >({});
+  const [nativeSessionByPaneId, setNativeSessionByPaneId] = createSignal<
+    Record<string, NativeSessionRecord>
+  >({});
 
   return {
     id,
@@ -209,8 +229,19 @@ function createMountedWorkspace(id: string): MountedWorkspace {
     setEverMounted,
     agentConfigByPaneId,
     setAgentConfigByPaneId,
+    nativeSessionByPaneId,
+    setNativeSessionByPaneId,
     orphanSweepDone: false,
   };
+}
+
+// V15-03 attach seam (Plans 04/05): module-level entry that opens a structured
+// pane for an EXISTING server session — same D-02 grid insertion as a native
+// run, minus createSession. The mounted App registers the implementation.
+let openAttachedPaneImpl: ((record: NativeSessionRecord) => void) | null =
+  null;
+export function openAttachedPane(record: NativeSessionRecord): void {
+  openAttachedPaneImpl?.(record);
 }
 
 function workspaceIsReady(ws: MountedWorkspace): boolean {
@@ -382,6 +413,92 @@ export default function App() {
       tier: 'C', // unmanaged spawn — observe-only (resolveTier rule)
     };
     ws.setAgentConfigByPaneId({ ...ws.agentConfigByPaneId(), [o.paneId]: cfg });
+  };
+
+  // V15-02 (VLIVE-02/03): lazy per-workspace voss client. The first native
+  // start spawns the sidecar (Plan 01 — reuse-if-alive per cwd) and builds the
+  // V13.1 client; the token lives only in this non-exported signal (T-V15-10).
+  const [vossClient, setVossClient] = createSignal<BuiltVossClient | null>(
+    null,
+  );
+  let vossClientCwd: string | null = null;
+  const ensureVossClient = async (cwd: string): Promise<BuiltVossClient> => {
+    const existing = vossClient();
+    if (existing && vossClientCwd === cwd) return existing;
+    const handshake = await startVossServe(cwd);
+    const built = buildVossClientFromHandshake(handshake);
+    vossClientCwd = cwd;
+    setVossClient(built);
+    return built;
+  };
+
+  // Live-stream handles for App-started native sessions — abort on unmount so
+  // no for-await loop dangles past the app.
+  const liveStreamHandles: { abort(): void }[] = [];
+  onCleanup(() => {
+    for (const h of liveStreamHandles) h.abort();
+  });
+
+  // V15-03 (D-01/D-02/D-03): open a structured pane for a native session —
+  // flip Run Review → Live Work, split the focused pane, and bind the new
+  // pane id to the session record (PaneComponent renders ProtocolPane).
+  // Also the attach seam Plans 04/05 consume (openAttachedPane export).
+  const openNativePane = (record: NativeSessionRecord): void => {
+    const ws = activeMounted();
+    const ctrl = ws?.gridController;
+    if (!ws || !ctrl) return;
+    setOrgViewOpen(false); // D-01: native work lives in the Live Work grid
+    const before = ctrl.snapshot().focusedId;
+    ctrl.splitFocused('H');
+    const newId = ctrl.snapshot().focusedId;
+    if (newId === before) return; // split rejected (e.g. pane cap)
+    ws.setNativeSessionByPaneId({
+      ...ws.nativeSessionByPaneId(),
+      [newId]: record,
+    });
+    // Real pane close (⌘W / reap / workspace teardown) tears the protocol
+    // session down with it: drop the pane binding and — refcounted, another
+    // attached pane may share the server session — abort the stream + state.
+    registerPaneDestroyHook(newId, () => {
+      const map = { ...ws.nativeSessionByPaneId() };
+      delete map[newId];
+      ws.setNativeSessionByPaneId(map);
+      const stillBound = Object.values(map).some(
+        (r) => r.sessionId === record.sessionId,
+      );
+      if (!stillBound) destroyProtocolSession(record.sessionId);
+    });
+  };
+  openAttachedPaneImpl = openNativePane;
+  onCleanup(() => {
+    if (openAttachedPaneImpl === openNativePane) openAttachedPaneImpl = null;
+  });
+
+  // RunCommandBar native seam: lazily ensure the client, create the real
+  // session, then subscribe it live (AttentionQueue + overlay + liveLabel)
+  // and auto-open its structured pane (D-03: one pane per native run).
+  // Bridge A: the create-response session id IS the cardId. If startVossServe
+  // throws, this rejects and the bar surfaces it via its block-reason path
+  // (T-V15-04 — the gates stay; this only satisfies them).
+  const runBarNativeClient: RunNativeClient = {
+    createSession: async (spec) => {
+      const built = await ensureVossClient(workspacePath() ?? '');
+      const r = await built.runNativeClient.createSession(spec);
+      liveStreamHandles.push(
+        connectLiveStream({
+          baseUrl: built.baseUrl,
+          sessionId: r.id,
+          token: built.token,
+          cardId: r.id,
+        }),
+      );
+      openNativePane({
+        sessionId: r.id,
+        baseUrl: built.baseUrl,
+        token: built.token,
+      });
+      return r;
+    },
   };
 
   // VCKP-12 adopt entry point: "Manage with Voss" on a sidebar agent row.
@@ -1371,6 +1488,7 @@ export default function App() {
           <RunCommandBar
             cwd={workspacePath() ?? ''}
             cliBinary="voss"
+            client={runBarNativeClient}
             resolvePaneId={runBarResolvePaneId}
             spawnAgent={runBarSpawnAgent}
           />
@@ -1411,6 +1529,7 @@ export default function App() {
                         prefixActive={prefixActive()}
                         prefixReserved={keymapProfile() === 'tmux'}
                         agentConfigByPaneId={ws()!.agentConfigByPaneId()}
+                        nativeSessionByPaneId={ws()!.nativeSessionByPaneId()}
                         workspacePath={ws()!.project()?.path ?? undefined}
                         onFocusChange={(id) => {
                           if (activeId() === workspaceId) setFocusedPaneId(id);
@@ -1464,6 +1583,28 @@ export default function App() {
               cwd={workspacePath() ?? ''}
               cliBinary="voss"
               onClose={() => setOrgViewOpen(false)}
+              followUpClient={vossClient()?.followUpClient}
+              vossClient={vossClient()?.client}
+              onAttach={(sessionId) =>
+                void attachSession({
+                  cwd: workspacePath() ?? '',
+                  sessionId,
+                  ensureClient: async (cwd) => {
+                    const built = await ensureVossClient(cwd);
+                    return {
+                      baseUrl: built.baseUrl,
+                      token: built.token,
+                      client: built.client,
+                    };
+                  },
+                  openAttachedPane: (r) =>
+                    openNativePane({
+                      sessionId: r.sessionId,
+                      baseUrl: r.baseUrl,
+                      token: r.token,
+                    }),
+                })
+              }
             />
           </Show>
           </div>

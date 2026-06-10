@@ -5,103 +5,39 @@
     "root": {
       "kind": "split",
       "orientation": "H",
-      "ratio": 0.42857143,
+      "ratio": 0.5,
       "left": {
-        "kind": "split",
-        "orientation": "V",
-        "ratio": 0.33333334,
-        "left": {
-          "kind": "pane",
-          "id": "499e6ae2-00f1-4984-bb66-45c0e2cde8c9",
-          "cwd": "",
-          "shell": "",
-          "index": 1
-        },
-        "right": {
-          "kind": "split",
-          "orientation": "H",
-          "ratio": 0.5,
-          "left": {
-            "kind": "pane",
-            "id": "9285aef2-b809-441c-8aec-02574bd58029",
-            "cwd": "",
-            "shell": "",
-            "index": 2
-          },
-          "right": {
-            "kind": "pane",
-            "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
-            "cwd": "/Users/benjaminmarks/Projects/Voss",
-            "shell": "",
-            "index": 3
-          }
-        }
+        "kind": "pane",
+        "id": "9285aef2-b809-441c-8aec-02574bd58029",
+        "cwd": "",
+        "shell": "",
+        "index": 1
       },
       "right": {
         "kind": "split",
         "orientation": "V",
         "ratio": 0.5,
         "left": {
-          "kind": "split",
-          "orientation": "H",
-          "ratio": 0.5,
-          "left": {
-            "kind": "pane",
-            "id": "9d3f4d2c-6248-4d41-b1c5-aef4a36e650e",
-            "cwd": "",
-            "shell": "",
-            "index": 4
-          },
-          "right": {
-            "kind": "pane",
-            "id": "1f47e240-2630-41b8-9e2f-3afef7897695",
-            "cwd": "",
-            "shell": "",
-            "index": 5
-          }
+          "kind": "pane",
+          "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
+          "cwd": "",
+          "shell": "",
+          "index": 2
         },
         "right": {
-          "kind": "split",
-          "orientation": "V",
-          "ratio": 0.5,
-          "left": {
-            "kind": "pane",
-            "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
-            "cwd": "",
-            "shell": "",
-            "index": 6
-          },
-          "right": {
-            "kind": "pane",
-            "id": "621f2aa7-4e5b-44e0-81d1-f203442f3134",
-            "cwd": "",
-            "shell": "",
-            "index": 7
-          }
+          "kind": "pane",
+          "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
+          "cwd": "/Users/benjaminmarks/Projects/Voss",
+          "shell": "",
+          "index": 3
         }
       }
     },
-    "focusedId": "609f75a0-ec07-488a-aabe-65e8abeabc50"
+    "focusedId": "9285aef2-b809-441c-8aec-02574bd58029"
   },
   "panes": [
     {
-      "id": "499e6ae2-00f1-4984-bb66-45c0e2cde8c9",
-      "scrollback": null
-    },
-    {
       "id": "9285aef2-b809-441c-8aec-02574bd58029",
-      "scrollback": null
-    },
-    {
-      "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
-      "scrollback": null
-    },
-    {
-      "id": "9d3f4d2c-6248-4d41-b1c5-aef4a36e650e",
-      "scrollback": null
-    },
-    {
-      "id": "1f47e240-2630-41b8-9e2f-3afef7897695",
       "scrollback": null
     },
     {
@@ -109,7 +45,7 @@
       "scrollback": null
     },
     {
-      "id": "621f2aa7-4e5b-44e0-81d1-f203442f3134",
+      "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
       "scrollback": null
     }
   ],

@@ -19,11 +19,13 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
 from voss.template_render import render_package_template
+from voss.harness.prompt_override import default_runtime_vars, load_prompt
 from voss_runtime.exceptions import ParseError
 from voss_runtime.providers.base import ModelProvider, ProviderResponse
 
@@ -63,10 +65,14 @@ class ReviewerB:
         provider: ModelProvider,
         fast_model: str,
         strong_model: str,
+        cwd: Path | None = None,
     ) -> None:
         self._provider = provider
         self._fast_model = fast_model
         self._strong_model = strong_model
+        # Project root for .voss/prompts/ overrides (V16-04). None falls back
+        # to process cwd — callers with a real workspace root should pass it.
+        self._cwd = cwd
 
     def review(
         self,
@@ -97,8 +103,16 @@ class ReviewerB:
             f"## Reviewer-A Verification Summary\n{a_verification}\n"
         )
 
+        # Prompt resolved at load time so a project copy under .voss/prompts/
+        # is honored; absent copy is byte-identical to REVIEWER_B_SYSTEM (R5).
+        prompt_root = (self._cwd or Path.cwd()).resolve()
+        system = load_prompt(
+            "reviewer_b_system",
+            cwd=prompt_root,
+            runtime_vars=default_runtime_vars("reviewer-b", prompt_root),
+        )
         messages = [
-            {"role": "system", "content": REVIEWER_B_SYSTEM},
+            {"role": "system", "content": system},
             {"role": "user", "content": user_msg},
         ]
 
