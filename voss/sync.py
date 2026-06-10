@@ -129,7 +129,7 @@ def build_sync_context(cwd: Path) -> SyncContext:
 @dataclass(frozen=True)
 class ArtifactStatus:
     path: str
-    status: str  # written | unchanged | fence-updated | skipped (edited)
+    status: str  # written | unchanged | fence-updated | skipped (edited) | removed
 
 
 @dataclass(frozen=True)
@@ -233,6 +233,16 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
     statuses: list[ArtifactStatus] = []
     manifest: dict[str, str] = {}
 
+    # Fence drift gate FIRST, before any write: a drifted fence refuses the
+    # whole sync with the tree untouched (same HashMismatch as
+    # write_fence_body — D-16, R4). Without this ordering a refused sync
+    # would already have rewritten docs and left the manifest stale.
+    fence_body = render_package_template(
+        "voss", f"templates/docs/{_FENCE_TEMPLATE}", ctx_map
+    )
+    voss_md_path = project_root / "VOSS.md"
+    existing_body = voss_md.read_fence_body(voss_md_path, fence_id=_FENCE_ID)
+
     docs = list(_DOC_TEMPLATES)
     if context.review.enabled:
         docs.append(_REVIEW_DOC)  # D-08: review.md skipped entirely when disabled
@@ -253,12 +263,15 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
             )
         )
 
-    fence_body = render_package_template(
-        "voss", f"templates/docs/{_FENCE_TEMPLATE}", ctx_map
-    )
-    voss_md_path = project_root / "VOSS.md"
-    # Same drift gate as write_fence_body: HashMismatch propagates (D-16, R4).
-    existing_body = voss_md.read_fence_body(voss_md_path, fence_id=_FENCE_ID)
+    if not context.review.enabled:
+        # Machine-owned cleanup: a review.md generated while review was
+        # enabled must not outlive the config flip (R3 ownership).
+        stale_review = (context.docs_dir / _REVIEW_DOC[0]).resolve()
+        if stale_review.is_relative_to(voss_root) and stale_review.exists():
+            if not dry_run:
+                stale_review.unlink()
+            statuses.append(ArtifactStatus(_rel(stale_review, project_root), "removed"))
+
     manifest[f"VOSS.md#{_FENCE_ID}"] = hashlib.sha256(fence_body.encode()).hexdigest()
     if existing_body == fence_body:
         statuses.append(ArtifactStatus("VOSS.md", "unchanged"))
@@ -270,10 +283,8 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
     # Synced prompts (R5/R6): hash-guard — never clobber a user edit without
     # hash evidence (D-11), --force overwrites (D-16). Sync-time render only;
     # ${} runtime placeholders pass through untouched (D-18).
-    for name, resource in _PROMPT_TEMPLATES:
-        rendered = render_package_template(
-            "voss", f"templates/prompts/{resource}", {}
-        )
+    for name, resource in SYNCED_PROMPTS:
+        rendered = render_package_template("voss", resource, {})
         dest = (voss_root / "prompts" / f"{name}.txt").resolve()
         if not dest.is_relative_to(voss_root):
             raise ValueError(f"refused to write outside .voss: {dest}")
@@ -314,13 +325,7 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
         )
     )
 
-    detected: list[tuple[str, str]] = []
-    for key in sorted(context.detected):
-        value = getattr(context, key, None)
-        if value:
-            detected.append((key, str(value)))
-
-    return SyncResult(statuses=tuple(statuses), detected=tuple(detected))
+    return SyncResult(statuses=tuple(statuses), detected=context.detected)
 
 
 __all__ = [
