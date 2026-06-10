@@ -12,12 +12,12 @@ requirements: [VBUS-01, VBUS-02]
 
 must_haves:
   truths:
-    - "Glob overlap is detected statically with no filesystem reads, matching all SPEC cases"
-    - "URI overlap is segment-aware: exact + path-prefix at / boundaries only"
-    - "A claim is atomically staked or atomically rejected — concurrent overlapping stakes yield exactly one winner"
-    - "Claims persist in .voss-cache/claims.sqlite with no server running and always carry expires_at"
+    - "Glob overlap is detected statically with no filesystem reads, matching all SPEC cases (D-05)"
+    - "URI overlap is segment-aware: exact + path-prefix at / boundaries only (D-06)"
+    - "A claim is atomically staked or atomically rejected — concurrent overlapping stakes yield exactly one winner (D-01: stdlib sqlite3, BEGIN IMMEDIATE, WAL)"
+    - "Claims persist in .voss-cache/claims.sqlite with no server running and always carry expires_at (D-02 locked location; D-03: claim = id + patterns[] with single expires_at, release by id or bare release-all, extend refreshes the set)"
     - "Expired claims never block check/stake and are excluded from list (unless --all)"
-    - "Same-agent re-stake of overlapping patterns is idempotent refresh, never a conflict"
+    - "Same-agent re-stake of overlapping patterns is idempotent refresh, never a conflict (D-04)"
   artifacts:
     - path: "voss/harness/claims.py"
       provides: "Overlap engine + SQLite storage layer + atomic stake (no CLI yet)"

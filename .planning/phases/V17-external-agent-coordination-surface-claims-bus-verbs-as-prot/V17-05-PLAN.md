@@ -20,8 +20,8 @@ requirements: [VBUS-04, VBUS-05]
 must_haves:
   truths:
     - "A new additive bus.message event type joins the AgentEvent union; all pre-existing event types stay byte-identical in the schema"
-    - "POST /bus/send appends to a durable journal and broadcasts on the dedicated /bus/events SSE stream"
-    - "GET /bus/inbox returns messages mentioning the caller since their cursor, then advances the cursor"
+    - "POST /bus/send appends to a durable journal and broadcasts on the dedicated /bus/events SSE stream — flat project-wide stream, mentions+labels routing only (D-08, D-09, D-10)"
+    - "GET /bus/inbox returns messages mentioning the caller since their cursor, then advances the cursor (D-10: server-managed cursors.json, os.replace atomic)"
     - "bus messages survive server restart: pre-restart unread messages are still returned by inbox"
     - "all /bus/* routes are bearer-authed via the existing _BearerASGI (no unauthenticated route)"
   artifacts:

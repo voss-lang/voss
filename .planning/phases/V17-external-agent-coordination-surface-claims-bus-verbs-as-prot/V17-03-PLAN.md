@@ -13,9 +13,9 @@ requirements: [VBUS-01, VBUS-02, VBUS-06]
 must_haves:
   truths:
     - "voss claims stake|check|release|extend|list exist as click subcommands and register into the main CLI"
-    - "check exits 0 on no overlap, 1 on conflict naming the conflicting claim + owner, 2 on missing identity"
+    - "check exits 0 on no overlap, 1 on conflict naming the conflicting claim + owner, 2 on missing identity; no --force override exists (D-07)"
     - "claims verbs read identity from VOSS_AGENT_ID; absent -> exit 2 with an actionable stderr message"
-    - "check/stake --json conflict output includes a non-empty advice array with a runnable `voss bus send` command naming the owner"
+    - "check/stake --json conflict output includes a non-empty advice array with a runnable `voss bus send` command naming the owner (D-07)"
     - "the full two-agent stake/check/release sequence passes with no server running"
   artifacts:
     - path: "voss/harness/claims.py"

@@ -14,10 +14,10 @@ requirements: [VBUS-03]
 
 must_haves:
   truths:
-    - "Every pane spawn mints a readable slug (claude-1 / pane-3) before any agent runs"
+    - "Every pane spawn mints a readable slug (claude-1 / pane-3) before any agent runs (D-11: ALL panes, not just managed; D-12: readable slug)"
     - "spawn_agent, spawn_managed_agent, and spawn_pty inject VOSS_AGENT_ID into the child process env"
     - "Slug registered in-memory per paneId at spawn; exported for A6 to persist in pane config when A6 ships (best-effort, D-13 — no pane config file in this plan)"
-    - "Slug minting distinguishes agent CLIs (<cli>-<n>) from plain shells (pane-<n>)"
+    - "Slug minting distinguishes agent CLIs (<cli>-<n>) from plain shells (pane-<n>) (D-12)"
   artifacts:
     - path: "apps/voss-app/src/pane/slugRegistry.ts"
       provides: "mintSlug + registerSlug/unregisterSlug module signal"
