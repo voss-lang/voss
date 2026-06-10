@@ -16,7 +16,13 @@
 
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, Switch, Match } from 'solid-js';
 import type { AgentEvent } from '../../../../sdk/typescript/src/client/sse';
+import {
+  replyPermission,
+  type PermissionChoice,
+} from '../../../../sdk/typescript/src/client/permission';
+import { createVossClient } from '../../../../sdk/typescript/src/client/rest';
 import { connectLiveStream } from '../org/live/sseClient';
+import { resolveAttentionItem } from '../org/attention/attentionQueue';
 import './ProtocolPane.css';
 
 export interface ProtocolPaneProps {
@@ -90,7 +96,13 @@ type Row =
   | { kind: 'stream'; text: string; settled: boolean }
   | { kind: 'final'; text: string; confidence?: number; costUsd?: number }
   | { kind: 'thinking'; label: string }
-  | { kind: 'permission'; toolName: string; args: unknown; dimension: string }
+  | {
+      kind: 'permission';
+      id: string;
+      toolName: string;
+      args: unknown;
+      dimension: string;
+    }
   | { kind: 'generic'; type: string; summary: string };
 
 interface ToolEvent {
@@ -101,10 +113,59 @@ interface ToolEvent {
   result?: string;
 }
 
+type GateState =
+  | { state: 'pending' }
+  | { state: 'inflight'; choice: PermissionChoice }
+  | { state: 'resolved'; choice: PermissionChoice };
+
+const RESOLVED_LABEL: Record<string, string> = {
+  d: 'denied',
+  a: 'allowed once',
+  A: 'allowed for scope',
+};
+
+/** Allow-for-scope label: first path-looking string in args, else "session". */
+function scopeLabel(args: unknown): string {
+  if (args && typeof args === 'object') {
+    for (const v of Object.values(args as Record<string, unknown>)) {
+      if (typeof v === 'string' && v.includes('/')) return v;
+    }
+  }
+  return 'session';
+}
+
 export default function ProtocolPane(props: ProtocolPaneProps) {
   // LOCAL per-pane signals — never module-level (Pitfall 4).
   const [events, setEvents] = createSignal<AgentEvent[]>([]);
   const [expanded, setExpanded] = createSignal<Set<number>>(new Set());
+  // V15-04 gate state per permission id ('pending' default).
+  const [gateStates, setGateStates] = createSignal<Record<string, GateState>>(
+    {},
+  );
+
+  // The reply client is built from the pane's own handshake fields — Bearer
+  // middleware on every request (T-V15-03); constructed per reply (cheap).
+  const replyClient = () => createVossClient(props.baseUrl, props.token);
+
+  /** One reply loop for both surfaces: POST first, clear ONLY on success
+   *  (never optimistic — T-V15-07); the queue clear uses the identical
+   *  `permission:${id}` prefixed id (T-V15-11). */
+  const replyToGate = async (id: string, choice: PermissionChoice) => {
+    const current = gateStates()[id];
+    if (current && current.state !== 'pending') return; // in-flight/resolved
+    setGateStates((prev) => ({ ...prev, [id]: { state: 'inflight', choice } }));
+    try {
+      await replyPermission(replyClient(), props.sessionId, { id, choice });
+      setGateStates((prev) => ({
+        ...prev,
+        [id]: { state: 'resolved', choice },
+      }));
+      resolveAttentionItem(`permission:${id}`);
+    } catch {
+      // Failed POST: both surfaces stay pending; buttons re-enable.
+      setGateStates((prev) => ({ ...prev, [id]: { state: 'pending' } }));
+    }
+  };
 
   const appendEvent = (ev: AgentEvent) => {
     setEvents((prev) => trimOldest([...prev, ev], CAP));
@@ -182,6 +243,7 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
         case 'permission.updated':
           out.push({
             kind: 'permission',
+            id: String(e.id ?? ''),
             toolName: String(e.tool_name ?? ''),
             args: e.args,
             dimension: String(e.dimension ?? 'tool'),
@@ -358,14 +420,59 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
             <Match when={row.kind === 'permission'}>
               {(() => {
                 const r = row as Extract<Row, { kind: 'permission' }>;
+                const gate = () =>
+                  gateStates()[r.id] ?? ({ state: 'pending' } as GateState);
+                const inflight = () => gate().state === 'inflight';
+                const resolved = () => gate().state === 'resolved';
+                const resolvedChoice = () => {
+                  const g = gate();
+                  return g.state === 'resolved' ? g.choice : undefined;
+                };
                 return (
-                  <div class="proto-permission-gate">
+                  <div
+                    class={`proto-permission-gate${resolved() ? ' proto-permission-gate--resolved' : ''}`}
+                  >
                     <div class="proto-permission-gate__label">
                       ⚠ needs your approval · {r.dimension}
                     </div>
                     <div class="proto-permission-gate__args">
                       {r.toolName}: {JSON.stringify(r.args ?? {})}
                     </div>
+                    <Show
+                      when={!resolved()}
+                      fallback={
+                        <div class="proto-permission-gate__resolved-label">
+                          {RESOLVED_LABEL[resolvedChoice() ?? 'a']}
+                        </div>
+                      }
+                    >
+                      <div class="proto-permission-gate__btns">
+                        <button
+                          type="button"
+                          class="proto-pgbtn proto-pgbtn--deny"
+                          disabled={inflight()}
+                          onClick={() => void replyToGate(r.id, 'd')}
+                        >
+                          Deny
+                        </button>
+                        <button
+                          type="button"
+                          class="proto-pgbtn"
+                          disabled={inflight()}
+                          onClick={() => void replyToGate(r.id, 'a')}
+                        >
+                          Allow once
+                        </button>
+                        <button
+                          type="button"
+                          class="proto-pgbtn proto-pgbtn--allow-scope"
+                          disabled={inflight()}
+                          onClick={() => void replyToGate(r.id, 'A')}
+                        >
+                          Allow for {scopeLabel(r.args)}
+                        </button>
+                      </div>
+                    </Show>
                   </div>
                 );
               })()}
