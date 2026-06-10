@@ -1,32 +1,37 @@
-// V15-03 (VLIVE-04) — Structured Protocol Pane body. Renders the PROTOCOL §6
-// event union as DOM per the V15-UI-SPEC: dedicated rows for user / tool /
-// plan / stream.delta+finalize / final / thinking / permission.updated, and a
-// generic fallback row for every other member — nothing is silently dropped.
+// V15-03/04 (VLIVE-04/05/07) — Structured Protocol Pane body, now a pure VIEW
+// over the protocolSessions store (grid-rearrange fix Part B): the transcript,
+// gate states, lifecycle flags, and the SSE stream itself live module-side
+// keyed by SERVER session id, so a remounted pane (drag/swap/layout) re-renders
+// the same state and never re-subscribes or loses the transcript. The stream
+// is torn down only via destroyProtocolSession (pane-close destroy hook).
+//
+// Renders the PROTOCOL §6 event union per the V15-UI-SPEC: dedicated rows for
+// user / tool / plan / stream.delta+finalize / final / thinking /
+// permission.updated, and a generic fallback row for every other member —
+// nothing is silently dropped.
 //
 // D-07: tool lines are collapsed one-liners; click expands args/result.
-// D-08: the transcript is capped (CAP=300) trim-oldest; the first `user`
-//       (task header) and permission.updated rows are pinned.
+// D-08: transcript capped trim-oldest with task-header + permission pins.
 // D-09: consecutive stream.delta events grow ONE block with a pulse cursor;
-//       stream.finalize settles it. Sticky-bottom autoscroll unless the user
-//       scrolled up >20px.
+//       stream.finalize settles it; sticky-bottom autoscroll (20px).
 //
 // T-V15-05: ALL event text renders via Solid text bindings ({…}) — no raw
-// HTML injection. Pitfall 4: transcript signals are LOCAL per pane instance.
-// The permission gate here is a pinned placeholder; Plan 04 makes it live.
+// HTML injection. Only view-local state (tool-row expansion, the boot elapsed
+// ticker) lives in component signals.
 
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, Switch, Match } from 'solid-js';
 import type { AgentEvent } from '../../../../sdk/typescript/src/client/sse';
+import type { PermissionChoice } from '../../../../sdk/typescript/src/client/permission';
 import {
-  replyPermission,
-  type PermissionChoice,
-} from '../../../../sdk/typescript/src/client/permission';
-import { createVossClient } from '../../../../sdk/typescript/src/client/rest';
-import {
-  connectLiveStream,
-  liveHandles,
-  type LiveStreamHandle,
-} from '../org/live/sseClient';
-import { resolveAttentionItem } from '../org/attention/attentionQueue';
+  defaultProtocolState,
+  destroyProtocolSession,
+  ensureProtocolStream,
+  protocolSessions,
+  reconnectProtocolStream,
+  replyToProtocolGate,
+  type GateState,
+  type ProtocolSessionState,
+} from '../org/live/protocolSessions';
 import { startVossServe } from '../org/live/sidecarClient';
 import ExitBanner from './ExitBanner';
 import './ProtocolPane.css';
@@ -43,29 +48,7 @@ export interface ProtocolPaneProps {
   stream?: AsyncIterable<AgentEvent>;
 }
 
-const CAP = 300;
-
-/**
- * D-08 trim: drop oldest entries until length ≤ cap, never trimming the
- * task header (a `user` event sitting at index 0) or any `permission.updated`.
- * Pure; input untouched.
- */
-export function trimOldest(list: AgentEvent[], cap: number): AgentEvent[] {
-  if (list.length <= cap) return list;
-  const out = [...list];
-  let i = 0;
-  while (out.length > cap && i < out.length) {
-    const e = out[i];
-    const pinnedTask = i === 0 && e.type === 'user';
-    const pinnedPermission = e.type === 'permission.updated';
-    if (pinnedTask || pinnedPermission) {
-      i += 1;
-      continue;
-    }
-    out.splice(i, 1);
-  }
-  return out;
-}
+export { destroyProtocolSession };
 
 /** Generic-row summary: first present text-like field, else truncated JSON.
  *  `probable` shows its probability % ahead of the text (UI-SPEC §2g). */
@@ -121,11 +104,6 @@ interface ToolEvent {
   result?: string;
 }
 
-type GateState =
-  | { state: 'pending' }
-  | { state: 'inflight'; choice: PermissionChoice }
-  | { state: 'resolved'; choice: PermissionChoice };
-
 const RESOLVED_LABEL: Record<string, string> = {
   d: 'denied',
   a: 'allowed once',
@@ -143,136 +121,60 @@ function scopeLabel(args: unknown): string {
 }
 
 export default function ProtocolPane(props: ProtocolPaneProps) {
-  // LOCAL per-pane signals — never module-level (Pitfall 4).
-  const [events, setEvents] = createSignal<AgentEvent[]>([]);
+  // View-local state ONLY (Pitfall 4 inverted: everything session-scoped now
+  // lives in the protocolSessions store).
   const [expanded, setExpanded] = createSignal<Set<number>>(new Set());
-  // V15-04 gate state per permission id ('pending' default).
-  const [gateStates, setGateStates] = createSignal<Record<string, GateState>>(
-    {},
-  );
-
-  // V15-04 lifecycle (D-10/D-11/D-12): boot placeholder until the first
-  // event, spawn-error with retry, honest ended state on stream death.
-  const [bootState, setBootState] = createSignal<
-    'booting' | 'live' | 'ended' | 'error'
-  >('booting');
   const [elapsed, setElapsed] = createSignal(0);
-  const [errorMsg, setErrorMsg] = createSignal('');
-  const [died, setDied] = createSignal(false); // server death (≠ clean idle)
-  let sawCleanEnd = false;
-  let eventCount = 0;
 
-  // The live connection (retry can rebind to a fresh handshake).
-  const [conn, setConn] = createSignal({
-    baseUrl: props.baseUrl,
-    token: props.token,
-  });
-
-  // The reply client is built from the pane's own handshake fields — Bearer
-  // middleware on every request (T-V15-03); constructed per reply (cheap).
-  const replyClient = () => createVossClient(conn().baseUrl, conn().token);
-
-  /** One reply loop for both surfaces: POST first, clear ONLY on success
-   *  (never optimistic — T-V15-07); the queue clear uses the identical
-   *  `permission:${id}` prefixed id (T-V15-11). */
-  const replyToGate = async (id: string, choice: PermissionChoice) => {
-    const current = gateStates()[id];
-    if (current && current.state !== 'pending') return; // in-flight/resolved
-    setGateStates((prev) => ({ ...prev, [id]: { state: 'inflight', choice } }));
-    try {
-      await replyPermission(replyClient(), props.sessionId, { id, choice });
-      setGateStates((prev) => ({
-        ...prev,
-        [id]: { state: 'resolved', choice },
-      }));
-      resolveAttentionItem(`permission:${id}`);
-    } catch {
-      // Failed POST: both surfaces stay pending; buttons re-enable.
-      setGateStates((prev) => ({ ...prev, [id]: { state: 'pending' } }));
-    }
-  };
-
-  const appendEvent = (ev: AgentEvent) => {
-    eventCount += 1;
-    if (bootState() === 'booting') setBootState('live'); // first event = connected (D-10)
-    if (ev.type === 'session.idle' || ev.type === 'final') sawCleanEnd = true;
-    setEvents((prev) => trimOldest([...prev, ev], CAP));
-    if (ev.type === 'session.idle') props.onEnded?.();
-  };
-
-  let handle: LiveStreamHandle | undefined;
-  const connect = (
-    baseUrl: string,
-    token: string,
-    stream?: AsyncIterable<AgentEvent>,
-  ) => {
-    handle?.abort();
-    setConn({ baseUrl, token });
-    handle = connectLiveStream({
-      baseUrl,
-      sessionId: props.sessionId,
-      token,
-      cardId: props.sessionId, // Bridge A: the session id IS the cardId
-      stream,
-      onEvent: appendEvent,
-    });
-  };
+  const st = (): ProtocolSessionState =>
+    protocolSessions()[props.sessionId] ??
+    defaultProtocolState({ baseUrl: props.baseUrl, token: props.token });
 
   onMount(() => {
-    connect(props.baseUrl, props.token, props.stream);
+    ensureProtocolStream(
+      props.sessionId,
+      props.baseUrl,
+      props.token,
+      props.stream,
+    );
     const tick = setInterval(() => {
-      if (bootState() === 'booting') setElapsed((n) => n + 1);
+      if (st().bootState === 'booting') setElapsed((n) => n + 1);
     }, 1000);
-    onCleanup(() => {
-      clearInterval(tick);
-      handle?.abort();
-    });
+    onCleanup(() => clearInterval(tick));
+    // No stream abort here: the session OUTLIVES the component (drag/swap).
+    // destroyProtocolSession runs via the pane destroy hook on real close.
   });
 
-  // Stream-end detection: this session leaves the liveHandles set when its
-  // for-await ends (clean or death). Zero events while booting = the stream
-  // never connected → spawn/connect failure (D-12); otherwise ended (D-11) —
-  // death (no final/session.idle seen) flips write affordances via onEnded.
-  let wasConnected = false;
+  // D-11: surface the ended state (clean idle or death) to the pane chrome.
+  let endedFired = false;
   createEffect(() => {
-    const connected = liveHandles().has(props.sessionId);
-    if (connected) {
-      wasConnected = true;
-      return;
-    }
-    if (!wasConnected) return;
-    wasConnected = false;
-    if (bootState() === 'booting' && eventCount === 0) {
-      setErrorMsg('stream did not connect');
-      setBootState('error');
-      return;
-    }
-    setBootState('ended');
-    if (!sawCleanEnd) {
-      setDied(true);
+    if (st().endedReason && !endedFired) {
+      endedFired = true;
       props.onEnded?.();
     }
   });
 
   // D-12: Retry start — re-invoke the sidecar spawn and rebind the stream to
-  // the fresh handshake. No auto-restart anywhere; this is user-initiated.
+  // the fresh handshake. User-initiated only; no auto-restart anywhere.
   const retryStart = async () => {
-    setBootState('booting');
-    setElapsed(0);
-    setDied(false);
     try {
       const h = await startVossServe(props.cwd ?? '');
-      connect(`http://127.0.0.1:${h.port}`, h.token);
-    } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : String(e));
-      setBootState('error');
+      reconnectProtocolStream(
+        props.sessionId,
+        `http://127.0.0.1:${h.port}`,
+        h.token,
+      );
+      endedFired = false;
+    } catch {
+      // startVossServe failed — stay in the error state (message already
+      // shown); the next Retry re-attempts.
     }
   };
 
   // Coalesce the event list into row descriptors (D-09 stream blocks).
   const rows = createMemo<Row[]>(() => {
     const out: Row[] = [];
-    events().forEach((ev, idx) => {
+    st().events.forEach((ev, idx) => {
       const e = ev as unknown as Record<string, unknown>;
       switch (ev.type) {
         case 'user':
@@ -384,16 +286,19 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
     return lines.join('\n');
   };
 
+  const replyToGate = (id: string, choice: PermissionChoice) =>
+    replyToProtocolGate(props.sessionId, id, choice);
+
   return (
     <div
-      class={`protocol-pane${died() ? ' pane--proto-ended' : ''}`}
+      class={`protocol-pane${st().died ? ' pane--proto-ended' : ''}`}
       ref={scrollRef}
       onScroll={onScroll}
       role="log"
       aria-label="Run transcript"
     >
       {/* D-10 boot placeholder — until the first event arrives. */}
-      <Show when={bootState() === 'booting'}>
+      <Show when={st().bootState === 'booting'}>
         <div class="proto-boot">
           <div class="proto-boot__label">Starting…</div>
           <div class="proto-boot__elapsed">{elapsed()}s</div>
@@ -404,12 +309,12 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
       </Show>
 
       {/* D-12 spawn-failure — stderr tail + user-initiated retry. */}
-      <Show when={bootState() === 'error'}>
+      <Show when={st().bootState === 'error'}>
         <div class="proto-spawn-error">
           <div class="proto-spawn-error__heading">
-            Could not start — {errorMsg().split('\n')[0]}
+            Could not start — {st().errorMsg.split('\n')[0]}
           </div>
-          <div class="proto-spawn-error__stderr">{errorMsg()}</div>
+          <div class="proto-spawn-error__stderr">{st().errorMsg}</div>
           <button
             type="button"
             class="proto-spawn-error__retry"
@@ -534,7 +439,7 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
               {(() => {
                 const r = row as Extract<Row, { kind: 'permission' }>;
                 const gate = () =>
-                  gateStates()[r.id] ?? ({ state: 'pending' } as GateState);
+                  st().gateStates[r.id] ?? ({ state: 'pending' } as GateState);
                 const inflight = () => gate().state === 'inflight';
                 const resolved = () => gate().state === 'resolved';
                 const resolvedChoice = () => {
@@ -614,10 +519,10 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
 
       {/* D-11 ended row — inline in transcript flow (scrolls with it); no
           Restart for server death (the NEXT run respawns fresh). */}
-      <Show when={bootState() === 'ended'}>
+      <Show when={st().bootState === 'ended'}>
         <div class="proto-ended-row">
           <ExitBanner
-            exitCode={died() ? 1 : 0}
+            exitCode={st().died ? 1 : 0}
             message="[session ended]"
             showRestart={false}
             onRestart={() => {}}

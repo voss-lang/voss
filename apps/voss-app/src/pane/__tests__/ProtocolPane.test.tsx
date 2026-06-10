@@ -21,6 +21,7 @@ import {
   __resetAttentionQueue,
 } from '../../org/attention/attentionQueue';
 import { __resetLiveStream } from '../../org/live/sseClient';
+import { __resetProtocolSessions } from '../../org/live/protocolSessions';
 import { __resetBridgeMaps } from '../../org/model/bridge';
 
 const mockReply = vi.mocked(replyPermission);
@@ -44,13 +45,16 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 let disposers: (() => void)[] = [];
 
-function mount(stream: AsyncIterable<AgentEvent>): HTMLElement {
+function mount(
+  stream: AsyncIterable<AgentEvent>,
+  sessionId = 'sess-1',
+): HTMLElement {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const dispose = render(
     () => (
       <ProtocolPane
-        sessionId="sess-1"
+        sessionId={sessionId}
         baseUrl="http://localhost:0"
         token="tok"
         stream={stream}
@@ -70,6 +74,7 @@ afterEach(() => {
   disposers = [];
   vi.clearAllMocks();
   __resetLiveStream();
+  __resetProtocolSessions();
   __resetAttentionQueue();
   __resetBridgeMaps();
 });
@@ -312,13 +317,15 @@ describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
       choice: 'd',
     });
 
-    const c2 = mount(scripted([PERMISSION_EVENT()]));
+    // Fresh server session — the protocolSessions store keys gate state by
+    // session id, and 'sess-1' just resolved its gate above.
+    const c2 = mount(scripted([PERMISSION_EVENT()]), 'sess-2');
     await flush();
     gateButtons(c2)[2].dispatchEvent(
       new MouseEvent('click', { bubbles: true }),
     );
     await flush();
-    expect(mockReply).toHaveBeenLastCalledWith(expect.anything(), 'sess-1', {
+    expect(mockReply).toHaveBeenLastCalledWith(expect.anything(), 'sess-2', {
       id: 'perm-1',
       choice: 'A',
     });
@@ -344,11 +351,12 @@ describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
 
 describe('ProtocolPane — lifecycle states (V15-04, VLIVE-07)', () => {
   it('shows the D-10 boot placeholder before any event, replaced by the transcript after the first', async () => {
-    // Never-yielding stream: stays booting.
+    // Never-yielding stream: stays booting. (Distinct session ids — the
+    // protocolSessions store is keyed by server session id.)
     const pending = (async function* (): AsyncGenerator<AgentEvent> {
       await new Promise(() => {});
     })();
-    const c1 = mount(pending);
+    const c1 = mount(pending, 'sess-boot-1');
     await flush();
     expect(c1.querySelector('.proto-boot')).not.toBeNull();
     expect(c1.querySelector('.proto-boot__label')?.textContent).toBe(
@@ -356,10 +364,43 @@ describe('ProtocolPane — lifecycle states (V15-04, VLIVE-07)', () => {
     );
 
     // Yielding stream: boot gone, transcript present.
-    const c2 = mount(scripted([ev({ type: 'user', task: 'go' })]));
+    const c2 = mount(
+      scripted([ev({ type: 'user', task: 'go' })]),
+      'sess-boot-2',
+    );
     await flush();
     expect(c2.querySelector('.proto-boot')).toBeNull();
     expect(c2.querySelector('.proto-task-hdr')).not.toBeNull();
+  });
+
+  it('the transcript SURVIVES a component remount and never re-subscribes (rearrange fix)', async () => {
+    let subscribes = 0;
+    async function* counting(): AsyncGenerator<AgentEvent> {
+      subscribes += 1;
+      yield ev({ type: 'user', task: 'persistent task' });
+      yield ev({ type: 'thinking', label: 'still here' });
+      await new Promise(() => {}); // stream stays open (live session)
+    }
+
+    const c1 = mount(counting(), 'sess-remount');
+    await flush();
+    expect(c1.querySelector('.proto-task-hdr__text')?.textContent).toBe(
+      'persistent task',
+    );
+    expect(subscribes).toBe(1);
+
+    // Simulated drag remount: dispose the component, mount a fresh one for
+    // the SAME server session (a second injected stream must be IGNORED —
+    // ensureProtocolStream is connect-once).
+    disposers.pop()!();
+    const c2 = mount(counting(), 'sess-remount');
+    await flush();
+
+    expect(c2.querySelector('.proto-task-hdr__text')?.textContent).toBe(
+      'persistent task',
+    );
+    expect(c2.textContent).toContain('still here');
+    expect(subscribes).toBe(1); // no re-subscribe on remount
   });
 
   it('a stream that ends with zero events shows the D-12 spawn error; Retry re-invokes startVossServe', async () => {

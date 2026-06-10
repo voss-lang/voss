@@ -39,6 +39,8 @@ import {
 } from './org/live/vossClientBuild';
 import { startVossServe } from './org/live/sidecarClient';
 import { attachSession } from './org/cockpit/serverSessions';
+import { registerPaneDestroyHook } from './pane/paneSessionRegistry';
+import { destroyProtocolSession } from './org/live/protocolSessions';
 import AdoptAgentModal from './components/modal/AdoptAgentModal';
 import { registerAdoption, adoptionByPaneId } from './pane/adoptionRegistry';
 import { currentRunId } from './org/orgStore';
@@ -453,6 +455,18 @@ export default function App() {
     ws.setNativeSessionByPaneId({
       ...ws.nativeSessionByPaneId(),
       [newId]: record,
+    });
+    // Real pane close (⌘W / reap / workspace teardown) tears the protocol
+    // session down with it: drop the pane binding and — refcounted, another
+    // attached pane may share the server session — abort the stream + state.
+    registerPaneDestroyHook(newId, () => {
+      const map = { ...ws.nativeSessionByPaneId() };
+      delete map[newId];
+      ws.setNativeSessionByPaneId(map);
+      const stillBound = Object.values(map).some(
+        (r) => r.sessionId === record.sessionId,
+      );
+      if (!stillBound) destroyProtocolSession(record.sessionId);
     });
   };
   openAttachedPaneImpl = openNativePane;
