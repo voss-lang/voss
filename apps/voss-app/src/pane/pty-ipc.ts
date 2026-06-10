@@ -51,6 +51,8 @@ export interface AgentConfig {
   tier?: 'A' | 'B' | 'C';
   /** Budget-kill threshold (USD): at/over → pty_kill (VCKP-13c). */
   budgetUsd?: number;
+  /** VBUS-03 agent identity slug injected as VOSS_AGENT_ID (D-11/D-12). */
+  vossAgentId?: string;
 }
 
 /** Result of `spawn_managed_agent` — `tier` is the EFFECTIVE tier (downgraded
@@ -181,12 +183,18 @@ export class PtyTransport {
     });
   }
 
-  async spawn(o: { rows: number; cols: number; cwd?: string }): Promise<string> {
+  async spawn(o: {
+    rows: number;
+    cols: number;
+    cwd?: string;
+    vossAgentId?: string;
+  }): Promise<string> {
     this.sessionId = await invoke<string>('spawn_pty', {
       onData: this.channel,
       rows: o.rows,
       cols: o.cols,
       cwd: o.cwd,
+      vossAgentId: o.vossAgentId ?? null,
     });
     return this.sessionId;
   }
@@ -208,6 +216,7 @@ export class PtyTransport {
       sessionId: o.sessionId,
       paneId: o.paneId,
       workspacePath: o.workspacePath,
+      vossAgentId: o.vossAgentId ?? null,
     });
     return this.sessionId;
   }
@@ -236,6 +245,7 @@ export class PtyTransport {
       workspacePath: o.workspacePath,
       scope: o.scope,
       tier: o.tier,
+      vossAgentId: o.vossAgentId ?? null,
     });
     this.sessionId = res.pty_id;
     return res;

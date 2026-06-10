@@ -22,6 +22,7 @@ import { unregisterPaneProc } from './procRegistry';
 import { unregisterPaneContext } from './contextRegistry';
 import { unregisterPaneBudget } from './budgetRegistry';
 import { unregisterAgentPane } from './agentPaneRegistry';
+import { unregisterSlug } from './slugRegistry';
 
 export type DotState = 'loading' | 'running' | 'exited';
 
@@ -127,6 +128,7 @@ export function destroyPaneSession(paneId: string): void {
     unregisterPaneContext(paneId);
     unregisterPaneBudget(paneId);
     unregisterAgentPane(paneId);
+    unregisterSlug(paneId);
     sessions.delete(paneId);
   }
   const hooks = destroyHooks.get(paneId);
