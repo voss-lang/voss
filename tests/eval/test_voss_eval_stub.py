@@ -28,6 +28,8 @@ REQUIRED_FIELDS = {
     "gate_pass",
     "capped",
     "checks",
+    # V18 VOPT-07: additive token figure for the packing eval gate.
+    "input_tokens",
 }
 
 
