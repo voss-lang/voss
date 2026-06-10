@@ -210,12 +210,18 @@ def _live_env(cwd: Path) -> dict[str, str]:
 
 
 async def _drive_cli_do(
-    spec: TaskSpec, cwd: Path, *, timeout: float = 120.0
+    spec: TaskSpec, cwd: Path, *, auth: str = "auto", timeout: float = 120.0
 ) -> tuple[str, str | None, bool]:
     """Returns (final, crash_reason_or_None, capped=False)."""
+    cmd = [
+        sys.executable, "-m", "voss.cli", "do", spec.prompt,
+        "--cwd", str(cwd), "--plain", "--mode", spec.mode, "--auth", auth,
+    ]
+    if spec.auto_approve_edits:
+        cmd.append("--yes")
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "voss.cli", "do", spec.prompt, "--cwd", str(cwd), "--plain"],
+            cmd,
             cwd=str(cwd),
             env=_live_env(cwd),
             input="",  # empty stdin → isatty()=False, piped-stdin branch appends nothing
@@ -231,12 +237,15 @@ async def _drive_cli_do(
 
 
 async def _drive_cli_chat(
-    spec: TaskSpec, cwd: Path, *, timeout: float = 120.0
+    spec: TaskSpec, cwd: Path, *, auth: str = "auto", timeout: float = 120.0
 ) -> tuple[str, str | None, bool]:
     """Single piped turn: input() reads the line, next call EOFError → clean exit."""
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "voss.cli", "chat", "--cwd", str(cwd), "--plain"],
+            [
+                sys.executable, "-m", "voss.cli", "chat",
+                "--cwd", str(cwd), "--plain", "--mode", spec.mode, "--auth", auth,
+            ],
             cwd=str(cwd),
             env=_live_env(cwd),
             input=spec.prompt + "\n",
@@ -252,14 +261,20 @@ async def _drive_cli_chat(
 
 
 async def _drive_cli_edit(
-    spec: TaskSpec, cwd: Path, *, timeout: float = 120.0
+    spec: TaskSpec, cwd: Path, *, auth: str = "auto", timeout: float = 120.0
 ) -> tuple[str, str | None, bool]:
     if not spec.target_file:
         return "", "cli:edit requires target_file in task.toml", False
     target = cwd / spec.target_file
+    # edit_cmd has no --yes; mode "auto" is the no-prompt tier (EditScope still
+    # enforces the target jail). auto_approve_edits=true maps to it.
+    mode = "auto" if spec.auto_approve_edits else spec.mode
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "voss.cli", "edit", str(target), "--cwd", str(cwd), "--plain"],
+            [
+                sys.executable, "-m", "voss.cli", "edit", str(target),
+                "--cwd", str(cwd), "--plain", "--mode", mode, "--auth", auth,
+            ],
             cwd=str(cwd),
             env=_live_env(cwd),
             input=spec.prompt + "\n",
@@ -333,6 +348,8 @@ async def _drive_serve(
     cwd: Path,
     *,
     permission_choice: str = "a",
+    auth: str = "auto",
+    model: str | None = None,
     timeout: float = 180.0,
 ) -> tuple[str, str | None, bool]:
     """Spawn `voss serve`, parse the {v,port,token} handshake, drive one turn
@@ -379,10 +396,16 @@ async def _drive_serve(
 
         base_url = f"http://127.0.0.1:{handshake['port']}"
         headers = {"Authorization": f"Bearer {handshake['token']}"}
+        # auth + model must agree (the server does NOT remap the default model
+        # to the credential source: auth=env-openai + a claude default model
+        # dies in the provider on turn 1).
+        session_body: dict = {"cwd": str(cwd), "auth": auth}
+        if model is not None:
+            session_body["model"] = model
         async with httpx.AsyncClient(timeout=timeout) as client:
             r = await client.post(
                 f"{base_url}/session",
-                json={"cwd": str(cwd), "auth": "auto"},
+                json=session_body,
                 headers=headers,
             )
             r.raise_for_status()
@@ -478,6 +501,7 @@ async def _drive_task(
     model: str | None,
     stub: bool = False,
     max_turns: int = 15,
+    auth_pref: str = "auto",
 ) -> tuple[SessionRecord, str, str | None, bool]:
     record = SessionRecord.new(cwd=cwd, model=_record_model(model), name=task_id)
     permissions = PermissionGate(mode=spec.mode, auto_yes=spec.auto_approve_edits)
@@ -485,17 +509,21 @@ async def _drive_task(
     capped = False
     try:
         if spec.surface == "cli:do":
-            final, crash_reason, capped = await _drive_cli_do(spec, cwd)
+            final, crash_reason, capped = await _drive_cli_do(spec, cwd, auth=auth_pref)
             return record, final, crash_reason, capped
         if spec.surface == "cli:chat":
-            final, crash_reason, capped = await _drive_cli_chat(spec, cwd)
+            final, crash_reason, capped = await _drive_cli_chat(spec, cwd, auth=auth_pref)
             return record, final, crash_reason, capped
         if spec.surface == "cli:edit":
-            final, crash_reason, capped = await _drive_cli_edit(spec, cwd)
+            final, crash_reason, capped = await _drive_cli_edit(spec, cwd, auth=auth_pref)
             return record, final, crash_reason, capped
         if spec.surface == "serve":
             final, crash_reason, capped = await _drive_serve(
-                spec, cwd, permission_choice=spec.permission_choice
+                spec,
+                cwd,
+                permission_choice=spec.permission_choice,
+                auth=auth_pref,
+                model=None if stub else model,
             )
             return record, final, crash_reason, capped
         if task_id.startswith("05-"):
@@ -602,6 +630,7 @@ async def _run_suite_async(
     model: str | None,
     judge_model: str | None,
     max_turns: int,
+    auth_pref: str = "auto",
 ) -> None:
     """Drive + judge all tasks on one event loop (httpx clients are loop-bound)."""
     for task_id, spec in tasks:
@@ -639,6 +668,7 @@ async def _run_suite_async(
                     model=model_eff,
                     stub=stub,
                     max_turns=max_turns,
+                    auth_pref=auth_pref,
                 )
                 diff = _file_diff(cwd)
                 # After diff (never pollutes the judge's file_diff input), before
@@ -758,6 +788,7 @@ def run_suite(
                 model=model,
                 judge_model=judge_model,
                 max_turns=max_turns,
+                auth_pref=auth_pref,
             )
         finally:
             for provider in (default_provider, judge_provider):
