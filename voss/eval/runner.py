@@ -19,6 +19,7 @@ import httpx
 
 from voss import __version__ as VOSS_VERSION
 from voss.harness import auth as auth_mod
+from voss.harness.config import get_eval_judge_model, get_eval_max_turns
 from voss.harness.agent import run_turn
 from voss.harness.net import NetSession
 from voss.harness.permissions import PermissionGate
@@ -187,10 +188,36 @@ async def _drive_resume(
     model: str | None,
     permissions: PermissionGate,
     net_session: NetSession | None = None,
-) -> tuple[SessionRecord, str]:
+    max_turns: int = 15,
+) -> tuple[SessionRecord, str, bool]:
     history = EpisodicMemory(capacity=40)
-    task = asyncio.create_task(
-        run_turn(
+    prev_cfg = get_config()
+    configure(max_iterations=max_turns)
+    try:
+        task = asyncio.create_task(
+            run_turn(
+                spec.prompt,
+                tools=make_toolset(cwd, net=net_session),
+                cwd=cwd,
+                renderer=PlainRenderer(),
+                model=model,
+                provider=provider,
+                history=history,
+                permissions=permissions,
+                session_id=record.id,
+            )
+        )
+        await asyncio.sleep(RESUME_CANCEL_DELAY_S)
+        task.cancel()
+        try:
+            result = await task
+            _add_run(record, result)
+        except asyncio.CancelledError:
+            pass
+
+        save(record, history)
+        record, history = load(record.id, cwd=cwd)
+        result = await run_turn(
             spec.prompt,
             tools=make_toolset(cwd, net=net_session),
             cwd=cwd,
@@ -201,30 +228,14 @@ async def _drive_resume(
             permissions=permissions,
             session_id=record.id,
         )
-    )
-    await asyncio.sleep(RESUME_CANCEL_DELAY_S)
-    task.cancel()
-    try:
-        result = await task
         _add_run(record, result)
-    except asyncio.CancelledError:
-        pass
-
-    save(record, history)
-    record, history = load(record.id, cwd=cwd)
-    result = await run_turn(
-        spec.prompt,
-        tools=make_toolset(cwd, net=net_session),
-        cwd=cwd,
-        renderer=PlainRenderer(),
-        model=model,
-        provider=provider,
-        history=history,
-        permissions=permissions,
-        session_id=record.id,
+    finally:
+        configure(max_iterations=prev_cfg.max_iterations)
+    capped = bool(
+        record.runs
+        and record.runs[-1].get("exit_reason") == "max-iter"
     )
-    _add_run(record, result)
-    return record, result.final
+    return record, result.final, capped
 
 
 async def _drive_task(
@@ -235,13 +246,15 @@ async def _drive_task(
     provider: ModelProvider,
     model: str | None,
     stub: bool = False,
-) -> tuple[SessionRecord, str, str | None]:
+    max_turns: int = 15,
+) -> tuple[SessionRecord, str, str | None, bool]:
     record = SessionRecord.new(cwd=cwd, model=_record_model(model), name=task_id)
     permissions = PermissionGate(mode=spec.mode, auto_yes=spec.auto_approve_edits)
     net_session = _make_stub_net_session(spec, stub=stub)
+    capped = False
     try:
         if task_id.startswith("05-"):
-            record, final = await _drive_resume(
+            record, final, capped = await _drive_resume(
                 record,
                 spec,
                 cwd=cwd,
@@ -249,26 +262,34 @@ async def _drive_task(
                 model=model,
                 permissions=permissions,
                 net_session=net_session,
+                max_turns=max_turns,
             )
         else:
-            result = await run_turn(
-                spec.prompt,
-                tools=make_toolset(cwd, net=net_session),
-                cwd=cwd,
-                renderer=PlainRenderer(),
-                model=model,
-                provider=provider,
-                permissions=permissions,
-                session_id=record.id,
-            )
+            prev_cfg = get_config()
+            configure(max_iterations=max_turns)
+            try:
+                result = await run_turn(
+                    spec.prompt,
+                    tools=make_toolset(cwd, net=net_session),
+                    cwd=cwd,
+                    renderer=PlainRenderer(),
+                    model=model,
+                    provider=provider,
+                    permissions=permissions,
+                    session_id=record.id,
+                )
+            finally:
+                configure(max_iterations=prev_cfg.max_iterations)
             _add_run(record, result)
             final = result.final
+            if result.run and result.run.exit_reason == "max-iter":
+                capped = True
     except Exception as exc:  # noqa: BLE001 - eval records failures as rows
-        return record, "", f"{type(exc).__name__}: {str(exc)[:300]}"
+        return record, "", f"{type(exc).__name__}: {str(exc)[:300]}", False
     finally:
         if net_session is not None:
             await net_session.aclose()
-    return record, final, None
+    return record, final, None, capped
 
 
 def _provider_for_eval(*, stub: bool, auth_pref: str) -> tuple[ModelProvider, auth_mod.Resolution | None]:
@@ -314,6 +335,7 @@ def run_suite(
     task_id: str | None = None,
     auth_pref: str = "auto",
     model: str | None = None,
+    max_turns: int | None = None,
 ) -> Path:
     if k < 1:
         raise click.UsageError("-k must be at least 1")
@@ -332,6 +354,9 @@ def run_suite(
     if not tasks:
         target = f"task {task!r}" if task is not None else f"suite {suite!r}"
         raise click.UsageError(f"no eval tasks found for {target}")
+
+    max_turns = max_turns if max_turns is not None else get_eval_max_turns()
+    click.echo(f"{len(tasks)} tasks · max {max_turns} turns/task")
 
     default_provider, _ = _provider_for_eval(stub=stub, auth_pref=auth_pref)
     judge_provider = _judge_provider_for_eval(auth_pref=auth_pref)
@@ -352,10 +377,18 @@ def run_suite(
                     stub=stub,
                 )
                 model_eff = "__stub__" if stub else (spec.model or model)
-                judge_model_eff = judge_model or model_eff or get_config().default_model
+                if stub:
+                    judge_model_eff = judge_model or model_eff or get_config().default_model
+                else:
+                    judge_model_eff = judge_model or get_eval_judge_model()
+                if not stub and judge_model_eff == model_eff:
+                    click.echo(
+                        f"voss eval: judge model == actor model ({judge_model_eff!r}); proceeding",
+                        err=True,
+                    )
                 if "web_fetch" in spec.tools:
                     configure(allow_net=True)
-                record, final, crash_reason = asyncio.run(
+                record, final, crash_reason, capped = asyncio.run(
                     _drive_task(
                         task_id,
                         spec,
@@ -363,15 +396,17 @@ def run_suite(
                         provider=provider,
                         model=model_eff,
                         stub=stub,
+                        max_turns=max_turns,
                     )
                 )
                 diff = _file_diff(cwd)
+                gate_pass, check_results = _run_checks(spec.checks, cwd)
                 cost_usd, confidence = _extract_signals(record)
 
                 verdict = None
                 judge_verdict = "skipped"
                 judge_rationale = ""
-                if crash_reason is None and judge_provider is not None:
+                if crash_reason is None and not capped and judge_provider is not None:
                     try:
                         verdict, judge_verdict = asyncio.run(
                             judge_run(
@@ -387,10 +422,19 @@ def run_suite(
                         judge_verdict = "error"
                         judge_rationale = f"judge error: {type(exc).__name__}: {str(exc)[:300]}"
 
+                if crash_reason or capped:
+                    success = False
+                elif not gate_pass:
+                    success = False
+                elif verdict:
+                    success = verdict.verdict == "pass"
+                else:
+                    success = None
+
                 row = {
                     "task_id": task_id,
                     "run_idx": run_idx,
-                    "success": False if crash_reason else (verdict.verdict == "pass" if verdict else None),
+                    "success": success,
                     "cost_usd": cost_usd,
                     "confidence": confidence,
                     "duration_s": round(time.monotonic() - start, 3),
@@ -406,6 +450,9 @@ def run_suite(
                     "seed": run_idx,
                     "voss_version": VOSS_VERSION,
                     "started_at": started_at,
+                    "gate_pass": gate_pass,
+                    "capped": capped,
+                    "checks": check_results,
                 }
                 _append_row(runs_path, row)
 

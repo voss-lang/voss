@@ -3539,6 +3539,7 @@ def eval_cmd(
         judge_model=judge_model,
         task=task,
         auth_pref=auth_pref,
+        max_turns=max_turns,
     )
 
 

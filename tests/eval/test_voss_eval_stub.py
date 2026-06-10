@@ -25,6 +25,9 @@ REQUIRED_FIELDS = {
     "seed",
     "voss_version",
     "started_at",
+    "gate_pass",
+    "capped",
+    "checks",
 }
 
 

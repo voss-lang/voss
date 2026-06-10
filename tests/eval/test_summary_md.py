@@ -40,7 +40,8 @@ def test_summary_has_required_sections(tmp_path: Path) -> None:
     assert "conf_corr_r" in text
     assert "01-analyze" in text
     assert "02-plan-only" in text
-    assert "| task | runs | pass rate | mean cost |" in text
+    assert "gate pass rate" in text
+    assert "| task | runs | gate pass | pass rate | mean cost |" in text
 
 
 def test_summary_renders_exact_markdown_bytes(tmp_path: Path) -> None:
@@ -75,15 +76,17 @@ def test_summary_renders_exact_markdown_bytes(tmp_path: Path) -> None:
         "- runs: 2\n"
         "- provider: `StubProvider` · model: `__stub__`\n"
         "- overall success rate: 50% (1/2)\n"
+        "- gate pass rate: n/a (0/0)\n"
+        "- judge pass rate: n/a (0/0)\n"
         "- mean cost: $0.0300\n"
         "- conf_corr_r: 1.000 (n=2)\n"
         "\n"
         "## Per-task\n"
         "\n"
-        "| task | runs | pass rate | mean cost |\n"
-        "|------|-----:|----------:|----------:|\n"
-        "| `01-alpha` | 1 | 100% | $0.0200 |\n"
-        "| `02-beta` | 1 | 0% | $0.0400 |\n"
+        "| task | runs | gate pass | pass rate | mean cost |\n"
+        "|------|-----:|----------:|----------:|----------:|\n"
+        "| `01-alpha` | 1 | n/a | 100% | $0.0200 |\n"
+        "| `02-beta` | 1 | n/a | 0% | $0.0400 |\n"
     )
 
 
