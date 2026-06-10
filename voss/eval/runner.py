@@ -347,12 +347,21 @@ async def _drive_task(
     net_session = _make_stub_net_session(spec, stub=stub)
     capped = False
     try:
-        if spec.surface != "internal":
-            # E3-02 (cli:*) and E3-03 (serve) replace these with real drivers.
+        if spec.surface == "cli:do":
+            final, crash_reason, capped = await _drive_cli_do(spec, cwd)
+            return record, final, crash_reason, capped
+        if spec.surface == "cli:chat":
+            final, crash_reason, capped = await _drive_cli_chat(spec, cwd)
+            return record, final, crash_reason, capped
+        if spec.surface == "cli:edit":
+            final, crash_reason, capped = await _drive_cli_edit(spec, cwd)
+            return record, final, crash_reason, capped
+        if spec.surface == "serve":
+            # E3-03 replaces this with the real serve driver.
             return (
                 record,
                 "",
-                f"surface {spec.surface!r} driver not implemented (E3-02/E3-03)",
+                "surface 'serve' driver not implemented (E3-03)",
                 False,
             )
         if task_id.startswith("05-"):
