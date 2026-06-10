@@ -494,13 +494,8 @@ async def _drive_task(
             final, crash_reason, capped = await _drive_cli_edit(spec, cwd)
             return record, final, crash_reason, capped
         if spec.surface == "serve":
-            # E3-03 replaces this with the real serve driver.
-            return (
-                record,
-                "",
-                "surface 'serve' driver not implemented (E3-03)",
-                False,
-            )
+            final, crash_reason, capped = await _drive_serve(spec, cwd)
+            return record, final, crash_reason, capped
         if task_id.startswith("05-"):
             record, final, capped = await _drive_resume(
                 record,

@@ -8,12 +8,20 @@ monkeypatching voss.eval.runner._live_env for the cli:* tests only.
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from tests.e2e.runner import CliRunner
-from voss.eval.runner import _drive_cli_chat, _drive_cli_do, _drive_cli_edit
+from voss.eval.runner import (
+    _consume_sse,
+    _drive_cli_chat,
+    _drive_cli_do,
+    _drive_cli_edit,
+    _drive_serve,
+)
 from voss.eval.suite import TaskSpec
 
 
@@ -82,3 +90,153 @@ def test_cli_edit_stub(stub_live_env: CliRunner) -> None:
 
     assert crash_reason is None
     assert capped is False
+
+
+# ---------------------------------------------------------------------------
+# serve driver — FAKE_TURN integration + parser-level permission tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_turn_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Env-only injection: _live_env's dict(os.environ) copy carries it into
+    the spawned serve subprocess. Do NOT monkeypatch _live_env here."""
+    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+
+
+def test_serve_stub(tmp_path: Path, fake_turn_env: None) -> None:
+    """FAKE_TURN proves spawn → handshake → SSE-before-message → final →
+    session.idle → teardown end-to-end offline (no provider, no creds)."""
+    cwd = tmp_path / "proj"
+    cwd.mkdir()
+    spec = TaskSpec(prompt="hello", mode="plan", rubric="...", surface="serve")
+
+    final, crash, capped = asyncio.run(_drive_serve(spec, cwd))
+
+    assert crash is None
+    assert "echo: hello" in final
+    assert capped is False
+
+
+class _FakeStream:
+    def __init__(self, lines: list[str]) -> None:
+        self._lines = lines
+
+    async def __aenter__(self) -> "_FakeStream":
+        return self
+
+    async def __aexit__(self, *exc: object) -> bool:
+        return False
+
+    async def aiter_lines(self):
+        for line in self._lines:
+            yield line
+
+
+class _FakeClient:
+    """Records POSTs; serves a synthetic SSE line sequence."""
+
+    def __init__(self, lines: list[str]) -> None:
+        self._lines = lines
+        self.posts: list[tuple[str, dict | None]] = []
+
+    def stream(self, method: str, url: str, **kw: object) -> _FakeStream:
+        return _FakeStream(self._lines)
+
+    async def post(self, url: str, **kw):  # noqa: ANN003
+        self.posts.append((url, kw.get("json")))
+
+
+def _permission_sse_lines() -> list[str]:
+    return [
+        "event: permission.updated",
+        "data: " + json.dumps(
+            {
+                "v": 1,
+                "type": "permission.updated",
+                "id": "abcd1234",
+                "tool_name": "fs_write",
+                "args": {},
+                "dimension": "tool",
+            }
+        ),
+        "",
+        ": ping",
+        "event: final",
+        'data: {"v": 1, "type": "final", "text": "synthetic final"}',
+        "",
+        "event: session.idle",
+        'data: {"v": 1, "type": "session.idle"}',
+        "",
+    ]
+
+
+def test_serve_permission_allow_parser() -> None:
+    client = _FakeClient(_permission_sse_lines())
+
+    final = asyncio.run(
+        _consume_sse(
+            client,
+            "http://t",
+            "sid1",
+            {},
+            permission_choice="a",
+            message_body={"parts": [{"type": "text", "text": "x"}], "mode": "plan"},
+        )
+    )
+
+    assert final == "synthetic final"
+    assert (
+        "http://t/session/sid1/permission",
+        {"id": "abcd1234", "choice": "a"},
+    ) in client.posts
+
+
+def test_serve_permission_deny_parser() -> None:
+    client = _FakeClient(_permission_sse_lines())
+
+    final = asyncio.run(
+        _consume_sse(
+            client,
+            "http://t",
+            "sid1",
+            {},
+            permission_choice="d",
+            message_body={"parts": [{"type": "text", "text": "x"}], "mode": "plan"},
+        )
+    )
+
+    # Deny degrades without hanging: the loop still terminates on session.idle
+    # (bounded by the synthetic stream) and the reply carried choice "d".
+    assert final == "synthetic final"
+    assert (
+        "http://t/session/sid1/permission",
+        {"id": "abcd1234", "choice": "d"},
+    ) in client.posts
+
+
+def test_serve_token_not_leaked(
+    tmp_path: Path, fake_turn_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THREAT T-E3-08: force a post-handshake failure; crash_reason must not
+    echo the bearer header or the handshake token."""
+    cwd = tmp_path / "proj"
+    cwd.mkdir()
+    captured: dict[str, str] = {}
+
+    async def _boom(self: httpx.AsyncClient, url: str, **kw):  # noqa: ANN003
+        headers = kw.get("headers") or {}
+        auth = headers.get("Authorization", "")
+        captured["token"] = auth.removeprefix("Bearer ").strip()
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", _boom)
+    spec = TaskSpec(prompt="hello", mode="plan", rubric="...", surface="serve")
+
+    final, crash, capped = asyncio.run(_drive_serve(spec, cwd))
+
+    assert crash is not None
+    assert "Bearer" not in crash
+    assert captured["token"]
+    assert captured["token"] not in crash
+    assert final == ""
