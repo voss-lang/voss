@@ -14,6 +14,9 @@ const OrgViewShell: Component<{
   onClose: () => void;
   /** V15-02: live follow-up write client, threaded to the CardDrawer. */
   followUpClient?: FollowUpClient;
+  /** V15-05: live sidecar client + Attach action for the sidebar section. */
+  vossClient?: VossClient;
+  onAttach?: (sessionId: string) => void;
 }> = (props) => {
   return (
     <CockpitShell
@@ -21,6 +24,8 @@ const OrgViewShell: Component<{
       cliBinary={props.cliBinary}
       onClose={props.onClose}
       followUpClient={props.followUpClient}
+      vossClient={props.vossClient}
+      onAttach={props.onAttach}
     />
   );
 };
