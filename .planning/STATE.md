@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-09T22:25:39.797Z"
+last_updated: "2026-06-10T00:40:59.591Z"
 last_activity: 2026-06-08
 progress:
   total_phases: 56
@@ -221,6 +221,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 - Phase A12 added: voss-app ADE Visual Redesign — left sidebar + warm site palette + branded titlebar + pane chrome accent bars. 8 requirements (ADE-01..08), 8 plans (P1–P8). Source: sketch 002 Variant A winner. (2026-05-22)
 - Phase V15 added: Live Plane Integration — sidecar `{v,port,token}` handshake (keystone, spike first) + plug V14's injectable client sockets + structured protocol pane rendering + inline permission gate. Source: `.planning/notes/seed-structured-pane-rendering.md` (V14-12 close-out). UI-SPEC before planning. (2026-06-09)
+- Phase V16 added: Managed Docs & Prompt Generation — Jinja2 layout-aware workflow docs at init/sync, idempotent `<!-- voss:managed-start/end -->` section in AGENTS.md/CLAUDE.md, prompt templates synced as plain .md with runtime placeholder substitution. Source: `.planning/seeds/managed-docs-generation.md`. (2026-06-09)
 
 ## Performance Metrics
 

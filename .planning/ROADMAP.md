@@ -2219,6 +2219,28 @@ Plans:
 - [ ] TBD (run /gsd-ui-phase V15, then /gsd-spec-phase V15, then /gsd-plan-phase V15)
 
 ---
+### Phase V16: Managed Docs & Prompt Generation (Jinja2 layout-aware doc sync)
+
+**Goal:** Extend Voss's existing Jinja2 template infrastructure (`voss/template_render.py`, `voss/templates/`) into a per-project doc/prompt generation system, so Voss feels installed-into a project rather than run-against it.
+
+**Scope:**
+- **Layout-aware workflow docs:** templates compiled with a layout-variables context (repo-root vs worktree layout, command prefixes, workspace paths) and written into the project during init and a new idempotent sync operation.
+- **Managed section in agent instruction file:** marker-delimited block (`<!-- voss:managed-start/end -->`) in AGENTS.md/CLAUDE.md, regenerated from a single context struct (project name/type, enabled companion tools, review config, install/check commands, generated doc list, layout vars). Never touches content outside markers; inserts block if absent.
+- **Agent/reviewer prompt templates:** synced into the project as plain `.md` (jinja suffix stripped), lightweight runtime placeholder substitution (`{{ AGENT }}`, `{{ PROJECT }}`, `{{ WORKSPACE }}`) via string replace before prompt delivery — deliberately not full Jinja at runtime so users can edit synced prompts.
+- **Template rendering core:** reuse `render_package_template` (StrictUndefined, PackageLoader); extend as needed, keep single entrypoint.
+
+**Out of scope:** templating for `.voss` language programs; multi-repo/monorepo workspace orchestration.
+
+**Requirements:** TBD — run `/gsd-spec-phase V16`.
+
+**Cross-cutting:** Builds on existing `voss init` template rendering (cli.py templates/init flow). Seed: `.planning/seeds/managed-docs-generation.md`. Verification anchor: managed-section idempotency tests (re-running sync is a no-op; user content outside markers untouched).
+
+**Plans:** TBD (~3 expected: layout context + sync command → managed section engine → prompt template sync + runtime substitution).
+
+Plans:
+- [ ] TBD (run /gsd-spec-phase V16, then /gsd-plan-phase V16)
+
+---
 
 ## Coverage
 
