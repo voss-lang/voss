@@ -136,6 +136,23 @@ def _append_row(path: Path, row: dict[str, Any]) -> None:
         fh.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+def _sum_input_tokens(record: SessionRecord) -> int:
+    """V18 VOPT-07: sum prompt_tokens over every run iteration.
+
+    Additive row field so the packing eval gate measures input-token
+    reduction from a real figure (runs.jsonl previously carried no token
+    field). Missing/crashed iterations contribute 0 — never raises.
+    """
+    total = 0
+    for run in record.runs:
+        for it in run.get("iterations") or []:
+            if isinstance(it, dict):
+                v = it.get("prompt_tokens")
+                if isinstance(v, (int, float)):
+                    total += int(v)
+    return total
+
+
 def _record_model(model: str | None) -> str:
     return model or get_config().default_model
 
@@ -447,6 +464,7 @@ async def _run_suite_async(
                     "gate_pass": gate_pass,
                     "capped": capped,
                     "checks": check_results,
+                    "input_tokens": _sum_input_tokens(record),
                 }
                 _append_row(runs_path, row)
 

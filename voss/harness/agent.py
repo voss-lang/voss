@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import json
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -699,6 +700,9 @@ async def _run_turn_exec(
         from voss.harness.context_allocator import ContextAllocator
 
         _packing_profile = get_packing_profile()
+        # VOSS_NO_PACK env disables packing on paths that bypass the CLI
+        # flag (eval runner calls run_turn directly — VOPT-07 driver).
+        _packing_env_off = os.environ.get("VOSS_NO_PACK", "") not in ("", "0")
         _allocator = ContextAllocator(
             token_count=functools.partial(_default_token_count, model=model)
         )
@@ -732,7 +736,12 @@ async def _run_turn_exec(
                     {"role": "system", "content": rider},
                     {"role": "user", "content": user_prompt},
                 ]
-                if packing_enabled and all_iter_records and _packing_profile.enabled:
+                if (
+                    packing_enabled
+                    and all_iter_records
+                    and _packing_profile.enabled
+                    and not _packing_env_off
+                ):
                     # V18 VOPT-01: pack the replay tail under what remains of
                     # token_budget after the cached prefix + rider + prompt +
                     # completion headroom. sys_blocks NEVER enters the
