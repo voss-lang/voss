@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-10T03:37:14.092Z"
+last_updated: "2026-06-10T15:17:00.614Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 42
@@ -24,8 +24,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** V13.4 — C ABI/Schema Documentation — ✅ COMPLETE (2026-06-08); V13.3 Go SDK also ✅ COMPLETE.
-**Status:** Ready to execute
+**Phase:** V15 — Live Plane Integration — EXECUTING (1/7 plans complete; V15-01 sidecar Tauri command shipped 2026-06-10).
+**Status:** Executing — next: V15-02 (client construction + live SSE, wave 2)
 **Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
 **Next move:** V14 ADE Run Cockpit ✅ COMPLETE (13/13, operator-approved 2026-06-09). Frontier: structured-pane-rendering seed (`.planning/notes/seed-structured-pane-rendering.md`, gated on V13.1 live wiring) · VCKP-13b permission proxy · or resume the A-track (A4 Layout Presets, ready to execute).
 **Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).
@@ -73,6 +73,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-10 — **V15-01 EXECUTED — sidecar Tauri command + per-workspace lifecycle (VLIVE-01).** `start_voss_serve` in `apps/voss-app/src-tauri/src/lib.rs`: `Mutex<HashMap<String, VossServe>>` managed state, reuse-if-alive via the `pid()==None` reap sentinel (stale entries respawn), no lock across `.await`, all children reap on app exit (`kill_on_drop`, T-V15-02). `validate_workspace_cwd` in `crates/voss-app-core/src/sidecar.rs` canonicalizes + gates the webview cwd pre-spawn (T-V15-01; empty allowed-roots = local single-user default); frozen spawn impl byte-unchanged (additions only). Frontend: `org/live/sidecarClient.ts` typed `startVossServe(cwd)` → `{port, token}`; token in-memory only, never logged (T-V15-10). Proofs: ungated `cwd_validation` + gated `reuse_if_alive` (VOSS_SIDECAR_SPIKE=1 → 4/4 sidecar tests, distinct cwds → distinct pids, pid None after reap); 3/3 vitest incl. no-token-log spy; cargo build clean. V14 Pitfall 4 resolved — downstream V15 plans consume a real handshake. Summary: `phases/V15-live-plane-integration/V15-01-SUMMARY.md`.
 
 - 2026-06-09 — **Phase V14 ✅ COMPLETE — V14-12 executed + operator-approved checkpoint; mockup-parity recomposition shipped.** VCKP-09: `feedbackWritePath.ts` native POST-message dispatch (injectable V13.1 client, registered-native-only targets) + drawer affordance, disabled-with-reason on snapshots. VCKP-10: 5-region keyboard traversal + focus rings, reduced-motion kill switch, `scripts/token-grep-gate.mjs` (negative-proofed), mono numerics. **Checkpoint round 1 exposed the build didn't match the approved design** → mockups recovered from `9363c2f^` → `.planning/sketches/V14-*.html` (canonical visual contract); UI audit 14/24 → 11 priority fixes; then 3 subagent parity chunks: A (titlebar Live Work|Run Review toggle + LIVE chip + RunCommandBar restyle), B (cockpit recomposed: team sidebar 252px | run header + rich badge/progress board cards + horizontal replay timeline | curated 372px drawer w/ kv-grid/peek/verdicts/diff/rationale | gate mini-bars), C (Live Work: board summary strip, pane role chrome w/ live cost + card chip + honest streaming pulse, statusbar budget bar only-with-real-limits, attention polish, sidebar quick-launch). Contract gaps closed: D-03 bar in BOTH modes (App-level mount), VCKP-12 adopt entry ("Manage with Voss" context menu) + adoptionRegistry budget-stop. 2 runtime fixes: CSS `--bg-*/` comment early-termination broke the tailwind transform (`edcc6b8`); Rust `AgentEntry` snake_case IPC → undefined fields → `proc.toLowerCase` crash killing project open/restore (`7121162`, serde camelCase + contract test — latent until a registry row existed at boot). Verification: 736/736 vitest, tsc clean, token gate green, cargo 143; operator walked both modes and approved. Honest-data skips reported (no $ on unitless envelopes, no fabricated criteria/streaming/diff). Seed: Voss-native structured pane rendering (protocol-event pane content + inline permission gate) — gated on live SSE plane. Summary: `phases/V14-.../V14-12-SUMMARY.md`.
 
@@ -230,3 +232,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 |-------|------|----------|-------|
 | Phase V14 P10 | 8 min | 2 tasks | 3 files |
 | Phase V14 P11 | 12 min | 4 tasks | 10 files |
+| Phase V15 P01 | 5 min | 2 tasks | 4 files |

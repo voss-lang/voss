@@ -2216,7 +2216,7 @@ Plans:
 **Plans:** 6 plans, 5 waves (sequential keystone chain: sidecar command → client+sockets → structured pane → permission gate+lifecycle ∥ attach → hermetic AC suite + human checkpoint).
 
 Plans:
-- [ ] V15-01-PLAN.md — Sidecar Tauri command + managed per-workspace lifecycle (VLIVE-01) [wave 1]
+- [x] V15-01-PLAN.md — Sidecar Tauri command + managed per-workspace lifecycle (VLIVE-01) [wave 1] — ✅ 2026-06-10
 - [ ] V15-02-PLAN.md — V13.1 client construction + three V14 sockets + live SSE (VLIVE-02, VLIVE-03) [wave 2]
 - [ ] V15-03-PLAN.md — ProtocolPane structured rendering + native-pane threading (VLIVE-04) [wave 3]
 - [ ] V15-04-PLAN.md — Inline permission gate + lifecycle states (VLIVE-05, VLIVE-07) [wave 4]
@@ -2276,6 +2276,29 @@ Plans:
 - [ ] V17-05-PLAN.md — [V15-GATED] bus.message event type + /bus/* routes + durable journal + SDK regen (VBUS-04, VBUS-05) [wave 4]
 - [ ] V17-06-PLAN.md — [V15-GATED] bus send/inbox/wait client verbs + discovery/advice + CLI registration (VBUS-04, VBUS-06) [wave 5]
 - [ ] V17-07-PLAN.md — docs/agent-coordination.md + V16 handoff note + coherence-guard verification (VBUS-07, VBUS-08) [wave 6]
+
+---
+
+### Phase V18: Budget-Aware Context Allocator (Token Optimization)
+
+**Goal:** Insert a budget-aware context allocator at the harness's one message-assembly chokepoint (`voss/harness/agent.py:708-716`), which today replays **every** prior iteration in full on every loop entry — unbounded in iteration count. The allocator packs the variable (non-cached) region under a token ceiling: recent iterations full, older as one-line digests, ancient folded into a rolling summary, with re-fetch pointers to existing retrieval. Reuse-not-rebuild: V18 **consumes** M10 code-intel + F2 hybrid search + F3 budget telemetry + T4 caching; it adds no index, embeddings, or second budget system. The competitive-teardown origin (external "Plyrium Forge" paywalled token-saver) confirmed Voss already owns index + budgets + small agents — the packer is the only missing primitive.
+
+**Scope:**
+- **Context allocator:** pure, provider-free `ContextAllocator` computing `packing_budget = token_budget − reserve(...)` and rendering replay to fit (estimation via `_default_token_count`, `agent.py:73`).
+- **Iteration-age decay:** full / one-line-digest / folded tiers; newest always full; structural/extractive digesting — no LLM-summarization on the default path.
+- **Cache-coherent packing:** never repack the T4 `cache_control` prefix (`agent.py:363-395`); recompact tier boundaries only on hysteresis thresholds so the prompt cache stays warm; optional second breakpoint on the stabilized replay prefix.
+- **Eviction pointers:** dropped detail leaves a re-fetch hint resolvable via M10 `voss/harness/code/` (or F2) — no extra context stored.
+- **Savings ledger:** session-scoped `token-savings.jsonl` (`packed ≤ original`) + honest `/cost` + F3 savings line.
+- **Config + escape hatch:** `[context]` config (tier sizes, water marks) + `--no-pack` byte-identical disable; conservative default profile.
+- **Quality gate:** M5 packing-on-vs-off eval — success rate not regressed beyond tolerance while input tokens drop; the gate must bite on an over-aggressive profile.
+
+**Out of scope:** new code index / embeddings / vector store (M10/F2 own it); LLM-based summarization as default (opt-in profile, later); context-pane UI (F4 heatmap renders, V18 emits numbers); changing `tools.py` 30KB caps or `HISTORY_WINDOW`; provider exact-tokenizer integration; cross-session/cross-agent shared packing; retroactive savings (only future turns optimized — already-sent tokens are billed).
+
+**Requirements:** VOPT-01..08 (locked in `V18-SPEC.md`, ambiguity 0.19; V-track phase, requirements live in SPEC not REQUIREMENTS.md).
+
+**Cross-cutting:** Reuses M10 (`voss/harness/code/`), F2 (hybrid search), F3 (`recorder.py` budget OSC), T4 (`agent.py` cache prefix + `session.py:115-121` cache-token telemetry). Preserves PRD §9 top risk: `voss do`/`voss chat` working every wave. Origin analysis: competitive teardown of Plyrium Forge token-saver (Electron+Rust ADE; code-RAG index + per-agent budget packer + savings ledger feeding worktree-isolated agents).
+
+**Plans:** TBD (discuss → plan). Open knobs for discuss-phase: K/M tier sizes, high/low water marks, ledger location, config shape, second-breakpoint decision.
 
 ---
 

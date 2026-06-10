@@ -68,7 +68,7 @@ completed: 2026-06-10
 Each task was committed atomically:
 
 1. **Task 1: Tauri start_voss_serve command + managed state + cwd validation** - `fe47c5b` (feat)
-2. **Task 2: Gated cargo reuse/validation tests + typed frontend invoke wrapper** - `e6b14c3`-range (test) — see `git log --grep="V15-01"`
+2. **Task 2: Gated cargo reuse/validation tests + typed frontend invoke wrapper** - `22f0599` (test)
 
 ## Files Created/Modified
 - `apps/voss-app/src-tauri/src/lib.rs` - `start_voss_serve` command, `VossServeMap` alias, `.manage(Mutex::new(HashMap...))`, `generate_handler!` entry
