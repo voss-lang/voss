@@ -2250,25 +2250,23 @@ Plans:
 
 ---
 
-### Phase V17: Coordination Bus (file messaging + advisory claims for heterogeneous external agents)
+### Phase V17: External Agent Coordination Surface (claims + bus verbs as protocol-plane clients)
 
-**Goal:** Give external CLI agents (Claude Code, Codex, OpenCode in voss-app panes) a coordination substrate they can actually use — run-a-command/read-a-file is their lowest common denominator — so swarm agents message mid-flight, guard edits with advisory claims, and the cockpit watches it all live.
+**Goal:** Give external CLI agents (Claude Code, Codex, OpenCode in voss-app panes) coordination primitives by exposing the org plane Voss already has — adoption registry, board cards, server plane, SSE event union — through shell-scriptable CLI verbs. Not a parallel file-bus substrate: every primitive is a thin client of the existing plane, coherent with the V14/V15 direction (pull agents *into* the plane, not around it).
 
-**Scope:**
-- **Append-only JSONL message bus:** per-project channels under `.voss/bus/` (durable, git/union-merge friendly), ULID message ids, `@mentions` + freeform labels, file-locked appends safe across processes.
-- **Advisory claims:** event-sourced reservations over file globs AND URIs (`card://`, `port://`); overlap detection, atomic check-and-append, TTL/refresh/release; `voss claims check` exits 1 on conflict → shell-scriptable pre-edit guard. Positioned as the tier-C complement to VCKP-13 enforcement tiers (OS sandbox covers tier A/B; adopted/unmanaged agents get the advisory layer).
-- **Per-agent cursors + wait:** byte-offset read cursors in `.voss-cache/` (machine-local, never synced) power `voss bus inbox`; `voss bus wait` blocks on fs-notify until mention/label/channel match — replaces A13's result-file + PTY-idle completion heuristic.
-- **Hooks:** message → condition (`claim_available` / `mention_received`) → spawn, with optional atomic claim-on-fire, cooldown, audit trail — app-side analog of the V7 EM dispatch (e.g. review-request message auto-spawns reviewer pane).
-- **SSE mirroring:** bus appends emit protocol events so the V14 cockpit / V15 live plane render coordination without tailing files. File bus = external agents' write path; SSE = the app's read path.
-- **Label vocabulary as convention:** `coord:blocker`, `coord:handoff`, `mission:<id>` mapping onto V5 board cards.
+**Scope (4 slices, each on an existing asset):**
+- **Advisory claims** (no upstream gate): `voss claims stake/check/release` — `check <paths>` exits 1 on overlap with another agent's registered scope → shell-scriptable pre-edit guard. Makes `adopt.ts`'s already-applied advisory scope *checkable*; reuses `sandbox.rs::validate_scope` canonicalization for overlap detection; URI claims `card://<id>` = V5 board cards (work-item locking on the existing ontology); storage = SQLite/server plane. The **tier-C complement** to VCKP-13 enforcement tiers (OS sandbox covers A/B; adopted/unmanaged get the advisory layer).
+- **Messaging + wait/inbox** (gated on V15): `voss bus send/inbox/wait` as protocol-plane clients — messages are a new event type in the `contracts/events.schema.json` union; `wait --mention <me>` blocks on the SSE stream until filter match. Replaces A13's result-file + PTY-idle heuristic with deterministic fan-in; unlocks mid-swarm agent↔agent Q&A. Cockpit rendering + AttentionQueue integration free via the union.
+- **Advice arrays** (trivial, independent): `advice: [...]` suggested-next-commands in structured CLI output (`RunData`, `voss board`, new verbs) — guides autonomous loops.
+- **Conventions, zero code:** label vocabulary (`coord:blocker`, `coord:handoff`, `mission:<id>`, `review-request`) documented in the V16 managed AGENTS.md section — V16 is the delivery vehicle telling external agents these verbs exist.
 
-**Out of scope:** delivery guarantees/acks/dead-letter; cross-machine sync; message-type schema enforcement; observer TUI / Telegram-style bridges; global cross-project storage (`~/.local/share` model rejected — `.voss/` durable / `.voss-cache/` rebuildable convention holds).
+**Out of scope:** file JSONL substrate + fs locks + byte cursors + fs-notify (server-replacement infra — Voss has the server; reopens only if no-server headless coordination becomes a real constraint); standalone hooks engine (mention→spawn = AttentionQueue action / V7 EM dispatch behavior); delivery guarantees/acks; cross-machine sync; message-type schema enforcement; observer TUI / bridges; global cross-project storage.
 
 **Requirements:** TBD by `V17-SPEC.md` (VBUS-*; V-track phase, requirements live in SPEC not REQUIREMENTS.md).
 
-**Cross-cutting:** Substrate for A13 swarm resume (supersedes SWM-04/05/06 one-shot task/result file formats) and the Agents-launcher backlog phase (999.1). Claims consumers: `apps/voss-app/src/org/adopt.ts` adopted agents (tier C always). SSE events join the `contracts/events.schema.json` union. Eventual `.voss` `bus{}` declaration could compile-to-config per V10. Source: `.planning/seeds/SEED-001-coordination-bus.md`.
+**Cross-cutting:** Substrate for A13 swarm resume (slice 2 supersedes SWM-04/05/06 one-shot task/result formats) and the Agents-launcher backlog phase (999.1). Claims consumers: `apps/voss-app/src/org/adopt.ts` adopted agents (tier C always). Compliance depends on V16-managed instructions. Eventual `.voss` declaration could compile-to-config per V10. Source + reframe rationale: `.planning/seeds/SEED-001-coordination-bus.md`.
 
-**Plans:** TBD (SPEC pending).
+**Plans:** TBD (SPEC pending). Claims + advice slices have no upstream gate; messaging slice waits on V15.
 
 ---
 
