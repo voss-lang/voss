@@ -1656,6 +1656,13 @@ def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
     default="auto",
     help="Credential source.",
 )
+@click.option(
+    "--no-pack",
+    "no_pack",
+    is_flag=True,
+    envvar="VOSS_NO_PACK",
+    help="Disable context packing; messages byte-identical to pre-V18.",
+)
 def do_cmd(
     task: tuple[str, ...],
     model: str | None,
@@ -1667,6 +1674,7 @@ def do_cmd(
     yes_to_all: bool,
     allow_net: bool | None,
     auth_pref: str,
+    no_pack: bool,
 ) -> None:
     """Run a one-shot agent task and print the final answer.
 
@@ -1749,6 +1757,7 @@ def do_cmd(
             session_id=do_record.id,
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
+            packing_enabled=not no_pack,
         ),
         renderer=renderer,
     )

@@ -8,6 +8,7 @@ sub-agents), within/fallback (later, model tier-down).
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import time
 from dataclasses import dataclass
@@ -508,6 +509,7 @@ async def run_turn(
     voss_md_text: str | None = None,
     project_index_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
+    packing_enabled: bool = True,
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -552,6 +554,7 @@ async def run_turn(
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
             steer_inbox=steer_inbox,
+            packing_enabled=packing_enabled,
         )
     except BaseException as e:
         _tel_ok = False
@@ -579,6 +582,7 @@ async def _run_turn_exec(
     voss_md_text: str | None = None,
     project_index_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
+    packing_enabled: bool = True,
 ) -> TurnResult:
     """T1-05: iteration-loop turn driver.
 
@@ -681,6 +685,17 @@ async def _run_turn_exec(
         this_iter_plan: Plan | None = None
         this_iter_usage: Usage | None = None
 
+        # V18 VOPT-03/06: profile + allocator resolved ONCE per run (not per
+        # iteration) so the stable-region hysteresis state persists and the
+        # T4 prompt cache stays warm (RESEARCH Pitfall 1).
+        from voss.harness.config import get_packing_profile
+        from voss.harness.context_allocator import ContextAllocator
+
+        _packing_profile = get_packing_profile()
+        _allocator = ContextAllocator(
+            token_count=functools.partial(_default_token_count, model=model)
+        )
+
         async with ContextScope(
             token_budget=token_budget, model=model, provider=provider
         ) as ctx:
@@ -710,10 +725,34 @@ async def _run_turn_exec(
                     {"role": "system", "content": rider},
                     {"role": "user", "content": user_prompt},
                 ]
-                for prior in all_iter_records:
-                    a_msg, u_msg = _serialize_iter_for_replay(prior)
-                    messages.append(a_msg)
-                    messages.append(u_msg)
+                if packing_enabled and all_iter_records and _packing_profile.enabled:
+                    # V18 VOPT-01: pack the replay tail under what remains of
+                    # token_budget after the cached prefix + rider + prompt +
+                    # completion headroom. sys_blocks NEVER enters the
+                    # allocator (T4 prefix stays byte-identical, VOPT-06).
+                    _reserve = (
+                        sum(
+                            _default_token_count(b["text"], model=model)
+                            for b in sys_blocks
+                            if isinstance(b, dict) and isinstance(b.get("text"), str)
+                        )
+                        + _default_token_count(rider, model=model)
+                        + _default_token_count(user_prompt, model=model)
+                        + cfg.max_output_tokens
+                    )
+                    _packing_budget = max(token_budget - _reserve, 0)
+                    for a_msg, u_msg in _allocator.pack(
+                        all_iter_records, _packing_budget, _packing_profile
+                    ):
+                        messages.append(a_msg)
+                        messages.append(u_msg)
+                else:
+                    # V18 VOPT-06 disabled branch: the ORIGINAL replay loop,
+                    # verbatim — byte-identity by code path, not by golden.
+                    for prior in all_iter_records:
+                        a_msg, u_msg = _serialize_iter_for_replay(prior)
+                        messages.append(a_msg)
+                        messages.append(u_msg)
 
                 # M13-03 OQ-A2 (RESEARCH Pattern 3): land a parent steer as ONE
                 # synthetic next-iteration user message — a sibling of the

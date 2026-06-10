@@ -26,6 +26,10 @@ _HARNESS_BLOCK = re.compile(r"^\[harness\][^\[]*", re.MULTILINE)
 _AGENT_BLOCK = re.compile(r"^\[agent\][^\[]*", re.MULTILINE)
 _EVAL_BLOCK = re.compile(r"^\[eval\][^\[]*", re.MULTILINE)
 _TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
+# V18 VOPT-06: packing profile block. `[context]` does not collide with any
+# existing section (verified — only harness/agent/eval/tools/net.rate_limits/
+# model_tiers exist).
+_CONTEXT_BLOCK = re.compile(r"^\[context\][^\[]*", re.MULTILINE)
 # T3-04: PITFALL 6 — escape the dot. Un-escaped `r"^\[net.rate_limits\]"`
 # also matches `[netXrate_limits]` (any single char), corrupting the
 # bucket config. The escape is load-bearing.
@@ -87,6 +91,21 @@ def _parse_tools_section(text: str) -> dict[str, str]:
     return out
 
 
+def _parse_context_section(text: str) -> dict[str, str]:
+    """Return `[context]` keys. Numbers/booleans are bare (_KV_BARE);
+    quoted strings also accepted (_KV wins on collision)."""
+    m = _CONTEXT_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    out: dict[str, str] = {}
+    for k, v in _KV.findall(block):
+        out[k] = v
+    for k, v in _KV_BARE.findall(block):
+        out.setdefault(k, v)
+    return out
+
+
 def load_harness_config() -> dict[str, str]:
     """Return the `[harness]` section as a dict. Missing file -> {}."""
     p = config_path()
@@ -109,6 +128,18 @@ def load_agent_config() -> dict[str, str]:
     except OSError:
         return {}
     return _parse_agent_section(text)
+
+
+def load_context_config() -> dict[str, str]:
+    """Return the `[context]` section as a dict. Missing file / section -> {}."""
+    p = config_path()
+    if not p.exists():
+        return {}
+    try:
+        text = p.read_text()
+    except OSError:
+        return {}
+    return _parse_context_section(text)
 
 
 def load_eval_config() -> dict[str, str]:
@@ -333,6 +364,55 @@ def get_allow_net() -> bool:
         stacklevel=2,
     )
     return default
+
+
+def get_packing_profile():
+    """Resolve the V18 [context] packing profile (VOPT-06).
+
+    Missing file / section / keys fall back to the conservative
+    PackingProfile defaults (recent_full_k=8). Bad values warn and
+    default — never raise.
+    """
+    from voss.harness.context_allocator import PackingProfile
+
+    profile = PackingProfile()
+    cfg = load_context_config()
+
+    def _coerce(key: str, cast, current):
+        raw = cfg.get(key)
+        if raw is None:
+            return current
+        try:
+            return cast(raw)
+        except (TypeError, ValueError):
+            warnings.warn(
+                f"[context] {key} = {raw!r} is not a {cast.__name__}; "
+                f"falling back to default {current}",
+                RuntimeWarning,
+                stacklevel=3,
+            )
+            return current
+
+    profile.recent_full_k = _coerce("recent_full_k", int, profile.recent_full_k)
+    profile.digest_cutoff_m = _coerce("digest_cutoff_m", int, profile.digest_cutoff_m)
+    profile.high_water = _coerce("high_water", float, profile.high_water)
+    profile.low_water = _coerce("low_water", float, profile.low_water)
+
+    raw_enabled = cfg.get("enabled")
+    if raw_enabled is not None:
+        normalized = raw_enabled.strip().lower()
+        if normalized == "true":
+            profile.enabled = True
+        elif normalized == "false":
+            profile.enabled = False
+        else:
+            warnings.warn(
+                f"[context] enabled = {raw_enabled!r} is not a boolean; "
+                f"falling back to default {profile.enabled}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+    return profile
 
 
 def _write_harness(updates: dict[str, str | None]) -> Path:

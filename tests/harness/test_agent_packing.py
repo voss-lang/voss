@@ -225,6 +225,9 @@ async def test_cached_prefix_unchanged(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_cache_coherence_steady_state(tmp_path: Path) -> None:
     """VOPT-03 integration: with packing on, steady-state iters keep cache reads hot."""
+    from voss_runtime import configure
+
+    configure(max_iterations=12)  # default cap is 8; _reset_runtime restores
     provider = FakeStreamingProvider(
         scripts=[_script(plan=_tool_plan(), cache_read=200) for _ in range(9)]
         + [_script(plan=_done_plan(), cache_read=200)]
