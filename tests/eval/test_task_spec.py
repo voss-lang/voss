@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from voss.eval.suite import TaskSpec
+from voss.eval.suite import CmdCheck, FileContainsCheck, FileExistsCheck, TaskSpec
 
 
 def test_minimal_spec() -> None:
@@ -34,3 +34,92 @@ def test_auto_approve_edits_round_trip() -> None:
     )
 
     assert spec.auto_approve_edits is True
+
+
+def test_checks_defaults_empty() -> None:
+    spec = TaskSpec.model_validate({"prompt": "x", "mode": "plan", "rubric": "..."})
+
+    assert spec.checks == []
+
+
+def test_checks_cmd_default_timeout() -> None:
+    spec = TaskSpec.model_validate(
+        {
+            "prompt": "x",
+            "mode": "plan",
+            "rubric": "...",
+            "checks": [{"type": "cmd", "run": "true"}],
+        }
+    )
+
+    assert len(spec.checks) == 1
+    assert isinstance(spec.checks[0], CmdCheck)
+    assert spec.checks[0].run == "true"
+    assert spec.checks[0].timeout == 60
+
+
+def test_checks_cmd_custom_timeout() -> None:
+    spec = TaskSpec.model_validate(
+        {
+            "prompt": "x",
+            "mode": "plan",
+            "rubric": "...",
+            "checks": [{"type": "cmd", "run": "true", "timeout": 5}],
+        }
+    )
+
+    assert isinstance(spec.checks[0], CmdCheck)
+    assert spec.checks[0].timeout == 5
+
+
+def test_checks_file_exists() -> None:
+    spec = TaskSpec.model_validate(
+        {
+            "prompt": "x",
+            "mode": "plan",
+            "rubric": "...",
+            "checks": [{"type": "file_exists", "path": "x"}],
+        }
+    )
+
+    assert isinstance(spec.checks[0], FileExistsCheck)
+    assert spec.checks[0].path == "x"
+
+
+def test_checks_file_contains() -> None:
+    spec = TaskSpec.model_validate(
+        {
+            "prompt": "x",
+            "mode": "plan",
+            "rubric": "...",
+            "checks": [{"type": "file_contains", "path": "x", "text": "y"}],
+        }
+    )
+
+    assert isinstance(spec.checks[0], FileContainsCheck)
+    assert spec.checks[0].path == "x"
+    assert spec.checks[0].text == "y"
+
+
+def test_checks_bogus_type_rejected() -> None:
+    with pytest.raises(ValidationError):
+        TaskSpec.model_validate(
+            {
+                "prompt": "x",
+                "mode": "plan",
+                "rubric": "...",
+                "checks": [{"type": "bogus"}],
+            }
+        )
+
+
+def test_checks_extra_key_rejected() -> None:
+    with pytest.raises(ValidationError):
+        TaskSpec.model_validate(
+            {
+                "prompt": "x",
+                "mode": "plan",
+                "rubric": "...",
+                "checks": [{"type": "cmd", "run": "true", "extra_key": 1}],
+            }
+        )

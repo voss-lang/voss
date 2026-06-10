@@ -3,9 +3,39 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
+
+
+class CmdCheck(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["cmd"]
+    run: str
+    timeout: int = 60
+
+
+class FileExistsCheck(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["file_exists"]
+    path: str
+
+
+class FileContainsCheck(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["file_contains"]
+    path: str
+    text: str
+
+
+AnyCheck = Annotated[
+    Union[
+        Annotated[CmdCheck, Tag("cmd")],
+        Annotated[FileExistsCheck, Tag("file_exists")],
+        Annotated[FileContainsCheck, Tag("file_contains")],
+    ],
+    Discriminator("type"),
+]
 
 
 class TaskSpec(BaseModel):
@@ -21,6 +51,7 @@ class TaskSpec(BaseModel):
     model: str | None = None
     auto_approve_edits: bool = False
     tools: list[str] = Field(default_factory=list)
+    checks: list[AnyCheck] = Field(default_factory=list)
 
 
 def load_task(task_dir: Path) -> TaskSpec:

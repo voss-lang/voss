@@ -80,6 +80,38 @@ def _file_diff(cwd: Path) -> str:
     return completed.stdout if completed.returncode == 0 else ""
 
 
+def _run_checks(checks: list, cwd: Path) -> tuple[bool, list[dict]]:
+    """Run all checks; return (gate_pass, results_list). Never short-circuits."""
+    results = []
+    for check in checks:
+        if check.type == "cmd":
+            try:
+                cp = subprocess.run(
+                    check.run,
+                    shell=True,
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=getattr(check, "timeout", 60),
+                    check=False,
+                )
+                passed = cp.returncode == 0
+                detail = cp.stdout[:200] if passed else cp.stderr[:200]
+            except subprocess.TimeoutExpired:
+                passed = False
+                detail = "timeout"
+        elif check.type == "file_exists":
+            passed = (cwd / check.path).exists()
+            detail = ""
+        elif check.type == "file_contains":
+            p = cwd / check.path
+            passed = p.exists() and check.text in p.read_text()
+            detail = ""
+        results.append({"type": check.type, "pass": passed, "detail": detail})
+    gate_pass = all(r["pass"] for r in results)
+    return gate_pass, results
+
+
 def _extract_signals(record: SessionRecord) -> tuple[float | None, float | None]:
     total = 0.0
     saw_cost = False
