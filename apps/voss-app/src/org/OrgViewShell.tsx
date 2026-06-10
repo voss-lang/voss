@@ -2,6 +2,7 @@ import { type Component } from 'solid-js';
 import './orgStyles.css';
 import CockpitShell from './cockpit/CockpitShell';
 import type { FollowUpClient } from './feedbackWritePath';
+import type { VossClient } from '../../../../sdk/typescript/src/client/rest';
 
 // V14 (D-01/D-02): the legacy tab switcher is removed. The cockpit
 // (Board spine + Card detail drawer + Timeline/replay rail + bottom gate bar) is

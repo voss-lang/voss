@@ -38,6 +38,7 @@ import {
   type BuiltVossClient,
 } from './org/live/vossClientBuild';
 import { startVossServe } from './org/live/sidecarClient';
+import { attachSession } from './org/cockpit/serverSessions';
 import AdoptAgentModal from './components/modal/AdoptAgentModal';
 import { registerAdoption, adoptionByPaneId } from './pane/adoptionRegistry';
 import { currentRunId } from './org/orgStore';
@@ -1569,6 +1570,27 @@ export default function App() {
               cliBinary="voss"
               onClose={() => setOrgViewOpen(false)}
               followUpClient={vossClient()?.followUpClient}
+              vossClient={vossClient()?.client}
+              onAttach={(sessionId) =>
+                void attachSession({
+                  cwd: workspacePath() ?? '',
+                  sessionId,
+                  ensureClient: async (cwd) => {
+                    const built = await ensureVossClient(cwd);
+                    return {
+                      baseUrl: built.baseUrl,
+                      token: built.token,
+                      client: built.client,
+                    };
+                  },
+                  openAttachedPane: (r) =>
+                    openNativePane({
+                      sessionId: r.sessionId,
+                      baseUrl: r.baseUrl,
+                      token: r.token,
+                    }),
+                })
+              }
             />
           </Show>
           </div>
