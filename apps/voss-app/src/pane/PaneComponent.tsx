@@ -18,6 +18,7 @@ import BudgetBar from '../grid/BudgetBar';
 import BudgetPopover from '../grid/BudgetPopover';
 import PasteGuard from './PasteGuard';
 import ExitBanner from './ExitBanner';
+import ProtocolPane from './ProtocolPane';
 import FindBar from './FindBar';
 import {
   registerScrollbackProvider,
@@ -59,6 +60,11 @@ export interface PaneProps {
   workspacePath?: string;
   /** Grid supplies PaneHeader; hide this pane's duplicate chrome row. */
   embeddedInGrid?: boolean;
+  /** V15-03 (VLIVE-04): native server session — when set, the pane body is a
+   *  structured ProtocolPane and NO PTY is spawned (discriminator). */
+  nativeSessionId?: string;
+  nativeBaseUrl?: string;
+  nativeToken?: string;
 }
 
 function basename(p: string): string {
@@ -282,6 +288,11 @@ export default function PaneComponent(props: PaneProps) {
   });
 
   const doSpawn = async (t: Terminal) => {
+    // V15-03: protocol panes never spawn a PTY (T-V15-06 — additive branch).
+    if (props.nativeSessionId) {
+      setDot('running');
+      return;
+    }
     if (props.agentConfig) {
       // VCKP-13: the managed toggle routes to the SANDBOXED command — never a
       // no-op security switch. Unmanaged configs keep the unchanged spawnAgent.
@@ -370,6 +381,12 @@ export default function PaneComponent(props: PaneProps) {
   };
 
   onMount(async () => {
+    // V15-03: native protocol panes render <ProtocolPane> instead of xterm —
+    // skip terminal/transport setup entirely (the body div is swapped out).
+    if (props.nativeSessionId) {
+      setDot('running');
+      return;
+    }
     let settings = DEFAULT_APPEARANCE_SETTINGS;
     try {
       settings = await loadAppearanceSettings();
@@ -673,7 +690,20 @@ export default function PaneComponent(props: PaneProps) {
         </button>
       </div>
       </Show>
-      <div ref={bodyRef} class="pane-body" />
+      <Show
+        when={props.nativeSessionId}
+        fallback={<div ref={bodyRef} class="pane-body" />}
+      >
+        <ProtocolPane
+          sessionId={props.nativeSessionId!}
+          baseUrl={props.nativeBaseUrl!}
+          token={props.nativeToken!}
+          onEnded={() => {
+            setDot('exited');
+            setExitCode(1);
+          }}
+        />
+      </Show>
 
       <Show when={showFind()}>
         <FindBar

@@ -22,7 +22,10 @@ import { applyLoadedLayout } from './layoutCommands';
 import { applySessionFile } from './sessionCommands';
 import type { LayoutFile } from './layoutStorage';
 import type { SessionFile } from './sessionStorage';
-import SplitNodeView, { type CloseUI } from './SplitNode';
+import SplitNodeView, {
+  type CloseUI,
+  type NativeSessionRecord,
+} from './SplitNode';
 import type { AgentConfig } from '../pane/pty-ipc';
 import { requestCloseGated } from './CloseConfirmBanner';
 import type { Dims } from './DragHandle';
@@ -135,6 +138,8 @@ export default function GridRoot(props: {
    */
   active?: () => boolean;
   agentConfigByPaneId?: Record<string, AgentConfig>;
+  /** V15-03: per-pane native session map — leaves render ProtocolPane. */
+  nativeSessionByPaneId?: Record<string, NativeSessionRecord>;
   workspacePath?: string;
   onFocusChange?: (paneId: string) => void;
   onLeafCountChange?: (count: number) => void;
@@ -441,6 +446,7 @@ export default function GridRoot(props: {
           prefixActive={props.prefixActive}
           prefixReserved={props.prefixReserved}
           agentConfigByPaneId={props.agentConfigByPaneId}
+          nativeSessionByPaneId={props.nativeSessionByPaneId}
           workspacePath={props.workspacePath}
           paneDrag={paneDrag}
         />
