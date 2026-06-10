@@ -123,3 +123,44 @@ def test_checks_extra_key_rejected() -> None:
                 "checks": [{"type": "cmd", "run": "true", "extra_key": 1}],
             }
         )
+
+
+def test_surface_defaults_internal() -> None:
+    spec = TaskSpec(prompt="x", mode="plan", rubric="...")
+
+    assert spec.surface == "internal"
+
+
+def test_surface_cli_do() -> None:
+    spec = TaskSpec.model_validate(
+        {"prompt": "x", "mode": "plan", "rubric": "...", "surface": "cli:do"}
+    )
+
+    assert spec.surface == "cli:do"
+
+
+def test_surface_invalid_rejected() -> None:
+    with pytest.raises(ValidationError):
+        TaskSpec.model_validate(
+            {"prompt": "x", "mode": "plan", "rubric": "...", "surface": "bogus"}
+        )
+
+
+def test_target_file_defaults_none() -> None:
+    spec = TaskSpec(prompt="x", mode="plan", rubric="...")
+
+    assert spec.target_file is None
+
+
+def test_target_file_cli_edit() -> None:
+    spec = TaskSpec.model_validate(
+        {
+            "prompt": "x",
+            "mode": "edit",
+            "rubric": "...",
+            "surface": "cli:edit",
+            "target_file": "calc.py",
+        }
+    )
+
+    assert spec.target_file == "calc.py"
