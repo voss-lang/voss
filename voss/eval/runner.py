@@ -344,6 +344,113 @@ def _provider_for_task(
     return get_provider(spec.provider)
 
 
+async def _run_suite_async(
+    *,
+    tasks: list[tuple[str, TaskSpec]],
+    suite_root: Path,
+    runs_path: Path,
+    default_provider: ModelProvider,
+    judge_provider: ModelProvider | None,
+    stub: bool,
+    live: bool,
+    k: int,
+    model: str | None,
+    judge_model: str | None,
+    max_turns: int,
+) -> None:
+    """Drive + judge all tasks on one event loop (httpx clients are loop-bound)."""
+    for task_id, spec in tasks:
+        for run_idx in range(k):
+            started_at = _now_iso()
+            start = time.monotonic()
+            with tempfile.TemporaryDirectory(prefix=f"voss-eval-{task_id}-") as tmp:
+                cwd = _prepare_fixture(suite_root / task_id, Path(tmp))
+                provider = _provider_for_task(
+                    default_provider=default_provider,
+                    spec=spec,
+                    stub=stub,
+                )
+                model_eff = (
+                    "__stub__"
+                    if stub
+                    else (spec.model or model or get_config().default_model)
+                )
+                if stub:
+                    judge_model_eff = judge_model or model_eff or get_config().default_model
+                else:
+                    judge_model_eff = judge_model or get_eval_judge_model()
+                if not stub and judge_model_eff == model_eff:
+                    click.echo(
+                        f"voss eval: judge model == actor model ({judge_model_eff!r}); proceeding",
+                        err=True,
+                    )
+                if "web_fetch" in spec.tools:
+                    configure(allow_net=True)
+                record, final, crash_reason, capped = await _drive_task(
+                    task_id,
+                    spec,
+                    cwd=cwd,
+                    provider=provider,
+                    model=model_eff,
+                    stub=stub,
+                    max_turns=max_turns,
+                )
+                diff = _file_diff(cwd)
+                gate_pass, check_results = _run_checks(spec.checks, cwd)
+                cost_usd, confidence = _extract_signals(record)
+
+                verdict = None
+                judge_verdict = "skipped"
+                judge_rationale = ""
+                if crash_reason is None and not capped and judge_provider is not None:
+                    try:
+                        verdict, judge_verdict = await judge_run(
+                            provider=judge_provider,
+                            model=judge_model_eff,
+                            task_prompt=spec.prompt,
+                            final=final,
+                            file_diff=diff if "file_diff" in spec.judge_inputs else "",
+                            rubric=spec.rubric,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - eval records judge failures as rows
+                        judge_verdict = "error"
+                        judge_rationale = f"judge error: {type(exc).__name__}: {str(exc)[:300]}"
+
+                if crash_reason or capped:
+                    success = False
+                elif not gate_pass:
+                    success = False
+                elif verdict:
+                    success = verdict.verdict == "pass"
+                else:
+                    success = None
+
+                row = {
+                    "task_id": task_id,
+                    "run_idx": run_idx,
+                    "success": success,
+                    "cost_usd": cost_usd,
+                    "confidence": confidence,
+                    "duration_s": round(time.monotonic() - start, 3),
+                    "judge_verdict": judge_verdict,
+                    "judge_confidence": verdict.confidence if verdict else 0.0,
+                    "judge_rationale": (
+                        verdict.rationale if verdict else (crash_reason or judge_rationale)
+                    ),
+                    "provider": provider.__class__.__name__,
+                    "model": model_eff,
+                    "judge_model": judge_model_eff,
+                    "live": live,
+                    "seed": run_idx,
+                    "voss_version": VOSS_VERSION,
+                    "started_at": started_at,
+                    "gate_pass": gate_pass,
+                    "capped": capped,
+                    "checks": check_results,
+                }
+                _append_row(runs_path, row)
+
+
 def run_suite(
     *,
     suite: str = "golden",
@@ -387,100 +494,27 @@ def run_suite(
     if runs_path.exists():
         runs_path.unlink()
 
-    for task_id, spec in tasks:
-        for run_idx in range(k):
-            started_at = _now_iso()
-            start = time.monotonic()
-            with tempfile.TemporaryDirectory(prefix=f"voss-eval-{task_id}-") as tmp:
-                cwd = _prepare_fixture(suite_root / task_id, Path(tmp))
-                provider = _provider_for_task(
-                    default_provider=default_provider,
-                    spec=spec,
-                    stub=stub,
-                )
-                model_eff = (
-                    "__stub__"
-                    if stub
-                    else (spec.model or model or get_config().default_model)
-                )
-                if stub:
-                    judge_model_eff = judge_model or model_eff or get_config().default_model
-                else:
-                    judge_model_eff = judge_model or get_eval_judge_model()
-                if not stub and judge_model_eff == model_eff:
-                    click.echo(
-                        f"voss eval: judge model == actor model ({judge_model_eff!r}); proceeding",
-                        err=True,
-                    )
-                if "web_fetch" in spec.tools:
-                    configure(allow_net=True)
-                record, final, crash_reason, capped = asyncio.run(
-                    _drive_task(
-                        task_id,
-                        spec,
-                        cwd=cwd,
-                        provider=provider,
-                        model=model_eff,
-                        stub=stub,
-                        max_turns=max_turns,
-                    )
-                )
-                diff = _file_diff(cwd)
-                gate_pass, check_results = _run_checks(spec.checks, cwd)
-                cost_usd, confidence = _extract_signals(record)
+    async def _run() -> None:
+        try:
+            await _run_suite_async(
+                tasks=tasks,
+                suite_root=suite_root,
+                runs_path=runs_path,
+                default_provider=default_provider,
+                judge_provider=judge_provider,
+                stub=stub,
+                live=live,
+                k=k,
+                model=model,
+                judge_model=judge_model,
+                max_turns=max_turns,
+            )
+        finally:
+            for provider in (default_provider, judge_provider):
+                if provider is not None and hasattr(provider, "aclose"):
+                    await provider.aclose()
 
-                verdict = None
-                judge_verdict = "skipped"
-                judge_rationale = ""
-                if crash_reason is None and not capped and judge_provider is not None:
-                    try:
-                        verdict, judge_verdict = asyncio.run(
-                            judge_run(
-                                provider=judge_provider,
-                                model=judge_model_eff,
-                                task_prompt=spec.prompt,
-                                final=final,
-                                file_diff=diff if "file_diff" in spec.judge_inputs else "",
-                                rubric=spec.rubric,
-                            )
-                        )
-                    except Exception as exc:  # noqa: BLE001 - eval records judge failures as rows
-                        judge_verdict = "error"
-                        judge_rationale = f"judge error: {type(exc).__name__}: {str(exc)[:300]}"
-
-                if crash_reason or capped:
-                    success = False
-                elif not gate_pass:
-                    success = False
-                elif verdict:
-                    success = verdict.verdict == "pass"
-                else:
-                    success = None
-
-                row = {
-                    "task_id": task_id,
-                    "run_idx": run_idx,
-                    "success": success,
-                    "cost_usd": cost_usd,
-                    "confidence": confidence,
-                    "duration_s": round(time.monotonic() - start, 3),
-                    "judge_verdict": judge_verdict,
-                    "judge_confidence": verdict.confidence if verdict else 0.0,
-                    "judge_rationale": (
-                        verdict.rationale if verdict else (crash_reason or judge_rationale)
-                    ),
-                    "provider": provider.__class__.__name__,
-                    "model": model_eff,
-                    "judge_model": judge_model_eff,
-                    "live": live,
-                    "seed": run_idx,
-                    "voss_version": VOSS_VERSION,
-                    "started_at": started_at,
-                    "gate_pass": gate_pass,
-                    "capped": capped,
-                    "checks": check_results,
-                }
-                _append_row(runs_path, row)
+    asyncio.run(_run())
 
     write_summary(runs_path, out / "summary.md")
     return out
