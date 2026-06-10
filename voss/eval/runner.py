@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import textwrap
 import time
 from dataclasses import asdict
@@ -271,6 +272,142 @@ async def _drive_cli_edit(
     if result.returncode != 0:
         return "", f"returncode={result.returncode}: {result.stderr[:200]}", False
     return result.stdout.strip(), None, False
+
+
+async def _consume_sse(
+    client,
+    base_url: str,
+    sid: str,
+    headers: dict[str, str],
+    *,
+    permission_choice: str,
+    message_body: dict,
+) -> str:
+    """Open the SSE stream, post the message INSIDE the stream context (events
+    emitted in the gap are not lost), and consume until session.idle.
+
+    permission.updated → reply as a normal await inside the loop (httpx
+    AsyncClient supports concurrent requests on one client). Returns the
+    final event's text.
+    """
+    final_text = ""
+    async with client.stream(
+        "GET",
+        f"{base_url}/session/{sid}/events",
+        headers={**headers, "Accept": "text/event-stream"},
+    ) as sse:
+        await client.post(
+            f"{base_url}/session/{sid}/message", json=message_body, headers=headers
+        )
+        event_type = ""
+        async for line in sse.aiter_lines():
+            line = line.rstrip("\r")
+            if not line:
+                event_type = ""
+                continue
+            if line.startswith(":"):
+                continue
+            if line.startswith("event:"):
+                event_type = line[6:].strip()
+            elif line.startswith("data:"):
+                try:
+                    payload = json.loads(line[5:].strip())
+                except json.JSONDecodeError:
+                    continue
+                ev_type = payload.get("type", event_type)
+                if ev_type == "permission.updated":
+                    await client.post(
+                        f"{base_url}/session/{sid}/permission",
+                        json={"id": payload["id"], "choice": permission_choice},
+                        headers=headers,
+                    )
+                elif ev_type == "final":
+                    final_text = payload.get("text", "")
+                elif ev_type == "session.idle":
+                    break
+    return final_text
+
+
+async def _drive_serve(
+    spec: TaskSpec,
+    cwd: Path,
+    *,
+    permission_choice: str = "a",
+    timeout: float = 180.0,
+) -> tuple[str, str | None, bool]:
+    """Spawn `voss serve`, parse the {v,port,token} handshake, drive one turn
+    over httpx REST+SSE. The bearer token lives ONLY in the Authorization
+    header — never in any return value or artifact.
+    """
+    env = _live_env(cwd)
+    env["VOSS_DEV"] = "1"
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "voss.cli", "serve"],
+        env=env,
+        cwd=str(cwd),
+        stdin=subprocess.PIPE,  # held open = heartbeat; EOF self-terminates server
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+    stderr_lines: list[str] = []
+    threading.Thread(
+        target=lambda: stderr_lines.extend(iter(proc.stderr)), daemon=True
+    ).start()
+    final = ""
+    try:
+        handshake = None
+        deadline = time.monotonic() + 60.0
+        for line in proc.stdout:
+            try:
+                h = json.loads(line.strip())
+            except json.JSONDecodeError:
+                h = None
+            if isinstance(h, dict) and h.get("token"):
+                handshake = h
+                break
+            if time.monotonic() > deadline:
+                break
+        if handshake is None:
+            proc.kill()
+            return (
+                "",
+                f"handshake timeout; stderr: {''.join(stderr_lines[-10:])[:300]}",
+                False,
+            )
+
+        base_url = f"http://127.0.0.1:{handshake['port']}"
+        headers = {"Authorization": f"Bearer {handshake['token']}"}
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(
+                f"{base_url}/session",
+                json={"cwd": str(cwd), "auth": "auto"},
+                headers=headers,
+            )
+            r.raise_for_status()
+            sid = r.json()["id"]
+            final = await _consume_sse(
+                client,
+                base_url,
+                sid,
+                headers,
+                permission_choice=permission_choice,
+                message_body={
+                    "parts": [{"type": "text", "text": spec.prompt}],
+                    "mode": spec.mode,
+                },
+            )
+    except Exception as exc:  # noqa: BLE001 - eval records failures as rows
+        return "", f"{type(exc).__name__}: {str(exc)[:300]}", False
+    finally:
+        if proc.stdin:
+            proc.stdin.close()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    return final, None, False
 
 
 async def _drive_resume(
