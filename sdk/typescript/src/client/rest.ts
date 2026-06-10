@@ -64,13 +64,16 @@ export function createVossClient(baseUrl: string, token: string) {
     async listSessions(): Promise<SessionInfo[]> {
       const result = await client.GET("/session");
       const data = await unwrapResult<unknown>(result);
-      return expectArray<SessionInfo>(data, result.response, "expected listSessions response to be an array");
+      // The server wraps the list in a `{v, sessions: [...]}` envelope
+      // (harness/server/app.py list_sessions); accept a bare array too.
+      return expectSessionsArray<SessionInfo>(data, result.response, "expected listSessions response to be an array");
     },
 
     async listSaved(cwd?: string): Promise<SavedSession[]> {
       const result = await client.GET("/sessions/saved", cwdQueryInit(cwd));
       const data = await unwrapResult<unknown>(result);
-      return expectArray<SavedSession>(data, result.response, "expected listSaved response to be an array");
+      // Same `{v, sessions: [...]}` envelope as listSessions.
+      return expectSessionsArray<SavedSession>(data, result.response, "expected listSaved response to be an array");
     },
 
     async getSession(sessionId: string): Promise<SessionInfo> {
@@ -213,6 +216,15 @@ function expectArray<T>(value: unknown, response: Response, message: string): T[
   }
 
   throw decodeError(response, message);
+}
+
+/** Accept either a bare array or the server's `{v, sessions: [...]}` envelope. */
+function expectSessionsArray<T>(value: unknown, response: Response, message: string): T[] {
+  if (isRecord(value) && Array.isArray(value.sessions)) {
+    return value.sessions as T[];
+  }
+
+  return expectArray<T>(value, response, message);
 }
 
 function decodeError(response: Response, detail: string): VossApiError {
