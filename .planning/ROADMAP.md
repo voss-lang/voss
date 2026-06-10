@@ -2,10 +2,10 @@
 
 **Created:** 2026-05-10
 **Mode:** Harness-led vertical slice → coding-agent expansion → daily-driver gap closure → desktop ADE scaffold
-**Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`) · **V-prefixed agent-org phases** (Agent Engineering Organization Layer — design in `.planning/docs/ORCHESTRATION_LAYERS.md`; supersedes the O-track + absorbs M13)
+**Granularity:** M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`) · **V-prefixed agent-org phases** (Agent Engineering Organization Layer — design in `.planning/docs/ORCHESTRATION_LAYERS.md`; supersedes the O-track + absorbs M13) · **E-prefixed internal proof phases** (on-demand e2e + eval suite, internal-only, subscription-backed models — decisions in `.planning/notes/e-track-eval-decisions.md`; supersedes M5 eval scope)
 **Requirements covered:** 64 / 64 (v0.1 locked); v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A13 (counts TBD by SPEC.md); agent-org phases V0–V13 (requirements namespaced `V*`, locked per V{n}-SPEC.md)
 **Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1); `.planning/seeds/` (v0.2 M-phases); `.planning/notes/daily-driver-punch-list.md` (T-phases); `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-06-08 — **V13.4 (C ABI/Schema Doc) ✅ COMPLETE** (1/1 plan, doc-only: `docs/native-embedding.md` native/C consumption reference + `docs/check-native-embedding-refs.sh` refs gate; VSDK-C-01..06; C headers/FFI deferred w/ trigger; zero code). | 2026-06-08 — **V13.3 (Go Local/Headless Client SDK) ✅ COMPLETE** (6/6 plans; `sdk/go/` generated+drift-gated types, 21-member Decode, typed REST/SSE, spawn/attach no-orphan supervisor, permission helper, no-FFI guard; full suite + real-server TestMain green; VSDK-GO-01..08). | 2026-06-07 — moved the contract snapshot + codegen substrate + CI drift gate from V13 into **V13.1** (the first client owns the artifact); V13 is now **docs-only** (VSDK-01..06: strategy/matrix/tiers + `sdk.md`↔`PROTOCOL.md` reconcile + Python/M7 linkage, no code/CI, doable anytime); **V13.1** produces the committed `openapi.json` + event-union snapshot that **V13.2–.4** reuse. | 2026-06-06 — added **V13 External Developer SDK Surfaces** + per-language sub-phases **V13.1 TS / V13.2 Rust / V13.3 Go / V13.4 C-ABI-doc**, each with its own SPEC; deep reader SDKs gated on V1/V3/V4/V9. | 2026-06-05 — added **V0–V12 Agent Engineering Organization Layer** track (design: `.planning/docs/ORCHESTRATION_LAYERS.md`). V supersedes the O-track (V3→O2, V4→O1, V5→O3, V6→O4, V7→O5, V9→O6 — O1–O6 archived-as-superseded; O6's ready plans re-point to V9) and absorbs M13 into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VAUD/VLANG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. | 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Last updated:** 2026-06-10 — added **E1–E5 Internal Proof Suite** track (on-demand, internal-only e2e + evals proving the product works; subscription-backed flagship models via existing voss auth; hybrid deterministic+LLM-judge scoring; surfaces × repo-shapes matrix; M5 eval scope superseded into E1/E2, packaging smoke M5-06 stays shipped; exploration: `.planning/notes/e-track-eval-decisions.md`). | 2026-06-08 — **V13.4 (C ABI/Schema Doc) ✅ COMPLETE** (1/1 plan, doc-only: `docs/native-embedding.md` native/C consumption reference + `docs/check-native-embedding-refs.sh` refs gate; VSDK-C-01..06; C headers/FFI deferred w/ trigger; zero code). | 2026-06-08 — **V13.3 (Go Local/Headless Client SDK) ✅ COMPLETE** (6/6 plans; `sdk/go/` generated+drift-gated types, 21-member Decode, typed REST/SSE, spawn/attach no-orphan supervisor, permission helper, no-FFI guard; full suite + real-server TestMain green; VSDK-GO-01..08). | 2026-06-07 — moved the contract snapshot + codegen substrate + CI drift gate from V13 into **V13.1** (the first client owns the artifact); V13 is now **docs-only** (VSDK-01..06: strategy/matrix/tiers + `sdk.md`↔`PROTOCOL.md` reconcile + Python/M7 linkage, no code/CI, doable anytime); **V13.1** produces the committed `openapi.json` + event-union snapshot that **V13.2–.4** reuse. | 2026-06-06 — added **V13 External Developer SDK Surfaces** + per-language sub-phases **V13.1 TS / V13.2 Rust / V13.3 Go / V13.4 C-ABI-doc**, each with its own SPEC; deep reader SDKs gated on V1/V3/V4/V9. | 2026-06-05 — added **V0–V12 Agent Engineering Organization Layer** track (design: `.planning/docs/ORCHESTRATION_LAYERS.md`). V supersedes the O-track (V3→O2, V4→O1, V5→O3, V6→O4, V7→O5, V9→O6 — O1–O6 archived-as-superseded; O6's ready plans re-point to V9) and absorbs M13 into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VAUD/VLANG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. | 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
 
 ## Phase Order
 
@@ -16,7 +16,7 @@
 | M2 | Project Cognition | Make Voss remember useful project facts across sessions | COG-01..08 | 5 |
 | M3 | Language Validation | Prove `.voss` is useful for real AI workflow control | LANG-01..10 | 5 |
 | M4 | Voss-authored Harness Loop | Dogfood the language on the harness itself | DOG-01..08 | 4 |
-| M5 | Eval and Distribution Prep | Measure quality and prepare packaging after the Python loop works | EVAL-01..05 | 4 |
+| M5 | ⊘ SUPERSEDED by E-track — Eval and Distribution Prep | Eval scope (golden tasks, `voss eval`, judge, tracking) absorbed by E1/E2; packaging smoke shipped (M5-06) | EVAL-01..05 → E1/E2 | superseded |
 | M6 | npm Wrapper | Publish `voss` as an npm package that vendors Python + the v0.1 wheel | NPM-01..05 | 5 |
 | M7 | SDK Polish | Close the four known public-API holes + stabilize provider registration | SDK-01..05 | 5 |
 | M8 | Project Memory (MEM-01) | VOSS.md + cross-session recall layer for the harness using Voss runtime memory primitives | MEM-01..07 | 7 |
@@ -79,6 +79,11 @@
 | V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; off the V13.1 contract snapshot; no runtime reimpl | VSDK-GO-* | ✅ COMPLETE (6/6 plans; `sdk/go/` generated+drift-gated types, 21-member Decode, typed REST/SSE, spawn/attach no-orphan, permission, no-FFI guard; full suite + real-server TestMain green; VSDK-GO-01..08). Deviations: go floor→1.24, in-SDK 3.1→3.0 codegen normalizer, 60s spawn handshake. |
 | V13.4 | C ABI/Schema Doc | JSON-schema/ABI doc only; generated headers deferred; no full SDK | VSDK-C-* | ✅ COMPLETE (1/1 plan; `docs/native-embedding.md` native/C consumption reference + `docs/check-native-embedding-refs.sh` refs-resolve gate; VSDK-C-01..06; C headers/FFI deferred w/ trigger; zero code). |
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback); refreshed quick-launch modal + "Manage with Voss" adopt flow + managed-launch enforcement tiers (OS sandbox/permission-proxy/budget-kill) for external CLIs. Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..13 | ✅ COMPLETE (13/13 plans, operator-approved 2026-06-09; visual contract = recovered mockups in `.planning/sketches/`) |
+| E1 | Eval Substrate | Suite loader, TaskSpec, runner, JSONL+summary, hybrid deterministic+judge scoring, subscription-auth model wiring, per-run budget cap (absorbs M5-01..04) | EVSUB-01..0N (TBD by SPEC.md) | TBD |
+| E2 | Golden Tasks × Repo Matrix | py/rust/ts fixture repos; agent proves cognition + edits per project shape (absorbs M5-05) | EVGLD-01..0N (TBD by SPEC.md) | TBD |
+| E3 | Surface E2E | CLI verbs + server plane driven end-to-end with real model inference | EVSRF-01..0N (TBD by SPEC.md) | TBD |
+| E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..0N (TBD by SPEC.md) | TBD |
+| E5 | TUI + voss-app Autonomous Driving | Drive TUI and voss-app surfaces autonomously; Tauri WebDriver blocked on macOS — approach TBD | EVUI-01..0N (TBD by SPEC.md) | TBD |
 | V15 | Live Plane Integration (sidecar handshake + structured pane rendering) | Plug the cockpit into a real `voss serve`: Tauri sidecar command spawns/attaches the server and hands the `{v,port,token}` stdout handshake to the webview (port `voss-sdk` `spawn_with` incl. 60s cold-start + `LITELLM_LOCAL_MODEL_COST_MAP=true`); construct the V13.1 TS client and plug V14's injectable sockets (RunCommandBar native `createSession`, drawer `followUpClient`, SSE → AttentionQueue + model overlay — live label flips for real); Voss-native panes graduate from raw PTY to structured protocol rendering (PROTOCOL §6 event union → DOM: EM task header, tool lines, plan prose, stream deltas) with the inline permission gate (`permission.updated` → Allow/Deny → `POST /permission`, shared with the queue). Visual contract: the pane-content of `.planning/sketches/V14-livework-mockup.html`. Seed: `.planning/notes/seed-structured-pane-rendering.md`. | TBD (SPEC pending) | Added 2026-06-09. Keystone = sidecar handshake (webview cannot spawn `voss serve` — V14 Pitfall 4); spike it first. UI-SPEC before planning (V14 lesson). Out: VCKP-13b permission proxy, rollback/re-run, embedded browser. |
 
 ---
@@ -332,7 +337,9 @@ Plans:
 
 ---
 
-## Phase M5: Eval and Distribution Prep
+## Phase M5: Eval and Distribution Prep — ⊘ SUPERSEDED by E-track (2026-06-10)
+
+> Eval scope (golden tasks, `voss eval` CLI, judge_run, success/cost/confidence tracking — M5-01..05) absorbed into **E1/E2**. Packaging smoke (M5-06) shipped and stands. Decisions: `.planning/notes/e-track-eval-decisions.md`.
 
 **Goal:** Measure quality and prepare shipping.
 
@@ -2246,7 +2253,7 @@ Plans:
 - [x] V16-01-PLAN.md — Layout derivation + project: config reader + SyncContext contract (wave 1) — executed 2026-06-10
 - [x] V16-02-PLAN.md — Doc + fence-body Jinja templates (wave 2) — executed 2026-06-10
 - [x] V16-03-PLAN.md — voss sync orchestrator + CLI + manifest + idempotency (wave 3) — executed 2026-06-10
-- [ ] V16-04-PLAN.md — Prompt sync + ${} override loader + hash-guard (stretch R5/R6, wave 4)
+- [x] V16-04-PLAN.md — Prompt sync + ${} override loader + hash-guard (stretch R5/R6, wave 4) — executed 2026-06-10 — **PHASE V16 COMPLETE (4/4, R1–R6)**
 
 ---
 
@@ -2304,6 +2311,65 @@ Plans:
 - [ ] V18-03-PLAN.md — Cache-coherent integration at agent.py:713 + [context] config + --no-pack byte-identical escape hatch (VOPT-03/06)
 - [ ] V18-04-PLAN.md — Savings ledger (packed≤original) + cache-netted $ + /cost & F3 OSC savings line (VOPT-05; D-01..D-04)
 - [ ] V18-05-PLAN.md — M5 packing-on-vs-off quality gate (biting) + coherence guard (VOPT-07/08)
+
+---
+
+## E-prefixed phases: Internal Proof Suite (E2E + Evals)
+
+E1–E5 prove the **product** works — model + functionality end-to-end — not just that unit tests pass. Motivated by false-green history (scaffold tests passing without real behavior, stale sentinels). **Internal-only, on-demand**: never shipped, no packaging, no public docs; runs ride **subscription-backed flagship models via existing voss auth** (`--auth=codex` etc.; Ollama optional fallback) at $0 marginal spend with a per-run budget/turn cap. Scoring is **hybrid**: deterministic gates (tests pass in target repo, diff applies, exit code) decide pass/fail; LLM-judge scores quality on top. The matrix is **runtime surfaces** (CLI, server plane, SDK, TUI, voss-app) × **target repo shapes** (Python, Rust, TS). Supersedes M5's eval scope (EVAL-01..05 → E1/E2; M5-06 packaging smoke already shipped). Each phase locks requirements in its own `E{n}-SPEC.md` (V-track mechanism). Full decision log: `.planning/notes/e-track-eval-decisions.md`.
+
+**Build order:** E1 → E2 → E3/E4 (parallel-ok) → E5. E1 is the substrate everything else consumes; V18-05's packing-on-vs-off quality gate consumes E1 instead of M5.
+
+### Phase E1: Eval Substrate
+
+**Goal:** The runnable core every other E-phase consumes — define a task, run it against a real subscription-backed model, score it hybrid, record results.
+
+**Scope:**
+- Suite loader + TaskSpec (pydantic) + fixture isolation (absorbs M5-01 ground).
+- Runner: on-demand entrypoint (make target / internal dev verb — not a shipped CLI surface), per-run budget/turn cap so a suite run can't eat weekly sub limits.
+- Model wiring through existing voss auth resolution (codex OAuth, /models routing); honors known backend quirks.
+- Hybrid scoring: deterministic gate predicates + judge_run LLM-judge layer (absorbs M5-02).
+- Results: JSONL per run + summary.md (success rate, mean cost, confidence correlation — absorbs M5-03/04).
+
+**Out of scope:** CI integration, scheduled runs, public `voss eval` surface, live dashboards.
+
+**Requirements:** EVSUB-01..0N (TBD by `E1-SPEC.md`; absorbs EVAL-01..04 intent).
+
+**Cross-cutting:** Seed material = M5-01..04 plans + existing `tests/eval/`. Open questions for spec/discuss: budget-cap defaults, judge model routing (same sub? same model as actor?), relationship to existing `tests/e2e/` pytest layer.
+
+**Plans:** TBD
+
+### Phase E2: Golden Tasks × Repo Matrix
+
+**Goal:** Golden agentic tasks (analyze, plan-only, approved edit, validation, resume) run against fixture repos in Python, Rust, and TS — proving cognition + edits across project shapes.
+
+**Requirements:** EVGLD-01..0N (TBD by `E2-SPEC.md`; absorbs M5-05 / EVAL-05 intent).
+
+**Plans:** TBD
+
+### Phase E3: Surface E2E
+
+**Goal:** Each runtime entry point — CLI verbs, server plane (serve/SSE/permission gates) — driven end-to-end with real model inference and hybrid-scored.
+
+**Requirements:** EVSRF-01..0N (TBD by `E3-SPEC.md`).
+
+**Plans:** TBD
+
+### Phase E4: SDK Proof
+
+**Goal:** `voss.harness` / `voss_runtime` public APIs (+ V13.x client SDK surfaces where applicable) exercised as a real external consumer against live runs — the SDK contract proven, not just type-checked.
+
+**Requirements:** EVSDK-01..0N (TBD by `E4-SPEC.md`).
+
+**Plans:** TBD
+
+### Phase E5: TUI + voss-app Autonomous Driving
+
+**Goal:** The interactive surfaces (Textual TUI, voss-app desktop) driven autonomously end-to-end. Hardest phase: Tauri WebDriver is impossible on macOS (A2 finding) — approach (e.g. protocol-level driving, accessibility tree, screenshot judge) decided at spec time.
+
+**Requirements:** EVUI-01..0N (TBD by `E5-SPEC.md`).
+
+**Plans:** TBD
 
 ---
 
