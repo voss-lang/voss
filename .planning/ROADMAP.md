@@ -79,7 +79,7 @@
 | V13.3 | Go Local/Headless Client SDK | attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; off the V13.1 contract snapshot; no runtime reimpl | VSDK-GO-* | ✅ COMPLETE (6/6 plans; `sdk/go/` generated+drift-gated types, 21-member Decode, typed REST/SSE, spawn/attach no-orphan, permission, no-FFI guard; full suite + real-server TestMain green; VSDK-GO-01..08). Deviations: go floor→1.24, in-SDK 3.1→3.0 codegen normalizer, 60s spawn handshake. |
 | V13.4 | C ABI/Schema Doc | JSON-schema/ABI doc only; generated headers deferred; no full SDK | VSDK-C-* | ✅ COMPLETE (1/1 plan; `docs/native-embedding.md` native/C consumption reference + `docs/check-native-embedding-refs.sh` refs-resolve gate; VSDK-C-01..06; C headers/FFI deferred w/ trigger; zero code). |
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback); refreshed quick-launch modal + "Manage with Voss" adopt flow + managed-launch enforcement tiers (OS sandbox/permission-proxy/budget-kill) for external CLIs. Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..13 | ✅ COMPLETE (13/13 plans, operator-approved 2026-06-09; visual contract = recovered mockups in `.planning/sketches/`) |
-| E1 | Eval Substrate | Suite loader, TaskSpec, runner, JSONL+summary, hybrid deterministic+judge scoring, subscription-auth model wiring, per-run budget cap (absorbs M5-01..04) | EVSUB-01..0N (TBD by SPEC.md) | TBD |
+| E1 | Eval Substrate | Suite loader, TaskSpec, runner, JSONL+summary, hybrid deterministic+judge scoring, subscription-auth model wiring, per-run budget cap (absorbs M5-01..04) | EVSUB-01..07 | planned (5 plans) |
 | E2 | Golden Tasks × Repo Matrix | py/rust/ts fixture repos; agent proves cognition + edits per project shape (absorbs M5-05) | EVGLD-01..0N (TBD by SPEC.md) | TBD |
 | E3 | Surface E2E | CLI verbs + server plane driven end-to-end with real model inference | EVSRF-01..0N (TBD by SPEC.md) | TBD |
 | E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..0N (TBD by SPEC.md) | TBD |
@@ -2334,11 +2334,16 @@ E1–E5 prove the **product** works — model + functionality end-to-end — not
 **Out of scope:** CI integration, scheduled runs, public `voss eval` surface, live dashboards.
 LangSmith/team dashboards are a likely later adapter if this becomes multi-user, but E1 must not depend on them.
 
-**Requirements:** EVSUB-01..0N (TBD by `E1-SPEC.md`; absorbs EVAL-01..04 intent).
+**Requirements:** EVSUB-01..07 (locked in `E1-SPEC.md`; absorbs EVAL-01..04 intent).
 
 **Cross-cutting:** Seed material = M5-01..04 plans + existing `tests/eval/`. Open questions for spec/discuss: budget-cap defaults, judge model routing (same sub? same model as actor?), relationship to existing `tests/e2e/` pytest layer.
 
-**Plans:** TBD
+**Plans:** 5 plans · 4 waves
+- [ ] E1-01-PLAN.md — Deterministic checks schema (AnyCheck union) + _run_checks executor (EVSUB-01)
+- [ ] E1-02-PLAN.md — [eval] config section + VOSS_DEV dev gate + --max-turns flag (EVSUB-05)
+- [ ] E1-03-PLAN.md — Hybrid gate/judge plumbing + turn cap + judge-model split + summary columns (EVSUB-02/04/06)
+- [ ] E1-04-PLAN.md — Retrofit deterministic checks onto all 6 golden tasks (EVSUB-03)
+- [ ] E1-05-PLAN.md — Live full-suite proof run on codex auth, ≥5/6 gate_pass (EVSUB-07)
 
 ### Phase E2: Golden Tasks × Repo Matrix
 

@@ -67,6 +67,7 @@ Expected: 6 rows; ≥5 gate_pass:true; 0 capped:true; model != judge_model per r
 <task type="checkpoint:human-verify" gate="blocking">
   <name>Task 1: Operator runs the live full-suite proof on codex auth</name>
   <files>(none — human-driven live run; produces git-ignored .voss/eval/e1-proof/ artifacts, no tracked repo files)</files>
+  <action>Pause for the human operator to run the full golden suite LIVE on their codex subscription per &lt;how-to-verify&gt;: `VOSS_DEV=1 .venv/bin/python -m voss.cli eval --auth codex --suite golden -k 1 --out .voss/eval/e1-proof`. This is operator-driven because it requires real ~/.codex/auth.json tokens (no API key, no marginal spend). The executor automates everything else; this gate is the one step Claude cannot perform (it has no subscription creds). On resume the operator reports the 6-row gate_pass/capped outcome + the actor and judge model ids so Task 2 can transcribe them.</action>
   <what-built>
     The hybrid eval substrate is complete (E1-01..04): deterministic checks, hybrid gate/judge scoring, turn cap with upfront print, dev gate, judge-model split, and 6 golden tasks retrofitted with checks. This checkpoint runs the suite LIVE on the operator's codex subscription to prove EVSUB-07.
   </what-built>
@@ -85,6 +86,10 @@ Expected: 6 rows; ≥5 gate_pass:true; 0 capped:true; model != judge_model per r
     7. Report the row-level outcome (which tasks passed gate, any capped, the two model ids) back to the executor so it can write E1-05-SUMMARY.md.
   </how-to-verify>
   <resume-signal>Type "approved" with the 6-row gate_pass/capped summary + the actor and judge model ids, or describe what failed (e.g. a capped task, &lt;5 gate_pass, auth error).</resume-signal>
+  <verify>
+    <human-check>Operator confirms the live run produced .voss/eval/e1-proof/runs.jsonl with 6 rows, ≥5 gate_pass:true, 0 capped:true, and distinct actor/judge model ids; the run header printed task count + cap before the first model call.</human-check>
+  </verify>
+  <done>Live full-suite run completed on codex auth; operator has reported the 6-row gate_pass/capped/model outcome for transcription into E1-05-SUMMARY.md.</done>
 </task>
 
 <task type="auto">
