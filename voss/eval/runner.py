@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import textwrap
 import time
@@ -194,6 +195,82 @@ def _make_stub_net_session(spec: TaskSpec, *, stub: bool) -> NetSession | None:
             max_redirects=5,
         )
     )
+
+
+def _live_env(cwd: Path) -> dict[str, str]:
+    """Env for live surface drivers: inherit auth keys, never inject stubs (D-05)."""
+    env = dict(os.environ)
+    env["LITELLM_LOCAL_MODEL_COST_MAP"] = "true"
+    env["VOSS_DEV"] = "1"
+    env["PYDANTIC_DISABLE_PLUGINS"] = "1"
+    env["HF_HUB_OFFLINE"] = "1"
+    env["TRANSFORMERS_OFFLINE"] = "1"
+    return env
+
+
+async def _drive_cli_do(
+    spec: TaskSpec, cwd: Path, *, timeout: float = 120.0
+) -> tuple[str, str | None, bool]:
+    """Returns (final, crash_reason_or_None, capped=False)."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "voss.cli", "do", spec.prompt, "--cwd", str(cwd), "--plain"],
+            cwd=str(cwd),
+            env=_live_env(cwd),
+            input="",  # empty stdin → isatty()=False, piped-stdin branch appends nothing
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return "", "timeout", False
+    if result.returncode != 0:
+        return "", f"returncode={result.returncode}: {result.stderr[:200]}", False
+    return result.stdout.strip(), None, False
+
+
+async def _drive_cli_chat(
+    spec: TaskSpec, cwd: Path, *, timeout: float = 120.0
+) -> tuple[str, str | None, bool]:
+    """Single piped turn: input() reads the line, next call EOFError → clean exit."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "voss.cli", "chat", "--cwd", str(cwd), "--plain"],
+            cwd=str(cwd),
+            env=_live_env(cwd),
+            input=spec.prompt + "\n",
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return "", "timeout", False
+    if result.returncode != 0:
+        return "", f"returncode={result.returncode}: {result.stderr[:200]}", False
+    return result.stdout.strip(), None, False
+
+
+async def _drive_cli_edit(
+    spec: TaskSpec, cwd: Path, *, timeout: float = 120.0
+) -> tuple[str, str | None, bool]:
+    if not spec.target_file:
+        return "", "cli:edit requires target_file in task.toml", False
+    target = cwd / spec.target_file
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "voss.cli", "edit", str(target), "--cwd", str(cwd), "--plain"],
+            cwd=str(cwd),
+            env=_live_env(cwd),
+            input=spec.prompt + "\n",
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return "", "timeout", False
+    if result.returncode != 0:
+        return "", f"returncode={result.returncode}: {result.stderr[:200]}", False
+    return result.stdout.strip(), None, False
 
 
 async def _drive_resume(
