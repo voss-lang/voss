@@ -18,7 +18,6 @@ const h = vi.hoisted(() => {
     disposed = false;
     openedInto: HTMLElement | null = null;
     private dataHandlers: ((d: string) => void)[] = [];
-    private exitHandlers: never[] = [];
     constructor(public opts: unknown) {}
     open(el: HTMLElement) {
       this.openedInto = el;
