@@ -21,3 +21,5 @@ note is the only V16-directed artifact.
 
 Note: the bus verbs are V15-gated (V17-05/06 execute after the V15 sidecar
 ships). If V16 lands first, mark the bus rows "requires voss serve (V15)".
+
+VBUS-08 coherence guard verified green at V17-07 (2026-06-10): swarm/ + sandbox.rs byte-unchanged, sandbox tests pass unmodified (147 cargo tests), no fs-watcher dep, no new coordination UI components.
