@@ -2380,11 +2380,20 @@ Plans:
 
 ### Phase E4: SDK Proof
 
-**Goal:** `voss.harness` / `voss_runtime` public APIs (+ V13.x client SDK surfaces where applicable) exercised as a real external consumer against live runs — the SDK contract proven, not just type-checked.
+**Goal:** The four public SDK surfaces — `sdk:python` (in-process `voss.harness`/`voss_runtime` embedder), `sdk:ts`, `sdk:go`, `sdk:rust` (client SDKs against live `voss serve`) — exercised as real external consumers driving live model runs, hybrid-scored through the E1 substrate. The external-consumer contract (spawn → session → typed SSE → permission gate → final → read) proven, not just type-checked.
 
-**Requirements:** EVSDK-01..0N (TBD by `E4-SPEC.md`).
+**Requirements:** EVSDK-01 (surface dispatch — `sdk:*` Literal + `_drive_sdk_client`/`_drive_sdk_python`), EVSDK-02 (`sdk:python` in-process driver, public API), EVSDK-03 (`sdk:ts` consumer subprogram), EVSDK-04 (`sdk:go` consumer subprogram), EVSDK-05 (`sdk:rust` consumer subprogram), EVSDK-06 (sdk task.tomls + suite wiring + single-substrate scoring), EVSDK-07 (permission-gate live scenario per client), EVSDK-08 (live proof run on codex auth, human checkpoint). *Minted from CONTEXT D-01..D-08 — no SPEC; see `E4-01-PLAN.md`.*
 
-**Plans:** TBD
+**Plans:** 7 plans, 5 waves (E3-01 dependency satisfied — extends the executed `surface` Literal additively; W3 consumer plans parallelize on separate dirs)
+
+Plans:
+- [ ] E4-01-PLAN.md — RED Nyquist scaffold + three consumer subprograms build (ts/go/rust; resolve go.mod/TS-import/rust-example open Qs) [EVSDK-01..05]
+- [ ] E4-02-PLAN.md — extend surface Literal with sdk:* + _drive_sdk_python (in-process) + _drive_sdk_client (serve+consumer) dispatch [EVSDK-01, EVSDK-02]
+- [ ] E4-03-PLAN.md — harden ts consumer (typed SSE decode, env-driven reply, six-key JSON) [EVSDK-03]
+- [ ] E4-04-PLAN.md — harden go consumer (AttachClient, typed channel type-switch, json.Marshal) [EVSDK-04]
+- [ ] E4-05-PLAN.md — harden rust consumer (VossClient::new, AgentEvent stream match, auto-discovered example) [EVSDK-05]
+- [ ] E4-06-PLAN.md — four sdk task.tomls + shape-agnostic fixture + suite wiring + three consumer end-to-end FAKE_TURN schema tests [EVSDK-03..06]
+- [ ] E4-07-PLAN.md — ts Deny variant + permission_choice forwarding + live proof run on codex auth (human checkpoint) [EVSDK-07, EVSDK-08]
 
 ### Phase E5: TUI + voss-app Autonomous Driving
 
