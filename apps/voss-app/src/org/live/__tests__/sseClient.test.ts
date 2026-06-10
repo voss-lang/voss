@@ -5,6 +5,7 @@ import {
   connectLiveStream,
   liveLabel,
   liveOverlay,
+  liveHandles,
   __resetLiveStream,
 } from '../sseClient';
 import {
@@ -162,5 +163,88 @@ describe('live SSE consumer — VCKP-06 (../sseClient)', () => {
     const settled = delivered;
     await new Promise((r) => setTimeout(r, 20));
     expect(delivered).toBe(settled);
+  });
+});
+
+// V15-02 (VLIVE-03): per-pane onEvent sink, permission cardId context
+// (Pitfall 3), and the session-keyed liveHandles set (multi-session label fix).
+describe('live SSE consumer — V15-02 extensions (../sseClient)', () => {
+  it('onEvent receives every event from an injected stream', async () => {
+    const seen: AgentEvent[] = [];
+    const handle = connectLiveStream({
+      baseUrl: 'http://localhost:0',
+      sessionId: SESSION,
+      token: 'tok',
+      stream: mockSseStream(SESSION),
+      onEvent: (ev) => seen.push(ev),
+    });
+
+    await flush();
+
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    expect(seen.map((e) => e.type)).toEqual(
+      expect.arrayContaining(['budget.updated', 'gate.updated']),
+    );
+    handle.abort();
+  });
+
+  it('a permission.updated event with a cardId yields a queue row with a defined cardId (Pitfall 3)', async () => {
+    async function* onePermission(): AsyncGenerator<AgentEvent> {
+      yield {
+        type: 'permission.updated',
+        id: 'perm-1',
+        tool_name: 'bash',
+        args: { cmd: 'ls' },
+        dimension: 'execution',
+        v: 1,
+      } as unknown as AgentEvent;
+    }
+
+    const handle = connectLiveStream({
+      baseUrl: 'http://localhost:0',
+      sessionId: SESSION,
+      token: 'tok',
+      cardId: 'card-77',
+      stream: onePermission(),
+    });
+
+    await flush();
+
+    const row = attentionQueue().find((i) => i.kind === 'permission');
+    expect(row).toBeDefined();
+    expect(row?.cardId).toBe('card-77');
+    handle.abort();
+  });
+
+  it('liveHandles contains the sessionId during the stream and is empty after completion', async () => {
+    let release: (() => void) | undefined;
+    async function* heldOpen(): AsyncGenerator<AgentEvent> {
+      yield {
+        type: 'budget.updated',
+        session_id: SESSION,
+        spent: 1,
+        remaining: 9,
+        limit: 10,
+        unit: 'tokens',
+        v: 1,
+      } as unknown as AgentEvent;
+      await new Promise<void>((r) => {
+        release = r;
+      });
+    }
+
+    connectLiveStream({
+      baseUrl: 'http://localhost:0',
+      sessionId: SESSION,
+      token: 'tok',
+      stream: heldOpen(),
+    });
+
+    await flush();
+    expect(liveHandles().has(SESSION)).toBe(true);
+
+    release?.();
+    await flush();
+    expect(liveHandles().size).toBe(0);
   });
 });
