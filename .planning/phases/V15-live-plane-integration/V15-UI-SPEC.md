@@ -1,10 +1,11 @@
 ---
 phase: V15
 slug: live-plane-integration
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-09
+reviewed_at: 2026-06-09
 ---
 
 # Phase V15 — UI Design Contract: Live Plane Integration
@@ -62,7 +63,11 @@ Exceptions:
 ## Typography
 
 All type in V15 structured pane uses existing font families. New elements
-follow the size floor of 11px (A12 rule — 9px/10px mockup labels round up).
+follow a size floor of 11px for body and interactive text (A12 rule — 9px
+mockup labels round up). **Explicit exception: 10px is sanctioned for
+tertiary metadata only** — tool-row chevron, plan confidence badge, final-row
+meta, generic fallback rows, and the permission-gate resolved label — keeping
+metadata visually subordinate to the 11px body. No interactive element uses 10px.
 Exactly two weights: 400 (body) and 600 (anchors, labels, primary actions).
 
 | Role | Family | Size | Weight | Line Height | Usage |
@@ -182,7 +187,7 @@ echoes the user input on turn start.
   display: flex
   align-items: center
   gap: 8px
-  padding: 3px 0
+  padding: 4px 0
   cursor: pointer
   user-select: none
 
@@ -301,7 +306,7 @@ Accumulates deltas into a single growing block. While streaming (before
 .proto-thinking-row
   color: var(--fg-3)
   font-style: italic
-  padding: 2px 0
+  padding: 4px 0
   "… {label}"
 ```
 
@@ -318,7 +323,7 @@ Nothing is silently dropped. Every event produces at least this row.
   display: flex
   align-items: center
   gap: 8px
-  padding: 2px 0
+  padding: 4px 0
   color: var(--fg-3)
   font-size: 10px
 
@@ -790,14 +795,14 @@ No third-party registries. All components are custom Solid TSX.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED — gsd-ui-checker, 2026-06-09 (2 revision iterations; planner note: carry the D-08 task-header trim pin into the plan — UI-SPEC states the pin on the permission gate only, CONTEXT.md D-08 pins the task header too)
 
 ---
 

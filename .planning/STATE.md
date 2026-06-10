@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-09T22:25:39.797Z"
-last_activity: 2026-06-08
+last_updated: "2026-06-10T03:37:14.092Z"
+last_activity: 2026-06-10
 progress:
-  total_phases: 56
+  total_phases: 42
   completed_phases: 4
   total_plans: 19
   completed_plans: 19
-  percent: 7
+  percent: 10
 ---
 
 # State: Voss
@@ -31,7 +31,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 **Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).
 **Carry-over deviations (V13.3):** go floor 1.24 (audited deps oapi-codegen v2.7.1 + runtime v1.4.1 force it); in-SDK 3.1→3.0 codegen normalizer (`sdk/go/internal/specgen`, oapi-codegen v2.7.1 can't read FastAPI's OpenAPI 3.1); 60s spawn handshake + `LITELLM_LOCAL_MODEL_COST_MAP=true`.
 **Rust status:** `crates/` frozen-spike untouched. NEW `crates/voss-app-core` (A1, path-dep'd by src-tauri, populated A2+) + `apps/voss-app/src-tauri` are the live voss-app track members — distinct from the frozen v0.1-ship crates.
-**Last activity:** 2026-06-08
+**Last activity:** 2026-06-10
 
 ## Phase Status
 
@@ -221,6 +221,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 - Phase A12 added: voss-app ADE Visual Redesign — left sidebar + warm site palette + branded titlebar + pane chrome accent bars. 8 requirements (ADE-01..08), 8 plans (P1–P8). Source: sketch 002 Variant A winner. (2026-05-22)
 - Phase V15 added: Live Plane Integration — sidecar `{v,port,token}` handshake (keystone, spike first) + plug V14's injectable client sockets + structured protocol pane rendering + inline permission gate. Source: `.planning/notes/seed-structured-pane-rendering.md` (V14-12 close-out). UI-SPEC before planning. (2026-06-09)
+- Phase V16 added: Managed Docs & Prompt Generation — Jinja2 layout-aware workflow docs at init/sync, idempotent `<!-- voss:managed-start/end -->` section in AGENTS.md/CLAUDE.md, prompt templates synced as plain .md with runtime placeholder substitution. Source: `.planning/seeds/managed-docs-generation.md`. (2026-06-09)
+- Phase V17 added: External Agent Coordination Surface — claims (`voss claims check` exit-1 pre-edit guard; tier-C complement to VCKP-13; reuses sandbox.rs validate_scope + adopt.ts registry + card:// = board cards) + `voss bus send/inbox/wait` as thin protocol-plane clients (new event type in events union; gated on V15) + advice arrays in CLI output + label conventions via V16 managed docs. Reframed 2026-06-09 from the original file-bus shape: server-backed, not file-backed — Voss has the server; file substrate/cursors/fs-notify/hooks-engine explicitly rejected. Source: `.planning/seeds/SEED-001-coordination-bus.md`. (2026-06-09)
 
 ## Performance Metrics
 

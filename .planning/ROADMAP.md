@@ -110,7 +110,7 @@ V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** �
 | V13.3 Go Local/Headless Client SDK   | —   | off V13.1 snapshot          | VSDK-GO-*   |
 | V13.4 C ABI/Schema Doc               | —   | doc-only (no full SDK)      | VSDK-C-*    |
 | V14 ADE Run Cockpit                  | —   | recomposes **V11**; on A13/V13.1 | VCKP-01..13 |
-| V15 Live Plane Integration           | —   | on **V14** + V13.1 SDK + real `voss serve` | TBD (SPEC pending) |
+| V15 Live Plane Integration           | —   | on **V14** + V13.1 SDK + real `voss serve` | VLIVE-01..08 (SPEC locked) |
 
 **ID namespacing:** PRD IDs are prefixed `V*` in the roadmap to avoid collisions — PRD `MAG-*`/`LANG-*`/`ADE-*` clash with M13/M3/A12 (different meanings). Inside `docs/ORCHESTRATION_LAYERS.md` the un-prefixed IDs remain; SPEC-phase maps PRD-ID → namespaced roadmap-ID.
 
@@ -2209,14 +2209,73 @@ Plans:
 
 **Out of scope:** VCKP-13b permission proxy (hook-capable CLI gating — separate phase); replay rollback/re-run; embedded browser; new harness contracts (V15 remains a PROTOCOL v1 client).
 
-**Requirements:** TBD — run `/gsd-ui-phase V15` (distill the livework mockup pane-content) then `/gsd-spec-phase V15`.
+**Requirements:** VLIVE-01, VLIVE-02, VLIVE-03, VLIVE-04, VLIVE-05, VLIVE-06, VLIVE-07, VLIVE-08 (locked in `V15-SPEC.md`, ambiguity 0.123).
 
 **Cross-cutting:** Builds on V14 (complete) + V13.1 TS SDK (shipped) + the real `voss serve` (validated by V13.2/V13.3 integration suites). Keystone risk = the sidecar handshake; everything downstream is plumbing clients V14 already left sockets for. Seed: `.planning/notes/seed-structured-pane-rendering.md`.
 
-**Plans:** TBD (~5 expected: sidecar/handshake → client plumbing → SSE-on-real-events → structured pane renderer → inline permission gate).
+**Plans:** 6 plans, 5 waves (sequential keystone chain: sidecar command → client+sockets → structured pane → permission gate+lifecycle ∥ attach → hermetic AC suite + human checkpoint).
 
 Plans:
-- [ ] TBD (run /gsd-ui-phase V15, then /gsd-spec-phase V15, then /gsd-plan-phase V15)
+- [ ] V15-01-PLAN.md — Sidecar Tauri command + managed per-workspace lifecycle (VLIVE-01) [wave 1]
+- [ ] V15-02-PLAN.md — V13.1 client construction + three V14 sockets + live SSE (VLIVE-02, VLIVE-03) [wave 2]
+- [ ] V15-03-PLAN.md — ProtocolPane structured rendering + native-pane threading (VLIVE-04) [wave 3]
+- [ ] V15-04-PLAN.md — Inline permission gate + lifecycle states (VLIVE-05, VLIVE-07) [wave 4]
+- [ ] V15-05-PLAN.md — Attach-to-existing server sessions sidebar (VLIVE-06) [wave 4]
+- [ ] V15-06-PLAN.md — Hermetic stub-provider AC suite + human real-run checkpoint (VLIVE-08) [wave 5]
+
+---
+### Phase V16: Managed Docs & Prompt Generation (Jinja2 layout-aware doc sync)
+
+**Goal:** Extend Voss's existing Jinja2 template infrastructure (`voss/template_render.py`, `voss/templates/`) into a per-project doc/prompt generation system, so Voss feels installed-into a project rather than run-against it.
+
+**Scope:**
+- **Layout-aware workflow docs:** templates compiled with a layout-variables context (repo-root vs worktree layout, command prefixes, workspace paths) and written into the project during init and a new idempotent sync operation.
+- **Managed section in agent instruction file:** marker-delimited block (`<!-- voss:managed-start/end -->`) in AGENTS.md/CLAUDE.md, regenerated from a single context struct (project name/type, enabled companion tools, review config, install/check commands, generated doc list, layout vars). Never touches content outside markers; inserts block if absent.
+- **Agent/reviewer prompt templates:** synced into the project as plain `.md` (jinja suffix stripped), lightweight runtime placeholder substitution (`{{ AGENT }}`, `{{ PROJECT }}`, `{{ WORKSPACE }}`) via string replace before prompt delivery — deliberately not full Jinja at runtime so users can edit synced prompts.
+- **Template rendering core:** reuse `render_package_template` (StrictUndefined, PackageLoader); extend as needed, keep single entrypoint.
+
+**Out of scope:** templating for `.voss` language programs; multi-repo/monorepo workspace orchestration.
+
+**Requirements:** R1–R6 (locked in `V16-SPEC.md`; V-track phase, requirements live in SPEC not REQUIREMENTS.md).
+
+**Cross-cutting:** Builds on existing `voss init` template rendering (cli.py templates/init flow). Seed: `.planning/seeds/managed-docs-generation.md`. Verification anchor: managed-section idempotency tests (re-running sync is a no-op; user content outside markers untouched).
+
+**Plans:** 4 plans (4 waves): input layer → templates → sync orchestrator+CLI → prompt sync (stretch R5/R6).
+
+Plans:
+- [ ] V16-01-PLAN.md — Layout derivation + project: config reader + SyncContext contract (wave 1)
+- [ ] V16-02-PLAN.md — Doc + fence-body Jinja templates (wave 2)
+- [ ] V16-03-PLAN.md — voss sync orchestrator + CLI + manifest + idempotency (wave 3)
+- [ ] V16-04-PLAN.md — Prompt sync + ${} override loader + hash-guard (stretch R5/R6, wave 4)
+
+---
+
+### Phase V17: External Agent Coordination Surface (claims + bus verbs as protocol-plane clients)
+
+**Goal:** Give external CLI agents (Claude Code, Codex, OpenCode in voss-app panes) coordination primitives by exposing the org plane Voss already has — adoption registry, board cards, server plane, SSE event union — through shell-scriptable CLI verbs. Not a parallel file-bus substrate: every primitive is a thin client of the existing plane, coherent with the V14/V15 direction (pull agents *into* the plane, not around it).
+
+**Scope (4 slices, each on an existing asset):**
+- **Advisory claims** (no upstream gate): `voss claims stake/check/release` — `check <paths>` exits 1 on overlap with another agent's registered scope → shell-scriptable pre-edit guard. Makes `adopt.ts`'s already-applied advisory scope *checkable*; reuses `sandbox.rs::validate_scope` canonicalization for overlap detection; URI claims `card://<id>` = V5 board cards (work-item locking on the existing ontology); storage = SQLite/server plane. The **tier-C complement** to VCKP-13 enforcement tiers (OS sandbox covers A/B; adopted/unmanaged get the advisory layer).
+- **Messaging + wait/inbox** (gated on V15): `voss bus send/inbox/wait` as protocol-plane clients — messages are a new event type in the `contracts/events.schema.json` union; `wait --mention <me>` blocks on the SSE stream until filter match. Replaces A13's result-file + PTY-idle heuristic with deterministic fan-in; unlocks mid-swarm agent↔agent Q&A. Cockpit rendering + AttentionQueue integration free via the union.
+- **Advice arrays** (trivial, independent): `advice: [...]` suggested-next-commands in structured CLI output (`RunData`, `voss board`, new verbs) — guides autonomous loops.
+- **Conventions, zero code:** label vocabulary (`coord:blocker`, `coord:handoff`, `mission:<id>`, `review-request`) documented in the V16 managed AGENTS.md section — V16 is the delivery vehicle telling external agents these verbs exist.
+
+**Out of scope:** file JSONL substrate + fs locks + byte cursors + fs-notify (server-replacement infra — Voss has the server; reopens only if no-server headless coordination becomes a real constraint); standalone hooks engine (mention→spawn = AttentionQueue action / V7 EM dispatch behavior); delivery guarantees/acks; cross-machine sync; message-type schema enforcement; observer TUI / bridges; global cross-project storage.
+
+**Requirements:** VBUS-01..08 (locked in `V17-SPEC.md`, ambiguity 0.16; V-track phase, requirements live in SPEC not REQUIREMENTS.md).
+
+**Cross-cutting:** Substrate for A13 swarm resume (slice 2 supersedes SWM-04/05/06 one-shot task/result formats) and the Agents-launcher backlog phase (999.1). Claims consumers: `apps/voss-app/src/org/adopt.ts` adopted agents (tier C always). Compliance depends on V16-managed instructions. Eventual `.voss` declaration could compile-to-config per V10. Source + reframe rationale: `.planning/seeds/SEED-001-coordination-bus.md`.
+
+**Plans:** 7 plans, 6 waves (claims/identity/doc waves executable now; bus waves V15-gated).
+
+Plans:
+- [ ] V17-01-PLAN.md — Wave 0 test scaffolds: claims/identity RED + bus xfail(V15) + coherence guard green (VBUS-01..08) [wave 1]
+- [ ] V17-02-PLAN.md — Claims overlap engine + SQLite storage + atomic stake (VBUS-01, VBUS-02) [wave 2]
+- [ ] V17-03-PLAN.md — Claims click verbs + identity exit-codes + advice arrays + CLI registration (VBUS-01, VBUS-02, VBUS-06) [wave 3]
+- [ ] V17-04-PLAN.md — VOSS_AGENT_ID slug minting (TS) + env injection at 3 Rust spawn sites (VBUS-03) [wave 2]
+- [ ] V17-05-PLAN.md — [V15-GATED] bus.message event type + /bus/* routes + durable journal + SDK regen (VBUS-04, VBUS-05) [wave 4]
+- [ ] V17-06-PLAN.md — [V15-GATED] bus send/inbox/wait client verbs + discovery/advice + CLI registration (VBUS-04, VBUS-06) [wave 5]
+- [ ] V17-07-PLAN.md — docs/agent-coordination.md + V16 handoff note + coherence-guard verification (VBUS-07, VBUS-08) [wave 6]
 
 ---
 
