@@ -14,6 +14,17 @@ from voss.harness.cognition import voss_dir
 from voss.template_render import render_package_template
 
 
+# Single source of truth for the synced-prompt contract: `voss sync` writes
+# `.voss/prompts/<name>.txt` from each resource, and load_prompt reads the
+# same names back. sync.py imports this — do not duplicate the pairs.
+SYNCED_PROMPTS = (
+    ("reviewer_a_role", "templates/prompts/reviewer_a_role.txt.jinja"),
+    ("reviewer_b_system", "templates/prompts/reviewer_b_system.txt.jinja"),
+    ("em_system", "templates/prompts/em_system.txt.jinja"),
+)
+_RESOURCES = dict(SYNCED_PROMPTS)
+
+
 def default_runtime_vars(agent: str, root: Path) -> dict[str, str]:
     """The standard ${AGENT}/${PROJECT}/${WORKSPACE} substitution set (D-18)."""
     return {"AGENT": agent, "PROJECT": root.name, "WORKSPACE": str(root)}
@@ -22,7 +33,7 @@ def default_runtime_vars(agent: str, root: Path) -> dict[str, str]:
 def load_prompt(
     name: str,
     *,
-    resource: str,
+    resource: str | None = None,
     cwd: Path | None = None,
     runtime_vars: dict[str, str] | None = None,
 ) -> str:
@@ -31,8 +42,11 @@ def load_prompt(
     Project copy: `<cwd>/.voss/prompts/<name>.txt`. Each runtime_vars key K
     replaces the literal `${K}` via str.replace; unknown placeholders pass
     through untouched. Absent/unreadable copy falls back to
-    `render_package_template("voss", resource, {})`.
+    `render_package_template("voss", resource, {})`; resource defaults to
+    the SYNCED_PROMPTS entry for `name`.
     """
+    if resource is None:
+        resource = _RESOURCES[name]
     root = cwd if cwd is not None else Path.cwd()
     project_copy = voss_dir(root) / "prompts" / f"{name}.txt"
     if project_copy.is_file():
@@ -47,4 +61,4 @@ def load_prompt(
     return render_package_template("voss", resource, {})
 
 
-__all__ = ["default_runtime_vars", "load_prompt"]
+__all__ = ["SYNCED_PROMPTS", "default_runtime_vars", "load_prompt"]

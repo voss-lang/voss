@@ -126,7 +126,6 @@ class ReviewerA:
             description="Derives verification bar from original idea",
             role_prompt=load_prompt(
                 "reviewer_a_role",
-                resource="templates/prompts/reviewer_a_role.txt.jinja",
                 cwd=prompt_root,
                 runtime_vars=default_runtime_vars("reviewer-a", prompt_root),
             ),
