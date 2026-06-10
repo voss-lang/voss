@@ -292,6 +292,28 @@ async def _drive_task(
     return record, final, None, capped
 
 
+def _build_provider_from_resolution(res: auth_mod.Resolution) -> ModelProvider:
+    """Mirror cli._resolve_auth_or_die / server._resolve_provider provider selection."""
+    from voss_runtime.providers import LiteLLMProvider
+
+    from voss.harness.providers import AnthropicOAuthProvider, OpenAIOAuthProvider
+
+    if res.source == "claude-oauth":
+        return AnthropicOAuthProvider(res.anthropic_oauth)  # type: ignore[arg-type]
+    if res.source == "codex-oauth":
+        cfg = get_config()
+        if not cfg.default_model.startswith("gpt-5."):
+            configure(default_model="gpt-5.5")
+        return OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
+    if res.source in ("env-openai", "voss-openai", "codex"):
+        if res.openai_api_key:
+            os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
+        cfg = get_config()
+        if cfg.default_model.startswith("claude"):
+            configure(default_model="gpt-4o")
+    return LiteLLMProvider()
+
+
 def _provider_for_eval(*, stub: bool, auth_pref: str) -> tuple[ModelProvider, auth_mod.Resolution | None]:
     if stub:
         return StubProvider(), None
@@ -299,14 +321,14 @@ def _provider_for_eval(*, stub: bool, auth_pref: str) -> tuple[ModelProvider, au
     if res.source == "none":
         click.echo(NO_CREDS_MESSAGE, err=True)
         raise click.exceptions.Exit(code=2)
-    return get_provider(), res
+    return _build_provider_from_resolution(res), res
 
 
 def _judge_provider_for_eval(*, auth_pref: str) -> ModelProvider | None:
     res = auth_mod.resolve(auth_pref, role="judge")
     if res.source == "none":
         return None
-    return get_provider()
+    return _build_provider_from_resolution(res)
 
 
 def _provider_for_task(
@@ -376,7 +398,11 @@ def run_suite(
                     spec=spec,
                     stub=stub,
                 )
-                model_eff = "__stub__" if stub else (spec.model or model)
+                model_eff = (
+                    "__stub__"
+                    if stub
+                    else (spec.model or model or get_config().default_model)
+                )
                 if stub:
                     judge_model_eff = judge_model or model_eff or get_config().default_model
                 else:
