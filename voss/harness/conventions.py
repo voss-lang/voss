@@ -276,6 +276,51 @@ def _load_memory_config(cwd) -> dict:
     return memory if isinstance(memory, dict) else {}
 
 
+def _load_project_config(cwd) -> dict:
+    """Load the optional `.voss/config.yml` project section; never raises."""
+    from pathlib import Path
+
+    config_path = Path(cwd) / ".voss" / "config.yml"
+    if not config_path.exists():
+        return {}
+    try:
+        import yaml
+
+        data = yaml.safe_load(config_path.read_text()) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+    project = data.get("project") if isinstance(data, dict) else None
+    return project if isinstance(project, dict) else {}
+
+
+def _detect_project_facts(cwd) -> dict:
+    """Infer project facts from the filesystem (D-01 fallback probes)."""
+    from pathlib import Path
+
+    root = Path(cwd)
+    facts: dict = {}
+    if (root / "pyproject.toml").exists():
+        facts["type"] = "python"
+    elif (root / "package.json").exists():
+        facts["type"] = "node"
+    return facts
+
+
+def load_project_facts(cwd) -> tuple[dict, frozenset[str]]:
+    """Merge config-provided project facts with fs detection.
+
+    Config wins over detection (D-01). Returns (facts, detected_keys) where
+    detected_keys names the facts that came from detection rather than config,
+    so callers can surface a `(detected)` marker (D-03).
+    """
+    config = _load_project_config(cwd)
+    detected = _detect_project_facts(cwd)
+    facts = dict(detected)
+    facts.update(config)
+    detected_keys = frozenset(k for k in detected if k not in config)
+    return facts, detected_keys
+
+
 __all__ = [
     "ConventionCandidate",
     "DEFAULT_EXTRACTION_TIMEOUT_SECONDS",
