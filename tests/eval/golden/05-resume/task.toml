@@ -13,3 +13,7 @@ FAIL if:
 - The summary references content not present in notes.txt.
 """
 judge_inputs = ["final"]
+
+[[checks]]
+type = "cmd"
+run = "test -f notes.txt"

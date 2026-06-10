@@ -12,3 +12,7 @@ FAIL if:
 """
 judge_inputs = ["final"]
 auto_approve_edits = true
+
+[[checks]]
+type = "cmd"
+run = "python -m voss.cli check sample.voss"

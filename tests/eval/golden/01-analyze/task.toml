@@ -12,3 +12,7 @@ FAIL if:
 """
 judge_inputs = ["final", "file_diff"]
 auto_approve_edits = true
+
+[[checks]]
+type = "file_exists"
+path = ".voss/architecture.md"

@@ -11,3 +11,7 @@ FAIL if:
 - Any file in the fixture was modified.
 """
 judge_inputs = ["final", "file_diff"]
+
+[[checks]]
+type = "cmd"
+run = "git diff --quiet HEAD"

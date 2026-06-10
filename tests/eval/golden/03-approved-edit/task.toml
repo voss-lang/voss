@@ -13,3 +13,17 @@ FAIL if:
 """
 judge_inputs = ["final", "file_diff"]
 auto_approve_edits = true
+
+[[checks]]
+type = "file_contains"
+path = "calc.py"
+text = "sum_two"
+
+[[checks]]
+type = "file_contains"
+path = "main.py"
+text = "sum_two"
+
+[[checks]]
+type = "cmd"
+run = "! grep -q 'def add(' calc.py"
