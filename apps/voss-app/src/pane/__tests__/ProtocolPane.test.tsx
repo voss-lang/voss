@@ -68,10 +68,24 @@ function mount(stream: AsyncIterable<AgentEvent>): HTMLElement {
 afterEach(() => {
   for (const d of disposers) d();
   disposers = [];
+  vi.clearAllMocks();
   __resetLiveStream();
   __resetAttentionQueue();
   __resetBridgeMaps();
 });
+
+const PERMISSION_EVENT = () =>
+  ev({
+    type: 'permission.updated',
+    id: 'perm-1',
+    tool_name: 'bash',
+    args: { cmd: 'rm -rf build', path: 'src/auth' },
+    dimension: 'tool',
+  });
+
+function gateButtons(c: HTMLElement): HTMLButtonElement[] {
+  return Array.from(c.querySelectorAll<HTMLButtonElement>('.proto-pgbtn'));
+}
 
 describe('ProtocolPane — dedicated rows (UI-SPEC §2)', () => {
   it('renders the user event as the task header', async () => {
@@ -242,6 +256,89 @@ describe('ProtocolPane — generic fallback + no silent drop', () => {
     const gate = c.querySelector('.proto-permission-gate');
     expect(gate).not.toBeNull();
     expect(gate?.textContent).toContain('bash');
+  });
+});
+
+describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
+  it('renders the inline gate AND the queue row simultaneously', async () => {
+    const c = mount(scripted([PERMISSION_EVENT()]));
+    await flush();
+
+    expect(c.querySelector('.proto-permission-gate')).not.toBeNull();
+    const btns = gateButtons(c);
+    expect(btns.map((b) => b.textContent?.trim())).toEqual([
+      'Deny',
+      'Allow once',
+      expect.stringContaining('Allow for'),
+    ]);
+    // Dual surface: ingestEvent enqueued the row with the prefixed id.
+    expect(attentionQueue().map((i) => i.id)).toContain('permission:perm-1');
+  });
+
+  it('Allow once posts {id, choice:"a"} once, resolves the gate, clears the queue row', async () => {
+    mockReply.mockResolvedValueOnce(undefined);
+    const c = mount(scripted([PERMISSION_EVENT()]));
+    await flush();
+
+    const allowOnce = gateButtons(c)[1];
+    allowOnce.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush();
+    await flush();
+
+    expect(mockReply).toHaveBeenCalledTimes(1);
+    expect(mockReply).toHaveBeenCalledWith(expect.anything(), 'sess-1', {
+      id: 'perm-1',
+      choice: 'a',
+    });
+    const gate = c.querySelector('.proto-permission-gate');
+    expect(gate?.classList.contains('proto-permission-gate--resolved')).toBe(
+      true,
+    );
+    expect(gate?.textContent).toContain('allowed once');
+    // Queue row cleared by the SAME prefixed id (T-V15-11).
+    expect(
+      attentionQueue().find((i) => i.id === 'permission:perm-1'),
+    ).toBeUndefined();
+  });
+
+  it('Deny maps to "d" and Allow for scope maps to "A"', async () => {
+    mockReply.mockResolvedValue(undefined);
+    const c = mount(scripted([PERMISSION_EVENT()]));
+    await flush();
+    gateButtons(c)[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush();
+    expect(mockReply).toHaveBeenLastCalledWith(expect.anything(), 'sess-1', {
+      id: 'perm-1',
+      choice: 'd',
+    });
+
+    const c2 = mount(scripted([PERMISSION_EVENT()]));
+    await flush();
+    gateButtons(c2)[2].dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
+    await flush();
+    expect(mockReply).toHaveBeenLastCalledWith(expect.anything(), 'sess-1', {
+      id: 'perm-1',
+      choice: 'A',
+    });
+  });
+
+  it('a rejected reply re-enables the buttons and keeps the queue row (no optimistic grant)', async () => {
+    mockReply.mockRejectedValueOnce(new Error('403'));
+    const c = mount(scripted([PERMISSION_EVENT()]));
+    await flush();
+
+    gateButtons(c)[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush();
+    await flush();
+
+    const gate = c.querySelector('.proto-permission-gate');
+    expect(gate?.classList.contains('proto-permission-gate--resolved')).toBe(
+      false,
+    );
+    for (const b of gateButtons(c)) expect(b.disabled).toBe(false);
+    expect(attentionQueue().map((i) => i.id)).toContain('permission:perm-1');
   });
 });
 
