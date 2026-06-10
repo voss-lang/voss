@@ -2316,7 +2316,7 @@ Plans:
 
 ## E-prefixed phases: Internal Proof Suite (E2E + Evals)
 
-E1–E5 prove the **product** works — model + functionality end-to-end — not just that unit tests pass. Motivated by false-green history (scaffold tests passing without real behavior, stale sentinels). **Internal-only, on-demand**: never shipped, no packaging, no public docs; runs ride **subscription-backed flagship models via existing voss auth** (`--auth=codex` etc.; Ollama optional fallback) at $0 marginal spend with a per-run budget/turn cap. Scoring is **hybrid**: deterministic gates (tests pass in target repo, diff applies, exit code) decide pass/fail; LLM-judge scores quality on top. The matrix is **runtime surfaces** (CLI, server plane, SDK, TUI, voss-app) × **target repo shapes** (Python, Rust, TS). Supersedes M5's eval scope (EVAL-01..05 → E1/E2; M5-06 packaging smoke already shipped). Each phase locks requirements in its own `E{n}-SPEC.md` (V-track mechanism). Full decision log: `.planning/notes/e-track-eval-decisions.md`.
+E1–E5 prove the **product** works — model + functionality end-to-end — not just that unit tests pass. Motivated by false-green history (scaffold tests passing without real behavior, stale sentinels). **Internal-only, on-demand**: never shipped, no packaging, no public docs; runs ride **subscription-backed flagship models via existing voss auth** (`--auth=codex` etc.; Ollama optional fallback) at $0 marginal spend with a per-run budget/turn cap. Scoring is **hybrid**: deterministic gates (tests pass in target repo, diff applies, exit code) decide pass/fail; LLM-judge scores quality on top. The matrix is **runtime surfaces** (CLI, server plane, SDK, TUI, voss-app) × **target repo shapes** (Python, Rust, TS). Supersedes M5's eval scope (EVAL-01..05 → E1/E2; M5-06 packaging smoke already shipped). If E-track becomes an engineering-team workflow, add LangSmith only as an optional export/trace adapter for shared dashboards, annotation, and evaluator calibration; local JSONL/summary artifacts stay canonical. Each phase locks requirements in its own `E{n}-SPEC.md` (V-track mechanism). Full decision log: `.planning/notes/e-track-eval-decisions.md`.
 
 **Build order:** E1 → E2 → E3/E4 (parallel-ok) → E5. E1 is the substrate everything else consumes; V18-05's packing-on-vs-off quality gate consumes E1 instead of M5.
 
@@ -2332,6 +2332,7 @@ E1–E5 prove the **product** works — model + functionality end-to-end — not
 - Results: JSONL per run + summary.md (success rate, mean cost, confidence correlation — absorbs M5-03/04).
 
 **Out of scope:** CI integration, scheduled runs, public `voss eval` surface, live dashboards.
+LangSmith/team dashboards are a likely later adapter if this becomes multi-user, but E1 must not depend on them.
 
 **Requirements:** EVSUB-01..0N (TBD by `E1-SPEC.md`; absorbs EVAL-01..04 intent).
 

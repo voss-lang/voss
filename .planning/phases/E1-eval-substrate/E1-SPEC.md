@@ -55,6 +55,17 @@ Codebase scout (2026-06-10) found M5 substrate **fully built** despite stale ROA
    - Target: one documented run — all 6 golden tasks, `--auth codex`, ≥5/6 `gate_pass`, every task within the turn cap, JSONL + summary.md produced and committed (or path recorded in SUMMARY)
    - Acceptance: run artifacts exist showing 6 task rows, ≥5 with `gate_pass: true`, zero `capped` rows, actor+judge models recorded; total run completes without manual intervention
 
+## Team Rollout Consideration
+
+If Voss is rolled out to an engineering team, shared eval observability will probably matter. The intended later shape is an optional LangSmith export/trace adapter, not a replacement for local E1 artifacts:
+
+- Canonical results remain `.voss/eval/<run>/runs.jsonl` and `summary.md`.
+- LangSmith may receive traces/results for dashboards, run comparison, annotation, and evaluator calibration.
+- Export must be opt-in, internal-only, dependency-gated, and able to record returned LangSmith trace/run URLs back into local JSONL rows.
+- LangSmith must not own deterministic pass/fail gates, auth resolution, response caching, or reproducibility.
+
+This is **not an E1 requirement**. E1 should preserve an exporter seam if naturally available, but should not add a LangSmith dependency.
+
 ## Boundaries
 
 **In scope:**
@@ -74,6 +85,7 @@ Codebase scout (2026-06-10) found M5 substrate **fully built** despite stale ROA
 - Success-rate-over-N repeat harness — `-k` exists; multi-repeat statistics deferred until a consumer needs them
 - Rebuilding/redesigning `voss/eval/` — gap-closure on the existing module only
 - LLM-judge prompt/rubric quality improvements beyond the model split — judge content quality is an eval-of-evals problem, later
+- LangSmith/shared dashboard integration — likely useful for team rollout, but later and adapter-only; no dependency or external source of truth in E1
 
 ## Constraints
 
