@@ -197,5 +197,5 @@ export { liveLabel, liveOverlay, liveHandles };
 export function __resetLiveStream(): void {
   setLiveOverlay({});
   setLiveLabel('snapshot');
-  setLiveHandles(new Set());
+  setLiveHandles(new Set<string>());
 }

@@ -168,7 +168,17 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
       setBlockReason('Voss runs need the Voss server — not available in this build.');
       return;
     }
-    const response = await props.client.createSession(spec);
+    // V15-02: the injected client may lazily spawn the sidecar — a failed
+    // spawn/createSession surfaces through the SAME block-reason path (never
+    // an unhandled rejection; the gate above stays — T-V15-04).
+    let response: { id: string };
+    try {
+      response = await props.client.createSession(spec);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setBlockReason(`Could not start the Voss run: ${msg}`);
+      return;
+    }
     // A1 finding: the create-response id IS the snapshot node id.
     registerNativeCard(response.id, response.id);
     flashStarted('Run started');

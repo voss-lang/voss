@@ -39,6 +39,7 @@ import {
   refreshRun,
 } from '../orgStore';
 import { selectedCardId, setSelectedCardId } from '../selection';
+import type { FollowUpClient } from '../feedbackWritePath';
 import { liveLabel } from '../live/sseClient';
 import { cardsFromRunData } from '../boardDerive';
 import { reconcileSwarm, type SwarmReconcileResult } from '../swarmReconcile';
@@ -57,6 +58,8 @@ const CockpitShell: Component<{
   cwd: string;
   cliBinary: string;
   onClose: () => void;
+  /** V15-02: live follow-up write client, forwarded to the CardDrawer. */
+  followUpClient?: FollowUpClient;
 }> = (props) => {
   const [pickerOpen, setPickerOpen] = createSignal(false);
   const [swarmManifest, setSwarmManifest] = createSignal<unknown>(null);
@@ -292,7 +295,7 @@ const CockpitShell: Component<{
 
           {/* 4 — Card detail drawer (mockup .drawer) */}
           <div class="cockpit-drawer" aria-label="Card detail" tabindex={0}>
-            <CardDrawer />
+            <CardDrawer followUpClient={props.followUpClient} />
           </div>
 
           {/* 5 — Gate bar */}

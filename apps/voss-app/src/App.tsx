@@ -27,8 +27,16 @@ import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
 import { resolveTier, hookCapableCli } from './org/capabilityTier';
-import RunCommandBar, { type SpawnAgentFn } from './org/cockpit/RunCommandBar';
-import { liveLabel } from './org/live/sseClient';
+import RunCommandBar, {
+  type RunNativeClient,
+  type SpawnAgentFn,
+} from './org/cockpit/RunCommandBar';
+import { connectLiveStream, liveLabel } from './org/live/sseClient';
+import {
+  buildVossClientFromHandshake,
+  type BuiltVossClient,
+} from './org/live/vossClientBuild';
+import { startVossServe } from './org/live/sidecarClient';
 import AdoptAgentModal from './components/modal/AdoptAgentModal';
 import { registerAdoption, adoptionByPaneId } from './pane/adoptionRegistry';
 import { currentRunId } from './org/orgStore';
@@ -382,6 +390,51 @@ export default function App() {
       tier: 'C', // unmanaged spawn — observe-only (resolveTier rule)
     };
     ws.setAgentConfigByPaneId({ ...ws.agentConfigByPaneId(), [o.paneId]: cfg });
+  };
+
+  // V15-02 (VLIVE-02/03): lazy per-workspace voss client. The first native
+  // start spawns the sidecar (Plan 01 — reuse-if-alive per cwd) and builds the
+  // V13.1 client; the token lives only in this non-exported signal (T-V15-10).
+  const [vossClient, setVossClient] = createSignal<BuiltVossClient | null>(
+    null,
+  );
+  let vossClientCwd: string | null = null;
+  const ensureVossClient = async (cwd: string): Promise<BuiltVossClient> => {
+    const existing = vossClient();
+    if (existing && vossClientCwd === cwd) return existing;
+    const handshake = await startVossServe(cwd);
+    const built = buildVossClientFromHandshake(handshake);
+    vossClientCwd = cwd;
+    setVossClient(built);
+    return built;
+  };
+
+  // Live-stream handles for App-started native sessions — abort on unmount so
+  // no for-await loop dangles past the app.
+  const liveStreamHandles: { abort(): void }[] = [];
+  onCleanup(() => {
+    for (const h of liveStreamHandles) h.abort();
+  });
+
+  // RunCommandBar native seam: lazily ensure the client, create the real
+  // session, then subscribe it live (AttentionQueue + overlay + liveLabel).
+  // Bridge A: the create-response session id IS the cardId. If startVossServe
+  // throws, this rejects and the bar surfaces it via its block-reason path
+  // (T-V15-04 — the gates stay; this only satisfies them).
+  const runBarNativeClient: RunNativeClient = {
+    createSession: async (spec) => {
+      const built = await ensureVossClient(workspacePath() ?? '');
+      const r = await built.runNativeClient.createSession(spec);
+      liveStreamHandles.push(
+        connectLiveStream({
+          baseUrl: built.baseUrl,
+          sessionId: r.id,
+          token: built.token,
+          cardId: r.id,
+        }),
+      );
+      return r;
+    },
   };
 
   // VCKP-12 adopt entry point: "Manage with Voss" on a sidebar agent row.
@@ -1371,6 +1424,7 @@ export default function App() {
           <RunCommandBar
             cwd={workspacePath() ?? ''}
             cliBinary="voss"
+            client={runBarNativeClient}
             resolvePaneId={runBarResolvePaneId}
             spawnAgent={runBarSpawnAgent}
           />
@@ -1464,6 +1518,7 @@ export default function App() {
               cwd={workspacePath() ?? ''}
               cliBinary="voss"
               onClose={() => setOrgViewOpen(false)}
+              followUpClient={vossClient()?.followUpClient}
             />
           </Show>
           </div>

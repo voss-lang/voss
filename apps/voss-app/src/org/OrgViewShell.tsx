@@ -1,6 +1,7 @@
 import { type Component } from 'solid-js';
 import './orgStyles.css';
 import CockpitShell from './cockpit/CockpitShell';
+import type { FollowUpClient } from './feedbackWritePath';
 
 // V14 (D-01/D-02): the legacy tab switcher is removed. The cockpit
 // (Board spine + Card detail drawer + Timeline/replay rail + bottom gate bar) is
@@ -11,12 +12,15 @@ const OrgViewShell: Component<{
   cwd: string;
   cliBinary: string;
   onClose: () => void;
+  /** V15-02: live follow-up write client, threaded to the CardDrawer. */
+  followUpClient?: FollowUpClient;
 }> = (props) => {
   return (
     <CockpitShell
       cwd={props.cwd}
       cliBinary={props.cliBinary}
       onClose={props.onClose}
+      followUpClient={props.followUpClient}
     />
   );
 };
