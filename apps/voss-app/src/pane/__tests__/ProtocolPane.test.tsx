@@ -1,11 +1,30 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
+
+// V15-04: the live permission gate replies through the SDK — mock it so the
+// gate tests assert the POST contract without a server.
+vi.mock('../../../../../sdk/typescript/src/client/permission', () => ({
+  replyPermission: vi.fn(),
+}));
+// V15-04: the spawn-failure Retry re-invokes startVossServe — mock the Tauri
+// wrapper so no command is issued under jsdom.
+vi.mock('../../org/live/sidecarClient', () => ({
+  startVossServe: vi.fn(),
+}));
 
 import ProtocolPane from '../ProtocolPane';
 import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
+import { replyPermission } from '../../../../../sdk/typescript/src/client/permission';
+import { startVossServe } from '../../org/live/sidecarClient';
+import {
+  attentionQueue,
+  __resetAttentionQueue,
+} from '../../org/attention/attentionQueue';
 import { __resetLiveStream } from '../../org/live/sseClient';
-import { __resetAttentionQueue } from '../../org/attention/attentionQueue';
 import { __resetBridgeMaps } from '../../org/model/bridge';
+
+const mockReply = vi.mocked(replyPermission);
+const mockStartServe = vi.mocked(startVossServe);
 
 // V15-03 (VLIVE-04): the structured protocol pane renders the §6 union as DOM
 // per the UI-SPEC — dedicated rows for user/tool/plan/stream/final/thinking,
