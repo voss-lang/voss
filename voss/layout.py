@@ -49,7 +49,15 @@ def derive_layout(cwd: Path) -> Layout:
     """
     cwd = cwd.resolve()
     toplevel = _git_rev_parse(cwd, "--show-toplevel")
-    project_root = Path(toplevel).resolve() if toplevel else cwd
+    if (cwd / ".voss").is_dir():
+        # A .voss tree at cwd marks the project root even when nested inside
+        # a larger git checkout (dotfiles-tracked $HOME, monorepo) — the
+        # enclosing toplevel would silently misdirect config reads and writes.
+        project_root = cwd
+    elif toplevel:
+        project_root = Path(toplevel).resolve()
+    else:
+        project_root = cwd
 
     is_worktree = False
     git_dir = _git_rev_parse(cwd, "--git-dir")

@@ -18,6 +18,7 @@ import click
 
 from voss.harness import voss_md
 from voss.harness.conventions import _load_memory_config, load_project_facts
+from voss.harness.prompt_override import SYNCED_PROMPTS
 from voss.layout import Layout, derive_layout
 from voss.template_render import render_package_template
 
@@ -52,9 +53,9 @@ class SyncContext:
     check_command: str | None = None
     tools: tuple[str, ...] = ()
     review: ReviewFacts = ReviewFacts()
-    # capabilities (D-05) + fact keys that came from detection (D-03 marker)
+    # capabilities (D-05) + (key, value) facts that came from detection (D-03)
     capabilities: tuple[str, ...] = ()
-    detected: frozenset[str] = frozenset()
+    detected: tuple[tuple[str, str], ...] = ()
 
 
 def _detect_capabilities(layout: Layout, review: ReviewFacts) -> tuple[str, ...]:
@@ -83,17 +84,24 @@ def build_sync_context(cwd: Path) -> SyncContext:
     layout = derive_layout(cwd)
     facts, detected = load_project_facts(layout.project_root)
 
+    def _str_tuple(raw: object) -> tuple[str, ...]:
+        """Coerce a config list to a string tuple; a bare scalar means one item."""
+        if isinstance(raw, (list, tuple)):
+            return tuple(str(item) for item in raw)
+        if isinstance(raw, str) and raw:
+            return (raw,)
+        return ()
+
     raw_review = facts.get("review")
     if isinstance(raw_review, dict):
         review = ReviewFacts(
             enabled=bool(raw_review.get("enabled", False)),
-            reviewers=tuple(raw_review.get("reviewers") or ()),
+            reviewers=_str_tuple(raw_review.get("reviewers")),
         )
     else:
         review = ReviewFacts()
 
-    raw_tools = facts.get("tools")
-    tools = tuple(raw_tools) if isinstance(raw_tools, (list, tuple)) else ()
+    tools = _str_tuple(facts.get("tools"))
 
     def _str_or_none(key: str) -> str | None:
         value = facts.get(key)
@@ -112,7 +120,9 @@ def build_sync_context(cwd: Path) -> SyncContext:
         tools=tools,
         review=review,
         capabilities=_detect_capabilities(layout, review),
-        detected=detected,
+        # (key, value) pairs straight from the facts dict — robust against
+        # detection keys that are not SyncContext field names (D-03).
+        detected=tuple((key, str(facts[key])) for key in sorted(detected)),
     )
 
 
@@ -136,11 +146,6 @@ _REVIEW_DOC = ("review.md", "review.md.jinja")
 _FENCE_TEMPLATE = "voss_md_fence.md.jinja"
 _FENCE_ID = "workflow"
 _MANIFEST_NAME = "sync-state.json"
-_PROMPT_TEMPLATES = (
-    ("reviewer_a_role", "reviewer_a_role.txt.jinja"),
-    ("reviewer_b_system", "reviewer_b_system.txt.jinja"),
-    ("em_system", "em_system.txt.jinja"),
-)
 
 
 def _write_text_atomic(path: Path, text: str) -> None:
