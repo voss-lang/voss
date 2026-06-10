@@ -17,10 +17,10 @@ requirements: [R5, R6]
 must_haves:
   truths:
     - "Sync writes reviewer_a, reviewer_b, and em prompts as plain .txt files under .voss/prompts/ (jinja suffix stripped)"
-    - "At runtime the prompt loader prefers the project copy when present, applying ${AGENT}/${PROJECT}/${WORKSPACE} substitution via plain str.replace"
+    - "At runtime the prompt loader prefers the project copy when present, applying ${AGENT}/${PROJECT}/${WORKSPACE} substitution via plain str.replace — never runtime Jinja (D-18)"
     - "With no project copy, prompt-load behavior is byte-unchanged from today (package template)"
-    - "Sync records a content hash per synced prompt in .voss/sync-state.json; an unedited prompt may be regenerated; an edited prompt (hash drift) is skipped with a warning naming the file"
-    - "voss sync --force overwrites edited prompts; a missing manifest treats existing prompts as edited (skip+warn, --force to re-adopt)"
+    - "Sync records a content hash per synced prompt in .voss/sync-state.json (D-10); an unedited prompt may be regenerated; an edited prompt (hash drift) is skipped with a warning naming the file"
+    - "voss sync --force overwrites edited prompts (D-16); a missing manifest treats existing prompts as edited (skip+warn, --force to re-adopt, D-11)"
   artifacts:
     - path: "voss/harness/prompt_override.py"
       provides: "load_prompt(name, package_default) -> project copy (with ${} substitution) or package default"

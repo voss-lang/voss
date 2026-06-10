@@ -12,7 +12,9 @@ autonomous: true
 requirements: [R1, R3, R4]
 must_haves:
   truths:
-    - "voss sync run from a project root generates/updates .voss/docs/ and the VOSS.md workflow fence"
+    - "voss sync run from a project root generates/updates .voss/docs/ and the VOSS.md workflow fence — all rendering through render_package_template, one SyncContext, fence body via write_fence_body (D-17)"
+    - "Manifest .voss/sync-state.json (path -> sha256) written by sync, deterministic content, committed to the repo (D-10, D-12)"
+    - "--force accepted in the sync() signature but scoped to prompts only; fence HashMismatch keeps its own flow, docs always regen (D-16)"
     - "A second consecutive voss sync on an unchanged project modifies zero files (byte-identical, R1)"
     - ".voss/docs/ contains cheatsheet, command reference (and review workflow when review.enabled) each with the generated header"
     - "A manual edit to a generated doc is overwritten by the next sync (machine-owned, R3)"

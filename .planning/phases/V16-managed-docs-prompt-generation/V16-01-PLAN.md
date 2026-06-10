@@ -17,8 +17,8 @@ must_haves:
     - "Layout context derived deterministically from git/fs for a plain repo-root checkout"
     - "Layout context derived correctly for a git worktree checkout (distinct from repo-root)"
     - "Same unchanged tree yields byte-identical layout context across repeated derivations"
-    - "Project facts read from .voss/config.yml project: block; missing keys auto-detected from filesystem; config wins over detection"
-    - "SyncContext dataclass exposes layout vars + project facts + capabilities as explicit values or absent-markers (StrictUndefined-safe)"
+    - "Project facts read from .voss/config.yml project: block; missing keys auto-detected from filesystem; config wins over detection (D-01, D-02); detection results distinguishable for the (detected) marker (D-03)"
+    - "SyncContext dataclass exposes layout vars + project facts + capabilities as explicit values or absent-markers (StrictUndefined-safe, D-04); capabilities = active Voss features detected from config + .voss/ dirs (D-05)"
   artifacts:
     - path: "voss/layout.py"
       provides: "derive_layout(cwd) -> layout context (project name, root, repo-vs-worktree, command prefixes, workspace paths)"
