@@ -23,7 +23,7 @@ use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{
-    foreground, spawn_command_session_managed, spawn_command_session_with_env, spawn_session,
+    foreground, spawn_command_session_managed, spawn_command_session_with_env,
 };
 use voss_app_core::session::{self, SessionFile};
 use voss_app_core::sidecar::{
@@ -184,6 +184,22 @@ fn env_for_embedded_cli(
     vec![("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")]
 }
 
+/// VBUS-03: append the agent-identity slug to an owned env set. Owned
+/// `(String, String)` because the slug is dynamic — `env_for_embedded_cli`'s
+/// `&'static` return cannot carry it (V17 RESEARCH Pitfall 3).
+fn build_env_with_agent_id(
+    base: Vec<(String, String)>,
+    voss_agent_id: Option<String>,
+) -> Vec<(String, String)> {
+    let mut env = base;
+    if let Some(slug) = voss_agent_id {
+        if !slug.is_empty() {
+            env.push(("VOSS_AGENT_ID".to_string(), slug));
+        }
+    }
+    env
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 async fn spawn_agent(
@@ -196,6 +212,7 @@ async fn spawn_agent(
     session_id: String,
     pane_id: String,
     workspace_path: Option<String>,
+    voss_agent_id: Option<String>,
     db: AgentDb<'_>,
     pty_state: Reg<'_>,
 ) -> Result<String, String> {
@@ -205,10 +222,21 @@ async fn spawn_agent(
         .ok_or_else(|| "agent registry unavailable".to_string())?;
 
     let embedded_env = env_for_embedded_cli(&cli_binary, &cli_args);
+    let full_env = build_env_with_agent_id(
+        embedded_env
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        voss_agent_id,
+    );
+    let env_refs: Vec<(&str, &str)> = full_env
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
     let (session, reader, pause_rx) = spawn_command_session_with_env(
         &cli_binary,
         &cli_args,
-        &embedded_env,
+        &env_refs,
         rows,
         cols,
         cwd.clone(),
@@ -255,6 +283,7 @@ async fn spawn_managed_agent(
     workspace_path: Option<String>,
     scope: String,
     tier: String,
+    voss_agent_id: Option<String>,
     db: AgentDb<'_>,
     pty_state: Reg<'_>,
 ) -> Result<ManagedSpawnResult, String> {
@@ -264,10 +293,21 @@ async fn spawn_managed_agent(
         .ok_or_else(|| "agent registry unavailable".to_string())?;
 
     let embedded_env = env_for_embedded_cli(&cli_binary, &cli_args);
+    let full_env = build_env_with_agent_id(
+        embedded_env
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        voss_agent_id,
+    );
+    let env_refs: Vec<(&str, &str)> = full_env
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
     let ((session, reader, pause_rx), sandboxed) = spawn_command_session_managed(
         &cli_binary,
         &cli_args,
-        &embedded_env,
+        &env_refs,
         rows,
         cols,
         cwd.clone(),
@@ -294,7 +334,26 @@ async fn spawn_managed_agent(
 
 #[cfg(test)]
 mod tests {
-    use super::{env_for_embedded_cli, is_interactive_voss_command};
+    use super::{build_env_with_agent_id, env_for_embedded_cli, is_interactive_voss_command};
+
+    /// VBUS-03 camelCase IPC round-trip guard (V14 AgentEntry lesson): a
+    /// serde rename mismatch on `vossAgentId` would arrive here as `None`
+    /// and silently skip injection — the Some case pins the env entry shape.
+    #[test]
+    fn agent_id_env_injected_when_some() {
+        let base = vec![("VOSS_EMBEDDED".to_string(), "1".to_string())];
+        let env = build_env_with_agent_id(base, Some("claude-1".to_string()));
+        assert!(env.contains(&("VOSS_AGENT_ID".to_string(), "claude-1".to_string())));
+        assert!(env.contains(&("VOSS_EMBEDDED".to_string(), "1".to_string())));
+    }
+
+    #[test]
+    fn agent_id_env_absent_when_none_or_empty() {
+        let env = build_env_with_agent_id(Vec::new(), None);
+        assert!(!env.iter().any(|(k, _)| k == "VOSS_AGENT_ID"));
+        let env = build_env_with_agent_id(Vec::new(), Some(String::new()));
+        assert!(!env.iter().any(|(k, _)| k == "VOSS_AGENT_ID"));
+    }
 
     const TUI_ENV: [(&str, &str); 2] = [("VOSS_EMBEDDED", "1"), ("VOSS_FORCE_TUI", "1")];
     const COMPACT_ENV: [(&str, &str); 2] = [("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")];
@@ -486,9 +545,24 @@ async fn spawn_pty(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
+    voss_agent_id: Option<String>,
     state: Reg<'_>,
 ) -> Result<String, String> {
-    let (session, reader, pause_rx) = spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
+    // Plain-shell spawn routed through the env-carrying path so every pane
+    // receives VOSS_AGENT_ID (VBUS-03 D-11). Mirrors spawn_session's
+    // behavior: $SHELL + VOSS_EMBEDDED=1 (TERM/COLORTERM set by the callee).
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let full_env = build_env_with_agent_id(
+        vec![("VOSS_EMBEDDED".to_string(), "1".to_string())],
+        voss_agent_id,
+    );
+    let env_refs: Vec<(&str, &str)> = full_env
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    let (session, reader, pause_rx) =
+        spawn_command_session_with_env(&shell, &[], &env_refs, rows, cols, cwd)
+            .map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
     let id = registry.insert(session);
     start_reader(id.clone(), reader, pause_rx, on_data, registry);
