@@ -2236,14 +2236,17 @@ Plans:
 
 **Out of scope:** templating for `.voss` language programs; multi-repo/monorepo workspace orchestration.
 
-**Requirements:** TBD — run `/gsd-spec-phase V16`.
+**Requirements:** R1–R6 (locked in `V16-SPEC.md`; V-track phase, requirements live in SPEC not REQUIREMENTS.md).
 
 **Cross-cutting:** Builds on existing `voss init` template rendering (cli.py templates/init flow). Seed: `.planning/seeds/managed-docs-generation.md`. Verification anchor: managed-section idempotency tests (re-running sync is a no-op; user content outside markers untouched).
 
-**Plans:** TBD (~3 expected: layout context + sync command → managed section engine → prompt template sync + runtime substitution).
+**Plans:** 4 plans (4 waves): input layer → templates → sync orchestrator+CLI → prompt sync (stretch R5/R6).
 
 Plans:
-- [ ] TBD (run /gsd-spec-phase V16, then /gsd-plan-phase V16)
+- [ ] V16-01-PLAN.md — Layout derivation + project: config reader + SyncContext contract (wave 1)
+- [ ] V16-02-PLAN.md — Doc + fence-body Jinja templates (wave 2)
+- [ ] V16-03-PLAN.md — voss sync orchestrator + CLI + manifest + idempotency (wave 3)
+- [ ] V16-04-PLAN.md — Prompt sync + ${} override loader + hash-guard (stretch R5/R6, wave 4)
 
 ---
 
