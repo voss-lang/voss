@@ -4,6 +4,7 @@ import {
   ArrowRight,
   GitBranch,
   KanbanSquare,
+  MessagesSquare,
   Scale,
   ScrollText,
   ShieldCheck,
@@ -184,6 +185,33 @@ export default async function OrchestrationPage() {
         <div id="em" className="scroll-mt-20">
           <OrgLoop />
         </div>
+
+        <section className="border-b border-[var(--border)]">
+          <div className="mx-auto grid max-w-6xl gap-10 px-6 py-20 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+            <div>
+              <MessagesSquare className="h-6 w-6 text-[var(--accent)]" />
+              <p className="mt-5 font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+                External agents
+              </p>
+              <h2 className="display mt-3 text-4xl sm:text-5xl">
+                Handoffs without <span className="em">false control</span>.
+              </h2>
+            </div>
+            <div className="space-y-4 text-sm leading-7 text-[var(--muted)]">
+              <p>
+                Voss can supervise agents it launches more tightly than tools it only observes. For
+                adopted terminal agents, the product direction is deliberately honest: give them
+                clear identity, ownership signals, review requests, and handoff conventions, while
+                avoiding claims that Voss can sandbox tools outside its control.
+              </p>
+              <p>
+                The result is a practical coordination layer for mixed local work: Voss-native runs,
+                external CLI agents, and human review can share the same board, attention model, and
+                audit expectations without collapsing into hidden chat history.
+              </p>
+            </div>
+          </div>
+        </section>
 
         {/* Roles + team config */}
         <section className="border-b border-[var(--border)]">

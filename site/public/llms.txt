@@ -1,15 +1,15 @@
 # Voss
 
-> Voss is a terminal-native AI coding harness for bounded repo work, with a .voss control language for confidence-aware, budget-bounded workflows.
+> Voss is a local control plane for coding agents: scoped tools, live workspace supervision, approvals, independent review, and replayable audits.
 
 ## Primary Pages
 
 - [Home](https://voss.dev/): Product overview for Voss, installation paths, and the terminal-native workflow.
 - [Harness](https://voss.dev/harness): Details on the coding harness, modes, tools, sessions, and bounded repository work.
-- [Agentic Development Environment](https://voss.dev/ade): Overview of the local ADE surface for tools, memory, permissions, sessions, replay, and inspection.
+- [Agentic Development Environment](https://voss.dev/ade): Overview of the local ADE surface for live runs, approvals, sessions, replay, and inspection.
 - [Language](https://voss.dev/language): Introduction to the .voss control language for confidence, context budgets, semantic routing, and agent composition.
 - [Security](https://voss.dev/security): Security model for harness permissions, local credentials, project boundaries, and execution safety.
-- [Roadmap](https://voss.dev/roadmap): Current product direction from the v0.1 harness toward TUI, memory, and codebase intelligence.
+- [Roadmap](https://voss.dev/roadmap): Current product direction across live local supervision, managed project instructions, external-agent handoffs, and budget-aware context.
 
 ## Documentation
 
@@ -21,6 +21,7 @@
 - [Harness Tools](https://docs.tryvoss.dev/harness/tools): Read/write/shell/git tool surface exposed to Voss sessions.
 - [Language Overview](https://docs.tryvoss.dev/language/overview): Overview of the .voss language and compiler/runtime direction.
 - [Security Overview](https://docs.tryvoss.dev/security/overview): Security posture and operational boundaries for using Voss.
+- [Latest Changelog](https://docs.tryvoss.dev/changelog/2026-06-10): Live workspace preview and next roadmap update.
 
 ## Developer Resources
 

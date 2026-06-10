@@ -31,7 +31,7 @@ import { site } from "@/lib/site";
 export const metadata = pageMetadata({
   title: `Agentic Development Environment - ${site.name}`,
   description:
-    "Voss is a local Agentic Development Environment for running, inspecting, and governing agent work.",
+    "Voss is a local Agentic Development Environment for running, inspecting, approving, and reviewing agent work.",
   path: "/ade",
 });
 
@@ -56,11 +56,34 @@ const WHY_ADE: { title: string; body: string; icon: LucideIcon }[] = [
 const STACK: { name: string; desc: string; icon: LucideIcon }[] = [
   { name: "CLI", desc: "Scriptable one-shot and repo commands.", icon: TerminalSquare },
   { name: "TUI", desc: "Interactive turns, modals, and traces.", icon: SquareTerminal },
-  { name: "Desktop Shell", desc: "A local app wrapper for the harness.", icon: Monitor },
+  { name: "Desktop Preview", desc: "Live local workspace for supervised runs.", icon: Monitor },
   { name: "MCP Server", desc: "Expose Voss tools to agent clients.", icon: Network },
   { name: "Code Intelligence", desc: "Repo-aware context and navigation.", icon: Code2 },
   { name: "Voss Tools", desc: "Diff, inspect, lint, and budget helpers.", icon: Wrench },
   { name: "Planning + Validation", desc: "Phase plans, checks, and summaries.", icon: Layers3 },
+];
+
+const LIVE_PREVIEW: { title: string; body: string; icon: LucideIcon }[] = [
+  {
+    title: "Structured run view",
+    body: "Native Voss runs can show task progress, tool activity, model output, and final results as readable rows instead of terminal noise.",
+    icon: ScrollText,
+  },
+  {
+    title: "Inline approvals",
+    body: "Permission decisions can appear where the work is happening, with the same pending item also visible in the attention queue.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Reconnect to recent work",
+    body: "The cockpit can list recent local work and open a live pane back onto a run when the local workspace is available.",
+    icon: GitBranch,
+  },
+  {
+    title: "Honest run states",
+    body: "Starting, ended, failed, and disconnected states are shown directly. The UI does not pretend a run is live when it is not.",
+    icon: Gauge,
+  },
 ];
 
 const PANELS: { name: string; desc: string; icon: LucideIcon }[] = [
@@ -114,8 +137,9 @@ export default function AdePage() {
               </Reveal>
               <Reveal delay={0.1}>
                 <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
-                  Voss gives coding agents a real workspace: tools, memory, permissions, sessions,
-                  replay, and inspection surfaces built for software work instead of chat drift.
+                  Voss gives coding agents a local workspace: live runs, scoped tools, approvals,
+                  review surfaces, and replayable history built for software work instead of chat
+                  drift.
                 </p>
               </Reveal>
               <Reveal delay={0.15}>
@@ -151,6 +175,40 @@ export default function AdePage() {
                 sizes="(min-width: 1024px) 560px, calc(100vw - 48px)"
               />
             </Reveal>
+          </div>
+        </section>
+
+        <section className="border-b border-[var(--border)]">
+          <div className="mx-auto max-w-6xl px-6 py-20">
+            <div className="mb-12 max-w-2xl">
+              <p className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+                Live workspace preview
+              </p>
+              <h2 className="display mt-3 text-4xl sm:text-5xl">
+                Local agent work you can <span className="em">watch and steer</span>.
+              </h2>
+              <p className="mt-4 text-[var(--muted)]">
+                The desktop path is moving from a terminal grid toward a live review cockpit: start
+                a native run, inspect the work as it happens, approve risky actions, and reconnect
+                to recent local sessions while verification continues.
+              </p>
+            </div>
+            <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {LIVE_PREVIEW.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <StaggerItem
+                    key={item.title}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition hover:border-[var(--accent)] hover:bg-[var(--surface-2)]"
+                  >
+                    <Icon className="h-6 w-6 text-[var(--accent)]" />
+                    <h3 className="mt-5 text-lg font-medium">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{item.body}</p>
+                  </StaggerItem>
+                );
+              })}
+            </Stagger>
           </div>
         </section>
 
@@ -283,11 +341,12 @@ export default function AdePage() {
               <div className="mt-3 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
                 <div>
                   <h2 className="display text-4xl sm:text-5xl">
-                    Use the CLI today. <span className="em">Desktop builds follow.</span>
+                    Use the CLI today. <span className="em">Desktop preview is in verification.</span>
                   </h2>
                   <p className="mt-4 text-[var(--muted)]">
-                    The current setup path is the Voss CLI. The desktop shell will package the same
-                    harness into a local workspace when builds are ready.
+                    The stable setup path is still the Voss CLI. The desktop workspace is active in
+                    local preview while the live run path, approval loop, and packaging experience
+                    are verified.
                   </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -301,19 +360,20 @@ export default function AdePage() {
                     </code>
                   </article>
                   <article className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-5">
-                    <h3 className="text-xl font-medium">Desktop shell</h3>
+                    <h3 className="text-xl font-medium">Desktop workspace</h3>
                     <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                      macOS and Windows packages are planned after the harness flow is stable.
+                      Local preview for live work, approvals, inspection, and reconnecting to
+                      recent sessions.
                     </p>
                     <Badge variant="secondary" className="mt-5 font-mono uppercase tracking-wider">
-                      Planned
+                      In verification
                     </Badge>
                   </article>
                 </div>
               </div>
               <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-6">
                 <p className="text-sm text-[var(--muted)]">
-                  Run Voss from source while desktop builds are finalized.
+                  Run Voss from source while desktop packaging and preview verification continue.
                 </p>
                 <Button asChild variant="outline">
                   <Link href={site.docsUrl} target="_blank" rel="noreferrer">
