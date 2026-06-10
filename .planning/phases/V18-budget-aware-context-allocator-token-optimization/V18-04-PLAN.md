@@ -96,6 +96,7 @@ JSONL record schema (D-02/D-03/D-04):
 
 <task type="auto" tdd="true">
   <name>Task 1: recorder ledger write + cache-netted dollar estimate</name>
+  <files>voss/harness/recorder.py</files>
   <read_first>
     - voss/eval/runner.py:100-103 (_append_row — copy this JSONL-append body verbatim for _append_savings_record)
     - voss/harness/session.py:57-58 (_sessions_dir — ledger path root; ledger is a SUBDIRECTORY <id>/token-savings.jsonl, NOT the flat <id>.json — PATTERNS critical note 5)
@@ -128,6 +129,7 @@ JSONL record schema (D-02/D-03/D-04):
 
 <task type="auto">
   <name>Task 2: agent.py per-turn ledger write (original vs packed) + additive context-OSC savings field</name>
+  <files>voss/harness/agent.py</files>
   <read_first>
     - voss/harness/agent.py:708-720 (the if/else seam from Plan 03 — both branches' outputs are available here to size original vs packed)
     - voss/harness/agent.py:73-80 (_default_token_count — size both message lists), :791 (cache_read for this iter), :920-995 (where the iteration record is finalized / where to place the post-assembly ledger write so cache_read is known)
@@ -153,6 +155,7 @@ JSONL record schema (D-02/D-03/D-04):
 
 <task type="auto">
   <name>Task 3: /cost savings line from the session ledger</name>
+  <files>voss/harness/cli.py</files>
   <read_first>
     - voss/harness/cli.py:881-918 (_cost handler; the flat-total echo at :912-918 — append the savings line AFTER it)
     - tests/harness/test_cost_slash.py:8-44 (fake_ctx fixture shape: record.id, record.cwd/ctx.cwd; _build_slash_registry + registry.lookup("/cost").handler + capsys)

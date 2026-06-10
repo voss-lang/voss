@@ -105,6 +105,7 @@ From Plan 02 — voss/harness/context_allocator.py:
 
 <task type="auto">
   <name>Task 1: [context] config reader + get_packing_profile</name>
+  <files>voss/harness/config.py</files>
   <read_first>
     - voss/harness/config.py:25-45 (block regexes + _KV + _KV_BARE), :56-61 (_parse_agent_section template), :93-105 (load_agent_config template), :209-230 (get_max_iterations int-coerce pattern), :264-286 (get_allow_net bool pattern)
     - voss/harness/context_allocator.py (PackingProfile dataclass from Plan 02 — the target shape)
@@ -131,6 +132,7 @@ From Plan 02 — voss/harness/context_allocator.py:
 
 <task type="auto">
   <name>Task 2: agent.py if/else seam + once-per-run allocator + packing_budget + run_turn threading</name>
+  <files>voss/harness/agent.py</files>
   <read_first>
     - voss/harness/agent.py:708-720 (the chokepoint for-loop + the M13-03 synthetic-steer block right after it — must remain a sibling of the replay messages, undisturbed)
     - voss/harness/agent.py:493-520 (run_turn signature + token_budget=60_000), :564-580 (_run_turn_exec signature + where the while-loop begins — allocator must be instantiated BEFORE the loop, once)
@@ -164,6 +166,7 @@ From Plan 02 — voss/harness/context_allocator.py:
 
 <task type="auto">
   <name>Task 3: --no-pack CLI flag on do_cmd</name>
+  <files>voss/harness/cli.py</files>
   <read_first>
     - voss/harness/cli.py:1620-1660 (do_cmd flag cluster; "--no-unicode" is_flag at :1626; the do_cmd def at :1658)
     - voss/harness/cli.py:1737-1755 (the run_turn(...) call inside do_cmd — where packing_enabled must be threaded)

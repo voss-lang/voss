@@ -81,6 +81,7 @@ REUSE read-only — IterationRecord shape (session.py:99-115):
 
 <task type="auto" tdd="true">
   <name>Task 1: PackingProfile + tiered render (FULL / DIGEST / FOLD) with eviction pointers</name>
+  <files>voss/harness/context_allocator.py</files>
   <read_first>
     - voss/harness/agent.py:431-460 (_serialize_iter_for_replay — the FULL tier; call it directly, do NOT re-implement; note telemetry.redact_tool_args at :453 and the 400-char caps)
     - voss/harness/agent.py:413-428 (_build_iter_rider digest line format to mirror for the DIGEST tier)
@@ -118,6 +119,7 @@ REUSE read-only — IterationRecord shape (session.py:99-115):
 
 <task type="auto" tdd="true">
   <name>Task 2: pack() budget fitting + hysteresis stable-region (VOPT-01/03 pure)</name>
+  <files>voss/harness/context_allocator.py</files>
   <read_first>
     - voss/harness/context_allocator.py (the module from Task 1 — extend it)
     - voss/harness/agent.py:73-80 (_default_token_count contract — the injected callable mirrors this signature minus the keyword model, which Plan 03 binds)

@@ -101,6 +101,7 @@ Existing test analogs (VERIFIED to exist):
 
 <task type="auto">
   <name>Task 1: Allocator + integration RED stubs (VOPT-01/02/03/04/06)</name>
+  <files>tests/harness/test_context_allocator.py, tests/harness/test_agent_packing.py</files>
   <read_first>
     - tests/harness/test_agent_loop.py (FakeStreamingProvider at :76-114, _done_script factory at :152-164, async _run_turn_exec harness at :188-207 — copy these patterns verbatim)
     - tests/harness/test_cache_tokens.py (pure SimpleNamespace unit pattern, no fixtures — the model for allocator-pure tests)
@@ -139,6 +140,7 @@ Existing test analogs (VERIFIED to exist):
 
 <task type="auto">
   <name>Task 2: Ledger + eval-gate RED stubs (VOPT-05/07)</name>
+  <files>tests/harness/test_savings_ledger.py, tests/harness/test_packing_eval_gate.py</files>
   <read_first>
     - tests/harness/test_cost_slash.py (fake_ctx fixture at :8-30, _build_slash_registry + registry.lookup("/cost").handler + capsys pattern at :33-44 — copy verbatim)
     - tests/harness/test_harness_config.py (xdg monkeypatch fixture at :12-16 for path isolation)
