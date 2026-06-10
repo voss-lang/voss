@@ -27,6 +27,7 @@ from voss.template_render import render_package_template
 from voss.eval.judge import Verdict, judge_run
 from voss.harness.agent import TurnResult, run_turn
 from voss.harness.permissions import PermissionGate
+from voss.harness.prompt_override import default_runtime_vars, load_prompt
 from voss.harness.render import Renderer
 from voss.harness.subagents import SubagentSpec
 from voss.harness.team import filter_toolset_for_role, gate_for_role
@@ -117,11 +118,18 @@ class ReviewerA:
         self._run_turn_fn = run_turn_fn or run_turn
         self._judge_run_fn = judge_run_fn or judge_run
 
-        # SubagentSpec for permission gating.
+        # SubagentSpec for permission gating. Prompt resolved at load time so
+        # a project copy under .voss/prompts/ is honored (V16-04, R5).
+        prompt_root = Path(cwd).resolve()
         self._spec = SubagentSpec(
             id="reviewer_a",
             description="Derives verification bar from original idea",
-            role_prompt=REVIEWER_A_ROLE_PROMPT,
+            role_prompt=load_prompt(
+                "reviewer_a_role",
+                resource="templates/prompts/reviewer_a_role.txt.jinja",
+                cwd=prompt_root,
+                runtime_vars=default_runtime_vars("reviewer-a", prompt_root),
+            ),
             tools=frozenset({"fs", "shell"}),
         )
         # Validate gate compatibility at construction time.

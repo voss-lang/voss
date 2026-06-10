@@ -6,7 +6,10 @@ and temperature=0.0. On ParseError or parsed=None, returns a Noop fallback
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from voss.template_render import render_package_template
+from voss.harness.prompt_override import default_runtime_vars, load_prompt
 from voss_runtime.exceptions import ParseError
 from voss_runtime.providers.base import ModelProvider
 
@@ -44,10 +47,19 @@ async def em_plan(
         f"{roster_text}"
     )
 
+    # Prompt resolved at load time so a project copy under .voss/prompts/
+    # is honored; absent copy is byte-identical to EM_SYSTEM (R5).
+    prompt_root = Path.cwd()
+    system = load_prompt(
+        "em_system",
+        resource="templates/prompts/em_system.txt.jinja",
+        cwd=prompt_root,
+        runtime_vars=default_runtime_vars("em", prompt_root),
+    )
     try:
         resp = await provider.complete(
             messages=[
-                {"role": "system", "content": EM_SYSTEM},
+                {"role": "system", "content": system},
                 {"role": "user", "content": user_msg},
             ],
             model=model,

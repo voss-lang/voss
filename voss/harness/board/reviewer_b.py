@@ -24,6 +24,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from voss.template_render import render_package_template
+from voss.harness.prompt_override import default_runtime_vars, load_prompt
 from voss_runtime.exceptions import ParseError
 from voss_runtime.providers.base import ModelProvider, ProviderResponse
 
@@ -97,8 +98,17 @@ class ReviewerB:
             f"## Reviewer-A Verification Summary\n{a_verification}\n"
         )
 
+        # Prompt resolved at load time so a project copy under .voss/prompts/
+        # is honored; absent copy is byte-identical to REVIEWER_B_SYSTEM (R5).
+        prompt_root = Path.cwd()
+        system = load_prompt(
+            "reviewer_b_system",
+            resource="templates/prompts/reviewer_b_system.txt.jinja",
+            cwd=prompt_root,
+            runtime_vars=default_runtime_vars("reviewer-b", prompt_root),
+        )
         messages = [
-            {"role": "system", "content": REVIEWER_B_SYSTEM},
+            {"role": "system", "content": system},
             {"role": "user", "content": user_msg},
         ]
 
