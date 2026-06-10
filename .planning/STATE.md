@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-10T17:34:37.297Z"
+last_updated: "2026-06-10T17:40:50.959Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 43
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-10 — **V16-02 EXECUTED — four Jinja doc/fence templates (R3, R4).** `voss/templates/docs/`: `cheatsheet.md.jinja` (D-06 operating guide, imperative D-09), `commands.md.jinja` (D-07 worktree-vs-repo-root invocation divergence + capability-gated memory/review/eval sections, real CLI verbs only), `review.md.jinja` (D-08 content gated on review.enabled; orchestrator skips writing when disabled), `voss_md_fence.md.jinja` (R4 full struct, marker-free — write_fence_body owns markers per D-17; review.md link conditional). All render from `dataclasses.asdict(SyncContext)` through `render_package_template` only; `{% if %}` guards every optional fact (D-04, bare-context test proves no UndefinedError). 11 tests green. Deviation (Rule 2): `templates/docs/*` added to pyproject package-data (wheels would ship templateless); pre-existing gap noted — `templates/prompts/*` also unlisted, matters for V16-04. Summary: `phases/V16-managed-docs-prompt-generation/V16-02-SUMMARY.md`.
 
 - 2026-06-10 — **V16-01 EXECUTED — deterministic input layer for `voss sync` (R2).** `voss/layout.py` `derive_layout(cwd)`: git rev-parse probes (timeout=5, (OSError, SubprocessError) guard, fs fallback) deriving project name/root + repo-root-vs-worktree via `--git-dir` vs `--git-common-dir` divergence (new logic, no prior analog); byte-deterministic. `voss/harness/conventions.py`: `_load_project_config` (mirrors `_load_memory_config`, never raises) + `load_project_facts` → (facts, detected_keys) — fs detection (pyproject→python, package.json→node) under config precedence (D-01), detected-keys frozenset feeds the D-03 `(detected)` marker. `voss/sync.py`: `SyncContext` + `ReviewFacts` frozen dataclasses (D-02 1:1 fence shape, D-04 absent-markers) + `build_sync_context` wiring layout+facts+capabilities (D-05 probes: .voss/memory|eval dirs, memory config, review.enabled); write-loop deferred to Plan 03. 14 new tests green (real `git worktree add` fixture). Deviation: Task-1 feat commit absorbed by concurrent auto-committer (25e2b8f) — content verified intact. Summary: `phases/V16-managed-docs-prompt-generation/V16-01-SUMMARY.md`.
 
@@ -249,3 +251,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase V15 P04 | 11 min | 2 tasks | 7 files |
 | Phase V15 P05 | 7 min | 2 tasks | 8 files |
 | Phase V16 P01 | 7 min | 3 tasks | 5 files |
+| Phase V16 P02 | 5 min | 2 tasks | 6 files |
