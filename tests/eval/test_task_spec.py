@@ -152,6 +152,27 @@ def test_target_file_defaults_none() -> None:
     assert spec.target_file is None
 
 
+def test_permission_choice_default_and_deny() -> None:
+    spec = TaskSpec(prompt="x", mode="plan", rubric="...")
+    assert spec.permission_choice == "a"
+
+    deny = TaskSpec.model_validate(
+        {
+            "prompt": "x",
+            "mode": "plan",
+            "rubric": "...",
+            "surface": "serve",
+            "permission_choice": "d",
+        }
+    )
+    assert deny.permission_choice == "d"
+
+    with pytest.raises(ValidationError):
+        TaskSpec.model_validate(
+            {"prompt": "x", "mode": "plan", "rubric": "...", "permission_choice": "x"}
+        )
+
+
 def test_target_file_cli_edit() -> None:
     spec = TaskSpec.model_validate(
         {
