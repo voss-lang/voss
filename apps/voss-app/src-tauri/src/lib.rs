@@ -26,6 +26,9 @@ use voss_app_core::pty::{
     foreground, spawn_command_session_managed, spawn_command_session_with_env, spawn_session,
 };
 use voss_app_core::session::{self, SessionFile};
+use voss_app_core::sidecar::{
+    python_path, spawn_voss_serve, validate_workspace_cwd, ServeHandshake, VossServe,
+};
 use voss_app_core::themes::{self, CustomThemeFile};
 use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
@@ -126,6 +129,7 @@ fn save_custom_agents(agents: Vec<CustomAgent>) -> Result<(), String> {
 
 type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;
 type AgentDb<'a> = tauri::State<'a, Mutex<Option<Connection>>>;
+type VossServeMap<'a> = tauri::State<'a, Mutex<HashMap<String, VossServe>>>;
 
 fn ensure_registry<'a>(
     db: &'a Mutex<Option<Connection>>,
@@ -1294,6 +1298,41 @@ fn run_decision(
     })
 }
 
+// ---- voss serve sidecar (V15) ----------------------------------------------
+// VLIVE-01: lazily spawn one `voss serve` per workspace cwd, reuse it while
+// alive, and reap all on app exit (map entries drop with the managed state —
+// kill_on_drop, T-V15-02). Only the Tauri side can spawn the server (V14
+// Pitfall 4 — the webview launcher imports node:child_process).
+
+#[tauri::command]
+async fn start_voss_serve(cwd: String, state: VossServeMap<'_>) -> Result<ServeHandshake, String> {
+    // T-V15-01: canonicalize + validate before the cwd reaches a spawn arg.
+    let canonical = validate_workspace_cwd(&cwd, &[])?;
+
+    // Reuse-if-alive; pid() == None means the child was reaped — drop the
+    // stale entry and respawn (Pitfall 5). Lock scope closes before any await.
+    {
+        let mut map = state.lock().map_err(|_| "lock poisoned".to_string())?;
+        match map.get(&cwd) {
+            Some(serve) if serve.pid().is_some() => return Ok(serve.handshake.clone()),
+            Some(_) => {
+                map.remove(&cwd);
+            }
+            None => {}
+        }
+    }
+
+    // T-V15-10: the error path carries stderr tails but never the token.
+    let serve = spawn_voss_serve(&python_path(), &canonical)
+        .await
+        .map_err(|e| e.to_string())?;
+    let handshake = serve.handshake.clone();
+
+    let mut map = state.lock().map_err(|_| "lock poisoned".to_string())?;
+    map.insert(cwd, serve);
+    Ok(handshake)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1304,6 +1343,7 @@ pub fn run() {
         .manage(Mutex::new(None::<Connection>))
         .manage(SwarmWatchState::default())
         .manage(KeymapWatchState::default())
+        .manage(Mutex::new(HashMap::<String, VossServe>::new()))
         .invoke_handler(tauri::generate_handler![
             get_theme_overrides,
             spawn_pty,
@@ -1367,6 +1407,7 @@ pub fn run() {
             load_run,
             enumerate_runs,
             run_decision,
+            start_voss_serve,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

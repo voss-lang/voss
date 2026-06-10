@@ -63,6 +63,25 @@ pub fn python_path() -> String {
     "python3".to_string()
 }
 
+/// T-V15-01: canonicalize and validate a webview-supplied workspace `cwd`
+/// before it becomes a process-spawn argument. With empty `allowed_roots`,
+/// any existing directory is accepted (single-user local default); otherwise
+/// the canonical path must equal or descend from one of the roots.
+pub fn validate_workspace_cwd(
+    cwd: &str,
+    allowed_roots: &[std::path::PathBuf],
+) -> Result<std::path::PathBuf, String> {
+    let canonical = std::fs::canonicalize(cwd)
+        .map_err(|_| "workspace path does not exist".to_string())?;
+    if !canonical.is_dir() {
+        return Err("workspace path is not a directory".to_string());
+    }
+    if !allowed_roots.is_empty() && !allowed_roots.iter().any(|root| canonical.starts_with(root)) {
+        return Err("workspace path is outside allowed roots".to_string());
+    }
+    Ok(canonical)
+}
+
 /// Spawn `voss serve --port 0` in `cwd` and complete the startup handshake.
 ///
 /// litellm's import tree cold-compiles in ~45s on first run (warm ~15s), so
