@@ -1,0 +1,23 @@
+prompt = "Add a function `def multiply(a, b)` that returns a * b to calc.py. Keep the existing add() function unchanged."
+mode = "edit"
+surface = "cli:do"
+rubric = """
+PASS if:
+- calc.py defines multiply(a, b) returning the product.
+- The existing add() function is unchanged.
+
+FAIL if:
+- multiply is missing or wrong.
+- add() was removed or altered.
+"""
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+
+[[checks]]
+type = "file_contains"
+path = "calc.py"
+text = "def multiply"
+
+[[checks]]
+type = "cmd"
+run = "grep -q 'def add' calc.py"

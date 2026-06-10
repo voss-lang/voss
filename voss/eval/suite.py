@@ -54,6 +54,7 @@ class TaskSpec(BaseModel):
     checks: list[AnyCheck] = Field(default_factory=list)
     surface: Literal["internal", "cli:do", "cli:chat", "cli:edit", "serve"] = "internal"
     target_file: str | None = None  # required by cli:edit driver; None for all other surfaces
+    permission_choice: Literal["a", "A", "d"] = "a"  # serve-only; default Allow; "d" = Deny
 
 
 def load_task(task_dir: Path) -> TaskSpec:

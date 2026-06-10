@@ -1,0 +1,20 @@
+prompt = "Add a function `def subtract(a, b)` that returns a - b to calc.py. Keep the existing add() function unchanged."
+mode = "edit"
+surface = "cli:edit"
+target_file = "calc.py"
+rubric = """
+PASS if:
+- calc.py defines subtract(a, b) returning the difference.
+- The existing add() function is unchanged.
+
+FAIL if:
+- subtract is missing or wrong.
+- add() was removed or altered.
+"""
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+
+[[checks]]
+type = "file_contains"
+path = "calc.py"
+text = "def subtract"

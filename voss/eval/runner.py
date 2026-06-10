@@ -494,7 +494,9 @@ async def _drive_task(
             final, crash_reason, capped = await _drive_cli_edit(spec, cwd)
             return record, final, crash_reason, capped
         if spec.surface == "serve":
-            final, crash_reason, capped = await _drive_serve(spec, cwd)
+            final, crash_reason, capped = await _drive_serve(
+                spec, cwd, permission_choice=spec.permission_choice
+            )
             return record, final, crash_reason, capped
         if task_id.startswith("05-"):
             record, final, capped = await _drive_resume(
@@ -639,6 +641,9 @@ async def _run_suite_async(
                     max_turns=max_turns,
                 )
                 diff = _file_diff(cwd)
+                # After diff (never pollutes the judge's file_diff input), before
+                # checks (model output is check-addressable for every surface).
+                (cwd / ".voss-eval-final.txt").write_text(final or "")
                 gate_pass, check_results = _run_checks(spec.checks, cwd)
                 cost_usd, confidence = _extract_signals(record)
 

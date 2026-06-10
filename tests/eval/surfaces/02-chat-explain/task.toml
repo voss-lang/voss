@@ -1,0 +1,20 @@
+prompt = "Read calc.py and explain in one sentence what the add() function does. Include the word 'sum' in your answer."
+mode = "plan"
+surface = "cli:chat"
+rubric = """
+PASS if:
+- The explanation correctly describes add() as returning the sum/addition of two values.
+
+FAIL if:
+- The explanation is missing, wrong, or describes something else.
+"""
+judge_inputs = ["final"]
+
+[[checks]]
+type = "cmd"
+run = "test -s .voss-eval-final.txt"
+
+[[checks]]
+type = "file_contains"
+path = ".voss-eval-final.txt"
+text = "sum"
