@@ -1778,6 +1778,16 @@ def do_cmd(
     renderer.show_user(text)
 
     run_turn = _resolve_run_turn(cwd)
+    # V18 VOPT-06: the compiled-harness run_turn (cache loop.py) predates
+    # packing — only thread the flag when the resolved surface accepts it.
+    import inspect as _inspect
+
+    _rt_kwargs: dict = {}
+    try:
+        if "packing_enabled" in _inspect.signature(run_turn).parameters:
+            _rt_kwargs["packing_enabled"] = not no_pack
+    except (TypeError, ValueError):
+        pass
     result = _run_turn_cancellable(
         run_turn(
             text,
@@ -1791,7 +1801,7 @@ def do_cmd(
             session_id=do_record.id,
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
-            packing_enabled=not no_pack,
+            **_rt_kwargs,
         ),
         renderer=renderer,
     )
