@@ -2349,9 +2349,20 @@ LangSmith/team dashboards are a likely later adapter if this becomes multi-user,
 
 **Goal:** Golden agentic tasks (analyze, plan-only, approved edit, validation, resume) run against fixture repos in Python, Rust, and TS — proving cognition + edits across project shapes.
 
-**Requirements:** EVGLD-01..0N (TBD by `E2-SPEC.md`; absorbs M5-05 / EVAL-05 intent).
+**Requirements:** EVGLD-01 (synthetic-minimal py/rust/ts fixtures + matrix suite loads), EVGLD-02 (curated 12-cell matrix task.tomls with per-language checks), EVGLD-03 (per-language behavioral gates: toolchain test exit 0 + edit-landed), EVGLD-04 (cognition gates: analyze names lang-correct manifest), EVGLD-05 (toolchain require-present + recorded-skip + preflight + `--require-all-toolchains`), EVGLD-06 (summary.md skipped column, never silent-green), EVGLD-07 (matrix stub-run green + manual live-proof, gated after E1-05). *Minted from CONTEXT D-01..D-04 by E2 planning; absorbs M5-05 / EVAL-05 intent. To be adopted by a future E2-SPEC.md.*
 
-**Plans:** TBD
+**Plans:** 9 plans, 4 waves (W1 fixtures parallel per language; W2 task.tomls + runner infra parallel; no TaskSpec schema change — language carried by the task_id prefix)
+
+Plans:
+- [ ] E2-01-PLAN.md — RED test scaffolds: 4 matrix test files, one Nyquist selector per EVGLD-* (strict-xfail runner + skip-guarded suite/stub) [EVGLD-01..07]
+- [ ] E2-02-PLAN.md — Python fixtures: 3 flat calc shape repos (py-01/03/04) + 3 golden-reuse fixtures (py-02/05/06) [EVGLD-01]
+- [ ] E2-03-PLAN.md — Rust fixtures: 3 self-contained calc crates (rust-01/03/04), no [workspace], integration-test call site [EVGLD-01]
+- [ ] E2-04-PLAN.md — TypeScript fixtures: 3 ESM calc projects (ts-01/03/04), node:test no-install, no global tsc [EVGLD-01]
+- [ ] E2-05-PLAN.md — Python task.tomls: 3 shape cells (cognition+behavioral) + 3 reuse cells [EVGLD-02, EVGLD-03, EVGLD-04]
+- [ ] E2-06-PLAN.md — Rust task.tomls: 3 shape cells, cargo test timeout=120, both-file rename [EVGLD-02, EVGLD-03, EVGLD-04]
+- [ ] E2-07-PLAN.md — TypeScript task.tomls: 3 shape cells, npm test, camelCase sumTwo rename [EVGLD-02, EVGLD-03, EVGLD-04]
+- [ ] E2-08-PLAN.md — runner toolchain preflight + skip-row (gate_pass=None) + `--require-all-toolchains` + summary skipped column [EVGLD-05, EVGLD-06]
+- [ ] E2-09-PLAN.md — full 12-cell matrix stub-run green + manual live-proof checkpoint (gated after E1-05) [EVGLD-07]
 
 ### Phase E3: Surface E2E
 
