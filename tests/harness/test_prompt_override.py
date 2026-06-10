@@ -22,6 +22,16 @@ def test_no_project_copy_falls_back_byte_identical(tmp_path: Path) -> None:
     assert out == render_package_template("voss", _RESOURCE, {})
 
 
+def test_resource_defaults_from_synced_prompts_mapping(tmp_path: Path) -> None:
+    # Writer (sync) and reader share SYNCED_PROMPTS — name alone resolves.
+    from voss.harness.prompt_override import SYNCED_PROMPTS
+
+    for name, resource in SYNCED_PROMPTS:
+        assert load_prompt(name, cwd=tmp_path) == render_package_template(
+            "voss", resource, {}
+        )
+
+
 def test_project_copy_preferred_with_substitution(tmp_path: Path) -> None:
     _write_project_copy(
         tmp_path,

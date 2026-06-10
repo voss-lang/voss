@@ -129,9 +129,55 @@ def test_fence_drift_refused_nonzero_exit():
             count=1,
         )
         path.write_text(drifted)
+        # Change a fact too: the refused sync must not have rewritten docs.
+        Path(".voss/config.yml").write_text(
+            CONFIG_REVIEW_ON.replace("pip install -e .", "make install")
+        )
+        before = _snapshot()
         result = runner.invoke(main, ["sync"])
         assert result.exit_code != 0  # R4: HashMismatch refusal, not silent overwrite
         assert path.read_text() == drifted  # nothing clobbered
+        assert _snapshot() == before  # drift gate fires BEFORE any write
+        assert "voss memory adopt --id workflow" in result.output  # working remediation
+
+
+def test_review_disable_removes_stale_review_doc():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()  # review enabled
+        runner.invoke(main, ["sync"])
+        assert Path(".voss/docs/review.md").exists()
+        Path(".voss/config.yml").write_text(CONFIG_REVIEW_OFF)
+        result = runner.invoke(main, ["sync"])
+        assert result.exit_code == 0, result.output
+        assert not Path(".voss/docs/review.md").exists()  # machine-owned cleanup
+        assert "removed" in result.output
+
+
+def test_scalar_reviewers_not_char_split():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        Path(".voss").mkdir()
+        Path(".voss/config.yml").write_text(
+            "project:\n  review:\n    enabled: true\n    reviewers: alice\n"
+        )
+        result = runner.invoke(main, ["sync"])
+        assert result.exit_code == 0, result.output
+        fence = Path("VOSS.md").read_text()
+        assert "(alice)" in fence
+        assert "`a`, `l`" not in Path(".voss/docs/review.md").read_text()
+
+
+def test_non_utf8_prompt_clean_error():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        Path(".voss/prompts/em_system.txt").write_bytes(b"\xff\xfe garbage")
+        result = runner.invoke(main, ["sync"])
+        assert result.exit_code != 0
+        assert "Traceback" not in result.output  # clean ClickException, not a dump
+        assert "sync failed" in result.output
 
 
 def test_dry_run_writes_nothing():
