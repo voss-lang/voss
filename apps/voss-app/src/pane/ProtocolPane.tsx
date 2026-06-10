@@ -21,15 +21,23 @@ import {
   type PermissionChoice,
 } from '../../../../sdk/typescript/src/client/permission';
 import { createVossClient } from '../../../../sdk/typescript/src/client/rest';
-import { connectLiveStream } from '../org/live/sseClient';
+import {
+  connectLiveStream,
+  liveHandles,
+  type LiveStreamHandle,
+} from '../org/live/sseClient';
 import { resolveAttentionItem } from '../org/attention/attentionQueue';
+import { startVossServe } from '../org/live/sidecarClient';
+import ExitBanner from './ExitBanner';
 import './ProtocolPane.css';
 
 export interface ProtocolPaneProps {
   sessionId: string;
   baseUrl: string;
   token: string;
-  /** Called when the session reports idle (Plans 04/05 fill the ended UX). */
+  /** Workspace cwd — the D-12 "Retry start" re-invokes startVossServe(cwd). */
+  cwd?: string;
+  /** Called when the session ends (clean idle or server death — D-11). */
   onEnded?: () => void;
   /** Test/mock injection — forwarded to connectLiveStream (Pitfall 4). */
   stream?: AsyncIterable<AgentEvent>;
@@ -143,9 +151,26 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
     {},
   );
 
+  // V15-04 lifecycle (D-10/D-11/D-12): boot placeholder until the first
+  // event, spawn-error with retry, honest ended state on stream death.
+  const [bootState, setBootState] = createSignal<
+    'booting' | 'live' | 'ended' | 'error'
+  >('booting');
+  const [elapsed, setElapsed] = createSignal(0);
+  const [errorMsg, setErrorMsg] = createSignal('');
+  const [died, setDied] = createSignal(false); // server death (≠ clean idle)
+  let sawCleanEnd = false;
+  let eventCount = 0;
+
+  // The live connection (retry can rebind to a fresh handshake).
+  const [conn, setConn] = createSignal({
+    baseUrl: props.baseUrl,
+    token: props.token,
+  });
+
   // The reply client is built from the pane's own handshake fields — Bearer
   // middleware on every request (T-V15-03); constructed per reply (cheap).
-  const replyClient = () => createVossClient(props.baseUrl, props.token);
+  const replyClient = () => createVossClient(conn().baseUrl, conn().token);
 
   /** One reply loop for both surfaces: POST first, clear ONLY on success
    *  (never optimistic — T-V15-07); the queue clear uses the identical
@@ -168,21 +193,81 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
   };
 
   const appendEvent = (ev: AgentEvent) => {
+    eventCount += 1;
+    if (bootState() === 'booting') setBootState('live'); // first event = connected (D-10)
+    if (ev.type === 'session.idle' || ev.type === 'final') sawCleanEnd = true;
     setEvents((prev) => trimOldest([...prev, ev], CAP));
     if (ev.type === 'session.idle') props.onEnded?.();
   };
 
-  onMount(() => {
-    const handle = connectLiveStream({
-      baseUrl: props.baseUrl,
+  let handle: LiveStreamHandle | undefined;
+  const connect = (
+    baseUrl: string,
+    token: string,
+    stream?: AsyncIterable<AgentEvent>,
+  ) => {
+    handle?.abort();
+    setConn({ baseUrl, token });
+    handle = connectLiveStream({
+      baseUrl,
       sessionId: props.sessionId,
-      token: props.token,
+      token,
       cardId: props.sessionId, // Bridge A: the session id IS the cardId
-      stream: props.stream,
+      stream,
       onEvent: appendEvent,
     });
-    onCleanup(() => handle.abort());
+  };
+
+  onMount(() => {
+    connect(props.baseUrl, props.token, props.stream);
+    const tick = setInterval(() => {
+      if (bootState() === 'booting') setElapsed((n) => n + 1);
+    }, 1000);
+    onCleanup(() => {
+      clearInterval(tick);
+      handle?.abort();
+    });
   });
+
+  // Stream-end detection: this session leaves the liveHandles set when its
+  // for-await ends (clean or death). Zero events while booting = the stream
+  // never connected → spawn/connect failure (D-12); otherwise ended (D-11) —
+  // death (no final/session.idle seen) flips write affordances via onEnded.
+  let wasConnected = false;
+  createEffect(() => {
+    const connected = liveHandles().has(props.sessionId);
+    if (connected) {
+      wasConnected = true;
+      return;
+    }
+    if (!wasConnected) return;
+    wasConnected = false;
+    if (bootState() === 'booting' && eventCount === 0) {
+      setErrorMsg('stream did not connect');
+      setBootState('error');
+      return;
+    }
+    setBootState('ended');
+    if (!sawCleanEnd) {
+      setDied(true);
+      props.onEnded?.();
+    }
+  });
+
+  // D-12: Retry start — re-invoke the sidecar spawn and rebind the stream to
+  // the fresh handshake. No auto-restart anywhere; this is user-initiated.
+  const retryStart = async () => {
+    setBootState('booting');
+    setElapsed(0);
+    setDied(false);
+    try {
+      const h = await startVossServe(props.cwd ?? '');
+      connect(`http://127.0.0.1:${h.port}`, h.token);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+      setBootState('error');
+    }
+  };
 
   // Coalesce the event list into row descriptors (D-09 stream blocks).
   const rows = createMemo<Row[]>(() => {
@@ -301,12 +386,40 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
 
   return (
     <div
-      class="protocol-pane"
+      class={`protocol-pane${died() ? ' pane--proto-ended' : ''}`}
       ref={scrollRef}
       onScroll={onScroll}
       role="log"
       aria-label="Run transcript"
     >
+      {/* D-10 boot placeholder — until the first event arrives. */}
+      <Show when={bootState() === 'booting'}>
+        <div class="proto-boot">
+          <div class="proto-boot__label">Starting…</div>
+          <div class="proto-boot__elapsed">{elapsed()}s</div>
+          <Show when={elapsed() >= 5}>
+            <div class="proto-boot__sub">Cold start takes up to 60s</div>
+          </Show>
+        </div>
+      </Show>
+
+      {/* D-12 spawn-failure — stderr tail + user-initiated retry. */}
+      <Show when={bootState() === 'error'}>
+        <div class="proto-spawn-error">
+          <div class="proto-spawn-error__heading">
+            Could not start — {errorMsg().split('\n')[0]}
+          </div>
+          <div class="proto-spawn-error__stderr">{errorMsg()}</div>
+          <button
+            type="button"
+            class="proto-spawn-error__retry"
+            onClick={() => void retryStart()}
+          >
+            Retry start
+          </button>
+        </div>
+      </Show>
+
       <For each={rows()}>
         {(row) => (
           <Switch>
@@ -498,6 +611,19 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
           </Switch>
         )}
       </For>
+
+      {/* D-11 ended row — inline in transcript flow (scrolls with it); no
+          Restart for server death (the NEXT run respawns fresh). */}
+      <Show when={bootState() === 'ended'}>
+        <div class="proto-ended-row">
+          <ExitBanner
+            exitCode={died() ? 1 : 0}
+            message="[session ended]"
+            showRestart={false}
+            onRestart={() => {}}
+          />
+        </div>
+      </Show>
     </div>
   );
 }

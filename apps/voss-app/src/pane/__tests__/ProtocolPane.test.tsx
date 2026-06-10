@@ -342,6 +342,102 @@ describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
   });
 });
 
+describe('ProtocolPane — lifecycle states (V15-04, VLIVE-07)', () => {
+  it('shows the D-10 boot placeholder before any event, replaced by the transcript after the first', async () => {
+    // Never-yielding stream: stays booting.
+    const pending = (async function* (): AsyncGenerator<AgentEvent> {
+      await new Promise(() => {});
+    })();
+    const c1 = mount(pending);
+    await flush();
+    expect(c1.querySelector('.proto-boot')).not.toBeNull();
+    expect(c1.querySelector('.proto-boot__label')?.textContent).toBe(
+      'Starting…',
+    );
+
+    // Yielding stream: boot gone, transcript present.
+    const c2 = mount(scripted([ev({ type: 'user', task: 'go' })]));
+    await flush();
+    expect(c2.querySelector('.proto-boot')).toBeNull();
+    expect(c2.querySelector('.proto-task-hdr')).not.toBeNull();
+  });
+
+  it('a stream that ends with zero events shows the D-12 spawn error; Retry re-invokes startVossServe', async () => {
+    mockStartServe.mockResolvedValueOnce({ port: 50099, token: 'tok-2' });
+    const c = mount(scripted([]));
+    await flush();
+    await flush();
+
+    const err = c.querySelector('.proto-spawn-error');
+    expect(err).not.toBeNull();
+    expect(
+      err?.querySelector('.proto-spawn-error__heading')?.textContent,
+    ).toContain('Could not start');
+    expect(err?.querySelector('.proto-spawn-error__stderr')).not.toBeNull();
+
+    const retry = err?.querySelector<HTMLButtonElement>(
+      '.proto-spawn-error__retry',
+    );
+    expect(retry?.textContent).toBe('Retry start');
+    retry?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush();
+    await flush();
+
+    expect(mockStartServe).toHaveBeenCalledTimes(1);
+  });
+
+  it('server death (stream end, no final/idle) appends "[session ended]" with NO Restart, dims, fires onEnded', async () => {
+    const onEnded = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const dispose = render(
+      () => (
+        <ProtocolPane
+          sessionId="sess-1"
+          baseUrl="http://localhost:0"
+          token="tok"
+          onEnded={onEnded}
+          stream={scripted([ev({ type: 'user', task: 'go' })])}
+        />
+      ),
+      container,
+    );
+    disposers.push(() => {
+      dispose();
+      container.remove();
+    });
+    await flush();
+    await flush();
+
+    const banner = container.querySelector('.proto-ended-row .exit-banner');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('[session ended]');
+    expect(banner?.querySelector('.eb-restart')).toBeNull(); // no auto/manual restart
+    expect(
+      container
+        .querySelector('.protocol-pane')
+        ?.classList.contains('pane--proto-ended'),
+    ).toBe(true);
+    expect(onEnded).toHaveBeenCalled();
+  });
+
+  it('a clean end (final seen) shows the ended row WITHOUT the death dim', async () => {
+    const c = mount(
+      scripted([
+        ev({ type: 'user', task: 'go' }),
+        ev({ type: 'final', text: 'Done.', confidence: 0.9, cost_usd: 0.01 }),
+      ]),
+    );
+    await flush();
+    await flush();
+
+    expect(c.querySelector('.proto-ended-row .exit-banner')).not.toBeNull();
+    expect(
+      c.querySelector('.protocol-pane')?.classList.contains('pane--proto-ended'),
+    ).toBe(false);
+  });
+});
+
 describe('ProtocolPane — D-08 cap with pins', () => {
   it('a >300-event flood trims oldest non-pinned rows; task header + permission survive', async () => {
     const events: AgentEvent[] = [

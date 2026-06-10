@@ -699,8 +699,9 @@ export default function PaneComponent(props: PaneProps) {
           baseUrl={props.nativeBaseUrl!}
           token={props.nativeToken!}
           onEnded={() => {
+            // D-11: ProtocolPane renders its own inline ended banner — the
+            // header dot reflects the state; no absolute PTY ExitBanner here.
             setDot('exited');
-            setExitCode(1);
           }}
         />
       </Show>
@@ -725,7 +726,7 @@ export default function PaneComponent(props: PaneProps) {
         />
       </Show>
 
-      <Show when={exitCode() !== null}>
+      <Show when={exitCode() !== null && !props.nativeSessionId}>
         <ExitBanner exitCode={exitCode() as number} onRestart={restart} />
       </Show>
 
