@@ -1,9 +1,9 @@
 ---
 phase: V18
 slug: budget-aware-context-allocator-token-optimization
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-10
 ---
 
@@ -42,14 +42,15 @@ created: 2026-06-10
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| V18-01-xx | 01 | 1 | VOPT-01 | — | allocator is pure (no provider/fs) | unit | `pytest -k allocator_pure` | ❌ W0 | ⬜ pending |
-| V18-0x-xx | 0x | x | VOPT-02 | — | tiered render full/digest/fold; newest full | unit | `pytest -k tier_render` | ❌ W0 | ⬜ pending |
-| V18-0x-xx | 0x | x | VOPT-03 | — | stable replay-prefix hash unchanged under high-water; cache_read dominates | unit | `pytest -k cache_coherent` | ❌ W0 | ⬜ pending |
-| V18-0x-xx | 0x | x | VOPT-04 | — | folded iter emits actionable re-fetch pointer; no index dep added | unit | `pytest -k eviction_pointer` | ❌ W0 | ⬜ pending |
-| V18-0x-xx | 0x | x | VOPT-05 | — | ledger packed≤original; --no-pack ⇒ original==packed; $ nets cache reads | unit | `pytest -k savings_ledger` | ❌ W0 | ⬜ pending |
-| V18-0x-xx | 0x | x | VOPT-06 | — | `--no-pack` messages byte-identical to pre-V18 | unit | `pytest -k no_pack_identical` | ❌ W0 | ⬜ pending |
-| V18-0x-xx | 0x | x | VOPT-07 | — | packing-on success ≥ off−tol; over-aggressive profile fails gate | eval | `pytest -k packing_quality_gate` | ❌ W0 | ⬜ pending |
-| V18-0x-xx | 0x | x | VOPT-08 | — | diff adds no index/embedding dep; recorder OSC shape unchanged | unit | `pytest -k coherence_guard` | ❌ W0 | ⬜ pending |
+| V18-02-01 | 02 | 2 | VOPT-01 | T-V18-04 | allocator is pure (no provider/fs); 50 iters under ceiling; byte-identical below threshold | unit | `pytest tests/harness/test_context_allocator.py -k "allocator_pure or under_ceiling or byte_identical"` | ✅ | ✅ green |
+| V18-02-01 | 02 | 2 | VOPT-02 | T-V18-03 | tiered render full/digest/fold; newest full; packed ≤ full | unit | `pytest tests/harness/test_context_allocator.py -k "tier_boundaries or never_exceed_full"` | ✅ | ✅ green |
+| V18-02-02 | 02 | 2 | VOPT-03 | T-V18-05 | stable-region hash unchanged below high-water; exactly one recompaction at crossing | unit | `pytest tests/harness/test_context_allocator.py -k "append_only or recompaction"` | ✅ | ✅ green |
+| V18-03-02 | 03 | 3 | VOPT-03 | T-V18-08 | steady-state cache_read_input_tokens > 0 with packing on | integration | `pytest tests/harness/test_agent_packing.py::test_cache_coherence_steady_state` | ✅ | ✅ green |
+| V18-02-01 | 02 | 2 | VOPT-04 | T-V18-03 | folded iter emits deduped re-fetch pointers capped at 5; no index dep | unit | `pytest tests/harness/test_context_allocator.py::test_eviction_pointer_emitted` | ✅ | ✅ green |
+| V18-04-xx | 04 | 4 | VOPT-05 | T-V18-11/12 | ledger packed≤original; no-pack ⇒ original==packed; $ nets cache reads; /cost line | unit | `pytest tests/harness/test_savings_ledger.py` | ✅ | ✅ green |
+| V18-03-02 | 03 | 3 | VOPT-06 | T-V18-06/07 | --no-pack messages byte-identical; T4 prefix unchanged | integration | `pytest tests/harness/test_agent_packing.py -k "no_pack_byte_identical or cached_prefix"` | ✅ | ✅ green |
+| V18-05-02 | 05 | 5 | VOPT-07 | T-V18-14 | packing-on success ≥ off−tol on golden stub; regressing/inflating profile rejected (gate bites) | eval | `pytest tests/harness/test_packing_eval_gate.py` | ✅ | ✅ green |
+| V18-05-03 | 05 | 5 | VOPT-08 | T-V18-15 | no index/embedding/vector dep in V18 diff; budget OSC frozen; no second budget emitter | unit | `pytest tests/harness/test_coherence_guard.py -k v18` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -57,9 +58,9 @@ created: 2026-06-10
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_context_allocator.py` — RED stubs for VOPT-01..08
-- [ ] `tests/conftest.py` — reuse existing FakeProvider + iteration-record fixtures
-- [ ] No new framework — existing pytest harness covers all phase requirements
+- [x] `tests/harness/test_context_allocator.py` (+ test_agent_packing / test_savings_ledger / test_packing_eval_gate) — RED stubs for VOPT-01..08 (Plan 01)
+- [x] Reused existing FakeStreamingProvider + SimpleNamespace iteration-record fixtures (no new conftest needed)
+- [x] No new framework — existing pytest harness covers all phase requirements
 
 ---
 
