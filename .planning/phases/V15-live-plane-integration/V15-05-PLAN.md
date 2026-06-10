@@ -14,8 +14,8 @@ autonomous: true
 requirements: [VLIVE-06]
 must_haves:
   truths:
-    - "A cockpit sidebar 'Server sessions' section lists every session GET /session returns, newest first, with id/title/age"
-    - "Clicking Attach opens a structured pane onto that session via the D-02 grid path and registers it as a native cockpit card"
+    - "A cockpit sidebar 'Server sessions' section lists every session GET /session returns, newest first, with id/title/age (D-05: no source filtering, honest mirror)"
+    - "Clicking Attach opens a structured pane onto that session via the D-02 grid path and registers it as a native cockpit card (D-06: attached ≡ started, one consistent model)"
     - "Attach works after app restart: a respawned sidecar lists the prior session, attach renders forward events, and a follow-up returns 202"
     - "The list reflects whatever GET /session returns — no source filtering (CLI voss chat sessions included)"
     - "Transcript backfill is NOT promised: attach renders new events forward (PROTOCOL v1 has no history endpoint)"

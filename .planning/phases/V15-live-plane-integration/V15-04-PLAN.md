@@ -17,9 +17,9 @@ must_haves:
   truths:
     - "A permission.updated event renders an inline gate (Deny / Allow once / Allow for scope) in the pane AND a queue row simultaneously"
     - "Replying from either surface issues one POST /session/:id/permission (d/a/A) and clears the pending state in BOTH surfaces"
-    - "Cold start shows an in-pane 'Starting…' boot placeholder with an elapsed counter until the stream connects"
-    - "Spawn failure shows an in-pane error with the stderr tail and a Retry start button"
-    - "Server death mid-run appends an ended banner, dims the pane, flips liveLabel to snapshot, and disables follow-up with reason; the next native run respawns fresh"
+    - "Cold start shows an in-pane 'Starting…' boot placeholder with an elapsed counter until the stream connects (D-10)"
+    - "Spawn failure shows an in-pane error with the stderr tail and a Retry start button (D-12)"
+    - "Server death mid-run appends an ended banner, dims the pane, flips liveLabel to snapshot, and disables follow-up with reason; the next native run respawns fresh (D-11)"
   artifacts:
     - path: "apps/voss-app/src/org/attention/attentionQueue.ts"
       provides: "resolveAttentionItem(id) — the inverse of pushItem; clears a queue row by id"

@@ -16,8 +16,8 @@ autonomous: true
 requirements: [VLIVE-04]
 must_haves:
   truths:
-    - "A native RunCommandBar run auto-opens a structured pane in the Live Work grid (D-01/D-02 grid path)"
-    - "The structured pane renders user→task header, tool lines (collapsed), plan prose, stream.delta/finalize, and final as dedicated DOM per the UI-SPEC"
+    - "A native RunCommandBar run auto-opens a structured pane in the Live Work grid (D-01/D-02 grid path; D-03: one pane per native run, no cap)"
+    - "The structured pane renders user→task header, tool lines (collapsed), plan prose, stream.delta/finalize, and final as dedicated DOM per the UI-SPEC (D-09: delta grows a live block, finalize settles it, sticky-bottom autoscroll)"
     - "An out-of-set union member (e.g. cognition_loaded) renders as a generic one-line row — nothing is silently dropped"
     - "Tool lines render collapsed one-liners by default; clicking expands args/result (D-07 mockup deviation)"
     - "The transcript DOM is capped (~300 events) trim-oldest; the task header and pending permission rows are pinned (D-08)"

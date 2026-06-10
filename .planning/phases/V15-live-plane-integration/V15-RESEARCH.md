@@ -589,7 +589,12 @@ if (newId === before) return; // GRD-05 floor violation — grid too small
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three questions are resolved by plan design (checker Dimension 11):
+> A1 RESOLVED — Plan 05 T1 Wave-0 step inspects the live `GET /session` shape (read `voss/api/routes/session.py`); row accessors handle missing optional fields.
+> A2 RESOLVED — Plan 02 T2 reads `CardDrawer.tsx` and threads `followUpClient` App → CockpitShell → CardDrawer.
+> A3 RESOLVED — Plan 02 T2 sets `hasNativePath` from the native-card registration at the `dispatchFollowUp` call site.
 
 1. **`SessionInfo` shape from `GET /session`**
    - What we know: `rest.ts` `listSessions()` returns `SessionInfo[]` typed as `JsonObject` (opaque). The spike's `http_get(port, "/session", Some(&token))` returned 200 but the body shape was not inspected.
