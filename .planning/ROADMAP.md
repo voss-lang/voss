@@ -2266,7 +2266,16 @@ Plans:
 
 **Cross-cutting:** Substrate for A13 swarm resume (slice 2 supersedes SWM-04/05/06 one-shot task/result formats) and the Agents-launcher backlog phase (999.1). Claims consumers: `apps/voss-app/src/org/adopt.ts` adopted agents (tier C always). Compliance depends on V16-managed instructions. Eventual `.voss` declaration could compile-to-config per V10. Source + reframe rationale: `.planning/seeds/SEED-001-coordination-bus.md`.
 
-**Plans:** TBD (SPEC pending). Claims + advice slices have no upstream gate; messaging slice waits on V15.
+**Plans:** 7 plans, 6 waves (claims/identity/doc waves executable now; bus waves V15-gated).
+
+Plans:
+- [ ] V17-01-PLAN.md — Wave 0 test scaffolds: claims/identity RED + bus xfail(V15) + coherence guard green (VBUS-01..08) [wave 1]
+- [ ] V17-02-PLAN.md — Claims overlap engine + SQLite storage + atomic stake (VBUS-01, VBUS-02) [wave 2]
+- [ ] V17-03-PLAN.md — Claims click verbs + identity exit-codes + advice arrays + CLI registration (VBUS-01, VBUS-02, VBUS-06) [wave 3]
+- [ ] V17-04-PLAN.md — VOSS_AGENT_ID slug minting (TS) + env injection at 3 Rust spawn sites (VBUS-03) [wave 2]
+- [ ] V17-05-PLAN.md — [V15-GATED] bus.message event type + /bus/* routes + durable journal + SDK regen (VBUS-04, VBUS-05) [wave 4]
+- [ ] V17-06-PLAN.md — [V15-GATED] bus send/inbox/wait client verbs + discovery/advice + CLI registration (VBUS-04, VBUS-06) [wave 5]
+- [ ] V17-07-PLAN.md — docs/agent-coordination.md + V16 handoff note + coherence-guard verification (VBUS-07, VBUS-08) [wave 6]
 
 ---
 
