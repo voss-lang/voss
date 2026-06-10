@@ -4,10 +4,7 @@ Runs the golden eval suite twice — packing OFF (VOSS_NO_PACK=1) vs
 packing ON — and gates on two clauses:
 
   1. success_rate(on) >= success_rate(off) - tolerance
-  2. mean input tokens must not inflate (tokens_on <= tokens_off; a
-     measurable drop is the goal on real multi-iteration histories, but
-     hermetic stub runs that stay below recent_full_k are byte-identical
-     by design, so equality is acceptable there)
+  2. mean input tokens must drop (tokens_on < tokens_off)
 
 The savings % is an OUTPUT of this gate (token_reduction), never an
 input. A profile that regresses golden-task success beyond the locked
@@ -74,10 +71,14 @@ def compare_runs(
     success_off = _success_rate(off_rows)
     tokens_on = _mean_input_tokens(on_rows)
     tokens_off = _mean_input_tokens(off_rows)
+    baseline_ok = bool(off_rows) and success_off > 0 and tokens_off > 0
     success_ok = success_on >= success_off - tolerance
-    tokens_ok = tokens_on <= tokens_off
+    tokens_ok = tokens_on < tokens_off
     return GateResult(
-        passed=success_ok and tokens_ok,
+        passed=baseline_ok and success_ok and tokens_ok,
+        baseline_ok=baseline_ok,
+        success_ok=success_ok,
+        tokens_ok=tokens_ok,
         success_on=success_on,
         success_off=success_off,
         mean_tokens_on=tokens_on,
@@ -92,6 +93,8 @@ def run_packing_gate(
     stub: bool = True,
     out_dir: Path | str,
     tolerance: float = TOLERANCE,
+    auth_pref: str | None = None,
+    profile: Any | None = None,
 ) -> GateResult:
     """Drive the suite packing-off vs packing-on and return the gate verdict.
 
@@ -100,18 +103,44 @@ def run_packing_gate(
     from voss.eval.runner import run_suite
 
     out_dir = Path(out_dir)
-    prev = os.environ.get("VOSS_NO_PACK")
+    prev_no_pack = os.environ.get("VOSS_NO_PACK")
+    prev_xdg_config = os.environ.get("XDG_CONFIG_HOME")
+    auth_pref = auth_pref or ("none" if stub else "auto")
+    if profile is not None:
+        config_root = out_dir / "packing-profile-config"
+        config_path = config_root / "voss" / "config.toml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            "\n".join(
+                [
+                    "[context]",
+                    f"enabled = {str(getattr(profile, 'enabled', True)).lower()}",
+                    f"recent_full_k = {int(getattr(profile, 'recent_full_k'))}",
+                    f"digest_cutoff_m = {int(getattr(profile, 'digest_cutoff_m'))}",
+                    f"high_water = {float(getattr(profile, 'high_water'))}",
+                    f"low_water = {float(getattr(profile, 'low_water'))}",
+                    "",
+                ]
+            )
+        )
+        os.environ["XDG_CONFIG_HOME"] = str(config_root)
     try:
-        os.environ["VOSS_NO_PACK"] = "1"
-        run_suite(suite=suite, stub=stub, out=out_dir / "off")
+        try:
+            os.environ["VOSS_NO_PACK"] = "1"
+            run_suite(suite=suite, stub=stub, out=out_dir / "off", auth_pref=auth_pref)
+        finally:
+            if prev_no_pack is None:
+                os.environ.pop("VOSS_NO_PACK", None)
+            else:
+                os.environ["VOSS_NO_PACK"] = prev_no_pack
+        run_suite(suite=suite, stub=stub, out=out_dir / "on", auth_pref=auth_pref)
+        return compare_runs(
+            out_dir / "on" / "runs.jsonl",
+            out_dir / "off" / "runs.jsonl",
+            tolerance,
+        )
     finally:
-        if prev is None:
-            os.environ.pop("VOSS_NO_PACK", None)
+        if prev_xdg_config is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
         else:
-            os.environ["VOSS_NO_PACK"] = prev
-    run_suite(suite=suite, stub=stub, out=out_dir / "on")
-    return compare_runs(
-        out_dir / "on" / "runs.jsonl",
-        out_dir / "off" / "runs.jsonl",
-        tolerance,
-    )
+            os.environ["XDG_CONFIG_HOME"] = prev_xdg_config

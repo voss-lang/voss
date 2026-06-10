@@ -736,12 +736,12 @@ async def _run_turn_exec(
                     {"role": "system", "content": rider},
                     {"role": "user", "content": user_prompt},
                 ]
-                if (
-                    packing_enabled
-                    and all_iter_records
-                    and _packing_profile.enabled
-                    and not _packing_env_off
-                ):
+                _packing_disabled = (
+                    not packing_enabled
+                    or not _packing_profile.enabled
+                    or _packing_env_off
+                )
+                if all_iter_records and not _packing_disabled:
                     # V18 VOPT-01: pack the replay tail under what remains of
                     # token_budget after the cached prefix + rider + prompt +
                     # completion headroom. sys_blocks NEVER enters the
@@ -796,7 +796,7 @@ async def _run_turn_exec(
                         _default_token_count(str(m["content"]), model=model)
                         for m in messages[3:]
                     )
-                    _pack_method = "no-pack" if not packing_enabled else "full"
+                    _pack_method = "no-pack" if _packing_disabled else "full"
                 _savings_osc = {
                     "original": _orig_est,
                     "packed": _packed_est,

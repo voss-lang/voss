@@ -42,14 +42,14 @@ created: 2026-06-10
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| V18-02-01 | 02 | 2 | VOPT-01 | T-V18-04 | allocator is pure (no provider/fs); 50 iters under ceiling; byte-identical below threshold | unit | `pytest tests/harness/test_context_allocator.py -k "allocator_pure or under_ceiling or byte_identical"` | ✅ | ✅ green |
+| V18-02-01 | 02 | 2 | VOPT-01 | T-V18-04 | allocator is pure (no provider/fs); 50 iters under ceiling; tiny replay budgets stay under ceiling; byte-identical below threshold when budget allows | unit | `pytest tests/harness/test_context_allocator.py -k "allocator_pure or under_ceiling or tiny_ceiling or byte_identical"` | ✅ | ✅ green |
 | V18-02-01 | 02 | 2 | VOPT-02 | T-V18-03 | tiered render full/digest/fold; newest full; packed ≤ full | unit | `pytest tests/harness/test_context_allocator.py -k "tier_boundaries or never_exceed_full"` | ✅ | ✅ green |
 | V18-02-02 | 02 | 2 | VOPT-03 | T-V18-05 | stable-region hash unchanged below high-water; exactly one recompaction at crossing | unit | `pytest tests/harness/test_context_allocator.py -k "append_only or recompaction"` | ✅ | ✅ green |
 | V18-03-02 | 03 | 3 | VOPT-03 | T-V18-08 | steady-state cache_read_input_tokens > 0 with packing on | integration | `pytest tests/harness/test_agent_packing.py::test_cache_coherence_steady_state` | ✅ | ✅ green |
 | V18-02-01 | 02 | 2 | VOPT-04 | T-V18-03 | folded iter emits deduped re-fetch pointers capped at 5; no index dep | unit | `pytest tests/harness/test_context_allocator.py::test_eviction_pointer_emitted` | ✅ | ✅ green |
 | V18-04-xx | 04 | 4 | VOPT-05 | T-V18-11/12 | ledger packed≤original; no-pack ⇒ original==packed; $ nets cache reads; /cost line | unit | `pytest tests/harness/test_savings_ledger.py` | ✅ | ✅ green |
 | V18-03-02 | 03 | 3 | VOPT-06 | T-V18-06/07 | --no-pack messages byte-identical; T4 prefix unchanged | integration | `pytest tests/harness/test_agent_packing.py -k "no_pack_byte_identical or cached_prefix"` | ✅ | ✅ green |
-| V18-05-02 | 05 | 5 | VOPT-07 | T-V18-14 | packing-on success ≥ off−tol on golden stub; regressing/inflating profile rejected (gate bites) | eval | `pytest tests/harness/test_packing_eval_gate.py` | ✅ | ✅ green |
+| V18-05-02 | 05 | 5 | VOPT-07 | T-V18-14 | gate requires viable baseline + success parity + positive token reduction; no-savings, failed-baseline, regressing, and inflating runs rejected; profile injection covered | eval | `pytest tests/harness/test_packing_eval_gate.py` | ✅ | ✅ green |
 | V18-05-03 | 05 | 5 | VOPT-08 | T-V18-15 | no index/embedding/vector dep in V18 diff; budget OSC frozen; no second budget emitter | unit | `pytest tests/harness/test_coherence_guard.py -k v18` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
@@ -74,11 +74,11 @@ created: 2026-06-10
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 10s (quick)
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 10s (quick)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** complete

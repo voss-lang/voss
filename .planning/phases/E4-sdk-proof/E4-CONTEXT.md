@@ -18,8 +18,8 @@ E4 proves the public **SDK surfaces** work as real external consumers driving **
 *(User delegated all four areas to Claude's recommendations — selections below are binding, mirroring the E3 surface-proof structure.)*
 
 ### SDK surface inventory (what E4 covers) — D-01/D-02
-- **D-01:** E4 proves exactly three SDK surfaces: `sdk:python` (in-process embedder via `voss.harness`/`voss_runtime` public API — M7 surface in `docs/sdk.md`), `sdk:ts` (`sdk/typescript` V13.1 client against live `voss serve`), `sdk:go` (`sdk/go` V13.3 client against live `voss serve`).
-- **D-02 (deferred surfaces):** Rust client (V13.2) — NOT in `sdk/` (only `go`+`typescript` present); deferred until its client surface is confirmed shipped (fast-follow if present). C ABI (V13.4) is doc-only (no SDK) — out. All in Deferred.
+- **D-01:** E4 proves four SDK surfaces: `sdk:python` (in-process embedder via `voss.harness`/`voss_runtime` public API — M7 surface in `docs/sdk.md`), `sdk:ts` (`sdk/typescript` V13.1 client against live `voss serve`), `sdk:go` (`sdk/go` V13.3 client against live `voss serve`), `sdk:rust` (`crates/voss-sdk` V13.2 client — `VossClient` / `event_stream` / permission-reply, a `cargo run` consumer against live serve). **Research-confirmed (user-approved):** `crates/voss-sdk` is the FULL V13.2 client (not just the `spawn_with` helper) and has a `VOSS_SERVE_FAKE_TURN` hermetic path.
+- **D-02 (excluded surfaces):** C ABI (V13.4) is doc-only (no SDK to exercise) — out. (Rust was briefly deferred on a wrong "not in `sdk/`" assumption; research found it at `crates/voss-sdk` and confirmed it full — now in scope per D-01.)
 
 ### Scenario depth (what each consumer exercises) — D-03/D-04
 - **D-03:** Representative workflow, not smoke. The client SDKs (`sdk:ts`, `sdk:go`) each run the marquee path against a live server: construct client → spawn/attach `voss serve` → create session + one live model turn → consume the typed SSE event union (events decode to the SDK's typed model) → hit a gated tool call → reply **Allow** via the permission route → reach final → read the session/audit back via the SDK's reader. A **Deny** variant asserts the turn degrades without hanging.
@@ -58,6 +58,7 @@ E4 proves the public **SDK surfaces** work as real external consumers driving **
 - `docs/sdk.md` — the Python public API (M7): `from voss_runtime import (...)`, `from voss.harness import (...)`, `SessionView`, `NullRenderer`, `main`. This is `sdk:python`.
 - `sdk/typescript/` — V13.1 TS client (serve launcher, REST, SSE typed-event client, permission-reply helpers, typed event union). This is `sdk:ts`.
 - `sdk/go/` — V13.3 Go client (attach/serve, session CRUD, stream events, approve/deny gates, export audit/session; `client_test.go` real-server TestMain is the reference). This is `sdk:go`.
+- `crates/voss-sdk/` — V13.2 Rust client (`VossClient`, `event_stream`, `spawn_with`, `Supervisor`, typed event union, permission reply; `VOSS_SERVE_FAKE_TURN` hermetic path; integration tests are the reference). This is `sdk:rust`.
 - `.planning/ROADMAP.md` §V13.1/V13.3 — the SDK surface matrix + stability tiers; §V15 + `crates/voss-sdk` `spawn_with` — proven serve spawn/handshake (60s cold-start, `LITELLM_LOCAL_MODEL_COST_MAP=true`).
 - `.planning/PROTOCOL.md` — wire contract (event union §6, permission route, handshake) the clients consume.
 
@@ -101,12 +102,18 @@ E4 proves the public **SDK surfaces** work as real external consumers driving **
 - Keep consumer subprograms minimal + committed so a human can audit exactly what API the "external consumer" touches.
 - Run header must surface total sub-burn upfront (SDK suite + live turns).
 
+### Research pitfalls (planner MUST encode)
+- **TS handshake timeout:** `VossLauncher.start()` has a hardcoded `HANDSHAKE_TIMEOUT_MS = 10_000` (source + built `dist/node.js`) but cold litellm start is 15-45s. The TS consumer MUST NOT self-launch via `VossLauncher`; the Python runner pre-spawns `voss serve` and passes `VOSS_BASE_URL`/`VOSS_TOKEN` via env to all client consumers.
+- **Permission gate is live-only:** `VOSS_SERVE_FAKE_TURN` does NOT emit `permission.updated` (`app.py:166-178`). Hermetic/stub scenarios verify SSE plumbing + typed-event decode only; the Allow/Deny gate round-trip is a **live-only** scenario (subscription, skipped without creds).
+- **E3 surface-dispatch dependency:** `suite.py`/`runner.py` have NO `surface` field today (E3 unexecuted). E4 must either gate W1 on E3-01 merging OR absorb E3-01's `surface`-field schema addition (idempotent) — planner decides; flag the chosen path in plan frontmatter.
+- **Go `interpreterPath` CWD-relative:** `sdk/go/spawn.go` resolves `.venv/bin/python` relative to CWD; runner sets `VOSS_PYTHON=<abs>` for completeness (moot when consumers use `AttachClient` not `Spawn`).
+- **Toolchains present:** node v22.22.3, go 1.26.2, cargo 1.95-nightly; TS `dist` pre-built (`eventsource-parser`/`openapi-fetch` installed). No new package installs.
+
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-- **Rust client SDK (V13.2) scenario** — defer until the Rust client surface is confirmed shipped in `sdk/` (not present at discuss time); fast-follow if it exists.
 - **C ABI (V13.4)** — doc-only, no SDK to exercise; out of E-track surface proofs.
 - **SDK × repo-shape cross-product** — proving each SDK across py/rust/ts target repos; only if a shape-specific SDK behavior emerges (E2 owns the shape axis).
 - **Org-plane SDK scenarios** (board/team-run via SDK) — heavy multi-agent burn; own phase if needed (mirrors E3 deferral).

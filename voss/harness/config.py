@@ -375,8 +375,12 @@ def get_packing_profile():
     """
     from voss.harness.context_allocator import PackingProfile
 
+    defaults = PackingProfile()
     profile = PackingProfile()
     cfg = load_context_config()
+
+    def _warn(message: str) -> None:
+        warnings.warn(message, RuntimeWarning, stacklevel=3)
 
     def _coerce(key: str, cast, current):
         raw = cfg.get(key)
@@ -385,11 +389,9 @@ def get_packing_profile():
         try:
             return cast(raw)
         except (TypeError, ValueError):
-            warnings.warn(
+            _warn(
                 f"[context] {key} = {raw!r} is not a {cast.__name__}; "
-                f"falling back to default {current}",
-                RuntimeWarning,
-                stacklevel=3,
+                f"falling back to default {current}"
             )
             return current
 
@@ -406,12 +408,30 @@ def get_packing_profile():
         elif normalized == "false":
             profile.enabled = False
         else:
-            warnings.warn(
+            _warn(
                 f"[context] enabled = {raw_enabled!r} is not a boolean; "
-                f"falling back to default {profile.enabled}",
-                RuntimeWarning,
-                stacklevel=2,
+                f"falling back to default {profile.enabled}"
             )
+    if profile.recent_full_k < 1:
+        _warn(
+            f"[context] recent_full_k = {profile.recent_full_k!r} must be >= 1; "
+            f"falling back to default {defaults.recent_full_k}"
+        )
+        profile.recent_full_k = defaults.recent_full_k
+    if profile.digest_cutoff_m < profile.recent_full_k:
+        _warn(
+            f"[context] digest_cutoff_m = {profile.digest_cutoff_m!r} must be "
+            f">= recent_full_k ({profile.recent_full_k}); falling back to "
+            f"default {defaults.digest_cutoff_m}"
+        )
+        profile.digest_cutoff_m = defaults.digest_cutoff_m
+    if not (0 < profile.low_water < profile.high_water <= 1):
+        _warn(
+            "[context] watermarks must satisfy 0 < low_water < high_water <= 1; "
+            "falling back to defaults"
+        )
+        profile.low_water = defaults.low_water
+        profile.high_water = defaults.high_water
     return profile
 
 

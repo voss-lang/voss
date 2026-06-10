@@ -1,13 +1,9 @@
-"""V18-01 Wave-1 RED scaffold: token-savings ledger (VOPT-05).
+"""Token-savings ledger tests (VOPT-05).
 
 Ledger lives at `.voss/sessions/<id>/token-savings.jsonl` (RESEARCH A7 —
 subdirectory of the sessions dir, NOT the flat `<id>.json` convention).
 
-RED until Plan 04: `recorder._append_savings_record` and
-`recorder.estimate_savings_usd` do not exist (ImportError), and `/cost`
-does not print a "context packed:" line yet. No non-strict xfail.
-
-Contract pinned here (Plan 04 must conform):
+Contract pinned here:
     _append_savings_record(cwd: Path, session_id: str, record: dict) -> None
     estimate_savings_usd(saved_tokens: int, cache_read_tokens: int, model: str) -> float | None
 """
@@ -41,7 +37,7 @@ def _row(**overrides) -> dict:
 
 def test_ledger_packed_le_original(tmp_path) -> None:
     """VOPT-05: every ledger row satisfies packed <= original, saved >= 0."""
-    from voss.harness.recorder import _append_savings_record  # RED until Plan 04
+    from voss.harness.recorder import _append_savings_record
 
     _append_savings_record(cwd=tmp_path, session_id="abc123", record=_row())
 
@@ -53,7 +49,7 @@ def test_ledger_packed_le_original(tmp_path) -> None:
 
 def test_no_pack_zero_savings(tmp_path) -> None:
     """VOPT-05: under --no-pack, original == packed and saved == 0."""
-    from voss.harness.recorder import _append_savings_record  # RED until Plan 04
+    from voss.harness.recorder import _append_savings_record
 
     _append_savings_record(
         cwd=tmp_path,
@@ -116,12 +112,12 @@ def test_cost_slash_prints_savings_line(fake_ctx, tmp_path, capsys) -> None:
     registry.lookup("/cost").handler(fake_ctx, [], "/cost")
     out = capsys.readouterr().out
 
-    assert "context packed:" in out  # RED until Plan 04 extends _cost
+    assert "context packed:" in out
 
 
 def test_saved_usd_nets_cache_reads() -> None:
     """VOPT-05 / D-04: dollar estimate nets cache-read billing; unknown model -> None."""
-    from voss.harness.recorder import estimate_savings_usd  # RED until Plan 04
+    from voss.harness.recorder import estimate_savings_usd
 
     gross = estimate_savings_usd(saved_tokens=1000, cache_read_tokens=0, model="claude-opus-4-8")
     netted = estimate_savings_usd(saved_tokens=1000, cache_read_tokens=400, model="claude-opus-4-8")
