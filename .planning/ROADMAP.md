@@ -2218,7 +2218,7 @@ Plans:
 Plans:
 - [x] V15-01-PLAN.md — Sidecar Tauri command + managed per-workspace lifecycle (VLIVE-01) [wave 1] — ✅ 2026-06-10
 - [x] V15-02-PLAN.md — V13.1 client construction + three V14 sockets + live SSE (VLIVE-02, VLIVE-03) [wave 2] — ✅ 2026-06-10
-- [ ] V15-03-PLAN.md — ProtocolPane structured rendering + native-pane threading (VLIVE-04) [wave 3]
+- [x] V15-03-PLAN.md — ProtocolPane structured rendering + native-pane threading (VLIVE-04) [wave 3] — ✅ 2026-06-10
 - [ ] V15-04-PLAN.md — Inline permission gate + lifecycle states (VLIVE-05, VLIVE-07) [wave 4]
 - [ ] V15-05-PLAN.md — Attach-to-existing server sessions sidebar (VLIVE-06) [wave 4]
 - [ ] V15-06-PLAN.md — Hermetic stub-provider AC suite + human real-run checkpoint (VLIVE-08) [wave 5]

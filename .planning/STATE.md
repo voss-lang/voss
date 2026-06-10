@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-10T15:31:33.918Z"
+last_updated: "2026-06-10T15:46:37.836Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 43
@@ -24,8 +24,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** V15 — Live Plane Integration — EXECUTING (2/7 plans complete; V15-02 live client wiring shipped 2026-06-10).
-**Status:** Executing — next: V15-03 (ProtocolPane structured rendering, wave 3)
+**Phase:** V15 — Live Plane Integration — EXECUTING (3/7 plans complete; V15-03 structured ProtocolPane shipped 2026-06-10).
+**Status:** Executing — next: V15-04 (inline permission gate + lifecycle, wave 4) / V15-05 (attach sidebar, wave 4)
 **Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
 **Next move:** V14 ADE Run Cockpit ✅ COMPLETE (13/13, operator-approved 2026-06-09). Frontier: structured-pane-rendering seed (`.planning/notes/seed-structured-pane-rendering.md`, gated on V13.1 live wiring) · VCKP-13b permission proxy · or resume the A-track (A4 Layout Presets, ready to execute).
 **Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).
@@ -73,6 +73,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-10 — **V15-03 EXECUTED — structured ProtocolPane + native-pane grid path (VLIVE-04).** `pane/ProtocolPane.tsx`: §6 union → DOM per V15-UI-SPEC — 8 dedicated rows + generic fallback w/ amber/prefix/probability% (21 members, nothing dropped); D-07 collapsed tool lines (click-expand); D-08 trimOldest CAP=300 pinning task header + permission rows; D-09 delta coalescing w/ pulse cursor + sticky-bottom autoscroll; local per-pane signals; zero innerHTML (T-V15-05). CSS: full §1-2 token-only classes + Plan-04/05 shells. `PaneComponent`: nativeSessionId discriminator — onMount+doSpawn early-return (no PTY), body Show swap; PTY path byte-untouched (T-V15-06). Threading: nativeSessionByPaneId App→GridRoot→SplitNode→leaf; `openNativePane` D-02 split+bind+review→grid flip on native createSession (D-01/D-03); exported `openAttachedPane` seam. ExitBanner message?/showRestart? hole (D-11). 2 Rule-1 deviations: onMount guard (bodyRef crash), plan-row schema {steps[],confidence} not {text}. Verification: ProtocolPane 10/10, pane suite 27/27, full 796/796, tsc clean. Summary: `phases/V15-live-plane-integration/V15-03-SUMMARY.md`.
 
 - 2026-06-10 — **V15-02 EXECUTED — live client wiring into the three V14 seams (VLIVE-02/03).** `vossClientBuild.ts` pure factory: `createVossClient(http://127.0.0.1:<port>, token)` (Bearer on every request incl. SSE, T-V15-03) + Pitfall-1 string→`{id}` adapter + followUpClient delegate. `sseClient.ts`: `cardId` ingest context (permission rows carry a defined cardId, Pitfall 3), `onEvent` per-pane sink (Plan-03 hook), session-keyed `liveHandles` Set. App: lazy `ensureVossClient(cwd)` on first native Start (token in non-exported signal, T-V15-10), `client=` on RunCommandBar, `followUpClient` App→OrgViewShell→CockpitShell→CardDrawer, `connectLiveStream({baseUrl, sessionId, token, cardId:id})` per native session (Bridge A). 3 Rule-1/2 deviations: createSession arg dropped (rest.ts param is cwd NOT goal — plan bug), RunCommandBar native try/catch → block-reason, followUpClient threaded through the OrgViewShell wrapper. No-sidecar path = V14 disabled-with-reason unchanged (T-V15-04). Verification: 26/26 plan suites, full app 786/786, tsc clean. Open: goal text not yet delivered to the live session (plan never wired it validly) — Plan 03/04. Summary: `phases/V15-live-plane-integration/V15-02-SUMMARY.md`.
 
@@ -236,3 +238,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase V14 P11 | 12 min | 4 tasks | 10 files |
 | Phase V15 P01 | 5 min | 2 tasks | 4 files |
 | Phase V15 P02 | 8 min | 2 tasks | 8 files |
+| Phase V15 P03 | 13 min | 2 tasks | 8 files |
