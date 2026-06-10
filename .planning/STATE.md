@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-10T17:49:20.529Z"
+last_updated: "2026-06-10T18:04:23.180Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 43
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-10 — **V16-04 EXECUTED — prompt sync + ${} override loader + hash-guard (R5, R6). PHASE V16 COMPLETE (4/4 plans, R1–R6 incl. stretch).** `voss/harness/prompt_override.py` `load_prompt(name, *, resource, cwd, runtime_vars)`: project copy `.voss/prompts/<name>.txt` wins, `${AGENT}/${PROJECT}/${WORKSPACE}` via plain str.replace (D-18, never runtime Jinja — `{{ }}` in user edits safe); absent copy = byte-identical package render (R5, test-pinned). 3 use sites converted (reviewer_a w/ self._cwd; reviewer_b + em w/ Path.cwd()); exported constants preserved as package defaults (sentinel tests untouched); other 7 prompts untouched. `sync()` prompt loop: render → sha256 hash-guard vs manifest → written/unchanged/`skipped (edited)`+stderr warning (exit 0, D-15)/`--force` overwrite (D-16); missing manifest = treat-as-edited, skip never adopts silently — old hash kept, missing entries stay missing until --force (D-11). `_read_manifest` fail-safe on malformed JSON (T-V16-10). Live smoke: 8 written → edit → skip+warn exit 0 → --force overwrite. Deviation (Rule 2): `templates/prompts/*` added to package-data (pre-existing wheel gap — prompt constants could never render from installed wheel). 9 new tests; full regression green. Auto-committer absorbed commits again (96275f2/92e93c2/e50f3b6, verified). Summary: `phases/V16-managed-docs-prompt-generation/V16-04-SUMMARY.md`.
 
 - 2026-06-10 — **V16-03 EXECUTED — `voss sync` orchestrator + CLI (R1, R3, R4).** `voss/sync.py` `sync(cwd, *, dry_run, force)`: renders docs (+review.md only when review.enabled, D-08) + fence body from one `asdict(SyncContext)`; byte-diff-first writes (atomic, is_relative_to traversal guard T-V16-03); fence equality via `read_fence_body` compare BEFORE `write_fence_body` (same HashMismatch gate, no adopt, D-16 — avoids mtime churn, keeps R1); manifest `.voss/sync-state.json` path→sha256 sorted-deterministic (D-10/D-12); `--dry-run` identical diff pass zero writes (D-14); `force` accepted but prompts-only (Plan 04). `voss/cli.py` `@main.command("sync")`: status lines + `project.type: x (detected)` block + summary count (D-13), exit 0 non-errors, HashMismatch→ClickException w/ `voss memory adopt` remediation (D-15). NEW `voss/__main__.py` (Rule-3 fix: `python -m voss` never worked — no __main__). Live smoke: run 1 = 4 written, run 2 = 0 written/4 unchanged. 10 CLI tests green; full V16+cli+fence regression green. Auto-committer absorbed Task-2 commit again (b3ccb33, content verified). Summary: `phases/V16-managed-docs-prompt-generation/V16-03-SUMMARY.md`.
 
@@ -255,3 +257,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase V16 P01 | 7 min | 3 tasks | 5 files |
 | Phase V16 P02 | 5 min | 2 tasks | 6 files |
 | Phase V16 P03 | 8 min | 2 tasks | 4 files |
+| Phase V16 P04 | 12 min | 2 tasks | 8 files |
