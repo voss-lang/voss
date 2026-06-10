@@ -1,0 +1,60 @@
+/* V15-05 — "Server sessions" sidebar section (V15-UI-SPEC §7).
+ * Tokens only; Variant B radius 0. Row pattern matches .org-run-picker__row. */
+
+.cockpit-server-session-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.cockpit-server-session-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.cockpit-server-session-row:hover {
+  background: var(--bg-2);
+}
+.cockpit-server-session-row:hover .css-row__attach {
+  opacity: 1;
+}
+
+.css-row__id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.css-row__title {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 18ch;
+}
+.css-row__age {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  flex-shrink: 0;
+}
+.css-row__attach {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--focus);
+  cursor: pointer;
+  border-radius: 0; /* Variant B */
+  opacity: 0;
+  flex-shrink: 0;
+}
+.css-row__attach:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+  opacity: 1;
+}

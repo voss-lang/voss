@@ -2298,7 +2298,12 @@ Plans:
 
 **Cross-cutting:** Reuses M10 (`voss/harness/code/`), F2 (hybrid search), F3 (`recorder.py` budget OSC), T4 (`agent.py` cache prefix + `session.py:115-121` cache-token telemetry). Preserves PRD §9 top risk: `voss do`/`voss chat` working every wave. Origin analysis: competitive teardown of Plyrium Forge token-saver (Electron+Rust ADE; code-RAG index + per-agent budget packer + savings ledger feeding worktree-isolated agents).
 
-**Plans:** TBD (discuss → plan). Open knobs for discuss-phase: K/M tier sizes, high/low water marks, ledger location, config shape, second-breakpoint decision.
+**Plans:** 5 plans across 5 waves (serial spine — each layer is proven on the prior; byte-identity + cache-coherence proof ordering forbids parallelizing the agent.py/cli.py seams):
+- [ ] V18-01-PLAN.md — Wave 0 RED test scaffold: failing tests for VOPT-01..08 (allocator, agent-packing, savings-ledger, eval-gate)
+- [ ] V18-02-PLAN.md — Pure ContextAllocator + tiered decay (full/digest/fold) + eviction pointers + hysteresis (VOPT-01/02/03/04)
+- [ ] V18-03-PLAN.md — Cache-coherent integration at agent.py:713 + [context] config + --no-pack byte-identical escape hatch (VOPT-03/06)
+- [ ] V18-04-PLAN.md — Savings ledger (packed≤original) + cache-netted $ + /cost & F3 OSC savings line (VOPT-05; D-01..D-04)
+- [ ] V18-05-PLAN.md — M5 packing-on-vs-off quality gate (biting) + coherence guard (VOPT-07/08)
 
 ---
 
