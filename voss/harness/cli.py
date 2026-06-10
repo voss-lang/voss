@@ -3511,6 +3511,7 @@ def config_cmd(show: bool, config_path_override: Path | None) -> None:
     show_default=True,
     help="Credential source.",
 )
+@click.option("--max-turns", "max_turns", default=None, type=int, help="Turn cap per task (overrides config default).")
 def eval_cmd(
     suite: str,
     stub: bool,
@@ -3520,8 +3521,13 @@ def eval_cmd(
     judge_model: str | None,
     task: str | None,
     auth_pref: str,
+    max_turns: int | None,
 ) -> None:
     """Run the golden evaluation suite."""
+    if os.environ.get("VOSS_DEV") != "1":
+        click.echo("voss eval: internal tool — set VOSS_DEV=1 to run", err=True)
+        raise click.exceptions.Exit(code=1)
+
     from voss.eval.runner import run_suite
 
     run_suite(

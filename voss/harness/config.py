@@ -24,6 +24,7 @@ def config_path() -> Path:
 
 _HARNESS_BLOCK = re.compile(r"^\[harness\][^\[]*", re.MULTILINE)
 _AGENT_BLOCK = re.compile(r"^\[agent\][^\[]*", re.MULTILINE)
+_EVAL_BLOCK = re.compile(r"^\[eval\][^\[]*", re.MULTILINE)
 _TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
 # T3-04: PITFALL 6 — escape the dot. Un-escaped `r"^\[net.rate_limits\]"`
 # also matches `[netXrate_limits]` (any single char), corrupting the
@@ -55,6 +56,14 @@ def _parse_harness_section(text: str) -> dict[str, str]:
 
 def _parse_agent_section(text: str) -> dict[str, str]:
     m = _AGENT_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    return {k: v for k, v in _KV.findall(block)}
+
+
+def _parse_eval_section(text: str) -> dict[str, str]:
+    m = _EVAL_BLOCK.search(text)
     if not m:
         return {}
     block = m.group(0)
@@ -100,6 +109,18 @@ def load_agent_config() -> dict[str, str]:
     except OSError:
         return {}
     return _parse_agent_section(text)
+
+
+def load_eval_config() -> dict[str, str]:
+    """Return the `[eval]` section as a dict. Missing file / section -> {}."""
+    p = config_path()
+    if not p.exists():
+        return {}
+    try:
+        text = p.read_text()
+    except OSError:
+        return {}
+    return _parse_eval_section(text)
 
 
 def load_tools_config() -> dict[str, str]:
@@ -223,6 +244,34 @@ def get_max_iterations() -> int:
             stacklevel=2,
         )
         return default
+
+
+DEFAULT_MAX_TURNS = 15
+DEFAULT_JUDGE_MODEL = "gpt-5.5-mini"
+
+
+def get_eval_max_turns() -> int:
+    """Resolve eval.max_turns, falling back to DEFAULT_MAX_TURNS."""
+    default = DEFAULT_MAX_TURNS
+    cfg = load_eval_config()
+    raw = cfg.get("max_turns")
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        warnings.warn(
+            f"[eval] max_turns = {raw!r} is not an integer; "
+            f"falling back to default {default}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return default
+
+
+def get_eval_judge_model() -> str:
+    """Resolve eval.judge_model, falling back to DEFAULT_JUDGE_MODEL."""
+    return load_eval_config().get("judge_model", DEFAULT_JUDGE_MODEL)
 
 
 def get_max_parallel_reads() -> int:
