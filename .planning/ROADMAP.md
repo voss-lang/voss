@@ -2262,7 +2262,7 @@ Plans:
 
 **Out of scope:** file JSONL substrate + fs locks + byte cursors + fs-notify (server-replacement infra — Voss has the server; reopens only if no-server headless coordination becomes a real constraint); standalone hooks engine (mention→spawn = AttentionQueue action / V7 EM dispatch behavior); delivery guarantees/acks; cross-machine sync; message-type schema enforcement; observer TUI / bridges; global cross-project storage.
 
-**Requirements:** TBD by `V17-SPEC.md` (VBUS-*; V-track phase, requirements live in SPEC not REQUIREMENTS.md).
+**Requirements:** VBUS-01..08 (locked in `V17-SPEC.md`, ambiguity 0.16; V-track phase, requirements live in SPEC not REQUIREMENTS.md).
 
 **Cross-cutting:** Substrate for A13 swarm resume (slice 2 supersedes SWM-04/05/06 one-shot task/result formats) and the Agents-launcher backlog phase (999.1). Claims consumers: `apps/voss-app/src/org/adopt.ts` adopted agents (tier C always). Compliance depends on V16-managed instructions. Eventual `.voss` declaration could compile-to-config per V10. Source + reframe rationale: `.planning/seeds/SEED-001-coordination-bus.md`.
 
