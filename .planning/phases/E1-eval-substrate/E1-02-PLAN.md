@@ -16,7 +16,7 @@ must_haves:
     - "voss eval without VOSS_DEV=1 exits non-zero with a one-line internal-tool message, makes zero model calls, writes no output dir"
     - "voss eval with VOSS_DEV=1 proceeds with current behavior"
     - "config [eval] section resolves max_turns (default 15) and judge_model (default pinned gpt-5.x variant)"
-    - "--max-turns flag is accepted by eval_cmd and forwarded to run_suite"
+    - "--max-turns flag is accepted by eval_cmd (forward into run_suite happens in E1-03 when run_suite gains the param)"
     - "existing eval test suite stays green via autouse VOSS_DEV=1 conftest"
   artifacts:
     - path: "voss/harness/config.py"
@@ -36,13 +36,13 @@ must_haves:
       via: "guard at callback entry before importing run_suite"
       pattern: "VOSS_DEV"
     - from: "voss/harness/cli.py eval_cmd"
-      to: "voss.eval.runner.run_suite max_turns param"
-      via: "forward --max-turns option"
+      to: "--max-turns Click option (forward to run_suite added in E1-03)"
+      via: "option registration only in this plan"
       pattern: "max_turns"
 ---
 
 <objective>
-Add the internal-only dev gate (`VOSS_DEV=1`) on the `voss eval` verb (EVSUB-05), the `[eval]` config section that supplies `max_turns` (default 15) and `judge_model` defaults (D-06), the `--max-turns` CLI flag (forwarded to `run_suite`), and the autouse conftest that keeps the existing eval test suite green. The gate fails at verb entry before any auth/provider/fixture/model work (D-07); `run_suite` stays importable and usable without the env var (programmatic API unchanged).
+Add the internal-only dev gate (`VOSS_DEV=1`) on the `voss eval` verb (EVSUB-05), the `[eval]` config section that supplies `max_turns` (default 15) and `judge_model` defaults (D-06), the `--max-turns` CLI flag (option only — forward to `run_suite` lands in E1-03), and the autouse conftest that keeps the existing eval test suite green. The gate fails at verb entry before any auth/provider/fixture/model work (D-07); `run_suite` stays importable and usable without the env var (programmatic API unchanged).
 
 Purpose: EVSUB-05 makes `voss eval` refuse to run for non-dev users; the config + flag are the cap-defaults plumbing that plan E1-03 consumes when it wires the turn cap and judge-model split into the runner.
 Output: dev-gated `eval_cmd`, `[eval]` config getters, `--max-turns` flag, autouse conftest, gate tests.
@@ -70,8 +70,10 @@ Existing [agent] section reader pattern (voss/harness/config.py to copy exactly)
   get_max_iterations() -> int  (warnings.warn on bad value, fallback to default)
 
 Existing eval_cmd (voss/harness/cli.py ~3491): options suite/stub/live/-k/--out/--judge-model/--task/--auth;
-  body: from voss.eval.runner import run_suite; run_suite(...). run_suite already accepts max_turns? NO — E1-03 adds it.
-  This plan only adds the --max-turns OPTION and forwards max_turns=max_turns into the existing run_suite(...) call site.
+  body: from voss.eval.runner import run_suite; run_suite(...). run_suite does NOT accept max_turns yet — E1-03 adds the param.
+  This plan adds the --max-turns OPTION only (value accepted into eval_cmd signature, NOT yet passed to run_suite —
+  passing it now would TypeError against the wave-1 run_suite). E1-03 adds the forward in the same edit that
+  gives run_suite the max_turns parameter.
 
 Click Exit pattern for non-zero exit (voss/eval/runner.py:247): raise click.exceptions.Exit(code=...)
 </interfaces>
@@ -129,7 +131,7 @@ Click Exit pattern for non-zero exit (voss/eval/runner.py:247): raise click.exce
     - All existing tests/eval/ subprocess tests stay green because conftest autouse sets VOSS_DEV=1 into os.environ (carried into os.environ.copy()).
   </behavior>
   <action>
-    In voss/harness/cli.py `eval_cmd`: as the FIRST statement in the callback (D-07, before `from voss.eval.runner import run_suite`), add a guard `if os.environ.get("VOSS_DEV") != "1": click.echo("voss eval: internal tool — set VOSS_DEV=1 to run", err=True); raise click.exceptions.Exit(code=1)`. Add a new option `@click.option("--max-turns", "max_turns", default=None, type=int, help="Turn cap per task (overrides config default).")`, add `max_turns: int | None` to the signature, and forward `max_turns=max_turns` into the existing `run_suite(...)` call (run_suite gains the parameter in plan E1-03; passing it as a keyword now is forward-compatible since E1-03 lands before any run executes the new path — if run_suite does not yet accept it at execution time, this plan's executor must NOT add the param to run_suite; only the CLI option + forward). Use `VOSS_DEV` (generic, D-08), not an eval-specific var.
+    In voss/harness/cli.py `eval_cmd`: as the FIRST statement in the callback (D-07, before `from voss.eval.runner import run_suite`), add a guard `if os.environ.get("VOSS_DEV") != "1": click.echo("voss eval: internal tool — set VOSS_DEV=1 to run", err=True); raise click.exceptions.Exit(code=1)`. Add a new option `@click.option("--max-turns", "max_turns", default=None, type=int, help="Turn cap per task (overrides config default).")` and add `max_turns: int | None` to the eval_cmd signature. Do NOT pass max_turns into the `run_suite(...)` call in this plan — run_suite does not accept the parameter until E1-03, and forwarding now would TypeError every CLI eval invocation in wave 1. E1-03 adds `max_turns=max_turns` to the call site in the same edit that gives run_suite the parameter. Use `VOSS_DEV` (generic, D-08), not an eval-specific var.
 
     Create tests/eval/conftest.py with an autouse fixture `_set_voss_dev(monkeypatch)` that calls `monkeypatch.setenv("VOSS_DEV", "1")` so the whole eval suite (including subprocess tests that copy os.environ) runs gated-open.
 
@@ -146,7 +148,7 @@ Click Exit pattern for non-zero exit (voss/eval/runner.py:247): raise click.exce
     - test_dev_gate.py case (b): exit code 0, runs.jsonl exists.
     - `.venv/bin/python -m pytest tests/eval/ -q` → existing eval suite green (autouse conftest keeps subprocess tests passing).
   </acceptance_criteria>
-  <done>voss eval is dev-gated at verb entry; --max-turns option exists and forwards; programmatic run_suite stays ungated; autouse conftest keeps the eval suite green; two gate tests prove both directions.</done>
+  <done>voss eval is dev-gated at verb entry; --max-turns option registered (forward lands in E1-03); programmatic run_suite stays ungated; autouse conftest keeps the eval suite green; two gate tests prove both directions.</done>
 </task>
 
 </tasks>
@@ -179,7 +181,7 @@ Click Exit pattern for non-zero exit (voss/eval/runner.py:247): raise click.exce
 - `voss eval` without `VOSS_DEV=1` exits non-zero with a one-line message, zero model calls, no output dir (EVSUB-05)
 - With `VOSS_DEV=1`, behavior unchanged; programmatic `run_suite` import works without the var
 - `[eval]` config supplies `max_turns` (15) and `judge_model` (gpt-5.5-mini) defaults
-- `--max-turns` flag accepted and forwarded; existing eval suite green
+- `--max-turns` flag accepted (forward to run_suite is E1-03's edit); existing eval suite green
 </success_criteria>
 
 <output>
