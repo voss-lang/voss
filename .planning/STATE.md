@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-10T16:15:36.743Z"
+last_updated: "2026-06-10T16:18:21.038Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 43
@@ -25,7 +25,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 ## Current Position
 
 **Phase:** V15 — Live Plane Integration — EXECUTING (5/7 plans complete; V15-05 server-sessions attach sidebar shipped 2026-06-10).
-**Status:** Executing — next: V15-06/V15-07 (remaining waves)
+**Status:** Ready to execute
 **Workspace health note:** the concurrent watcher ran `npm install` at the pnpm-monorepo root (added JS `litellm` dep, 5e3f061) and gutted the pnpm store mid-V15-04 — repaired via `pnpm install` (7cc042a). JS `litellm` at root is likely unintended; operator should review.
 **Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
 **Next move:** V14 ADE Run Cockpit ✅ COMPLETE (13/13, operator-approved 2026-06-09). Frontier: structured-pane-rendering seed (`.planning/notes/seed-structured-pane-rendering.md`, gated on V13.1 live wiring) · VCKP-13b permission proxy · or resume the A-track (A4 Layout Presets, ready to execute).
