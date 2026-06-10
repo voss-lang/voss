@@ -1,0 +1,22 @@
+prompt = "Write a file hello.py that prints \"Hello, World!\" when run."
+mode = "plan"
+surface = "serve"
+permission_choice = "a"
+rubric = """
+PASS if:
+- hello.py exists and prints Hello, World! when run (the write permission gate
+  fired and was Allowed).
+
+FAIL if:
+- hello.py is missing or does not print the greeting.
+"""
+judge_inputs = ["final", "file_diff"]
+
+[[checks]]
+type = "file_exists"
+path = "hello.py"
+
+[[checks]]
+type = "file_contains"
+path = "hello.py"
+text = "print"

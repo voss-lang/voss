@@ -6,6 +6,7 @@ wave: 2
 depends_on: [E1-01, E1-02]
 files_modified:
   - voss/eval/runner.py
+  - voss/harness/cli.py
   - voss/eval/summary.py
   - voss/templates/eval/summary.md.jinja
   - tests/eval/test_voss_eval_stub.py
@@ -74,7 +75,9 @@ voss.eval.suite.TaskSpec.checks: list[AnyCheck]   # [] when task has no checks
 <!-- From E1-02 (must be merged first): -->
 voss.harness.config.get_eval_max_turns() -> int          # default 15
 voss.harness.config.get_eval_judge_model() -> str         # default "gpt-5.5-mini"
-voss/harness/cli.py eval_cmd already forwards max_turns=<flag> into run_suite(...)
+voss/harness/cli.py eval_cmd has the --max-turns Click option registered (E1-02) but does NOT forward it yet —
+THIS plan adds `max_turns=max_turns` to the eval_cmd run_suite(...) call site in the same edit that gives
+run_suite the parameter (E1-02 deliberately deferred the forward to avoid a wave-1 TypeError).
 
 <!-- Current runner row (voss/eval/runner.py:358-377) — append new fields, never reorder/remove existing: -->
 row keys today: task_id, run_idx, success, cost_usd, confidence, duration_s,
@@ -125,7 +128,7 @@ judge_model_eff = judge_model or model_eff or get_config().default_model
 
     (1) RUN HEADER: after `tasks` is built/filtered and the cap is resolved, before the `for task_id, spec in tasks:` loop, `click.echo(f"{len(tasks)} tasks · max {max_turns} turns/task")` to stdout (D-04 acceptance: shown before first model call).
 
-    (2) CAP RESOLUTION: add `max_turns: int | None = None` to `run_suite(...)` signature; resolve `max_turns = max_turns if max_turns is not None else get_eval_max_turns()` (flag > config-default precedence, D-06). Import `get_eval_max_turns`, `get_eval_judge_model` from voss.harness.config.
+    (2) CAP RESOLUTION: add `max_turns: int | None = None` to `run_suite(...)` signature; resolve `max_turns = max_turns if max_turns is not None else get_eval_max_turns()` (flag > config-default precedence, D-06). Import `get_eval_max_turns`, `get_eval_judge_model` from voss.harness.config. In the SAME edit, in voss/harness/cli.py `eval_cmd`, add `max_turns=max_turns` to the existing `run_suite(...)` call (the --max-turns option was registered in E1-02 but deliberately not forwarded — this plan completes the wire).
 
     (3) TURN CAP ENFORCEMENT: thread `max_turns` into `_drive_task` (and `_drive_resume`). Per D-04/D-05, a task that does not finish within `max_turns` agent turns must hard-stop, returning a `capped=True` signal. Least-invasive hook (Claude's discretion per CONTEXT): count `run_turn` invocations in the drive loop; when the count would exceed `max_turns`, stop and signal capped. Extend `_drive_task`'s return to carry a `capped: bool` (e.g. return tuple gains a capped flag, or set crash_reason-style sentinel) so the run_suite loop can record it. Do NOT remove the existing crash_reason path.
 
@@ -142,7 +145,7 @@ judge_model_eff = judge_model or model_eff or get_config().default_model
   </verify>
   <acceptance_criteria>
     - New tests/eval/test_hybrid_gate.py covers: gate-overrides-judge (failing check => success False even if judge would pass), no-checks fallback (success follows judge / stays None under stub), capped path (capped=True, success=False, judge_verdict="skipped", no hang).
-    - `grep -c "_run_checks" voss/eval/runner.py` ≥ 1; `grep -c "not capped" voss/eval/runner.py` ≥ 1; `grep -c "gate_pass" voss/eval/runner.py` ≥ 1.
+    - `grep -c "_run_checks" voss/eval/runner.py` ≥ 1; `grep -c "not capped" voss/eval/runner.py` ≥ 1; `grep -c "gate_pass" voss/eval/runner.py` ≥ 1; eval_cmd's run_suite call in voss/harness/cli.py contains `max_turns=max_turns`.
     - Run header: a stub suite run's stdout contains a line matching `tasks · max` and `turns/task` before any provider output (assert in a test capturing stdout, or assert substring present in CLI stdout).
     - Capped test completes in bounded time (pytest does not hang; use a stub/scripted provider that never emits a terminal turn with a small `max_turns`).
     - Judge-model: a stub or unit-level assertion that with no --judge-model the resolved judge default == get_eval_judge_model() and differs from a gpt-5.5 actor default; --judge-model override honored.

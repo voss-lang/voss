@@ -13,3 +13,12 @@ FAIL if:
 judge_inputs = ["final", "file_diff"]
 auto_approve_edits = true
 tools = ["web_fetch", "fs_write"]
+
+[[checks]]
+type = "file_exists"
+path = "summary.txt"
+
+[[checks]]
+type = "file_contains"
+path = "summary.txt"
+text = "Example"

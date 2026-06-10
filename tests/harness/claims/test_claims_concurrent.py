@@ -14,13 +14,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = [
-    pytest.mark.xfail(
-        reason="claims module not yet implemented (V17-02/03)", strict=False
-    ),
-    pytest.mark.integration,
-    pytest.mark.slow,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 N_RACERS = 5

@@ -33,6 +33,7 @@ from . import voss_md
 from .memory_cli import memory_group
 from .memory_store import MemoryStore
 from .agent import Plan
+from .claims import claims_group
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
@@ -916,6 +917,40 @@ def _build_slash_registry() -> SlashRegistry:
             )
         else:
             click.echo(f"session cost: ${ctx.total_cost:.4f}")
+        # V18 VOPT-05 (D-01/D-03): one labeled savings line from the session
+        # ledger. Silent when no ledger (short runs / --no-pack feels like
+        # nothing changed); a malformed ledger never breaks /cost.
+        try:
+            from voss.harness.session import _sessions_dir
+
+            ledger = (
+                _sessions_dir(Path(getattr(ctx, "cwd", None) or ctx.record.cwd))
+                / str(ctx.record.id)
+                / "token-savings.jsonl"
+            )
+            if ledger.is_file():
+                rows = [
+                    json.loads(line)
+                    for line in ledger.read_text().splitlines()
+                    if line.strip()
+                ]
+                original = sum(int(r.get("original_tokens_est", 0)) for r in rows)
+                packed = sum(int(r.get("packed_tokens_est", 0)) for r in rows)
+                if rows and original > 0:
+                    save_pct = round((1 - packed / original) * 100)
+                    usd_vals = [r.get("saved_usd_est") for r in rows]
+                    line = (
+                        f"context packed: ~{original:,}→~{packed:,} tokens "
+                        f"(−{save_pct}%)"
+                    )
+                    if any(isinstance(v, (int, float)) for v in usd_vals):
+                        usd = sum(
+                            v for v in usd_vals if isinstance(v, (int, float))
+                        )
+                        line += f"  ~${usd:.4f} saved"
+                    click.echo(line)
+        except Exception:  # noqa: BLE001 — estimates line is best-effort
+            pass
 
     def _budget(ctx: ReplContext, args: list[str], _line: str) -> None:
         # T6 / SLASH-04. No args → show current. One arg → set USD ceiling.
@@ -1655,6 +1690,13 @@ def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
     default="auto",
     help="Credential source.",
 )
+@click.option(
+    "--no-pack",
+    "no_pack",
+    is_flag=True,
+    envvar="VOSS_NO_PACK",
+    help="Disable context packing; messages byte-identical to pre-V18.",
+)
 def do_cmd(
     task: tuple[str, ...],
     model: str | None,
@@ -1666,6 +1708,7 @@ def do_cmd(
     yes_to_all: bool,
     allow_net: bool | None,
     auth_pref: str,
+    no_pack: bool,
 ) -> None:
     """Run a one-shot agent task and print the final answer.
 
@@ -1735,6 +1778,16 @@ def do_cmd(
     renderer.show_user(text)
 
     run_turn = _resolve_run_turn(cwd)
+    # V18 VOPT-06: the compiled-harness run_turn (cache loop.py) predates
+    # packing — only thread the flag when the resolved surface accepts it.
+    import inspect as _inspect
+
+    _rt_kwargs: dict = {}
+    try:
+        if "packing_enabled" in _inspect.signature(run_turn).parameters:
+            _rt_kwargs["packing_enabled"] = not no_pack
+    except (TypeError, ValueError):
+        pass
     result = _run_turn_cancellable(
         run_turn(
             text,
@@ -1748,6 +1801,7 @@ def do_cmd(
             session_id=do_record.id,
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
+            **_rt_kwargs,
         ),
         renderer=renderer,
     )
@@ -3510,6 +3564,7 @@ def config_cmd(show: bool, config_path_override: Path | None) -> None:
     show_default=True,
     help="Credential source.",
 )
+@click.option("--max-turns", "max_turns", default=None, type=int, help="Turn cap per task (overrides config default).")
 def eval_cmd(
     suite: str,
     stub: bool,
@@ -3519,8 +3574,13 @@ def eval_cmd(
     judge_model: str | None,
     task: str | None,
     auth_pref: str,
+    max_turns: int | None,
 ) -> None:
     """Run the golden evaluation suite."""
+    if os.environ.get("VOSS_DEV") != "1":
+        click.echo("voss eval: internal tool — set VOSS_DEV=1 to run", err=True)
+        raise click.exceptions.Exit(code=1)
+
     from voss.eval.runner import run_suite
 
     run_suite(
@@ -3532,6 +3592,7 @@ def eval_cmd(
         judge_model=judge_model,
         task=task,
         auth_pref=auth_pref,
+        max_turns=max_turns,
     )
 
 
@@ -4516,6 +4577,7 @@ AGENT_COMMANDS = (
     team_group,
     board_cmd,
     audit_cmd,
+    claims_group,
 )
 
 

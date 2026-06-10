@@ -24,7 +24,12 @@ def config_path() -> Path:
 
 _HARNESS_BLOCK = re.compile(r"^\[harness\][^\[]*", re.MULTILINE)
 _AGENT_BLOCK = re.compile(r"^\[agent\][^\[]*", re.MULTILINE)
+_EVAL_BLOCK = re.compile(r"^\[eval\][^\[]*", re.MULTILINE)
 _TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
+# V18 VOPT-06: packing profile block. `[context]` does not collide with any
+# existing section (verified — only harness/agent/eval/tools/net.rate_limits/
+# model_tiers exist).
+_CONTEXT_BLOCK = re.compile(r"^\[context\][^\[]*", re.MULTILINE)
 # T3-04: PITFALL 6 — escape the dot. Un-escaped `r"^\[net.rate_limits\]"`
 # also matches `[netXrate_limits]` (any single char), corrupting the
 # bucket config. The escape is load-bearing.
@@ -61,6 +66,14 @@ def _parse_agent_section(text: str) -> dict[str, str]:
     return {k: v for k, v in _KV.findall(block)}
 
 
+def _parse_eval_section(text: str) -> dict[str, str]:
+    m = _EVAL_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    return {k: v for k, v in _KV.findall(block)}
+
+
 def _parse_tools_section(text: str) -> dict[str, str]:
     """Return `[tools]` keys. Booleans go through _KV_BOOL (no quotes);
     quoted-string values would go through _KV. allow_net is boolean only."""
@@ -74,6 +87,21 @@ def _parse_tools_section(text: str) -> dict[str, str]:
     for k, v in _KV_BARE.findall(block):
         # Don't overwrite a quoted-string match with a stray bare token
         # (e.g. when a value coincidentally lacks quotes).
+        out.setdefault(k, v)
+    return out
+
+
+def _parse_context_section(text: str) -> dict[str, str]:
+    """Return `[context]` keys. Numbers/booleans are bare (_KV_BARE);
+    quoted strings also accepted (_KV wins on collision)."""
+    m = _CONTEXT_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    out: dict[str, str] = {}
+    for k, v in _KV.findall(block):
+        out[k] = v
+    for k, v in _KV_BARE.findall(block):
         out.setdefault(k, v)
     return out
 
@@ -100,6 +128,30 @@ def load_agent_config() -> dict[str, str]:
     except OSError:
         return {}
     return _parse_agent_section(text)
+
+
+def load_context_config() -> dict[str, str]:
+    """Return the `[context]` section as a dict. Missing file / section -> {}."""
+    p = config_path()
+    if not p.exists():
+        return {}
+    try:
+        text = p.read_text()
+    except OSError:
+        return {}
+    return _parse_context_section(text)
+
+
+def load_eval_config() -> dict[str, str]:
+    """Return the `[eval]` section as a dict. Missing file / section -> {}."""
+    p = config_path()
+    if not p.exists():
+        return {}
+    try:
+        text = p.read_text()
+    except OSError:
+        return {}
+    return _parse_eval_section(text)
 
 
 def load_tools_config() -> dict[str, str]:
@@ -225,6 +277,34 @@ def get_max_iterations() -> int:
         return default
 
 
+DEFAULT_MAX_TURNS = 15
+DEFAULT_JUDGE_MODEL = "gpt-5.5-mini"
+
+
+def get_eval_max_turns() -> int:
+    """Resolve eval.max_turns, falling back to DEFAULT_MAX_TURNS."""
+    default = DEFAULT_MAX_TURNS
+    cfg = load_eval_config()
+    raw = cfg.get("max_turns")
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        warnings.warn(
+            f"[eval] max_turns = {raw!r} is not an integer; "
+            f"falling back to default {default}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return default
+
+
+def get_eval_judge_model() -> str:
+    """Resolve eval.judge_model, falling back to DEFAULT_JUDGE_MODEL."""
+    return load_eval_config().get("judge_model", DEFAULT_JUDGE_MODEL)
+
+
 def get_max_parallel_reads() -> int:
     """Resolve [agent] max_parallel_reads with range validation (T2-02, PAR-05).
 
@@ -284,6 +364,75 @@ def get_allow_net() -> bool:
         stacklevel=2,
     )
     return default
+
+
+def get_packing_profile():
+    """Resolve the V18 [context] packing profile (VOPT-06).
+
+    Missing file / section / keys fall back to the conservative
+    PackingProfile defaults (recent_full_k=8). Bad values warn and
+    default — never raise.
+    """
+    from voss.harness.context_allocator import PackingProfile
+
+    defaults = PackingProfile()
+    profile = PackingProfile()
+    cfg = load_context_config()
+
+    def _warn(message: str) -> None:
+        warnings.warn(message, RuntimeWarning, stacklevel=3)
+
+    def _coerce(key: str, cast, current):
+        raw = cfg.get(key)
+        if raw is None:
+            return current
+        try:
+            return cast(raw)
+        except (TypeError, ValueError):
+            _warn(
+                f"[context] {key} = {raw!r} is not a {cast.__name__}; "
+                f"falling back to default {current}"
+            )
+            return current
+
+    profile.recent_full_k = _coerce("recent_full_k", int, profile.recent_full_k)
+    profile.digest_cutoff_m = _coerce("digest_cutoff_m", int, profile.digest_cutoff_m)
+    profile.high_water = _coerce("high_water", float, profile.high_water)
+    profile.low_water = _coerce("low_water", float, profile.low_water)
+
+    raw_enabled = cfg.get("enabled")
+    if raw_enabled is not None:
+        normalized = raw_enabled.strip().lower()
+        if normalized == "true":
+            profile.enabled = True
+        elif normalized == "false":
+            profile.enabled = False
+        else:
+            _warn(
+                f"[context] enabled = {raw_enabled!r} is not a boolean; "
+                f"falling back to default {profile.enabled}"
+            )
+    if profile.recent_full_k < 1:
+        _warn(
+            f"[context] recent_full_k = {profile.recent_full_k!r} must be >= 1; "
+            f"falling back to default {defaults.recent_full_k}"
+        )
+        profile.recent_full_k = defaults.recent_full_k
+    if profile.digest_cutoff_m < profile.recent_full_k:
+        _warn(
+            f"[context] digest_cutoff_m = {profile.digest_cutoff_m!r} must be "
+            f">= recent_full_k ({profile.recent_full_k}); falling back to "
+            f"default {defaults.digest_cutoff_m}"
+        )
+        profile.digest_cutoff_m = defaults.digest_cutoff_m
+    if not (0 < profile.low_water < profile.high_water <= 1):
+        _warn(
+            "[context] watermarks must satisfy 0 < low_water < high_water <= 1; "
+            "falling back to defaults"
+        )
+        profile.low_water = defaults.low_water
+        profile.high_water = defaults.high_water
+    return profile
 
 
 def _write_harness(updates: dict[str, str | None]) -> Path:

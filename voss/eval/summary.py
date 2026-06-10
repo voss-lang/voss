@@ -56,6 +56,17 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
     scored = [row for row in rows if row.get("success") is not None]
     passes = sum(1 for row in scored if row["success"])
     overall_rate = passes / len(scored) if scored else 0.0
+
+    gate_rows = [r for r in rows if r.get("gate_pass") is not None]
+    gate_passes = sum(1 for r in gate_rows if r["gate_pass"])
+    gate_rate = gate_passes / len(gate_rows) if gate_rows else None
+
+    judge_rows = [
+        r for r in rows if r.get("judge_verdict") not in (None, "skipped", "error")
+    ]
+    judge_passes = sum(1 for r in judge_rows if r.get("judge_verdict") == "pass")
+    judge_rate = judge_passes / len(judge_rows) if judge_rows else None
+
     mean_cost = _mean_cost(rows)
     corr, n = _pearson(rows)
     provider = _common_value(rows, "provider")
@@ -67,12 +78,18 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
         task_scored = [row for row in task_rows if row.get("success") is not None]
         task_passes = sum(1 for row in task_scored if row["success"])
         rate = f"{task_passes / len(task_scored):.0%}" if task_scored else "n/a"
+        task_gate_rows = [row for row in task_rows if row.get("gate_pass") is not None]
+        task_gate_passes = sum(1 for row in task_gate_rows if row["gate_pass"])
+        gate_pass_rate = (
+            f"{task_gate_passes / len(task_gate_rows):.0%}" if task_gate_rows else "n/a"
+        )
         task_mean_cost = _mean_cost(task_rows)
         cost_s = f"${task_mean_cost:.4f}" if task_mean_cost is not None else "n/a"
         tasks.append(
             {
                 "id": task_id,
                 "runs": len(task_rows),
+                "gate_pass_rate": gate_pass_rate,
                 "pass_rate": rate,
                 "mean_cost": cost_s,
             }
@@ -89,6 +106,12 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
             "overall_rate": f"{overall_rate:.0%}",
             "passes": passes,
             "scored_count": len(scored),
+            "gate_rate": f"{gate_rate:.0%}" if gate_rate is not None else "n/a",
+            "gate_passes": gate_passes,
+            "gate_total": len(gate_rows),
+            "judge_rate": f"{judge_rate:.0%}" if judge_rate is not None else "n/a",
+            "judge_passes": judge_passes,
+            "judge_total": len(judge_rows),
             "mean_cost": f"${mean_cost:.4f}" if mean_cost is not None else "n/a",
             "conf_corr_r": f"{corr:.3f}" if corr is not None else "n/a",
             "corr_n": n,

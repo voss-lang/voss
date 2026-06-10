@@ -1,0 +1,5 @@
+Project Meridian status report covers the week of May 4, 2026. The core goal is to make the local evaluation loop predictable before the first packaging rehearsal.
+
+Engineering finished the JSONL writer and summary report without regressions in the existing harness smoke tests. The fixture isolation work also kept each task in its own temporary repository.
+
+Open items are the resume timing check, a review of judge rationale quality, and deferring any remote dashboard export until after v0.1 distribution prep.

@@ -25,6 +25,13 @@ REQUIRED_FIELDS = {
     "seed",
     "voss_version",
     "started_at",
+    "gate_pass",
+    "capped",
+    "checks",
+    # V18 VOPT-07: additive token figure for the packing eval gate.
+    "input_tokens",
+    # E3: surface routing field (internal | cli:do | cli:chat | cli:edit | serve).
+    "surface",
 }
 
 

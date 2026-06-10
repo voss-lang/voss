@@ -1,0 +1,107 @@
+# Agent Coordination
+
+Advisory coordination primitives for external CLI agents (Claude Code,
+Codex, OpenCode, or any shell) running in voss-app panes or alongside Voss.
+Claims are a serverless pre-edit conflict guard; the bus is mid-flight
+agent↔agent messaging over the Voss server plane. Both are **advisory** —
+they complement, never replace, the OS-level scope sandboxing that managed
+tier-A/B launches get from VCKP-13. Tier-C (adopted/unmanaged) agents have
+no enforcement; these verbs are their coordination story.
+
+## Environment Variables
+
+| Variable | Set by | Purpose |
+|----------|--------|---------|
+| `VOSS_AGENT_ID` | voss-app at pane spawn (every pane — agents get `claude-1`-style slugs, plain shells `pane-3`) | Identity for `voss claims` and `voss bus`. All verbs exit `2` when unset. |
+| `VOSS_SERVER_PORT` | voss-app when a server is attached (V15 sidecar) | Bus verb server discovery. |
+| `VOSS_SERVER_TOKEN` | voss-app when a server is attached (V15 sidecar) | Bearer token for the bus endpoints. |
+
+Outside a voss-managed pane, set identity manually:
+
+```sh
+export VOSS_AGENT_ID=claude-1
+```
+
+## Claims Verbs
+
+Claims are stored serverless in `<cwd>/.voss-cache/claims.sqlite` — no
+`voss serve` required. Patterns are file globs (canonicalized from the
+invoking cwd; `..` traversal rejected) or opaque URIs (`card://123`,
+`port://8080` — conflict on exact match or path-prefix at `/` boundaries).
+Every claim expires: default TTL 30 minutes, `--ttl <seconds>` to override.
+Re-staking your own overlapping patterns is an idempotent refresh, never a
+conflict.
+
+| Command | Effect |
+|---------|--------|
+| `voss claims stake <pattern>... [--ttl <s>]` | Register a claim. Atomically rejected (exit 1) if it overlaps another agent's active claim — exactly one winner under concurrent stakes. |
+| `voss claims check <pattern>...` | Exit 0 when clear; exit 1 naming the conflicting claim + owner. |
+| `voss claims release [<claim-id>]` | Free one claim by id, or all your claims when no id is given. |
+| `voss claims extend [<claim-id>] [--ttl <s>]` | Refresh the TTL of one claim, or all your unexpired claims. |
+| `voss claims list [--all]` | Show active claims; expired ones only with `--all`. |
+
+All subcommands accept `--cwd <dir>` (project root resolution) and `--json`
+(one JSON record per line). On conflict, `--json` output includes an
+`advice` array of runnable next commands naming the owner, e.g.
+`voss bus send "@claude-1 I need src/api/** — when are you done?"`.
+There is no `--force` override by design: resolve contested claims by
+messaging the owner or waiting out the TTL.
+
+## Bus Verbs
+
+> Requires a running Voss server (V15 sidecar). The verbs discover it via
+> `VOSS_SERVER_PORT`/`VOSS_SERVER_TOKEN` and exit `2` with an actionable
+> message when those are absent.
+
+The bus is one flat project-wide message stream — no channels. Routing is
+by `@mentions` in the message body plus optional `--label` values. Messages
+are durable (journaled under `.voss/bus/`); each agent's inbox cursor
+survives server restarts.
+
+| Command | Effect |
+|---------|--------|
+| `voss bus send "<body>" [--label <l>]...` | Post a message. `@<agent-id>` tokens in the body are mentions. |
+| `voss bus inbox` | Messages addressed to / mentioning you since your last read (cursor advances — a second call returns nothing new). |
+| `voss bus wait --mention <id> [--label <l>] --timeout <s>` | Block until a matching message arrives (exit 0, message printed) or the timeout elapses (exit 124). |
+
+Do not put secrets in bus messages — the journal is plaintext on disk.
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Clear / success. |
+| `1` | Conflict (claims check/stake found an overlapping claim held by another agent). |
+| `2` | Identity, discovery, or usage error (`VOSS_AGENT_ID` unset, server vars absent, invalid pattern). |
+| `124` | `bus wait` timed out with no matching message. |
+
+## Label Vocabulary
+
+Conventional labels for bus messages — agents should prefer these over
+inventing new ones:
+
+- `coord:blocker` — you are blocked on the mentioned agent.
+- `coord:handoff` — handing work over; the mentioned agent should pick it up.
+- `mission:<id>` — correlates messages belonging to one mission/task.
+- `review-request` — asking the mentioned agent to review your changes.
+
+## Pre-edit Guard Example
+
+Run before editing shared files; staking afterwards keeps others out:
+
+```sh
+voss claims check src/api/** || { echo "blocked: scope claimed"; exit 1; }
+voss claims stake src/api/** --ttl 900
+# ... edit ...
+voss claims release
+```
+
+In a conflict, follow the `advice` array from
+`voss claims check --json` — typically a `voss bus send "@<owner> ..."`
+message to coordinate, then re-check.
+
+## V16 Handoff
+
+A condensed version of this document (verbs, label vocabulary, and the
+pre-edit guard one-liner) belongs in the managed `AGENTS.md` section
+generated by V16 — see the handoff note in the V16 phase directory.

@@ -52,6 +52,30 @@ class TestLoad:
         assert cfg.get("something") == "keep"
         assert cfg.get("preferred_provider") == "ollama-cloud"
 
+    def test_invalid_context_profile_values_fall_back(self, xdg):
+        p = harness_config.config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            "\n".join(
+                [
+                    "[context]",
+                    "recent_full_k = -1",
+                    "digest_cutoff_m = 0",
+                    "high_water = 0.2",
+                    "low_water = 0.8",
+                    "",
+                ]
+            )
+        )
+
+        with pytest.warns(RuntimeWarning):
+            profile = harness_config.get_packing_profile()
+
+        assert profile.recent_full_k == 8
+        assert profile.digest_cutoff_m == 20
+        assert profile.high_water == 0.80
+        assert profile.low_water == 0.60
+
 
 class TestPreservesOtherSections:
     def test_keeps_unrelated_section_intact(self, xdg):

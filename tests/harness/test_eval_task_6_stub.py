@@ -16,6 +16,9 @@ def test_task_6_stub_runs(tmp_path: Path) -> None:
     out = tmp_path / "eval-out"
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo) + os.pathsep + env.get("PYTHONPATH", "")
+    # eval verb is dev-gated (tests/eval/conftest.py sets this for tests
+    # under tests/eval/; this file lives in tests/harness/).
+    env["VOSS_DEV"] = "1"
 
     result = subprocess.run(
         [

@@ -1,7 +1,7 @@
-"""VBUS-07 coordination doc + verb --help parse — Wave 0 RED scaffold.
+"""VBUS-07 coordination doc + verb --help parse.
 
-xfail until V17-07 writes docs/agent-coordination.md and V17-03 ships the
-claims verbs. Bus verbs are V15-gated, guarded separately.
+GREEN as of V17-07 (doc) + V17-03 (claims verbs). The bus-verb portion
+stays xfail-gated until V17-06 ships post-V15.
 """
 from __future__ import annotations
 
@@ -10,17 +10,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-try:
-    from voss.harness.claims import claims_group
-    _CLAIMS_AVAILABLE = True
-except ImportError:
-    claims_group = None  # type: ignore[assignment]
-    _CLAIMS_AVAILABLE = False
-
-pytestmark = pytest.mark.xfail(
-    reason="doc lands in V17-07; claims verbs in V17-03 (bus V15-gated)",
-    strict=False,
-)
+from voss.harness.claims import claims_group
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOC = REPO_ROOT / "docs" / "agent-coordination.md"
@@ -39,8 +29,6 @@ def test_coordination_doc_exists() -> None:
 
 
 def test_claims_verbs_help_exit_0() -> None:
-    if not _CLAIMS_AVAILABLE:
-        pytest.fail("voss.harness.claims not importable yet (V17-02/03)")
     runner = CliRunner()
     assert runner.invoke(claims_group, ["--help"]).exit_code == 0
     for verb in CLAIMS_VERBS:
@@ -48,6 +36,9 @@ def test_claims_verbs_help_exit_0() -> None:
         assert result.exit_code == 0, f"claims {verb} --help: {result.output}"
 
 
+@pytest.mark.xfail(
+    reason="bus verbs are V15-gated — ship in V17-06", strict=False
+)
 def test_bus_verbs_help_exit_0() -> None:
     try:
         from voss.harness.bus_client import bus_group

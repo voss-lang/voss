@@ -24,6 +24,7 @@ import { registerPaneProc } from './procRegistry';
 import { registerPaneBudget } from './budgetRegistry';
 import { registerPaneContext } from './contextRegistry';
 import { maybeLatchAgent } from './agentPaneRegistry';
+import { mintSlug, registerSlug, slugByPaneId } from './slugRegistry';
 import {
   registerScrollbackProvider,
 } from './scrollbackRegistry';
@@ -309,6 +310,11 @@ export async function spawnPaneSession(s: PaneSession): Promise<void> {
   if (s.spawned) return;
   s.spawned = true;
   const { cwd, agentConfig, workspacePath } = s.cfg;
+  // VBUS-03 (D-11): every pane gets a VOSS_AGENT_ID slug before any agent
+  // runs. Respawns reuse the pane's existing slug (D-13 best-effort).
+  const vossAgentId =
+    slugByPaneId()[s.paneId] ?? mintSlug(agentConfig?.cliBinary);
+  registerSlug(s.paneId, vossAgentId);
   if (agentConfig) {
     // VCKP-13: the managed toggle routes to the SANDBOXED command — never a
     // no-op security switch. Unmanaged configs keep the unchanged spawnAgent.
@@ -322,6 +328,7 @@ export async function spawnPaneSession(s: PaneSession): Promise<void> {
         ...agentConfig,
         scope: agentConfig.scope ?? cwd ?? '',
         tier: agentConfig.tier ?? 'B',
+        vossAgentId,
       });
     } else {
       await s.transport.spawnAgent({
@@ -331,10 +338,16 @@ export async function spawnPaneSession(s: PaneSession): Promise<void> {
         paneId: s.paneId,
         workspacePath,
         ...agentConfig,
+        vossAgentId,
       });
     }
   } else {
-    await s.transport.spawn({ rows: s.term.rows, cols: s.term.cols, cwd });
+    await s.transport.spawn({
+      rows: s.term.rows,
+      cols: s.term.cols,
+      cwd,
+      vossAgentId,
+    });
   }
   s.dot = 'running';
   s.sink.setDot('running');

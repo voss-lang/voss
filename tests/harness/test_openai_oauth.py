@@ -121,6 +121,40 @@ async def test_response_format_attaches_json_schema() -> None:
 
 
 @pytest.mark.asyncio
+async def test_assistant_history_uses_output_text() -> None:
+    captured: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(req.content)
+        return httpx.Response(
+            200,
+            json={
+                "model": "gpt-5-codex",
+                "output": [
+                    {"type": "message", "content": [{"type": "output_text", "text": "done"}]}
+                ],
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+        )
+
+    p = OpenAIOAuthProvider(_creds("chatgpt"), client=_mock(handler))
+    await p.complete(
+        messages=[
+            {"role": "user", "content": "first"},
+            {"role": "assistant", "content": "prior reply"},
+            {"role": "user", "content": "follow up"},
+        ],
+        model="gpt-5-codex",
+    )
+    items = captured["body"]["input"]
+    assert items[0]["content"][0]["type"] == "input_text"
+    assert items[1]["role"] == "assistant"
+    assert items[1]["content"][0]["type"] == "output_text"
+    assert items[2]["content"][0]["type"] == "input_text"
+    await p.aclose()
+
+
+@pytest.mark.asyncio
 async def test_401_triggers_refresh_then_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {"n": 0}
 

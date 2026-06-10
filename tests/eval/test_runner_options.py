@@ -8,6 +8,7 @@ import pytest
 
 from voss.eval import runner
 from voss.eval.suite import TaskSpec
+from voss.harness.config import get_eval_judge_model
 from voss_runtime.providers import StubProvider, register
 
 
@@ -49,7 +50,7 @@ def test_task_model_overrides_runner_model(monkeypatch, tmp_path: Path) -> None:
 
     row = _read_rows(out / "runs.jsonl")[0]
     assert row["model"] == "task-model"
-    assert row["judge_model"] == "task-model"
+    assert row["judge_model"] == get_eval_judge_model()
 
 
 def test_task_provider_selects_registered_provider() -> None:

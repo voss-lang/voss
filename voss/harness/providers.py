@@ -556,11 +556,12 @@ class OpenAIOAuthProvider:
                 system_chunks.append(content)
                 continue
             api_role = "assistant" if role == "assistant" else "user"
+            content_type = "output_text" if api_role == "assistant" else "input_text"
             items.append(
                 {
                     "type": "message",
                     "role": api_role,
-                    "content": [{"type": "input_text", "text": content}],
+                    "content": [{"type": content_type, "text": content}],
                 }
             )
         return system_chunks, items

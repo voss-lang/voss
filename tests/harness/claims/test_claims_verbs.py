@@ -1,8 +1,8 @@
-"""VBUS-01 two-agent stake/check/release acceptance sequence — Wave 0 RED.
+"""VBUS-01 two-agent stake/check/release acceptance sequence.
 
-Drives the planned voss.harness.claims.claims_group (V17-03). Serverless:
-storage at <cwd>/.voss-cache/claims.sqlite (D-02), identity from
-VOSS_AGENT_ID (exit 2 when absent).
+GREEN as of V17-03 (claims_group shipped). Serverless: storage at
+<cwd>/.voss-cache/claims.sqlite (D-02), identity from VOSS_AGENT_ID
+(exit 2 when absent).
 """
 from __future__ import annotations
 
@@ -11,30 +11,15 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-try:
-    from voss.harness.claims import claims_group
-    _CLAIMS_AVAILABLE = True
-except ImportError:
-    claims_group = None  # type: ignore[assignment]
-    _CLAIMS_AVAILABLE = False
-
-pytestmark = pytest.mark.xfail(
-    reason="claims module not yet implemented (V17-02/03)", strict=False
-)
+from voss.harness.claims import claims_group
 
 AGENT_A = {"VOSS_AGENT_ID": "agent-a"}
 AGENT_B = {"VOSS_AGENT_ID": "agent-b"}
 
 
-def _require_claims() -> None:
-    if not _CLAIMS_AVAILABLE:
-        pytest.fail("voss.harness.claims not importable yet (V17-02/03)")
-
-
 @pytest.mark.acceptance
 class TestTwoAgentSequence:
     def test_full_sequence(self, tmp_path: Path) -> None:
-        _require_claims()
         runner = CliRunner()
         cwd = ["--cwd", str(tmp_path)]
 
@@ -74,7 +59,6 @@ class TestTwoAgentSequence:
 
 def test_missing_agent_id(tmp_path: Path) -> None:
     # VBUS-03 CLI side: no VOSS_AGENT_ID → exit 2, actionable stderr.
-    _require_claims()
     result = CliRunner().invoke(
         claims_group,
         ["stake", "src/api/**", "--cwd", str(tmp_path)],

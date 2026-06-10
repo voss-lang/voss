@@ -68,6 +68,77 @@ def test_no_fs_watcher_dependency_added() -> None:
     assert not hits, f"fs-watcher dep added to apps/voss-app/package.json: {hits}"
 
 
+# ---------------------------------------------------------------------------
+# V18 VOPT-08 coherence guard — no duplicated substrate, frozen surfaces.
+# (The /cost + F3 HUD visual render stays manual per V18-VALIDATION.md.)
+# ---------------------------------------------------------------------------
+
+V18_FILES = [
+    "voss/harness/context_allocator.py",
+    "voss/harness/packing_eval.py",
+    "voss/harness/agent.py",
+    "voss/harness/recorder.py",
+    "voss/harness/config.py",
+]
+
+_V18_SUBSTRATE_TOKENS = (
+    "chromadb",
+    "faiss",
+    "annoy",
+    "embedding",
+    "sentence_transformers",
+    "pinecone",
+    "vectorstore",
+)
+
+
+def test_v18_no_new_retrieval_substrate() -> None:
+    """VOPT-08: zero index/embedding/vector tokens in the V18 diff surface.
+
+    Comment lines stripped first so header prose cannot self-invalidate
+    the gate.
+    """
+    for rel in V18_FILES:
+        body = "\n".join(
+            line
+            for line in (REPO_ROOT / rel).read_text().splitlines()
+            if not line.strip().startswith("#")
+        ).lower()
+        hits = [t for t in _V18_SUBSTRATE_TOKENS if t in body]
+        assert not hits, f"{rel}: retrieval-substrate tokens found: {hits}"
+
+
+def test_v18_budget_osc_shape_frozen() -> None:
+    """VOPT-08: _emit_budget_osc keeps the frozen five-field signature."""
+    import inspect
+
+    import voss.harness.recorder as recorder
+
+    assert list(inspect.signature(recorder._emit_budget_osc).parameters) == [
+        "tokens_used",
+        "token_limit",
+        "cost_usd",
+        "iteration",
+        "model",
+    ]
+
+
+def test_v18_no_second_budget_emitter() -> None:
+    """VOPT-08: the only budget plumbing is the existing F3 recorder OSC."""
+    import ast
+
+    src = (REPO_ROOT / "voss" / "harness" / "recorder.py").read_text()
+    tree = ast.parse(src)
+    budget_emitters = [
+        n.name
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and n.name.startswith("_emit")
+        and "budget" in n.name.lower()
+    ]
+    assert budget_emitters == ["_emit_budget_osc"], budget_emitters
+
+
 def test_no_new_v17_solid_components() -> None:
     # Documented allowlist check, not a blanket count: concurrent A-track
     # work may add unrelated components. V17 ships CLI + events only — no

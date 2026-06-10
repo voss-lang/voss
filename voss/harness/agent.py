@@ -8,7 +8,9 @@ sub-agents), within/fallback (later, model tier-down).
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -41,7 +43,14 @@ from .providers import (
     Usage,
 )
 from .principles import resolve_principles
-from .recorder import RunRecorder, _emit_budget_osc, _emit_context_osc, write_decisions_md
+from .recorder import (
+    RunRecorder,
+    _append_savings_record,
+    _emit_budget_osc,
+    _emit_context_osc,
+    estimate_savings_usd,
+    write_decisions_md,
+)
 from .render import Renderer
 from .session import IterationRecord, RunRecord
 from .tools import ToolEntry
@@ -508,6 +517,7 @@ async def run_turn(
     voss_md_text: str | None = None,
     project_index_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
+    packing_enabled: bool = True,
 ) -> TurnResult:
     """Run one agent turn.
 
@@ -552,6 +562,7 @@ async def run_turn(
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
             steer_inbox=steer_inbox,
+            packing_enabled=packing_enabled,
         )
     except BaseException as e:
         _tel_ok = False
@@ -579,6 +590,7 @@ async def _run_turn_exec(
     voss_md_text: str | None = None,
     project_index_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
+    packing_enabled: bool = True,
 ) -> TurnResult:
     """T1-05: iteration-loop turn driver.
 
@@ -681,6 +693,20 @@ async def _run_turn_exec(
         this_iter_plan: Plan | None = None
         this_iter_usage: Usage | None = None
 
+        # V18 VOPT-03/06: profile + allocator resolved ONCE per run (not per
+        # iteration) so the stable-region hysteresis state persists and the
+        # T4 prompt cache stays warm (RESEARCH Pitfall 1).
+        from voss.harness.config import get_packing_profile
+        from voss.harness.context_allocator import ContextAllocator
+
+        _packing_profile = get_packing_profile()
+        # VOSS_NO_PACK env disables packing on paths that bypass the CLI
+        # flag (eval runner calls run_turn directly — VOPT-07 driver).
+        _packing_env_off = os.environ.get("VOSS_NO_PACK", "") not in ("", "0")
+        _allocator = ContextAllocator(
+            token_count=functools.partial(_default_token_count, model=model)
+        )
+
         async with ContextScope(
             token_budget=token_budget, model=model, provider=provider
         ) as ctx:
@@ -710,10 +736,74 @@ async def _run_turn_exec(
                     {"role": "system", "content": rider},
                     {"role": "user", "content": user_prompt},
                 ]
-                for prior in all_iter_records:
-                    a_msg, u_msg = _serialize_iter_for_replay(prior)
-                    messages.append(a_msg)
-                    messages.append(u_msg)
+                _packing_disabled = (
+                    not packing_enabled
+                    or not _packing_profile.enabled
+                    or _packing_env_off
+                )
+                if all_iter_records and not _packing_disabled:
+                    # V18 VOPT-01: pack the replay tail under what remains of
+                    # token_budget after the cached prefix + rider + prompt +
+                    # completion headroom. sys_blocks NEVER enters the
+                    # allocator (T4 prefix stays byte-identical, VOPT-06).
+                    _reserve = (
+                        sum(
+                            _default_token_count(b["text"], model=model)
+                            for b in sys_blocks
+                            if isinstance(b, dict) and isinstance(b.get("text"), str)
+                        )
+                        + _default_token_count(rider, model=model)
+                        + _default_token_count(user_prompt, model=model)
+                        + cfg.max_output_tokens
+                    )
+                    _packing_budget = max(token_budget - _reserve, 0)
+                    _replay_pairs = _allocator.pack(
+                        all_iter_records, _packing_budget, _packing_profile
+                    )
+                    for a_msg, u_msg in _replay_pairs:
+                        messages.append(a_msg)
+                        messages.append(u_msg)
+                    # V18 VOPT-05: honest baseline — render the full replay
+                    # for MEASUREMENT only (never sent when packing is on).
+                    _full_pairs = [
+                        _serialize_iter_for_replay(p) for p in all_iter_records
+                    ]
+                    _orig_est = sum(
+                        _default_token_count(str(m["content"]), model=model)
+                        for pair in _full_pairs
+                        for m in pair
+                    )
+                    _packed_est = sum(
+                        _default_token_count(str(m["content"]), model=model)
+                        for pair in _replay_pairs
+                        for m in pair
+                    )
+                    _pack_method = (
+                        "full"
+                        if _replay_pairs == _full_pairs
+                        else f"tiered-K{_packing_profile.recent_full_k}"
+                        f"-M{_packing_profile.digest_cutoff_m}"
+                    )
+                else:
+                    # V18 VOPT-06 disabled branch: the ORIGINAL replay loop,
+                    # verbatim — byte-identity by code path, not by golden.
+                    for prior in all_iter_records:
+                        a_msg, u_msg = _serialize_iter_for_replay(prior)
+                        messages.append(a_msg)
+                        messages.append(u_msg)
+                    # V18 VOPT-05: no packing — original == packed by definition.
+                    _orig_est = _packed_est = sum(
+                        _default_token_count(str(m["content"]), model=model)
+                        for m in messages[3:]
+                    )
+                    _pack_method = "no-pack" if _packing_disabled else "full"
+                _savings_osc = {
+                    "original": _orig_est,
+                    "packed": _packed_est,
+                    "pct": round((1 - _packed_est / _orig_est) * 100)
+                    if _orig_est
+                    else 0,
+                }
 
                 # M13-03 OQ-A2 (RESEARCH Pattern 3): land a parent steer as ONE
                 # synthetic next-iteration user message — a sibling of the
@@ -792,6 +882,33 @@ async def _run_turn_exec(
                     if this_iter_usage
                     else 0
                 )
+
+                # V18 VOPT-05: one ledger row per assembled turn. Best-effort
+                # only — a ledger failure must never crash the turn.
+                if session_id is not None:
+                    try:
+                        _saved_tokens = max(_orig_est - _packed_est, 0)
+                        _append_savings_record(
+                            cwd,
+                            session_id,
+                            {
+                                "iter": iteration_index,
+                                "original_tokens_est": _orig_est,
+                                "packed_tokens_est": _packed_est,
+                                "method": _pack_method,
+                                "cache_read_tokens": iter_cache_read,
+                                "saved_tokens_est": _saved_tokens,
+                                "saved_usd_est": estimate_savings_usd(
+                                    _saved_tokens, iter_cache_read, model
+                                ),
+                                "model": model,
+                                "ts": datetime.now(timezone.utc).isoformat(
+                                    timespec="seconds"
+                                ),
+                            },
+                        )
+                    except Exception:
+                        pass
 
                 renderer.finalize_stream(
                     role="assistant",
@@ -876,7 +993,7 @@ async def _run_turn_exec(
                             iteration=iteration_index + 1,
                             model=model,
                         )
-                        _emit_context_osc(rec._context_tracker.snapshot())
+                        _emit_context_osc({**rec._context_tracker.snapshot(), "savings": _savings_osc})
                         telemetry.emit(
                             "iteration.end",
                             "info",
@@ -923,7 +1040,7 @@ async def _run_turn_exec(
                         iteration=iteration_index + 1,
                         model=model,
                     )
-                    _emit_context_osc(rec._context_tracker.snapshot())
+                    _emit_context_osc({**rec._context_tracker.snapshot(), "savings": _savings_osc})
                     telemetry.emit(
                         "iteration.end",
                         "info",
@@ -974,7 +1091,7 @@ async def _run_turn_exec(
                     iteration=iteration_index + 1,
                     model=model,
                 )
-                _emit_context_osc(rec._context_tracker.snapshot())
+                _emit_context_osc({**rec._context_tracker.snapshot(), "savings": _savings_osc})
                 telemetry.emit(
                     "iteration.end",
                     "info",

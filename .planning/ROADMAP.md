@@ -81,7 +81,7 @@
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback); refreshed quick-launch modal + "Manage with Voss" adopt flow + managed-launch enforcement tiers (OS sandbox/permission-proxy/budget-kill) for external CLIs. Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..13 | ✅ COMPLETE (13/13 plans, operator-approved 2026-06-09; visual contract = recovered mockups in `.planning/sketches/`) |
 | E1 | Eval Substrate | Suite loader, TaskSpec, runner, JSONL+summary, hybrid deterministic+judge scoring, subscription-auth model wiring, per-run budget cap (absorbs M5-01..04) | EVSUB-01..07 | planned (5 plans) |
 | E2 | Golden Tasks × Repo Matrix | py/rust/ts fixture repos; agent proves cognition + edits per project shape (absorbs M5-05) | EVGLD-01..0N (TBD by SPEC.md) | TBD |
-| E3 | Surface E2E | CLI verbs + server plane driven end-to-end with real model inference | EVSRF-01..0N (TBD by SPEC.md) | TBD |
+| E3 | Surface E2E | CLI verbs + server plane driven end-to-end with real model inference | EVSRF-01..06 | planned (4 plans, 4 waves) |
 | E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..0N (TBD by SPEC.md) | TBD |
 | E5 | TUI + voss-app Autonomous Driving | Drive TUI and voss-app surfaces autonomously; Tauri WebDriver blocked on macOS — approach TBD | EVUI-01..0N (TBD by SPEC.md) | TBD |
 | V15 | Live Plane Integration (sidecar handshake + structured pane rendering) | Plug the cockpit into a real `voss serve`: Tauri sidecar command spawns/attaches the server and hands the `{v,port,token}` stdout handshake to the webview (port `voss-sdk` `spawn_with` incl. 60s cold-start + `LITELLM_LOCAL_MODEL_COST_MAP=true`); construct the V13.1 TS client and plug V14's injectable sockets (RunCommandBar native `createSession`, drawer `followUpClient`, SSE → AttentionQueue + model overlay — live label flips for real); Voss-native panes graduate from raw PTY to structured protocol rendering (PROTOCOL §6 event union → DOM: EM task header, tool lines, plan prose, stream deltas) with the inline permission gate (`permission.updated` → Allow/Deny → `POST /permission`, shared with the queue). Visual contract: the pane-content of `.planning/sketches/V14-livework-mockup.html`. Seed: `.planning/notes/seed-structured-pane-rendering.md`. | TBD (SPEC pending) | Added 2026-06-09. Keystone = sidecar handshake (webview cannot spawn `voss serve` — V14 Pitfall 4); spike it first. UI-SPEC before planning (V14 lesson). Out: VCKP-13b permission proxy, rollback/re-run, embedded browser. |
@@ -2349,25 +2349,51 @@ LangSmith/team dashboards are a likely later adapter if this becomes multi-user,
 
 **Goal:** Golden agentic tasks (analyze, plan-only, approved edit, validation, resume) run against fixture repos in Python, Rust, and TS — proving cognition + edits across project shapes.
 
-**Requirements:** EVGLD-01..0N (TBD by `E2-SPEC.md`; absorbs M5-05 / EVAL-05 intent).
+**Requirements:** EVGLD-01 (synthetic-minimal py/rust/ts fixtures + matrix suite loads), EVGLD-02 (curated 12-cell matrix task.tomls with per-language checks), EVGLD-03 (per-language behavioral gates: toolchain test exit 0 + edit-landed), EVGLD-04 (cognition gates: analyze names lang-correct manifest), EVGLD-05 (toolchain require-present + recorded-skip + preflight + `--require-all-toolchains`), EVGLD-06 (summary.md skipped column, never silent-green), EVGLD-07 (matrix stub-run green + manual live-proof, gated after E1-05). *Minted from CONTEXT D-01..D-04 by E2 planning; absorbs M5-05 / EVAL-05 intent. To be adopted by a future E2-SPEC.md.*
 
-**Plans:** TBD
+**Plans:** 9 plans, 4 waves (W1 fixtures parallel per language; W2 task.tomls + runner infra parallel; no TaskSpec schema change — language carried by the task_id prefix)
+
+Plans:
+- [ ] E2-01-PLAN.md — RED test scaffolds: 4 matrix test files, one Nyquist selector per EVGLD-* (strict-xfail runner + skip-guarded suite/stub) [EVGLD-01..07]
+- [ ] E2-02-PLAN.md — Python fixtures: 3 flat calc shape repos (py-01/03/04) + 3 golden-reuse fixtures (py-02/05/06) [EVGLD-01]
+- [ ] E2-03-PLAN.md — Rust fixtures: 3 self-contained calc crates (rust-01/03/04), no [workspace], integration-test call site [EVGLD-01]
+- [ ] E2-04-PLAN.md — TypeScript fixtures: 3 ESM calc projects (ts-01/03/04), node:test no-install, no global tsc [EVGLD-01]
+- [ ] E2-05-PLAN.md — Python task.tomls: 3 shape cells (cognition+behavioral) + 3 reuse cells [EVGLD-02, EVGLD-03, EVGLD-04]
+- [ ] E2-06-PLAN.md — Rust task.tomls: 3 shape cells, cargo test timeout=120, both-file rename [EVGLD-02, EVGLD-03, EVGLD-04]
+- [ ] E2-07-PLAN.md — TypeScript task.tomls: 3 shape cells, npm test, camelCase sumTwo rename [EVGLD-02, EVGLD-03, EVGLD-04]
+- [ ] E2-08-PLAN.md — runner toolchain preflight + skip-row (gate_pass=None) + `--require-all-toolchains` + summary skipped column [EVGLD-05, EVGLD-06]
+- [ ] E2-09-PLAN.md — full 12-cell matrix stub-run green + manual live-proof checkpoint (gated after E1-05) [EVGLD-07]
 
 ### Phase E3: Surface E2E
 
 **Goal:** Each runtime entry point — CLI verbs, server plane (serve/SSE/permission gates) — driven end-to-end with real model inference and hybrid-scored.
 
-**Requirements:** EVSRF-01..0N (TBD by `E3-SPEC.md`).
+**Requirements:** EVSRF-01 (surface field + per-surface dispatch), EVSRF-02 (CLI subprocess drivers, live-auth, no stub injection), EVSRF-03 (serve spawn+handshake+SSE+events), EVSRF-04 (permission Allow/Deny flow), EVSRF-05 (surfaces suite scenarios), EVSRF-06 (live proof run on codex auth, human checkpoint).
 
-**Plans:** TBD
+**Plans:** 4 plans, 4 waves (file-overlap on runner.py serializes the driver plans)
+
+Plans:
+- [ ] E3-01-PLAN.md — surface/target_file fields on TaskSpec + additive JSONL surface field + sentinel + dispatch skeleton (E1-merge gate) [EVSRF-01]
+- [ ] E3-02-PLAN.md — cli:do/cli:chat/cli:edit subprocess drivers (live auth, no stub injection) + stub tests [EVSRF-02]
+- [ ] E3-03-PLAN.md — serve HTTP/SSE driver + permission Allow/Deny + FAKE_TURN integration + parser unit tests [EVSRF-03, EVSRF-04]
+- [ ] E3-04-PLAN.md — 6 surface scenarios + suite-load/dispatch test + live proof checkpoint on codex auth [EVSRF-05, EVSRF-06]
 
 ### Phase E4: SDK Proof
 
-**Goal:** `voss.harness` / `voss_runtime` public APIs (+ V13.x client SDK surfaces where applicable) exercised as a real external consumer against live runs — the SDK contract proven, not just type-checked.
+**Goal:** The four public SDK surfaces — `sdk:python` (in-process `voss.harness`/`voss_runtime` embedder), `sdk:ts`, `sdk:go`, `sdk:rust` (client SDKs against live `voss serve`) — exercised as real external consumers driving live model runs, hybrid-scored through the E1 substrate. The external-consumer contract (spawn → session → typed SSE → permission gate → final → read) proven, not just type-checked.
 
-**Requirements:** EVSDK-01..0N (TBD by `E4-SPEC.md`).
+**Requirements:** EVSDK-01 (surface dispatch — `sdk:*` Literal + `_drive_sdk_client`/`_drive_sdk_python`), EVSDK-02 (`sdk:python` in-process driver, public API), EVSDK-03 (`sdk:ts` consumer subprogram), EVSDK-04 (`sdk:go` consumer subprogram), EVSDK-05 (`sdk:rust` consumer subprogram), EVSDK-06 (sdk task.tomls + suite wiring + single-substrate scoring), EVSDK-07 (permission-gate live scenario per client), EVSDK-08 (live proof run on codex auth, human checkpoint). *Minted from CONTEXT D-01..D-08 — no SPEC; see `E4-01-PLAN.md`.*
 
-**Plans:** TBD
+**Plans:** 7 plans, 5 waves (E3-01 dependency satisfied — extends the executed `surface` Literal additively; W3 consumer plans parallelize on separate dirs)
+
+Plans:
+- [ ] E4-01-PLAN.md — RED Nyquist scaffold + three consumer subprograms build (ts/go/rust; resolve go.mod/TS-import/rust-example open Qs) [EVSDK-01..05]
+- [ ] E4-02-PLAN.md — extend surface Literal with sdk:* + _drive_sdk_python (in-process) + _drive_sdk_client (serve+consumer) dispatch [EVSDK-01, EVSDK-02]
+- [ ] E4-03-PLAN.md — harden ts consumer (typed SSE decode, env-driven reply, six-key JSON) [EVSDK-03]
+- [ ] E4-04-PLAN.md — harden go consumer (AttachClient, typed channel type-switch, json.Marshal) [EVSDK-04]
+- [ ] E4-05-PLAN.md — harden rust consumer (VossClient::new, AgentEvent stream match, auto-discovered example) [EVSDK-05]
+- [ ] E4-06-PLAN.md — four sdk task.tomls + shape-agnostic fixture + suite wiring + three consumer end-to-end FAKE_TURN schema tests [EVSDK-03..06]
+- [ ] E4-07-PLAN.md — ts Deny variant + permission_choice forwarding + live proof run on codex auth (human checkpoint) [EVSDK-07, EVSDK-08]
 
 ### Phase E5: TUI + voss-app Autonomous Driving
 
