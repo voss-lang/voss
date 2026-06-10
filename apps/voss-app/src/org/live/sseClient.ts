@@ -130,6 +130,12 @@ export interface ConnectLiveStreamArgs {
    */
   onEvent?: (ev: AgentEvent) => void;
   /**
+   * Invoked once when the stream ends for ANY reason (clean end, server
+   * death, abort) — after the label/handle bookkeeping. protocolSessions
+   * derives ended/error states from this.
+   */
+  onEnd?: () => void;
+  /**
    * Test/mock injection: an async-iterable of AgentEvents to consume instead of
    * the real `subscribeToEvents` fetch. When omitted, the real SDK consumer is
    * used with the AbortController's signal.
@@ -176,6 +182,7 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
         return s;
       });
       setLiveLabel('snapshot');
+      args.onEnd?.();
     }
   })();
 
