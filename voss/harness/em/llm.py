@@ -30,6 +30,7 @@ async def em_plan(
     idea: str,
     snapshot: str,
     roster_descriptions: dict[str, str] | None = None,
+    cwd: Path | None = None,
 ) -> EMPlanResponse:
     """Call the EM LLM and parse the structured response.
 
@@ -48,11 +49,11 @@ async def em_plan(
     )
 
     # Prompt resolved at load time so a project copy under .voss/prompts/
-    # is honored; absent copy is byte-identical to EM_SYSTEM (R5).
-    prompt_root = Path.cwd()
+    # is honored; absent copy is byte-identical to EM_SYSTEM (R5). Callers
+    # with a real workspace root pass cwd; None falls back to process cwd.
+    prompt_root = (cwd or Path.cwd()).resolve()
     system = load_prompt(
         "em_system",
-        resource="templates/prompts/em_system.txt.jinja",
         cwd=prompt_root,
         runtime_vars=default_runtime_vars("em", prompt_root),
     )

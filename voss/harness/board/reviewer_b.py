@@ -65,10 +65,14 @@ class ReviewerB:
         provider: ModelProvider,
         fast_model: str,
         strong_model: str,
+        cwd: Path | None = None,
     ) -> None:
         self._provider = provider
         self._fast_model = fast_model
         self._strong_model = strong_model
+        # Project root for .voss/prompts/ overrides (V16-04). None falls back
+        # to process cwd — callers with a real workspace root should pass it.
+        self._cwd = cwd
 
     def review(
         self,
@@ -101,10 +105,9 @@ class ReviewerB:
 
         # Prompt resolved at load time so a project copy under .voss/prompts/
         # is honored; absent copy is byte-identical to REVIEWER_B_SYSTEM (R5).
-        prompt_root = Path.cwd()
+        prompt_root = (self._cwd or Path.cwd()).resolve()
         system = load_prompt(
             "reviewer_b_system",
-            resource="templates/prompts/reviewer_b_system.txt.jinja",
             cwd=prompt_root,
             runtime_vars=default_runtime_vars("reviewer-b", prompt_root),
         )
