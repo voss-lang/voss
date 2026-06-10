@@ -33,6 +33,7 @@ from . import voss_md
 from .memory_cli import memory_group
 from .memory_store import MemoryStore
 from .agent import Plan
+from .claims import claims_group
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
@@ -4516,6 +4517,7 @@ AGENT_COMMANDS = (
     team_group,
     board_cmd,
     audit_cmd,
+    claims_group,
 )
 
 
