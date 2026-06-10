@@ -134,6 +134,11 @@ _REVIEW_DOC = ("review.md", "review.md.jinja")
 _FENCE_TEMPLATE = "voss_md_fence.md.jinja"
 _FENCE_ID = "workflow"
 _MANIFEST_NAME = "sync-state.json"
+_PROMPT_TEMPLATES = (
+    ("reviewer_a_role", "reviewer_a_role.txt.jinja"),
+    ("reviewer_b_system", "reviewer_b_system.txt.jinja"),
+    ("em_system", "em_system.txt.jinja"),
+)
 
 
 def _write_text_atomic(path: Path, text: str) -> None:
@@ -161,6 +166,20 @@ def _rel(path: Path, root: Path) -> str:
         return str(path.relative_to(root))
     except ValueError:
         return str(path)
+
+
+def _read_manifest(voss_root: Path) -> dict[str, str]:
+    """Read .voss/sync-state.json; missing/malformed fails safe to {} (T-V16-10)."""
+    path = voss_root / _MANIFEST_NAME
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
 
 
 def _diff_write(
@@ -195,14 +214,15 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
     The fence goes through voss_md.write_fence_body without adopt (D-16):
     hash drift raises HashMismatch instead of silently overwriting (R4).
     dry_run (D-14) runs the identical diff pass and writes nothing.
-    force is accepted for the prompts surface (D-16, Plan 04); it has no
+    force (D-16) applies to synced prompts ONLY: it overwrites edited
+    prompts and re-adopts when the manifest is missing (D-11). It has no
     effect on docs or the fence.
     """
-    del force  # prompts-only (D-16); wired in Plan 04
     context = build_sync_context(cwd)
     ctx_map = asdict(context)
     voss_root = context.voss_dir.resolve()
     project_root = context.project_root
+    recorded_hashes = _read_manifest(voss_root)
     statuses: list[ArtifactStatus] = []
     manifest: dict[str, str] = {}
 
