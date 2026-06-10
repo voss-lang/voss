@@ -1,14 +1,10 @@
-"""V18-01 Wave-1 RED scaffold: ContextAllocator unit contract (VOPT-01/02/03/04).
-
-Every test imports voss.harness.context_allocator INSIDE its body — the
-module does not exist until Plan 02, so collection stays clean while each
-test fails RED with ImportError (T-V18-01: non-strict xfail forbidden).
+"""ContextAllocator unit contract (VOPT-01/02/03/04).
 
 Fixtures are synthetic SimpleNamespace iters shaped like
 voss.harness.session.IterationRecord (index/plan/tool_results) — no
 provider, no live model, no filesystem dependency: the allocator is pure.
 
-Contract pinned here (Plan 02 must conform):
+Contract pinned here:
     from voss.harness.context_allocator import ContextAllocator, PackingProfile
     ContextAllocator(token_count=callable)            # injected for purity
     .pack(iter_records, packing_budget, profile) -> list[tuple[dict, dict]]
@@ -81,6 +77,16 @@ def test_pack_50_iters_under_ceiling() -> None:
     out = alloc.pack(_iters(50), 10_000, PackingProfile())
 
     assert _pair_tokens(out) <= 10_000
+
+
+def test_pack_respects_tiny_ceiling() -> None:
+    """VOPT-01: when reserve leaves almost no space, replay stays under budget."""
+    from voss.harness.context_allocator import ContextAllocator, PackingProfile
+
+    alloc = ContextAllocator(token_count=_tok)
+    out = alloc.pack(_iters(50), 1, PackingProfile())
+
+    assert _pair_tokens(out) <= 1
 
 
 def test_below_threshold_byte_identical() -> None:

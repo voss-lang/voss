@@ -1,4 +1,4 @@
-"""V18 VOPT-07: M5 quality-preservation eval gate (GREEN targets, Plan 05).
+"""V18 VOPT-07: M5 quality-preservation eval gate.
 
 Token metric note (Plan 05 Task 1): runs.jsonl rows now carry an additive
 `input_tokens` field summed from per-iteration prompt_tokens, so the
@@ -8,10 +8,8 @@ Plan-01 TODO(Plan 05) marker is resolved — no inference from cost).
 Biting proof note (RESEARCH Assumption A9, encoded in V18-05-PLAN Task 2):
 the hermetic stub golden suite stays below recent_full_k iterations, so
 even an over-aggressive profile (recent_full_k=1) cannot regress it.
-Per the plan's explicit fallback, the biting test asserts the gate's
-rejection clauses directly against a synthesized regressed on/off pair —
-the requirement is that a regressing profile is PROVABLY rejected, not
-that K=1 specifically regresses the stub suite.
+    The biting tests assert the rejection clauses directly against synthesized
+    on/off pairs so the gate cannot pass on a failed or no-savings run.
 """
 from __future__ import annotations
 
@@ -27,8 +25,8 @@ def _success_rate(runs_path: Path) -> float:
     return sum(1 for r in rows if r["success"] is True) / len(rows)
 
 
-def test_quality_preservation_gate(tmp_path, monkeypatch) -> None:
-    """VOPT-07: golden-suite success with packing on >= off − TOLERANCE."""
+def test_quality_preservation_gate_rejects_no_savings(tmp_path, monkeypatch) -> None:
+    """VOPT-07: the real gate rejects a no-savings stub run."""
     from voss.harness.packing_eval import run_packing_gate
 
     monkeypatch.delenv("VOSS_NO_PACK", raising=False)
@@ -36,8 +34,8 @@ def test_quality_preservation_gate(tmp_path, monkeypatch) -> None:
         suite="golden", stub=True, out_dir=tmp_path, tolerance=TOLERANCE
     )
 
-    assert verdict.passed, verdict
-    assert verdict["success_on"] >= verdict["success_off"] - TOLERANCE
+    assert verdict.passed is False
+    assert verdict["token_reduction"] <= 0
     # input_tokens is a real measured field in both runs.jsonl files.
     on_rows = [
         json.loads(line)
@@ -45,9 +43,7 @@ def test_quality_preservation_gate(tmp_path, monkeypatch) -> None:
         if line.strip()
     ]
     assert all("input_tokens" in r for r in on_rows)
-    assert _success_rate(tmp_path / "on" / "runs.jsonl") >= (
-        _success_rate(tmp_path / "off" / "runs.jsonl") - TOLERANCE
-    )
+    assert _success_rate(tmp_path / "off" / "runs.jsonl") == verdict["success_off"]
 
 
 def test_aggressive_profile_fails_gate() -> None:
@@ -85,3 +81,31 @@ def test_aggressive_profile_fails_gate() -> None:
         {"success": True, "input_tokens": 5000},
     ]
     assert compare_runs(healthy_on, off_rows, tolerance=TOLERANCE)["passed"] is True
+
+
+def test_failed_baseline_cannot_pass_gate() -> None:
+    """VOPT-07: identical failed runs are not a valid quality-preservation pass."""
+    from voss.harness.packing_eval import compare_runs
+
+    rows = [
+        {"success": False, "input_tokens": 1000},
+        {"success": None, "input_tokens": 1000},
+    ]
+
+    verdict = compare_runs(rows, rows, tolerance=TOLERANCE)
+
+    assert verdict["passed"] is False
+    assert verdict["baseline_ok"] is False
+
+
+def test_equal_tokens_cannot_pass_gate() -> None:
+    """VOPT-07: success parity without token reduction is not a savings gate pass."""
+    from voss.harness.packing_eval import compare_runs
+
+    off_rows = [{"success": True, "input_tokens": 1000}]
+    on_rows = [{"success": True, "input_tokens": 1000}]
+
+    verdict = compare_runs(on_rows, off_rows, tolerance=TOLERANCE)
+
+    assert verdict["passed"] is False
+    assert verdict["tokens_ok"] is False

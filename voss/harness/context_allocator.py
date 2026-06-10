@@ -88,6 +88,45 @@ class ContextAllocator:
     def _estimate(self, pairs: list[tuple[dict, dict]]) -> int:
         return sum(self._pair_tokens(p) for p in pairs)
 
+    def _fit_to_budget(
+        self,
+        pairs: list[tuple[dict, dict]],
+        iters: list[Any],
+        packing_budget: int,
+    ) -> list[tuple[dict, dict]]:
+        """Hard final guard: never return a replay region over budget."""
+        if packing_budget <= 0:
+            return []
+        if self._estimate(pairs) <= packing_budget:
+            return pairs
+
+        serialize = _full_renderer()
+        suffix: list[tuple[dict, dict]] = []
+        for iter_rec in reversed(iters):
+            pair = serialize(iter_rec)
+            candidate = [pair, *suffix]
+            if self._estimate(candidate) <= packing_budget:
+                suffix = candidate
+            elif suffix:
+                break
+        if suffix:
+            return suffix
+
+        latest_digest = self._render_iter_digest(iters[-1:][0]) if iters else None
+        if latest_digest is not None and self._pair_tokens(latest_digest) <= packing_budget:
+            return [latest_digest]
+
+        minimal = (
+            {
+                "role": "assistant",
+                "content": f"[context omitted] {len(iters)} prior iterations omitted to fit token budget.",
+            },
+            {"role": "user", "content": "(prior iterations omitted)"},
+        )
+        if self._pair_tokens(minimal) <= packing_budget:
+            return [minimal]
+        return []
+
     def _render_iter_digest(self, iter_rec: Any) -> tuple[dict, dict]:
         plan = iter_rec.plan or {}
         step_count = len(plan.get("steps", []) or [])
@@ -164,9 +203,12 @@ class ContextAllocator:
     ) -> list[tuple[dict, dict]]:
         n = len(iter_records)
         serialize = _full_renderer()
-        if not profile.enabled or n <= profile.recent_full_k:
+        if not profile.enabled:
             # No-op below threshold: verbatim full replay, byte-identical.
             return [serialize(p) for p in iter_records]
+        if n <= profile.recent_full_k:
+            full_pairs = [serialize(p) for p in iter_records]
+            return self._fit_to_budget(full_pairs, iter_records, packing_budget)
 
         if not self._initialized:
             # First packing call seeds the fold boundary age-based; this
@@ -184,7 +226,7 @@ class ContextAllocator:
         if est < high and est <= packing_budget:
             # Below high-water: hold the frozen fold (append-only stable
             # region); only the digest/full tail slides.
-            return pairs
+            return self._fit_to_budget(pairs, iter_records, packing_budget)
 
         # Recompaction: re-fold age-based, then absorb digests oldest-first
         # until the estimate drops to the low-water target (hysteresis).
@@ -203,7 +245,7 @@ class ContextAllocator:
         self._stable_pairs = fold_pairs
         self._stable_upto = fold_upto
         self._recompactions += 1
-        return pairs
+        return self._fit_to_budget(pairs, iter_records, packing_budget)
 
     def stable_region_hash(self) -> str:
         """SHA-256 of the frozen stable-region pairs (change == recompaction)."""

@@ -270,6 +270,14 @@ async def _drive_task(
     net_session = _make_stub_net_session(spec, stub=stub)
     capped = False
     try:
+        if spec.surface != "internal":
+            # E3-02 (cli:*) and E3-03 (serve) replace these with real drivers.
+            return (
+                record,
+                "",
+                f"surface {spec.surface!r} driver not implemented (E3-02/E3-03)",
+                False,
+            )
         if task_id.startswith("05-"):
             record, final, capped = await _drive_resume(
                 record,
@@ -465,6 +473,7 @@ async def _run_suite_async(
                     "capped": capped,
                     "checks": check_results,
                     "input_tokens": _sum_input_tokens(record),
+                    "surface": spec.surface,
                 }
                 _append_row(runs_path, row)
 

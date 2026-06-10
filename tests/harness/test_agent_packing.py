@@ -1,16 +1,12 @@
-"""V18-01 Wave-1 RED scaffold: packing integration at the agent chokepoint.
+"""Packing integration at the agent replay chokepoint.
 
 VOPT-06 (--no-pack byte-identity, cached-prefix preservation) and the
 VOPT-03 steady-state cache half, driven through _run_turn_exec with the
-FakeStreamingProvider double from test_agent_loop (patterns copied
-verbatim per V18-01 Task 1).
-
-RED until Plan 03: _run_turn_exec has no `packing_enabled` parameter yet,
-so every test below fails with TypeError (unexpected keyword argument) —
-the right reason, not a skip, not a non-strict xfail.
+FakeStreamingProvider double from test_agent_loop.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -197,7 +193,8 @@ async def _run_short(tmp_path: Path, *, packing_enabled: bool, cache_read: int =
         renderer=RecordingRenderer(),
         provider=provider,
         model="stub-model",
-        packing_enabled=packing_enabled,  # RED: param lands in Plan 03
+        session_id="packing-test-session",
+        packing_enabled=packing_enabled,
     )
     return provider, result
 
@@ -239,10 +236,29 @@ async def test_cache_coherence_steady_state(tmp_path: Path) -> None:
         renderer=RecordingRenderer(),
         provider=provider,
         model="stub-model",
-        packing_enabled=True,  # RED: param lands in Plan 03
+        packing_enabled=True,
     )
 
     assert result.run is not None
     assert result.run.iteration_count == 10
     steady = result.run.iterations[3:]
     assert all(it.cache_read_input_tokens > 0 for it in steady)
+
+
+@pytest.mark.asyncio
+async def test_env_no_pack_ledger_method_is_no_pack(tmp_path: Path, monkeypatch) -> None:
+    """VOPT-05/06: env-disabled packing is labeled no-pack in the ledger."""
+    monkeypatch.setenv("VOSS_NO_PACK", "1")
+
+    await _run_short(tmp_path, packing_enabled=True)
+
+    ledger = (
+        tmp_path
+        / ".voss"
+        / "sessions"
+        / "packing-test-session"
+        / "token-savings.jsonl"
+    )
+    rows = [json.loads(line) for line in ledger.read_text().splitlines() if line]
+    assert rows
+    assert {row["method"] for row in rows} == {"no-pack"}
