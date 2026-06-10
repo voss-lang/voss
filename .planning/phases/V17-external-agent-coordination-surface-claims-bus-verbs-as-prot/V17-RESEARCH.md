@@ -690,22 +690,25 @@ def read_inbox_since(bus_dir: Path, agent_id: str, mention_filter: str | None = 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **VOSS_SERVER_PORT/TOKEN injection timing vs V15 sidecar lifecycle**
    - What we know: V15 sidecar is unbuilt; port/token are printed once to stdout at server start.
    - What's unclear: Whether V17 should (a) omit port/token injection until V15, or (b) add the Tauri infrastructure for it now with best-effort injection.
    - Recommendation: Inject `VOSS_AGENT_ID` unconditionally in V17; treat port/token injection as a V15-gated sub-task within the bus wave. The bus verbs gracefully exit 2 when vars are absent.
+   - **RESOLVED (V17-04):** Chose unconditional identity + V15-gated discovery. V17-04 injects `VOSS_AGENT_ID` unconditionally at all three spawn call sites; `VOSS_SERVER_PORT`/`VOSS_SERVER_TOKEN` injection is deferred to the V15-gated bus wave (V17-05/06), where the bus verbs gracefully `exit 2` when the discovery vars are absent.
 
 2. **Rust static lifetime for slug in env injection**
    - What we know: `env_for_embedded_cli` returns `Vec<(&'static str, &'static str)>`. The slug is dynamic.
    - What's unclear: Cleanest ergonomic pattern for combining static env items with the dynamic slug.
    - Recommendation: Planner chooses between (a) new `voss_agent_id: Option<String>` Tauri command param + build env at call site, or (b) change `env_for_embedded_cli` to return `Vec<(String, String)>` (small refactor). Option (a) is more surgical.
+   - **RESOLVED (V17-04):** Chose option (a), the surgical path. `env_for_embedded_cli` keeps its `&'static` return; each spawn call site collects it into an owned `Vec<(String, String)>`, pushes `("VOSS_AGENT_ID", slug)` when the new `voss_agent_id: Option<String>` param is `Some`, then borrows `&[(&str,&str)]` refs for `spawn_command_session_with_env`. No refactor of the static helper.
 
 3. **Pane slug counter persistence between app restarts (D-13)**
    - What we know: A6 session persist is in "context gathered" state; pane config structure is not yet finalized.
    - What's unclear: Where in the pane config JSON the slug is persisted, and what the counter's source of truth is across restarts.
    - Recommendation: For V17, mint slug at spawn time using a monotonic counter stored in `app.state` (in-memory); persist it in the pane's grid entry (whatever field A6 will use). On restore, read slug from grid entry. Flag as "forward-compat design" in plan.
+   - **RESOLVED (V17-04):** Chose the in-memory monotonic counter. V17-04 mints slugs from an in-memory `createSignal` registry (`slugRegistry.ts`) keyed by paneId with a module-level monotonic counter, exported for A6 to persist into the pane config when A6 ships. D-13 persistence is best-effort forward-compat (no pane config file in V17 `files_modified`); A6 owns on-disk persistence + restore re-injection.
 
 ---
 

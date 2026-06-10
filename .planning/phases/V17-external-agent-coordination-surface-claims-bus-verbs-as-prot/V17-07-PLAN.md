@@ -2,19 +2,22 @@
 phase: V17-external-agent-coordination-surface-claims-bus-verbs-as-prot
 plan: 07
 type: execute
-wave: 6
-depends_on: [V17-03, V17-04, V17-06]
+wave: 4
+depends_on: [V17-03, V17-04]
 files_modified:
   - docs/agent-coordination.md
   - .planning/phases/V16-managed-docs-prompt-generation/V17-COORDINATION-HANDOFF.md
 autonomous: true
 requirements: [VBUS-07, VBUS-08]
-# Doc covers the bus verbs from the locked SPEC contract; the bus-verb --help assertion fully passes only after V17-06 (V15-gated) ships.
+# VBUS-07 has NO upstream V15 gate (SPEC): the doc + coherence-guard tasks do not need the bus verbs to exist.
+# The doc is written from the locked SPEC contract; the bus-verb `--help` portion of test_coordination_doc.py is try/except-guarded (V17-01),
+# so it passes pre-V15 (claims verbs assert, bus section skips gracefully) and XPASSes the bus portion once V17-06 ships post-V15.
+# Therefore depends_on omits V17-06 — gating doc/coherence behind V15 would be incorrect.
 
 must_haves:
   truths:
     - "docs/agent-coordination.md documents every shipped verb, the 0/1/2/124 exit codes, the env vars, the label vocabulary, and a pre-edit guard example"
-    - "every documented command's --help exits 0"
+    - "every documented command's --help exits 0 (claims verbs assert directly; bus verbs are try/except-guarded until V17-06 ships)"
     - "the V16 phase dir contains a handoff note instructing folding a condensed version into the managed AGENTS.md section"
     - "the coherence guard passes at phase end: swarm/ byte-unchanged, no new UI components, sandbox.rs tests pass unmodified, no fs-watcher dep"
   artifacts:
@@ -37,6 +40,8 @@ must_haves:
 
 <objective>
 Document the coordination vocabulary (VBUS-07) and run the final coherence-guard verification (VBUS-08). Write `docs/agent-coordination.md` covering claims + bus verbs, the exit-code contract, env vars, the label vocabulary, and a pre-edit guard example; drop a handoff note in the V16 phase dir telling V16 to fold a condensed version into its managed AGENTS.md section template (no template edits here — V16's territory). Then verify the coherence guard is green: `apps/voss-app/src/swarm/` byte-unchanged, no new Solid components, `sandbox.rs` tests pass unmodified, no fs-watcher dependency.
+
+VBUS-07 has no upstream V15 gate (SPEC): this plan depends only on V17-03 (claims verbs exist, so their `--help` can be asserted) and V17-04 (env vars to document accurately). It does NOT depend on V17-06 — the bus verbs are documented from the locked SPEC contract, and the bus-verb `--help` portion of `test_coordination_doc.py` is try/except-guarded (V17-01) so it passes pre-V15 and XPASSes once V17-06 ships. Gating this doc/coherence work behind V15 would be incorrect.
 
 Purpose: VBUS-07 conventions + V16 handoff; VBUS-08 coherence verification.
 Output: `docs/agent-coordination.md` (new), V16 handoff note (new).
@@ -79,7 +84,7 @@ Label vocabulary (SEED-001 / SPEC): coord:blocker, coord:handoff, mission:<id>, 
     <automated>.venv/bin/python -m pytest tests/harness/test_coordination_doc.py -x -q</automated>
   </verify>
   <acceptance_criteria>
-    - test_coordination_doc.py passes (doc exists; documented commands --help exit 0; the bus-verb --help portion passes once V17-06 has shipped, else the test's bus section is try/except-guarded per V17-01)
+    - test_coordination_doc.py passes (doc exists; claims-verb `--help` exits 0; the bus-verb `--help` portion is try/except-guarded per V17-01 so it passes pre-V15 — claims section asserts, bus section skips gracefully — and XPASSes the bus portion once V17-06 ships). The plan does NOT depend on V17-06: the guard makes the test green now.
     - `grep -c 'VOSS_AGENT_ID' docs/agent-coordination.md` >= 1 and the doc contains a `voss claims check` pre-edit guard example
     - The doc's exit-code section lists 0, 1, 2, and 124
     - `.planning/phases/V16-managed-docs-prompt-generation/V17-COORDINATION-HANDOFF.md` exists and contains the string `agent-coordination.md`

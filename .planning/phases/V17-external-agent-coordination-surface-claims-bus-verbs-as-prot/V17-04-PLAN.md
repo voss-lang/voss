@@ -8,7 +8,7 @@ files_modified:
   - apps/voss-app/src/pane/slugRegistry.ts
   - apps/voss-app/src/pane/slugRegistry.test.ts
   - apps/voss-app/src/pane/pty-ipc.ts
-  - apps/voss-app/src-tauri/src/lib.rs
+  - apps/voss-app/src-tauri/src/lib.rs   # incl. a #[cfg(test)] mod for the owned-env builder unit test (Task 3)
 autonomous: true
 requirements: [VBUS-03]
 
@@ -16,7 +16,7 @@ must_haves:
   truths:
     - "Every pane spawn mints a readable slug (claude-1 / pane-3) before any agent runs"
     - "spawn_agent, spawn_managed_agent, and spawn_pty inject VOSS_AGENT_ID into the child process env"
-    - "The slug is persisted in pane config so session-restore can re-inject the same slug (best-effort)"
+    - "Slug registered in-memory per paneId at spawn; exported for A6 to persist in pane config when A6 ships (best-effort, D-13 — no pane config file in this plan)"
     - "Slug minting distinguishes agent CLIs (<cli>-<n>) from plain shells (pane-<n>)"
   artifacts:
     - path: "apps/voss-app/src/pane/slugRegistry.ts"
@@ -126,15 +126,17 @@ apps/voss-app/src-tauri/src/lib.rs:
     - .planning/phases/V17-external-agent-coordination-surface-claims-bus-verbs-as-prot/V17-RESEARCH.md (Pattern 6 + Pitfall 3 static-lifetime mismatch — owned Vec at call site)
     - .planning/phases/V17-external-agent-coordination-surface-claims-bus-verbs-as-prot/V17-PATTERNS.md (lib.rs modified-call pattern: build Vec<(String,String)> then borrow refs)
   </read_first>
-  <action>Add a `voss_agent_id: Option<String>` parameter to the `spawn_agent`, `spawn_managed_agent`, and `spawn_pty` Tauri commands (Tauri maps the camelCase `vossAgentId` from JS). Do NOT change `env_for_embedded_cli`'s static return type (Pitfall 3). At each call site: collect `env_for_embedded_cli(...)` into an owned `Vec<(String,String)>`, push `("VOSS_AGENT_ID".to_string(), slug.clone())` when `voss_agent_id` is Some, then build `let env_refs: Vec<(&str,&str)> = full_env.iter().map(|(k,v)| (k.as_str(), v.as_str())).collect();` and pass `&env_refs` to `spawn_command_session_with_env`. For `spawn_pty` (currently `spawn_session` with NO env), switch to `spawn_command_session_with_env` with the default shell binary/args and only the agent-id env entry (per PATTERNS.md guidance) — or the cleanest equivalent that preserves plain-shell behavior while injecting the var. Keep `spawn_command_session_managed`'s unmanaged sibling functions byte-unchanged where not on these three paths (VBUS-08 — do NOT modify sandbox.rs). Run cargo to confirm borrow-checker passes.</action>
+  <action>Add a `voss_agent_id: Option<String>` parameter to the `spawn_agent`, `spawn_managed_agent`, and `spawn_pty` Tauri commands (Tauri maps the camelCase `vossAgentId` from JS). Do NOT change `env_for_embedded_cli`'s static return type (Pitfall 3). At each call site: collect `env_for_embedded_cli(...)` into an owned `Vec<(String,String)>`, push `("VOSS_AGENT_ID".to_string(), slug.clone())` when `voss_agent_id` is Some, then build `let env_refs: Vec<(&str,&str)> = full_env.iter().map(|(k,v)| (k.as_str(), v.as_str())).collect();` and pass `&env_refs` to `spawn_command_session_with_env`. For `spawn_pty` (currently `spawn_session` with NO env), switch to `spawn_command_session_with_env` with the default shell binary/args and only the agent-id env entry (per PATTERNS.md guidance) — or the cleanest equivalent that preserves plain-shell behavior while injecting the var. Keep `spawn_command_session_managed`'s unmanaged sibling functions byte-unchanged where not on these three paths (VBUS-08 — do NOT modify sandbox.rs). Factor the env-building into a small pure helper, e.g. `fn build_env_with_agent_id(base: Vec<(String,String)>, voss_agent_id: Option<String>) -> Vec<(String,String)>` (or the cleanest equivalent the three call sites can share), so it is unit-testable without a live PTY. Add a `#[cfg(test)] mod tests` in lib.rs with a unit test for the camelCase IPC round-trip outcome (TS `vossAgentId` -> Rust `voss_agent_id` -> `VOSS_AGENT_ID` env): assert that for `Some("claude-1")` the returned env Vec contains `("VOSS_AGENT_ID".to_string(), "claude-1".to_string())`, and that for `None` no entry with key `"VOSS_AGENT_ID"` is present. This guards against the silent-None-injection failure (V14 AgentEntry camelCase lesson — a serde rename mismatch would surface here as a missing env entry). Run cargo to confirm borrow-checker passes and the unit test is green.</action>
   <verify>
     <automated>cargo build -p voss-app 2>&1 | tail -5 || cargo test -p voss-app-core 2>&1 | tail -5</automated>
+    <automated>cargo test -p voss-app build_env_with_agent_id 2>&1 | tail -5 || cargo test -p voss-app-core build_env_with_agent_id 2>&1 | tail -5</automated>
   </verify>
   <acceptance_criteria>
     - The crate compiles (cargo build/test exits 0) with the new `voss_agent_id` params and owned-env call sites
     - `grep -c 'VOSS_AGENT_ID' apps/voss-app/src-tauri/src/lib.rs` >= 1
     - `git diff --stat crates/voss-app-core/src/sandbox.rs` shows zero changes (VBUS-08)
     - All three commands (spawn_agent, spawn_managed_agent, spawn_pty) accept `voss_agent_id: Option<String>` (source assertion in summary)
+    - A Rust unit test for the owned-env builder passes: `Some(slug)` yields `("VOSS_AGENT_ID", slug)` in the env slice, `None` yields no `VOSS_AGENT_ID` entry (guards the camelCase IPC round-trip vs silent-None injection — V14 lesson)
   </acceptance_criteria>
   <done>Three spawn commands inject VOSS_AGENT_ID via owned env; crate compiles; sandbox.rs untouched.</done>
 </task>
@@ -159,6 +161,7 @@ apps/voss-app/src-tauri/src/lib.rs:
 <verification>
 - `cd apps/voss-app && npx vitest run src/pane/slugRegistry.test.ts && npx tsc --noEmit` GREEN.
 - `cargo build -p voss-app` (or `cargo test -p voss-app-core`) exits 0.
+- Rust owned-env builder unit test GREEN: `Some(slug)` -> `("VOSS_AGENT_ID", slug)` present; `None` -> absent (camelCase IPC round-trip guard).
 - `git diff --stat crates/voss-app-core/src/sandbox.rs` empty.
 - Manual-only (VALIDATION.md): launch an agent in the running app, run `env | grep VOSS_AGENT_ID` in the pane.
 </verification>

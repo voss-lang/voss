@@ -98,11 +98,12 @@ POST /bus/send -> {"v":1,"id": <ulid>} ; GET /bus/inbox?agent=<id> -> {"v":1,"me
   <action>Add `class BusMessage(_Base)` in the `# --- Voss-native (additive) ---` section of `voss/harness/server/events.py` with fields: `type: Literal["bus.message"] = "bus.message"`, `id: str`, `sender: str`, `body: str`, `mentions: list[str] = Field(default_factory=list)`, `labels: list[str] = Field(default_factory=list)`, `ts: float`. Append `BusMessage` to the `AgentEvent` Union (before `Field(discriminator="type")`) — additive only, do not reorder existing entries (byte-identical requirement). Add a migration note to PROTOCOL.md §6 documenting the new `bus.message` type and its `v` version. Then run the full regen chain in order: `.venv/bin/python scripts/export_contract.py`; `cd sdk/go && go generate ./... && cd -`; `cd sdk/typescript && npm run codegen && cd -`; `.venv/bin/python scripts/generate_sdk_events.py`. Commit all regenerated artifacts (contracts/openapi.json, contracts/events.schema.json, sdk/go/types.gen.go, sdk/typescript/src/generated/types.ts, crates/voss-sdk/src/types/events.rs). If go/cargo codegen tooling is unavailable in the env (RESEARCH A2/A3 assumptions), record the failure in the summary and regenerate via the documented fallback rather than hand-editing generated files.</action>
   <verify>
     <automated>.venv/bin/python -m pytest tests/harness/server/test_contract_drift.py -x -q</automated>
+    <automated>cd sdk/go && go test ./internal/drift/... 2>/dev/null || echo go-drift-unavailable</automated>
   </verify>
   <acceptance_criteria>
     - test_contract_drift.py passes (Python contract files in sync with the live Pydantic union)
     - `grep -c 'bus.message' contracts/events.schema.json` >= 1
-    - `cd sdk/go && go test ./internal/drift/...` passes (Go types regenerated) OR documented-unavailable in summary
+    - Go SDK drift gate: `cd sdk/go && go test ./internal/drift/...` passes when Go tooling is available (Pitfall 4 names forgotten-SDK-regen the most likely failure mode); FAIL the task if Go tooling is present and the gate fails. Only the documented `go-drift-unavailable` escape (no Go toolchain in env) is acceptable, recorded in the summary.
     - All pre-existing event type entries in events.schema.json are unchanged (diff shows only additions)
     - PROTOCOL.md §6 contains a migration note naming bus.message
   </acceptance_criteria>
