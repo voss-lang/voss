@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-10T15:46:37.836Z"
+last_updated: "2026-06-10T16:06:58.016Z"
 last_activity: 2026-06-10
 progress:
   total_phases: 43
@@ -24,8 +24,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 ## Current Position
 
-**Phase:** V15 — Live Plane Integration — EXECUTING (3/7 plans complete; V15-03 structured ProtocolPane shipped 2026-06-10).
-**Status:** Executing — next: V15-04 (inline permission gate + lifecycle, wave 4) / V15-05 (attach sidebar, wave 4)
+**Phase:** V15 — Live Plane Integration — EXECUTING (4/7 plans complete; V15-04 live permission gate + lifecycle states shipped 2026-06-10).
+**Status:** Executing — next: V15-05 (attach-to-existing-sessions sidebar, wave 4)
+**Workspace health note:** the concurrent watcher ran `npm install` at the pnpm-monorepo root (added JS `litellm` dep, 5e3f061) and gutted the pnpm store mid-V15-04 — repaired via `pnpm install` (7cc042a). JS `litellm` at root is likely unintended; operator should review.
 **Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
 **Next move:** V14 ADE Run Cockpit ✅ COMPLETE (13/13, operator-approved 2026-06-09). Frontier: structured-pane-rendering seed (`.planning/notes/seed-structured-pane-rendering.md`, gated on V13.1 live wiring) · VCKP-13b permission proxy · or resume the A-track (A4 Layout Presets, ready to execute).
 **Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).
@@ -73,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-10 — **V15-04 EXECUTED — live inline permission gate + lifecycle honesty states (VLIVE-05/07).** `attentionQueue.resolveAttentionItem(id)` (immutable pushItem inverse). ProtocolPane gate: Deny/Allow once/Allow for {scope} → `replyPermission` d/a/A with the client built in-pane from {baseUrl, token} (Bearer every request, T-V15-03); buttons disabled in-flight; clear of BOTH surfaces (gate `--resolved` label + queue row via the load-bearing `permission:${id}` prefix, T-V15-11) ONLY after the POST resolves (T-V15-07); failed POST re-enables both. Lifecycle: D-10 boot placeholder (Starting… + elapsed/s + 5s cold-start hint, first event → live), D-12 spawn error (heading + stderr tail + user-initiated "Retry start" → startVossServe(cwd) + stream rebind to the fresh handshake), D-11 ended (inline ExitBanner "[session ended]" showRestart=false in transcript flow; death = no final/idle → `.pane--proto-ended` dim + onEnded; clean end undimmed; NO auto-restart). Stream-end detection = liveHandles membership transition; zero-event end while booting = connect failure. PaneComponent absolute PTY ExitBanner suppressed for native panes (Rule-1 deviation — double-banner w/ forbidden Restart). **Incident:** watcher ran `npm install` at the pnpm root (litellm dep) and gutted the pnpm store mid-plan — JSX transforms failed repo-wide ("Unexpected JSX expression" in untouched suites); repaired w/ `pnpm install`; keystone-a1 `@ts-expect-error` → `@ts-ignore` (hoisted @types/node). Verification: ProtocolPane 18/18, queue tests green, full 806/806, tsc clean. Summary: `phases/V15-live-plane-integration/V15-04-SUMMARY.md`.
 
 - 2026-06-10 — **V15-03 EXECUTED — structured ProtocolPane + native-pane grid path (VLIVE-04).** `pane/ProtocolPane.tsx`: §6 union → DOM per V15-UI-SPEC — 8 dedicated rows + generic fallback w/ amber/prefix/probability% (21 members, nothing dropped); D-07 collapsed tool lines (click-expand); D-08 trimOldest CAP=300 pinning task header + permission rows; D-09 delta coalescing w/ pulse cursor + sticky-bottom autoscroll; local per-pane signals; zero innerHTML (T-V15-05). CSS: full §1-2 token-only classes + Plan-04/05 shells. `PaneComponent`: nativeSessionId discriminator — onMount+doSpawn early-return (no PTY), body Show swap; PTY path byte-untouched (T-V15-06). Threading: nativeSessionByPaneId App→GridRoot→SplitNode→leaf; `openNativePane` D-02 split+bind+review→grid flip on native createSession (D-01/D-03); exported `openAttachedPane` seam. ExitBanner message?/showRestart? hole (D-11). 2 Rule-1 deviations: onMount guard (bodyRef crash), plan-row schema {steps[],confidence} not {text}. Verification: ProtocolPane 10/10, pane suite 27/27, full 796/796, tsc clean. Summary: `phases/V15-live-plane-integration/V15-03-SUMMARY.md`.
 
@@ -239,3 +242,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase V15 P01 | 5 min | 2 tasks | 4 files |
 | Phase V15 P02 | 8 min | 2 tasks | 8 files |
 | Phase V15 P03 | 13 min | 2 tasks | 8 files |
+| Phase V15 P04 | 11 min | 2 tasks | 7 files |
