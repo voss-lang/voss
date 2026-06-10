@@ -81,7 +81,7 @@
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | Recompose V11's 10 built panels into an integrated cockpit (Board spine + Card detail drawer + Timeline rail + gate bar); add RunCommandBar intake + global AttentionQueue; normalize the live PTY/SSE registry + static CLI-JSON `RunData` into one UI model with card↔session/pane binding; live SSE wiring gated on V13.1 (snapshot fallback); refreshed quick-launch modal + "Manage with Voss" adopt flow + managed-launch enforcement tiers (OS sandbox/permission-proxy/budget-kill) for external CLIs. Closes the design-contract gaps in `research/ade-ui-design-contract-research.md`. | VCKP-01..13 | ✅ COMPLETE (13/13 plans, operator-approved 2026-06-09; visual contract = recovered mockups in `.planning/sketches/`) |
 | E1 | Eval Substrate | Suite loader, TaskSpec, runner, JSONL+summary, hybrid deterministic+judge scoring, subscription-auth model wiring, per-run budget cap (absorbs M5-01..04) | EVSUB-01..07 | planned (5 plans) |
 | E2 | Golden Tasks × Repo Matrix | py/rust/ts fixture repos; agent proves cognition + edits per project shape (absorbs M5-05) | EVGLD-01..0N (TBD by SPEC.md) | TBD |
-| E3 | Surface E2E | CLI verbs + server plane driven end-to-end with real model inference | EVSRF-01..0N (TBD by SPEC.md) | TBD |
+| E3 | Surface E2E | CLI verbs + server plane driven end-to-end with real model inference | EVSRF-01..06 | planned (4 plans, 4 waves) |
 | E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..0N (TBD by SPEC.md) | TBD |
 | E5 | TUI + voss-app Autonomous Driving | Drive TUI and voss-app surfaces autonomously; Tauri WebDriver blocked on macOS — approach TBD | EVUI-01..0N (TBD by SPEC.md) | TBD |
 | V15 | Live Plane Integration (sidecar handshake + structured pane rendering) | Plug the cockpit into a real `voss serve`: Tauri sidecar command spawns/attaches the server and hands the `{v,port,token}` stdout handshake to the webview (port `voss-sdk` `spawn_with` incl. 60s cold-start + `LITELLM_LOCAL_MODEL_COST_MAP=true`); construct the V13.1 TS client and plug V14's injectable sockets (RunCommandBar native `createSession`, drawer `followUpClient`, SSE → AttentionQueue + model overlay — live label flips for real); Voss-native panes graduate from raw PTY to structured protocol rendering (PROTOCOL §6 event union → DOM: EM task header, tool lines, plan prose, stream deltas) with the inline permission gate (`permission.updated` → Allow/Deny → `POST /permission`, shared with the queue). Visual contract: the pane-content of `.planning/sketches/V14-livework-mockup.html`. Seed: `.planning/notes/seed-structured-pane-rendering.md`. | TBD (SPEC pending) | Added 2026-06-09. Keystone = sidecar handshake (webview cannot spawn `voss serve` — V14 Pitfall 4); spike it first. UI-SPEC before planning (V14 lesson). Out: VCKP-13b permission proxy, rollback/re-run, embedded browser. |
@@ -2357,9 +2357,15 @@ LangSmith/team dashboards are a likely later adapter if this becomes multi-user,
 
 **Goal:** Each runtime entry point — CLI verbs, server plane (serve/SSE/permission gates) — driven end-to-end with real model inference and hybrid-scored.
 
-**Requirements:** EVSRF-01..0N (TBD by `E3-SPEC.md`).
+**Requirements:** EVSRF-01 (surface field + per-surface dispatch), EVSRF-02 (CLI subprocess drivers, live-auth, no stub injection), EVSRF-03 (serve spawn+handshake+SSE+events), EVSRF-04 (permission Allow/Deny flow), EVSRF-05 (surfaces suite scenarios), EVSRF-06 (live proof run on codex auth, human checkpoint).
 
-**Plans:** TBD
+**Plans:** 4 plans, 4 waves (file-overlap on runner.py serializes the driver plans)
+
+Plans:
+- [ ] E3-01-PLAN.md — surface/target_file fields on TaskSpec + additive JSONL surface field + sentinel + dispatch skeleton (E1-merge gate) [EVSRF-01]
+- [ ] E3-02-PLAN.md — cli:do/cli:chat/cli:edit subprocess drivers (live auth, no stub injection) + stub tests [EVSRF-02]
+- [ ] E3-03-PLAN.md — serve HTTP/SSE driver + permission Allow/Deny + FAKE_TURN integration + parser unit tests [EVSRF-03, EVSRF-04]
+- [ ] E3-04-PLAN.md — 6 surface scenarios + suite-load/dispatch test + live proof checkpoint on codex auth [EVSRF-05, EVSRF-06]
 
 ### Phase E4: SDK Proof
 
