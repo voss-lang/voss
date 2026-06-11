@@ -1,0 +1,7 @@
+{
+  "name": "calc",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test src/*.test.ts"
+  }
+}
