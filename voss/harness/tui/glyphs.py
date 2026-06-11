@@ -21,6 +21,11 @@ Contract v2 additions (tui-redesign-spec §4.2, phase R3 — ToolCards):
 `TOOL_CALL ⏵` is retained for the plain renderer's one-line tool format;
 the TUI ToolCard uses spinner→`TOOL_OK`. `OUTPUT_ELBOW`'s fallback `|_` is
 the second multi-char ASCII fallback after NEST_*.
+
+Contract v2 addition (tui-redesign-spec §3.2 trim policy, phase R7):
+`APPROX` (`≈` → `~`) — lead-in of the static trim placeholder
+(`≈ N earlier turns · /resume to reload`) that replaces flattened oldest
+blocks once the transcript exceeds the 500-block bound.
 """
 from __future__ import annotations
 
@@ -47,6 +52,7 @@ TOOL_OK = "⏺"        # U+23FA  settled tool card (contract v2, R3)
 OUTPUT_ELBOW = "⎿"   # U+23BF  tool output lead-in (contract v2, R3)
 CHEVRON_CLOSED = "▸"  # U+25B8  collapsed output expander (contract v2, R3)
 CHEVRON_OPEN = "▾"   # U+25BE  expanded output expander (contract v2, R3)
+APPROX = "≈"         # U+2248  trim-placeholder lead-in (contract v2, R7)
 
 
 # UI-SPEC `--no-unicode` fallback table (M9-07 plan §interfaces).
@@ -71,6 +77,7 @@ NO_UNICODE_FALLBACK: dict[str, str] = {
     "OUTPUT_ELBOW": "|_",
     "CHEVRON_CLOSED": ">",
     "CHEVRON_OPEN": "v",
+    "APPROX": "~",
 }
 
 
@@ -94,6 +101,7 @@ _ALLOWLIST = frozenset(
         "OUTPUT_ELBOW",
         "CHEVRON_CLOSED",
         "CHEVRON_OPEN",
+        "APPROX",
     }
 )
 

@@ -22,6 +22,7 @@ from uuid import uuid4
 from rich.text import Text
 
 from .. import render as render_mod
+from . import glyphs
 from .app import VossTUIApp
 from .widgets import (
     BudgetExhaustedModal,
@@ -153,7 +154,8 @@ class TextualRenderer:
         status = self._status()
         if status is None:
             return
-        self._post(status.set_persistent_toast, f"⏵ {label}")
+        # glyphs.TOOL_CALL (not a literal ⏵) so --no-unicode downgrades (R7).
+        self._post(status.set_persistent_toast, f"{glyphs.TOOL_CALL} {label}")
 
     def show_plan(self, plan: Any, *, cost_usd: float) -> None:
         rationale = getattr(plan, "rationale", "") or ""
@@ -463,7 +465,7 @@ class TextualRenderer:
         self, *, architecture_tokens: int, budget: int = 6000
     ) -> None:
         body = (
-            f"⚠ architecture.md is {architecture_tokens} tokens "
+            f"{glyphs.WARN} architecture.md is {architecture_tokens} tokens "
             f"(over {budget} budget) — /analyze can rewrite a tighter digest"
         )
         tv = self._turn_view()
@@ -475,7 +477,7 @@ class TextualRenderer:
         self, *, principles_tokens: int, budget: int = 1000
     ) -> None:
         body = (
-            f"⚠ principles block is {principles_tokens} tokens "
+            f"{glyphs.WARN} principles block is {principles_tokens} tokens "
             f"(over {budget} budget) — truncated"
         )
         tv = self._turn_view()
@@ -487,7 +489,7 @@ class TextualRenderer:
         tv = self._turn_view()
         if tv is None:
             return
-        self._post(tv.append_turn, "warning", f"⚠ {msg}")
+        self._post(tv.append_turn, "warning", f"{glyphs.WARN} {msg}")
 
     # ------------------------------------------------------------------
     # M9-05 modal hooks. Called from worker threads via the permissions

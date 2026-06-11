@@ -1,5 +1,5 @@
 ---
-phase: V20-edict-residue-hardening
+phase: V20-harness-residue-hardening
 plan: 02
 type: execute
 wave: 1
@@ -10,7 +10,7 @@ files_modified:
   - voss/eval/summary.py
   - tests/eval/test_friction.py
 autonomous: true
-requirements: [VEDR-02]
+requirements: [VRES-02]
 must_haves:
   truths:
     - "Fixture transcript with N planted failed tool calls scores friction.failed_tools == N; zero-failure record scores 0 across all fields"

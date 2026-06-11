@@ -347,8 +347,9 @@ async def test_paste_over_threshold_collapses_to_chip() -> None:
     app = VossTUIApp()
     async with app.run_test() as pilot:
         bar = pilot.app.query_one("#input", InputBar)
-        ta = bar.query_one("#input-textarea")
-        ta.post_message(events.Paste(BIG_PASTE))
+        # Post via the app — production pastes arrive at the App, which
+        # forwards one event to the focused widget (the input textarea).
+        pilot.app.post_message(events.Paste(BIG_PASTE))
         await pilot.pause()
         assert bar.text == "[pasted 8 lines]"
         assert bar._pasted_blobs["[pasted 8 lines]"] == BIG_PASTE
@@ -359,8 +360,7 @@ async def test_paste_under_threshold_inserts_raw() -> None:
     app = VossTUIApp()
     async with app.run_test() as pilot:
         bar = pilot.app.query_one("#input", InputBar)
-        ta = bar.query_one("#input-textarea")
-        ta.post_message(events.Paste(SMALL_PASTE))
+        pilot.app.post_message(events.Paste(SMALL_PASTE))
         await pilot.pause()
         assert bar.text == SMALL_PASTE
         assert bar._pasted_blobs == {}
@@ -377,9 +377,8 @@ async def test_paste_chip_expands_on_submit() -> None:
     app._turn_dispatch = _dispatch
     async with app.run_test() as pilot:
         bar = pilot.app.query_one("#input", InputBar)
-        ta = bar.query_one("#input-textarea")
-        ta.insert("context: ")
-        ta.post_message(events.Paste(BIG_PASTE))
+        bar.insert("context: ")
+        pilot.app.post_message(events.Paste(BIG_PASTE))
         await pilot.pause()
         await bar.action_submit()
         await pilot.pause()
@@ -392,9 +391,8 @@ async def test_backspace_at_chip_boundary_deletes_whole_chip() -> None:
     app = VossTUIApp()
     async with app.run_test() as pilot:
         bar = pilot.app.query_one("#input", InputBar)
-        ta = bar.query_one("#input-textarea")
-        ta.insert("keep ")
-        ta.post_message(events.Paste(BIG_PASTE))
+        bar.insert("keep ")
+        pilot.app.post_message(events.Paste(BIG_PASTE))
         await pilot.pause()
         assert bar.text == "keep [pasted 8 lines]"
         await pilot.press("backspace")

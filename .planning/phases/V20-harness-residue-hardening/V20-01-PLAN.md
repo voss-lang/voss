@@ -1,5 +1,5 @@
 ---
-phase: V20-edict-residue-hardening
+phase: V20-harness-residue-hardening
 plan: 01
 type: execute
 wave: 1
@@ -9,7 +9,7 @@ files_modified:
   - voss/cli.py
   - tests/cli/test_sync.py
 autonomous: true
-requirements: [VEDR-01]
+requirements: [VRES-01]
 must_haves:
   truths:
     - "A hand-edited managed doc makes `voss sync --check` exit non-zero and name the stale artifact; clean state exits 0"

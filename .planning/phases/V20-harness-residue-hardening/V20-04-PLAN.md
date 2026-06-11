@@ -1,5 +1,5 @@
 ---
-phase: V20-edict-residue-hardening
+phase: V20-harness-residue-hardening
 plan: 04
 type: execute
 wave: 2
@@ -10,7 +10,7 @@ files_modified:
   - voss/harness/cli.py
   - tests/harness/board/test_critical_tier.py
 autonomous: true
-requirements: [VEDR-04]
+requirements: [VRES-04]
 must_haves:
   truths:
     - "A critical-tier card with all-pass A/B reviewers CANNOT reach Done — gate refuses with failing clause 'human' until an explicit human approval record exists"

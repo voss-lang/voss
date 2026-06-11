@@ -1,5 +1,5 @@
 ---
-phase: V20-edict-residue-hardening
+phase: V20-harness-residue-hardening
 plan: 05
 type: execute
 wave: 1
@@ -12,7 +12,7 @@ files_modified:
   - voss/harness/board/stub.py
   - tests/harness/board/test_done_gate_tier.py
 autonomous: true
-requirements: [VEDR-05]
+requirements: [VRES-05]
 must_haves:
   truths:
     - "Done gate invokes Reviewer-B with tier='strong' (spy-asserted in a board test); ReviewerVerdict.tier persisted in the review sidecar says 'strong' at Done"

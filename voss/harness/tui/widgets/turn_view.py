@@ -343,6 +343,37 @@ class RoleBlock(Static):
         return self._plain
 
 
+# Trim policy (spec §3.2, R7): above TRIM_THRESHOLD mounted blocks the
+# oldest blocks are flattened into one static placeholder, keeping the
+# newest TRIM_KEEP — bounds widget count on long sessions (RichLog had
+# `max_lines`; a widget transcript needs an equivalent).
+TRIM_THRESHOLD = 500
+TRIM_KEEP = 400
+
+
+class TrimPlaceholder(Static):
+    """Static stand-in for trimmed-away oldest blocks (spec §3.2, R7).
+
+    Always TranscriptView's first child once trimming has tripped; its
+    count grows on every subsequent trim:
+
+        ≈ 110 earlier turns · /resume to reload
+    """
+
+    DEFAULT_CLASSES = ""
+
+    def __init__(self, **kw) -> None:
+        super().__init__(**kw)
+        self._count = 0
+
+    def set_count(self, count: int) -> None:
+        self._count = count
+        self.update(Text(self.plain_text(), style="dim"))
+
+    def plain_text(self) -> str:
+        return f"{glyphs.APPROX} {self._count} earlier turns · /resume to reload"
+
+
 class TranscriptView(VerticalScroll):
     """Scrollable block transcript (spec §3.2) — keeps id `#main`.
 
@@ -383,6 +414,9 @@ class TranscriptView(VerticalScroll):
         # R4 inline agent trees (spec §3.5): one spawn parent card per
         # parent_id; child progress lines + gather mutate it in place.
         self._agent_trees: dict[str, AgentTreeCard] = {}
+        # R7 trim policy (spec §3.2): one placeholder, cumulative count.
+        self._trim_placeholder: TrimPlaceholder | None = None
+        self._trimmed_count = 0
 
     def compose(self):
         yield HomeScreen()
@@ -417,8 +451,40 @@ class TranscriptView(VerticalScroll):
                 self.mount(widget)
         else:
             self.mount(widget)
+        if len(self.children) > TRIM_THRESHOLD:  # cheap count check (R7)
+            self._trim()
         if pinned:
             self.call_after_refresh(self.scroll_end, animate=False)
+
+    def _trim(self) -> None:
+        """Flatten the oldest blocks into the static placeholder (spec §3.2).
+
+        Keeps the newest TRIM_KEEP real blocks; HomeScreen / WorkingIndicator
+        / the placeholder itself are never trimmed. Trimmed ToolCard /
+        AgentTreeCard ids are dropped from the in-place-update registries so
+        a late settle for a trimmed call is a no-op, not a crash.
+        """
+        blocks = [
+            c
+            for c in self.children
+            if not isinstance(c, (HomeScreen, WorkingIndicator, TrimPlaceholder))
+        ]
+        doomed = blocks[:-TRIM_KEEP]
+        if not doomed:
+            return
+        doomed_set = set(doomed)
+        self._tool_cards = {
+            k: v for k, v in self._tool_cards.items() if v not in doomed_set
+        }
+        self._agent_trees = {
+            k: v for k, v in self._agent_trees.items() if v not in doomed_set
+        }
+        self._trimmed_count += len(doomed)
+        self.remove_children(doomed)
+        if self._trim_placeholder is None:
+            self._trim_placeholder = TrimPlaceholder()
+            self.mount(self._trim_placeholder, before=0)
+        self._trim_placeholder.set_count(self._trimmed_count)
 
     # ------------------------------------------------------------------
     # block factories (spec §3.2)
@@ -644,11 +710,12 @@ class TranscriptView(VerticalScroll):
     # ------------------------------------------------------------------
 
     def _nav_blocks(self) -> list[Widget]:
-        """Navigable children — skips HomeScreen and WorkingIndicator."""
+        """Navigable children — skips HomeScreen, WorkingIndicator and the
+        static trim placeholder."""
         return [
             c
             for c in self.children
-            if not isinstance(c, (HomeScreen, WorkingIndicator))
+            if not isinstance(c, (HomeScreen, WorkingIndicator, TrimPlaceholder))
         ]
 
     def focused_block(self) -> Widget | None:

@@ -19,6 +19,9 @@ def test_locked_glyph_codepoints() -> None:
     R3 rule: `TOOL_OK` (U+23FA), `OUTPUT_ELBOW` (U+23BF), and
     `CHEVRON_CLOSED`/`CHEVRON_OPEN` (U+25B8/U+25BE) join for ToolCards.
     `TOOL_CALL ⏵` is retained for the plain renderer's one-line format.
+
+    R7 rule: `APPROX` (U+2248) joins for the trim-policy placeholder
+    (`≈ N earlier turns · /resume to reload`, spec §3.2).
     """
     assert glyphs.PROMPT == "▌"
     assert glyphs.USER_INPUT == "❯"
@@ -37,6 +40,7 @@ def test_locked_glyph_codepoints() -> None:
     assert glyphs.OUTPUT_ELBOW == "⎿"
     assert glyphs.CHEVRON_CLOSED == "▸"
     assert glyphs.CHEVRON_OPEN == "▾"
+    assert glyphs.APPROX == "≈"
 
 
 def test_glyph_not_in_allowlist_raises() -> None:

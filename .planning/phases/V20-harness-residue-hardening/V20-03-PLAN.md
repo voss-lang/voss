@@ -1,5 +1,5 @@
 ---
-phase: V20-edict-residue-hardening
+phase: V20-harness-residue-hardening
 plan: 03
 type: execute
 wave: 1
@@ -9,7 +9,7 @@ files_modified:
   - voss/harness/em/handle.py
   - tests/harness/test_mission_brief.py
 autonomous: true
-requirements: [VEDR-03]
+requirements: [VRES-03]
 must_haves:
   truths:
     - "A worker dispatched while sibling cards are in flight receives a prompt containing the outcome line, sibling roster (role + task one-liner), and claimed-scope file hints"

@@ -20,6 +20,9 @@ ASCII cycle `|/-\\` (the only entry whose fallback is a frame SET, not a
 Contract v2 rebaseline (tui-redesign-spec §4.2, phase R3 — ToolCards):
 `TOOL_OK` (`⏺` → `*`), `OUTPUT_ELBOW` (`⎿` → `|_`), `CHEVRON_CLOSED`
 (`▸` → `>`), and `CHEVRON_OPEN` (`▾` → `v`) join the table.
+
+Contract v2 rebaseline (tui-redesign-spec §3.2 trim policy, phase R7):
+`APPROX` (`≈` → `~`) joins the table for the transcript trim placeholder.
 """
 from __future__ import annotations
 
@@ -48,6 +51,7 @@ _FALLBACK_PAIRS = [
     ("OUTPUT_ELBOW", "⎿", "|_"),
     ("CHEVRON_CLOSED", "▸", ">"),
     ("CHEVRON_OPEN", "▾", "v"),
+    ("APPROX", "≈", "~"),
 ]
 
 

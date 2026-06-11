@@ -2344,21 +2344,21 @@ Plans:
 
 **Seed source:** [`seeds/SEED-002-codebase-rag-tiered-indexing.md`](seeds/SEED-002-codebase-rag-tiered-indexing.md) (enriched 2026-06-11; design notes + breadcrumbs there).
 
-### Phase V20: Edict Residue Hardening
+### Phase V20: Harness Residue Hardening
 
-**Goal:** Ship the small, confirmed residue of `edict` principles genuinely missing from the built harness — nothing else. Audit verdict (2026-06-11): Voss already out-built edict on the hard parts (V4 spine, budget cages, V5 double-gate, hash-fences, claims); V20 closes only five cheap, in-tree gaps: (1) `voss sync --check` drift gate + managed-doc edit-guard (manifest hashes are write-only today; docs silently clobber user edits), (2) friction scoring — pure reducer over already-recorded failures[]/validation[] into one eval row field + summary column, (3) worker mission brief — agent_task/dispatch_card inject outcome + sibling roster + claimed-scope hints from claims + ticket table, (4) `critical` risk tier with a human-approval Done predicate no agent verdict can clear + operator approve/reject verb, (5) **BUG** Reviewer-B runs fast tier at the Done gate (`b_passes` passes no tier; contract says B.strong at →Done) + B gains a card-borne repo_context field. All gaps re-confirmed against source at planning time (`V20-CONTEXT.md` has file:line evidence).
+**Goal:** Ship the small, confirmed residue of harness-principles gaps — nothing else. Audit verdict (2026-06-11): the hard parts are already built (V4 spine, budget cages, V5 double-gate, hash-fences, claims); V20 closes only five cheap, in-tree gaps: (1) `voss sync --check` drift gate + managed-doc edit-guard (manifest hashes are write-only today; docs silently clobber user edits), (2) friction scoring — pure reducer over already-recorded failures[]/validation[] into one eval row field + summary column, (3) worker mission brief — agent_task/dispatch_card inject outcome + sibling roster + claimed-scope hints from claims + ticket table, (4) `critical` risk tier with a human-approval Done predicate no agent verdict can clear + operator approve/reject verb, (5) **BUG** Reviewer-B runs fast tier at the Done gate (`b_passes` passes no tier; contract says B.strong at →Done) + B gains a card-borne repo_context field. All gaps re-confirmed against source at planning time (`V20-CONTEXT.md` has file:line evidence).
 
 **Plans:** 01 sync-check, 02 friction, 03 mission-brief, 05 B-strong-tier (all wave 1, independent) → 04 critical-tier (wave 2, depends on 05 — both edit the Done predicate tuples). Tests-first per plan; 05 is a correctness fix committed separately.
 
-**Requirements:** VEDR-01..05 (V-track phase — confirmations + requirements live in `V20-CONTEXT.md`, not REQUIREMENTS.md).
+**Requirements:** VRES-01..05 (V-track phase — confirmations + requirements live in `V20-CONTEXT.md`, not REQUIREMENTS.md).
 
 **Out of scope (scoped one paragraph each in `V20-DEFERRED-SCOPING.md`, operator promotes individually):** mid-task 429 failover on the default OAuth path (the real model gap — typed errors + FallbackProvider wrap + hung-stream triggers); board/EM crash-recovery rehydrate from the audit snapshot; coordination bus send/inbox/wait verbs (V17 05/06, V15-gated); gate-before-spend + idle backoff in the EM loop; PTY stuck-detection + health badges.
 
-- [ ] V20-01-PLAN.md — `voss sync --check` drift gate + managed-doc edit-guard [VEDR-01]
-- [ ] V20-02-PLAN.md — friction reducer + eval row field + summary column [VEDR-02]
-- [ ] V20-03-PLAN.md — mission brief (outcome + siblings + claimed scopes) at dispatch [VEDR-03]
-- [ ] V20-04-PLAN.md — critical risk tier + human_approved gate + approve/reject verb [VEDR-04]
-- [ ] V20-05-PLAN.md — BUG: Reviewer-B strong tier at Done + repo_context card field [VEDR-05]
+- [ ] V20-01-PLAN.md — `voss sync --check` drift gate + managed-doc edit-guard [VRES-01]
+- [ ] V20-02-PLAN.md — friction reducer + eval row field + summary column [VRES-02]
+- [ ] V20-03-PLAN.md — mission brief (outcome + siblings + claimed scopes) at dispatch [VRES-03]
+- [ ] V20-04-PLAN.md — critical risk tier + human_approved gate + approve/reject verb [VRES-04]
+- [ ] V20-05-PLAN.md — BUG: Reviewer-B strong tier at Done + repo_context card field [VRES-05]
 
 ### Phase V21: Global Cross-Project Memory
 

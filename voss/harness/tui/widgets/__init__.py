@@ -30,6 +30,7 @@ from .turn_view import (
     HomeScreen,
     SideRegion,
     TranscriptView,
+    TrimPlaceholder,
     UserBlock,
 )
 from .voss_py_diff_modal import VossPyDiffModal
@@ -70,6 +71,7 @@ __all__ = [
     "Toast",
     "ToolCard",
     "TranscriptView",
+    "TrimPlaceholder",
     "UserBlock",
     "VossPyDiffModal",
     "WorkingIndicator",
