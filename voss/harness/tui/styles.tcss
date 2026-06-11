@@ -129,7 +129,7 @@ MentionPalette {
     border: round $accent;
 }
 
-/* M9-08 CodeIntelPanel (side-region default, peer to SubAgentPanel) */
+/* M9-08 CodeIntelPanel (sole side-region occupant since R4) */
 CodeIntelPanel {
     border-left: solid $dim;
     padding: 1 2;

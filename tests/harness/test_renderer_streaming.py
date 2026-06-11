@@ -216,8 +216,13 @@ class TestTextualRendererDelegates:
         assert recorded[0][0] == "stream_delta"
         assert recorded[0][1] == ("hello",)
 
-        assert recorded[1][0] == "finalize_stream"
-        assert recorded[1][2] == {
+        # R2 rebaseline (tui-redesign-spec §3.6/§6.3): stream_delta also
+        # ticks the working-indicator token estimate via a coalesced
+        # update_working post, so it lands between the two original calls.
+        assert recorded[1][0] == "update_working"
+
+        assert recorded[-1][0] == "finalize_stream"
+        assert recorded[-1][2] == {
             "role": "assistant",
             "confidence": 0.92,
             "cost_usd": 0.012,

@@ -1,6 +1,7 @@
 """Voss TUI widget public surface (M9-02 + M9-05)."""
 from __future__ import annotations
 
+from .agent_tree import AgentTreeCard
 from .budget_meter import BudgetMeter
 from .budget_modal import BudgetChoice, BudgetExhaustedModal
 from .budget_trace_modal import BudgetTraceModal, BudgetTraceRow
@@ -23,7 +24,7 @@ from .permission_modal import (
 from .slash_palette import SlashPalette, rank_commands
 from .status_line import StatusLine
 from .code_intel_panel import CodeIntelPanel
-from .sub_agent_panel import SubAgentPanel
+from .tool_card import ToolCard
 from .turn_view import (
     AssistantBlock,
     HomeScreen,
@@ -32,8 +33,10 @@ from .turn_view import (
     UserBlock,
 )
 from .voss_py_diff_modal import VossPyDiffModal
+from .working_indicator import WorkingIndicator
 
 __all__ = [
+    "AgentTreeCard",
     "AssistantBlock",
     "BudgetChoice",
     "BudgetExhaustedModal",
@@ -65,10 +68,11 @@ __all__ = [
     "SideRegion",
     "SlashPalette",
     "StatusLine",
-    "SubAgentPanel",
+    "ToolCard",
     "TranscriptView",
     "UserBlock",
     "VossPyDiffModal",
+    "WorkingIndicator",
     "gather_files",
     "rank_commands",
     "rank_files",

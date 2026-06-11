@@ -10,6 +10,16 @@ from voss.harness.tui import glyphs
 
 
 def test_locked_glyph_codepoints() -> None:
+    """Locked glyph table — contract v2 rebaseline (R2+R3, spec §4.2).
+
+    R2 rule: `WORKING` (U+2726) and `SPINNER_FRAMES` (U+2800 braille
+    block) join the allow-list for the R2 working indicator. SPINNER_FRAMES
+    is a multi-char string constant iterated by index, not a single glyph.
+
+    R3 rule: `TOOL_OK` (U+23FA), `OUTPUT_ELBOW` (U+23BF), and
+    `CHEVRON_CLOSED`/`CHEVRON_OPEN` (U+25B8/U+25BE) join for ToolCards.
+    `TOOL_CALL ⏵` is retained for the plain renderer's one-line format.
+    """
     assert glyphs.PROMPT == "▌"
     assert glyphs.USER_INPUT == "❯"
     assert glyphs.TOOL_CALL == "⏵"
@@ -21,6 +31,12 @@ def test_locked_glyph_codepoints() -> None:
     assert glyphs.NEST_LAST == "└─"
     assert glyphs.NEST_MID == "├─"
     assert glyphs.FORK == "⎇"
+    assert glyphs.WORKING == "✦"
+    assert glyphs.SPINNER_FRAMES == "⠋⠙⠹⠸⠼⠴⠦⠧"
+    assert glyphs.TOOL_OK == "⏺"
+    assert glyphs.OUTPUT_ELBOW == "⎿"
+    assert glyphs.CHEVRON_CLOSED == "▸"
+    assert glyphs.CHEVRON_OPEN == "▾"
 
 
 def test_glyph_not_in_allowlist_raises() -> None:

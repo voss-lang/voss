@@ -113,7 +113,7 @@ class RecordingRenderer:
     def show_user(self, task): pass
     def show_thinking(self, label): self.thinking_calls.append(label)
     def show_plan(self, plan, *, cost_usd): self.plan_calls.append(plan)
-    def show_tool_call(self, name, args, summary, state):
+    def show_tool_call(self, call_id, name, args, summary, state, **kw):
         self.tool_calls.append((name, args, summary, state))
     def show_clarify(self, question, confidence):
         self.clarify_calls.append((question, confidence))

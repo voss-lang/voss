@@ -1,52 +1,33 @@
-"""M13 Wave-0 RED scaffold — quiet-by-default reveal + post-gather clean.
+"""R4 inline AgentTree — quiet-by-default reveal + post-gather settle.
 
-Pins MAG-02 (quiet-by-default panel + Ctrl+O reveal of streamed child
-steps; BudgetMeter leaves the em-dash placeholder and increments) and
-MAG-07 (post fan-out + gather: zero SubAgentPanel, M9-08 region snapshot
-restored) from M13-VALIDATION.md.
+Rewrites the M13 Wave-0 SubAgentPanel scaffold to the inline model
+(tui-redesign-spec §3.5): the side panel is retired; a spawn renders as
+an AgentTreeCard parent in the transcript, child step lines nest under it
+with the locked NEST glyphs, ctrl+o (action_toggle_detail, spec §7.2)
+reveals them, and the final gather settles the parent in place.
 
-Modeled on tests/harness/tui/test_live_visualization.py:25-49
-(`VossTUIApp().run_test()` + `pilot.pause()` + `query(SubAgentPanel)`).
-Matches the neighbor file's explicit `@pytest.mark.asyncio` style even
-though `asyncio_mode="auto"`.
-
-Threats: T-M13-orphan (orphaned child tasks / leaked panels, DoS) and
-T-M13-ui-thread (cross-thread widget mutation, Tampering) —
-M13-VALIDATION.md §"Security Domain". The pilot exercises the renderer/app
-seam on the app's own loop (no worker threads introduced).
-
-Wave-0 discipline: `action_toggle_subagent_detail` (W2B) and the
-multiagent fan-out path (W2A) do not exist yet. The reveal/fan-out
-dependent tests are `@pytest.mark.xfail(strict=False)` so they COLLECT
-but run RED-by-design. `voss.harness.multiagent` is never imported at
-module scope. No production code is written here.
+Intent preserved from the scaffold:
+- MAG-02 / D-09 quiet-by-default: child steps stay hidden while the live
+  budget counter ticks; the global toggle reveals them.
+- MAG-07 post-gather clean: gather settles every parent (idempotent
+  re-gather is a no-op) and the side region is never touched by spawns.
 """
 from __future__ import annotations
 
 import pytest
 
+from voss.harness.tui import glyphs
 from voss.harness.tui.app import VossTUIApp
 from voss.harness.tui.renderer import TextualRenderer
-from voss.harness.tui.widgets import SubAgentPanel
+from voss.harness.tui.widgets import AgentTreeCard, TranscriptView
 
 
-@pytest.mark.xfail(
-    reason="W2B action_toggle_subagent_detail / quiet-by-default not yet implemented",
-    raises=(AttributeError, ImportError, AssertionError),
-    strict=False,
-)
 class TestQuietByDefault:
-    """MAG-02: panel body hidden by default; Ctrl+O reveals streamed steps.
-
-    (a) BudgetMeter leaves the em-dash placeholder and `update_budget`
-        increments ≥1× before collapse;
-    (b) body Vertical (`#panel-body-{parent_id}`) display == "none" by
-        default; after `app.action_toggle_subagent_detail()` it contains
-        ≥1 streamed-step Static.
-    """
+    """D-09: collapsed parent shows ONLY the spawn line + budget counter;
+    ctrl+o reveals the streamed child step rows."""
 
     @pytest.mark.asyncio
-    async def test_body_hidden_until_toggle_reveals_streamed_step(self) -> None:
+    async def test_children_hidden_until_toggle_reveals_streamed_step(self) -> None:
         app = VossTUIApp()
         async with app.run_test() as pilot:
             renderer = TextualRenderer(app=pilot.app)
@@ -55,32 +36,33 @@ class TestQuietByDefault:
             renderer.show_subagent_progress("abc", "child step line", 500)
             await pilot.pause()
 
-            body = pilot.app.query_one("#panel-body-abc")
-            assert str(body.styles.display) == "none", (
-                "panel body is not quiet-by-default (expected display:none)"
+            tv = pilot.app.query_one("#main", TranscriptView)
+            card = tv.get_agent_tree("abc")
+            assert card is not None, "spawn did not mount an inline AgentTreeCard"
+            assert card.expanded is False
+            text = card.plain_text()
+            assert "spawn reviewer" in text
+            assert "child step line" not in text, (
+                "child step visible while collapsed (D-09 quiet-by-default breach)"
             )
 
-            pilot.app.action_toggle_subagent_detail()
+            pilot.app.action_toggle_detail()
             await pilot.pause()
 
-            body = pilot.app.query_one("#panel-body-abc")
-            from textual.widgets import Static
+            assert card.expanded is True
+            text = card.plain_text()
+            assert "child step line" in text, "toggle did not reveal the child step"
+            assert glyphs.NEST_LAST in text, "child row lacks the locked NEST glyph"
 
-            steps = list(body.query(Static))
-            assert str(body.styles.display) == "block"
-            assert len(steps) >= 1, "no streamed child step revealed after toggle"
+            # Toggle back: collapsed again (global expand/collapse-all).
+            pilot.app.action_toggle_detail()
+            await pilot.pause()
+            assert card.expanded is False
 
     @pytest.mark.asyncio
-    async def test_budget_meter_leaves_em_dash_and_increments(self) -> None:
-        """MAG-02 (a): budget ticks ≥1× WHILE the panel stays quiet.
-
-        The budget-meter half is already wired in M9, so asserting it
-        alone would vacuously pass (a Wave-0 false-green / T-M13-01).
-        This test therefore couples the budget assertion to the
-        quiet-by-default invariant (D-09) — the body Vertical must be
-        `display:none` by default — which is NOT implemented until W2B.
-        That makes the whole test genuinely RED at Wave 0.
-        """
+    async def test_budget_counter_ticks_while_quiet(self) -> None:
+        """MAG-02 (a): the live budget metric increments on the parent's
+        right metric WHILE the child rows stay hidden."""
         app = VossTUIApp()
         async with app.run_test() as pilot:
             renderer = TextualRenderer(app=pilot.app)
@@ -91,55 +73,47 @@ class TestQuietByDefault:
             renderer.show_subagent_progress("abc", "step 2", 900)
             await pilot.pause()
 
-            panel = next(
-                p
-                for p in pilot.app.query(SubAgentPanel)
-                if p.parent_id == "abc"
-            )
-            assert panel.budget_total > 0, "BudgetMeter never left em-dash"
-            assert panel.budget_used >= 1, "budget meter did not increment"
-            # Quiet-by-default (D-09) — RED until W2B: streamed steps must
-            # NOT flood the visible body while the panel is compact.
-            body = pilot.app.query_one("#panel-body-abc")
-            assert str(body.styles.display) == "none", (
-                "panel body is not quiet-by-default (D-09 not implemented) — "
-                "budget ticked but the verbose step body is still visible"
-            )
-
-
-@pytest.mark.xfail(
-    reason="W2A multiagent fan-out + gather path not yet implemented",
-    raises=(AttributeError, ImportError, AssertionError),
-    strict=False,
-)
-class TestPostGatherRegionClean:
-    """MAG-07: after multi-child fan-out + gather, region is clean.
-
-    Zero SubAgentPanel mounted; `app._side_owner` / `app._side_pinned`
-    match a pre-spawn snapshot (M9-08 contract). Threat T-M13-orphan.
-    """
+            card = pilot.app.query_one("#main", TranscriptView).get_agent_tree("abc")
+            assert card is not None
+            assert card.budget_total == 2000
+            assert card.budget_used == 900, "budget counter did not increment"
+            text = card.plain_text()
+            assert "900/2.0k tok" in text, f"live budget metric missing: {text!r}"
+            # Quiet-by-default — the verbose step body must not be visible.
+            assert "step 1" not in text
+            assert "step 2" not in text
 
     @pytest.mark.asyncio
-    async def test_zero_panels_and_region_snapshot_restored(self) -> None:
-        # M13-04 scaffold-defect correction (pre-authorized): the M13-01
-        # scaffold drove a fictional `multiagent.MultiAgentOrchestrator(
-        # provider_factory=..., cwd=...).gather_all([...])` API that exists
-        # nowhere in the shipped M13-03 architecture. The REAL post-gather
-        # collapse seam is `PanelBridgeRenderer(base, panel_id=...)
-        # .end_panel(n)` -> `base.show_subagent_end` ->
-        # `app.collapse_subagent` (the M9-08 region restore). The MAG-07
-        # signal bar (zero panels + `_side_owner`/`_side_pinned` restored
-        # to the pre-spawn snapshot) is preserved verbatim below.
+    async def test_card_mounted_while_expanded_mode_mounts_expanded(self) -> None:
+        """Spec §7.2: newly mounted cards while expanded-mode is on mount
+        expanded (mirrors the old `_subagent_detail_visible` semantics)."""
+        app = VossTUIApp()
+        async with app.run_test() as pilot:
+            pilot.app.action_toggle_detail()  # expanded mode ON
+            renderer = TextualRenderer(app=pilot.app)
+            renderer.show_subagent_start("reviewer", "late", 1000)
+            await pilot.pause()
+            renderer.show_subagent_progress("late", "late step", 100)
+            await pilot.pause()
+
+            card = pilot.app.query_one("#main", TranscriptView).get_agent_tree("late")
+            assert card is not None
+            assert card.expanded is True
+            assert "late step" in card.plain_text()
+
+
+class TestPostGatherSettle:
+    """MAG-07 (inline model): gather settles every parent in place; spawns
+    never touch the side region; re-gather is idempotent."""
+
+    @pytest.mark.asyncio
+    async def test_gather_settles_parents_idempotently_and_side_untouched(self) -> None:
         from voss.harness.multiagent import PanelBridgeRenderer
 
         app = VossTUIApp()
         async with app.run_test() as pilot:
-            pre_owner = getattr(pilot.app, "_side_owner", None)
-            pre_pinned = getattr(pilot.app, "_side_pinned", None)
-
             renderer = TextualRenderer(app=pilot.app)
-            # Fan-out: two detached children, each pinned to one panel via
-            # the real M13-03 PanelBridgeRenderer (NOT touched by M13-04).
+            # Fan-out: two detached children via the real M13-03 bridge.
             bridge_a = PanelBridgeRenderer(renderer, panel_id="pa")
             bridge_b = PanelBridgeRenderer(renderer, panel_id="pb")
             bridge_a.start_panel(name="child-a", budget_total=1000)
@@ -149,13 +123,12 @@ class TestPostGatherRegionClean:
             bridge_b.step("child-b step", 100)
             await pilot.pause()
 
-            # Gather: end every child panel (the subagent_gather /
-            # _teardown_orphans collapse path M13-03 ships). M13-03's
-            # subagent_gather is documented IDEMPOTENT ("safe to call
-            # again") and _teardown_orphans is the second safety net —
-            # the real architecture's region restore completes once the
-            # last panel is actually out of the DOM, so we drive the
-            # idempotent re-gather exactly as the shipped tool does.
+            cards = list(pilot.app.query(AgentTreeCard))
+            assert len(cards) == 2, "fan-out did not mount one card per child"
+            assert all(c.state == "running" for c in cards)
+
+            # Gather every child; the shipped gather path is documented
+            # idempotent — drive it twice exactly as the tool does.
             bridge_a.end_panel(1)
             bridge_b.end_panel(1)
             await pilot.pause()
@@ -163,8 +136,20 @@ class TestPostGatherRegionClean:
             bridge_b.end_panel(1)
             await pilot.pause()
 
-            assert len(list(pilot.app.query(SubAgentPanel))) == 0, (
-                "SubAgentPanel leaked after gather (T-M13-orphan)"
+            tv = pilot.app.query_one("#main", TranscriptView)
+            cards = list(pilot.app.query(AgentTreeCard))
+            assert len(cards) == 2, "cards must persist inline after gather"
+            assert all(c.state == "ok" for c in cards), "gather did not settle"
+
+            card_a = tv.get_agent_tree("pa")
+            assert card_a is not None
+            card_a.expand()
+            text = card_a.plain_text()
+            assert text.count("gathered · 1 result") == 1, (
+                "re-gather appended a duplicate gathered row (not idempotent)"
             )
-            assert getattr(pilot.app, "_side_owner", None) == pre_owner
-            assert getattr(pilot.app, "_side_pinned", None) == pre_pinned
+            assert f"{glyphs.NEST_LAST} {glyphs.TOOL_OK} gathered" in text
+
+            # The side region is never touched by spawn/gather (spec §5.6).
+            side = pilot.app.query_one("#side")
+            assert str(side.styles.display) == "none"

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal
 
 from voss.harness.session import SessionRecord
 from voss.harness.slash import SlashRegistry
@@ -47,7 +47,7 @@ from .widgets import (
     LocalBlockShell,
     SideRegion,
     StatusLine,
-    SubAgentPanel,
+    ToolCard,
     TranscriptView,
 )
 
@@ -86,17 +86,15 @@ class VossTUIApp(App):
         # `focused_turn_index` defaults to the most recent turn.
         self.record: SessionRecord | None = None
         self.focused_turn_index: int | None = None
-        # M13-04: app-scoped sub-agent step-detail visibility (D-09 quiet-by-
-        # default). Applied uniformly across every mounted SubAgentPanel body
-        # by action_toggle_subagent_detail (one toggle, not per-panel state).
-        self._subagent_detail_visible: bool = False
+        # R4 (spec §7.2): app-scoped expand/collapse-all state (D-09 quiet-
+        # by-default). action_toggle_detail (ctrl+o) applies it uniformly to
+        # every mounted ToolCard / AgentTreeCard; cards mounted while
+        # expanded-mode is on mount expanded.
+        self._detail_expanded: bool = False
         # T1-06: tracks the in-flight agent turn task so action_interrupt
         # can cancel it. Cleared via add_done_callback when the task ends.
         self.active_turn_task: Optional[asyncio.Task] = None
-        # M9-08 CodeIntelPanel region-share state machine (default code_intel;
-        # SubAgentPanel wins on active spawn unless pinned).
-        self._side_owner: str = "code_intel"
-        self._side_pinned: bool = False
+        # R4 (spec §5.6): CodeIntelPanel is #side's only occupant.
         self._code_intel_panel: CodeIntelPanel | None = None
         # Last assistant response text, captured by TextualRenderer so
         # action_copy_code (ctrl+y) can yank its last fenced code block.
@@ -116,8 +114,14 @@ class VossTUIApp(App):
 
     def _clear_turn_task(self, task: asyncio.Task) -> None:
         # done_callback fires whether the task completed naturally or was
-        # cancelled — either way the slot is now free for the next turn.
+        # cancelled — either way the slot is now free for the next turn and
+        # the working indicator comes down (R2 spec §3.6: removed on
+        # finalize AND on interrupt — this single point covers both).
         self.active_turn_task = None
+        try:
+            self.query_one("#main", TranscriptView).hide_working()
+        except Exception:  # noqa: BLE001 — transcript absent in tests
+            pass
 
     def action_open_help(self) -> None:
         self.push_screen(HelpOverlay(KEYMAP, self.slash_registry))
@@ -172,6 +176,13 @@ class VossTUIApp(App):
         # Ctrl+C behavior: if a turn is running, cancel it. If idle, exit app.
         task = self.active_turn_task
         if task is not None and not task.done():
+            # R2 spec §3.3: the streamed block keeps its content and the
+            # footer reads `· interrupted`. Mark BEFORE cancelling so the
+            # agent's CancelledError finalize_stream consumes the flag.
+            try:
+                self.query_one("#main", TranscriptView).mark_interrupted()
+            except Exception:  # noqa: BLE001 — transcript absent in tests
+                pass
             task.cancel()
             return
         # No active turn — exit the Textual app (returns to normal terminal).
@@ -216,24 +227,22 @@ class VossTUIApp(App):
         self.push_screen(ForkConfirmModal(idx), _on_confirm)
 
     # ------------------------------------------------------------------
-    # M13-04 quiet-by-default sub-agent step-detail reveal (D-09 / MAG-02).
-    # Bound to ctrl+o (keymap.py "main" tier). Mirrors action_fork_turn's
-    # placement: a "main"-context action handler living on VossTUIApp.
+    # R4 global expand/collapse-all (spec §7.2, generalizes the M13-04
+    # sub-agent detail reveal — same ctrl+o key, superset behavior).
+    # Bound via keymap.py's "main" tier; D-09 quiet-by-default preserved.
     # ------------------------------------------------------------------
 
-    def action_toggle_subagent_detail(self) -> None:
-        # One app-scoped toggle applied uniformly to every mounted panel so
-        # panels mounted-while-revealed stay consistent with the global state.
-        self._subagent_detail_visible = not self._subagent_detail_visible
-        target = "block" if self._subagent_detail_visible else "none"
-        for panel in self.query(SubAgentPanel):
-            try:
-                body = panel.query_one(
-                    f"#panel-body-{panel.parent_id}", Vertical
-                )
-                body.styles.display = target
-            except Exception:  # noqa: BLE001 — panel mid-mount may lack body
-                pass
+    def action_toggle_detail(self) -> None:
+        # One app-scoped toggle applied uniformly to every mounted ToolCard
+        # (AgentTreeCard included — it subclasses ToolCard) so cards mounted
+        # while expanded-mode is on stay consistent with the global state
+        # (TranscriptView checks `_detail_expanded` at mount).
+        self._detail_expanded = not self._detail_expanded
+        for card in self.query(ToolCard):
+            if self._detail_expanded:
+                card.expand()
+            else:
+                card.collapse()
 
     def action_focus_next(self) -> None:
         super().action_focus_next()
@@ -242,97 +251,25 @@ class VossTUIApp(App):
         super().action_focus_previous()
 
     # ------------------------------------------------------------------
-    # M9-04 mutators called by TextualRenderer + RecorderBridge.
-    # ------------------------------------------------------------------
-
-    def mount_subagent_panel(self, panel: "SubAgentPanel") -> None:
-        self.show_subagent_panel()  # M9-08 ownership (respects pin)
-        side = self.query_one("#side")
-        side.mount(panel)
-        side.display = True
-        side.styles.display = "block"
-
-    def update_subagent(self, parent_id: str, body_line: str, used: int = 0) -> None:
-        for panel in self.query(SubAgentPanel):
-            if getattr(panel, "parent_id", None) == parent_id:
-                panel.append_body(body_line)
-                if used:
-                    panel.update_budget(used)
-                return
-
-    def collapse_subagent(self, parent_id: str, n_results: int = 0) -> None:
-        for panel in list(self.query(SubAgentPanel)):
-            if getattr(panel, "parent_id", None) == parent_id:
-                panel.remove()
-        # M9-08: if not pinned to sub_agent, restore CodeIntelPanel on final gather.
-        side = self.query_one("#side")
-        if not list(side.query(SubAgentPanel)):
-            if not self._side_pinned or self._side_owner == "code_intel":
-                self._side_owner = "code_intel"
-                if self._code_intel_panel:
-                    # Re-mount if it was removed during spawn
-                    if self._code_intel_panel not in list(side.children):
-                        side.mount(self._code_intel_panel)
-                    side.display = True
-                    side.styles.display = "block"
-            else:
-                side.display = False
-                side.styles.display = "none"
-        try:
-            self.query_one("#main", TranscriptView).append_turn(
-                "gather", f"✓ gathered · {n_results} results"
-            )
-        except Exception:  # noqa: BLE001
-            pass
-
-    # ------------------------------------------------------------------
-    # M9-08 CodeIntelPanel region-share + pin API (CODE-07 contract)
+    # R4 (spec §5.6): #side has exactly one occupant — CodeIntelPanel.
+    # The M9-08 region-share/pin state machine is deleted; show/hide only.
     # ------------------------------------------------------------------
 
     def show_code_intel_panel(self) -> None:
-        """Show / restore the CodeIntelPanel (default side occupant)."""
-        self._side_owner = "code_intel"
+        """Show the CodeIntelPanel (the side region's only occupant)."""
         side = self.query_one("#side")
         if self._code_intel_panel:
             if self._code_intel_panel not in list(side.children):
                 side.mount(self._code_intel_panel)
+            self._code_intel_panel.display = True
             side.display = True
             side.styles.display = "block"
 
-    def show_subagent_panel(self) -> None:
-        """Switch side region to SubAgentPanel (called on spawn when not pinned)."""
-        if self._side_pinned and self._side_owner == "code_intel":
-            return  # pinned to code intel, ignore auto switch
-        self._side_owner = "sub_agent"
-        # hide code intel while sub is active (unless pinned the other way)
-        if self._code_intel_panel and not self._side_pinned:
-            try:
-                self._code_intel_panel.display = False
-            except Exception:
-                pass
-
-    def pin_side_panel(self, owner: str) -> None:
-        """Pin the side region to 'code_intel' or 'sub_agent' (suspends auto-switch)."""
-        if owner in ("code_intel", "sub_agent"):
-            self._side_pinned = True
-            self._side_owner = owner
-            if owner == "code_intel":
-                self.show_code_intel_panel()
-            else:
-                self.show_subagent_panel()
-
-    def unpin_side_panel(self) -> None:
-        """Release the pin; auto-switching resumes on next spawn/gather."""
-        self._side_pinned = False
-        # restore sensible default
-        if not list(self.query(SubAgentPanel)):
-            self.show_code_intel_panel()
-
-    def restore_code_intel_panel(self) -> None:
-        """Explicit restore used by gather paths and pin release."""
-        self._side_owner = "code_intel"
-        self._side_pinned = False
-        self.show_code_intel_panel()
+    def hide_code_intel_panel(self) -> None:
+        """Hide the side region (back to the focused composer layout)."""
+        side = self.query_one("#side")
+        side.display = False
+        side.styles.display = "none"
 
     def update_inspected(self, paths: list[str]) -> None:
         try:
@@ -370,6 +307,12 @@ class VossTUIApp(App):
 
             task = asyncio.create_task(_done())
         self.register_turn_task(task)
+        # R2 spec §3.6: indicator appears on dispatch (≤ 100 ms). Removal is
+        # the task done_callback in _clear_turn_task.
+        try:
+            self.query_one("#main", TranscriptView).show_working()
+        except Exception:  # noqa: BLE001 — transcript absent in tests
+            pass
 
     def on_mention_palette_mention_submitted(self, event) -> None:
         """Insert the selected file path into the input, replacing the @token."""

@@ -1,13 +1,16 @@
 """TranscriptView widget — block transcript (main pane).
 
-TUI redesign spec §3.1/§3.2 (docs/tui-redesign-spec.md, phase R1). Replaces
-the RichLog-based TurnView: every transcript entry is a discrete, mutable
-child widget (UserBlock / AssistantBlock / RoleBlock / LocalBlock*), so later
-phases can update entries in place (tool cards R3, live markdown R2).
-Auto-scrolls to tail unless the user scrolled up; a new user message
-re-engages follow.
+TUI redesign spec §3.1/§3.2 (docs/tui-redesign-spec.md, phases R1+R2).
+Replaces the RichLog-based TurnView: every transcript entry is a discrete,
+mutable child widget (UserBlock / AssistantBlock / RoleBlock / LocalBlock*),
+so later phases can update entries in place (tool cards R3). R2 adds live
+markdown streaming (throttled ≤10 Hz) and the ephemeral WorkingIndicator
+(always last child while a turn runs). Auto-scrolls to tail unless the user
+scrolled up; a new user message re-engages follow.
 """
 from __future__ import annotations
+
+import time
 
 from rich.text import Text
 from textual.containers import VerticalScroll
@@ -15,6 +18,9 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from .. import glyphs
+from .agent_tree import AgentTreeCard
+from .tool_card import ToolCard
+from .working_indicator import WorkingIndicator
 
 
 EMPTY_HEADING = "type a message below to begin · / for commands"
@@ -86,20 +92,34 @@ class UserBlock(Static):
         return self._plain
 
 
+# Live-stream re-render throttle (spec §3.3): coalesce markdown re-parses to
+# ≤10 Hz. Chosen by R2 measurement: Rich Markdown re-render of a 20 KB doc
+# at width 100 is ~40 ms p95 (< 50 ms budget); Textual's Markdown widget
+# `update()` measured ~1.8 s at 20 KB and was rejected.
+STREAM_RENDER_INTERVAL_S = 0.1
+
+
 class AssistantBlock(Static):
     """Assistant block — 1-cell ● accent gutter + body column (spec §3.3).
 
-    R1 interim streaming: deltas accumulate into a buffer and the block is
-    updated in place (one widget per response, no per-delta writes).
-    `finalize` swaps the body to Markdown when the accumulated text is
-    provided and appends a dim metadata footer BELOW the body — fixing the
-    old header-below-body RichLog workaround. Throttled live markdown is R2.
+    R2 streaming: deltas accumulate into a buffer and the block re-renders
+    the buffer as live Rich Markdown in place, throttled to ≤10 Hz via a
+    coalescing `set_timer` (live markdown from the first token; no finalize
+    reflow pop). `finalize` cancels any pending coalesced render, renders the
+    complete final markdown exactly once more, and appends a dim metadata
+    footer BELOW the body — fixing the old header-below-body RichLog
+    workaround. On interrupt the streamed content is kept and the footer
+    reads `· interrupted`.
     """
 
     def __init__(self, body=None, *, plain: str = "", **kw) -> None:
         self._body = body if body is not None else Text("")
         self._footer: Text | None = None
         self._buffer: str = plain
+        self._finalized: bool = False
+        self._last_live_render: float = 0.0
+        self._live_timer = None
+        self._live_render_count: int = 0  # test hook: bounded by the throttle
         super().__init__(self._compose_renderable(), **kw)
 
     def _compose_renderable(self):
@@ -115,9 +135,44 @@ class AssistantBlock(Static):
         return Group(grid, self._footer)
 
     def stream_update(self, delta: str) -> None:
-        """Append one text delta and re-render the block in place."""
+        """Append one text delta; re-render live markdown, throttled ≤10 Hz.
+
+        The first delta renders immediately (live markdown from the first
+        token). Subsequent deltas inside the throttle window coalesce into
+        one pending `set_timer` render; headless callers (no running app
+        loop) fall back to rendering inline so content is never lost.
+        """
         self._buffer += delta
-        self._body = Text(self._buffer, no_wrap=False)
+        if self._finalized:
+            return
+        remaining = STREAM_RENDER_INTERVAL_S - (
+            time.monotonic() - self._last_live_render
+        )
+        if remaining <= 0:
+            if self._live_timer is not None:
+                try:
+                    self._live_timer.stop()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._live_timer = None
+            self._render_live()
+            return
+        if self._live_timer is None:
+            try:
+                self._live_timer = self.set_timer(remaining, self._render_live)
+            except Exception:  # noqa: BLE001 — set_timer needs a running app loop
+                self._render_live()
+
+    def _render_live(self) -> None:
+        """Re-render the accumulated buffer as live markdown, in place."""
+        from rich.markdown import Markdown
+
+        self._live_timer = None
+        if self._finalized:
+            return
+        self._last_live_render = time.monotonic()
+        self._live_render_count += 1
+        self._body = Markdown(self._buffer, code_theme="monokai")
         self.update(self._compose_renderable())
 
     def finalize(
@@ -128,16 +183,26 @@ class AssistantBlock(Static):
         cost_usd: float | None = None,
         timestamp: str | None = None,
         accumulated_text: str | None = None,
+        interrupted: bool = False,
     ) -> None:
-        """Seal the block: optional markdown swap + dim footer line.
+        """Seal the block: final markdown render (exactly once) + dim footer.
 
         Footer fields: role · timestamp · cost · conf — only present fields.
+        On interrupt the streamed content is kept and the footer gains a
+        trailing `· interrupted` marker (spec §3.3).
         """
-        if accumulated_text:
-            from rich.markdown import Markdown
+        from rich.markdown import Markdown
 
-            self._body = Markdown(accumulated_text, code_theme="monokai")
+        if self._live_timer is not None:
+            try:
+                self._live_timer.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            self._live_timer = None
+        self._finalized = True
+        if accumulated_text:
             self._buffer = accumulated_text
+        self._body = Markdown(self._buffer, code_theme="monokai")
         footer = Text(style="dim")
         footer.append(role)
         if timestamp:
@@ -146,6 +211,8 @@ class AssistantBlock(Static):
             footer.append(f" · ${cost_usd:.4f}")
         if confidence is not None:
             footer.append(f" · conf {confidence:.2f}")
+        if interrupted:
+            footer.append(" · interrupted")
         self._footer = footer
         self.update(self._compose_renderable())
 
@@ -202,6 +269,18 @@ class TranscriptView(VerticalScroll):
         self._turn_count = 0
         self._streaming: bool = False
         self._stream_block: AssistantBlock | None = None
+        # R2 working indicator (spec §3.6) — ephemeral, always last child
+        # while active. `_pending_interrupt` is set by app.action_interrupt
+        # so the cancellation path's finalize_stream gains the interrupted
+        # footer without a Renderer-protocol signature change.
+        self._working: WorkingIndicator | None = None
+        self._pending_interrupt: bool = False
+        # R3 tool cards (spec §3.4): one mutable card per call, keyed by the
+        # harness-minted call_id so the settled event updates in place.
+        self._tool_cards: dict[str, ToolCard] = {}
+        # R4 inline agent trees (spec §3.5): one spawn parent card per
+        # parent_id; child progress lines + gather mutate it in place.
+        self._agent_trees: dict[str, AgentTreeCard] = {}
 
     def compose(self):
         yield HomeScreen()
@@ -227,7 +306,15 @@ class TranscriptView(VerticalScroll):
             widget.styles.margin = (1, 0, 0, 0)
         pinned = force_follow or self.is_vertical_scroll_end
         self._turn_count += 1
-        self.mount(widget)
+        # WorkingIndicator stays the last child (spec §3.2): while active,
+        # every append mounts BEFORE it.
+        if self._working is not None and self._working in list(self.children):
+            try:
+                self.mount(widget, before=self._working)
+            except Exception:  # noqa: BLE001 — indicator mid-removal
+                self.mount(widget)
+        else:
+            self.mount(widget)
         if pinned:
             self.call_after_refresh(self.scroll_end, animate=False)
 
@@ -242,6 +329,106 @@ class TranscriptView(VerticalScroll):
     def add_local_block(self, widget: Widget) -> None:
         """Mount an existing LocalBlock* (shell/note/notice) as a child."""
         self._append_block(widget, separate=False)
+
+    def add_tool_card(self, call_id: str, name: str, args: dict) -> ToolCard:
+        """Mount one ToolCard keyed by call_id (spec §3.2, R3)."""
+        card = ToolCard(call_id, name, args)
+        if self._detail_mode_on():
+            card._expanded = True
+        self._tool_cards[call_id] = card
+        self._append_block(card, separate=False)
+        return card
+
+    def get_tool_card(self, call_id: str) -> ToolCard | None:
+        return self._tool_cards.get(call_id)
+
+    def _detail_mode_on(self) -> bool:
+        """App-scoped ctrl+o expand-all state (spec §7.2): cards mounted
+        while expanded-mode is on mount expanded."""
+        try:
+            return bool(getattr(self.app, "_detail_expanded", False))
+        except Exception:  # noqa: BLE001 — unmounted (headless tests)
+            return False
+
+    # ------------------------------------------------------------------
+    # inline agent trees (spec §3.5, R4)
+    # ------------------------------------------------------------------
+
+    def add_agent_tree(
+        self, parent_id: str, agent_name: str, budget_total: int = 0
+    ) -> AgentTreeCard:
+        """Mount one spawn parent card keyed by parent_id (idempotent while
+        the existing tree for that id is still running)."""
+        existing = self._agent_trees.get(parent_id)
+        if existing is not None and existing.state == "running":
+            return existing
+        card = AgentTreeCard(parent_id, agent_name, budget_total)
+        if self._detail_mode_on():
+            card._expanded = True
+        self._agent_trees[parent_id] = card
+        self._append_block(card, separate=False)
+        return card
+
+    def get_agent_tree(self, parent_id: str) -> AgentTreeCard | None:
+        return self._agent_trees.get(parent_id)
+
+    def update_agent_tree(self, parent_id: str, body_line: str, used: int = 0) -> None:
+        """Append a child step row + tick the parent's live budget metric."""
+        card = self._agent_trees.get(parent_id)
+        if card is not None:
+            card.add_child(body_line, used)
+
+    def settle_agent_tree(self, parent_id: str, n_results: int = 0) -> None:
+        """Final gather: settle the parent in place (idempotent)."""
+        card = self._agent_trees.get(parent_id)
+        if card is not None:
+            card.gather(n_results)
+
+    # ------------------------------------------------------------------
+    # working indicator (spec §3.2 / §3.6, R2)
+    # ------------------------------------------------------------------
+
+    @property
+    def working_active(self) -> bool:
+        return self._working is not None
+
+    def show_working(self, label: str = "working") -> None:
+        """Mount the WorkingIndicator as last child, or update its label.
+
+        Idempotent: dispatch (app) and turn start (renderer) may both call
+        this; the second call only updates the label.
+        """
+        if self._working is not None:
+            self._working.set_label(label)
+            return
+        indicator = WorkingIndicator(label)
+        self._working = indicator
+        self.mount(indicator)
+        if self.is_vertical_scroll_end:
+            self.call_after_refresh(self.scroll_end, animate=False)
+
+    def update_working(self, elapsed_s: float, tokens: int) -> None:
+        """Update the live metrics line (no-op when no indicator is active)."""
+        if self._working is not None:
+            self._working.update_metrics(elapsed_s, tokens)
+
+    def hide_working(self) -> None:
+        """Remove the WorkingIndicator (turn finalized or interrupted)."""
+        indicator, self._working = self._working, None
+        if indicator is not None:
+            try:
+                indicator.remove()
+            except Exception:  # noqa: BLE001 — already unmounted
+                pass
+
+    def mark_interrupted(self) -> None:
+        """Flag the in-flight turn as interrupted (app.action_interrupt).
+
+        Consumed by the next finalize_stream so the sealed AssistantBlock's
+        footer reads `· interrupted` (spec §3.3) — the agent's CancelledError
+        handler still drives the actual finalize call.
+        """
+        self._pending_interrupt = True
 
     # ------------------------------------------------------------------
     # append entry points (TextualRenderer non-stream paths)
@@ -321,13 +508,17 @@ class TranscriptView(VerticalScroll):
         cost_usd: float | None = None,
         timestamp: str | None = None,
         accumulated_text: str | None = None,
+        interrupted: bool = False,
     ) -> None:
-        """Seal the active streaming block (markdown swap + dim footer).
+        """Seal the active streaming block (final markdown + dim footer).
 
         The metadata lands as a footer BELOW the body inside the block —
         the old below-body "header" RichLog workaround is gone. Subsequent
-        stream_delta calls start a new block.
+        stream_delta calls start a new block. `interrupted` (or a pending
+        mark_interrupted flag) adds the `· interrupted` footer marker.
         """
+        interrupted = interrupted or self._pending_interrupt
+        self._pending_interrupt = False
         if not self._streaming:
             return
         if self._stream_block is not None:
@@ -337,6 +528,7 @@ class TranscriptView(VerticalScroll):
                 cost_usd=cost_usd,
                 timestamp=timestamp,
                 accumulated_text=accumulated_text,
+                interrupted=interrupted,
             )
             if self.is_vertical_scroll_end:
                 self.call_after_refresh(self.scroll_end, animate=False)
@@ -364,10 +556,10 @@ class TranscriptView(VerticalScroll):
 
 
 class SideRegion(VerticalScroll):
-    """Side region container — SubAgentPanel / CodeIntelPanel mount inside.
+    """Side region container — CodeIntelPanel is the sole occupant (R4 §5.6).
 
     Plain scroll container so the M9-02 layout test's `query_one("#side")`
-    still finds a widget; panels are mounted as children when spawn fires.
+    still finds a widget.
     """
 
     DEFAULT_CLASSES = ""

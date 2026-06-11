@@ -12,6 +12,7 @@ import functools
 import json
 import os
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -545,6 +546,15 @@ async def run_turn(
         data={"task_preview": preview, "cwd": str(cwd.resolve())},
     )
     try:
+        # R2 working indicator (tui-redesign-spec §3.6/§6.1): turn start.
+        # getattr-guarded — bridge/fake renderers may predate the protocol
+        # addition, and indicator failures must never crash the turn.
+        _show_working = getattr(renderer, "show_working", None)
+        if _show_working is not None:
+            try:
+                _show_working("working")
+            except Exception:  # noqa: BLE001
+                pass
         return await _run_turn_exec(
             task,
             tools=tools,
@@ -569,6 +579,14 @@ async def run_turn(
         _tel_err = str(e)[:500]
         raise
     finally:
+        # Indicator comes down however the turn ends (finalize, error,
+        # interrupt) — same guard rationale as show_working above.
+        _hide_working = getattr(renderer, "hide_working", None)
+        if _hide_working is not None:
+            try:
+                _hide_working()
+            except Exception:  # noqa: BLE001
+                pass
         telemetry.finalize_turn(_tel_ok, _tel_err)
 
 
@@ -692,6 +710,11 @@ async def _run_turn_exec(
         pending_steer: list[str] = []
         this_iter_plan: Plan | None = None
         this_iter_usage: Usage | None = None
+        # R2 working indicator token tick (tui-redesign-spec §3.6): running
+        # ~4-chars/token estimate across the whole turn; the renderer
+        # coalesces posts to <= 4 Hz. getattr-guarded like show_working.
+        _working_chars: int = 0
+        _update_working = getattr(renderer, "update_working", None)
 
         # V18 VOPT-03/06: profile + allocator resolved ONCE per run (not per
         # iteration) so the stable-region hysteresis state persists and the
@@ -856,6 +879,12 @@ async def _run_turn_exec(
                         # schema into the chat (provider-agnostic fix; some
                         # providers emit the JSON as TextDelta by contract).
                         accumulated_text_buffer.append(event.text)
+                        _working_chars += len(event.text)
+                        if _update_working is not None:
+                            try:
+                                _update_working(0.0, _working_chars // 4)
+                            except Exception:  # noqa: BLE001
+                                pass
                     elif isinstance(event, ParsedPlan):
                         this_iter_plan = event.plan
                     elif isinstance(event, Usage):
@@ -1341,11 +1370,22 @@ async def _invoke_step_with_gate(
     Lifted from the previous serial `_run_step_loop` body verbatim. Catches
     `Exception` (not `BaseException`) so `asyncio.CancelledError` propagates
     to the gather/scheduler for outer-cancel discipline (D-06/D-07).
+
+    R3 ToolCards: `call_id` is minted HERE (Voss tool calls are not
+    provider-native — the harness executes plan.steps itself, and the
+    ToolCall schema is part of the LLM structured-output contract, so it
+    cannot carry an id). The same id is threaded through the pending and
+    settled `show_tool_call` calls so the TUI mutates one card in place;
+    read batches run concurrently, so this id is the only safe pairing.
+    Settled-only paths (unknown tool, denied) also carry a minted id.
     """
+    call_id = uuid.uuid4().hex[:12]
     entry = tools.get(step.name)
     if entry is None:
         text = f"<error: unknown tool {step.name!r}>"
-        renderer.show_tool_call(step.name, step.args, "<unknown tool>", "error")
+        renderer.show_tool_call(
+            call_id, step.name, step.args, "<unknown tool>", "error", output=text
+        )
         telemetry.emit(
             "tool.result",
             "warn",
@@ -1393,7 +1433,7 @@ async def _invoke_step_with_gate(
             )
     if not allowed:
         text = f"<denied: {why}>"
-        renderer.show_tool_call(step.name, step.args, text, "error")
+        renderer.show_tool_call(call_id, step.name, step.args, text, "error", output=text)
         telemetry.emit(
             "tool.result",
             "info",
@@ -1425,14 +1465,14 @@ async def _invoke_step_with_gate(
             "args": telemetry.redact_tool_args(dict(step.args)),
         },
     )
-    renderer.show_tool_call(step.name, step.args, "running…", "pending")
+    renderer.show_tool_call(call_id, step.name, step.args, "running…", "pending")
     _tool_t0 = time.monotonic()
     try:
         res = await entry.invoke(**step.args)
         text = str(res)
     except Exception as e:  # noqa: BLE001 — catch all to surface, not crash
         text = f"<error: {e}>"
-        renderer.show_tool_call(step.name, step.args, text, "error")
+        renderer.show_tool_call(call_id, step.name, step.args, text, "error", output=text)
         telemetry.emit(
             "tool.result",
             "warn",
@@ -1455,7 +1495,9 @@ async def _invoke_step_with_gate(
                 ok=False,
             )
         return text
-    renderer.show_tool_call(step.name, step.args, _summarize(text), "ok")
+    renderer.show_tool_call(
+        call_id, step.name, step.args, _summarize(text), "ok", output=text
+    )
     telemetry.emit(
         "tool.result",
         "info",

@@ -51,7 +51,7 @@ class NullRenderer:
     deltas: list[str] = field(default_factory=list)
     finalize_calls: list[dict] = field(default_factory=list)
 
-    def show_tool_call(self, name, args, summary, state):
+    def show_tool_call(self, call_id, name, args, summary, state, **kw):
         self.tool_calls.append((name, args, summary, state))
 
     def show_thinking(self, *a, **kw): pass

@@ -1,4 +1,4 @@
-"""M9-04 live visualization tests — ConfidenceBar / SubAgentPanel / BudgetMeter."""
+"""M9-04 live visualization tests — ConfidenceBar / inline AgentTree (R4)."""
 from __future__ import annotations
 
 import inspect
@@ -8,7 +8,7 @@ import pytest
 from voss.harness.render import Renderer
 from voss.harness.tui.app import VossTUIApp
 from voss.harness.tui.renderer import TextualRenderer
-from voss.harness.tui.widgets import BudgetMeter, ConfidenceBar, SubAgentPanel
+from voss.harness.tui.widgets import AgentTreeCard, ConfidenceBar
 
 
 def test_subagent_methods_not_on_protocol() -> None:
@@ -23,20 +23,20 @@ def test_subagent_methods_present_on_textual_renderer() -> None:
 
 
 @pytest.mark.asyncio
-async def test_subagent_start_mounts_panel_and_reveals_side() -> None:
+async def test_subagent_start_mounts_inline_tree_card() -> None:
     app = VossTUIApp()
     async with app.run_test() as pilot:
         renderer = TextualRenderer(app=pilot.app)
         renderer.show_subagent_start("reviewer", "abc", 2000)
         await pilot.pause()
-        panels = list(pilot.app.query(SubAgentPanel))
-        assert any(p.parent_id == "abc" for p in panels)
-        # Side region is revealed when at least one panel is mounted.
-        assert len([p for p in pilot.app.query(SubAgentPanel) if p.parent_id == "abc"]) == 1
+        cards = [c for c in pilot.app.query(AgentTreeCard) if c.parent_id == "abc"]
+        assert len(cards) == 1
+        assert cards[0].state == "running"
+        assert "spawn reviewer" in cards[0].plain_text()
 
 
 @pytest.mark.asyncio
-async def test_subagent_end_removes_panel_and_emits_gather_line() -> None:
+async def test_subagent_end_settles_tree_with_gather_row() -> None:
     app = VossTUIApp()
     async with app.run_test() as pilot:
         renderer = TextualRenderer(app=pilot.app)
@@ -44,9 +44,12 @@ async def test_subagent_end_removes_panel_and_emits_gather_line() -> None:
         await pilot.pause()
         renderer.show_subagent_end("abc", 3)
         await pilot.pause()
-        panels = [p for p in pilot.app.query(SubAgentPanel) if p.parent_id == "abc"]
-        assert not panels
-        assert not list(pilot.app.query(SubAgentPanel))
+        cards = [c for c in pilot.app.query(AgentTreeCard) if c.parent_id == "abc"]
+        assert len(cards) == 1, "card must persist inline after gather (R4)"
+        card = cards[0]
+        assert card.state == "ok"
+        card.expand()
+        assert "gathered · 3 results" in card.plain_text()
 
 
 @pytest.mark.asyncio
@@ -93,5 +96,5 @@ async def test_spawn_tool_name_missing_degrades_gracefully(monkeypatch: pytest.M
     app = VossTUIApp()
     async with app.run_test() as pilot:
         renderer = TextualRenderer(app=pilot.app)
-        renderer.show_tool_call("fs_read", {"path": "x"}, "ok", "ok")
+        renderer.show_tool_call("lv1", "fs_read", {"path": "x"}, "ok", "ok")
         await pilot.pause()

@@ -38,7 +38,7 @@ def test_each_method_enqueues_expected_event() -> None:
         ),
         cost_usd=0.01,
     )
-    r.show_tool_call("fs_read", {"path": "a"}, "read a", "ok")
+    r.show_tool_call("cid1", "fs_read", {"path": "a"}, "read a", "ok", output="read a")
     r.show_clarify("which?", 0.4)
     r.show_final("done", confidence=0.9, cost_usd=0.02)
     r.stream_delta("tok")
