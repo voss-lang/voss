@@ -2327,7 +2327,16 @@ Plans:
 - Tiered routing role for index jobs: enrichment (one-line symbol descriptions, chunk summaries) dispatched to a cheap-tier model through `model_router.py`; pure embed/BM25 passes use no LLM at all.
 - Background index worker + progress: session start never blocks (local embedding cold-load is seconds; first big-repo index is minutes).
 
-**Requirements:** VSEM-* (SPEC pending — V-track phase, requirements live in `V19-SPEC.md` not REQUIREMENTS.md).
+**Requirements:** VSEM-01..08 (locked in `V19-SPEC.md` — V-track phase, requirements live there not in REQUIREMENTS.md).
+
+**Plans:** 6 plans in 5 waves (wave 0 RED scaffold → CodeIndex core → service+tool / CLI verb → enrichment → injection).
+
+- [ ] V19-01-PLAN.md — Wave 0 RED test scaffold (tests/code_recall/* for VSEM-01..08) + Hit line_start/line_end + slow marker
+- [ ] V19-02-PLAN.md — CodeIndex core: symbol-aware chunking + hash manifest + incremental reindex + RRF query [VSEM-01, VSEM-02]
+- [ ] V19-03-PLAN.md — Background daemon CodeIndexService + code_recall agent tool (BM25 degradation, p95) [VSEM-03, VSEM-04]
+- [ ] V19-04-PLAN.md — `voss recall` unified cross-corpus CLI verb (plain + --json source field) [VSEM-05]
+- [ ] V19-05-PLAN.md — V18-region auto-injection (≤1000 tok, evictable, off-switch) [VSEM-06]
+- [ ] V19-06-PLAN.md — index_enrich router role + opt-in enrichment + budget cap + ledger line [VSEM-07, VSEM-08]
 
 **Cross-cutting:** Index under `.voss-cache/` per M2 COG-07 / M10 convention. Chroma stays optional (`voss[search]`), BM25-only degradation per F2. Tier assignment must respect V18 budget telemetry (enrichment spend visible in savings/cost ledger).
 
