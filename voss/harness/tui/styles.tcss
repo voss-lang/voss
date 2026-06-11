@@ -328,3 +328,35 @@ ConnectProviderModal #connect-footer {
     color: $dim;
     margin-top: 1;
 }
+
+/* AuthModelPickerModal — auth-aware /model picker (R8). Accent lives here
+ * (declaration site) so auth_model_picker_modal.py stays audit-clean. */
+AuthModelPickerModal {
+    align: center middle;
+}
+AuthModelPickerModal #auth-picker-box {
+    width: 80%;
+    max-width: 90;
+    height: auto;
+    max-height: 80%;
+    border: round $accent;
+    background: $raised;
+    padding: 1 2;
+}
+AuthModelPickerModal #auth-picker-title {
+    text-style: bold;
+}
+AuthModelPickerModal #auth-picker-subtitle {
+    color: $dim;
+    margin-bottom: 1;
+}
+AuthModelPickerModal #auth-picker-list {
+    height: auto;
+}
+AuthModelPickerModal #auth-picker-footer {
+    color: $dim;
+    margin-top: 1;
+}
+AuthModelPickerModal .auth-model-row.--highlight {
+    background: $accent 15%;
+}

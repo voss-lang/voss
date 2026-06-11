@@ -1269,19 +1269,103 @@ def _build_slash_registry() -> SlashRegistry:
         )
 
     def _model(ctx: ReplContext, args: list[str], _line: str) -> None:
+        """Auth-aware model selector (R8).
+
+        Bare in the TUI: curated picker for the active subscription auth
+        (Claude Agent SDK / Codex ChatGPT backend), else delegates to the
+        /models catalog modal. Bare in plain CLI: availability lines + the
+        numbered curated list. With args: exact-id → prefix → substring
+        match against the curated list; no match falls back to the raw
+        set-anything behavior.
+
+        A pick takes effect immediately without a provider rebuild: every
+        turn passes get_config().default_model (cli.py turn dispatch) and
+        both subscription providers take the model id per stream() call.
+        """
+        from . import config as harness_config
+        from . import subscription_models as sub
+
         cfg = get_config()
+        auth_mode = sub.detect_auth_mode(getattr(ctx, "provider", None))
+        models = sub.SUBSCRIPTION_MODELS.get(auth_mode or "", ())
+        app = getattr(getattr(ctx, "renderer", None), "app", None)
+        in_tui = app is not None and app.__class__.__name__ == "VossTUIApp"
+
+        def _apply(m) -> None:
+            configure(default_model=m.id)
+            harness_config.set_preferred_model(m.id)
+            if in_tui:
+                app.model = m.id
+                try:
+                    from .tui.widgets.status_line import StatusLine
+
+                    app.query_one("#status", StatusLine).set_status(
+                        model=m.id, toast=f"model: {m.label} · {m.id} (persisted)"
+                    )
+                except Exception:  # noqa: BLE001 — status widget absent in tests
+                    pass
+            click.echo(f"  model: {m.id} (persisted)")
+
         if not args:
+            if in_tui:
+                if not models:
+                    # API-key/auto auth — the catalog picker is the useful
+                    # surface; delegate so bare /model always works.
+                    _models(ctx, [], "/models")
+                    return
+                from .tui.widgets.auth_model_picker_modal import (
+                    AuthModelPickerModal,
+                )
+
+                label = "Claude" if auth_mode == "claude" else "Codex"
+
+                def _on_pick(m) -> None:
+                    if m is not None:
+                        _apply(m)
+
+                app.push_screen(
+                    AuthModelPickerModal(
+                        models,
+                        cfg.default_model,
+                        subtitle=(
+                            f"Switch between {label} models. Your pick "
+                            "becomes the default for new sessions."
+                        ),
+                    ),
+                    _on_pick,
+                )
+                return
             claude = auth_mod.load_anthropic_oauth()
             codex = auth_mod.load_codex()
-            click.echo(f"  active: {cfg.default_model}")
             claude_ok = bool(claude and not claude.expired)
             codex_ok = bool(codex and (codex.api_key or codex.has_oauth))
+            click.echo(f"  active: {cfg.default_model}")
             click.echo(f"  Claude: {'available' if claude_ok else 'unavailable'}")
             click.echo(f"  Codex:  {'available' if codex_ok else 'unavailable'}")
+            if models:
+                from .tui import glyphs
+
+                click.echo(f"\n  {auth_mode} subscription models:")
+                for i, m in enumerate(models, 1):
+                    here = f" {glyphs.CHECK}" if m.id == cfg.default_model else ""
+                    click.echo(f"    {i}. {m.id}{here}  — {m.description}")
+                click.echo("\n  select: /model <id>")
             return
-        from . import config as harness_config
 
         new_model = " ".join(args).strip()
+        if auth_mode is not None:
+            matches = sub.match(auth_mode, new_model)
+            if len(matches) == 1:
+                _apply(matches[0])
+                return
+            if len(matches) > 1:
+                click.echo(
+                    f"  '{new_model}' matches {len(matches)} models: "
+                    + ", ".join(m.id for m in matches),
+                    err=True,
+                )
+                return
+            # 0 matches → raw set-anything fallback below (power users).
         configure(default_model=new_model)
         harness_config.set_preferred_model(new_model)
         click.echo(f"  model: {get_config().default_model} (persisted)")
@@ -1583,7 +1667,7 @@ def _build_slash_registry() -> SlashRegistry:
         ),
         SlashCommand("/tools", "list registered tools", _tools),
         SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
-        SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
+        SlashCommand("/model", "pick a model for the active auth (curated; persists to config.toml)", _model),
         SlashCommand("/models", "pick a model from the models.dev catalog (Zen, Ollama Cloud, …)", _models),
         SlashCommand("/auth", "show/set default credential source (auto|claude|codex|api|none)", _auth),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),

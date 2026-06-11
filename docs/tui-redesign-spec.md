@@ -359,3 +359,23 @@ Rough sizing: R1 and R3 are the heavy phases (renderer rewiring + test rebaselin
 2. **Accent allow-list site count.** UserBlock border in accent = a 7th site (contract change) vs tint-only (`$accent 6%` background, no new site). Default: tint-only, keep the list at 6.
 3. **Resume row interactivity** (enter-to-resume vs informational). Default: informational in v1.
 4. **Theme files** (gruvbox/catppuccin via tcss variable swap). Out of scope here; trivially enabled by Contract v2 centralization. Park as follow-on.
+
+---
+
+## As-built deltas (R1-R7)
+
+Where the shipped implementation deliberately diverges from the spec body above. The contract tests pin the as-built rules; this list is the reconciliation (R7, §8).
+
+- **9 hex, not 10** (§4.1): the spec header says "exactly 10 hex values" but its own table lists 9 distinct values — `$dim` doubles as dim text ("no sixth gray"). `test_styles_tcss_has_only_locked_palette` pins exactly 9. `palette.py` is the single audited Python-side mirror (Rich `Text` styles cannot read tcss vars); `test_palette_matches_tcss` cross-checks it against `styles.tcss`.
+- **Interrupt hint is `ctrl+c to interrupt`, not `esc`** (§3.6): `esc` was never bound to interrupt (it enters transcript nav mode when idle); `ctrl+c` is the real interrupt binding and the WorkingIndicator hint says so.
+- **FIFO fallback replaced by settled-first cards** (§6.2): read batches run via `asyncio.gather`, making pending→settled FIFO matching per name unsafe. Instead, `call_id` is minted by the harness in `agent.py::_invoke_step_with_gate` (`uuid4().hex[:12]`) for every call, and a settle event with an unknown/absent `call_id` creates a settled-first card rather than matching by FIFO.
+- **`show_tool_call` gained an `output=` kwarg** (§6.1): the settled card needs the tool output body (tail/error excerpt, read/grep metrics); signature is `show_tool_call(call_id, name, args, summary, state, *, output=None)`. Plain/json/eventbus renderers accept and ignore the new args; the server event contract is untouched.
+- **Toast also carries the session-id launch announce** (§5.1/§5.3): with HeaderBar deleted, the session id surfaces once at launch as a `session <id8>` toast (plus `/status`), not as a HomeScreen row.
+- **Sub-agent child rows are internal lines, not nested widgets** (§3.5): `AgentTreeCard` renders child progress rows as lines inside one card (`NEST_MID`/`NEST_LAST` indents), not as nested `ToolCard` children. Quiet-by-default and the live `used/total` budget metric are preserved.
+- **Paste chip shipped** (§5.5): >5-line pastes collapse to a `[pasted N lines]` chip, expanded on submit, whole-chip backspace.
+- **`compacting` working-label skipped** (§3.6): the fold/compaction path emits no renderer-visible event, so the label variant set is `working` / `tool: <name>` only.
+- **Textual `Markdown.update` rejected by R2 measurement** (§3.3): ~1.4–1.8 s per update at 20 KB (widget re-measure dominates) vs ~40 ms for re-rendering Rich `Markdown` inside a `Static` — so `AssistantBlock` streams by re-rendering Rich Markdown in place, throttled ≤10 Hz. The spec's Static-then-swap fallback was unnecessary; live markdown ships from the first token.
+- **HomeScreen hint copy** (§5.4): reads `type a message below to begin · / for commands`; the `❯` lead-in, `@ files` and `ctrl+k models` fragments were dropped (`ctrl+k` is unbound — the model picker is `/models`).
+- **Trim policy as-built** (§3.2, R7): trips above 500 mounted blocks, keeps the newest 400, flattens the rest into a single static first-child placeholder `≈ N earlier turns · /resume to reload` (dim); N counts flattened blocks and accumulates across trims. Trimmed `call_id`/`parent_id` entries are dropped from the ToolCard/AgentTree registries (late settles become no-ops). New glyph `APPROX ≈` (fallback `~`) joined the allow-list for the placeholder — the only R7 contract change.
+- **Glyph contract scope** (§4.2): typographic punctuation in copy (`·`, `…`, `—`, `→`, `×`, `│`) is not part of the glyph allow-list and does not downgrade under `--no-unicode`; this matches pre-redesign behavior (modals, status line). R7 migrated the remaining *glyph* literals in `renderer.py` (`⏵` thinking toast, `⚠` warnings) to `glyphs.TOOL_CALL`/`glyphs.WARN` so they downgrade. Known leftover: `app.py::append_tool_line` prefixes `✓`/`✗` on the recorder-bridge path — predates Contract v2, not allow-listed, renders raw under `--no-unicode`.
+- **StatusLine right zone** (§5.2): context bar is `▰▱`-style 4-cell + percent with the locked $warn/$error thresholds, plus session cost and git branch — as specced; the `set_status(toast=)` deprecation window is still open (delegates to the Toast overlay).
