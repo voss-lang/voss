@@ -1,0 +1,30 @@
+# py-03-approved-edit - rename add() to sum_two() across definition and call site; expect suite green.
+prompt = "Rename the function add() to sum_two() in calc.py and update its single call site in test_calc.py."
+mode = "edit"
+rubric = """
+PASS if:
+- calc.py defines sum_two() (not add()).
+- test_calc.py imports and calls sum_two() (not add()).
+- The test suite passes after the rename.
+
+FAIL if:
+- Either file is unchanged.
+- The rename is incomplete (one file updated, the other not).
+- The test suite fails after the edit.
+"""
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+
+[[checks]]
+type = "file_contains"
+path = "calc.py"
+text = "sum_two"
+
+[[checks]]
+type = "cmd"
+run = "! grep -q 'def add(' calc.py"
+
+[[checks]]
+type = "cmd"
+run = "python3 -m pytest test_calc.py -q"
+timeout = 60
