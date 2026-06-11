@@ -11,6 +11,8 @@ scrolled up; a new user message re-engages follow.
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 
 from rich.text import Text
 from textual.containers import VerticalScroll
@@ -25,6 +27,7 @@ from .working_indicator import WorkingIndicator
 
 EMPTY_HEADING = "type a message below to begin · / for commands"
 ASSISTANT_INDENT = 2
+RESUME_TASK_CHARS = 40  # spec §5.4: first-user-message truncated to 40 chars
 
 
 VOSS_LOGO = [
@@ -43,14 +46,96 @@ def _center(line: str, width: int) -> str:
     return " " * ((width - len(line)) // 2) + line
 
 
+def _relative_age(iso_ts: str) -> str:
+    """`updated_at` ISO timestamp → coarse relative age ("2h ago")."""
+    try:
+        ts = datetime.fromisoformat(iso_ts)
+    except (TypeError, ValueError):
+        return ""
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    seconds = max(0, int((datetime.now(timezone.utc) - ts).total_seconds()))
+    if seconds < 60:
+        return "just now"
+    if seconds < 3600:
+        return f"{seconds // 60}m ago"
+    if seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    return f"{seconds // 86400}d ago"
+
+
 class HomeScreen(Static):
-    """Empty-state splash (spec §5.4, R1-minimal: logo + version + hint).
+    """Empty-state splash (spec §5.4): logo + version + data rows + hint.
 
     Mounted as TranscriptView's first child; removed (not cleared) on the
-    first real append. Data rows (cwd/model/resume) arrive in R6.
+    first real append. R6 data rows (cwd / model / resume) are computed once
+    on mount from the app fields cli.py seeds before `app.run()`; each row is
+    omitted when its data is absent (so the bare test-app splash is
+    unchanged). The resume row reads the same `.voss/sessions` store the
+    /resume command uses (voss.harness.session.list_sessions) — newest
+    non-current session as `⎇ <shortid> "<first task>" · <age>`.
     """
 
     DEFAULT_CLASSES = ""
+
+    def __init__(self, **kw) -> None:
+        super().__init__(**kw)
+        self._info_rows: list[tuple[str, str]] = []
+
+    def on_mount(self) -> None:
+        self._info_rows = self._compute_info_rows()
+        if self._info_rows:
+            self.refresh()
+
+    def _compute_info_rows(self) -> list[tuple[str, str]]:
+        rows: list[tuple[str, str]] = []
+        try:
+            app = self.app
+        except Exception:  # noqa: BLE001 — unmounted (headless tests)
+            return rows
+        cwd = getattr(app, "cwd", None)
+        if cwd is not None:
+            try:
+                cwd_text = str(cwd).replace(str(Path.home()), "~", 1)
+            except Exception:  # noqa: BLE001
+                cwd_text = str(cwd)
+            git = getattr(app, "git_status", "") or ""
+            rows.append(("cwd", f"{cwd_text}  ({git})" if git else cwd_text))
+        provider = getattr(app, "provider", "") or ""
+        model = getattr(app, "model", "") or ""
+        if provider or model:
+            label = f"{provider} / {model}" if provider and model else provider or model
+            rows.append(("model", label))
+        resume = self._resume_row(app)
+        if resume:
+            rows.append(("resume", resume))
+        return rows
+
+    def _resume_row(self, app) -> str:
+        """Newest non-current session line, or "" when none exists."""
+        cwd = getattr(app, "cwd", None)
+        if cwd is None:
+            return ""
+        record = getattr(app, "record", None)
+        current_id = getattr(record, "id", "") or getattr(app, "session_id", "")
+        try:
+            from voss.harness import session as session_store
+
+            records = session_store.list_sessions(Path(cwd))
+        except Exception:  # noqa: BLE001 — store unreadable ⇒ omit the row
+            return ""
+        for rec in records:  # list_sessions returns newest-first
+            if current_id and rec.id == current_id:
+                continue
+            task = rec.first_task()
+            if len(task) > RESUME_TASK_CHARS:
+                task = task[: RESUME_TASK_CHARS - 1] + "…"
+            line = f'{glyphs.FORK} {rec.id[:6]} "{task}"'
+            age = _relative_age(rec.updated_at)
+            if age:
+                line += f" · {age}"
+            return line
+        return ""
 
     def render(self) -> Text:
         width = max(40, getattr(self.app.console.size, "width", 80))
@@ -65,6 +150,12 @@ class HomeScreen(Static):
             out.append(_center("VOSS", width) + "\n", style=f"bold {palette.ACCENT}")
         out.append(_center("v1", width) + "\n", style="dim")
         out.append("\n")
+        if self._info_rows:
+            lines = [f"{label:<9}{value}" for label, value in self._info_rows]
+            pad = " " * max(0, (width - max(len(ln) for ln in lines)) // 2)
+            for ln in lines:
+                out.append(f"{pad}{ln}\n", style="dim")
+            out.append("\n")
         out.append(_center(EMPTY_HEADING, width), style="dim")
         return out
 
@@ -260,13 +351,24 @@ class TranscriptView(VerticalScroll):
     spec block factories (`add_user`, `add_local_block`). Scroll policy:
     follow tail only when pinned to bottom; user scroll-up disengages;
     a new user message re-engages.
+
+    R6 nav mode (spec §7.1): focusable; `esc` from an idle input bar lands
+    here. j/k (or arrows) move block focus (`.nav-focus` accent tint),
+    `enter` toggles the focused ToolCard, `y` copies the focused block,
+    `g g`/`G` jump top/bottom (G re-engages auto-follow), and `i`/`esc`/any
+    printable returns to the input (printables are forwarded so the first
+    keystroke is never lost).
     """
 
     DEFAULT_CLASSES = ""
+    can_focus = True  # R6 nav mode (spec §7.1)
 
     def __init__(self, **kw) -> None:
         super().__init__(**kw)
         self._turn_count = 0
+        # R6 nav mode state: index into _nav_blocks(), None = no focus ring.
+        self._nav_index: int | None = None
+        self._pending_g: bool = False  # `g g` double-tap state machine
         self._streaming: bool = False
         self._stream_block: AssistantBlock | None = None
         # R2 working indicator (spec §3.6) — ephemeral, always last child
@@ -534,6 +636,156 @@ class TranscriptView(VerticalScroll):
                 self.call_after_refresh(self.scroll_end, animate=False)
         self._streaming = False
         self._stream_block = None
+
+    # ------------------------------------------------------------------
+    # nav mode (spec §7.1, R6) — block focus while TranscriptView holds
+    # real keyboard focus. Keymap rows live in keymap.py under the
+    # "transcript" context tier; they resolve here via on_key.
+    # ------------------------------------------------------------------
+
+    def _nav_blocks(self) -> list[Widget]:
+        """Navigable children — skips HomeScreen and WorkingIndicator."""
+        return [
+            c
+            for c in self.children
+            if not isinstance(c, (HomeScreen, WorkingIndicator))
+        ]
+
+    def focused_block(self) -> Widget | None:
+        blocks = self._nav_blocks()
+        if not blocks or self._nav_index is None:
+            return None
+        return blocks[min(self._nav_index, len(blocks) - 1)]
+
+    def _nav_set(self, index: int) -> None:
+        blocks = self._nav_blocks()
+        if not blocks:
+            self._nav_index = None
+            return
+        index = max(0, min(len(blocks) - 1, index))
+        for i, block in enumerate(blocks):
+            block.set_class(i == index, "nav-focus")
+        self._nav_index = index
+        try:
+            blocks[index].scroll_visible(animate=False)
+        except Exception:  # noqa: BLE001 — headless/unmounted
+            pass
+
+    def _nav_clear(self) -> None:
+        for block in self.query(".nav-focus"):
+            block.remove_class("nav-focus")
+        self._nav_index = None
+        self._pending_g = False
+
+    def focus_block(self, delta: int) -> None:
+        """Move block focus by `delta` (spec §3.2 — j/k, up/down)."""
+        blocks = self._nav_blocks()
+        if not blocks:
+            return
+        if self._nav_index is None:
+            self._nav_set(len(blocks) - 1)
+            return
+        self._nav_set(self._nav_index + delta)
+
+    def toggle_focused(self) -> None:
+        """Expand/collapse the focused ToolCard (no-op on other blocks)."""
+        block = self.focused_block()
+        if isinstance(block, ToolCard):
+            block.toggle()
+
+    def _nav_copy(self) -> None:
+        """Copy the focused block's text to the clipboard + toast."""
+        block = self.focused_block()
+        if block is None:
+            return
+        toast = getattr(self.app, "_toast", lambda _m: None)
+        getter = getattr(block, "plain_text", None)
+        text = getter() if getter is not None else ""
+        if not text:
+            toast("nothing to copy")
+            return
+        try:
+            self.app.copy_to_clipboard(text)
+        except Exception:  # noqa: BLE001 — clipboard unavailable (no OSC52)
+            toast("copy failed")
+            return
+        toast("copied block")
+
+    def _nav_focus_input(self, forward_char: str | None = None) -> None:
+        """Return focus to the input bar, forwarding a printable key."""
+        try:
+            bar = self.app.query_one("#input")
+        except Exception:  # noqa: BLE001 — input absent in tests
+            return
+        bar.focus()
+        if forward_char:
+            try:
+                bar.insert(forward_char)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def on_focus(self, event) -> None:
+        # Entering nav mode lands on the newest block.
+        if self._nav_index is None:
+            blocks = self._nav_blocks()
+            if blocks:
+                self._nav_set(len(blocks) - 1)
+
+    def on_blur(self, event) -> None:
+        self._nav_clear()
+
+    def on_key(self, event) -> None:
+        key = event.key
+        pending_g, self._pending_g = self._pending_g, False
+        if key in ("escape", "i"):
+            event.prevent_default()
+            event.stop()
+            self._nav_focus_input()
+            return
+        if key in ("j", "down"):
+            event.prevent_default()
+            event.stop()
+            self.focus_block(1)
+            return
+        if key in ("k", "up"):
+            event.prevent_default()
+            event.stop()
+            self.focus_block(-1)
+            return
+        if key == "enter":
+            event.prevent_default()
+            event.stop()
+            self.toggle_focused()
+            return
+        if key == "y":
+            event.prevent_default()
+            event.stop()
+            self._nav_copy()
+            return
+        if key == "g":
+            event.prevent_default()
+            event.stop()
+            if pending_g:
+                self._nav_set(0)
+                self.scroll_home(animate=False)
+            else:
+                self._pending_g = True
+            return
+        if key in ("G", "upper_g"):
+            # Bottom + re-engage auto-follow (scroll_end pins to tail).
+            event.prevent_default()
+            event.stop()
+            blocks = self._nav_blocks()
+            if blocks:
+                self._nav_set(len(blocks) - 1)
+            self.scroll_end(animate=False)
+            return
+        char = getattr(event, "character", None)
+        if char and char.isprintable():
+            # Any other printable lands in the input (spec §7.1).
+            event.prevent_default()
+            event.stop()
+            self._nav_focus_input(forward_char=char)
 
     # ------------------------------------------------------------------
     # test/introspection helper

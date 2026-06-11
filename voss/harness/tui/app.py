@@ -14,6 +14,7 @@ from typing import Optional
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
+from textual.widgets import Static
 
 from voss.harness.session import SessionRecord
 from voss.harness.slash import SlashRegistry
@@ -94,6 +95,10 @@ class VossTUIApp(App):
         # T1-06: tracks the in-flight agent turn task so action_interrupt
         # can cancel it. Cleared via add_done_callback when the task ends.
         self.active_turn_task: Optional[asyncio.Task] = None
+        # R6 (spec §7.3): inputs submitted while a turn runs queue here and
+        # dispatch FIFO from _clear_turn_task. ctrl+c clears the queue
+        # before it interrupts.
+        self._queued_inputs: list[str] = []
         # R4 (spec §5.6): CodeIntelPanel is #side's only occupant.
         self._code_intel_panel: CodeIntelPanel | None = None
         # Last assistant response text, captured by TextualRenderer so
@@ -122,6 +127,18 @@ class VossTUIApp(App):
             self.query_one("#main", TranscriptView).hide_working()
         except Exception:  # noqa: BLE001 — transcript absent in tests
             pass
+        # R6 (spec §7.3): turn finalize is the authoritative dispatch point
+        # for queued inputs — FIFO, one at a time (the next queued message
+        # dispatches when THIS dispatch's own done-callback fires). The
+        # interrupt path never reaches here with a queue: action_interrupt
+        # clears it before cancelling.
+        if self._queued_inputs:
+            next_value = self._queued_inputs.pop(0)
+            self._refresh_queue_chips()
+            try:
+                self._dispatch_input(next_value)
+            except Exception:  # noqa: BLE001 — loop tearing down
+                pass
 
     def action_open_help(self) -> None:
         self.push_screen(HelpOverlay(KEYMAP, self.slash_registry))
