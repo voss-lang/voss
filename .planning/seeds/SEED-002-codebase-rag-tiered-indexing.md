@@ -44,7 +44,7 @@ that repeatedly re-discover the same codebase structure.
 
 ## Scope Estimate
 
-**Medium-large** — roughly 2-3 phases:
+**Large** — 3 phases (confirmed via enrichment 2026-06-11):
 
 - Phase A: `CodeIndex` core — chunking (symbol-aware), hash manifest, lazy
   incremental reindex, `.voss/index/` layout, chroma collection `voss_code`
