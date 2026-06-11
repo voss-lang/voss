@@ -625,22 +625,25 @@ def attach_code_recall_tool(
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **`[code_recall]` vs `[model_tiers]` config section for `index_enrich`**
+1. **`[code_recall]` vs `[model_tiers]` config section for `index_enrich`** — **(RESOLVED)**
    - What we know: `[model_tiers]` already has a parse pattern; adding `index_enrich` there is one key change. Alternatively, a new `[code_recall]` section is cleaner but requires a new parser.
    - What's unclear: Whether `index_enrich` semantically belongs with tier aliases (strong/cheap/fast) or is distinct enough to warrant its own section.
    - Recommendation: Add `index_enrich` to `[model_tiers]` as a fourth tier key — lowest friction, one-line parser change, consistent with D-12 intent.
+   - **RESOLVED (V19-06, Task 1):** Split decision — `index_enrich` is added as a named role to the model-tier resolution (`get_index_enrich_model()` reads `get_model_tiers().get("index_enrich")`, fail-closed None default per D-06), AND a separate `[code_recall]` section parser (`get_code_recall_config()`) owns the non-model knobs `enrich_profile`/`enrich_budget_tokens`/`inject`. Model role stays with tiers (lowest friction); behavioral flags get their own section (they are not tier aliases). See V19-06 Task 1.
 
-2. **`Hit` dataclass extension vs separate `CodeHit` dataclass**
+2. **`Hit` dataclass extension vs separate `CodeHit` dataclass** — **(RESOLVED)**
    - What we know: `_rrf_merge` operates on `list[list[Hit]]` using `hit.locator` as the dedup key. Code hits need `line_start`/`line_end` for CLI display; memory hits do not have these.
    - What's unclear: Whether adding optional fields to `Hit` creates coupling or confusion.
    - Recommendation: Add `line_start: int | None = None` and `line_end: int | None = None` to the existing `Hit` dataclass in `memory_store.py`. They are `None` for memory hits and populated for code hits. This avoids a second dataclass and keeps `_rrf_merge` unchanged.
+   - **RESOLVED (V19-01, Task 1):** `Hit` is extended with trailing optional `line_start`/`line_end` fields (no separate `CodeHit`); memory hits leave both `None`, code hits populate them, and `_rrf_merge`'s `dataclasses.replace` carries them through unchanged. See V19-01 Task 1.
 
-3. **Golden query fixture strategy: committed subset vs full live build**
+3. **Golden query fixture strategy: committed subset vs full live build** — **(RESOLVED)**
    - What we know: D-08 says "planner decides" between a committed fixture index (small subset) or full local build behind a marker.
    - What's unclear: A committed fixture is CI-safe but may go stale. A full build needs MiniLM model cached in CI.
    - Recommendation: Use `@pytest.mark.slow` for the golden-query test that builds the full Voss repo index; in CI without slow marker it runs against a tiny 5-file fixture with a fake embedding function checking structural correctness (top-k contains expected file). Only the `slow` gate tests real semantic quality.
+   - **RESOLVED (V19-01, Task 2/3):** Both strategies adopted — the committed-subset path uses the `fake_embed_fn` (Chroma `DefaultEmbeddingFunction`, no network) for CI structural checks, and the full-build golden-query test carries `@pytest.mark.slow` for real semantic-quality runs against the cached MiniLM model. The `slow` marker is registered in `pyproject.toml` (V19-01 Task 2). See V19-01 Task 3 (`test_golden_concept_queries`).
 
 ---
 

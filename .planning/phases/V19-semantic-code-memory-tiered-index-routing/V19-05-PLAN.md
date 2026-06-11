@@ -7,6 +7,7 @@ depends_on: [V19-02, V19-04, V19-06]
 files_modified:
   - voss/harness/agent.py
   - voss/harness/cli.py
+  - .planning/phases/V19-semantic-code-memory-tiered-index-routing/V19-VALIDATION.md
 autonomous: true
 requirements: [VSEM-06]
 must_haves:
@@ -124,7 +125,7 @@ V18 token counter — the same counter used to measure project_index_text / vari
     - `do_cmd` and `chat_cmd` pass `code_recall_text=` into `run_turn` (`grep -n "code_recall_text=" voss/harness/cli.py` shows the call sites)
     - coherence: `.venv/bin/python -m pytest tests/harness/ -q -k "cli or packing"` green (wiring non-breaking)
   </acceptance_criteria>
-  <done>_render_code_recall_text caps at <=1000 V18 tokens, honors the inject off-switch, skips when not ready, and is wired into do_cmd/chat_cmd + other run_turn sites; injection RED tests green.</done>
+  <done>_render_code_recall_text caps at <=1000 V18 tokens, honors the inject off-switch, skips when not ready, and is wired into do_cmd/chat_cmd + other run_turn sites; injection RED tests green. Final phase step: after the full code_recall + memory + agent_packing suites are green, flip `nyquist_compliant: true` and `wave_0_complete: true` in V19-VALIDATION.md.</done>
 </task>
 
 </tasks>
@@ -157,6 +158,7 @@ V18 token counter — the same counter used to measure project_index_text / vari
 - code_recall_text threaded end-to-end; `## Code Recall` section <=1000 V18 tokens, evictable
 - inject=false → zero bytes; not-ready → skipped (no block)
 - wired at do_cmd/chat_cmd + remaining run_turn sites
+- As the final plan of the phase (Wave 4): once the Wave-0 `tests/code_recall/` suite is collected and the full `tests/code_recall/` + `tests/memory/` + `tests/harness/test_agent_packing.py` run is green, set `nyquist_compliant: true` and `wave_0_complete: true` in `.planning/phases/V19-semantic-code-memory-tiered-index-routing/V19-VALIDATION.md` frontmatter (this is the phase's Nyquist sign-off; the field starts `false` and is flipped only here)
 </success_criteria>
 
 <output>

@@ -25,12 +25,16 @@ must_haves:
     - "Scaffold imports resolve against the REAL planned module API (no fictional names)"
     - "Hit dataclass carries line_start/line_end so code hits keep file:line through RRF"
     - "pytest recognises the `slow` marker for the golden-query gate"
+    - "test_incremental.py has a RED test_targeted_rehash_on_fs_write pinning D-13 trigger #2 (targeted re-hash on agent file mutation)"
   artifacts:
     - path: "tests/code_recall/conftest.py"
       provides: "fake_embed_fn, indexed_fixture_repo, chroma_disabled_env, stub_provider fixtures"
       min_lines: 60
     - path: "tests/code_recall/test_chunker.py"
       provides: "VSEM-01 RED tests (symbol-boundary split, derived-cache)"
+    - path: "tests/code_recall/test_incremental.py"
+      provides: "VSEM-02 RED tests + test_targeted_rehash_on_fs_write (D-13 trigger #2 contract)"
+      contains: "test_targeted_rehash_on_fs_write"
     - path: "tests/code_recall/test_enrichment.py"
       provides: "VSEM-07/08 RED tests (profile-off zero LLM, role routing, budget cap, ledger)"
     - path: "voss/harness/memory_store.py"
@@ -80,16 +84,17 @@ Planned public API of voss/harness/code/semantic_index.py (Wave 1+):
   module-level: _chunk_id(rel_path: str, seq: int) -> str   # returns "code:<rel_path>:<seq:03d>"
   class CodeIndex:
       def __init__(self, cwd: Path) -> None
-      def build(self) -> None                       # full/incremental build into voss_code collection
+      def build(self, session_id: str | None = None) -> None   # full/incremental build into voss_code collection; session_id threads to enrichment ledger (V19-06)
       def query(self, query: str, top_k: int = 5) -> list[Hit]   # RRF(BM25+vector), degrades to BM25
       def _maybe_semantic(self) -> "SemanticMemory | None"
       def _load_manifest(self) -> dict
       def _run_enrichment(self, chunks, *, session_id, cwd) -> None   # VSEM-07/08
   class CodeIndexService:
-      def __init__(self, cwd: Path) -> None
+      def __init__(self, cwd: Path, session_id: str | None = None) -> None
       def ensure_background_build(self) -> None
       def is_ready(self) -> bool
       def query(self, query: str, top_k: int = 5) -> list[Hit]
+      def queue_rehash(self, path) -> None          # V19-03: off-thread targeted re-hash (D-13 trigger #2)
 
 Existing reusable API (already in tree, import — do not redefine):
   voss.harness.memory_store.MemoryStore._rrf_merge(rankings, *, top_k, k=60) -> list[Hit]   # @staticmethod
@@ -136,7 +141,7 @@ DefaultEmbeddingFunction fixture pattern — tests/memory/test_semantic.py:4-11
     - voss/harness/code/index.py (lines 107-141 — confirm db schema path .voss-cache/code/index.db and symbols(file_id,name,kind,line) so fixtures build a real M10 index)
   </read_first>
   <files>tests/code_recall/__init__.py, tests/code_recall/conftest.py, pyproject.toml</files>
-  <action>Register the `slow` marker in `pyproject.toml` under `[tool.pytest.ini_options]` (add to an existing `markers = [...]` list, or create one) with description "slow: builds a real embedding index; needs HF model cache". Create empty `tests/code_recall/__init__.py`. Create `tests/code_recall/conftest.py` exposing four pytest fixtures: (1) `fake_embed_fn(monkeypatch)` — monkeypatches `SemanticMemory._embedding_function` to return `chromadb.utils.embedding_functions.DefaultEmbeddingFunction()` (ONNX, no network, no MiniLM download); skip the test if chromadb import fails. (2) `indexed_fixture_repo(tmp_path, fake_embed_fn)` — writes 2-3 small `.py` files with known symbol boundaries, calls `voss.harness.code.index.build_index(tmp_path)` to populate the M10 SQLite index at `.voss-cache/code/index.db`, then constructs `CodeIndex(tmp_path).build()` and returns tmp_path. (3) `chroma_disabled_env(monkeypatch)` — forces the chromadb-absent path by monkeypatching `CodeIndex._maybe_semantic` (or SemanticMemory import) to raise ModuleNotFoundError so degradation tests run. (4) `stub_provider(monkeypatch)` — a recording stub with a `.call_count` and `.calls` list, substituted for the enrichment provider build path (`voss.harness.model_router.build_provider_for_model`), used by VSEM-07/08 tests to assert zero/role-correct calls. Import all planned names from the `<interfaces>` block exactly — these MUST resolve against the Wave 1+ module API, not invented names.</action>
+  <action>Register the `slow` marker in `pyproject.toml` under `[tool.pytest.ini_options]` (add to an existing `markers = [...]` list, or create one) with description "slow: builds a real embedding index; needs HF model cache". Create empty `tests/code_recall/__init__.py`. Create `tests/code_recall/conftest.py` exposing four pytest fixtures: (1) `fake_embed_fn(monkeypatch)` — monkeypatches `SemanticMemory._embedding_function` to return `chromadb.utils.embedding_functions.DefaultEmbeddingFunction()` (ONNX, no network, no MiniLM download); skip the test if chromadb import fails. (2) `indexed_fixture_repo(tmp_path, fake_embed_fn)` — writes 2-3 small `.py` files with known symbol boundaries, calls `voss.harness.code.index.build_index(tmp_path)` to populate the M10 SQLite index at `.voss-cache/code/index.db`, then constructs `CodeIndex(tmp_path).build(session_id="test-session")` (pass a DETERMINISTIC session_id so the enrichment-ledger tests can assert the row lands at the `/cost`-readable session-scoped path — never `.voss/sessions/None/`) and returns tmp_path. (3) `chroma_disabled_env(monkeypatch)` — forces the chromadb-absent path by monkeypatching `CodeIndex._maybe_semantic` (or SemanticMemory import) to raise ModuleNotFoundError so degradation tests run. (4) `stub_provider(monkeypatch)` — a recording stub with a `.call_count` and `.calls` list, substituted for the enrichment provider build path (`voss.harness.model_router.build_provider_for_model`), used by VSEM-07/08 tests to assert zero/role-correct calls. Import all planned names from the `<interfaces>` block exactly — these MUST resolve against the Wave 1+ module API, not invented names.</action>
   <verify>
     <automated>.venv/bin/python -m pytest tests/code_recall/conftest.py --collect-only -q 2>&1 | tail -5; .venv/bin/python -c "import tomllib,pathlib; d=tomllib.loads(pathlib.Path('pyproject.toml').read_text()); print([m for m in d['tool']['pytest']['ini_options'].get('markers',[]) if 'slow' in m])"</automated>
   </verify>
@@ -164,6 +169,7 @@ DefaultEmbeddingFunction fixture pattern — tests/memory/test_semantic.py:4-11
     - test_chunker.py::test_derived_cache — rm the chroma dir + rebuild reproduces a working index from repo alone (VSEM-01 acceptance)
     - test_incremental.py::test_only_changed_file_reembeds — touch one file → exactly that file's chunks re-embed (embed-call counter) (VSEM-02)
     - test_incremental.py::test_no_reembed_on_unchanged — unchanged-repo reindex → zero embed calls (VSEM-02)
+    - test_incremental.py::test_targeted_rehash_on_fs_write — an agent fs_write/fs_edit to an indexed file fires CodeIndexService.queue_rehash(path) so EXACTLY that file's chunks re-embed (embed-call counter scoped to the written path), no other file re-embedded; not-ready → no-op (D-13 trigger #2, implemented in V19-03)
     - test_background.py::test_first_roundtrip_not_blocked — session-start path returns before is_ready() (VSEM-03)
     - test_background.py::test_degraded_before_ready — query before ready returns degraded hits (source marker), not an error (VSEM-03)
     - test_code_recall_tool.py::test_registration — code_recall in tools dict, group=="code", schema present (VSEM-04)
@@ -182,7 +188,7 @@ DefaultEmbeddingFunction fixture pattern — tests/memory/test_semantic.py:4-11
     - test_golden_queries.py::test_golden_concept_queries — ≥10 (query, expected_file) pairs, expected file in top-5 [@pytest.mark.slow] (quality gate)
   </behavior>
   <files>tests/code_recall/test_chunker.py, tests/code_recall/test_incremental.py, tests/code_recall/test_background.py, tests/code_recall/test_code_recall_tool.py, tests/code_recall/test_recall_cli.py, tests/code_recall/test_injection.py, tests/code_recall/test_enrichment.py, tests/code_recall/test_golden_queries.py</files>
-  <action>Write all eight test files with the test functions named in `<behavior>`. Each test asserts REAL expected behavior against the planned module API (import paths/class/function names from the `<interfaces>` block). Tests MUST be genuine RED — failing because the implementation does not exist yet, NOT skipped and NOT `xfail(strict=False)`. Use plain failing asserts or `@pytest.mark.xfail(strict=True)` so an implemented feature flips to XPASS (which strict-xfail reports as a failure, surfacing the green). Per project memory (false-green incidents): never write a scaffold body that fabricates a fake module API to make the import succeed — if the planned symbol does not exist yet, the import error IS the RED signal; guard imports so test COLLECTION still succeeds (import inside the test body or use pytest.importorskip only for the optional chromadb dep, never for the voss modules under test). Mark `test_perf_p95`, `test_code_recall_tool.py` heavy paths, and `test_golden_concept_queries` with `@pytest.mark.slow`. For test_recall_cli use click's CliRunner or subprocess against `voss recall`. For test_enrichment use the `stub_provider` fixture and assert call_count semantics. For golden queries, embed a ~10-15 entry (query, expected_file) list against this Voss repo's known files (e.g. "where do we handle retry backoff" → a known retry/backoff file).</action>
+  <action>Write all eight test files with the test functions named in `<behavior>`. Each test asserts REAL expected behavior against the planned module API (import paths/class/function names from the `<interfaces>` block). Tests MUST be genuine RED — failing because the implementation does not exist yet, NOT skipped and NOT `xfail(strict=False)`. Use plain failing asserts or `@pytest.mark.xfail(strict=True)` so an implemented feature flips to XPASS (which strict-xfail reports as a failure, surfacing the green). Per project memory (false-green incidents): never write a scaffold body that fabricates a fake module API to make the import succeed — if the planned symbol does not exist yet, the import error IS the RED signal; guard imports so test COLLECTION still succeeds (import inside the test body or use pytest.importorskip only for the optional chromadb dep, never for the voss modules under test). Mark `test_perf_p95`, `test_code_recall_tool.py` heavy paths, and `test_golden_concept_queries` with `@pytest.mark.slow`. For test_recall_cli use click's CliRunner or subprocess against `voss recall`. For test_enrichment use the `stub_provider` fixture and assert call_count semantics. For `test_targeted_rehash_on_fs_write` (in test_incremental.py), drive the `fs_write`/`fs_edit` tool path (or call `CodeIndexService.queue_rehash` directly against the planned API) with an embed-call counter scoped per file and assert ONLY the written file's chunks re-embed and the call returns without blocking — this stub pins the D-13 trigger #2 contract that V19-03 implements (RED until then). For golden queries, embed a ~10-15 entry (query, expected_file) list against this Voss repo's known files (e.g. "where do we handle retry backoff" → a known retry/backoff file).</action>
   <verify>
     <automated>.venv/bin/python -m pytest tests/code_recall/ -q --co 2>&1 | tail -8; .venv/bin/python -m pytest tests/code_recall/ -q -p no:cacheprovider 2>&1 | tail -15</automated>
   </verify>

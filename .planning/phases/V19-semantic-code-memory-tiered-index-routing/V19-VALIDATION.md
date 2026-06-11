@@ -46,6 +46,7 @@ Plan/task IDs filled by planner. Requirement→test mapping locked from RESEARCH
 | TBD | TBD | TBD | VSEM-02 | — | N/A | unit (embed call counter) | `pytest tests/code_recall/test_incremental.py -x -q` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | VSEM-03 | — | N/A | unit (threading) | `pytest tests/code_recall/test_background.py -x -q` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | VSEM-04 | — | degradation never crashes | unit + perf | `pytest tests/code_recall/test_code_recall_tool.py -x -q` | ❌ W0 | ⬜ pending |
+| TBD | V19-03 | 2 | D-13 trigger #2 | — | re-hash only the written file | unit (per-file embed counter) | `pytest tests/code_recall/test_incremental.py::test_targeted_rehash_on_fs_write -x -q` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | VSEM-05 | — | no secrets in JSON output | CLI subprocess | `pytest tests/code_recall/test_recall_cli.py -x -q` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | VSEM-06 | — | injection capped/evictable | unit | `pytest tests/code_recall/test_injection.py -x -q` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | VSEM-07 | — | fail-closed role resolution; zero LLM when off | unit (stub provider) | `pytest tests/code_recall/test_enrichment.py -x -q` | ❌ W0 | ⬜ pending |
@@ -62,7 +63,7 @@ Plan/task IDs filled by planner. Requirement→test mapping locked from RESEARCH
 - [ ] `tests/code_recall/__init__.py` — new test subdirectory
 - [ ] `tests/code_recall/conftest.py` — shared fixtures: `fake_embed_fn`, `indexed_fixture_repo`, `chroma_disabled_env`, `stub_provider`
 - [ ] `tests/code_recall/test_chunker.py` — VSEM-01 stubs
-- [ ] `tests/code_recall/test_incremental.py` — VSEM-02 stubs
+- [ ] `tests/code_recall/test_incremental.py` — VSEM-02 stubs + `test_targeted_rehash_on_fs_write` (D-13 trigger #2)
 - [ ] `tests/code_recall/test_background.py` — VSEM-03 stubs
 - [ ] `tests/code_recall/test_code_recall_tool.py` — VSEM-04 stubs
 - [ ] `tests/code_recall/test_recall_cli.py` — VSEM-05 stubs
