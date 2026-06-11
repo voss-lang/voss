@@ -1,4 +1,13 @@
-"""M9-03 KEYMAP baseline coverage tests."""
+"""M9-03 KEYMAP baseline coverage tests.
+
+R6 rebaseline (tui-redesign-spec §7.1, deliberate per the stale-sentinel
+policy): the "transcript" context tier joins the keymap for nav mode —
+esc/i (back to input), j/k + arrows (block focus), enter (toggle card),
+y (copy block), g g / G (top / bottom + re-engage follow). Transcript rows
+are handled by TranscriptView.on_key while it holds focus; they are NOT
+App.BINDINGS (the App comprehension still filters to global/input/modal,
+so the modal-dismiss escape binding is unshadowed).
+"""
 from __future__ import annotations
 
 import pytest
@@ -31,6 +40,17 @@ def test_keymap_size_at_least_14() -> None:
         ("ctrl+c", "global"),
         ("ctrl+l", "global"),
         ("ctrl+o", "main"),
+        # R6 transcript nav mode (spec §7.1)
+        ("escape", "transcript"),
+        ("i", "transcript"),
+        ("j", "transcript"),
+        ("k", "transcript"),
+        ("down", "transcript"),
+        ("up", "transcript"),
+        ("enter", "transcript"),
+        ("y", "transcript"),
+        ("g", "transcript"),
+        ("G", "transcript"),
     ],
 )
 def test_keymap_includes_ui_spec_row(key: str, context_substr: str) -> None:

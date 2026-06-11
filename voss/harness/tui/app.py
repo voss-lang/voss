@@ -193,6 +193,11 @@ class VossTUIApp(App):
 
     def action_interrupt(self) -> None:
         # Ctrl+C behavior: if a turn is running, cancel it. If idle, exit app.
+        # R6 (spec §7.3): the queue clears BEFORE the interrupt so the turn's
+        # done-callback can't dispatch a queued message the user just killed.
+        if self._queued_inputs:
+            self._queued_inputs.clear()
+            self._refresh_queue_chips()
         task = self.active_turn_task
         if task is not None and not task.done():
             # R2 spec §3.3: the streamed block keeps its content and the
@@ -317,7 +322,22 @@ class VossTUIApp(App):
     def on_input_bar_submitted(self, event: InputBar.Submitted) -> None:
         if self._turn_dispatch is None:
             return
-        result = self._turn_dispatch(event.value)
+        # R6 (spec §7.3): a submit while a turn runs queues instead of
+        # dispatching (register_turn_task would raise on double-register).
+        # Slash commands queue uniformly — they dispatch through the same
+        # path, in order, when the running turn finalizes.
+        if self.active_turn_task is not None and not self.active_turn_task.done():
+            self._queued_inputs.append(event.value)
+            self._refresh_queue_chips()
+            return
+        self._dispatch_input(event.value)
+
+    def _dispatch_input(self, value: str) -> None:
+        """Dispatch one input line as the active turn (single entry point —
+        live submits and queued replays both land here)."""
+        if self._turn_dispatch is None:
+            return
+        result = self._turn_dispatch(value)
         if asyncio.iscoroutine(result):
             task = asyncio.create_task(result)
         else:
@@ -332,6 +352,29 @@ class VossTUIApp(App):
             self.query_one("#main", TranscriptView).show_working()
         except Exception:  # noqa: BLE001 — transcript absent in tests
             pass
+
+    def _refresh_queue_chips(self) -> None:
+        """Render the queued-input chip above the input bar (spec §7.3).
+
+        Single-chip design: one queued message shows `queued: "<text>"`;
+        more collapse to `queued (N): "<latest>"`. Bar/colors live in the
+        #queued-chips styles.tcss rule (accent-tint border, dim text).
+        """
+        try:
+            chips = self.query_one("#queued-chips", Static)
+        except Exception:  # noqa: BLE001 — chips absent in tests
+            return
+        if not self._queued_inputs:
+            chips.update("")
+            chips.display = False
+            return
+        latest = self._queued_inputs[-1].replace("\n", " ")
+        if len(latest) > 60:
+            latest = latest[:59] + "…"
+        n = len(self._queued_inputs)
+        label = f'queued: "{latest}"' if n == 1 else f'queued ({n}): "{latest}"'
+        chips.update(label)
+        chips.display = True
 
     def on_mention_palette_mention_submitted(self, event) -> None:
         """Insert the selected file path into the input, replacing the @token."""
@@ -386,6 +429,9 @@ class VossTUIApp(App):
             yield TranscriptView(id="main")
             yield SideRegion(id="side")
         yield StatusLine(id="status")
+        # R6 (spec §7.3): queued-input chip row — hidden until a submit
+        # lands while a turn is running.
+        yield Static("", id="queued-chips")
         yield InputBar(id="input")
         yield Toast(id="toast")
 

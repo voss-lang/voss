@@ -18,6 +18,9 @@ from .local_block import LocalBlockNote, LocalBlockShell
 
 IMAGE_INDICATOR = "[image attached · 1 image]"
 NO_VISION_NOTICE = "current model has no vision — image not attached"
+# R6 paste chip (spec §5.5): a bracketed paste of MORE than this many lines
+# collapses to a `[pasted N lines]` chip token, expanded on submit.
+PASTE_CHIP_THRESHOLD_LINES = 5
 
 
 def _build_corpus(history) -> list[str]:
@@ -126,6 +129,26 @@ class _InputTextArea(TextArea):
             if event.key == "enter":
                 # No matching command — close palette, fall through to submit.
                 palette.action_dismiss()
+        if event.key == "escape":
+            # R6 spec §7.1: idle esc focuses the transcript (nav mode).
+            # Palette esc never reaches here (dismissed above) and modal esc
+            # is on the modal screen's own focus chain. A running turn keeps
+            # esc inert so interrupt semantics (ctrl+c) are untouched.
+            task = getattr(self.app, "active_turn_task", None)
+            if task is None or task.done():
+                event.prevent_default()
+                event.stop()
+                try:
+                    self.app.query_one("#main").focus()
+                except Exception:  # noqa: BLE001 — transcript absent in tests
+                    pass
+                return
+        if event.key == "backspace" and bar._pasted_blobs:
+            # R6 spec §5.5: backspace at a chip boundary deletes the chip whole.
+            if bar.delete_chip_before_cursor():
+                event.prevent_default()
+                event.stop()
+                return
         if event.key == "enter":
             event.prevent_default()
             event.stop()
@@ -137,6 +160,23 @@ class _InputTextArea(TextArea):
             self.insert("\n")
             return
         await super()._on_key(event)
+
+    async def _on_paste(self, event) -> None:
+        """R6 paste chip (spec §5.5): a bracketed paste of >5 lines collapses
+        to a `[pasted N lines]` token; the full text is restored on submit.
+
+        Textual dispatches `_on_paste` for EVERY class in the MRO, so this
+        must NOT call `super()._on_paste` (double insertion). The chip path
+        calls `prevent_default()`, which stops the MRO walk before
+        TextArea's default insertion; small pastes fall through to it.
+        """
+        bar = self.parent
+        if isinstance(bar, InputBar) and not self.read_only:
+            text = event.text or ""
+            if len(text.split("\n")) > PASTE_CHIP_THRESHOLD_LINES:
+                event.prevent_default()
+                event.stop()
+                self.insert(bar.store_paste(text))
 
 
 class InputBar(Widget):
@@ -176,6 +216,8 @@ class InputBar(Widget):
         self._search_corpus: list[str] = []
         self._pending_image = None
         self._mention_files: list[str] | None = None
+        # R6 paste chips (spec §5.5): token-in-buffer → full pasted text.
+        self._pasted_blobs: dict[str, str] = {}
 
     def on_focus(self, event) -> None:
         # InputBar is focusable so the app can target `#input`, but editing
@@ -284,8 +326,47 @@ class InputBar(Widget):
             super().__init__()
             self.value = value
 
+    # ------------------------------------------------------------------
+    # R6 paste chips (spec §5.5)
+    # ------------------------------------------------------------------
+
+    def store_paste(self, text: str) -> str:
+        """Stash a large paste; return the chip token inserted in its place."""
+        n = len(text.split("\n"))
+        token = f"[pasted {n} lines]"
+        seq = 2
+        while token in self._pasted_blobs:
+            token = f"[pasted {n} lines #{seq}]"
+            seq += 1
+        self._pasted_blobs[token] = text
+        return token
+
+    def _expand_paste_chips(self, value: str) -> str:
+        """Substitute chip tokens back to their full pasted text (on submit)."""
+        if not self._pasted_blobs:
+            return value
+        for token, blob in self._pasted_blobs.items():
+            value = value.replace(token, blob)
+        self._pasted_blobs = {}
+        return value
+
+    def delete_chip_before_cursor(self) -> bool:
+        """Delete the whole chip token ending at the cursor (backspace hook)."""
+        ta = self.query_one("#input-textarea", _InputTextArea)
+        offset = self._cursor_offset()
+        prefix = ta.text[:offset]
+        for token in list(self._pasted_blobs):
+            if prefix.endswith(token):
+                new_text = ta.text[: offset - len(token)] + ta.text[offset:]
+                self._pasted_blobs.pop(token)
+                ta.load_text(new_text)
+                ta.move_cursor(self._offset_to_loc(new_text, offset - len(token)))
+                self._sync_placeholder()
+                return True
+        return False
+
     async def action_submit(self) -> None:
-        value = self.text
+        value = self._expand_paste_chips(self.text)
         self.load_text("")
         pending_image = self._pending_image
         self._pending_image = None

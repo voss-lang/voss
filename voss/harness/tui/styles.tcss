@@ -91,6 +91,23 @@ Toast {
     display: none;
 }
 
+/* R6 nav mode (spec §7.1): focused transcript block — accent tint only
+ * (translucent palette var, not a new hex / accent allow-list site). */
+#main .nav-focus {
+    background: $accent 8%;
+}
+
+/* R6 queued-input chip (spec §7.3): dim text behind an accent-tint bar,
+ * hidden until a submit lands while a turn is running. */
+#queued-chips {
+    display: none;
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+    color: $dim;
+    border-left: wide $accent 50%;
+}
+
 .accent {
     color: $accent;
 }
