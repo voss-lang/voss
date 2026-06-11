@@ -2360,6 +2360,26 @@ Plans:
 - [ ] V20-04-PLAN.md — critical risk tier + human_approved gate + approve/reject verb [VEDR-04]
 - [ ] V20-05-PLAN.md — BUG: Reviewer-B strong tier at Done + repo_context card field [VEDR-05]
 
+### Phase V21: Global Cross-Project Memory
+
+**Goal:** Facts that transcend a single repo — operator preferences, recurring conventions, cross-repo patterns — live in a durable global store (`~/.voss/memory/global/`) and surface in recall everywhere: `MemoryStore.recall()` and the unified `voss recall` verb (V19) query project + global stores and RRF-merge rankings, hits labeled `[global]`. Includes explicit promotion (`voss memory promote <locator>` — copy a project memory into the global store) and scope rules (global store is curated like `.voss/memory/`, tombstones apply; never auto-promoted). Reuse-not-rebuild: second `MemoryStore` instance rooted at the global path + the existing `_rrf_merge`/source-label machinery from V19's cross-corpus CLI — no new store type, no new schema.
+
+**Requirements:** VGMEM-* (SPEC pending — V-track phase, requirements live in `V21-SPEC.md` not REQUIREMENTS.md).
+
+**Out of scope:** cloud sync / multi-machine (PROJECT.md exclusion stands); auto-promotion heuristics (manual verb only this phase); global code index (code stays per-repo — derived from the repo it describes).
+
+**Origin:** gap #2 from the 2026-06-11 memory/RAG design discussion (see `seeds/SEED-002-codebase-rag-tiered-indexing.md` stretch notes). Depends on: V19 (unified recall surface + source labels).
+
+### Phase V22: External Memory & Docs Ingest
+
+**Goal:** Bring designated markdown corpora into recall as labeled, derived sources: repo docs (README, docs/) and operator-configured external memory directories (e.g. Claude Code file-memory dirs, SecondBrain-style vaults) — so `voss recall` answers from project knowledge that lives outside code and conversation. Each corpus is a config-declared source (`[recall.sources]` — name, path, glob) ingested through the existing `SemanticMemory._ingest_source` lineage into its own labeled collection with a per-source hash manifest (derived cache, rebuildable — same lifecycle as V19's CodeIndex, NOT curated memory). Hits carry the source name; raw external files are NEVER written back (read-only ingest — SecondBrain raw-sources immutability respected by construction). Reuse-not-rebuild: V19 manifest + background-worker + RRF patterns applied to markdown chunks (section-boundary chunking instead of symbol-boundary).
+
+**Requirements:** VXMEM-* (SPEC pending — V-track phase, requirements live in `V22-SPEC.md` not REQUIREMENTS.md).
+
+**Out of scope:** writing/syncing back to external sources (read-only forever this phase); non-markdown formats (PDF/HTML — later seed); auto-discovery of external dirs (explicit config only); `.planning/` GSD artifacts as a default source (privacy/noise — opt-in path only).
+
+**Origin:** gap #3 from the 2026-06-11 memory/RAG design discussion (V19 SPEC out-of-scope "ingesting external memory markdown"). Depends on: V19 (CodeIndex patterns + unified recall), V21 (source-label conventions across >2 corpora).
+
 ---
 
 ## E-prefixed phases: Internal Proof Suite (E2E + Evals)
