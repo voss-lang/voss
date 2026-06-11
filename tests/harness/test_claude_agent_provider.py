@@ -270,7 +270,8 @@ async def test_options_lock_down_tools_and_settings() -> None:
         response_format=Plan,
     )
     opt = captured["options"]
-    assert opt.max_turns == 1
+    # Structured output needs the StructuredOutput tool round-trip → 2 turns.
+    assert opt.max_turns == 2
     assert opt.tools == []
     assert opt.allowed_tools == []
     assert opt.setting_sources == []
@@ -281,6 +282,15 @@ async def test_options_lock_down_tools_and_settings() -> None:
     assert opt.system_prompt == "sys A\n\nsys B"
     assert "sys A" not in captured["prompt"]
     assert "do the thing" in captured["prompt"]
+
+
+@pytest.mark.asyncio
+async def test_plain_text_call_stays_single_turn() -> None:
+    captured: dict = {}
+    p = _provider([FakeResultMessage(usage=USAGE)], captured)
+    await _drain(p)  # no response_format
+    assert captured["options"].max_turns == 1
+    assert captured["options"].output_format is None
 
 
 @pytest.mark.asyncio

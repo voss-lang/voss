@@ -128,7 +128,9 @@ class ClaudeAgentProvider:
         kwargs: dict[str, Any] = {
             "system_prompt": system_prompt or None,
             "model": model,
-            "max_turns": 1,
+            # Structured output rides an internal StructuredOutput tool
+            # round-trip, which costs a second turn; plain text fits in one.
+            "max_turns": 2 if schema else 1,
             "tools": [],
             "allowed_tools": [],
             "setting_sources": [],
@@ -266,11 +268,15 @@ class ClaudeAgentProvider:
                             text_acc.append(block.text)
                             yield TextDelta(text=block.text)
                         elif hasattr(block, "input"):
-                            telemetry.emit(
-                                "provider.claude_agent.stray_tool_use",
-                                "warn",
-                                data={"name": getattr(block, "name", "?")},
-                            )
+                            # StructuredOutput is the SDK's own json_schema
+                            # delivery mechanism, not a stray tool call.
+                            name = getattr(block, "name", "?")
+                            if name != "StructuredOutput":
+                                telemetry.emit(
+                                    "provider.claude_agent.stray_tool_use",
+                                    "warn",
+                                    data={"name": name},
+                                )
                 # SystemMessage(init) and anything else: not load-bearing.
 
             yield Done(stop_reason="incomplete")
