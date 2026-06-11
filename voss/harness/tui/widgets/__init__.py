@@ -24,10 +24,17 @@ from .slash_palette import SlashPalette, rank_commands
 from .status_line import StatusLine
 from .code_intel_panel import CodeIntelPanel
 from .sub_agent_panel import SubAgentPanel
-from .turn_view import SideRegion, TurnView
+from .turn_view import (
+    AssistantBlock,
+    HomeScreen,
+    SideRegion,
+    TranscriptView,
+    UserBlock,
+)
 from .voss_py_diff_modal import VossPyDiffModal
 
 __all__ = [
+    "AssistantBlock",
     "BudgetChoice",
     "BudgetExhaustedModal",
     "BudgetMeter",
