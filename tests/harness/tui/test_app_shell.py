@@ -9,7 +9,7 @@ from voss.harness.tui.widgets import (
     InputBar,
     SideRegion,
     StatusLine,
-    TurnView,
+    TranscriptView,
 )
 
 
@@ -18,7 +18,7 @@ async def test_app_mounts_all_regions() -> None:
     app = VossTUIApp()
     async with app.run_test() as pilot:
         assert pilot.app.query_one("#header", HeaderBar) is not None
-        assert pilot.app.query_one("#main", TurnView) is not None
+        assert pilot.app.query_one("#main", TranscriptView) is not None
         assert pilot.app.query_one("#status", StatusLine) is not None
         assert pilot.app.query_one("#input", InputBar) is not None
         # side region exists but is hidden via display: none in styles.tcss
@@ -47,7 +47,7 @@ async def test_app_renders_at_80x24() -> None:
         # Every region renders without raising.
         for region_id, cls in (
             ("header", HeaderBar),
-            ("main", TurnView),
+            ("main", TranscriptView),
             ("status", StatusLine),
             ("input", InputBar),
         ):

@@ -16,7 +16,7 @@ import pytest
 
 from voss.harness.tui.app import VossTUIApp
 from voss.harness.tui.renderer import TextualRenderer
-from voss.harness.tui.widgets import TurnView
+from voss.harness.tui.widgets import TranscriptView
 from voss_runtime.memory.episodic import EpisodicMemory
 
 
@@ -57,10 +57,10 @@ async def test_full_turn_flow_renders_user_plan_final() -> None:
         # Let the event loop flush the posted updates.
         await pilot.pause()
 
-        turn_view = pilot.app.query_one("#main", TurnView)
-        # TurnView is a RichLog; introspect via the internal Lines list.
-        assert turn_view._turn_count >= 3, turn_view._turn_count
-        flat = "".join(str(line) for line in turn_view.lines)
+        transcript = pilot.app.query_one("#main", TranscriptView)
+        # TranscriptView mounts one block per entry; flatten via plain_text.
+        assert transcript._turn_count >= 3, transcript._turn_count
+        flat = transcript.plain_text()
         # We assert that user task + plan body + final text all surface.
         assert "write hello.py" in flat, flat
         assert "fs_write" in flat, flat

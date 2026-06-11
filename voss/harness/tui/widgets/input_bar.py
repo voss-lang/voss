@@ -546,13 +546,10 @@ class InputBar(Widget):
 
     def _append_local_block(self, block) -> None:
         try:
-            from .turn_view import TurnView
+            from .turn_view import TranscriptView
 
-            turn_view = self.app.query_one("#main", TurnView)
+            transcript = self.app.query_one("#main", TranscriptView)
         except Exception:  # noqa: BLE001
             return
-        if getattr(turn_view, "_turn_count", 0) == 0:
-            turn_view.clear()
-        turn_view._turn_count += 1  # noqa: SLF001 - matches TurnView append protocol.
-        turn_view.write(block.render())
+        transcript.add_local_block(block)
 

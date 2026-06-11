@@ -48,7 +48,7 @@ from .widgets import (
     SideRegion,
     StatusLine,
     SubAgentPanel,
-    TurnView,
+    TranscriptView,
 )
 
 
@@ -279,7 +279,7 @@ class VossTUIApp(App):
                 side.display = False
                 side.styles.display = "none"
         try:
-            self.query_one("#main", TurnView).append_turn(
+            self.query_one("#main", TranscriptView).append_turn(
                 "gather", f"✓ gathered · {n_results} results"
             )
         except Exception:  # noqa: BLE001
@@ -336,7 +336,7 @@ class VossTUIApp(App):
 
     def update_inspected(self, paths: list[str]) -> None:
         try:
-            tv = self.query_one("#main", TurnView)
+            tv = self.query_one("#main", TranscriptView)
         except Exception:  # noqa: BLE001
             return
         for path in paths:
@@ -344,7 +344,7 @@ class VossTUIApp(App):
 
     def update_changed(self, paths: list[str]) -> None:
         try:
-            tv = self.query_one("#main", TurnView)
+            tv = self.query_one("#main", TranscriptView)
         except Exception:  # noqa: BLE001
             return
         for path in paths:
@@ -352,7 +352,7 @@ class VossTUIApp(App):
 
     def append_tool_line(self, summary: str, *, state: str = "ok") -> None:
         try:
-            tv = self.query_one("#main", TurnView)
+            tv = self.query_one("#main", TranscriptView)
         except Exception:  # noqa: BLE001
             return
         prefix = "✓" if state == "ok" else "✗"
@@ -393,11 +393,9 @@ class VossTUIApp(App):
 
     def on_local_event(self, event_name: str, payload: dict) -> None:
         try:
-            tv = self.query_one("#main", TurnView)
+            tv = self.query_one("#main", TranscriptView)
         except Exception:  # noqa: BLE001
             return
-        if getattr(tv, "_turn_count", 0) == 0:
-            tv.clear()
         if event_name == "shell.local":
             block = LocalBlockShell(
                 str(payload.get("cmd", "")),
@@ -416,13 +414,12 @@ class VossTUIApp(App):
             block = LocalBlockNotice(str(payload.get("message", "")))
         else:
             return
-        tv._turn_count += 1  # noqa: SLF001 - matches TurnView append protocol.
-        tv.write(block.render())
+        tv.add_local_block(block)
 
     def compose(self) -> ComposeResult:
         yield HeaderBar(id="header")
         with Horizontal():
-            yield TurnView(id="main")
+            yield TranscriptView(id="main")
             yield SideRegion(id="side")
         yield StatusLine(id="status")
         yield InputBar(id="input")

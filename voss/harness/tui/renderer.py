@@ -33,11 +33,11 @@ from .widgets import (
     InputBar,
     StatusLine,
     SubAgentPanel,
-    TurnView,
+    TranscriptView,
 )
 
 # Defensive import: missing SPAWN_TOOL_NAME degrades show_tool_call to the
-# generic TurnView path (no panel mount). Tests exercise this via
+# generic TranscriptView path (no panel mount). Tests exercise this via
 # monkeypatch.delattr(subagents, 'SPAWN_TOOL_NAME', raising=False).
 try:
     from ..subagents import SPAWN_TOOL_NAME as _SPAWN_TOOL_NAME
@@ -92,9 +92,9 @@ class TextualRenderer:
             return
         self._post(method, *args, **kwargs)
 
-    def _turn_view(self) -> TurnView | None:
+    def _turn_view(self) -> TranscriptView | None:
         try:
-            return self.app.query_one("#main", TurnView)
+            return self.app.query_one("#main", TranscriptView)
         except Exception:  # noqa: BLE001
             return None
 
@@ -310,7 +310,7 @@ class TextualRenderer:
         if status is not None:
             self._post(status.clear_toast)
 
-    # T1-05: streaming entry points — forward to TurnView via the _safe
+    # T1-05: streaming entry points — forward to TranscriptView via the _safe
     # lookup + _post forwarding pattern used by show_plan / show_final.
     def stream_delta(self, text: str) -> None:
         self._safe(self._turn_view, "stream_delta", text)
