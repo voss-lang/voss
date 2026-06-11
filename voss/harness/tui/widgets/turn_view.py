@@ -17,14 +17,13 @@ from textual.containers import VerticalScroll
 from textual.widget import Widget
 from textual.widgets import Static
 
-from .. import glyphs
+from .. import glyphs, palette
 from .agent_tree import AgentTreeCard
 from .tool_card import ToolCard
 from .working_indicator import WorkingIndicator
 
 
 EMPTY_HEADING = "type a message below to begin · / for commands"
-IGNITE_ORANGE = "#ff5b1f"
 ASSISTANT_INDENT = 2
 
 
@@ -61,9 +60,9 @@ class HomeScreen(Static):
             out.append("\n")
         if width >= 70:
             for line in VOSS_LOGO:
-                out.append(_center(line, width) + "\n", style=f"bold {IGNITE_ORANGE}")
+                out.append(_center(line, width) + "\n", style=f"bold {palette.ACCENT}")
         else:
-            out.append(_center("VOSS", width) + "\n", style=f"bold {IGNITE_ORANGE}")
+            out.append(_center("VOSS", width) + "\n", style=f"bold {palette.ACCENT}")
         out.append(_center("v1", width) + "\n", style="dim")
         out.append("\n")
         out.append(_center(EMPTY_HEADING, width), style="dim")
@@ -73,8 +72,9 @@ class HomeScreen(Static):
 class UserBlock(Static):
     """User message block — ❯ glyph + dim text, continuation lines indented.
 
-    Spec §3.2. Surface background styling comes in R5; R1 preserves the
-    plain dim look of the old `_write_user`.
+    Spec §3.2. R5 surface styling lives in styles.tcss (`UserBlock` rule):
+    $surface background + $accent 6% left-edge tint (Open Q2 tint-only
+    default — not an accent allow-list site).
     """
 
     def __init__(self, body: str, **kw) -> None:
@@ -129,7 +129,7 @@ class AssistantBlock(Static):
         grid = Table.grid(padding=(0, 1, 0, 0))
         grid.add_column(width=1, vertical="top")
         grid.add_column(ratio=1)
-        grid.add_row(Text(glyphs.ASSISTANT, style=f"bold {IGNITE_ORANGE}"), self._body)
+        grid.add_row(Text(glyphs.ASSISTANT, style=f"bold {palette.ACCENT}"), self._body)
         if self._footer is None:
             return grid
         return Group(grid, self._footer)

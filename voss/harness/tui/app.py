@@ -40,13 +40,13 @@ def extract_last_code_block(text: str) -> str | None:
 from .widgets import (
     CodeIntelPanel,
     ForkConfirmModal,
-    HeaderBar,
     HelpOverlay,
     InputBar,
     LocalBlockNote,
     LocalBlockShell,
     SideRegion,
     StatusLine,
+    Toast,
     ToolCard,
     TranscriptView,
 )
@@ -145,9 +145,11 @@ class VossTUIApp(App):
         self.refresh()
 
     def _toast(self, message: str) -> None:
+        # R5 (spec §5.3): toasts render in the overlay Toast widget, not the
+        # status line, so session metadata never jumps.
         try:
-            self.query_one("#status", StatusLine).set_status(toast=message)
-        except Exception:  # noqa: BLE001 — status widget absent in tests
+            self.query_one("#toast", Toast).show_toast(message)
+        except Exception:  # noqa: BLE001 — toast widget absent in tests
             pass
 
     def note_response_text(self, text: str) -> None:
@@ -360,24 +362,19 @@ class VossTUIApp(App):
         tv.add_local_block(block)
 
     def compose(self) -> ComposeResult:
-        yield HeaderBar(id="header")
+        # R5 (spec §5.1): HeaderBar deleted — budget lives in the StatusLine
+        # right zone; session id surfaces via the launch toast (and the R6
+        # HomeScreen data rows).
         with Horizontal():
             yield TranscriptView(id="main")
             yield SideRegion(id="side")
         yield StatusLine(id="status")
         yield InputBar(id="input")
+        yield Toast(id="toast")
 
     def on_mount(self) -> None:
         # Locked default focus = input bar.
         self.query_one("#input", InputBar).focus()
-        # Seed header so an unbound app still renders something useful.
-        self.query_one("#header", HeaderBar).update_header(
-            session_id=self.session_id,
-            model=self.model,
-            budget_used=0,
-            budget_total=self.budget_total,
-            git_status="",
-        )
         # M9-08: keep CodeIntelPanel ready, but start in the focused composer
         # layout. Sub-agent/code-intel activity can reveal the side region.
         self._code_intel_panel = CodeIntelPanel()
@@ -399,4 +396,11 @@ class VossTUIApp(App):
             tokens=0,
             cost_usd=self.total_cost,
             ctx_pct=0.0,
+            budget_total=self.budget_total,
         )
+        # R5 (spec §5.5): mode-aware input border (plan/restricted → $warn).
+        self.query_one("#input", InputBar).set_mode(self.mode)
+        # R5 (spec §5.1): session id is no longer in chrome — surface it once
+        # on launch via the toast overlay (HomeScreen data rows land in R6).
+        if self.session_id:
+            self._toast(f"session {self.session_id[:8]}")

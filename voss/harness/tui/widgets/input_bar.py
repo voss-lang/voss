@@ -142,6 +142,10 @@ class _InputTextArea(TextArea):
 class InputBar(Widget):
     """TextArea-backed input with locked prompt glyph + Submitted contract."""
 
+    # Structural layout only — all colors/border states live in styles.tcss
+    # (R5 spec §5.5 + §4.1: no hex literal in TUI .py files; the $accent
+    # focus border is declared in the audit-exempt tcss site, mirroring the
+    # MentionPalette precedent).
     DEFAULT_CSS = """
     InputBar {
         layout: horizontal;
@@ -150,50 +154,11 @@ class InputBar(Widget):
         max-height: 8;
         margin: 0 1;
         padding: 0;
-        border: solid #ff5b1f;
-        background: transparent;
-    }
-
-    InputBar:focus,
-    InputBar:focus-within {
-        border-top: solid #ff5b1f;
-    }
-
-    InputBar > #prompt-glyph {
-        width: 3;
-        height: auto;
-        content-align: center top;
-        text-style: bold;
-        padding-top: 0;
-    }
-
-    InputBar:focus > #prompt-glyph,
-    InputBar:focus-within > #prompt-glyph {
-        background: #ff5b1f 15%;
-    }
-
-    InputBar > #input-textarea {
-        height: auto;
-        min-height: 1;
-        max-height: 6;
-        border: none;
-        padding: 0 1 0 0;
-        background: transparent;
-    }
-
-    InputBar > #input-textarea:focus {
-        border: none;
-    }
-
-    InputBar > #input-textarea .text-area--cursor {
-        background: #ff5b1f;
-        text-style: none;
-    }
-
-    InputBar > #input-textarea .text-area--cursor-line {
-        background: transparent;
     }
     """
+
+    # Static placeholder shown while the buffer is empty (R5 spec §5.5).
+    PLACEHOLDER = "/ commands · @ files · ctrl+r history"
 
     BINDINGS = [
         ("ctrl+r", "reverse_search", "Reverse-search input history"),
@@ -234,6 +199,28 @@ class InputBar(Widget):
                 "@ files · Ctrl-R history"
             ),
         )
+        # Placeholder overlays the textarea start on the `hint` layer
+        # (styles.tcss); hidden as soon as the buffer is non-empty.
+        yield Static(self.PLACEHOLDER, id="input-placeholder")
+
+    def set_mode(self, mode: str) -> None:
+        """R5 spec §5.5: border turns $warn + border-title shows the mode
+        name when mode ∈ {plan, restricted}; otherwise state colors apply
+        ($dim idle → $accent focused, via styles.tcss)."""
+        normalized = (mode or "").strip().lower()
+        if normalized in ("plan", "restricted"):
+            self.add_class("mode-warn")
+            self.border_title = normalized
+        else:
+            self.remove_class("mode-warn")
+            self.border_title = ""
+
+    def _sync_placeholder(self) -> None:
+        try:
+            placeholder = self.query_one("#input-placeholder", Static)
+        except Exception:  # noqa: BLE001 — pre-mount
+            return
+        placeholder.display = not self.text
 
     @property
     def text(self) -> str:
@@ -248,6 +235,7 @@ class InputBar(Widget):
         textarea.load_text(text)
         lines = text.split("\n")
         textarea.move_cursor((len(lines) - 1, len(lines[-1])))
+        self._sync_placeholder()
 
     def insert(self, text: str) -> None:
         self.query_one("#input-textarea", _InputTextArea).insert(text)
@@ -321,6 +309,7 @@ class InputBar(Widget):
     async def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if event.text_area is not self.query_one("#input-textarea", _InputTextArea):
             return
+        self._sync_placeholder()
         await self._sync_slash_palette()
         await self._sync_mention_palette()
 

@@ -25,12 +25,12 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-# Mirror of the styles.tcss locked 5-color contract for Rich-side rendering
-# (Rich Text cannot reference TCSS `$vars`). Kept in lock-step with
-# styles.tcss; turn_view.py sets the same precedent (IGNITE_ORANGE).
-_C_ADD = "#5FD75F"     # $good   — added lines
-_C_DEL = "#FF5F5F"     # $error  — removed lines
-_C_DIM = "#888888"     # $dim    — context / metadata
+# Rich-side palette (Rich Text cannot reference TCSS `$vars`) — values come
+# from the palette.py Contract v2 mirror (R5 spec §4.1: no hex literal in
+# any TUI .py file outside palette.py).
+from ..palette import DIM as _C_DIM  # $dim — context / metadata
+from ..palette import ERROR as _C_DEL  # $error — removed lines
+from ..palette import GOOD as _C_ADD  # $good — added lines
 # Hunk-header / active-cursor accent is applied via the `diff-hunk-header`
 # class in styles.tcss (the allow-listed accent site), NOT inline here — the
 # UI-SPEC accent audit forbids the raw accent hex outside the audited widgets.

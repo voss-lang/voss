@@ -64,7 +64,10 @@ def test_empty_state_copy_is_terminal_safe_and_concise() -> None:
 
     assert copy.isascii() or "·" in copy  # · is non-ASCII but allowed
     assert "No turns yet" not in copy
-    assert turn_view.IGNITE_ORANGE == "#ff5b1f"
+    # R5 (spec §4.1): the brand orange lives in palette.py, not turn_view.
+    from voss.harness.tui import palette
+
+    assert palette.ACCENT == "#ff5b1f"
     assert len(copy) <= 80
 
 

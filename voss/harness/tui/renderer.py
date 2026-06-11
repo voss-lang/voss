@@ -30,7 +30,6 @@ from .widgets import (
     ConfidenceBar,
     DiffDecision,
     DiffModal,
-    HeaderBar,
     Hunk,
     InputBar,
     StatusLine,
@@ -109,12 +108,6 @@ class TextualRenderer:
         except Exception:  # noqa: BLE001
             return None
 
-    def _header(self) -> HeaderBar | None:
-        try:
-            return self.app.query_one("#header", HeaderBar)
-        except Exception:  # noqa: BLE001
-            return None
-
     def _status(self) -> StatusLine | None:
         try:
             return self.app.query_one("#status", StatusLine)
@@ -132,19 +125,9 @@ class TextualRenderer:
     # ------------------------------------------------------------------
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
-        header = self._header()
-        if header is None:
-            return
-        self._post(
-            header.update_header,
-            session_id=getattr(self.app, "session_id", ""),
-            model=model,
-            budget_used=0,
-            budget_total=getattr(self.app, "budget_total", 0),
-            git_status=git_status,
-        )
-        # Feed StatusLine with banner data so it shows provider/model/cwd
-        # from first paint (not only after the first status() callback).
+        # R5 (spec §5.1): HeaderBar deleted — banner data feeds the two-zone
+        # StatusLine (budget lands in the right zone) and the mode-aware
+        # InputBar border.
         status = self._status()
         if status is not None:
             cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
@@ -154,7 +137,11 @@ class TextualRenderer:
                 model=model,
                 mode=getattr(self.app, "mode", ""),
                 git_status=git_status or cwd_str,
+                budget_total=getattr(self.app, "budget_total", 0),
             )
+        input_bar = self._input()
+        if input_bar is not None:
+            self._post(input_bar.set_mode, getattr(self.app, "mode", ""))
 
     def show_user(self, task: str) -> None:
         tv = self._turn_view()

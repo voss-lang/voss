@@ -9,7 +9,6 @@ from .confidence_bar import ConfidenceBar
 from .diff_modal import DiffDecision, DiffModal, Hunk
 from .model_picker_modal import ConnectProviderModal, ModelPickerModal
 from .fork_modal import ForkConfirmModal
-from .header import HeaderBar
 from .help_overlay import HelpOverlay
 from .input_bar import InputBar
 from .local_block import LocalBlock, LocalBlockNote, LocalBlockNotice, LocalBlockShell
@@ -23,6 +22,7 @@ from .permission_modal import (
 )
 from .slash_palette import SlashPalette, rank_commands
 from .status_line import StatusLine
+from .toast import Toast
 from .code_intel_panel import CodeIntelPanel
 from .tool_card import ToolCard
 from .turn_view import (
@@ -50,7 +50,6 @@ __all__ = [
     "ModelPickerModal",
     "ConnectProviderModal",
     "ForkConfirmModal",
-    "HeaderBar",
     "HelpOverlay",
     "HomeScreen",
     "Hunk",
@@ -68,6 +67,7 @@ __all__ = [
     "SideRegion",
     "SlashPalette",
     "StatusLine",
+    "Toast",
     "ToolCard",
     "TranscriptView",
     "UserBlock",

@@ -1,32 +1,52 @@
-/* Voss TUI stylesheet — M9-02 locked color contract.
+/* Voss TUI stylesheet — Contract v2 locked color contract (R5, spec §4.1).
  *
- * Five palette entries only. Auditor greps this file:
- *   - exactly 5 hex colors must appear (one per locked role)
+ * Nine palette entries only (5 foreground roles + 3 surfaces + 1 text).
+ * Auditor greps this file (test_glyph_and_color_contract.py):
+ *   - exactly 9 hex colors must appear (one per locked role)
+ *   - no hex literal may exist in any voss/harness/tui .py file except
+ *     palette.py, whose values must mirror these declarations exactly
+ *   - translucent uses of palette vars ($accent 8%) do NOT count as new hex
  *   - no emoji
- *   - .accent class binds only to the 6 UI-SPEC allow-list elements
+ *   - $accent binds only to the 6 allow-listed sites audited by
+ *     test_accent_allowlist_audit.py (tcss rules here are the canonical
+ *     accent declaration/use site for bordered widgets)
  */
 
-/* UI-SPEC Color Contract row "Accent" — used ONLY for the 6 allow-list items. */
+/* Contract v2 row "Accent" — used ONLY for the allow-list items. */
 $accent: #ff5b1f;
 
-/* UI-SPEC Color Contract row "Secondary (30%)" — borders, dim metadata. */
+/* Contract v2 row "Secondary (30%)" — borders, dim metadata, dim text. */
 $dim: #888888;
 
-/* UI-SPEC Color Contract row "Signal-good" — tool success, conf >= 0.85. */
+/* Contract v2 row "Signal-good" — tool success, conf >= 0.85, diff adds. */
 $good: #5FD75F;
 
-/* UI-SPEC Color Contract row "Signal-warn" — conf 0.50..0.84, budget 75..99%. */
+/* Contract v2 row "Signal-warn" — conf 0.50..0.84, budget 75..99%. */
 $warn: #FFD75F;
 
-/* UI-SPEC Color Contract row "Signal-error" — tool failure, budget 100%. */
+/* Contract v2 row "Signal-error" — tool failure, budget 100%, diff dels. */
 $error: #FF5F5F;
 
-/* UI-SPEC Region grid (locked from CONTEXT.md). */
-#header {
-    dock: top;
-    height: 1;
+/* Contract v2 row "Background" — app background (explicit, was terminal default). */
+$bg: #121212;
+
+/* Contract v2 row "Surface" — UserBlock bg, ToolOutput bg, input bar bg. */
+$surface: #1c1c1c;
+
+/* Contract v2 row "Raised" — modals, palettes, toast. */
+$raised: #262626;
+
+/* Contract v2 row "Text" — primary body text (replaces ad-hoc white/#cccccc). */
+$text: #dadada;
+
+/* App background + overlay layer for the Toast (spec §5.3). */
+Screen {
+    layers: base overlay;
+    background: $bg;
+    color: $text;
 }
 
+/* UI-SPEC Region grid (locked from CONTEXT.md; header row deleted in R5). */
 #main {
     width: 100%;
     min-width: 40;
@@ -41,12 +61,14 @@ $error: #FF5F5F;
     display: none;
 }
 
+/* StatusLine — two zones (R5 spec §5.2): left brand/model/mode, right
+ * context bar + budget + cost + git. Content colors come from palette.py
+ * Rich Text; these rules only frame the row. */
 #status {
     height: 1;
     min-height: 1;
     margin: 0 1;
-    background: $accent 15%;
-    color: white;
+    color: $text;
 }
 
 #input {
@@ -54,6 +76,19 @@ $error: #FF5F5F;
     height: auto;
     min-height: 3;
     max-height: 8;
+}
+
+/* Toast overlay (R5 spec §5.3) — top-right, raised surface, 1 line. */
+Toast {
+    layer: overlay;
+    dock: right;
+    width: auto;
+    max-width: 60;
+    height: 1;
+    padding: 0 1;
+    background: $raised;
+    color: $text;
+    display: none;
 }
 
 .accent {
@@ -73,6 +108,79 @@ $error: #FF5F5F;
 }
 
 .dim {
+    color: $dim;
+}
+
+/* UserBlock surface styling (R5 spec §3.4 + Open Q2 default: tint-only —
+ * $surface bg + $accent 6% left-edge tint; NOT a full-strength accent
+ * border, so the accent allow-list stays at 6 sites). */
+UserBlock {
+    background: $surface;
+    border-left: wide $accent 6%;
+    padding: 0 1;
+}
+
+/* InputBar framing (R5 spec §5.5) — rounded border by state:
+ * $dim idle → $accent focused (accent lives HERE, the audit-exempt tcss
+ * declaration site, mirroring the MentionPalette precedent) → $warn when
+ * mode ∈ {plan, restricted} (border-title shows the mode name). */
+InputBar {
+    layers: base hint;
+    border: round $dim;
+    border-title-color: $warn;
+    background: $surface;
+}
+
+InputBar:focus-within {
+    border: round $accent;
+}
+
+InputBar.mode-warn,
+InputBar.mode-warn:focus-within {
+    border: round $warn;
+}
+
+InputBar > #prompt-glyph {
+    width: 3;
+    height: auto;
+    content-align: center top;
+    text-style: bold;
+    padding-top: 0;
+}
+
+InputBar:focus-within > #prompt-glyph {
+    background: $accent 15%;
+}
+
+InputBar > #input-textarea {
+    height: auto;
+    min-height: 1;
+    max-height: 6;
+    border: none;
+    padding: 0 1 0 0;
+    background: transparent;
+}
+
+InputBar > #input-textarea:focus {
+    border: none;
+}
+
+InputBar > #input-textarea .text-area--cursor {
+    background: $accent;
+    text-style: none;
+}
+
+InputBar > #input-textarea .text-area--cursor-line {
+    background: transparent;
+}
+
+/* Static placeholder when empty (spec §5.5): overlays the textarea start
+ * on its own layer; InputBar toggles display on text change. */
+InputBar > #input-placeholder {
+    layer: hint;
+    offset: 3 0;
+    width: auto;
+    height: 1;
     color: $dim;
 }
 
@@ -103,8 +211,8 @@ $error: #FF5F5F;
 }
 
 /* DiffModal — per-hunk approval gate. Colors come from Rich Text (Python)
- * using the locked 5-color palette; these rules only frame the active hunk.
- * No new hex here — the 5-color audit stays intact. */
+ * using the palette.py mirror; these rules only frame the active hunk.
+ * No new hex here — the 9-color audit stays intact. */
 .diff-hunk {
     height: auto;
     padding: 0 1;
@@ -127,6 +235,7 @@ MentionPalette {
     height: auto;
     max-height: 8;
     border: round $accent;
+    background: $raised;
 }
 
 /* M9-08 CodeIntelPanel (sole side-region occupant since R4) */
@@ -161,6 +270,7 @@ ModelPickerModal #picker-box {
     max-width: 100;
     height: 80%;
     border: round $accent;
+    background: $raised;
     padding: 1 2;
 }
 ModelPickerModal #picker-title {
@@ -190,6 +300,7 @@ ConnectProviderModal #connect-box {
     max-width: 70;
     height: auto;
     border: round $accent;
+    background: $raised;
     padding: 1 2;
 }
 ConnectProviderModal #connect-help {

@@ -1,28 +1,37 @@
-"""StatusLine widget — bottom-row dense session metadata.
+"""StatusLine widget — single-row, two-zone session metadata (R5, spec §5.2).
 
-UI-SPEC region "Status line" (1 row, full width).
-Uses Textual markup (not Rich.Text) so CSS color rules apply correctly.
-Toast field flashes for 1500ms then clears.
+Left zone: brand `▌ voss` (accent, allow-listed site) + provider/model +
+mode. Right zone: 4-cell context bar + percent ($warn ≥ 75%, $error at
+100%), budget `used/total` when a budget is set, session cost, git. The
+left zone truncates first (Rich grid: left column ratio, right column
+content-width).
+
+Toasts no longer render here (spec §5.3): the `toast=` kwarg and the
+`set_persistent_toast`/`clear_toast` methods are deprecation shims that
+delegate to the app's Toast overlay widget so call sites (permissions
+bridge / show_thinking / fork flash) keep working unchanged.
+
+Colors come from the palette.py mirror — Rich Text cannot read tcss vars.
 """
 from __future__ import annotations
 
+from rich.table import Table
+from rich.text import Text
 from textual.widgets import Static
 
-from .. import glyphs
+from .. import glyphs, palette
 
 # Status line accent glyph — matches InputBar prompt for visual consistency.
 _BRAND_GLYPH = glyphs.PROMPT
 
-
-def _esc(s: str) -> str:
-    """Escape Textual markup characters in user-supplied strings."""
-    return s.replace("[", "\\[").replace("]", "\\]")
+# Context-bar width in cells (spec §5.2 mock: `▰▰▱▱ 34%`).
+_CTX_CELLS = 4
 
 
 class StatusLine(Static):
 
     def __init__(self, **kw) -> None:
-        super().__init__("", markup=True, **kw)
+        super().__init__("", **kw)
         self._provider: str = ""
         self._model: str = ""
         self._mode: str = ""
@@ -30,8 +39,7 @@ class StatusLine(Static):
         self._tokens: int = 0
         self._cost_usd: float = 0.0
         self._ctx_pct: float = 0.0
-        self._toast: str | None = None
-        self._toast_timer = None
+        self._budget_total: int = 0
 
     def set_status(
         self,
@@ -43,6 +51,7 @@ class StatusLine(Static):
         tokens: int | None = None,
         cost_usd: float | None = None,
         ctx_pct: float | None = None,
+        budget_total: int | None = None,
         toast: str | None = None,
     ) -> None:
         if provider is not None:
@@ -59,78 +68,98 @@ class StatusLine(Static):
             self._cost_usd = cost_usd
         if ctx_pct is not None:
             self._ctx_pct = ctx_pct
+        if budget_total is not None:
+            self._budget_total = budget_total
         if toast is not None:
-            self._toast = toast
-            if self._toast_timer is not None:
-                try:
-                    self._toast_timer.stop()
-                except Exception:  # noqa: BLE001
-                    pass
-                self._toast_timer = None
-            try:
-                self._toast_timer = self.set_timer(1.5, self._clear_toast)
-            except Exception:  # noqa: BLE001 — set_timer needs a running app loop
-                self._toast_timer = None
-        self.update(self._render_markup())
+            # Deprecation shim (spec §5.2/§5.3): toasts moved to the overlay.
+            self._delegate_toast(toast, persistent=False)
+        self.update(self._render_grid())
+
+    # ------------------------------------------------------------------
+    # Toast deprecation shims — delegate to the app's Toast overlay so the
+    # renderer / permissions-bridge / fork call sites stay unchanged.
+    # ------------------------------------------------------------------
 
     def set_persistent_toast(self, text: str) -> None:
-        """Set a toast that stays until explicitly cleared."""
-        if self._toast_timer is not None:
-            try:
-                self._toast_timer.stop()
-            except Exception:  # noqa: BLE001
-                pass
-            self._toast_timer = None
-        self._toast = text
-        self.update(self._render_markup())
+        """Shim: show a toast that stays until explicitly cleared."""
+        self._delegate_toast(text, persistent=True)
 
     def clear_toast(self) -> None:
-        """Clear any active toast (persistent or timed)."""
-        self._clear_toast()
+        """Shim: clear any active toast (persistent or timed)."""
+        toast = self._toast_widget()
+        if toast is not None:
+            toast.clear()
 
-    def _clear_toast(self) -> None:
-        self._toast = None
-        self.update(self._render_markup())
+    def _delegate_toast(self, text: str, *, persistent: bool) -> None:
+        toast = self._toast_widget()
+        if toast is not None:
+            toast.show_toast(text, persistent=persistent)
 
-    def _render_markup(self) -> str:
-        parts: list[str] = []
+    def _toast_widget(self):
+        from .toast import Toast
 
-        # Brand
-        parts.append(f"[bold #ff5b1f] {_esc(_BRAND_GLYPH)} voss[/]")
+        try:
+            return self.app.query_one("#toast", Toast)
+        except Exception:  # noqa: BLE001 — headless StatusLine / no overlay mounted
+            return None
 
-        # Provider / model
+    # ------------------------------------------------------------------
+    # rendering
+    # ------------------------------------------------------------------
+
+    def _render_grid(self) -> Table:
+        grid = Table.grid(expand=True, padding=(0, 0))
+        grid.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
+        grid.add_column(justify="right", no_wrap=True, overflow="crop")
+        grid.add_row(self._left_text(), self._right_text())
+        return grid
+
+    def _left_text(self) -> Text:
+        t = Text(no_wrap=True)
+        t.append(f"{_BRAND_GLYPH} voss", style=f"bold {palette.ACCENT}")
         pm = self._provider_model()
         if pm:
-            parts.append(f"[#888888] | [/]{_esc(pm)}")
-
-        # Context usage
-        total_k = self._tokens / 1000 if self._tokens else 0
-        ctx_color = "#FFD75F" if self._ctx_pct > 0.8 else "#cccccc"
-        if 0 < self._ctx_pct <= 1 and self._tokens > 0:
-            ctx_total = int(self._tokens / self._ctx_pct) if self._ctx_pct > 0 else 0
-            ctx_total_k = ctx_total / 1000
-            ctx_text = f"{self._ctx_pct:.0%} ({total_k:.0f}K/{ctx_total_k:.0f}K)"
-        else:
-            ctx_text = f"{self._ctx_pct:.0%} ({total_k:.0f}K)"
-        parts.append(f"[#888888] | [/][{ctx_color}]{ctx_text}[/]")
-
-        # Cwd / git
-        if self._git_status:
-            parts.append(f"[#888888] | {_esc(self._git_status)}[/]")
-
-        # Cost
-        cost_color = "#FF5F5F" if self._cost_usd > 1.0 else "#cccccc"
-        parts.append(f"[#888888] | [/][{cost_color}]${self._cost_usd:.2f}[/]")
-
-        # Mode
+            t.append(" · ", style=palette.DIM)
+            t.append(pm, style=palette.TEXT)
         if self._mode:
-            parts.append(f"[#888888] | {_esc(self._mode)}[/]")
+            t.append(" · ", style=palette.DIM)
+            t.append(self._mode, style=palette.DIM)
+        return t
 
-        # Toast
-        if self._toast:
-            parts.append(f"  [#ff5b1f]{_esc(self._toast)}[/]")
+    def _right_text(self) -> Text:
+        t = Text(no_wrap=True)
+        # Context bar — thresholds match the locked color contract rows:
+        # $warn at 75..99%, $error at 100%.
+        pct = max(0.0, self._ctx_pct)
+        filled = min(_CTX_CELLS, int(round(min(pct, 1.0) * _CTX_CELLS)))
+        if pct >= 1.0:
+            bar_style = palette.ERROR
+        elif pct >= 0.75:
+            bar_style = palette.WARN
+        else:
+            bar_style = palette.DIM
+        bar = glyphs.BUDGET_FILL * filled + glyphs.BUDGET_EMPTY * (_CTX_CELLS - filled)
+        t.append(f"{bar} {pct:.0%}", style=bar_style)
+        # Budget used/total — from the old HeaderBar (R5 spec §5.1).
+        if self._budget_total > 0:
+            t.append(" · ", style=palette.DIM)
+            t.append(
+                f"{self._tokens / 1000:.1f}k/{self._budget_total / 1000:.1f}k",
+                style=palette.DIM,
+            )
+        # Cost
+        cost_style = palette.ERROR if self._cost_usd > 1.0 else palette.TEXT
+        t.append(" · ", style=palette.DIM)
+        t.append(f"${self._cost_usd:.2f}", style=cost_style)
+        # Git branch / dirty marker (or cwd fallback fed by the renderer)
+        if self._git_status:
+            t.append(" · ", style=palette.DIM)
+            t.append(self._git_status, style=palette.DIM)
+        return t
 
-        return "".join(parts)
+    def plain_text(self) -> str:
+        """Flatten both zones for tests/introspection."""
+        return f"{self._left_text().plain}  {self._right_text().plain}"
 
     def _provider_model(self) -> str:
         if self._provider and self._model:
