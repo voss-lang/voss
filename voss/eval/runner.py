@@ -569,10 +569,14 @@ def _build_provider_from_resolution(res: auth_mod.Resolution) -> ModelProvider:
     """Mirror cli._resolve_auth_or_die / server._resolve_provider provider selection."""
     from voss_runtime.providers import LiteLLMProvider
 
-    from voss.harness.providers import AnthropicOAuthProvider, OpenAIOAuthProvider
+    from voss.harness.claude_agent_provider import ClaudeAgentProvider
+    from voss.harness.providers import OpenAIOAuthProvider
 
-    if res.source == "claude-oauth":
-        return AnthropicOAuthProvider(res.anthropic_oauth)  # type: ignore[arg-type]
+    if res.source == "claude-agent":
+        cfg = get_config()
+        if not cfg.default_model.startswith("claude"):
+            configure(default_model="claude-sonnet-4-5")
+        return ClaudeAgentProvider(cli_path=res.cli_path)
     if res.source == "codex-oauth":
         cfg = get_config()
         if not cfg.default_model.startswith("gpt-5."):

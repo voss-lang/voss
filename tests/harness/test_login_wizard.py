@@ -65,7 +65,7 @@ def _isolate_keyring(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
 
 def _claude_resolution() -> A.Resolution:
     return A.Resolution(
-        source="claude-oauth",
+        source="claude-agent",
         detail="test",
         anthropic_oauth=A.AnthropicOAuthCreds(
             access_token="x",
@@ -127,7 +127,7 @@ def test_claude_branch_success():
         waiter=lambda _provider, **_k: _claude_resolution(),
     )
     assert res is not None
-    assert res.source == "claude-oauth"
+    assert res.source == "claude-agent"
     assert spawn_calls == [["/usr/local/bin/claude"]]
 
 

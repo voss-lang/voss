@@ -36,7 +36,8 @@ from .agent import Plan
 from .claims import claims_group
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
-from .providers import AnthropicOAuthProvider, OpenAIOAuthProvider
+from .claude_agent_provider import ClaudeAgentProvider
+from .providers import OpenAIOAuthProvider
 from .render import make_renderer
 from .sandbox import SandboxError, jail_path
 from .multiagent import DEFAULT_PARENT_RESERVE, attach_multiagent_tools
@@ -491,16 +492,19 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
             )
             sys.exit(2)
 
-    if res.source == "claude-oauth":
+    if res.source == "claude-agent":
         click.echo(
-            "  [deprecated: claude-oauth (Claude subscription) is no longer "
-            "supported. Anthropic prohibits subscription OAuth tokens in "
-            "third-party tools (Consumer ToS) and blocks them server-side since "
-            "2026-01-09, so calls will likely fail. Use --auth=api with "
-            "ANTHROPIC_API_KEY, or --auth=codex for a ChatGPT subscription.]",
+            "  [claude-agent: using your Claude subscription via the Agent SDK "
+            "(claude -p); bills the plan's Agent SDK monthly credit, not "
+            "interactive Claude Code limits.]",
             err=True,
         )
-        provider: ModelProvider = AnthropicOAuthProvider(res.anthropic_oauth)  # type: ignore[arg-type]
+        provider: ModelProvider = ClaudeAgentProvider(cli_path=res.cli_path)
+        cfg = get_config()
+        # The Agent SDK only serves claude-* models. Snap any non-claude
+        # default to the current baseline; leave an explicit claude-* alone.
+        if not cfg.default_model.startswith("claude"):
+            configure(default_model="claude-sonnet-4-5")
     elif res.source == "codex-oauth":
         click.echo(
             "  [codex-oauth: using your ChatGPT subscription via "

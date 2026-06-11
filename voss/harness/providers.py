@@ -144,6 +144,10 @@ def _resolve_model(model: str) -> str:
 class AnthropicOAuthProvider:
     """Anthropic Messages API client using Claude Code OAuth tokens.
 
+    Retired from live wiring 2026-06 (Anthropic blocks subscription OAuth in
+    third-party tools server-side); kept for stream-contract tests. The live
+    subscription path is ClaudeAgentProvider (claude_agent_provider.py).
+
     Notes:
     - Adds `anthropic-beta: oauth-2025-04-20` header.
     - Translates `response_format=PydanticModel` into a single forced tool call,

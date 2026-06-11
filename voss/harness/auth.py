@@ -323,11 +323,14 @@ def load_codex() -> Optional[CodexCreds]:
 
 @dataclass
 class Resolution:
-    source: str  # "voss-anthropic" | "voss-openai" | "env-anthropic" | "env-openai" | "claude-oauth" | "codex" | "codex-oauth" | "none"
+    source: str  # "voss-anthropic" | "voss-openai" | "env-anthropic" | "env-openai" | "claude-agent" | "codex" | "codex-oauth" | "none"
     detail: str
     anthropic_oauth: Optional[AnthropicOAuthCreds] = None
     openai_api_key: Optional[str] = None
     codex_oauth: Optional[CodexCreds] = None
+    # claude-agent: absolute path to the `claude` CLI found during resolution,
+    # threaded into ClaudeAgentProvider so it never re-probes PATH.
+    cli_path: Optional[Path] = None
 
 
 def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
@@ -342,8 +345,8 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
          login wizard. Wins over env vars so a forgotten shell export does
          not silently shadow the wizard's choice.
       2. Explicit env vars (ANTHROPIC_API_KEY / OPENAI_API_KEY).
-      3. Claude Code OAuth (~/.claude/.credentials.json).
-      4. Codex auth (~/.codex/auth.json).
+      3. Codex auth (~/.codex/auth.json).
+      4. Claude Agent SDK (claude CLI on PATH + logged-in subscription creds).
     """
     if preference == "none":
         return Resolution(source="none", detail="forced none")
@@ -363,10 +366,10 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
         if k := os.environ.get("OPENAI_API_KEY"):
             return Resolution(source="env-openai", detail="OPENAI_API_KEY", openai_api_key=k)
 
-    # Codex is preferred over Claude under `auto`: a ChatGPT subscription is
-    # the sanctioned third-party path (the Codex CLI writes ~/.codex/auth.json
-    # for exactly this reuse), whereas Anthropic's subscription OAuth is not
-    # intended for non-Claude clients. Explicit `--auth=claude` still wins.
+    # Codex stays ahead of Claude under `auto` for now (no behavior churn).
+    # Claude resolution targets the Agent SDK path (`claude -p` subprocess),
+    # sanctioned by Anthropic's 2026-06-15 subscription-credit policy — the
+    # old raw-OAuth reuse is server-blocked. Explicit `--auth=claude` wins.
     if preference in ("auto", "codex"):
         if codex := load_codex():
             if codex.api_key:
@@ -383,15 +386,30 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
                 )
 
     if preference in ("auto", "claude"):
-        if creds := load_anthropic_oauth():
+        creds = load_anthropic_oauth()
+        cli = detect_upstream_cli("claude")
+        if creds and cli:
             return Resolution(
-                source="claude-oauth",
-                detail=f"keychain ({creds.subscription_type}, expires {creds.expires_in_seconds}s)",
+                source="claude-agent",
+                detail=f"claude CLI + subscription creds ({creds.subscription_type})",
                 anthropic_oauth=creds,
+                cli_path=cli,
             )
-
-    if preference == "claude":
-        return Resolution(source="none", detail="no Claude OAuth creds found")
+        if preference == "claude":
+            if creds and not cli:
+                return Resolution(
+                    source="none",
+                    detail=(
+                        "claude CLI not on PATH — "
+                        "npm install -g @anthropic-ai/claude-code"
+                    ),
+                )
+            if cli and not creds:
+                return Resolution(
+                    source="none",
+                    detail="claude CLI found but not logged in — run claude /login",
+                )
+            return Resolution(source="none", detail="no Claude CLI or creds found")
     if preference == "codex":
         return Resolution(source="none", detail="no Codex creds found")
     if preference == "api":
@@ -438,10 +456,13 @@ def wait_for_creds(
         if provider == "claude":
             creds = load_anthropic_oauth()
             if creds is not None:
+                # The wizard only reaches here after detect("claude") succeeded,
+                # so the CLI is present; re-detect to fill cli_path.
                 return Resolution(
-                    source="claude-oauth",
-                    detail=f"keychain ({creds.subscription_type}, expires {creds.expires_in_seconds}s)",
+                    source="claude-agent",
+                    detail=f"claude CLI + subscription creds ({creds.subscription_type})",
                     anthropic_oauth=creds,
+                    cli_path=detect_upstream_cli("claude"),
                 )
         else:  # codex
             codex = load_codex()
