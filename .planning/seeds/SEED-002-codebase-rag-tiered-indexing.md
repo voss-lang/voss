@@ -1,6 +1,7 @@
 ---
 id: SEED-002
-status: dormant
+status: routed
+routed_to: Phase V19 (ROADMAP.md, added 2026-06-11)
 planted: 2026-06-11
 planted_during: v0.1.1 (V-track)
 trigger_when: next V-track phase touching memory, retrieval, or context efficiency (natural V18 token-optimizer successor)

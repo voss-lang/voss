@@ -2314,6 +2314,29 @@ Plans:
 
 ---
 
+### Phase V19: Semantic Code Memory + Tiered Index Routing
+
+**Goal:** Add the missing *semantic* (embedding-based) layer to codebase retrieval: a derived, rebuildable vector index over code chunks so agents can answer concept-level queries ("where do we handle retry backoff") without burning frontier-model tokens on agentic grep loops — and route all index-enrichment work (chunk summaries, symbol descriptions, batch classification) to a cheap fast model tier (GPT-OSS/Ollama, Haiku-class) via the existing model router, so the frontier model never pays for index maintenance. Reuse-not-rebuild: V19 **consumes** M10 code-intel (project index, symbol boundaries → chunking), F2 hybrid recall (BM25 + Chroma RRF machinery in `MemoryStore`), `voss_runtime/memory/semantic.py` (Chroma wrapper + embedding-function selection), and `/models` routing (`model_router.py` / `model_catalog.py` tier roles). It adds no second index substrate and no second budget system.
+
+**Primary frame: token economics** (enrichment + retrieval costs move to local embeddings, BM25, and the cheap tier); retrieval quality and ADE differentiation are secondary benefits.
+
+**Headline deliverables (to be locked in SPEC):**
+- `CodeIndex` — derived cache under `.voss-cache/` (rebuildable, no tombstones — distinct lifecycle from curated `.voss/memory/`), Chroma collection `voss_code`, content-hash manifest for lazy incremental reindex (never full reindex per session).
+- Symbol-aware chunking on function/class boundaries, reusing M10 index symbol data + `language-metadata/` (chunking quality > embedding model choice; model stays a config knob via `default_embedding_model`).
+- Semantic recall surface: `code_recall` tool (named to avoid colliding with M10's lexical/structural `code_search`), RRF-merged with BM25 per the F2 pattern — vectors for concept queries, grep/BM25 still wins symbol lookup.
+- Tiered routing role for index jobs: enrichment (one-line symbol descriptions, chunk summaries) dispatched to a cheap-tier model through `model_router.py`; pure embed/BM25 passes use no LLM at all.
+- Background index worker + progress: session start never blocks (local embedding cold-load is seconds; first big-repo index is minutes).
+
+**Requirements:** VSEM-* (SPEC pending — V-track phase, requirements live in `V19-SPEC.md` not REQUIREMENTS.md).
+
+**Cross-cutting:** Index under `.voss-cache/` per M2 COG-07 / M10 convention. Chroma stays optional (`voss[search]`), BM25-only degradation per F2. Tier assignment must respect V18 budget telemetry (enrichment spend visible in savings/cost ledger).
+
+**Out of scope:** replacing M10 lexical/structural search or LSP surfaces; global cross-project memory layer (separate seed if it grows); ingesting external memory markdown (stretch, separate seed); code-tuned embedding API models as default (start local sentence-transformers, measure, swap via config).
+
+**Seed source:** [`seeds/SEED-002-codebase-rag-tiered-indexing.md`](seeds/SEED-002-codebase-rag-tiered-indexing.md) (enriched 2026-06-11; design notes + breadcrumbs there).
+
+---
+
 ## E-prefixed phases: Internal Proof Suite (E2E + Evals)
 
 E1–E5 prove the **product** works — model + functionality end-to-end — not just that unit tests pass. Motivated by false-green history (scaffold tests passing without real behavior, stale sentinels). **Internal-only, on-demand**: never shipped, no packaging, no public docs; runs ride **subscription-backed flagship models via existing voss auth** (`--auth=codex` etc.; Ollama optional fallback) at $0 marginal spend with a per-run budget/turn cap. Scoring is **hybrid**: deterministic gates (tests pass in target repo, diff applies, exit code) decide pass/fail; LLM-judge scores quality on top. The matrix is **runtime surfaces** (CLI, server plane, SDK, TUI, voss-app) × **target repo shapes** (Python, Rust, TS). Supersedes M5's eval scope (EVAL-01..05 → E1/E2; M5-06 packaging smoke already shipped). If E-track becomes an engineering-team workflow, add LangSmith only as an optional export/trace adapter for shared dashboards, annotation, and evaluator calibration; local JSONL/summary artifacts stay canonical. Each phase locks requirements in its own `E{n}-SPEC.md` (V-track mechanism). Full decision log: `.planning/notes/e-track-eval-decisions.md`.
