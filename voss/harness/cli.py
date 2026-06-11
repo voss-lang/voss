@@ -3565,6 +3565,13 @@ def config_cmd(show: bool, config_path_override: Path | None) -> None:
     help="Credential source.",
 )
 @click.option("--max-turns", "max_turns", default=None, type=int, help="Turn cap per task (overrides config default).")
+@click.option(
+    "--require-all-toolchains",
+    "require_all_toolchains",
+    is_flag=True,
+    default=False,
+    help="Fail run if python3/cargo/node is absent (strict mode).",
+)
 def eval_cmd(
     suite: str,
     stub: bool,
@@ -3575,6 +3582,7 @@ def eval_cmd(
     task: str | None,
     auth_pref: str,
     max_turns: int | None,
+    require_all_toolchains: bool,
 ) -> None:
     """Run the golden evaluation suite."""
     if os.environ.get("VOSS_DEV") != "1":
@@ -3593,6 +3601,7 @@ def eval_cmd(
         task=task,
         auth_pref=auth_pref,
         max_turns=max_turns,
+        require_all_toolchains=require_all_toolchains,
     )
 
 

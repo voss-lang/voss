@@ -10,11 +10,6 @@ import pytest
 
 from voss.eval import runner
 
-_XFAIL = pytest.mark.xfail(
-    reason="plan E2-08: runner toolchain extension not yet implemented",
-    strict=True,
-)
-
 
 def _write_task(root: Path, task_id: str, task_toml: str) -> None:
     task_dir = root / "tests" / "eval" / "matrix" / task_id
@@ -38,7 +33,6 @@ _MINIMAL_TASK = "\n".join(
 )
 
 
-@_XFAIL
 def test_preflight_prints_toolchain_availability(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
@@ -72,7 +66,6 @@ def test_preflight_prints_toolchain_availability(
     assert "ts" in stdout
 
 
-@_XFAIL
 def test_toolchain_absent_records_skip_row(tmp_path: Path, monkeypatch) -> None:
     """EVGLD-03: absent toolchain records skip row, not gate fail."""
     _write_task(tmp_path, "rust-99-stub", _MINIMAL_TASK)
@@ -104,7 +97,6 @@ def test_toolchain_absent_records_skip_row(tmp_path: Path, monkeypatch) -> None:
     assert row.get("gate_pass") is not False
 
 
-@_XFAIL
 def test_require_all_toolchains_fails_when_absent(tmp_path: Path, monkeypatch) -> None:
     """EVGLD-05: --require-all-toolchains fails fast when a toolchain is missing."""
     _write_task(tmp_path, "py-99-stub", _MINIMAL_TASK)

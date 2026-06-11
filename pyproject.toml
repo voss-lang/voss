@@ -51,6 +51,12 @@ server = [
     "sse-starlette>=3.4",
     "uvicorn[standard]>=0.30",
 ]
+# Claude subscription via the official Agent SDK (`voss chat --auth=claude`).
+# Optional: spawns the user's logged-in `claude` CLI; offline tests use the
+# provider's query_fn seam and do not need it.
+claude = [
+    "claude-agent-sdk>=0.1.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -68,6 +74,8 @@ dev = [
     "fastapi>=0.136",
     "sse-starlette>=3.4",
     "uvicorn[standard]>=0.30",
+    # `dev` includes `claude` so live smoke + type checks can import the SDK.
+    "claude-agent-sdk>=0.1.0",
 ]
 
 [project.scripts]
