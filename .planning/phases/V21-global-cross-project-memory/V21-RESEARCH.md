@@ -520,22 +520,13 @@ fused = MemoryStore._rrf_merge([proj_hits, g_hits], top_k=top_k)
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does V21 own recall_cmd, or must V19 execute first?**
-   - What we know: `recall_cmd` is in V19-04, not yet built. V21 needs it for `[global]` fusion in the CLI.
-   - What's unclear: Does the planner want V21 to absorb V19-04's CLI work (simpler, removes hard dependency) or declare a `depends_on: V19` ordering constraint?
-   - Recommendation: V21 owns `recall_cmd` (memory+global only, no code corpus), and V19-04 is reduced to "extend recall_cmd to add code corpus." This is cleanest.
+1. **Does V21 own recall_cmd, or must V19 execute first?** **(RESOLVED — orchestrator decision 2026-06-11):** V19-04 KEEPS `recall_cmd` ownership. V19-04 is already planned + checker-passed, ROADMAP declares V21 `Depends on: V19`, and the approved execution order runs V19 first. V21 plans treat `recall_cmd` as a built seam and EXTEND it with the global corpus (third ranking into the existing RRF fusion + `[global]` label). Do NOT absorb or reduce V19-04. V21's phase frontmatter/notes must state the hard dependency: execute only after V19 ships.
 
-2. **`voss memory forget` scope: --global only, or both project and global?**
-   - D-03 specifies `voss memory forget --global <locator>` for the global store. There is no existing `voss memory forget` CLI verb (only `/forget` slash command exists in the REPL).
-   - Options: (a) add `voss memory forget` for both scopes (project default, `--global` for global); (b) add only `voss memory forget --global` as D-03 specifies.
-   - Recommendation: option (a) — consistent UX, closes the CLI gap for project forget too. This is within planner discretion since D-03 doesn't exclude project scope.
+2. **`voss memory forget` scope: --global only, or both project and global?** **(RESOLVED):** option (a) — dual-scope verb, project default + `--global` flag, per researcher recommendation. Within D-03 (which mandates the global path and doesn't exclude project scope).
 
-3. **`voss memory promote --list` discovery surface: what does it show?**
-   - D-11 says "`--list` acceptable for discovery — planner decides minimal discovery surface."
-   - Options: (a) list all promotable entries from project store (notes, decisions, conventions) with their locators; (b) skip `--list` in V21, rely on `voss memory size` + manual inspection.
-   - Recommendation: implement minimal `--list`: iterate `notes/`, `decisions/`, `conventions/` dirs and print `<locator>: <first-line-of-excerpt>`. Mirrors `memory_size_cmd` iteration pattern exactly.
+3. **`voss memory promote --list` discovery surface?** **(RESOLVED):** implement minimal `--list`: iterate `notes/`, `decisions/`, `conventions/` dirs, print `<locator>: <first-line-of-excerpt>`, mirroring `memory_size_cmd` iteration pattern. Per researcher recommendation + D-11.
 
 ---
 
