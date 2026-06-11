@@ -14,12 +14,15 @@ from __future__ import annotations
 
 import importlib
 import threading
+import time
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from rich.text import Text
 
 from .. import render as render_mod
+from . import glyphs
 from .app import VossTUIApp
 from .widgets import (
     BudgetExhaustedModal,
@@ -28,16 +31,14 @@ from .widgets import (
     ConfidenceBar,
     DiffDecision,
     DiffModal,
-    HeaderBar,
     Hunk,
     InputBar,
     StatusLine,
-    SubAgentPanel,
-    TurnView,
+    TranscriptView,
 )
 
 # Defensive import: missing SPAWN_TOOL_NAME degrades show_tool_call to the
-# generic TurnView path (no panel mount). Tests exercise this via
+# generic TranscriptView path (no panel mount). Tests exercise this via
 # monkeypatch.delattr(subagents, 'SPAWN_TOOL_NAME', raising=False).
 try:
     from ..subagents import SPAWN_TOOL_NAME as _SPAWN_TOOL_NAME
@@ -47,6 +48,16 @@ except (ImportError, AttributeError):
 
 class TextualRenderer:
     """Concrete Renderer implementation backed by a `VossTUIApp` instance."""
+
+    # update_working coalescing window (spec §6.3): token-counter posts to
+    # the UI thread are bounded to ≤ 4 Hz regardless of delta rate.
+    WORKING_POST_INTERVAL_S = 0.25
+
+    # R2 working-indicator token coalescing state (per turn). Class-level
+    # defaults (not __init__-only) so test doubles that bypass __init__
+    # still work; writes shadow them per instance.
+    _working_chars: int = 0
+    _working_last_post: float = 0.0
 
     def __init__(self, app: VossTUIApp) -> None:
         self.app = app
@@ -92,15 +103,9 @@ class TextualRenderer:
             return
         self._post(method, *args, **kwargs)
 
-    def _turn_view(self) -> TurnView | None:
+    def _turn_view(self) -> TranscriptView | None:
         try:
-            return self.app.query_one("#main", TurnView)
-        except Exception:  # noqa: BLE001
-            return None
-
-    def _header(self) -> HeaderBar | None:
-        try:
-            return self.app.query_one("#header", HeaderBar)
+            return self.app.query_one("#main", TranscriptView)
         except Exception:  # noqa: BLE001
             return None
 
@@ -121,19 +126,9 @@ class TextualRenderer:
     # ------------------------------------------------------------------
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
-        header = self._header()
-        if header is None:
-            return
-        self._post(
-            header.update_header,
-            session_id=getattr(self.app, "session_id", ""),
-            model=model,
-            budget_used=0,
-            budget_total=getattr(self.app, "budget_total", 0),
-            git_status=git_status,
-        )
-        # Feed StatusLine with banner data so it shows provider/model/cwd
-        # from first paint (not only after the first status() callback).
+        # R5 (spec §5.1): HeaderBar deleted — banner data feeds the two-zone
+        # StatusLine (budget lands in the right zone) and the mode-aware
+        # InputBar border.
         status = self._status()
         if status is not None:
             cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
@@ -143,7 +138,11 @@ class TextualRenderer:
                 model=model,
                 mode=getattr(self.app, "mode", ""),
                 git_status=git_status or cwd_str,
+                budget_total=getattr(self.app, "budget_total", 0),
             )
+        input_bar = self._input()
+        if input_bar is not None:
+            self._post(input_bar.set_mode, getattr(self.app, "mode", ""))
 
     def show_user(self, task: str) -> None:
         tv = self._turn_view()
@@ -155,7 +154,8 @@ class TextualRenderer:
         status = self._status()
         if status is None:
             return
-        self._post(status.set_persistent_toast, f"⏵ {label}")
+        # glyphs.TOOL_CALL (not a literal ⏵) so --no-unicode downgrades (R7).
+        self._post(status.set_persistent_toast, f"{glyphs.TOOL_CALL} {label}")
 
     def show_plan(self, plan: Any, *, cost_usd: float) -> None:
         rationale = getattr(plan, "rationale", "") or ""
@@ -181,7 +181,16 @@ class TextualRenderer:
             cost_usd=cost_usd,
         )
 
-    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+    def show_tool_call(
+        self,
+        call_id: str | None,
+        name: str,
+        args: dict,
+        summary: str,
+        state: str,
+        *,
+        output: str | None = None,
+    ) -> None:
         spawn_name = _resolve_spawn_name()
         if spawn_name is not None and name == spawn_name:
             parent_id = str((args or {}).get("parent_id") or (args or {}).get("agent_id") or "spawn")
@@ -194,32 +203,61 @@ class TextualRenderer:
                 n_results = 1
                 self.show_subagent_end(parent_id, n_results)
                 return
-        argstr = ", ".join(f"{k}={_short(v)}" for k, v in (args or {}).items())
-        mark = {"ok": "ok", "error": f"failed: {summary}", "pending": "…"}.get(state, state)
-        body = f"⏵ {name}({argstr}) · {mark}"
         tv = self._turn_view()
         if tv is None:
             return
-        self._post(tv.append_turn, "tool", body)
+        # R2 working-indicator label hook (spec §3.6): while a call is
+        # pending the label reads `tool: <name>`; it resets on settle. Only
+        # touches an ALREADY-active indicator — never mounts one.
+        if getattr(tv, "working_active", False):
+            label = f"tool: {name}" if state == "pending" else "working"
+            self._post(tv.show_working, label)
+        # R3 ToolCards (spec §3.4/§6.1): pending mounts one card keyed by
+        # call_id; the settled call mutates it in place. Settled-only paths
+        # (unknown tool, denied, legacy call_id=None callers) create the
+        # card directly in its settled state.
+        if state == "pending":
+            self._post(self._mount_tool_card, tv, call_id, name, args)
+            return
+        self._post(self._settle_tool_card, tv, call_id, name, args, summary, state, output)
+
+    def _mount_tool_card(self, tv: TranscriptView, call_id: str | None, name: str, args: dict) -> None:
+        """UI-thread: mount one running ToolCard (idempotent per call_id)."""
+        cid = call_id or uuid4().hex[:12]
+        if call_id is not None and tv.get_tool_card(call_id) is not None:
+            return
+        tv.add_tool_card(cid, name, args or {})
+
+    def _settle_tool_card(
+        self,
+        tv: TranscriptView,
+        call_id: str | None,
+        name: str,
+        args: dict,
+        summary: str,
+        state: str,
+        output: str | None,
+    ) -> None:
+        """UI-thread: settle the pending card, or create one settled-first."""
+        card = tv.get_tool_card(call_id) if call_id else None
+        if card is None:
+            card = tv.add_tool_card(call_id or uuid4().hex[:12], name, args or {})
+        card.settle(state, summary, output=output)
 
     # ------------------------------------------------------------------
     # Subagent visualization — private; NOT part of the Renderer protocol.
+    # R4 (spec §3.5): spawns render inline as AgentTreeCards in the
+    # transcript; the SubAgentPanel side region is retired.
     # ------------------------------------------------------------------
 
     def show_subagent_start(self, name: str, parent_id: str, budget_total: int = 0) -> None:
-        panel = SubAgentPanel(
-            name=name,
-            parent_id=parent_id,
-            budget_used=0,
-            budget_total=budget_total,
-        )
-        self._post(self.app.mount_subagent_panel, panel)
+        self._safe(self._turn_view, "add_agent_tree", parent_id, name, budget_total)
 
     def show_subagent_progress(self, parent_id: str, body_line: str, used: int = 0) -> None:
-        self._post(self.app.update_subagent, parent_id, body_line, used)
+        self._safe(self._turn_view, "update_agent_tree", parent_id, body_line, used)
 
     def show_subagent_end(self, parent_id: str, n_results: int = 0) -> None:
-        self._post(self.app.collapse_subagent, parent_id, n_results)
+        self._safe(self._turn_view, "settle_agent_tree", parent_id, n_results)
 
     # ------------------------------------------------------------------
     # M9-08 CodeIntelPanel private update methods (NOT on public Renderer)
@@ -310,10 +348,36 @@ class TextualRenderer:
         if status is not None:
             self._post(status.clear_toast)
 
-    # T1-05: streaming entry points — forward to TurnView via the _safe
+    # ------------------------------------------------------------------
+    # R2 working indicator (spec §3.6 / §6.1) — forward to TranscriptView.
+    # ------------------------------------------------------------------
+
+    def show_working(self, label: str = "working") -> None:
+        self._working_chars = 0
+        self._working_last_post = 0.0
+        self._safe(self._turn_view, "show_working", label)
+
+    def update_working(self, elapsed_s: float, tokens: int) -> None:
+        # Coalesce before posting (spec §6.3): ≤ 4 Hz regardless of delta
+        # rate so the UI thread isn't flooded. Elapsed self-times in the
+        # widget; tokens are the caller's running count.
+        now = time.monotonic()
+        if now - self._working_last_post < self.WORKING_POST_INTERVAL_S:
+            return
+        self._working_last_post = now
+        self._safe(self._turn_view, "update_working", elapsed_s, tokens)
+
+    def hide_working(self) -> None:
+        self._safe(self._turn_view, "hide_working")
+
+    # T1-05: streaming entry points — forward to TranscriptView via the _safe
     # lookup + _post forwarding pattern used by show_plan / show_final.
     def stream_delta(self, text: str) -> None:
         self._safe(self._turn_view, "stream_delta", text)
+        # Working-indicator token tick (spec §3.6): rough ~4 chars/token
+        # estimate from rendered deltas, coalesced by update_working.
+        self._working_chars += len(text)
+        self.update_working(0.0, self._working_chars // 4)
 
     def finalize_stream(
         self,
@@ -401,7 +465,7 @@ class TextualRenderer:
         self, *, architecture_tokens: int, budget: int = 6000
     ) -> None:
         body = (
-            f"⚠ architecture.md is {architecture_tokens} tokens "
+            f"{glyphs.WARN} architecture.md is {architecture_tokens} tokens "
             f"(over {budget} budget) — /analyze can rewrite a tighter digest"
         )
         tv = self._turn_view()
@@ -413,7 +477,7 @@ class TextualRenderer:
         self, *, principles_tokens: int, budget: int = 1000
     ) -> None:
         body = (
-            f"⚠ principles block is {principles_tokens} tokens "
+            f"{glyphs.WARN} principles block is {principles_tokens} tokens "
             f"(over {budget} budget) — truncated"
         )
         tv = self._turn_view()
@@ -425,7 +489,7 @@ class TextualRenderer:
         tv = self._turn_view()
         if tv is None:
             return
-        self._post(tv.append_turn, "warning", f"⚠ {msg}")
+        self._post(tv.append_turn, "warning", f"{glyphs.WARN} {msg}")
 
     # ------------------------------------------------------------------
     # M9-05 modal hooks. Called from worker threads via the permissions
@@ -471,13 +535,6 @@ class TextualRenderer:
             return fut.result(timeout=timeout_s)
         except TimeoutError:
             return "cancel"
-
-
-def _short(value: Any, limit: int = 40) -> str:
-    s = str(value)
-    if len(s) > limit:
-        return s[: limit - 1] + "…"
-    return s
 
 
 def _resolve_spawn_name() -> str | None:

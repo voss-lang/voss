@@ -18,7 +18,7 @@ from textual.widgets import Static
 class CodeIntelPanel(Vertical):
     """Side-region panel showing project index / search results.
 
-    Default occupant of the side region when no SubAgentPanel is active.
+    Sole occupant of the side region (R4 — sub-agents render inline).
     State is preserved across spawn/gather cycles (M9-08 region-share contract).
     """
 

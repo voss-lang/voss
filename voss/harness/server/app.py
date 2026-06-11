@@ -94,13 +94,14 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
 
     from voss_runtime.providers import LiteLLMProvider
 
-    from ..providers import AnthropicOAuthProvider, OpenAIOAuthProvider
+    from ..claude_agent_provider import ClaudeAgentProvider
+    from ..providers import OpenAIOAuthProvider
 
     res = auth_mod.resolve(preference)
     if res.source == "none":
         return res, None
-    if res.source == "claude-oauth":
-        provider: Any = AnthropicOAuthProvider(res.anthropic_oauth)
+    if res.source == "claude-agent":
+        provider: Any = ClaudeAgentProvider(cli_path=res.cli_path)
     elif res.source == "codex-oauth":
         provider = OpenAIOAuthProvider(res.codex_oauth)
     else:

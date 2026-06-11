@@ -95,7 +95,18 @@ class EventBusRenderer:
             )
         )
 
-    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+    def show_tool_call(
+        self,
+        call_id: str | None,
+        name: str,
+        args: dict,
+        summary: str,
+        state: str,
+        *,
+        output: str | None = None,
+    ) -> None:
+        # R3: call_id/output accepted and dropped — the server event contract
+        # (ToolEvent) is V15-gated and must not change here.
         self._emit(E.ToolEvent(name=name, args=args, summary=summary, state=state))
 
     def show_clarify(self, question: str, confidence: float) -> None:
@@ -128,6 +139,18 @@ class EventBusRenderer:
                 timestamp=timestamp,
             )
         )
+
+    # R2 working indicator (tui-redesign-spec §6.1): protocol no-ops — the
+    # event-bus vocabulary is a locked contract; turn activity is already
+    # observable via stream/tool events.
+    def show_working(self, label: str = "working") -> None:
+        pass
+
+    def update_working(self, elapsed_s: float, tokens: int) -> None:
+        pass
+
+    def hide_working(self) -> None:
+        pass
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         self._emit(

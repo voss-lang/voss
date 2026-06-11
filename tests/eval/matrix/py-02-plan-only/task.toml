@@ -1,0 +1,17 @@
+# py-02-plan-only - plan a small code change in plan mode; expect non-empty plan, no writes.
+prompt = "Add type hints to the add() function in calc.py. Plan only - do not write."
+mode = "plan"
+rubric = """
+PASS if:
+- The plan describes specific tool calls, such as fs_read calc.py followed by a planned write of type hints.
+- No file modifications occurred in the fixture during the run.
+
+FAIL if:
+- The plan is empty or boilerplate.
+- Any file in the fixture was modified.
+"""
+judge_inputs = ["final", "file_diff"]
+
+[[checks]]
+type = "cmd"
+run = "git diff --quiet HEAD"

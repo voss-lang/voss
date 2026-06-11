@@ -12,7 +12,7 @@ async def test_bang_command_renders_local_block_and_emits_recorder(
     mock_recorder_bridge,
 ) -> None:
     from voss.harness.tui.app import VossTUIApp
-    from voss.harness.tui.widgets import InputBar, TurnView
+    from voss.harness.tui.widgets import InputBar, TranscriptView
 
     app = VossTUIApp()
     app.recorder_bridge = mock_recorder_bridge
@@ -27,7 +27,7 @@ async def test_bang_command_renders_local_block_and_emits_recorder(
         assert payload["cmd"] == "python3 -c 'print(123)'"
         assert payload["exit_code"] == 0
         assert "123" in payload["stdout"]
-        flat = "".join(str(line) for line in pilot.app.query_one("#main", TurnView).lines)
+        flat = pilot.app.query_one("#main", TranscriptView).plain_text()
         assert "python3 -c" in flat
         assert "print(123)" in flat
         assert "· exit 0" in flat
@@ -36,7 +36,7 @@ async def test_bang_command_renders_local_block_and_emits_recorder(
 @pytest.mark.asyncio
 async def test_bang_command_denied_does_not_exec(monkeypatch) -> None:
     from voss.harness.tui.app import VossTUIApp
-    from voss.harness.tui.widgets import InputBar, TurnView
+    from voss.harness.tui.widgets import InputBar, TranscriptView
 
     calls: list[tuple] = []
 
@@ -54,14 +54,14 @@ async def test_bang_command_denied_does_not_exec(monkeypatch) -> None:
         await pilot.pause()
 
         assert calls == []
-        flat = "".join(str(line) for line in pilot.app.query_one("#main", TurnView).lines)
+        flat = pilot.app.query_one("#main", TranscriptView).plain_text()
         assert "denied token" in flat
 
 
 @pytest.mark.asyncio
 async def test_hash_note_confirms_and_emits_memory_note(tmp_path, mock_recorder_bridge) -> None:
     from voss.harness.tui.app import VossTUIApp
-    from voss.harness.tui.widgets import InputBar, TurnView
+    from voss.harness.tui.widgets import InputBar, TranscriptView
 
     app = VossTUIApp()
     app.cwd = tmp_path
@@ -78,7 +78,7 @@ async def test_hash_note_confirms_and_emits_memory_note(tmp_path, mock_recorder_
         assert "timestamp" in payload
         assert "- [" in (tmp_path / "VOSS.md").read_text()
         assert "remember this" in (tmp_path / "VOSS.md").read_text()
-        flat = "".join(str(line) for line in pilot.app.query_one("#main", TurnView).lines)
+        flat = pilot.app.query_one("#main", TranscriptView).plain_text()
         assert "# note saved" in flat
 
 

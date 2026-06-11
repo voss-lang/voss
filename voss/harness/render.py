@@ -30,7 +30,21 @@ class Renderer(Protocol):
     def show_user(self, task: str) -> None: ...
     def show_thinking(self, label: str) -> None: ...
     def show_plan(self, plan: Any, *, cost_usd: float) -> None: ...
-    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None: ...
+    # R3 ToolCards (tui-redesign-spec §6.1): `call_id` is minted by the
+    # harness at dispatch so the SAME id arrives on the pending and settled
+    # calls for one step — the textual renderer mutates one card in place.
+    # `output` is the full tool result text (settled calls only); summary
+    # stays the one-line digest. Non-TUI renderers ignore both.
+    def show_tool_call(
+        self,
+        call_id: str | None,
+        name: str,
+        args: dict,
+        summary: str,
+        state: str,
+        *,
+        output: str | None = None,
+    ) -> None: ...
     def show_clarify(self, question: str, confidence: float) -> None: ...
     def show_final(self, text: str, *, confidence: float, cost_usd: float) -> None: ...
     def stream_delta(self, text: str) -> None: ...
@@ -43,6 +57,12 @@ class Renderer(Protocol):
         timestamp: str | None = None,
         accumulated_text: str | None = None,
     ) -> None: ...
+    # R2 working indicator (tui-redesign-spec §6.1). Textual renderer drives
+    # the live TranscriptView indicator; plain prints a single `working...`
+    # line on turn start; everything else is a no-op.
+    def show_working(self, label: str = "working") -> None: ...
+    def update_working(self, elapsed_s: float, tokens: int) -> None: ...
+    def hide_working(self) -> None: ...
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None: ...
     def show_cognition(
         self,
@@ -190,7 +210,16 @@ class TtyRenderer:
             self.console.print(f"  [dim]•[/dim] {s.name}{why}")
         self.console.print()
 
-    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+    def show_tool_call(
+        self,
+        call_id: str | None,
+        name: str,
+        args: dict,
+        summary: str,
+        state: str,
+        *,
+        output: str | None = None,
+    ) -> None:
         glyph_color = {"ok": "green", "error": "red", "pending": "yellow"}.get(state, "dim")
         mark = {"ok": "✓", "error": "✗", "pending": "…"}[state]
         argstr = ", ".join(f"{k}={_short(v)}" for k, v in args.items())
@@ -233,6 +262,15 @@ class TtyRenderer:
         if confidence is not None:
             parts.append(f"conf {confidence:.2f}")
         self.console.print(f"  [dim]{' · '.join(parts)}[/dim]")
+
+    def show_working(self, label: str = "working") -> None:
+        pass
+
+    def update_working(self, elapsed_s: float, tokens: int) -> None:
+        pass
+
+    def hide_working(self) -> None:
+        pass
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         cost_color = "red" if cost_usd > 1.0 else "dim"
@@ -322,7 +360,16 @@ class CompactRenderer:
             why = f" — {step.why}" if step.why else ""
             self.console.print(f"  [dim]-[/dim] {step.name}{why}")
 
-    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+    def show_tool_call(
+        self,
+        call_id: str | None,
+        name: str,
+        args: dict,
+        summary: str,
+        state: str,
+        *,
+        output: str | None = None,
+    ) -> None:
         mark = {"ok": "✓", "error": "✗", "pending": "…"}[state]
         state_style = {"ok": "green", "error": "red", "pending": ACCENT_ORANGE}.get(
             state, "dim"
@@ -366,6 +413,15 @@ class CompactRenderer:
         if confidence is not None:
             parts.append(f"conf {confidence:.2f}")
         self.console.print(f"[dim]{' · '.join(parts)}[/dim]")
+
+    def show_working(self, label: str = "working") -> None:
+        pass
+
+    def update_working(self, elapsed_s: float, tokens: int) -> None:
+        pass
+
+    def hide_working(self) -> None:
+        pass
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         self.console.print(
@@ -435,7 +491,18 @@ class PlainRenderer:
         conf = getattr(plan, "confidence", 0.0)
         print(f"plan: {len(steps)} steps, conf={conf:.2f}", file=sys.stderr)
 
-    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+    def show_tool_call(
+        self,
+        call_id: str | None,
+        name: str,
+        args: dict,
+        summary: str,
+        state: str,
+        *,
+        output: str | None = None,
+    ) -> None:
+        # R3: call_id/output accepted and ignored — the plain one-line
+        # format is a locked parity contract (test_plain_parity).
         print(f"[{state}] {name}({args}) -> {summary}", file=sys.stderr)
 
     def show_clarify(self, question: str, confidence: float) -> None:
@@ -467,6 +534,17 @@ class PlainRenderer:
         if confidence is not None:
             parts.append(f"conf {confidence:.2f}")
         print(" · ".join(parts), file=sys.stderr)
+
+    def show_working(self, label: str = "working") -> None:
+        # R2 parity rule: a single `working...` line on turn start (stderr,
+        # like every other plain side-channel line), no animation, no updates.
+        print("working...", file=sys.stderr)
+
+    def update_working(self, elapsed_s: float, tokens: int) -> None:
+        pass
+
+    def hide_working(self) -> None:
+        pass
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         pass
@@ -534,7 +612,18 @@ class JsonRenderer:
             cost_usd=cost_usd,
         )
 
-    def show_tool_call(self, name: str, args: dict, summary: str, state: str) -> None:
+    def show_tool_call(
+        self,
+        call_id: str | None,
+        name: str,
+        args: dict,
+        summary: str,
+        state: str,
+        *,
+        output: str | None = None,
+    ) -> None:
+        # call_id/output dropped: the NDJSON event vocabulary is a locked
+        # contract (same policy as show_working).
         self._emit(type="tool", name=name, args=args, summary=summary, state=state)
 
     def show_clarify(self, question: str, confidence: float) -> None:
@@ -562,6 +651,17 @@ class JsonRenderer:
             cost_usd=cost_usd,
             timestamp=timestamp,
         )
+
+    def show_working(self, label: str = "working") -> None:
+        # Deliberately silent — the NDJSON event vocabulary is a locked
+        # contract; turn activity is already observable via stream events.
+        pass
+
+    def update_working(self, elapsed_s: float, tokens: int) -> None:
+        pass
+
+    def hide_working(self) -> None:
+        pass
 
     def status(self, *, model: str, tokens: int, cost_usd: float, ctx_pct: float) -> None:
         self._emit(type="status", model=model, tokens=tokens, cost_usd=cost_usd, ctx_pct=ctx_pct)

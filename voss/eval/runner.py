@@ -569,10 +569,14 @@ def _build_provider_from_resolution(res: auth_mod.Resolution) -> ModelProvider:
     """Mirror cli._resolve_auth_or_die / server._resolve_provider provider selection."""
     from voss_runtime.providers import LiteLLMProvider
 
-    from voss.harness.providers import AnthropicOAuthProvider, OpenAIOAuthProvider
+    from voss.harness.claude_agent_provider import ClaudeAgentProvider
+    from voss.harness.providers import OpenAIOAuthProvider
 
-    if res.source == "claude-oauth":
-        return AnthropicOAuthProvider(res.anthropic_oauth)  # type: ignore[arg-type]
+    if res.source == "claude-agent":
+        cfg = get_config()
+        if not cfg.default_model.startswith("claude"):
+            configure(default_model="claude-sonnet-4-5")
+        return ClaudeAgentProvider(cli_path=res.cli_path)
     if res.source == "codex-oauth":
         cfg = get_config()
         if not cfg.default_model.startswith("gpt-5."):
@@ -631,11 +635,47 @@ async def _run_suite_async(
     judge_model: str | None,
     max_turns: int,
     auth_pref: str = "auto",
+    toolchains: dict[str, str | None] | None = None,
 ) -> None:
     """Drive + judge all tasks on one event loop (httpx clients are loop-bound)."""
+    toolchains = toolchains or {}
     for task_id, spec in tasks:
         for run_idx in range(k):
             started_at = _now_iso()
+            # Skip guard (EVGLD-05): lang prefix maps to an absent toolchain →
+            # record a skip row (gate_pass=None, NEVER False) and continue
+            # before any fixture copy or model call.
+            lang = task_id.split("-")[0] if "-" in task_id else None
+            if lang in toolchains and toolchains[lang] is None:
+                _append_row(
+                    runs_path,
+                    {
+                        "task_id": task_id,
+                        "run_idx": run_idx,
+                        "success": None,
+                        "skipped": True,
+                        "skip_reason": "toolchain-absent",
+                        "gate_pass": None,
+                        "capped": False,
+                        "checks": [],
+                        "cost_usd": None,
+                        "confidence": None,
+                        "duration_s": 0.0,
+                        "judge_verdict": "skipped",
+                        "judge_confidence": 0.0,
+                        "judge_rationale": f"skipped: toolchain-absent ({lang})",
+                        "provider": "n/a",
+                        "model": "n/a",
+                        "judge_model": "n/a",
+                        "live": live,
+                        "seed": run_idx,
+                        "voss_version": VOSS_VERSION,
+                        "started_at": started_at,
+                        "input_tokens": 0,
+                        "surface": spec.surface,
+                    },
+                )
+                continue
             start = time.monotonic()
             with tempfile.TemporaryDirectory(prefix=f"voss-eval-{task_id}-") as tmp:
                 cwd = _prepare_fixture(suite_root / task_id, Path(tmp))
@@ -745,6 +785,7 @@ def run_suite(
     auth_pref: str = "auto",
     model: str | None = None,
     max_turns: int | None = None,
+    require_all_toolchains: bool = False,
 ) -> Path:
     if k < 1:
         raise click.UsageError("-k must be at least 1")
@@ -765,7 +806,25 @@ def run_suite(
         raise click.UsageError(f"no eval tasks found for {target}")
 
     max_turns = max_turns if max_turns is not None else get_eval_max_turns()
-    click.echo(f"{len(tasks)} tasks · max {max_turns} turns/task")
+
+    # Toolchain preflight (D-03): lang prefix → required binary. A missing
+    # toolchain must read as SKIPPED (or fail fast under strict), never green.
+    toolchain_bins = {"py": "python3", "rust": "cargo", "ts": "node"}
+    toolchains = {lang: shutil.which(bin_) for lang, bin_ in toolchain_bins.items()}
+    if require_all_toolchains:
+        missing = sorted(
+            toolchain_bins[lang] for lang, path in toolchains.items() if path is None
+        )
+        if missing:
+            raise click.UsageError(
+                f"missing toolchains: {', '.join(missing)} (--require-all-toolchains)"
+            )
+    toolchain_status = " ".join(
+        f"{lang}={'OK' if path else 'MISSING'}" for lang, path in toolchains.items()
+    )
+    click.echo(
+        f"{len(tasks)} tasks · max {max_turns} turns/task · toolchains: {toolchain_status}"
+    )
 
     default_provider, _ = _provider_for_eval(stub=stub, auth_pref=auth_pref)
     judge_provider = _judge_provider_for_eval(auth_pref=auth_pref)
@@ -789,6 +848,7 @@ def run_suite(
                 judge_model=judge_model,
                 max_turns=max_turns,
                 auth_pref=auth_pref,
+                toolchains=toolchains,
             )
         finally:
             for provider in (default_provider, judge_provider):

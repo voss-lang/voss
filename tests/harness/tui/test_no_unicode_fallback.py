@@ -10,6 +10,19 @@ The import-time check forces a SUBPROCESS approach: once the glyphs
 module has been imported once in a parent process, flipping the env var
 won't re-run the module body. Each test runs a fresh Python interpreter
 with the desired env state.
+
+Contract v2 rebaseline (tui-redesign-spec §4.2, phase R2): `WORKING`
+(`✦` → `*`) and `SPINNER_FRAMES` join the table. New rule: SPINNER_FRAMES
+is a multi-char string iterated by index, so its fallback is the 4-char
+ASCII cycle `|/-\\` (the only entry whose fallback is a frame SET, not a
+1:1 glyph substitution).
+
+Contract v2 rebaseline (tui-redesign-spec §4.2, phase R3 — ToolCards):
+`TOOL_OK` (`⏺` → `*`), `OUTPUT_ELBOW` (`⎿` → `|_`), `CHEVRON_CLOSED`
+(`▸` → `>`), and `CHEVRON_OPEN` (`▾` → `v`) join the table.
+
+Contract v2 rebaseline (tui-redesign-spec §3.2 trim policy, phase R7):
+`APPROX` (`≈` → `~`) joins the table for the transcript trim placeholder.
 """
 from __future__ import annotations
 
@@ -32,6 +45,13 @@ _FALLBACK_PAIRS = [
     ("NEST_LAST", "└─", "+-"),
     ("NEST_MID", "├─", "+-"),
     ("FORK", "⎇", "+"),
+    ("WORKING", "✦", "*"),
+    ("SPINNER_FRAMES", "⠋⠙⠹⠸⠼⠴⠦⠧", "|/-\\"),
+    ("TOOL_OK", "⏺", "*"),
+    ("OUTPUT_ELBOW", "⎿", "|_"),
+    ("CHEVRON_CLOSED", "▸", ">"),
+    ("CHEVRON_OPEN", "▾", "v"),
+    ("APPROX", "≈", "~"),
 ]
 
 

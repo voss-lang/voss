@@ -1,0 +1,25 @@
+# ts-01-analyze - analyze the ESM calc project fixture; expect .voss/architecture.md naming the npm tooling.
+prompt = "Analyze this repository and write architecture.md describing what it does."
+mode = "edit"
+rubric = """
+PASS if:
+- A file named .voss/architecture.md exists after the run.
+- The file is non-empty and contains at least one paragraph describing the codebase.
+- The description names the TypeScript tooling (package.json / node:test).
+
+FAIL if:
+- .voss/architecture.md does not exist.
+- The file is empty or contains only placeholder text.
+- The description does not identify the project as TypeScript.
+"""
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+
+[[checks]]
+type = "file_exists"
+path = ".voss/architecture.md"
+
+[[checks]]
+type = "file_contains"
+path = ".voss/architecture.md"
+text = "package.json"

@@ -1,0 +1,19 @@
+# ts-04-validation - run the native TypeScript test suite (npm test -> node --experimental-strip-types --test); expect exit 0.
+prompt = "Run the project's test suite and report the exit code."
+mode = "edit"
+rubric = """
+PASS if:
+- The agent's final answer indicates the test suite exited 0.
+- The agent actually ran npm test (or the project's test command).
+
+FAIL if:
+- The final answer indicates a non-zero exit code.
+- The agent did not actually run the test suite.
+"""
+judge_inputs = ["final"]
+auto_approve_edits = true
+
+[[checks]]
+type = "cmd"
+run = "npm test"
+timeout = 60

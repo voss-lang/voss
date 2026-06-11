@@ -46,3 +46,6 @@ dist-newstyle/
 cabal.project.local
 cabal.project.local~
 *.cabal.local
+
+.DS_Store
+site-redesign-ledger.html

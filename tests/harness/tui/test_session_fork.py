@@ -141,13 +141,13 @@ async def test_action_fork_turn_creates_new_session_and_flashes_status(
         assert original_data["id"] == record.id
         assert original_data.get("parent_id") is None
 
-        # Status flash uses UI-SPEC copy.
-        from voss.harness.tui.widgets.status_line import StatusLine
+        # Flash uses UI-SPEC copy — R5: toasts render in the Toast overlay.
+        from voss.harness.tui.widgets.toast import Toast
 
-        status = app.query_one("#status", StatusLine)
-        assert status._toast is not None
-        assert "Resumed " in status._toast
-        assert "turns" in status._toast
+        toast = app.query_one("#toast", Toast)
+        assert toast.text_content is not None
+        assert "Resumed " in toast.text_content
+        assert "turns" in toast.text_content
 
 
 @pytest.mark.asyncio

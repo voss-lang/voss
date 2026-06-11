@@ -2314,6 +2314,74 @@ Plans:
 
 ---
 
+### Phase V19: Semantic Code Memory + Tiered Index Routing
+
+**Goal:** Add the missing *semantic* (embedding-based) layer to codebase retrieval: a derived, rebuildable vector index over code chunks so agents can answer concept-level queries ("where do we handle retry backoff") without burning frontier-model tokens on agentic grep loops — and route all index-enrichment work (chunk summaries, symbol descriptions, batch classification) to a cheap fast model tier (GPT-OSS/Ollama, Haiku-class) via the existing model router, so the frontier model never pays for index maintenance. Reuse-not-rebuild: V19 **consumes** M10 code-intel (project index, symbol boundaries → chunking), F2 hybrid recall (BM25 + Chroma RRF machinery in `MemoryStore`), `voss_runtime/memory/semantic.py` (Chroma wrapper + embedding-function selection), and `/models` routing (`model_router.py` / `model_catalog.py` tier roles). It adds no second index substrate and no second budget system.
+
+**Primary frame: token economics** (enrichment + retrieval costs move to local embeddings, BM25, and the cheap tier); retrieval quality and ADE differentiation are secondary benefits.
+
+**Headline deliverables (to be locked in SPEC):**
+- `CodeIndex` — derived cache under `.voss-cache/` (rebuildable, no tombstones — distinct lifecycle from curated `.voss/memory/`), Chroma collection `voss_code`, content-hash manifest for lazy incremental reindex (never full reindex per session).
+- Symbol-aware chunking on function/class boundaries, reusing M10 index symbol data + `language-metadata/` (chunking quality > embedding model choice; model stays a config knob via `default_embedding_model`).
+- Semantic recall surface: `code_recall` tool (named to avoid colliding with M10's lexical/structural `code_search`), RRF-merged with BM25 per the F2 pattern — vectors for concept queries, grep/BM25 still wins symbol lookup.
+- Tiered routing role for index jobs: enrichment (one-line symbol descriptions, chunk summaries) dispatched to a cheap-tier model through `model_router.py`; pure embed/BM25 passes use no LLM at all.
+- Background index worker + progress: session start never blocks (local embedding cold-load is seconds; first big-repo index is minutes).
+
+**Requirements:** VSEM-01..08 (locked in `V19-SPEC.md` — V-track phase, requirements live there not in REQUIREMENTS.md).
+
+**Plans:** 6 plans in 5 waves (wave 0 RED scaffold → CodeIndex core → service+tool / CLI verb → enrichment → injection).
+
+- [ ] V19-01-PLAN.md — Wave 0 RED test scaffold (tests/code_recall/* for VSEM-01..08) + Hit line_start/line_end + slow marker
+- [ ] V19-02-PLAN.md — CodeIndex core: symbol-aware chunking + hash manifest + incremental reindex + RRF query [VSEM-01, VSEM-02]
+- [ ] V19-03-PLAN.md — Background daemon CodeIndexService + code_recall agent tool (BM25 degradation, p95) [VSEM-03, VSEM-04]
+- [ ] V19-04-PLAN.md — `voss recall` unified cross-corpus CLI verb (plain + --json source field) [VSEM-05]
+- [ ] V19-05-PLAN.md — V18-region auto-injection (≤1000 tok, evictable, off-switch) [VSEM-06]
+- [ ] V19-06-PLAN.md — index_enrich router role + opt-in enrichment + budget cap + ledger line [VSEM-07, VSEM-08]
+
+**Cross-cutting:** Index under `.voss-cache/` per M2 COG-07 / M10 convention. Chroma stays optional (`voss[search]`), BM25-only degradation per F2. Tier assignment must respect V18 budget telemetry (enrichment spend visible in savings/cost ledger).
+
+**Out of scope:** replacing M10 lexical/structural search or LSP surfaces; global cross-project memory layer (separate seed if it grows); ingesting external memory markdown (stretch, separate seed); code-tuned embedding API models as default (start local sentence-transformers, measure, swap via config).
+
+**Seed source:** [`seeds/SEED-002-codebase-rag-tiered-indexing.md`](seeds/SEED-002-codebase-rag-tiered-indexing.md) (enriched 2026-06-11; design notes + breadcrumbs there).
+
+### Phase V20: Harness Residue Hardening
+
+**Goal:** Ship the small, confirmed residue of harness-principles gaps — nothing else. Audit verdict (2026-06-11): the hard parts are already built (V4 spine, budget cages, V5 double-gate, hash-fences, claims); V20 closes only five cheap, in-tree gaps: (1) `voss sync --check` drift gate + managed-doc edit-guard (manifest hashes are write-only today; docs silently clobber user edits), (2) friction scoring — pure reducer over already-recorded failures[]/validation[] into one eval row field + summary column, (3) worker mission brief — agent_task/dispatch_card inject outcome + sibling roster + claimed-scope hints from claims + ticket table, (4) `critical` risk tier with a human-approval Done predicate no agent verdict can clear + operator approve/reject verb, (5) **BUG** Reviewer-B runs fast tier at the Done gate (`b_passes` passes no tier; contract says B.strong at →Done) + B gains a card-borne repo_context field. All gaps re-confirmed against source at planning time (`V20-CONTEXT.md` has file:line evidence).
+
+**Plans:** 01 sync-check, 02 friction, 03 mission-brief, 05 B-strong-tier (all wave 1, independent) → 04 critical-tier (wave 2, depends on 05 — both edit the Done predicate tuples). Tests-first per plan; 05 is a correctness fix committed separately.
+
+**Requirements:** VRES-01..05 (V-track phase — confirmations + requirements live in `V20-CONTEXT.md`, not REQUIREMENTS.md).
+
+**Out of scope (scoped one paragraph each in `V20-DEFERRED-SCOPING.md`, operator promotes individually):** mid-task 429 failover on the default OAuth path (the real model gap — typed errors + FallbackProvider wrap + hung-stream triggers); board/EM crash-recovery rehydrate from the audit snapshot; coordination bus send/inbox/wait verbs (V17 05/06, V15-gated); gate-before-spend + idle backoff in the EM loop; PTY stuck-detection + health badges.
+
+- [ ] V20-01-PLAN.md — `voss sync --check` drift gate + managed-doc edit-guard [VRES-01]
+- [ ] V20-02-PLAN.md — friction reducer + eval row field + summary column [VRES-02]
+- [ ] V20-03-PLAN.md — mission brief (outcome + siblings + claimed scopes) at dispatch [VRES-03]
+- [ ] V20-04-PLAN.md — critical risk tier + human_approved gate + approve/reject verb [VRES-04]
+- [ ] V20-05-PLAN.md — BUG: Reviewer-B strong tier at Done + repo_context card field [VRES-05]
+
+### Phase V21: Global Cross-Project Memory
+
+**Goal:** Facts that transcend a single repo — operator preferences, recurring conventions, cross-repo patterns — live in a durable global store (`~/.voss/memory/global/`) and surface in recall everywhere: `MemoryStore.recall()` and the unified `voss recall` verb (V19) query project + global stores and RRF-merge rankings, hits labeled `[global]`. Includes explicit promotion (`voss memory promote <locator>` — copy a project memory into the global store) and scope rules (global store is curated like `.voss/memory/`, tombstones apply; never auto-promoted). Reuse-not-rebuild: second `MemoryStore` instance rooted at the global path + the existing `_rrf_merge`/source-label machinery from V19's cross-corpus CLI — no new store type, no new schema.
+
+**Requirements:** VGMEM-* (SPEC pending — V-track phase, requirements live in `V21-SPEC.md` not REQUIREMENTS.md).
+
+**Out of scope:** cloud sync / multi-machine (PROJECT.md exclusion stands); auto-promotion heuristics (manual verb only this phase); global code index (code stays per-repo — derived from the repo it describes).
+
+**Origin:** gap #2 from the 2026-06-11 memory/RAG design discussion (see `seeds/SEED-002-codebase-rag-tiered-indexing.md` stretch notes). Depends on: V19 (unified recall surface + source labels).
+
+### Phase V22: External Memory & Docs Ingest
+
+**Goal:** Bring designated markdown corpora into recall as labeled, derived sources: repo docs (README, docs/) and operator-configured external memory directories (e.g. Claude Code file-memory dirs, SecondBrain-style vaults) — so `voss recall` answers from project knowledge that lives outside code and conversation. Each corpus is a config-declared source (`[recall.sources]` — name, path, glob) ingested through the existing `SemanticMemory._ingest_source` lineage into its own labeled collection with a per-source hash manifest (derived cache, rebuildable — same lifecycle as V19's CodeIndex, NOT curated memory). Hits carry the source name; raw external files are NEVER written back (read-only ingest — SecondBrain raw-sources immutability respected by construction). Reuse-not-rebuild: V19 manifest + background-worker + RRF patterns applied to markdown chunks (section-boundary chunking instead of symbol-boundary).
+
+**Requirements:** VXMEM-* (SPEC pending — V-track phase, requirements live in `V22-SPEC.md` not REQUIREMENTS.md).
+
+**Out of scope:** writing/syncing back to external sources (read-only forever this phase); non-markdown formats (PDF/HTML — later seed); auto-discovery of external dirs (explicit config only); `.planning/` GSD artifacts as a default source (privacy/noise — opt-in path only).
+
+**Origin:** gap #3 from the 2026-06-11 memory/RAG design discussion (V19 SPEC out-of-scope "ingesting external memory markdown"). Depends on: V19 (CodeIndex patterns + unified recall), V21 (source-label conventions across >2 corpora).
+
+---
+
 ## E-prefixed phases: Internal Proof Suite (E2E + Evals)
 
 E1–E5 prove the **product** works — model + functionality end-to-end — not just that unit tests pass. Motivated by false-green history (scaffold tests passing without real behavior, stale sentinels). **Internal-only, on-demand**: never shipped, no packaging, no public docs; runs ride **subscription-backed flagship models via existing voss auth** (`--auth=codex` etc.; Ollama optional fallback) at $0 marginal spend with a per-run budget/turn cap. Scoring is **hybrid**: deterministic gates (tests pass in target repo, diff applies, exit code) decide pass/fail; LLM-judge scores quality on top. The matrix is **runtime surfaces** (CLI, server plane, SDK, TUI, voss-app) × **target repo shapes** (Python, Rust, TS). Supersedes M5's eval scope (EVAL-01..05 → E1/E2; M5-06 packaging smoke already shipped). If E-track becomes an engineering-team workflow, add LangSmith only as an optional export/trace adapter for shared dashboards, annotation, and evaluator calibration; local JSONL/summary artifacts stay canonical. Each phase locks requirements in its own `E{n}-SPEC.md` (V-track mechanism). Full decision log: `.planning/notes/e-track-eval-decisions.md`.

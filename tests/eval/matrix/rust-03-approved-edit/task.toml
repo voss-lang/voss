@@ -1,0 +1,30 @@
+# rust-03-approved-edit - rename add to sum_two in lib AND the integration-test call site; expect cargo test green.
+prompt = "Rename the function add to sum_two in src/lib.rs and update its call site in tests/test_add.rs."
+mode = "edit"
+rubric = """
+PASS if:
+- src/lib.rs defines sum_two (not add).
+- tests/test_add.rs imports and calls sum_two (not add).
+- cargo test passes after the rename.
+
+FAIL if:
+- Either file is unchanged.
+- The rename is incomplete (one file updated, the other not).
+- The crate no longer compiles or the test suite fails.
+"""
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+
+[[checks]]
+type = "file_contains"
+path = "src/lib.rs"
+text = "sum_two"
+
+[[checks]]
+type = "cmd"
+run = "! grep -q 'fn add(' src/lib.rs"
+
+[[checks]]
+type = "cmd"
+run = "cargo test --quiet"
+timeout = 120

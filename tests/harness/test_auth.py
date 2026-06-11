@@ -88,11 +88,44 @@ class TestResolve:
         res = A.resolve("auto")
         assert res.source == "env-anthropic"
 
-    def test_falls_back_to_claude_oauth(self, fake_home: Path) -> None:
+    def test_falls_back_to_claude_agent(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _write_claude_creds(fake_home)
+        monkeypatch.setattr(
+            A, "detect_upstream_cli", lambda name: Path("/opt/bin/claude")
+        )
         res = A.resolve("auto")
-        assert res.source == "claude-oauth"
+        assert res.source == "claude-agent"
         assert res.anthropic_oauth is not None
+        assert res.cli_path == Path("/opt/bin/claude")
+
+    def test_claude_creds_without_cli_fall_through_under_auto(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_claude_creds(fake_home)
+        monkeypatch.setattr(A, "detect_upstream_cli", lambda name: None)
+        res = A.resolve("auto")
+        assert res.source == "none"
+
+    def test_explicit_claude_creds_without_cli_hints_install(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_claude_creds(fake_home)
+        monkeypatch.setattr(A, "detect_upstream_cli", lambda name: None)
+        res = A.resolve("claude")
+        assert res.source == "none"
+        assert "not on PATH" in res.detail
+
+    def test_explicit_claude_cli_without_creds_hints_login(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            A, "detect_upstream_cli", lambda name: Path("/opt/bin/claude")
+        )
+        res = A.resolve("claude")
+        assert res.source == "none"
+        assert "claude /login" in res.detail
 
     def test_falls_back_to_codex(self, fake_home: Path) -> None:
         _write_codex_auth(fake_home)
@@ -106,8 +139,11 @@ class TestResolve:
         res = A.resolve("codex")
         assert res.source == "codex"
 
-    def test_explicit_claude_with_no_creds_returns_none(self, fake_home: Path) -> None:
+    def test_explicit_claude_with_no_creds_returns_none(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _write_codex_auth(fake_home)  # only codex
+        monkeypatch.setattr(A, "detect_upstream_cli", lambda name: None)
         res = A.resolve("claude")
         assert res.source == "none"
 
@@ -218,8 +254,11 @@ def test_detect_upstream_cli_absent(tmp_path, monkeypatch):
     assert A.detect_upstream_cli("codex") is None
 
 
-def test_wait_for_creds_claude_appears(fake_home: Path):
+def test_wait_for_creds_claude_appears(
+    fake_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     """File written mid-poll resolves before timeout."""
+    monkeypatch.setattr(A, "detect_upstream_cli", lambda name: Path("/opt/bin/claude"))
     calls = {"sleep": 0}
 
     def fake_sleep(_: float) -> None:
@@ -244,8 +283,9 @@ def test_wait_for_creds_claude_appears(fake_home: Path):
         sleep=fake_sleep,
     )
     assert res is not None
-    assert res.source == "claude-oauth"
+    assert res.source == "claude-agent"
     assert res.anthropic_oauth is not None
+    assert res.cli_path == Path("/opt/bin/claude")
 
 
 def test_wait_for_creds_codex_appears(fake_home: Path):

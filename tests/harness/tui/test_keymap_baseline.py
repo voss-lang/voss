@@ -1,4 +1,13 @@
-"""M9-03 KEYMAP baseline coverage tests."""
+"""M9-03 KEYMAP baseline coverage tests.
+
+R6 rebaseline (tui-redesign-spec §7.1, deliberate per the stale-sentinel
+policy): the "transcript" context tier joins the keymap for nav mode —
+esc/i (back to input), j/k + arrows (block focus), enter (toggle card),
+y (copy block), g g / G (top / bottom + re-engage follow). Transcript rows
+are handled by TranscriptView.on_key while it holds focus; they are NOT
+App.BINDINGS (the App comprehension still filters to global/input/modal,
+so the modal-dismiss escape binding is unshadowed).
+"""
 from __future__ import annotations
 
 import pytest
@@ -31,6 +40,17 @@ def test_keymap_size_at_least_14() -> None:
         ("ctrl+c", "global"),
         ("ctrl+l", "global"),
         ("ctrl+o", "main"),
+        # R6 transcript nav mode (spec §7.1)
+        ("escape", "transcript"),
+        ("i", "transcript"),
+        ("j", "transcript"),
+        ("k", "transcript"),
+        ("down", "transcript"),
+        ("up", "transcript"),
+        ("enter", "transcript"),
+        ("y", "transcript"),
+        ("g", "transcript"),
+        ("G", "transcript"),
     ],
 )
 def test_keymap_includes_ui_spec_row(key: str, context_substr: str) -> None:
@@ -41,17 +61,14 @@ def test_keymap_includes_ui_spec_row(key: str, context_substr: str) -> None:
 # --- M13 additive keymap-resolution guards (Wave 0) ---
 
 
-def test_ctrl_o_resolves_to_toggle_subagent_detail() -> None:
-    """M13 MAG-02: ctrl+o must resolve to the toggle_subagent_detail action.
-
-    RED from Wave 0 (the binding lands in W2B). Not xfail-marked — this
-    asserts a static module table and must be hard-RED that W2B turns
-    green.
-    """
+def test_ctrl_o_resolves_to_toggle_detail() -> None:
+    """R4 spec §7.2: ctrl+o is the global expand/collapse-all action
+    (generalizes the M13 MAG-02 sub-agent detail reveal — same key,
+    superset behavior across ToolCard bodies and AgentTree children)."""
     hit = [b for b in KEYMAP if b.key == "ctrl+o"]
     assert hit, "no ctrl+o binding in KEYMAP"
-    assert any(b.action == "toggle_subagent_detail" for b in hit), (
-        "ctrl+o does not resolve to toggle_subagent_detail"
+    assert any(b.action == "toggle_detail" for b in hit), (
+        "ctrl+o does not resolve to toggle_detail"
     )
     assert any(b.context == "main" for b in hit), (
         "ctrl+o is not on the M9 'main' declarative registry tier"
@@ -62,8 +79,8 @@ def test_ctrl_o_resolves_to_toggle_subagent_detail() -> None:
     from voss.harness.tui.app import VossTUIApp
 
     assert callable(
-        getattr(VossTUIApp, "action_toggle_subagent_detail", None)
-    ), "VossTUIApp lacks a callable action_toggle_subagent_detail handler"
+        getattr(VossTUIApp, "action_toggle_detail", None)
+    ), "VossTUIApp lacks a callable action_toggle_detail handler"
 
 
 def test_ctrl_c_still_interrupt() -> None:

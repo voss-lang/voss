@@ -74,7 +74,7 @@ class ChildHandle:
     #: its loop boundary (agent.py:830). Defaulted so M13-02's 5-field
     #: construction stays valid; populated by ``subagent_spawn``.
     queue: Any = None
-    #: M13-03 ADDITIVE: the ``SubAgentPanel`` parent_id (== :attr:`id`).
+    #: M13-03 ADDITIVE: the renderer panel/tree parent_id (== :attr:`id`).
     panel_id: str = ""
     #: DEPRECATED in V8 (kept only for positional back-compat; always set to
     #: None at construction). The recursive sub-allocator is now a per-node V4
@@ -146,7 +146,7 @@ from .tools import ToolEntry, make_toolset  # noqa: E402
 
 class PanelBridgeRenderer:
     """RESEARCH Pattern 4 — a thin renderer wrapper that pins a child's render
-    calls to ONE ``SubAgentPanel`` (``panel_id``) and otherwise transparently
+    calls to ONE spawn card / panel (``panel_id``) and otherwise transparently
     delegates the full Renderer protocol to the base renderer so the child's
     ``run_turn`` drives it unchanged.
 
@@ -430,7 +430,7 @@ def attach_multiagent_tools(
             node_manager.release_child(h.id)  # free budget for reallocation
             br = bridges.get(h.id)
             if br is not None:
-                br.end_panel(1)  # -> app.collapse_subagent (M9-08 restore)
+                br.end_panel(1)  # -> renderer settles the inline AgentTreeCard (R4)
         lines = [f"[{h.id}] {h.result}" for h in child_registry.all()]
         return "Aggregated sub-agent results:\n" + "\n".join(lines)
 

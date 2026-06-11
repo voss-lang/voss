@@ -18,6 +18,9 @@ from .local_block import LocalBlockNote, LocalBlockShell
 
 IMAGE_INDICATOR = "[image attached · 1 image]"
 NO_VISION_NOTICE = "current model has no vision — image not attached"
+# R6 paste chip (spec §5.5): a bracketed paste of MORE than this many lines
+# collapses to a `[pasted N lines]` chip token, expanded on submit.
+PASTE_CHIP_THRESHOLD_LINES = 5
 
 
 def _build_corpus(history) -> list[str]:
@@ -126,6 +129,26 @@ class _InputTextArea(TextArea):
             if event.key == "enter":
                 # No matching command — close palette, fall through to submit.
                 palette.action_dismiss()
+        if event.key == "escape":
+            # R6 spec §7.1: idle esc focuses the transcript (nav mode).
+            # Palette esc never reaches here (dismissed above) and modal esc
+            # is on the modal screen's own focus chain. A running turn keeps
+            # esc inert so interrupt semantics (ctrl+c) are untouched.
+            task = getattr(self.app, "active_turn_task", None)
+            if task is None or task.done():
+                event.prevent_default()
+                event.stop()
+                try:
+                    self.app.query_one("#main").focus()
+                except Exception:  # noqa: BLE001 — transcript absent in tests
+                    pass
+                return
+        if event.key == "backspace" and bar._pasted_blobs:
+            # R6 spec §5.5: backspace at a chip boundary deletes the chip whole.
+            if bar.delete_chip_before_cursor():
+                event.prevent_default()
+                event.stop()
+                return
         if event.key == "enter":
             event.prevent_default()
             event.stop()
@@ -138,10 +161,31 @@ class _InputTextArea(TextArea):
             return
         await super()._on_key(event)
 
+    async def _on_paste(self, event) -> None:
+        """R6 paste chip (spec §5.5): a bracketed paste of >5 lines collapses
+        to a `[pasted N lines]` token; the full text is restored on submit.
+
+        Textual dispatches `_on_paste` for EVERY class in the MRO, so this
+        must NOT call `super()._on_paste` (double insertion). The chip path
+        calls `prevent_default()`, which stops the MRO walk before
+        TextArea's default insertion; small pastes fall through to it.
+        """
+        bar = self.parent
+        if isinstance(bar, InputBar) and not self.read_only:
+            text = event.text or ""
+            if len(text.split("\n")) > PASTE_CHIP_THRESHOLD_LINES:
+                event.prevent_default()
+                event.stop()
+                self.insert(bar.store_paste(text))
+
 
 class InputBar(Widget):
     """TextArea-backed input with locked prompt glyph + Submitted contract."""
 
+    # Structural layout only — all colors/border states live in styles.tcss
+    # (R5 spec §5.5 + §4.1: no hex literal in TUI .py files; the $accent
+    # focus border is declared in the audit-exempt tcss site, mirroring the
+    # MentionPalette precedent).
     DEFAULT_CSS = """
     InputBar {
         layout: horizontal;
@@ -150,50 +194,11 @@ class InputBar(Widget):
         max-height: 8;
         margin: 0 1;
         padding: 0;
-        border: solid #ff5b1f;
-        background: transparent;
-    }
-
-    InputBar:focus,
-    InputBar:focus-within {
-        border-top: solid #ff5b1f;
-    }
-
-    InputBar > #prompt-glyph {
-        width: 3;
-        height: auto;
-        content-align: center top;
-        text-style: bold;
-        padding-top: 0;
-    }
-
-    InputBar:focus > #prompt-glyph,
-    InputBar:focus-within > #prompt-glyph {
-        background: #ff5b1f 15%;
-    }
-
-    InputBar > #input-textarea {
-        height: auto;
-        min-height: 1;
-        max-height: 6;
-        border: none;
-        padding: 0 1 0 0;
-        background: transparent;
-    }
-
-    InputBar > #input-textarea:focus {
-        border: none;
-    }
-
-    InputBar > #input-textarea .text-area--cursor {
-        background: #ff5b1f;
-        text-style: none;
-    }
-
-    InputBar > #input-textarea .text-area--cursor-line {
-        background: transparent;
     }
     """
+
+    # Static placeholder shown while the buffer is empty (R5 spec §5.5).
+    PLACEHOLDER = "/ commands · @ files · ctrl+r history"
 
     BINDINGS = [
         ("ctrl+r", "reverse_search", "Reverse-search input history"),
@@ -211,6 +216,8 @@ class InputBar(Widget):
         self._search_corpus: list[str] = []
         self._pending_image = None
         self._mention_files: list[str] | None = None
+        # R6 paste chips (spec §5.5): token-in-buffer → full pasted text.
+        self._pasted_blobs: dict[str, str] = {}
 
     def on_focus(self, event) -> None:
         # InputBar is focusable so the app can target `#input`, but editing
@@ -234,6 +241,28 @@ class InputBar(Widget):
                 "@ files · Ctrl-R history"
             ),
         )
+        # Placeholder overlays the textarea start on the `hint` layer
+        # (styles.tcss); hidden as soon as the buffer is non-empty.
+        yield Static(self.PLACEHOLDER, id="input-placeholder")
+
+    def set_mode(self, mode: str) -> None:
+        """R5 spec §5.5: border turns $warn + border-title shows the mode
+        name when mode ∈ {plan, restricted}; otherwise state colors apply
+        ($dim idle → $accent focused, via styles.tcss)."""
+        normalized = (mode or "").strip().lower()
+        if normalized in ("plan", "restricted"):
+            self.add_class("mode-warn")
+            self.border_title = normalized
+        else:
+            self.remove_class("mode-warn")
+            self.border_title = ""
+
+    def _sync_placeholder(self) -> None:
+        try:
+            placeholder = self.query_one("#input-placeholder", Static)
+        except Exception:  # noqa: BLE001 — pre-mount
+            return
+        placeholder.display = not self.text
 
     @property
     def text(self) -> str:
@@ -248,6 +277,7 @@ class InputBar(Widget):
         textarea.load_text(text)
         lines = text.split("\n")
         textarea.move_cursor((len(lines) - 1, len(lines[-1])))
+        self._sync_placeholder()
 
     def insert(self, text: str) -> None:
         self.query_one("#input-textarea", _InputTextArea).insert(text)
@@ -296,8 +326,47 @@ class InputBar(Widget):
             super().__init__()
             self.value = value
 
+    # ------------------------------------------------------------------
+    # R6 paste chips (spec §5.5)
+    # ------------------------------------------------------------------
+
+    def store_paste(self, text: str) -> str:
+        """Stash a large paste; return the chip token inserted in its place."""
+        n = len(text.split("\n"))
+        token = f"[pasted {n} lines]"
+        seq = 2
+        while token in self._pasted_blobs:
+            token = f"[pasted {n} lines #{seq}]"
+            seq += 1
+        self._pasted_blobs[token] = text
+        return token
+
+    def _expand_paste_chips(self, value: str) -> str:
+        """Substitute chip tokens back to their full pasted text (on submit)."""
+        if not self._pasted_blobs:
+            return value
+        for token, blob in self._pasted_blobs.items():
+            value = value.replace(token, blob)
+        self._pasted_blobs = {}
+        return value
+
+    def delete_chip_before_cursor(self) -> bool:
+        """Delete the whole chip token ending at the cursor (backspace hook)."""
+        ta = self.query_one("#input-textarea", _InputTextArea)
+        offset = self._cursor_offset()
+        prefix = ta.text[:offset]
+        for token in list(self._pasted_blobs):
+            if prefix.endswith(token):
+                new_text = ta.text[: offset - len(token)] + ta.text[offset:]
+                self._pasted_blobs.pop(token)
+                ta.load_text(new_text)
+                ta.move_cursor(self._offset_to_loc(new_text, offset - len(token)))
+                self._sync_placeholder()
+                return True
+        return False
+
     async def action_submit(self) -> None:
-        value = self.text
+        value = self._expand_paste_chips(self.text)
         self.load_text("")
         pending_image = self._pending_image
         self._pending_image = None
@@ -321,6 +390,7 @@ class InputBar(Widget):
     async def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if event.text_area is not self.query_one("#input-textarea", _InputTextArea):
             return
+        self._sync_placeholder()
         await self._sync_slash_palette()
         await self._sync_mention_palette()
 
@@ -546,13 +616,10 @@ class InputBar(Widget):
 
     def _append_local_block(self, block) -> None:
         try:
-            from .turn_view import TurnView
+            from .turn_view import TranscriptView
 
-            turn_view = self.app.query_one("#main", TurnView)
+            transcript = self.app.query_one("#main", TranscriptView)
         except Exception:  # noqa: BLE001
             return
-        if getattr(turn_view, "_turn_count", 0) == 0:
-            turn_view.clear()
-        turn_view._turn_count += 1  # noqa: SLF001 - matches TurnView append protocol.
-        turn_view.write(block.render())
+        transcript.add_local_block(block)
 

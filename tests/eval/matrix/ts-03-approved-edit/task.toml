@@ -1,0 +1,30 @@
+# ts-03-approved-edit - rename add to sumTwo (camelCase) in src AND the test call site; expect npm test green.
+prompt = "Rename the function add to sumTwo in src/calc.ts and update its call site in src/calc.test.ts."
+mode = "edit"
+rubric = """
+PASS if:
+- src/calc.ts defines sumTwo (not add).
+- src/calc.test.ts imports and calls sumTwo (not add).
+- npm test passes after the rename.
+
+FAIL if:
+- Either file is unchanged.
+- The rename is incomplete (one file updated, the other not).
+- The test suite fails after the edit.
+"""
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+
+[[checks]]
+type = "file_contains"
+path = "src/calc.ts"
+text = "sumTwo"
+
+[[checks]]
+type = "cmd"
+run = "! grep -q 'function add(' src/calc.ts"
+
+[[checks]]
+type = "cmd"
+run = "npm test"
+timeout = 60

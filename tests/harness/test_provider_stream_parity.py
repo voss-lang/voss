@@ -123,3 +123,71 @@ async def test_both_providers_yield_same_logical_plan() -> None:
     assert not any(isinstance(e, ToolUseStart) for e in oa_events)
     assert not any(isinstance(e, ToolUseDelta) for e in oa_events)
     assert not any(isinstance(e, ToolUseEnd) for e in oa_events)
+
+
+@pytest.mark.asyncio
+async def test_claude_agent_provider_matches_parity_contract() -> None:
+    """ClaudeAgentProvider joins the OpenAI side of the documented asymmetry:
+    Plan comes from accumulated text / structured_output, never ToolUse* events.
+    Fake SDK messages stand in for the recorded SSE fixtures (the SDK speaks
+    NDJSON over a subprocess, not SSE)."""
+    import json as _json
+
+    from voss.harness.claude_agent_provider import ClaudeAgentProvider
+
+    plan_json = _json.dumps(
+        {
+            "rationale": "parity rationale",
+            "steps": [],
+            "confidence": 0.85,
+            "open_question": None,
+            "final_when_done": "parity",
+        }
+    )
+
+    class _Text:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+    class _Assistant:
+        def __init__(self, blocks: list) -> None:
+            self.content = blocks
+
+    class _Result:
+        total_cost_usd = 0.0
+        is_error = False
+        subtype = "success"
+        structured_output = None
+        result = None
+        stop_reason = "end_turn"
+        usage = {"input_tokens": 120, "output_tokens": 60}
+
+    async def fake_query(*, prompt, options):
+        yield _Assistant([_Text(plan_json)])
+        yield _Result()
+
+    p = ClaudeAgentProvider(query_fn=fake_query)
+    events = []
+    async for ev in p.stream(
+        messages=[{"role": "user", "content": "hi"}],
+        model="claude-sonnet-4-5",
+        response_format=Plan,
+    ):
+        events.append(ev)
+
+    assert sum(1 for e in events if isinstance(e, TextDelta)) >= 1
+
+    parsed = [e for e in events if isinstance(e, ParsedPlan)]
+    assert len(parsed) == 1
+    assert isinstance(parsed[0].plan, Plan)
+    assert parsed[0].plan.rationale == "parity rationale"
+    assert parsed[0].plan.confidence == pytest.approx(0.85)
+    assert parsed[0].plan.final_when_done == "parity"
+
+    assert sum(1 for e in events if isinstance(e, Done)) == 1
+    assert isinstance(events[-1], Done)
+
+    # Joins the OpenAI side: zero ToolUse* events.
+    assert not any(
+        isinstance(e, (ToolUseStart, ToolUseDelta, ToolUseEnd)) for e in events
+    )
