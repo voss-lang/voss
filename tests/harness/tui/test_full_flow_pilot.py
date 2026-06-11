@@ -1,7 +1,7 @@
 """Full-flow TUI pilot test.
 
 Drives `VossTUIApp` end-to-end through `TextualRenderer` and asserts the
-TurnView accumulates user → plan → final entries in order. Complements
+TranscriptView accumulates user → plan → final entries in order. Complements
 existing unit-level tui tests which exercise widgets in isolation.
 
 Skipped if textual.Pilot is unavailable in the test env.

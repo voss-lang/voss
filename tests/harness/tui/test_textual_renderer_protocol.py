@@ -126,11 +126,10 @@ async def test_textual_renderer_show_user_appends_turn() -> None:
     async with app.run_test() as pilot:
         renderer = TextualRenderer(app=pilot.app)
         renderer.show_user("hello")
-        turn_view = pilot.app.query_one("#main")
-        # RichLog stores lines internally; the most recent write should match.
-        lines = getattr(turn_view, "lines", None) or []
-        rendered = " ".join(str(line.text) if hasattr(line, "text") else str(line) for line in lines)
-        assert "hello" in rendered
+        await pilot.pause()
+        transcript = pilot.app.query_one("#main")
+        # TranscriptView mounts a UserBlock per message; flatten to verify.
+        assert "hello" in transcript.plain_text()
 
 
 @pytest.mark.asyncio

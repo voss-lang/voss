@@ -93,7 +93,7 @@ async def test_paste_image_no_vision_mounts_notice(monkeypatch) -> None:
 
         assert input_bar._pending_image is None
         assert input_bar.text == "keep text"
-        flat = "".join(str(line) for line in pilot.app.query_one("#main").lines)
+        flat = pilot.app.query_one("#main").plain_text()
         assert "no vision" in flat
         assert LocalBlockNotice
 
