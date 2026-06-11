@@ -46,7 +46,7 @@ def test_preflight_prints_toolchain_availability(
     def _which(cmd: str, path: str | None = None) -> str | None:
         if cmd == "cargo":
             return None
-        return real_which(cmd, path)
+        return real_which(cmd, path=path)
 
     with patch.object(runner.shutil, "which", side_effect=_which):
         runner.run_suite(
@@ -77,7 +77,7 @@ def test_toolchain_absent_records_skip_row(tmp_path: Path, monkeypatch) -> None:
     def _which(cmd: str, path: str | None = None) -> str | None:
         if cmd == "cargo":
             return None
-        return real_which(cmd, path)
+        return real_which(cmd, path=path)
 
     with patch.object(runner.shutil, "which", side_effect=_which):
         runner.run_suite(
@@ -108,7 +108,7 @@ def test_require_all_toolchains_fails_when_absent(tmp_path: Path, monkeypatch) -
     def _which(cmd: str, path: str | None = None) -> str | None:
         if cmd == "cargo":
             return None
-        return real_which(cmd, path)
+        return real_which(cmd, path=path)
 
     with patch.object(runner.shutil, "which", side_effect=_which):
         with pytest.raises(click.UsageError, match="cargo"):
