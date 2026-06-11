@@ -129,8 +129,11 @@ class ClaudeAgentProvider:
             "system_prompt": system_prompt or None,
             "model": model,
             # Structured output rides an internal StructuredOutput tool
-            # round-trip, which costs a second turn; plain text fits in one.
-            "max_turns": 2 if schema else 1,
+            # round-trip, and the model may spend text-only turns before
+            # calling it (observed live with large harness system prompts).
+            # Tools are disabled, so extra turns are cheap; 8 is a runaway
+            # cap, not a target. Plain text fits in one.
+            "max_turns": 8 if schema else 1,
             "tools": [],
             "allowed_tools": [],
             "setting_sources": [],
@@ -196,6 +199,7 @@ class ClaudeAgentProvider:
         )
 
         text_acc: list[str] = []
+        result_msg: Any = None
         it = aiter(query(prompt=prompt, options=options))
         try:
             while True:
@@ -229,35 +233,8 @@ class ClaudeAgentProvider:
                         raise RuntimeError(
                             f"claude-agent call failed [{tag}]: {detail}"
                         )
-                    usage = getattr(msg, "usage", None) or {}
-                    # Subscription turns must not count as harness spend;
-                    # the SDK's advisory total_cost_usd goes to telemetry only.
-                    telemetry.emit(
-                        "provider.claude_agent.result",
-                        "debug",
-                        data={"total_cost_usd": getattr(msg, "total_cost_usd", None)},
-                    )
-                    yield Usage(
-                        prompt_tokens=int(usage.get("input_tokens", 0)),
-                        completion_tokens=int(usage.get("output_tokens", 0)),
-                        cost_usd=0.0,
-                        cache_creation_input_tokens=int(
-                            usage.get("cache_creation_input_tokens", 0)
-                        ),
-                        cache_read_input_tokens=int(
-                            usage.get("cache_read_input_tokens", 0)
-                        ),
-                    )
-                    if want_schema:
-                        plan_obj = self._extract_plan(
-                            response_format, msg, "".join(text_acc)
-                        )
-                        if plan_obj is not None:
-                            yield ParsedPlan(plan=plan_obj)
-                    yield Done(
-                        stop_reason=getattr(msg, "stop_reason", None) or "end_turn"
-                    )
-                    return
+                    result_msg = msg
+                    break
 
                 # AssistantMessage: text blocks → deltas; thinking / stray
                 # tool-use blocks are ignored (tools are disabled).
@@ -279,7 +256,49 @@ class ClaudeAgentProvider:
                                 )
                 # SystemMessage(init) and anything else: not load-bearing.
 
-            yield Done(stop_reason="incomplete")
+            if result_msg is None:
+                yield Done(stop_reason="incomplete")
+                return
+
+            # Drain to natural exhaustion so the SDK generator finishes its
+            # own subprocess cleanup — closing it mid-stream via GeneratorExit
+            # leaves the SDK's internal tasks pending ("Task was destroyed but
+            # it is pending" on interpreter exit). Bounded: post-result the
+            # stream ends immediately; 5s is a hang guard, not a wait target.
+            try:
+                while True:
+                    await asyncio.wait_for(anext(it), 5)
+            except (StopAsyncIteration, asyncio.TimeoutError):
+                pass
+
+            usage = getattr(result_msg, "usage", None) or {}
+            # Subscription turns must not count as harness spend; the SDK's
+            # advisory total_cost_usd goes to telemetry only.
+            telemetry.emit(
+                "provider.claude_agent.result",
+                "debug",
+                data={"total_cost_usd": getattr(result_msg, "total_cost_usd", None)},
+            )
+            yield Usage(
+                prompt_tokens=int(usage.get("input_tokens", 0)),
+                completion_tokens=int(usage.get("output_tokens", 0)),
+                cost_usd=0.0,
+                cache_creation_input_tokens=int(
+                    usage.get("cache_creation_input_tokens", 0)
+                ),
+                cache_read_input_tokens=int(
+                    usage.get("cache_read_input_tokens", 0)
+                ),
+            )
+            if want_schema:
+                plan_obj = self._extract_plan(
+                    response_format, result_msg, "".join(text_acc)
+                )
+                if plan_obj is not None:
+                    yield ParsedPlan(plan=plan_obj)
+            yield Done(
+                stop_reason=getattr(result_msg, "stop_reason", None) or "end_turn"
+            )
         finally:
             # Closing the SDK iterator terminates the subprocess on cancel,
             # timeout, or error paths.

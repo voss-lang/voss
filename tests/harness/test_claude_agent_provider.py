@@ -270,8 +270,9 @@ async def test_options_lock_down_tools_and_settings() -> None:
         response_format=Plan,
     )
     opt = captured["options"]
-    # Structured output needs the StructuredOutput tool round-trip → 2 turns.
-    assert opt.max_turns == 2
+    # Structured output needs the StructuredOutput tool round-trip plus
+    # possible text-only turns first → loose runaway cap, not 1.
+    assert opt.max_turns == 8
     assert opt.tools == []
     assert opt.allowed_tools == []
     assert opt.setting_sources == []
