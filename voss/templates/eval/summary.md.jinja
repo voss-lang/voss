@@ -4,14 +4,14 @@
 - provider: `{{ provider }}` · model: `{{ model }}`
 - overall success rate: {{ overall_rate }} ({{ passes }}/{{ scored_count }})
 - gate pass rate: {{ gate_rate }} ({{ gate_passes }}/{{ gate_total }})
-- judge pass rate: {{ judge_rate }} ({{ judge_passes }}/{{ judge_total }})
+- judge pass rate: {{ judge_rate }} ({{ judge_passes }}/{{ judge_total }}){{ "\n- skipped rate: " ~ skipped_rate ~ " (" ~ skipped_count ~ "/" ~ total ~ " toolchain-absent)" if show_skipped else "" }}
 - mean cost: {{ mean_cost }}
 - conf_corr_r: {{ conf_corr_r }} (n={{ corr_n }})
 
 ## Per-task
 
-| task | runs | gate pass | pass rate | mean cost |
-|------|-----:|----------:|----------:|----------:|
+| task | runs | gate pass |{{ " skipped |" if show_skipped else "" }} pass rate | mean cost |
+|------|-----:|----------:|{{ "--------:|" if show_skipped else "" }}----------:|----------:|
 {% for task in tasks -%}
-| `{{ task.id }}` | {{ task.runs }} | {{ task.gate_pass_rate }} | {{ task.pass_rate }} | {{ task.mean_cost }} |
+| `{{ task.id }}` | {{ task.runs }} | {{ task.gate_pass_rate }} |{{ " " ~ task.skipped ~ " |" if show_skipped else "" }} {{ task.pass_rate }} | {{ task.mean_cost }} |
 {% endfor %}

@@ -67,6 +67,13 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
     judge_passes = sum(1 for r in judge_rows if r.get("judge_verdict") == "pass")
     judge_rate = judge_passes / len(judge_rows) if judge_rows else None
 
+    # Skipped aggregation (EVGLD-06). .get keeps golden rows (no skipped
+    # field) back-compatible; the skipped line/column render only when the
+    # field is present so legacy summaries stay byte-identical.
+    skipped_count = sum(1 for r in rows if r.get("skipped") is True)
+    show_skipped = any("skipped" in r for r in rows)
+    skipped_rate = skipped_count / total if total else 0.0
+
     mean_cost = _mean_cost(rows)
     corr, n = _pearson(rows)
     provider = _common_value(rows, "provider")
@@ -85,11 +92,13 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
         )
         task_mean_cost = _mean_cost(task_rows)
         cost_s = f"${task_mean_cost:.4f}" if task_mean_cost is not None else "n/a"
+        task_skipped = sum(1 for row in task_rows if row.get("skipped") is True)
         tasks.append(
             {
                 "id": task_id,
                 "runs": len(task_rows),
                 "gate_pass_rate": gate_pass_rate,
+                "skipped": str(task_skipped),
                 "pass_rate": rate,
                 "mean_cost": cost_s,
             }
@@ -112,6 +121,9 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
             "judge_rate": f"{judge_rate:.0%}" if judge_rate is not None else "n/a",
             "judge_passes": judge_passes,
             "judge_total": len(judge_rows),
+            "show_skipped": show_skipped,
+            "skipped_count": skipped_count,
+            "skipped_rate": f"{skipped_rate:.0%}",
             "mean_cost": f"${mean_cost:.4f}" if mean_cost is not None else "n/a",
             "conf_corr_r": f"{corr:.3f}" if corr is not None else "n/a",
             "corr_n": n,
