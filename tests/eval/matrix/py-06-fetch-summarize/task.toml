@@ -1,0 +1,24 @@
+# py-06-fetch-summarize - fetch example.com and summarize fetched content.
+prompt = "Fetch https://example.com/ via web_fetch and write a one-sentence summary to summary.txt that includes both the page title and the main heading."
+mode = "edit"
+rubric = """
+PASS if:
+- The agent called web_fetch on https://example.com/.
+- The final answer or summary.txt mentions both Example and Domain.
+
+FAIL if:
+- The agent does not use fetched page content.
+- The summary omits either Example or Domain.
+"""
+judge_inputs = ["final", "file_diff"]
+auto_approve_edits = true
+tools = ["web_fetch", "fs_write"]
+
+[[checks]]
+type = "file_exists"
+path = "summary.txt"
+
+[[checks]]
+type = "file_contains"
+path = "summary.txt"
+text = "Example"
