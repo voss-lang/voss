@@ -1,8 +1,8 @@
 # Phase V19: Semantic Code Memory + Tiered Index Routing - Context
 
-**Gathered:** 2026-06-11
+**Gathered:** 2026-06-11 (initial direct-from-SPEC draft, then full discuss-phase same day)
 **Status:** Ready for planning
-**Note:** Written direct from SPEC per operator preference (skip discuss-phase). All "decisions" below are Claude-discretion defaults derived from SPEC + codebase scout; planner may revisit any of them within SPEC bounds.
+**Note:** D-01..D-08 are Claude-discretion defaults (planner may revisit within SPEC bounds). D-09..D-13 are USER-LOCKED via discuss-phase — planner must not change them. SPEC VSEM-05 amended 2026-06-11 (unified recall verb) as part of D-09.
 
 <domain>
 ## Phase Boundary
@@ -31,10 +31,18 @@ Downstream agents MUST read `V19-SPEC.md` before planning or implementing. Requi
 - **D-02 — Chunk boundaries:** M10 `symbols` table start lines sorted per file; chunk = [symbol start, next symbol start) with file-end terminator; preamble (imports/module docstring) = chunk 0. Oversize chunks split at a max-token threshold (planner picks value; ~512 embedding-model tokens typical). No tree-sitter dependency added this phase.
 - **D-03 — Manifest:** JSON at `.voss-cache/code/semantic-manifest.json` — `{path: {hash, chunk_ids[]}}`. Hash = same content-hash family M10 uses if one exists, else sha256. Chunk id = `code:<path>:<seq>` mirroring the D-04 composite-id convention in `memory_store.py`.
 - **D-04 — Background worker:** thread (daemon) spawned lazily on first session in an indexable repo, same lazy-init spirit as `_maybe_chroma()` (Pitfall 4). sentence-transformers import + model load happen inside the worker. Progress via an index-status line in the existing status surface + a `code_refresh`-style explicit verb; no new daemon process.
-- **D-05 — BM25 corpus for code_recall:** build lexical side from the same chunk set (reuse `_bm25_tokenize` — already camelCase/snake_case aware), so RRF fuses like-for-like chunk hits. Do not fuse against MemoryStore's conversation corpus — code recall and memory recall stay separate surfaces.
+- **D-05 — BM25 corpus for code_recall:** build lexical side from the same chunk set (reuse `_bm25_tokenize` — already camelCase/snake_case aware), so RRF fuses like-for-like chunk hits. The agent tool `code_recall` stays code-corpus-only; cross-corpus fusion happens ONLY in the CLI verb (D-09).
 - **D-06 — Router role mechanics:** `index_enrich` resolves through existing `resolve_key`/prefs machinery as a named role key in config (`[models] index_enrich = "..."`); absent config → enrichment unavailable even if profile flag on (fail closed, no silent fallback to session model).
 - **D-07 — Injection selection:** query = current task goal text (the `voss do` prompt / first user message), top-k chunks under the 1000-token cap, formatted as a `## Code Recall` section with file:line headers. Injected through the V18 variable region as evictable content; skip entirely when index not ready (no blocking, no placeholder).
 - **D-08 — Golden query gate:** `tests/code_recall/test_golden_queries.py`, ~10–15 (query, expected_file) pairs against the Voss repo itself, run against a committed fixture index built in-test (small subset) or full local build behind a marker — planner decides; gate must be deterministic and CI-runnable without network.
+
+## User-Locked Decisions (discuss-phase 2026-06-11 — do not change)
+
+- **D-09 — CLI verb = `voss recall <q>`, unified corpus:** top-level verb (not a `voss code` group), queries code index AND memory store, RRF-fused across corpora (rank-based fusion is corpus-agnostic), every hit labeled `[code]`/`[memory]`. `--json` schema includes `source` field. SPEC VSEM-05 amended accordingly. Agent tool `code_recall` remains code-only (VSEM-04 unchanged).
+- **D-10 — Default hit display:** one block per hit — clickable `path:line` header, score, 2–3 line excerpt (grep -n mental model). Table/card formats not in v1.
+- **D-11 — Embedding default = `all-MiniLM-L6-v2`:** the existing sentence-transformers default path in `semantic.py`; 384-dim, fast CPU cold-load. Swap is config (`default_embedding_model`); golden-query gate is the quality instrument that justifies any future swap.
+- **D-12 — Cheap tier documented default = Ollama-local:** docs + example config point `index_enrich` at an Ollama-served small model (gpt-oss / qwen-coder class), $0 and private; Haiku-class API shown as alternate snippet. Profile remains OFF by default (VSEM-07) and fail-closed without config (D-06). Enrichment unit = per-chunk one-liner, embedded alongside code text, parallelizable batches.
+- **D-13 — Reindex triggers (three):** (1) background hash-sweep at session start; (2) targeted re-hash on agent file mutation — hook `fs_write`/`fs_edit` tool paths, exact paths known, cheap; (3) explicit refresh verb (`voss recall --refresh` or equivalent). No watch daemon (M14 owns watch); no per-recall sweep (protects p95 <500ms).
 
 </decisions>
 

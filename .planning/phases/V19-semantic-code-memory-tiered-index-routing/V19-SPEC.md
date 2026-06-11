@@ -42,10 +42,10 @@ The gap: no embedding index over code chunks, no semantic recall surface, no che
    - Target: `code_recall(query, top_k)` registered in the tool registry; hits carry file path, line range, score, excerpt; Chroma-absent installs degrade to BM25-only without error (F2 degradation contract); recall query p95 <500ms on an indexed ~10K LoC repo.
    - Acceptance: tool-registry test asserts registration + schema; degradation test passes with chromadb uninstalled; perf test asserts p95 <500ms on the fixture repo.
 
-5. **VSEM-05 — CLI verb**: A human-facing CLI verb (`voss recall <query>` or equivalent) exposes the same retrieval with plain + JSON output.
-   - Current: no human surface for semantic code query.
-   - Target: verb returns ranked hits (file:line, excerpt) on stdout; `--json` emits machine-readable hits (future A-track panel consumes this; panel itself out of scope).
-   - Acceptance: CLI test asserts exit 0 + ranked output on indexed fixture; `--json` output validates against a documented schema.
+5. **VSEM-05 — CLI verb (unified recall)**: A top-level `voss recall <query>` verb queries BOTH the code index and the memory store, RRF-fused across corpora (rank-based fusion — RRF's heterogeneous-ranker property makes cross-corpus merge legitimate), every hit labeled `[code]` or `[memory]`, with plain + JSON output. *(Amended 2026-06-11 during discuss-phase: was code-only; user locked unified.)*
+   - Current: no human surface for semantic code query; memory recall is agent-tool-only.
+   - Target: verb returns ranked source-labeled hits (file:line for code, locator for memory) on stdout; `--json` emits machine-readable hits (future A-track panel consumes this; panel itself out of scope). The agent-side `code_recall` tool remains code-corpus-only per VSEM-04.
+   - Acceptance: CLI test asserts exit 0 + ranked source-labeled output on indexed fixture with both corpora populated; `--json` output validates against a documented schema including a `source` field.
 
 6. **VSEM-06 — Auto-injection inside V18 region**: Top-k task-relevant chunks may be injected into system context, capped ≤1000 tokens, living inside the V18-packed variable region (allocator may evict/fold them), with a config off-switch.
    - Current: M10 injects a `## Project Index` section (≤1500 tokens); no semantic injection exists.
@@ -101,7 +101,7 @@ The gap: no embedding index over code chunks, no semantic recall surface, no che
 - [ ] Session on unindexed repo: first prompt round-trip completes without blocking on indexer
 - [ ] `code_recall` registered; Chroma-absent install returns BM25-only hits without error
 - [ ] Recall p95 <500ms on indexed ~10K LoC fixture
-- [ ] CLI verb exits 0 with ranked file:line hits; `--json` validates against documented schema
+- [ ] `voss recall` exits 0 with ranked source-labeled hits across code + memory corpora; `--json` validates against documented schema (incl. `source` field)
 - [ ] Injection section ≤1000 tokens (V18 counter), evictable by allocator, zero bytes when disabled
 - [ ] Profile-off full index build: zero LLM provider calls (instrumented)
 - [ ] Profile-on enrichment routes via `index_enrich` role, not session model (stub provider test)
