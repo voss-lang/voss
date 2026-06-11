@@ -463,16 +463,24 @@ class TranscriptView(VerticalScroll):
         / the placeholder itself are never trimmed. Trimmed ToolCard /
         AgentTreeCard ids are dropped from the in-place-update registries so
         a late settle for a trimmed call is a no-op, not a crash.
+
+        `remove_children` is asynchronous — doomed children linger in
+        `self.children` until the loop ticks — so each doomed widget is
+        marked with `_trim_doomed` and excluded from later trims to keep
+        the count exact across back-to-back appends.
         """
         blocks = [
             c
             for c in self.children
             if not isinstance(c, (HomeScreen, WorkingIndicator, TrimPlaceholder))
+            and not getattr(c, "_trim_doomed", False)
         ]
         doomed = blocks[:-TRIM_KEEP]
         if not doomed:
             return
         doomed_set = set(doomed)
+        for c in doomed:
+            c._trim_doomed = True
         self._tool_cards = {
             k: v for k, v in self._tool_cards.items() if v not in doomed_set
         }
