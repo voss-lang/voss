@@ -3,20 +3,27 @@ id: SEED-002
 status: dormant
 planted: 2026-06-11
 planted_during: v0.1.1 (V-track)
-trigger_when: next V-track memory/retrieval phase, or when agents waste context re-greping the same codebase concepts
-scope: medium-large (2-3 phases)
+trigger_when: next V-track phase touching memory, retrieval, or context efficiency (natural V18 token-optimizer successor)
+scope: large (3 phases)
+priority_frame: token economics
 ---
 
 # SEED-002: Codebase RAG index + tiered model routing for indexing, building on existing MemoryStore hybrid recall
 
 ## Why This Matters
 
+**Primary frame: token economics.** Agents currently answer "where do we handle
+retry backoff" by burning frontier-model tokens on agentic grep loops every
+session. A derived codebase index moves that cost to local embeddings + BM25
+(zero model cost) and a cheap fast tier for semantic enrichment — frontier model
+never pays for index maintenance. Direct cost and latency win; retrieval quality
+and ADE differentiation are secondary benefits.
+
 Voss already ships hybrid RAG memory (`MemoryStore`: BM25 + Chroma + RRF fusion over
 turns/ledgers/decisions/conventions/notes) — but it only indexes *conversation
-artifacts*, never the code itself. Agents answer "where do we handle retry backoff"
-by burning frontier-model tokens on agentic grep loops every session. A derived
-codebase index makes concept-level retrieval cheap and persistent, and a tiered
-model router makes building/maintaining that index nearly free.
+artifacts*, never the code itself. A codebase index makes concept-level retrieval
+cheap and persistent, and a tiered model router makes building/maintaining that
+index nearly free.
 
 Two ideas, one phase family:
 
