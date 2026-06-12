@@ -37,10 +37,14 @@ def _split_oversize(
     start: int, end: int, lines: list[str], max_chars: int = _MAX_CHUNK_CHARS
 ) -> list[tuple[int, int, str]]:
     text = "".join(lines[start - 1 : end])
-    if len(text) <= max_chars:
+    # `end <= start` base case: a single line can't be subdivided line-wise —
+    # return it whole even when oversize (the embedding window truncates it).
+    # Without this a >800-char single line recurses forever.
+    if len(text) <= max_chars or end <= start:
         return [(start, end, text)]
-    step = max(1, (end - start + 1) // 2)
-    mid = start + step
+    mid = start + max(1, (end - start + 1) // 2)
+    if mid >= end:
+        mid = end - 1  # both halves strictly smaller than [start, end]
     return _split_oversize(start, mid, lines, max_chars) + _split_oversize(
         mid + 1, end, lines, max_chars
     )

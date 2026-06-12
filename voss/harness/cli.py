@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -4639,6 +4640,103 @@ def session_tree_cmd(root_id: str, cwd_str: str, json_mode: bool) -> None:
         )
 
 
+# --- V19-04 VSEM-05: unified cross-corpus recall verb (D-09 user-locked) ---
+
+# T-V19-04: excerpts are raw repo source — scrub secret-shaped strings before
+# they leave the process (plain AND --json output).
+_RECALL_SECRET_PATTERNS = (
+    re.compile(r"AKIA[0-9A-Z]{12,}"),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{10,}"),
+    re.compile(r"\bghp_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bxox[bap]-[A-Za-z0-9-]{10,}"),
+    re.compile(r"(?i)\b(api[_-]?key|secret|token|password)\b(\s*[=:]\s*)[\"']([^\"']{8,})[\"']"),
+)
+
+
+def _redact_recall_text(text: str) -> str:
+    for pattern in _RECALL_SECRET_PATTERNS:
+        if pattern.groups:
+            text = pattern.sub(lambda m: f"{m.group(1)}{m.group(2)}\"[redacted]\"", text)
+        else:
+            text = pattern.sub("[redacted]", text)
+    return text
+
+
+def _recall_hit_fields(hit) -> dict:
+    """Documented --json schema: source, locator, path, line_start, line_end,
+    score, excerpt. ONLY Hit fields — never keys/env/secrets (T-V19-04)."""
+    is_code = (hit.source or "").startswith("code")
+    path = None
+    if is_code:
+        parts = hit.locator.split(":")
+        path = ":".join(parts[1:-1]) if len(parts) >= 3 else hit.locator
+    return {
+        "source": "code" if is_code else "memory",
+        "locator": hit.locator,
+        "path": path,
+        "line_start": hit.line_start if is_code else None,
+        "line_end": hit.line_end if is_code else None,
+        "score": hit.score,
+        "excerpt": _redact_recall_text((hit.excerpt or "").replace("\n", " ")[:160]),
+    }
+
+
+@click.command("recall")
+@click.argument("query", nargs=-1, required=False)
+@click.option("--json", "json_out", is_flag=True, help="Emit machine-readable hits.")
+@click.option("--top", "top_k", default=10, type=int, help="Max fused hits.")
+@click.option("--refresh", "do_refresh", is_flag=True, help="Reindex before querying (D-13 trigger #3).")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: bool, cwd_str: str) -> None:
+    """Unified recall across the code index AND project memory (RRF-fused)."""
+    query_str = " ".join(query).strip()
+    if not query_str:
+        click.echo("usage: voss recall <query> [--top N] [--json] [--refresh]")
+        return
+
+    cwd = Path(cwd_str).resolve()
+
+    from voss.harness.code.semantic_index import CodeIndex
+
+    code_index = CodeIndex(cwd)
+    if do_refresh:
+        try:
+            from voss.harness.code.index import build_index as _build_m10
+
+            _build_m10(cwd)
+        except Exception:  # noqa: BLE001 — M10 refresh is best-effort; chunker falls back
+            pass
+        code_index.build()
+
+    recall_k = max(top_k * 3, top_k)
+    code_hits = code_index.query(query_str, top_k=recall_k)
+    try:
+        mem_hits = MemoryStore(cwd).recall(query_str, top_k=recall_k)
+    except Exception:  # noqa: BLE001 — missing/corrupt memory store must not kill code recall
+        mem_hits = []
+
+    # RRF is rank-based and corpus-agnostic (D-09); the code: id prefix
+    # guarantees no locator collision with memory ids in the dedup (Pitfall 8).
+    fused = MemoryStore._rrf_merge([code_hits, mem_hits], top_k=top_k)
+
+    if json_out:
+        click.echo(json.dumps({"query": query_str, "hits": [_recall_hit_fields(h) for h in fused]}, indent=2))
+        return
+
+    if not fused:
+        click.echo("(no hits)")
+        return
+    for hit in fused:
+        fields = _recall_hit_fields(hit)
+        if fields["source"] == "code":
+            display = f"{fields['path']}:{fields['line_start']}" if fields["line_start"] else fields["path"]
+        else:
+            display = hit.locator
+        click.echo(f"[{fields['source']}] {display} (score {hit.score:.2f})")
+        if fields["excerpt"]:
+            click.echo(f"  {fields['excerpt']}")
+
+
 AGENT_COMMANDS = (
     do_cmd,
     serve_cmd,
@@ -4662,6 +4760,7 @@ AGENT_COMMANDS = (
     agents_cmd,
     agent_group,
     memory_group,
+    recall_cmd,
     config_cmd,
     mcp_group,
     logs_group,

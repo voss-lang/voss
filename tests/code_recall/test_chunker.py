@@ -79,6 +79,25 @@ def test_oversize_chunk_split(tmp_path):
     assert len(set(ids)) == len(ids), "sub-chunk ids must be distinct"
 
 
+def test_oversize_single_long_line(tmp_path):
+    """Regression: a single line >800 chars must return as one whole chunk,
+    not recurse forever (line-midpoint splitting cannot subdivide one line)."""
+    content = "X = " + "'a'" * 400 + "\n"
+    assert len(content) > 800
+    src = tmp_path / "minified.py"
+    src.write_text(content)
+
+    from voss.harness.code.index import build_index
+
+    build_index(tmp_path)
+
+    from voss.harness.code.semantic_index import extract_chunks
+
+    chunks = extract_chunks(_db_path(tmp_path), "minified.py", content)
+    assert len(chunks) == 1
+    assert chunks[0][0] == 1
+
+
 def test_derived_cache(tmp_path, fake_embed_fn):
     """VSEM-01 acceptance: rm .voss-cache + rebuild reproduces a working
     index from the repo alone (the index is a derived cache, never source)."""
