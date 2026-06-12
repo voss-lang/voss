@@ -465,11 +465,30 @@ def make_toolset(
             status=rec.status,
         )
 
+    def _maybe_queue_rehash(*paths: str) -> None:
+        # D-13 reindex trigger #2: targeted off-thread re-hash of agent-written
+        # code files. Not-ready → no-op (in-flight full build covers the file).
+        # Never raises and never blocks the write return path.
+        # `_code_index_service` is bound later in this function body (closure
+        # lookup happens at call time, after make_toolset completes).
+        svc = _code_index_service
+        if svc is None or not svc.is_ready():
+            return
+        try:
+            from voss.harness.code.index import LANGUAGE_EXTS as _code_exts
+
+            for path_str in paths:
+                if Path(path_str).suffix.lower() in _code_exts:
+                    svc.queue_rehash(jail_path(cwd, path_str))
+        except Exception:  # noqa: BLE001 — index upkeep must never break a write
+            pass
+
     @tool(name="fs_write", description="Write text to a file inside cwd. Creates parent dirs. Overwrites existing.")
     async def fs_write(path: str, content: str) -> str:
         p = jail_path(cwd, path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content)
+        _maybe_queue_rehash(path)
         return f"wrote {len(content)} bytes to {path}"
 
     @tool(
@@ -548,6 +567,7 @@ def make_toolset(
                 return "<denied: edit rejected>"
 
         p.write_text(new_text)
+        _maybe_queue_rehash(path)
         delta = new_text.count("\n") - text.count("\n")
         sign = "+" if delta >= 0 else ""
         return f"edited {path} ({sign}{delta} lines)"
@@ -617,6 +637,7 @@ def make_toolset(
 
         # Phase 3: atomic single write (file untouched until here).
         p.write_text(buf)
+        _maybe_queue_rehash(path)
         delta = buf.count("\n") - snapshot.count("\n")
         sign = "+" if delta >= 0 else ""
         return f"edited {path} ({sign}{delta} lines, {len(edits)} hunks)"
