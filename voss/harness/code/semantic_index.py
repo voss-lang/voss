@@ -16,6 +16,7 @@ import json
 import os
 import sqlite3
 import sys
+import threading
 from pathlib import Path
 
 from voss.harness.code.index import LANGUAGE_EXTS, _discover_files, _get_db_path
@@ -373,3 +374,67 @@ class CodeIndex:
                 )
             )
         return hits
+
+
+class CodeIndexService:
+    """Daemon-thread wrapper: session start never blocks on the index build.
+
+    The sentence-transformers cold-load (Pitfall 2) happens inside build(),
+    which only ever runs on daemon threads spawned here. One CodeIndex (one
+    Chroma client) per service instance (Pitfall 3).
+    """
+
+    def __init__(self, cwd: Path, session_id: str | None = None) -> None:
+        self._code_index = CodeIndex(cwd)
+        self._session_id = session_id
+        self._ready = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._rehash_lock = threading.Lock()
+
+    def ensure_background_build(self) -> None:
+        if self._thread is not None:
+            return
+        t = threading.Thread(target=self._build_loop, daemon=True)
+        self._thread = t
+        t.start()
+
+    def _build_loop(self) -> None:
+        try:
+            self._code_index.build(session_id=self._session_id)
+        except Exception as exc:  # noqa: BLE001 — build failure degrades, never crashes the session
+            print(
+                f"code index: background build failed ({exc}); recall degrades to BM25",
+                file=sys.stderr,
+            )
+        finally:
+            self._ready.set()  # always flip ready (degraded if failed)
+
+    def is_ready(self) -> bool:
+        return self._ready.is_set()
+
+    def query(self, query: str, top_k: int = 5) -> list[Hit]:
+        if not self._ready.is_set():
+            # Mid-build: BM25-only. Never touch the embedding path here — a
+            # chroma query would block behind the in-flight build's embeds.
+            hits = self._code_index._bm25_query(query, top_k)
+            return [dataclasses.replace(h, source="code[degraded]") for h in hits]
+        return self._code_index.query(query, top_k=top_k)
+
+    def queue_rehash(self, path) -> None:
+        """D-13 trigger #2: off-thread targeted re-hash after a file mutation.
+
+        Not ready → no-op (the in-flight full build already covers the file).
+        The manifest hash-skip means a build pass re-embeds exactly the
+        changed path's chunks. Never blocks the caller.
+        """
+        if not self._ready.is_set():
+            return
+
+        def _rehash() -> None:
+            try:
+                with self._rehash_lock:
+                    self._code_index.build(session_id=self._session_id)
+            except Exception as exc:  # noqa: BLE001 — re-hash failure must not surface to the write path
+                print(f"code index: targeted re-hash failed ({exc})", file=sys.stderr)
+
+        threading.Thread(target=_rehash, daemon=True).start()
