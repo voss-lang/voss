@@ -21,7 +21,7 @@ def test_token_cap(indexed_fixture_repo):
     assert tokens <= 1000, f"injected section is {tokens} tokens (> 1000 cap)"
 
 
-def test_evictable(indexed_fixture_repo):
+def test_evictable():
     """The injected section threads through _compose_system_blocks as its own
     block WITHOUT a cache_control pin — it lives in the V18-evictable region,
     never frozen into the cached prefix."""
