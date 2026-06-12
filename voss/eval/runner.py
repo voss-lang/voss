@@ -491,6 +491,9 @@ async def _drive_sdk_client(
             "VOSS_PYTHON": str(Path(sys.executable).resolve()),
             "VOSS_PROMPT": spec.prompt,
             "VOSS_MODE": spec.mode,
+            # Deny scenarios set permission_choice="d" in task.toml; consumers
+            # default to "a" when unset (TaskSpec default is "a" already).
+            "VOSS_PERMISSION_CHOICE": spec.permission_choice,
         }
         run_cwd: str | None = None
         if consumer == "ts":
