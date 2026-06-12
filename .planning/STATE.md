@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-12T16:23:41.831Z"
+last_updated: "2026-06-12T16:26:54.408Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 68
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-12 — **E4-04 EXECUTED — Go consumer hardened (EVSDK-04 COMPLETE).** main.go: VOSS_PERMISSION_CHOICE env (default "a"); context.WithTimeout(120s) ceiling — stuck stream can't hang; SessionIdle → cancel() (closes Events channel TCP read per sse.go) then break; defer Close (attach no-op); Cost on fresh ctx post-cancel; marshal-round-trip eventType helper kept (covers all 21 types vs per-case literals). AttachClient-only, Events-before-Post. go build + vet clean; all grep gates; hermetic FAKE_TURN round-trip green. Commit fd81e00. Summary: `phases/E4-sdk-proof/E4-04-SUMMARY.md`. Next: plan 05 (rust), then 06.
 
 - 2026-06-12 — **E4-03 EXECUTED — TS consumer hardened (EVSDK-03 COMPLETE).** consumer.js (64 lines): VOSS_PERMISSION_CHOICE env (default "a" — plan 07 Deny via "=d"); lifecycle try/catch (AbortError swallowed via DOMException name check, other errors → stderr, six-key JSON ALWAYS emitted); event.type discrimination + idle-abort drain unchanged from W0 (accessors verified correct). All grep gates pass (no VossLauncher/sdk/node, no judge/jsonl); node --check clean; hermetic FAKE_TURN round-trip re-verified green. Commit 67f783b. Summary: `phases/E4-sdk-proof/E4-03-SUMMARY.md`. Next: plans 04 (go) + 05 (rust) — parallel siblings — then 06.
 
@@ -287,3 +289,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase E4 P01 | 16 min | 2 tasks | 9 files |
 | Phase E4 P02 | 25 min | 2 tasks | 3 files |
 | Phase E4 P03 | 6 min | 1 tasks | 1 files |
+| Phase E4 P04 | 5 min | 1 tasks | 1 files |
