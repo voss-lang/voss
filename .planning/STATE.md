@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-11T23:28:12.824Z"
-last_activity: 2026-06-11
+last_updated: "2026-06-12T00:08:46.992Z"
+last_activity: 2026-06-12
 progress:
   total_phases: 52
   completed_phases: 4
@@ -32,7 +32,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 **Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).
 **Carry-over deviations (V13.3):** go floor 1.24 (audited deps oapi-codegen v2.7.1 + runtime v1.4.1 force it); in-SDK 3.1→3.0 codegen normalizer (`sdk/go/internal/specgen`, oapi-codegen v2.7.1 can't read FastAPI's OpenAPI 3.1); 60s spawn handshake + `LITELLM_LOCAL_MODEL_COST_MAP=true`.
 **Rust status:** `crates/` frozen-spike untouched. NEW `crates/voss-app-core` (A1, path-dep'd by src-tauri, populated A2+) + `apps/voss-app/src-tauri` are the live voss-app track members — distinct from the frozen v0.1-ship crates.
-**Last activity:** 2026-06-11
+**Last activity:** 2026-06-12
 
 ## Phase Status
 
