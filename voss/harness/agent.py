@@ -1399,12 +1399,25 @@ async def _invoke_step_with_gate(
         if recorder is not None:
             recorder.observe(step.name, step.args, "<unknown tool>", ok=False)
         return text
-    allowed, why = gate.check(
-        step.name,
-        step.args,
-        is_mutating=entry.is_mutating,
-        is_network=entry.is_network,
-    )
+    # A bridge-injected prompt_fn (server/TUI permission bridge) blocks on a
+    # Future resolved by the event loop — checking on-loop deadlocks until
+    # the 300s timeout (E3-04). Offload those gates to a thread; plain gates
+    # (auto_yes, interactive TTY) keep the existing sync path.
+    if gate.prompt_fn is not None:
+        allowed, why = await asyncio.to_thread(
+            gate.check,
+            step.name,
+            step.args,
+            is_mutating=entry.is_mutating,
+            is_network=entry.is_network,
+        )
+    else:
+        allowed, why = gate.check(
+            step.name,
+            step.args,
+            is_mutating=entry.is_mutating,
+            is_network=entry.is_network,
+        )
     # V12 VSAFE-05: persist factory-fallback evidence for every strict-procedure
     # route (confirmed irreversible that proceeds, or routed/denied dangerous op).
     if recorder is not None and getattr(gate, "safety_policy", None) is not None:
