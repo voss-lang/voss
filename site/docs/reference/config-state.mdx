@@ -51,7 +51,9 @@ Rebuildable state belongs under `.voss-cache/`:
   code/
 ```
 
-You should be able to delete cache state and rebuild it.
+You should be able to delete cache state and rebuild it. The `code/` directory holds the
+derived code recall index used by `voss recall` and the `code_recall` tool; it is not the
+curated project memory store.
 
 ## Session state
 
@@ -62,12 +64,17 @@ A team run also persists its [session tree](/orchestration/session-tree) here, o
 ```text
 .voss/sessions/
   <session_id>.json                 # harness session
+  <session_id>/
+    token-savings.jsonl             # estimated original vs packed context tokens
   <root_id>/
     <node_id>.json                  # session-tree node (budget, scope, status)
     <node_id>.review.json           # Reviewer-A + Reviewer-B sidecar
 ```
 
 Node and review files are written with `0o600` permissions.
+
+`token-savings.jsonl` contains estimated counts only. It does not store prompt text, tool
+arguments, or tool output.
 
 <Note>
 Do not commit secrets to `VOSS.md`, `.voss/`, or `.voss-cache/`. Voss avoids storing provider credentials, but prompt text and project notes are still local files.

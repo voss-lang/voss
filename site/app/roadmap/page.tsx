@@ -11,7 +11,7 @@ import { site } from "@/lib/site";
 export const metadata = pageMetadata({
   title: `Roadmap - ${site.name}`,
   description:
-    "The Voss roadmap: local agent workspaces, managed project instructions, external-agent handoffs, and budget-aware context.",
+    "The Voss roadmap: live workspace verification, managed project instructions, semantic code recall, budget-aware context, and global memory.",
   path: "/roadmap",
 });
 
@@ -37,11 +37,25 @@ const ROADMAP: {
     icon: Milestone,
   },
   {
-    phase: "Now",
+    phase: "Shipped",
     title: "Managed project instructions",
-    status: "Building",
-    body: "Voss is adding a sync path for generated workflow docs and project-editable review prompts, so external agents and the harness read the same local instructions.",
+    status: "Built",
+    body: "voss sync writes generated workflow docs, managed instruction sections, and editable review prompts, with a check mode for CI drift and hand-edited managed docs.",
     icon: FileText,
+  },
+  {
+    phase: "Shipped",
+    title: "Semantic code recall",
+    status: "Built",
+    body: "voss recall and the code_recall tool search code and project memory together, label results by source, and degrade to lexical recall when vector search is unavailable.",
+    icon: Route,
+  },
+  {
+    phase: "Shipped",
+    title: "Budget-aware context",
+    status: "Built",
+    body: "Long-running harness work now keeps recent context full, compresses older replay into structural summaries, and reports estimated savings from a session ledger.",
+    icon: Workflow,
   },
   {
     phase: "Next",
@@ -52,10 +66,10 @@ const ROADMAP: {
   },
   {
     phase: "Later",
-    title: "Budget-aware context",
+    title: "Global and external memory",
     status: "Sequenced",
-    body: "Long-running work should keep recent context full, compress older work, and report estimated savings honestly without adding another retrieval system.",
-    icon: Workflow,
+    body: "The next memory work is curated cross-project recall first, then explicit read-only ingest for markdown docs and external memory directories.",
+    icon: FileText,
   },
 ];
 
@@ -83,8 +97,9 @@ export default function RoadmapPage() {
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
               The org core is in: scoped tools, sessions, board, independent review, and replayable
-              audit. From here, the work is live local supervision, shared project instructions,
-              external-agent handoffs, and context that stays useful as runs get longer.
+              audit. Recent work added managed project instructions, code-aware recall, and
+              budget-aware context. From here, the work is live local supervision, external-agent
+              handoffs, and memory that can cross projects without leaving local control.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
@@ -125,8 +140,8 @@ export default function RoadmapPage() {
                 <h2 className="font-mono text-sm uppercase tracking-widest">Not now</h2>
               </div>
               <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-                The roadmap stays local-first. These stay deferred while the repo loop, memory,
-                TUI, and code intelligence mature.
+                The roadmap stays local-first. These stay deferred while the live workspace,
+                global memory, and external-agent coordination mature.
               </p>
               <ul className="mt-6 space-y-4">
                 {NOT_NOW.map((item) => (
