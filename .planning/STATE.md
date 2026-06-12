@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-12T16:26:54.408Z"
+last_updated: "2026-06-12T16:40:05.507Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 68
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-12 — **E4-05 EXECUTED — Rust consumer hardened (EVSDK-05 COMPLETE; W2 wave 03/04/05 ALL DONE).** sdk_proof_consumer.rs: VOSS_PERMISSION_CHOICE env (default "a"); die() helper — create_session/post_message failures emit error-JSON + exit(1) (was expect-panic/101; exit(2) env-guard probe preserved); permission_reply errors non-fatal (six-key JSON always lands); serde-round-trip event_type helper kept. VossClient::new only; zero Cargo.toml change (serde_json/tokio already [dependencies]). cargo build clean; all grep gates; hermetic FAKE_TURN round-trip green. Commit 7b71b21. Summary: `phases/E4-sdk-proof/E4-05-SUMMARY.md`. Next: plan 06 (sdk task.tomls + consolidated e2e), then 07 (Deny + live proof checkpoint).
 
 - 2026-06-12 — **V19-02 EXECUTED — CodeIndex core: symbol-aware chunking + incremental hash-manifest + RRF query (VSEM-01/02 COMPLETE).** `voss/harness/code/semantic_index.py` (375 lines): `extract_chunks` (M10 symbols read-only `mode=ro`, [start,next) regions, preamble chunk, zero-symbol whole-file, 800-char recursive oversize split), `_chunk_id` `code:<rel>:<seq:03d>`, `CodeIndex` (one SemanticMemory/instance, `_maybe_semantic` = exact `_maybe_chroma` guard mirror, hash-skip zero-embed reindex, delete-stale+upsert never add(), model-swap drop+rebuild via `_effective_embedding_model` (OPENAI_API_KEY-aware resolution match), removed-file purge, FULL-corpus BM25 rebuild + lazy `_ensure_bm25`, query RRF via `MemoryStore._rrf_merge`, chroma-absent → `code[degraded]`, tiny-corpus negative-IDF overlap rescue mirrored from `_bm25_recall`). Chunker 4/4 + incremental 2/3 + tool-degradation green; remaining 12 RED all downstream-owned (03/04/05/06). TWO V19-01 scaffold-vs-real-API bugs fixed: chroma 1.5.9 `_embed()` BYPASSES DefaultEmbeddingFunction instances → counting/gated fixtures must wrap inside plain `EmbeddingFunction` subclass; same-process rmtree+rebuild needs `SharedSystemClient.clear_system_cache()` (path-cached System, SQLITE_READONLY_DBMOVED). Noted: enrichment zero-LLM/budget-abort tests green vacuously; routes/ledger tests still force V19-06. Commits 9d3cce8 + e2c0baf. Summary: `phases/V19-semantic-code-memory-tiered-index-routing/V19-02-SUMMARY.md`. Next: V19-03 (CodeIndexService daemon + code_recall tool).
 
@@ -292,3 +294,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase E4 P02 | 25 min | 2 tasks | 3 files |
 | Phase E4 P03 | 6 min | 1 tasks | 1 files |
 | Phase E4 P04 | 5 min | 1 tasks | 1 files |
+| Phase E4 P05 | 5 min | 1 tasks | 1 files |

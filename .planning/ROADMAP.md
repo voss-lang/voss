@@ -82,7 +82,7 @@
 | E1 | Eval Substrate | Suite loader, TaskSpec, runner, JSONL+summary, hybrid deterministic+judge scoring, subscription-auth model wiring, per-run budget cap (absorbs M5-01..04) | EVSUB-01..07 | planned (5 plans) |
 | E2 | Golden Tasks × Repo Matrix | py/rust/ts fixture repos; agent proves cognition + edits per project shape (absorbs M5-05) | EVGLD-01..0N (TBD by SPEC.md) | TBD |
 | E3 | Surface E2E | CLI verbs + server plane driven end-to-end with real model inference | EVSRF-01..06 | planned (4 plans, 4 waves) |
-| E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..08 (minted from CONTEXT) | In Progress (4/7 plans) |
+| E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..08 (minted from CONTEXT) | In Progress (5/7 plans) |
 | E5 | TUI + voss-app Autonomous Driving | Drive TUI and voss-app surfaces autonomously; Tauri WebDriver blocked on macOS — approach TBD | EVUI-01..0N (TBD by SPEC.md) | TBD |
 | V15 | Live Plane Integration (sidecar handshake + structured pane rendering) | Plug the cockpit into a real `voss serve`: Tauri sidecar command spawns/attaches the server and hands the `{v,port,token}` stdout handshake to the webview (port `voss-sdk` `spawn_with` incl. 60s cold-start + `LITELLM_LOCAL_MODEL_COST_MAP=true`); construct the V13.1 TS client and plug V14's injectable sockets (RunCommandBar native `createSession`, drawer `followUpClient`, SSE → AttentionQueue + model overlay — live label flips for real); Voss-native panes graduate from raw PTY to structured protocol rendering (PROTOCOL §6 event union → DOM: EM task header, tool lines, plan prose, stream deltas) with the inline permission gate (`permission.updated` → Allow/Deny → `POST /permission`, shared with the queue). Visual contract: the pane-content of `.planning/sketches/V14-livework-mockup.html`. Seed: `.planning/notes/seed-structured-pane-rendering.md`. | TBD (SPEC pending) | Added 2026-06-09. Keystone = sidecar handshake (webview cannot spawn `voss serve` — V14 Pitfall 4); spike it first. UI-SPEC before planning (V14 lesson). Out: VCKP-13b permission proxy, rollback/re-run, embedded browser. |
 
@@ -2467,7 +2467,7 @@ Plans:
 - [x] E4-02-PLAN.md — extend surface Literal with sdk:* + _drive_sdk_python (in-process) + _drive_sdk_client (serve+consumer) dispatch [EVSDK-01, EVSDK-02] ✓ 2026-06-12
 - [x] E4-03-PLAN.md — harden ts consumer (typed SSE decode, env-driven reply, six-key JSON) [EVSDK-03] ✓ 2026-06-12
 - [x] E4-04-PLAN.md — harden go consumer (AttachClient, typed channel type-switch, json.Marshal) [EVSDK-04] ✓ 2026-06-12
-- [ ] E4-05-PLAN.md — harden rust consumer (VossClient::new, AgentEvent stream match, auto-discovered example) [EVSDK-05]
+- [x] E4-05-PLAN.md — harden rust consumer (VossClient::new, AgentEvent stream match, auto-discovered example) [EVSDK-05] ✓ 2026-06-12
 - [ ] E4-06-PLAN.md — four sdk task.tomls + shape-agnostic fixture + suite wiring + three consumer end-to-end FAKE_TURN schema tests [EVSDK-03..06]
 - [ ] E4-07-PLAN.md — ts Deny variant + permission_choice forwarding + live proof run on codex auth (human checkpoint) [EVSDK-07, EVSDK-08]
 
