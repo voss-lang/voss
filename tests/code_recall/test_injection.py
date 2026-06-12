@@ -10,11 +10,22 @@ from __future__ import annotations
 
 
 def test_token_cap(indexed_fixture_repo):
-    """Injected ## Code Recall section ≤1000 tokens by the V18 counter."""
+    """Injected ## Code Recall section ≤1000 tokens by the V18 counter.
+
+    D-07: the first render kicks the background build and returns "" until
+    the service is ready — poll until the section materializes.
+    """
+    import time
+
     from voss.harness.agent import _default_token_count
     from voss.harness.cli import _render_code_recall_text
 
-    text = _render_code_recall_text(indexed_fixture_repo, "where is retry backoff handled")
+    deadline = time.monotonic() + 30.0
+    text = ""
+    while not text and time.monotonic() < deadline:
+        text = _render_code_recall_text(indexed_fixture_repo, "where is retry backoff handled")
+        if not text:
+            time.sleep(0.05)
 
     assert "## Code Recall" in text
     tokens = _default_token_count(text, model="claude-sonnet-4-6")
