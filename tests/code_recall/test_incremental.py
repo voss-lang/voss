@@ -20,14 +20,17 @@ def counting_embed(monkeypatch):
     except Exception:
         pytest.skip("chromadb DefaultEmbeddingFunction unavailable")
 
-    class CountingEmbed(embedding_functions.DefaultEmbeddingFunction):
+    # NOT a DefaultEmbeddingFunction subclass: chroma 1.5.9 _embed() bypasses
+    # any instance of DefaultEmbeddingFunction (uses the persisted config EF
+    # natively), so a counting subclass never fires. Wrap instead.
+    class CountingEmbed(embedding_functions.EmbeddingFunction):
         def __init__(self) -> None:
-            super().__init__()
+            self._inner = embedding_functions.DefaultEmbeddingFunction()
             self.embedded_texts: list[str] = []
 
         def __call__(self, input):  # noqa: A002 — chroma's param name
             self.embedded_texts.extend(str(t) for t in input)
-            return super().__call__(input)
+            return self._inner(input)
 
     fn = CountingEmbed()
 

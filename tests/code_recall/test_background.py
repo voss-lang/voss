@@ -24,10 +24,15 @@ def gated_embed(monkeypatch):
 
     gate = threading.Event()
 
-    class GatedEmbed(embedding_functions.DefaultEmbeddingFunction):
+    # NOT a DefaultEmbeddingFunction subclass — chroma 1.5.9 _embed() bypasses
+    # DefaultEmbeddingFunction instances (see test_incremental.CountingEmbed).
+    class GatedEmbed(embedding_functions.EmbeddingFunction):
+        def __init__(self) -> None:
+            self._inner = embedding_functions.DefaultEmbeddingFunction()
+
         def __call__(self, input):  # noqa: A002 — chroma's param name
             gate.wait(timeout=60.0)
-            return super().__call__(input)
+            return self._inner(input)
 
     fn = GatedEmbed()
     fn.release = gate.set  # type: ignore[attr-defined]

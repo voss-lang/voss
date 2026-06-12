@@ -117,3 +117,251 @@ def _save_manifest(cwd: Path, data: dict) -> None:
     path = _manifest_path(cwd)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=0, sort_keys=True))
+
+
+class CodeIndex:
+    """Incremental semantic index over repo code chunks.
+
+    One SemanticMemory (one Chroma client) per instance (Pitfall 3). All
+    sentence-transformers cold-load happens lazily inside _maybe_semantic —
+    never at import/__init__ (Pitfall 2; V19-03 runs build on a worker thread).
+    """
+
+    def __init__(self, cwd: Path) -> None:
+        self.cwd = Path(cwd).resolve()
+        self._sem: SemanticMemory | None = None
+        self._unavailable = False
+        self._bm25 = None
+        # (chunk_id, text, rel_path, line_start, line_end) for the FULL current chunk set
+        self._bm25_chunks: list[tuple[str, str, str, int, int]] = []
+
+    # -- lazy chroma probe (mirror of MemoryStore._maybe_chroma) -----------
+
+    def _maybe_semantic(self) -> "SemanticMemory | None":
+        if self._sem is not None:
+            return self._sem
+        if self._unavailable:
+            return None
+        try:
+            sem = SemanticMemory(
+                persist_dir=str(self.cwd / ".voss-cache" / "code" / "chroma"),
+                collection_name="voss_code",
+            )
+        except (ModuleNotFoundError, ImportError):
+            self._unavailable = True
+            return None
+        except Exception as exc:  # noqa: BLE001 — defensive; chroma init can raise OS/permission errors
+            print(f"code index: chroma init failed ({exc}); using BM25 fallback", file=sys.stderr)
+            self._unavailable = True
+            return None
+        self._sem = sem
+        return sem
+
+    # -- manifest -----------------------------------------------------------
+
+    def _load_manifest(self) -> dict:
+        return _load_manifest(self.cwd)
+
+    def _save_manifest(self, data: dict) -> None:
+        _save_manifest(self.cwd, data)
+
+    def _drop_collection(self, sem: "SemanticMemory") -> None:
+        """Pitfall 1: embedding-model swap invalidates every stored vector."""
+        try:
+            sem._client.delete_collection("voss_code")
+        except Exception:  # noqa: BLE001 — collection may not exist yet
+            pass
+        sem._collection = sem._client.get_or_create_collection(
+            name="voss_code",
+            embedding_function=sem._embedding_function(),
+        )
+
+    # -- build / incremental reindex ----------------------------------------
+
+    def build(self, session_id: str | None = None) -> None:
+        """Full-or-incremental build into the voss_code collection.
+
+        Hash-unchanged files are skipped entirely (zero embedding calls —
+        VSEM-02). `session_id` is accepted now so V19-06 can thread it into
+        the enrichment ledger without a signature change.
+        """
+        cwd = self.cwd
+        db_path = _get_db_path(cwd)
+        files = sorted(
+            (f for f in _discover_files(cwd) if f.suffix.lower() in LANGUAGE_EXTS),
+            key=lambda p: str(p.relative_to(cwd)),
+        )
+
+        manifest = self._load_manifest()
+        current_model = _effective_embedding_model()
+        sem = self._maybe_semantic()
+        if (
+            manifest.get("embedding_model")
+            and manifest["embedding_model"] != current_model
+        ):
+            if sem is not None:
+                self._drop_collection(sem)
+            manifest = {}  # every hash invalid → full re-embed
+        file_entries: dict[str, dict] = manifest.setdefault("files", {})
+
+        all_chunks: list[tuple[str, str, str, int, int]] = []
+        seen: set[str] = set()
+        for f in files:
+            try:
+                rel = str(f.relative_to(cwd))
+                content = f.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            digest = _file_hash(content)
+            seen.add(rel)
+
+            chunks = [
+                (start, end, text)
+                for start, end, text in extract_chunks(db_path, rel, content)
+                if text.strip()
+            ]
+            ids = [_chunk_id(rel, i) for i in range(len(chunks))]
+            all_chunks.extend(
+                (cid, text, rel, start, end)
+                for cid, (start, end, text) in zip(ids, chunks)
+            )
+
+            entry = file_entries.get(rel)
+            if entry and entry.get("hash") == digest:
+                continue  # unchanged → zero embeds
+
+            if sem is not None:
+                old_ids = list(entry.get("chunk_ids", [])) if entry else []
+                stale = [cid for cid in old_ids if cid not in set(ids)]
+                if stale:
+                    sem._collection.delete(ids=stale)
+                if ids:
+                    sem._collection.upsert(
+                        documents=[text for _, _, text in chunks],
+                        ids=ids,
+                        metadatas=[
+                            {"path": rel, "line_start": start, "line_end": end}
+                            for start, end, _ in chunks
+                        ],
+                    )
+            file_entries[rel] = {"hash": digest, "chunk_ids": ids}
+
+        # Files deleted from the repo: purge their chunks.
+        for rel in [r for r in file_entries if r not in seen]:
+            old = file_entries.pop(rel)
+            if sem is not None and old.get("chunk_ids"):
+                sem._collection.delete(ids=old["chunk_ids"])
+
+        manifest["embedding_model"] = current_model
+        if sem is not None:
+            try:
+                sem._collection.modify(metadata={"embedding_model": current_model})
+            except Exception:  # noqa: BLE001 — metadata tag is best-effort
+                pass
+
+        # Pitfall 4: BM25 rebuilt from the FULL current chunk set, never the delta.
+        self._set_bm25_corpus(all_chunks)
+        self._save_manifest(manifest)
+
+    # -- BM25 ----------------------------------------------------------------
+
+    def _set_bm25_corpus(self, chunks: list[tuple[str, str, str, int, int]]) -> None:
+        from rank_bm25 import BM25Okapi
+
+        self._bm25_chunks = chunks
+        if chunks:
+            self._bm25 = BM25Okapi([_bm25_tokenize(text) for _, text, _, _, _ in chunks])
+        else:
+            self._bm25 = None
+
+    def _ensure_bm25(self) -> None:
+        """Lazy corpus for query-before-build callers (no embedding involved)."""
+        if self._bm25 is not None or self._bm25_chunks:
+            return
+        cwd = self.cwd
+        db_path = _get_db_path(cwd)
+        chunks: list[tuple[str, str, str, int, int]] = []
+        for f in _discover_files(cwd):
+            if f.suffix.lower() not in LANGUAGE_EXTS:
+                continue
+            try:
+                rel = str(f.relative_to(cwd))
+                content = f.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            extracted = [
+                (start, end, text)
+                for start, end, text in extract_chunks(db_path, rel, content)
+                if text.strip()
+            ]
+            chunks.extend(
+                (_chunk_id(rel, i), text, rel, start, end)
+                for i, (start, end, text) in enumerate(extracted)
+            )
+        self._set_bm25_corpus(chunks)
+
+    def _bm25_query(self, query: str, top_k: int) -> list[Hit]:
+        self._ensure_bm25()
+        if self._bm25 is None:
+            return []
+        tokens = _bm25_tokenize(query)
+        if not tokens:
+            return []
+        scores = self._bm25.get_scores(tokens)
+        ranked = sorted(
+            zip(scores, self._bm25_chunks), key=lambda pair: -pair[0]
+        )[:top_k]
+        return [
+            Hit(
+                source="code",
+                locator=cid,
+                score=float(score),
+                excerpt=text.replace("\n", " ")[:160],
+                line_start=start,
+                line_end=end,
+            )
+            for score, (cid, text, _rel, start, end) in ranked
+            if score > 0.0
+        ]
+
+    # -- query ----------------------------------------------------------------
+
+    def query(self, query: str, top_k: int = 5) -> list[Hit]:
+        """RRF(BM25+vector) Hits with file:line; BM25-only when Chroma absent."""
+        recall_k = max(top_k * 3, top_k)
+        bm25_hits = self._bm25_query(query, recall_k)
+        sem = self._maybe_semantic()
+        if sem is None:
+            return [
+                dataclasses.replace(h, source="code[degraded]")
+                for h in bm25_hits[:top_k]
+            ]
+        try:
+            chroma_hits = self._chroma_query(sem, query, recall_k)
+        except Exception as exc:  # noqa: BLE001 — chroma can raise on malformed query
+            print(f"code index: chroma query failed ({exc}); falling back to BM25", file=sys.stderr)
+            return bm25_hits[:top_k]
+        return MemoryStore._rrf_merge([bm25_hits, chroma_hits], top_k=top_k)
+
+    def _chroma_query(self, sem: "SemanticMemory", query: str, top_k: int) -> list[Hit]:
+        result = sem._collection.query(query_texts=[query], n_results=top_k)
+        ids = (result.get("ids") or [[]])[0]
+        docs = (result.get("documents") or [[]])[0]
+        metas = (result.get("metadatas") or [[]])[0]
+        dists = (result.get("distances") or [[]])[0]
+        hits: list[Hit] = []
+        for idx, locator in enumerate(ids):
+            doc = docs[idx] if idx < len(docs) else ""
+            meta = metas[idx] if idx < len(metas) else {}
+            dist = dists[idx] if idx < len(dists) else 0.0
+            hits.append(
+                Hit(
+                    source="code",
+                    locator=locator,
+                    score=1.0 / (1.0 + float(dist)),
+                    excerpt=(doc or "").replace("\n", " ")[:160],
+                    line_start=(meta or {}).get("line_start"),
+                    line_end=(meta or {}).get("line_end"),
+                )
+            )
+        return hits

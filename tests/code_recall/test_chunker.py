@@ -92,6 +92,13 @@ def test_derived_cache(tmp_path, fake_embed_fn):
 
     shutil.rmtree(tmp_path / ".voss-cache")
 
+    # Same-process artifact only: chroma caches its System per persist path,
+    # so the deleted dir's sqlite handle dangles. A real `rm -rf` + fresh
+    # process never needs this.
+    from chromadb.api.client import SharedSystemClient
+
+    SharedSystemClient.clear_system_cache()
+
     build_index(tmp_path)
     index = CodeIndex(tmp_path)
     index.build(session_id="test-session")
