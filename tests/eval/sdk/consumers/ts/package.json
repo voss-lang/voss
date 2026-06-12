@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@vosslang/sdk": "file:../../../../../sdk/typescript"
+  }
+}
