@@ -66,28 +66,54 @@ def test_drive_sdk_python_stub(tmp_path: Path) -> None:  # EVSDK-02
     assert final
 
 
-@pytest.mark.xfail(
-    reason="EVSDK-03: _drive_sdk_client (ts) not yet defined (W1 plan 03)",
-    strict=False,
-)
-def test_drive_sdk_client_ts_stub() -> None:
-    from voss.eval.runner import _drive_sdk_client  # noqa: F401
+def _drive_consumer_hermetic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, consumer: str
+) -> str:
+    """Spawn FAKE_TURN serve + the W0 consumer through _drive_sdk_client.
+
+    hermetic: FAKE_TURN emits no permission.updated; saw_permission_gate will
+    be false — that is correct for stub mode (RESEARCH Pitfall 3).
+    """
+    import asyncio
+
+    from voss.eval.runner import _drive_sdk_client
+    from voss.eval.suite import TaskSpec
+
+    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+    cwd = tmp_path / "proj"
+    cwd.mkdir()
+    (cwd / "README.md").write_text("# seed\n")
+    spec = TaskSpec(
+        prompt="hello", mode="plan", rubric="...", surface=f"sdk:{consumer}"
+    )
+    return asyncio.run(_drive_sdk_client(spec, cwd=cwd, consumer=consumer))
 
 
-@pytest.mark.xfail(
-    reason="EVSDK-04: _drive_sdk_client (go) not yet defined (W1 plan 03)",
-    strict=False,
-)
-def test_drive_sdk_client_go_stub() -> None:
-    from voss.eval.runner import _drive_sdk_client  # noqa: F401
+@pytest.mark.slow
+@pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
+def test_drive_sdk_client_ts_stub(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:  # EVSDK-03
+    final = _drive_consumer_hermetic(tmp_path, monkeypatch, "ts")
+    assert "echo" in final, f"unexpected final: {final!r}"
 
 
-@pytest.mark.xfail(
-    reason="EVSDK-05: _drive_sdk_client (rust) not yet defined (W1 plan 03)",
-    strict=False,
-)
-def test_drive_sdk_client_rust_stub() -> None:
-    from voss.eval.runner import _drive_sdk_client  # noqa: F401
+@pytest.mark.slow
+@pytest.mark.skipif(not shutil.which("go"), reason="go not installed")
+def test_drive_sdk_client_go_stub(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:  # EVSDK-04
+    final = _drive_consumer_hermetic(tmp_path, monkeypatch, "go")
+    assert "echo" in final, f"unexpected final: {final!r}"
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not shutil.which("cargo"), reason="cargo not installed")
+def test_drive_sdk_client_rust_stub(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:  # EVSDK-05
+    final = _drive_consumer_hermetic(tmp_path, monkeypatch, "rust")
+    assert "echo" in final, f"unexpected final: {final!r}"
 
 
 @pytest.mark.xfail(

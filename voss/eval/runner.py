@@ -433,6 +433,103 @@ async def _drive_serve(
     return final, None, False
 
 
+async def _drive_sdk_client(
+    spec: TaskSpec,
+    *,
+    cwd: Path,
+    consumer: str,  # "ts" | "go" | "rust"
+    timeout: float = 180.0,
+) -> str:
+    """Spawn `voss serve`, then spawn the committed consumer subprogram for the
+    given client SDK; parse its structured-JSON stdout line; return the final
+    text. The runner owns the serve lifecycle — the consumer never self-launches
+    the server (TS launcher 10s-handshake pitfall) and receives coordinates via
+    env only (token never on a CLI arg).
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    consumers_dir = repo_root / "tests" / "eval" / "sdk" / "consumers"
+
+    env = _live_env(cwd)
+    proc_server = subprocess.Popen(
+        [sys.executable, "-m", "voss.cli", "serve"],
+        env=env,
+        cwd=str(cwd),
+        stdin=subprocess.PIPE,  # held open = heartbeat; EOF self-terminates server
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+    stderr_lines: list[str] = []
+    threading.Thread(
+        target=lambda: stderr_lines.extend(iter(proc_server.stderr)), daemon=True
+    ).start()
+    try:
+        handshake = None
+        deadline = time.monotonic() + 60.0
+        for line in proc_server.stdout:
+            try:
+                h = json.loads(line.strip())
+            except json.JSONDecodeError:
+                h = None
+            if isinstance(h, dict) and h.get("token"):
+                handshake = h
+                break
+            if time.monotonic() > deadline:
+                break
+        if handshake is None:
+            raise TimeoutError(
+                f"serve handshake timeout; stderr: {''.join(stderr_lines[-10:])[:300]}"
+            )
+
+        consumer_env = {
+            **env,
+            "VOSS_BASE_URL": f"http://127.0.0.1:{handshake['port']}",
+            "VOSS_TOKEN": handshake["token"],
+            "VOSS_CWD": str(cwd),
+            # Go interpreterPath() resolves python relative to CWD — pin it.
+            "VOSS_PYTHON": str(Path(sys.executable).resolve()),
+            "VOSS_PROMPT": spec.prompt,
+            "VOSS_MODE": spec.mode,
+        }
+        run_cwd: str | None = None
+        if consumer == "ts":
+            cmd = ["node", str(consumers_dir / "ts" / "consumer.js")]
+        elif consumer == "go":
+            cmd = ["go", "run", "."]
+            run_cwd = str(consumers_dir / "go")  # go.mod resolution needs the module dir
+        elif consumer == "rust":
+            cmd = [
+                "cargo", "run",
+                "--manifest-path", str(repo_root / "crates" / "voss-sdk" / "Cargo.toml"),
+                "--example", "sdk_proof_consumer", "--quiet",
+            ]
+        else:
+            raise ValueError(f"unknown sdk consumer {consumer!r}")
+
+        try:
+            cp = subprocess.run(
+                cmd,
+                env=consumer_env,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+                cwd=run_cwd,
+            )
+            consumer_result = json.loads(cp.stdout.strip().splitlines()[-1])
+            return consumer_result.get("final", "")
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, IndexError):
+            return ""
+    finally:
+        if proc_server.stdin:
+            proc_server.stdin.close()  # EOF heartbeat → server self-terminates
+        try:
+            proc_server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc_server.kill()
+
+
 # sdk:python proves the docs/sdk.md public embedder surface (D-04). It is
 # in-process like `internal` but restricts itself to voss.harness/voss_runtime
 # public __all__ symbols; PlainRenderer + make_toolset are the documented M7
@@ -563,6 +660,16 @@ async def _drive_task(
                 model=None if stub else model,
             )
             return record, final, crash_reason, capped
+        if spec.surface == "sdk:python":
+            final = await _drive_sdk_python(
+                spec, cwd=cwd, provider=provider, model=model, max_turns=max_turns
+            )
+            return record, final, None, False
+        if spec.surface in ("sdk:ts", "sdk:go", "sdk:rust"):
+            final = await _drive_sdk_client(
+                spec, cwd=cwd, consumer=spec.surface.split(":")[1]
+            )
+            return record, final, None, False
         if task_id.startswith("05-"):
             record, final, capped = await _drive_resume(
                 record,
