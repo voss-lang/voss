@@ -143,6 +143,151 @@ def test_live_proof_run_documented() -> None:  # EVSDK-08
 
 
 # ---------------------------------------------------------------------------
+# Consumer end-to-end schema/decode tests (FAKE_TURN; EVSDK-03/04/05)
+#
+# Hermetic: FAKE_TURN -> server.connected/final/session.idle, NO
+# permission.updated. saw_permission_gate=false is correct (RESEARCH
+# Pitfall 3). The live Allow/Deny round-trip is EVSDK-07 (operator
+# checkpoint, plan 07).
+# ---------------------------------------------------------------------------
+
+SIX_KEYS = {
+    "surface",
+    "session_id",
+    "final",
+    "saw_permission_gate",
+    "cost_usd",
+    "event_types_seen",
+}
+
+
+def _spawn_fake_serve(cwd: Path):
+    """Test-local FAKE_TURN serve: returns (proc, base_url, token)."""
+    import json
+    import subprocess
+    import sys
+    import time
+
+    env = dict(os.environ)
+    env["VOSS_SERVE_FAKE_TURN"] = "1"
+    env["LITELLM_LOCAL_MODEL_COST_MAP"] = "true"
+    env["VOSS_DEV"] = "1"
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "voss.cli", "serve"],
+        env=env,
+        cwd=str(cwd),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+    )
+    deadline = time.monotonic() + 60.0
+    for line in proc.stdout:
+        try:
+            h = json.loads(line.strip())
+        except json.JSONDecodeError:
+            h = None
+        if isinstance(h, dict) and h.get("token"):
+            return proc, f"http://127.0.0.1:{h['port']}", h["token"]
+        if time.monotonic() > deadline:
+            break
+    _kill_serve(proc)
+    raise TimeoutError("fake serve handshake timeout")
+
+
+def _kill_serve(proc) -> None:
+    import subprocess
+
+    if proc.stdin:
+        proc.stdin.close()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _run_consumer_schema(tmp_path: Path, cmd: list[str], run_cwd: Path | None):
+    """Spawn FAKE_TURN serve, run the consumer, return its parsed JSON line."""
+    import json
+
+    fixture = tmp_path / "proj"
+    fixture.mkdir()
+    (fixture / "README.md").write_text("# seed\n")
+    proc, base_url, token = _spawn_fake_serve(fixture)
+    try:
+        env = {
+            **os.environ,
+            "VOSS_BASE_URL": base_url,
+            "VOSS_TOKEN": token,
+            "VOSS_CWD": str(fixture),
+            "VOSS_PROMPT": "hello",
+            "VOSS_MODE": "plan",
+        }
+        cp = subprocess.run(
+            cmd,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
+            cwd=str(run_cwd) if run_cwd else str(_repo_root()),
+        )
+        # Last JSON-decodable line (tolerates cargo/go build chatter).
+        for line in reversed(cp.stdout.strip().splitlines()):
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError:
+                continue
+        raise AssertionError(f"no JSON line in consumer stdout: {cp.stdout!r} {cp.stderr!r}")
+    finally:
+        _kill_serve(proc)
+
+
+def _assert_schema(result: dict, surface: str) -> None:
+    assert set(result) == SIX_KEYS
+    assert result["surface"] == surface
+    assert isinstance(result["final"], str) and "echo" in result["final"]
+    assert result["saw_permission_gate"] is False
+    assert isinstance(result["event_types_seen"], list)
+    assert "session.idle" in result["event_types_seen"]
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
+def test_ts_consumer_output_schema(tmp_path: Path) -> None:  # EVSDK-03
+    consumer = _repo_root() / "tests" / "eval" / "sdk" / "consumers" / "ts" / "consumer.js"
+    result = _run_consumer_schema(tmp_path, ["node", str(consumer)], None)
+    _assert_schema(result, "sdk:ts")
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not shutil.which("go"), reason="go not installed")
+def test_go_consumer_output_schema(tmp_path: Path) -> None:  # EVSDK-04
+    result = _run_consumer_schema(
+        tmp_path,
+        ["go", "run", "."],
+        _repo_root() / "tests" / "eval" / "sdk" / "consumers" / "go",
+    )
+    _assert_schema(result, "sdk:go")
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not shutil.which("cargo"), reason="cargo not installed")
+def test_rust_consumer_output_schema(tmp_path: Path) -> None:  # EVSDK-05
+    result = _run_consumer_schema(
+        tmp_path,
+        [
+            "cargo", "run",
+            "--manifest-path", str(_repo_root() / "crates" / "voss-sdk" / "Cargo.toml"),
+            "--example", "sdk_proof_consumer", "--quiet",
+        ],
+        None,
+    )
+    _assert_schema(result, "sdk:rust")
+
+
+# ---------------------------------------------------------------------------
 # Build-verification gates (real tests — the W0 de-risk for the open questions)
 # ---------------------------------------------------------------------------
 
