@@ -45,6 +45,11 @@ class Hit:
     excerpt: str
     session_id: str | None = None
     ts: str | None = None
+    # V19 VSEM-01: code-chunk hits carry file:line locators through RRF fusion.
+    # Memory hits leave both None; appended after existing optionals so
+    # positional construction at existing call sites is unaffected.
+    line_start: int | None = None
+    line_end: int | None = None
 
 
 @dataclass
