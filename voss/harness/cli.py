@@ -777,6 +777,82 @@ def _render_project_index_text(cwd: Path, session_id: str | None = None) -> str:
         return ""
 
 
+# --- V19-05 VSEM-06: code-recall auto-injection -----------------------------
+
+# One CodeIndexService (one Chroma client) per cwd for the injection path —
+# a fresh service per render would re-spawn builds and never reach ready.
+_CODE_RECALL_SERVICES: dict[str, object] = {}
+
+_CODE_RECALL_TOKEN_CAP = 1000  # VSEM-06 hard cap, measured by the V18 counter
+
+
+def _get_code_recall_service(cwd: Path, session_id: str | None = None):
+    key = str(cwd.resolve())
+    svc = _CODE_RECALL_SERVICES.get(key)
+    if svc is None:
+        from voss.harness.code.semantic_index import CodeIndexService
+
+        svc = CodeIndexService(cwd, session_id=session_id)
+        svc.ensure_background_build()
+        _CODE_RECALL_SERVICES[key] = svc
+    return svc
+
+
+def _render_code_recall_text(cwd: Path, task_text: str, session_id: str | None = None) -> str:
+    """Render the `## Code Recall` system section for the current task.
+
+    Returns "" (zero injection bytes) when: inject=false (VSEM-06 off-switch),
+    the index is not ready (D-07 — skip entirely, no blocking, no placeholder),
+    or there are no hits. Capped <=1000 tokens by the V18 counter — the section
+    rides the V18 variable region, no second budget system.
+    """
+    if not task_text or not task_text.strip():
+        return ""
+    try:
+        from voss.harness.config import get_code_recall_config
+
+        if not get_code_recall_config().get("inject", True):
+            return ""
+        svc = _get_code_recall_service(Path(cwd), session_id=session_id)
+        if not svc.is_ready():
+            return ""
+        hits = svc.query(task_text.strip(), top_k=5)
+        if not hits:
+            return ""
+
+        from voss.harness.agent import _default_token_count
+
+        model = get_config().default_model
+        section = "## Code Recall\nTask-relevant code (semantic index):"
+        for h in hits:
+            parts = h.locator.split(":")
+            path = ":".join(parts[1:-1]) if len(parts) >= 3 else h.locator
+            anchor = f"{path}:{h.line_start}" if h.line_start else path
+            excerpt = (h.excerpt or "").replace("\n", " ")[:160]
+            block = f"\n- {anchor} (score {h.score:.2f})\n  {excerpt}"
+            if _default_token_count(section + block, model=model) > _CODE_RECALL_TOKEN_CAP:
+                break  # hard cap (VSEM-06)
+            section += block
+        return section
+    except Exception:  # noqa: BLE001 — injection is additive; failures render nothing
+        return ""
+
+
+def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str | None = None) -> dict:
+    """kwargs-splat guard: compiled loop.voss run_turn variants may predate
+    the code_recall_text param (same hazard as packing_enabled in V18) —
+    render + pass only when the resolved run_turn accepts it."""
+    try:
+        import inspect as _inspect
+
+        if "code_recall_text" not in _inspect.signature(run_turn_fn).parameters:
+            return {}
+    except (TypeError, ValueError):
+        return {}
+    text = _render_code_recall_text(cwd, task_text, session_id=session_id)
+    return {"code_recall_text": text} if text else {}
+
+
 def _show_code_intel_results(ctx: ReplContext, query: str, items: list[dict]) -> None:
     renderer = getattr(ctx, "renderer", None)
     show = getattr(renderer, "show_code_intel_results", None)
