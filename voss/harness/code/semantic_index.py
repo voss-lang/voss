@@ -308,20 +308,28 @@ class CodeIndex:
         if not tokens:
             return []
         scores = self._bm25.get_scores(tokens)
-        ranked = sorted(
-            zip(scores, self._bm25_chunks), key=lambda pair: -pair[0]
-        )[:top_k]
+        query_token_set = set(tokens)
+        ranked: list[tuple[float, tuple[str, str, str, int, int]]] = []
+        for chunk, score in zip(self._bm25_chunks, scores):
+            score_float = float(score)
+            if score_float <= 0 and query_token_set.intersection(_bm25_tokenize(chunk[1])):
+                # rank_bm25 zero/negative IDF on tiny corpora — keep true
+                # lexical matches (mirror of memory_store._bm25_recall guard).
+                score_float = float(len(query_token_set.intersection(_bm25_tokenize(chunk[1]))))
+            if score_float <= 0:
+                continue
+            ranked.append((score_float, chunk))
+        ranked.sort(key=lambda pair: -pair[0])
         return [
             Hit(
                 source="code",
                 locator=cid,
-                score=float(score),
+                score=score,
                 excerpt=text.replace("\n", " ")[:160],
                 line_start=start,
                 line_end=end,
             )
-            for score, (cid, text, _rel, start, end) in ranked
-            if score > 0.0
+            for score, (cid, text, _rel, start, end) in ranked[:top_k]
         ]
 
     # -- query ----------------------------------------------------------------
