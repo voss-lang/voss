@@ -1,0 +1,21 @@
+# 01-python-basic - sdk:python in-process embedder audit (D-04): drive one edit
+# turn through the public voss.harness API; expect the target file modified.
+prompt = "Add a function sum_two(a, b) that returns a + b to calc.py."
+mode = "edit"
+surface = "sdk:python"
+auto_approve_edits = true
+rubric = """
+PASS if:
+- calc.py defines sum_two(a, b) returning a + b.
+- The existing add() function is untouched.
+
+FAIL if:
+- calc.py has no sum_two function.
+- The change broke or removed add().
+"""
+judge_inputs = ["final", "file_diff"]
+
+[[checks]]
+type = "file_contains"
+path = "calc.py"
+text = "sum_two"
