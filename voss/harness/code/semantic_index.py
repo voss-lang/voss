@@ -210,6 +210,7 @@ class CodeIndex:
         file_entries: dict[str, dict] = manifest.setdefault("files", {})
 
         all_chunks: list[tuple[str, str, str, int, int]] = []
+        changed_chunks: list[tuple[str, str, str, int, int]] = []
         seen: set[str] = set()
         for f in files:
             try:
@@ -250,12 +251,25 @@ class CodeIndex:
                         ],
                     )
             file_entries[rel] = {"hash": digest, "chunk_ids": ids}
+            changed_chunks.extend(
+                (cid, text, rel, start, end)
+                for cid, (start, end, text) in zip(ids, chunks)
+            )
 
         # Files deleted from the repo: purge their chunks.
         for rel in [r for r in file_entries if r not in seen]:
             old = file_entries.pop(rel)
             if sem is not None and old.get("chunk_ids"):
                 sem._collection.delete(ids=old["chunk_ids"])
+
+        # V19-06 (VSEM-07/08): opt-in enrichment of the chunks that changed
+        # this pass. Internally fail-closed — profile off / no index_enrich
+        # config → returns before any provider construction (Pitfall 7).
+        self._run_enrichment(
+            changed_chunks,
+            session_id=(session_id or "index-background"),
+            cwd=cwd,
+        )
 
         manifest["embedding_model"] = current_model
         if sem is not None:
@@ -267,6 +281,142 @@ class CodeIndex:
         # Pitfall 4: BM25 rebuilt from the FULL current chunk set, never the delta.
         self._set_bm25_corpus(all_chunks)
         self._save_manifest(manifest)
+
+    # -- enrichment (V19-06, VSEM-07/08) --------------------------------------
+
+    def _run_enrichment(
+        self,
+        chunks: list[tuple[str, str, str, int, int]],
+        *,
+        session_id: str,
+        cwd: Path,
+    ) -> None:
+        """Opt-in per-chunk one-line summaries via the index_enrich role.
+
+        Fail-closed (D-06 / Pitfall 7): profile off OR no index_enrich model
+        → return before ANY provider construction. Never the session model.
+        Budget cap (VSEM-08) aborts the batch cleanly; un-enriched chunks are
+        simply left without a summary — the index stays valid.
+        """
+        from voss.harness.config import get_code_recall_config, get_index_enrich_model
+
+        cfg = get_code_recall_config()
+        enrich_model = get_index_enrich_model()
+        if not cfg["enrich_profile"] or enrich_model is None:
+            return  # fail-closed: zero provider construction, zero LLM calls
+
+        import asyncio
+
+        from voss.harness import model_router
+        from voss.harness.model_catalog import ModelEntry
+        from voss.harness.recorder import _append_savings_record
+
+        entry = None
+        try:
+            from voss.harness.model_catalog import load_catalog
+
+            hits = model_router.find_by_id(load_catalog(), enrich_model)
+            entry = hits[0] if hits else None
+        except Exception:  # noqa: BLE001 — offline/no catalog: fall through to a bare entry
+            entry = None
+        if entry is None:
+            # Bare litellm-routable entry (e.g. "ollama/gpt-oss"); key, if
+            # needed, is read from the env by litellm itself.
+            entry = ModelEntry(
+                id=enrich_model,
+                name=enrich_model,
+                provider_id="custom",
+                provider_label="custom",
+                api_base=None,
+                env_key=None,
+                free=False,
+                subscription=False,
+                context=None,
+                tool_call=False,
+            )
+        key = None
+        try:
+            key = model_router.resolve_key(entry)
+        except Exception:  # noqa: BLE001 — key resolution is best-effort; litellm falls back to env
+            key = None
+        provider, model_str = model_router.build_provider_for_model(entry, api_key=key)
+
+        budget = int(cfg["enrich_budget_tokens"])
+        sem = self._maybe_semantic()
+        total_tokens = 0
+        enriched_count = 0
+        for chunk_id, text, rel, start, end in chunks:
+            if total_tokens >= budget:
+                break  # clean cap abort — remaining chunks left un-enriched
+            # Prompt-injection mitigation: chunk text rides inside a fenced
+            # context block; the output is a one-liner stored as metadata,
+            # never executed.
+            prompt = (
+                "Summarize the purpose of this code chunk in ONE line "
+                "(<=120 chars). Reply with the line only.\n\n"
+                f"File: {rel} (lines {start}-{end})\n"
+                "```\n"
+                f"{text}\n"
+                "```"
+            )
+            summary = None
+            try:
+
+                async def _one() -> object:
+                    return await provider.complete(
+                        messages=[{"role": "user", "content": prompt}],
+                        model=model_str,
+                        temperature=0.0,
+                        max_tokens=120,
+                    )
+
+                resp = asyncio.run(_one())
+                summary = (getattr(resp, "text", None) or "").strip() or None
+            except Exception:  # noqa: BLE001 — a failed one-liner never breaks the build
+                summary = None
+            # Conservative estimate; stub/offline providers expose no usage.
+            total_tokens += (len(prompt) + len(summary or "")) // 4
+            if summary and sem is not None:
+                try:
+                    sem._collection.upsert(
+                        ids=[chunk_id],
+                        documents=[f"{text}\n\n# summary: {summary}"],
+                        metadatas=[
+                            {
+                                "path": rel,
+                                "line_start": start,
+                                "line_end": end,
+                                "enriched": True,
+                                "summary": summary,
+                            }
+                        ],
+                    )
+                    enriched_count += 1
+                except Exception:  # noqa: BLE001 — metadata write failure leaves the chunk un-enriched
+                    pass
+
+        # Distinct /cost line: original=0 so the recorder's saved>=0 clamp
+        # can't inflate a savings claim (this is spend, not savings).
+        try:
+            from datetime import datetime, timezone
+
+            _append_savings_record(
+                cwd,
+                session_id,
+                {
+                    "iter": 0,
+                    "original_tokens_est": 0,
+                    "packed_tokens_est": 0,
+                    "method": "enrich",
+                    "enrichment_tokens_used": total_tokens,
+                    "enrichment_chunks": enriched_count,
+                    "model": enrich_model,
+                    "saved_usd_est": None,
+                    "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 — ledger write is observability, not correctness
+            print(f"code index: enrich ledger write failed ({exc})", file=sys.stderr)
 
     # -- BM25 ----------------------------------------------------------------
 
