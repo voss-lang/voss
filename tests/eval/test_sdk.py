@@ -116,16 +116,62 @@ def test_drive_sdk_client_rust_stub(
     assert "echo" in final, f"unexpected final: {final!r}"
 
 
-@pytest.mark.xfail(
-    reason="EVSDK-06: tests/eval/sdk/<NN>/task.toml scenarios not yet created (W3 plan 06)",
-    strict=False,
-)
-def test_sdk_suite_loads() -> None:
-    sdk_dir = _repo_root() / "tests" / "eval" / "sdk"
-    tasks = sorted(
-        p for p in sdk_dir.iterdir() if p.is_dir() and (p / "task.toml").exists()
+def test_sdk_suite_loads() -> None:  # EVSDK-06
+    from voss.eval.suite import load_suite
+
+    tasks = load_suite(_repo_root() / "tests" / "eval" / "sdk", suite="sdk")
+
+    assert len(tasks) == 4
+    assert {spec.surface for _, spec in tasks} == {
+        "sdk:python", "sdk:ts", "sdk:go", "sdk:rust",
+    }
+
+
+# E4 adds NO new JSONL row keys; the consumer result feeds the existing
+# final/gate_pass/judge path (single E1 substrate). REQUIRED_FIELDS
+# unchanged from E3-01.
+
+
+def test_sdk_python_stub_row(tmp_path: Path) -> None:  # EVSDK-06
+    from tests.eval.test_voss_eval_stub import REQUIRED_FIELDS, _read_rows, _run_eval
+
+    out = tmp_path / "eval-out"
+    result = _run_eval(
+        ["--suite", "sdk", "--stub", "--auth", "none",
+         "--task", "01-python-basic", "-k", "1", "--out", str(out)],
+        cwd=_repo_root(),
     )
-    assert tasks, "no sdk task.toml scenarios on disk"
+
+    assert result.returncode == 0, result.stderr
+    rows = _read_rows(out / "runs.jsonl")
+    assert len(rows) == 1
+    row = rows[0]
+    assert set(row) == REQUIRED_FIELDS
+    assert row["surface"] == "sdk:python"
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
+def test_sdk_client_stub_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:  # EVSDK-06
+    """Full --suite sdk -> _drive_sdk_client -> ts consumer -> E1 scoring row."""
+    from tests.eval.test_voss_eval_stub import REQUIRED_FIELDS, _read_rows, _run_eval
+
+    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+    out = tmp_path / "eval-out"
+    result = _run_eval(
+        ["--suite", "sdk", "--stub", "--auth", "none",
+         "--task", "02-ts-permission-allow", "-k", "1", "--out", str(out)],
+        cwd=_repo_root(),
+    )
+
+    assert result.returncode == 0, result.stderr
+    rows = _read_rows(out / "runs.jsonl")
+    assert len(rows) == 1
+    row = rows[0]
+    assert set(row) == REQUIRED_FIELDS
+    assert row["surface"] == "sdk:ts"
 
 
 @pytest.mark.skip(
