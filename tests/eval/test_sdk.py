@@ -26,24 +26,44 @@ def _repo_root() -> Path:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="EVSDK-01: surface Literal lacks sdk:* values until W1 plan 02",
-    strict=False,
-)
-def test_surface_accepts_sdk_python_ts_go_rust() -> None:
-    from voss.eval.suite import TaskSpec
+def test_surface_accepts_sdk_python_ts_go_rust() -> None:  # EVSDK-01
+    import pydantic
+
+    from voss.eval.suite import TaskSpec, load_suite
 
     for surface in ("sdk:python", "sdk:ts", "sdk:go", "sdk:rust"):
         spec = TaskSpec(prompt="x", mode="plan", rubric="r", surface=surface)
         assert spec.surface == surface
 
+    with pytest.raises(pydantic.ValidationError):
+        TaskSpec.model_validate(
+            {"prompt": "x", "mode": "plan", "rubric": "r", "surface": "sdk:bogus"}
+        )
 
-@pytest.mark.xfail(
-    reason="EVSDK-02: _drive_sdk_python not yet defined (W1 plan 02)",
-    strict=False,
-)
-def test_drive_sdk_python_stub() -> None:
-    from voss.eval.runner import _drive_sdk_python  # noqa: F401
+    # Golden tasks (no surface key) still load 6 — additive extension only.
+    assert len(load_suite(_repo_root() / "tests" / "eval" / "golden", suite="golden")) == 6
+
+
+def test_drive_sdk_python_stub(tmp_path: Path) -> None:  # EVSDK-02
+    """In-process driver via the public embedder surface returns a final."""
+    import asyncio
+
+    from voss_runtime.providers import StubProvider
+
+    from voss.eval.runner import _drive_sdk_python
+    from voss.eval.suite import TaskSpec
+
+    cwd = tmp_path / "proj"
+    cwd.mkdir()
+    (cwd / "README.md").write_text("# seed\n")
+    spec = TaskSpec(prompt="Say hello.", mode="plan", rubric="...", surface="sdk:python")
+
+    final = asyncio.run(
+        _drive_sdk_python(spec, cwd=cwd, provider=StubProvider(), model=None)
+    )
+
+    assert isinstance(final, str)
+    assert final
 
 
 @pytest.mark.xfail(

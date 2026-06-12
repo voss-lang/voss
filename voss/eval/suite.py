@@ -52,7 +52,10 @@ class TaskSpec(BaseModel):
     auto_approve_edits: bool = False
     tools: list[str] = Field(default_factory=list)
     checks: list[AnyCheck] = Field(default_factory=list)
-    surface: Literal["internal", "cli:do", "cli:chat", "cli:edit", "serve"] = "internal"
+    surface: Literal[
+        "internal", "cli:do", "cli:chat", "cli:edit", "serve",
+        "sdk:python", "sdk:ts", "sdk:go", "sdk:rust",
+    ] = "internal"
     target_file: str | None = None  # required by cli:edit driver; None for all other surfaces
     permission_choice: Literal["a", "A", "d"] = "a"  # serve-only; default Allow; "d" = Deny
 

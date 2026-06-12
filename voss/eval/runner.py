@@ -433,6 +433,43 @@ async def _drive_serve(
     return final, None, False
 
 
+# sdk:python proves the docs/sdk.md public embedder surface (D-04). It is
+# in-process like `internal` but restricts itself to voss.harness/voss_runtime
+# public __all__ symbols; PlainRenderer + make_toolset are the documented M7
+# private gap (docs/sdk.md "Known gaps — NullRenderer").
+async def _drive_sdk_python(
+    spec: TaskSpec,
+    *,
+    cwd: Path,
+    provider: ModelProvider,
+    model: str | None,
+    max_turns: int = 15,
+) -> str:
+    """Drive one turn via the public voss.harness embedder API; return final."""
+    from voss.harness import PermissionGate, run_turn  # public __all__
+    from voss.harness.render import PlainRenderer  # private — documented M7 SDK gap (docs/sdk.md "Known gaps — NullRenderer")
+    from voss.harness.tools import make_toolset  # private — runner-internal; acceptable (same path as _drive_task)
+    from voss_runtime import EpisodicMemory, configure, get_config  # public
+
+    prev_cfg = get_config()
+    configure(max_iterations=max_turns)
+    try:
+        permissions = PermissionGate(mode=spec.mode, auto_yes=spec.auto_approve_edits)
+        result = await run_turn(
+            spec.prompt,
+            tools=make_toolset(cwd),
+            cwd=cwd,
+            renderer=PlainRenderer(),
+            model=model,
+            provider=provider,
+            history=EpisodicMemory(capacity=40),
+            permissions=permissions,
+        )
+    finally:
+        configure(max_iterations=prev_cfg.max_iterations)
+    return result.final
+
+
 async def _drive_resume(
     record: SessionRecord,
     spec: TaskSpec,
