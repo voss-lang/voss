@@ -1966,6 +1966,7 @@ def do_cmd(
             session_id=do_record.id,
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
+            **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
             **_rt_kwargs,
         ),
         renderer=renderer,
@@ -2366,6 +2367,7 @@ def _run_repl(
                             prior_context=ctx.prior_context,
                             voss_md_text=ctx.voss_md_text,
                             project_index_text=ctx.project_index_text,
+                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
                         ),
                         _multiagent_teardown,
                     )
@@ -2457,6 +2459,7 @@ def _run_repl(
                             prior_context=ctx.prior_context,
                             voss_md_text=ctx.voss_md_text,
                             project_index_text=ctx.project_index_text,
+                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
                         ),
                         _multiagent_teardown,
                     ),
