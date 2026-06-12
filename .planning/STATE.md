@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-12T16:16:44.515Z"
+last_updated: "2026-06-12T16:23:41.831Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 68
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-12 — **E4-03 EXECUTED — TS consumer hardened (EVSDK-03 COMPLETE).** consumer.js (64 lines): VOSS_PERMISSION_CHOICE env (default "a" — plan 07 Deny via "=d"); lifecycle try/catch (AbortError swallowed via DOMException name check, other errors → stderr, six-key JSON ALWAYS emitted); event.type discrimination + idle-abort drain unchanged from W0 (accessors verified correct). All grep gates pass (no VossLauncher/sdk/node, no judge/jsonl); node --check clean; hermetic FAKE_TURN round-trip re-verified green. Commit 67f783b. Summary: `phases/E4-sdk-proof/E4-03-SUMMARY.md`. Next: plans 04 (go) + 05 (rust) — parallel siblings — then 06.
 
 - 2026-06-12 — **V19-01 EXECUTED — Wave-0 RED Nyquist scaffold for semantic code memory (VSEM-01..08 seeded).** `tests/code_recall/`: 23 tests / 8 modules + conftest, all RED against the planned `voss.harness.code.semantic_index` API (in-body deferred imports — ModuleNotFoundError IS the RED signal; collection 23/23 clean; zero passes, zero `strict=False`). Shared contract shipped: `Hit` +`line_start`/`line_end` trailing optionals (tests/memory 12 green; `_rrf_merge` carries them via `dataclasses.replace`). Fixtures: `fake_embed_fn` (ONNX DefaultEmbeddingFunction), `indexed_fixture_repo` (M10 db + CodeIndex.build(session_id="test-session")), `chroma_disabled_env` (SemanticMemory.__init__ raises MNFE), `stub_provider` (records build_provider_for_model — module-attr interception). D-13 trigger #2 pinned via `test_targeted_rehash_on_fs_write` (queue_rehash targeted re-embed, not-ready no-op, non-blocking). Golden gate: 12 concept-query pairs vs real repo files @slow. Deviations: `slow` marker pre-registered (no pyproject edit); auto-committer absorbed 6 test files as mislabeled 757d834 (diff-verified, content correct); VSEM reqs live in SPEC — mark-complete skipped (E4-01 precedent). Commits 3720458 + 9faa918 + 654d6ac. Summary: `phases/V19-semantic-code-memory-tiered-index-routing/V19-01-SUMMARY.md`. Next: V19-02 (Wave 1 CodeIndex/chunker) against this floor.
 
@@ -284,3 +286,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase V16 P04 | 12 min | 2 tasks | 8 files |
 | Phase E4 P01 | 16 min | 2 tasks | 9 files |
 | Phase E4 P02 | 25 min | 2 tasks | 3 files |
+| Phase E4 P03 | 6 min | 1 tasks | 1 files |
