@@ -121,10 +121,25 @@ def test_sdk_suite_loads() -> None:  # EVSDK-06
 
     tasks = load_suite(_repo_root() / "tests" / "eval" / "sdk", suite="sdk")
 
-    assert len(tasks) == 4
+    # 4 Allow scenarios (one per surface) + the ts Deny variant (plan 07).
+    assert len(tasks) == 5
     assert {spec.surface for _, spec in tasks} == {
         "sdk:python", "sdk:ts", "sdk:go", "sdk:rust",
     }
+    deny = dict(tasks)["05-ts-permission-deny"]
+    assert deny.surface == "sdk:ts"
+    assert deny.permission_choice == "d"
+
+
+def test_permission_choice_field() -> None:  # EVSDK-07 hermetic field wiring
+    from voss.eval.suite import TaskSpec
+
+    spec = TaskSpec(
+        prompt="x", mode="plan", rubric="r", surface="sdk:ts", permission_choice="d"
+    )
+    assert spec.permission_choice == "d"
+    # Default is Allow (TaskSpec carries "a" since E3 — not None).
+    assert TaskSpec(prompt="x", mode="plan", rubric="r").permission_choice == "a"
 
 
 # E4 adds NO new JSONL row keys; the consumer result feeds the existing
@@ -175,7 +190,12 @@ def test_sdk_client_stub_row(
 
 
 @pytest.mark.skip(
-    reason="live-only: FAKE_TURN emits no permission.updated; run via --suite sdk --auth codex"
+    reason=(
+        "live-only: FAKE_TURN emits no permission.updated; run via "
+        "`--suite sdk --auth codex`. Allow is proven live on sdk:python/ts/go/"
+        "rust (scenarios 01-04); Deny on sdk:ts (scenario 05, "
+        "permission_choice=d, degrade-without-hang)."
+    )
 )
 def test_permission_gate_live() -> None:  # EVSDK-07
     raise AssertionError("operator checkpoint covers this; never runs automated")
