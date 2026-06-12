@@ -1,6 +1,8 @@
 // E4 Go consumer subprogram: public-API-only (AttachClient/Events/PermissionReply).
 // The Python eval runner owns the serve lifecycle and passes coordinates via
 // env — never Spawn (interpreterPath resolves .venv/bin/python relative to CWD).
+// No per-runtime scoring: emits one structured-JSON line; the runner scores
+// via the single E1 substrate.
 package main
 
 import (
@@ -8,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	voss "github.com/vosslang/voss/sdk/go"
 )
@@ -58,12 +61,23 @@ func main() {
 	if mode == "" {
 		mode = "plan"
 	}
+	// Plan 07 drives Deny through this same file with VOSS_PERMISSION_CHOICE=d.
+	choice := os.Getenv("VOSS_PERMISSION_CHOICE")
+	if choice == "" {
+		choice = "a"
+	}
 
-	ctx := context.Background()
+	// 120s ceiling so a stuck stream cannot hang the process; cancel also
+	// closes the Events channel (sse.go tears down the TCP read on ctx done).
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
 	c := voss.AttachClient(baseURL, os.Getenv("VOSS_TOKEN"))
+	defer c.Close() // no-op for attach; keeps the no-orphan idiom
 
 	id, err := c.CreateSession(ctx, cwd)
 	fatal(err)
+	// Open the stream BEFORE posting so the turn is observed from the start.
 	ch, err := c.Events(ctx, id)
 	fatal(err)
 	fatal(c.PostMessage(ctx, id, os.Getenv("VOSS_PROMPT"), mode))
@@ -75,16 +89,17 @@ loop:
 		switch e := ev.(type) {
 		case voss.PermissionUpdated:
 			res.SawPermissionGate = true
-			_, err := c.PermissionReply(ctx, id, e.Id, "a")
+			_, err := c.PermissionReply(ctx, id, e.Id, choice)
 			fatal(err)
 		case voss.FinalEvent:
 			res.Final = e.Text
 		case voss.SessionIdle:
+			cancel() // close the channel's TCP read; no goroutine left ranging
 			break loop
 		}
 	}
 
-	if cost, err := c.Cost(ctx, id); err == nil {
+	if cost, err := c.Cost(context.Background(), id); err == nil {
 		res.CostUSD = cost.TotalUsd
 	}
 	out, err := json.Marshal(res)
