@@ -82,7 +82,7 @@
 | E1 | Eval Substrate | Suite loader, TaskSpec, runner, JSONL+summary, hybrid deterministic+judge scoring, subscription-auth model wiring, per-run budget cap (absorbs M5-01..04) | EVSUB-01..07 | planned (5 plans) |
 | E2 | Golden Tasks × Repo Matrix | py/rust/ts fixture repos; agent proves cognition + edits per project shape (absorbs M5-05) | EVGLD-01..0N (TBD by SPEC.md) | TBD |
 | E3 | Surface E2E | CLI verbs + server plane driven end-to-end with real model inference | EVSRF-01..06 | planned (4 plans, 4 waves) |
-| E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..0N (TBD by SPEC.md) | TBD |
+| E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..08 (minted from CONTEXT) | In Progress (6/7 plans) |
 | E5 | TUI + voss-app Autonomous Driving | Drive TUI and voss-app surfaces autonomously; Tauri WebDriver blocked on macOS — approach TBD | EVUI-01..0N (TBD by SPEC.md) | TBD |
 | V15 | Live Plane Integration (sidecar handshake + structured pane rendering) | Plug the cockpit into a real `voss serve`: Tauri sidecar command spawns/attaches the server and hands the `{v,port,token}` stdout handshake to the webview (port `voss-sdk` `spawn_with` incl. 60s cold-start + `LITELLM_LOCAL_MODEL_COST_MAP=true`); construct the V13.1 TS client and plug V14's injectable sockets (RunCommandBar native `createSession`, drawer `followUpClient`, SSE → AttentionQueue + model overlay — live label flips for real); Voss-native panes graduate from raw PTY to structured protocol rendering (PROTOCOL §6 event union → DOM: EM task header, tool lines, plan prose, stream deltas) with the inline permission gate (`permission.updated` → Allow/Deny → `POST /permission`, shared with the queue). Visual contract: the pane-content of `.planning/sketches/V14-livework-mockup.html`. Seed: `.planning/notes/seed-structured-pane-rendering.md`. | TBD (SPEC pending) | Added 2026-06-09. Keystone = sidecar handshake (webview cannot spawn `voss serve` — V14 Pitfall 4); spike it first. UI-SPEC before planning (V14 lesson). Out: VCKP-13b permission proxy, rollback/re-run, embedded browser. |
 
@@ -2364,11 +2364,19 @@ Plans:
 
 **Goal:** Facts that transcend a single repo — operator preferences, recurring conventions, cross-repo patterns — live in a durable global store (`~/.voss/memory/global/`) and surface in recall everywhere: `MemoryStore.recall()` and the unified `voss recall` verb (V19) query project + global stores and RRF-merge rankings, hits labeled `[global]`. Includes explicit promotion (`voss memory promote <locator>` — copy a project memory into the global store) and scope rules (global store is curated like `.voss/memory/`, tombstones apply; never auto-promoted). Reuse-not-rebuild: second `MemoryStore` instance rooted at the global path + the existing `_rrf_merge`/source-label machinery from V19's cross-corpus CLI — no new store type, no new schema.
 
-**Requirements:** VGMEM-* (SPEC pending — V-track phase, requirements live in `V21-SPEC.md` not REQUIREMENTS.md).
+**Requirements:** VGMEM-01..08 (minted at plan time from CONTEXT D-01..D-08 + goal — discuss-direct path, no SPEC; traceability table in `V21-REQUIREMENTS.md`).
 
 **Out of scope:** cloud sync / multi-machine (PROJECT.md exclusion stands); auto-promotion heuristics (manual verb only this phase); global code index (code stays per-repo — derived from the repo it describes).
 
 **Origin:** gap #2 from the 2026-06-11 memory/RAG design discussion (see `seeds/SEED-002-codebase-rag-tiered-indexing.md` stretch notes). Depends on: V19 (unified recall surface + source labels).
+
+**Plans:** 4 plans · 3 waves (W0 RED scaffold; W1 store+config foundation; W2 CLI verbs ∥ recall fusion). Executes ONLY AFTER V19 ships (V21-04 extends the as-built V19-04 recall_cmd).
+
+Plans:
+- [ ] V21-01-PLAN.md — Wave-0 RED scaffold: test_memory_global.py (16 VGMEM stubs) + tmp_voss_global fixture [VGMEM-01..08]
+- [ ] V21-02-PLAN.md — Foundation: MemoryStore root_override + _global_memory_root/make_global_store/_repo_id + [memory] off-switch [VGMEM-01, VGMEM-07]
+- [ ] V21-03-PLAN.md — CLI verbs: promote (copy+provenance+dedup+--list) + forget --global + vacuum --global [VGMEM-03, VGMEM-04, VGMEM-05]
+- [ ] V21-04-PLAN.md — Recall fusion: dual-store [global] RRF in agent tool + 3 attach sites + voss recall extension [VGMEM-02, VGMEM-06, VGMEM-08]
 
 ### Phase V22: External Memory & Docs Ingest
 
@@ -2455,12 +2463,12 @@ Plans:
 **Plans:** 7 plans, 5 waves (E3-01 dependency satisfied — extends the executed `surface` Literal additively; W3 consumer plans parallelize on separate dirs)
 
 Plans:
-- [ ] E4-01-PLAN.md — RED Nyquist scaffold + three consumer subprograms build (ts/go/rust; resolve go.mod/TS-import/rust-example open Qs) [EVSDK-01..05]
-- [ ] E4-02-PLAN.md — extend surface Literal with sdk:* + _drive_sdk_python (in-process) + _drive_sdk_client (serve+consumer) dispatch [EVSDK-01, EVSDK-02]
-- [ ] E4-03-PLAN.md — harden ts consumer (typed SSE decode, env-driven reply, six-key JSON) [EVSDK-03]
-- [ ] E4-04-PLAN.md — harden go consumer (AttachClient, typed channel type-switch, json.Marshal) [EVSDK-04]
-- [ ] E4-05-PLAN.md — harden rust consumer (VossClient::new, AgentEvent stream match, auto-discovered example) [EVSDK-05]
-- [ ] E4-06-PLAN.md — four sdk task.tomls + shape-agnostic fixture + suite wiring + three consumer end-to-end FAKE_TURN schema tests [EVSDK-03..06]
+- [x] E4-01-PLAN.md — RED Nyquist scaffold + three consumer subprograms build (ts/go/rust; resolve go.mod/TS-import/rust-example open Qs) [EVSDK-01..05] ✓ 2026-06-12
+- [x] E4-02-PLAN.md — extend surface Literal with sdk:* + _drive_sdk_python (in-process) + _drive_sdk_client (serve+consumer) dispatch [EVSDK-01, EVSDK-02] ✓ 2026-06-12
+- [x] E4-03-PLAN.md — harden ts consumer (typed SSE decode, env-driven reply, six-key JSON) [EVSDK-03] ✓ 2026-06-12
+- [x] E4-04-PLAN.md — harden go consumer (AttachClient, typed channel type-switch, json.Marshal) [EVSDK-04] ✓ 2026-06-12
+- [x] E4-05-PLAN.md — harden rust consumer (VossClient::new, AgentEvent stream match, auto-discovered example) [EVSDK-05] ✓ 2026-06-12
+- [x] E4-06-PLAN.md — four sdk task.tomls + shape-agnostic fixture + suite wiring + three consumer end-to-end FAKE_TURN schema tests [EVSDK-03..06] ✓ 2026-06-12
 - [ ] E4-07-PLAN.md — ts Deny variant + permission_choice forwarding + live proof run on codex auth (human checkpoint) [EVSDK-07, EVSDK-08]
 
 ### Phase E5: TUI + voss-app Autonomous Driving

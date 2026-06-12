@@ -376,6 +376,7 @@ def _compose_system_blocks(
     cognition_text: str,
     principles_text: str = "",
     project_index_text: str = "",
+    code_recall_text: str = "",
     prior_context_text: str,
     loop_system: str,
 ) -> list[dict]:
@@ -392,6 +393,7 @@ def _compose_system_blocks(
             cognition_text,
             principles_text,
             project_index_text,
+            code_recall_text,  # V19-05 VSEM-06 — rides the same evictable tuple, no second budget
             prior_context_text,
             loop_system,
         )
@@ -517,6 +519,7 @@ async def run_turn(
     prior_context: dict | list | None = None,
     voss_md_text: str | None = None,
     project_index_text: str = "",
+    code_recall_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
     packing_enabled: bool = True,
 ) -> TurnResult:
@@ -571,6 +574,7 @@ async def run_turn(
             prior_context=prior_context,
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
+            code_recall_text=code_recall_text,
             steer_inbox=steer_inbox,
             packing_enabled=packing_enabled,
         )
@@ -607,6 +611,7 @@ async def _run_turn_exec(
     prior_context: dict | list | None = None,
     voss_md_text: str | None = None,
     project_index_text: str = "",
+    code_recall_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
     packing_enabled: bool = True,
 ) -> TurnResult:
@@ -673,6 +678,7 @@ async def _run_turn_exec(
             cognition_text=cognition_text,
             principles_text=principles_text,
             project_index_text=project_index_text,
+            code_recall_text=code_recall_text,
             prior_context_text=prior_context_text,
             loop_system=_compose_loop_system(max_iterations),
         )
@@ -1399,12 +1405,25 @@ async def _invoke_step_with_gate(
         if recorder is not None:
             recorder.observe(step.name, step.args, "<unknown tool>", ok=False)
         return text
-    allowed, why = gate.check(
-        step.name,
-        step.args,
-        is_mutating=entry.is_mutating,
-        is_network=entry.is_network,
-    )
+    # A bridge-injected prompt_fn (server/TUI permission bridge) blocks on a
+    # Future resolved by the event loop — checking on-loop deadlocks until
+    # the 300s timeout (E3-04). Offload those gates to a thread; plain gates
+    # (auto_yes, interactive TTY) keep the existing sync path.
+    if gate.prompt_fn is not None:
+        allowed, why = await asyncio.to_thread(
+            gate.check,
+            step.name,
+            step.args,
+            is_mutating=entry.is_mutating,
+            is_network=entry.is_network,
+        )
+    else:
+        allowed, why = gate.check(
+            step.name,
+            step.args,
+            is_mutating=entry.is_mutating,
+            is_network=entry.is_network,
+        )
     # V12 VSAFE-05: persist factory-fallback evidence for every strict-procedure
     # route (confirmed irreversible that proceeds, or routed/denied dangerous op).
     if recorder is not None and getattr(gate, "safety_policy", None) is not None:

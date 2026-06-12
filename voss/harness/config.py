@@ -258,6 +258,67 @@ def get_model_tiers() -> dict[str, str]:
     return merged
 
 
+# --- V19-06 (VSEM-07/08): index_enrich role + [code_recall] section ----------
+#
+# Example config:
+#   [model_tiers]
+#   index_enrich = "ollama/gpt-oss"        # Ollama-local default (D-12);
+#                                          # Haiku-class alternate: "claude-haiku-4-5"
+#   [code_recall]
+#   enrich_profile = true
+#   enrich_budget_tokens = 50000
+#   inject = true
+#
+# Absent index_enrich → enrichment unavailable even with enrich_profile=true
+# (fail-closed, D-06 — NEVER falls back to the session model).
+
+_CODE_RECALL_BLOCK = re.compile(r"^\[code_recall\][^\[]*", re.MULTILINE)
+_CODE_RECALL_BOOL = re.compile(r"^\s*(enrich_profile|inject)\s*=\s*(true|false)\s*$", re.MULTILINE | re.IGNORECASE)
+_CODE_RECALL_INT = re.compile(r"^\s*(enrich_budget_tokens)\s*=\s*(\d+)\s*$", re.MULTILINE)
+
+_DEFAULT_CODE_RECALL: dict = {
+    "enrich_profile": False,  # OFF by default (VSEM-07)
+    "enrich_budget_tokens": 0,  # 0 = no enrichment spend allowed
+    "inject": True,  # V19-05 auto-injection off-switch
+}
+
+
+def get_index_enrich_model() -> str | None:
+    """Configured index_enrich model id, or None (fail-closed — D-06)."""
+    return get_model_tiers().get("index_enrich")
+
+
+def _parse_code_recall_section(text: str) -> dict:
+    m = _CODE_RECALL_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    out: dict = {}
+    for key, raw in _CODE_RECALL_BOOL.findall(block):
+        out[key] = raw.lower() == "true"
+    for key, raw in _CODE_RECALL_INT.findall(block):
+        out[key] = int(raw)
+    return out
+
+
+def get_code_recall_config() -> dict:
+    """Resolve the `[code_recall]` section over fail-closed defaults.
+
+    Missing file / section → defaults (enrich_profile False, budget 0,
+    inject True). Never raises.
+    """
+    merged = dict(_DEFAULT_CODE_RECALL)
+    p = config_path()
+    if not p.exists():
+        return merged
+    try:
+        text = p.read_text()
+    except OSError:
+        return merged
+    merged.update(_parse_code_recall_section(text))
+    return merged
+
+
 def get_max_iterations() -> int:
     """Resolve agent.max_iterations, falling back to RuntimeConfig default."""
     default = RuntimeConfig().max_iterations

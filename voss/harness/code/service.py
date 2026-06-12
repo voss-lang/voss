@@ -119,6 +119,18 @@ class CodeIntelService:
             self._registry = LspRegistry(self.cwd, self.session_id or "default")
         return self._registry
 
+    # --- Lazy semantic code index (V19-03) ---
+    def _get_code_index_service(self):
+        """Only construction site for CodeIndexService — never eager in
+        __init__/for_cwd (the embedding cold-load must stay off the session
+        thread; the service's build runs on its own daemon thread)."""
+        if not hasattr(self, "_code_index_service") or self._code_index_service is None:
+            from .semantic_index import CodeIndexService
+
+            self._code_index_service = CodeIndexService(self.cwd, session_id=self.session_id)
+            self._code_index_service.ensure_background_build()
+        return self._code_index_service
+
     async def find_definition(
         self, symbol: str, path: str | None = None
     ) -> dict[str, Any]:

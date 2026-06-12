@@ -1,0 +1,22 @@
+# 03-go-permission-allow - sdk:go consumer drives a turn whose gated shell call
+# exercises the permission gate LIVE (plan 07 / EVSDK-07). In stub/FAKE_TURN the
+# consumer drains to idle with saw_permission_gate=false; checks here must not
+# assert the gate fired.
+prompt = "Use a shell command to print the current working directory, then report the path."
+mode = "plan"
+surface = "sdk:go"
+rubric = """
+PASS if:
+- The final reports the working directory path.
+- (live) The permission gate was exercised: the run shows a permission request
+  that was allowed before the shell command ran.
+
+FAIL if:
+- The final is empty or does not mention the working directory.
+- (live) The gated command ran with no permission round-trip.
+"""
+judge_inputs = ["final"]
+
+[[checks]]
+type = "cmd"
+run = "test -s .voss-eval-final.txt"

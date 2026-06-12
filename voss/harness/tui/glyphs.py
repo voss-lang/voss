@@ -26,6 +26,11 @@ Contract v2 addition (tui-redesign-spec §3.2 trim policy, phase R7):
 `APPROX` (`≈` → `~`) — lead-in of the static trim placeholder
 (`≈ N earlier turns · /resume to reload`) that replaces flattened oldest
 blocks once the transcript exceeds the 500-block bound.
+
+Contract v2 addition (R8 — auth-aware `/model` picker): `CHECK` (`✓` → `*`)
+— current-selection marker in the AuthModelPickerModal rows and the plain
+`/model` list. Distinct from the pre-contract raw `✓` on the recorder-bridge
+path (app.py::append_tool_line, see spec "As-built deltas").
 """
 from __future__ import annotations
 
@@ -53,6 +58,7 @@ OUTPUT_ELBOW = "⎿"   # U+23BF  tool output lead-in (contract v2, R3)
 CHEVRON_CLOSED = "▸"  # U+25B8  collapsed output expander (contract v2, R3)
 CHEVRON_OPEN = "▾"   # U+25BE  expanded output expander (contract v2, R3)
 APPROX = "≈"         # U+2248  trim-placeholder lead-in (contract v2, R7)
+CHECK = "✓"          # U+2713  current-selection marker (contract v2, R8)
 
 
 # UI-SPEC `--no-unicode` fallback table (M9-07 plan §interfaces).
@@ -78,6 +84,7 @@ NO_UNICODE_FALLBACK: dict[str, str] = {
     "CHEVRON_CLOSED": ">",
     "CHEVRON_OPEN": "v",
     "APPROX": "~",
+    "CHECK": "*",
 }
 
 
@@ -102,6 +109,7 @@ _ALLOWLIST = frozenset(
         "CHEVRON_CLOSED",
         "CHEVRON_OPEN",
         "APPROX",
+        "CHECK",
     }
 )
 

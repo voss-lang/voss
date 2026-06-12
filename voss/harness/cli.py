@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -776,6 +777,82 @@ def _render_project_index_text(cwd: Path, session_id: str | None = None) -> str:
         return ""
 
 
+# --- V19-05 VSEM-06: code-recall auto-injection -----------------------------
+
+# One CodeIndexService (one Chroma client) per cwd for the injection path —
+# a fresh service per render would re-spawn builds and never reach ready.
+_CODE_RECALL_SERVICES: dict[str, object] = {}
+
+_CODE_RECALL_TOKEN_CAP = 1000  # VSEM-06 hard cap, measured by the V18 counter
+
+
+def _get_code_recall_service(cwd: Path, session_id: str | None = None):
+    key = str(cwd.resolve())
+    svc = _CODE_RECALL_SERVICES.get(key)
+    if svc is None:
+        from voss.harness.code.semantic_index import CodeIndexService
+
+        svc = CodeIndexService(cwd, session_id=session_id)
+        svc.ensure_background_build()
+        _CODE_RECALL_SERVICES[key] = svc
+    return svc
+
+
+def _render_code_recall_text(cwd: Path, task_text: str, session_id: str | None = None) -> str:
+    """Render the `## Code Recall` system section for the current task.
+
+    Returns "" (zero injection bytes) when: inject=false (VSEM-06 off-switch),
+    the index is not ready (D-07 — skip entirely, no blocking, no placeholder),
+    or there are no hits. Capped <=1000 tokens by the V18 counter — the section
+    rides the V18 variable region, no second budget system.
+    """
+    if not task_text or not task_text.strip():
+        return ""
+    try:
+        from voss.harness.config import get_code_recall_config
+
+        if not get_code_recall_config().get("inject", True):
+            return ""
+        svc = _get_code_recall_service(Path(cwd), session_id=session_id)
+        if not svc.is_ready():
+            return ""
+        hits = svc.query(task_text.strip(), top_k=5)
+        if not hits:
+            return ""
+
+        from voss.harness.agent import _default_token_count
+
+        model = get_config().default_model
+        section = "## Code Recall\nTask-relevant code (semantic index):"
+        for h in hits:
+            parts = h.locator.split(":")
+            path = ":".join(parts[1:-1]) if len(parts) >= 3 else h.locator
+            anchor = f"{path}:{h.line_start}" if h.line_start else path
+            excerpt = (h.excerpt or "").replace("\n", " ")[:160]
+            block = f"\n- {anchor} (score {h.score:.2f})\n  {excerpt}"
+            if _default_token_count(section + block, model=model) > _CODE_RECALL_TOKEN_CAP:
+                break  # hard cap (VSEM-06)
+            section += block
+        return section
+    except Exception:  # noqa: BLE001 — injection is additive; failures render nothing
+        return ""
+
+
+def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str | None = None) -> dict:
+    """kwargs-splat guard: compiled loop.voss run_turn variants may predate
+    the code_recall_text param (same hazard as packing_enabled in V18) —
+    render + pass only when the resolved run_turn accepts it."""
+    try:
+        import inspect as _inspect
+
+        if "code_recall_text" not in _inspect.signature(run_turn_fn).parameters:
+            return {}
+    except (TypeError, ValueError):
+        return {}
+    text = _render_code_recall_text(cwd, task_text, session_id=session_id)
+    return {"code_recall_text": text} if text else {}
+
+
 def _show_code_intel_results(ctx: ReplContext, query: str, items: list[dict]) -> None:
     renderer = getattr(ctx, "renderer", None)
     show = getattr(renderer, "show_code_intel_results", None)
@@ -1269,19 +1346,103 @@ def _build_slash_registry() -> SlashRegistry:
         )
 
     def _model(ctx: ReplContext, args: list[str], _line: str) -> None:
+        """Auth-aware model selector (R8).
+
+        Bare in the TUI: curated picker for the active subscription auth
+        (Claude Agent SDK / Codex ChatGPT backend), else delegates to the
+        /models catalog modal. Bare in plain CLI: availability lines + the
+        numbered curated list. With args: exact-id → prefix → substring
+        match against the curated list; no match falls back to the raw
+        set-anything behavior.
+
+        A pick takes effect immediately without a provider rebuild: every
+        turn passes get_config().default_model (cli.py turn dispatch) and
+        both subscription providers take the model id per stream() call.
+        """
+        from . import config as harness_config
+        from . import subscription_models as sub
+
         cfg = get_config()
+        auth_mode = sub.detect_auth_mode(getattr(ctx, "provider", None))
+        models = sub.SUBSCRIPTION_MODELS.get(auth_mode or "", ())
+        app = getattr(getattr(ctx, "renderer", None), "app", None)
+        in_tui = app is not None and app.__class__.__name__ == "VossTUIApp"
+
+        def _apply(m) -> None:
+            configure(default_model=m.id)
+            harness_config.set_preferred_model(m.id)
+            if in_tui:
+                app.model = m.id
+                try:
+                    from .tui.widgets.status_line import StatusLine
+
+                    app.query_one("#status", StatusLine).set_status(
+                        model=m.id, toast=f"model: {m.label} · {m.id} (persisted)"
+                    )
+                except Exception:  # noqa: BLE001 — status widget absent in tests
+                    pass
+            click.echo(f"  model: {m.id} (persisted)")
+
         if not args:
+            if in_tui:
+                if not models:
+                    # API-key/auto auth — the catalog picker is the useful
+                    # surface; delegate so bare /model always works.
+                    _models(ctx, [], "/models")
+                    return
+                from .tui.widgets.auth_model_picker_modal import (
+                    AuthModelPickerModal,
+                )
+
+                label = "Claude" if auth_mode == "claude" else "Codex"
+
+                def _on_pick(m) -> None:
+                    if m is not None:
+                        _apply(m)
+
+                app.push_screen(
+                    AuthModelPickerModal(
+                        models,
+                        cfg.default_model,
+                        subtitle=(
+                            f"Switch between {label} models. Your pick "
+                            "becomes the default for new sessions."
+                        ),
+                    ),
+                    _on_pick,
+                )
+                return
             claude = auth_mod.load_anthropic_oauth()
             codex = auth_mod.load_codex()
-            click.echo(f"  active: {cfg.default_model}")
             claude_ok = bool(claude and not claude.expired)
             codex_ok = bool(codex and (codex.api_key or codex.has_oauth))
+            click.echo(f"  active: {cfg.default_model}")
             click.echo(f"  Claude: {'available' if claude_ok else 'unavailable'}")
             click.echo(f"  Codex:  {'available' if codex_ok else 'unavailable'}")
+            if models:
+                from .tui import glyphs
+
+                click.echo(f"\n  {auth_mode} subscription models:")
+                for i, m in enumerate(models, 1):
+                    here = f" {glyphs.CHECK}" if m.id == cfg.default_model else ""
+                    click.echo(f"    {i}. {m.id}{here}  — {m.description}")
+                click.echo("\n  select: /model <id>")
             return
-        from . import config as harness_config
 
         new_model = " ".join(args).strip()
+        if auth_mode is not None:
+            matches = sub.match(auth_mode, new_model)
+            if len(matches) == 1:
+                _apply(matches[0])
+                return
+            if len(matches) > 1:
+                click.echo(
+                    f"  '{new_model}' matches {len(matches)} models: "
+                    + ", ".join(m.id for m in matches),
+                    err=True,
+                )
+                return
+            # 0 matches → raw set-anything fallback below (power users).
         configure(default_model=new_model)
         harness_config.set_preferred_model(new_model)
         click.echo(f"  model: {get_config().default_model} (persisted)")
@@ -1583,7 +1744,7 @@ def _build_slash_registry() -> SlashRegistry:
         ),
         SlashCommand("/tools", "list registered tools", _tools),
         SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
-        SlashCommand("/model", "list providers or switch (persists to config.toml)", _model),
+        SlashCommand("/model", "pick a model for the active auth (curated; persists to config.toml)", _model),
         SlashCommand("/models", "pick a model from the models.dev catalog (Zen, Ollama Cloud, …)", _models),
         SlashCommand("/auth", "show/set default credential source (auto|claude|codex|api|none)", _auth),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
@@ -1805,6 +1966,7 @@ def do_cmd(
             session_id=do_record.id,
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
+            **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
             **_rt_kwargs,
         ),
         renderer=renderer,
@@ -2205,6 +2367,7 @@ def _run_repl(
                             prior_context=ctx.prior_context,
                             voss_md_text=ctx.voss_md_text,
                             project_index_text=ctx.project_index_text,
+                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
                         ),
                         _multiagent_teardown,
                     )
@@ -2296,6 +2459,7 @@ def _run_repl(
                             prior_context=ctx.prior_context,
                             voss_md_text=ctx.voss_md_text,
                             project_index_text=ctx.project_index_text,
+                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
                         ),
                         _multiagent_teardown,
                     ),
@@ -4555,6 +4719,103 @@ def session_tree_cmd(root_id: str, cwd_str: str, json_mode: bool) -> None:
         )
 
 
+# --- V19-04 VSEM-05: unified cross-corpus recall verb (D-09 user-locked) ---
+
+# T-V19-04: excerpts are raw repo source — scrub secret-shaped strings before
+# they leave the process (plain AND --json output).
+_RECALL_SECRET_PATTERNS = (
+    re.compile(r"AKIA[0-9A-Z]{12,}"),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{10,}"),
+    re.compile(r"\bghp_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bxox[bap]-[A-Za-z0-9-]{10,}"),
+    re.compile(r"(?i)\b(api[_-]?key|secret|token|password)\b(\s*[=:]\s*)[\"']([^\"']{8,})[\"']"),
+)
+
+
+def _redact_recall_text(text: str) -> str:
+    for pattern in _RECALL_SECRET_PATTERNS:
+        if pattern.groups:
+            text = pattern.sub(lambda m: f"{m.group(1)}{m.group(2)}\"[redacted]\"", text)
+        else:
+            text = pattern.sub("[redacted]", text)
+    return text
+
+
+def _recall_hit_fields(hit) -> dict:
+    """Documented --json schema: source, locator, path, line_start, line_end,
+    score, excerpt. ONLY Hit fields — never keys/env/secrets (T-V19-04)."""
+    is_code = (hit.source or "").startswith("code")
+    path = None
+    if is_code:
+        parts = hit.locator.split(":")
+        path = ":".join(parts[1:-1]) if len(parts) >= 3 else hit.locator
+    return {
+        "source": "code" if is_code else "memory",
+        "locator": hit.locator,
+        "path": path,
+        "line_start": hit.line_start if is_code else None,
+        "line_end": hit.line_end if is_code else None,
+        "score": hit.score,
+        "excerpt": _redact_recall_text((hit.excerpt or "").replace("\n", " ")[:160]),
+    }
+
+
+@click.command("recall")
+@click.argument("query", nargs=-1, required=False)
+@click.option("--json", "json_out", is_flag=True, help="Emit machine-readable hits.")
+@click.option("--top", "top_k", default=10, type=int, help="Max fused hits.")
+@click.option("--refresh", "do_refresh", is_flag=True, help="Reindex before querying (D-13 trigger #3).")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))
+def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: bool, cwd_str: str) -> None:
+    """Unified recall across the code index AND project memory (RRF-fused)."""
+    query_str = " ".join(query).strip()
+    if not query_str:
+        click.echo("usage: voss recall <query> [--top N] [--json] [--refresh]")
+        return
+
+    cwd = Path(cwd_str).resolve()
+
+    from voss.harness.code.semantic_index import CodeIndex
+
+    code_index = CodeIndex(cwd)
+    if do_refresh:
+        try:
+            from voss.harness.code.index import build_index as _build_m10
+
+            _build_m10(cwd)
+        except Exception:  # noqa: BLE001 — M10 refresh is best-effort; chunker falls back
+            pass
+        code_index.build()
+
+    recall_k = max(top_k * 3, top_k)
+    code_hits = code_index.query(query_str, top_k=recall_k)
+    try:
+        mem_hits = MemoryStore(cwd).recall(query_str, top_k=recall_k)
+    except Exception:  # noqa: BLE001 — missing/corrupt memory store must not kill code recall
+        mem_hits = []
+
+    # RRF is rank-based and corpus-agnostic (D-09); the code: id prefix
+    # guarantees no locator collision with memory ids in the dedup (Pitfall 8).
+    fused = MemoryStore._rrf_merge([code_hits, mem_hits], top_k=top_k)
+
+    if json_out:
+        click.echo(json.dumps({"query": query_str, "hits": [_recall_hit_fields(h) for h in fused]}, indent=2))
+        return
+
+    if not fused:
+        click.echo("(no hits)")
+        return
+    for hit in fused:
+        fields = _recall_hit_fields(hit)
+        if fields["source"] == "code":
+            display = f"{fields['path']}:{fields['line_start']}" if fields["line_start"] else fields["path"]
+        else:
+            display = hit.locator
+        click.echo(f"[{fields['source']}] {display} (score {hit.score:.2f})")
+        if fields["excerpt"]:
+            click.echo(f"  {fields['excerpt']}")
+
+
 AGENT_COMMANDS = (
     do_cmd,
     serve_cmd,
@@ -4578,6 +4839,7 @@ AGENT_COMMANDS = (
     agents_cmd,
     agent_group,
     memory_group,
+    recall_cmd,
     config_cmd,
     mcp_group,
     logs_group,

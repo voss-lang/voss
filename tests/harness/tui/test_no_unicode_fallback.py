@@ -23,6 +23,9 @@ Contract v2 rebaseline (tui-redesign-spec §4.2, phase R3 — ToolCards):
 
 Contract v2 rebaseline (tui-redesign-spec §3.2 trim policy, phase R7):
 `APPROX` (`≈` → `~`) joins the table for the transcript trim placeholder.
+
+Contract v2 rebaseline (R8 — auth-aware `/model` picker): `CHECK`
+(`✓` → `*`) joins the table for the current-selection marker.
 """
 from __future__ import annotations
 
@@ -52,6 +55,7 @@ _FALLBACK_PAIRS = [
     ("CHEVRON_CLOSED", "▸", ">"),
     ("CHEVRON_OPEN", "▾", "v"),
     ("APPROX", "≈", "~"),
+    ("CHECK", "✓", "*"),
 ]
 
 

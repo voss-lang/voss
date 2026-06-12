@@ -1,5 +1,5 @@
 prompt = "Write a file secret.py containing a SECRET constant."
-mode = "plan"
+mode = "edit"
 surface = "serve"
 permission_choice = "d"
 rubric = """

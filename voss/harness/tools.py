@@ -215,6 +215,49 @@ def attach_memory_tools(tools: dict[str, "ToolEntry"], *, store, session_id: str
     tools["memory_remember"] = ToolEntry(descriptor=memory_remember, is_mutating=True, group="memory", scope_requirements=("memory",))
 
 
+def attach_code_recall_tool(tools: dict[str, "ToolEntry"], *, code_index_service) -> None:
+    """Register the semantic `code_recall` tool backed by a CodeIndexService.
+
+    Read-only concept search over the V19 code index. Distinct from M10's
+    lexical `code_search` (the description steers the model accordingly).
+    """
+
+    @tool(
+        name="code_recall",
+        description=(
+            "Semantic concept search over the code index: returns file:line-"
+            "anchored chunk hits ranked by BM25+vector RRF fusion. Use for "
+            "concept queries like 'where is retry handled' or 'how do we "
+            "throttle requests'. For exact symbol/name lookup use "
+            "`code_search` instead. Degrades to lexical-only hits before the "
+            "index finishes building."
+        ),
+    )
+    async def code_recall(query: str, top_k: int = 5) -> str:
+        query = query.strip()
+        if not query:
+            return "<error: empty query>"
+        try:
+            hits = code_index_service.query(query, top_k=top_k)
+        except Exception as exc:  # noqa: BLE001 — recall must not crash the turn
+            return f"<error: code recall failed: {exc}>"
+        if not hits:
+            return "(no hits)"
+        lines: list[str] = []
+        for h in hits:
+            # locator is code:<rel_path>:<seq> — surface as path:line_start.
+            parts = h.locator.split(":")
+            path = ":".join(parts[1:-1]) if len(parts) >= 3 else h.locator
+            anchor = f"{path}:{h.line_start}" if h.line_start else path
+            lines.append(f"[code] {anchor} (score {h.score:.2f})")
+            excerpt = (h.excerpt or "").replace("\n", " ")[:160]
+            if excerpt:
+                lines.append(f"  {excerpt}")
+        return "\n".join(lines)
+
+    tools["code_recall"] = ToolEntry(descriptor=code_recall, is_mutating=False, group="code", scope_requirements=("code",))
+
+
 def make_toolset(
     cwd: Path,
     *,
@@ -422,11 +465,30 @@ def make_toolset(
             status=rec.status,
         )
 
+    def _maybe_queue_rehash(*paths: str) -> None:
+        # D-13 reindex trigger #2: targeted off-thread re-hash of agent-written
+        # code files. Not-ready → no-op (in-flight full build covers the file).
+        # Never raises and never blocks the write return path.
+        # `_code_index_service` is bound later in this function body (closure
+        # lookup happens at call time, after make_toolset completes).
+        svc = _code_index_service
+        if svc is None or not svc.is_ready():
+            return
+        try:
+            from voss.harness.code.index import LANGUAGE_EXTS as _code_exts
+
+            for path_str in paths:
+                if Path(path_str).suffix.lower() in _code_exts:
+                    svc.queue_rehash(jail_path(cwd, path_str))
+        except Exception:  # noqa: BLE001 — index upkeep must never break a write
+            pass
+
     @tool(name="fs_write", description="Write text to a file inside cwd. Creates parent dirs. Overwrites existing.")
     async def fs_write(path: str, content: str) -> str:
         p = jail_path(cwd, path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content)
+        _maybe_queue_rehash(path)
         return f"wrote {len(content)} bytes to {path}"
 
     @tool(
@@ -505,6 +567,7 @@ def make_toolset(
                 return "<denied: edit rejected>"
 
         p.write_text(new_text)
+        _maybe_queue_rehash(path)
         delta = new_text.count("\n") - text.count("\n")
         sign = "+" if delta >= 0 else ""
         return f"edited {path} ({sign}{delta} lines)"
@@ -574,6 +637,7 @@ def make_toolset(
 
         # Phase 3: atomic single write (file untouched until here).
         p.write_text(buf)
+        _maybe_queue_rehash(path)
         delta = buf.count("\n") - snapshot.count("\n")
         sign = "+" if delta >= 0 else ""
         return f"edited {path} ({sign}{delta} lines, {len(edits)} hunks)"
@@ -830,6 +894,20 @@ def make_toolset(
     result["find_definition"] = ToolEntry(descriptor=find_definition, is_mutating=False, group="code", scope_requirements=("code",))
     result["find_references"] = ToolEntry(descriptor=find_references, is_mutating=False, group="code", scope_requirements=("code",))
     result["code_refresh"] = ToolEntry(descriptor=code_refresh, is_mutating=False, group="code", scope_requirements=("code",))
+
+    # --- V19-03 semantic code recall (VSEM-03/04) ---
+    # ONE held service (one Chroma client) per toolset; the accessor threads
+    # session_id through and kicks off the background build so session start
+    # never blocks on the embedding cold-load.
+    if _CodeIntelService is not None:
+        try:
+            _code_index_service = _code_service()._get_code_index_service()
+        except Exception:  # noqa: BLE001 — missing code subsystem degrades cleanly
+            _code_index_service = None
+    else:
+        _code_index_service = None
+    if _code_index_service is not None:
+        attach_code_recall_tool(result, code_index_service=_code_index_service)
 
     return result
 

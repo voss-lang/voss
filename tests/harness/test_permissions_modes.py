@@ -134,3 +134,42 @@ class TestGateStructuralDenial:
         gate.prompt_fn = _fail_prompt
         allowed, why = gate.check("shell_run", {"cmd": "ls"}, is_mutating=True)
         assert allowed is True
+
+
+class TestInjectedPromptWithoutTTY:
+    """E3-04 regression: an injected prompt_fn must be consulted headless.
+
+    The server permission bridge installs prompt_fn on a non-TTY process;
+    the old isatty-first check denied before ever calling it (the serve
+    permission.updated event never fired).
+    """
+
+    def test_prompt_fn_used_without_tty(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        calls: list[str] = []
+
+        def prompt_fn(name, args):
+            calls.append(name)
+            return "a"
+
+        gate = PermissionGate(
+            mode="edit",
+            auto_yes=False,
+            store=PermissionStore(cwd=tmp_path),
+            prompt_fn=prompt_fn,
+        )
+        allowed, why = gate.check("fs_write", {"path": "x.py", "content": ""}, is_mutating=True)
+        assert allowed is True
+        assert why == "allowed once"
+        assert calls == ["fs_write"]
+
+    def test_no_prompt_fn_without_tty_still_denies(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        gate = PermissionGate(
+            mode="edit",
+            auto_yes=False,
+            store=PermissionStore(cwd=tmp_path),
+        )
+        allowed, why = gate.check("fs_write", {"path": "x.py", "content": ""}, is_mutating=True)
+        assert allowed is False
+        assert why == "non-interactive denial"

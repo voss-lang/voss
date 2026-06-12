@@ -440,7 +440,10 @@ class PermissionGate:
         return False, "denied"
 
     def _prompt(self, tool_name: str, args: dict) -> tuple[bool, str]:
-        if not sys.stdin.isatty():
+        # An injected prompt_fn (server permission bridge, TUI bridge, tests)
+        # must be consulted even without a TTY — same contract as
+        # _prompt_expand below. Only the interactive fallback needs stdin.
+        if self.prompt_fn is None and not sys.stdin.isatty():
             return False, "non-interactive denial"
         prompt = self.prompt_fn or _interactive_prompt
         choice = prompt(tool_name, args)

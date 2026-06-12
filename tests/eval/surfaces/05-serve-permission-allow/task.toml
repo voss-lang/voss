@@ -1,5 +1,5 @@
 prompt = "Write a file hello.py that prints \"Hello, World!\" when run."
-mode = "plan"
+mode = "edit"
 surface = "serve"
 permission_choice = "a"
 rubric = """

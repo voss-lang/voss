@@ -22,6 +22,9 @@ def test_locked_glyph_codepoints() -> None:
 
     R7 rule: `APPROX` (U+2248) joins for the trim-policy placeholder
     (`≈ N earlier turns · /resume to reload`, spec §3.2).
+
+    R8 rule: `CHECK` (U+2713) joins for the auth-aware `/model` picker's
+    current-selection marker (AuthModelPickerModal + plain `/model` list).
     """
     assert glyphs.PROMPT == "▌"
     assert glyphs.USER_INPUT == "❯"
@@ -41,6 +44,7 @@ def test_locked_glyph_codepoints() -> None:
     assert glyphs.CHEVRON_CLOSED == "▸"
     assert glyphs.CHEVRON_OPEN == "▾"
     assert glyphs.APPROX == "≈"
+    assert glyphs.CHECK == "✓"
 
 
 def test_glyph_not_in_allowlist_raises() -> None:
