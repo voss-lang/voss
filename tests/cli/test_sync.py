@@ -74,18 +74,24 @@ def test_sync_idempotent_second_run_changes_nothing():
         assert "0 written" in second.output
 
 
-def test_generated_doc_edit_overwritten():
+def test_sync_skips_edited_managed_doc_without_force():
+    """VRES-01: managed docs get the same hash-guard as prompts (D-11)."""
     runner = CliRunner()
     with runner.isolated_filesystem():
         _fixture()
         runner.invoke(main, ["sync"])
         doc = Path(".voss/docs/cheatsheet.md")
         pristine = doc.read_text()
-        doc.write_text(pristine + "\nMANUAL EDIT\n")
+        edited = pristine + "\nMANUAL EDIT\n"
+        doc.write_text(edited)
         result = runner.invoke(main, ["sync"])
         assert result.exit_code == 0, result.output
-        assert doc.read_text() == pristine  # R3: machine-owned
-        assert "MANUAL EDIT" not in doc.read_text()
+        assert doc.read_text() == edited  # no silent clobber
+        assert "skipped (edited)" in result.output
+        assert "cheatsheet.md" in result.output + result.stderr  # warning names file
+        result = runner.invoke(main, ["sync", "--force"])
+        assert result.exit_code == 0, result.output
+        assert doc.read_text() == pristine  # --force overwrites
 
 
 def test_fence_inserted_when_voss_md_absent():
@@ -293,6 +299,91 @@ def test_missing_manifest_treats_prompts_as_edited():
         manifest = json.loads(Path(".voss/sync-state.json").read_text())
         for rel in PROMPT_FILES:
             assert rel in manifest
+
+
+def _snapshot_full() -> dict[str, tuple[bytes, int]]:
+    """Bytes + mtime_ns per file: catches rewrite-same-bytes, not just edits."""
+    files: dict[str, tuple[bytes, int]] = {}
+    for p in [Path("VOSS.md"), *Path(".voss").rglob("*")]:
+        if p.is_file():
+            files[str(p)] = (p.read_bytes(), p.stat().st_mtime_ns)
+    return files
+
+
+def test_sync_check_detects_edited_managed_doc():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        doc = Path(".voss/docs/cheatsheet.md")
+        doc.write_text(doc.read_text() + "\nMANUAL EDIT\n")
+        result = runner.invoke(main, ["sync", "--check"])
+        assert result.exit_code != 0
+        assert ".voss/docs/cheatsheet.md" in result.output
+        assert "edited" in result.output
+
+
+def test_sync_check_clean_exits_zero():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        result = runner.invoke(main, ["sync", "--check"])
+        assert result.exit_code == 0, result.output
+        assert "in sync" in result.output
+
+
+def test_sync_check_writes_nothing():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        doc = Path(".voss/docs/cheatsheet.md")
+        doc.write_text(doc.read_text() + "\nMANUAL EDIT\n")
+        before = _snapshot_full()
+        result = runner.invoke(main, ["sync", "--check"])
+        assert result.exit_code == 1
+        assert _snapshot_full() == before  # zero writes incl. sync-state.json
+
+
+def test_sync_check_detects_stale_template_output():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        # Config moves on -> rendered != recorded while disk still matches
+        # recorded: stale artifacts, not hand edits.
+        Path(".voss/config.yml").write_text(
+            CONFIG_REVIEW_ON.replace("pip install -e .", "make install")
+        )
+        result = runner.invoke(main, ["sync", "--check"])
+        assert result.exit_code != 0
+        assert "stale" in result.output
+
+
+def test_sync_check_reports_fence_drift():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        path = Path("VOSS.md")
+        text = path.read_text()
+        assert "pip install -e ." in text  # fence body renders install_command
+        path.write_text(text.replace("pip install -e .", "FENCE EDIT"))
+        result = runner.invoke(main, ["sync", "--check"])
+        assert result.exit_code != 0
+        assert "VOSS.md#workflow" in result.output
+        assert "Traceback" not in result.output + result.stderr
+        assert "memory adopt" not in result.output  # report, not adopt-prompt
+
+
+def test_sync_check_rejects_force_and_dry_run():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _fixture()
+        runner.invoke(main, ["sync"])
+        assert runner.invoke(main, ["sync", "--check", "--force"]).exit_code != 0
+        assert runner.invoke(main, ["sync", "--check", "--dry-run"]).exit_code != 0
 
 
 def test_prompt_idempotency_two_clean_syncs():
