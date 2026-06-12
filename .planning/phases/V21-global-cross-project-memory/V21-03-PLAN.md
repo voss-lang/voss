@@ -89,6 +89,7 @@ voss/harness/memory_cli.py (existing, verified):
 <!-- RESEARCH Pitfall (promote lock): use portalocker.Lock(..., flags=portalocker.LOCK_EX, timeout=5) — blocking, NOT LOCK_NB. -->
 <!-- chmod 0o600 on every file written to global store (write_note analog, memory_store.py L343). -->
 <!-- Promotable locator → file resolution (RESEARCH Pattern 4): note:<stem>→notes/<stem>.md; convention:<stem>→conventions/<stem>.md; decision:<rel>→root.parent/<rel>. -->
+<!-- BM25-only env (chroma disabled): _maybe_chroma() returns None. EVERY chroma touch (dedup get AND final add) MUST be guarded `if chroma is not None:` — mirror write_note's _maybe_chroma() pattern (memory_store.py L322-357) so a chroma-less env never AttributeErrors. -->
 </context>
 
 <tasks>
@@ -97,7 +98,7 @@ voss/harness/memory_cli.py (existing, verified):
   <name>Task 1: voss memory promote — copy + provenance + dedup + source restriction + --list</name>
   <read_first>
     - voss/harness/memory_cli.py (lines 1-19 imports + group; 23-40 vacuum command shape; 82-109 size command iteration for --list)
-    - voss/harness/memory_store.py (lines 322-357 write_note: file body frontmatter + chmod 0o600 + chroma.add metadata; 128-144 _lock; 623-636 _locator_from_path; 56-60 make_id)
+    - voss/harness/memory_store.py (lines 322-357 write_note: file body frontmatter + chmod 0o600 + chroma.add metadata + the `chroma = self._maybe_chroma(); if chroma is not None:` guard shape; 128-144 _lock; 623-636 _locator_from_path; 56-60 make_id)
     - tests/harness/test_memory_global.py (test_promote_copies_with_provenance, test_promote_dedup_on_repromote, test_promote_rejects_turn_ledger, test_promote_list — implement to make GREEN)
     - .planning/phases/V21-global-cross-project-memory/V21-PATTERNS.md (memory_cli.py promote skeleton + --list iteration — lines 277-306)
     - .planning/phases/V21-global-cross-project-memory/V21-RESEARCH.md (Pattern 4 promote mechanics: 8-step algorithm + dedup-via-chroma-where + _repo_id)
@@ -108,20 +109,22 @@ voss/harness/memory_cli.py (existing, verified):
     - test_promote_copies_with_provenance: promote a project note → global store has the file + chroma entry with metadata promoted_from == f"{_repo_id(cwd)}/{locator}"
     - test_promote_dedup_on_repromote: promote same locator twice → exactly one global entry with that promoted_from (UPDATE not duplicate)
     - test_promote_list: `--list` prints note/decision/convention locators; never turns/ledgers
+    - (chroma-disabled env): promote of a valid locator still copies the file and exits 0 — no AttributeError when `_maybe_chroma()` returns None
   </behavior>
-  <action>Add `@memory_group.command("promote")` named `memory_promote_cmd` with `@click.argument("locator")`, `@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))`, `@click.option("--list", "list_only", is_flag=True)`. Body: resolve `cwd = Path(cwd_str).resolve()`. If `list_only`: build `store = MemoryStore(cwd)`; iterate ONLY `("notes", "decisions", "conventions")` (D-02 excludes turns/ledgers); for each `*.md` under the source dir, compute `loc = store._locator_from_path(source, p)`, read first non-frontmatter line as an ≤80-char excerpt, `click.echo(f"{loc}: {excerpt}")`; return. Otherwise: `source_prefix = locator.split(":")[0]`; if `source_prefix in ("turn", "ledger")`: `click.echo(f"error: turns and ledgers cannot be promoted (got: {source_prefix})", err=True); sys.exit(1)` (D-02). Resolve the project file path from the locator (note:<stem>→cwd-store/notes/<stem>.md; convention:<stem>→conventions/<stem>.md; decision:<rel>→project root.parent/<rel> per RESEARCH Pattern 4); if the file does not exist, echo a clear error to stderr and `sys.exit(1)`. Read its content. Build `gstore = make_global_store()`; if None, echo "global store disabled or unavailable" + `sys.exit(1)`; `gstore.bind(session_id="promote")` to ensure layout dirs. Compute `provenance = f"{_repo_id(cwd)}/{locator}"`. DEDUP (D-01): `chroma = gstore._maybe_chroma()`; if chroma is not None, `existing = chroma._collection.get(where={"promoted_from": provenance})`; if existing ids non-empty, delete those ids first (UPDATE semantics). COPY: write the file into the global store's matching source dir using `reserve_filename` for collision-free stem; `path.write_text(body)`; `path.chmod(0o600)` (EoP mitigation). All file+chroma writes wrapped in a BLOCKING lock — `with portalocker.Lock(str(gstore.root / ".locks" / f"{source}.lock"), mode="a", flags=portalocker.LOCK_EX, timeout=5)` (NOT LOCK_NB — concurrent promote must wait, D-13/RESEARCH Pitfall). Then `chroma.add(text=content, metadata={"source_type": source, "promoted_from": provenance, "ts": <iso>, "path": str(path), "tombstoned": False}, id=make_id(source, path.stem))`. Echo `promoted: {locator} -> global:{path.stem}`. Add `import portalocker` and a datetime import if not already present.</action>
+  <action>Add `@memory_group.command("promote")` named `memory_promote_cmd` with `@click.argument("locator")`, `@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False))`, `@click.option("--list", "list_only", is_flag=True)`. Body: resolve `cwd = Path(cwd_str).resolve()`. If `list_only`: build `store = MemoryStore(cwd)`; iterate ONLY `("notes", "decisions", "conventions")` (D-02 excludes turns/ledgers); for each `*.md` under the source dir, compute `loc = store._locator_from_path(source, p)`, read first non-frontmatter line as an ≤80-char excerpt, `click.echo(f"{loc}: {excerpt}")`; return. Otherwise: `source_prefix = locator.split(":")[0]`; if `source_prefix in ("turn", "ledger")`: `click.echo(f"error: turns and ledgers cannot be promoted (got: {source_prefix})", err=True); sys.exit(1)` (D-02). Resolve the project file path from the locator (note:<stem>→cwd-store/notes/<stem>.md; convention:<stem>→conventions/<stem>.md; decision:<rel>→project root.parent/<rel> per RESEARCH Pattern 4); if the file does not exist, echo a clear error to stderr and `sys.exit(1)`. Read its content. Build `gstore = make_global_store()`; if None, echo "global store disabled or unavailable" + `sys.exit(1)`; `gstore.bind(session_id="promote")` to ensure layout dirs. Compute `provenance = f"{_repo_id(cwd)}/{locator}"`. Obtain the chroma handle ONCE: `chroma = gstore._maybe_chroma()` (may be None in a BM25-only env). DEDUP (D-01) — gate on chroma presence: `if chroma is not None:` `existing = chroma._collection.get(where={"promoted_from": provenance})`; if existing ids non-empty, delete those ids first (UPDATE semantics). COPY (always runs, chroma or not): write the file into the global store's matching source dir using `reserve_filename` for collision-free stem; `path.write_text(body)`; `path.chmod(0o600)` (EoP mitigation). Wrap the file write + the chroma write in a BLOCKING lock — `with portalocker.Lock(str(gstore.root / ".locks" / f"{source}.lock"), mode="a", flags=portalocker.LOCK_EX, timeout=5)` (NOT LOCK_NB — concurrent promote must wait, D-13/RESEARCH Pitfall). CHROMA ADD — explicitly gate the final add the same way write_note does: `if chroma is not None:` `chroma.add(text=content, metadata={"source_type": source, "promoted_from": provenance, "ts": <iso>, "path": str(path), "tombstoned": False}, id=make_id(source, path.stem))`. In a chroma-less env BOTH the dedup get and the final add are skipped — the file copy + 0o600 + echo still complete and the command exits 0 (mirror write_note's `_maybe_chroma()` None-tolerant pattern). Echo `promoted: {locator} -> global:{path.stem}`. Add `import portalocker` and a datetime import if not already present.</action>
   <verify>
-    <automated>.venv/bin/python -m pytest tests/harness/test_memory_global.py -x -q -k "promote" 2>&1 | tail -15; .venv/bin/python -m voss.cli memory promote --help 2>&1 | head -8</automated>
+    <automated>.venv/bin/python -m pytest tests/harness/test_memory_global.py -x -q -k "promote" 2>&1 | tail -15; .venv/bin/python -m voss.cli memory promote --help 2>&1 | head -8; grep -n "if chroma is not None" voss/harness/memory_cli.py</automated>
   </verify>
   <acceptance_criteria>
     - `voss memory promote turn:x` and `... ledger:x` exit 1 with stderr "cannot be promoted" (test_promote_rejects_turn_ledger)
     - promote copies the project file into the global store source dir and chroma metadata carries `promoted_from = <repo_id>/<locator>` (test_promote_copies_with_provenance)
     - re-promoting the same locator yields exactly one global entry (test_promote_dedup_on_repromote) — old chroma id deleted before re-add
     - `--list` prints only note/decision/convention locators (test_promote_list); turns/ledgers never appear
+    - both the dedup `._collection.get` AND the final `chroma.add` are inside `if chroma is not None:` guards (grep ≥2 `if chroma is not None` occurrences in memory_cli.py); a BM25-only env (chroma disabled) copies the file and exits 0 with no AttributeError
     - global file written with mode 0o600 (`oct(path.stat().st_mode)[-3:] == '600'`) — assert in test or source review
     - promote uses `LOCK_EX` blocking lock (grep `LOCK_EX` in memory_cli.py; NO `LOCK_NB` on the promote path)
   </acceptance_criteria>
-  <done>promote verb: copy + provenance + dedup + turn/ledger rejection + --list + 0o600 + blocking lock; promote tests green.</done>
+  <done>promote verb: copy + provenance + dedup + turn/ledger rejection + --list + 0o600 + blocking lock + chroma-None-guarded add; promote tests green.</done>
 </task>
 
 <task type="auto" tdd="true">
@@ -186,9 +189,10 @@ voss/harness/memory_cli.py (existing, verified):
 <success_criteria>
 - promote is the only global write path; copy + provenance + dedup + turn/ledger rejection + --list
 - forget dual-scope (project default, --global); vacuum --global
-- 0o600 file perms; blocking lock on promote; no new packages
+- 0o600 file perms; blocking lock on promote; chroma touches None-guarded; no new packages
 </success_criteria>
 
 <output>
 Create `.planning/phases/V21-global-cross-project-memory/V21-03-SUMMARY.md` when done
 </output>
+</content>
