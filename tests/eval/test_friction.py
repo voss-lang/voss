@@ -86,3 +86,32 @@ def test_friction_missing_keys_tolerated():
     # Old transcripts: run dicts without failures/validation, junk entries.
     record = _record([{}, {"failures": None, "validation": None}, "not-a-dict"])
     assert friction(record) == ZERO
+
+
+def test_summary_friction_column_additive(tmp_path):
+    """Column renders only when rows carry friction; legacy rows unaffected."""
+    import json
+
+    from voss.eval.summary import write_summary
+
+    base = {
+        "task_id": "01-x",
+        "success": True,
+        "cost_usd": 0.02,
+        "confidence": 0.9,
+        "provider": "StubProvider",
+        "model": "__stub__",
+    }
+    legacy = tmp_path / "legacy.jsonl"
+    legacy.write_text(json.dumps(base) + "\n")
+    text = write_summary(legacy, tmp_path / "legacy.md").read_text()
+    assert "wasted" not in text  # byte-stable legacy summary
+
+    jsonl = tmp_path / "runs.jsonl"
+    jsonl.write_text(
+        json.dumps({**base, "friction": dict(ZERO, wasted_calls=3)}) + "\n"
+    )
+    text = write_summary(jsonl, tmp_path / "summary.md").read_text()
+    assert "- mean wasted calls: 3.0" in text
+    assert "mean wasted |" in text
+    assert "| 3.0 |" in text

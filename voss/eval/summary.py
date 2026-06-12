@@ -37,6 +37,17 @@ def _mean_cost(rows: list[dict]) -> float | None:
     return sum(costs) / len(costs) if costs else None
 
 
+def _mean_wasted(rows: list[dict]) -> float | None:
+    """Mean friction.wasted_calls (VRES-02); None when no row carries it."""
+    values = [
+        row["friction"]["wasted_calls"]
+        for row in rows
+        if isinstance(row.get("friction"), dict)
+        and isinstance(row["friction"].get("wasted_calls"), (int, float))
+    ]
+    return sum(values) / len(values) if values else None
+
+
 def _common_value(rows: list[dict], key: str) -> str:
     values = {row.get(key) for row in rows}
     if not values:
@@ -74,6 +85,12 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
     show_skipped = any("skipped" in r for r in rows)
     skipped_rate = skipped_count / total if total else 0.0
 
+    # Friction aggregation (VRES-02). Same back-compat shape as skipped:
+    # column/line render only when some row carries the field, so legacy
+    # summaries stay byte-identical.
+    show_friction = any("friction" in r for r in rows)
+    mean_wasted = _mean_wasted(rows)
+
     mean_cost = _mean_cost(rows)
     corr, n = _pearson(rows)
     provider = _common_value(rows, "provider")
@@ -93,6 +110,7 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
         task_mean_cost = _mean_cost(task_rows)
         cost_s = f"${task_mean_cost:.4f}" if task_mean_cost is not None else "n/a"
         task_skipped = sum(1 for row in task_rows if row.get("skipped") is True)
+        task_wasted = _mean_wasted(task_rows)
         tasks.append(
             {
                 "id": task_id,
@@ -101,6 +119,7 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
                 "skipped": str(task_skipped),
                 "pass_rate": rate,
                 "mean_cost": cost_s,
+                "mean_wasted": f"{task_wasted:.1f}" if task_wasted is not None else "n/a",
             }
         )
 
@@ -124,6 +143,8 @@ def write_summary(jsonl_path: Path, summary_path: Path) -> Path:
             "show_skipped": show_skipped,
             "skipped_count": skipped_count,
             "skipped_rate": f"{skipped_rate:.0%}",
+            "show_friction": show_friction,
+            "mean_wasted": f"{mean_wasted:.1f}" if mean_wasted is not None else "n/a",
             "mean_cost": f"${mean_cost:.4f}" if mean_cost is not None else "n/a",
             "conf_corr_r": f"{corr:.3f}" if corr is not None else "n/a",
             "corr_n": n,

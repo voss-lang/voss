@@ -32,6 +32,7 @@ from voss_runtime import EpisodicMemory, configure, get_config
 from voss_runtime.providers import StubProvider, get as get_provider, has as has_provider
 from voss_runtime.providers.base import ModelProvider
 
+from .friction import friction
 from .judge import judge_run
 from .suite import TaskSpec, load_suite
 from .summary import write_summary
@@ -914,6 +915,7 @@ async def _run_suite_async(
                     "checks": check_results,
                     "input_tokens": _sum_input_tokens(record),
                     "surface": spec.surface,
+                    "friction": friction(record),
                 }
                 _append_row(runs_path, row)
 
