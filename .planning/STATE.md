@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-12T16:40:05.507Z"
+last_updated: "2026-06-12T16:59:34.211Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 68
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-12 — **E4-06 EXECUTED — sdk suite wired + all consumers proven e2e (EVSDK-03/04/05/06 COMPLETE; tests/eval ZERO xfail).** Four scenarios at `tests/eval/sdk/<NN>/` (01-python-basic edit + 02/03/04 ts/go/rust permission-allow) on ONE flat calc.py fixture (D-07); no double-nest; extra=forbid clean; deterministic stub check = `test -s .voss-eval-final.txt` (plumbing, never the gate — live gate is plan 07). Schema tests: test-local _spawn_fake_serve (kill-in-finally) + each consumer asserted on exact six-key set, echo final, session.idle in event_types_seen, saw_permission_gate=False; last-JSON-decodable-line parse tolerates cargo/go chatter. Stub rows: sdk:python in-process + FULL `--suite sdk` → _drive_sdk_client → ts consumer → E1 row — both set(row)==REQUIRED_FIELDS (zero new JSONL keys). tests/eval 121 passed/2 skipped (07/08 live-only)/0 xfailed. Note: task_id numeric prefix ("02-ts-...") never collides with E2 lang skip-guard. Commits 0c1bb99/1ac3d1d/1b466f8. Summary: `phases/E4-sdk-proof/E4-06-SUMMARY.md`. Next: plan 07 FINAL (ts Deny variant + permission_choice forwarding + live codex proof, operator checkpoint).
 
 - 2026-06-12 — **V19-04 EXECUTED — `voss recall` unified cross-corpus CLI verb (VSEM-05 COMPLETE).** `recall_cmd` in cli.py registered in AGENT_COMMANDS after memory_group: queries CodeIndex + MemoryStore (each top_k×3), fuses via `MemoryStore._rrf_merge` (D-09 rank-based cross-corpus; code: prefix = no locator collision), `[code] path:line (score)` / `[memory] locator` block-per-hit plain output (D-10), `--json` schema {query, hits:[{source, locator, path, line_start, line_end, score, excerpt}]}, `--refresh` = best-effort M10 build_index then CodeIndex.build (D-13 #3), `--top`/`--cwd`, empty query → usage exit 0, MemoryStore failure → code-only. T-V19-04 redaction: `_redact_recall_text` secret-shape regexes (AKIA/sk-/ghp_/xox/kv-heuristic) over excerpts in BOTH output modes. TWO deviations: (Rule 1) V19-02 `_split_oversize` INFINITE RECURSION on single lines >800 chars — flaw verbatim in RESEARCH "verified algorithm"; fixed w/ end<=start base case + mid clamp + regression test `test_oversize_single_long_line`; (Rule 2) excerpt redaction added (plan's "only Hit fields" wording insufficient — excerpts ARE raw source). Tests: recall_cli 2/2, chunker 5/5, harness -k cli 130 green 10.7s; live `voss recall` on repo exit 0. Remaining RED: 05 injection×3 + 06 enrichment×3 only. Commit c173005. Summary: `phases/V19-semantic-code-memory-tiered-index-routing/V19-04-SUMMARY.md`. Next: V19-05 (injection wiring do_cmd/chat_cmd + [code_recall] config).
 
@@ -299,3 +301,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase E4 P03 | 6 min | 1 tasks | 1 files |
 | Phase E4 P04 | 5 min | 1 tasks | 1 files |
 | Phase E4 P05 | 5 min | 1 tasks | 1 files |
+| Phase E4 P06 | 15 min | 3 tasks | 9 files |
