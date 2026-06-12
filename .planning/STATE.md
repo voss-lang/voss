@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-12T00:26:41.464Z"
+last_updated: "2026-06-12T16:16:44.515Z"
 last_activity: 2026-06-12
 progress:
   total_phases: 68
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-12 — **E4-02 EXECUTED — surface dispatch + both SDK drivers (EVSDK-01/02 COMPLETE; 03/04/05 hermetic round-trips already green).** suite.py Literal +sdk:python|ts|go|rust (additive; sdk:bogus → ValidationError; golden loads 6). `_drive_sdk_python`: run_turn via voss.harness public __all__, PlainRenderer/make_toolset commented M7 private exceptions, config restore in finally. `_drive_sdk_client`: runner-owned serve lifecycle (Popen → stderr-drain thread → 60s handshake → consumer env VOSS_BASE_URL/TOKEN/CWD/PYTHON/PROMPT/MODE → last-stdout-line JSON → stdin-EOF/wait/kill finally); consumer paths repo-root-anchored (`Path(__file__).parents[2]`) not cwd-relative. Dispatch after serve branch, before 05- resume. ALL THREE hermetic FAKE_TURN consumer tests pass (ts/go/rust attach → SSE drain → echo final) — persistent per-session queue means late subscribe loses nothing. Full tests/eval 113 passed/1 xfailed/2 skipped, REQUIRED_FIELDS + serve branch byte-unchanged. Deviations: plan's "E3-03 not executed" premise stale (_drive_serve exists — left untouched, stale grep gate swapped for git-diff proof); Task 2 absorbed by concurrent auto-committer as aea7fd4 (diff verified = Task 2 work). Commits 2d66871 + aea7fd4. Summary: `phases/E4-sdk-proof/E4-02-SUMMARY.md`. Next: W2 plans 03/04/05 (consumer hardening — parallel-ok) then 06.
 
 - 2026-06-12 — **E4-01 EXECUTED — Wave 0 RED Nyquist scaffold + three buildable SDK consumer subprograms (EVSDK-01..05 seeded).** `tests/eval/test_sdk.py`: 6 xfail stubs (EVSDK-01..06), 2 live-only skips (07 permission gate, 08 proof run), 3 REAL build gates — all green (3 passed/6 xfailed/2 skipped); full tests/eval no regression. Consumers (public-API-only, env contract VOSS_BASE_URL/TOKEN/CWD/PROMPT/MODE, six-key JSON stdout): TS createVossClient/subscribeToEvents/replyPermission via @vosslang/sdk index; Go AttachClient/Events/PermissionReply; Rust VossClient::new/event_stream as auto-discovered cargo example. All three RESEARCH open Qs resolved: (1) TS `file:` dep doesn't resolve without install → committed `node_modules/@vosslang/sdk` symlink (git add -f), zero installs, offline; (2) Go replace path is 5 ups `../../../../../sdk/go` (plan sketch said 4) + committed go.sum from cache tidy; (3) Rust examples/ auto-discovery works, serde_json/tokio already in [dependencies]. Pitfall guards encoded + grep-gated: no VossLauncher, no Spawn, no spawn_with. EVSDK reqs are minted (no REQUIREMENTS.md rows — gsd-tools mark-complete not_found, expected). Commits 1c33092 (test) + 1e83b68 (feat). Summary: `phases/E4-sdk-proof/E4-01-SUMMARY.md`. Next: E4-02 (surface Literal sdk:* + drivers).
 
@@ -279,3 +281,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | Phase V16 P03 | 8 min | 2 tasks | 4 files |
 | Phase V16 P04 | 12 min | 2 tasks | 8 files |
 | Phase E4 P01 | 16 min | 2 tasks | 9 files |
+| Phase E4 P02 | 25 min | 2 tasks | 3 files |
