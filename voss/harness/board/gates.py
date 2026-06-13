@@ -60,6 +60,9 @@ class GateContext:
     reviewer_b: Optional[Reviewer] = None
     verdict_a: Optional[ReviewerVerdict] = None
     verdict_b: Optional[ReviewerVerdict] = None
+    # V20 (VRES-04): operator decision hydrated by Board from the approval
+    # sidecar — "approved" | "rejected" | None. Predicate stays pure.
+    human_decision: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +139,22 @@ class b_passes:
         return ctx.verdict_b.verdict == "pass"
 
 
+class human_approved:
+    """V20 (VRES-04): critical tier requires an explicit operator approval.
+
+    Non-critical tiers always pass. For critical, True ONLY when the
+    operator approval record exists (ctx.human_decision == "approved",
+    hydrated by Board from the approvals sidecar). NO agent verdict can
+    satisfy this clause; rejection routing to terminal Blocked lives in
+    Board.move, not here.
+    """
+    name = "human"
+    def evaluate(self, ctx: GateContext) -> bool:
+        if ctx.card.risk_tier != "critical":
+            return True
+        return ctx.human_decision == "approved"
+
+
 class tests_pass:
     """Artifact carries tests_passed == True."""
     name = "tests"
@@ -184,8 +203,11 @@ class not_timed_out:
 # independent. Ordering cheap→expensive: scope_clean, then A (test/LLM), then B
 # (one provider.complete), then the artifact check. conf_meets_p stays on the
 # intermediate (InProgress,InReview) gate only — Open Question 2.
-_CODE_DONE_PREDICATES = (scope_clean(), a_verification_passes(), b_passes(), tests_pass())
-_AI_DONE_PREDICATES = (scope_clean(), a_verification_passes(), b_passes(), eval_meets_threshold())
+# V20 (VRES-04): human_approved sits FIRST — a critical card pending its
+# operator refuses before paying A/B reviews (Board.move stops the predicate
+# walk on a failing 'human' clause: gate-before-spend).
+_CODE_DONE_PREDICATES = (human_approved(), scope_clean(), a_verification_passes(), b_passes(), tests_pass())
+_AI_DONE_PREDICATES = (human_approved(), scope_clean(), a_verification_passes(), b_passes(), eval_meets_threshold())
 
 
 @dataclass(frozen=True, slots=True)

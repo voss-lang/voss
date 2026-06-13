@@ -68,7 +68,10 @@ class TestReadBoardSpec:
 
 class TestRiskThresholds:
     def test_values(self):
-        assert _DEFAULT_RISK_THRESHOLDS == {"low": 0.60, "med": 0.80, "high": 0.95}
+        # V20 VRES-04 adds "critical"; low/med/high values are load-bearing.
+        assert _DEFAULT_RISK_THRESHOLDS == {
+            "low": 0.60, "med": 0.80, "high": 0.95, "critical": 0.99,
+        }
 
     def test_single_source_in_repo(self):
         """Grep across voss/ to confirm exactly one definition site."""
