@@ -3,6 +3,7 @@ auth, fuzzy selection precedence, persistence, and the TUI picker/fallback
 dispatch (faked app; the modal itself is pilot-tested in tests/harness/tui)."""
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -254,6 +255,41 @@ def test_tui_bare_model_opens_catalog_under_codex_auth(env, monkeypatch) -> None
     assert isinstance(screen, ModelPickerModal)
     group_ids = {g.id for g in screen._groups}
     assert {"anthropic", "opencode", "ollama-cloud"} <= group_ids
+
+
+def test_tui_catalog_anthropic_pick_switches_from_codex_to_claude(
+    env, monkeypatch
+) -> None:
+    from voss.harness.claude_agent_provider import ClaudeAgentProvider
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(_catalog_raw()))
+    monkeypatch.setattr(
+        "voss.harness.model_router.resolve_key",
+        lambda _entry, **_kw: None,
+    )
+    monkeypatch.setattr(
+        "voss.harness.model_router.auth.resolve",
+        lambda pref: SimpleNamespace(source="claude-agent", cli_path=Path("/opt/bin/claude")),
+    )
+
+    app = _FakeTUIApp()
+    ctx = _ctx(_codex_provider(), app=app)
+    registry = cli._build_slash_registry()
+    registry.dispatch(ctx, "/model")
+    screen, callback = app.pushed[0]
+    entry = next(g.models[0] for g in screen._groups if g.id == "anthropic")
+
+    callback(entry)
+
+    assert isinstance(ctx.provider, ClaudeAgentProvider)
+    assert ctx.provider.cli_path == "/opt/bin/claude"
+    assert app.provider == "Anthropic"
+    assert app.model == "claude-sonnet-4-5"
+    cfg = harness_config.load_harness_config()
+    assert cfg.get("auth") == "claude"
+    assert cfg.get("preferred_model") == "claude-sonnet-4-5"
+    assert "preferred_provider" not in cfg
 
 
 def test_tui_api_key_auth_falls_back_to_catalog_modal(env, monkeypatch) -> None:

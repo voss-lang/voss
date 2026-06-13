@@ -47,7 +47,10 @@ def resolve_key(
 def _default_oauth_check(provider_id: str) -> bool:
     """Native families are also 'connected' via existing OAuth/Codex creds."""
     if provider_id == "anthropic":
-        return auth.load_anthropic_oauth() is not None
+        try:
+            return auth.resolve("claude").source == "claude-agent"
+        except Exception:  # noqa: BLE001 — credential probing must not break picker
+            return False
     if provider_id == "openai":
         codex = auth.load_codex()
         return bool(codex and (codex.api_key or codex.has_oauth))
@@ -117,6 +120,24 @@ def build_provider_for_model(
     setattr(provider, "voss_provider_label", entry.provider_label)
     setattr(provider, "voss_model_id", entry.id)
     return provider, model_string(entry)
+
+
+def _claude_subscription_provider(entry: ModelEntry) -> tuple[ModelProvider, str] | None:
+    if entry.provider_id != "anthropic" or entry.api_base:
+        return None
+    try:
+        res = auth.resolve("claude")
+    except Exception:  # noqa: BLE001 — fall back to normal API-key handling
+        return None
+    if res.source != "claude-agent":
+        return None
+    from .claude_agent_provider import ClaudeAgentProvider
+
+    provider = ClaudeAgentProvider(model_default=entry.id, cli_path=res.cli_path)
+    setattr(provider, "voss_provider_id", entry.provider_id)
+    setattr(provider, "voss_provider_label", entry.provider_label)
+    setattr(provider, "voss_model_id", entry.id)
+    return provider, entry.id
 
 
 def flatten(groups: list[ProviderGroup]) -> list[ModelEntry]:
@@ -209,6 +230,11 @@ def prepare_model(
     surfaces this as "needs connect" (P5) rather than failing a turn later.
     """
     key = resolve_key(entry, getter=getter, keyring_get=keyring_get)
+    if key is None:
+        subscription = _claude_subscription_provider(entry)
+        if subscription is not None:
+            provider, model = subscription
+            return provider, model, True
     provider, model = build_provider_for_model(entry, api_key=key)
     needs_key = entry.env_key is not None
     key_present = (key is not None) if needs_key else True

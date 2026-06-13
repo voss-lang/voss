@@ -1,11 +1,14 @@
 """P1 tests: catalog entry -> provider + model string routing."""
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 from voss.harness import model_router as mr
+from voss.harness.claude_agent_provider import ClaudeAgentProvider
 from voss.harness.model_catalog import ModelEntry
 from voss_runtime.providers import LiteLLMProvider
 
@@ -86,6 +89,26 @@ def test_prepare_model_native_without_env_key_is_present() -> None:
     entry = _entry(env_key=None)
     _, _, present = mr.prepare_model(entry, getter={}.get, keyring_get={}.get)
     assert present is True
+
+
+def test_prepare_model_anthropic_oauth_uses_claude_agent(monkeypatch) -> None:
+    monkeypatch.setattr(
+        mr.auth,
+        "resolve",
+        lambda pref: SimpleNamespace(source="claude-agent", cli_path=Path("/opt/bin/claude")),
+    )
+
+    provider, model, present = mr.prepare_model(
+        NATIVE,
+        getter={}.get,
+        keyring_get={}.get,
+    )
+
+    assert present is True
+    assert isinstance(provider, ClaudeAgentProvider)
+    assert provider.cli_path == "/opt/bin/claude"
+    assert model == "claude-sonnet-4-5"
+    assert getattr(provider, "voss_provider_label") == "P"
 
 
 # --- LiteLLMProvider routing-override plumbing ---

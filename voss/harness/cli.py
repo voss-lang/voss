@@ -1417,7 +1417,8 @@ def _build_slash_registry() -> SlashRegistry:
         """Auth-aware model selector (R8).
 
         Bare in the TUI: the provider catalog (`/models`) so the obvious
-        model picker can move between Codex, Anthropic, OpenCode, Ollama, etc.
+        model picker can move from Codex auth into Anthropic, OpenAI, OpenCode,
+        Ollama, etc.
         `/model auth` keeps the curated active-subscription picker for Claude
         Agent SDK / Codex ChatGPT backend. Bare in plain CLI: availability
         lines + the numbered curated list. With args: exact-id → prefix →
@@ -1548,7 +1549,11 @@ def _build_slash_registry() -> SlashRegistry:
                 )
                 return
             configure(default_model=model_str)
-            harness_config.set_preferred_routed(entry.id, entry.provider_id)
+            if isinstance(provider, ClaudeAgentProvider) and entry.provider_id == "anthropic":
+                harness_config.set_preferred_model(entry.id)
+                harness_config.set_preferred_auth("claude")
+            else:
+                harness_config.set_preferred_routed(entry.id, entry.provider_id)
             from . import model_prefs
 
             model_prefs.record_recent(entry.provider_id, entry.id)
