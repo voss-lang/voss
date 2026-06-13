@@ -127,3 +127,25 @@ def test_reviewer_b_prompt_includes_repo_context(tmp_path):
 
     rb.review(_card())  # attr absent → section omitted
     assert "## Repo Context" not in provider.messages[1]["content"]
+
+
+def test_build_repo_context_caps(tmp_path):
+    from voss.harness.board.reviewer_b import (
+        REPO_CONTEXT_MAX_CHARS,
+        REPO_CONTEXT_MAX_LINES_PER_FILE,
+        build_repo_context,
+    )
+
+    big = tmp_path / "big.py"
+    big.write_text("\n".join(f"line {i}" for i in range(500)) + "\n")
+    diff = "--- a/big.py\n+++ b/big.py\n@@ -1 +1 @@\n-x\n+y\n"
+
+    ctx = build_repo_context(tmp_path, diff)
+    assert "### big.py" in ctx
+    assert f"line {REPO_CONTEXT_MAX_LINES_PER_FILE - 1}" in ctx
+    assert f"line {REPO_CONTEXT_MAX_LINES_PER_FILE}" not in ctx  # per-file cap
+    assert len(ctx) <= REPO_CONTEXT_MAX_CHARS  # total cap
+
+    # Missing file skipped, empty diff empty.
+    assert build_repo_context(tmp_path, "+++ b/nope.py\n") == ""
+    assert build_repo_context(tmp_path, "") == ""
