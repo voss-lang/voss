@@ -8,7 +8,7 @@ description: "Reference for Voss harness and compiler commands."
 ```bash
 voss
 voss chat
-voss do "<task>"
+voss do "<task>" [--no-pack]
 voss edit <path>
 voss doctor
 voss tools
@@ -16,6 +16,23 @@ voss config
 voss sessions
 voss resume <session-id>
 ```
+
+## Project context and recall
+
+```bash
+voss recall <query> [--top N] [--json] [--refresh]
+voss sync [--check] [--dry-run] [--force]
+voss serve
+
+voss memory size
+voss memory vacuum
+voss memory adopt --id <fence-id>
+```
+
+`voss recall` searches project memory and the rebuildable code recall index together. Use
+`--refresh` when you want Voss to rebuild recall state before answering. `voss sync --check`
+is read-only and exits non-zero when generated docs, managed instruction sections, or prompt
+files have drifted.
 
 ## Compiler commands
 
@@ -52,6 +69,10 @@ voss principles show [--cwd .] [--json]
 | Natural-language repo task | `voss do` |
 | Interactive agent session | `voss chat` or bare `voss` |
 | Scoped file edit | `voss edit <path>` |
+| Search code and project memory | `voss recall <query>` |
+| Sync generated project instructions | `voss sync` |
+| Check managed docs in CI | `voss sync --check` |
+| Start the local protocol server | `voss serve` |
 | Run a goal as a team | `voss team run "<goal>"` |
 | Validate the team cage | `voss team check` |
 | Inspect a team run | `voss board`, `voss review`, `voss session tree` |
@@ -65,9 +86,12 @@ Commands that run the harness may accept mode selection:
 ```bash
 voss do "inspect this repo" --mode plan
 voss edit src/app.py --mode edit
+voss do "summarize the auth changes" --no-pack
 ```
 
-Default modes are conservative: plan for general harness commands and edit for scoped edit sessions.
+Default modes are conservative: plan for general harness commands and edit for scoped edit
+sessions. `--no-pack` disables context packing for the run and keeps replay assembly on the
+legacy full-context path.
 
 ## Renderer environment
 

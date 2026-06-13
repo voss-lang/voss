@@ -138,6 +138,22 @@ class SyncResult:
     detected: tuple[tuple[str, str], ...]  # (fact key, value) pairs from fs detection (D-03)
 
 
+@dataclass(frozen=True)
+class CheckResult:
+    statuses: tuple[ArtifactStatus, ...]  # status: ok | edited | stale | missing
+    drifted: tuple[str, ...]  # paths of every non-ok artifact
+
+
+@dataclass(frozen=True)
+class _Rendered:
+    """One synced artifact, rendered in memory (shared by sync() and check())."""
+
+    rel: str  # manifest key: path relative to project root, or VOSS.md#<id>
+    dest: Path
+    rendered: str
+    kind: str  # doc | fence | prompt
+
+
 _DOC_TEMPLATES = (
     ("cheatsheet.md", "cheatsheet.md.jinja"),
     ("commands.md", "commands.md.jinja"),
@@ -212,54 +228,157 @@ def _diff_write(
     return ArtifactStatus(rel, "written")
 
 
+def _render_artifacts(context: SyncContext) -> tuple[_Rendered, ...]:
+    """Render every synced artifact (docs + fence + prompts) in memory.
+
+    Pure read-only enumeration shared by sync() and check(): same templates,
+    same manifest keys, no filesystem writes.
+    """
+    ctx_map = asdict(context)
+    voss_root = context.voss_dir.resolve()
+    project_root = context.project_root
+    out: list[_Rendered] = []
+
+    docs = list(_DOC_TEMPLATES)
+    if context.review.enabled:
+        docs.append(_REVIEW_DOC)  # D-08: review.md skipped entirely when disabled
+    for name, resource in docs:
+        rendered = render_package_template("voss", f"templates/docs/{resource}", ctx_map)
+        dest = (context.docs_dir / name).resolve()
+        out.append(_Rendered(_rel(dest, project_root), dest, rendered, "doc"))
+
+    fence_body = render_package_template(
+        "voss", f"templates/docs/{_FENCE_TEMPLATE}", ctx_map
+    )
+    out.append(
+        _Rendered(f"VOSS.md#{_FENCE_ID}", project_root / "VOSS.md", fence_body, "fence")
+    )
+
+    # Sync-time render only; ${} runtime placeholders pass through untouched (D-18).
+    for name, resource in SYNCED_PROMPTS:
+        rendered = render_package_template("voss", resource, {})
+        dest = (voss_root / "prompts" / f"{name}.txt").resolve()
+        if not dest.is_relative_to(voss_root):
+            raise ValueError(f"refused to write outside .voss: {dest}")
+        out.append(_Rendered(_rel(dest, project_root), dest, rendered, "prompt"))
+
+    return tuple(out)
+
+
+def check(cwd: Path) -> CheckResult:
+    """Read-only drift gate over every synced artifact (VRES-01).
+
+    Three-way comparison per artifact against the recorded manifest hash:
+      - missing on disk                 -> "missing"
+      - on-disk hash != recorded hash   -> "edited" (hand edit; no manifest
+        evidence also counts as edited per D-11)
+      - rendered hash != recorded hash  -> "stale" (templates/config moved on)
+      - all equal                       -> "ok"
+    Writes NOTHING: no docs, no fence, no prompts, no manifest, no unlink of
+    a stale review.md (reported as "stale" instead). Fence body drift is
+    reported, never raised as HashMismatch.
+    """
+    context = build_sync_context(cwd)
+    voss_root = context.voss_dir.resolve()
+    project_root = context.project_root
+    recorded_hashes = _read_manifest(voss_root)
+    statuses: list[ArtifactStatus] = []
+
+    for art in _render_artifacts(context):
+        recorded = recorded_hashes.get(art.rel)
+        rendered_hash = hashlib.sha256(art.rendered.encode()).hexdigest()
+        on_disk_hash: str | None = None
+        if art.kind == "fence":
+            try:
+                body = voss_md.read_fence_body(art.dest, fence_id=_FENCE_ID)
+            except voss_md.HashMismatch:
+                statuses.append(ArtifactStatus(art.rel, "edited"))
+                continue
+            if body is not None:
+                on_disk_hash = hashlib.sha256(body.encode()).hexdigest()
+        elif art.dest.exists():
+            # Hash raw bytes: equals sha256(text.encode()) for clean UTF-8 and
+            # flags non-UTF-8 corruption as drift instead of raising.
+            on_disk_hash = hashlib.sha256(art.dest.read_bytes()).hexdigest()
+        if on_disk_hash is None:
+            status = "missing"
+        elif on_disk_hash != recorded:  # recorded None => no evidence => edited (D-11)
+            status = "edited"
+        elif rendered_hash != recorded:
+            status = "stale"
+        else:
+            status = "ok"
+        statuses.append(ArtifactStatus(art.rel, status))
+
+    if not context.review.enabled:
+        # sync() would unlink this (R3 cleanup); check only reports it.
+        stale_review = (context.docs_dir / _REVIEW_DOC[0]).resolve()
+        if stale_review.is_relative_to(voss_root) and stale_review.exists():
+            statuses.append(ArtifactStatus(_rel(stale_review, project_root), "stale"))
+
+    drifted = tuple(s.path for s in statuses if s.status != "ok")
+    return CheckResult(statuses=tuple(statuses), drifted=drifted)
+
+
 def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult:
     """Regenerate the managed docs, VOSS.md workflow fence, and manifest.
 
     Idempotent (R1): every artifact is rendered from one SyncContext and
     byte-diffed against disk; an unchanged tree produces zero writes.
-    Docs are machine-owned (R3): always regenerated, no edit guard.
     The fence goes through voss_md.write_fence_body without adopt (D-16):
     hash drift raises HashMismatch instead of silently overwriting (R4).
     The drift gate runs before any write, so a refused sync leaves the
     tree untouched; dry_run shares the gate (drift is a real failure per
     D-15, even when reporting-only).
     dry_run (D-14) runs the identical diff pass and writes nothing.
-    force (D-16) applies to synced prompts ONLY: it overwrites edited
-    prompts and re-adopts when the manifest is missing (D-11). It has no
-    effect on docs or the fence.
+    Managed docs and synced prompts share the same hash-guard (D-11): an
+    on-disk file whose hash matches neither the recorded manifest hash nor
+    the new render is hand-edited and is warned + skipped; force (D-16)
+    overwrites edited files and re-adopts when the manifest is missing.
+    It has no effect on the fence.
     """
     context = build_sync_context(cwd)
-    ctx_map = asdict(context)
     voss_root = context.voss_dir.resolve()
     project_root = context.project_root
     recorded_hashes = _read_manifest(voss_root)
     statuses: list[ArtifactStatus] = []
     manifest: dict[str, str] = {}
 
+    artifacts = _render_artifacts(context)
+    fence = next(a for a in artifacts if a.kind == "fence")
+    fence_body = fence.rendered
+
     # Fence drift gate FIRST, before any write: a drifted fence refuses the
     # whole sync with the tree untouched (same HashMismatch as
     # write_fence_body — D-16, R4). Without this ordering a refused sync
     # would already have rewritten docs and left the manifest stale.
-    fence_body = render_package_template(
-        "voss", f"templates/docs/{_FENCE_TEMPLATE}", ctx_map
-    )
-    voss_md_path = project_root / "VOSS.md"
+    voss_md_path = fence.dest
     existing_body = voss_md.read_fence_body(voss_md_path, fence_id=_FENCE_ID)
 
-    docs = list(_DOC_TEMPLATES)
-    if context.review.enabled:
-        docs.append(_REVIEW_DOC)  # D-08: review.md skipped entirely when disabled
-
-    for name, resource in docs:
-        rendered = render_package_template("voss", f"templates/docs/{resource}", ctx_map)
-        dest = context.docs_dir / name
-        manifest[_rel(dest.resolve(), project_root)] = hashlib.sha256(
-            rendered.encode()
-        ).hexdigest()
+    for art in (a for a in artifacts if a.kind == "doc"):
+        new_hash = hashlib.sha256(art.rendered.encode()).hexdigest()
+        if art.dest.exists():
+            on_disk_hash = hashlib.sha256(art.dest.read_bytes()).hexdigest()
+            recorded = recorded_hashes.get(art.rel)
+            # Edit-guard, mirroring the prompt guard below (D-11): hash that
+            # matches neither the record nor the new render means hand edit.
+            edited = (
+                recorded is None or on_disk_hash != recorded
+            ) and on_disk_hash != new_hash
+            if edited and not force:
+                click.echo(
+                    f"warning: {art.rel} has local edits; skipped (--force to overwrite)",
+                    err=True,
+                )
+                statuses.append(ArtifactStatus(art.rel, "skipped (edited)"))
+                if recorded is not None:
+                    manifest[art.rel] = recorded  # keep drift evidence; never adopt silently
+                continue
+        manifest[art.rel] = new_hash
         statuses.append(
             _diff_write(
-                dest,
-                rendered,
+                art.dest,
+                art.rendered,
                 voss_root=voss_root,
                 project_root=project_root,
                 dry_run=dry_run,
@@ -284,14 +403,11 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
         statuses.append(ArtifactStatus("VOSS.md", "fence-updated"))
 
     # Synced prompts (R5/R6): hash-guard — never clobber a user edit without
-    # hash evidence (D-11), --force overwrites (D-16). Sync-time render only;
-    # ${} runtime placeholders pass through untouched (D-18).
-    for name, resource in SYNCED_PROMPTS:
-        rendered = render_package_template("voss", resource, {})
-        dest = (voss_root / "prompts" / f"{name}.txt").resolve()
-        if not dest.is_relative_to(voss_root):
-            raise ValueError(f"refused to write outside .voss: {dest}")
-        rel = _rel(dest, project_root)
+    # hash evidence (D-11), --force overwrites (D-16).
+    for art in (a for a in artifacts if a.kind == "prompt"):
+        rendered = art.rendered
+        dest = art.dest
+        rel = art.rel
         new_hash = hashlib.sha256(rendered.encode()).hexdigest()
         if not dest.exists():
             if not dry_run:
@@ -333,9 +449,11 @@ def sync(cwd: Path, *, dry_run: bool = False, force: bool = False) -> SyncResult
 
 __all__ = [
     "ArtifactStatus",
+    "CheckResult",
     "ReviewFacts",
     "SyncContext",
     "SyncResult",
     "build_sync_context",
+    "check",
     "sync",
 ]

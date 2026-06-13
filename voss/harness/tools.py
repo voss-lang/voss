@@ -901,7 +901,13 @@ def make_toolset(
     # never blocks on the embedding cold-load.
     if _CodeIntelService is not None:
         try:
-            _code_index_service = _code_service()._get_code_index_service()
+            # Construct directly — NOT via _code_service()/for_cwd(), whose
+            # synchronous M10 build_index walks the cwd on the boot thread
+            # (an os.walk over a large non-git cwd hangs `voss chat` before
+            # the TUI appears). build_index stays lazy in the tool calls.
+            _code_index_service = _CodeIntelService(
+                cwd, session_id=session_id
+            )._get_code_index_service()
         except Exception:  # noqa: BLE001 — missing code subsystem degrades cleanly
             _code_index_service = None
     else:

@@ -18,6 +18,23 @@ The default config path is:
 ~/.config/voss/config.toml
 ```
 
+## Recall and context options
+
+Code recall injection can be disabled when you want the harness to skip the automatic recall
+section:
+
+```toml
+[code_recall]
+inject = false
+```
+
+Context packing can also be disabled globally, or per run with `voss do --no-pack`:
+
+```toml
+[context]
+enabled = false
+```
+
 ## Switch model in a session
 
 Inside the REPL:

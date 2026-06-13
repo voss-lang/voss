@@ -32,6 +32,8 @@ REQUIRED_FIELDS = {
     "input_tokens",
     # E3: surface routing field (internal | cli:do | cli:chat | cli:edit | serve).
     "surface",
+    # V20 VRES-02: additive friction reducer dict (wasted_calls et al.).
+    "friction",
 }
 
 

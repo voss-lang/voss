@@ -491,10 +491,36 @@ def init(target: Path, force: bool, project_name: str | None) -> None:
 @main.command("sync")
 @click.option("--dry-run", "dry_run", is_flag=True, default=False)
 @click.option("--force", is_flag=True, default=False)
-def sync_cmd(dry_run: bool, force: bool) -> None:
+@click.option(
+    "--check",
+    "check_mode",
+    is_flag=True,
+    default=False,
+    help="Verify synced artifacts against the manifest; writes nothing, exits 1 on drift.",
+)
+def sync_cmd(dry_run: bool, force: bool, check_mode: bool) -> None:
     """Regenerate managed docs and the VOSS.md workflow fence. Idempotent."""
     from voss.harness.voss_md import HashMismatch
+    from voss.sync import check as run_check
     from voss.sync import sync as run_sync
+
+    if check_mode and force:
+        raise click.UsageError("--check cannot be combined with --force")
+    if check_mode and dry_run:
+        raise click.UsageError("--check is already read-only; do not combine with --dry-run")
+    if check_mode:
+        try:
+            result = run_check(Path.cwd())
+        except (OSError, UnicodeDecodeError) as exc:
+            raise click.ClickException(f"sync --check failed: {exc}")
+        for status in result.statuses:
+            if status.status != "ok":
+                click.echo(f"{status.path}: {status.status}")
+        if result.drifted:
+            click.echo(f"{len(result.drifted)} artifact(s) drifted")
+            raise SystemExit(1)
+        click.echo("all artifacts in sync")
+        return
 
     try:
         result = run_sync(Path.cwd(), dry_run=dry_run, force=force)

@@ -17,6 +17,8 @@ Voss uses one binary with three command families:
 | `voss chat` | Explicit REPL command | `plan` |
 | `voss do "<task>"` | Run one task and exit | `plan` |
 | `voss edit <path>` | Start a scoped edit session | `edit` |
+| `voss recall <query>` | Search code and project memory together | n/a |
+| `voss sync` | Generate or update project workflow docs and managed instruction sections | n/a |
 | `voss doctor` | Diagnose provider, config, compiler, and tool setup | n/a |
 | `voss tools` | List tool registry entries and mutability | n/a |
 | `voss config` | Open or show harness configuration | n/a |
@@ -56,6 +58,8 @@ For multi-agent team runs — full detail in [Orchestration](/orchestration/over
 ```bash
 voss doctor
 voss do "summarize this repo"
+voss recall "where is retry backoff handled?"
+voss sync --check
 voss edit src/app.py
 voss sessions
 voss resume <session-id>

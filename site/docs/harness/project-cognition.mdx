@@ -30,9 +30,14 @@ Machine-generated indexes and cache files live under `.voss-cache/`:
 .voss-cache/
   repo.idx
   harness/
+  code/
 ```
 
 This state should be safe to delete and rebuild.
+
+`code/` is the rebuildable code recall cache. Voss uses it to answer concept-level
+questions through `voss recall` and the `code_recall` tool, while project memory remains the
+curated durable store under `.voss/memory/`.
 
 ## What Voss records
 
@@ -65,7 +70,13 @@ Inside a harness session:
 From the CLI:
 
 ```bash
+voss recall "where is retry backoff handled?"
+voss recall "permission gate" --json
 voss memory size
 voss memory vacuum
 voss memory adopt --id <fence-id>
 ```
+
+Recall results are labeled by source, such as `[code]` and `[memory]`. Vector search is an
+optional acceleration path; Voss can still return lexical results when that backend is
+unavailable.

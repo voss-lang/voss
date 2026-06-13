@@ -1,13 +1,13 @@
 ---
 title: "Roadmap"
-description: "The Voss roadmap from harness-led v0.1 through TUI and codebase intelligence."
+description: "The Voss roadmap across the harness, live workspace, recall, context packing, and memory."
 ---
 
-Voss started as a bounded single-agent harness. It is now an agent engineering organization layer built on top of that substrate. The roadmap reflects that shift: the org core is in, and the work ahead is live steering, the audit-centered ADE, and a stable coordination language — kept local-first throughout.
+Voss started as a bounded single-agent harness. It is now an agent engineering organization layer built on top of that substrate. The org core is in, the harness has code-aware recall and budget-aware context, and the desktop workspace is still being verified for live local supervision.
 
 ## Shipped
 
-The bounded harness substrate **and** the engineering-org core:
+The bounded harness substrate, engineering-org core, and current recall/context work:
 
 | Area | What shipped |
 | --- | --- |
@@ -19,19 +19,25 @@ The bounded harness substrate **and** the engineering-org core:
 | Board | The board state machine with WIP limits and gated transitions — `voss board` |
 | Reviewers | The independent Reviewer-A / Reviewer-B split — `voss review` |
 | EM loop | The Engineering Manager loop — `voss team run` composes the whole run |
+| Managed instructions | `voss sync` for generated workflow docs, managed instruction sections, editable prompts, and `--check` drift gates |
+| Semantic recall | `voss recall` and the `code_recall` tool search code and project memory with source labels and BM25 fallback |
+| Budget-aware context | Conservative context packing, `--no-pack`, `token-savings.jsonl`, and `/cost` estimate output |
 
-## Building
+## In verification
 
 | Area | Goal |
 | --- | --- |
-| Multi-agent chat + live steering | Non-blocking spawn, status, gather, and steer inside `voss chat` and the ADE, with recursive budget fan-out |
+| Live desktop workspace | Structured panes, inline approvals, reconnectable recent work, and honest live/disconnected states |
+| SDK proof suite | Internal proof that Python, TypeScript, Go, and Rust consumers can drive `voss serve` before SDK surfaces are promoted as primary public workflows |
 
 ## Planned
 
 | Area | Goal |
 | --- | --- |
-| Audit product + ADE panels | A unified `voss audit` report and a navigable session-tree audit view, with roster, board, reviewer, budget, and scope panels and full run replay |
-| Language as coordination spec | Stabilize the grammar for `principles`, `team`, `role`, `gate`, `board`, `review`, and `memory`, with clear compiler diagnostics and `voss run <file.voss>` |
+| External-agent handoffs | Ownership claims, identity, handoff signals, and review-request conventions for agents Voss observes but does not fully control |
+| Global memory | Curated cross-project recall under the user's local Voss home, with explicit promote/forget/vacuum commands |
+| External memory and docs ingest | Read-only ingest for configured markdown corpora, labeled as derived recall sources |
+| TUI and voss-app autonomous proof | End-to-end driving of the interactive surfaces through internal proof runs |
 
 ## Deferred
 

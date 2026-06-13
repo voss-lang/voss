@@ -12,7 +12,7 @@ export const site = {
   name: "Voss",
   tagline: "A local control plane for coding agents.",
   description:
-    "Voss gives coding agents a local control plane: scoped tools, visible live work, approval gates, independent review, and a replayable audit. One goal in, inspected work out.",
+    "Voss gives coding agents a local control plane: scoped tools, code-aware recall, visible live work, approval gates, independent review, and a replayable audit.",
   /** Canonical marketing origin (metadataBase, sitemap, robots, llms.txt). */
   url: "https://voss.dev",
   /** Static marketing routes (trailing slash applied in sitemap). */
@@ -43,7 +43,7 @@ export const harness = {
   pitch: [
     "Install through npm without managing Python yourself, or use pip when you want the Python package directly.",
     "Modes are explicit: plan for read-only work, edit for scoped changes, auto for higher-trust local automation.",
-    "Project memory lives in VOSS.md and .voss/memory, so useful repo context can survive beyond one chat.",
+    "Project memory and code recall keep useful repo context available beyond one chat.",
   ],
 } as const;
 
@@ -74,6 +74,11 @@ export const harnessFeatures: readonly HarnessFeature[] = [
       "Sessions are stored per project under .voss/sessions. List them, resume by id, and keep prior runs tied to the repo.",
   },
   {
+    title: "Code-aware recall",
+    body:
+      "`voss recall` and the `code_recall` tool search code and project memory together, with labeled sources and lexical fallback when vector search is unavailable.",
+  },
+  {
     title: "Headless or interactive",
     body:
       "`voss do \"ship the login flow\"` for one-shots. `voss chat` for the REPL. Same agent loop either way, whether scripted or supervised locally.",
@@ -85,6 +90,8 @@ export const harnessCommands: readonly CliCommand[] = [
   { cmd: "voss chat", desc: "Interactive REPL with persistent session" },
   { cmd: "voss sessions", desc: "List saved project sessions" },
   { cmd: "voss resume <id>", desc: "Pick up where you left off" },
+  { cmd: 'voss recall "where is retry backoff handled?"', desc: "Search code and memory together" },
+  { cmd: "voss sync --check", desc: "Check managed project docs for drift" },
   { cmd: "voss tools", desc: "Inspect available harness tools" },
   { cmd: "voss config --show", desc: "Inspect local harness config" },
   { cmd: "voss doctor", desc: "Verify credentials, tools, sandbox" },
@@ -97,6 +104,7 @@ export const cliCommands: readonly CliCommand[] = [
   { cmd: "voss review <run_id>", desc: "Inspect independent reviewer verdicts" },
   { cmd: "voss session tree <root_id>", desc: "Per-agent budget, scope, status" },
   { cmd: "voss capabilities list", desc: "Inspect the agent toolbelt" },
+  { cmd: 'voss recall "permission gate"', desc: "Search code and project memory" },
   { cmd: 'voss do "summarize this PR"', desc: "Single bounded agent task" },
   { cmd: "voss chat", desc: "Interactive REPL with live subagents" },
   { cmd: "voss doctor", desc: "Diagnose your environment" },
