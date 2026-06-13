@@ -88,14 +88,14 @@ def make_global_store() -> "MemoryStore | None":
     """Create the global MemoryStore when enabled and resolvable."""
     from voss.harness.config import get_global_memory_enabled
 
+    try:
+        home = Path.home()
+    except RuntimeError:
+        return None
     if not get_global_memory_enabled():
         return None
     root = _global_memory_root()
     if root is None:
-        return None
-    try:
-        home = Path.home()
-    except RuntimeError:
         return None
     return MemoryStore(home, root_override=root)
 
