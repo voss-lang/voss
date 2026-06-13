@@ -100,13 +100,25 @@ def memory_group() -> None:
     type=click.Path(file_okay=False),
     help="Project root.",
 )
-def memory_vacuum_cmd(cwd_str: str) -> None:
+@click.option(
+    "--global",
+    "use_global",
+    is_flag=True,
+    help="Compact global store (~/.voss/memory/).",
+)
+def memory_vacuum_cmd(cwd_str: str, use_global: bool) -> None:
     """Compact chroma + delete tombstoned entries; report bytes reclaimed."""
-    cwd = Path(cwd_str).resolve()
-    store = MemoryStore(cwd)
-    if not store.root.exists():
-        click.echo(f"no memory store at {store.root}", err=True)
-        sys.exit(1)
+    if use_global:
+        store = make_global_store()
+        if store is None:
+            click.echo("global store disabled or unavailable", err=True)
+            sys.exit(1)
+    else:
+        cwd = Path(cwd_str).resolve()
+        store = MemoryStore(cwd)
+        if not store.root.exists():
+            click.echo(f"no memory store at {store.root}", err=True)
+            sys.exit(1)
     store.bind(session_id="vacuum")
     reclaimed = store.vacuum()
     click.echo(f"reclaimed: {reclaimed} bytes")
@@ -249,6 +261,31 @@ def memory_promote_cmd(locator: str | None, cwd_str: str, list_only: bool) -> No
             )
 
     click.echo(f"promoted: {locator} -> global:{path.stem}")
+
+
+@memory_group.command("forget")
+@click.argument("locator")
+@click.option("--global", "use_global", is_flag=True, help="Tombstone from global store.")
+@click.option("--yes", "confirm", is_flag=True, help="Skip confirmation prompt.")
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root.",
+)
+def memory_forget_cmd(locator: str, use_global: bool, confirm: bool, cwd_str: str) -> None:
+    """Tombstone memory entries. --global targets the global store."""
+    if use_global:
+        store = make_global_store()
+        if store is None:
+            click.echo("global store disabled or unavailable", err=True)
+            sys.exit(1)
+        store.root.mkdir(parents=True, exist_ok=True)
+    else:
+        store = MemoryStore(Path(cwd_str).resolve())
+    n = store.forget(locator, confirm=confirm)
+    click.echo(f"tombstoned: {n} entries")
 
 
 @memory_group.command("size")
