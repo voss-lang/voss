@@ -179,13 +179,13 @@ def _ambient_route(line: str) -> str:
     normalized = " ".join(line.lower().strip().split())
     if not normalized:
         return "ambient"
-    if any(term in normalized for term in _STATUS_QUESTION_TERMS):
-        return "local"
     if normalized.startswith(_WORK_INTENT_PREFIXES):
         return "voss_run"
     padded = f" {normalized} "
     if any(term in padded for term in _WORK_INTENT_TERMS):
         return "voss_run"
+    if any(term in normalized for term in _STATUS_QUESTION_TERMS):
+        return "local"
     return "ambient"
 
 
