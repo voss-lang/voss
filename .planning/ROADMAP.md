@@ -2382,11 +2382,20 @@ Plans:
 
 **Goal:** Bring designated markdown corpora into recall as labeled, derived sources: repo docs (README, docs/) and operator-configured external memory directories (e.g. Claude Code file-memory dirs, SecondBrain-style vaults) — so `voss recall` answers from project knowledge that lives outside code and conversation. Each corpus is a config-declared source (`[recall.sources]` — name, path, glob) ingested through the existing `SemanticMemory._ingest_source` lineage into its own labeled collection with a per-source hash manifest (derived cache, rebuildable — same lifecycle as V19's CodeIndex, NOT curated memory). Hits carry the source name; raw external files are NEVER written back (read-only ingest — SecondBrain raw-sources immutability respected by construction). Reuse-not-rebuild: V19 manifest + background-worker + RRF patterns applied to markdown chunks (section-boundary chunking instead of symbol-boundary).
 
-**Requirements:** VXMEM-* (SPEC pending — V-track phase, requirements live in `V22-SPEC.md` not REQUIREMENTS.md).
+**Requirements:** VXMEM-01..08 (locked in `V22-SPEC.md`; V-track SPEC phase — requirements live in the SPEC, not REQUIREMENTS.md).
 
 **Out of scope:** writing/syncing back to external sources (read-only forever this phase); non-markdown formats (PDF/HTML — later seed); auto-discovery of external dirs (explicit config only); `.planning/` GSD artifacts as a default source (privacy/noise — opt-in path only).
 
 **Origin:** gap #3 from the 2026-06-11 memory/RAG design discussion (V19 SPEC out-of-scope "ingesting external memory markdown"). Depends on: V19 (CodeIndex patterns + unified recall), V21 (source-label conventions across >2 corpora).
+
+**Plans:** 5 plans · 5 waves (W0 RED scaffold + fixture vault; W1 config+chunker; W2 index engine+daemon; W3 voss recall fan-out; W4 agent-tool fan-out + golden gate). Direct port of V19 CodeIndex with heading-boundary chunking. cli.py/tools.py/config.py serialized across waves.
+
+Plans:
+- [ ] V22-01-PLAN.md — Wave-0 RED scaffold: recall package skeleton + 8 test files (23 VXMEM tests) + committed fixture vault [VXMEM-01..08]
+- [ ] V22-02-PLAN.md — config get_recall_sources() (tomllib) + extract_md_chunks() heading-boundary chunker [VXMEM-01, VXMEM-02, VXMEM-04]
+- [ ] V22-03-PLAN.md — ExternalSourceIndex (incremental per-source) + ExternalRecallService daemon (read-only, degrade-until-ready) [VXMEM-03, VXMEM-05, VXMEM-06]
+- [ ] V22-04-PLAN.md — voss recall fan-out + _recall_hit_fields source passthrough + --refresh rebuild [VXMEM-07]
+- [ ] V22-05-PLAN.md — agent memory_recall external fan-out (Option B) + make_toolset spawn + golden-query gate [VXMEM-07, VXMEM-08]
 
 ### Phase V23: Retrieval-Aware Memory Ranking & Hygiene
 
