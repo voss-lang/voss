@@ -15,7 +15,7 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -4802,6 +4802,21 @@ def _recall_hit_fields(hit) -> dict:
     }
 
 
+def _recall_external_rankings(rankings: list[list]) -> list[list]:
+    """Keep CLI source labels as corpus names even when an index marks BM25 fallback."""
+    normalized: list[list] = []
+    for hits in rankings:
+        normalized.append(
+            [
+                replace(hit, source=hit.source.removesuffix("[degraded]"))
+                if (hit.source or "").endswith("[degraded]")
+                else hit
+                for hit in hits
+            ]
+        )
+    return normalized
+
+
 @click.command("recall")
 @click.argument("query", nargs=-1, required=False)
 @click.option("--json", "json_out", is_flag=True, help="Emit machine-readable hits.")
@@ -4844,7 +4859,7 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
     except Exception:  # noqa: BLE001 — missing/corrupt memory store must not kill code recall
         mem_hits = []
     try:
-        external_hits_per_source = ext_svc.query_all(query_str, top_k=recall_k)
+        external_hits_per_source = _recall_external_rankings(ext_svc.query_all(query_str, top_k=recall_k))
     except Exception:  # noqa: BLE001 — missing/misconfigured sources must not kill recall
         external_hits_per_source = []
 
