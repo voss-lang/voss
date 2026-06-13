@@ -4792,7 +4792,7 @@ def _recall_hit_fields(hit) -> dict:
         parts = hit.locator.split(":")
         path = ":".join(parts[1:-1]) if len(parts) >= 3 else hit.locator
     return {
-        "source": "code" if is_code else "memory",
+        "source": hit.source,
         "locator": hit.locator,
         "path": path,
         "line_start": hit.line_start if is_code else None,
@@ -4818,8 +4818,10 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
     cwd = Path(cwd_str).resolve()
 
     from voss.harness.code.semantic_index import CodeIndex
+    from voss.harness.recall.external_index import ExternalRecallService
 
     code_index = CodeIndex(cwd)
+    ext_svc = ExternalRecallService(cwd)
     if do_refresh:
         try:
             from voss.harness.code.index import build_index as _build_m10
@@ -4828,6 +4830,12 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         except Exception:  # noqa: BLE001 — M10 refresh is best-effort; chunker falls back
             pass
         code_index.build()
+        ext_svc.build_all()
+    else:
+        try:
+            ext_svc.ensure_background_build()
+        except Exception:  # noqa: BLE001 — source config/build issues must not kill recall
+            pass
 
     recall_k = max(top_k * 3, top_k)
     code_hits = code_index.query(query_str, top_k=recall_k)
@@ -4835,10 +4843,14 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         mem_hits = MemoryStore(cwd).recall(query_str, top_k=recall_k)
     except Exception:  # noqa: BLE001 — missing/corrupt memory store must not kill code recall
         mem_hits = []
+    try:
+        external_hits_per_source = ext_svc.query_all(query_str, top_k=recall_k)
+    except Exception:  # noqa: BLE001 — missing/misconfigured sources must not kill recall
+        external_hits_per_source = []
 
     # RRF is rank-based and corpus-agnostic (D-09); the code: id prefix
-    # guarantees no locator collision with memory ids in the dedup (Pitfall 8).
-    fused = MemoryStore._rrf_merge([code_hits, mem_hits], top_k=top_k)
+    # guarantees no locator collision with memory/external ids in the dedup.
+    fused = MemoryStore._rrf_merge([code_hits, mem_hits, *external_hits_per_source], top_k=top_k)
 
     if json_out:
         click.echo(json.dumps({"query": query_str, "hits": [_recall_hit_fields(h) for h in fused]}, indent=2))
