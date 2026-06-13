@@ -19,13 +19,18 @@ from __future__ import annotations
 import os
 from typing import Callable
 
-from voss_runtime.providers import LiteLLMProvider
 from voss_runtime.providers.base import ModelProvider
 
 from . import auth
 from .model_catalog import ModelEntry, ProviderGroup
 
 KeyGetter = Callable[[str], str | None]
+
+
+def _new_litellm_provider(**kwargs) -> ModelProvider:
+    from voss_runtime.providers import LiteLLMProvider
+
+    return LiteLLMProvider(**kwargs)
 
 
 def resolve_key(
@@ -113,9 +118,9 @@ def build_provider_for_model(
     when known, else litellm reads it from the env).
     """
     if entry.api_base:
-        provider = LiteLLMProvider(api_base=entry.api_base, api_key=api_key)
+        provider = _new_litellm_provider(api_base=entry.api_base, api_key=api_key)
     else:
-        provider = LiteLLMProvider(api_key=api_key)
+        provider = _new_litellm_provider(api_key=api_key)
     setattr(provider, "voss_provider_id", entry.provider_id)
     setattr(provider, "voss_provider_label", entry.provider_label)
     setattr(provider, "voss_model_id", entry.id)

@@ -57,11 +57,6 @@ from .voss_inspect import (
     render_decision_sequence,
 )
 
-try:
-    import litellm as _litellm  # type: ignore
-except Exception:  # noqa: BLE001
-    _litellm = None  # type: ignore[assignment]
-
 
 def _bootstrap_runtime_config() -> None:
     """Wire on-disk [agent] config into the RuntimeConfig singleton.
@@ -2405,10 +2400,11 @@ def _run_repl(
     slash_registry = _build_slash_registry()
 
     def _tok_count(text: str) -> int:
-        if _litellm is not None:
+        litellm = sys.modules.get("litellm")
+        if litellm is not None:
             try:
                 return int(
-                    _litellm.token_counter(model=cfg.default_model, text=text)
+                    litellm.token_counter(model=cfg.default_model, text=text)
                 )
             except Exception:  # noqa: BLE001
                 pass
