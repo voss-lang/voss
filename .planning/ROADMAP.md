@@ -2406,15 +2406,17 @@ Plans:
 
 **Origin:** froots.ai/memory teardown (2026-06-12) — their schema admits retrieval metadata + score floor matter; neither product ships the ranking loop yet. Depends on: V19 (shipped — recall surface + manifest patterns). Coordinate with V21 (telemetry/floor/pinning must apply per-store once the global store lands; dual-store RRF already merges per-source).
 
-**Plans (provisional — SPEC locks):** 6 plans · 4 waves (W0 RED scaffold → W1 telemetry ∥ quality floor → W2 rescoring ∥ eviction ∥ reindex/drift → W3 pinned tier).
+**Plans:** 8 plans · 7 waves. memory_store.py is serialized across waves 1-5 (single-file ownership rule); W5 runs V23-06 ∥ V23-07 (disjoint files). W0 RED scaffold → W1 telemetry → W2 floors → W3 rescore → W4 eviction+reindex → W5 pinned tier ∥ CLI verbs → W6 regression lock.
 
 Plans:
-- [ ] V23-01-PLAN.md — Wave-0 RED scaffold: tests/memory/test_retrieval_ranking.py stubs [VRNK-*]
-- [ ] V23-02-PLAN.md — Retrieval telemetry: last_retrieved/retrieval_count at recall + list/show surfacing
-- [ ] V23-03-PLAN.md — Quality floor: per-retriever pre-fusion score floor + neither-top-N drop
-- [ ] V23-04-PLAN.md — Recency × frequency rescore on RRF output (config weights + off-switch)
-- [ ] V23-05-PLAN.md — Retrieval-aware eviction/vacuum order + `voss memory reindex` + mirror drift `--check`
-- [ ] V23-06-PLAN.md — Pinned tier: pin/unpin verbs + always-inject cap + recall bypass
+- [ ] V23-01-PLAN.md — W0 RED scaffold: tests/memory/test_retrieval_ranking.py + conftest bridge [VRNK-01..08]
+- [ ] V23-02-PLAN.md — W1 Retrieval telemetry sidecar (.retrieval.jsonl) + agent-path record point + vacuum compaction [VRNK-01]
+- [ ] V23-03-PLAN.md — W2 Pre-fusion quality floors (chroma 0.25 abs, BM25 0.1 rel-to-top), default-on [VRNK-02]
+- [ ] V23-04-PLAN.md — W3 Recency×frequency rescore on RRF output (default-off, byte-identical off-path) [VRNK-03]
+- [ ] V23-05-PLAN.md — W4 Retrieval-aware eviction + pin primitives + `voss memory reindex` drift gate [VRNK-04, VRNK-05]
+- [ ] V23-06-PLAN.md — W5 Pinned tier: V18-region non-evictable injection, token caps, overflow warn [VRNK-06]
+- [ ] V23-07-PLAN.md — W5 CLI verbs: pin/unpin/list/show/reindex (telemetry + pin columns, --global) [VRNK-07]
+- [ ] V23-08-PLAN.md — W6 Regression + coherence guard: full suites green, byte-identical lock, no schema drift [VRNK-08]
 
 ---
 
