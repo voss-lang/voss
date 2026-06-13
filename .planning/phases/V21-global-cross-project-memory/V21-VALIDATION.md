@@ -3,7 +3,7 @@ phase: V21
 slug: global-cross-project-memory
 status: draft
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-06-11
 ---
 
@@ -42,8 +42,8 @@ Wave structure: V21-01 (Wave 0 scaffold) → V21-02 (Wave 1 store/config) → V2
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| V21-01 T1 | V21-01 | 0 | VGMEM-* infra (tmp_voss_global fixture) | T-V21-01-01 | VOSS_HOME monkeypatched under tmp_path; real ~/.voss untouched | fixture | `pytest tests/harness/conftest.py --collect-only -q` | ❌ W0 | ⬜ pending |
-| V21-01 T2 | V21-01 | 0 | VGMEM-* (all, 17 RED stubs) | T-V21-01-02 | stubs assert Hit fields only; no secrets in fixtures | unit stubs (RED) | `pytest tests/harness/test_memory_global.py --collect-only -q` | ❌ W0 | ⬜ pending |
+| V21-01 T1 | V21-01 | 0 | VGMEM-* infra (tmp_voss_global fixture) | T-V21-01-01 | VOSS_HOME monkeypatched under tmp_path; real ~/.voss untouched | fixture | `pytest tests/harness/conftest.py --collect-only -q` | ✅ W0 | ✅ complete |
+| V21-01 T2 | V21-01 | 0 | VGMEM-* (all, 17 RED stubs) | T-V21-01-02 | stubs assert Hit fields only; no secrets in fixtures | unit stubs (RED) | `pytest tests/harness/test_memory_global.py --collect-only -q` | ✅ W0 | ✅ complete |
 | V21-02 T1 | V21-02 | 1 | VGMEM-01 / D-04 root_override / VOSS_HOME / layout mirror | T-V21-02-01 (VOSS_HOME path traversal) | `Path(voss_home).resolve()` normalizes `..` before `/memory` | unit | `pytest tests/harness/test_memory_global.py -x -k "root_override or voss_home_env or global_layout_mirror"` | ❌ W0 | ⬜ pending |
 | V21-02 T2 | V21-02 | 1 | VGMEM-07 / D-07 off-switch | T-V21-02-03 (init when operator disabled) | `make_global_store()` early-returns None when disabled — no chroma open | unit + config | `pytest tests/harness/test_memory_global.py -x -k "global_off_switch_no_init"` | ❌ W0 | ⬜ pending |
 | V21-03 T1 | V21-03 | 2 | VGMEM-03 / D-01 promote copy + dedup, D-02 source restriction | T-V21-03-01 (locator prefix validation), T-V21-03-02 (file perms), T-V21-03-04 (dedup collision) | reject turn/ledger before store work; chmod 0o600; dedup via promoted_from where-filter; chroma touches None-guarded | unit + CLI subprocess | `pytest tests/harness/test_memory_global.py -x -k "promote"` | ❌ W0 | ⬜ pending |
@@ -60,8 +60,8 @@ Wave structure: V21-01 (Wave 0 scaffold) → V21-02 (Wave 1 store/config) → V2
 
 ## Wave 0 Requirements
 
-- [ ] `tests/harness/test_memory_global.py` — all 17 VGMEM-* test stubs (new file; includes `test_do_cmd_wires_global_store` dispatch pass-through)
-- [ ] `tests/harness/conftest.py` amendment — `tmp_voss_global` fixture (`VOSS_HOME` monkeypatch + 7-subdir layout mirror, mirroring `tmp_voss_repo`)
+- [x] `tests/harness/test_memory_global.py` — all 17 VGMEM-* test stubs (new file; includes `test_do_cmd_wires_global_store` dispatch pass-through)
+- [x] `tests/harness/conftest.py` amendment — `tmp_voss_global` fixture (`VOSS_HOME` monkeypatch + 7-subdir layout mirror, mirroring `tmp_voss_repo`)
 
 **Wave-0 anti-pattern guard (project memory):** stubs MUST target the real planned API (import paths, signatures from plans); never `xfail(strict=False)`; verify imports resolve against planned module paths.
 

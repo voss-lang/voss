@@ -2373,7 +2373,7 @@ Plans:
 **Plans:** 4 plans · 3 waves (W0 RED scaffold; W1 store+config foundation; W2 CLI verbs ∥ recall fusion). Executes ONLY AFTER V19 ships (V21-04 extends the as-built V19-04 recall_cmd).
 
 Plans:
-- [ ] V21-01-PLAN.md — Wave-0 RED scaffold: test_memory_global.py (16 VGMEM stubs) + tmp_voss_global fixture [VGMEM-01..08]
+- [x] V21-01-PLAN.md — Wave-0 RED scaffold: test_memory_global.py (17 VGMEM stubs) + tmp_voss_global fixture [VGMEM-01..08]
 - [ ] V21-02-PLAN.md — Foundation: MemoryStore root_override + _global_memory_root/make_global_store/_repo_id + [memory] off-switch [VGMEM-01, VGMEM-07]
 - [ ] V21-03-PLAN.md — CLI verbs: promote (copy+provenance+dedup+--list) + forget --global + vacuum --global [VGMEM-03, VGMEM-04, VGMEM-05]
 - [ ] V21-04-PLAN.md — Recall fusion: dual-store [global] RRF in agent tool + 3 attach sites + voss recall extension [VGMEM-02, VGMEM-06, VGMEM-08]
