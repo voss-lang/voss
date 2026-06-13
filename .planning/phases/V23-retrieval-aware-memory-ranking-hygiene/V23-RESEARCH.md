@@ -749,19 +749,19 @@ def test_oldest_evicted_first_within_source(tmp_voss_repo):
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Post-V21 global store pin injection site**
+1. **Post-V21 global store pin injection site** — RESOLVED: V23-01 scaffolds a stub xfail (V21-gated); V23-06 implements the project-store path with a D-09 TODO; wire global once V21 merges.
    - What we know: V23's pin block must inject for both project and global stores when V21 lands (D-09); global store's `.pins.json` lives under `~/.voss/memory/.pins.json`
    - What's unclear: V21 plan is not yet executed — the exact call sites where global store recall is fused may differ from the V21-01-PLAN description; the planner must verify post-V21 shape before wiring global pin injection
    - Recommendation: Plan V23-01 (Wave 0 scaffold) with a stub test for global pin injection; wire it in the last wave once V21 code is merged
 
-2. **Vacuum compaction of `.retrieval.jsonl` — fold strategy**
+2. **Vacuum compaction of `.retrieval.jsonl` — fold strategy** — RESOLVED: V23-02 implements it as the fourth `vacuum()` pass (count summation + max timestamp).
    - What we know: D-15 says "count summation + max timestamp" is the fold output (Claude's discretion)
    - What's unclear: Whether vacuum compaction should run as a separate pass or piggyback on the existing `vacuum()` method's three-pass structure
    - Recommendation: Piggyback on `vacuum()` as a fourth pass (after chroma tombstone delete, before tombstone truncation) using the same lock pattern as `_vacuum_jsonl`
 
-3. **`voss memory list` output format for the no-memory-store case**
+3. **`voss memory list` output format for the no-memory-store case** — RESOLVED: V23-07 returns an empty list when no pins exist; exit 1 only on missing store root.
    - What we know: Existing CLI verbs exit 1 if `store.root` doesn't exist
    - What's unclear: Should `list --pinned` return empty vs exit 1 when no `.pins.json` exists (but store does exist)?
    - Recommendation: Empty list is correct — no pins ≠ store error. Only exit 1 on missing store root.
