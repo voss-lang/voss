@@ -130,7 +130,9 @@ class b_passes:
         if ctx.reviewer_b is None:
             return False
         if ctx.verdict_b is None:
-            ctx.verdict_b = ctx.reviewer_b.review(ctx.card)
+            # b_passes lives only in the Done tuples — strong tier per the
+            # verdict.py contract: B.fast intermediate, B.strong at ->Done.
+            ctx.verdict_b = ctx.reviewer_b.review(ctx.card, tier="strong")
         return ctx.verdict_b.verdict == "pass"
 
 
