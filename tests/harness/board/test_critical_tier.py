@@ -150,3 +150,57 @@ async def test_critical_pending_skips_ab_spend(tmp_recorder):
     with pytest.raises(BoardGateError):
         board.move(card, to="Done")
     assert CountingStub.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_team_approve_cli_unlocks_done(tmp_recorder):
+    import click
+    from click.testing import CliRunner
+
+    from voss.harness import cli as harness_cli
+
+    manager, cwd = tmp_recorder
+    board = _passing_board(manager, cwd)
+    card = await _to_inreview(board, risk_tier="critical")
+
+    root = click.Group("voss")
+    harness_cli.register(root)
+    res = CliRunner().invoke(
+        root,
+        ["team", "approve", card.node_id, "--note", "ok", "--cwd", str(cwd)],
+    )
+    assert res.exit_code == 0, res.output
+    assert "approved" in res.output
+
+    card = board.move(card, to="Done")
+    assert card.column == "Done"
+
+
+def test_board_view_marks_pending_human(tmp_path, capsys):
+    import json as json_lib
+
+    from voss.harness.board.cli_view import render_board
+
+    root_dir = tmp_path / ".voss" / "sessions" / "rootabc"
+    root_dir.mkdir(parents=True)
+    (root_dir / "n1.json").write_text(json_lib.dumps({
+        "id": "n1",
+        "root_id": "rootabc",
+        "transitions": [
+            {"kind": "em.ticket", "risk_tier": "critical"},
+            {"kind": "board.transition", "to": "InReview", "outcome": "passed"},
+        ],
+        "envelope": {"spent": 0, "limit": 100},
+        "terminal_state": None,
+    }))
+    rc = render_board(tmp_path, root_id="rootabc")
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "[PENDING HUMAN]" in out
+
+    # Approval clears the marker.
+    from voss.harness.board.machine import write_human_approval
+
+    write_human_approval(tmp_path, "rootabc", "n1", decision="approved")
+    render_board(tmp_path, root_id="rootabc")
+    assert "[PENDING HUMAN]" not in capsys.readouterr().out

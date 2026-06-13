@@ -4538,6 +4538,48 @@ def _enforce_signoff_ack(
     )
 
 
+@team_group.command("approve")
+@click.argument("card_id")
+@click.option("--reject", is_flag=True, default=False, help="Record a rejection instead.")
+@click.option("--note", default="", help="Operator note stored on the record.")
+@click.option("--root", "root_id", default=None, help="Session root id (default: most recent).")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+def team_approve_cmd(
+    card_id: str, reject: bool, note: str, root_id: str | None, cwd_str: str
+) -> None:
+    """Record the operator decision for a critical-tier card (VRES-04).
+
+    Writes the approval/rejection sidecar that the 'human' Done clause
+    reads — the only thing that can move a critical card past pending-human.
+    """
+    from voss.harness.board.machine import write_human_approval
+
+    cwd = Path(cwd_str).resolve()
+    sessions_dir = cwd / ".voss" / "sessions"
+    # Same traversal guards as cli_view.render_board.
+    for value, label in ((card_id, "card_id"), (root_id or "", "root_id")):
+        if "/" in value or "\\" in value or ".." in value:
+            click.echo(f"<error: invalid {label} {value!r}>", err=True)
+            raise click.exceptions.Exit(1)
+    if root_id is None:
+        root_dirs = sorted(
+            (d for d in sessions_dir.iterdir() if d.is_dir()),
+            key=lambda d: d.stat().st_mtime,
+            reverse=True,
+        ) if sessions_dir.is_dir() else []
+        if not root_dirs:
+            click.echo(f"<error: no session roots under {sessions_dir}>", err=True)
+            raise click.exceptions.Exit(1)
+        root_id = root_dirs[0].name
+    elif not (sessions_dir / root_id).is_dir():
+        click.echo(f"<error: unknown root {root_id!r}>", err=True)
+        raise click.exceptions.Exit(1)
+    decision = "rejected" if reject else "approved"
+    path = write_human_approval(cwd, root_id, card_id, decision=decision, note=note)
+    click.echo(f"{card_id}: {decision} (root {root_id})")
+    click.echo(f"recorded: {path}")
+
+
 @team_group.command("run")
 @click.argument("goal")
 @click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
