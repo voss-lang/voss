@@ -30,6 +30,7 @@ _TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
 # existing section (verified — only harness/agent/eval/tools/net.rate_limits/
 # model_tiers exist).
 _CONTEXT_BLOCK = re.compile(r"^\[context\][^\[]*", re.MULTILINE)
+_MEMORY_BLOCK = re.compile(r"^\[memory\][^\[]*", re.MULTILINE)
 # T3-04: PITFALL 6 — escape the dot. Un-escaped `r"^\[net.rate_limits\]"`
 # also matches `[netXrate_limits]` (any single char), corrupting the
 # bucket config. The escape is load-bearing.
@@ -95,6 +96,20 @@ def _parse_context_section(text: str) -> dict[str, str]:
     """Return `[context]` keys. Numbers/booleans are bare (_KV_BARE);
     quoted strings also accepted (_KV wins on collision)."""
     m = _CONTEXT_BLOCK.search(text)
+    if not m:
+        return {}
+    block = m.group(0)
+    out: dict[str, str] = {}
+    for k, v in _KV.findall(block):
+        out[k] = v
+    for k, v in _KV_BARE.findall(block):
+        out.setdefault(k, v)
+    return out
+
+
+def _parse_memory_section(text: str) -> dict[str, str]:
+    """Return `[memory]` keys, including bare booleans like global=false."""
+    m = _MEMORY_BLOCK.search(text)
     if not m:
         return {}
     block = m.group(0)
@@ -317,6 +332,31 @@ def get_code_recall_config() -> dict:
         return merged
     merged.update(_parse_code_recall_section(text))
     return merged
+
+
+def get_global_memory_enabled() -> bool:
+    """Return True unless config.toml sets `[memory] global = false`."""
+    p = config_path()
+    if not p.exists():
+        return True
+    try:
+        text = p.read_text()
+    except OSError:
+        return True
+    raw = _parse_memory_section(text).get("global")
+    if raw is None:
+        return True
+    normalized = raw.strip().lower()
+    if normalized == "false":
+        return False
+    if normalized == "true":
+        return True
+    warnings.warn(
+        f"[memory] global = {raw!r} is not a boolean; defaulting to enabled",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    return True
 
 
 def get_max_iterations() -> int:
