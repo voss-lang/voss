@@ -2391,7 +2391,7 @@ Plans:
 **Plans:** 5 plans · 5 waves (W0 RED scaffold + fixture vault; W1 config+chunker; W2 index engine+daemon; W3 voss recall fan-out; W4 agent-tool fan-out + golden gate). Direct port of V19 CodeIndex with heading-boundary chunking. cli.py/tools.py/config.py serialized across waves.
 
 Plans:
-- [ ] V22-01-PLAN.md — Wave-0 RED scaffold: recall package skeleton + 8 test files (23 VXMEM tests) + committed fixture vault [VXMEM-01..08]
+- [x] V22-01-PLAN.md — Wave-0 RED scaffold: recall package skeleton + 8 test files (23 VXMEM tests) + committed fixture vault [VXMEM-01..08]
 - [ ] V22-02-PLAN.md — config get_recall_sources() (tomllib) + extract_md_chunks() heading-boundary chunker [VXMEM-01, VXMEM-02, VXMEM-04]
 - [ ] V22-03-PLAN.md — ExternalSourceIndex (incremental per-source) + ExternalRecallService daemon (read-only, degrade-until-ready) [VXMEM-03, VXMEM-05, VXMEM-06]
 - [ ] V22-04-PLAN.md — voss recall fan-out + _recall_hit_fields source passthrough + --refresh rebuild [VXMEM-07]
