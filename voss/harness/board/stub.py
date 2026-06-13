@@ -21,11 +21,13 @@ class DeterministicReviewerStub:
     tier: str = "strong"
     source: str = "B"
 
-    def review(self, card: object) -> ReviewerVerdict:
+    def review(self, card: object, *, tier: str | None = None) -> ReviewerVerdict:
+        # VRES-05: echo an explicitly passed tier for observability; no-tier
+        # calls keep the configured tier (zero churn for existing callers).
         return ReviewerVerdict(
             conf=self.conf,
             source=self.source,       # type: ignore[arg-type]
-            tier=self.tier,           # type: ignore[arg-type]
+            tier=tier or self.tier,   # type: ignore[arg-type]
             verdict=self.verdict,     # type: ignore[arg-type]
             notes="(deterministic stub)",
             evidence_refs=(),

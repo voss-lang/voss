@@ -41,5 +41,10 @@ class Reviewer(Protocol):
     O3 ships DeterministicReviewerStub in stub.py (planned in O3-03); O4 will
     ship Reviewer A + Reviewer B production impls. `card` is typed as `object`
     to keep this module zero-deps; concrete impls may use stricter typing.
+
+    `tier` is keyword-only and defaulted so pre-V20 callers are unchanged;
+    the Done gate passes tier="strong" per the tier contract above (VRES-05).
     """
-    def review(self, card: object) -> ReviewerVerdict: ...
+    def review(
+        self, card: object, *, tier: Literal["fast", "strong"] = "fast"
+    ) -> ReviewerVerdict: ...
