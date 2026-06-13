@@ -190,4 +190,5 @@ class TestToolEntryClassification:
         # M11-02 adds voss_probable_inspect + voss_budget_trace.
         # M11-04 adds voss_py_diff.
         # M14 adds fs_watch + fs_watch_poll.
-        assert sum(1 for e in tools.values() if not e.is_mutating) == 19
+        # V19-03 adds code_recall (0aad3907).
+        assert sum(1 for e in tools.values() if not e.is_mutating) == 20

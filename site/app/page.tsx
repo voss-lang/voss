@@ -9,6 +9,7 @@ import CliShowcase from "@/components/CliShowcase";
 import CommandList from "@/components/CommandList";
 import InstallTabs from "@/components/InstallTabs";
 import Footer from "@/components/Footer";
+import TrackedIntentLink from "@/components/TrackedIntentLink";
 import { site } from "@/lib/site";
 
 export const metadata = pageMetadata({
@@ -52,12 +53,13 @@ function ProductTeaser() {
               evidence.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link
+              <TrackedIntentLink
                 href="/audit"
+                analyticsTarget="audit"
                 className="rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--background)] transition hover:opacity-90"
               >
                 See the audit
-              </Link>
+              </TrackedIntentLink>
               <Link
                 href="/ade"
                 className="rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition hover:border-[var(--accent)]"

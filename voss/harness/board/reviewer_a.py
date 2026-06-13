@@ -134,11 +134,12 @@ class ReviewerA:
         # Validate gate compatibility at construction time.
         self._gate = gate_for_role(self._spec, base_gate)
 
-    def review(self, card: object) -> ReviewerVerdict:
+    def review(self, card: object, *, tier: str = "fast") -> ReviewerVerdict:
         """Produce a ReviewerVerdict by authoring and running verification.
 
         Sync (matches Reviewer Protocol). Bridges async internals via
-        thread-pool executor when event loop is running.
+        thread-pool executor when event loop is running. `tier` is accepted
+        for Protocol compatibility (VRES-05) and ignored — A has no tiers.
         """
         coro = self._review_async(card)
         try:

@@ -142,6 +142,7 @@ def render_board(cwd: Path, root_id: str | None = None) -> int:
             "status": column,
             "spent": envelope.get("spent", 0),
             "limit": envelope.get("limit", 0),
+            "pending_human": _pending_human(root_dir, data["id"], _derive_risk(data), column),
         }
         columns.setdefault(column, []).append(card)
 
@@ -150,8 +151,21 @@ def render_board(cwd: Path, root_id: str | None = None) -> int:
         cards = columns.get(col, [])
         click.echo(f"\n{col} ({len(cards)})")
         for c in cards:
+            marker = "  [PENDING HUMAN]" if c["pending_human"] else ""
             click.echo(
                 f"  {c['id']:<16}  {c['role']:<10}  {c['risk']:<5}  "
-                f"{c['status']:<11}  {c['spent']}/{c['limit']}"
+                f"{c['status']:<11}  {c['spent']}/{c['limit']}{marker}"
             )
     return 0
+
+
+def _pending_human(root_dir: Path, card_id: str, risk: str, column: str) -> bool:
+    """V20 VRES-04: critical card in InReview with no operator approval yet."""
+    if risk != "critical" or column != "InReview":
+        return False
+    approval = root_dir / "approvals" / f"{card_id}.json"
+    try:
+        data = json.loads(approval.read_text())
+    except (OSError, ValueError):
+        return True  # no record → waiting on the operator
+    return (data.get("decision") if isinstance(data, dict) else None) != "approved"

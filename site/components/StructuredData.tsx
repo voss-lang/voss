@@ -1,15 +1,28 @@
 import { site } from "@/lib/site";
 
+const organizationId = `${site.url}/#organization`;
+const websiteId = `${site.url}/#website`;
+const npmPackageUrl = "https://www.npmjs.com/package/@vosslang/cli";
+const softwareVersion = "0.1.0";
+
 const structuredData = {
   "@context": "https://schema.org",
   "@graph": [
     {
       "@type": "Organization",
-      "@id": `${site.url}/#organization`,
+      "@id": organizationId,
       name: site.name,
       url: site.url,
       logo: `${site.url}/icon.png`,
       sameAs: [site.repoUrl],
+    },
+    {
+      "@type": "WebSite",
+      "@id": websiteId,
+      name: site.name,
+      url: site.url,
+      description: site.description,
+      publisher: { "@id": organizationId },
     },
     {
       "@type": "SoftwareApplication",
@@ -24,7 +37,10 @@ const structuredData = {
         price: "0",
         priceCurrency: "USD",
       },
-      publisher: { "@id": `${site.url}/#organization` },
+      installUrl: npmPackageUrl,
+      screenshot: `${site.url}/og.png`,
+      softwareVersion,
+      publisher: { "@id": organizationId },
       sameAs: [site.repoUrl],
     },
   ],

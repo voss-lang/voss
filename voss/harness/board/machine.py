@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -36,6 +37,7 @@ from .gates import (
     b_passes,
     conf_meets_p,
     eval_meets_threshold,
+    human_approved,
     scope_clean,
 )
 from .verdict import Reviewer, ReviewerVerdict
@@ -49,7 +51,7 @@ from .review_persistence import _write_review_sidecar
 Column = Literal[
     "Backlog", "Planned", "InProgress", "InReview", "Blocked", "Done"
 ]
-RiskTier = Literal["low", "med", "high"]
+RiskTier = Literal["low", "med", "high", "critical"]
 
 _COLUMNS: tuple[str, ...] = (
     "Backlog", "Planned", "InProgress", "InReview", "Blocked", "Done",
@@ -61,6 +63,9 @@ _DEFAULT_RISK_THRESHOLDS: dict[str, float] = {
     "low": 0.60,
     "med": 0.80,
     "high": 0.95,
+    # V20 VRES-04: confidence threshold only — Done additionally requires an
+    # explicit human approval record (human_approved gate predicate).
+    "critical": 0.99,
 }
 
 _DEFAULT_WIP: dict[str, Optional[int]] = {
@@ -105,6 +110,53 @@ class Card:
 def card_status(card: "Card") -> str:
     """Status derives from current column (VBOARD-03). Not a stored field."""
     return card.column
+
+
+# ---------------------------------------------------------------------------
+# V20 VRES-04: human approval records for critical-tier cards
+# ---------------------------------------------------------------------------
+
+def _human_approval_path(cwd: Path, root_id: str, card_id: str) -> Path:
+    return cwd / ".voss" / "sessions" / root_id / "approvals" / f"{card_id}.json"
+
+
+def write_human_approval(
+    cwd: Path,
+    root_id: str,
+    card_id: str,
+    *,
+    decision: str,
+    note: str = "",
+) -> Path:
+    """Record an operator approve/reject for a critical-tier card.
+
+    Governance sidecar alongside the run (mirrors _write_signoff_ack's
+    mkdir+write+chmod pattern in harness/cli.py) — never a mutation of node
+    JSON. This record is the ONLY thing that can clear the 'human' Done
+    clause; no agent verdict writes it.
+    """
+    if decision not in ("approved", "rejected"):
+        raise ValueError(f"decision must be approved|rejected, got {decision!r}")
+    path = _human_approval_path(cwd, root_id, card_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "card_id": card_id,
+        "decision": decision,
+        "note": note,
+    }, indent=2))
+    path.chmod(0o600)
+    return path
+
+
+def read_human_decision(cwd: Path, root_id: str, card_id: str) -> Optional[str]:
+    """Best-effort read of the approval sidecar: 'approved' | 'rejected' | None."""
+    try:
+        data = json.loads(_human_approval_path(cwd, root_id, card_id).read_text())
+    except (OSError, ValueError):
+        return None
+    decision = data.get("decision") if isinstance(data, dict) else None
+    return decision if decision in ("approved", "rejected") else None
 
 
 def card_budget(node_envelope: dict) -> tuple[int, int]:
@@ -416,6 +468,7 @@ class Board:
                     card.artifact, "tests_passed"
                 ):
                     predicates = (
+                        human_approved(),
                         scope_clean(),
                         a_verification_passes(),
                         b_passes(),
@@ -424,6 +477,15 @@ class Board:
             node = self._manager.get_node(card.node_id)
             if node is None:
                 raise BoardGateError("card node missing", failing_clauses=["scope"])
+            # V20 (VRES-04): hydrate the operator decision for the Done gate;
+            # an explicit rejection is terminal (NOT a resumable refusal).
+            human_decision = None
+            if transition == ("InReview", "Done") and card.risk_tier == "critical":
+                human_decision = read_human_decision(
+                    self._cwd, self._manager._root.id, card.node_id
+                )
+                if human_decision == "rejected":
+                    return self._force_terminal(card, reason="pending_human_rejected")
             ctx = GateContext(
                 card=card,
                 node_envelope=dict(node.envelope),
@@ -435,12 +497,17 @@ class Board:
                 reviewer=self._reviewer,
                 reviewer_a=self._reviewer_a,
                 reviewer_b=self._reviewer_b,
+                human_decision=human_decision,
             )
             failing: list[str] = []
             for p in predicates:
                 if not p.evaluate(ctx):
                     if p.name not in failing:
                         failing.append(p.name)
+                    if p.name == "human":
+                        # V20 (VRES-04) gate-before-spend: do not pay A/B
+                        # reviews while the card waits on its operator.
+                        break
             # Snapshot whichever verdict the evaluated predicates produced:
             # ctx.verdict at the intermediate (conf) gate; verdict_b/verdict_a
             # at the two-source Done gate.
@@ -515,12 +582,18 @@ class Board:
                 card.artifact, "tests_passed"
             ):
                 predicates = (
+                    human_approved(),
                     scope_clean(),
                     a_verification_passes(),
                     b_passes(),
                     eval_meets_threshold(),
                 )
         node = self._manager.get_node(card.node_id)
+        human_decision = None
+        if transition == ("InReview", "Done") and card.risk_tier == "critical":
+            human_decision = read_human_decision(
+                self._cwd, self._manager._root.id, card.node_id
+            )
         ctx = GateContext(
             card=card,
             node_envelope=dict(node.envelope) if node else {"limit": 0, "spent": 0},
@@ -532,12 +605,15 @@ class Board:
             reviewer=self._reviewer,
             reviewer_a=self._reviewer_a,
             reviewer_b=self._reviewer_b,
+            human_decision=human_decision,
         )
         failing: list[str] = []
         for p in predicates:
             if not p.evaluate(ctx):
                 if p.name not in failing:
                     failing.append(p.name)
+                if p.name == "human":
+                    break  # V20 (VRES-04): same gate-before-spend as move
         return (not failing, failing)
 
     def _append_delta(

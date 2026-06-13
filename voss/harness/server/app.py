@@ -289,7 +289,14 @@ def create_app(token: str | None = None) -> FastAPI:
     @app.post("/session", status_code=201)
     def create_session(body: CreateSessionBody) -> dict:
         cwd = Path(body.cwd or ".").resolve()
-        res, provider = _resolve_provider(body.auth)
+        # Serve-owner session defaults (E4): SDK clients post only {cwd} — the
+        # public createSession surfaces carry no auth/model. The process that
+        # spawns `voss serve` may pin defaults via env; an explicit body value
+        # always wins.
+        auth_pref = body.auth
+        if auth_pref == "auto":
+            auth_pref = os.environ.get("VOSS_SERVE_DEFAULT_AUTH", "auto")
+        res, provider = _resolve_provider(auth_pref)
         if provider is None:
             raise HTTPException(400, f"no usable credentials ({res.detail})")
         if body.resume:
@@ -307,7 +314,11 @@ def create_app(token: str | None = None) -> FastAPI:
                 prior_context=record.runs or None,
             )
             return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
-        model = body.model or get_config().default_model
+        model = (
+            body.model
+            or os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
+            or get_config().default_model
+        )
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
         return {"v": 1, "id": s.id, "auth": res.source, "resumed": False}
 

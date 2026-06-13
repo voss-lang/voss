@@ -12,22 +12,26 @@ export const site = {
   name: "Voss",
   tagline: "A local control plane for coding agents.",
   description:
-    "Voss gives coding agents a local control plane: scoped tools, code-aware recall, visible live work, approval gates, independent review, and a replayable audit.",
+    "Voss gives local agent runs scoped tools, reusable project memory, approval gates, independent review, and an audit trail you can replay before you trust the result.",
   /** Canonical marketing origin (metadataBase, sitemap, robots, llms.txt). */
-  url: "https://voss.dev",
+  url: "https://www.tryvoss.dev",
   /** Static marketing routes (trailing slash applied in sitemap). */
   routes: [
     "",
     "/harness",
     "/ade",
     "/language",
+    "/about",
+    "/contact",
     "/security",
+    "/privacy",
+    "/disclosure",
     "/roadmap",
     "/orchestration",
     "/audit",
   ] as const,
-  repoUrl: "https://github.com/bm9797/Voss",
-  prdUrl: "https://github.com/bm9797/Voss/blob/main/PRD.md",
+  repoUrl: "https://github.com/voss-lang/voss",
+  prdUrl: "https://github.com/voss-lang/voss/blob/master/PRD.md",
   // Public Mintlify docs (repo voss-lang/voss, site/docs, branch master).
   docsUrl: "https://docs.tryvoss.dev",
   install: {

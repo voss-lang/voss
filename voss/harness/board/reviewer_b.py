@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -49,6 +50,41 @@ REVIEWER_B_SYSTEM = render_package_template(
     "templates/prompts/reviewer_b_system.txt.jinja",
     {},
 )
+
+# VRES-05 repo-context caps: strong tier pays for this once per ->Done.
+REPO_CONTEXT_MAX_LINES_PER_FILE = 200
+REPO_CONTEXT_MAX_CHARS = 8_000
+
+_DIFF_FILE_RE = re.compile(r"^\+\+\+ b/(.+)$", re.MULTILINE)
+
+
+def build_repo_context(cwd: Path, file_diff: str) -> str:
+    """Current on-disk source for each file named in `file_diff`, capped.
+
+    Best-effort population helper for the card's repo_context attribute —
+    callers assembling the artifact/file_diff run this; ReviewerB itself
+    never reads the filesystem. Missing/unreadable files are skipped.
+    """
+    if not file_diff:
+        return ""
+    sections: list[str] = []
+    total = 0
+    for rel in _DIFF_FILE_RE.findall(file_diff):
+        path = Path(cwd) / rel
+        try:
+            lines = path.read_text().splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        body = "\n".join(lines[:REPO_CONTEXT_MAX_LINES_PER_FILE])
+        section = f"### {rel}\n{body}"
+        if total + len(section) > REPO_CONTEXT_MAX_CHARS:
+            section = section[: REPO_CONTEXT_MAX_CHARS - total]
+            if section:
+                sections.append(section)
+            break
+        sections.append(section)
+        total += len(section)
+    return "\n\n".join(sections)
 
 
 class ReviewerB:
@@ -94,6 +130,10 @@ class ReviewerB:
         artifact_text = getattr(card, "artifact_text", "") or str(getattr(card, "artifact", "") or "")
         file_diff = getattr(card, "file_diff", "") or ""
         a_verification = getattr(card, "a_verification_summary", "") or ""
+        # VRES-05: pre-existing source for files the diff touches. Card
+        # attribute only — populated upstream via build_repo_context, B never
+        # touches the filesystem (isolation guarantee intact).
+        repo_context = getattr(card, "repo_context", "") or ""
 
         user_msg = (
             f"## Original Idea\n{original_idea}\n\n"
@@ -102,6 +142,11 @@ class ReviewerB:
             f"## File Diff\n{file_diff}\n\n"
             f"## Reviewer-A Verification Summary\n{a_verification}\n"
         )
+        if repo_context:
+            user_msg += (
+                "\n## Repo Context (current source of files touched by the diff)\n"
+                f"{repo_context}\n"
+            )
 
         # Prompt resolved at load time so a project copy under .voss/prompts/
         # is honored; absent copy is byte-identical to REVIEWER_B_SYSTEM (R5).

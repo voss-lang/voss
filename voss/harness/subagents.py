@@ -169,8 +169,61 @@ def register_agent_files(registry: SubagentRegistry, cwd: Path) -> int:
     return count
 
 
-def agent_task(spec: SubagentSpec, task: str) -> str:
-    return f"Subagent role:\n{spec.role_prompt}\n\nTask:\n{task}"
+@dataclass(frozen=True)
+class SiblingLine:
+    """One in-flight sibling card: who is on it and what they are doing."""
+
+    role_id: str
+    task_summary: str
+
+
+@dataclass(frozen=True)
+class ScopeLine:
+    """File patterns already claimed by another agent."""
+
+    owner_agent: str
+    patterns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MissionBrief:
+    """Dispatch-time context for a worker (V20 VRES-03).
+
+    Read-only reduction of sources that already exist at dispatch — the EM
+    ticket table (outcome, siblings) and the claims DB (claimed scopes).
+    Rendering is deterministic (sorted) because worker prompts feed
+    hashing/parity checks elsewhere.
+    """
+
+    outcome: str = ""
+    siblings: tuple[SiblingLine, ...] = ()
+    claimed_scopes: tuple[ScopeLine, ...] = ()
+
+    def render(self) -> str:
+        sections: list[str] = []
+        if self.outcome:
+            sections.append(f"## Outcome\n{self.outcome}")
+        if self.siblings:
+            lines = "\n".join(
+                f"- {s.role_id}: {s.task_summary}"
+                for s in sorted(self.siblings, key=lambda s: (s.role_id, s.task_summary))
+            )
+            sections.append(f"## Siblings (do not duplicate their work)\n{lines}")
+        if self.claimed_scopes:
+            lines = "\n".join(
+                f"- {s.owner_agent}: {', '.join(s.patterns)}"
+                for s in sorted(self.claimed_scopes, key=lambda s: s.owner_agent)
+            )
+            sections.append(f"## Claimed scopes (do not touch)\n{lines}")
+        return "\n\n".join(sections)
+
+
+def agent_task(spec: SubagentSpec, task: str, *, brief: MissionBrief | None = None) -> str:
+    base = f"Subagent role:\n{spec.role_prompt}\n\nTask:\n{task}"
+    if brief is None:
+        return base
+    rendered = brief.render()
+    return f"{base}\n\n{rendered}" if rendered else base
 
 
 _JSON_FENCE = _re.compile(r"```(?:json)?\s*(.*?)```", _re.DOTALL)
@@ -222,6 +275,7 @@ async def run_subagent(
     cognition: Any = None,
     node: SessionTreeNode | None = None,
     reserve: int = 0,
+    brief: MissionBrief | None = None,
 ) -> str:
     spec = registry.get(agent_id)
     if spec is None:
@@ -249,7 +303,7 @@ async def run_subagent(
         async with scope:
             if node is not None:
                 result = await run_turn(
-                    agent_task(spec, task),
+                    agent_task(spec, task, brief=brief),
                     tools=child_tools,
                     cwd=cwd,
                     renderer=renderer,
@@ -262,7 +316,7 @@ async def run_subagent(
                 )
             else:
                 result = await run_turn(
-                    agent_task(spec, task),
+                    agent_task(spec, task, brief=brief),
                     tools=child_tools,
                     cwd=cwd,
                     renderer=renderer,

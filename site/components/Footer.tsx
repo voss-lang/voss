@@ -1,13 +1,18 @@
 import Link from "next/link";
 import TrackedOutboundLink from "@/components/TrackedOutboundLink";
+import TrackedIntentLink from "@/components/TrackedIntentLink";
 import {
   ArrowUpRight,
   BookOpenText,
   Code2,
+  FileLock2,
   GitBranch,
+  Info,
   Layers3,
+  Mail,
   Map,
   ScrollText,
+  ShieldAlert,
   ShieldCheck,
   TerminalSquare,
   Workflow,
@@ -51,10 +56,10 @@ export default function Footer() {
                 </Link>
               </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
-                <Link href="/audit">
+                <TrackedIntentLink href="/audit" analyticsTarget="audit">
                   <ScrollText />
                   Audit
-                </Link>
+                </TrackedIntentLink>
               </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
                 <Link href="/ade">
@@ -86,9 +91,33 @@ export default function Footer() {
             <h2 className="font-mono text-sm uppercase tracking-widest text-[var(--foreground)]">Trust</h2>
             <div className="mt-4 flex flex-col items-start gap-2">
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/about">
+                  <Info />
+                  About
+                </Link>
+              </Button>
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/contact">
+                  <Mail />
+                  Contact
+                </Link>
+              </Button>
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
                 <Link href="/security">
                   <ShieldCheck />
                   Security
+                </Link>
+              </Button>
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/privacy">
+                  <FileLock2 />
+                  Privacy
+                </Link>
+              </Button>
+              <Button asChild variant="link" className="h-auto px-0 py-1 text-base">
+                <Link href="/disclosure">
+                  <ShieldAlert />
+                  Disclosure
                 </Link>
               </Button>
               <Button asChild variant="link" className="h-auto px-0 py-1 text-base">

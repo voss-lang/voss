@@ -105,6 +105,17 @@ def tmp_voss_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def tmp_voss_global(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A tmp global memory root with VOSS_HOME monkeypatched."""
+    global_home = tmp_path / "global_home" / "voss"
+    monkeypatch.setenv("VOSS_HOME", str(global_home))
+    mem = global_home / "memory"
+    for sub in ("turns", "ledgers", "decisions", "conventions", "notes", "chroma", ".locks"):
+        (mem / sub).mkdir(parents=True, exist_ok=True)
+    return mem
+
+
+@pytest.fixture
 def pre_m8_architecture_md(tmp_voss_repo: Path) -> Path:
     """Write a realistic pre-migration .voss/architecture.md.
 

@@ -22,7 +22,7 @@ site/
 │   └── globals.css         # Tailwind + accent CSS variables
 ├── components/
 │   ├── Nav.tsx             # Wordmark + nav
-│   ├── Hero.tsx            # H1, install snippet, PRD CTA
+│   ├── Hero.tsx            # H1, install snippet, audit CTA
 │   ├── FeatureGrid.tsx     # 5 first-class constructs
 │   ├── CliShowcase.tsx     # Server: shiki-render examples
 │   ├── CliShowcaseTabs.tsx # Client: tab switcher
@@ -67,7 +67,18 @@ cd site
 npm run docs:dev
 ```
 
-The marketing site points Docs links at `site.docsUrl` in `lib/site.ts` (`https://docs.voss.dev` by default).
+The marketing site points Docs links at `site.docsUrl` in `lib/site.ts` (`https://docs.tryvoss.dev` by default).
+
+## Analytics
+
+PostHog capture stays opted out by default until the consent banner is accepted. Stable intent events:
+
+- `install_intent` — install command copied
+- `docs_intent` — docs CTA clicked
+- `audit_intent` — audit-trail CTA clicked
+- `github_intent` — GitHub CTA clicked
+
+Legacy support events remain: `outbound_click` and `copy_install_command`.
 
 ## Build
 
@@ -94,10 +105,10 @@ npm run docs:a11y
 
 - Docs root directory: `site/docs`
 - Config file: `site/docs/docs.json`
-- Intended public URL: `https://docs.voss.dev`
+- Intended public URL: `https://docs.tryvoss.dev`
 - Keep docs deployment separate from the Next static export.
 
 ## Open items
 
-- Docs domain wiring — `site.docsUrl` currently points to `https://docs.voss.dev`
+- Docs domain wiring — `site.docsUrl` currently points to `https://docs.tryvoss.dev`
 - Replace `examples/raw_python/*.py` snippets in `content/cli-examples.ts` with `.voss` source once the compiler ships

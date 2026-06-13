@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import fnmatch
+import hashlib
 import json
 import os
 import re
@@ -65,6 +66,40 @@ def make_id(source: str, locator: str, seq: int | None = None) -> str:
     return f"{source}:{locator}:{seq:03d}"
 
 
+def _repo_id(cwd: Path) -> str:
+    """Stable, human-readable repo identifier for provenance metadata."""
+    resolved = cwd.resolve()
+    digest = hashlib.sha256(str(resolved).encode()).hexdigest()[:8]
+    return f"{resolved.name}-{digest}"
+
+
+def _global_memory_root() -> Path | None:
+    """Resolve global memory root; return None when HOME is unavailable."""
+    voss_home = os.environ.get("VOSS_HOME")
+    if voss_home:
+        return Path(voss_home).resolve() / "memory"
+    try:
+        return Path.home() / ".voss" / "memory"
+    except RuntimeError:
+        return None
+
+
+def make_global_store() -> "MemoryStore | None":
+    """Create the global MemoryStore when enabled and resolvable."""
+    from voss.harness.config import get_global_memory_enabled
+
+    try:
+        home = Path.home()
+    except RuntimeError:
+        return None
+    if not get_global_memory_enabled():
+        return None
+    root = _global_memory_root()
+    if root is None:
+        return None
+    return MemoryStore(home, root_override=root)
+
+
 def _bm25_tokenize(text: str) -> list[str]:
     """Tokenize memory text for lexical recall, including code-like symbols."""
     spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
@@ -74,10 +109,16 @@ def _bm25_tokenize(text: str) -> list[str]:
 
 
 class MemoryStore:
-    def __init__(self, cwd: Path, *, cap_bytes: int = DEFAULT_CAP_BYTES) -> None:
+    def __init__(
+        self,
+        cwd: Path,
+        *,
+        cap_bytes: int = DEFAULT_CAP_BYTES,
+        root_override: Path | None = None,
+    ) -> None:
         self.cwd = cwd
         self.cap_bytes = cap_bytes
-        self.root = cwd / ".voss" / "memory"
+        self.root = root_override if root_override is not None else cwd / ".voss" / "memory"
         self._chroma: Optional[SemanticMemory] = None
         self._chroma_unavailable = False
         self._size_cache: dict[str, int] = {}
