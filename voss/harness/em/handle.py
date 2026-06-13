@@ -25,7 +25,14 @@ from voss.harness.session_tree import (
     _write_node_file,
     finalize_node,
 )
-from voss.harness.subagents import SubagentRegistry, SubagentSpec
+from voss.harness.subagents import (
+    MissionBrief,
+    ScopeLine,
+    SiblingLine,
+    SubagentRegistry,
+    SubagentSpec,
+    agent_task,
+)
 from voss.harness.team import (
     TeamConfig,
     TeamRoleScope,
@@ -65,6 +72,8 @@ class _NodeAudit:
     routing_rationales: list = field(default_factory=list)
     kill_record: Optional[KillRecord] = None
     rescope_record: Optional[RescopeRecord] = None
+    # V20 VRES-03: full worker prompt assembled at dispatch (additive).
+    dispatched_prompt: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +129,68 @@ class EMBoardHandle:
     def _derive_role_gate(self, role_id: str) -> PermissionGate:
         """Derive per-role gate via registry lookup + gate_for_role (dispatch_card path)."""
         return gate_for_role(self._role_spec(role_id), self._base_gate)
+
+    def _read_claimed_scopes(self) -> tuple[ScopeLine, ...]:
+        """Active claims grouped by agent (VRES-03). Best-effort read-only:
+        DB missing/locked/corrupt → empty scopes, never blocks dispatch."""
+        import json
+
+        from voss.harness import claims as claims_mod
+
+        try:
+            if not claims_mod._get_db_path(self._cwd).exists():
+                return ()  # no DB — do not create one on a read path
+            conn = claims_mod.open_claims_db(self._cwd)
+            try:
+                rows = claims_mod.active_claims(conn)
+            finally:
+                conn.close()
+        except Exception:
+            return ()
+        by_agent: dict[str, set[str]] = {}
+        for row in rows:
+            try:
+                patterns = json.loads(row[2])
+            except (ValueError, TypeError):
+                continue
+            if isinstance(patterns, list):
+                by_agent.setdefault(str(row[1]), set()).update(str(p) for p in patterns)
+        return tuple(
+            ScopeLine(owner_agent=agent, patterns=tuple(sorted(pats)))
+            for agent, pats in sorted(by_agent.items())
+        )
+
+    def _build_mission_brief(self, *, card_id: str) -> MissionBrief:
+        """Assemble dispatch-time context from sources that already exist:
+        the ticket table (outcome, siblings) + the claims DB (scopes)."""
+        ticket = self._tickets.get(card_id)
+        outcome = ""
+        if ticket is not None:
+            outcome = ticket.original_idea
+            if ticket.acceptance and len(ticket.acceptance) <= 120:
+                outcome = f"{outcome} (accept: {ticket.acceptance})"
+
+        columns = {
+            getattr(c, "node_id", ""): getattr(c, "column", "")
+            for c in self._board.cards()
+        }
+        siblings: list[SiblingLine] = []
+        for tid, t in self._tickets.items():
+            if tid == card_id:
+                continue
+            # A ticket with no card yet counts as in-flight (pending dispatch).
+            column = columns.get(t.card_node_id, "") if t.card_node_id else ""
+            if column in TERMINAL_COLUMNS:
+                continue
+            siblings.append(
+                SiblingLine(role_id=t.worker_role, task_summary=t.original_idea[:120])
+            )
+
+        return MissionBrief(
+            outcome=outcome,
+            siblings=tuple(siblings),
+            claimed_scopes=self._read_claimed_scopes(),
+        )
 
     # --- READ ----------------------------------------------------------------
 
@@ -223,6 +294,12 @@ class EMBoardHandle:
         base_toolset = make_toolset(self._cwd, renderer=self._renderer)
         role_toolset = filter_toolset_for_role(spec, base_toolset)
 
+        # V20 VRES-03: mission brief — outcome, sibling roster, claimed
+        # scopes — so the worker is not dispatched blind. Assembled prompt
+        # recorded on the audit side-table (additive).
+        brief = self._build_mission_brief(card_id=card_id)
+        self._get_audit(node_id).dispatched_prompt = agent_task(spec, task, brief=brief)
+
         # Fire subagent (async, fire-and-forget if runner provided).
         if self._subagent_runner is not None:
             asyncio.ensure_future(
@@ -235,6 +312,7 @@ class EMBoardHandle:
                     provider=self._provider,
                     model=self._model,
                     gate=role_gate,
+                    brief=brief,
                 )
             ) if False else None  # placeholder — real dispatch in W4
 
