@@ -63,6 +63,56 @@ def _ctx(provider, app=None):
     return SimpleNamespace(provider=provider, renderer=renderer)
 
 
+def _catalog_raw():
+    return {
+        "anthropic": {
+            "id": "anthropic",
+            "name": "Anthropic",
+            "env": ["ANTHROPIC_API_KEY"],
+            "api": None,
+            "models": {
+                "claude-sonnet-4-5": {
+                    "id": "claude-sonnet-4-5",
+                    "name": "Claude Sonnet 4.5",
+                    "tool_call": True,
+                    "cost": {"input": 3, "output": 15},
+                    "limit": {"context": 200000},
+                },
+            },
+        },
+        "opencode": {
+            "id": "opencode",
+            "name": "OpenCode Zen",
+            "env": ["OPENCODE_API_KEY"],
+            "api": "https://opencode.ai/zen/v1",
+            "models": {
+                "mimo-v2-flash-free": {
+                    "id": "mimo-v2-flash-free",
+                    "name": "MiMo V2 Flash Free",
+                    "tool_call": True,
+                    "cost": {"input": 0, "output": 0},
+                    "limit": {"context": 131072},
+                },
+            },
+        },
+        "ollama-cloud": {
+            "id": "ollama-cloud",
+            "name": "Ollama Cloud",
+            "env": ["OLLAMA_API_KEY"],
+            "api": "https://ollama.com/v1",
+            "models": {
+                "gemma3:27b": {
+                    "id": "gemma3:27b",
+                    "name": "gemma3:27b",
+                    "tool_call": False,
+                    "cost": None,
+                    "limit": {"context": 131072},
+                }
+            },
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # detection + matching helpers
 # ---------------------------------------------------------------------------
@@ -169,14 +219,14 @@ def test_codex_substring_pick(env) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_tui_claude_opens_auth_picker_and_pick_applies(env) -> None:
+def test_tui_model_auth_opens_auth_picker_and_pick_applies(env) -> None:
     from voss.harness.tui.widgets.auth_model_picker_modal import (
         AuthModelPickerModal,
     )
 
     app = _FakeTUIApp()
     registry = cli._build_slash_registry()
-    registry.dispatch(_ctx(ClaudeAgentProvider(), app=app), "/model")
+    registry.dispatch(_ctx(ClaudeAgentProvider(), app=app), "/model auth")
     assert len(app.pushed) == 1
     screen, callback = app.pushed[0]
     assert isinstance(screen, AuthModelPickerModal)
@@ -192,25 +242,24 @@ def test_tui_claude_opens_auth_picker_and_pick_applies(env) -> None:
     assert get_config().default_model == "claude-opus-4-8"
 
 
+def test_tui_bare_model_opens_catalog_under_codex_auth(env, monkeypatch) -> None:
+    from voss.harness.tui.widgets.model_picker_modal import ModelPickerModal
+
+    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(_catalog_raw()))
+    app = _FakeTUIApp()
+    registry = cli._build_slash_registry()
+    registry.dispatch(_ctx(_codex_provider(), app=app), "/model")
+    assert len(app.pushed) == 1
+    screen, _callback = app.pushed[0]
+    assert isinstance(screen, ModelPickerModal)
+    group_ids = {g.id for g in screen._groups}
+    assert {"anthropic", "opencode", "ollama-cloud"} <= group_ids
+
+
 def test_tui_api_key_auth_falls_back_to_catalog_modal(env, monkeypatch) -> None:
     from voss.harness.tui.widgets.model_picker_modal import ModelPickerModal
 
-    raw = {
-        "ollama-cloud": {
-            "id": "ollama-cloud",
-            "name": "Ollama Cloud",
-            "env": ["OLLAMA_API_KEY"],
-            "api": "https://ollama.com/v1",
-            "models": {
-                "gemma3:27b": {
-                    "id": "gemma3:27b", "name": "gemma3:27b",
-                    "tool_call": False, "cost": None,
-                    "limit": {"context": 131072},
-                }
-            },
-        }
-    }
-    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(raw))
+    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(_catalog_raw()))
     app = _FakeTUIApp()
     registry = cli._build_slash_registry()
     registry.dispatch(_ctx(object(), app=app), "/model")

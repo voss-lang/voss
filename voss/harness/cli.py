@@ -1416,12 +1416,13 @@ def _build_slash_registry() -> SlashRegistry:
     def _model(ctx: ReplContext, args: list[str], _line: str) -> None:
         """Auth-aware model selector (R8).
 
-        Bare in the TUI: curated picker for the active subscription auth
-        (Claude Agent SDK / Codex ChatGPT backend), else delegates to the
-        /models catalog modal. Bare in plain CLI: availability lines + the
-        numbered curated list. With args: exact-id → prefix → substring
-        match against the curated list; no match falls back to the raw
-        set-anything behavior.
+        Bare in the TUI: the provider catalog (`/models`) so the obvious
+        model picker can move between Codex, Anthropic, OpenCode, Ollama, etc.
+        `/model auth` keeps the curated active-subscription picker for Claude
+        Agent SDK / Codex ChatGPT backend. Bare in plain CLI: availability
+        lines + the numbered curated list. With args: exact-id → prefix →
+        substring match against the curated list; no match falls back to the
+        raw set-anything behavior.
 
         A pick takes effect immediately without a provider rebuild: every
         turn passes get_config().default_model (cli.py turn dispatch) and
@@ -1446,34 +1447,35 @@ def _build_slash_registry() -> SlashRegistry:
             )
             click.echo(f"  model: {m.id} (persisted)")
 
+        def _open_auth_picker() -> bool:
+            if not in_tui or not models:
+                return False
+            from .tui.widgets.auth_model_picker_modal import (
+                AuthModelPickerModal,
+            )
+
+            label = "Claude" if auth_mode == "claude" else "Codex"
+
+            def _on_pick(m) -> None:
+                if m is not None:
+                    _apply(m)
+
+            app.push_screen(
+                AuthModelPickerModal(
+                    models,
+                    cfg.default_model,
+                    subtitle=(
+                        f"Switch between {label} models. Your pick "
+                        "becomes the default for new sessions."
+                    ),
+                ),
+                _on_pick,
+            )
+            return True
+
         if not args:
             if in_tui:
-                if not models:
-                    # API-key/auto auth — the catalog picker is the useful
-                    # surface; delegate so bare /model always works.
-                    _models(ctx, [], "/models")
-                    return
-                from .tui.widgets.auth_model_picker_modal import (
-                    AuthModelPickerModal,
-                )
-
-                label = "Claude" if auth_mode == "claude" else "Codex"
-
-                def _on_pick(m) -> None:
-                    if m is not None:
-                        _apply(m)
-
-                app.push_screen(
-                    AuthModelPickerModal(
-                        models,
-                        cfg.default_model,
-                        subtitle=(
-                            f"Switch between {label} models. Your pick "
-                            "becomes the default for new sessions."
-                        ),
-                    ),
-                    _on_pick,
-                )
+                _models(ctx, [], "/models")
                 return
             claude = auth_mod.load_anthropic_oauth()
             codex = auth_mod.load_codex()
@@ -1491,6 +1493,17 @@ def _build_slash_registry() -> SlashRegistry:
                     click.echo(f"    {i}. {m.id}{here}  — {m.description}")
                 click.echo("\n  select: /model <id>")
             return
+
+        if args[0].strip().lower() in ("auth", "subscription", "subscriptions"):
+            if _open_auth_picker():
+                return
+            if not models:
+                click.echo("  no active subscription model picker for this auth mode", err=True)
+                return
+            args = args[1:]
+            if not args:
+                click.echo("  select: /model <id>", err=True)
+                return
 
         new_model = " ".join(args).strip()
         if auth_mode is not None:
@@ -1814,7 +1827,7 @@ def _build_slash_registry() -> SlashRegistry:
         ),
         SlashCommand("/tools", "list registered tools", _tools),
         SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
-        SlashCommand("/model", "pick a model for the active auth (curated; persists to config.toml)", _model),
+        SlashCommand("/model", "pick a model/provider (TUI catalog; `/model auth` for subscription list)", _model),
         SlashCommand("/models", "pick a model from the models.dev catalog (Zen, Ollama Cloud, …)", _models),
         SlashCommand("/auth", "show/set default credential source (auto|claude|codex|api|none)", _auth),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
