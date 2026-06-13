@@ -1,0 +1,1 @@
+DEC0Y-NEVER-INGEST-7319: this plain text note is a non-markdown decoy and should never appear in external recall results.

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re
+import tomllib
 import warnings
 from pathlib import Path
 
@@ -21,6 +22,8 @@ def config_path() -> Path:
     base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     return base / "voss" / "config.toml"
 
+
+_RESERVED_SOURCE_NAMES = frozenset({"code", "memory", "global"})
 
 _HARNESS_BLOCK = re.compile(r"^\[harness\][^\[]*", re.MULTILINE)
 _AGENT_BLOCK = re.compile(r"^\[agent\][^\[]*", re.MULTILINE)
@@ -332,6 +335,44 @@ def get_code_recall_config() -> dict:
         return merged
     merged.update(_parse_code_recall_section(text))
     return merged
+
+
+def get_recall_sources() -> list[dict]:
+    """Resolve configured external recall sources from `[[recall.sources]]`."""
+    p = config_path()
+    if not p.exists():
+        return []
+    try:
+        with p.open("rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        warnings.warn(
+            f"could not parse recall sources from {p}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return []
+
+    sources = data.get("recall", {}).get("sources", [])
+    if not isinstance(sources, list):
+        return []
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for raw in sources:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name", "")).strip()
+        path = str(raw.get("path", "")).strip()
+        glob = str(raw.get("glob", "**/*.md")).strip() or "**/*.md"
+        if name in _RESERVED_SOURCE_NAMES:
+            reserved = ", ".join(sorted(_RESERVED_SOURCE_NAMES))
+            raise ValueError(f"recall source name {name!r} is reserved ({reserved})")
+        if name in seen:
+            raise ValueError(f"duplicate recall source name: {name}")
+        seen.add(name)
+        out.append({"name": name, "path": path, "glob": glob})
+    return out
 
 
 def get_global_memory_enabled() -> bool:
