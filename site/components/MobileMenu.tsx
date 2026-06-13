@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight, BookOpenText, Code2, GitBranch, Layers3, Menu, ScrollText, TerminalSquare, Workflow, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { captureOutboundClick } from "@/lib/analytics";
+import { captureIntent, captureOutboundClick } from "@/lib/analytics";
 import { site } from "@/lib/site";
 
 type Item = {
@@ -28,6 +28,10 @@ const ITEMS: Item[] = [
 const OUTBOUND_TARGETS: Partial<Record<string, "docs" | "github">> = {
   Docs: "docs",
   GitHub: "github",
+};
+
+const INTENT_TARGETS: Partial<Record<string, "audit">> = {
+  Audit: "audit",
 };
 
 export default function MobileMenu({ className = "" }: { className?: string }) {
@@ -65,8 +69,10 @@ export default function MobileMenu({ className = "" }: { className?: string }) {
                     <Link
                       href={item.href}
                       onClick={() => {
-                        const target = OUTBOUND_TARGETS[item.label];
-                        if (target) captureOutboundClick(target);
+                        const outboundTarget = OUTBOUND_TARGETS[item.label];
+                        if (outboundTarget) captureOutboundClick(outboundTarget);
+                        const intentTarget = INTENT_TARGETS[item.label];
+                        if (intentTarget) captureIntent(intentTarget);
                         setOpen(false);
                       }}
                       target={item.external ? "_blank" : undefined}

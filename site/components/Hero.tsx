@@ -1,6 +1,6 @@
 import { site } from "@/lib/site";
 import CopyButton from "./CopyButton";
-import TrackedOutboundLink from "./TrackedOutboundLink";
+import TrackedIntentLink from "./TrackedIntentLink";
 import Cursor from "./Cursor";
 import ProductScreenshot from "./ProductScreenshot";
 import Reveal from "./Reveal";
@@ -14,13 +14,13 @@ export default function Hero() {
         <div className="min-w-0">
           <Reveal>
             <p className="mb-6 inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 font-mono text-xs text-[var(--muted)]">
-              Agent engineering organization layer
+              For developers supervising Claude Code, Codex, and local coding agents
             </p>
           </Reveal>
           <Reveal delay={0.05}>
             <h1 className="display text-balance text-[clamp(2.5rem,6vw,4.5rem)]">
-              Run AI agents like an<br />
-              <span className="em">engineering team.</span>
+              Keep coding agents inside<br />
+              <span className="em">clear repo boundaries.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.1}>
@@ -37,13 +37,13 @@ export default function Hero() {
                 <Cursor />
                 <CopyButton text={site.install.primary} />
               </div>
-              <TrackedOutboundLink
-                href={site.prdUrl}
-                analyticsTarget="prd"
+              <TrackedIntentLink
+                href="/audit"
+                analyticsTarget="audit"
                 className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-4 py-3 text-sm text-[var(--foreground)] transition hover:border-[var(--accent)]"
               >
-                Read the PRD
-              </TrackedOutboundLink>
+                See the audit trail
+              </TrackedIntentLink>
             </div>
             <p className="mt-3 text-xs text-[var(--muted)]">{site.install.primaryNote}</p>
           </Reveal>

@@ -11,7 +11,7 @@
   "logo": {
     "light": "/logo.svg",
     "dark": "/logo.svg",
-    "href": "https://voss.dev"
+    "href": "https://www.tryvoss.dev"
   },
   "favicon": "/favicon.svg",
   "appearance": {
@@ -27,7 +27,7 @@
     "links": [
       {
         "label": "Marketing",
-        "href": "https://voss.dev"
+        "href": "https://www.tryvoss.dev"
       },
       {
         "label": "Orchestration",
@@ -49,7 +49,7 @@
     "primary": {
       "type": "button",
       "label": "GitHub",
-      "href": "https://github.com/bm9797/Voss"
+      "href": "https://github.com/voss-lang/voss"
     }
   },
   "footer": {
@@ -76,11 +76,11 @@
         "items": [
           {
             "label": "GitHub",
-            "href": "https://github.com/bm9797/Voss"
+            "href": "https://github.com/voss-lang/voss"
           },
           {
             "label": "Marketing site",
-            "href": "https://voss.dev"
+            "href": "https://www.tryvoss.dev"
           }
         ]
       }

@@ -14,7 +14,12 @@ export default function AnalyticsConsent() {
 
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) return;
-    setVisible(readAnalyticsConsent() === null);
+
+    const id = window.setTimeout(() => {
+      setVisible(readAnalyticsConsent() === null);
+    }, 0);
+
+    return () => window.clearTimeout(id);
   }, []);
 
   function accept() {

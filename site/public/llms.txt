@@ -4,12 +4,16 @@
 
 ## Primary Pages
 
-- [Home](https://voss.dev/): Product overview for Voss, installation paths, and the terminal-native workflow.
-- [Harness](https://voss.dev/harness): Details on the coding harness, modes, tools, sessions, semantic recall, and bounded repository work.
-- [Agentic Development Environment](https://voss.dev/ade): Overview of the local ADE surface for live runs, approvals, sessions, replay, and inspection.
-- [Language](https://voss.dev/language): Introduction to the .voss control language for confidence, context budgets, semantic routing, and agent composition.
-- [Security](https://voss.dev/security): Security model for harness permissions, local credentials, project boundaries, and execution safety.
-- [Roadmap](https://voss.dev/roadmap): Current product direction across live local supervision, semantic code recall, managed project instructions, external-agent handoffs, budget-aware context, and global memory.
+- [Home](https://www.tryvoss.dev/): Product overview for Voss, installation paths, and the terminal-native workflow.
+- [Harness](https://www.tryvoss.dev/harness): Details on the coding harness, modes, tools, sessions, semantic recall, and bounded repository work.
+- [Agentic Development Environment](https://www.tryvoss.dev/ade): Overview of the local ADE surface for live runs, approvals, sessions, replay, and inspection.
+- [Language](https://www.tryvoss.dev/language): Introduction to the .voss control language for confidence, context budgets, semantic routing, and agent composition.
+- [About](https://www.tryvoss.dev/about): Product positioning, project intent, and the boundaries of what Voss is and is not.
+- [Contact](https://www.tryvoss.dev/contact): Public channels for product questions, documentation issues, bug reports, and security report routing.
+- [Security](https://www.tryvoss.dev/security): Security model for harness permissions, local credentials, project boundaries, and execution safety.
+- [Privacy](https://www.tryvoss.dev/privacy): Current marketing-site data collection posture, consent storage, and opt-in analytics behavior.
+- [Security Disclosure](https://www.tryvoss.dev/disclosure): Guidance for reporting security issues without exposing sensitive details publicly.
+- [Roadmap](https://www.tryvoss.dev/roadmap): Current product direction across live local supervision, semantic code recall, managed project instructions, external-agent handoffs, budget-aware context, and global memory.
 
 ## Documentation
 
@@ -26,8 +30,8 @@
 
 ## Developer Resources
 
-- [GitHub Repository](https://github.com/bm9797/Voss): Source repository, issue history, and implementation details for Voss.
-- [Product Requirements Document](https://github.com/bm9797/Voss/blob/main/PRD.md): Product requirements and background context for Voss.
+- [GitHub Repository](https://github.com/voss-lang/voss): Source repository, issue history, and implementation details for Voss.
+- [Product Requirements Document](https://github.com/voss-lang/voss/blob/master/PRD.md): Product requirements and background context for Voss.
 
 ## Optional
 

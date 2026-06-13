@@ -49,10 +49,14 @@ export function pageMetadata(opts: {
     openGraph: {
       title: opts.title,
       description: opts.description,
+      type: "website",
+      images: [ogImage],
     },
     twitter: {
+      card: "summary_large_image",
       title: opts.title,
       description: opts.description,
+      images: [ogImage.url],
     },
   };
 }

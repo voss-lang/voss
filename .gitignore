@@ -14,6 +14,7 @@ chroma/
 # Local codebase graph / context bundles.
 graphify-out/
 repomix-output.xml
+snitchfindings/
 
 # Clipboard/screenshot artifacts dropped into workspace by tools.
 clipboard-*
