@@ -30,6 +30,11 @@ def _as_response_format_param(response_format):
     }
 
 
+def _uses_max_completion_tokens(model: str) -> bool:
+    model_id = model.split("/", 1)[-1]
+    return model_id.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
 class LiteLLMProvider:
     def __init__(
         self,
@@ -77,7 +82,12 @@ class LiteLLMProvider:
             **self._route_kwargs(),
         }
         if max_tokens is not None:
-            kwargs["max_tokens"] = max_tokens
+            key = (
+                "max_completion_tokens"
+                if _uses_max_completion_tokens(model)
+                else "max_tokens"
+            )
+            kwargs[key] = max_tokens
         if timeout is not None:
             kwargs["timeout"] = timeout
         if tools is not None:

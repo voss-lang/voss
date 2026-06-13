@@ -1,6 +1,8 @@
 """InputBar slash palette text-change sync tests."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from voss.harness.slash import SlashCommand, SlashRegistry
@@ -66,3 +68,26 @@ async def test_slash_palette_dismisses_when_leading_slash_is_deleted() -> None:
 
         assert input_bar.text == "foo"
         assert not list(pilot.app.query(SlashPalette))
+
+
+@pytest.mark.asyncio
+async def test_slash_palette_selection_clears_input_before_dispatch() -> None:
+    app = VossTUIApp(slash_registry=_registry())
+    seen: list[str] = []
+
+    def dispatch(value: str):
+        seen.append(value)
+        return None
+
+    app._turn_dispatch = dispatch
+    async with app.run_test() as pilot:
+        input_bar = pilot.app.query_one("#input", InputBar)
+        input_bar.load_text("/models")
+
+        pilot.app.on_slash_palette_palette_submitted(
+            SimpleNamespace(value="/models")
+        )
+        await pilot.pause()
+
+        assert seen == ["/models"]
+        assert input_bar.text == ""

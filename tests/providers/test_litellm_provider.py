@@ -81,6 +81,47 @@ async def test_response_format_sent_as_non_strict_json_schema(monkeypatch):
     assert out.parsed is not None and out.parsed.message == "hi"
 
 
+@pytest.mark.parametrize("model", ["gpt-5.5", "openai/gpt-5.4-mini", "o4-mini"])
+async def test_gpt5_family_uses_max_completion_tokens(monkeypatch, model: str):
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_resp("hello")
+
+    monkeypatch.setattr("litellm.acompletion", fake_acompletion)
+
+    p = LiteLLMProvider()
+    await p.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model=model,
+        max_tokens=1200,
+    )
+
+    assert captured["max_completion_tokens"] == 1200
+    assert "max_tokens" not in captured
+
+
+async def test_legacy_models_keep_max_tokens(monkeypatch):
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_resp("hello")
+
+    monkeypatch.setattr("litellm.acompletion", fake_acompletion)
+
+    p = LiteLLMProvider()
+    await p.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model="gpt-4o-mini",
+        max_tokens=1200,
+    )
+
+    assert captured["max_tokens"] == 1200
+    assert "max_completion_tokens" not in captured
+
+
 async def test_stream_structured_turn_emits_no_textdelta(monkeypatch):
     # Regression: a structured turn (response_format set) returns the schema
     # JSON as `text`. Streaming it as a TextDelta leaked raw {"rationale":...}
