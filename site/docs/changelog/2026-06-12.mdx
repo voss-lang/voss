@@ -1,0 +1,50 @@
+---
+title: "June 12, 2026"
+description: "Semantic code recall, budget-aware context, managed sync checks, and SDK proof-suite work."
+---
+
+The harness gained a more practical memory loop: recall now spans code and project memory,
+longer runs can pack older context, and generated project instructions can be checked for
+drift before they are rewritten.
+
+## Semantic code recall
+
+`voss recall` now searches code and project memory together. Code hits include source labels
+and line information, while memory hits stay labeled as memory. The same recall path is also
+available to the harness through the `code_recall` tool.
+
+The code index is rebuildable cache state. If vector search is unavailable, Voss can still use
+lexical recall instead of failing the workflow.
+
+## Budget-aware context
+
+Long-running harness work now has conservative context packing. Recent work stays detailed,
+older replay can be reduced to structural summaries, and Voss writes estimated original vs.
+packed token counts to the session's `token-savings.jsonl`.
+
+The escape hatch is explicit:
+
+```bash
+voss do "inspect the auth flow" --no-pack
+```
+
+Savings are estimates, not billing guarantees.
+
+## Managed sync checks
+
+`voss sync --check` gives generated workflow docs and managed instruction sections a read-only
+drift gate. It is intended for CI and pre-commit style checks where plain `voss sync` would be
+too mutating.
+
+## SDK proof suite
+
+The internal proof suite is exercising the Python, TypeScript, Go, and Rust consumer paths
+against `voss serve`. This is proof infrastructure, not a public SDK launch claim yet; the
+remaining live checkpoint still determines when those flows should be promoted in user-facing
+docs.
+
+## Next memory work
+
+Global memory is planned as an explicit, local, curated store for facts that should cross
+projects. External markdown/docs ingest remains planned after that and stays read-only by
+design.
