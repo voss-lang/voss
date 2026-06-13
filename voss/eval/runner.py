@@ -439,6 +439,8 @@ async def _drive_sdk_client(
     *,
     cwd: Path,
     consumer: str,  # "ts" | "go" | "rust"
+    auth: str = "auto",
+    model: str | None = None,
     timeout: float = 180.0,
 ) -> str:
     """Spawn `voss serve`, then spawn the committed consumer subprogram for the
@@ -451,6 +453,14 @@ async def _drive_sdk_client(
     consumers_dir = repo_root / "tests" / "eval" / "sdk" / "consumers"
 
     env = _live_env(cwd)
+    # The public SDK createSession surfaces post only {cwd}; the serve owner
+    # (this runner) pins the session defaults instead, otherwise auth="auto"
+    # resolves env API keys ahead of the requested subscription and the
+    # config-default model can mismatch the credential source (E4 live-proof
+    # failure mode: env-openai + claude default model dies on turn 1).
+    env["VOSS_SERVE_DEFAULT_AUTH"] = auth
+    if model is not None:
+        env["VOSS_SERVE_DEFAULT_MODEL"] = model
     proc_server = subprocess.Popen(
         [sys.executable, "-m", "voss.cli", "serve"],
         env=env,
@@ -671,7 +681,11 @@ async def _drive_task(
             return record, final, None, False
         if spec.surface in ("sdk:ts", "sdk:go", "sdk:rust"):
             final = await _drive_sdk_client(
-                spec, cwd=cwd, consumer=spec.surface.split(":")[1]
+                spec,
+                cwd=cwd,
+                consumer=spec.surface.split(":")[1],
+                auth=auth_pref,
+                model=None if stub else model,
             )
             return record, final, None, False
         if task_id.startswith("05-"):

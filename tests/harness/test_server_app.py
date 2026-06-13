@@ -151,3 +151,33 @@ def test_openapi_exposes_event_union(client):
     assert "EventEnvelope" in schemas
     assert "StreamDelta" in schemas
     assert "SessionIdle" in schemas
+
+
+def test_session_env_defaults_for_sdk_clients(client, monkeypatch):
+    """E4: SDK createSession surfaces post only {cwd}. The serve owner pins
+    session defaults via env; an explicit body value always wins."""
+    seen: list[str] = []
+    monkeypatch.setattr(
+        appmod,
+        "_resolve_provider",
+        lambda pref: (seen.append(pref), (_FakeRes(), object()))[1],
+    )
+    monkeypatch.setenv("VOSS_SERVE_DEFAULT_AUTH", "codex")
+    monkeypatch.setenv("VOSS_SERVE_DEFAULT_MODEL", "gpt-5.5")
+
+    r = client.post("/session", json={"cwd": client._cwd}, headers=_auth())
+    assert r.status_code == 201, r.text
+    assert seen[-1] == "codex"  # auto -> env default
+    sid = r.json()["id"]
+    info = client.get(f"/session/{sid}", headers=_auth()).json()
+    assert info["model"] == "gpt-5.5"  # body.model absent -> env default
+
+    r2 = client.post(
+        "/session",
+        json={"cwd": client._cwd, "auth": "claude", "model": "claude-x"},
+        headers=_auth(),
+    )
+    assert r2.status_code == 201, r2.text
+    assert seen[-1] == "claude"  # explicit body wins over env
+    info2 = client.get(f"/session/{r2.json()['id']}", headers=_auth()).json()
+    assert info2["model"] == "claude-x"
