@@ -24,7 +24,7 @@ import psutil
 
 from voss_runtime import EpisodicMemory, configure, get_config
 from voss_runtime.providers import LiteLLMProvider
-from voss_runtime.providers.base import ModelProvider
+from voss_runtime.providers.base import ModelProvider, ProviderResponse
 
 from . import auth as auth_mod
 from . import cognition as cognition_mod
@@ -119,6 +119,119 @@ _INTENT_ALLOWLIST = frozenset(
 def _classify_intent(line: str) -> str | None:
     """Literal-match natural-language router. No LLM. Returns intent name or None."""
     return "analyze" if line.lower().strip() in _INTENT_ALLOWLIST else None
+
+
+_AMBIENT_SYSTEM = """You are the ambient assistant inside the Voss shell.
+Answer directly and concisely. You may use the provided harness state and
+project summary, but you do not have tool access in this phase. If the user
+asks for code changes, tests, shell execution, multi-agent work, or any durable
+repo operation, say that the request should be handled as a Voss run instead of
+pretending to do it. Do not identify yourself as Voss; Voss is the harness that
+can promote this conversation into a structured run."""
+
+_WORK_INTENT_PREFIXES = (
+    "add ",
+    "build ",
+    "change ",
+    "create ",
+    "debug ",
+    "fix ",
+    "implement ",
+    "make ",
+    "modify ",
+    "patch ",
+    "refactor ",
+    "remove ",
+    "repair ",
+    "run ",
+    "update ",
+    "write ",
+)
+_WORK_INTENT_TERMS = (
+    " add test",
+    " add tests",
+    " change ",
+    " edit ",
+    " fix ",
+    " implement ",
+    " refactor ",
+    " run tests",
+    " update ",
+    " write ",
+)
+_STATUS_QUESTION_TERMS = (
+    "what model",
+    "which model",
+    "model are you",
+    "model is active",
+    "what auth",
+    "which auth",
+    "auth path",
+    "credential source",
+    "who are you",
+    "what are you",
+    "status",
+)
+
+
+def _ambient_route(line: str) -> str:
+    """Route a REPL turn before entering the structured Voss Plan loop."""
+    normalized = " ".join(line.lower().strip().split())
+    if not normalized:
+        return "ambient"
+    if any(term in normalized for term in _STATUS_QUESTION_TERMS):
+        return "local"
+    if normalized.startswith(_WORK_INTENT_PREFIXES):
+        return "voss_run"
+    padded = f" {normalized} "
+    if any(term in padded for term in _WORK_INTENT_TERMS):
+        return "voss_run"
+    return "ambient"
+
+
+def _ambient_status_answer(ctx: object, *, auth_detail: str = "") -> str:
+    provider_label = _provider_label_for_runtime(
+        getattr(ctx, "provider", None),
+        fallback=_provider_label(auth_detail),
+    )
+    model = get_config().default_model
+    mode = getattr(getattr(ctx, "gate", None), "mode", "")
+    parts = [
+        f"Provider: {provider_label or 'unknown'}",
+        f"Model: {model}",
+        "Phase: ambient",
+    ]
+    if mode:
+        parts.append(f"Permission mode: {mode}")
+    return "\n".join(parts)
+
+
+async def _run_ambient_provider_turn(line: str, ctx: ReplContext) -> ProviderResponse:
+    model = get_config().default_model
+    if ctx.project_index_text:
+        project_context = f"\n\nProject summary:\n{ctx.project_index_text}"
+    else:
+        project_context = ""
+    status = _ambient_status_answer(ctx)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"{_AMBIENT_SYSTEM}\n\nHarness state:\n{status}\n"
+                f"Working directory: {ctx.cwd}{project_context}"
+            ),
+        },
+        {"role": "user", "content": line},
+    ]
+    ctx.history.add(line, role="user")
+    response = await ctx.provider.complete(
+        messages=messages,
+        model=model,
+        temperature=0.2,
+        max_tokens=1200,
+    )
+    ctx.history.add(response.text, role="assistant")
+    return response
 
 
 def _handle_analyze(
@@ -519,6 +632,16 @@ def _handle_login_status(provider: str | None) -> None:
 
 
 _handle_login = _handle_login_status  # backward-compat alias for older callers
+
+
+def _run_textual_app(app) -> None:
+    """Run a Textual app via its synchronous entry point.
+
+    Textual owns signal handling and terminal teardown in `App.run()`. Wrapping
+    `run_async()` in `asyncio.run()` leaks internal focus/unmount trace lines
+    after Ctrl-C restores the terminal.
+    """
+    app.run()
 
 
 def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelProvider]:
@@ -2437,11 +2560,28 @@ def _run_repl(
                     renderer.show_warning(f"unknown command: {line}. /help for list.")
                     return None
                 renderer.show_user(line)
+                route = _ambient_route(line)
+                if route == "local":
+                    answer = _ambient_status_answer(ctx, auth_detail=auth_detail)
+                    ctx.history.add(line, role="user")
+                    ctx.history.add(answer, role="assistant")
+                    renderer.show_final(answer, confidence=1.0, cost_usd=0.0)
+                    return None
                 try:
                     if not ctx.project_index_text:
                         ctx.project_index_text = _render_project_index_text(
                             cwd, session_id=record.id
                         )
+                    if route == "ambient":
+                        response = await _run_ambient_provider_turn(line, ctx)
+                        ctx.total_cost += response.cost_usd
+                        renderer.show_final(
+                            response.text,
+                            confidence=1.0,
+                            cost_usd=response.cost_usd,
+                        )
+                        return None
+                    renderer.show_thinking("starting Voss run")
                     run_turn = _resolve_run_turn(cwd)
                     result = await _run_turn_with_teardown(
                         run_turn(
@@ -2478,7 +2618,7 @@ def _run_repl(
                 return result
 
             renderer.app._turn_dispatch = _dispatch_tui_turn
-            asyncio.run(renderer.app.run_async())
+            _run_textual_app(renderer.app)
             try:
                 conventions.run_on_clean_exit(
                     ctx,
@@ -2532,7 +2672,31 @@ def _run_repl(
                 continue
 
             renderer.show_user(line)
+            route = _ambient_route(line)
+            if route == "local":
+                answer = _ambient_status_answer(ctx, auth_detail=auth_detail)
+                ctx.history.add(line, role="user")
+                ctx.history.add(answer, role="assistant")
+                renderer.show_final(answer, confidence=1.0, cost_usd=0.0)
+                continue
             try:
+                if not ctx.project_index_text:
+                    ctx.project_index_text = _render_project_index_text(
+                        cwd, session_id=record.id
+                    )
+                if route == "ambient":
+                    response = _run_turn_cancellable(
+                        _run_ambient_provider_turn(line, ctx),
+                        renderer=renderer,
+                    )
+                    ctx.total_cost += response.cost_usd
+                    renderer.show_final(
+                        response.text,
+                        confidence=1.0,
+                        cost_usd=response.cost_usd,
+                    )
+                    continue
+                renderer.show_thinking("starting Voss run")
                 run_turn = _resolve_run_turn(cwd)
                 result = _run_turn_cancellable(
                     _run_turn_with_teardown(
