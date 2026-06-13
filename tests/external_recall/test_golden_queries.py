@@ -22,8 +22,8 @@ GOLDEN_QUERIES: list[tuple[str, str]] = [
 @pytest.mark.parametrize(
     ("query", "expected_file"),
     [
-        pytest.param(query, expected, id=f"VXMEM-08 {query}")
-        for query, expected in GOLDEN_QUERIES
+        pytest.param(query, expected, id=f"VXMEM-08 golden-{idx:02d}")
+        for idx, (query, expected) in enumerate(GOLDEN_QUERIES, start=1)
     ],
 )
 def test_golden_query(indexed_fixture_vault, query, expected_file):
