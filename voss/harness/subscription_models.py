@@ -63,9 +63,19 @@ SUBSCRIPTION_MODELS: dict[str, tuple[SubscriptionModel, ...]] = {
             recommended=True,
         ),
         SubscriptionModel(
-            "gpt-5.5-mini",
-            "GPT-5.5 mini",
+            "gpt-5.4",
+            "GPT-5.4",
+            "Strong general-purpose Codex model",
+        ),
+        SubscriptionModel(
+            "gpt-5.4-mini",
+            "GPT-5.4 mini",
             "Smaller and faster · light tasks",
+        ),
+        SubscriptionModel(
+            "gpt-5.3-codex-spark",
+            "GPT-5.3 Codex Spark",
+            "Fast coding-specialized model",
         ),
     ),
 }

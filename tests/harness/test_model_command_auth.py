@@ -115,7 +115,9 @@ def test_plain_bare_codex_lists_gpt5(env, capsys) -> None:
     registry.dispatch(_ctx(_codex_provider()), "/model")
     out = capsys.readouterr().out
     assert "1. gpt-5.5" in out
-    assert "2. gpt-5.5-mini" in out
+    assert "2. gpt-5.4" in out
+    assert "3. gpt-5.4-mini" in out
+    assert "4. gpt-5.3-codex-spark" in out
 
 
 def test_plain_bare_no_subscription_keeps_old_dump(env, capsys) -> None:
@@ -159,7 +161,7 @@ def test_codex_substring_pick(env) -> None:
     configure(default_model="gpt-5.5")
     registry = cli._build_slash_registry()
     registry.dispatch(_ctx(_codex_provider()), "/model mini")
-    assert get_config().default_model == "gpt-5.5-mini"
+    assert get_config().default_model == "gpt-5.4-mini"
 
 
 # ---------------------------------------------------------------------------

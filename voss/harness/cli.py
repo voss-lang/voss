@@ -179,6 +179,7 @@ def _handle_save_plan(
 
 
 AUTH_CHOICES = ("auto", "claude", "codex", "api", "none")
+_SUBSCRIPTION_AUTH_SOURCES = frozenset({"claude-agent", "codex-oauth"})
 
 
 @dataclass
@@ -231,6 +232,66 @@ def _resolve_default_model(user_explicit: str | None) -> None:
         configure(default_model=persisted)
 
 
+def _is_codex_model(model: str) -> bool:
+    return model.startswith("gpt-5.")
+
+
+def _codex_default_model() -> str:
+    model = auth_mod.load_codex_default_model()
+    if model and _is_codex_model(model):
+        return model
+    from .subscription_models import SUBSCRIPTION_MODELS
+
+    return SUBSCRIPTION_MODELS["codex"][0].id
+
+
+def _openai_default_model() -> str:
+    from .subscription_models import SUBSCRIPTION_MODELS
+
+    return SUBSCRIPTION_MODELS["codex"][0].id
+
+
+def _provider_label_for_runtime(provider: object, *, fallback: str = "") -> str:
+    label = getattr(provider, "voss_provider_label", None)
+    if isinstance(label, str) and label:
+        return label
+    if isinstance(provider, ClaudeAgentProvider):
+        return "Anthropic"
+    if isinstance(provider, OpenAIOAuthProvider):
+        return "Codex"
+    return fallback
+
+
+def _sync_model_selection(
+    ctx: object,
+    *,
+    model: str,
+    provider: ModelProvider | None = None,
+    provider_label: str | None = None,
+    toast: str | None = None,
+) -> None:
+    if provider is not None:
+        setattr(ctx, "provider", provider)
+    setattr(ctx, "model", model)
+    app = getattr(getattr(ctx, "renderer", None), "app", None)
+    if app is None or app.__class__.__name__ != "VossTUIApp":
+        return
+    app.model = model
+    if provider_label is not None:
+        app.provider = provider_label
+    try:
+        from .tui.widgets.status_line import StatusLine
+
+        kwargs: dict[str, str] = {"model": model}
+        if provider_label is not None:
+            kwargs["provider"] = provider_label
+        if toast is not None:
+            kwargs["toast"] = toast
+        app.query_one("#status", StatusLine).set_status(**kwargs)
+    except Exception:  # noqa: BLE001 — status widget absent in tests
+        pass
+
+
 def _apply_role_chain(provider, role: str, *, user_explicit: str | None = None):
     """Wrap the live provider in `role`'s fallback chain when one is configured
     (`[harness.roles.<role>]`). 429/quota on the primary then cascades to the
@@ -254,7 +315,12 @@ def _apply_role_chain(provider, role: str, *, user_explicit: str | None = None):
     return new_provider
 
 
-def _apply_boot_model(provider, *, user_explicit: str | None):
+def _apply_boot_model(
+    provider,
+    *,
+    user_explicit: str | None,
+    auth_source: str | None = None,
+):
     """Honor a persisted catalog-routed selection (/models) + default role chain.
 
     When `[harness] preferred_provider` is set and the model resolves in the
@@ -265,6 +331,8 @@ def _apply_boot_model(provider, *, user_explicit: str | None):
     the auth-resolved provider in place.
     """
     if user_explicit:
+        return provider
+    if auth_source in _SUBSCRIPTION_AUTH_SOURCES:
         return provider
     from . import model_router
 
@@ -517,9 +585,9 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
         cfg = get_config()
         # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
         # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
-        # to the current best, gpt-5.5; leave an explicit gpt-5.x choice alone.
-        if not cfg.default_model.startswith("gpt-5."):
-            configure(default_model="gpt-5.5")
+        # to Codex CLI's own default when set; leave a compatible choice alone.
+        if not _is_codex_model(cfg.default_model):
+            configure(default_model=_codex_default_model())
     elif res.source in ("env-anthropic", "voss-anthropic"):
         # `resolve()` already injected ANTHROPIC_API_KEY into env for the
         # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
@@ -529,7 +597,7 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
             os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
         cfg = get_config()
         if cfg.default_model.startswith("claude"):
-            configure(default_model="gpt-4o")
+            configure(default_model=_openai_default_model())
         provider = LiteLLMProvider()
     else:
         provider = LiteLLMProvider()
@@ -1371,16 +1439,11 @@ def _build_slash_registry() -> SlashRegistry:
         def _apply(m) -> None:
             configure(default_model=m.id)
             harness_config.set_preferred_model(m.id)
-            if in_tui:
-                app.model = m.id
-                try:
-                    from .tui.widgets.status_line import StatusLine
-
-                    app.query_one("#status", StatusLine).set_status(
-                        model=m.id, toast=f"model: {m.label} · {m.id} (persisted)"
-                    )
-                except Exception:  # noqa: BLE001 — status widget absent in tests
-                    pass
+            _sync_model_selection(
+                ctx,
+                model=m.id,
+                toast=f"model: {m.label} · {m.id} (persisted)",
+            )
             click.echo(f"  model: {m.id} (persisted)")
 
         if not args:
@@ -1445,6 +1508,7 @@ def _build_slash_registry() -> SlashRegistry:
             # 0 matches → raw set-anything fallback below (power users).
         configure(default_model=new_model)
         harness_config.set_preferred_model(new_model)
+        _sync_model_selection(ctx, model=new_model)
         click.echo(f"  model: {get_config().default_model} (persisted)")
 
     def _models(ctx: ReplContext, args: list[str], _line: str) -> None:
@@ -1475,7 +1539,13 @@ def _build_slash_registry() -> SlashRegistry:
             from . import model_prefs
 
             model_prefs.record_recent(entry.provider_id, entry.id)
-            ctx.provider = provider
+            _sync_model_selection(
+                ctx,
+                model=model_str,
+                provider=provider,
+                provider_label=entry.provider_label,
+                toast=f"model: {entry.name} · {entry.provider_label} (persisted)",
+            )
             click.echo(f"  model: {entry.name} · {entry.provider_label} (persisted)")
 
         def _print(entries) -> None:
@@ -1888,7 +1958,7 @@ def do_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model)
+    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -2063,7 +2133,7 @@ def chat_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model)
+    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -2133,7 +2203,7 @@ def edit_cmd(
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model)
+    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -4118,7 +4188,7 @@ def consensus_cmd(input_mode: str, ref: str | None, cwd_str: str, auth_pref: str
         sys.exit(0)
 
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model)
+    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     # commit-time critique runs the `commit` role chain when configured,
     # overriding the default-role provider; --model still wins.
     provider = _apply_role_chain(provider, "commit", user_explicit=model)

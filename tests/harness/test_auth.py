@@ -48,6 +48,12 @@ def _write_codex_auth(home: Path, *, api_key: str = "sk-test-codex", with_tokens
     p.write_text(json.dumps(blob))
 
 
+def _write_codex_config(home: Path, *, model: str = "gpt-5.4") -> None:
+    p = home / ".codex" / "config.toml"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(f'model = "{model}"\n')
+
+
 class TestLoadAnthropicOauth:
     def test_returns_creds_from_file(self, fake_home: Path) -> None:
         _write_claude_creds(fake_home)
@@ -78,6 +84,21 @@ class TestLoadCodex:
 
     def test_none_when_missing(self, fake_home: Path) -> None:
         assert A.load_codex() is None
+
+
+class TestLoadCodexDefaultModel:
+    def test_reads_non_secret_codex_config_model(self, fake_home: Path) -> None:
+        _write_codex_config(fake_home, model="gpt-5.4-mini")
+        assert A.load_codex_default_model() == "gpt-5.4-mini"
+
+    def test_none_when_codex_config_missing(self, fake_home: Path) -> None:
+        assert A.load_codex_default_model() is None
+
+    def test_none_when_codex_config_has_no_model(self, fake_home: Path) -> None:
+        p = fake_home / ".codex" / "config.toml"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('approval_policy = "never"\n')
+        assert A.load_codex_default_model() is None
 
 
 class TestResolve:
@@ -132,6 +153,15 @@ class TestResolve:
         res = A.resolve("auto")
         assert res.source == "codex"
         assert res.openai_api_key == "sk-test-codex"
+
+    def test_codex_config_model_makes_auto_prefer_codex_over_env(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-env")
+        _write_codex_auth(fake_home)
+        _write_codex_config(fake_home)
+        res = A.resolve("auto")
+        assert res.source == "codex"
 
     def test_explicit_codex_skips_claude(self, fake_home: Path) -> None:
         _write_claude_creds(fake_home)

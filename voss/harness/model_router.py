@@ -113,6 +113,9 @@ def build_provider_for_model(
         provider = LiteLLMProvider(api_base=entry.api_base, api_key=api_key)
     else:
         provider = LiteLLMProvider(api_key=api_key)
+    setattr(provider, "voss_provider_id", entry.provider_id)
+    setattr(provider, "voss_provider_label", entry.provider_label)
+    setattr(provider, "voss_model_id", entry.id)
     return provider, model_string(entry)
 
 

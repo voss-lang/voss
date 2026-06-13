@@ -63,6 +63,43 @@ def test_models_set_switches_and_persists(env) -> None:
     assert cfg.get("preferred_provider") == "ollama-cloud"
 
 
+class _FakeStatus:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def set_status(self, **kwargs) -> None:
+        self.calls.append(kwargs)
+
+
+class _FakeTUIApp:
+    """Stands in for the live app: cli only checks the class NAME."""
+
+    def __init__(self) -> None:
+        self.model = ""
+        self.provider = ""
+        self.status = _FakeStatus()
+
+    def query_one(self, *a, **kw):
+        return self.status
+
+
+_FakeTUIApp.__name__ = "VossTUIApp"
+
+
+def test_models_set_updates_tui_runtime_status(env) -> None:
+    registry = cli._build_slash_registry()
+    app = _FakeTUIApp()
+    ctx = SimpleNamespace(provider=object(), renderer=SimpleNamespace(app=app))
+
+    registry.dispatch(ctx, "/models set gemma3:27b ollama-cloud")
+
+    assert ctx.model == "openai/gemma3:27b"
+    assert app.model == "openai/gemma3:27b"
+    assert app.provider == "Ollama Cloud"
+    assert app.status.calls[-1]["provider"] == "Ollama Cloud"
+    assert app.status.calls[-1]["model"] == "openai/gemma3:27b"
+
+
 def test_models_set_missing_key_does_not_switch(env, monkeypatch) -> None:
     monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
     # also block any keyring fallback
