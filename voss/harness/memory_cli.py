@@ -7,12 +7,84 @@ from __future__ import annotations
 
 import hashlib
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
+import portalocker
 
 from . import voss_md
-from .memory_store import MemoryStore
+from .cognition import reserve_filename, slug
+from .memory_store import MemoryStore, _repo_id, make_global_store, make_id
+
+
+_PROMOTABLE_SOURCES = {
+    "note": ("notes", "note"),
+    "decision": ("decisions", "decision"),
+    "convention": ("conventions", "convention"),
+}
+
+
+def _first_markdown_body_line(path: Path) -> str:
+    try:
+        lines = path.read_text(errors="ignore").splitlines()
+    except OSError:
+        return ""
+    in_frontmatter = False
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if idx == 0 and stripped == "---":
+            in_frontmatter = True
+            continue
+        if in_frontmatter:
+            if stripped == "---":
+                in_frontmatter = False
+            continue
+        if stripped:
+            return stripped[:80]
+    return ""
+
+
+def _path_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _resolve_promote_source(store: MemoryStore, locator: str) -> tuple[str, str, Path] | None:
+    source_prefix, sep, rest = locator.partition(":")
+    if not sep or not rest:
+        return None
+    source_info = _PROMOTABLE_SOURCES.get(source_prefix)
+    if source_info is None:
+        return None
+    source_dir, source_type = source_info
+    if source_prefix == "decision":
+        path = store.root.parent / rest
+    else:
+        path = store.root / source_dir / f"{rest}.md"
+    if not _path_under(path, store.root.parent):
+        return None
+    return source_dir, source_type, path
+
+
+def _with_promoted_frontmatter(content: str, *, provenance: str, ts: str) -> str:
+    promoted = f"promoted_from: {provenance}\npromoted_at: {ts}\n"
+    if content.startswith("---\n"):
+        return content.replace("---\n", f"---\n{promoted}", 1)
+    return f"---\n{promoted}---\n\n{content}"
+
+
+def _remove_existing_promotions(gstore: MemoryStore, source_dir: str, provenance: str) -> None:
+    needle = f"promoted_from: {provenance}"
+    for path in (gstore.root / source_dir).glob("*.md"):
+        try:
+            if needle in path.read_text(errors="ignore"):
+                path.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 @click.group("memory")
@@ -77,6 +149,106 @@ def memory_adopt_cmd(cwd_str: str, fence_id: str) -> None:
         adopt=True,
     )
     click.echo(f"adopted: id={fence_id} hash={new_hash[:16]}...")
+
+
+@memory_group.command("promote")
+@click.argument("locator", required=False)
+@click.option(
+    "--cwd",
+    "cwd_str",
+    default=".",
+    type=click.Path(file_okay=False),
+    help="Project root.",
+)
+@click.option(
+    "--list",
+    "list_only",
+    is_flag=True,
+    help="List promotable entries instead of promoting.",
+)
+def memory_promote_cmd(locator: str | None, cwd_str: str, list_only: bool) -> None:
+    """Copy a project memory entry into the global store with provenance tag."""
+    cwd = Path(cwd_str).resolve()
+    store = MemoryStore(cwd)
+
+    if list_only:
+        for source in ("notes", "decisions", "conventions"):
+            source_dir = store.root / source
+            if not source_dir.exists():
+                continue
+            for path in sorted(source_dir.rglob("*.md")):
+                loc = store._locator_from_path(source, path)
+                click.echo(f"{loc}: {_first_markdown_body_line(path)}")
+        return
+
+    if not locator:
+        click.echo("error: missing memory locator", err=True)
+        sys.exit(1)
+
+    source_prefix = locator.split(":", 1)[0]
+    if source_prefix in ("turn", "ledger"):
+        click.echo(
+            f"error: turns and ledgers cannot be promoted (got: {source_prefix})",
+            err=True,
+        )
+        sys.exit(1)
+
+    resolved = _resolve_promote_source(store, locator)
+    if resolved is None:
+        click.echo(f"error: locator cannot be promoted: {locator}", err=True)
+        sys.exit(1)
+    source_dir, source_type, source_path = resolved
+    if not source_path.exists():
+        click.echo(f"error: memory entry not found: {locator}", err=True)
+        sys.exit(1)
+    try:
+        content = source_path.read_text()
+    except OSError as exc:
+        click.echo(f"error: could not read memory entry: {exc}", err=True)
+        sys.exit(1)
+
+    gstore = make_global_store()
+    if gstore is None:
+        click.echo("global store disabled or unavailable", err=True)
+        sys.exit(1)
+    gstore.bind(session_id="promote")
+    provenance = f"{_repo_id(cwd)}/{locator}"
+    chroma = gstore._maybe_chroma()
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    dest_dir = gstore.root / source_dir
+    lock_path = gstore.root / ".locks" / f"{source_dir}.lock"
+
+    with portalocker.Lock(
+        str(lock_path),
+        mode="a",
+        flags=portalocker.LOCK_EX,
+        timeout=5,
+    ):
+        if chroma is not None:
+            existing = chroma._collection.get(where={"promoted_from": provenance})
+            existing_ids = existing.get("ids", [])
+            if existing_ids:
+                chroma._collection.delete(ids=existing_ids)
+        _remove_existing_promotions(gstore, source_dir, provenance)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        path = reserve_filename(dest_dir, slug(source_path.stem))
+        body = _with_promoted_frontmatter(content, provenance=provenance, ts=ts)
+        path.write_text(body)
+        path.chmod(0o600)
+        if chroma is not None:
+            chroma.add(
+                text=content,
+                metadata={
+                    "source_type": source_type,
+                    "promoted_from": provenance,
+                    "ts": ts,
+                    "path": str(path),
+                    "tombstoned": False,
+                },
+                id=make_id(source_type, path.stem),
+            )
+
+    click.echo(f"promoted: {locator} -> global:{path.stem}")
 
 
 @memory_group.command("size")
