@@ -367,7 +367,8 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     if preference == "none":
         return Resolution(source="none", detail="forced none")
 
-    if preference == "auto" and load_codex_default_model():
+    codex_model = load_codex_default_model()
+    if preference == "auto" and codex_model and codex_model.startswith("gpt-5."):
         if codex := load_codex():
             if codex.api_key:
                 return Resolution(

@@ -88,6 +88,7 @@ def test_boot_rebuilds_from_persisted_selection(env) -> None:
 
     assert provider is not base
     assert getattr(provider, "api_base", None) == "https://ollama.com/v1"
+    assert cli._provider_label_for_runtime(provider, fallback="OpenAI") == "Ollama Cloud"
     assert get_config().default_model == "openai/gemma3:27b"
 
 

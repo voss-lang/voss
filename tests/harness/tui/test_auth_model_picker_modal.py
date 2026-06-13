@@ -107,7 +107,7 @@ async def test_out_of_range_digit_is_ignored() -> None:
     async with app.run_test() as pilot:
         app.open(current="gpt-5.5", models=CODEX)
         await pilot.pause()
-        await pilot.press("9")  # only 2 codex rows
+        await pilot.press("9")  # outside the Codex row count
         await pilot.pause()
         assert app.picked == "UNSET"
         await pilot.press("escape")
@@ -125,9 +125,9 @@ async def test_codex_list_variant() -> None:
         assert len(rows) == len(CODEX)
         assert "gpt-5.5" in _row_text(rows[0])
         assert glyphs.CHECK in _row_text(rows[0])
-        await pilot.press("2")
+        await pilot.press("3")
         await pilot.pause()
-    assert app.picked.id == "gpt-5.5-mini"
+    assert app.picked.id == "gpt-5.4-mini"
 
 
 @pytest.mark.asyncio

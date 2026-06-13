@@ -2381,7 +2381,10 @@ def _run_repl(
             renderer.app.slash_registry = slash_registry
             renderer.app.model = cfg.default_model
             renderer.app.git_status = git_status
-            renderer.app.provider = _provider_label(auth_detail)
+            renderer.app.provider = _provider_label_for_runtime(
+                provider,
+                fallback=_provider_label(auth_detail),
+            )
             renderer.app.mode = mode
             renderer.app.total_cost = ctx.total_cost
 
