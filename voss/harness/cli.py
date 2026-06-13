@@ -23,7 +23,6 @@ import click
 import psutil
 
 from voss_runtime import EpisodicMemory, configure, get_config
-from voss_runtime.providers import LiteLLMProvider
 from voss_runtime.providers.base import ModelProvider, ProviderResponse
 
 from . import auth as auth_mod
@@ -714,16 +713,16 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
     elif res.source in ("env-anthropic", "voss-anthropic"):
         # `resolve()` already injected ANTHROPIC_API_KEY into env for the
         # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
-        provider = LiteLLMProvider()
+        provider = _new_litellm_provider()
     elif res.source in ("env-openai", "voss-openai", "codex"):
         if res.openai_api_key:
             os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
         cfg = get_config()
         if cfg.default_model.startswith("claude"):
             configure(default_model=_openai_default_model())
-        provider = LiteLLMProvider()
+        provider = _new_litellm_provider()
     else:
-        provider = LiteLLMProvider()
+        provider = _new_litellm_provider()
     return res, provider
 
 
@@ -1996,6 +1995,12 @@ def _apply_no_unicode_env(no_unicode: bool) -> None:
     """
     if no_unicode:
         os.environ["VOSS_NO_UNICODE"] = "1"
+
+
+def _new_litellm_provider() -> ModelProvider:
+    from voss_runtime.providers import LiteLLMProvider
+
+    return LiteLLMProvider()
 
 
 def _repl_prompt() -> str:

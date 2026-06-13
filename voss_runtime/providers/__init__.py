@@ -2,10 +2,28 @@ import os
 
 from .base import ModelProvider, ProviderResponse
 from .fallback import FallbackProvider, is_retryable_error
-from .litellm_provider import LiteLLMProvider
 from .stub import StubProvider
 
 _registry: dict[str, ModelProvider] = {}
+
+
+def _default_provider() -> ModelProvider:
+    provider = _registry.get("__default__")
+    if provider is not None:
+        return provider
+    from .litellm_provider import LiteLLMProvider
+
+    provider = LiteLLMProvider()
+    _registry["__default__"] = provider
+    return provider
+
+
+def __getattr__(name: str):
+    if name == "LiteLLMProvider":
+        from .litellm_provider import LiteLLMProvider
+
+        return LiteLLMProvider
+    raise AttributeError(name)
 
 
 def register(name: str, provider: ModelProvider) -> None:
@@ -27,10 +45,9 @@ def get(name: str | None = None) -> ModelProvider:
     key = name or get_config().default_model
     if key in _registry:
         return _registry[key]
-    return _registry.get("__default__", LiteLLMProvider())
+    return _default_provider()
 
 
-register("__default__", LiteLLMProvider())
 register("__stub__", StubProvider())
 
 __all__ = [
