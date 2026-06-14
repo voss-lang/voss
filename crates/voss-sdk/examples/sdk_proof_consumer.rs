@@ -3,6 +3,7 @@
 //! passes coordinates via env — this example never spawns the server itself.
 //! No per-runtime scoring: emits one structured-JSON line; the runner scores
 //! via the single E1 substrate.
+#![allow(clippy::doc_lazy_continuation)]
 
 use futures_util::StreamExt;
 use voss_sdk::types::events::AgentEvent;

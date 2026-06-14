@@ -66,6 +66,14 @@ def _postprocess(generated: str) -> str:
             f"    #[serde(rename = \"{wire_name}\")]\n{variant}",
         )
 
+    # Suppress derivable_impls on generated Default impls (typify emits manual
+    # `impl Default` for non-first enum variants); consistent with the other
+    # clippy allows typify already injects. Keeps `cargo clippy -D warnings` green.
+    generated = generated.replace(
+        "#![allow(clippy::clone_on_copy)]\n",
+        "#![allow(clippy::clone_on_copy)]\n#![allow(clippy::derivable_impls)]\n",
+    )
+
     if "#[serde(untagged)]" in generated:
         raise RuntimeError("generated event union is still untagged")
     if "pub enum AgentEvent" not in generated:

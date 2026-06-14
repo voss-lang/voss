@@ -254,7 +254,10 @@ mod tests {
 
         // A path outside every allowed root is rejected; inside its root passes.
         let canon_b = std::fs::canonicalize(&dir_b).unwrap();
-        assert!(validate_workspace_cwd(dir_a.to_str().unwrap(), &[canon_b.clone()]).is_err());
+        assert!(
+            validate_workspace_cwd(dir_a.to_str().unwrap(), std::slice::from_ref(&canon_b))
+                .is_err()
+        );
         assert!(validate_workspace_cwd(dir_b.to_str().unwrap(), &[canon_b]).is_ok());
 
         let _ = std::fs::remove_dir_all(&dir_a);

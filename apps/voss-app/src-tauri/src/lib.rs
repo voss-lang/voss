@@ -1331,7 +1331,7 @@ fn enumerate_runs(cwd: String) -> Vec<RunEntry> {
             })
         })
         .collect();
-    entries.sort_by(|a, b| b.mtime_secs.cmp(&a.mtime_secs));
+    entries.sort_by_key(|e| std::cmp::Reverse(e.mtime_secs));
     entries
 }
 
