@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import pytest
 
+from types import SimpleNamespace
+
 from voss.template_render import render_package_template
 from voss.harness.board.reviewer_a import _reviewer_a_task
+from voss.harness.consensus import format_violations
 
 
 # --- frozen pre-migration reference implementations -------------------------
@@ -199,3 +202,62 @@ def test_memory_note_parity(args):
 @pytest.mark.parametrize("args", _CONV_CASES)
 def test_memory_convention_parity(args):
     assert _new_convention(*args) == _old_convention(*args)
+
+
+def _old_format_violations(viols, count, total):
+    lines = []
+    for v in viols:
+        lines.append(f"  constraint: {v.constraint}")
+        if v.file:
+            loc = v.file
+            if v.line is not None:
+                loc += f":{v.line}"
+            lines.append(f"  location:   {loc}")
+        if v.explanation:
+            lines.append(f"  why:        {v.explanation}")
+        lines.append("")
+    lines.append(f"{count} violations / {total} constraints checked")
+    return "\n".join(lines)
+
+
+def _viol(constraint, file=None, line=None, explanation=""):
+    return SimpleNamespace(
+        constraint=constraint, file=file, line=line, explanation=explanation
+    )
+
+
+_VIOL_SETS = [
+    [_viol("no field-only")],
+    [_viol("c", file="a.py", line=3, explanation="why x")],
+    [_viol("c", file="a.py", line=None, explanation="why x")],
+    [_viol("c", file=None, line=None, explanation="why x")],
+    [_viol("c", file="a.py", line=7, explanation="")],
+    [
+        _viol("first", file="a.py", line=1, explanation="e1"),
+        _viol("second", file=None, line=None, explanation=""),
+        _viol("third", file="b.py", line=None, explanation="e3"),
+    ],
+]
+
+
+@pytest.mark.parametrize("viols", _VIOL_SETS)
+def test_format_violations_parity(viols):
+    count = len(viols)
+    total = count + 5
+    result = SimpleNamespace(
+        violations=viols,
+        summary=SimpleNamespace(violation_count=count, total_checked=total),
+    )
+    text, has = format_violations(result)
+    assert has is True
+    assert text == _old_format_violations(viols, count, total)
+
+
+def test_format_violations_all_clear():
+    result = SimpleNamespace(
+        violations=[],
+        summary=SimpleNamespace(violation_count=0, total_checked=9),
+    )
+    text, has = format_violations(result)
+    assert has is False
+    assert text == "✓ All clear — 9 constraints checked, 0 violations."

@@ -180,19 +180,26 @@ def format_violations(
         n = result.summary.total_checked
         return (f"\u2713 All clear — {n} constraints checked, 0 violations.", False)
 
-    lines: list[str] = []
+    violations: list[dict] = []
     for v in result.violations:
-        lines.append(f"  constraint: {v.constraint}")
+        loc = None
         if v.file:
             loc = v.file
             if v.line is not None:
                 loc += f":{v.line}"
-            lines.append(f"  location:   {loc}")
-        if v.explanation:
-            lines.append(f"  why:        {v.explanation}")
-        lines.append("")
+        violations.append(
+            {"constraint": v.constraint, "location": loc, "explanation": v.explanation}
+        )
 
-    count = result.summary.violation_count
-    total = result.summary.total_checked
-    lines.append(f"{count} violations / {total} constraints checked")
-    return ("\n".join(lines), True)
+    # Template ends with a final newline (keep_trailing_newline); the original
+    # "\n".join() produced none, so strip it to preserve byte parity.
+    text = render_package_template(
+        "voss",
+        "templates/consensus/violations.txt.jinja",
+        {
+            "violations": violations,
+            "count": result.summary.violation_count,
+            "total": result.summary.total_checked,
+        },
+    ).rstrip("\n")
+    return (text, True)
