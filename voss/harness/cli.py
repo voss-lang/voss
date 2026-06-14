@@ -2581,6 +2581,7 @@ def _run_repl(
                 fallback=_provider_label(auth_detail),
             )
             renderer.app.mode = mode
+            renderer.set_phase("ambient")
             renderer.app.total_cost = ctx.total_cost
 
             async def _dispatch_tui_turn(line: str):
@@ -2635,28 +2636,32 @@ def _run_repl(
                             cost_usd=response.cost_usd,
                         )
                         return None
-                    renderer.show_thinking("starting Voss run")
-                    run_turn = _resolve_run_turn(cwd)
-                    result = await _run_turn_with_teardown(
-                        run_turn(
-                            line,
-                            tools=tools,
-                            cwd=cwd,
-                            renderer=renderer,
-                            model=get_config().default_model,
-                            history=ctx.history,
-                            permissions=gate,
-                            provider=ctx.provider,
-                            session_id=record.id,
-                            cognition=bundle,
-                            prior_context=ctx.prior_context,
-                            voss_md_text=ctx.voss_md_text,
-                            project_index_text=ctx.project_index_text,
-                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                        ),
-                        _multiagent_teardown,
-                    )
-                    ctx.prior_context = None
+                    renderer.set_phase("run")
+                    try:
+                        renderer.show_thinking("starting Voss run")
+                        run_turn = _resolve_run_turn(cwd)
+                        result = await _run_turn_with_teardown(
+                            run_turn(
+                                line,
+                                tools=tools,
+                                cwd=cwd,
+                                renderer=renderer,
+                                model=get_config().default_model,
+                                history=ctx.history,
+                                permissions=gate,
+                                provider=ctx.provider,
+                                session_id=record.id,
+                                cognition=bundle,
+                                prior_context=ctx.prior_context,
+                                voss_md_text=ctx.voss_md_text,
+                                project_index_text=ctx.project_index_text,
+                                **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
+                            ),
+                            _multiagent_teardown,
+                        )
+                        ctx.prior_context = None
+                    finally:
+                        renderer.set_phase("ambient")
                 except Exception as e:  # noqa: BLE001
                     renderer.show_warning(f"error: {e}")
                     return None
