@@ -291,45 +291,58 @@ def test_eviction_mtime_fallback_no_sidecar(tmp_voss_repo: Path) -> None:
 
 
 # ===========================================================================
-# VRNK-05 — reindex hygiene: --check detects drift; reindex repairs; chroma-absent
+# VRNK-05 — reindex hygiene (store method): drift detect; repair; chroma-absent.
+# The CLI `reindex` verb + exit-code wiring is V23-07; these test the store API.
+# Real chromadb is absent in the test env, so drift/repair inject a fake chroma.
 # ===========================================================================
+
+
+class _FakeChroma:
+    """Minimal chroma double exposing _collection.upsert for reindex tests."""
+
+    def __init__(self) -> None:
+        self.upserts: list[str] = []
+        self._collection = self
+
+    def upsert(self, *, ids, documents, metadatas) -> None:
+        self.upserts.append(ids[0])
 
 
 def test_reindex_check_detects_drift(tmp_voss_repo: Path) -> None:
     store = _store(tmp_voss_repo)
+    store._maybe_chroma = lambda: _FakeChroma()  # chroma "available"
     path = _write_convention(store, "drifted", "original statement\n", mtime=1000)
-    # Hand-edit the mirror so the embedding manifest goes stale.
-    path.write_text("edited out-of-band statement\n")
+    store.reindex(check=False)  # seed manifest (embed once)
 
-    res = CliRunner().invoke(
-        memory_group, ["reindex", "--check", "--cwd", str(tmp_voss_repo)]
-    )
-    # RED today: no `reindex` verb (exit 2). Post-V23: exit 1 + stale locator listed.
-    assert res.exit_code == 1
-    assert make_id("convention", "drifted") in res.output
+    path.write_text("edited out-of-band statement\n")  # drift the mirror
+    result = store.reindex(check=True)
+
+    assert make_id("convention", "drifted") in result.stale
 
 
 def test_reindex_repairs_then_check_clean(tmp_voss_repo: Path) -> None:
     store = _store(tmp_voss_repo)
+    store._maybe_chroma = lambda: _FakeChroma()
     path = _write_convention(store, "drifted", "original statement\n", mtime=1000)
+    store.reindex(check=False)
+
     path.write_text("edited out-of-band statement\n")
+    repair = store.reindex(check=False)
+    assert repair.reembedded >= 1
 
-    runner = CliRunner()
-    repair = runner.invoke(memory_group, ["reindex", "--cwd", str(tmp_voss_repo)])
-    assert repair.exit_code == 0  # RED today (no verb)
-
-    check = runner.invoke(memory_group, ["reindex", "--check", "--cwd", str(tmp_voss_repo)])
-    assert check.exit_code == 0
+    clean = store.reindex(check=True)
+    assert clean.stale == []
 
 
 def test_reindex_chroma_absent_exit_0(tmp_voss_repo: Path, chroma_disabled_env: None) -> None:
-    _store(tmp_voss_repo)
-    runner = CliRunner()
-    check = runner.invoke(memory_group, ["reindex", "--check", "--cwd", str(tmp_voss_repo)])
-    repair = runner.invoke(memory_group, ["reindex", "--cwd", str(tmp_voss_repo)])
-    # RED today (no verb). Post-V23: both no-op exit 0 with a notice.
-    assert check.exit_code == 0
-    assert repair.exit_code == 0
+    store = _store(tmp_voss_repo)  # autouse _no_chroma → _maybe_chroma() is None
+    _write_convention(store, "c", "body\n", mtime=1000)
+
+    check = store.reindex(check=True)
+    repair = store.reindex(check=False)
+    # Chroma absent → clean no-op (CLI maps to exit 0 + notice in V23-07).
+    assert check.chroma_available is False and repair.chroma_available is False
+    assert check.stale == [] and repair.reembedded == 0
 
 
 # ===========================================================================
