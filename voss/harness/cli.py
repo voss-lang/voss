@@ -1,4 +1,4 @@
-"""Agent commands for the unified `voss` CLI.
+«"""Agent commands for the unified `voss` CLI.
 
 Defines `do_cmd`, `chat_cmd`, `doctor_cmd` as standalone click Commands.
 - `voss.cli` imports them and adds them to the compiler's `main` group.
