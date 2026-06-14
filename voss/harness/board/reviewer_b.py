@@ -135,18 +135,18 @@ class ReviewerB:
         # touches the filesystem (isolation guarantee intact).
         repo_context = getattr(card, "repo_context", "") or ""
 
-        user_msg = (
-            f"## Original Idea\n{original_idea}\n\n"
-            f"## Acceptance Criteria\n{acceptance}\n\n"
-            f"## Artifact\n{artifact_text}\n\n"
-            f"## File Diff\n{file_diff}\n\n"
-            f"## Reviewer-A Verification Summary\n{a_verification}\n"
+        user_msg = render_package_template(
+            "voss",
+            "templates/prompts/reviewer_b_user.md.jinja",
+            {
+                "original_idea": original_idea,
+                "acceptance": acceptance,
+                "artifact_text": artifact_text,
+                "file_diff": file_diff,
+                "a_verification": a_verification,
+                "repo_context": repo_context,
+            },
         )
-        if repo_context:
-            user_msg += (
-                "\n## Repo Context (current source of files touched by the diff)\n"
-                f"{repo_context}\n"
-            )
 
         # Prompt resolved at load time so a project copy under .voss/prompts/
         # is honored; absent copy is byte-identical to REVIEWER_B_SYSTEM (R5).

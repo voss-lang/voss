@@ -373,13 +373,15 @@ class MemoryStore:
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
         path = reserve_filename(notes_dir, slug(text[:40]))
         composite_id = make_id("note", path.stem)
-        body = (
-            "---\n"
-            f"id: {path.stem}\n"
-            f"related_session: {session_id}\n"
-            f"created_at: {ts}\n"
-            "---\n\n"
-            f"{text}\n"
+        body = render_package_template(
+            "voss",
+            "templates/memory/note.md.jinja",
+            {
+                "id": path.stem,
+                "session_id": session_id,
+                "created_at": ts,
+                "text": text,
+            },
         )
         with self._lock("notes") as lock:
             if lock is None:
@@ -410,17 +412,18 @@ class MemoryStore:
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
         path = reserve_filename(conventions_dir, slug(candidate.statement[:40]))
         composite_id = make_id("convention", path.stem)
-        body = (
-            "---\n"
-            f"id: {path.stem}\n"
-            "status: active\n"
-            f"related_session: {session_id}\n"
-            f"evidence_turn_idx: {candidate.evidence_turn_idx}\n"
-            f"confidence: {candidate.confidence:.2f}\n"
-            f"created_at: {ts}\n"
-            "---\n\n"
-            f"# {candidate.statement}\n\n"
-            f"## Evidence\n\n> {candidate.evidence_quote}\n"
+        body = render_package_template(
+            "voss",
+            "templates/memory/convention.md.jinja",
+            {
+                "id": path.stem,
+                "session_id": session_id,
+                "evidence_turn_idx": candidate.evidence_turn_idx,
+                "confidence": f"{candidate.confidence:.2f}",
+                "created_at": ts,
+                "statement": candidate.statement,
+                "evidence_quote": candidate.evidence_quote,
+            },
         )
         with self._lock("conventions") as lock:
             if lock is None:

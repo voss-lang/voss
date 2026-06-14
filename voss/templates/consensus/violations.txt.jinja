@@ -1,0 +1,11 @@
+{% for v in violations %}
+  constraint: {{ v.constraint }}
+{% if v.location %}
+  location:   {{ v.location }}
+{% endif %}
+{% if v.explanation %}
+  why:        {{ v.explanation }}
+{% endif %}
+
+{% endfor %}
+{{ count }} violations / {{ total }} constraints checked

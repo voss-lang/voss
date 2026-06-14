@@ -1,0 +1,12 @@
+## Original Idea
+{{ idea }}
+
+## Current Board Snapshot
+{{ snapshot }}
+{% if roster %}
+
+## Available Roster Roles
+{% for role, desc in roster %}
+  - {{ role }}: {{ desc }}
+{% endfor %}
+{% endif %}

@@ -14,6 +14,7 @@ from voss_runtime import ToolDescriptor, tool
 
 from .sandbox import jail_path, shell_allowed, split_command, SandboxError
 from .tui.widgets.diff_modal import DiffDecision, Hunk
+from .memory_store import MemoryStore
 
 if TYPE_CHECKING:
     from voss.harness.net import NetSession
@@ -156,13 +157,22 @@ def _read_one_for_bundle(cwd: Path, path: str) -> str:
     return text
 
 
-def attach_memory_tools(tools: dict[str, "ToolEntry"], *, store, session_id: str) -> None:
+def attach_memory_tools(
+    tools: dict[str, "ToolEntry"],
+    *,
+    store,
+    session_id: str,
+    external_service=None,
+) -> None:
     """Register agent-callable durable-memory tools backed by `MemoryStore`.
 
     Exposes the recall/retain verbs the model can drive itself (previously
     only user/CLI-driven via /recall and /save). `memory_recall` is read-only
     (fans out concurrently); `memory_remember` writes a note (mutating). The
     store is bound to a session elsewhere; `session_id` tags written notes.
+
+    V22-05: When `external_service` is provided, recall fuses its hits with
+    durable-memory hits via reciprocal-rank fusion.
     """
 
     @tool(
@@ -183,6 +193,13 @@ def attach_memory_tools(tools: dict[str, "ToolEntry"], *, store, session_id: str
             hits = store.recall(query, top_k=top_k, source=source)
         except Exception as exc:  # noqa: BLE001 — recall must not crash the turn
             return f"<error: recall failed: {exc}>"
+        if external_service is not None:
+            try:
+                ext = external_service.query_all(query, top_k=top_k)
+                if ext:
+                    hits = MemoryStore._rrf_merge([hits, *ext], top_k=top_k)
+            except Exception:  # noqa: BLE001 — external recall must not break the turn
+                pass
         if not hits:
             return "(no hits)"
         lines: list[str] = []
@@ -914,6 +931,16 @@ def make_toolset(
         _code_index_service = None
     if _code_index_service is not None:
         attach_code_recall_tool(result, code_index_service=_code_index_service)
+
+    # --- V22-05 external-source recall ---
+    external_service = None
+    try:
+        from voss.harness.recall.external_index import ExternalRecallService
+
+        external_service = ExternalRecallService(cwd, session_id=session_id)
+        external_service.ensure_background_build()
+    except Exception:  # noqa: BLE001 — external recall is optional
+        pass
 
     return result
 

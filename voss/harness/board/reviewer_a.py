@@ -45,13 +45,17 @@ REVIEWER_A_ROLE_PROMPT = render_package_template(
 
 def _reviewer_a_task(original_idea: str, artifact_text: str, domain: str) -> str:
     """Format the task prompt for Reviewer-A's run_turn call."""
-    return (
-        f"## Original Idea\n{original_idea}\n\n"
-        f"## Artifact\n{artifact_text}\n\n"
-        f"## Domain\n{domain}\n\n"
-        f"Derive verification from the original idea and produce the "
-        f"{'test file (run it via shell_run)' if domain == 'code' else 'rubric'}."
-    )
+    # Template ends at "." with no trailing newline; keep_trailing_newline adds
+    # the file's final newline, so strip it to match the original f-string.
+    return render_package_template(
+        "voss",
+        "templates/prompts/reviewer_a_user.md.jinja",
+        {
+            "original_idea": original_idea,
+            "artifact_text": artifact_text,
+            "domain": domain,
+        },
+    ).rstrip("\n")
 
 
 def _verdict_from_test_exit(exit_code: int, test_file: str, output: str) -> ReviewerVerdict:
