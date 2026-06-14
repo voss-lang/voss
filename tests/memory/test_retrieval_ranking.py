@@ -345,6 +345,22 @@ def test_reindex_chroma_absent_exit_0(tmp_voss_repo: Path, chroma_disabled_env: 
     assert check.stale == [] and repair.reembedded == 0
 
 
+def test_reindex_cli_check_exit_1_on_drift(tmp_voss_repo: Path, monkeypatch) -> None:
+    # CLI `voss memory reindex --check` mirrors the sync --check exit contract.
+    fake = _FakeChroma()
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", lambda self: fake)  # override autouse None
+    store = _store(tmp_voss_repo)
+    path = _write_convention(store, "drifted", "original statement\n", mtime=1000)
+
+    runner = CliRunner()
+    runner.invoke(memory_group, ["reindex", "--cwd", str(tmp_voss_repo)])  # seed manifest
+    path.write_text("edited out-of-band statement\n")
+
+    res = runner.invoke(memory_group, ["reindex", "--check", "--cwd", str(tmp_voss_repo)])
+    assert res.exit_code == 1
+    assert make_id("convention", "drifted") in res.output
+
+
 # ===========================================================================
 # VRNK-06 — pinned tier: always available; survives eviction; cap overflow warns
 # ===========================================================================
