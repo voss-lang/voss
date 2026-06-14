@@ -60,6 +60,20 @@ class _BM25Candidate:
     text: str
 
 
+@dataclass
+class ReindexResult:
+    """Outcome of MemoryStore.reindex (VRNK-05); the CLI maps this to exit codes.
+
+    ``stale`` = locators whose mirror file drifted from / is missing in the
+    manifest. ``reembedded`` = count upserted into chroma (0 for a --check pass).
+    ``chroma_available`` = False when chroma is absent (clean no-op, exit 0).
+    """
+
+    stale: list[str]
+    reembedded: int
+    chroma_available: bool
+
+
 def make_id(source: str, locator: str, seq: int | None = None) -> str:
     """D-04 composite ID format <source>:<locator>:<seq>."""
     if seq is None:
@@ -72,6 +86,11 @@ def _repo_id(cwd: Path) -> str:
     resolved = cwd.resolve()
     digest = hashlib.sha256(str(resolved).encode()).hexdigest()[:8]
     return f"{resolved.name}-{digest}"
+
+
+def _file_hash(text: str) -> str:
+    """sha256 of file text — reindex drift manifest key (mirrors V19 semantic_index)."""
+    return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
 
 
 def _global_memory_root() -> Path | None:
@@ -222,7 +241,15 @@ class MemoryStore:
             self._size_cache[source] = current_bytes
             return
 
-        files.sort(key=lambda p: p.stat().st_mtime)
+        # VRNK-04 retrieval-aware eviction: drop pinned rows from the candidate
+        # set (never deleted, but they still count toward quota bytes), then sort
+        # by _eviction_key — never-retrieved/stale evict before recently-retrieved;
+        # mtime ascending tie-break. With no telemetry sidecar every file lands in
+        # bucket 0 → the sort degrades to the pre-V23 mtime ordering.
+        telemetry = self._load_telemetry_compacted()
+        pins = self._load_pins()
+        files = [f for f in files if self._locator_from_path(source, f) not in pins]
+        files.sort(key=lambda p: self._eviction_key(p, telemetry))
         chroma = self._maybe_chroma()
         for oldest in files:
             try:
@@ -1109,3 +1136,168 @@ class MemoryStore:
         if not self.root.exists():
             return 0
         return sum(p.stat().st_size for p in self.root.rglob("*") if p.is_file())
+
+    # ------------------------------------------------------------------
+    # pins (VRNK-04 eviction exemption + VRNK-06/07 injection/CLI) — COMMITTED
+    # sidecar (.pins.json is NOT gitignored, D-02)
+    # ------------------------------------------------------------------
+
+    @property
+    def _pins_path(self) -> Path:
+        return self.root / ".pins.json"
+
+    def _load_pins(self) -> set[str]:
+        """Return the set of pinned locators from ``.pins.json``.
+
+        On-disk schema ``{"pins": [{"locator": ..., "pinned_at": ISO}]}``.
+        Missing / corrupt / wrong-shape → empty set (eviction proceeds normally).
+        Pitfall 6: pinned locators MUST be stored as :meth:`_locator_from_path`
+        output so the eviction exemption + injection lookups fire.
+        """
+        path = self._pins_path
+        if not path.exists():
+            return set()
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return set()
+        if not isinstance(data, dict):
+            return set()
+        return {
+            e["locator"]
+            for e in data.get("pins", [])
+            if isinstance(e, dict) and e.get("locator")
+        }
+
+    def _save_pins(self, pins) -> None:
+        """Persist the committed ``.pins.json``.
+
+        Accepts an iterable of locator strings or of ``{"locator", "pinned_at"}``
+        dicts; preserves ``pinned_at`` so VRNK-07 list/show can render it. Pin
+        locators MUST come from :meth:`_locator_from_path` (Pitfall 6).
+        """
+        entries: list[dict] = []
+        for p in pins:
+            if isinstance(p, dict) and p.get("locator"):
+                entries.append(
+                    {"locator": p["locator"], "pinned_at": p.get("pinned_at", "")}
+                )
+            elif isinstance(p, str) and p:
+                entries.append({"locator": p, "pinned_at": ""})
+        path = self._pins_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"pins": entries}))
+        path.chmod(0o600)
+
+    def _eviction_key(self, path: Path, telemetry: dict) -> tuple:
+        """Sort key for retrieval-aware eviction (D-15): evict-first → evict-last.
+
+        Bucket 0 (never retrieved, or telemetry without ``last_retrieved``) sorts
+        before bucket 1 (retrieved), so cold files go first. Within bucket 1,
+        ascending ``last_retrieved`` = stalest first. mtime ascending breaks ties
+        in both buckets. Always a 3-tuple so cross-bucket comparison never errors.
+        """
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        source = path.parent.name
+        locator = self._locator_from_path(source, path)
+        entry = telemetry.get(locator)
+        if not entry or not entry.get("last_retrieved"):
+            return (0, "", mtime)
+        return (1, str(entry["last_retrieved"]), mtime)
+
+    # ------------------------------------------------------------------
+    # reindex / drift hygiene (VRNK-05) — chroma-only; sha256 manifest of the
+    # file-based sources (notes/decisions/conventions, D-10)
+    # ------------------------------------------------------------------
+
+    @property
+    def _reindex_manifest_path(self) -> Path:
+        return self.root / ".reindex-manifest.json"
+
+    def _load_reindex_manifest(self) -> dict:
+        """relpath→sha256 manifest; missing/corrupt → {} (everything stale, D-11)."""
+        path = self._reindex_manifest_path
+        if not path.exists():
+            return {}
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _save_reindex_manifest(self, data: dict) -> None:
+        path = self._reindex_manifest_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=0, sort_keys=True))
+        path.chmod(0o600)
+
+    def _file_based_sources(self) -> list[Path]:
+        """Files under notes/ decisions/ conventions/ only (turns/ledgers excluded, D-10)."""
+        out: list[Path] = []
+        for src in ("notes", "decisions", "conventions"):
+            src_dir = self.root / src
+            if not src_dir.exists():
+                continue
+            for p in src_dir.rglob("*"):
+                if p.is_file() and not p.name.startswith("."):
+                    out.append(p)
+        return out
+
+    def reindex(self, *, check: bool = False) -> ReindexResult:
+        """Detect/repair chroma drift of the file-based mirror (VRNK-05).
+
+        ``check=True`` is read-only: returns the stale/missing locator list (sha256
+        vs manifest) WITHOUT re-embedding or writing the manifest. ``check=False``
+        upserts each stale file into chroma (idempotent — upsert, NOT add) and
+        rewrites the manifest, returning the re-embedded count. Chroma absent →
+        a clean no-op (``chroma_available=False``); never raises.
+        """
+        chroma = self._maybe_chroma()
+        if chroma is None:
+            return ReindexResult(stale=[], reembedded=0, chroma_available=False)
+
+        manifest = self._load_reindex_manifest()
+        current: dict[str, str] = {}
+        stale: list[tuple[Path, str, str, str]] = []  # (path, locator, text, src)
+        for path in self._file_based_sources():
+            rel = str(path.relative_to(self.root))
+            try:
+                text = path.read_text(errors="ignore")
+            except OSError:
+                continue
+            digest = _file_hash(text)
+            current[rel] = digest
+            if manifest.get(rel) != digest:
+                src = path.parent.name
+                locator = self._locator_from_path(src, path)
+                stale.append((path, locator, text, src))
+
+        stale_locators = [loc for _, loc, _, _ in stale]
+        if check:
+            return ReindexResult(stale=stale_locators, reembedded=0, chroma_available=True)
+
+        reembedded = 0
+        for path, locator, text, src in stale:
+            source_type = "ledger" if src == "ledgers" else src.rstrip("s")
+            try:
+                chroma._collection.upsert(
+                    ids=[locator],
+                    documents=[text],
+                    metadatas=[
+                        {
+                            "source_type": source_type,
+                            "path": str(path),
+                            "tombstoned": False,
+                        }
+                    ],
+                )
+                reembedded += 1
+            except Exception as exc:  # noqa: BLE001 — one bad embed must not abort the pass
+                print(f"reindex: upsert failed for {locator}: {exc}", file=sys.stderr)
+        self._save_reindex_manifest(current)
+        return ReindexResult(
+            stale=stale_locators, reembedded=reembedded, chroma_available=True
+        )

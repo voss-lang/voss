@@ -102,7 +102,10 @@ def _pins_path(store: MemoryStore) -> Path:
 
 
 def _write_pins(store: MemoryStore, locators: list[str]) -> None:
-    _pins_path(store).write_text(json.dumps([{"locator": loc} for loc in locators]))
+    # Committed .pins.json schema: {"pins": [{"locator", "pinned_at"}]} (D-02).
+    _pins_path(store).write_text(
+        json.dumps({"pins": [{"locator": loc, "pinned_at": ""} for loc in locators]})
+    )
 
 
 def _write_memory_config(repo: Path, **kv: object) -> None:
