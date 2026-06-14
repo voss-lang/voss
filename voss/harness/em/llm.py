@@ -37,15 +37,14 @@ async def em_plan(
     On ParseError or parsed=None, returns EMPlanResponse(ops=[NoopOp(reason="parse_failure")]).
     On other exceptions, re-raises (the loop's responsibility to handle).
     """
-    roster_text = ""
-    if roster_descriptions:
-        lines = [f"  - {role}: {desc}" for role, desc in roster_descriptions.items()]
-        roster_text = "\n## Available Roster Roles\n" + "\n".join(lines) + "\n"
-
-    user_msg = (
-        f"## Original Idea\n{idea}\n\n"
-        f"## Current Board Snapshot\n{snapshot}\n"
-        f"{roster_text}"
+    user_msg = render_package_template(
+        "voss",
+        "templates/prompts/em_user.md.jinja",
+        {
+            "idea": idea,
+            "snapshot": snapshot,
+            "roster": list(roster_descriptions.items()) if roster_descriptions else [],
+        },
     )
 
     # Prompt resolved at load time so a project copy under .voss/prompts/
