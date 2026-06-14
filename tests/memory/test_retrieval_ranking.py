@@ -164,30 +164,43 @@ def test_recall_does_not_mutate_memory_file_mtime(tmp_voss_repo: Path) -> None:
 
 
 def test_no_match_query_returns_zero_hits_with_floor(tmp_voss_repo: Path) -> None:
+    # BM25-only here (autouse _no_chroma): a query with no token overlap returns
+    # 0, not top_k nearest-anything. The chroma absolute floor (0.25) enforces
+    # the same when chroma is present. Floors default-on.
     store = _store(tmp_voss_repo)
-    # All three notes share the ubiquitous token "system"; pre-V23 BM25 fills
-    # weak matches. With the relevance floor default-on, a query that only
-    # touches that ubiquitous token must return 0 hits.
-    _write_note(store, "n0", "system alpha configuration\n")
-    _write_note(store, "n1", "system bravo configuration\n")
-    _write_note(store, "n2", "system charlie configuration\n")
+    _write_note(store, "n0", "database migration rollback\n")
+    _write_note(store, "n1", "websocket reconnect handler\n")
 
-    hits = store.recall("system", top_k=5)
-    assert hits == []  # RED today: fill returns the 3 weak matches.
+    assert store.recall("xylophone quokka zzzznonexistent", top_k=5) == []
+
+
+def test_bm25_floor_drops_weak_matches(tmp_voss_repo: Path) -> None:
+    # One strong multi-term match + one doc touching only the common term. The
+    # relative-to-top floor (default 0.1) drops the weak fill before fusion.
+    store = _store(tmp_voss_repo)
+    strong = _write_note(
+        store, "strong", "database migration rollback database migration rollback\n"
+    )
+    _write_note(store, "weak", "database " + "filler " * 80 + "\n")
+
+    locs = [h.locator for h in store.recall("database migration rollback", top_k=5)]
+    assert strong in locs
+    assert make_id("note", "weak") not in locs  # below 10% of top → floored out.
 
 
 def test_floor_disabled_restores_fill(tmp_voss_repo: Path) -> None:
+    # Same strong+weak corpus; disabling both floors restores pre-V23 fill so the
+    # weak match returns again. Green before AND after the feature (knob lock).
     store = _store(tmp_voss_repo)
-    _write_note(store, "n0", "system alpha configuration\n")
-    _write_note(store, "n1", "system bravo configuration\n")
-    _write_note(store, "n2", "system charlie configuration\n")
+    strong = _write_note(
+        store, "strong", "database migration rollback database migration rollback\n"
+    )
+    weak = _write_note(store, "weak", "database " + "filler " * 80 + "\n")
 
-    # Disable both floors → pre-V23 fill behaviour (regression lock: green now
-    # and after the feature lands).
     _write_memory_config(tmp_voss_repo, chroma_floor=0, bm25_floor_ratio=0)
 
-    hits = store.recall("system", top_k=5)
-    assert len(hits) >= 1
+    locs = [h.locator for h in store.recall("database migration rollback", top_k=5)]
+    assert strong in locs and weak in locs
 
 
 # ===========================================================================

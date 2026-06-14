@@ -646,6 +646,19 @@ class MemoryStore:
                     ts=meta.get("ts"),
                 )
             )
+
+        # VRNK-02 chroma absolute similarity floor (pre-fusion, D-04/D-06):
+        # score = max(0.0, 1 - distance); drop hits < chroma_floor (default 0.25,
+        # NOT froots' 0.45). chroma_floor=0 disables → all nearest neighbors
+        # retained (pre-V23). This is what turns a junk query into 0 hits instead
+        # of top_k nearest-anything.
+        cfg = self._load_memory_config()
+        try:
+            chroma_floor = float(cfg.get("chroma_floor", 0.25))
+        except (TypeError, ValueError):
+            chroma_floor = 0.25
+        if chroma_floor > 0:
+            out = [h for h in out if h.score >= chroma_floor]
         return out
 
     def _bm25_corpus(self, source: str | None) -> list[_BM25Candidate]:
@@ -739,6 +752,21 @@ class MemoryStore:
                 )
             )
         ranked.sort(key=lambda item: item[0], reverse=True)
+
+        # VRNK-02 BM25 relative-to-top floor (pre-fusion, D-05/D-06): drop rows
+        # below bm25_floor_ratio of the top score. Guard top > 0 (Pitfall 4 — a
+        # zero top would pass everything). ratio=0 disables → pre-V23 fill. The
+        # tiny-corpus token-overlap rescue feeds positive scores that compare
+        # naturally against the relative cutoff.
+        cfg = self._load_memory_config()
+        try:
+            bm25_floor_ratio = float(cfg.get("bm25_floor_ratio", 0.1))
+        except (TypeError, ValueError):
+            bm25_floor_ratio = 0.1
+        if ranked and ranked[0][0] > 0 and bm25_floor_ratio > 0:
+            cutoff = ranked[0][0] * bm25_floor_ratio
+            ranked = [(s, h) for s, h in ranked if s >= cutoff]
+
         return [hit for _, hit in ranked[:top_k]]
 
     def _bm25_jsonl_candidates(
