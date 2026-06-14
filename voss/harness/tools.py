@@ -941,7 +941,6 @@ def make_toolset(
         external_service.ensure_background_build()
     except Exception:  # noqa: BLE001 — external recall is optional
         pass
-    result["_external_recall_service"] = external_service
 
     return result
 
