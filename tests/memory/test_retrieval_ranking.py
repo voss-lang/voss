@@ -174,16 +174,18 @@ def test_no_match_query_returns_zero_hits_with_floor(tmp_voss_repo: Path) -> Non
     assert store.recall("xylophone quokka zzzznonexistent", top_k=5) == []
 
 
-def test_bm25_floor_drops_weak_matches(tmp_voss_repo: Path) -> None:
-    # One strong multi-term match + one doc touching only the common term. The
-    # relative-to-top floor (default 0.1) drops the weak fill before fusion.
-    store = _store(tmp_voss_repo)
-    strong = _write_note(
-        store, "strong", "database migration rollback database migration rollback\n"
-    )
-    _write_note(store, "weak", "database " + "filler " * 80 + "\n")
+# 12-term query: in a tiny corpus BM25 falls back to the token-overlap rescue
+# (score == distinct query tokens matched). Strong matches all 12 (score 12),
+# weak matches 1 (score 1) → weak is below the 10%-of-top cutoff (1.2).
+_FLOOR_QUERY = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima"
 
-    locs = [h.locator for h in store.recall("database migration rollback", top_k=5)]
+
+def test_bm25_floor_drops_weak_matches(tmp_voss_repo: Path) -> None:
+    store = _store(tmp_voss_repo)
+    strong = _write_note(store, "strong", _FLOOR_QUERY + "\n")
+    _write_note(store, "weak", "alpha " + "filler " * 80 + "\n")
+
+    locs = [h.locator for h in store.recall(_FLOOR_QUERY, top_k=5)]
     assert strong in locs
     assert make_id("note", "weak") not in locs  # below 10% of top → floored out.
 
@@ -192,14 +194,12 @@ def test_floor_disabled_restores_fill(tmp_voss_repo: Path) -> None:
     # Same strong+weak corpus; disabling both floors restores pre-V23 fill so the
     # weak match returns again. Green before AND after the feature (knob lock).
     store = _store(tmp_voss_repo)
-    strong = _write_note(
-        store, "strong", "database migration rollback database migration rollback\n"
-    )
-    weak = _write_note(store, "weak", "database " + "filler " * 80 + "\n")
+    strong = _write_note(store, "strong", _FLOOR_QUERY + "\n")
+    weak = _write_note(store, "weak", "alpha " + "filler " * 80 + "\n")
 
     _write_memory_config(tmp_voss_repo, chroma_floor=0, bm25_floor_ratio=0)
 
-    locs = [h.locator for h in store.recall("database migration rollback", top_k=5)]
+    locs = [h.locator for h in store.recall(_FLOOR_QUERY, top_k=5)]
     assert strong in locs and weak in locs
 
 
