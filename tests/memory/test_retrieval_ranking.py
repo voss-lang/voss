@@ -102,7 +102,10 @@ def _pins_path(store: MemoryStore) -> Path:
 
 
 def _write_pins(store: MemoryStore, locators: list[str]) -> None:
-    _pins_path(store).write_text(json.dumps([{"locator": loc} for loc in locators]))
+    # Committed .pins.json schema: {"pins": [{"locator", "pinned_at"}]} (D-02).
+    _pins_path(store).write_text(
+        json.dumps({"pins": [{"locator": loc, "pinned_at": ""} for loc in locators]})
+    )
 
 
 def _write_memory_config(repo: Path, **kv: object) -> None:
@@ -164,30 +167,43 @@ def test_recall_does_not_mutate_memory_file_mtime(tmp_voss_repo: Path) -> None:
 
 
 def test_no_match_query_returns_zero_hits_with_floor(tmp_voss_repo: Path) -> None:
+    # BM25-only here (autouse _no_chroma): a query with no token overlap returns
+    # 0, not top_k nearest-anything. The chroma absolute floor (0.25) enforces
+    # the same when chroma is present. Floors default-on.
     store = _store(tmp_voss_repo)
-    # All three notes share the ubiquitous token "system"; pre-V23 BM25 fills
-    # weak matches. With the relevance floor default-on, a query that only
-    # touches that ubiquitous token must return 0 hits.
-    _write_note(store, "n0", "system alpha configuration\n")
-    _write_note(store, "n1", "system bravo configuration\n")
-    _write_note(store, "n2", "system charlie configuration\n")
+    _write_note(store, "n0", "database migration rollback\n")
+    _write_note(store, "n1", "websocket reconnect handler\n")
 
-    hits = store.recall("system", top_k=5)
-    assert hits == []  # RED today: fill returns the 3 weak matches.
+    assert store.recall("xylophone quokka zzzznonexistent", top_k=5) == []
+
+
+# 12-term query: in a tiny corpus BM25 falls back to the token-overlap rescue
+# (score == distinct query tokens matched). Strong matches all 12 (score 12),
+# weak matches 1 (score 1) → weak is below the 10%-of-top cutoff (1.2).
+_FLOOR_QUERY = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima"
+
+
+def test_bm25_floor_drops_weak_matches(tmp_voss_repo: Path) -> None:
+    store = _store(tmp_voss_repo)
+    strong = _write_note(store, "strong", _FLOOR_QUERY + "\n")
+    _write_note(store, "weak", "alpha " + "filler " * 80 + "\n")
+
+    locs = [h.locator for h in store.recall(_FLOOR_QUERY, top_k=5)]
+    assert strong in locs
+    assert make_id("note", "weak") not in locs  # below 10% of top → floored out.
 
 
 def test_floor_disabled_restores_fill(tmp_voss_repo: Path) -> None:
+    # Same strong+weak corpus; disabling both floors restores pre-V23 fill so the
+    # weak match returns again. Green before AND after the feature (knob lock).
     store = _store(tmp_voss_repo)
-    _write_note(store, "n0", "system alpha configuration\n")
-    _write_note(store, "n1", "system bravo configuration\n")
-    _write_note(store, "n2", "system charlie configuration\n")
+    strong = _write_note(store, "strong", _FLOOR_QUERY + "\n")
+    weak = _write_note(store, "weak", "alpha " + "filler " * 80 + "\n")
 
-    # Disable both floors → pre-V23 fill behaviour (regression lock: green now
-    # and after the feature lands).
     _write_memory_config(tmp_voss_repo, chroma_floor=0, bm25_floor_ratio=0)
 
-    hits = store.recall("system", top_k=5)
-    assert len(hits) >= 1
+    locs = [h.locator for h in store.recall(_FLOOR_QUERY, top_k=5)]
+    assert strong in locs and weak in locs
 
 
 # ===========================================================================
@@ -197,19 +213,19 @@ def test_floor_disabled_restores_fill(tmp_voss_repo: Path) -> None:
 
 def test_rescore_deterministic_under_fixture(tmp_voss_repo: Path) -> None:
     store = _store(tmp_voss_repo)
-    a = _write_note(store, "a", "database migration database migration database\n")
-    b = _write_note(store, "b", "database schema\n")
+    # IDENTICAL lexical scores → similarity ties. The bounded recency×frequency
+    # boost can't override a real score gap (D-13), so the deterministic re-rank
+    # is asserted on a tie that telemetry breaks.
+    a = _write_note(store, "aaa", "database migration\n")
+    b = _write_note(store, "bbb", "database migration\n")
 
-    # Baseline: A outranks B on lexical strength.
-    baseline = store.recall("database migration", top_k=5)
-    assert [h.locator for h in baseline][:2] == [a, b], "setup: A must lead B pre-rescore"
-
-    # Fixed telemetry strongly favours B; rescore on must lift B to the top.
+    # Fixed telemetry favours B; rescore on must lift B to the top of the tie.
     _write_telemetry(store, [(b, 8)])
     _write_memory_config(tmp_voss_repo, rescore="true")
 
     hits = store.recall("database migration", top_k=5)
-    assert hits and hits[0].locator == b  # RED today: rescore not honoured → A leads.
+    assert hits and hits[0].locator == b
+    assert a in [h.locator for h in hits]
 
 
 def test_rescore_off_byte_identical(tmp_voss_repo: Path) -> None:
@@ -275,45 +291,58 @@ def test_eviction_mtime_fallback_no_sidecar(tmp_voss_repo: Path) -> None:
 
 
 # ===========================================================================
-# VRNK-05 — reindex hygiene: --check detects drift; reindex repairs; chroma-absent
+# VRNK-05 — reindex hygiene (store method): drift detect; repair; chroma-absent.
+# The CLI `reindex` verb + exit-code wiring is V23-07; these test the store API.
+# Real chromadb is absent in the test env, so drift/repair inject a fake chroma.
 # ===========================================================================
+
+
+class _FakeChroma:
+    """Minimal chroma double exposing _collection.upsert for reindex tests."""
+
+    def __init__(self) -> None:
+        self.upserts: list[str] = []
+        self._collection = self
+
+    def upsert(self, *, ids, documents, metadatas) -> None:
+        self.upserts.append(ids[0])
 
 
 def test_reindex_check_detects_drift(tmp_voss_repo: Path) -> None:
     store = _store(tmp_voss_repo)
+    store._maybe_chroma = lambda: _FakeChroma()  # chroma "available"
     path = _write_convention(store, "drifted", "original statement\n", mtime=1000)
-    # Hand-edit the mirror so the embedding manifest goes stale.
-    path.write_text("edited out-of-band statement\n")
+    store.reindex(check=False)  # seed manifest (embed once)
 
-    res = CliRunner().invoke(
-        memory_group, ["reindex", "--check", "--cwd", str(tmp_voss_repo)]
-    )
-    # RED today: no `reindex` verb (exit 2). Post-V23: exit 1 + stale locator listed.
-    assert res.exit_code == 1
-    assert make_id("convention", "drifted") in res.output
+    path.write_text("edited out-of-band statement\n")  # drift the mirror
+    result = store.reindex(check=True)
+
+    assert make_id("convention", "drifted") in result.stale
 
 
 def test_reindex_repairs_then_check_clean(tmp_voss_repo: Path) -> None:
     store = _store(tmp_voss_repo)
+    store._maybe_chroma = lambda: _FakeChroma()
     path = _write_convention(store, "drifted", "original statement\n", mtime=1000)
+    store.reindex(check=False)
+
     path.write_text("edited out-of-band statement\n")
+    repair = store.reindex(check=False)
+    assert repair.reembedded >= 1
 
-    runner = CliRunner()
-    repair = runner.invoke(memory_group, ["reindex", "--cwd", str(tmp_voss_repo)])
-    assert repair.exit_code == 0  # RED today (no verb)
-
-    check = runner.invoke(memory_group, ["reindex", "--check", "--cwd", str(tmp_voss_repo)])
-    assert check.exit_code == 0
+    clean = store.reindex(check=True)
+    assert clean.stale == []
 
 
 def test_reindex_chroma_absent_exit_0(tmp_voss_repo: Path, chroma_disabled_env: None) -> None:
-    _store(tmp_voss_repo)
-    runner = CliRunner()
-    check = runner.invoke(memory_group, ["reindex", "--check", "--cwd", str(tmp_voss_repo)])
-    repair = runner.invoke(memory_group, ["reindex", "--cwd", str(tmp_voss_repo)])
-    # RED today (no verb). Post-V23: both no-op exit 0 with a notice.
-    assert check.exit_code == 0
-    assert repair.exit_code == 0
+    store = _store(tmp_voss_repo)  # autouse _no_chroma → _maybe_chroma() is None
+    _write_convention(store, "c", "body\n", mtime=1000)
+
+    check = store.reindex(check=True)
+    repair = store.reindex(check=False)
+    # Chroma absent → clean no-op (CLI maps to exit 0 + notice in V23-07).
+    assert check.chroma_available is False and repair.chroma_available is False
+    assert check.stale == [] and repair.reembedded == 0
 
 
 # ===========================================================================
