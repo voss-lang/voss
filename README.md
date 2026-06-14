@@ -3,7 +3,6 @@
 [![CI](https://github.com/voss-lang/voss/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/voss-lang/voss/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@vosslang/cli.svg)](https://www.npmjs.com/package/@vosslang/cli)
 [![npm downloads](https://img.shields.io/npm/dm/@vosslang/cli.svg)](https://www.npmjs.com/package/@vosslang/cli)
-[![PyPI version](https://img.shields.io/pypi/v/voss.svg)](https://pypi.org/project/voss/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node 18+](https://img.shields.io/badge/node-18+-brightgreen.svg)](https://nodejs.org/)
