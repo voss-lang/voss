@@ -45,6 +45,56 @@ def _old_em(idea, snapshot, roster_descriptions):
     )
 
 
+def _old_note(stem, session_id, ts, text):
+    return (
+        "---\n"
+        f"id: {stem}\n"
+        f"related_session: {session_id}\n"
+        f"created_at: {ts}\n"
+        "---\n\n"
+        f"{text}\n"
+    )
+
+
+def _old_convention(stem, session_id, evidence_turn_idx, confidence, ts, statement, quote):
+    return (
+        "---\n"
+        f"id: {stem}\n"
+        "status: active\n"
+        f"related_session: {session_id}\n"
+        f"evidence_turn_idx: {evidence_turn_idx}\n"
+        f"confidence: {confidence:.2f}\n"
+        f"created_at: {ts}\n"
+        "---\n\n"
+        f"# {statement}\n\n"
+        f"## Evidence\n\n> {quote}\n"
+    )
+
+
+def _new_note(stem, session_id, ts, text):
+    return render_package_template(
+        "voss",
+        "templates/memory/note.md.jinja",
+        {"id": stem, "session_id": session_id, "created_at": ts, "text": text},
+    )
+
+
+def _new_convention(stem, session_id, evidence_turn_idx, confidence, ts, statement, quote):
+    return render_package_template(
+        "voss",
+        "templates/memory/convention.md.jinja",
+        {
+            "id": stem,
+            "session_id": session_id,
+            "evidence_turn_idx": evidence_turn_idx,
+            "confidence": f"{confidence:.2f}",
+            "created_at": ts,
+            "statement": statement,
+            "evidence_quote": quote,
+        },
+    )
+
+
 def _old_reviewer_a(original_idea, artifact_text, domain):
     return (
         f"## Original Idea\n{original_idea}\n\n"
@@ -126,3 +176,26 @@ def test_em_user_parity(args):
 @pytest.mark.parametrize("args", _A_CASES)
 def test_reviewer_a_task_parity(args):
     assert _reviewer_a_task(*args) == _old_reviewer_a(*args)
+
+
+_NOTE_CASES = [
+    ("note-abc", "sess-1", "2026-06-13T00:00:00+00:00", _TEXT),
+    ("note-xyz", "sess-2", "2026-06-13T12:34:56+00:00", _MULTI),
+    ("note-empty", "sess-3", "2026-06-13T00:00:00+00:00", ""),
+]
+
+_CONV_CASES = [
+    ("conv-1", "sess-1", 3, 0.5, "2026-06-13T00:00:00+00:00", "Prefer X over Y", "quote here"),
+    ("conv-2", "sess-2", 0, 1.0, "2026-06-13T12:00:00+00:00", _MULTI, _MULTI),
+    ("conv-3", "sess-3", 42, 0.333, "2026-06-13T00:00:00+00:00", "stmt", "> nested quote"),
+]
+
+
+@pytest.mark.parametrize("args", _NOTE_CASES)
+def test_memory_note_parity(args):
+    assert _new_note(*args) == _old_note(*args)
+
+
+@pytest.mark.parametrize("args", _CONV_CASES)
+def test_memory_convention_parity(args):
+    assert _new_convention(*args) == _old_convention(*args)
