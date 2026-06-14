@@ -369,6 +369,19 @@ def _provider_label_for_runtime(provider: object, *, fallback: str = "") -> str:
     return fallback
 
 
+def _provider_label_for_auth(res: auth_mod.Resolution, provider: object) -> str:
+    if res.source in ("codex", "codex-oauth"):
+        return "Codex"
+    if res.source in ("claude-agent", "env-anthropic", "voss-anthropic"):
+        return "Anthropic"
+    if res.source in ("env-openai", "voss-openai"):
+        return "OpenAI"
+    return _provider_label_for_runtime(
+        provider,
+        fallback=_provider_label(f"{res.source} — {res.detail}"),
+    )
+
+
 def _sync_model_selection(
     ctx: object,
     *,
@@ -638,6 +651,58 @@ def _run_textual_app(app) -> None:
     app.run()
 
 
+def _build_provider_for_auth(
+    res: auth_mod.Resolution,
+    *,
+    announce: bool = True,
+) -> ModelProvider:
+    if res.source == "claude-agent":
+        if announce:
+            click.echo(
+                "  [claude-agent: using your Claude subscription via the Agent SDK "
+                "(claude -p); bills the plan's Agent SDK monthly credit, not "
+                "interactive Claude Code limits.]",
+                err=True,
+            )
+        provider: ModelProvider = ClaudeAgentProvider(cli_path=res.cli_path)
+        cfg = get_config()
+        # The Agent SDK only serves claude-* models. Snap any non-claude
+        # default to the current baseline; leave an explicit claude-* alone.
+        if not cfg.default_model.startswith("claude"):
+            configure(default_model="claude-sonnet-4-5")
+    elif res.source == "codex-oauth":
+        if announce:
+            click.echo(
+                "  [codex-oauth: using your ChatGPT subscription via "
+                "chatgpt.com/backend-api/codex (unofficial endpoint; $0 per-token "
+                "but ToS-gray and may change without notice).]",
+                err=True,
+            )
+        provider = OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
+        cfg = get_config()
+        # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
+        # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
+        # to Codex CLI's own default when set; leave a compatible choice alone.
+        if not _is_codex_model(cfg.default_model):
+            configure(default_model=_codex_default_model())
+    elif res.source in ("env-anthropic", "voss-anthropic"):
+        # `resolve()` already injected ANTHROPIC_API_KEY into env for the
+        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
+        provider = _new_litellm_provider()
+    elif res.source in ("env-openai", "voss-openai", "codex"):
+        if res.openai_api_key:
+            os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
+        cfg = get_config()
+        if cfg.default_model.startswith("claude"):
+            configure(default_model=_openai_default_model())
+        provider = _new_litellm_provider()
+        if res.source == "codex":
+            setattr(provider, "voss_provider_label", "Codex")
+    else:
+        provider = _new_litellm_provider()
+    return provider
+
+
 def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelProvider]:
     """Pick an auth path, build a provider for it, or exit 2.
 
@@ -678,47 +743,7 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
             )
             sys.exit(2)
 
-    if res.source == "claude-agent":
-        click.echo(
-            "  [claude-agent: using your Claude subscription via the Agent SDK "
-            "(claude -p); bills the plan's Agent SDK monthly credit, not "
-            "interactive Claude Code limits.]",
-            err=True,
-        )
-        provider: ModelProvider = ClaudeAgentProvider(cli_path=res.cli_path)
-        cfg = get_config()
-        # The Agent SDK only serves claude-* models. Snap any non-claude
-        # default to the current baseline; leave an explicit claude-* alone.
-        if not cfg.default_model.startswith("claude"):
-            configure(default_model="claude-sonnet-4-5")
-    elif res.source == "codex-oauth":
-        click.echo(
-            "  [codex-oauth: using your ChatGPT subscription via "
-            "chatgpt.com/backend-api/codex (unofficial endpoint; $0 per-token "
-            "but ToS-gray and may change without notice).]",
-            err=True,
-        )
-        provider = OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
-        cfg = get_config()
-        # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
-        # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
-        # to Codex CLI's own default when set; leave a compatible choice alone.
-        if not _is_codex_model(cfg.default_model):
-            configure(default_model=_codex_default_model())
-    elif res.source in ("env-anthropic", "voss-anthropic"):
-        # `resolve()` already injected ANTHROPIC_API_KEY into env for the
-        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
-        provider = _new_litellm_provider()
-    elif res.source in ("env-openai", "voss-openai", "codex"):
-        if res.openai_api_key:
-            os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
-        cfg = get_config()
-        if cfg.default_model.startswith("claude"):
-            configure(default_model=_openai_default_model())
-        provider = _new_litellm_provider()
-    else:
-        provider = _new_litellm_provider()
-    return res, provider
+    return res, _build_provider_for_auth(res)
 
 
 def _git_status(cwd: Path) -> str:
@@ -1777,8 +1802,9 @@ def _build_slash_registry() -> SlashRegistry:
     def _auth(ctx: ReplContext, args: list[str], _line: str) -> None:
         """Show or persist the default credential source (`[harness] auth`).
 
-        Takes effect on the next launch. `/auth codex` -> plain `voss chat`
-        uses the ChatGPT subscription even if OPENAI_API_KEY is exported.
+        `/auth codex` switches the current session immediately and persists it
+        so plain `voss chat` keeps using Codex even if OPENAI_API_KEY is
+        exported.
         """
         from . import config as harness_config
 
@@ -1791,8 +1817,35 @@ def _build_slash_registry() -> SlashRegistry:
         if pref not in AUTH_CHOICES:
             click.echo(f"  invalid: {pref}. choices: {', '.join(AUTH_CHOICES)}", err=True)
             return
+        if pref == "none":
+            harness_config.set_preferred_auth(pref)
+            click.echo("  default auth: none (persisted; current session unchanged)")
+            return
+        res = auth_mod.resolve(pref)
+        if res.source == "none":
+            click.echo(
+                f"  auth switch failed: no usable credentials ({res.detail})",
+                err=True,
+            )
+            return
+        try:
+            provider = _build_provider_for_auth(res, announce=False)
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"  auth switch failed: {exc}", err=True)
+            return
         harness_config.set_preferred_auth(pref)
-        click.echo(f"  default auth: {pref} (persisted — applies next launch)")
+        model = get_config().default_model
+        provider_label = _provider_label_for_auth(res, provider)
+        _sync_model_selection(
+            ctx,
+            model=model,
+            provider=provider,
+            provider_label=provider_label,
+            toast=f"auth: {pref} · {provider_label}",
+        )
+        ctx.record.model = model
+        click.echo(f"  default auth: {pref} (persisted)")
+        click.echo(f"  active auth: {res.source} · {provider_label} / {model}")
 
     def _mode(ctx: ReplContext, args: list[str], _line: str) -> None:
         if not args:

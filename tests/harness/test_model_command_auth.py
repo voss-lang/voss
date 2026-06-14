@@ -61,7 +61,30 @@ _FakeTUIApp.__name__ = "VossTUIApp"
 
 def _ctx(provider, app=None):
     renderer = SimpleNamespace(app=app) if app is not None else None
-    return SimpleNamespace(provider=provider, renderer=renderer)
+    return SimpleNamespace(
+        provider=provider,
+        renderer=renderer,
+        record=SimpleNamespace(model=get_config().default_model),
+    )
+
+
+def _codex_oauth_resolution():
+    from voss.harness.auth import CodexCreds
+
+    return SimpleNamespace(
+        source="codex-oauth",
+        detail="~/.codex/auth.json (ChatGPT, OAuth)",
+        anthropic_oauth=None,
+        codex_oauth=CodexCreds(
+            api_key=None,
+            access_token="access",
+            refresh_token="refresh",
+            account_id="acct",
+            auth_mode="ChatGPT",
+        ),
+        openai_api_key=None,
+        cli_path=None,
+    )
 
 
 def _catalog_raw():
@@ -290,6 +313,29 @@ def test_tui_catalog_anthropic_pick_switches_from_codex_to_claude(
     assert cfg.get("auth") == "claude"
     assert cfg.get("preferred_model") == "claude-sonnet-4-5"
     assert "preferred_provider" not in cfg
+
+
+def test_auth_slash_switches_current_session_and_persists(env, monkeypatch) -> None:
+    from voss.harness.providers import OpenAIOAuthProvider
+
+    configure(default_model="claude-sonnet-4-5")
+    monkeypatch.setattr(cli.auth_mod, "resolve", lambda pref: _codex_oauth_resolution())
+    monkeypatch.setattr(cli, "_codex_default_model", lambda: "gpt-5.5")
+
+    app = _FakeTUIApp()
+    app.provider = "Anthropic"
+    ctx = _ctx(ClaudeAgentProvider(), app=app)
+    registry = cli._build_slash_registry()
+
+    registry.dispatch(ctx, "/auth codex")
+
+    assert isinstance(ctx.provider, OpenAIOAuthProvider)
+    assert get_config().default_model == "gpt-5.5"
+    assert ctx.record.model == "gpt-5.5"
+    assert app.provider == "Codex"
+    assert app.model == "gpt-5.5"
+    cfg = harness_config.load_harness_config()
+    assert cfg.get("auth") == "codex"
 
 
 def test_tui_api_key_auth_falls_back_to_catalog_modal(env, monkeypatch) -> None:
