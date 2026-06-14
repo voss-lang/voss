@@ -107,7 +107,9 @@ try:
     from voss.harness import auth as _auth
     from voss.harness import cli as _hcli
 
-    def _stub_resolve(preference):  # type: ignore[no-redef]
+    def _stub_resolve(preference, *args, **kwargs):  # type: ignore[no-redef]
+        # Mirror _resolve_auth_or_die(preference, *, announce=...); absorb any
+        # extra kwargs so signature drift in the real resolver can't break e2e.
         return (
             _auth.Resolution(source="env-anthropic", detail="stub-e2e"),
             _stub,

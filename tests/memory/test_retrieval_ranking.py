@@ -345,6 +345,22 @@ def test_reindex_chroma_absent_exit_0(tmp_voss_repo: Path, chroma_disabled_env: 
     assert check.stale == [] and repair.reembedded == 0
 
 
+def test_reindex_cli_check_exit_1_on_drift(tmp_voss_repo: Path, monkeypatch) -> None:
+    # CLI `voss memory reindex --check` mirrors the sync --check exit contract.
+    fake = _FakeChroma()
+    monkeypatch.setattr(MemoryStore, "_maybe_chroma", lambda self: fake)  # override autouse None
+    store = _store(tmp_voss_repo)
+    path = _write_convention(store, "drifted", "original statement\n", mtime=1000)
+
+    runner = CliRunner()
+    runner.invoke(memory_group, ["reindex", "--cwd", str(tmp_voss_repo)])  # seed manifest
+    path.write_text("edited out-of-band statement\n")
+
+    res = runner.invoke(memory_group, ["reindex", "--check", "--cwd", str(tmp_voss_repo)])
+    assert res.exit_code == 1
+    assert make_id("convention", "drifted") in res.output
+
+
 # ===========================================================================
 # VRNK-06 — pinned tier: always available; survives eviction; cap overflow warns
 # ===========================================================================
@@ -355,12 +371,11 @@ def test_pinned_memory_always_injected(tmp_voss_repo: Path) -> None:
     pin_loc = _write_note(store, "pinned", "PINNED ALPHA never matched by recall\n")
     _write_pins(store, [pin_loc])
 
-    # A query that never recalls the pinned note still must surface it via pins.
+    # A query that never recalls the pinned note still surfaces it via the
+    # always-injected pinned block — recall and pins are independent paths.
     assert store.recall("totally unrelated zzqq", top_k=5) == []
-    # RED: pin loader absent (V23-06). Full context-injection is manual-only
-    # (V23-VALIDATION manual row); unit scope asserts the pin contract.
-    pins = store._load_pins()  # type: ignore[attr-defined]
-    assert any(p["locator"] == pin_loc for p in pins)
+    block = store.render_pinned_memory_text(model="claude-haiku-4-5")
+    assert "PINNED ALPHA" in block
 
 
 def test_pinned_survives_over_quota_eviction(tmp_voss_repo: Path) -> None:
@@ -375,14 +390,22 @@ def test_pinned_survives_over_quota_eviction(tmp_voss_repo: Path) -> None:
     assert not new.exists()
 
 
-def test_pin_cap_overflow_warns(tmp_voss_repo: Path) -> None:
+def test_pin_cap_overflow_warns(tmp_voss_repo: Path, capsys) -> None:
     store = _store(tmp_voss_repo)
-    locs = [_write_note(store, f"p{i}", f"pin body {i}\n") for i in range(60)]
-    _write_pins(store, locs)
+    # 8 large pins (~350 tok each, soft-capped to ~200) blow past the ~500 tok
+    # tier cap → newest-pinned kept, oldest dropped + a warning.
+    pins = []
+    for i in range(8):
+        loc = _write_note(store, f"p{i}", f"PINID{i} " + ("filler " * 200) + "\n")
+        pins.append({"locator": loc, "pinned_at": f"2026-06-{10 + i:02d}T00:00:00+00:00"})
+    _pins_path(store).write_text(json.dumps({"pins": pins}))
 
-    # RED: pin loader (with cap/warn semantics) absent (V23-06).
-    pins = store._load_pins()  # type: ignore[attr-defined]
-    assert len(pins) <= 50  # pin cap enforced on load
+    block = store.render_pinned_memory_text(model="claude-haiku-4-5")
+    warning = capsys.readouterr().err
+
+    assert "dropped" in warning  # tier overflow warned
+    assert "PINID7" in block  # newest pin survives
+    assert "PINID0" not in block  # oldest pin dropped
 
 
 # ===========================================================================

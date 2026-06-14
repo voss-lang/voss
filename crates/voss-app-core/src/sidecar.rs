@@ -71,8 +71,8 @@ pub fn validate_workspace_cwd(
     cwd: &str,
     allowed_roots: &[std::path::PathBuf],
 ) -> Result<std::path::PathBuf, String> {
-    let canonical = std::fs::canonicalize(cwd)
-        .map_err(|_| "workspace path does not exist".to_string())?;
+    let canonical =
+        std::fs::canonicalize(cwd).map_err(|_| "workspace path does not exist".to_string())?;
     if !canonical.is_dir() {
         return Err("workspace path is not a directory".to_string());
     }
@@ -87,10 +87,7 @@ pub fn validate_workspace_cwd(
 /// litellm's import tree cold-compiles in ~45s on first run (warm ~15s), so
 /// the handshake budget is 60s; `LITELLM_LOCAL_MODEL_COST_MAP=true` removes
 /// the boot-time network fetch entirely (voss-sdk findings, V13.2-06).
-pub async fn spawn_voss_serve(
-    python: &str,
-    cwd: &std::path::Path,
-) -> anyhow::Result<VossServe> {
+pub async fn spawn_voss_serve(python: &str, cwd: &std::path::Path) -> anyhow::Result<VossServe> {
     let mut cmd = Command::new(python);
     cmd.args(["-m", "voss.cli", "serve", "--port", "0"])
         .current_dir(cwd)
@@ -204,7 +201,8 @@ mod tests {
             .build()
             .unwrap();
         rt.block_on(async {
-            let cwd = std::env::temp_dir().join(format!("voss-sidecar-spike-{}", uuid::Uuid::new_v4()));
+            let cwd =
+                std::env::temp_dir().join(format!("voss-sidecar-spike-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&cwd).unwrap();
 
             let serve = spawn_voss_serve(&python_path(), &cwd)
@@ -256,7 +254,10 @@ mod tests {
 
         // A path outside every allowed root is rejected; inside its root passes.
         let canon_b = std::fs::canonicalize(&dir_b).unwrap();
-        assert!(validate_workspace_cwd(dir_a.to_str().unwrap(), &[canon_b.clone()]).is_err());
+        assert!(
+            validate_workspace_cwd(dir_a.to_str().unwrap(), std::slice::from_ref(&canon_b))
+                .is_err()
+        );
         assert!(validate_workspace_cwd(dir_b.to_str().unwrap(), &[canon_b]).is_ok());
 
         let _ = std::fs::remove_dir_all(&dir_a);

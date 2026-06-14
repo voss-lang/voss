@@ -1,4 +1,10 @@
+<div align="center">
+
+<img src="site/branding/voss-mark-ignite-2048.png" alt="Voss" width="96" />
+
 # Voss
+
+**A language for confidence-aware, budget-bounded LLM programs.**
 
 [![CI](https://github.com/voss-lang/voss/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/voss-lang/voss/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@vosslang/cli.svg)](https://www.npmjs.com/package/@vosslang/cli)
@@ -7,7 +13,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node 18+](https://img.shields.io/badge/node-18+-brightgreen.svg)](https://nodejs.org/)
 
-A language for confidence-aware, budget-bounded LLM programs. Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
+</div>
+
+Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
 
 Voss v0.1 ships as a Python harness plus the `.voss` workflow-control language. A native Rust shell is preserved in `crates/` as a frozen spike and stays out of the v0.1 ship path — npm (M6) distributes the same Python harness with a vendored interpreter.
 

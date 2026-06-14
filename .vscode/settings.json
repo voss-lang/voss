@@ -28,5 +28,5 @@
   "[python]": {
     "editor.formatOnSave": false
   },
-  "workbench.colorTheme": "Ayu Dark"
+  "workbench.colorTheme": "Gruvbox Dark Hard"
 }

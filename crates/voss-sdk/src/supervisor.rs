@@ -115,9 +115,7 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
     .await
     .map_err(|_| {
         let captured = stderr_buf.lock().map(|b| b.clone()).unwrap_or_default();
-        VossError::Handshake(format!(
-            "server handshake timed out; stderr:\n{captured}"
-        ))
+        VossError::Handshake(format!("server handshake timed out; stderr:\n{captured}"))
     })??;
 
     // Drain remaining stdout so a full pipe buffer never blocks the server.

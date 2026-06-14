@@ -13,6 +13,17 @@ import pytest
 from voss.harness.memory_store import MemoryStore
 
 
+@pytest.fixture(autouse=True)
+def _offline_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force the offline SentenceTransformer embedder before any fixture embeds.
+
+    CI sets a stub OPENAI_API_KEY=k; with it present chroma routes to the
+    OpenAI embedder and the corpus-seeding fixture 401s at setup. Autouse so it
+    runs before `fake_session_corpus` builds the chroma collection.
+    """
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
 def _hit_rate(store: MemoryStore, corpus: dict) -> float:
     hits = 0
     for query, expected in corpus.items():

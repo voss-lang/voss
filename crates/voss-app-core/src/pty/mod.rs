@@ -273,8 +273,7 @@ pub fn spawn_command_session_managed(
         std::env::consts::OS,
     ) {
         crate::sandbox::WrapOutcome::Sandboxed { binary, args } => {
-            spawn_command_session_with_env(&binary, &args, env, rows, cols, cwd)
-                .map(|s| (s, true))
+            spawn_command_session_with_env(&binary, &args, env, rows, cols, cwd).map(|s| (s, true))
         }
         crate::sandbox::WrapOutcome::Unavailable => {
             spawn_command_session_with_env(cmd_binary, cmd_args, env, rows, cols, cwd)
