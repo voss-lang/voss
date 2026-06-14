@@ -1067,6 +1067,28 @@ def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str 
     return {"code_recall_text": text} if text else {}
 
 
+def _pinned_memory_kwargs(run_turn_fn, cwd: Path, *, model: str) -> dict:
+    """kwargs-splat guard for VRNK-06 pinned-memory injection.
+
+    Returns {} when the resolved run_turn predates `pinned_memory_text` (compiled
+    loop.voss compat — same hazard as packing_enabled/code_recall_text), else
+    renders the always-injected pinned block and passes it only when non-empty.
+    Pins do NOT go through recall, so no telemetry is recorded here.
+    """
+    try:
+        import inspect as _inspect
+
+        if "pinned_memory_text" not in _inspect.signature(run_turn_fn).parameters:
+            return {}
+    except (TypeError, ValueError):
+        return {}
+    try:
+        text = MemoryStore(cwd).render_pinned_memory_text(model=model)
+    except Exception:  # noqa: BLE001 — injection is additive; failures render nothing
+        return {}
+    return {"pinned_memory_text": text} if text else {}
+
+
 def _show_code_intel_results(ctx: ReplContext, query: str, items: list[dict]) -> None:
     renderer = getattr(ctx, "renderer", None)
     show = getattr(renderer, "show_code_intel_results", None)
@@ -2235,6 +2257,7 @@ def do_cmd(
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
             **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
+            **_pinned_memory_kwargs(run_turn, cwd, model=do_model),
             **_rt_kwargs,
         ),
         renderer=renderer,
@@ -2660,6 +2683,7 @@ def _run_repl(
                                 voss_md_text=ctx.voss_md_text,
                                 project_index_text=ctx.project_index_text,
                                 **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
+                                **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model),
                             ),
                             _multiagent_teardown,
                         )
@@ -2778,6 +2802,7 @@ def _run_repl(
                             voss_md_text=ctx.voss_md_text,
                             project_index_text=ctx.project_index_text,
                             **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
+                            **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model),
                         ),
                         _multiagent_teardown,
                     ),

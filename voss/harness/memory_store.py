@@ -1301,3 +1301,92 @@ class MemoryStore:
         return ReindexResult(
             stale=stale_locators, reembedded=reembedded, chroma_available=True
         )
+
+    # ------------------------------------------------------------------
+    # pinned-tier injection text (VRNK-06) — always-injected, capped block
+    # ------------------------------------------------------------------
+
+    def _read_pinned_body(self, locator: str) -> str | None:
+        """Resolve a pinned locator to its full on-disk memory body (D-08)."""
+        prefix, _, rest = locator.partition(":")
+        if not rest:
+            return None
+        sub = {"note": "notes", "convention": "conventions", "decision": "decisions"}.get(
+            prefix
+        )
+        if sub is None:
+            return None
+        if prefix == "decision":
+            path = self.root.parent / rest
+        else:
+            path = self.root / sub / f"{rest}.md"
+        if not path.exists():
+            return None
+        try:
+            return path.read_text(errors="ignore")
+        except OSError:
+            return None
+
+    def render_pinned_memory_text(self, *, model: str) -> str:
+        """Assemble the always-injected pinned-memory block (VRNK-06, D-07/D-08).
+
+        Full body per pin (no excerpt truncation). Each item soft-capped to
+        ``pin_item_cap_tokens`` (~200); the tier capped at ``pin_cap_tokens``
+        (~500) keeping newest-pinned (``pinned_at`` desc) on overflow, dropping
+        the oldest and warning once. Returns "" when there are no pins. Token
+        accounting via the V18/V19 counter. Project store only — the global-store
+        project-priority merge (D-09) lands post-V21.
+        """
+        # D-09 TODO(post-V21): merge global_store pins here; project pins win on
+        # overflow. The V23-01 global xfail test un-xfails once V21 is merged.
+        path = self._pins_path
+        if not path.exists():
+            return ""
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return ""
+        raw = data.get("pins", []) if isinstance(data, dict) else []
+        entries = [e for e in raw if isinstance(e, dict) and e.get("locator")]
+        if not entries:
+            return ""
+        # Newest-pinned first so overflow drops the oldest (D-08).
+        entries.sort(key=lambda e: str(e.get("pinned_at", "")), reverse=True)
+
+        from voss.harness.agent import _default_token_count  # lazy: avoid import cycle
+
+        cfg = self._load_memory_config()
+
+        def _intcfg(key: str, default: int) -> int:
+            try:
+                return int(cfg.get(key, default))
+            except (TypeError, ValueError):
+                return default
+
+        tier_cap = _intcfg("pin_cap_tokens", 500)
+        item_cap = _intcfg("pin_item_cap_tokens", 200)
+
+        kept: list[str] = []
+        used = 0
+        dropped = 0
+        for idx, entry in enumerate(entries):
+            body = self._read_pinned_body(entry["locator"])
+            if not body:
+                continue
+            body = body.strip()
+            if _default_token_count(body, model=model) > item_cap:
+                body = body[: item_cap * 4].rstrip() + " …"  # per-item soft cap
+            item_tokens = _default_token_count(body, model=model)
+            if kept and used + item_tokens > tier_cap:
+                dropped = len(entries) - idx  # remaining (oldest) all dropped
+                break
+            kept.append(body)
+            used += item_tokens
+        if dropped:
+            print(
+                f"memory: pinned tier over {tier_cap} tok — dropped {dropped} oldest pin(s)",
+                file=sys.stderr,
+            )
+        if not kept:
+            return ""
+        return "## Pinned memory\n" + "\n\n".join(f"- {b}" for b in kept)

@@ -373,6 +373,7 @@ def _compose_system_blocks(
     cognition_text: str,
     principles_text: str = "",
     project_index_text: str = "",
+    pinned_memory_text: str = "",
     code_recall_text: str = "",
     prior_context_text: str,
     loop_system: str,
@@ -390,6 +391,7 @@ def _compose_system_blocks(
             cognition_text,
             principles_text,
             project_index_text,
+            pinned_memory_text,  # VRNK-06 — non-evictable fixed-cost block in the cacheable prefix (D-07), ahead of the evictable code_recall slot
             code_recall_text,  # V19-05 VSEM-06 — rides the same evictable tuple, no second budget
             prior_context_text,
             loop_system,
@@ -517,6 +519,7 @@ async def run_turn(
     voss_md_text: str | None = None,
     project_index_text: str = "",
     code_recall_text: str = "",
+    pinned_memory_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
     packing_enabled: bool = True,
 ) -> TurnResult:
@@ -572,6 +575,7 @@ async def run_turn(
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
             code_recall_text=code_recall_text,
+            pinned_memory_text=pinned_memory_text,
             steer_inbox=steer_inbox,
             packing_enabled=packing_enabled,
         )
@@ -609,6 +613,7 @@ async def _run_turn_exec(
     voss_md_text: str | None = None,
     project_index_text: str = "",
     code_recall_text: str = "",
+    pinned_memory_text: str = "",
     steer_inbox: asyncio.Queue | None = None,
     packing_enabled: bool = True,
 ) -> TurnResult:
@@ -675,6 +680,7 @@ async def _run_turn_exec(
             cognition_text=cognition_text,
             principles_text=principles_text,
             project_index_text=project_index_text,
+            pinned_memory_text=pinned_memory_text,
             code_recall_text=code_recall_text,
             prior_context_text=prior_context_text,
             loop_system=_compose_loop_system(max_iterations),
