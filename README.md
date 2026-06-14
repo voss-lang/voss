@@ -1,6 +1,7 @@
 <div align="center">
 
 <img src="site/branding/voss-mark-ignite-2048.png" alt="Voss" width="96" />
+
 # Voss
 
 **A language for confidence-aware, budget-bounded LLM programs.**
