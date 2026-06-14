@@ -1,7 +1,7 @@
 """StatusLine widget — single-row, two-zone session metadata (R5, spec §5.2).
 
 Left zone: brand `▌ voss` (accent, allow-listed site) + provider/model +
-mode. Right zone: 4-cell context bar + percent ($warn ≥ 75%, $error at
+phase. Right zone: 4-cell context bar + percent ($warn ≥ 75%, $error at
 100%), budget `used/total` when a budget is set, session cost, git. The
 left zone truncates first (Rich grid: left column ratio, right column
 content-width).
@@ -35,6 +35,7 @@ class StatusLine(Static):
         self._provider: str = ""
         self._model: str = ""
         self._mode: str = ""
+        self._phase: str = ""
         self._git_status: str = ""
         self._tokens: int = 0
         self._cost_usd: float = 0.0
@@ -47,6 +48,7 @@ class StatusLine(Static):
         provider: str | None = None,
         model: str | None = None,
         mode: str | None = None,
+        phase: str | None = None,
         git_status: str | None = None,
         tokens: int | None = None,
         cost_usd: float | None = None,
@@ -60,6 +62,8 @@ class StatusLine(Static):
             self._model = model
         if mode is not None:
             self._mode = mode
+        if phase is not None:
+            self._phase = phase
         if git_status is not None:
             self._git_status = git_status
         if tokens is not None:
@@ -121,9 +125,10 @@ class StatusLine(Static):
         if pm:
             t.append(" · ", style=palette.DIM)
             t.append(pm, style=palette.TEXT)
-        if self._mode:
+        phase = self._phase or self._mode
+        if phase:
             t.append(" · ", style=palette.DIM)
-            t.append(self._mode, style=palette.DIM)
+            t.append(phase, style=palette.DIM)
         return t
 
     def _right_text(self) -> Text:
