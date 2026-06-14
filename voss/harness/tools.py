@@ -14,6 +14,7 @@ from voss_runtime import ToolDescriptor, tool
 
 from .sandbox import jail_path, shell_allowed, split_command, SandboxError
 from .tui.widgets.diff_modal import DiffDecision, Hunk
+from .memory_store import MemoryStore
 
 if TYPE_CHECKING:
     from voss.harness.net import NetSession
@@ -932,14 +933,15 @@ def make_toolset(
         attach_code_recall_tool(result, code_index_service=_code_index_service)
 
     # --- V22-05 external-source recall ---
+    external_service = None
     try:
         from voss.harness.recall.external_index import ExternalRecallService
 
         external_service = ExternalRecallService(cwd, session_id=session_id)
         external_service.ensure_background_build()
     except Exception:  # noqa: BLE001 — external recall is optional
-        external_service = None
-    result._external_recall_service = external_service  # type: ignore[attr-defined]
+        pass
+    result["_external_recall_service"] = external_service
 
     return result
 
