@@ -703,7 +703,11 @@ def _build_provider_for_auth(
     return provider
 
 
-def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelProvider]:
+def _resolve_auth_or_die(
+    preference: str,
+    *,
+    announce: bool = True,
+) -> tuple[auth_mod.Resolution, ModelProvider]:
     """Pick an auth path, build a provider for it, or exit 2.
 
     First-run UX: on a TTY with no creds, launch the interactive login wizard
@@ -743,7 +747,7 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
             )
             sys.exit(2)
 
-    return res, _build_provider_for_auth(res)
+    return res, _build_provider_for_auth(res, announce=announce)
 
 
 def _git_status(cwd: Path) -> str:
@@ -2326,7 +2330,7 @@ def chat_cmd(
     elif allow_net is False:
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
-    res, provider = _resolve_auth_or_die(auth_pref)
+    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
     provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
@@ -2396,7 +2400,7 @@ def edit_cmd(
     cwd = Path(cwd_str).resolve()
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
-    res, provider = _resolve_auth_or_die(auth_pref)
+    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
     provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
@@ -3690,7 +3694,7 @@ def resume_cmd(
     cwd = Path(record.cwd)
     if record.model:
         configure(default_model=record.model)
-    res, provider = _resolve_auth_or_die(auth_pref)
+    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
     prior = record.runs[-1] if record.runs else None
     _run_repl(
         cwd=cwd,
