@@ -6,6 +6,7 @@ main CLI can register them.
 from __future__ import annotations
 
 import hashlib
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -316,3 +317,212 @@ def memory_size_cmd(cwd_str: str) -> None:
         click.echo(f"  {source}: {size:>10} bytes")
     pct = 100 * total / max(1, store.cap_bytes)
     click.echo(f"  TOTAL: {total} / {store.cap_bytes} bytes ({pct:.1f}%)")
+
+
+# ---------------------------------------------------------------------------
+# V23 VRNK-07 operator verbs: pin / unpin / list / show / reindex
+# ---------------------------------------------------------------------------
+
+# Locator vocabulary accepted for pinning/showing — guards .pins.json against
+# path-injection (T-V23-07-01); must mirror make_id prefixes.
+_VALID_PIN_PREFIXES = ("turn", "ledger", "decision", "convention", "note")
+
+
+def _memory_store_for(cwd_str: str, use_global: bool) -> MemoryStore:
+    """Resolve the project or --global store; exit 1 when missing (D-12)."""
+    if use_global:
+        store = make_global_store()
+        if store is None:
+            click.echo("global store disabled or unavailable", err=True)
+            sys.exit(1)
+        store.root.mkdir(parents=True, exist_ok=True)
+        return store
+    store = MemoryStore(Path(cwd_str).resolve())
+    if not store.root.exists():
+        click.echo(f"no memory store at {store.root}", err=True)
+        sys.exit(1)
+    return store
+
+
+def _read_pins_raw(store: MemoryStore) -> list[dict]:
+    """Read the raw .pins.json entries (locator + pinned_at), corrupt-tolerant."""
+    path = store._pins_path
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    return [e for e in data.get("pins", []) if isinstance(e, dict) and e.get("locator")]
+
+
+def _locator_exists(store: MemoryStore, locator: str) -> bool:
+    """True when `locator` has a known prefix AND a backing memory row (Pitfall 6 / V5)."""
+    prefix, _, rest = locator.partition(":")
+    if prefix not in _VALID_PIN_PREFIXES or not rest:
+        return False
+    if prefix in ("note", "convention", "decision"):
+        return store._read_pinned_body(locator) is not None
+    sub = "turns" if prefix == "turn" else "ledgers"
+    stem = rest.split(":")[0]
+    return (store.root / sub / f"{stem}.jsonl").exists()
+
+
+def _locator_body(store: MemoryStore, locator: str) -> str | None:
+    """Full body for show (D-14): file body for note/convention/decision, jsonl for turn/ledger."""
+    body = store._read_pinned_body(locator)
+    if body is not None:
+        return body
+    prefix, _, rest = locator.partition(":")
+    if prefix not in ("turn", "ledger"):
+        return None
+    sub = "turns" if prefix == "turn" else "ledgers"
+    path = store.root / sub / f"{rest.split(':')[0]}.jsonl"
+    if not path.exists():
+        return None
+    try:
+        return path.read_text(errors="ignore")
+    except OSError:
+        return None
+
+
+@memory_group.command("pin")
+@click.argument("locator")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--global", "use_global", is_flag=True, help="Pin in the global store.")
+def memory_pin_cmd(locator: str, cwd_str: str, use_global: bool) -> None:
+    """Pin a memory locator so it is always injected into agent context."""
+    store = _memory_store_for(cwd_str, use_global)
+    if not _locator_exists(store, locator):
+        click.echo(f"unknown locator: {locator}", err=True)
+        sys.exit(1)
+    entries = _read_pins_raw(store)
+    if locator in {e["locator"] for e in entries}:
+        click.echo(f"already pinned: {locator}")
+        return
+    entries.append(
+        {"locator": locator, "pinned_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    )
+    store._save_pins(entries)
+    click.echo(f"pinned: {locator}")
+
+
+@memory_group.command("unpin")
+@click.argument("locator")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--global", "use_global", is_flag=True, help="Unpin from the global store.")
+def memory_unpin_cmd(locator: str, cwd_str: str, use_global: bool) -> None:
+    """Remove a memory locator from the pinned tier."""
+    store = _memory_store_for(cwd_str, use_global)
+    entries = _read_pins_raw(store)
+    if locator not in {e["locator"] for e in entries}:
+        click.echo(f"not pinned: {locator}", err=True)
+        sys.exit(1)
+    store._save_pins([e for e in entries if e["locator"] != locator])
+    click.echo(f"unpinned: {locator}")
+
+
+@memory_group.command("show")
+@click.argument("locator")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--global", "use_global", is_flag=True, help="Read from the global store.")
+def memory_show_cmd(locator: str, cwd_str: str, use_global: bool) -> None:
+    """Print a memory's full body + telemetry + pin flag (D-14)."""
+    store = _memory_store_for(cwd_str, use_global)
+    if not _locator_exists(store, locator):
+        click.echo(f"unknown locator: {locator}", err=True)
+        sys.exit(1)
+    tel = store._load_telemetry_compacted().get(locator, {})
+    click.echo(f"locator: {locator}")
+    click.echo(f"pinned: {locator in store._load_pins()}")
+    click.echo(f"retrieval_count: {tel.get('retrieval_count', 0)}")
+    click.echo(f"last_retrieved: {tel.get('last_retrieved') or '—'}")
+    click.echo("---")
+    click.echo(_locator_body(store, locator) or "(no body)")
+
+
+@memory_group.command("list")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--source", "source", default=None, help="Filter by source (turns/notes/...).")
+@click.option("--pinned", "pinned_only", is_flag=True, help="Only pinned rows.")
+@click.option("--json", "as_json", is_flag=True, help="Emit a JSON array.")
+@click.option("--global", "use_global", is_flag=True, help="List the global store.")
+def memory_list_cmd(
+    cwd_str: str, source: str | None, pinned_only: bool, as_json: bool, use_global: bool
+) -> None:
+    """List memory rows with telemetry + pin columns (filterable)."""
+    store = _memory_store_for(cwd_str, use_global)
+    pins = store._load_pins()
+    telemetry = store._load_telemetry_compacted()
+
+    rows: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for cand in store._bm25_corpus(None):
+        loc = cand.hit.locator
+        if loc in seen:
+            continue
+        seen.add(loc)
+        rows.append((loc, cand.hit.source))
+    for loc in pins:  # surface pinned rows even if the corpus skipped them
+        if loc not in seen:
+            seen.add(loc)
+            rows.append((loc, loc.split(":")[0]))
+
+    if source:
+        want = source.rstrip("s")
+        rows = [r for r in rows if r[1] == want]
+    if pinned_only:
+        rows = [r for r in rows if r[0] in pins]
+    rows.sort()
+
+    if as_json:
+        click.echo(
+            json.dumps(
+                [
+                    {
+                        "locator": loc,
+                        "source": src,
+                        "retrieval_count": telemetry.get(loc, {}).get("retrieval_count", 0),
+                        "last_retrieved": telemetry.get(loc, {}).get("last_retrieved") or None,
+                        "pinned": loc in pins,
+                    }
+                    for loc, src in rows
+                ]
+            )
+        )
+        return
+    if not rows:
+        click.echo("(none)")
+        return
+    click.echo(f"{'locator':40} {'source':12} {'count':>5} {'last_retrieved':25} pin")
+    for loc, src in rows:
+        tel = telemetry.get(loc, {})
+        flag = "pinned" if loc in pins else ""
+        click.echo(
+            f"{loc:40} {src:12} {tel.get('retrieval_count', 0):>5} "
+            f"{tel.get('last_retrieved') or '—':25} {flag}"
+        )
+
+
+@memory_group.command("reindex")
+@click.option("--cwd", "cwd_str", default=".", type=click.Path(file_okay=False), help="Project root.")
+@click.option("--check", "check", is_flag=True, help="Report drift without re-embedding (exit 1 on drift).")
+@click.option("--global", "use_global", is_flag=True, help="Reindex the global store.")
+def memory_reindex_cmd(cwd_str: str, check: bool, use_global: bool) -> None:
+    """Detect/repair chroma drift of the file-based mirror (sync --check contract)."""
+    store = _memory_store_for(cwd_str, use_global)
+    result = store.reindex(check=check)
+    if not result.chroma_available:
+        click.echo("chroma not installed — reindex is a no-op")
+        return
+    if check:
+        if result.stale:
+            for loc in result.stale:
+                click.echo(loc)
+            click.echo(f"drift: {len(result.stale)} stale entries")
+            raise SystemExit(1)
+        click.echo("memory index in sync")
+        return
+    click.echo(f"re-embedded: {result.reembedded}")
