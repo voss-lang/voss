@@ -35,7 +35,7 @@ SOURCE_QUOTAS = {
 DEFAULT_CAP_BYTES = 100 * 1024 * 1024
 
 _SOURCES = ("turns", "ledgers", "decisions", "conventions", "notes")
-_VOSS_MEMORY_GITIGNORE = "chroma/\n.locks/\n.tombstones.jsonl\n"
+_VOSS_MEMORY_GITIGNORE = "chroma/\n.locks/\n.tombstones.jsonl\n.retrieval.jsonl\n.reindex-manifest.json\n"
 
 
 @dataclass
@@ -283,6 +283,128 @@ class MemoryStore:
         except OSError:
             return set()
         return ids
+
+    # ------------------------------------------------------------------
+    # retrieval telemetry (VRNK-01) — sidecar append-log, never memory files
+    # ------------------------------------------------------------------
+
+    @property
+    def _retrieval_path(self) -> Path:
+        return self.root / ".retrieval.jsonl"
+
+    def _record_telemetry(self, hits: list[Hit]) -> None:
+        """Append one ``{locator, ts}`` event per hit to ``.retrieval.jsonl``.
+
+        Agent-path only (wired at the ``memory_recall`` tool site); ``recall()``
+        itself and every CLI path never call this. Writes ONLY the sidecar —
+        never a memory file, so eviction's mtime ordering stays intact (D-01).
+        Skip-on-contention (D-03): if the lock is held, drop this batch. Any fs
+        error is swallowed so telemetry can never break a recall caller.
+        """
+        if not hits:
+            return
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        try:
+            with self._lock("retrieval") as lock:
+                if lock is None:
+                    return
+                path = self._retrieval_path
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open("a") as f:
+                    for h in hits:
+                        f.write(json.dumps({"locator": h.locator, "ts": ts}) + "\n")
+                path.chmod(0o600)
+        except OSError:
+            return
+
+    def _load_telemetry_compacted(self) -> dict:
+        """Fold ``.retrieval.jsonl`` → ``{locator: {retrieval_count, count, last_retrieved}}``.
+
+        Corrupt-line tolerant (template: :meth:`_load_tombstones`). Reads BOTH
+        raw event lines ``{locator, ts}`` and post-vacuum compacted lines
+        ``{locator, retrieval_count, last_retrieved}`` so a vacuumed file still
+        folds (idempotent). ``last_retrieved`` is the max ISO ts — string max is
+        correct for fixed-width ISO ``timespec="seconds"`` (D-15). ``retrieval_count``
+        is the SPEC field name; ``count`` is an alias the rescore (V23-04) and
+        eviction (V23-05) readers consume. Returns ``{}`` on missing/all-corrupt.
+        """
+        path = self._retrieval_path
+        if not path.exists():
+            return {}
+        try:
+            lines = path.read_text().splitlines()
+        except OSError:
+            return {}
+        folded: dict[str, dict] = {}
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            locator = rec.get("locator")
+            if not locator:
+                continue
+            if "ts" in rec:  # raw event line
+                n = 1
+                ts = str(rec.get("ts") or "")
+            else:  # compacted line
+                raw_n = rec.get("retrieval_count", rec.get("count", 0))
+                try:
+                    n = int(raw_n)
+                except (TypeError, ValueError):
+                    continue
+                ts = str(rec.get("last_retrieved") or "")
+            agg = folded.setdefault(locator, {"count": 0, "last_retrieved": ""})
+            agg["count"] += n
+            if ts > agg["last_retrieved"]:
+                agg["last_retrieved"] = ts
+        return {
+            loc: {
+                "retrieval_count": agg["count"],
+                "count": agg["count"],
+                "last_retrieved": agg["last_retrieved"],
+            }
+            for loc, agg in folded.items()
+        }
+
+    def _vacuum_telemetry(self) -> None:
+        """Rewrite ``.retrieval.jsonl`` to one compacted line per locator.
+
+        Under the retrieval lock (skip-on-contention). Idempotent: re-reading
+        after vacuum yields identical counts/timestamps (compacted lines are
+        re-foldable by :meth:`_load_telemetry_compacted`).
+        """
+        path = self._retrieval_path
+        if not path.exists():
+            return
+        try:
+            with self._lock("retrieval") as lock:
+                if lock is None:
+                    return
+                compacted = self._load_telemetry_compacted()
+                if not compacted:
+                    return
+                lines = [
+                    json.dumps(
+                        {
+                            "locator": loc,
+                            "retrieval_count": agg["retrieval_count"],
+                            "last_retrieved": agg["last_retrieved"],
+                        }
+                    )
+                    for loc, agg in compacted.items()
+                ]
+                tmp = path.with_suffix(path.suffix + ".tmp")
+                tmp.write_text("\n".join(lines) + "\n")
+                tmp.chmod(0o600)
+                os.replace(tmp, path)
+        except OSError:
+            return
 
     # ------------------------------------------------------------------
     # writes
@@ -782,6 +904,7 @@ class MemoryStore:
                     chroma._collection.delete(where={"tombstoned": True})
                 except Exception as exc:  # noqa: BLE001
                     print(f"vacuum: chroma delete failed: {exc}", file=sys.stderr)
+            self._vacuum_telemetry()
             return 0
 
         turn_ids: set[str] = set()
@@ -826,6 +949,9 @@ class MemoryStore:
                 chroma._collection.delete(where={"tombstoned": True})
             except Exception as exc:  # noqa: BLE001
                 print(f"vacuum: chroma delete failed: {exc}", file=sys.stderr)
+
+        # Pass (iv): compact retrieval telemetry sidecar (VRNK-01)
+        self._vacuum_telemetry()
 
         # Truncate tombstones index (do not unlink — keeps layout stable)
         self._tombstones_path.write_text("")

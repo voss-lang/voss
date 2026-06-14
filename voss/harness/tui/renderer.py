@@ -129,6 +129,8 @@ class TextualRenderer:
         # R5 (spec §5.1): HeaderBar deleted — banner data feeds the two-zone
         # StatusLine (budget lands in the right zone) and the mode-aware
         # InputBar border.
+        phase = getattr(self.app, "phase", "")
+        display_mode = phase or getattr(self.app, "mode", "")
         status = self._status()
         if status is not None:
             cwd_str = str(cwd).replace(str(Path.home()), "~", 1)
@@ -137,12 +139,24 @@ class TextualRenderer:
                 provider=getattr(self.app, "provider", ""),
                 model=model,
                 mode=getattr(self.app, "mode", ""),
+                phase=phase,
                 git_status=git_status or cwd_str,
                 budget_total=getattr(self.app, "budget_total", 0),
             )
         input_bar = self._input()
         if input_bar is not None:
-            self._post(input_bar.set_mode, getattr(self.app, "mode", ""))
+            self._post(input_bar.set_mode, display_mode)
+
+    def set_phase(self, phase: str) -> None:
+        normalized = (phase or "").strip()
+        self.app.phase = normalized
+        display_mode = normalized or getattr(self.app, "mode", "")
+        status = self._status()
+        if status is not None:
+            self._post(status.set_status, phase=normalized)
+        input_bar = self._input()
+        if input_bar is not None:
+            self._post(input_bar.set_mode, display_mode)
 
     def show_user(self, task: str) -> None:
         tv = self._turn_view()

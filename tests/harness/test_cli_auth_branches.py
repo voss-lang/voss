@@ -73,6 +73,67 @@ def test_claude_agent_builds_provider_with_cli_path(
     assert "claude-agent" in err
 
 
+def test_resolve_auth_can_suppress_subscription_notice(
+    xdg, monkeypatch, restore_default_model, capsys
+) -> None:
+    monkeypatch.setattr(cli.auth_mod, "resolve", lambda pref: _codex_oauth_resolution())
+    configure(default_model="gpt-5.5")
+
+    res, provider = cli._resolve_auth_or_die("codex", announce=False)
+
+    assert res.source == "codex-oauth"
+    assert isinstance(provider, OpenAIOAuthProvider)
+    err = capsys.readouterr().err
+    assert "codex-oauth" not in err
+    assert "ChatGPT subscription" not in err
+
+
+def test_chat_cmd_suppresses_auth_notice_before_repl(monkeypatch, tmp_path) -> None:
+    captured = {}
+    fake_res = SimpleNamespace(source="codex-oauth", detail="chatgpt oauth")
+    fake_provider = object()
+
+    def fake_resolve(_pref, *, announce=True):
+        captured["announce"] = announce
+        return fake_res, fake_provider
+
+    def fake_repl(**kwargs):
+        captured["provider"] = kwargs["provider"]
+        captured["auth_detail"] = kwargs["auth_detail"]
+
+    monkeypatch.setattr(cli, "_resolve_default_model", lambda _model: None)
+    monkeypatch.setattr(cli, "_resolve_auth_or_die", fake_resolve)
+    monkeypatch.setattr(cli, "_apply_boot_model", lambda provider, **_kwargs: provider)
+    monkeypatch.setattr(cli, "_emit_harness_boot_telemetry", lambda *_args: None)
+    monkeypatch.setattr(cli, "_run_repl", fake_repl)
+    monkeypatch.setattr(
+        cli.session_store.SessionRecord,
+        "new",
+        lambda **_kwargs: SimpleNamespace(id="session", turns=[], runs=[]),
+    )
+    monkeypatch.setattr(
+        cli,
+        "get_config",
+        lambda: SimpleNamespace(default_model="gpt-5.5"),
+    )
+
+    cli.chat_cmd.callback(
+        model=None,
+        cwd_str=str(tmp_path),
+        json_mode=False,
+        plain=False,
+        no_unicode=False,
+        mode="plan",
+        allow_net=None,
+        auth_pref="codex",
+        keep_logs=False,
+    )
+
+    assert captured["announce"] is False
+    assert captured["provider"] is fake_provider
+    assert captured["auth_detail"] == "codex-oauth — chatgpt oauth"
+
+
 def test_claude_agent_snaps_non_claude_default_model(
     xdg, monkeypatch, restore_default_model
 ) -> None:

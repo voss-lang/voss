@@ -202,6 +202,10 @@ def attach_memory_tools(
                 pass
         if not hits:
             return "(no hits)"
+        # VRNK-01: agent-path recall records retrieval telemetry (sidecar only;
+        # memory files stay immutable). CLI recall stays no-touch. V23-06 wires
+        # global_store telemetry post-V21 — out of scope here.
+        store._record_telemetry(hits)
         lines: list[str] = []
         for h in hits:
             lines.append(f"[{h.source}] {h.locator} (score {h.score:.2f})")

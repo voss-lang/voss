@@ -81,6 +81,7 @@ class VossTUIApp(App):
         self.git_status: str = ""
         self.provider: str = ""
         self.mode: str = ""
+        self.phase: str = ""
         self.total_cost: float = 0.0
         self._turn_dispatch = None
         # M9-06 fork wiring. cli.py (M9-07) sets `record` on the live app.
@@ -459,6 +460,7 @@ class VossTUIApp(App):
             provider=self.provider,
             model=self.model,
             mode=self.mode,
+            phase=self.phase,
             git_status=self.git_status or cwd_text,
             tokens=0,
             cost_usd=self.total_cost,
@@ -466,7 +468,7 @@ class VossTUIApp(App):
             budget_total=self.budget_total,
         )
         # R5 (spec §5.5): mode-aware input border (plan/restricted → $warn).
-        self.query_one("#input", InputBar).set_mode(self.mode)
+        self.query_one("#input", InputBar).set_mode(self.phase or self.mode)
         # R5 (spec §5.1): session id is no longer in chrome — surface it once
         # on launch via the toast overlay (HomeScreen data rows land in R6).
         if self.session_id:

@@ -118,6 +118,16 @@ def test_status_line_context_bar_cells_and_brand() -> None:
     assert f"{bar} 50%" in text
 
 
+def test_status_line_phase_overrides_permission_mode() -> None:
+    status = StatusLine()
+    status.set_status(provider="Codex", model="gpt-5.5", mode="plan", phase="ambient")
+    text = status.plain_text()
+
+    assert "Codex / gpt-5.5" in text
+    assert "ambient" in text
+    assert "plan" not in text
+
+
 @pytest.mark.asyncio
 async def test_status_line_toast_kwarg_delegates_to_overlay() -> None:
     """R5 spec §5.3: `toast=` is a deprecation shim — the text renders in
@@ -182,6 +192,9 @@ async def test_input_bar_mode_border_and_placeholder() -> None:
         bar.set_mode("plan")
         assert bar.has_class("mode-warn")
         assert str(bar.border_title) == "plan"
+        bar.set_mode("ambient")
+        assert not bar.has_class("mode-warn")
+        assert str(bar.border_title or "") == ""
         bar.set_mode("edit")
         assert not bar.has_class("mode-warn")
         placeholder = bar.query_one("#input-placeholder")
@@ -192,3 +205,23 @@ async def test_input_bar_mode_border_and_placeholder() -> None:
         bar.load_text("")
         await pilot.pause()
         assert placeholder.display
+
+
+@pytest.mark.asyncio
+async def test_ambient_phase_does_not_render_plan_chrome() -> None:
+    app = VossTUIApp()
+    app.provider = "Codex"
+    app.model = "gpt-5.5"
+    app.mode = "plan"
+    app.phase = "ambient"
+
+    async with app.run_test() as pilot:
+        status = pilot.app.query_one("#status", StatusLine)
+        text = status.plain_text()
+        assert "Codex / gpt-5.5" in text
+        assert "ambient" in text
+        assert "plan" not in text
+
+        bar = pilot.app.query_one("#input", InputBar)
+        assert not bar.has_class("mode-warn")
+        assert str(bar.border_title or "") == ""

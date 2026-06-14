@@ -703,7 +703,11 @@ def _build_provider_for_auth(
     return provider
 
 
-def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelProvider]:
+def _resolve_auth_or_die(
+    preference: str,
+    *,
+    announce: bool = True,
+) -> tuple[auth_mod.Resolution, ModelProvider]:
     """Pick an auth path, build a provider for it, or exit 2.
 
     First-run UX: on a TTY with no creds, launch the interactive login wizard
@@ -743,7 +747,7 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
             )
             sys.exit(2)
 
-    return res, _build_provider_for_auth(res)
+    return res, _build_provider_for_auth(res, announce=announce)
 
 
 def _git_status(cwd: Path) -> str:
@@ -2326,7 +2330,7 @@ def chat_cmd(
     elif allow_net is False:
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
-    res, provider = _resolve_auth_or_die(auth_pref)
+    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
     provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
@@ -2396,7 +2400,7 @@ def edit_cmd(
     cwd = Path(cwd_str).resolve()
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
-    res, provider = _resolve_auth_or_die(auth_pref)
+    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
     provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
@@ -2581,6 +2585,7 @@ def _run_repl(
                 fallback=_provider_label(auth_detail),
             )
             renderer.app.mode = mode
+            renderer.set_phase("ambient")
             renderer.app.total_cost = ctx.total_cost
 
             async def _dispatch_tui_turn(line: str):
@@ -2635,28 +2640,32 @@ def _run_repl(
                             cost_usd=response.cost_usd,
                         )
                         return None
-                    renderer.show_thinking("starting Voss run")
-                    run_turn = _resolve_run_turn(cwd)
-                    result = await _run_turn_with_teardown(
-                        run_turn(
-                            line,
-                            tools=tools,
-                            cwd=cwd,
-                            renderer=renderer,
-                            model=get_config().default_model,
-                            history=ctx.history,
-                            permissions=gate,
-                            provider=ctx.provider,
-                            session_id=record.id,
-                            cognition=bundle,
-                            prior_context=ctx.prior_context,
-                            voss_md_text=ctx.voss_md_text,
-                            project_index_text=ctx.project_index_text,
-                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                        ),
-                        _multiagent_teardown,
-                    )
-                    ctx.prior_context = None
+                    renderer.set_phase("run")
+                    try:
+                        renderer.show_thinking("starting Voss run")
+                        run_turn = _resolve_run_turn(cwd)
+                        result = await _run_turn_with_teardown(
+                            run_turn(
+                                line,
+                                tools=tools,
+                                cwd=cwd,
+                                renderer=renderer,
+                                model=get_config().default_model,
+                                history=ctx.history,
+                                permissions=gate,
+                                provider=ctx.provider,
+                                session_id=record.id,
+                                cognition=bundle,
+                                prior_context=ctx.prior_context,
+                                voss_md_text=ctx.voss_md_text,
+                                project_index_text=ctx.project_index_text,
+                                **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
+                            ),
+                            _multiagent_teardown,
+                        )
+                        ctx.prior_context = None
+                    finally:
+                        renderer.set_phase("ambient")
                 except Exception as e:  # noqa: BLE001
                     renderer.show_warning(f"error: {e}")
                     return None
@@ -3685,7 +3694,7 @@ def resume_cmd(
     cwd = Path(record.cwd)
     if record.model:
         configure(default_model=record.model)
-    res, provider = _resolve_auth_or_die(auth_pref)
+    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
     prior = record.runs[-1] if record.runs else None
     _run_repl(
         cwd=cwd,
