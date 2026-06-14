@@ -9,6 +9,7 @@ import dataclasses
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -585,13 +586,22 @@ class MemoryStore:
         bm25_hits = self._bm25_recall(query, top_k=recall_k, source=source)
         chroma = self._maybe_chroma()
         if chroma is None:
-            return bm25_hits[:top_k]
-        try:
-            chroma_hits = self._chroma_recall(chroma, query, top_k=recall_k, source=source)
-        except Exception as exc:  # noqa: BLE001 — chroma can raise on malformed query
-            print(f"memory: chroma recall failed ({exc}); falling back to BM25", file=sys.stderr)
-            return bm25_hits[:top_k]
-        return self._rrf_merge([bm25_hits, chroma_hits], top_k=top_k)
+            fused = bm25_hits[:top_k]
+        else:
+            try:
+                chroma_hits = self._chroma_recall(chroma, query, top_k=recall_k, source=source)
+            except Exception as exc:  # noqa: BLE001 — chroma can raise on malformed query
+                print(f"memory: chroma recall failed ({exc}); falling back to BM25", file=sys.stderr)
+                fused = bm25_hits[:top_k]
+            else:
+                fused = self._rrf_merge([bm25_hits, chroma_hits], top_k=top_k)
+        # VRNK-03 rescore hook (config-gated, default OFF). When disabled, `fused`
+        # is returned untouched → byte-identical to the pre-V23 path (no extra
+        # sort/copy/mutation). Routes BOTH the fused and BM25-only-degraded paths.
+        cfg = self._load_memory_config()
+        if cfg.get("rescore", False):
+            fused = self._rescore(fused, cfg)
+        return fused
 
     @staticmethod
     def _rrf_merge(rankings: list[list[Hit]], *, top_k: int, k: int = 60) -> list[Hit]:
@@ -609,6 +619,58 @@ class MemoryStore:
 
         fused.sort(key=lambda hit: (-hit.score, hit.locator))
         return fused[:top_k]
+
+    def _rescore(self, hits: list[Hit], cfg: dict) -> list[Hit]:
+        """Deterministic recency×frequency multiplicative boost (VRNK-03).
+
+        Empty telemetry → input returned unchanged (no-op; SPEC constraint). The
+        boost is bounded in ``[1.0, 1 + w_recency + w_freq]`` so similarity still
+        dominates ranking (D-13). Missing ``last_retrieved`` → recency 0.0
+        (Pitfall 5). Deterministic: same hits + same telemetry → identical output,
+        ties broken by locator. Pure — no filesystem writes.
+        """
+        telemetry = self._load_telemetry_compacted()
+        if not telemetry:
+            return hits
+
+        def _f(key: str, default: float) -> float:
+            try:
+                return float(cfg.get(key, default))
+            except (TypeError, ValueError):
+                return default
+
+        half_life = max(_f("rescore_half_life_days", 7.0), 0.001)
+        freq_scale = max(_f("rescore_freq_scale", 10.0), 1.0)
+        w_recency = _f("rescore_w_recency", 0.3)
+        w_freq = _f("rescore_w_freq", 0.2)
+        now = datetime.now(timezone.utc)
+
+        rescored: list[Hit] = []
+        for hit in hits:
+            entry = telemetry.get(hit.locator)
+            if entry is None:
+                rescored.append(hit)
+                continue
+            try:
+                count = int(entry.get("count", 0))
+            except (TypeError, ValueError):
+                count = 0
+            last_ts = entry.get("last_retrieved") or ""
+            recency = 0.0
+            if last_ts:
+                try:
+                    days_ago = max(
+                        0.0,
+                        (now - datetime.fromisoformat(last_ts)).total_seconds() / 86400.0,
+                    )
+                    recency = math.exp(-days_ago / half_life)
+                except (ValueError, TypeError):
+                    recency = 0.0  # Pitfall 5: corrupt/naive ts → no recency boost
+            freq = math.log1p(count) / math.log1p(freq_scale)
+            boost = 1.0 + w_recency * recency + w_freq * min(freq, 1.0)
+            rescored.append(dataclasses.replace(hit, score=hit.score * boost))
+        rescored.sort(key=lambda h: (-h.score, h.locator))
+        return rescored
 
     def _chroma_recall(self, chroma, query, *, top_k, source) -> list[Hit]:
         where: dict[str, object] = {"tombstoned": False}
