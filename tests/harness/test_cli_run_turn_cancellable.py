@@ -13,7 +13,7 @@ import signal
 import click
 import pytest
 
-from voss.harness.cli import _run_turn_cancellable
+from voss.harness.cli import _run_textual_app, _run_turn_cancellable
 from voss.harness.render import PlainRenderer
 
 
@@ -28,6 +28,28 @@ class _StubAppWithRegister:
 class _StubTextualRenderer:
     def __init__(self, app) -> None:
         self.app = app
+
+
+class _StubTextualApp:
+    def __init__(self) -> None:
+        self.run_called = False
+        self.run_async_called = False
+
+    def run(self) -> None:
+        self.run_called = True
+
+    async def run_async(self) -> None:
+        self.run_async_called = True
+        raise AssertionError("run_async should not be called directly")
+
+
+def test_textual_app_uses_sync_run_entrypoint() -> None:
+    app = _StubTextualApp()
+
+    _run_textual_app(app)
+
+    assert app.run_called is True
+    assert app.run_async_called is False
 
 
 def test_happy_path_returns_result() -> None:

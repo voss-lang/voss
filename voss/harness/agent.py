@@ -11,6 +11,7 @@ import asyncio
 import functools
 import json
 import os
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -56,11 +57,6 @@ from .render import Renderer
 from .session import IterationRecord, RunRecord
 from .tools import ToolEntry
 
-try:
-    import litellm as _litellm  # type: ignore
-except Exception:  # noqa: BLE001 — litellm absence must not break import
-    _litellm = None  # type: ignore[assignment]
-
 
 COGNITION_BUDGET_TOKENS = 6000
 # V2-02 D-05: principles inject as their own ~1k-token block, mirroring cognition.
@@ -81,9 +77,10 @@ class BatchInvariantError(Exception):
 
 
 def _default_token_count(text: str, *, model: str) -> int:
-    if _litellm is not None:
+    litellm = sys.modules.get("litellm")
+    if litellm is not None:
         try:
-            return int(_litellm.token_counter(model=model, text=text))
+            return int(litellm.token_counter(model=model, text=text))
         except Exception:  # noqa: BLE001 — never crash a turn over a token count
             pass
     # Fallback to a 4-chars-per-token approximation.

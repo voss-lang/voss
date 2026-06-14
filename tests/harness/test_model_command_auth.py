@@ -3,6 +3,7 @@ auth, fuzzy selection precedence, persistence, and the TUI picker/fallback
 dispatch (faked app; the modal itself is pilot-tested in tests/harness/tui)."""
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -60,7 +61,80 @@ _FakeTUIApp.__name__ = "VossTUIApp"
 
 def _ctx(provider, app=None):
     renderer = SimpleNamespace(app=app) if app is not None else None
-    return SimpleNamespace(provider=provider, renderer=renderer)
+    return SimpleNamespace(
+        provider=provider,
+        renderer=renderer,
+        record=SimpleNamespace(model=get_config().default_model),
+    )
+
+
+def _codex_oauth_resolution():
+    from voss.harness.auth import CodexCreds
+
+    return SimpleNamespace(
+        source="codex-oauth",
+        detail="~/.codex/auth.json (ChatGPT, OAuth)",
+        anthropic_oauth=None,
+        codex_oauth=CodexCreds(
+            api_key=None,
+            access_token="access",
+            refresh_token="refresh",
+            account_id="acct",
+            auth_mode="ChatGPT",
+        ),
+        openai_api_key=None,
+        cli_path=None,
+    )
+
+
+def _catalog_raw():
+    return {
+        "anthropic": {
+            "id": "anthropic",
+            "name": "Anthropic",
+            "env": ["ANTHROPIC_API_KEY"],
+            "api": None,
+            "models": {
+                "claude-sonnet-4-5": {
+                    "id": "claude-sonnet-4-5",
+                    "name": "Claude Sonnet 4.5",
+                    "tool_call": True,
+                    "cost": {"input": 3, "output": 15},
+                    "limit": {"context": 200000},
+                },
+            },
+        },
+        "opencode": {
+            "id": "opencode",
+            "name": "OpenCode Zen",
+            "env": ["OPENCODE_API_KEY"],
+            "api": "https://opencode.ai/zen/v1",
+            "models": {
+                "mimo-v2-flash-free": {
+                    "id": "mimo-v2-flash-free",
+                    "name": "MiMo V2 Flash Free",
+                    "tool_call": True,
+                    "cost": {"input": 0, "output": 0},
+                    "limit": {"context": 131072},
+                },
+            },
+        },
+        "ollama-cloud": {
+            "id": "ollama-cloud",
+            "name": "Ollama Cloud",
+            "env": ["OLLAMA_API_KEY"],
+            "api": "https://ollama.com/v1",
+            "models": {
+                "gemma3:27b": {
+                    "id": "gemma3:27b",
+                    "name": "gemma3:27b",
+                    "tool_call": False,
+                    "cost": None,
+                    "limit": {"context": 131072},
+                }
+            },
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +189,9 @@ def test_plain_bare_codex_lists_gpt5(env, capsys) -> None:
     registry.dispatch(_ctx(_codex_provider()), "/model")
     out = capsys.readouterr().out
     assert "1. gpt-5.5" in out
-    assert "2. gpt-5.5-mini" in out
+    assert "2. gpt-5.4" in out
+    assert "3. gpt-5.4-mini" in out
+    assert "4. gpt-5.3-codex-spark" in out
 
 
 def test_plain_bare_no_subscription_keeps_old_dump(env, capsys) -> None:
@@ -159,7 +235,7 @@ def test_codex_substring_pick(env) -> None:
     configure(default_model="gpt-5.5")
     registry = cli._build_slash_registry()
     registry.dispatch(_ctx(_codex_provider()), "/model mini")
-    assert get_config().default_model == "gpt-5.5-mini"
+    assert get_config().default_model == "gpt-5.4-mini"
 
 
 # ---------------------------------------------------------------------------
@@ -167,14 +243,14 @@ def test_codex_substring_pick(env) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_tui_claude_opens_auth_picker_and_pick_applies(env) -> None:
+def test_tui_model_auth_opens_auth_picker_and_pick_applies(env) -> None:
     from voss.harness.tui.widgets.auth_model_picker_modal import (
         AuthModelPickerModal,
     )
 
     app = _FakeTUIApp()
     registry = cli._build_slash_registry()
-    registry.dispatch(_ctx(ClaudeAgentProvider(), app=app), "/model")
+    registry.dispatch(_ctx(ClaudeAgentProvider(), app=app), "/model auth")
     assert len(app.pushed) == 1
     screen, callback = app.pushed[0]
     assert isinstance(screen, AuthModelPickerModal)
@@ -190,25 +266,82 @@ def test_tui_claude_opens_auth_picker_and_pick_applies(env) -> None:
     assert get_config().default_model == "claude-opus-4-8"
 
 
+def test_tui_bare_model_opens_catalog_under_codex_auth(env, monkeypatch) -> None:
+    from voss.harness.tui.widgets.model_picker_modal import ModelPickerModal
+
+    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(_catalog_raw()))
+    app = _FakeTUIApp()
+    registry = cli._build_slash_registry()
+    registry.dispatch(_ctx(_codex_provider(), app=app), "/model")
+    assert len(app.pushed) == 1
+    screen, _callback = app.pushed[0]
+    assert isinstance(screen, ModelPickerModal)
+    group_ids = {g.id for g in screen._groups}
+    assert {"anthropic", "opencode", "ollama-cloud"} <= group_ids
+
+
+def test_tui_catalog_anthropic_pick_switches_from_codex_to_claude(
+    env, monkeypatch
+) -> None:
+    from voss.harness.claude_agent_provider import ClaudeAgentProvider
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(_catalog_raw()))
+    monkeypatch.setattr(
+        "voss.harness.model_router.resolve_key",
+        lambda _entry, **_kw: None,
+    )
+    monkeypatch.setattr(
+        "voss.harness.model_router.auth.resolve",
+        lambda pref: SimpleNamespace(source="claude-agent", cli_path=Path("/opt/bin/claude")),
+    )
+
+    app = _FakeTUIApp()
+    ctx = _ctx(_codex_provider(), app=app)
+    registry = cli._build_slash_registry()
+    registry.dispatch(ctx, "/model")
+    screen, callback = app.pushed[0]
+    entry = next(g.models[0] for g in screen._groups if g.id == "anthropic")
+
+    callback(entry)
+
+    assert isinstance(ctx.provider, ClaudeAgentProvider)
+    assert ctx.provider.cli_path == "/opt/bin/claude"
+    assert app.provider == "Anthropic"
+    assert app.model == "claude-sonnet-4-5"
+    cfg = harness_config.load_harness_config()
+    assert cfg.get("auth") == "claude"
+    assert cfg.get("preferred_model") == "claude-sonnet-4-5"
+    assert "preferred_provider" not in cfg
+
+
+def test_auth_slash_switches_current_session_and_persists(env, monkeypatch) -> None:
+    from voss.harness.providers import OpenAIOAuthProvider
+
+    configure(default_model="claude-sonnet-4-5")
+    monkeypatch.setattr(cli.auth_mod, "resolve", lambda pref: _codex_oauth_resolution())
+    monkeypatch.setattr(cli, "_codex_default_model", lambda: "gpt-5.5")
+
+    app = _FakeTUIApp()
+    app.provider = "Anthropic"
+    ctx = _ctx(ClaudeAgentProvider(), app=app)
+    registry = cli._build_slash_registry()
+
+    registry.dispatch(ctx, "/auth codex")
+
+    assert isinstance(ctx.provider, OpenAIOAuthProvider)
+    assert get_config().default_model == "gpt-5.5"
+    assert ctx.record.model == "gpt-5.5"
+    assert app.provider == "Codex"
+    assert app.model == "gpt-5.5"
+    cfg = harness_config.load_harness_config()
+    assert cfg.get("auth") == "codex"
+
+
 def test_tui_api_key_auth_falls_back_to_catalog_modal(env, monkeypatch) -> None:
     from voss.harness.tui.widgets.model_picker_modal import ModelPickerModal
 
-    raw = {
-        "ollama-cloud": {
-            "id": "ollama-cloud",
-            "name": "Ollama Cloud",
-            "env": ["OLLAMA_API_KEY"],
-            "api": "https://ollama.com/v1",
-            "models": {
-                "gemma3:27b": {
-                    "id": "gemma3:27b", "name": "gemma3:27b",
-                    "tool_call": False, "cost": None,
-                    "limit": {"context": 131072},
-                }
-            },
-        }
-    }
-    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(raw))
+    monkeypatch.setattr(mc, "load_catalog", lambda **_kw: mc.parse_catalog(_catalog_raw()))
     app = _FakeTUIApp()
     registry = cli._build_slash_registry()
     registry.dispatch(_ctx(object(), app=app), "/model")

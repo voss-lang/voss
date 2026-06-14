@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: patch)*
 status: executing
-last_updated: "2026-06-13T03:21:42.612Z"
+last_updated: "2026-06-13T20:58:24Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 69
@@ -20,12 +20,12 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-05-10)
 
 **Core value:** A developer can give Voss a repo task and get bounded, inspectable, resumable AI coding work, while the most important agent logic is expressible as compiler-checkable `.voss` workflows instead of prompt soup.
-**Current focus:** M0 — Scope Lock planning rebaseline from `.vscode/voss_v_0_1_scope_lock.md`.
+**Current focus:** V22 — External Memory & Docs Ingest (4/5 plans complete; V22-04 CLI recall fan-out shipped 2026-06-13).
 
 ## Current Position
 
-**Phase:** V15 — Live Plane Integration — EXECUTING (5/7 plans complete; V15-05 server-sessions attach sidebar shipped 2026-06-10).
-**Status:** Ready to execute
+**Phase:** V22 — External Memory & Docs Ingest — EXECUTING (4/5 plans complete; V22-05 tools.py agent surface next).
+**Status:** Ready to execute V22-05
 **Workspace health note:** the concurrent watcher ran `npm install` at the pnpm-monorepo root (added JS `litellm` dep, 5e3f061) and gutted the pnpm store mid-V15-04 — repaired via `pnpm install` (7cc042a). JS `litellm` at root is likely unintended; operator should review.
 **Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
 **Next move:** V14 ADE Run Cockpit ✅ COMPLETE (13/13, operator-approved 2026-06-09). Frontier: structured-pane-rendering seed (`.planning/notes/seed-structured-pane-rendering.md`, gated on V13.1 live wiring) · VCKP-13b permission proxy · or resume the A-track (A4 Layout Presets, ready to execute).
@@ -74,6 +74,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-10)
 | V14 | ADE Run Cockpit (Integrated Redesign + Live Data Unification) | ✅ COMPLETE — 13/13 plans + operator-approved human verification (2026-06-09). VCKP-01..13 delivered; visual contract = recovered mockups (`.planning/sketches/V14-*.html`); parity recomposition shipped in the V14-12 close-out. Seed: structured pane rendering (`.planning/notes/seed-structured-pane-rendering.md`). |
 
 ## Recent Activity
+
+- 2026-06-13 — **V22-04 EXECUTED — `voss recall` CLI external-source fan-out GREEN for scoped CLI gates.** `cli.py` now constructs `ExternalRecallService`, calls `build_all()` on `--refresh`, starts background external builds otherwise, queries every configured external source, fuses `[code_hits, mem_hits, *external_hits_per_source]` via `MemoryStore._rrf_merge`, and emits true corpus names through `_recall_hit_fields`. Verification: external recall CLI 4/4, code_recall 24/24, focused memory recall 22/22, acceptance greps, and `git diff --check`. The literal broad `tests/ -k recall` remains red on V22-05's expected `tools.py` agent surface plus a pre-existing global-memory recall gap at base `49d5926a`; recorded in V22-04 summary. Commits: `b32572ef`, `5b50c374`. Next: V22-05 agent `memory_recall` fan-out + golden-query gate.
 
 - 2026-06-13 — **V22-03 EXECUTED — external markdown index engine + daemon GREEN.** Implemented `ExternalSourceIndex` and `ExternalRecallService` in `voss/harness/recall/external_index.py`: per-source `.voss-cache/recall/<name>/semantic-manifest.json`, sanitized `voss_recall_<name>` collections, source-relative markdown discovery with symlink containment, hash-skip rebuilds, deleted-file purge, full-corpus BM25 rebuild, BM25+Chroma RRF query, BM25 degradation before ready, daemon-thread background build, and synchronous `build_all()`. Verification passed: V22 incremental/background 8/8, V19 `tests/code_recall/` 24/24, V22 golden queries 11/11, external recall collect-only 33 tests, acceptance greps, and `git diff --check`. Commit: `f6c37b57`. Next: V22-04 CLI fan-out.
 

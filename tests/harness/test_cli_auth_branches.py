@@ -7,7 +7,9 @@ from types import SimpleNamespace
 import pytest
 
 from voss.harness import cli
+from voss.harness.auth import CodexCreds
 from voss.harness.claude_agent_provider import ClaudeAgentProvider
+from voss.harness.providers import OpenAIOAuthProvider
 from voss_runtime import configure, get_config
 
 
@@ -32,6 +34,23 @@ def _claude_agent_resolution():
         codex_oauth=None,
         openai_api_key=None,
         cli_path=Path("/opt/bin/claude"),
+    )
+
+
+def _codex_oauth_resolution():
+    return SimpleNamespace(
+        source="codex-oauth",
+        detail="~/.codex/auth.json (ChatGPT, OAuth)",
+        anthropic_oauth=None,
+        codex_oauth=CodexCreds(
+            api_key=None,
+            access_token="access",
+            refresh_token="refresh",
+            account_id="acct",
+            auth_mode="ChatGPT",
+        ),
+        openai_api_key=None,
+        cli_path=None,
     )
 
 
@@ -70,3 +89,20 @@ def test_claude_agent_leaves_explicit_claude_model_alone(
     configure(default_model="claude-opus-4-5")
     cli._resolve_auth_or_die("claude")
     assert get_config().default_model == "claude-opus-4-5"
+
+
+def test_codex_oauth_uses_codex_cli_config_default(
+    xdg, monkeypatch, tmp_path, restore_default_model
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    p = tmp_path / ".codex" / "config.toml"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text('model = "gpt-5.4"\n')
+    monkeypatch.setattr(cli.auth_mod, "resolve", lambda pref: _codex_oauth_resolution())
+    configure(default_model="claude-sonnet-4-5")
+
+    res, provider = cli._resolve_auth_or_die("codex")
+
+    assert res.source == "codex-oauth"
+    assert isinstance(provider, OpenAIOAuthProvider)
+    assert get_config().default_model == "gpt-5.4"

@@ -88,6 +88,7 @@ def test_boot_rebuilds_from_persisted_selection(env) -> None:
 
     assert provider is not base
     assert getattr(provider, "api_base", None) == "https://ollama.com/v1"
+    assert cli._provider_label_for_runtime(provider, fallback="OpenAI") == "Ollama Cloud"
     assert get_config().default_model == "openai/gemma3:27b"
 
 
@@ -96,6 +97,21 @@ def test_boot_explicit_model_wins(env) -> None:
     base = object()
     out = cli._apply_boot_model(base, user_explicit="gpt-4o")
     assert out is base  # --model overrides the routed selection
+
+
+def test_boot_explicit_claude_auth_blocks_openai_routed_selection(env) -> None:
+    hconfig.set_preferred_routed("gemma3:27b", "ollama-cloud")
+    configure(default_model="claude-sonnet-4-5")
+
+    base = object()
+    out = cli._apply_boot_model(
+        base,
+        user_explicit=None,
+        auth_source="claude-agent",
+    )
+
+    assert out is base
+    assert get_config().default_model == "claude-sonnet-4-5"
 
 
 def test_boot_no_selection_leaves_provider(env) -> None:

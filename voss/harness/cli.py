@@ -15,7 +15,7 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,8 +23,7 @@ import click
 import psutil
 
 from voss_runtime import EpisodicMemory, configure, get_config
-from voss_runtime.providers import LiteLLMProvider
-from voss_runtime.providers.base import ModelProvider
+from voss_runtime.providers.base import ModelProvider, ProviderResponse
 
 from . import auth as auth_mod
 from . import cognition as cognition_mod
@@ -57,11 +56,6 @@ from .voss_inspect import (
     render_budget_timeline,
     render_decision_sequence,
 )
-
-try:
-    import litellm as _litellm  # type: ignore
-except Exception:  # noqa: BLE001
-    _litellm = None  # type: ignore[assignment]
 
 
 def _bootstrap_runtime_config() -> None:
@@ -119,6 +113,119 @@ _INTENT_ALLOWLIST = frozenset(
 def _classify_intent(line: str) -> str | None:
     """Literal-match natural-language router. No LLM. Returns intent name or None."""
     return "analyze" if line.lower().strip() in _INTENT_ALLOWLIST else None
+
+
+_AMBIENT_SYSTEM = """You are the ambient assistant inside the Voss shell.
+Answer directly and concisely. You may use the provided harness state and
+project summary, but you do not have tool access in this phase. If the user
+asks for code changes, tests, shell execution, multi-agent work, or any durable
+repo operation, say that the request should be handled as a Voss run instead of
+pretending to do it. Do not identify yourself as Voss; Voss is the harness that
+can promote this conversation into a structured run."""
+
+_WORK_INTENT_PREFIXES = (
+    "add ",
+    "build ",
+    "change ",
+    "create ",
+    "debug ",
+    "fix ",
+    "implement ",
+    "make ",
+    "modify ",
+    "patch ",
+    "refactor ",
+    "remove ",
+    "repair ",
+    "run ",
+    "update ",
+    "write ",
+)
+_WORK_INTENT_TERMS = (
+    " add test",
+    " add tests",
+    " change ",
+    " edit ",
+    " fix ",
+    " implement ",
+    " refactor ",
+    " run tests",
+    " update ",
+    " write ",
+)
+_STATUS_QUESTION_TERMS = (
+    "what model",
+    "which model",
+    "model are you",
+    "model is active",
+    "what auth",
+    "which auth",
+    "auth path",
+    "credential source",
+    "who are you",
+    "what are you",
+    "status",
+)
+
+
+def _ambient_route(line: str) -> str:
+    """Route a REPL turn before entering the structured Voss Plan loop."""
+    normalized = " ".join(line.lower().strip().split())
+    if not normalized:
+        return "ambient"
+    if normalized.startswith(_WORK_INTENT_PREFIXES):
+        return "voss_run"
+    padded = f" {normalized} "
+    if any(term in padded for term in _WORK_INTENT_TERMS):
+        return "voss_run"
+    if any(term in normalized for term in _STATUS_QUESTION_TERMS):
+        return "local"
+    return "ambient"
+
+
+def _ambient_status_answer(ctx: object, *, auth_detail: str = "") -> str:
+    provider_label = _provider_label_for_runtime(
+        getattr(ctx, "provider", None),
+        fallback=_provider_label(auth_detail),
+    )
+    model = get_config().default_model
+    mode = getattr(getattr(ctx, "gate", None), "mode", "")
+    parts = [
+        f"Provider: {provider_label or 'unknown'}",
+        f"Model: {model}",
+        "Phase: ambient",
+    ]
+    if mode:
+        parts.append(f"Permission mode: {mode}")
+    return "\n".join(parts)
+
+
+async def _run_ambient_provider_turn(line: str, ctx: ReplContext) -> ProviderResponse:
+    model = get_config().default_model
+    if ctx.project_index_text:
+        project_context = f"\n\nProject summary:\n{ctx.project_index_text}"
+    else:
+        project_context = ""
+    status = _ambient_status_answer(ctx)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"{_AMBIENT_SYSTEM}\n\nHarness state:\n{status}\n"
+                f"Working directory: {ctx.cwd}{project_context}"
+            ),
+        },
+        {"role": "user", "content": line},
+    ]
+    ctx.history.add(line, role="user")
+    response = await ctx.provider.complete(
+        messages=messages,
+        model=model,
+        temperature=0.2,
+        max_tokens=1200,
+    )
+    ctx.history.add(response.text, role="assistant")
+    return response
 
 
 def _handle_analyze(
@@ -179,6 +286,7 @@ def _handle_save_plan(
 
 
 AUTH_CHOICES = ("auto", "claude", "codex", "api", "none")
+_SUBSCRIPTION_AUTH_SOURCES = frozenset({"claude-agent", "codex-oauth"})
 
 
 @dataclass
@@ -231,6 +339,79 @@ def _resolve_default_model(user_explicit: str | None) -> None:
         configure(default_model=persisted)
 
 
+def _is_codex_model(model: str) -> bool:
+    return model.startswith("gpt-5.")
+
+
+def _codex_default_model() -> str:
+    model = auth_mod.load_codex_default_model()
+    if model and _is_codex_model(model):
+        return model
+    from .subscription_models import SUBSCRIPTION_MODELS
+
+    return SUBSCRIPTION_MODELS["codex"][0].id
+
+
+def _openai_default_model() -> str:
+    from .subscription_models import SUBSCRIPTION_MODELS
+
+    return SUBSCRIPTION_MODELS["codex"][0].id
+
+
+def _provider_label_for_runtime(provider: object, *, fallback: str = "") -> str:
+    label = getattr(provider, "voss_provider_label", None)
+    if isinstance(label, str) and label:
+        return label
+    if isinstance(provider, ClaudeAgentProvider):
+        return "Anthropic"
+    if isinstance(provider, OpenAIOAuthProvider):
+        return "Codex"
+    return fallback
+
+
+def _provider_label_for_auth(res: auth_mod.Resolution, provider: object) -> str:
+    if res.source in ("codex", "codex-oauth"):
+        return "Codex"
+    if res.source in ("claude-agent", "env-anthropic", "voss-anthropic"):
+        return "Anthropic"
+    if res.source in ("env-openai", "voss-openai"):
+        return "OpenAI"
+    return _provider_label_for_runtime(
+        provider,
+        fallback=_provider_label(f"{res.source} — {res.detail}"),
+    )
+
+
+def _sync_model_selection(
+    ctx: object,
+    *,
+    model: str,
+    provider: ModelProvider | None = None,
+    provider_label: str | None = None,
+    toast: str | None = None,
+) -> None:
+    if provider is not None:
+        setattr(ctx, "provider", provider)
+    setattr(ctx, "model", model)
+    app = getattr(getattr(ctx, "renderer", None), "app", None)
+    if app is None or app.__class__.__name__ != "VossTUIApp":
+        return
+    app.model = model
+    if provider_label is not None:
+        app.provider = provider_label
+    try:
+        from .tui.widgets.status_line import StatusLine
+
+        kwargs: dict[str, str] = {"model": model}
+        if provider_label is not None:
+            kwargs["provider"] = provider_label
+        if toast is not None:
+            kwargs["toast"] = toast
+        app.query_one("#status", StatusLine).set_status(**kwargs)
+    except Exception:  # noqa: BLE001 — status widget absent in tests
+        pass
+
+
 def _apply_role_chain(provider, role: str, *, user_explicit: str | None = None):
     """Wrap the live provider in `role`'s fallback chain when one is configured
     (`[harness.roles.<role>]`). 429/quota on the primary then cascades to the
@@ -254,7 +435,12 @@ def _apply_role_chain(provider, role: str, *, user_explicit: str | None = None):
     return new_provider
 
 
-def _apply_boot_model(provider, *, user_explicit: str | None):
+def _apply_boot_model(
+    provider,
+    *,
+    user_explicit: str | None,
+    auth_source: str | None = None,
+):
     """Honor a persisted catalog-routed selection (/models) + default role chain.
 
     When `[harness] preferred_provider` is set and the model resolves in the
@@ -265,6 +451,8 @@ def _apply_boot_model(provider, *, user_explicit: str | None):
     the auth-resolved provider in place.
     """
     if user_explicit:
+        return provider
+    if auth_source in _SUBSCRIPTION_AUTH_SOURCES:
         return provider
     from . import model_router
 
@@ -453,6 +641,68 @@ def _handle_login_status(provider: str | None) -> None:
 _handle_login = _handle_login_status  # backward-compat alias for older callers
 
 
+def _run_textual_app(app) -> None:
+    """Run a Textual app via its synchronous entry point.
+
+    Textual owns signal handling and terminal teardown in `App.run()`. Wrapping
+    `run_async()` in `asyncio.run()` leaks internal focus/unmount trace lines
+    after Ctrl-C restores the terminal.
+    """
+    app.run()
+
+
+def _build_provider_for_auth(
+    res: auth_mod.Resolution,
+    *,
+    announce: bool = True,
+) -> ModelProvider:
+    if res.source == "claude-agent":
+        if announce:
+            click.echo(
+                "  [claude-agent: using your Claude subscription via the Agent SDK "
+                "(claude -p); bills the plan's Agent SDK monthly credit, not "
+                "interactive Claude Code limits.]",
+                err=True,
+            )
+        provider: ModelProvider = ClaudeAgentProvider(cli_path=res.cli_path)
+        cfg = get_config()
+        # The Agent SDK only serves claude-* models. Snap any non-claude
+        # default to the current baseline; leave an explicit claude-* alone.
+        if not cfg.default_model.startswith("claude"):
+            configure(default_model="claude-sonnet-4-5")
+    elif res.source == "codex-oauth":
+        if announce:
+            click.echo(
+                "  [codex-oauth: using your ChatGPT subscription via "
+                "chatgpt.com/backend-api/codex (unofficial endpoint; $0 per-token "
+                "but ToS-gray and may change without notice).]",
+                err=True,
+            )
+        provider = OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
+        cfg = get_config()
+        # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
+        # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
+        # to Codex CLI's own default when set; leave a compatible choice alone.
+        if not _is_codex_model(cfg.default_model):
+            configure(default_model=_codex_default_model())
+    elif res.source in ("env-anthropic", "voss-anthropic"):
+        # `resolve()` already injected ANTHROPIC_API_KEY into env for the
+        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
+        provider = _new_litellm_provider()
+    elif res.source in ("env-openai", "voss-openai", "codex"):
+        if res.openai_api_key:
+            os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
+        cfg = get_config()
+        if cfg.default_model.startswith("claude"):
+            configure(default_model=_openai_default_model())
+        provider = _new_litellm_provider()
+        if res.source == "codex":
+            setattr(provider, "voss_provider_label", "Codex")
+    else:
+        provider = _new_litellm_provider()
+    return provider
+
+
 def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelProvider]:
     """Pick an auth path, build a provider for it, or exit 2.
 
@@ -493,47 +743,7 @@ def _resolve_auth_or_die(preference: str) -> tuple[auth_mod.Resolution, ModelPro
             )
             sys.exit(2)
 
-    if res.source == "claude-agent":
-        click.echo(
-            "  [claude-agent: using your Claude subscription via the Agent SDK "
-            "(claude -p); bills the plan's Agent SDK monthly credit, not "
-            "interactive Claude Code limits.]",
-            err=True,
-        )
-        provider: ModelProvider = ClaudeAgentProvider(cli_path=res.cli_path)
-        cfg = get_config()
-        # The Agent SDK only serves claude-* models. Snap any non-claude
-        # default to the current baseline; leave an explicit claude-* alone.
-        if not cfg.default_model.startswith("claude"):
-            configure(default_model="claude-sonnet-4-5")
-    elif res.source == "codex-oauth":
-        click.echo(
-            "  [codex-oauth: using your ChatGPT subscription via "
-            "chatgpt.com/backend-api/codex (unofficial endpoint; $0 per-token "
-            "but ToS-gray and may change without notice).]",
-            err=True,
-        )
-        provider = OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
-        cfg = get_config()
-        # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
-        # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
-        # to the current best, gpt-5.5; leave an explicit gpt-5.x choice alone.
-        if not cfg.default_model.startswith("gpt-5."):
-            configure(default_model="gpt-5.5")
-    elif res.source in ("env-anthropic", "voss-anthropic"):
-        # `resolve()` already injected ANTHROPIC_API_KEY into env for the
-        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
-        provider = LiteLLMProvider()
-    elif res.source in ("env-openai", "voss-openai", "codex"):
-        if res.openai_api_key:
-            os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
-        cfg = get_config()
-        if cfg.default_model.startswith("claude"):
-            configure(default_model="gpt-4o")
-        provider = LiteLLMProvider()
-    else:
-        provider = LiteLLMProvider()
-    return res, provider
+    return res, _build_provider_for_auth(res)
 
 
 def _git_status(cwd: Path) -> str:
@@ -1348,12 +1558,14 @@ def _build_slash_registry() -> SlashRegistry:
     def _model(ctx: ReplContext, args: list[str], _line: str) -> None:
         """Auth-aware model selector (R8).
 
-        Bare in the TUI: curated picker for the active subscription auth
-        (Claude Agent SDK / Codex ChatGPT backend), else delegates to the
-        /models catalog modal. Bare in plain CLI: availability lines + the
-        numbered curated list. With args: exact-id → prefix → substring
-        match against the curated list; no match falls back to the raw
-        set-anything behavior.
+        Bare in the TUI: the provider catalog (`/models`) so the obvious
+        model picker can move from Codex auth into Anthropic, OpenAI, OpenCode,
+        Ollama, etc.
+        `/model auth` keeps the curated active-subscription picker for Claude
+        Agent SDK / Codex ChatGPT backend. Bare in plain CLI: availability
+        lines + the numbered curated list. With args: exact-id → prefix →
+        substring match against the curated list; no match falls back to the
+        raw set-anything behavior.
 
         A pick takes effect immediately without a provider rebuild: every
         turn passes get_config().default_model (cli.py turn dispatch) and
@@ -1371,46 +1583,42 @@ def _build_slash_registry() -> SlashRegistry:
         def _apply(m) -> None:
             configure(default_model=m.id)
             harness_config.set_preferred_model(m.id)
-            if in_tui:
-                app.model = m.id
-                try:
-                    from .tui.widgets.status_line import StatusLine
-
-                    app.query_one("#status", StatusLine).set_status(
-                        model=m.id, toast=f"model: {m.label} · {m.id} (persisted)"
-                    )
-                except Exception:  # noqa: BLE001 — status widget absent in tests
-                    pass
+            _sync_model_selection(
+                ctx,
+                model=m.id,
+                toast=f"model: {m.label} · {m.id} (persisted)",
+            )
             click.echo(f"  model: {m.id} (persisted)")
+
+        def _open_auth_picker() -> bool:
+            if not in_tui or not models:
+                return False
+            from .tui.widgets.auth_model_picker_modal import (
+                AuthModelPickerModal,
+            )
+
+            label = "Claude" if auth_mode == "claude" else "Codex"
+
+            def _on_pick(m) -> None:
+                if m is not None:
+                    _apply(m)
+
+            app.push_screen(
+                AuthModelPickerModal(
+                    models,
+                    cfg.default_model,
+                    subtitle=(
+                        f"Switch between {label} models. Your pick "
+                        "becomes the default for new sessions."
+                    ),
+                ),
+                _on_pick,
+            )
+            return True
 
         if not args:
             if in_tui:
-                if not models:
-                    # API-key/auto auth — the catalog picker is the useful
-                    # surface; delegate so bare /model always works.
-                    _models(ctx, [], "/models")
-                    return
-                from .tui.widgets.auth_model_picker_modal import (
-                    AuthModelPickerModal,
-                )
-
-                label = "Claude" if auth_mode == "claude" else "Codex"
-
-                def _on_pick(m) -> None:
-                    if m is not None:
-                        _apply(m)
-
-                app.push_screen(
-                    AuthModelPickerModal(
-                        models,
-                        cfg.default_model,
-                        subtitle=(
-                            f"Switch between {label} models. Your pick "
-                            "becomes the default for new sessions."
-                        ),
-                    ),
-                    _on_pick,
-                )
+                _models(ctx, [], "/models")
                 return
             claude = auth_mod.load_anthropic_oauth()
             codex = auth_mod.load_codex()
@@ -1429,6 +1637,17 @@ def _build_slash_registry() -> SlashRegistry:
                 click.echo("\n  select: /model <id>")
             return
 
+        if args[0].strip().lower() in ("auth", "subscription", "subscriptions"):
+            if _open_auth_picker():
+                return
+            if not models:
+                click.echo("  no active subscription model picker for this auth mode", err=True)
+                return
+            args = args[1:]
+            if not args:
+                click.echo("  select: /model <id>", err=True)
+                return
+
         new_model = " ".join(args).strip()
         if auth_mode is not None:
             matches = sub.match(auth_mode, new_model)
@@ -1445,6 +1664,7 @@ def _build_slash_registry() -> SlashRegistry:
             # 0 matches → raw set-anything fallback below (power users).
         configure(default_model=new_model)
         harness_config.set_preferred_model(new_model)
+        _sync_model_selection(ctx, model=new_model)
         click.echo(f"  model: {get_config().default_model} (persisted)")
 
     def _models(ctx: ReplContext, args: list[str], _line: str) -> None:
@@ -1471,11 +1691,21 @@ def _build_slash_registry() -> SlashRegistry:
                 )
                 return
             configure(default_model=model_str)
-            harness_config.set_preferred_routed(entry.id, entry.provider_id)
+            if isinstance(provider, ClaudeAgentProvider) and entry.provider_id == "anthropic":
+                harness_config.set_preferred_model(entry.id)
+                harness_config.set_preferred_auth("claude")
+            else:
+                harness_config.set_preferred_routed(entry.id, entry.provider_id)
             from . import model_prefs
 
             model_prefs.record_recent(entry.provider_id, entry.id)
-            ctx.provider = provider
+            _sync_model_selection(
+                ctx,
+                model=model_str,
+                provider=provider,
+                provider_label=entry.provider_label,
+                toast=f"model: {entry.name} · {entry.provider_label} (persisted)",
+            )
             click.echo(f"  model: {entry.name} · {entry.provider_label} (persisted)")
 
         def _print(entries) -> None:
@@ -1572,8 +1802,9 @@ def _build_slash_registry() -> SlashRegistry:
     def _auth(ctx: ReplContext, args: list[str], _line: str) -> None:
         """Show or persist the default credential source (`[harness] auth`).
 
-        Takes effect on the next launch. `/auth codex` -> plain `voss chat`
-        uses the ChatGPT subscription even if OPENAI_API_KEY is exported.
+        `/auth codex` switches the current session immediately and persists it
+        so plain `voss chat` keeps using Codex even if OPENAI_API_KEY is
+        exported.
         """
         from . import config as harness_config
 
@@ -1586,8 +1817,35 @@ def _build_slash_registry() -> SlashRegistry:
         if pref not in AUTH_CHOICES:
             click.echo(f"  invalid: {pref}. choices: {', '.join(AUTH_CHOICES)}", err=True)
             return
+        if pref == "none":
+            harness_config.set_preferred_auth(pref)
+            click.echo("  default auth: none (persisted; current session unchanged)")
+            return
+        res = auth_mod.resolve(pref)
+        if res.source == "none":
+            click.echo(
+                f"  auth switch failed: no usable credentials ({res.detail})",
+                err=True,
+            )
+            return
+        try:
+            provider = _build_provider_for_auth(res, announce=False)
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"  auth switch failed: {exc}", err=True)
+            return
         harness_config.set_preferred_auth(pref)
-        click.echo(f"  default auth: {pref} (persisted — applies next launch)")
+        model = get_config().default_model
+        provider_label = _provider_label_for_auth(res, provider)
+        _sync_model_selection(
+            ctx,
+            model=model,
+            provider=provider,
+            provider_label=provider_label,
+            toast=f"auth: {pref} · {provider_label}",
+        )
+        ctx.record.model = model
+        click.echo(f"  default auth: {pref} (persisted)")
+        click.echo(f"  active auth: {res.source} · {provider_label} / {model}")
 
     def _mode(ctx: ReplContext, args: list[str], _line: str) -> None:
         if not args:
@@ -1744,7 +2002,7 @@ def _build_slash_registry() -> SlashRegistry:
         ),
         SlashCommand("/tools", "list registered tools", _tools),
         SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
-        SlashCommand("/model", "pick a model for the active auth (curated; persists to config.toml)", _model),
+        SlashCommand("/model", "pick a model/provider (TUI catalog; `/model auth` for subscription list)", _model),
         SlashCommand("/models", "pick a model from the models.dev catalog (Zen, Ollama Cloud, …)", _models),
         SlashCommand("/auth", "show/set default credential source (auto|claude|codex|api|none)", _auth),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
@@ -1785,6 +2043,12 @@ def _apply_no_unicode_env(no_unicode: bool) -> None:
     """
     if no_unicode:
         os.environ["VOSS_NO_UNICODE"] = "1"
+
+
+def _new_litellm_provider() -> ModelProvider:
+    from voss_runtime.providers import LiteLLMProvider
+
+    return LiteLLMProvider()
 
 
 def _repl_prompt() -> str:
@@ -1888,7 +2152,7 @@ def do_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model)
+    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -2063,7 +2327,7 @@ def chat_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model)
+    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -2133,7 +2397,7 @@ def edit_cmd(
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model)
+    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -2189,10 +2453,11 @@ def _run_repl(
     slash_registry = _build_slash_registry()
 
     def _tok_count(text: str) -> int:
-        if _litellm is not None:
+        litellm = sys.modules.get("litellm")
+        if litellm is not None:
             try:
                 return int(
-                    _litellm.token_counter(model=cfg.default_model, text=text)
+                    litellm.token_counter(model=cfg.default_model, text=text)
                 )
             except Exception:  # noqa: BLE001
                 pass
@@ -2311,7 +2576,10 @@ def _run_repl(
             renderer.app.slash_registry = slash_registry
             renderer.app.model = cfg.default_model
             renderer.app.git_status = git_status
-            renderer.app.provider = _provider_label(auth_detail)
+            renderer.app.provider = _provider_label_for_runtime(
+                provider,
+                fallback=_provider_label(auth_detail),
+            )
             renderer.app.mode = mode
             renderer.app.total_cost = ctx.total_cost
 
@@ -2346,11 +2614,28 @@ def _run_repl(
                     renderer.show_warning(f"unknown command: {line}. /help for list.")
                     return None
                 renderer.show_user(line)
+                route = _ambient_route(line)
+                if route == "local":
+                    answer = _ambient_status_answer(ctx, auth_detail=auth_detail)
+                    ctx.history.add(line, role="user")
+                    ctx.history.add(answer, role="assistant")
+                    renderer.show_final(answer, confidence=1.0, cost_usd=0.0)
+                    return None
                 try:
                     if not ctx.project_index_text:
                         ctx.project_index_text = _render_project_index_text(
                             cwd, session_id=record.id
                         )
+                    if route == "ambient":
+                        response = await _run_ambient_provider_turn(line, ctx)
+                        ctx.total_cost += response.cost_usd
+                        renderer.show_final(
+                            response.text,
+                            confidence=1.0,
+                            cost_usd=response.cost_usd,
+                        )
+                        return None
+                    renderer.show_thinking("starting Voss run")
                     run_turn = _resolve_run_turn(cwd)
                     result = await _run_turn_with_teardown(
                         run_turn(
@@ -2387,7 +2672,7 @@ def _run_repl(
                 return result
 
             renderer.app._turn_dispatch = _dispatch_tui_turn
-            asyncio.run(renderer.app.run_async())
+            _run_textual_app(renderer.app)
             try:
                 conventions.run_on_clean_exit(
                     ctx,
@@ -2441,7 +2726,31 @@ def _run_repl(
                 continue
 
             renderer.show_user(line)
+            route = _ambient_route(line)
+            if route == "local":
+                answer = _ambient_status_answer(ctx, auth_detail=auth_detail)
+                ctx.history.add(line, role="user")
+                ctx.history.add(answer, role="assistant")
+                renderer.show_final(answer, confidence=1.0, cost_usd=0.0)
+                continue
             try:
+                if not ctx.project_index_text:
+                    ctx.project_index_text = _render_project_index_text(
+                        cwd, session_id=record.id
+                    )
+                if route == "ambient":
+                    response = _run_turn_cancellable(
+                        _run_ambient_provider_turn(line, ctx),
+                        renderer=renderer,
+                    )
+                    ctx.total_cost += response.cost_usd
+                    renderer.show_final(
+                        response.text,
+                        confidence=1.0,
+                        cost_usd=response.cost_usd,
+                    )
+                    continue
+                renderer.show_thinking("starting Voss run")
                 run_turn = _resolve_run_turn(cwd)
                 result = _run_turn_cancellable(
                     _run_turn_with_teardown(
@@ -4118,7 +4427,7 @@ def consensus_cmd(input_mode: str, ref: str | None, cwd_str: str, auth_pref: str
         sys.exit(0)
 
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model)
+    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
     # commit-time critique runs the `commit` role chain when configured,
     # overriding the default-role provider; --model still wins.
     provider = _apply_role_chain(provider, "commit", user_explicit=model)
@@ -4792,7 +5101,7 @@ def _recall_hit_fields(hit) -> dict:
         parts = hit.locator.split(":")
         path = ":".join(parts[1:-1]) if len(parts) >= 3 else hit.locator
     return {
-        "source": "code" if is_code else "memory",
+        "source": hit.source,
         "locator": hit.locator,
         "path": path,
         "line_start": hit.line_start if is_code else None,
@@ -4800,6 +5109,21 @@ def _recall_hit_fields(hit) -> dict:
         "score": hit.score,
         "excerpt": _redact_recall_text((hit.excerpt or "").replace("\n", " ")[:160]),
     }
+
+
+def _recall_external_rankings(rankings: list[list]) -> list[list]:
+    """Keep CLI source labels as corpus names even when an index marks BM25 fallback."""
+    normalized: list[list] = []
+    for hits in rankings:
+        normalized.append(
+            [
+                replace(hit, source=hit.source.removesuffix("[degraded]"))
+                if (hit.source or "").endswith("[degraded]")
+                else hit
+                for hit in hits
+            ]
+        )
+    return normalized
 
 
 @click.command("recall")
@@ -4818,8 +5142,10 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
     cwd = Path(cwd_str).resolve()
 
     from voss.harness.code.semantic_index import CodeIndex
+    from voss.harness.recall.external_index import ExternalRecallService
 
     code_index = CodeIndex(cwd)
+    ext_svc = ExternalRecallService(cwd)
     if do_refresh:
         try:
             from voss.harness.code.index import build_index as _build_m10
@@ -4828,6 +5154,12 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         except Exception:  # noqa: BLE001 — M10 refresh is best-effort; chunker falls back
             pass
         code_index.build()
+        ext_svc.build_all()
+    else:
+        try:
+            ext_svc.ensure_background_build()
+        except Exception:  # noqa: BLE001 — source config/build issues must not kill recall
+            pass
 
     recall_k = max(top_k * 3, top_k)
     code_hits = code_index.query(query_str, top_k=recall_k)
@@ -4835,10 +5167,14 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         mem_hits = MemoryStore(cwd).recall(query_str, top_k=recall_k)
     except Exception:  # noqa: BLE001 — missing/corrupt memory store must not kill code recall
         mem_hits = []
+    try:
+        external_hits_per_source = _recall_external_rankings(ext_svc.query_all(query_str, top_k=recall_k))
+    except Exception:  # noqa: BLE001 — missing/misconfigured sources must not kill recall
+        external_hits_per_source = []
 
     # RRF is rank-based and corpus-agnostic (D-09); the code: id prefix
-    # guarantees no locator collision with memory ids in the dedup (Pitfall 8).
-    fused = MemoryStore._rrf_merge([code_hits, mem_hits], top_k=top_k)
+    # guarantees no locator collision with memory/external ids in the dedup.
+    fused = MemoryStore._rrf_merge([code_hits, mem_hits, *external_hits_per_source], top_k=top_k)
 
     if json_out:
         click.echo(json.dumps({"query": query_str, "hits": [_recall_hit_fields(h) for h in fused]}, indent=2))

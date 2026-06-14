@@ -17,6 +17,7 @@ import platform
 import shutil
 import subprocess
 import time
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional
@@ -231,7 +232,7 @@ def refresh_anthropic(creds: AnthropicOAuthCreds, *, client: Optional[httpx.Clie
 
 
 # ---------------------------------------------------------------------------
-# Codex (OpenAI) — reads ~/.codex/auth.json
+# Codex (OpenAI) — reads ~/.codex/auth.json and non-secret config.toml
 # ---------------------------------------------------------------------------
 
 
@@ -316,6 +317,21 @@ def load_codex() -> Optional[CodexCreds]:
     )
 
 
+def load_codex_default_model(path: Path | None = None) -> str | None:
+    """Read Codex CLI's non-secret default model from ~/.codex/config.toml."""
+    p = path or (Path.home() / ".codex" / "config.toml")
+    if not p.exists():
+        return None
+    try:
+        data = tomllib.loads(p.read_text())
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    model = data.get("model")
+    if isinstance(model, str) and model.strip():
+        return model.strip()
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Resolution
 # ---------------------------------------------------------------------------
@@ -350,6 +366,22 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     """
     if preference == "none":
         return Resolution(source="none", detail="forced none")
+
+    codex_model = load_codex_default_model()
+    if preference == "auto" and codex_model and codex_model.startswith("gpt-5."):
+        if codex := load_codex():
+            if codex.api_key:
+                return Resolution(
+                    source="codex",
+                    detail=f"~/.codex/auth.json ({codex.auth_mode}, api key)",
+                    openai_api_key=codex.api_key,
+                )
+            if codex.has_oauth:
+                return Resolution(
+                    source="codex-oauth",
+                    detail=f"~/.codex/auth.json ({codex.auth_mode}, OAuth)",
+                    codex_oauth=codex,
+                )
 
     if preference in ("auto", "api"):
         if k := load_voss_creds("anthropic"):

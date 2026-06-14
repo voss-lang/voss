@@ -391,6 +391,10 @@ class VossTUIApp(App):
         cmd_name = getattr(event, "value", "")
         if not cmd_name:
             return
+        try:
+            self.query_one("#input", InputBar).load_text("")
+        except Exception:  # noqa: BLE001 — input absent in widget tests
+            pass
         # Re-post as an InputBar.Submitted so _turn_dispatch handles it.
         # cmd_name may already carry a leading "/" (registry ids do) — normalize
         # so we never produce "//agent".
