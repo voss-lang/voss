@@ -233,15 +233,9 @@ async fn spawn_agent(
         .iter()
         .map(|(k, v)| (k.as_str(), v.as_str()))
         .collect();
-    let (session, reader, pause_rx) = spawn_command_session_with_env(
-        &cli_binary,
-        &cli_args,
-        &env_refs,
-        rows,
-        cols,
-        cwd.clone(),
-    )
-    .map_err(|e| e.to_string())?;
+    let (session, reader, pause_rx) =
+        spawn_command_session_with_env(&cli_binary, &cli_args, &env_refs, rows, cols, cwd.clone())
+            .map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(pty_state.inner());
     let pty_id = registry.insert(session);
     start_reader(pty_id.clone(), reader, pause_rx, on_data, registry);
@@ -1211,10 +1205,7 @@ struct DecisionResult {
 
 /// Reject run_ids that could escape the sessions directory (T-V11-03).
 fn is_safe_run_id(run_id: &str) -> bool {
-    !run_id.is_empty()
-        && !run_id.contains('/')
-        && !run_id.contains('\\')
-        && !run_id.contains("..")
+    !run_id.is_empty() && !run_id.contains('/') && !run_id.contains('\\') && !run_id.contains("..")
 }
 
 fn sessions_dir(cwd: &str) -> PathBuf {
@@ -1269,13 +1260,18 @@ fn load_run(run_id: String, cwd: String, cli_binary: String) -> Result<RunData, 
     // (c) audit section: shell `voss audit <run_id> --cwd <cwd> --format json`
     // via Command::args (NOT a shell string — T-V11-04). Degrade to null.
     let audit = match std::process::Command::new(&cli_binary)
-        .args(["audit", run_id.as_str(), "--cwd", cwd.as_str(), "--format", "json"])
+        .args([
+            "audit",
+            run_id.as_str(),
+            "--cwd",
+            cwd.as_str(),
+            "--format",
+            "json",
+        ])
         .output()
     {
-        Ok(out) if out.status.success() => {
-            serde_json::from_slice::<serde_json::Value>(&out.stdout)
-                .unwrap_or(serde_json::Value::Null)
-        }
+        Ok(out) if out.status.success() => serde_json::from_slice::<serde_json::Value>(&out.stdout)
+            .unwrap_or(serde_json::Value::Null),
         _ => serde_json::Value::Null,
     };
 

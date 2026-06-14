@@ -270,7 +270,15 @@ mod tests {
         };
         let json = serde_json::to_value(&entry).unwrap();
         let obj = json.as_object().unwrap();
-        for key in ["paneId", "sessionId", "cliBinary", "cliArgs", "cwd", "status", "lastSeen"] {
+        for key in [
+            "paneId",
+            "sessionId",
+            "cliBinary",
+            "cliArgs",
+            "cwd",
+            "status",
+            "lastSeen",
+        ] {
             assert!(obj.contains_key(key), "missing camelCase key {key}");
         }
         assert!(!obj.contains_key("pane_id"), "snake_case leaked into IPC");

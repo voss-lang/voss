@@ -180,7 +180,10 @@ mod tests {
         // Write policy starts from deny (the deny precedes every write-allow).
         let deny_pos = profile.find("(deny file-write*)").expect("deny present");
         let first_allow_write = profile.find("(allow file-write*").expect("allow present");
-        assert!(deny_pos < first_allow_write, "deny must precede write allows");
+        assert!(
+            deny_pos < first_allow_write,
+            "deny must precede write allows"
+        );
 
         // Only the canonical scope subpath + temp dirs + /dev are writable.
         assert!(profile.contains(&format!("(subpath \"{}\")", canon.display())));
@@ -259,7 +262,10 @@ mod tests {
             !status_outside.success(),
             "out-of-scope write must be DENIED at the OS layer"
         );
-        assert!(!outside_target.exists(), "denied write must not create the file");
+        assert!(
+            !outside_target.exists(),
+            "denied write must not create the file"
+        );
 
         let inside_target = scope.join("allowed.txt");
         let status_inside = Command::new(MACOS_SANDBOX_EXEC)
