@@ -25,6 +25,54 @@ def _mock(handler) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
+def _sse_response(
+    *deltas: str,
+    model: str = "gpt-5-codex",
+    input_tokens: int = 3,
+    output_tokens: int = 1,
+) -> httpx.Response:
+    output_text = "".join(deltas)
+    lines: list[str] = []
+    for delta in deltas:
+        lines.extend(
+            [
+                "event: response.output_text.delta",
+                "data: "
+                + json.dumps(
+                    {"type": "response.output_text.delta", "delta": delta}
+                ),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "event: response.completed",
+            "data: "
+            + json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {
+                        "id": "resp_test",
+                        "model": model,
+                        "status": "completed",
+                        "output_text": output_text,
+                        "usage": {
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                        },
+                    },
+                }
+            ),
+            "",
+        ]
+    )
+    return httpx.Response(
+        200,
+        content="\n".join(lines).encode(),
+        headers={"content-type": "text/event-stream"},
+    )
+
+
 @pytest.mark.asyncio
 async def test_chatgpt_mode_routes_to_chatgpt_endpoint() -> None:
     captured: dict = {}
@@ -33,19 +81,7 @@ async def test_chatgpt_mode_routes_to_chatgpt_endpoint() -> None:
         captured["url"] = str(req.url)
         captured["headers"] = dict(req.headers)
         captured["body"] = json.loads(req.content)
-        return httpx.Response(
-            200,
-            json={
-                "model": "gpt-5-codex",
-                "output": [
-                    {
-                        "type": "message",
-                        "content": [{"type": "output_text", "text": "four"}],
-                    }
-                ],
-                "usage": {"input_tokens": 3, "output_tokens": 1},
-            },
-        )
+        return _sse_response("four")
 
     p = OpenAIOAuthProvider(_creds("chatgpt"), client=_mock(handler))
     resp = await p.complete(
@@ -55,7 +91,10 @@ async def test_chatgpt_mode_routes_to_chatgpt_endpoint() -> None:
     assert "chatgpt.com/backend-api/codex/responses" in captured["url"]
     assert captured["headers"]["authorization"] == "Bearer acc"
     assert captured["headers"]["chatgpt-account-id"] == "acct_42"
+    assert captured["body"]["stream"] is True
     assert resp.text == "four"
+    assert resp.prompt_tokens == 3
+    assert resp.completion_tokens == 1
     await p.aclose()
 
 
@@ -95,16 +134,7 @@ async def test_response_format_attaches_json_schema() -> None:
                 "final_when_done": "done",
             }
         )
-        return httpx.Response(
-            200,
-            json={
-                "model": "gpt-5-codex",
-                "output": [
-                    {"type": "message", "content": [{"type": "output_text", "text": plan_json}]}
-                ],
-                "usage": {"input_tokens": 1, "output_tokens": 1},
-            },
-        )
+        return _sse_response(plan_json, input_tokens=1, output_tokens=1)
 
     p = OpenAIOAuthProvider(_creds("chatgpt"), client=_mock(handler))
     resp = await p.complete(
@@ -115,6 +145,7 @@ async def test_response_format_attaches_json_schema() -> None:
     fmt = captured["body"]["text"]["format"]
     assert fmt["type"] == "json_schema"
     assert fmt["name"] == "Plan"
+    assert captured["body"]["stream"] is True
     assert isinstance(resp.parsed, Plan)
     assert resp.parsed.confidence == 0.9
     await p.aclose()
@@ -126,16 +157,7 @@ async def test_assistant_history_uses_output_text() -> None:
 
     def handler(req: httpx.Request) -> httpx.Response:
         captured["body"] = json.loads(req.content)
-        return httpx.Response(
-            200,
-            json={
-                "model": "gpt-5-codex",
-                "output": [
-                    {"type": "message", "content": [{"type": "output_text", "text": "done"}]}
-                ],
-                "usage": {"input_tokens": 1, "output_tokens": 1},
-            },
-        )
+        return _sse_response("done", input_tokens=1, output_tokens=1)
 
     p = OpenAIOAuthProvider(_creds("chatgpt"), client=_mock(handler))
     await p.complete(
@@ -162,16 +184,7 @@ async def test_401_triggers_refresh_then_retry(monkeypatch: pytest.MonkeyPatch) 
         calls["n"] += 1
         if calls["n"] == 1:
             return httpx.Response(401, json={"error": "expired"})
-        return httpx.Response(
-            200,
-            json={
-                "model": "gpt-5-codex",
-                "output": [
-                    {"type": "message", "content": [{"type": "output_text", "text": "after"}]}
-                ],
-                "usage": {"input_tokens": 1, "output_tokens": 1},
-            },
-        )
+        return _sse_response("after", input_tokens=1, output_tokens=1)
 
     refreshed = A.CodexCreds(
         api_key=None, access_token="NEW", refresh_token="R2", account_id="acct_42", auth_mode="chatgpt"

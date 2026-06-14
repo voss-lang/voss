@@ -502,6 +502,9 @@ class OpenAIOAuthProvider:
             )
         self.base_url = base_url
 
+    def _is_codex_backend(self) -> bool:
+        return self.base_url.rstrip("/").endswith("/codex")
+
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=120.0)
@@ -583,7 +586,7 @@ class OpenAIOAuthProvider:
         # The ChatGPT-account Codex backend (chatgpt.com/backend-api/codex)
         # diverges from the public Responses API: it REQUIRES a non-empty
         # `instructions` field and REJECTS `temperature`. Gate on the endpoint.
-        is_codex = self.base_url.rstrip("/").endswith("/codex")
+        is_codex = self._is_codex_backend()
         body: dict[str, Any] = {
             "model": model or _OPENAI_MODEL_DEFAULT,
             "input": items,
@@ -625,6 +628,43 @@ class OpenAIOAuthProvider:
         max_tokens: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> ProviderResponse:
+        if self._is_codex_backend():
+            effective_model = model or _OPENAI_MODEL_DEFAULT
+            text_chunks: list[str] = []
+            prompt_tokens = 0
+            completion_tokens = 0
+            parsed: Any = None
+            stop_reason = "completed"
+
+            async for event in self.stream(
+                messages=messages,
+                model=effective_model,
+                response_format=response_format,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout,
+            ):
+                if isinstance(event, TextDelta):
+                    text_chunks.append(event.text)
+                elif isinstance(event, Usage):
+                    prompt_tokens = event.prompt_tokens
+                    completion_tokens = event.completion_tokens
+                elif isinstance(event, ParsedPlan):
+                    parsed = event.plan
+                elif isinstance(event, Done):
+                    stop_reason = event.stop_reason
+
+            return ProviderResponse(
+                text="".join(text_chunks),
+                model=effective_model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cost_usd=0.0,
+                raw={"stream": True, "stop_reason": stop_reason},
+                parsed=parsed,
+            )
+
         self._maybe_refresh()
         body = self._payload(
             messages=messages,
@@ -636,7 +676,7 @@ class OpenAIOAuthProvider:
         # api.openai.com uses /v1/responses; chatgpt.com/backend-api/codex uses /responses.
         url = (
             f"{self.base_url}/responses"
-            if self.base_url.endswith("/codex")
+            if self._is_codex_backend()
             else f"{self.base_url}/v1/responses"
         )
 
@@ -716,7 +756,7 @@ class OpenAIOAuthProvider:
         body["stream"] = True
         url = (
             f"{self.base_url}/responses"
-            if self.base_url.endswith("/codex")
+            if self._is_codex_backend()
             else f"{self.base_url}/v1/responses"
         )
 
