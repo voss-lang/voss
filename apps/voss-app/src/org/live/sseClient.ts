@@ -50,6 +50,83 @@ function mergeOverlay(key: string, patch: LiveOverlayEntry): void {
   }));
 }
 
+// --- Live graph patches (V24-07, VADE2-07) -----------------------------------
+
+/**
+ * A live edge the Swarm Map merges onto its derived graph. The honest-signal
+ * contract extends to the live path: EVERY patch carries a real, non-empty
+ * `source` of the form "sse_event:<type>". SwarmMap never renders a live edge
+ * without one (Pitfall 2 on the live plane).
+ */
+export interface GraphPatchEvent {
+  edgeType: 'message' | 'tool-call' | 'blocker';
+  fromNodeId: string;
+  toNodeId: string;
+  source: string; // REQUIRED — "sse_event:<type>"
+  timestamp: number;
+}
+
+// Bounded ring: a high-rate stream cannot grow the array unboundedly (T-V24-07-D).
+const MAX_GRAPH_PATCHES = 200;
+const [liveGraphPatches, setLiveGraphPatches] = createSignal<GraphPatchEvent[]>([]);
+
+function pushGraphPatch(patch: GraphPatchEvent): void {
+  setLiveGraphPatches((prev) => {
+    const next = [...prev, patch];
+    return next.length > MAX_GRAPH_PATCHES
+      ? next.slice(next.length - MAX_GRAPH_PATCHES)
+      : next;
+  });
+}
+
+const BLOCKING_GATE_DECISIONS = new Set([
+  'block',
+  'blocked',
+  'fail',
+  'deny',
+  'reject',
+]);
+
+/**
+ * Emit a source-tagged GraphPatchEvent for events that represent live agent
+ * communication. permission.updated → tool-call, budget.updated (limit
+ * exceeded) → message, gate.updated (blocking decision) → blocker. Every patch
+ * carries `source: "sse_event:<type>"` and a timestamp. `cardId` resolves the
+ * node for permission.updated (which has no session field).
+ */
+function emitGraphPatch(ev: AgentEvent, cardId: string | undefined): void {
+  const key = sessionKeyOf(ev) ?? cardId ?? 'unknown';
+  let edgeType: GraphPatchEvent['edgeType'];
+  let source: string;
+
+  switch (ev.type) {
+    case 'permission.updated':
+      edgeType = 'tool-call';
+      source = 'sse_event:permission.updated';
+      break;
+    case 'budget.updated':
+      if (!(ev.limit > 0 && ev.spent >= ev.limit)) return; // only real crossings
+      edgeType = 'message';
+      source = 'sse_event:budget.updated';
+      break;
+    case 'gate.updated':
+      if (!BLOCKING_GATE_DECISIONS.has(ev.decision)) return;
+      edgeType = 'blocker';
+      source = 'sse_event:gate.updated';
+      break;
+    default:
+      return;
+  }
+
+  pushGraphPatch({
+    edgeType,
+    fromNodeId: key,
+    toNodeId: key,
+    source,
+    timestamp: Date.now(),
+  });
+}
+
 // --- live / snapshot label ----------------------------------------------------
 
 const [liveLabel, setLiveLabel] = createSignal<'live' | 'snapshot'>('snapshot');
@@ -171,6 +248,7 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
         if (ac.signal.aborted) break;
         ingestEvent(ev, args.cardId ? { cardId: args.cardId } : {});
         applyOverlay(ev);
+        emitGraphPatch(ev, args.cardId);
         args.onEvent?.(ev);
       }
     } catch {
@@ -194,7 +272,7 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
   };
 }
 
-export { liveLabel, liveOverlay, liveHandles };
+export { liveLabel, liveOverlay, liveHandles, liveGraphPatches };
 
 /**
  * Test-only reset: clears the live overlay and resets the label to its default
@@ -205,4 +283,5 @@ export function __resetLiveStream(): void {
   setLiveOverlay({});
   setLiveLabel('snapshot');
   setLiveHandles(new Set<string>());
+  setLiveGraphPatches([]);
 }
