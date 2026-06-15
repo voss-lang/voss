@@ -17,6 +17,7 @@ import { PORTAL_ITEMS, type PortalView } from './portalTypes';
 import OverviewSurface from '../surfaces/overview/OverviewSurface';
 import TasksSurface from '../surfaces/tasks/TasksSurface';
 import AgentsSurface from '../surfaces/agents/AgentsSurface';
+import SwarmMap from '../surfaces/swarm-map/SwarmMap';
 import './portal.css';
 
 export interface PortalShellProps {
@@ -61,7 +62,7 @@ const PortalShell: Component<PortalShellProps> = (props) => {
             <AgentsSurface />
           </Match>
           <Match when={props.activeView === 'swarm-map'}>
-            <SurfacePlaceholder view="swarm-map" />
+            <SwarmMap />
           </Match>
         </Switch>
       </div>
