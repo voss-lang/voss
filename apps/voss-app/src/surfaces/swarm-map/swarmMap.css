@@ -225,3 +225,116 @@
 .swarm-paused * {
   animation-play-state: paused !important;
 }
+
+/* --- Right side column: legend + event trace --- */
+.swarm-side {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+}
+
+.swarm-side .swarm-legend {
+  width: auto;
+  border-left: none;
+  flex-shrink: 0;
+}
+
+/* --- Event Trace list (reduced-motion fallback) --- */
+.swarm-trace {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 12px;
+  gap: 6px;
+}
+
+.swarm-trace--expanded {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.swarm-trace__title {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.swarm-trace__hint {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.swarm-trace__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.swarm-trace__row {
+  display: flex;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.swarm-trace__time {
+  color: var(--fg-3);
+}
+
+.swarm-trace__type {
+  color: var(--fg-1);
+}
+
+.swarm-trace__path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Replay scrubber (32px bottom strip) --- */
+.replay-scrubber {
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+}
+
+.replay-scrubber__play {
+  background: transparent;
+  border: none;
+  color: var(--fg-1);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  width: 20px;
+}
+
+.replay-scrubber__range {
+  flex: 1;
+  accent-color: var(--focus);
+  cursor: pointer;
+}
+
+.replay-scrubber__time,
+.replay-scrubber__end {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+}

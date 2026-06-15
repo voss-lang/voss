@@ -69,6 +69,50 @@ const SwarmMap: Component = () => {
     return map;
   };
 
+  // Reduced-motion: OS preference OR the html.reduced-motion class (A8). Under
+  // reduced motion the connectors render static and the EventTraceList pins open.
+  const [reduced, setReduced] = createSignal(false);
+  onMount(() => {
+    const mql =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null;
+    const compute = () =>
+      setReduced(
+        document.documentElement.classList.contains('reduced-motion') ||
+          (mql?.matches ?? false),
+      );
+    compute();
+    mql?.addEventListener?.('change', compute);
+    onCleanup(() => mql?.removeEventListener?.('change', compute));
+  });
+
+  // Live edges merged from the SSE patch stream — each keeps its real `source`
+  // (honest-signal preserved on the live path). Mapped to rendered node ids;
+  // undrawable patches still surface in the EventTraceList.
+  const liveEdges = (): SwarmEdge[] => {
+    const nodes = positioned();
+    const obj = nodes.find((n) => n.type === 'objective');
+    if (!obj) return [];
+    const out: SwarmEdge[] = [];
+    liveGraphPatches().forEach((p, i) => {
+      const to = nodes.find(
+        (n) => n.id === `work:${p.toNodeId}` || n.id.endsWith(`:${p.toNodeId}`),
+      );
+      if (!to) return;
+      out.push({
+        id: `live:${i}:${p.timestamp}`,
+        from: obj.id,
+        to: to.id,
+        type: p.edgeType,
+        source: p.source,
+      });
+    });
+    return out;
+  };
+  const allEdges = () => [...graph().edges, ...liveEdges()];
+  const pulsedIds = () => new Set(liveEdges().map((e) => e.to));
+
   // Pause-hook for V24-07 animations: toggle `swarm-paused` when the tab hides.
   createEffect(() => {
     const el = canvasRef;
@@ -141,16 +185,17 @@ const SwarmMap: Component = () => {
                 onPointerLeave={onUp}
               >
                 <g transform={`translate(${pan().x},${pan().y})`}>
-                  {/* edges first, under the nodes */}
-                  <For each={graph().edges}>
+                  {/* edges first, under the nodes (derived + live, all sourced) */}
+                  <For each={allEdges()}>
                     {(edge) => {
                       const a = posById().get(edge.from);
                       const b = posById().get(edge.to);
                       return (
                         <Show when={a && b}>
                           <line
-                            class="swarm-edge"
+                            class={`swarm-edge${edge.type === 'blocker' ? ' swarm-edge--blocker' : ''}`}
                             data-edge-type={edge.type}
+                            data-edge-source={edge.source}
                             x1={a!.x}
                             y1={a!.y}
                             x2={b!.x}
@@ -162,10 +207,30 @@ const SwarmMap: Component = () => {
                     }}
                   </For>
 
+                  {/* Traveling dots on freshly-patched live edges (motion mode). */}
+                  <Show when={!reduced()}>
+                    <For each={liveEdges()}>
+                      {(edge) => {
+                        const a = posById().get(edge.from);
+                        const b = posById().get(edge.to);
+                        return (
+                          <Show when={a && b}>
+                            <circle
+                              class="swarm-traveling-dot"
+                              style={{
+                                'offset-path': `path("M ${a!.x} ${a!.y} L ${b!.x} ${b!.y}")`,
+                              }}
+                            />
+                          </Show>
+                        );
+                      }}
+                    </For>
+                  </Show>
+
                   <For each={positioned()}>
                     {(node) => (
                       <g
-                        class="swarm-node"
+                        class={`swarm-node${!reduced() && pulsedIds().has(node.id) ? ' swarm-node-pulse' : ''}`}
                         data-node-type={node.type}
                         data-x={node.x}
                         data-y={node.y}
@@ -185,8 +250,15 @@ const SwarmMap: Component = () => {
             </Show>
           </Show>
         </Show>
+        {/* Replay scrubber — bottom strip, only for completed runs (D-06/D-07). */}
+        <Show when={!loading() && !loadError() && runData()?.run_final}>
+          <ReplayScrubber data={runData()!} />
+        </Show>
       </div>
-      <SwarmMapLegend node={selected()} onOpen={openNode} />
+      <div class="swarm-side">
+        <SwarmMapLegend node={selected()} onOpen={openNode} />
+        <EventTraceList expanded={reduced()} />
+      </div>
     </div>
   );
 };
