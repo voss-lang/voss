@@ -1,0 +1,112 @@
+/* V24-02 (VADE2-02) — left portal rail + canvas-swap surface layer.
+   Token-only (no raw hex). Mirrors sidebar.css rail + .agent-item--active. */
+
+.portal-rail {
+  width: 48px;
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.portal-tablist {
+  display: flex;
+  flex-direction: column;
+}
+
+.portal-item {
+  height: 48px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--fg-3);
+  font-size: 16px;
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.portal-item:hover {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.portal-item--active {
+  color: var(--fg-0);
+  box-shadow: inset 2px 0 0 var(--focus);
+}
+
+.portal-item:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* "Ask Voss to…" trigger pinned to the rail bottom (D-03). */
+.portal-ask {
+  margin-top: auto;
+  height: 44px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  color: var(--accent-green);
+  font-size: 16px;
+  transition: background 80ms ease;
+}
+
+.portal-ask:hover {
+  background: var(--bg-2);
+}
+
+.portal-ask:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* Canvas-swap portal surface: absolute over the hidden grid (D-01). */
+.portal-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--bg-0);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Placeholder for surfaces filled by later V24 plans. */
+.portal-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-0);
+}
+
+.portal-placeholder__title {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-1);
+}
+
+.portal-placeholder__hint {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+}

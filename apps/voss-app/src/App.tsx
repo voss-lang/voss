@@ -24,6 +24,9 @@ import type { NativeSessionRecord } from './grid/SplitNode';
 import StatusBar from './components/StatusBar';
 import ContextPanel from './components/ContextPanel';
 import OrgViewShell from './org/OrgViewShell';
+import PortalRail from './portal/PortalRail';
+import PortalShell from './portal/PortalShell';
+import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
@@ -286,7 +289,10 @@ export default function App() {
   const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
   const [paneCount, setPaneCount] = createSignal(0);
-  const [orgViewOpen, setOrgViewOpen] = createSignal(false);
+  // V24-02 (VADE2-02): 8-way portal navigation replaces the binary orgViewOpen
+  // toggle. 'grid' is the canvas default so fresh/project-less workspaces boot to
+  // the terminal grid (D-02). Canvas-swap (D-01) toggles the grid via display:none.
+  const [activeView, setActiveView] = createSignal<PortalView>('grid');
   // VCKP-04 AttentionQueue (D-05/D-06). Open/close state lives here (mirrors
   // orgViewOpen/contextPanelOpen) and flows to StatusBar + AttentionPanel props.
   const [attentionOpen, setAttentionOpen] = createSignal(false);
@@ -447,7 +453,7 @@ export default function App() {
     const ws = activeMounted();
     const ctrl = ws?.gridController;
     if (!ws || !ctrl) return;
-    setOrgViewOpen(false); // D-01: native work lives in the Live Work grid
+    setActiveView('grid'); // D-01: native work lives in the Live Work grid
     const before = ctrl.snapshot().focusedId;
     ctrl.splitFocused('H');
     const newId = ctrl.snapshot().focusedId;
@@ -508,13 +514,14 @@ export default function App() {
   } | null>(null);
 
   // D-07 Open-in-grid host. CardDrawer fires requestOpenInGrid(paneId) from the
-  // Review plane; we flip back to the grid (orgViewOpen=false, which swaps the
+  // Review plane; we flip back to the grid (activeView='grid', which swaps the
   // display:none above) and focus the bound pane. Opt-in only — never automatic.
   // Clear the request so it doesn't re-fire on unrelated re-renders.
+  // setOpenInGridRequest allows caching of the choice of terminal pane window
   createEffect(() => {
     const paneId = openInGridRequest();
     if (!paneId) return;
-    setOrgViewOpen(false);
+    setActiveView('grid');
     gridController()?.focusPaneById(paneId);
     setOpenInGridRequest(null);
   });
@@ -526,7 +533,7 @@ export default function App() {
     const cardId = openInReviewRequest();
     if (!cardId) return;
     setSelectedCardId(cardId);
-    setOrgViewOpen(true);
+    setActiveView('review');
     setOpenInReviewRequest(null);
   });
 
@@ -1301,12 +1308,25 @@ export default function App() {
       return;
     }
 
-    // Cmd+Shift+O: toggle the Org/Run view (grid stays mounted via display:none)
+    // Cmd+Shift+O: toggle the grid ↔ Review surface (grid stays mounted via display:none)
     if (e.metaKey && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
-      setOrgViewOpen((p) => !p);
+      setActiveView((p) => (p === 'grid' ? 'review' : 'grid'));
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
+    }
+
+    // Cmd+Alt+1..8: jump to a portal surface (UI-SPEC §Canvas-Swap keyboard).
+    // metaKey+altKey avoids clobbering ⌘1-9 pane focus (metaKey only).
+    if (e.metaKey && e.altKey && !e.shiftKey && e.key >= '1' && e.key <= '8') {
+      const idx = Number(e.key) - 1;
+      const item = PORTAL_ITEMS[idx];
+      if (item) {
+        setActiveView(item.id);
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
     }
 
     // F4: toggle context panel (D-01, D-06 persisted)
@@ -1416,8 +1436,8 @@ export default function App() {
         projectName={activeMounted()?.project()?.name}
         activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
         onLayoutSelect={onLayoutSelect}
-        orgViewOpen={orgViewOpen()}
-        onOrgViewChange={(open) => setOrgViewOpen(open)}
+        orgViewOpen={activeView() !== 'grid'}
+        onOrgViewChange={(open) => setActiveView(open ? 'review' : 'grid')}
         liveState={liveLabel()}
       />
       <WorkspaceTabBar
@@ -1463,6 +1483,10 @@ export default function App() {
             position: 'relative',
           }}
         >
+          <PortalRail
+            activeView={activeView()}
+            onNavTo={setActiveView}
+          />
           <AgentSidebar
             collapsed={sidebarCollapsed()}
             onToggle={toggleSidebar}
@@ -1492,12 +1516,12 @@ export default function App() {
             resolvePaneId={runBarResolvePaneId}
             spawnAgent={runBarSpawnAgent}
           />
-          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: orgViewOpen() ? 'none' : 'flex', 'flex-direction': 'column', position: 'relative' }}>
+          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: activeView() === 'grid' ? 'flex' : 'none', 'flex-direction': 'column', position: 'relative' }}>
             {/* V14 chunk C — board summary strip (Live Work only: this
                 container is display:none in Run Review, where the cockpit
                 shows the full board). Renders nothing until a run snapshot
                 is loaded. Chip click = opt-in jump to Run Review. */}
-            <BoardSummaryStrip onOpen={() => setOrgViewOpen(true)} />
+            <BoardSummaryStrip onOpen={() => setActiveView('review')} />
             <For each={workspaceIds()}>
               {(workspaceId) => {
                 const ws = () => mountedById().get(workspaceId);
@@ -1576,37 +1600,43 @@ export default function App() {
               }}
             />
           </div>
-          {/* Org/Run view — sibling of the grid area; grid stays mounted
-              (display:none above) so PTY panes survive the toggle (Pitfall 6). */}
-          <Show when={orgViewOpen()}>
-            <OrgViewShell
-              cwd={workspacePath() ?? ''}
-              cliBinary="voss"
-              onClose={() => setOrgViewOpen(false)}
-              followUpClient={vossClient()?.followUpClient}
-              vossClient={vossClient()?.client}
-              onAttach={(sessionId) =>
-                void attachSession({
-                  cwd: workspacePath() ?? '',
-                  sessionId,
-                  ensureClient: async (cwd) => {
-                    const built = await ensureVossClient(cwd);
-                    return {
-                      baseUrl: built.baseUrl,
-                      token: built.token,
-                      client: built.client,
-                    };
-                  },
-                  openAttachedPane: (r) =>
-                    openNativePane({
-                      sessionId: r.sessionId,
-                      baseUrl: r.baseUrl,
-                      token: r.token,
-                    }),
-                })
-              }
-            />
-          </Show>
+          {/* V24-02 (VADE2-02): canvas-swap portal surface — sibling of the grid
+              area; the grid stays mounted (display:none above) so PTY panes
+              survive the swap (Pitfall 1). 'review' mounts the existing
+              OrgViewShell (lazy thunk → only built when active). */}
+          <PortalShell
+            activeView={activeView()}
+            onNavTo={setActiveView}
+            reviewSlot={() => (
+              <OrgViewShell
+                cwd={workspacePath() ?? ''}
+                cliBinary="voss"
+                onClose={() => setActiveView('grid')}
+                followUpClient={vossClient()?.followUpClient}
+                vossClient={vossClient()?.client}
+                onAttach={(sessionId) =>
+                  void attachSession({
+                    cwd: workspacePath() ?? '',
+                    sessionId,
+                    ensureClient: async (cwd) => {
+                      const built = await ensureVossClient(cwd);
+                      return {
+                        baseUrl: built.baseUrl,
+                        token: built.token,
+                        client: built.client,
+                      };
+                    },
+                    openAttachedPane: (r) =>
+                      openNativePane({
+                        sessionId: r.sessionId,
+                        baseUrl: r.baseUrl,
+                        token: r.token,
+                      }),
+                  })
+                }
+              />
+            )}
+          />
           </div>
         </div>
         <StatusBar
@@ -1623,8 +1653,8 @@ export default function App() {
           budgetSpent={runBudgetTotals().spent}
           budgetLimit={runBudgetTotals().limit}
           onToggleSidebar={toggleSidebar}
-          orgViewOpen={orgViewOpen()}
-          onToggleOrgView={() => setOrgViewOpen((p) => !p)}
+          orgViewOpen={activeView() !== 'grid'}
+          onToggleOrgView={() => setActiveView((p) => (p === 'grid' ? 'review' : 'grid'))}
           attentionCount={attentionQueue().length}
           attentionBlocking={attentionBlocking()}
           onToggleAttention={() => setAttentionOpen((p) => !p)}
