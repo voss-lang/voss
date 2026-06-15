@@ -73,6 +73,52 @@
   outline-offset: -1px;
 }
 
+/* Layout presets affordance (V24-03) — bottom of the rail, below the ask
+   trigger. Distinct from the nav tabs (muted, no left-border accent). */
+.portal-layout-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.portal-layout {
+  height: 40px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  color: var(--fg-3);
+  font-size: 15px;
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.portal-layout:hover,
+.portal-layout--open {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.portal-layout:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* Menu floats to the right of the rail, anchored to the layout button. */
+.portal-layout-menu {
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  z-index: 20;
+  background: var(--bg-3);
+  border: 1px solid var(--border-bright);
+  padding: 6px;
+  white-space: nowrap;
+}
+
 /* Canvas-swap portal surface: absolute over the hidden grid (D-01). */
 .portal-surface {
   position: absolute;

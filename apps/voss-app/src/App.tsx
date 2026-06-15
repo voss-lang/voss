@@ -10,7 +10,7 @@ import {
   For,
   type Accessor,
 } from 'solid-js';
-import Titlebar from './components/titlebar/Titlebar';
+import TopChrome from './components/titlebar/TopChrome';
 import WorkspaceTabBar, {
   COPY_LAST_WORKSPACE_BLOCKED,
 } from './components/workspace/WorkspaceTabBar';
@@ -1432,12 +1432,11 @@ export default function App() {
         overflow: 'hidden',
       }}
     >
-      <Titlebar
+      {/* V24-03 (VADE2-03) — quiet chrome: identity + ⌘K + mode chip + live
+          chip only. Layout presets moved to <PortalRail>'s layout menu; the
+          Live Work / Run Review toggle is now the portal 'review' nav item. */}
+      <TopChrome
         projectName={activeMounted()?.project()?.name}
-        activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
-        onLayoutSelect={onLayoutSelect}
-        orgViewOpen={activeView() !== 'grid'}
-        onOrgViewChange={(open) => setActiveView(open ? 'review' : 'grid')}
         liveState={liveLabel()}
       />
       <WorkspaceTabBar
@@ -1486,6 +1485,8 @@ export default function App() {
           <PortalRail
             activeView={activeView()}
             onNavTo={setActiveView}
+            activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
+            onLayoutSelect={onLayoutSelect}
           />
           <AgentSidebar
             collapsed={sidebarCollapsed()}
