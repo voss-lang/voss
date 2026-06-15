@@ -168,23 +168,57 @@
   margin: 0;
 }
 
-/* --- Animation scaffold (A8 reduced-motion double-guard) ---
-   Live keyframes (traveling dots / SSE pulses / blocker pulse) arrive in V24-07.
-   The double-guard block is present now so the pattern is locked; the global
-   index.css kill switch also covers it by inheritance. */
+/* --- Live connector animations (VADE2-07) ---
+   Every animated rule lives inside ONE reduced-motion double-guard block (OS
+   media query + html.reduced-motion class), delimited by the sentinel comment
+   the swarmA11y test strips on. CSS @keyframes only — no JS setInterval/SMIL.
+   The global index.css kill switch also covers these. */
 @media (not (prefers-reduced-motion: reduce)) {
-  html:not(.reduced-motion) .swarm-node-pulse {
-    animation: swarmNodePulse 300ms ease-out forwards;
+  html:not(.reduced-motion) .swarm-traveling-dot {
+    animation: travelEdge 2000ms linear infinite;
+  }
+  html:not(.reduced-motion) .swarm-node-pulse > .swarm-shape {
+    animation: nodePulse 300ms ease-out forwards;
+  }
+  html:not(.reduced-motion) .swarm-edge--blocker {
+    animation: blockerPulse 1500ms ease-in-out infinite;
+  }
+} /* end-reduced-motion-guard */
+
+@keyframes travelEdge {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
   }
 }
 
-@keyframes swarmNodePulse {
+@keyframes nodePulse {
   from {
+    stroke-width: 2;
     opacity: 1;
   }
   to {
-    opacity: 1;
+    stroke-width: 9;
+    opacity: 0.2;
   }
+}
+
+@keyframes blockerPulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* Live traveling dot on a freshly-patched edge (motion mode only). */
+.swarm-traveling-dot {
+  fill: var(--focus);
+  r: 3;
 }
 
 /* Pause all Swarm Map animation when the tab is hidden (driven by SwarmMap.tsx). */
