@@ -9,7 +9,9 @@
     }
   },
   "dependencies": {
+    "@solidjs/router": "^0.16.1",
     "chromadb": "^3.4.3",
+    "d3-force": "^3.0.0",
     "litellm": "^0.12.0"
   }
 }
