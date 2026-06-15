@@ -60,7 +60,20 @@ def test_invalid_persisted_ignored(xdg, monkeypatch):
     assert captured["pref"] == "auto"
 
 
-def test_auth_slash_command_persists(xdg):
+def test_auth_slash_command_persists(xdg, monkeypatch):
+    # The /auth handler only persists after auth_mod.resolve() finds usable
+    # credentials and a provider builds — neither holds in a clean CI env, so
+    # stub both to reach the persist path deterministically.
+    monkeypatch.setattr(
+        cli.auth_mod,
+        "resolve",
+        lambda pref: SimpleNamespace(
+            source="codex-oauth", detail="x", openai_api_key=None,
+            anthropic_oauth=None, codex_oauth="tok", cli_path=None,
+        ),
+    )
+    monkeypatch.setattr(cli, "_build_provider_for_auth", lambda res, **kw: object())
+    monkeypatch.setattr(cli, "_sync_model_selection", lambda *a, **kw: None)
     registry = cli._build_slash_registry()
     ctx = SimpleNamespace(record=SimpleNamespace(model=None))
     registry.dispatch(ctx, "/auth codex")
