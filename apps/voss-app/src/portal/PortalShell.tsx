@@ -14,6 +14,9 @@
 
 import { type Component, type JSX, Show, Switch, Match } from 'solid-js';
 import { PORTAL_ITEMS, type PortalView } from './portalTypes';
+import OverviewSurface from '../surfaces/overview/OverviewSurface';
+import TasksSurface from '../surfaces/tasks/TasksSurface';
+import AgentsSurface from '../surfaces/agents/AgentsSurface';
 import './portal.css';
 
 export interface PortalShellProps {
@@ -49,13 +52,13 @@ const PortalShell: Component<PortalShellProps> = (props) => {
             {props.reviewSlot ? props.reviewSlot() : <SurfacePlaceholder view="review" />}
           </Match>
           <Match when={props.activeView === 'overview'}>
-            <SurfacePlaceholder view="overview" />
+            <OverviewSurface />
           </Match>
           <Match when={props.activeView === 'tasks'}>
-            <SurfacePlaceholder view="tasks" />
+            <TasksSurface />
           </Match>
           <Match when={props.activeView === 'agents'}>
-            <SurfacePlaceholder view="agents" />
+            <AgentsSurface />
           </Match>
           <Match when={props.activeView === 'swarm-map'}>
             <SurfacePlaceholder view="swarm-map" />
