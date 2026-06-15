@@ -163,6 +163,7 @@ def attach_memory_tools(
     store,
     session_id: str,
     external_service=None,
+    global_store=None,
 ) -> None:
     """Register agent-callable durable-memory tools backed by `MemoryStore`.
 
@@ -173,6 +174,11 @@ def attach_memory_tools(
 
     V22-05: When `external_service` is provided, recall fuses its hits with
     durable-memory hits via reciprocal-rank fusion.
+
+    V21 (VGMEM-*): When `global_store` is provided, recall also queries the
+    cross-project global corpus and fuses those hits in; global hits render
+    with a `[global]` label. `memory_remember` only ever writes the
+    project-scoped `store` — the agent can never write the global corpus.
     """
 
     @tool(
@@ -200,15 +206,40 @@ def attach_memory_tools(
                     hits = MemoryStore._rrf_merge([hits, *ext], top_k=top_k)
             except Exception:  # noqa: BLE001 — external recall must not break the turn
                 pass
+        # V21 (VGMEM-*): fuse the cross-project global corpus. Global hits carry
+        # a `global:` locator prefix so they survive RRF dedup distinctly and
+        # render with a `[global]` label (stripped from the displayed locator).
+        if global_store is not None:
+            try:
+                global_hits = global_store.recall(query, top_k=top_k, source=source)
+                if global_hits:
+                    import dataclasses as _dc
+
+                    tagged = [_dc.replace(h, locator=f"global:{h.locator}") for h in global_hits]
+                    hits = MemoryStore._rrf_merge([hits, tagged], top_k=top_k)
+            except Exception:  # noqa: BLE001 — global recall must not break the turn
+                pass
         if not hits:
             return "(no hits)"
         # VRNK-01: agent-path recall records retrieval telemetry (sidecar only;
         # memory files stay immutable). CLI recall stays no-touch. V23-06 wires
-        # global_store telemetry post-V21 — out of scope here.
-        store._record_telemetry(hits)
+        # global_store telemetry post-V21 — out of scope here. Guarded so a
+        # store without telemetry support (or any fs error) never breaks recall.
+        record_telemetry = getattr(store, "_record_telemetry", None)
+        if callable(record_telemetry):
+            try:
+                record_telemetry(hits)
+            except Exception:  # noqa: BLE001 — telemetry must never break the turn
+                pass
         lines: list[str] = []
         for h in hits:
-            lines.append(f"[{h.source}] {h.locator} (score {h.score:.2f})")
+            if h.locator.startswith("global:"):
+                label = "global"
+                locator = h.locator[len("global:"):]
+            else:
+                label = h.source
+                locator = h.locator
+            lines.append(f"[{label}] {locator} (score {h.score:.2f})")
             excerpt = (h.excerpt or "").replace("\n", " ")[:160]
             if excerpt:
                 lines.append(f"  {excerpt}")

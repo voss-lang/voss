@@ -62,7 +62,7 @@ def test_invalid_persisted_ignored(xdg, monkeypatch):
 
 def test_auth_slash_command_persists(xdg):
     registry = cli._build_slash_registry()
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(record=SimpleNamespace(model=None))
     registry.dispatch(ctx, "/auth codex")
     assert hconfig.load_harness_config().get("auth") == "codex"
 
