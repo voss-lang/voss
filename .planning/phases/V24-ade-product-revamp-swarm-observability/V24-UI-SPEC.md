@@ -28,7 +28,7 @@ created: 2026-06-14
 | Tool | none (Tailwind v4 + custom CSS vars) | Detected — no components.json |
 | Preset | not applicable | n/a |
 | Component library | none (hand-rolled SolidJS components) | Existing codebase |
-| Icon library | Unicode glyphs inline (`❯` `⏵` `※` `⊕`) | MANIFEST.md + FEATURES.md L2.3.2 |
+| Icon library | `lucide-solid` for portal rail nav/toggle icons; existing Unicode glyphs remain for composer/replay/review affordances (`❯` `⏵` `※` `⊕`) | V24-09 + MANIFEST.md + FEATURES.md L2.3.2 |
 | Mono font | JetBrains Mono (primary), SF Mono / Menlo fallback | `--font-mono` in variant-b.css |
 | UI font | Inter (secondary — labels, section heads) | `--font-ui` in variant-b.css |
 | Display font | Poppins 500/600 (section labels only) | sidebar.css, cockpitStyles.css |
@@ -62,11 +62,10 @@ Switching surfaces: instant opacity swap (no slide, no push — the grid restore
 │ (48px │   (terminal grid OR portal surface — canvas-swap)       │
 │  icon │                                                         │
 │  rail │                                                         │
-│  +    │                                                         │
-│  label│                                                         │
-│  on   │                                                         │
-│  hover│                                                         │
-│  )    │                                                         │
+│  OR   │                                                         │
+│ 220px │                                                         │
+│ icon +│                                                         │
+│ name) │                                                         │
 │       │                                                         │
 ├───────┤                                                         │
 │       │                                                         │
@@ -76,7 +75,7 @@ Switching surfaces: instant opacity swap (no slide, no push — the grid restore
 ```
 
 - **Top chrome:** 28px fixed height. Background `--bg-1`. Bottom border `1px solid --border`.
-- **Left portal rail:** 48px fixed width. Background `--bg-1`. Right border `1px solid --border`. Contains: 8 icon buttons (stacked), and at rail bottom the "Ask Voss to…" icon trigger.
+- **Left portal rail:** collapsible 48px icon-only width or 220px expanded icon + name width. Background `--bg-1`. Right border `1px solid --border`. Contains: 9 portal items (stacked, Workspaces first), and at rail bottom the "Ask Voss to…" icon trigger.
 - **Main canvas:** fills the remaining area. `background: --bg-0`.
 
 ---
@@ -200,36 +199,48 @@ New components introduced in V24. Existing components reused as-is are noted but
 
 ### 1. Left Portal Rail (`PortalRail`)
 
-**Purpose:** Primary navigation for the 8 portal items.
+**Purpose:** Primary navigation for the 9 portal items, with **Workspaces** as the explicit L1 home for the persistent terminal/tmux grid.
 
 **Geometry:**
-- Width: 48px fixed
+- Collapsed width: 48px (icon-only)
+- Expanded width: 220px (icon + name)
 - Background: `--bg-1`
 - Right border: `1px solid --border`
 - Item height: 48px (touch target)
-- Item width: 100% (full 48px)
+- Item width: 100% of the current rail width
+- Expansion pushes the main canvas as a flex sibling. It must not overlap or float over the canvas.
+- Expanded/collapsed state is App-owned and persisted in `localStorage` at `voss:portalExpanded`.
+
+**Collapse / expand control:**
+- A top rail toggle flips between collapsed and expanded.
+- Collapsed state: `aria-label="Expand portal"` and `aria-expanded="false"`.
+- Expanded state: `aria-label="Collapse portal"` and `aria-expanded="true"`.
+- Toggle icons use `lucide-solid` `PanelLeftOpen` / `PanelLeftClose`, size 20, `currentColor`.
 
 **Item states:**
-- Default: icon centered, `--fg-3` color
+- Default: icon centered in collapsed mode; icon + label left-aligned with 12px gap in expanded mode; `--fg-3` color
 - Hover: `background: --bg-2`, icon `--fg-1`
 - Active (current surface): `box-shadow: inset 2px 0 0 --focus` on the left edge (matching the `.agent-item--active` / sidebar pattern), icon `--fg-0`
 - Focus-visible: `outline: 1px solid --focus; outline-offset: -1px` (matching `.cockpit-sidebar:focus-visible` pattern)
 
 **Items (top to bottom):**
-1. Overview — glyph: `⊞` (or equivalent grid summary glyph)
-2. Tasks — glyph: `✓` (checklist)
-3. Agents — glyph: `⬡` (hexagon / agent cluster)
-4. Swarm Map — glyph: `⬡⬡` (or `◈`) — the observability surface
-5. Review — glyph: `※` (existing reviewer glyph)
-6. Context — glyph: `≡` (lines / context)
-7. Memory — glyph: `◉` (memory node)
-8. Settings — glyph: `⚙`
+1. Workspaces — `lucide-solid` icon: `LayoutGrid`; routes to `activeView='grid'` and the already-mounted `GridRoot` canvas via canvas-swap (not a new surface)
+2. Overview — `lucide-solid` icon: `LayoutDashboard`
+3. Tasks — `lucide-solid` icon: `ListChecks`
+4. Agents — `lucide-solid` icon: `Bot`
+5. Swarm Map — `lucide-solid` icon: `Network`
+6. Review — `lucide-solid` icon: `ClipboardCheck`
+7. Context — `lucide-solid` icon: `FileText`
+8. Memory — `lucide-solid` icon: `Brain`
+9. Settings — `lucide-solid` icon: `Settings`
+
+**Icon contract:** portal item icons render as `lucide-solid` SVGs at `size={20}`, `color="currentColor"`, and consistent stroke weight. Raw Unicode glyphs are no longer the primary portal nav icon implementation.
 
 **Bottom anchor:** "Ask Voss to…" trigger button at rail bottom (separate from nav items). Height: 44px. Full width. Background: `--bg-2` on hover. Icon: `❯` in `--accent-green`.
 
-**Tooltip on hover:** item label appears as a 1px-border tooltip at `--bg-3` background, `--fg-0` text, 11px Inter, 4px horizontal padding, positioned 8px to the right of the rail. Tooltip must have `role="tooltip"` and be linked via `aria-describedby`.
+**Label reveal:** expanded rail labels are the primary label-reveal mechanism. This supersedes the previously specced hover tooltip as the primary way to read portal item names; tooltips may remain as supplemental hints only.
 
-**ARIA:** `<nav aria-label="Voss portal">` wrapping the rail. Each item `<button role="tab" aria-selected="{true|false}" aria-label="{item name}">`.
+**ARIA:** `<nav aria-label="Voss portal">` wrapping the rail. The item stack is `role="tablist"`, and each item is `<button role="tab" aria-selected="{true|false}" aria-label="{item name}">`. Icon-only collapsed items must retain non-empty `aria-label` accessible names. The toggle carries `aria-expanded` and a state-specific `aria-label` ("Expand portal" / "Collapse portal").
 
 ### 2. Quiet Top Chrome (`TopChrome`)
 
@@ -424,7 +435,7 @@ These three surfaces share a list-row pattern inspired by Linear's issue groupin
 - Selecting a portal nav item: instant swap, no transition animation (grid mounts/unmounts display). Grid state (pane tree, sessions, scrollback) is fully preserved.
 - Fresh/project-less workspace: boots to terminal grid (portal rail visible, Overview not auto-selected).
 - Workspace with active managed runs: restores last-used portal surface.
-- Keyboard: `⌘⌥1`–`⌘⌥8` correspond to the 8 portal items in order. (Avoids conflict with existing `⌘1`–`⌘9` pane focus shortcuts.)
+- Keyboard: `⌘⌥1`–`⌘⌥9` correspond to the 9 portal items in order. (Avoids conflict with existing `⌘1`–`⌘9` pane focus shortcuts.)
 
 ### Portal Rail Focus
 
@@ -480,14 +491,15 @@ All copy follows the locked vocabulary from VADE2-01 / D-08 / D-09 / D-10 / D-11
 
 | Element | Copy | Notes |
 |---------|------|-------|
-| Portal item 1 | "Overview" | Title case |
-| Portal item 2 | "Tasks" | Locked vocabulary (D-08) — NOT "Runs" |
-| Portal item 3 | "Agents" | Title case |
-| Portal item 4 | "Swarm Map" | Locked vocabulary (D-10) |
-| Portal item 5 | "Review" | Title case |
-| Portal item 6 | "Context" | Title case |
-| Portal item 7 | "Memory" | Title case |
-| Portal item 8 | "Settings" | Title case |
+| Portal item 1 | "Workspaces" | Locked vocabulary (VADE2-09) — terminal/tmux grid home |
+| Portal item 2 | "Overview" | Title case |
+| Portal item 3 | "Tasks" | Locked vocabulary (D-08) — NOT "Runs" |
+| Portal item 4 | "Agents" | Title case |
+| Portal item 5 | "Swarm Map" | Locked vocabulary (D-10) |
+| Portal item 6 | "Review" | Title case |
+| Portal item 7 | "Context" | Title case |
+| Portal item 8 | "Memory" | Title case |
+| Portal item 9 | "Settings" | Title case |
 | Composer placeholder | "Describe what you want Voss to do..." | Sentence case, trailing ellipsis |
 | Composer title | "Ask Voss to…" | Unicode ellipsis (…), not `...` |
 | Primary CTA | "Create Task" | Locked vocabulary (D-08); verb + locked noun |

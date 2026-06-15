@@ -337,6 +337,16 @@ export default function App() {
       return next;
     });
   };
+  const [portalExpanded, setPortalExpanded] = createSignal(
+    localStorage.getItem('voss:portalExpanded') === 'true',
+  );
+  const togglePortalExpanded = () => {
+    setPortalExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem('voss:portalExpanded', String(next));
+      return next;
+    });
+  };
   const [agentModalOpen, setAgentModalOpen] = createSignal(false);
   const [contextMenuState, setContextMenuState] = createSignal<{
     paneId: string;
@@ -1514,6 +1524,8 @@ export default function App() {
           <PortalRail
             activeView={activeView()}
             onNavTo={setActiveView}
+            expanded={portalExpanded()}
+            onToggleExpanded={togglePortalExpanded}
             activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
             onLayoutSelect={onLayoutSelect}
             onOpenComposer={() => setComposerOpen(true)}

@@ -3,7 +3,7 @@
 // One automated assertion of the V24 a11y contract authored across V24-02..07,
 // re-checked here as the single gate before /gsd-verify-work:
 //   (a) PortalRail — role="tablist" with role="tab" items carrying aria-selected
-//       and aria-label (V24-02);
+//       and aria-label, plus the V24-09 Workspaces tab and collapsible toggle;
 //   (b) VossComposer — a <dialog aria-modal="true"> with an aria-label and an
 //       aria-label="Safety mode" control (V24-04);
 //   (c) Tasks mission-control rows are <button aria-label="Open Task: …"> (not
@@ -86,23 +86,44 @@ afterEach(() => {
 });
 
 describe('V24-08 a11y gate — PortalRail tablist', () => {
-  it('renders role="tablist" with role="tab" items carrying aria-selected + aria-label', () => {
+  it('renders a collapsible tablist with Workspaces and accessible icon-only tabs', () => {
     const el = mount(() => (
-      <PortalRail activeView={PORTAL_ITEMS[0].id} onNavTo={() => {}} />
+      <PortalRail activeView={PORTAL_ITEMS[0].id} expanded={false} onNavTo={() => {}} />
     ));
+    const rail = el.querySelector('.portal-rail');
+    expect(rail).toBeTruthy();
+    expect(rail!.classList.contains('portal-rail--expanded')).toBe(false);
+
+    const toggle = el.querySelector('button.portal-toggle');
+    expect(toggle).toBeTruthy();
+    expect(toggle!.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle!.getAttribute('aria-label')).toBe('Expand portal');
+
     const tablist = el.querySelector('[role="tablist"]');
     expect(tablist).toBeTruthy();
 
     const tabs = Array.from(el.querySelectorAll('[role="tab"]'));
     expect(tabs.length).toBe(PORTAL_ITEMS.length);
+    expect(tabs).toHaveLength(9);
+    expect(el.querySelector('[role="tab"][aria-label="Workspaces"]')).toBeTruthy();
     for (const tab of tabs) {
       expect(tab.getAttribute('aria-selected')).toMatch(/^(true|false)$/);
-      expect(tab.getAttribute('aria-label')).toBeTruthy();
+      expect(tab.getAttribute('aria-label')?.trim()).not.toBe('');
     }
     // Exactly the active view's tab reports aria-selected="true".
     const selected = tabs.filter((t) => t.getAttribute('aria-selected') === 'true');
     expect(selected).toHaveLength(1);
     expect(selected[0].getAttribute('aria-label')).toBe(PORTAL_ITEMS[0].label);
+  });
+
+  it('announces the expanded toggle state', () => {
+    const el = mount(() => (
+      <PortalRail activeView={PORTAL_ITEMS[0].id} expanded={true} onNavTo={() => {}} />
+    ));
+    const toggle = el.querySelector('button.portal-toggle');
+    expect(toggle).toBeTruthy();
+    expect(toggle!.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle!.getAttribute('aria-label')).toBe('Collapse portal');
   });
 });
 

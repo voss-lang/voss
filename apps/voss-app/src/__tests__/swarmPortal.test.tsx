@@ -50,11 +50,12 @@ function fakeSession(paneId: string): PaneSession {
 }
 
 // ---------------------------------------------------------------------------
-// PORTAL CONTRACT — the 8-item nav model authored in portalTypes.ts
+// PORTAL CONTRACT — the 9-item nav model authored in portalTypes.ts
 // ---------------------------------------------------------------------------
 describe('VADE2-02 — PortalView contract', () => {
-  it('exposes exactly 8 navigable items in UI-SPEC order; "grid" is not one', () => {
+  it('exposes exactly 9 navigable items in UI-SPEC order; "grid" returns to Workspaces', () => {
     expect(PORTAL_ITEMS.map((i) => i.id)).toEqual([
+      'grid',
       'overview',
       'tasks',
       'agents',
@@ -64,7 +65,7 @@ describe('VADE2-02 — PortalView contract', () => {
       'memory',
       'settings',
     ]);
-    expect(PORTAL_ITEMS.some((i) => i.id === ('grid' as PortalView))).toBe(false);
+    expect(PORTAL_ITEMS[0].label).toBe('Workspaces');
   });
 
   it('labels use locked PRODUCT.md vocabulary: "Tasks" not "Runs"; "Swarm Map" present', () => {

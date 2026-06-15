@@ -50,19 +50,21 @@ instantly on return — not a split, not a floating drawer.
 grid (enforces the L1 "ignore Voss, still a terminal" constraint on first paint).
 Workspaces with active managed runs restore their last-used surface.
 
-The left portal has **8 items, in this order**:
+The left portal has **9 items, in this order**:
 
 | # | Portal item | Surface kind | Notes |
 |---|-------------|--------------|-------|
-| 1 | **Overview** | NEW product surface | Mission-control summary of managed work |
-| 2 | **Tasks** | NEW product surface | Top-level unit of managed agent work (D-08; NOT "Runs") |
-| 3 | **Agents** | NEW product surface | Agent roster by role/status |
-| 4 | **Swarm Map** | NEW product surface | Observability/replay graph (D-10) |
-| 5 | **Review** | Reused as-is | Wires to existing V14 cockpit / panels — no redesign this phase |
-| 6 | **Context** | Reused as-is | Wires to existing panels/drawers — no redesign this phase |
-| 7 | **Memory** | Reused as-is | Wires to existing panels/drawers — no redesign this phase |
-| 8 | **Settings** | Reused as-is | Wires to existing settings UI — no redesign this phase |
+| 1 | **Workspaces** | Persistent grid canvas | L1 home for the terminal/tmux grid; maps to `GridRoot` via canvas-swap, not a new surface |
+| 2 | **Overview** | NEW product surface | Mission-control summary of managed work |
+| 3 | **Tasks** | NEW product surface | Top-level unit of managed agent work (D-08; NOT "Runs") |
+| 4 | **Agents** | NEW product surface | Agent roster by role/status |
+| 5 | **Swarm Map** | NEW product surface | Observability/replay graph (D-10) |
+| 6 | **Review** | Reused as-is | Wires to existing V14 cockpit / panels — no redesign this phase |
+| 7 | **Context** | Reused as-is | Wires to existing panels/drawers — no redesign this phase |
+| 8 | **Memory** | Reused as-is | Wires to existing panels/drawers — no redesign this phase |
+| 9 | **Settings** | Reused as-is | Wires to existing settings UI — no redesign this phase |
 
+- **1 persistent grid destination:** Workspaces names the terminal/tmux grid home and returns to the mounted `GridRoot` through canvas-swap.
 - **4 NEW product surfaces:** Overview, Tasks, Agents, Swarm Map (built in V24-05/06/07).
 - **4 reused surfaces:** Review, Context, Memory, Settings (wire to existing V14/panels/drawers as-is; redesign is explicitly out of scope for V24).
 
@@ -80,7 +82,7 @@ The revamp is proven, not assumed. These are the falsifiable bars copied from
 **V24-SPEC §Acceptance Criteria**:
 
 - [ ] Product/design contract committed with IA, success criteria, and locked vocabulary (Task / Swarm Map / Read only·Can edit·Autopilot / steps·cards) — *this file*.
-- [ ] Left portal exposes all 8 items; selecting a surface uses canvas-swap and grid/pane state survives a portal round-trip.
+- [ ] Left portal exposes all 9 items; selecting a surface uses canvas-swap and grid/pane state survives a portal round-trip.
 - [ ] Fresh / project-less workspace boots to the terminal grid.
 - [ ] Default top chrome contains no `fanout/pipeline/swarm/watchers` presets and no raw `Plan/Edit/Auto` toggles; presets reachable via layout menu / pane control.
 - [ ] "Ask Voss to…" composer is global, defaults to **Read only**, and hides scope/agent/team/budget/context behind "Advanced".
@@ -115,6 +117,7 @@ Contract. Each entry cites the decision that locks it.
 
 | Concept | User-facing copy | Decision | Notes |
 |---------|------------------|----------|-------|
+| Terminal/tmux grid home | **Workspaces** | VADE2-09 / D-01 | The portal item is **"Workspaces"**; it returns to the persistent grid canvas via canvas-swap, not a new surface. |
 | Top-level unit of managed agent work | **Task** | D-08 / VADE2-01 | The portal item is **"Tasks"**, **NOT "Runs."** The ROADMAP-listed "Runs" item is renamed to "Tasks" for IA consistency. |
 | Observability / replay surface | **Swarm Map** | D-10 / VADE2-01 | Nav label + brand; on-brand with the swarm-coordination differentiator. |
 | Safety mode 1 (default) | **Read only** | D-11 / VADE2-01 | Two words, no hyphen. Default posture — agent can analyze/plan but not edit until elevated (D-04). |

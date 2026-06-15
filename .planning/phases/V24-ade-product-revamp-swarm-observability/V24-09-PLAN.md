@@ -287,4 +287,62 @@ Test harness analogs:
     Create `V24-09-SUMMARY.md`.
   </action>
   <verify>
-    <automated>cd apps/voss-app && npm test -- portalA11y 2>&1 | tail -12; npm test 2>&1 | tail -20; npx tsc --noEmit 2>&1 | tail -5 && echo TSC_OK; grep -qi "Workspaces" PRODUCT.md && grep -q "portal-rail--expanded\|voss:portalExpanded\|collapsible" ../../.planning/phases/V24-ade-product-revamp-swarm-observability/V24-UI-SPEC.md && echo DOCS_OK
+    <automated>cd apps/voss-app && npm test -- portalA11y 2>&1 | tail -12; npm test 2>&1 | tail -20; npx tsc --noEmit 2>&1 | tail -5 && echo TSC_OK; grep -qi "Workspaces" PRODUCT.md && grep -q "portal-rail--expanded\|voss:portalExpanded\|collapsible" ../../.planning/phases/V24-ade-product-revamp-swarm-observability/V24-UI-SPEC.md && echo DOCS_OK</automated>
+  </verify>
+  <acceptance_criteria>
+    - portalA11y asserts the toggle's aria-expanded + Expand/Collapse aria-label, a Workspaces tab, and collapsed-state accessible names; existing assertions pass with 9 tabs.
+    - PRODUCT.md IA lists Workspaces (mapped to the grid canvas) + §Locked Vocabulary has "Workspaces".
+    - UI-SPEC §1 documents the collapsible rail (geometry, persistence, lucide icons, Workspaces item, toggle ARIA).
+    - `npm test` full suite green; `tsc --noEmit` clean; DOCS_OK printed.
+  </acceptance_criteria>
+  <done>The a11y gate covers the new controls; contracts match the build; full suite green.</done>
+</task>
+
+</tasks>
+
+<threat_model>
+## Trust Boundaries
+
+| Boundary | Description |
+|----------|-------------|
+| npm registry → build | `lucide-solid` is a NEW third-party dependency pulled at install. |
+| portal nav → terminal grid canvas | The Workspaces item routes user navigation back into the live PTY/terminal grid (the L1 surface). |
+| localStorage → UI state | `voss:portalExpanded` is read on boot to set the initial rail width. |
+
+## STRIDE Threat Register
+
+| Threat ID | Category | Component | Disposition | Mitigation Plan |
+|-----------|----------|-----------|-------------|-----------------|
+| T-V24-09-SC | Tampering (supply chain) | lucide-solid install | mitigate | **Package-legitimacy checkpoint:** `lucide-solid` is the official SolidJS port from the `lucide-icons` org (MIT, high reputation, used widely). Pin the EXACT resolved version in package.json (no caret). After install, confirm `npm ls lucide-solid` resolves the official package and that it ships no surprising postinstall script (`npm view lucide-solid scripts`). Subpath imports only — no eval/runtime codegen. This is the single [NEW-DEP] gate for this plan. |
+| T-V24-09-CS | Tampering (canvas-swap integrity) | Workspaces → activeView='grid' | mitigate | Workspaces reuses `onNavTo('grid')` → the EXISTING display:flex/none toggle; GridRoot is NOT remounted and no new mount path is added. Verified by swarmPortal canvas-swap + pane-identity tests staying green (re-run in Task 3). |
+| T-V24-09-L1 | Verification integrity (L1 baseline) | terminal-first guarantee | mitigate | The change strengthens L1 (terminal grid becomes an explicitly named destination). Full suite incl. existing grid/pane/terminal tests must stay green; the V24-08 terminal-first checklist is unaffected (no PTY/grid behavior change). |
+| T-V24-09-LS | Tampering | localStorage `voss:portalExpanded` | accept | String `=== 'true'` compare (no JSON.parse), mirroring the existing `voss:contextPanelOpen`/`voss:sidebarCollapsed` prefs — a tampered value only changes initial rail width. Cosmetic, no escalation. |
+
+No HIGH-severity threats. The only new attack surface is the single dependency, gated by the legitimacy checkpoint above.
+</threat_model>
+
+<verification>
+- `npm test` full suite green, including the extended PortalRail + portalA11y tests and the unchanged swarmPortal canvas-swap / pane-identity tests.
+- `npm test -- PortalRail` and `npm test -- portalA11y` GREEN.
+- `npx tsc --noEmit` → 0 errors.
+- `npm ls lucide-solid` resolves the pinned official package; `git diff apps/voss-app/package.json` shows exactly one new dependency, version-pinned.
+- `grep "voss:portalExpanded" src/App.tsx` present; PRODUCT.md + UI-SPEC updated (DOCS_OK).
+</verification>
+
+<success_criteria>
+The portal rail collapses/expands via a persisted toggle (48px icon-only ↔ 220px icon+name,
+pushing the canvas); the 9 nav items render larger, consistent lucide-solid icons with
+readable names when expanded; a Workspaces item (first) surfaces the persistent terminal/tmux
+grid through the existing canvas-swap path without remounting GridRoot; the full vitest suite,
+the a11y gate, and the canvas-swap identity tests are all green; PRODUCT.md and UI-SPEC §1
+reflect the new contract (VADE2-09 met).
+</success_criteria>
+
+<output>
+Create `.planning/phases/V24-ade-product-revamp-swarm-observability/V24-09-SUMMARY.md` when done.
+
+## Manual smoke (post-build, not a blocking checkpoint)
+Run `npm run tauri dev` and confirm: the rail toggle expands/collapses and the choice
+survives a reload; the lucide icons are visibly larger/cleaner than the old glyphs; clicking
+**Workspaces** returns to the live terminal grid with panes/sessions intact.
+</output>
