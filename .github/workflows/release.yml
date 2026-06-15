@@ -68,23 +68,19 @@ jobs:
           - npm-platform: darwin-arm64
             runner: macos-latest
             pbs-triple: aarch64-apple-darwin
-            python-bin: python/bin/python3
-          - npm-platform: darwin-x64
-            runner: macos-13
-            pbs-triple: x86_64-apple-darwin
-            python-bin: python/bin/python3
+            python-bin: bin/python3
           - npm-platform: linux-x64
             runner: ubuntu-24.04
             pbs-triple: x86_64-unknown-linux-gnu
-            python-bin: python/bin/python3
+            python-bin: bin/python3
           - npm-platform: linux-arm64
             runner: ubuntu-24.04-arm
             pbs-triple: aarch64-unknown-linux-gnu
-            python-bin: python/bin/python3
+            python-bin: bin/python3
           - npm-platform: win32-x64
             runner: windows-latest
             pbs-triple: x86_64-pc-windows-msvc
-            python-bin: python/python.exe
+            python-bin: python.exe
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -149,7 +145,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd npm/platforms/${{ matrix.npm-platform }}
-          npm publish --access public --provenance
+          PKG="@vosslang/cli-${{ matrix.npm-platform }}"
+          VER=$(node -e "console.log(require('./package.json').version)")
+          if npm view "$PKG@$VER" version >/dev/null 2>&1; then
+            echo "$PKG@$VER already published; skipping (idempotent re-run)"
+          else
+            npm publish --access public --provenance
+          fi
 
   publish-main:
     needs: build-platform
@@ -189,4 +191,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd npm
-          npm publish --access public --provenance
+          VER=$(node -e "console.log(require('./package.json').version)")
+          if npm view "@vosslang/cli@$VER" version >/dev/null 2>&1; then
+            echo "@vosslang/cli@$VER already published; skipping (idempotent re-run)"
+          else
+            npm publish --access public --provenance
+          fi
