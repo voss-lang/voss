@@ -20,7 +20,6 @@
   ],
   "optionalDependencies": {
     "@vosslang/cli-darwin-arm64": "0.1.1",
-    "@vosslang/cli-darwin-x64": "0.1.1",
     "@vosslang/cli-linux-arm64": "0.1.1",
     "@vosslang/cli-linux-x64": "0.1.1",
     "@vosslang/cli-win32-x64": "0.1.1"
