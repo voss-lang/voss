@@ -25,6 +25,7 @@ import StatusBar from './components/StatusBar';
 import ContextPanel from './components/ContextPanel';
 import OrgViewShell from './org/OrgViewShell';
 import PortalRail from './portal/PortalRail';
+import VossComposer from './composer/VossComposer';
 import PortalShell from './portal/PortalShell';
 import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
@@ -35,6 +36,7 @@ import RunCommandBar, {
   type RunNativeClient,
   type SpawnAgentFn,
 } from './org/cockpit/RunCommandBar';
+import type { RunMode } from './org/cockpit/runIntake';
 import { connectLiveStream, liveLabel } from './org/live/sseClient';
 import {
   buildVossClientFromHandshake,
@@ -293,6 +295,22 @@ export default function App() {
   // toggle. 'grid' is the canvas default so fresh/project-less workspaces boot to
   // the terminal grid (D-02). Canvas-swap (D-01) toggles the grid via display:none.
   const [activeView, setActiveView] = createSignal<PortalView>('grid');
+  // V24-04 (VADE2-04): global "Ask Voss to…" composer open state (⌘K + rail
+  // ask trigger). currentTaskMode feeds the TopChrome safety-mode chip — set to
+  // the most-recently-created Task's RunMode, mapped back to its humane label.
+  const [composerOpen, setComposerOpen] = createSignal(false);
+  const [currentTaskMode, setCurrentTaskMode] = createSignal<RunMode | undefined>(
+    undefined,
+  );
+  const RUNMODE_TO_SAFETY: Record<RunMode, 'Read only' | 'Can edit' | 'Autopilot'> = {
+    Plan: 'Read only',
+    Edit: 'Can edit',
+    Auto: 'Autopilot',
+  };
+  const currentSafetyMode = () => {
+    const m = currentTaskMode();
+    return m ? RUNMODE_TO_SAFETY[m] : undefined;
+  };
   // VCKP-04 AttentionQueue (D-05/D-06). Open/close state lives here (mirrors
   // orgViewOpen/contextPanelOpen) and flows to StatusBar + AttentionPanel props.
   const [attentionOpen, setAttentionOpen] = createSignal(false);
@@ -1316,6 +1334,15 @@ export default function App() {
       return;
     }
 
+    // Cmd+K: toggle the global "Ask Voss to…" composer (V24-04). metaKey only,
+    // no shift/alt — distinct from the ⌘1-9 pane shortcuts and ⌘⇧/⌘⌥ chords.
+    if (e.metaKey && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+      setComposerOpen((open) => !open);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
     // Cmd+Alt+1..8: jump to a portal surface (UI-SPEC §Canvas-Swap keyboard).
     // metaKey+altKey avoids clobbering ⌘1-9 pane focus (metaKey only).
     if (e.metaKey && e.altKey && !e.shiftKey && e.key >= '1' && e.key <= '8') {
@@ -1438,6 +1465,8 @@ export default function App() {
       <TopChrome
         projectName={activeMounted()?.project()?.name}
         liveState={liveLabel()}
+        currentSafetyMode={currentSafetyMode()}
+        onOpenComposer={() => setComposerOpen(true)}
       />
       <WorkspaceTabBar
         workspaces={workspaceStore.workspaces()}
@@ -1487,6 +1516,7 @@ export default function App() {
             onNavTo={setActiveView}
             activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
             onLayoutSelect={onLayoutSelect}
+            onOpenComposer={() => setComposerOpen(true)}
           />
           <AgentSidebar
             collapsed={sidebarCollapsed()}
@@ -1733,6 +1763,15 @@ export default function App() {
           onDismiss={dismissPalette}
         />
       </Show>
+
+      {/* V24-04 (VADE2-04) — global "Ask Voss to…" composer (⌘K + rail trigger).
+          onCreated records the new Task's mode so the TopChrome safety chip
+          reflects it. */}
+      <VossComposer
+        open={composerOpen()}
+        onClose={() => setComposerOpen(false)}
+        onCreated={(spec) => setCurrentTaskMode(spec.mode)}
+      />
     </div>
   );
 }

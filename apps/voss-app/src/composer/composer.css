@@ -1,0 +1,206 @@
+/* V24-04 (VADE2-04) — "Ask Voss to…" composer modal. Token-only (no raw hex).
+   Mirrors components/modal/modal.css conventions: fixed dim backdrop + centered
+   panel. The only literal color is the backdrop dim rgba(0,0,0,0.4) (UI-SPEC §3,
+   same convention as .modal-backdrop). */
+
+.composer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Override the UA <dialog> box so the flex backdrop owns centering. */
+.composer-dialog {
+  position: relative;
+  inset: auto;
+  margin: 0;
+  min-width: 560px;
+  max-width: 720px;
+  width: 640px;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-bright);
+  color: var(--fg-0);
+}
+
+/* Entrance animation — A8 reduced-motion double-guard (OS query + class). The
+   global kill switch in index.css also covers it; this keeps the guard local. */
+@media (not (prefers-reduced-motion: reduce)) {
+  html:not(.reduced-motion) .composer-dialog {
+    animation: composerIn 120ms ease-out;
+  }
+}
+
+@keyframes composerIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.composer-titlerow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.composer-title {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-0);
+}
+
+.composer-glyph {
+  color: var(--accent-green);
+}
+
+.composer-kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+}
+
+.composer-ask {
+  width: 100%;
+  min-height: 44px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  color: var(--fg-0);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.composer-ask::placeholder {
+  color: var(--fg-3);
+}
+
+.composer-ask:focus {
+  outline: none;
+  border-color: var(--focus);
+}
+
+.composer-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.composer-controls__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-kv,
+.composer-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer-kv__key,
+.composer-field__key {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+  min-width: 52px;
+}
+
+.composer-select,
+.composer-input {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  color: var(--fg-0);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+.composer-input {
+  flex: 1;
+}
+
+.composer-input--budget {
+  flex: 0 0 auto;
+  width: 90px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-input::placeholder {
+  color: var(--fg-3);
+}
+
+.composer-select:focus,
+.composer-input:focus {
+  outline: none;
+  border-color: var(--focus);
+}
+
+.composer-advanced-toggle {
+  background: transparent;
+  border: none;
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.composer-advanced-toggle:hover {
+  color: var(--fg-1);
+}
+
+.composer-create {
+  background: var(--focus);
+  color: var(--fg-0);
+  border: none;
+  padding: 8px 16px;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.composer-create:disabled {
+  background: var(--bg-3);
+  color: var(--fg-3);
+  cursor: default;
+}
+
+.composer-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+}
+
+.composer-error {
+  color: var(--accent-red);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+}
