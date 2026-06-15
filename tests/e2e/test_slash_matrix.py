@@ -38,6 +38,12 @@ SLASH_CASES: list[tuple[str, str]] = [
     ("/skills", ""),
     ("/agents", "explorer"),
     ("/forget foo", ""),
+    ("/budget", "budget:"),
+    ("/probable", ""),  # "no session" status when none recorded; tolerate
+    ("/btrace", ""),  # "no session" status when none recorded; tolerate
+    ("/why", ""),  # "no plan yet" status before a turn; tolerate
+    ("/diff", ""),  # working-tree diff (may be empty)
+    ("/apply", "/apply"),  # v0.1 no-op stub status line
 ]
 
 
@@ -79,7 +85,16 @@ def test_slash_registry_matches_test_matrix() -> None:
     registered = {cmd.name for cmd in registry._commands.values()}
 
     exercised = {line.split()[0] for line, _ in SLASH_CASES} | {"/exit"}
-    skipped = {"/analyze", "/save-session", "/plugin", "/skill", "/agent", "/symbol", "/refs", "/refresh"}  # M10-04 stubs; full E2E in later wave
+    skipped = {
+        "/analyze", "/save-session", "/plugin", "/skill", "/agent",
+        "/symbol", "/refs", "/refresh",  # M10-04 stubs; full E2E in later wave
+        # Mutating/git-backed: need real run state + --confirm; dedicated tests.
+        "/undo", "/redo", "/discard",
+        "/resume",  # live-resume needs a saved session id/name
+        "/vdiff",  # needs a <file.voss> arg
+        "/models", "/auth",  # credential/catalog (network); auth tested in tests/harness/test_auth_default.py
+        "/doctor",  # health checks exercised by tests/.../doctor suite
+    }
 
     missing = registered - exercised - skipped
     assert not missing, f"slash commands not covered in SLASH_CASES: {missing}"

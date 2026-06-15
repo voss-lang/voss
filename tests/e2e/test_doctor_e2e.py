@@ -31,13 +31,20 @@ def test_doctor_emits_all_expected_rows(cli_runner: CliRunner) -> None:
 
 def test_doctor_reports_cognition_state(cli_runner: CliRunner) -> None:
     r = cli_runner.run("doctor")
-    assert ".voss/ initialized" in r.stdout, r.stdout
-    # Fixture project has VOSS.md → cognition.initialized = True → "yes".
+    # The old ad-hoc ".voss/ initialized" row was folded into the registry's
+    # "cognition" check (diagnostics.check_cognition). Fixture project has
+    # VOSS.md → cognition.initialized = True → detail reports "initialized".
+    # Match the row by its label + detail together — a bare "cognition"
+    # substring also appears in the sandbox tmp path (cwd writable row).
     line = next(
-        (ln for ln in r.stdout.splitlines() if ".voss/ initialized" in ln),
+        (
+            ln
+            for ln in r.stdout.splitlines()
+            if "cognition" in ln and "initialized" in ln.lower()
+        ),
         "",
     )
-    assert "yes" in line.lower(), line
+    assert line, f"no cognition row reporting initialized state\n{r.stdout}"
 
 
 def test_doctor_reports_legacy_session_count(cli_runner: CliRunner) -> None:

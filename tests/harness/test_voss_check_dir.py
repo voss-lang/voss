@@ -22,10 +22,27 @@ def test_check_dir_walks_and_aggregates(tmp_path):
 def test_check_dir_does_not_load_hf_encoder(tmp_path):
     (tmp_path / "a.voss").write_text("let a = 1\n")
 
-    result = CliRunner().invoke(main, ["check", str(tmp_path)])
+    # Run `voss check` in a CLEAN subprocess and inspect the SUBPROCESS's
+    # sys.modules. Asserting on this process is order-dependent — an earlier
+    # test in the full suite may have already imported sentence_transformers.
+    import json
+    import subprocess
 
-    assert result.exit_code == 0, result.output
-    offenders = sorted(k for k in sys.modules if "sentence_transformers" in k)
+    script = (
+        "import json, sys\n"
+        "from click.testing import CliRunner\n"
+        "from voss.cli import main\n"
+        f"result = CliRunner().invoke(main, ['check', {str(tmp_path)!r}])\n"
+        "assert result.exit_code == 0, result.output\n"
+        "print(json.dumps(sorted(k for k in sys.modules if 'sentence_transformers' in k)))\n"
+    )
+    cp = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+    )
+    assert cp.returncode == 0, cp.stderr
+    offenders = json.loads(cp.stdout.strip().splitlines()[-1])
     assert offenders == []
 
 

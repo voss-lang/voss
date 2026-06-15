@@ -15,13 +15,30 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_check_does_not_load_hf_encoder() -> None:
-    from voss import analyze, parse
+    # Run in a CLEAN subprocess: in the full suite an earlier test may have
+    # already imported sentence_transformers, so asserting on THIS process's
+    # sys.modules is order-dependent. The subprocess proves analyze() itself
+    # does not pull in the HF encoder (D-03).
+    import json
+    import subprocess
 
-    src = (REPO_ROOT / "samples" / "support.voss").read_text()
-    program = parse(src, file="samples/support.voss")
-    result = analyze(program, source_path="samples/support.voss", emit_indexes=False)
-    assert result.ok, [d.message for d in result.diagnostics]
-    offenders = sorted(k for k in sys.modules if "sentence_transformers" in k)
+    script = (
+        "import json, sys\n"
+        "from voss import analyze, parse\n"
+        "src = open('samples/support.voss').read()\n"
+        "program = parse(src, file='samples/support.voss')\n"
+        "result = analyze(program, source_path='samples/support.voss', emit_indexes=False)\n"
+        "assert result.ok, [d.message for d in result.diagnostics]\n"
+        "print(json.dumps(sorted(k for k in sys.modules if 'sentence_transformers' in k)))\n"
+    )
+    cp = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    assert cp.returncode == 0, cp.stderr
+    offenders = json.loads(cp.stdout.strip().splitlines()[-1])
     assert offenders == [], f"D-03 violated: sentence_transformers loaded: {offenders}"
 
 

@@ -398,7 +398,7 @@ def test_do_cmd_wires_global_store(tmp_path: Path) -> None:
             mock.patch.object(
                 cli,
                 "_apply_boot_model",
-                side_effect=lambda provider, user_explicit=None: provider,
+                side_effect=lambda provider, user_explicit=None, auth_source=None: provider,
             )
         )
         stack.enter_context(mock.patch.object(cli, "get_config", return_value=SimpleNamespace(default_model="stub-model")))

@@ -1,4 +1,4 @@
-«"""Agent commands for the unified `voss` CLI.
+"""Agent commands for the unified `voss` CLI.
 
 Defines `do_cmd`, `chat_cmd`, `doctor_cmd` as standalone click Commands.
 - `voss.cli` imports them and adds them to the compiler's `main` group.
@@ -31,7 +31,7 @@ from . import conventions
 from . import session as session_store
 from . import voss_md
 from .memory_cli import memory_group
-from .memory_store import MemoryStore
+from .memory_store import MemoryStore, make_global_store
 from .agent import Plan
 from .claims import claims_group
 from .permissions import PermissionGate, PermissionStore
@@ -2226,7 +2226,16 @@ def do_cmd(
     do_record = session_store.SessionRecord.new(cwd=cwd, model=do_model)
     do_history = EpisodicMemory(capacity=40)
     do_memory_store = MemoryStore(cwd).bind(session_id=do_record.id)
-    attach_memory_tools(tools, store=do_memory_store, session_id=do_record.id)
+    # V21 (VGMEM-*): wire the cross-project global corpus into agent recall when
+    # global memory is enabled. The agent reads global hits but can never write
+    # them (memory_remember only ever targets the project store).
+    do_global_store = make_global_store()
+    attach_memory_tools(
+        tools,
+        store=do_memory_store,
+        session_id=do_record.id,
+        global_store=do_global_store,
+    )
 
     renderer.banner(model=cfg.default_model, cwd=cwd, git_status=_git_status(cwd))
     click.echo(f"  [auth: {res.source} — {res.detail}]")
@@ -5201,6 +5210,19 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         mem_hits = MemoryStore(cwd).recall(query_str, top_k=recall_k)
     except Exception:  # noqa: BLE001 — missing/corrupt memory store must not kill code recall
         mem_hits = []
+    # V21 (VGMEM-*): fuse the cross-project global corpus. Global hits carry a
+    # `global:` locator prefix so they survive RRF dedup distinctly and render
+    # with a `[global]` label (stripped from the displayed locator).
+    global_hits: list = []
+    try:
+        import dataclasses as _dc
+
+        global_store = make_global_store()
+        if global_store is not None:
+            raw_global = global_store.recall(query_str, top_k=recall_k)
+            global_hits = [_dc.replace(h, locator=f"global:{h.locator}") for h in raw_global]
+    except Exception:  # noqa: BLE001 — missing/disabled global corpus must not kill recall
+        global_hits = []
     try:
         external_hits_per_source = _recall_external_rankings(ext_svc.query_all(query_str, top_k=recall_k))
     except Exception:  # noqa: BLE001 — missing/misconfigured sources must not kill recall
@@ -5208,7 +5230,7 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
 
     # RRF is rank-based and corpus-agnostic (D-09); the code: id prefix
     # guarantees no locator collision with memory/external ids in the dedup.
-    fused = MemoryStore._rrf_merge([code_hits, mem_hits, *external_hits_per_source], top_k=top_k)
+    fused = MemoryStore._rrf_merge([code_hits, mem_hits, global_hits, *external_hits_per_source], top_k=top_k)
 
     if json_out:
         click.echo(json.dumps({"query": query_str, "hits": [_recall_hit_fields(h) for h in fused]}, indent=2))
@@ -5219,11 +5241,16 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         return
     for hit in fused:
         fields = _recall_hit_fields(hit)
-        if fields["source"] == "code":
+        if hit.locator.startswith("global:"):
+            label = "global"
+            display = hit.locator[len("global:"):]
+        elif fields["source"] == "code":
+            label = fields["source"]
             display = f"{fields['path']}:{fields['line_start']}" if fields["line_start"] else fields["path"]
         else:
+            label = fields["source"]
             display = hit.locator
-        click.echo(f"[{fields['source']}] {display} (score {hit.score:.2f})")
+        click.echo(f"[{label}] {display} (score {hit.score:.2f})")
         if fields["excerpt"]:
             click.echo(f"  {fields['excerpt']}")
 

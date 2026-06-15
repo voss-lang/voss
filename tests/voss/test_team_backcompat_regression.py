@@ -173,7 +173,7 @@ _RUNRECORD_FIELDS = {
     "diff_summary", "follow_ups", "cost_usd", "iterations", "iteration_count",
     "exit_reason", "iteration_total_prompt_tokens",
     "iteration_total_completion_tokens", "skill_events", "scope_denials",
-    "capability_invocations",
+    "capability_invocations", "factory_fallbacks",
 }
 _SESSIONRECORD_FIELDS = {
     "id", "name", "cwd", "model", "started_at", "updated_at", "total_cost_usd",

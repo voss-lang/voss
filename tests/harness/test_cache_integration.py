@@ -12,6 +12,23 @@ import pytest
 
 vcr = pytest.importorskip("vcr")
 
+# vcrpy 8.x eagerly imports its aiohttp stub when aiohttp is installed, even
+# though these cassettes only replay the httpx-based Anthropic provider. aiohttp
+# >=3.14 dropped `streams.AsyncStreamReaderMixin` (folded into StreamReader),
+# which makes that stub crash at import time. Restore the name as an empty
+# compatibility shim so vcr can build its patcher set; the aiohttp path is never
+# exercised here.
+try:  # pragma: no cover - environment-dependent compat shim
+    import aiohttp.streams as _aiohttp_streams
+
+    if not hasattr(_aiohttp_streams, "AsyncStreamReaderMixin"):
+        class _AsyncStreamReaderMixin:  # minimal stand-in; methods unused here
+            pass
+
+        _aiohttp_streams.AsyncStreamReaderMixin = _AsyncStreamReaderMixin
+except ImportError:
+    pass
+
 from voss.harness import auth
 from voss.harness.agent import run_turn
 from voss.harness.permissions import PermissionGate

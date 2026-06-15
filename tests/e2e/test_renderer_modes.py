@@ -24,7 +24,12 @@ def test_json_mode_emits_valid_ndjson(cli_runner: CliRunner) -> None:
     assert r.returncode == 0, r.output
     payloads = r.json_payloads()
     types = [p.get("type") for p in payloads]
+    # 'plan' is shape-checked when present but is NOT guaranteed: a stepless
+    # terminating plan (the stub's plain Q&A) deliberately emits no 'plan'
+    # event (agent.py: show_plan only fires when the plan proposes work).
     for kind in REQUIRED_EVENT_KEYS:
+        if kind == "plan":
+            continue
         assert kind in types, f"missing {kind!r} event"
     for payload in payloads:
         kind = payload.get("type")

@@ -8,7 +8,14 @@ from voss import parse
 
 
 _LINGUIST_LINE = "*.voss linguist-language=Voss linguist-detectable=true"
-_SAMPLE_NAMES = ("classify.voss", "support.voss", "research.voss")
+_SAMPLE_NAMES = (
+    "classify.voss",
+    "support.voss",
+    "research.voss",
+    "audit-gates.voss",
+    "reviewer-split.voss",
+    "team-orchestration.voss",
+)
 _FORBIDDEN_CLAIMS = (
     "native GitHub support",
     "accepted upstream",
