@@ -1,0 +1,193 @@
+/* V24-06 (VADE2-06) — Swarm Map radial canvas + legend. Token-only (no raw hex).
+   The A8 reduced-motion double-guard scaffold is present now; the live
+   keyframes (traveling dots / pulses) land in V24-07. */
+
+.swarm-map {
+  flex-direction: row;
+}
+
+.swarm-map__body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-0);
+  overflow: hidden;
+}
+
+.swarm-canvas {
+  flex: 1;
+  min-height: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.swarm-canvas:active {
+  cursor: grabbing;
+}
+
+/* --- Node shapes --- */
+.swarm-node {
+  cursor: pointer;
+}
+
+.swarm-shape--objective {
+  fill: var(--bg-3);
+  stroke: var(--focus);
+  stroke-width: 2;
+}
+
+.swarm-shape--agent {
+  fill: var(--bg-2);
+  stroke: var(--accent-cyan);
+  stroke-width: 2;
+}
+
+.swarm-shape--work {
+  fill: var(--bg-2);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.swarm-shape--artifact {
+  fill: var(--bg-2);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.swarm-shape--alert {
+  fill: color-mix(in srgb, var(--accent-red) 15%, transparent);
+  stroke: var(--accent-red);
+  stroke-width: 1;
+}
+
+/* Placeholder: dashed, no accent — visually honest about a missing signal. */
+.swarm-shape--placeholder {
+  fill: transparent;
+  stroke: var(--border-bright);
+  stroke-width: 2;
+  stroke-dasharray: 3 3;
+}
+
+.swarm-node__label {
+  fill: var(--fg-2);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* --- Edges --- */
+.swarm-edge {
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+
+/* --- Legend (200px right panel) --- */
+.swarm-legend {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.swarm-legend__empty {
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+}
+
+.swarm-legend__header {
+  color: var(--fg-0);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.swarm-legend__kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+}
+
+.swarm-legend__k {
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+}
+
+.swarm-legend__v {
+  color: var(--fg-1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.swarm-legend__open {
+  margin-top: auto;
+  background: transparent;
+  border: none;
+  color: var(--focus);
+  cursor: pointer;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  text-align: left;
+  padding: 0;
+}
+
+/* --- Empty state --- */
+.swarm-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+}
+
+.swarm-empty__title {
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 13px;
+  margin: 0;
+}
+
+.swarm-empty__hint {
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  margin: 0;
+}
+
+/* --- Animation scaffold (A8 reduced-motion double-guard) ---
+   Live keyframes (traveling dots / SSE pulses / blocker pulse) arrive in V24-07.
+   The double-guard block is present now so the pattern is locked; the global
+   index.css kill switch also covers it by inheritance. */
+@media (not (prefers-reduced-motion: reduce)) {
+  html:not(.reduced-motion) .swarm-node-pulse {
+    animation: swarmNodePulse 300ms ease-out forwards;
+  }
+}
+
+@keyframes swarmNodePulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Pause all Swarm Map animation when the tab is hidden (driven by SwarmMap.tsx). */
+.swarm-paused * {
+  animation-play-state: paused !important;
+}
