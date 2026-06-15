@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import typing
 from pathlib import Path
 
 
@@ -30,3 +31,13 @@ def test_voss_cli_import_does_not_import_litellm() -> None:
 
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout.strip() == "False"
+
+
+def test_harness_net_session_annotations_resolve() -> None:
+    import voss.harness.cli as cli
+    import voss.harness.tools as tools
+    from voss.harness.net import NetSession
+
+    assert typing.get_type_hints(cli)["_NET_SESSION"] == NetSession | None
+    assert typing.get_type_hints(cli._get_net_session)["return"] is NetSession
+    assert typing.get_type_hints(tools.make_toolset)["net"] == NetSession | None
