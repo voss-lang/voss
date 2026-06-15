@@ -12,16 +12,20 @@ import {
   createSignal,
   For,
   onCleanup,
+  onMount,
   Show,
 } from 'solid-js';
 import './swarmMap.css';
 import { runData, loading, loadError } from '../../org/orgStore';
 import { attentionQueue } from '../../org/attention/attentionQueue';
+import { liveGraphPatches } from '../../org/live/sseClient';
 import { paneIdForCard } from '../../org/model/bridge';
 import { requestOpenInGrid, requestOpenInReview } from '../../org/selection';
-import { deriveSwarmGraph, type SwarmNode } from './swarmMapDerive';
+import { deriveSwarmGraph, type SwarmNode, type SwarmEdge } from './swarmMapDerive';
 import { layoutSwarm } from './swarmLayout';
 import SwarmMapLegend from './SwarmMapLegend';
+import EventTraceList from './EventTraceList';
+import ReplayScrubber from './ReplayScrubber';
 
 const EDGE_COLOR: Record<string, string> = {
   delegation: 'var(--focus)',
