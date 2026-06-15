@@ -145,7 +145,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd npm/platforms/${{ matrix.npm-platform }}
-          npm publish --access public --provenance
+          PKG="@vosslang/cli-${{ matrix.npm-platform }}"
+          VER=$(node -e "console.log(require('./package.json').version)")
+          if npm view "$PKG@$VER" version >/dev/null 2>&1; then
+            echo "$PKG@$VER already published; skipping (idempotent re-run)"
+          else
+            npm publish --access public --provenance
+          fi
 
   publish-main:
     needs: build-platform
@@ -185,4 +191,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd npm
-          npm publish --access public --provenance
+          VER=$(node -e "console.log(require('./package.json').version)")
+          if npm view "@vosslang/cli@$VER" version >/dev/null 2>&1; then
+            echo "@vosslang/cli@$VER already published; skipping (idempotent re-run)"
+          else
+            npm publish --access public --provenance
+          fi
