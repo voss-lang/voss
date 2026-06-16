@@ -26,7 +26,7 @@ import {
 export interface VossComposerProps {
   open: boolean;
   onClose: () => void;
-  onCreated?: (spec: RunSpec) => void;
+  onCreated?: (spec: RunSpec) => void | Promise<void>;
 }
 
 type SafetyMode = 'Read only' | 'Can edit' | 'Autopilot';
@@ -85,7 +85,7 @@ const VossComposer: Component<VossComposerProps> = (props) => {
     };
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!canCreate()) return;
     setError(null);
     const state = buildState();
@@ -96,7 +96,12 @@ const VossComposer: Component<VossComposerProps> = (props) => {
       return;
     }
     const spec = assembleRunSpec(state);
-    props.onCreated?.(spec);
+    try {
+      await props.onCreated?.(spec);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the Task.');
+      return;
+    }
     props.onClose();
   };
 

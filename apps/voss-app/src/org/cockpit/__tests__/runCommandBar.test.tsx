@@ -12,7 +12,7 @@ import {
 // module import resolves under jsdom.
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
-import RunCommandBar from '../RunCommandBar';
+import RunCommandBar, { dispatchRunSpec } from '../RunCommandBar';
 import {
   cardToPane,
   cardToSessionNode,
@@ -277,5 +277,28 @@ describe('start paths', () => {
     // No start path invoked.
     expect(spawnAgent).not.toHaveBeenCalled();
     expect(client.createSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('dispatchRunSpec (shared seam)', () => {
+  it('terminal: spawns with the minted cardId as sessionId', async () => {
+    const spawnAgent = vi.fn().mockResolvedValue(undefined);
+    await dispatchRunSpec(
+      assembleRunSpec({ goal: 'Go', mode: 'Edit', team: 'solo', target: 'terminal' }),
+      { cliBinary: 'claude', spawnAgent, resolvePaneId: () => 'pane-7' },
+    );
+    expect(spawnAgent).toHaveBeenCalledTimes(1);
+    const payload = spawnAgent.mock.calls[0][0];
+    expect(payload.paneId).toBe('pane-7');
+    expect(cardToPane()[payload.sessionId]).toBe('pane-7');
+  });
+
+  it('native with no client throws the exact server-unavailable message', async () => {
+    await expect(
+      dispatchRunSpec(
+        assembleRunSpec({ goal: 'Go', mode: 'Plan', team: 'solo', target: 'native' }),
+        { cliBinary: 'voss' },
+      ),
+    ).rejects.toThrow('Voss runs need the Voss server — not available in this build.');
   });
 });

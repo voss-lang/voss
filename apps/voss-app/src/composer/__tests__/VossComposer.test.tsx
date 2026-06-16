@@ -82,3 +82,51 @@ describe('VossComposer — closed state', () => {
     expect(el.querySelector('[aria-label="Safety mode"]')).toBeNull();
   });
 });
+
+describe('VossComposer — create dispatches the run', () => {
+  const setGoal = (el: HTMLElement, value: string): void => {
+    const ta = el.querySelector('textarea') as HTMLTextAreaElement;
+    ta.value = value;
+    fireEvent.input(ta, { target: ta });
+  };
+  const create = (el: HTMLElement): void => {
+    const btn = Array.from(el.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Create Task',
+    ) as HTMLButtonElement;
+    fireEvent.click(btn);
+  };
+
+  it('calls onCreated with a spec whose goal matches and closes on success', async () => {
+    const onCreated = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const el = mount(() => (
+      <VossComposer open={true} onClose={onClose} onCreated={onCreated} />
+    ));
+    setGoal(el, 'Refactor auth');
+    create(el);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onCreated).toHaveBeenCalledTimes(1);
+    expect(onCreated.mock.calls[0][0]).toMatchObject({ goal: 'Refactor auth' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the dialog open and shows an error when onCreated rejects', async () => {
+    const onCreated = vi.fn().mockRejectedValue(new Error('server down'));
+    const onClose = vi.fn();
+    const el = mount(() => (
+      <VossComposer open={true} onClose={onClose} onCreated={onCreated} />
+    ));
+    setGoal(el, 'Ship it');
+    create(el);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onCreated).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    const error = el.querySelector('.composer-error') as HTMLElement;
+    expect(error).toBeTruthy();
+    expect(error.textContent).toMatch(/server down/);
+  });
+});

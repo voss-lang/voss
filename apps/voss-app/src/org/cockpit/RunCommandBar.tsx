@@ -63,6 +63,49 @@ const defaultSpawnAgent: SpawnAgentFn = (o) =>
     cwd: o.cwd,
   });
 
+/** Deps the run dispatch needs, independent of any one intake surface. */
+export interface DispatchDeps {
+  cliBinary: string;
+  cwd?: string;
+  /** Native (Voss harness) client. Native dispatch throws if absent. */
+  client?: RunNativeClient;
+  spawnAgent?: SpawnAgentFn;
+  resolvePaneId?: () => string;
+}
+
+/**
+ * Shared run dispatch for every intake surface (RunCommandBar + VossComposer).
+ * Performs the side-effects (mint card, spawn/createSession) and THROWS on
+ * failure; callers own UI feedback. Caller must pass a gate-passed spec
+ * (validateAutoStart) — this does not re-gate.
+ */
+export async function dispatchRunSpec(
+  spec: RunSpec,
+  deps: DispatchDeps,
+): Promise<void> {
+  if (spec.target === 'terminal') {
+    const paneId = (deps.resolvePaneId ?? (() => crypto.randomUUID()))();
+    const cardId = registerTerminalCard(paneId);
+    const spawn = deps.spawnAgent ?? defaultSpawnAgent;
+    await spawn({
+      cliBinary: deps.cliBinary,
+      cliArgs: intakeCliArgs(spec),
+      taskPrompt: spec.goal,
+      sessionId: cardId,
+      paneId,
+      cwd: deps.cwd,
+    });
+    return;
+  }
+  if (!deps.client) {
+    throw new Error(
+      'Voss runs need the Voss server — not available in this build.',
+    );
+  }
+  const response = await deps.client.createSession(spec);
+  registerNativeCard(response.id, response.id);
+}
+
 export interface RunCommandBarProps {
   cwd: string;
   cliBinary: string;
@@ -156,35 +199,18 @@ const RunCommandBar: Component<RunCommandBarProps> = (props) => {
       return;
     }
 
-    if (spec.target === 'terminal') {
-      const paneId = (props.resolvePaneId ?? (() => crypto.randomUUID()))();
-      const cardId = registerTerminalCard(paneId);
-      const spawn = props.spawnAgent ?? defaultSpawnAgent;
-      await spawn({
-        cliBinary: props.cliBinary,
-        cliArgs: intakeCliArgs(spec),
-        taskPrompt: spec.goal,
-        sessionId: cardId,
-        paneId,
-        cwd: props.cwd,
-      });
-      flashStarted('Task started');
-      return;
-    }
-
-    if (!props.client) {
-      setBlockReason('Voss runs need the Voss server — not available in this build.');
-      return;
-    }
-    let response: { id: string };
     try {
-      response = await props.client.createSession(spec);
+      await dispatchRunSpec(spec, {
+        cliBinary: props.cliBinary,
+        cwd: props.cwd,
+        client: props.client,
+        spawnAgent: props.spawnAgent,
+        resolvePaneId: props.resolvePaneId,
+      });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setBlockReason(`Could not start the Voss run: ${msg}`);
+      setBlockReason(e instanceof Error ? e.message : String(e));
       return;
     }
-    registerNativeCard(response.id, response.id);
     flashStarted('Task started');
   };
 

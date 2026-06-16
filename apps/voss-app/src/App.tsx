@@ -33,6 +33,7 @@ import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
 import { resolveTier, hookCapableCli } from './org/capabilityTier';
 import RunCommandBar, {
+  dispatchRunSpec,
   type RunNativeClient,
   type SpawnAgentFn,
 } from './org/cockpit/RunCommandBar';
@@ -1787,12 +1788,21 @@ export default function App() {
       </Show>
 
       {/* V24-04 (VADE2-04) — global "Ask Voss to…" composer (⌘K + rail trigger).
-          onCreated records the new Task's mode so the TopChrome safety chip
-          reflects it. */}
+          onCreated records the new Task's mode (TopChrome safety chip) AND
+          dispatches the run through the shared RunCommandBar seam. */}
       <VossComposer
         open={composerOpen()}
         onClose={() => setComposerOpen(false)}
-        onCreated={(spec) => setCurrentTaskMode(spec.mode)}
+        onCreated={async (spec) => {
+          setCurrentTaskMode(spec.mode);
+          await dispatchRunSpec(spec, {
+            cliBinary: 'voss',
+            cwd: workspacePath() ?? '',
+            client: runBarNativeClient,
+            spawnAgent: runBarSpawnAgent,
+            resolvePaneId: runBarResolvePaneId,
+          });
+        }}
       />
     </div>
   );
