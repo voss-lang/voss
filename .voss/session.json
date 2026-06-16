@@ -9,7 +9,7 @@
       "left": {
         "kind": "split",
         "orientation": "H",
-        "ratio": 0.2,
+        "ratio": 0.46281737,
         "left": {
           "kind": "pane",
           "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
@@ -69,44 +69,32 @@
         "index": 6
       }
     },
-    "focusedId": "51816def-9f4e-401d-b16a-3755e3b63978"
+    "focusedId": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2"
   },
   "panes": [
     {
       "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
-      "scrollback": [
-        "benjaminmarks@MacBook-Pro-2 ~ % "
-      ]
+      "scrollback": null
     },
     {
       "id": "dd86f9d8-49ce-47c6-af7d-4fdfc6ef3f99",
-      "scrollback": [
-        "benjaminmarks@MacBook-Pro-2 ~ % "
-      ]
+      "scrollback": null
     },
     {
       "id": "51816def-9f4e-401d-b16a-3755e3b63978",
-      "scrollback": [
-        "benjaminmarks@MacBook-Pro-2 ~ % "
-      ]
+      "scrollback": null
     },
     {
       "id": "c93e0b2a-56b9-4ab2-83b0-f09eaf05096b",
-      "scrollback": [
-        "benjaminmarks@MacBook-Pro-2 ~ % "
-      ]
+      "scrollback": null
     },
     {
       "id": "91fc0694-d40e-4519-a501-4c7023332cda",
-      "scrollback": [
-        "benjaminmarks@MacBook-Pro-2 ~ % "
-      ]
+      "scrollback": null
     },
     {
       "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
-      "scrollback": [
-        "benjaminmarks@MacBook-Pro-2 Voss % "
-      ]
+      "scrollback": null
     }
   ],
   "projectLessAccepted": true

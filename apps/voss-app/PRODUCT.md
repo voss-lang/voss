@@ -61,7 +61,7 @@ The left portal has **9 items, in this order**:
 | 5 | **Swarm Map** | NEW product surface | Observability/replay graph (D-10) |
 | 6 | **Review** | Reused as-is | Wired to the existing V14 cockpit (`reviewSlot` → OrgViewShell) |
 | 7 | **Context** | Reused as-is | Wired (V24-10): `ContextSurface` wraps the shipped `ContextPanel`, fed by the focused pane's `ContextData` via `contextSlot` |
-| 8 | **Memory** | Honest state | Wired (V24-10): harness-backed memory (the `/memory` slash command); no live in-app data yet (needs a server endpoint — follow-up). Renders no fabricated rows |
+| 8 | **Memory** | Live (server-backed) | Wired (V24-11): `MemorySurface` fetches the server's `GET /memory` (summary + recall search) when a workspace session is live; honest harness-backed fallback (the `/memory` slash command) when no server. Renders only server-returned hits — no fabricated rows |
 | 9 | **Settings** | Reused as-is | Wired (V24-10): `SettingsSurface` over the existing appearance store (font/contrast/reduced-motion/bell/cursor); persists + applies live |
 
 - **1 persistent grid destination:** Workspaces names the terminal/tmux grid home and returns to the mounted `GridRoot` through canvas-swap.

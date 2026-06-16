@@ -33,6 +33,7 @@ import {
   type ProtocolSessionState,
 } from '../org/live/protocolSessions';
 import { startVossServe } from '../org/live/sidecarClient';
+import { devlog } from '../devlog';
 import ExitBanner from './ExitBanner';
 import './ProtocolPane.css';
 
@@ -131,6 +132,11 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
     defaultProtocolState({ baseUrl: props.baseUrl, token: props.token });
 
   onMount(() => {
+    devlog('info', 'proto.pane', 'mount + ensureStream', {
+      sessionId: props.sessionId?.slice(0, 6),
+      hasBaseUrl: Boolean(props.baseUrl),
+      hasToken: Boolean(props.token),
+    });
     ensureProtocolStream(
       props.sessionId,
       props.baseUrl,

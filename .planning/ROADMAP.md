@@ -85,7 +85,7 @@
 | E4 | SDK Proof | `voss.harness` / `voss_runtime` public API exercised as real consumer against live runs | EVSDK-01..08 (minted from CONTEXT) | In Progress (6/7 plans) |
 | E5 | TUI + voss-app Autonomous Driving | Drive TUI and voss-app surfaces autonomously; Tauri WebDriver blocked on macOS — approach TBD | EVUI-01..0N (TBD by SPEC.md) | TBD |
 | V15 | Live Plane Integration (sidecar handshake + structured pane rendering) | Plug the cockpit into a real `voss serve`: Tauri sidecar command spawns/attaches the server and hands the `{v,port,token}` stdout handshake to the webview (port `voss-sdk` `spawn_with` incl. 60s cold-start + `LITELLM_LOCAL_MODEL_COST_MAP=true`); construct the V13.1 TS client and plug V14's injectable sockets (RunCommandBar native `createSession`, drawer `followUpClient`, SSE → AttentionQueue + model overlay — live label flips for real); Voss-native panes graduate from raw PTY to structured protocol rendering (PROTOCOL §6 event union → DOM: EM task header, tool lines, plan prose, stream deltas) with the inline permission gate (`permission.updated` → Allow/Deny → `POST /permission`, shared with the queue). Visual contract: the pane-content of `.planning/sketches/V14-livework-mockup.html`. Seed: `.planning/notes/seed-structured-pane-rendering.md`. | TBD (SPEC pending) | Added 2026-06-09. Keystone = sidecar handshake (webview cannot spawn `voss serve` — V14 Pitfall 4); spike it first. UI-SPEC before planning (V14 lesson). Out: VCKP-13b permission proxy, rollback/re-run, embedded browser. |
-| V24 | ADE Product Revamp + Swarm Observability | Reframe `apps/voss-app` as terminal workbench + agent mission control + review system: quiet top chrome, left portal for Overview/Runs/Agents/Swarm Map/Review/Context/Memory/Settings, humane managed-run intake, layout presets demoted to pane/layout controls, and Swarm Map/Run Graph observability over live agents, tasks, files, tools, gates, budgets, and replay. | VADE2-01..10 | Added 2026-06-14. Preserve terminal-grid behavior and user-owned terminals; do not force every pane through Voss. Depends on V14/V15; consumes V17/V20 signals when available. |
+| V24 | ADE Product Revamp + Swarm Observability | Reframe `apps/voss-app` as terminal workbench + agent mission control + review system: quiet top chrome, left portal for Overview/Runs/Agents/Swarm Map/Review/Context/Memory/Settings, humane managed-run intake, layout presets demoted to pane/layout controls, and Swarm Map/Run Graph observability over live agents, tasks, files, tools, gates, budgets, and replay. | VADE2-01..11 | Added 2026-06-14. Preserve terminal-grid behavior and user-owned terminals; do not force every pane through Voss. Depends on V14/V15; consumes V17/V20 signals when available. |
 
 ---
 
@@ -117,7 +117,7 @@ V0–V12 reframe Voss as a **controlled AI engineering-organization runtime** �
 | V13.4 C ABI/Schema Doc               | —   | doc-only (no full SDK)      | VSDK-C-*    |
 | V14 ADE Run Cockpit                  | —   | recomposes **V11**; on A13/V13.1 | VCKP-01..13 |
 | V15 Live Plane Integration           | —   | on **V14** + V13.1 SDK + real `voss serve` | VLIVE-01..08 (SPEC locked) |
-| V24 ADE Product Revamp + Swarm Observability | — | productizes **V14/V15**; consumes V17/V20 when available | VADE2-01..10 |
+| V24 ADE Product Revamp + Swarm Observability | — | productizes **V14/V15**; consumes V17/V20 when available | VADE2-01..11 |
 
 **ID namespacing:** PRD IDs are prefixed `V*` in the roadmap to avoid collisions — PRD `MAG-*`/`LANG-*`/`ADE-*` clash with M13/M3/A12 (different meanings). Inside `docs/ORCHESTRATION_LAYERS.md` the un-prefixed IDs remain; SPEC-phase maps PRD-ID → namespaced roadmap-ID.
 
@@ -2447,7 +2447,7 @@ Plans:
 
 **Out of scope:** replacing the terminal grid with an IDE/editor; mandatory Voss wrapping for all panes; cloud/team admin product surfaces; billing/licensing UI; generic observability SaaS dashboards; decorative-only graph animation; changing harness orchestration semantics; adding new agent protocols beyond existing `voss serve`, SDK/SSE, PTY registry, board/session/audit data, and later V17 bus events.
 
-**Requirements:** VADE2-01..10 (V-track phase, requirements live in `V24-SPEC.md` not REQUIREMENTS.md).
+**Requirements:** VADE2-01..11 (V-track phase, requirements live in `V24-SPEC.md` not REQUIREMENTS.md).
 
 **Origin:** 2026-06-14 ADE design discussion. Current screenshot/problem: the app exposes layout presets, internal modes, target plumbing, and snapshot/review labels before the user understands what Voss delivers. Market signal: Warp separates terminal and agent contexts and manages multi-agent work through vertical tabs/notifications/review; Codex/Devin frame agent work as a command center; agent observability tools expose graphs/traces/cost/tool calls. Voss differentiator: terminal-first control plane with memory, scope, budget, review, audit, and visible swarm coordination.
 
@@ -2460,7 +2460,7 @@ Plans:
 - Keep app state boundaries intact: Solid owns UI state; Tauri/Rust owns process/filesystem lifecycle; Python harness remains the orchestration source of truth.
 - No hidden writes to `.voss/` on project open. Durable project writes remain lazy and intentional.
 
-**Plans:** 10 plans, 8 waves (W0-W7). Wave assignment is dependency-resolved by single-file ownership: App.tsx serializes V24-02 (W1) → V24-03 (W2) → V24-04 (W3); PortalShell.tsx serializes V24-02 (W1) → V24-05 (W2) → V24-06 (W3) → V24-10 (W7); swarmMap.css/SwarmMap.tsx serializes V24-06 (W3) → V24-07 (W4). W0=V24-01 (contract); W1=V24-02 (portal+canvas-swap); W2=V24-03 (quiet chrome) ∥ V24-05 (mission control); W3=V24-04 (composer) ∥ V24-06 (Swarm Map static); W4=V24-07 (live+replay); W5=V24-08 (validation, has human checkpoint); W6=V24-09 (collapsible PortalRail); W7=V24-10 (Context/Settings/Memory surface wiring — closes SPEC §41/86/91 gap). **V24-09/10 added 2026-06-16:** 08 shipped 8 plans but the rail UX (09) and three SPEC-required surface wirings (10, originally stubbed as placeholders in 02) were outstanding.
+**Plans:** 11 plans, 9 waves (W0-W8). Wave assignment is dependency-resolved by single-file ownership: App.tsx serializes V24-02 (W1) → V24-03 (W2) → V24-04 (W3); PortalShell.tsx serializes V24-02 (W1) → V24-05 (W2) → V24-06 (W3) → V24-10 (W7); swarmMap.css/SwarmMap.tsx serializes V24-06 (W3) → V24-07 (W4). W0=V24-01 (contract); W1=V24-02 (portal+canvas-swap); W2=V24-03 (quiet chrome) ∥ V24-05 (mission control); W3=V24-04 (composer) ∥ V24-06 (Swarm Map static); W4=V24-07 (live+replay); W5=V24-08 (validation, has human checkpoint); W6=V24-09 (collapsible PortalRail); W7=V24-10 (Context/Settings/Memory surface wiring — closes SPEC §41/86/91 gap); W8=V24-11 (Memory server route + live surface). **V24-09/10 added 2026-06-16:** 08 shipped 8 plans but the rail UX (09) and three SPEC-required surface wirings (10, originally stubbed as placeholders in 02) were outstanding.
 
 Plans:
 - [x] V24-01-PLAN.md — W0 product/design contract: PRODUCT.md/DESIGN.md or ADE-specific UI-SPEC, IA decisions, copy vocabulary, success criteria [VADE2-01]
@@ -2473,6 +2473,7 @@ Plans:
 - [x] V24-08-PLAN.md — W5 validation: terminal-grid regression, cockpit/deep-link tests, visual screenshot checks, a11y/reduced-motion, no fake-signal guard, focused Tauri/Rust/TS verification [VADE2-08]
 - [x] V24-09-PLAN.md — W6 collapsible Workspaces-first PortalRail: lucide-solid icons, persisted expand state, Workspaces routes to grid canvas (canvas-swap) [VADE2-09]
 - [x] V24-10-PLAN.md — W7 close SPEC §41/86/91 gap: wire Context (reuse ContextPanel), Settings (appearance store), Memory (honest harness-backed state) surfaces; delete the "Coming in a later V24 plan" placeholder [VADE2-10]
+- [x] V24-11-PLAN.md — W8 Memory server route + live surface: bearer-authed read-only `GET /memory` (MemoryStore summary+recall) + regen contract; MemorySurface fetches live data with honest no-server fallback [VADE2-11]
 
 ---
 

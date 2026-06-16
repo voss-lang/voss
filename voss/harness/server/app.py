@@ -112,6 +112,23 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
     return res, provider
 
 
+def _codex_session_model() -> str:
+    """Default model id for codex-oauth sessions (gpt-5.x only).
+
+    The ChatGPT-account Codex backend rejects non-gpt-5.x model ids; the harness
+    default (`claude-sonnet-4-5`) 400s there and the turn dies before any output.
+    Mirrors `cli._codex_default_model` WITHOUT importing `cli` (whose top-level
+    `@click` command registration has heavy import side effects): read Codex CLI's
+    own default, else fall back to the first subscription codex model.
+    """
+    m = auth_mod.load_codex_default_model()
+    if m and m.startswith("gpt-5."):
+        return m
+    from ..subscription_models import SUBSCRIPTION_MODELS
+
+    return SUBSCRIPTION_MODELS["codex"][0].id
+
+
 # ---------------------------------------------------------------------------
 # permission bridge (H1.9) — mirrors tui/permissions_bridge over the protocol
 # ---------------------------------------------------------------------------
@@ -218,6 +235,14 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             session.record.runs.append(asdict(result.run))
     except asyncio.CancelledError:
         raise
+    except Exception as e:  # noqa: BLE001 — surface, don't vanish into a bare idle
+        # A provider/backend failure (e.g. a codex 4xx from run_turn ->
+        # provider.stream) would otherwise propagate past this finally as an
+        # un-awaited task exception, leaving the user a bare session.idle with
+        # no signal. Surface it visibly on the transcript BEFORE the finally
+        # idles — mirrors agent.py's interrupt/batch-invariant error paths.
+        renderer.stream_delta(f"\n[error: {e}]\n")
+        renderer.finalize_stream(role="system", confidence=None, cost_usd=None)
     finally:
         try:
             session_store.save(session.record, session.history)
@@ -335,12 +360,24 @@ def create_app(token: str | None = None) -> FastAPI:
                 provider=provider,
                 prior_context=record.runs or None,
             )
+            # Twin of the create snap: a saved record may carry a non-gpt-5.x
+            # model (e.g. the old default) that the Codex backend 400s on. Snap
+            # the EFFECTIVE session model only — `record.model` stays intact so
+            # the turn-end save (app.py: session_store.save) never corrupts the
+            # user's saved model.
+            if res.source == "codex-oauth" and not s.model.startswith("gpt-5."):
+                s.model = _codex_session_model()
             return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
         model = (
             body.model
             or os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
             or get_config().default_model
         )
+        # codex-oauth: snap a non-gpt-5.x model to Codex's default so the
+        # backend doesn't 400 the turn into a bare idle (session-scoped; mirrors
+        # cli.py:686-687 without the global configure() mutation).
+        if res.source == "codex-oauth" and not model.startswith("gpt-5."):
+            model = _codex_session_model()
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
         return {"v": 1, "id": s.id, "auth": res.source, "resumed": False}
 

@@ -20,6 +20,7 @@ import {
 import { createVossClient } from '../../../../../sdk/typescript/src/client/rest';
 import { connectLiveStream, type LiveStreamHandle } from './sseClient';
 import { resolveAttentionItem } from '../attention/attentionQueue';
+import { devlog } from '../../devlog';
 
 export type GateState =
   | { state: 'pending' }
@@ -94,6 +95,10 @@ export function defaultProtocolState(conn: {
 
 function appendEvent(sessionId: string, epoch: number, ev: AgentEvent): void {
   if (epochs.get(sessionId) !== epoch) return; // stale stream
+  devlog('info', 'proto.stream', 'event', {
+    sessionId: sessionId.slice(0, 6),
+    type: ev.type,
+  });
   setProtocolSessions((prev) => {
     const st = prev[sessionId];
     if (!st) return prev;

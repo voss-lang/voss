@@ -552,10 +552,16 @@ export default function App() {
         isIdleShellProc(procs[l.id]),
     );
 
+    devlog('info', 'run.pane', 'placement', {
+      leaves: leaves.map((l) => ({ id: l.id.slice(0, 6), proc: procs[l.id] ?? null })),
+      reusableId: reusable?.id?.slice(0, 6) ?? null,
+    });
+
     if (reusable) {
       // Take over the clean pane in place — no split.
       bindNativePane(ws, reusable.id, record);
       ctrl.focusPaneById(reusable.id);
+      devlog('info', 'run.pane', 'reused pane', { paneId: reusable.id.slice(0, 6) });
       return;
     }
 
@@ -564,8 +570,12 @@ export default function App() {
     const before = ctrl.snapshot().focusedId;
     ctrl.splitFocused('H');
     const newId = ctrl.snapshot().focusedId;
-    if (newId === before) return; // split rejected (e.g. pane cap)
+    if (newId === before) {
+      devlog('warn', 'run.pane', 'split rejected (pane cap?)');
+      return; // split rejected (e.g. pane cap)
+    }
     bindNativePane(ws, newId, record);
+    devlog('info', 'run.pane', 'split new pane', { paneId: newId.slice(0, 6) });
   };
   openAttachedPaneImpl = openNativePane;
   onCleanup(() => {
