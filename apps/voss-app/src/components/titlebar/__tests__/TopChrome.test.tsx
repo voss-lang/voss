@@ -94,6 +94,18 @@ describe('TopChrome — reference chrome affordances', () => {
     expect(onOpenComposer).toHaveBeenCalledTimes(1);
   });
 
+  it('opens composer when "New task" is clicked', () => {
+    const onOpenComposer = vi.fn();
+    const el = mount(() => (
+      <TopChrome {...defaultProps} projectName="demo" onOpenComposer={onOpenComposer} />
+    ));
+    const newTask = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('New task'),
+    );
+    newTask?.click();
+    expect(onOpenComposer).toHaveBeenCalledTimes(1);
+  });
+
   it('renders a "New task" button with exact copy', () => {
     const el = mount(() => <TopChrome {...defaultProps} projectName="demo" />);
     const newTask = Array.from(el.querySelectorAll('button')).find((b) =>

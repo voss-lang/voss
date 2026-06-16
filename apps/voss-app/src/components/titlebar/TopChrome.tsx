@@ -247,9 +247,8 @@ export default function TopChrome(props: TopChromeProps) {
 
         <button
           type="button"
-          onClick={() => {
-            // TODO(V24-09): wire to new-task intake flow.
-          }}
+          aria-label="New task"
+          onClick={openComposer}
           style={{
             display: 'flex',
             'align-items': 'center',
