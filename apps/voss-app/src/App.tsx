@@ -1482,19 +1482,6 @@ export default function App() {
         currentSafetyMode={currentSafetyMode()}
         onOpenComposer={() => setComposerOpen(true)}
       />
-      <WorkspaceTabBar
-        workspaces={workspaceStore.workspaces()}
-        activeId={activeId()}
-        onActivate={handleActivateWorkspace}
-        onNew={handleNewWorkspace}
-        onRename={handleRenameWorkspace}
-        onColor={handleColorWorkspace}
-        onClose={handleCloseWorkspace}
-        onReorder={handleReorderWorkspaces}
-        closeGuardFor={(id) => workspaceStore.closeGuardFor(id)}
-        onCloseBlocked={handleCloseBlocked}
-        onCloseConfirm={handleCloseWorkspace}
-      />
       <div
         style={{
           flex: '1',
@@ -1562,6 +1549,20 @@ export default function App() {
             client={runBarNativeClient}
             resolvePaneId={runBarResolvePaneId}
             spawnAgent={runBarSpawnAgent}
+          />
+          <WorkspaceTabBar
+            class="workspace-tabbar--grid"
+            workspaces={workspaceStore.workspaces()}
+            activeId={activeId()}
+            onActivate={handleActivateWorkspace}
+            onNew={handleNewWorkspace}
+            onRename={handleRenameWorkspace}
+            onColor={handleColorWorkspace}
+            onClose={handleCloseWorkspace}
+            onReorder={handleReorderWorkspaces}
+            closeGuardFor={(id) => workspaceStore.closeGuardFor(id)}
+            onCloseBlocked={handleCloseBlocked}
+            onCloseConfirm={handleCloseWorkspace}
           />
           <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: activeView() === 'grid' ? 'flex' : 'none', 'flex-direction': 'column', position: 'relative' }}>
             {/* V14 chunk C — board summary strip (Live Work only: this

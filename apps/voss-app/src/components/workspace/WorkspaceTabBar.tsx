@@ -21,9 +21,10 @@ export const COPY_CLOSE_RUNNING_CONFIRM =
   'Processes are running. Close workspace?';
 
 /** UI-SPEC dimension contract. */
-export const WORKSPACE_BAR_HEIGHT_PX = 28;
-export const WORKSPACE_TAB_HEIGHT_PX = 24;
-export const WORKSPACE_TAB_MIN_WIDTH_PX = 120;
+/** Matches pane header row (--pane-header-height). */
+export const WORKSPACE_BAR_HEIGHT_PX = 22;
+export const WORKSPACE_TAB_HEIGHT_PX = 22;
+export const WORKSPACE_TAB_MIN_WIDTH_PX = 96;
 export const WORKSPACE_TAB_MAX_WIDTH_PX = 220;
 export const WORKSPACE_LEFT_INSET_PX = 12;
 
@@ -42,6 +43,7 @@ export const WORKSPACE_ACCENT_COLORS = [
 export type WorkspaceAccentColor = (typeof WORKSPACE_ACCENT_COLORS)[number];
 
 export type WorkspaceTabBarProps = {
+  class?: string;
   workspaces: readonly WorkspaceRecord[];
   activeId: string | null;
   onActivate: (id: string) => void;
@@ -193,7 +195,7 @@ export default function WorkspaceTabBar(props: WorkspaceTabBarProps) {
 
   return (
     <div
-      class="workspace-tabbar"
+      class={`workspace-tabbar${props.class ? ` ${props.class}` : ''}`}
       data-workspace-tabbar=""
       data-bar-height={WORKSPACE_BAR_HEIGHT_PX}
     >
