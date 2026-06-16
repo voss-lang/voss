@@ -26,6 +26,7 @@ import ContextPanel from './components/ContextPanel';
 import OrgViewShell from './org/OrgViewShell';
 import PortalRail from './portal/PortalRail';
 import VossComposer from './composer/VossComposer';
+import { devlog } from './devlog';
 import PortalShell from './portal/PortalShell';
 import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
@@ -517,8 +518,21 @@ export default function App() {
   // (T-V15-04 — the gates stay; this only satisfies them).
   const runBarNativeClient: RunNativeClient = {
     createSession: async (spec) => {
-      const built = await ensureVossClient(workspacePath() ?? '');
-      const r = await built.runNativeClient.createSession(spec);
+      const cwd = workspacePath() ?? '';
+      devlog('info', 'run.native', 'createSession begin', { cwd });
+      const built = await ensureVossClient(cwd);
+      let r: { id: string };
+      try {
+        devlog('info', 'run.native', 'POST /session', { baseUrl: built.baseUrl });
+        r = await built.runNativeClient.createSession(spec);
+      } catch (e) {
+        // "Load failed" surfaces here when the webview blocks the loopback
+        // fetch (CSP connect-src) or the server lacks CORS for the webview
+        // origin (cross-origin localhost:5173 -> 127.0.0.1:port preflight).
+        devlog('error', 'run.native', 'createSession fetch failed', e);
+        throw e;
+      }
+      devlog('info', 'run.native', 'session created', { sessionId: r.id });
       liveStreamHandles.push(
         connectLiveStream({
           baseUrl: built.baseUrl,

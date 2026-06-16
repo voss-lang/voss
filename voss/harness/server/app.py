@@ -20,6 +20,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette import EventSourceResponse, ServerSentEvent
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
@@ -277,6 +278,27 @@ def create_app(token: str | None = None) -> FastAPI:
     app.state.sessions = mgr
 
     app.add_middleware(_BearerASGI, token=token)
+
+    # CORS: the voss-app webview document (dev `http://localhost:5173`, prod
+    # `tauri://localhost`) fetches this loopback server cross-origin and sends
+    # `Authorization: Bearer …`, which makes every call a CORS request with an
+    # OPTIONS preflight. Added AFTER _BearerASGI so it is the OUTERMOST
+    # middleware: Starlette's CORSMiddleware answers the (unauthenticated)
+    # preflight directly, before bearer auth would 401 it. Auth itself is still
+    # enforced on the real request. Loopback-bound + token-gated, so the origin
+    # set is restricted to localhost / 127.0.0.1 / [::1] (any port) and the
+    # Tauri custom-protocol origins; credentials are off (token rides the
+    # Authorization header, not cookies).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=(
+            r"^(https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?"
+            r"|tauri://localhost|https?://tauri\.localhost)$"
+        ),
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=False,
+    )
 
     def _require(session_id: str) -> ServerSession:
         s = mgr.get(session_id)

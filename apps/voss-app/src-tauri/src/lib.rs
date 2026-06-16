@@ -1403,6 +1403,22 @@ async fn start_voss_serve(cwd: String, state: VossServeMap<'_>) -> Result<ServeH
     Ok(handshake)
 }
 
+// ---- ui_log: webview diagnostics -> dev terminal ---------------------------
+// The webview's console.* only reaches devtools. This bridges frontend
+// lifecycle/error logs onto the Rust process stdout/stderr so they interleave
+// with the sidecar + Tauri output in the `pnpm tauri dev` terminal. `scope` is
+// a dotted tag (e.g. "composer.create"); `detail` is preformatted by the
+// caller. Never pass secrets (the serve token) — this is the shared console.
+#[tauri::command]
+fn ui_log(level: String, scope: String, detail: String) {
+    let line = format!("[ui] {scope}: {detail}");
+    if level == "error" {
+        eprintln!("{line}");
+    } else {
+        println!("{line}");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1478,6 +1494,7 @@ pub fn run() {
             enumerate_runs,
             run_decision,
             start_voss_serve,
+            ui_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
