@@ -471,6 +471,34 @@ def create_app(token: str | None = None) -> FastAPI:
             "checks": [diag.to_dict(c) for c in checks],
         }
 
+    # -- memory (read-only) -------------------------------------------------
+
+    @app.get("/memory")
+    def get_memory(cwd: str = ".", q: str | None = None, top_k: int = 5) -> dict:
+        # Read-only view of the harness memory store for the workspace. summary()
+        # is a cheap fs walk (handles missing dirs); recall() runs only when a
+        # query is given (it lazily builds the semantic index). VADE2-11.
+        from ..memory_store import MemoryStore
+
+        store = MemoryStore(Path(cwd).resolve())
+        out: dict = {"v": 1, "summary": store.summary(), "query": q, "hits": []}
+        if q:
+            hits = store.recall(q, top_k=max(1, min(top_k, 50)))
+            out["hits"] = [
+                {
+                    "source": h.source,
+                    "locator": h.locator,
+                    "score": h.score,
+                    "excerpt": h.excerpt,
+                    "session_id": h.session_id,
+                    "ts": h.ts,
+                    "line_start": h.line_start,
+                    "line_end": h.line_end,
+                }
+                for h in hits
+            ]
+        return out
+
     # -- OpenAPI: force the event union into components (H1.14) --------------
 
     _force_event_schema(app)

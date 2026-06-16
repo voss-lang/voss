@@ -33,6 +33,9 @@ export interface PortalShellProps {
   /** Lazy slot for the Context surface (ContextSurface). Thunk so it only mounts
    *  when 'context' is active; App owns the focused-pane ContextData it needs. */
   contextSlot?: () => JSX.Element;
+  /** Lazy slot for the Memory surface. Thunk so App can pass the live server
+   *  baseUrl/token/cwd off vossClient(); falls back to a prop-less MemorySurface. */
+  memorySlot?: () => JSX.Element;
   /** Overview surface header — project identity + session/task actions. */
   projectName?: string;
   projectPath?: string | null;
@@ -74,7 +77,7 @@ const PortalShell: Component<PortalShellProps> = (props) => {
             <SettingsSurface />
           </Match>
           <Match when={props.activeView === 'memory'}>
-            <MemorySurface />
+            {props.memorySlot ? props.memorySlot() : <MemorySurface />}
           </Match>
         </Switch>
       </div>

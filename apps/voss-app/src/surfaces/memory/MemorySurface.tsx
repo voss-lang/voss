@@ -1,35 +1,129 @@
-// V24-10 (VADE2-10) — Memory surface (honest state).
+// V24-10 / V24-11 (VADE2-10/11) — Memory surface.
 //
-// Voss memory is real but lives in the harness (voss/harness/memory_store.py,
-// memory_cli.py) and is reachable today via the `/memory` slash command inside a
-// Voss session. It is NOT exposed over the server HTTP API the app talks to (routes
-// are session/cost/permission/doctor only — verified), so the app has no live
-// memory data to render. This surface states that plainly and points to the real
-// entry point. It synthesizes NO memory rows (honest-signal discipline, same as the
-// Swarm Map's missing-signal handling).
-//
-// Live in-app memory data is deferred backend work (a `/memory` HTTP route + typed
-// client) tracked as a follow-up requirement — see V24-10-PLAN.md "Deferred".
+// Voss memory lives in the harness (voss/harness/memory_store.py). V24-11 exposed it
+// over the loopback server's GET /memory route, so when the app has a live server
+// (baseUrl + token + cwd) this surface renders the real memory summary + a recall
+// search. With no live server it falls back to the honest harness-backed state
+// (the /memory slash command). It synthesizes NO rows — hits come only from the
+// server (honest-signal discipline, like the Swarm Map).
 
-import { type Component } from 'solid-js';
+import {
+  type Component,
+  createResource,
+  createSignal,
+  For,
+  Match,
+  Show,
+  Switch,
+} from 'solid-js';
 import '../surfaces.css';
+import './memory.css';
+import { fetchMemory, type MemoryResponse } from '../../org/live/memoryClient';
 
-const MemorySurface: Component = () => (
-  <div class="surface" role="tabpanel" aria-label="Memory">
-    <div class="surface__header">
-      <span class="surface__title">Memory</span>
-    </div>
-    <div class="surface__body">
-      <div class="surface-empty">
-        <p class="surface-empty__title">Memory is managed by the Voss harness</p>
-        <p class="surface-empty__hint">
-          Recall and inspect memory from a Voss session with the{' '}
-          <code>/memory</code> command. A live in-app memory view isn't wired yet —
-          it needs a server endpoint, which is tracked as follow-up work.
-        </p>
-      </div>
+export interface MemorySurfaceProps {
+  baseUrl?: string;
+  token?: string;
+  cwd?: string;
+}
+
+/** Honest fallback when the app has no live server to query. */
+const MemoryFallback: Component = () => (
+  <div class="surface__body">
+    <div class="surface-empty">
+      <p class="surface-empty__title">Memory is managed by the Voss harness</p>
+      <p class="surface-empty__hint">
+        Recall and inspect memory from a Voss session with the{' '}
+        <code>/memory</code> command. Start a session in this workspace to browse
+        memory here.
+      </p>
     </div>
   </div>
 );
+
+const MemorySurface: Component<MemorySurfaceProps> = (props) => {
+  const live = () => !!(props.baseUrl && props.token && props.cwd);
+
+  const [submitted, setSubmitted] = createSignal('');
+  const [query, setQuery] = createSignal('');
+
+  const [data] = createResource(
+    () =>
+      live()
+        ? {
+            baseUrl: props.baseUrl!,
+            token: props.token!,
+            cwd: props.cwd!,
+            q: submitted(),
+          }
+        : null,
+    (args: { baseUrl: string; token: string; cwd: string; q: string }) =>
+      fetchMemory(args.baseUrl, args.token, args.cwd, args.q || undefined),
+  );
+
+  return (
+    <div class="surface" role="tabpanel" aria-label="Memory">
+      <div class="surface__header">
+        <span class="surface__title">Memory</span>
+      </div>
+      <Show when={live()} fallback={<MemoryFallback />}>
+        <div class="surface__body">
+          <form
+            class="memory-search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSubmitted(query());
+            }}
+          >
+            <input
+              class="memory-search__input"
+              type="search"
+              placeholder="Search memory…"
+              aria-label="Search memory"
+              value={query()}
+              onInput={(e) => setQuery(e.currentTarget.value)}
+            />
+          </form>
+
+          <Switch>
+            <Match when={data.loading}>
+              <div class="org-spinner">
+                <span class="org-spinner__glyph">⟳</span>
+              </div>
+            </Match>
+            <Match when={data.error}>
+              <div class="org-error-state">
+                <p class="org-error-state__heading">Couldn't load memory.</p>
+                <p class="org-error-state__body">Check that Voss is running.</p>
+              </div>
+            </Match>
+            <Match when={data()}>
+              {(resp: () => MemoryResponse) => (
+                <>
+                  <Show when={resp().hits.length > 0} fallback={
+                    <pre class="memory-summary">{resp().summary}</pre>
+                  }>
+                    <div class="memory-hits">
+                      <For each={resp().hits}>
+                        {(hit) => (
+                          <div class="memory-hit">
+                            <div class="memory-hit__head">
+                              <span class="memory-hit__locator">{hit.locator}</span>
+                              <span class="memory-hit__source">{hit.source}</span>
+                            </div>
+                            <p class="memory-hit__excerpt">{hit.excerpt}</p>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </>
+              )}
+            </Match>
+          </Switch>
+        </div>
+      </Show>
+    </div>
+  );
+};
 
 export default MemorySurface;

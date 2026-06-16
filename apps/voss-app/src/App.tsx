@@ -29,6 +29,7 @@ import VossComposer from './composer/VossComposer';
 import { devlog } from './devlog';
 import PortalShell from './portal/PortalShell';
 import ContextSurface from './surfaces/context/ContextSurface';
+import MemorySurface from './surfaces/memory/MemorySurface';
 import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
@@ -152,6 +153,27 @@ interface AgentEntry {
   cwd: string;
   status: string;
   lastSeen: number;
+}
+
+// Login shells a pane's foreground process can be while idle (poll may return
+// the login-dash form, e.g. "-zsh", or an absolute path).
+const LOGIN_SHELLS = new Set([
+  'zsh',
+  'bash',
+  'sh',
+  'fish',
+  'dash',
+  'tcsh',
+  'csh',
+  'ksh',
+]);
+
+/** A terminal pane is "idle" (reusable for a run) when nothing is running in
+ *  it — no foreground process recorded, or just a plain login shell. */
+function isIdleShellProc(proc: string | undefined): boolean {
+  if (!proc) return true;
+  const base = (proc.split('/').pop() ?? proc).replace(/^-/, '').toLowerCase();
+  return LOGIN_SHELLS.has(base);
 }
 
 async function fetchAgentConfigs(
@@ -479,34 +501,71 @@ export default function App() {
   };
 
   // V15-03 (D-01/D-02/D-03): open a structured pane for a native session —
-  // flip Run Review → Live Work, split the focused pane, and bind the new
-  // pane id to the session record (PaneComponent renders ProtocolPane).
+  // flip Run Review → Live Work, place the run, and bind the pane id to the
+  // session record (SplitNode renders ProtocolPane for a bound leaf).
+  //
+  // Placement (user pref): reuse the LEFTMOST clean/idle terminal pane rather
+  // than splitting the focused pane (which dropped the run in the middle). A
+  // pane is reusable when it is NOT already a run, NOT an agent (spawned,
+  // latched, or detected-by-proc), and its foreground process is empty or a
+  // plain shell. If none is reusable, grow a fresh pane from the LEFT by
+  // splitting the leftmost leaf.
   // Also the attach seam Plans 04/05 consume (openAttachedPane export).
-  const openNativePane = (record: NativeSessionRecord): void => {
-    const ws = activeMounted();
-    const ctrl = ws?.gridController;
-    if (!ws || !ctrl) return;
-    setActiveView('grid'); // D-01: native work lives in the Live Work grid
-    const before = ctrl.snapshot().focusedId;
-    ctrl.splitFocused('H');
-    const newId = ctrl.snapshot().focusedId;
-    if (newId === before) return; // split rejected (e.g. pane cap)
+  const bindNativePane = (
+    ws: MountedWorkspace,
+    paneId: string,
+    record: NativeSessionRecord,
+  ): void => {
     ws.setNativeSessionByPaneId({
       ...ws.nativeSessionByPaneId(),
-      [newId]: record,
+      [paneId]: record,
     });
     // Real pane close (⌘W / reap / workspace teardown) tears the protocol
     // session down with it: drop the pane binding and — refcounted, another
     // attached pane may share the server session — abort the stream + state.
-    registerPaneDestroyHook(newId, () => {
+    registerPaneDestroyHook(paneId, () => {
       const map = { ...ws.nativeSessionByPaneId() };
-      delete map[newId];
+      delete map[paneId];
       ws.setNativeSessionByPaneId(map);
       const stillBound = Object.values(map).some(
         (r) => r.sessionId === record.sessionId,
       );
       if (!stillBound) destroyProtocolSession(record.sessionId);
     });
+  };
+  const openNativePane = (record: NativeSessionRecord): void => {
+    const ws = activeMounted();
+    const ctrl = ws?.gridController;
+    if (!ws || !ctrl) return;
+    setActiveView('grid'); // D-01: native work lives in the Live Work grid
+
+    const leaves = collectLeaves(ctrl.snapshot().root); // left→right (inorder)
+    const nativeMap = ws.nativeSessionByPaneId();
+    const agentCfgs = ws.agentConfigByPaneId();
+    const latched = agentPaneById();
+    const procs = procByPaneId();
+    const reusable = leaves.find(
+      (l) =>
+        !nativeMap[l.id] &&
+        !agentCfgs[l.id] &&
+        !latched[l.id] &&
+        isIdleShellProc(procs[l.id]),
+    );
+
+    if (reusable) {
+      // Take over the clean pane in place — no split.
+      bindNativePane(ws, reusable.id, record);
+      ctrl.focusPaneById(reusable.id);
+      return;
+    }
+
+    // No clean pane — grow from the left: split the leftmost leaf.
+    ctrl.focusPaneById(leaves[0].id);
+    const before = ctrl.snapshot().focusedId;
+    ctrl.splitFocused('H');
+    const newId = ctrl.snapshot().focusedId;
+    if (newId === before) return; // split rejected (e.g. pane cap)
+    bindNativePane(ws, newId, record);
   };
   openAttachedPaneImpl = openNativePane;
   onCleanup(() => {
@@ -1722,6 +1781,13 @@ export default function App() {
                 />
               );
             }}
+            memorySlot={() => (
+              <MemorySurface
+                baseUrl={vossClient()?.baseUrl}
+                token={vossClient()?.token}
+                cwd={workspacePath() ?? undefined}
+              />
+            )}
             reviewSlot={() => (
               <OrgViewShell
                 cwd={workspacePath() ?? ''}
