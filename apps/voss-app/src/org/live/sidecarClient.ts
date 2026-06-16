@@ -6,7 +6,6 @@
 // handshake. Thin and side-effect-free — client construction is Plan 02.
 
 import { invoke } from '@tauri-apps/api/core';
-import { devlog } from '../../devlog';
 
 /** The `voss serve` startup handshake returned through Tauri IPC. */
 export interface ServeHandshake {
@@ -23,14 +22,5 @@ export interface ServeHandshake {
  * (T-V15-10).
  */
 export async function startVossServe(cwd: string): Promise<ServeHandshake> {
-  devlog('info', 'sidecar.serve', 'start_voss_serve invoke', { cwd });
-  try {
-    const h = await invoke<ServeHandshake>('start_voss_serve', { cwd });
-    // T-V15-10: log the port only — the token is never logged or stringified.
-    devlog('info', 'sidecar.serve', 'handshake ok', { port: h.port });
-    return h;
-  } catch (e) {
-    devlog('error', 'sidecar.serve', 'start_voss_serve failed', e);
-    throw e;
-  }
+  return invoke<ServeHandshake>('start_voss_serve', { cwd });
 }

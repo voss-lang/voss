@@ -40,7 +40,7 @@ import RunCommandBar, {
   type SpawnAgentFn,
 } from './org/cockpit/RunCommandBar';
 import type { RunMode } from './org/cockpit/runIntake';
-import { connectLiveStream, liveLabel } from './org/live/sseClient';
+import { liveLabel } from './org/live/sseClient';
 import {
   buildVossClientFromHandshake,
   type BuiltVossClient,
@@ -462,19 +462,21 @@ export default function App() {
   const ensureVossClient = async (cwd: string): Promise<BuiltVossClient> => {
     const existing = vossClient();
     if (existing && vossClientCwd === cwd) return existing;
-    const handshake = await startVossServe(cwd);
+    devlog('info', 'sidecar.serve', 'start_voss_serve', { cwd });
+    let handshake;
+    try {
+      handshake = await startVossServe(cwd);
+    } catch (e) {
+      devlog('error', 'sidecar.serve', 'start_voss_serve failed', e);
+      throw e;
+    }
+    // T-V15-10: log the port only — the token is never logged or stringified.
+    devlog('info', 'sidecar.serve', 'handshake ok', { port: handshake.port });
     const built = buildVossClientFromHandshake(handshake);
     vossClientCwd = cwd;
     setVossClient(built);
     return built;
   };
-
-  // Live-stream handles for App-started native sessions — abort on unmount so
-  // no for-await loop dangles past the app.
-  const liveStreamHandles: { abort(): void }[] = [];
-  onCleanup(() => {
-    for (const h of liveStreamHandles) h.abort();
-  });
 
   // V15-03 (D-01/D-02/D-03): open a structured pane for a native session —
   // flip Run Review → Live Work, split the focused pane, and bind the new
@@ -534,14 +536,11 @@ export default function App() {
         throw e;
       }
       devlog('info', 'run.native', 'session created', { sessionId: r.id });
-      liveStreamHandles.push(
-        connectLiveStream({
-          baseUrl: built.baseUrl,
-          sessionId: r.id,
-          token: built.token,
-          cardId: r.id,
-        }),
-      );
+      // The ProtocolPane owns the SINGLE live SSE stream (ensureProtocolStream
+      // on mount), which feeds both the transcript AND ingest/overlay/graph.
+      // The server event queue is single-consumer, so a second stream here
+      // would STEAL the pane's turn events — do not open one. Just mount the
+      // pane and start the turn.
       openNativePane({
         sessionId: r.id,
         baseUrl: built.baseUrl,

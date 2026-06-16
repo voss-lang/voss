@@ -5,11 +5,11 @@
     "root": {
       "kind": "split",
       "orientation": "V",
-      "ratio": 0.6666667,
+      "ratio": 0.8333333,
       "left": {
         "kind": "split",
         "orientation": "H",
-        "ratio": 0.5,
+        "ratio": 0.2,
         "left": {
           "kind": "pane",
           "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
@@ -18,11 +18,47 @@
           "index": 1
         },
         "right": {
-          "kind": "pane",
-          "id": "dd86f9d8-49ce-47c6-af7d-4fdfc6ef3f99",
-          "cwd": "",
-          "shell": "",
-          "index": 2
+          "kind": "split",
+          "orientation": "H",
+          "ratio": 0.75,
+          "left": {
+            "kind": "split",
+            "orientation": "H",
+            "ratio": 0.6666667,
+            "left": {
+              "kind": "split",
+              "orientation": "H",
+              "ratio": 0.5,
+              "left": {
+                "kind": "pane",
+                "id": "dd86f9d8-49ce-47c6-af7d-4fdfc6ef3f99",
+                "cwd": "",
+                "shell": "",
+                "index": 2
+              },
+              "right": {
+                "kind": "pane",
+                "id": "51816def-9f4e-401d-b16a-3755e3b63978",
+                "cwd": "",
+                "shell": "",
+                "index": 3
+              }
+            },
+            "right": {
+              "kind": "pane",
+              "id": "c93e0b2a-56b9-4ab2-83b0-f09eaf05096b",
+              "cwd": "",
+              "shell": "",
+              "index": 4
+            }
+          },
+          "right": {
+            "kind": "pane",
+            "id": "91fc0694-d40e-4519-a501-4c7023332cda",
+            "cwd": "",
+            "shell": "",
+            "index": 5
+          }
         }
       },
       "right": {
@@ -30,23 +66,47 @@
         "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
         "cwd": "/Users/benjaminmarks/Projects/Voss",
         "shell": "",
-        "index": 3
+        "index": 6
       }
     },
-    "focusedId": "dd86f9d8-49ce-47c6-af7d-4fdfc6ef3f99"
+    "focusedId": "51816def-9f4e-401d-b16a-3755e3b63978"
   },
   "panes": [
     {
       "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
-      "scrollback": null
+      "scrollback": [
+        "benjaminmarks@MacBook-Pro-2 ~ % "
+      ]
     },
     {
       "id": "dd86f9d8-49ce-47c6-af7d-4fdfc6ef3f99",
-      "scrollback": null
+      "scrollback": [
+        "benjaminmarks@MacBook-Pro-2 ~ % "
+      ]
+    },
+    {
+      "id": "51816def-9f4e-401d-b16a-3755e3b63978",
+      "scrollback": [
+        "benjaminmarks@MacBook-Pro-2 ~ % "
+      ]
+    },
+    {
+      "id": "c93e0b2a-56b9-4ab2-83b0-f09eaf05096b",
+      "scrollback": [
+        "benjaminmarks@MacBook-Pro-2 ~ % "
+      ]
+    },
+    {
+      "id": "91fc0694-d40e-4519-a501-4c7023332cda",
+      "scrollback": [
+        "benjaminmarks@MacBook-Pro-2 ~ % "
+      ]
     },
     {
       "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
-      "scrollback": null
+      "scrollback": [
+        "benjaminmarks@MacBook-Pro-2 Voss % "
+      ]
     }
   ],
   "projectLessAccepted": true
