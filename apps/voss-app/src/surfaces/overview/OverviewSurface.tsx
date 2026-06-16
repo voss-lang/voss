@@ -10,6 +10,12 @@ import '../surfaces.css';
 import { runData, loading, loadError } from '../../org/orgStore';
 import { cardsFromRunData } from '../../org/boardDerive';
 import { GROUPS, groupCards, TaskRow } from '../tasks/TasksSurface';
+import SurfaceHeader, { type SurfaceHeaderProps } from '../SurfaceHeader';
+
+export type OverviewSurfaceProps = Pick<
+  SurfaceHeaderProps,
+  'projectName' | 'projectPath' | 'gitBranch' | 'onNewSession' | 'onNewTask'
+>;
 
 // The groups the Overview expands inline (the rest are roll-up counts only).
 const EXPANDED_KEYS = ['active', 'blocked'] as const;
@@ -17,16 +23,19 @@ const EXPANDED_GROUPS = GROUPS.filter((g) =>
   (EXPANDED_KEYS as readonly string[]).includes(g.key),
 );
 
-const OverviewSurface: Component = () => {
+const OverviewSurface: Component<OverviewSurfaceProps> = (props) => {
   const cards = () => cardsFromRunData(runData());
   const grouped = () => groupCards(cards());
 
   return (
     <div class="surface" role="tabpanel" aria-label="Overview">
-      <div class="surface__header">
-        <span class="surface__title">Overview</span>
-        <span class="surface__count">{cards().length}</span>
-      </div>
+      <SurfaceHeader
+        projectName={props.projectName ?? ''}
+        projectPath={props.projectPath}
+        gitBranch={props.gitBranch}
+        onNewSession={props.onNewSession}
+        onNewTask={props.onNewTask}
+      />
       <Show
         when={!loading()}
         fallback={

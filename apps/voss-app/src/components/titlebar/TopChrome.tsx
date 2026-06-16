@@ -1,110 +1,169 @@
 import { Show } from 'solid-js';
+import Bell from 'lucide-solid/icons/bell';
+import ChevronDown from 'lucide-solid/icons/chevron-down';
+import Folder from 'lucide-solid/icons/folder';
+import GitBranch from 'lucide-solid/icons/git-branch';
+import Plus from 'lucide-solid/icons/plus';
+import Search from 'lucide-solid/icons/search';
 import WindowControls from './WindowControls';
 
 /**
- * V24-03 (VADE2-03) — quiet top chrome.
+ * V24-09 — reference-design top chrome.
  *
- * Replaces the preset-bearing `Titlebar` at the App root. The default chrome
- * carries ONLY: window controls + project/window identity, a `⌘K`
- * command-palette trigger, a safety-mode indicator chip, and the existing
- * live chip. The fanout/pipeline/swarm/watchers preset switcher and the raw
- * Plan/Edit/Auto mode-toggle group are intentionally absent — presets are
- * demoted to the portal rail's layout menu, and run intake moves to the ⌘K
- * composer.
- *
- * Structural analog: `Titlebar.tsx` (28px height, WindowControls, drag
- * spacers, Voss logo + project name, reused `.titlebar-livechip`). The chrome
- * height stays 28px (`--titlebar-height`) — do not change.
- *
- * `onOpenComposer` is wired to the VossComposer modal in V24-04; until then the
- * ⌘K trigger renders and is a safe no-op (same deferral as PortalRail's
- * "Ask Voss to…" trigger).
+ * Single 44px bar: window controls + project identity, centered section label,
+ * search/composer trigger, notifications stub, "New task" CTA, safety chip, and
+ * live chip. Layout presets and Plan/Edit/Auto toggles stay in the portal rail.
  */
 export type TopChromeProps = {
   projectName?: string;
+  gitBranch?: string | null;
+  /** Uppercase portal section label (e.g. "WORKSPACES"). */
+  sectionLabel: string;
   /** Live/snapshot data-source state (sseClient liveLabel, via App). */
   liveState?: 'live' | 'snapshot';
   /** Safety mode of the most-recently-created Task; chip hidden when absent. */
   currentSafetyMode?: 'Read only' | 'Can edit' | 'Autopilot';
-  /** Opens the ⌘K "Ask Voss to…" composer (wired in V24-04). */
+  /** Opens the ⌘K "Ask Voss to…" composer. */
   onOpenComposer?: () => void;
 };
 
-// Token-only text color per safety mode (UI-SPEC §Color — safety mode chips):
-// "Read only" is the muted safe default; "Can edit" warns amber; "Autopilot"
-// is the highest-risk red.
 function safetyColor(mode: 'Read only' | 'Can edit' | 'Autopilot'): string {
   if (mode === 'Autopilot') return 'var(--accent-red)';
   if (mode === 'Can edit') return 'var(--accent-amber)';
   return 'var(--fg-3)';
 }
 
-export default function TopChrome(props: TopChromeProps = {}) {
-  // Empty/absent project names fall back to the brand (same rule as Titlebar).
+export default function TopChrome(props: TopChromeProps) {
   const titleText = () =>
     props.projectName && props.projectName.length > 0
       ? props.projectName
       : 'Voss ADE';
   const liveState = () => props.liveState ?? 'snapshot';
 
+  const openComposer = () => props.onOpenComposer?.();
+
   return (
     <div
       style={{
         display: 'flex',
         'align-items': 'center',
-        height: 'var(--titlebar-height)',
+        height: 'var(--topbar-height)',
         'flex-shrink': '0',
         background: 'var(--bg-0)',
         'border-bottom': '1px solid var(--border)',
         overflow: 'hidden',
       }}
     >
-      {/* Window controls — platform-switched (mac: traffic lights; others: stub) */}
-      <WindowControls />
-
-      {/* Left drag spacer — drag attr belongs on the spacer ONLY, never on the */}
-      {/* outer container or any button-bearing child (RESEARCH Pitfall 1).      */}
-      <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
-
-      {/* Identity: Voss logo + project name (truncated 180px). Drag attr on the */}
-      {/* text container is safe — plain text only, no interactive children.      */}
+      {/* Left cluster — fixed width; no drag region on interactive children. */}
       <div
-        data-tauri-drag-region
         style={{
           'flex-shrink': '0',
-          'align-self': 'stretch',
           display: 'flex',
           'align-items': 'center',
-          gap: '6px',
+          gap: '8px',
+          'padding-left': '4px',
         }}
       >
+        <WindowControls />
+
         <svg
           viewBox="0 0 2048 2048"
           fill="none"
-          style={{ width: '18px', height: '18px', 'flex-shrink': '0', color: 'var(--focus)' }}
+          aria-hidden="true"
+          style={{
+            width: '18px',
+            height: '18px',
+            'flex-shrink': '0',
+            color: 'var(--primary)',
+          }}
         >
           <path d="M332 471h278l566 908-136 226L332 471Z" fill="currentColor" />
           <path d="M1432 470h308l-503 724-144-197 339-527Z" fill="currentColor" />
         </svg>
-        <span
+
+        <button
+          type="button"
+          aria-label={`Project: ${titleText()}${props.gitBranch ? `, branch ${props.gitBranch}` : ''}`}
+          onClick={() => {
+            // TODO(V24-09): open project/branch picker menu.
+          }}
           style={{
-            color: 'var(--fg-1)',
-            'font-size': '12px',
+            display: 'flex',
+            'align-items': 'center',
+            gap: '6px',
+            background: 'var(--bg-2)',
+            color: 'var(--fg-0)',
+            border: '1px solid var(--border)',
+            'border-radius': 'var(--radius-md)',
+            padding: '4px 10px',
             'font-family': 'var(--font-ui)',
-            'max-width': '180px',
-            overflow: 'hidden',
-            'text-overflow': 'ellipsis',
-            'white-space': 'nowrap',
+            'font-size': '12px',
+            'line-height': '1.2',
+            cursor: 'pointer',
+            'max-width': '240px',
           }}
         >
-          {titleText()}
-        </span>
+          <Folder size={14} color="currentColor" aria-hidden="true" strokeWidth={1.75} />
+          <span
+            style={{
+              'font-weight': '600',
+              color: 'var(--fg-0)',
+              overflow: 'hidden',
+              'text-overflow': 'ellipsis',
+              'white-space': 'nowrap',
+            }}
+          >
+            {titleText()}
+          </span>
+          <Show when={props.gitBranch}>
+            {(branch) => (
+              <span
+                style={{
+                  display: 'flex',
+                  'align-items': 'center',
+                  gap: '3px',
+                  color: 'var(--fg-2)',
+                  'flex-shrink': '0',
+                }}
+              >
+                <GitBranch size={12} color="currentColor" aria-hidden="true" strokeWidth={1.75} />
+                <span>{branch()}</span>
+              </span>
+            )}
+          </Show>
+          <ChevronDown size={14} color="var(--fg-2)" aria-hidden="true" strokeWidth={1.75} />
+        </button>
       </div>
 
-      {/* Right drag spacer */}
-      <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
+      {/* Center cluster — flex with drag spacers flanking the section label. */}
+      <div
+        style={{
+          flex: '1',
+          display: 'flex',
+          'align-items': 'center',
+          'min-width': '0',
+          'align-self': 'stretch',
+        }}
+      >
+        <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
+        <span
+          data-tauri-drag-region
+          style={{
+            'flex-shrink': '0',
+            color: 'var(--fg-3)',
+            'font-family': 'var(--font-ui)',
+            'font-size': '11px',
+            'letter-spacing': '0.12em',
+            'text-transform': 'uppercase',
+            'user-select': 'none',
+          }}
+        >
+          {props.sectionLabel}
+        </span>
+        <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
+      </div>
 
-      {/* Quiet right cluster (NOT a drag region — carries interactive controls). */}
+      {/* Right cluster — interactive controls only; NOT a drag region. */}
       <div
         style={{
           'flex-shrink': '0',
@@ -114,26 +173,109 @@ export default function TopChrome(props: TopChromeProps = {}) {
           'margin-right': '12px',
         }}
       >
-        {/* ⌘K command-palette trigger → opens the "Ask Voss to…" composer. */}
+        <div
+          role="search"
+          style={{
+            display: 'flex',
+            'align-items': 'center',
+            gap: '6px',
+            background: 'var(--bg-2)',
+            border: '1px solid var(--border)',
+            'border-radius': 'var(--radius-md)',
+            padding: '4px 8px',
+            'min-width': '160px',
+            cursor: 'text',
+          }}
+          onClick={openComposer}
+        >
+          <Search size={14} color="var(--fg-3)" aria-hidden="true" strokeWidth={1.75} />
+          <input
+            type="search"
+            readOnly
+            placeholder="Search…"
+            aria-label="Search"
+            onFocus={openComposer}
+            onClick={(e) => {
+              e.stopPropagation();
+              openComposer();
+            }}
+            style={{
+              flex: '1',
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: 'var(--fg-1)',
+              'font-family': 'var(--font-ui)',
+              'font-size': '12px',
+              'min-width': '0',
+              cursor: 'pointer',
+            }}
+          />
+          <span
+            aria-hidden="true"
+            style={{
+              color: 'var(--fg-3)',
+              'font-family': 'var(--font-mono)',
+              'font-size': '10px',
+              'line-height': '1',
+              'flex-shrink': '0',
+            }}
+          >
+            ⌘K
+          </span>
+        </div>
+
         <button
           type="button"
-          aria-label="Open command palette (⌘K)"
-          onClick={() => props.onOpenComposer?.()}
+          aria-label="Notifications"
+          onClick={() => {
+            // TODO(V24-09): open notifications panel when wired.
+          }}
           style={{
-            background: 'var(--bg-2)',
-            color: 'var(--fg-3)',
-            border: '1px solid var(--border)',
-            padding: '2px 8px',
-            'font-family': 'var(--font-mono)',
-            'font-size': '11px',
-            'line-height': '1',
+            display: 'flex',
+            'align-items': 'center',
+            'justify-content': 'center',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--fg-2)',
+            padding: '4px',
             cursor: 'pointer',
           }}
         >
-          ⌘K
+          <Bell size={16} color="currentColor" aria-hidden="true" strokeWidth={1.75} />
         </button>
 
-        {/* Safety-mode chip — display-only; hidden when no Task mode is active. */}
+        <button
+          type="button"
+          onClick={() => {
+            // TODO(V24-09): wire to new-task intake flow.
+          }}
+          style={{
+            display: 'flex',
+            'align-items': 'center',
+            gap: '4px',
+            background: 'var(--primary)',
+            color: 'var(--on-primary)',
+            border: 'none',
+            'border-radius': 'var(--radius-md)',
+            padding: '5px 10px',
+            'font-family': 'var(--font-ui)',
+            'font-size': '12px',
+            'font-weight': '500',
+            'line-height': '1',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--primary-hover)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--primary)';
+          }}
+        >
+          <Plus size={14} color="currentColor" aria-hidden="true" strokeWidth={2} />
+          New task
+        </button>
+
         <Show when={props.currentSafetyMode}>
           {(mode) => (
             <div
@@ -154,17 +296,16 @@ export default function TopChrome(props: TopChromeProps = {}) {
             </div>
           )}
         </Show>
-      </div>
 
-      {/* LIVE/snapshot chip — reuse the existing `.titlebar-livechip` as-is. */}
-      <div
-        class={`titlebar-livechip titlebar-livechip--${liveState()}`}
-        aria-label={`Data source: ${liveState()}`}
-      >
-        <Show when={liveState() === 'live'}>
-          <span class="titlebar-livechip__dot" />
-        </Show>
-        {liveState() === 'live' ? 'LIVE' : 'snapshot'}
+        <div
+          class={`titlebar-livechip titlebar-livechip--${liveState()}`}
+          aria-label={`Data source: ${liveState()}`}
+        >
+          <Show when={liveState() === 'live'}>
+            <span class="titlebar-livechip__dot" />
+          </Show>
+          {liveState() === 'live' ? 'LIVE' : 'snapshot'}
+        </div>
       </div>
     </div>
   );

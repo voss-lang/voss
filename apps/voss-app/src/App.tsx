@@ -1474,6 +1474,10 @@ export default function App() {
           Live Work / Run Review toggle is now the portal 'review' nav item. */}
       <TopChrome
         projectName={activeMounted()?.project()?.name}
+        gitBranch={activeMounted()?.project()?.gitBranch}
+        sectionLabel={(
+          PORTAL_ITEMS.find((item) => item.id === activeView())?.label ?? 'Workspaces'
+        ).toUpperCase()}
         liveState={liveLabel()}
         currentSafetyMode={currentSafetyMode()}
         onOpenComposer={() => setComposerOpen(true)}

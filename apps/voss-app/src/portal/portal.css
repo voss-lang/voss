@@ -92,7 +92,7 @@
 
 .portal-item--active {
   color: var(--fg-0);
-  box-shadow: inset 2px 0 0 var(--focus);
+  box-shadow: inset 2px 0 0 var(--primary);
 }
 
 .portal-item:focus-visible {

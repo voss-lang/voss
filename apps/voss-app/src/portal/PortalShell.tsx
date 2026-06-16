@@ -26,6 +26,12 @@ export interface PortalShellProps {
   /** Lazy slot for the existing Review surface (OrgViewShell). Thunk so the
    *  component only mounts when 'review' is active (not eagerly at prop build). */
   reviewSlot?: () => JSX.Element;
+  /** Overview surface header — project identity + session/task actions. */
+  projectName?: string;
+  projectPath?: string | null;
+  gitBranch?: string | null;
+  onNewSession?: () => void;
+  onNewTask?: () => void;
 }
 
 function labelFor(view: PortalView): string {
