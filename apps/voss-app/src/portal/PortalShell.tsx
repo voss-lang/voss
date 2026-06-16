@@ -5,19 +5,23 @@
 // PortalShell renders only the portal surface, position:absolute over the hidden
 // grid, mounted via <Show when={activeView !== 'grid'}> (D-01).
 //
-// Surface routing (this plan, W1):
-//   'review'                          → reviewSlot() (existing OrgViewShell)
-//   'overview'|'tasks'|'agents'|'swarm-map' → labeled placeholders (filled V24-05/06)
-//   'context'|'memory'|'settings'     → labeled placeholders (wired to existing
-//                                       panels in a later plan; no standalone shell
-//                                       component exists to mount as-is yet)
+// Surface routing (all portal items now wired — V24-10 closed the SPEC §41/86/91 gap):
+//   'review'   → reviewSlot()  (existing OrgViewShell)
+//   'context'  → contextSlot() (ContextSurface wrapping the existing ContextPanel,
+//                fed by App-local focused-pane ContextData — slot for the same reason
+//                Review is a slot: it needs App-local state)
+//   'overview'|'tasks'|'agents'|'swarm-map' → mission-control surfaces (V24-05/06)
+//   'settings' → SettingsSurface (appearance store, V24-10)
+//   'memory'   → MemorySurface   (honest harness-backed state, V24-10)
 
 import { type Component, type JSX, Show, Switch, Match } from 'solid-js';
-import { PORTAL_ITEMS, type PortalView } from './portalTypes';
+import { type PortalView } from './portalTypes';
 import OverviewSurface from '../surfaces/overview/OverviewSurface';
 import TasksSurface from '../surfaces/tasks/TasksSurface';
 import AgentsSurface from '../surfaces/agents/AgentsSurface';
 import SwarmMap from '../surfaces/swarm-map/SwarmMap';
+import SettingsSurface from '../surfaces/settings/SettingsSurface';
+import MemorySurface from '../surfaces/memory/MemorySurface';
 import './portal.css';
 
 export interface PortalShellProps {
@@ -26,6 +30,9 @@ export interface PortalShellProps {
   /** Lazy slot for the existing Review surface (OrgViewShell). Thunk so the
    *  component only mounts when 'review' is active (not eagerly at prop build). */
   reviewSlot?: () => JSX.Element;
+  /** Lazy slot for the Context surface (ContextSurface). Thunk so it only mounts
+   *  when 'context' is active; App owns the focused-pane ContextData it needs. */
+  contextSlot?: () => JSX.Element;
   /** Overview surface header — project identity + session/task actions. */
   projectName?: string;
   projectPath?: string | null;
@@ -34,29 +41,16 @@ export interface PortalShellProps {
   onNewTask?: () => void;
 }
 
-function labelFor(view: PortalView): string {
-  return PORTAL_ITEMS.find((i) => i.id === view)?.label ?? view;
-}
-
-const SurfacePlaceholder: Component<{ view: PortalView }> = (props) => (
-  <div
-    class="portal-placeholder"
-    data-surface={props.view}
-    role="tabpanel"
-    aria-label={labelFor(props.view)}
-  >
-    <span class="portal-placeholder__title">{labelFor(props.view)}</span>
-    <span class="portal-placeholder__hint">Coming in a later V24 plan</span>
-  </div>
-);
-
 const PortalShell: Component<PortalShellProps> = (props) => {
   return (
     <Show when={props.activeView !== 'grid'}>
       <div class="portal-surface">
-        <Switch fallback={<SurfacePlaceholder view={props.activeView} />}>
+        <Switch>
           <Match when={props.activeView === 'review'}>
-            {props.reviewSlot ? props.reviewSlot() : <SurfacePlaceholder view="review" />}
+            {props.reviewSlot?.()}
+          </Match>
+          <Match when={props.activeView === 'context'}>
+            {props.contextSlot?.()}
           </Match>
           <Match when={props.activeView === 'overview'}>
             <OverviewSurface
@@ -75,6 +69,12 @@ const PortalShell: Component<PortalShellProps> = (props) => {
           </Match>
           <Match when={props.activeView === 'swarm-map'}>
             <SwarmMap />
+          </Match>
+          <Match when={props.activeView === 'settings'}>
+            <SettingsSurface />
+          </Match>
+          <Match when={props.activeView === 'memory'}>
+            <MemorySurface />
           </Match>
         </Switch>
       </div>

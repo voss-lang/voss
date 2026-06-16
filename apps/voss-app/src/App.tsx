@@ -28,6 +28,7 @@ import PortalRail from './portal/PortalRail';
 import VossComposer from './composer/VossComposer';
 import { devlog } from './devlog';
 import PortalShell from './portal/PortalShell';
+import ContextSurface from './surfaces/context/ContextSurface';
 import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
@@ -546,6 +547,21 @@ export default function App() {
         baseUrl: built.baseUrl,
         token: built.token,
       });
+      // createSession only mints an IDLE session — the goal must be POSTed as
+      // the first message to actually start a turn (server `_run_turn`). Sent
+      // AFTER the stream subscribes above so its events are captured. The
+      // server PermissionGate mode is lowercase (Literal["plan","edit","auto"]),
+      // so map the humane RunMode ('Plan'/'Edit'/'Auto') down.
+      try {
+        devlog('info', 'run.native', 'POST first message (start turn)', {
+          mode: spec.mode,
+        });
+        await built.client.postMessage(r.id, spec.goal, spec.mode.toLowerCase());
+        devlog('info', 'run.native', 'turn started');
+      } catch (e) {
+        devlog('error', 'run.native', 'first message failed', e);
+        throw e;
+      }
       return r;
     },
   };
@@ -1675,6 +1691,38 @@ export default function App() {
             gitBranch={activeMounted()?.project()?.gitBranch ?? null}
             onNewSession={handleNewWorkspace}
             onNewTask={() => setComposerOpen(true)}
+            contextSlot={() => {
+              const id = focusedPaneId();
+              return (
+                <ContextSurface
+                  context={id ? contextByPaneId()[id] ?? null : null}
+                  isAgentPane={(() => {
+                    if (!id) return false;
+                    const m = activeMounted();
+                    return m?.agentConfigByPaneId()?.[id] != null;
+                  })()}
+                  onTogglePin={(path, pinned) => {
+                    const ctx = id ? contextByPaneId()[id] : null;
+                    if (!ctx) return;
+                    const currentPinned = ctx.files
+                      .filter((f) => f.pinned)
+                      .map((f) => f.path);
+                    const next = pinned
+                      ? [...new Set([...currentPinned, path])]
+                      : currentPinned.filter((p) => p !== path);
+                    const wp = activeMounted()?.project()?.path;
+                    if (wp) {
+                      void invoke('write_context_pins', {
+                        workspacePath: wp,
+                        pinnedPaths: next,
+                      }).catch((e: unknown) =>
+                        console.error('[voss-app] write_context_pins failed:', e),
+                      );
+                    }
+                  }}
+                />
+              );
+            }}
             reviewSlot={() => (
               <OrgViewShell
                 cwd={workspacePath() ?? ''}

@@ -26,6 +26,9 @@ import PortalRail from '../portal/PortalRail';
 import { PORTAL_ITEMS } from '../portal/portalTypes';
 import VossComposer from '../composer/VossComposer';
 import TasksSurface from '../surfaces/tasks/TasksSurface';
+import SettingsSurface from '../surfaces/settings/SettingsSurface';
+import MemorySurface from '../surfaces/memory/MemorySurface';
+import ContextSurface from '../surfaces/context/ContextSurface';
 import { setRunData, setLoading, setLoadError } from '../org/orgStore';
 import { __resetBridgeMaps } from '../org/model/bridge';
 import { __resetAttentionQueue } from '../org/attention/attentionQueue';
@@ -124,6 +127,28 @@ describe('V24-08 a11y gate — PortalRail tablist', () => {
     expect(toggle).toBeTruthy();
     expect(toggle!.getAttribute('aria-expanded')).toBe('true');
     expect(toggle!.getAttribute('aria-label')).toBe('Collapse portal');
+  });
+});
+
+describe('V24-10 a11y gate — Context/Settings/Memory surfaces wired (no stale placeholder)', () => {
+  it('Settings renders a real tabpanel — not the stale V24 placeholder', () => {
+    const el = mount(() => <SettingsSurface />);
+    expect(el.querySelector('[role="tabpanel"][aria-label="Settings"]')).toBeTruthy();
+    expect(el.textContent).not.toContain('Coming in a later V24 plan');
+  });
+
+  it('Memory renders an honest tabpanel — not the stale V24 placeholder', () => {
+    const el = mount(() => <MemorySurface />);
+    expect(el.querySelector('[role="tabpanel"][aria-label="Memory"]')).toBeTruthy();
+    expect(el.textContent).not.toContain('Coming in a later V24 plan');
+    // Honest-signal: points to the real entry point, no fabricated rows.
+    expect(el.textContent).toContain('/memory');
+  });
+
+  it('Context renders a real tabpanel — not the stale V24 placeholder', () => {
+    const el = mount(() => <ContextSurface context={null} isAgentPane={false} />);
+    expect(el.querySelector('[role="tabpanel"][aria-label="Context"]')).toBeTruthy();
+    expect(el.textContent).not.toContain('Coming in a later V24 plan');
   });
 });
 

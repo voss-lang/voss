@@ -2472,7 +2472,7 @@ Plans:
 - [x] V24-07-PLAN.md — W4 Live Swarm Map + replay: SSE/registry edge updates, subtle animated connectors, reduced-motion fallback, timeline scrubber for completed runs [VADE2-07]
 - [x] V24-08-PLAN.md — W5 validation: terminal-grid regression, cockpit/deep-link tests, visual screenshot checks, a11y/reduced-motion, no fake-signal guard, focused Tauri/Rust/TS verification [VADE2-08]
 - [x] V24-09-PLAN.md — W6 collapsible Workspaces-first PortalRail: lucide-solid icons, persisted expand state, Workspaces routes to grid canvas (canvas-swap) [VADE2-09]
-- [ ] V24-10-PLAN.md — W7 close SPEC §41/86/91 gap: wire Context (reuse ContextPanel), Settings (appearance store), Memory (honest harness-backed state) surfaces; delete the "Coming in a later V24 plan" placeholder [VADE2-10]
+- [x] V24-10-PLAN.md — W7 close SPEC §41/86/91 gap: wire Context (reuse ContextPanel), Settings (appearance store), Memory (honest harness-backed state) surfaces; delete the "Coming in a later V24 plan" placeholder [VADE2-10]
 
 ---
 

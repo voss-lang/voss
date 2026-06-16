@@ -236,6 +236,12 @@ New components introduced in V24. Existing components reused as-is are noted but
 
 **Icon contract:** portal item icons render as `lucide-solid` SVGs at `size={20}`, `color="currentColor"`, and consistent stroke weight. Raw Unicode glyphs are no longer the primary portal nav icon implementation.
 
+**Surface wiring (V24-10 — closes V24-SPEC §41/86/91):** every portal item routes to a real surface; the `SurfacePlaceholder` ("Coming in a later V24 plan") is deleted.
+- **Review** → `reviewSlot()` (existing OrgViewShell).
+- **Context** → `contextSlot()` → `ContextSurface`, a full-canvas wrapper around the shipped `components/ContextPanel` (the F4 drawer), fed by the focused pane's `ContextData` from App. No re-derivation; ContextPanel owns its own empty state.
+- **Settings** → `SettingsSurface`, backed by the existing appearance store (`appearance/settings.ts`): font size, high contrast, reduced motion, bell behavior, cursor shape/blink. Each change calls `applyAppearanceSettings` (live) + `saveAppearanceSettings` (persist). Theme/font-family selection deferred (theme catalog lives behind `themeRuntime`).
+- **Memory** → `MemorySurface`, an honest state: memory is harness-backed (the `/memory` slash command); no live in-app data until a server `/memory` route exists (follow-up). Renders no fabricated rows — same honest-signal discipline as the Swarm Map.
+
 **Bottom anchor:** "Ask Voss to…" trigger button at rail bottom (separate from nav items). Height: 44px. Full width. Background: `--bg-2` on hover. Icon: `❯` in `--accent-green`.
 
 **Label reveal:** expanded rail labels are the primary label-reveal mechanism. This supersedes the previously specced hover tooltip as the primary way to read portal item names; tooltips may remain as supplemental hints only.

@@ -59,14 +59,14 @@ The left portal has **9 items, in this order**:
 | 3 | **Tasks** | NEW product surface | Top-level unit of managed agent work (D-08; NOT "Runs") |
 | 4 | **Agents** | NEW product surface | Agent roster by role/status |
 | 5 | **Swarm Map** | NEW product surface | Observability/replay graph (D-10) |
-| 6 | **Review** | Reused as-is | Wires to existing V14 cockpit / panels — no redesign this phase |
-| 7 | **Context** | Reused as-is | Wires to existing panels/drawers — no redesign this phase |
-| 8 | **Memory** | Reused as-is | Wires to existing panels/drawers — no redesign this phase |
-| 9 | **Settings** | Reused as-is | Wires to existing settings UI — no redesign this phase |
+| 6 | **Review** | Reused as-is | Wired to the existing V14 cockpit (`reviewSlot` → OrgViewShell) |
+| 7 | **Context** | Reused as-is | Wired (V24-10): `ContextSurface` wraps the shipped `ContextPanel`, fed by the focused pane's `ContextData` via `contextSlot` |
+| 8 | **Memory** | Honest state | Wired (V24-10): harness-backed memory (the `/memory` slash command); no live in-app data yet (needs a server endpoint — follow-up). Renders no fabricated rows |
+| 9 | **Settings** | Reused as-is | Wired (V24-10): `SettingsSurface` over the existing appearance store (font/contrast/reduced-motion/bell/cursor); persists + applies live |
 
 - **1 persistent grid destination:** Workspaces names the terminal/tmux grid home and returns to the mounted `GridRoot` through canvas-swap.
 - **4 NEW product surfaces:** Overview, Tasks, Agents, Swarm Map (built in V24-05/06/07).
-- **4 reused surfaces:** Review, Context, Memory, Settings (wire to existing V14/panels/drawers as-is; redesign is explicitly out of scope for V24).
+- **4 reused surfaces:** Review, Context, Settings wire to existing UIs as-is; Memory renders an honest harness-backed state (V24-10). The "Coming in a later V24 plan" placeholder is removed — every portal item now routes to a real surface.
 
 **Spatial model recap:** left portal = navigation; terminal grid = persistent
 canvas via canvas-swap (D-01). Top chrome carries project/window identity,
