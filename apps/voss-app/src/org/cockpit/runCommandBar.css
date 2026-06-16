@@ -1,44 +1,51 @@
-/* VCKP-03 RunCommandBar (D-03) — always-on top intake strip, restyled in V14
- * chunk A to the cockpit mockup `.cmdbar` (goal container with ▸ prefix,
- * key:value chips, .seg segmented controls, focus-filled Start ⏎).
+/* VCKP-03 RunCommandBar (D-03) — intent-first two-row intake strip.
  *
  * Consumes ONLY existing A12 / Voss Ignite tokens (--bg-*, --fg-*, --border*,
- * --focus*, --accent-*, --font-*) inherited from the active theme. Declares NO
- * new `--xxx` custom properties (token grep gate); tinted borders/rings derive
- * from tokens via color-mix. Mockup hex → token map: #ff5b1f→--focus,
- * #fff-on-focus→--fg-0, greys→--bg-, --fg-, --border tokens. Mockup 7px/9px paddings
- * round to the 4px scale; font sizes stay on the 11/12/13 ramp.
+ * --primary*, --accent-*, --radius-*, --font-*) inherited from the active theme.
+ * Declares NO new `--xxx` custom properties (token grep gate).
  */
 
 .run-command-bar {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  /* Warp-style: the strip NEVER wraps to a second line — overflow scrolls. */
-  flex-wrap: nowrap;
-  overflow-x: auto;
   padding: 8px 12px;
   background: var(--bg-1);
   border-bottom: 1px solid var(--border);
   font-family: var(--font-ui), Inter, system-ui, sans-serif;
 }
 
-/* Goal — rounded container with the focus-colored ▸ prefix (mockup .goal). */
-.run-bar__goal {
-  flex: 1 1 220px;
-  min-width: 160px;
+.run-bar__row {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 28px;
+  min-width: 0;
+}
+
+.run-bar__row--goal {
+  width: 100%;
+}
+
+.run-bar__row--controls {
+  flex-wrap: wrap;
+}
+
+/* Row 1 — dominant goal container with primary-colored ▸ prefix. */
+.run-bar__goal {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
   padding: 0 12px;
   background: var(--bg-0);
   border: 1px solid var(--border-bright);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
 }
 
 .run-bar__goal-icon {
-  color: var(--focus);
+  color: var(--primary);
   font-size: 13px;
   line-height: 1;
   flex-shrink: 0;
@@ -59,17 +66,182 @@
   color: var(--fg-3);
 }
 
+/* Row 2 — inline scope with "In" prefix. */
+.run-bar__scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.run-bar__scope-prefix {
+  color: var(--fg-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.run-bar__scope-input {
+  width: 120px;
+  height: 26px;
+  padding: 0 8px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg-1);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  outline: none;
+}
+
+.run-bar__scope-input::placeholder {
+  color: var(--fg-3);
+}
+
+.run-bar__scope-input:focus {
+  border-color: var(--primary);
+}
+
+.run-bar__sep {
+  color: var(--fg-3);
+  font-size: 11px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Safety mode dropdown — semantic colors per selection. */
+.run-bar__safety {
+  height: 26px;
+  padding: 0 8px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.run-bar__safety--read-only {
+  color: var(--fg-3);
+}
+
+.run-bar__safety--can-edit {
+  color: var(--accent-amber);
+}
+
+.run-bar__safety--autopilot {
+  color: var(--accent-red);
+}
+
+.run-bar__safety:focus {
+  border-color: var(--primary);
+}
+
+.run-bar__details-toggle {
+  background: transparent;
+  border: none;
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 6px;
+  flex-shrink: 0;
+}
+
+.run-bar__details-toggle:hover {
+  color: var(--fg-1);
+}
+
+/* Start — primary fill, disabled when goal empty. */
+.run-bar__start {
+  height: 28px;
+  padding: 0 16px;
+  margin-left: auto;
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--on-primary);
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.run-bar__start:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.run-bar__start:disabled {
+  background: var(--bg-3);
+  color: var(--fg-3);
+  cursor: default;
+}
+
+/* Row 3 — details panel (team, budget, target, context). */
+.run-bar__details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.run-bar__detail-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.run-bar__detail-key {
+  color: var(--fg-3);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.run-bar__detail-select,
+.run-bar__detail-input {
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg-0);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  padding: 4px 6px;
+  outline: none;
+}
+
+.run-bar__detail-input {
+  font-family: var(--font-mono), monospace;
+}
+
+.run-bar__detail-input--budget {
+  width: 72px;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-bar__detail-select:focus,
+.run-bar__detail-input:focus {
+  border-color: var(--primary);
+}
+
+/* Target segmented control (details panel). */
 .run-bar__group {
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-/* Segmented controls (mockup .seg): bg-3 track, focus-filled active pill. */
 .run-bar__seg {
   display: flex;
   background: var(--bg-3);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 2px;
 }
 
@@ -86,78 +258,23 @@
 }
 
 .run-bar__seg-btn--active {
-  background: var(--focus);
-  color: var(--fg-0);
+  background: var(--primary);
+  color: var(--on-primary);
   font-weight: 500;
 }
 
-/* 'Voss run' target — native accent (mockup .chip.native): focus-tinted ring
-   + focus-colored text on a soft focus fill instead of the solid pill. The
-   ring is an inset box-shadow so the 4px-scale padding stays untouched. */
 .run-bar__seg-btn--native.run-bar__seg-btn--active {
-  background: var(--focus-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus) 45%, transparent);
-  color: var(--focus);
-}
-
-/* Chips (mockup .chip): muted key prefix + compact editable value. */
-.run-bar__chip {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 8px;
-  background: var(--bg-3);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
-.run-bar__chip-key {
-  color: var(--fg-3);
-  font-family: var(--font-ui), Inter, system-ui, sans-serif;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-/* Team is a UI control (Inter); scope/budget values hold path/number VALUES —
-   monospace per the A12 reserved-for list. */
-.run-bar__team {
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--fg-1);
-  font-family: var(--font-ui), Inter, system-ui, sans-serif;
-  font-size: 11px;
-}
-
-.run-bar__chip-input {
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--fg-1);
-  font-family: var(--font-mono), monospace;
-  font-size: 11px;
-}
-
-.run-bar__chip-input::placeholder {
-  color: var(--fg-3);
-}
-
-.run-bar__chip-input--scope {
-  width: 112px;
-}
-
-.run-bar__chip-input--budget {
-  width: 64px;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent);
+  color: var(--primary);
 }
 
 .run-bar__attach {
-  height: 28px;
+  height: 26px;
   padding: 0 8px;
-  background: var(--bg-3);
+  background: var(--bg-0);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--fg-1);
   font-family: var(--font-ui), Inter, system-ui, sans-serif;
   font-size: 11px;
@@ -166,41 +283,17 @@
 }
 
 .run-bar__attach--on {
-  color: var(--focus);
-  border-color: color-mix(in srgb, var(--focus) 45%, transparent);
-}
-
-/* Start ⏎ (mockup .startbtn): focus fill, display font, 600 weight. */
-.run-bar__start {
-  height: 28px;
-  padding: 0 16px;
-  background: var(--focus);
-  border: none;
-  border-radius: 6px;
-  color: var(--fg-0);
-  font-family: var(--font-display), Poppins, system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.run-bar__start:hover {
-  background: var(--focus-hover, var(--focus));
-  box-shadow: 0 0 0 1px var(--focus-glow);
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
 }
 
 .run-bar__reason {
-  flex-shrink: 0;
   color: var(--accent-red);
   font-family: var(--font-ui), Inter, system-ui, sans-serif;
   font-size: 11px;
 }
 
-/* Transient post-launch confirmation (6b): same slot as the reason, green. */
 .run-bar__started {
-  flex-shrink: 0;
   color: var(--accent-green);
   font-family: var(--font-ui), Inter, system-ui, sans-serif;
   font-size: 11px;

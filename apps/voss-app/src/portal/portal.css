@@ -1,0 +1,212 @@
+/* V24-02 (VADE2-02) — left portal rail + canvas-swap surface layer.
+   Token-only (no raw hex). Mirrors sidebar.css rail + .agent-item--active. */
+
+.portal-rail {
+  width: 48px;
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.portal-rail--expanded {
+  width: 220px;
+}
+
+@media (not (prefers-reduced-motion: reduce)) {
+  .portal-rail {
+    transition: width 120ms ease;
+  }
+}
+
+.portal-tablist {
+  display: flex;
+  flex-direction: column;
+}
+
+.portal-toggle {
+  height: 48px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  color: var(--fg-3);
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.portal-toggle:hover {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.portal-toggle:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.portal-item {
+  height: 48px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--fg-3);
+  font-size: 16px;
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.portal-rail--expanded .portal-item {
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 14px;
+}
+
+.portal-item__label {
+  display: none;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.portal-rail--expanded .portal-item__label {
+  display: inline;
+}
+
+.portal-item:hover {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.portal-item--active {
+  color: var(--fg-0);
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+.portal-item:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* "Ask Voss to…" trigger pinned to the rail bottom (D-03). */
+.portal-ask {
+  margin-top: auto;
+  height: 44px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  color: var(--accent-green);
+  font-size: 16px;
+  transition: background 80ms ease;
+}
+
+.portal-ask:hover {
+  background: var(--bg-2);
+}
+
+.portal-ask:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* Layout presets affordance (V24-03) — bottom of the rail, below the ask
+   trigger. Distinct from the nav tabs (muted, no left-border accent). */
+.portal-layout-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.portal-layout {
+  height: 40px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  color: var(--fg-3);
+  font-size: 15px;
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.portal-layout:hover,
+.portal-layout--open {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.portal-layout:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* Menu floats to the right of the rail, anchored to the layout button. */
+.portal-layout-menu {
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  z-index: 20;
+  background: var(--bg-3);
+  border: 1px solid var(--border-bright);
+  padding: 6px;
+  white-space: nowrap;
+}
+
+/* Canvas-swap portal surface: absolute over the hidden grid (D-01). */
+.portal-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--bg-0);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Placeholder for surfaces filled by later V24 plans. */
+.portal-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-0);
+}
+
+.portal-placeholder__title {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-1);
+}
+
+.portal-placeholder__hint {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+}

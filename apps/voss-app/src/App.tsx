@@ -10,7 +10,7 @@ import {
   For,
   type Accessor,
 } from 'solid-js';
-import Titlebar from './components/titlebar/Titlebar';
+import TopChrome from './components/titlebar/TopChrome';
 import WorkspaceTabBar, {
   COPY_LAST_WORKSPACE_BLOCKED,
 } from './components/workspace/WorkspaceTabBar';
@@ -24,14 +24,20 @@ import type { NativeSessionRecord } from './grid/SplitNode';
 import StatusBar from './components/StatusBar';
 import ContextPanel from './components/ContextPanel';
 import OrgViewShell from './org/OrgViewShell';
+import PortalRail from './portal/PortalRail';
+import VossComposer from './composer/VossComposer';
+import PortalShell from './portal/PortalShell';
+import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
 import { registerTerminalCard } from './org/model/bridge';
 import { resolveTier, hookCapableCli } from './org/capabilityTier';
 import RunCommandBar, {
+  dispatchRunSpec,
   type RunNativeClient,
   type SpawnAgentFn,
 } from './org/cockpit/RunCommandBar';
+import type { RunMode } from './org/cockpit/runIntake';
 import { connectLiveStream, liveLabel } from './org/live/sseClient';
 import {
   buildVossClientFromHandshake,
@@ -286,7 +292,26 @@ export default function App() {
   const [newWorkspacePickerOpen, setNewWorkspacePickerOpen] = createSignal(false);
   const [focusedPaneId, setFocusedPaneId] = createSignal<string | undefined>();
   const [paneCount, setPaneCount] = createSignal(0);
-  const [orgViewOpen, setOrgViewOpen] = createSignal(false);
+  // V24-02 (VADE2-02): 8-way portal navigation replaces the binary orgViewOpen
+  // toggle. 'grid' is the canvas default so fresh/project-less workspaces boot to
+  // the terminal grid (D-02). Canvas-swap (D-01) toggles the grid via display:none.
+  const [activeView, setActiveView] = createSignal<PortalView>('grid');
+  // V24-04 (VADE2-04): global "Ask Voss to…" composer open state (⌘K + rail
+  // ask trigger). currentTaskMode feeds the TopChrome safety-mode chip — set to
+  // the most-recently-created Task's RunMode, mapped back to its humane label.
+  const [composerOpen, setComposerOpen] = createSignal(false);
+  const [currentTaskMode, setCurrentTaskMode] = createSignal<RunMode | undefined>(
+    undefined,
+  );
+  const RUNMODE_TO_SAFETY: Record<RunMode, 'Read only' | 'Can edit' | 'Autopilot'> = {
+    Plan: 'Read only',
+    Edit: 'Can edit',
+    Auto: 'Autopilot',
+  };
+  const currentSafetyMode = () => {
+    const m = currentTaskMode();
+    return m ? RUNMODE_TO_SAFETY[m] : undefined;
+  };
   // VCKP-04 AttentionQueue (D-05/D-06). Open/close state lives here (mirrors
   // orgViewOpen/contextPanelOpen) and flows to StatusBar + AttentionPanel props.
   const [attentionOpen, setAttentionOpen] = createSignal(false);
@@ -310,6 +335,16 @@ export default function App() {
     setSidebarCollapsed((prev) => {
       const next = !prev;
       localStorage.setItem('voss:sidebarCollapsed', String(next));
+      return next;
+    });
+  };
+  const [portalExpanded, setPortalExpanded] = createSignal(
+    localStorage.getItem('voss:portalExpanded') === 'true',
+  );
+  const togglePortalExpanded = () => {
+    setPortalExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem('voss:portalExpanded', String(next));
       return next;
     });
   };
@@ -447,7 +482,7 @@ export default function App() {
     const ws = activeMounted();
     const ctrl = ws?.gridController;
     if (!ws || !ctrl) return;
-    setOrgViewOpen(false); // D-01: native work lives in the Live Work grid
+    setActiveView('grid'); // D-01: native work lives in the Live Work grid
     const before = ctrl.snapshot().focusedId;
     ctrl.splitFocused('H');
     const newId = ctrl.snapshot().focusedId;
@@ -508,13 +543,14 @@ export default function App() {
   } | null>(null);
 
   // D-07 Open-in-grid host. CardDrawer fires requestOpenInGrid(paneId) from the
-  // Review plane; we flip back to the grid (orgViewOpen=false, which swaps the
+  // Review plane; we flip back to the grid (activeView='grid', which swaps the
   // display:none above) and focus the bound pane. Opt-in only — never automatic.
   // Clear the request so it doesn't re-fire on unrelated re-renders.
+  // setOpenInGridRequest allows caching of the choice of terminal pane window
   createEffect(() => {
     const paneId = openInGridRequest();
     if (!paneId) return;
-    setOrgViewOpen(false);
+    setActiveView('grid');
     gridController()?.focusPaneById(paneId);
     setOpenInGridRequest(null);
   });
@@ -526,7 +562,7 @@ export default function App() {
     const cardId = openInReviewRequest();
     if (!cardId) return;
     setSelectedCardId(cardId);
-    setOrgViewOpen(true);
+    setActiveView('review');
     setOpenInReviewRequest(null);
   });
 
@@ -1301,12 +1337,34 @@ export default function App() {
       return;
     }
 
-    // Cmd+Shift+O: toggle the Org/Run view (grid stays mounted via display:none)
+    // Cmd+Shift+O: toggle the grid ↔ Review surface (grid stays mounted via display:none)
     if (e.metaKey && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
-      setOrgViewOpen((p) => !p);
+      setActiveView((p) => (p === 'grid' ? 'review' : 'grid'));
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
+    }
+
+    // Cmd+K: toggle the global "Ask Voss to…" composer (V24-04). metaKey only,
+    // no shift/alt — distinct from the ⌘1-9 pane shortcuts and ⌘⇧/⌘⌥ chords.
+    if (e.metaKey && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+      setComposerOpen((open) => !open);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
+    // Cmd+Alt+1..8: jump to a portal surface (UI-SPEC §Canvas-Swap keyboard).
+    // metaKey+altKey avoids clobbering ⌘1-9 pane focus (metaKey only).
+    if (e.metaKey && e.altKey && !e.shiftKey && e.key >= '1' && e.key <= '8') {
+      const idx = Number(e.key) - 1;
+      const item = PORTAL_ITEMS[idx];
+      if (item) {
+        setActiveView(item.id);
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
     }
 
     // F4: toggle context panel (D-01, D-06 persisted)
@@ -1412,26 +1470,18 @@ export default function App() {
         overflow: 'hidden',
       }}
     >
-      <Titlebar
+      {/* V24-03 (VADE2-03) — quiet chrome: identity + ⌘K + mode chip + live
+          chip only. Layout presets moved to <PortalRail>'s layout menu; the
+          Live Work / Run Review toggle is now the portal 'review' nav item. */}
+      <TopChrome
         projectName={activeMounted()?.project()?.name}
-        activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
-        onLayoutSelect={onLayoutSelect}
-        orgViewOpen={orgViewOpen()}
-        onOrgViewChange={(open) => setOrgViewOpen(open)}
+        gitBranch={activeMounted()?.project()?.gitBranch}
+        sectionLabel={(
+          PORTAL_ITEMS.find((item) => item.id === activeView())?.label ?? 'Workspaces'
+        ).toUpperCase()}
         liveState={liveLabel()}
-      />
-      <WorkspaceTabBar
-        workspaces={workspaceStore.workspaces()}
-        activeId={activeId()}
-        onActivate={handleActivateWorkspace}
-        onNew={handleNewWorkspace}
-        onRename={handleRenameWorkspace}
-        onColor={handleColorWorkspace}
-        onClose={handleCloseWorkspace}
-        onReorder={handleReorderWorkspaces}
-        closeGuardFor={(id) => workspaceStore.closeGuardFor(id)}
-        onCloseBlocked={handleCloseBlocked}
-        onCloseConfirm={handleCloseWorkspace}
+        currentSafetyMode={currentSafetyMode()}
+        onOpenComposer={() => setComposerOpen(true)}
       />
       <div
         style={{
@@ -1463,6 +1513,15 @@ export default function App() {
             position: 'relative',
           }}
         >
+          <PortalRail
+            activeView={activeView()}
+            onNavTo={setActiveView}
+            expanded={portalExpanded()}
+            onToggleExpanded={togglePortalExpanded}
+            activeLayout={activeMounted()?.activeLayout() ?? 'custom'}
+            onLayoutSelect={onLayoutSelect}
+            onOpenComposer={() => setComposerOpen(true)}
+          />
           <AgentSidebar
             collapsed={sidebarCollapsed()}
             onToggle={toggleSidebar}
@@ -1492,12 +1551,26 @@ export default function App() {
             resolvePaneId={runBarResolvePaneId}
             spawnAgent={runBarSpawnAgent}
           />
-          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: orgViewOpen() ? 'none' : 'flex', 'flex-direction': 'column', position: 'relative' }}>
+          <WorkspaceTabBar
+            class="workspace-tabbar--grid"
+            workspaces={workspaceStore.workspaces()}
+            activeId={activeId()}
+            onActivate={handleActivateWorkspace}
+            onNew={handleNewWorkspace}
+            onRename={handleRenameWorkspace}
+            onColor={handleColorWorkspace}
+            onClose={handleCloseWorkspace}
+            onReorder={handleReorderWorkspaces}
+            closeGuardFor={(id) => workspaceStore.closeGuardFor(id)}
+            onCloseBlocked={handleCloseBlocked}
+            onCloseConfirm={handleCloseWorkspace}
+          />
+          <div style={{ flex: '1', 'min-height': '0', 'min-width': '0', display: activeView() === 'grid' ? 'flex' : 'none', 'flex-direction': 'column', position: 'relative' }}>
             {/* V14 chunk C — board summary strip (Live Work only: this
                 container is display:none in Run Review, where the cockpit
                 shows the full board). Renders nothing until a run snapshot
                 is loaded. Chip click = opt-in jump to Run Review. */}
-            <BoardSummaryStrip onOpen={() => setOrgViewOpen(true)} />
+            <BoardSummaryStrip onOpen={() => setActiveView('review')} />
             <For each={workspaceIds()}>
               {(workspaceId) => {
                 const ws = () => mountedById().get(workspaceId);
@@ -1576,37 +1649,48 @@ export default function App() {
               }}
             />
           </div>
-          {/* Org/Run view — sibling of the grid area; grid stays mounted
-              (display:none above) so PTY panes survive the toggle (Pitfall 6). */}
-          <Show when={orgViewOpen()}>
-            <OrgViewShell
-              cwd={workspacePath() ?? ''}
-              cliBinary="voss"
-              onClose={() => setOrgViewOpen(false)}
-              followUpClient={vossClient()?.followUpClient}
-              vossClient={vossClient()?.client}
-              onAttach={(sessionId) =>
-                void attachSession({
-                  cwd: workspacePath() ?? '',
-                  sessionId,
-                  ensureClient: async (cwd) => {
-                    const built = await ensureVossClient(cwd);
-                    return {
-                      baseUrl: built.baseUrl,
-                      token: built.token,
-                      client: built.client,
-                    };
-                  },
-                  openAttachedPane: (r) =>
-                    openNativePane({
-                      sessionId: r.sessionId,
-                      baseUrl: r.baseUrl,
-                      token: r.token,
-                    }),
-                })
-              }
-            />
-          </Show>
+          {/* V24-02 (VADE2-02): canvas-swap portal surface — sibling of the grid
+              area; the grid stays mounted (display:none above) so PTY panes
+              survive the swap (Pitfall 1). 'review' mounts the existing
+              OrgViewShell (lazy thunk → only built when active). */}
+          <PortalShell
+            activeView={activeView()}
+            onNavTo={setActiveView}
+            projectName={activeMounted()?.project()?.name ?? ''}
+            projectPath={activeMounted()?.project()?.path ?? null}
+            gitBranch={activeMounted()?.project()?.gitBranch ?? null}
+            onNewSession={handleNewWorkspace}
+            onNewTask={() => setComposerOpen(true)}
+            reviewSlot={() => (
+              <OrgViewShell
+                cwd={workspacePath() ?? ''}
+                cliBinary="voss"
+                onClose={() => setActiveView('grid')}
+                followUpClient={vossClient()?.followUpClient}
+                vossClient={vossClient()?.client}
+                onAttach={(sessionId) =>
+                  void attachSession({
+                    cwd: workspacePath() ?? '',
+                    sessionId,
+                    ensureClient: async (cwd) => {
+                      const built = await ensureVossClient(cwd);
+                      return {
+                        baseUrl: built.baseUrl,
+                        token: built.token,
+                        client: built.client,
+                      };
+                    },
+                    openAttachedPane: (r) =>
+                      openNativePane({
+                        sessionId: r.sessionId,
+                        baseUrl: r.baseUrl,
+                        token: r.token,
+                      }),
+                  })
+                }
+              />
+            )}
+          />
           </div>
         </div>
         <StatusBar
@@ -1623,8 +1707,8 @@ export default function App() {
           budgetSpent={runBudgetTotals().spent}
           budgetLimit={runBudgetTotals().limit}
           onToggleSidebar={toggleSidebar}
-          orgViewOpen={orgViewOpen()}
-          onToggleOrgView={() => setOrgViewOpen((p) => !p)}
+          orgViewOpen={activeView() !== 'grid'}
+          onToggleOrgView={() => setActiveView((p) => (p === 'grid' ? 'review' : 'grid'))}
           attentionCount={attentionQueue().length}
           attentionBlocking={attentionBlocking()}
           onToggleAttention={() => setAttentionOpen((p) => !p)}
@@ -1702,6 +1786,24 @@ export default function App() {
           onDismiss={dismissPalette}
         />
       </Show>
+
+      {/* V24-04 (VADE2-04) — global "Ask Voss to…" composer (⌘K + rail trigger).
+          onCreated records the new Task's mode (TopChrome safety chip) AND
+          dispatches the run through the shared RunCommandBar seam. */}
+      <VossComposer
+        open={composerOpen()}
+        onClose={() => setComposerOpen(false)}
+        onCreated={async (spec) => {
+          setCurrentTaskMode(spec.mode);
+          await dispatchRunSpec(spec, {
+            cliBinary: 'voss',
+            cwd: workspacePath() ?? '',
+            client: runBarNativeClient,
+            spawnAgent: runBarSpawnAgent,
+            resolvePaneId: runBarResolvePaneId,
+          });
+        }}
+      />
     </div>
   );
 }

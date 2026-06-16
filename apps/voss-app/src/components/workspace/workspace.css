@@ -1,12 +1,12 @@
 /* A8-03 Workspace tab bar — Variant B tokens only (A8-UI-SPEC). */
 
 :root {
-  --workspace-bar-height: 28px;
-  --workspace-tab-height: 24px;
-  --workspace-tab-min-width: 120px;
-  --workspace-tab-max-width: 220px;
-  --workspace-bar-inset-left: 12px;
-  --workspace-tab-close-width: 16px;
+  --workspace-bar-height: var(--pane-header-height, 22px);
+  --workspace-tab-height: var(--pane-header-height, 22px);
+  --workspace-tab-min-width: 96px;
+  --workspace-tab-max-width: 200px;
+  --workspace-bar-inset-left: 0;
+  --workspace-tab-close-width: 14px;
 }
 
 .workspace-tabbar {
@@ -20,6 +20,41 @@
   overflow: hidden;
   font-family: var(--font-mono);
   font-size: 11px;
+}
+
+/* Grid-integrated strip — sits directly above terminal pane headers. */
+.workspace-tabbar--grid {
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.workspace-tabbar--grid .workspace-tab {
+  height: var(--workspace-tab-height);
+  min-width: var(--workspace-tab-min-width);
+  max-width: var(--workspace-tab-max-width);
+  padding: 0 6px;
+  background: transparent;
+  border-top: none;
+  border-right: 1px solid var(--border);
+}
+
+.workspace-tabbar--grid .workspace-tab[data-tab-state='active'] {
+  background: var(--bg-2);
+  color: var(--fg-0);
+  border-top: none;
+  box-shadow: inset 0 -1px 0 var(--workspace-accent, var(--primary));
+}
+
+.workspace-tabbar--grid .workspace-tab__dot {
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+}
+
+.workspace-tabbar--grid .workspace-tabbar__add {
+  width: var(--workspace-bar-height);
+  height: var(--workspace-bar-height);
+  border-right: 1px solid var(--border);
 }
 
 .workspace-tabbar__scroll {
@@ -63,6 +98,10 @@
 .workspace-tab[data-tab-state='active']:hover {
   background: var(--bg-2);
   color: var(--fg-1);
+}
+
+.workspace-tab[data-tab-state='active']:hover {
+  color: var(--fg-0);
 }
 
 .workspace-tab[data-tab-state='active']:hover {

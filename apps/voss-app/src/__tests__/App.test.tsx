@@ -278,15 +278,27 @@ beforeEach(() => {
 });
 
 describe('App — setup branch', () => {
-  it('renders workspace tab bar below the titlebar', async () => {
+  it('renders workspace tab bar above the terminal grid when a workspace is ready', async () => {
     const el = mount(() => <App />);
     await waitFor(() => expect(h.workspaceStore).not.toBeNull());
-    expect(el.querySelector('[data-workspace-tabbar]')).not.toBeNull();
+    expect(el.querySelector('[data-workspace-tabbar]')).toBeNull();
+    fireEvent.click(
+      el.querySelector('button[aria-label="Start without project"]')!,
+    );
+    await waitFor(() =>
+      expect(el.querySelector('[data-workspace-tabbar]')).not.toBeNull(),
+    );
   });
 
   it('+ opens the new workspace picker', async () => {
     const el = mount(() => <App />);
     await waitFor(() => expect(h.workspaceStore).not.toBeNull());
+    fireEvent.click(
+      el.querySelector('button[aria-label="Start without project"]')!,
+    );
+    await waitFor(() =>
+      expect(el.querySelector('[data-workspace-tabbar]')).not.toBeNull(),
+    );
     fireEvent.click(el.querySelector('[aria-label="New workspace"]')!);
     expect(el.querySelector('[data-testid="new-workspace-picker"]')).not.toBeNull();
   });

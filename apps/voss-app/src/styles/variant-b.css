@@ -46,6 +46,21 @@
   /* Titlebar */
   --titlebar-height: 22px;
 
+  /* Primary brand/action accent (reference design) */
+  --accent-orange:        #f1591c;
+  --accent-orange-hover:  #ff6a2c;
+  --primary:              var(--accent-orange);
+  --primary-hover:        var(--accent-orange-hover);
+  --on-primary:           #ffffff;
+
+  /* Corner rounding */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-pill: 999px;
+
+  /* Taller command bar */
+  --topbar-height: 44px;
+
   /* Scrollbar */
   --scrollbar-width: 8px;
 }

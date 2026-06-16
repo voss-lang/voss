@@ -68,13 +68,13 @@ export function validateAutoStart(
   if (!state.budget) {
     return {
       ok: false,
-      reason: 'Auto mode needs a budget before it can start.',
+      reason: 'Autopilot needs a budget before it can start.',
     };
   }
   if (!state.scope) {
     return {
       ok: false,
-      reason: 'Auto mode needs a scope before it can start.',
+      reason: 'Autopilot needs a scope before it can start.',
     };
   }
   return { ok: true };

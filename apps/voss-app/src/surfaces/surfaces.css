@@ -1,0 +1,390 @@
+/* V24-05 (VADE2-05) — Overview / Tasks / Agents mission-control surfaces.
+   Token-only (no raw hex). Linear-like status grouping over the existing
+   board/agent data. Section headers mirror cockpitStyles.css .cockpit-sect. */
+
+.surface {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-0);
+  overflow: hidden;
+}
+
+/* --- Surface header (40px) --- */
+.surface__header {
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.surface__title {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-0);
+}
+
+.surface__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+/* --- Surface header band (project identity + actions) --- */
+.surface-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--border);
+}
+
+.surface-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.surface-header__icon-tile {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-2);
+  border-radius: var(--radius-md);
+  color: var(--fg-2);
+}
+
+.surface-header__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.surface-header__title {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fg-0);
+  line-height: 1.2;
+}
+
+.surface-header__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-2);
+}
+
+.surface-header__meta-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.surface-header__meta-sep {
+  flex-shrink: 0;
+  color: var(--fg-2);
+}
+
+.surface-header__meta-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.surface-header__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.surface-header__btn-secondary,
+.surface-header__btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 80ms ease, border-color 80ms ease;
+}
+
+.surface-header__btn-secondary {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--fg-0);
+}
+
+.surface-header__btn-secondary:hover {
+  background: var(--bg-3, var(--bg-2));
+}
+
+.surface-header__btn-secondary:focus-visible,
+.surface-header__btn-primary:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.surface-header__btn-primary {
+  background: var(--primary);
+  border: 1px solid transparent;
+  color: var(--on-primary);
+}
+
+.surface-header__btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.surface__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 16px;
+}
+
+/* --- Group --- */
+.surface-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.surface-group__header {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: var(--bg-0);
+}
+
+.surface-group__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.surface-group__name {
+  font-family: var(--font-display), Poppins, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.surface-group__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+/* --- Rows --- */
+.surface-row-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.surface-row-line {
+  display: flex;
+  align-items: center;
+}
+
+.surface-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--fg-1);
+  transition: background 80ms ease;
+}
+
+.surface-row:hover {
+  background: var(--bg-2);
+}
+
+.surface-row:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.surface-row__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.surface-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-0);
+}
+
+.surface-row__meta {
+  flex-shrink: 0;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.surface-row__meta--cost {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.surface-row__attn {
+  flex-shrink: 0;
+  margin-right: 12px;
+  padding: 0 6px;
+  height: 18px;
+  background: color-mix(in srgb, var(--accent-red) 15%, transparent);
+  color: var(--accent-red);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.surface-row__attn:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+/* Inline attention action row (NOT a modal) — UI-SPEC §Attention Actions. */
+.surface-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 16px 0 36px;
+  background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+}
+
+.surface-action__desc {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--fg-1);
+}
+
+.surface-action__btn {
+  flex-shrink: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--border-bright);
+  color: var(--fg-0);
+  cursor: pointer;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+}
+
+.surface-action__btn:hover {
+  background: var(--bg-3);
+}
+
+/* --- Empty state --- */
+.surface-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+}
+
+.surface-empty__title {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--fg-3);
+  margin: 0;
+}
+
+.surface-empty__hint {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--fg-3);
+  margin: 0;
+}
+
+/* --- Overview roll-up chips --- */
+.surface-rollup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.surface-rollup__chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+}
+
+.surface-rollup__label {
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--fg-2);
+}
+
+.surface-rollup__num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-0);
+}

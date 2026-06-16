@@ -1,34 +1,22 @@
 import { Show } from 'solid-js';
 import WindowControls from './WindowControls';
-import PresetSwitcher from './PresetSwitcher';
-import type {
-  ActiveLayout,
-  LayoutPreset,
-} from '../../grid/layoutPresets';
 
 /**
- * A1 titlebar shell, extended in A4-02 to carry controlled preset state
- * down to `PresetSwitcher`. Window controls, drag regions, title text,
- * and 22px height all stay unchanged.
+ * A1 titlebar shell. Window controls, drag regions, title text, the Voss logo,
+ * the LIVE/snapshot chip, and the 28px height all stay unchanged.
  *
- * V14 chunk A adds the right-side shell chrome from the cockpit mockup:
- * a `[Live Work | Run Review]` segmented toggle and a LIVE/snapshot chip.
- * Both are controlled — App owns the orgViewOpen signal (same source as
- * ⌘⇧O and the StatusBar toggle) and passes the sseClient liveLabel down.
+ * V24-03 (VADE2-03) demoted the preset switcher and the Live Work / Run Review
+ * mode toggle out of the titlebar: the App root now mounts `TopChrome`
+ * (quiet chrome) instead, and layout presets live in the portal rail's layout
+ * menu. This component is retained for the legacy A1/A5 chrome tests; it no
+ * longer surfaces any preset or mode-toggle controls.
  *
- * Props are optional so existing A1/A3 tests that render `<Titlebar />`
- * continue to work; when omitted, the switcher defaults to `custom`,
- * `onLayoutSelect`/`onOrgViewChange` are no-ops, and the chip reads
- * 'snapshot' (the sseClient default).
+ * Props are optional so existing A1/A5 tests that render `<Titlebar />`
+ * continue to work; when omitted the chip reads 'snapshot' (the sseClient
+ * default) and the title falls back to 'Voss ADE'.
  */
 export type TitlebarProps = {
-  activeLayout?: ActiveLayout;
-  layoutDisabled?: boolean;
-  onLayoutSelect?: (preset: LayoutPreset) => void;
   projectName?: string;
-  /** Run Review open? Drives the active segment of the mode toggle. */
-  orgViewOpen?: boolean;
-  onOrgViewChange?: (open: boolean) => void;
   /** Live/snapshot data-source state (sseClient liveLabel, via App). */
   liveState?: 'live' | 'snapshot';
 };
@@ -96,37 +84,6 @@ export default function Titlebar(props: TitlebarProps = {}) {
 
       {/* Right drag spacer */}
       <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
-
-      {/* Controlled preset switcher (A4-02). App owns the activeLayout */}
-      {/* signal and the apply callback; the switcher is a pure reflection. */}
-      <PresetSwitcher
-        activeLayout={props.activeLayout ?? 'custom'}
-        disabled={props.layoutDisabled}
-        onSelect={(p) => props.onLayoutSelect?.(p)}
-      />
-
-      {/* V14 chunk A — [Live Work | Run Review] mode toggle (mockup
-          .modetoggle). Drives the SAME App-owned orgViewOpen signal as the
-          ⌘⇧O shortcut and the StatusBar org toggle — a third controlled
-          entry point, never a second source of truth. */}
-      <div class="titlebar-modetoggle" role="group" aria-label="View mode">
-        <button
-          type="button"
-          class={`titlebar-modetoggle__btn${!props.orgViewOpen ? ' titlebar-modetoggle__btn--active' : ''}`}
-          aria-pressed={!props.orgViewOpen ? 'true' : 'false'}
-          onClick={() => props.onOrgViewChange?.(false)}
-        >
-          Live Work
-        </button>
-        <button
-          type="button"
-          class={`titlebar-modetoggle__btn${props.orgViewOpen ? ' titlebar-modetoggle__btn--active' : ''}`}
-          aria-pressed={props.orgViewOpen ? 'true' : 'false'}
-          onClick={() => props.onOrgViewChange?.(true)}
-        >
-          Run Review
-        </button>
-      </div>
 
       {/* V14 chunk A — LIVE/snapshot chip (mockup .livechip). Pulsing cyan
           dot only while a live stream is connected; muted 'snapshot'

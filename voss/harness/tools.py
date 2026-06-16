@@ -8,16 +8,14 @@ import signal as _signal
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from voss_runtime import ToolDescriptor, tool
 
+from .net import NetSession
 from .sandbox import jail_path, shell_allowed, split_command, SandboxError
 from .tui.widgets.diff_modal import DiffDecision, Hunk
 from .memory_store import MemoryStore
-
-if TYPE_CHECKING:
-    from voss.harness.net import NetSession
 
 
 SHELL_OUTPUT_CAP_BYTES = 30720
@@ -314,7 +312,7 @@ def make_toolset(
     cwd: Path,
     *,
     renderer=None,
-    net: "NetSession | None" = None,
+    net: NetSession | None = None,
     session_id: str | None = None,
 ) -> dict[str, ToolEntry]:
     """Build the harness toolset bound to a project cwd.

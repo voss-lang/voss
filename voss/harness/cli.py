@@ -34,6 +34,7 @@ from .memory_cli import memory_group
 from .memory_store import MemoryStore, make_global_store
 from .agent import Plan
 from .claims import claims_group
+from .net import NetSession
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .claude_agent_provider import ClaudeAgentProvider
@@ -76,10 +77,10 @@ def _bootstrap_runtime_config() -> None:
     )
 
 
-_NET_SESSION: "NetSession | None" = None
+_NET_SESSION: NetSession | None = None
 
 
-def _get_net_session() -> "NetSession":
+def _get_net_session() -> NetSession:
     """Lazily construct the process-wide NetSession.
 
     Lazy so test-import never allocates an httpx client and the boot
@@ -89,7 +90,6 @@ def _get_net_session() -> "NetSession":
     global _NET_SESSION
     if _NET_SESSION is None:
         from .config import get_net_rate_limits
-        from .net import NetSession
 
         _NET_SESSION = NetSession(rate_overrides=get_net_rate_limits())
     return _NET_SESSION
