@@ -1654,6 +1654,11 @@ export default function App() {
           <PortalShell
             activeView={activeView()}
             onNavTo={setActiveView}
+            projectName={activeMounted()?.project()?.name ?? ''}
+            projectPath={activeMounted()?.project()?.path ?? null}
+            gitBranch={activeMounted()?.project()?.gitBranch ?? null}
+            onNewSession={handleNewWorkspace}
+            onNewTask={() => setComposerOpen(true)}
             reviewSlot={() => (
               <OrgViewShell
                 cwd={workspacePath() ?? ''}

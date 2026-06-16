@@ -59,7 +59,13 @@ const PortalShell: Component<PortalShellProps> = (props) => {
             {props.reviewSlot ? props.reviewSlot() : <SurfacePlaceholder view="review" />}
           </Match>
           <Match when={props.activeView === 'overview'}>
-            <OverviewSurface />
+            <OverviewSurface
+              projectName={props.projectName ?? ''}
+              projectPath={props.projectPath}
+              gitBranch={props.gitBranch}
+              onNewSession={props.onNewSession}
+              onNewTask={props.onNewTask}
+            />
           </Match>
           <Match when={props.activeView === 'tasks'}>
             <TasksSurface />
