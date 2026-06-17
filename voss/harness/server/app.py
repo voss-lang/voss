@@ -29,6 +29,7 @@ from .. import auth as auth_mod
 from .. import session as session_store
 from ..agent import run_turn
 from ..permissions import PermissionGate, PermissionStore
+from ..swarm_store import OwnershipOverlapError, Role, SwarmStore
 from ..tools import make_toolset
 from . import events as E
 from .renderer import EventBusRenderer
@@ -181,6 +182,15 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     loop = asyncio.get_running_loop()
     renderer = EventBusRenderer(session.queue, session_id=session.id, loop=loop)
 
+    # VSWARM-04 spawn-gate: a builder session created before its assignment
+    # holds a set (unsignaled) gate_event and runs ZERO turns until the
+    # coordinator's swarm.assign sets it. await directly in the coroutine
+    # (NOT asyncio.to_thread — RESEARCH Pitfall) so it suspends, yields the
+    # loop, and integrates with cancellation. Ungated sessions (gate_event is
+    # None) skip this entirely — byte-identical to pre-V25 behaviour.
+    if session.gate_event is not None:
+        await session.gate_event.wait()
+
     # Test seam: emit a canned turn over the real event/SSE path (no provider).
     if os.environ.get("VOSS_SERVE_FAKE_TURN"):
         try:
@@ -301,6 +311,48 @@ class PermissionReply(BaseModel):
     choice: str  # a | A | d  (or y | n for scope)
 
 
+# -- swarm (V25) ------------------------------------------------------------
+
+
+class RoleSpec(BaseModel):
+    name: str
+    model: str = "default"
+    auth_pref: str = "auto"
+
+
+class CreateSwarmBody(BaseModel):
+    goal: str
+    cwd: str | None = None
+    builders: int = 2
+    # Optional explicit roster; when omitted the SwarmStore default_roster
+    # (coordinator + N builders + reviewer) is spawned (VSWARM-08).
+    roster: list[RoleSpec] | None = None
+
+
+class CreateTaskBody(BaseModel):
+    goal: str
+    owned_files: list[str] = []
+    depends_on: list[str] = []
+
+
+class SwarmMessageBody(BaseModel):
+    # Inter-agent / operator message. `kind` selects the lifecycle event the
+    # route emits over the swarm SSE plane (assign also unblocks a builder's
+    # spawn-gate). gate/needs_operator are scriptable here; their automatic
+    # emit points are wired in V25-05.
+    from_session: str | None = None
+    text: str = ""
+    kind: str = "message"  # message|assign|worker_done|gate|needs_operator|complete
+    task_id: str | None = None
+    session_id: str | None = None  # target builder (assign) / subject session
+    gate_type: str = ""
+    detail: str = ""
+    tool_name: str = ""
+    path: str | None = None
+    summary: str | None = None
+    task_count: int = 0
+
+
 # ---------------------------------------------------------------------------
 # app factory
 # ---------------------------------------------------------------------------
@@ -321,6 +373,10 @@ def create_app(token: str | None = None) -> FastAPI:
     app = FastAPI(title="voss-harness", version="1", lifespan=lifespan)
     app.state.token = token
     app.state.sessions = mgr
+    # App-scoped SwarmStore (NOT a module global — module globals leak across
+    # TestClient instances; RESEARCH Anti-Pattern). Event-log cwd defaults to
+    # the serve cwd; tests override app.state.swarm_store to point at a tmp dir.
+    app.state.swarm_store = SwarmStore(cwd=Path(".").resolve())
 
     app.add_middleware(_BearerASGI, token=token)
 
@@ -555,6 +611,145 @@ def create_app(token: str | None = None) -> FastAPI:
                 for h in hits
             ]
         return out
+
+    # -- swarm (V25 VSWARM-02/03/04/06/08) ----------------------------------
+
+    def _emit_swarm_event(swarm_id: str, ev: E._Base) -> None:
+        """Fan a swarm event out to EVERY registered session's queue (Pitfall
+        3 — not just the coordinator). Validates the swarm exists first so a
+        forged swarm_id cannot inject into unrelated queues (T-V25-04-04)."""
+        store = app.state.swarm_store
+        if store.get(swarm_id) is None:
+            return
+        for rec in store.list_agents_by_swarm(swarm_id):
+            sess = mgr.get(rec["session_id"])
+            if sess is not None:
+                EventBusRenderer(sess.queue, session_id=sess.id).emit(ev)
+
+    @app.post("/swarm", status_code=201)
+    async def create_swarm(body: CreateSwarmBody) -> dict:
+        store = app.state.swarm_store
+        cwd = Path(body.cwd or ".").resolve()
+        swarm = store.create(goal=body.goal, cwd=str(cwd), builders=body.builders)
+        # Per-role spawn (VSWARM-08): one ServerSession per roster role, each
+        # with its own resolved provider + model. Builders are spawn-gated
+        # (asyncio.Event created HERE — inside an async handler, Pitfall 2).
+        roster = (
+            [Role(**r.model_dump()) for r in body.roster]
+            if body.roster
+            else swarm.roster
+        )
+        spawned: list[dict] = []
+        for role in roster:
+            res, provider = _resolve_provider(role.auth_pref)
+            if provider is None:
+                raise HTTPException(400, f"no usable credentials ({res.detail})")
+            sess = mgr.create(
+                cwd=cwd, model=role.model, provider=provider, title=role.name
+            )
+            sess.swarm_id = swarm.id
+            sess.swarm_role = role.name
+            if role.name.startswith("builder"):
+                sess.gate_event = asyncio.Event()
+            store.register_agent(swarm.id, sess.id, role.name, [])
+            spawned.append({"session_id": sess.id, "role": role.name, "model": sess.model})
+        return {"v": 1, "id": swarm.id, "sessions": spawned}
+
+    @app.get("/swarm/{swarm_id}")
+    def get_swarm(swarm_id: str) -> dict:
+        swarm = app.state.swarm_store.get(swarm_id)
+        if swarm is None:
+            raise HTTPException(404, "swarm not found")
+        return {"v": 1, "swarm": swarm.model_dump()}
+
+    @app.post("/swarm/{swarm_id}/task", status_code=201)
+    def create_swarm_task(swarm_id: str, body: CreateTaskBody) -> dict:
+        store = app.state.swarm_store
+        if store.get(swarm_id) is None:
+            raise HTTPException(404, "swarm not found")
+        try:
+            # add_task runs validate_no_overlap; overlap → 4xx (VSWARM-06).
+            task = store.add_task(
+                swarm_id, body.goal, body.owned_files, body.depends_on
+            )
+        except OwnershipOverlapError as exc:
+            raise HTTPException(409, str(exc))
+        return {"v": 1, "task": task.model_dump()}
+
+    @app.post("/swarm/{swarm_id}/message", status_code=202)
+    async def swarm_message(swarm_id: str, body: SwarmMessageBody) -> dict:
+        store = app.state.swarm_store
+        swarm = store.get(swarm_id)
+        if swarm is None:
+            raise HTTPException(404, "swarm not found")
+
+        if body.kind == "assign":
+            if not body.task_id or not body.session_id:
+                raise HTTPException(422, "assign requires task_id and session_id")
+            task = swarm.task(body.task_id)
+            if task is None:
+                raise HTTPException(404, "task not found")
+            store.mark_assigned(swarm_id, body.task_id, session_id=body.session_id)
+            builder = mgr.get(body.session_id)
+            if builder is not None:
+                builder.swarm_task_id = body.task_id
+                builder.swarm_owned_files = task.owned_files
+                # In-process unblock (Pitfall 6 — independent of queue state).
+                if builder.gate_event is not None:
+                    builder.gate_event.set()
+            _emit_swarm_event(
+                swarm_id,
+                E.SwarmAssign(
+                    swarm_id=swarm_id,
+                    task_id=body.task_id,
+                    session_id=body.session_id,
+                    owned_files=task.owned_files,
+                    role=(builder.swarm_role if builder else None) or "builder",
+                ),
+            )
+        elif body.kind == "worker_done":
+            if body.task_id:
+                store.mark_done(swarm_id, body.task_id, summary=body.summary)
+            _emit_swarm_event(
+                swarm_id,
+                E.SwarmWorkerDone(
+                    swarm_id=swarm_id,
+                    task_id=body.task_id or "",
+                    session_id=body.session_id or "",
+                    summary=body.summary,
+                ),
+            )
+        elif body.kind == "gate":
+            _emit_swarm_event(
+                swarm_id,
+                E.SwarmGate(
+                    swarm_id=swarm_id,
+                    task_id=body.task_id or "",
+                    gate_type=body.gate_type,
+                    detail=body.detail,
+                ),
+            )
+        elif body.kind == "needs_operator":
+            _emit_swarm_event(
+                swarm_id,
+                E.SwarmNeedsOperator(
+                    swarm_id=swarm_id,
+                    task_id=body.task_id or "",
+                    session_id=body.session_id or "",
+                    tool_name=body.tool_name,
+                    path=body.path,
+                ),
+            )
+        elif body.kind == "complete":
+            _emit_swarm_event(
+                swarm_id,
+                E.SwarmComplete(
+                    swarm_id=swarm_id,
+                    task_count=body.task_count or len(swarm.tasks),
+                    summary=body.summary,
+                ),
+            )
+        return {"v": 1, "status": "accepted"}
 
     # -- OpenAPI: force the event union into components (H1.14) --------------
 
