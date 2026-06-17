@@ -241,8 +241,10 @@ async fn spawn_agent(
     start_reader(pty_id.clone(), reader, pause_rx, on_data, registry);
 
     let cwd_str = cwd.as_deref().unwrap_or("");
-    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
-        .map_err(|e| e.to_string())?;
+    register_agent(
+        conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str, None, None, None,
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(pty_id)
 }
@@ -314,8 +316,10 @@ async fn spawn_managed_agent(
 
     // Roster shows the REAL CLI, not the sandbox launcher argv.
     let cwd_str = cwd.as_deref().unwrap_or("");
-    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
-        .map_err(|e| e.to_string())?;
+    register_agent(
+        conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str, None, None, None,
+    )
+    .map_err(|e| e.to_string())?;
 
     // Honest tier: sandbox unavailable → downgrade to observe-only.
     let effective_tier = if sandboxed { tier } else { "C".to_string() };

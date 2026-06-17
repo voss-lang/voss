@@ -397,9 +397,15 @@ mod tests {
             "/usr/bin/claude",
             &["--print".into()],
             "/repo",
+            None,
+            None,
+            None,
         )
         .unwrap();
-        register_agent(&conn, "pane-b", "sess-2", "/usr/bin/codex", &[], "/other").unwrap();
+        register_agent(
+            &conn, "pane-b", "sess-2", "/usr/bin/codex", &[], "/other", None, None, None,
+        )
+        .unwrap();
 
         let active = get_active_agents(&conn).unwrap();
         assert_eq!(active.len(), 2);
@@ -412,7 +418,7 @@ mod tests {
     fn test_mark_stopped() {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
-        register_agent(&conn, "pane-a", "s1", "claude", &[], "/").unwrap();
+        register_agent(&conn, "pane-a", "s1", "claude", &[], "/", None, None, None).unwrap();
 
         mark_stopped(&conn, "pane-a").unwrap();
         assert!(get_active_agents(&conn).unwrap().is_empty());
@@ -431,7 +437,7 @@ mod tests {
     fn test_update_last_seen() {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
-        register_agent(&conn, "pane-a", "s1", "claude", &[], "/").unwrap();
+        register_agent(&conn, "pane-a", "s1", "claude", &[], "/", None, None, None).unwrap();
 
         let before: i64 = conn
             .query_row(
@@ -459,7 +465,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
         for id in ["a", "b", "c"] {
-            register_agent(&conn, id, "s", "bin", &[], "/").unwrap();
+            register_agent(&conn, id, "s", "bin", &[], "/", None, None, None).unwrap();
         }
 
         let n = sweep_orphans(&conn, &[String::from("a")]).unwrap();
@@ -474,8 +480,8 @@ mod tests {
     fn test_sweep_empty_valid() {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
-        register_agent(&conn, "a", "s", "bin", &[], "/").unwrap();
-        register_agent(&conn, "b", "s", "bin", &[], "/").unwrap();
+        register_agent(&conn, "a", "s", "bin", &[], "/", None, None, None).unwrap();
+        register_agent(&conn, "b", "s", "bin", &[], "/", None, None, None).unwrap();
 
         let n = sweep_orphans(&conn, &[]).unwrap();
         assert_eq!(n, 2);
@@ -497,11 +503,66 @@ mod tests {
     }
 
     #[test]
+    fn test_swarm_columns_register_and_list() {
+        let dir = tempdir().unwrap();
+        let conn = open_test_registry(dir.path());
+
+        register_agent(
+            &conn,
+            "pane-a",
+            "sess-1",
+            "claude",
+            &[],
+            "/repo",
+            Some("s1"),
+            Some("builder"),
+            Some("[\"a.py\"]"),
+        )
+        .unwrap();
+        // A non-swarm agent leaves the columns NULL.
+        register_agent(&conn, "pane-b", "sess-2", "codex", &[], "/repo", None, None, None).unwrap();
+
+        let agents = list_agents_by_swarm(&conn, "s1").unwrap();
+        assert_eq!(agents.len(), 1);
+        let a = &agents[0];
+        assert_eq!(a.pane_id, "pane-a");
+        assert_eq!(a.swarm_id.as_deref(), Some("s1"));
+        assert_eq!(a.role.as_deref(), Some("builder"));
+        assert_eq!(a.owned_files.as_deref(), Some("[\"a.py\"]"));
+
+        // The non-swarm agent is not returned for the swarm query.
+        assert!(list_agents_by_swarm(&conn, "s2").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_schema_migration_idempotent_on_reopen() {
+        let dir = tempdir().unwrap();
+        let path = registry_path(dir.path());
+        // First open creates + migrates; second open must re-run migration with
+        // no duplicate-column error (PRAGMA guard).
+        {
+            let _conn = open_registry(&path).unwrap();
+        }
+        let conn = open_registry(&path).unwrap();
+        register_agent(
+            &conn, "pane-a", "s1", "claude", &[], "/", Some("sw"), None, None,
+        )
+        .unwrap();
+        assert_eq!(list_agents_by_swarm(&conn, "sw").unwrap().len(), 1);
+    }
+
+    #[test]
     fn test_insert_or_replace() {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
-        register_agent(&conn, "pane-a", "sess-1", "claude", &["--a".into()], "/one").unwrap();
-        register_agent(&conn, "pane-a", "sess-2", "codex", &["--b".into()], "/two").unwrap();
+        register_agent(
+            &conn, "pane-a", "sess-1", "claude", &["--a".into()], "/one", None, None, None,
+        )
+        .unwrap();
+        register_agent(
+            &conn, "pane-a", "sess-2", "codex", &["--b".into()], "/two", None, None, None,
+        )
+        .unwrap();
 
         let row: (String, String, String) = conn
             .query_row(
