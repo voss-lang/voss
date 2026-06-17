@@ -55,7 +55,11 @@ describe('ContextSurface', () => {
       <ContextSurface context={null} isAgentPane={false} />
     ));
     expect(el.querySelector('[role="tabpanel"][aria-label="Context"]')).toBeTruthy();
-    expect(el.querySelector('.context-empty')).toBeTruthy();
+    // Full-canvas surface uses the shared centered card, not ContextPanel's
+    // narrow-drawer empty text.
+    expect(el.querySelector('.surface-empty__card')).toBeTruthy();
+    expect(el.textContent).toContain('No context to show');
+    expect(el.querySelector('.context-empty')).toBeNull();
     expect(el.querySelectorAll('.context-file-row').length).toBe(0);
   });
 });

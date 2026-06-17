@@ -1,4 +1,5 @@
 import { onMount, onCleanup, createSignal, Show } from 'solid-js';
+import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
 import { type AgentConfig, type BudgetState } from './pty-ipc';
@@ -35,6 +36,14 @@ import {
   type AppearanceSettings,
 } from '../appearance/settings';
 import { DEFAULT_APPEARANCE_SETTINGS } from '../appearance/types';
+import {
+  clipboardImageFile,
+  imageFileToBytes,
+  quotePathForShell,
+  resolveTerminalCopyAction,
+  shouldGuardTerminalPaste,
+  type CopyMode,
+} from './terminalClipboard';
 
 export interface PaneProps {
   /** Pane id for scrollback registry and restore keying (A6). */
@@ -68,8 +77,6 @@ function basename(p: string): string {
 type DotState = import('./paneSessionRegistry').DotState;
 
 /** D-06 copy/interrupt mode. 'smart' = selection→copy else SIGINT. A8 surfaces UI. */
-type CopyMode = 'smart' | 'copy' | 'sigint';
-
 export default function PaneComponent(props: PaneProps) {
   let containerRef!: HTMLDivElement;
   let bodyRef!: HTMLDivElement;
@@ -234,32 +241,56 @@ export default function PaneComponent(props: PaneProps) {
       setShowFind(true);
       return false;
     }
-    // ⌘C — selection ⇒ copy; no selection ⇒ SIGINT (D-06, configurable).
+    // ⌘C copies terminal selection. Ctrl+C remains the interrupt path.
     if (!e.shiftKey && k === 'c') {
-      const hasSel = !!session?.term.hasSelection();
-      if (copyMode !== 'sigint' && hasSel) {
+      const action = resolveTerminalCopyAction(
+        !!session?.term.hasSelection(),
+        copyMode,
+      );
+      if (action === 'copy-selection') {
         const sel = session?.term.getSelection() ?? '';
         void navigator.clipboard?.writeText(sel);
         session?.term.clearSelection();
         return false;
       }
-      if (copyMode !== 'copy') {
+      if (action === 'interrupt') {
         writeBytes(new Uint8Array([0x03])); // ETX → SIGINT to fg pgid
         return false;
       }
+      return false;
     }
     return true;
   };
 
-  const onPaste = (e: ClipboardEvent) => {
-    e.preventDefault();
-    const text = e.clipboardData?.getData('text') ?? '';
+  const pasteText = (text: string, bypass: boolean) => {
     if (!text) return;
-    if (text.includes('\n') && !bypassFlag) {
+    if (shouldGuardTerminalPaste(text, bypass)) {
       setPendingPaste(text);
     } else {
       writeStr(text);
     }
+  };
+
+  const onPaste = (e: ClipboardEvent) => {
+    e.preventDefault();
+    const data = e.clipboardData;
+    const imageFile = clipboardImageFile(data);
+    if (imageFile) {
+      void (async () => {
+        try {
+          const payload = await imageFileToBytes(imageFile);
+          const path = await invoke<string>('save_clipboard_image', payload);
+          writeStr(quotePathForShell(path));
+        } catch (err) {
+          console.error('[voss-app] image paste failed:', err);
+        } finally {
+          bypassFlag = false;
+        }
+      })();
+      return;
+    }
+    const text = e.clipboardData?.getData('text') ?? '';
+    pasteText(text, bypassFlag);
     bypassFlag = false; // consume one-shot
   };
 

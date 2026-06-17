@@ -3,31 +3,15 @@
   "activePreset": null,
   "grid": {
     "root": {
-      "kind": "split",
-      "orientation": "V",
-      "ratio": 0.5,
-      "left": {
-        "kind": "pane",
-        "id": "91fc0694-d40e-4519-a501-4c7023332cda",
-        "cwd": "",
-        "shell": "",
-        "index": 1
-      },
-      "right": {
-        "kind": "pane",
-        "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
-        "cwd": "/Users/benjaminmarks/Projects/Voss",
-        "shell": "",
-        "index": 2
-      }
+      "kind": "pane",
+      "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
+      "cwd": "/Users/benjaminmarks/Projects/Voss",
+      "shell": "",
+      "index": 1
     },
-    "focusedId": "91fc0694-d40e-4519-a501-4c7023332cda"
+    "focusedId": "609f75a0-ec07-488a-aabe-65e8abeabc50"
   },
   "panes": [
-    {
-      "id": "91fc0694-d40e-4519-a501-4c7023332cda",
-      "scrollback": null
-    },
     {
       "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
       "scrollback": null

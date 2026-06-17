@@ -42,24 +42,39 @@ const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
   }
 
   return (
-    <div class="swarm-launch" role="group" aria-label="Launch an orchestra">
+    <div
+      classList={{
+        'swarm-launch': true,
+        'swarm-launch--compact': !!props.compact,
+      }}
+      role="group"
+      aria-label="Launch an orchestra"
+    >
       <Show when={!props.compact}>
-        <p class="swarm-empty__title">No orchestra running</p>
+        <div class="swarm-launch__header">
+          <div>
+            <p class="swarm-launch__kicker">Orchestra setup</p>
+            <p class="swarm-empty__title">No orchestra running</p>
+          </div>
+          <span class="swarm-launch__pill">Idle</span>
+        </div>
         <p class="swarm-empty__hint">
-          Describe a goal and launch an orchestra — a coordinator decomposes it
-          and builders work in parallel, live on this map.
+          Set the goal Voss should coordinate, then choose the builder count.
         </p>
       </Show>
 
-      <textarea
-        class="swarm-launch__goal"
-        aria-label="Orchestra goal"
-        placeholder="Ask the orchestra to…"
-        rows="2"
-        value={goal()}
-        disabled={busy()}
-        onInput={(e) => setGoal(e.currentTarget.value)}
-      />
+      <label class="swarm-launch__field">
+        <span>Goal</span>
+        <textarea
+          class="swarm-launch__goal"
+          aria-label="Orchestra goal"
+          placeholder="What should the orchestra do?"
+          rows="3"
+          value={goal()}
+          disabled={busy()}
+          onInput={(e) => setGoal(e.currentTarget.value)}
+        />
+      </label>
 
       <div class="swarm-launch__row">
         <label class="swarm-launch__builders">
@@ -88,11 +103,13 @@ const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
 
       <Show when={!connected()}>
         <p class="swarm-launch__reason" role="note">
+          <span aria-hidden="true">●</span>
           Open a workspace to connect a live Voss server.
         </p>
       </Show>
       <Show when={note()}>
         <p class="swarm-launch__reason" role="alert">
+          <span aria-hidden="true">●</span>
           {note()}
         </p>
       </Show>

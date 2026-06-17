@@ -18,6 +18,7 @@ import {
 } from 'solid-js';
 import '../surfaces.css';
 import './memory.css';
+import SurfaceEmpty from '../SurfaceEmpty';
 import { fetchMemory, type MemoryResponse } from '../../org/live/memoryClient';
 
 export interface MemorySurfaceProps {
@@ -26,17 +27,36 @@ export interface MemorySurfaceProps {
   cwd?: string;
 }
 
+const MemoryIcon = () => (
+  <svg
+    width="22"
+    height="22"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+    <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
+  </svg>
+);
+
 /** Honest fallback when the app has no live server to query. */
 const MemoryFallback: Component = () => (
   <div class="surface__body">
-    <div class="surface-empty">
-      <p class="surface-empty__title">Memory is managed by the Voss harness</p>
-      <p class="surface-empty__hint">
-        Recall and inspect memory from a Voss session with the{' '}
-        <code>/memory</code> command. Start a session in this workspace to browse
-        memory here.
-      </p>
-    </div>
+    <SurfaceEmpty
+      icon={<MemoryIcon />}
+      title="Memory lives in the Voss harness"
+      hint={
+        <>
+          Recall and inspect memory from a Voss session with the{' '}
+          <code>/memory</code> command. Start a session in this workspace to
+          browse memory here.
+        </>
+      }
+    />
   </div>
 );
 

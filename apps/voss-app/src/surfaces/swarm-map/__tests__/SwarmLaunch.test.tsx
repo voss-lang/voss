@@ -26,7 +26,7 @@ describe('SwarmLaunch', () => {
     expect(el.textContent).toContain('No orchestra running');
     expect(el.textContent).toContain('Launch orchestra');
     expect(el.querySelector('textarea')?.getAttribute('placeholder')).toBe(
-      'Ask the orchestra to…',
+      'What should the orchestra do?',
     );
   });
 
