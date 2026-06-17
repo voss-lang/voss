@@ -145,11 +145,21 @@ def test_per_role_model_routing(client):
     assert {"model-coord", "model-build", "model-review"} <= models
 
 
-def test_explicit_roster_agent_axis_persists_and_cli_roles_pending(client):
+@pytest.mark.parametrize(
+    ("agent", "model", "args"),
+    [
+        ("codex", "gpt-5.5", ["--fast"]),
+        ("claude", "opus", ["--dangerously-skip-permissions"]),
+        ("opencode", "kimi-k2.7-code", ["--experimental"]),
+    ],
+)
+def test_explicit_roster_agent_axis_persists_and_cli_roles_pending(
+    client, agent, model, args
+):
     # R3: a mixed roster — native coordinator + CLI builder + native reviewer.
     roster = [
         {"name": "coordinator", "agent": "voss", "model": "model-coord"},
-        {"name": "builder-1", "agent": "codex", "model": "gpt-5.5", "args": ["--fast"]},
+        {"name": "builder-1", "agent": agent, "model": model, "args": args},
         {"name": "reviewer", "agent": "voss"},
     ]
     r = client.post(
@@ -163,15 +173,17 @@ def test_explicit_roster_agent_axis_persists_and_cli_roles_pending(client):
     # in-process session — its worktree spawn lands in a later wave).
     assert "session_id" in spawned["coordinator"]
     assert spawned["builder-1"].get("pending") is True
-    assert spawned["builder-1"]["agent"] == "codex"
+    assert spawned["builder-1"]["agent"] == agent
+    assert spawned["builder-1"]["model"] == model
     assert "session_id" not in spawned["builder-1"]
 
     # GET /swarm snapshot carries the agent axis on the persisted roster.
     swarm_id = r.json()["id"]
     snap = client.get(f"/swarm/{swarm_id}", headers=_auth()).json()["swarm"]
     by_name = {role["name"]: role for role in snap["roster"]}
-    assert by_name["builder-1"]["agent"] == "codex"
-    assert by_name["builder-1"]["args"] == ["--fast"]
+    assert by_name["builder-1"]["agent"] == agent
+    assert by_name["builder-1"]["model"] == model
+    assert by_name["builder-1"]["args"] == args
     assert by_name["coordinator"]["agent"] == "voss"
 
 

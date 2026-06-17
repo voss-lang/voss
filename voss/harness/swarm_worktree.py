@@ -162,14 +162,24 @@ def changed_files(mw: MemberWorktree) -> list[str]:
     the watcher must catch). Paths are returned relative to the worktree root,
     which equals the member's cwd — the same frame `owned_files` is expressed in.
     """
-    out = _git(mw.path, "status", "--porcelain", "-z")
-    if not out:
-        return []
+    # NOT via _git(): porcelain status lines begin with a significant leading
+    # space (e.g. " M path"), which _git's .strip() would eat and shift the path
+    # slice. Run raw and slice each NUL-separated entry's 2-char XY + space.
+    result = subprocess.run(
+        ["git", "-C", str(mw.path), "status", "--porcelain", "-z"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode, ["git", "status"], result.stdout, result.stderr
+        )
     files: list[str] = []
     # -z gives NUL-separated entries; a rename record carries two NUL fields
     # (old\0new) but a swarm member's edits are creates/edits/deletes, so the
     # simple split is sufficient and each entry's path starts at offset 3.
-    for entry in out.split("\0"):
+    for entry in result.stdout.split("\0"):
         if not entry:
             continue
         files.append(entry[3:])
