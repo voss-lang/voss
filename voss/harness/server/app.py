@@ -923,6 +923,70 @@ def create_app(token: str | None = None) -> FastAPI:
             )
         return {"v": 1, "status": "accepted"}
 
+    def _r3_event_adapter(swarm_id: str):
+        """Map the orchestrator's plain-dict events onto typed SSE events.
+
+        `swarm_runtime` stays transport-free (emits dicts); this closure is the
+        seam that turns them into `E.Swarm*` models fanned out via
+        `_emit_swarm_event` (R3 execution-plane → SSE)."""
+
+        def emit(ev: dict) -> None:
+            etype = ev.get("type")
+            if etype == "swarm.needs_operator":
+                paths = ev.get("paths") or []
+                _emit_swarm_event(
+                    swarm_id,
+                    E.SwarmNeedsOperator(
+                        swarm_id=swarm_id,
+                        task_id=ev.get("task_id", ""),
+                        session_id=ev.get("session_id", ""),
+                        tool_name=ev.get("tool_name", "fs_write"),
+                        path=", ".join(paths) if paths else ev.get("path"),
+                    ),
+                )
+            elif etype == "swarm.complete":
+                _emit_swarm_event(
+                    swarm_id,
+                    E.SwarmComplete(
+                        swarm_id=swarm_id,
+                        task_count=ev.get("task_count", 0),
+                        summary=ev.get("summary"),
+                    ),
+                )
+
+        return emit
+
+    @app.post("/swarm/{swarm_id}/run", status_code=202)
+    async def run_swarm(swarm_id: str) -> dict:
+        """Drive the R3 CLI members of a swarm (worktree spawn + ownership +
+        fan-in) headlessly. Native roles are untouched — they run via the
+        in-process turn path. Fire-and-forget: the orchestrator streams progress
+        over the swarm SSE plane; the route returns immediately."""
+        store = app.state.swarm_store
+        swarm = store.get(swarm_id)
+        if swarm is None:
+            raise HTTPException(404, "swarm not found")
+
+        from ..swarm_runtime import run_cli_swarm, subprocess_spawn
+
+        repo_root = Path(swarm.cwd)
+        on_event = _r3_event_adapter(swarm_id)
+
+        async def _drive() -> None:
+            try:
+                await run_cli_swarm(
+                    store,
+                    repo_root,
+                    swarm_id,
+                    spawn_fn=subprocess_spawn,
+                    on_event=on_event,
+                )
+            except Exception:  # noqa: BLE001 — background driver must not crash the loop
+                pass
+
+        asyncio.create_task(_drive())
+        return {"v": 1, "status": "running"}
+
     # -- OpenAPI: force the event union into components (H1.14) --------------
 
     _force_event_schema(app)

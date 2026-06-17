@@ -679,3 +679,73 @@
   font-size: 11px;
   color: var(--accent-amber);
 }
+
+/* Swarm launch panel (empty state). */
+.swarm-launch {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, 100%);
+  text-align: left;
+}
+.swarm-launch__goal {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg-0, var(--fg));
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.swarm-launch__goal:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.swarm-launch__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.swarm-launch__builders {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.swarm-launch__builders input {
+  width: 56px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-1, var(--fg));
+  font-size: 13px;
+  padding: 4px 6px;
+}
+.swarm-launch__btn {
+  padding: 7px 14px;
+  background: var(--focus);
+  border: none;
+  border-radius: 8px;
+  color: var(--bg-0);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.swarm-launch__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.swarm-launch__btn:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+.swarm-launch__reason {
+  margin: 0;
+  font-size: 11px;
+  color: var(--accent-amber);
+}

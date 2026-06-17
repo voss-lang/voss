@@ -807,9 +807,27 @@
       },
       "RoleSpec": {
         "properties": {
+          "agent": {
+            "default": "voss",
+            "title": "Agent",
+            "type": "string"
+          },
+          "args": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Args",
+            "type": "array"
+          },
           "auth_pref": {
             "default": "auto",
             "title": "Auth Pref",
+            "type": "string"
+          },
+          "command": {
+            "default": "",
+            "title": "Command",
             "type": "string"
           },
           "model": {
@@ -2133,6 +2151,48 @@
           }
         },
         "summary": "Swarm Message"
+      }
+    },
+    "/swarm/{swarm_id}/run": {
+      "post": {
+        "description": "Drive the R3 CLI members of a swarm (worktree spawn + ownership +\nfan-in) headlessly. Native roles are untouched \u2014 they run via the\nin-process turn path. Fire-and-forget: the orchestrator streams progress\nover the swarm SSE plane; the route returns immediately.",
+        "operationId": "run_swarm_swarm__swarm_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "swarm_id",
+            "required": true,
+            "schema": {
+              "title": "Swarm Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Run Swarm Swarm  Swarm Id  Run Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Swarm"
       }
     },
     "/swarm/{swarm_id}/task": {

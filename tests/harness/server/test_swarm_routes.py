@@ -241,6 +241,43 @@ async def test_spawn_gate_zero_turns_before_assign(monkeypatch, tmp_path):
     assert calls["n"] == 1  # exactly one turn after assign
 
 
+def test_run_route_drives_orchestrator_and_maps_events(client, monkeypatch):
+    # R3 driver: POST /swarm/{id}/run kicks off run_cli_swarm and its plain-dict
+    # events are mapped to typed SSE events fanned to registered sessions.
+    import voss.harness.swarm_runtime as rt
+
+    r = client.post(
+        "/swarm", json={"goal": "g", "cwd": client._cwd}, headers=_auth()
+    ).json()
+    sid = r["id"]
+    coord = next(s["session_id"] for s in r["sessions"] if s["role"] == "coordinator")
+
+    async def _fake_run_cli_swarm(store, repo_root, swarm_id, *, spawn_fn, on_event=None, **kw):
+        # Emit the two event kinds the adapter maps; no real CLIs/worktrees.
+        on_event({"type": "swarm.needs_operator", "swarm_id": swarm_id,
+                  "task_id": "t1", "session_id": "s1", "paths": ["src/x.py"]})
+        on_event({"type": "swarm.complete", "swarm_id": swarm_id, "task_count": 2})
+
+    monkeypatch.setattr(rt, "run_cli_swarm", _fake_run_cli_swarm)
+
+    resp = client.post(f"/swarm/{sid}/run", headers=_auth())
+    assert resp.status_code == 202, resp.text
+
+    # The driver fires `asyncio.create_task`; a follow-up request gives the
+    # portal loop a tick to run the (await-free) fake to completion.
+    client.get(f"/swarm/{sid}", headers=_auth())
+
+    # The background task ran; the coordinator queue received the mapped events.
+    q = client.app.state.sessions.get(coord).queue
+    seen = set()
+    while not q.empty():
+        seen.add(q.get_nowait().type)
+    assert {"swarm.needs_operator", "swarm.complete"} <= seen
+
+    # Unknown swarm -> 404.
+    assert client.post("/swarm/nope/run", headers=_auth()).status_code == 404
+
+
 def test_swarm_sse_event_types(client):
     # Spawn a default-roster swarm (coordinator + 2 builders + reviewer).
     r = client.post(
