@@ -145,6 +145,36 @@ def test_per_role_model_routing(client):
     assert {"model-coord", "model-build", "model-review"} <= models
 
 
+def test_explicit_roster_agent_axis_persists_and_cli_roles_pending(client):
+    # R3: a mixed roster — native coordinator + CLI builder + native reviewer.
+    roster = [
+        {"name": "coordinator", "agent": "voss", "model": "model-coord"},
+        {"name": "builder-1", "agent": "codex", "model": "gpt-5.5", "args": ["--fast"]},
+        {"name": "reviewer", "agent": "voss"},
+    ]
+    r = client.post(
+        "/swarm",
+        json={"goal": "g", "cwd": client._cwd, "roster": roster},
+        headers=_auth(),
+    )
+    assert r.status_code == 201, r.text
+    spawned = {s["role"]: s for s in r.json()["sessions"]}
+    # Native roles get a live session; the CLI role is recorded pending (no
+    # in-process session — its worktree spawn lands in a later wave).
+    assert "session_id" in spawned["coordinator"]
+    assert spawned["builder-1"].get("pending") is True
+    assert spawned["builder-1"]["agent"] == "codex"
+    assert "session_id" not in spawned["builder-1"]
+
+    # GET /swarm snapshot carries the agent axis on the persisted roster.
+    swarm_id = r.json()["id"]
+    snap = client.get(f"/swarm/{swarm_id}", headers=_auth()).json()["swarm"]
+    by_name = {role["name"]: role for role in snap["roster"]}
+    assert by_name["builder-1"]["agent"] == "codex"
+    assert by_name["builder-1"]["args"] == ["--fast"]
+    assert by_name["coordinator"]["agent"] == "voss"
+
+
 def test_default_roster_resolves_sentinel_model(client):
     # No explicit roster -> default_roster, every Role.model == "default".
     # The spawn must resolve that sentinel to a real model id, not ship the

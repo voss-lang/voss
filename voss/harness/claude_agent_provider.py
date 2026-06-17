@@ -43,7 +43,8 @@ _JSON_TAIL = (
     "required schema."
 )
 
-_API_BILLING_ENV_KEYS = (
+# Calls only when needed, not invoked at startup or on request
+_API_BILLING_ENV_KEYS_TO_SHADOW = (
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL",
@@ -102,7 +103,11 @@ def _subscription_env_overrides() -> dict[str, str]:
     unsetting a variable for the spawned ``claude`` process.
     """
 
-    return {key: "" for key in _API_BILLING_ENV_KEYS if os.environ.get(key)}
+    return {
+        key: ""
+        for key in _API_BILLING_ENV_KEYS_TO_SHADOW
+        if os.environ.get(key)
+    }
 
 
 class ClaudeAgentProvider:

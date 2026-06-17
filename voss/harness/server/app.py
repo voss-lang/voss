@@ -23,12 +23,14 @@ from sse_starlette import EventSourceResponse, ServerSentEvent
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
+from tests.harness.tui import snapshots
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
 
 from .. import auth as auth_mod
 from .. import session as session_store
 from ..agent import run_turn
 from ..permissions import PermissionGate, PermissionStore
+from ..swarm_agents import is_native
 from ..swarm_store import (
     OwnershipOverlapError,
     Role,
@@ -764,17 +766,32 @@ def create_app(token: str | None = None) -> FastAPI:
     async def create_swarm(body: CreateSwarmBody) -> dict:
         store = app.state.swarm_store
         cwd = Path(body.cwd or ".").resolve()
-        swarm = store.create(goal=body.goal, cwd=str(cwd), builders=body.builders)
-        # Per-role spawn (VSWARM-08): one ServerSession per roster role, each
-        # with its own resolved provider + model. Builders are spawn-gated
-        # (asyncio.Event created HERE — inside an async handler, Pitfall 2).
-        roster = (
-            [Role(**r.model_dump()) for r in body.roster]
-            if body.roster
-            else swarm.roster
+        # Persist the explicit roster (R3 per-role agent axis) so the stored /
+        # replayed swarm matches what is spawned; swarm.roster is then the single
+        # source the spawn loop iterates.
+        explicit = (
+            [Role(**r.model_dump()) for r in body.roster] if body.roster else None
         )
+        swarm = store.create(
+            goal=body.goal, cwd=str(cwd), builders=body.builders, roster=explicit
+        )
+        # Per-role spawn: native (agent="voss") roles run the in-process run_turn
+        # loop (V25 behavior). R3 CLI roles (agent!="voss") are spawned in their
+        # own git worktree by the host — that integration lands in a later wave;
+        # here they are recorded as pending so the axis is visible end-to-end.
+        # Builders are spawn-gated (asyncio.Event created HERE — async handler).
         spawned: list[dict] = []
-        for role in roster:
+        for role in swarm.roster:
+            if not is_native(role):
+                spawned.append(
+                    {
+                        "role": role.name,
+                        "agent": role.agent,
+                        "model": role.model,
+                        "pending": True,
+                    }
+                )
+                continue
             res, provider = _resolve_provider(role.auth_pref)
             if provider is None:
                 raise HTTPException(400, f"no usable credentials ({res.detail})")
@@ -787,7 +804,14 @@ def create_app(token: str | None = None) -> FastAPI:
             if role.name.startswith("builder"):
                 sess.gate_event = asyncio.Event()
             store.register_agent(swarm.id, sess.id, role.name, [])
-            spawned.append({"session_id": sess.id, "role": role.name, "model": sess.model})
+            spawned.append(
+                {
+                    "session_id": sess.id,
+                    "role": role.name,
+                    "model": sess.model,
+                    "agent": role.agent,
+                }
+            )
         return {"v": 1, "id": swarm.id, "sessions": spawned}
 
     @app.get("/swarm/{swarm_id}")
