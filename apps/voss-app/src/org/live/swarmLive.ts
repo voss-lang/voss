@@ -1,0 +1,202 @@
+// V24 Swarm Map — live ingestion of the V25 swarm SSE plane.
+//
+// The 5 swarm.* events (voss/harness/server/events.py) fan out over the existing
+// SSE bus to every registered swarm session. sseClient routes each event here.
+// This module keeps the LIVE half of the swarm graph the GET /swarm snapshot
+// cannot express:
+//   - builder↔task binding (swarm.assign: session_id ↔ task_id ↔ role ↔ owned_files)
+//   - reviewer gates, operator escalations, worker-done, completion
+//   - a bounded ring of recent live edges (honest source "sse_event:swarm.*") for
+//     the guarded pulse / EventTrace fallback.
+//
+// The SDK AgentEvent union does NOT include swarm types (SDK typegen not run), so
+// events are narrowed STRUCTURALLY by `type` here — mirroring the server models.
+// Module-level signals + immutable spreads only (Pitfall 5: no produce/structuredClone).
+
+import { createSignal } from 'solid-js';
+
+// --- Event shapes (mirror voss/harness/server/events.py SwarmAssign etc.) ------
+
+export interface SwarmAssignEvent {
+  type: 'swarm.assign';
+  swarm_id: string;
+  task_id: string;
+  session_id: string;
+  owned_files: string[];
+  role: string;
+}
+export interface SwarmWorkerDoneEvent {
+  type: 'swarm.worker_done';
+  swarm_id: string;
+  task_id: string;
+  session_id: string;
+  summary?: string | null;
+}
+export interface SwarmGateEvent {
+  type: 'swarm.gate';
+  swarm_id: string;
+  task_id: string;
+  gate_type: string; // "ownership_denied" | "reviewer_reject"
+  detail: string;
+}
+export interface SwarmNeedsOperatorEvent {
+  type: 'swarm.needs_operator';
+  swarm_id: string;
+  task_id: string;
+  session_id: string;
+  tool_name: string;
+  path?: string | null;
+}
+export interface SwarmCompleteEvent {
+  type: 'swarm.complete';
+  swarm_id: string;
+  task_count: number;
+  summary?: string | null;
+}
+
+export type SwarmEvent =
+  | SwarmAssignEvent
+  | SwarmWorkerDoneEvent
+  | SwarmGateEvent
+  | SwarmNeedsOperatorEvent
+  | SwarmCompleteEvent;
+
+/** The binding the GET /swarm snapshot omits: which session/role owns a task. */
+export interface SwarmAssignment {
+  taskId: string;
+  sessionId: string;
+  role: string;
+  ownedFiles: string[];
+}
+
+/** A live swarm edge for the guarded pulse / EventTrace fallback. Honest source. */
+export interface SwarmLiveEdge {
+  type: 'assign' | 'worker_done' | 'gate' | 'needs_operator';
+  taskId: string;
+  sessionId: string | null;
+  source: string; // "sse_event:swarm.<type>"
+  timestamp: number;
+}
+
+const MAX_LIVE_EDGES = 200;
+
+// task_id → latest assignment (builder↔task binding).
+const [swarmAssignments, setSwarmAssignments] = createSignal<
+  Record<string, SwarmAssignment>
+>({});
+// task_id → open operator escalation (cleared when answered upstream; latest wins).
+const [swarmOperatorNeeds, setSwarmOperatorNeeds] = createSignal<
+  Record<string, SwarmNeedsOperatorEvent>
+>({});
+// task_id → latest gate outcome.
+const [swarmGates, setSwarmGates] = createSignal<Record<string, SwarmGateEvent>>({});
+// task_ids reported done via worker_done (snapshot state is authoritative; this is liveness).
+const [swarmDone, setSwarmDone] = createSignal<Set<string>>(new Set());
+// swarm_id → completion (task_count + summary) once swarm.complete arrives.
+const [swarmComplete, setSwarmComplete] = createSignal<
+  Record<string, SwarmCompleteEvent>
+>({});
+// bounded ring of recent live edges (for pulse + EventTrace parity).
+const [swarmLiveEdges, setSwarmLiveEdges] = createSignal<SwarmLiveEdge[]>([]);
+
+function pushLiveEdge(edge: SwarmLiveEdge): void {
+  setSwarmLiveEdges((prev) => {
+    const next = [...prev, edge];
+    return next.length > MAX_LIVE_EDGES
+      ? next.slice(next.length - MAX_LIVE_EDGES)
+      : next;
+  });
+}
+
+function isSwarmEvent(ev: unknown): ev is SwarmEvent {
+  return (
+    typeof ev === 'object' &&
+    ev !== null &&
+    typeof (ev as { type?: unknown }).type === 'string' &&
+    (ev as { type: string }).type.startsWith('swarm.')
+  );
+}
+
+/**
+ * Route one SSE event into the live swarm store. No-op for non-swarm events, so
+ * sseClient can call it unconditionally in its for-await loop. `ts` is injectable
+ * for deterministic tests (defaults to Date.now()).
+ */
+export function ingestSwarmEvent(ev: unknown, ts: number = Date.now()): void {
+  if (!isSwarmEvent(ev)) return;
+
+  switch (ev.type) {
+    case 'swarm.assign':
+      setSwarmAssignments((prev) => ({
+        ...prev,
+        [ev.task_id]: {
+          taskId: ev.task_id,
+          sessionId: ev.session_id,
+          role: ev.role,
+          ownedFiles: ev.owned_files ?? [],
+        },
+      }));
+      pushLiveEdge({
+        type: 'assign',
+        taskId: ev.task_id,
+        sessionId: ev.session_id,
+        source: 'sse_event:swarm.assign',
+        timestamp: ts,
+      });
+      break;
+    case 'swarm.worker_done':
+      setSwarmDone((prev) => new Set([...prev, ev.task_id]));
+      pushLiveEdge({
+        type: 'worker_done',
+        taskId: ev.task_id,
+        sessionId: ev.session_id,
+        source: 'sse_event:swarm.worker_done',
+        timestamp: ts,
+      });
+      break;
+    case 'swarm.gate':
+      setSwarmGates((prev) => ({ ...prev, [ev.task_id]: ev }));
+      pushLiveEdge({
+        type: 'gate',
+        taskId: ev.task_id,
+        sessionId: null,
+        source: 'sse_event:swarm.gate',
+        timestamp: ts,
+      });
+      break;
+    case 'swarm.needs_operator':
+      setSwarmOperatorNeeds((prev) => ({ ...prev, [ev.task_id]: ev }));
+      pushLiveEdge({
+        type: 'needs_operator',
+        taskId: ev.task_id,
+        sessionId: ev.session_id,
+        source: 'sse_event:swarm.needs_operator',
+        timestamp: ts,
+      });
+      break;
+    case 'swarm.complete':
+      setSwarmComplete((prev) => ({ ...prev, [ev.swarm_id]: ev }));
+      break;
+    default:
+      break;
+  }
+}
+
+export {
+  swarmAssignments,
+  swarmOperatorNeeds,
+  swarmGates,
+  swarmDone,
+  swarmComplete,
+  swarmLiveEdges,
+};
+
+/** Test-only reset (mirrors __resetLiveStream). */
+export function __resetSwarmLive(): void {
+  setSwarmAssignments({});
+  setSwarmOperatorNeeds({});
+  setSwarmGates({});
+  setSwarmDone(new Set<string>());
+  setSwarmComplete({});
+  setSwarmLiveEdges([]);
+}

@@ -21,6 +21,7 @@
 import { createSignal } from 'solid-js';
 
 import { ingestEvent } from '../attention/attentionQueue';
+import { ingestSwarmEvent } from './swarmLive';
 import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
 import { subscribeToEvents } from '../../../../../sdk/typescript/src/client/sse';
 
@@ -249,6 +250,7 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
         ingestEvent(ev, args.cardId ? { cardId: args.cardId } : {});
         applyOverlay(ev);
         emitGraphPatch(ev, args.cardId);
+        ingestSwarmEvent(ev); // V25 swarm.* plane (structural narrow; no-op otherwise)
         args.onEvent?.(ev);
       }
     } catch {

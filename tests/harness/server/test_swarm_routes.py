@@ -145,6 +145,25 @@ def test_per_role_model_routing(client):
     assert {"model-coord", "model-build", "model-review"} <= models
 
 
+def test_default_roster_resolves_sentinel_model(client):
+    # No explicit roster -> default_roster, every Role.model == "default".
+    # The spawn must resolve that sentinel to a real model id, not ship the
+    # literal "default" string to the provider.
+    from voss_runtime import get_config
+
+    r = client.post(
+        "/swarm",
+        json={"goal": "g", "cwd": client._cwd},
+        headers=_auth(),
+    )
+    assert r.status_code == 201, r.text
+    spawned = r.json()["sessions"]
+    assert spawned, "default roster spawned no sessions"
+    expected = get_config().default_model
+    assert {s["model"] for s in spawned} == {expected}
+    assert "default" not in {s["model"] for s in spawned}
+
+
 # ---------------------------------------------------------------------------
 # Task 2
 # ---------------------------------------------------------------------------
