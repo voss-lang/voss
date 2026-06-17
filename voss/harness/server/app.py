@@ -213,6 +213,24 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         except Exception:
             voss_md_text = None
 
+        # Seed the turn with the project index + task-relevant code recall (V19)
+        # so the agent has a map of the repo instead of blind-globbing to
+        # discover it. Mirrors the CLI's `voss do` injection path; both renders
+        # are additive and self-guard (return "" on any failure / not-ready /
+        # inject-off), so a turn never breaks because injection is unavailable.
+        try:
+            from ..cli import _render_project_index_text, _render_code_recall_text
+
+            project_index_text = _render_project_index_text(
+                session.cwd, session_id=session.id
+            )
+            code_recall_text = _render_code_recall_text(
+                session.cwd, text, session_id=session.id
+            )
+        except Exception:
+            project_index_text = ""
+            code_recall_text = ""
+
         result = await run_turn(
             text,
             tools=tools,
@@ -224,6 +242,8 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             history=session.history,
             session_id=session.id,
             voss_md_text=voss_md_text,
+            project_index_text=project_index_text,
+            code_recall_text=code_recall_text,
             prior_context=session.prior_context,
         )
         # Consume resume context once: deep history now flows via session.history.
