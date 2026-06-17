@@ -213,9 +213,51 @@ async def run_cli_member(
         task_id=task.id,
         exit_code=exit_code,
         violations=violations,
-        merged=True,
+        merged=merged,
         summary=summary,
     )
+
+
+def _commit_member_work(worktree: Path, role: str) -> bool:
+    """Stage + commit the member's working-tree changes onto its branch.
+
+    Returns True if a commit was made, False if the worktree was clean (nothing
+    to fan in — e.g. all writes were out-of-scope and reverted). Uses local
+    `-c user.*` so the commit never depends on global git identity in CI.
+    """
+    subprocess.run(
+        ["git", "-C", str(worktree), "add", "-A"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    status = subprocess.run(
+        ["git", "-C", str(worktree), "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if not status.stdout.strip():
+        return False
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(worktree),
+            "-c",
+            "user.email=swarm@voss",
+            "-c",
+            "user.name=voss-swarm",
+            "commit",
+            "-q",
+            "-m",
+            f"swarm: {role} work",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return True
 
 
 # ---------------------------------------------------------------------------

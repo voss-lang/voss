@@ -48,3 +48,47 @@ export async function fetchSwarm(
   const body = (await res.json()) as { v: number; swarm: SwarmSnapshot };
   return body.swarm;
 }
+
+/** One spawned roster session returned by POST /swarm (native roles only). */
+export interface SpawnedSession {
+  session_id?: string; // present for native (in-process) roles
+  role: string;
+  model?: string;
+  agent?: string;
+  pending?: boolean; // non-native CLI role recorded but not spawned here
+}
+
+export interface CreateSwarmResult {
+  id: string;
+  sessions: SpawnedSession[];
+}
+
+/**
+ * Create + spawn a swarm (POST /swarm). The server seeds the goal, builds the
+ * default roster (coordinator + N builders + reviewer), spawns one in-process
+ * session per native role (builders spawn-gated), and returns the swarm id + the
+ * spawned sessions. The coordinator does NOT auto-run — the caller kicks it.
+ */
+export async function createSwarm(
+  baseUrl: string,
+  token: string,
+  body: { goal: string; builders?: number; cwd?: string | null },
+): Promise<CreateSwarmResult> {
+  const res = await fetch(`${baseUrl}/swarm`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      goal: body.goal,
+      builders: body.builders ?? 2,
+      cwd: body.cwd ?? '.',
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`POST /swarm failed: ${res.status}`);
+  }
+  const out = (await res.json()) as { v: number; id: string; sessions: SpawnedSession[] };
+  return { id: out.id, sessions: out.sessions ?? [] };
+}

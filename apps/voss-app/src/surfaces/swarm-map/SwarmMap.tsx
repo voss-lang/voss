@@ -31,6 +31,7 @@ import {
   swarmGates,
   swarmOperatorNeeds,
   swarmLiveEdges,
+  activeSwarmId,
 } from '../../org/live/swarmLive';
 import { paneIdForCard } from '../../org/model/bridge';
 import { requestOpenInGrid, requestOpenInReview } from '../../org/selection';
@@ -40,6 +41,7 @@ import { layoutSwarm } from './swarmLayout';
 import { useNow } from './clock';
 import SwarmChip from './SwarmChip';
 import SwarmCommandBar from './SwarmCommandBar';
+import SwarmLaunch from './SwarmLaunch';
 import SwarmMapLegend from './SwarmMapLegend';
 import EventTraceList from './EventTraceList';
 import ReplayScrubber from './ReplayScrubber';
@@ -78,12 +80,17 @@ const SwarmMap: Component = () => {
     () => {
       const srv = liveServer();
       if (!srv) return null;
-      // swarmLiveEdges length is the refetch trigger: a new swarm.* event arrived
-      // → re-pull the authoritative task-state snapshot.
-      return { srv, tick: swarmLiveEdges().length };
+      // Refetch triggers: a new swarm.* event (length), or a freshly-launched
+      // swarm id → re-pull the authoritative roster/task-state snapshot.
+      return { srv, tick: swarmLiveEdges().length, id: activeSwarmId() };
     },
-    async (k: { srv: NonNullable<ReturnType<typeof liveServer>>; tick: number }) => {
-      const id = await discoverActiveSwarmId(k.srv.cwd ?? null);
+    async (k: {
+      srv: NonNullable<ReturnType<typeof liveServer>>;
+      tick: number;
+      id: string | null;
+    }) => {
+      // Prefer an app-launched swarm id; else discover one from the registry.
+      const id = activeSwarmId() ?? (await discoverActiveSwarmId(k.srv.cwd ?? null));
       if (!id) return null;
       try {
         return await fetchSwarm(k.srv.baseUrl, k.srv.token, id);
@@ -275,11 +282,7 @@ const SwarmMap: Component = () => {
               when={hasGraph()}
               fallback={
                 <div class="swarm-empty">
-                  <p class="swarm-empty__title">No swarm running</p>
-                  <p class="swarm-empty__hint">
-                    Launch a swarm (coordinator + builders) and it appears here as a
-                    live map.
-                  </p>
+                  <SwarmLaunch />
                 </div>
               }
             >

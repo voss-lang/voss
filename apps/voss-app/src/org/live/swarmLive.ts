@@ -98,6 +98,9 @@ const [swarmComplete, setSwarmComplete] = createSignal<
 >({});
 // bounded ring of recent live edges (for pulse + EventTrace parity).
 const [swarmLiveEdges, setSwarmLiveEdges] = createSignal<SwarmLiveEdge[]>([]);
+// The app-launched swarm id (set by SwarmLaunch). Takes precedence over registry
+// discovery so a just-created swarm renders immediately, before any pane binding.
+const [activeSwarmId, setActiveSwarmId] = createSignal<string | null>(null);
 
 function pushLiveEdge(edge: SwarmLiveEdge): void {
   setSwarmLiveEdges((prev) => {
@@ -189,6 +192,8 @@ export {
   swarmDone,
   swarmComplete,
   swarmLiveEdges,
+  activeSwarmId,
+  setActiveSwarmId,
 };
 
 /** Test-only reset (mirrors __resetLiveStream). */
@@ -199,4 +204,5 @@ export function __resetSwarmLive(): void {
   setSwarmDone(new Set<string>());
   setSwarmComplete({});
   setSwarmLiveEdges([]);
+  setActiveSwarmId(null);
 }
