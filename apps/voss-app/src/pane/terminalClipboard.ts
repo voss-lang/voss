@@ -16,7 +16,7 @@ export function shouldGuardTerminalPaste(text: string, bypass: boolean): boolean
 }
 
 export function quotePathForShell(path: string): string {
-  return `'${path.replaceAll("'", "'\\''")}'`;
+  return `'${path.replace(/'/g, "'\\''")}'`;
 }
 
 export function clipboardImageFile(data: DataTransfer | null): File | null {
