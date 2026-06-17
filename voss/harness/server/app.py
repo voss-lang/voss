@@ -29,7 +29,12 @@ from .. import auth as auth_mod
 from .. import session as session_store
 from ..agent import run_turn
 from ..permissions import PermissionGate, PermissionStore
-from ..swarm_store import OwnershipOverlapError, Role, SwarmStore
+from ..swarm_store import (
+    OwnershipOverlapError,
+    Role,
+    SwarmStore,
+    build_ownership_policy,
+)
 from ..tools import make_toolset
 from . import events as E
 from .renderer import EventBusRenderer
@@ -173,6 +178,98 @@ def _install_server_permissions(
 
 
 # ---------------------------------------------------------------------------
+# swarm ownership escalation + scoped recall (V25 VSWARM-05/07/10)
+# ---------------------------------------------------------------------------
+
+# fs_edit_many is NOT in permissions.WRITE but the ownership policy keys it, so
+# escalate on it too.
+_SWARM_WRITE_TOOLS = {"fs_write", "fs_edit", "fs_edit_many"}
+
+
+def _apply_swarm_escalation(
+    gate: PermissionGate, session: ServerSession, renderer: EventBusRenderer
+) -> None:
+    """Wrap `gate.check` so an ownership denial on a WRITE tool escalates to the
+    operator instead of silently failing (VSWARM-10). The deny itself already
+    fired at the project_policy deny-wins layer (permissions.py:288-295) which
+    runs before mode/auto_yes — auto_yes cannot bypass it. On denial we emit
+    `swarm.needs_operator` (+ a paired PermissionUpdated carrying the request id
+    so the EXISTING /session/{id}/permission Future bridge answers it) and block
+    on that Future. An approve overrides to allow + records a decision; anything
+    else keeps the deny + records it."""
+    orig_check = gate.check
+
+    def _checked(tool_name, args, *, is_mutating=False, is_network=False):
+        allowed, why = orig_check(
+            tool_name, args, is_mutating=is_mutating, is_network=is_network
+        )
+        if allowed or tool_name not in _SWARM_WRITE_TOOLS:
+            return allowed, why
+        # Ownership denial → escalate through the existing permission bridge.
+        path = str(args.get("path", ""))
+        req_id = uuid.uuid4().hex[:8]
+        fut: Future[str] = Future()
+        session.pending[req_id] = fut
+        renderer.emit(
+            E.SwarmNeedsOperator(
+                swarm_id=session.swarm_id or "",
+                task_id=session.swarm_task_id or "",
+                session_id=session.id,
+                tool_name=tool_name,
+                path=path,
+            )
+        )
+        # Paired event on the existing permission channel carries the id so a
+        # client answers via POST /session/{id}/permission (reuse, not new wire).
+        renderer.emit(
+            E.PermissionUpdated(
+                id=req_id, tool_name=tool_name, args=dict(args), dimension="tool"
+            )
+        )
+        try:
+            answer = fut.result(timeout=PERMISSION_TIMEOUT_S)
+        except TimeoutError:
+            answer = "d"
+        finally:
+            session.pending.pop(req_id, None)
+        approved = answer in ("a", "A", "y")
+        if session.swarm_id:
+            # Decision audit is cwd-scoped (.voss/decisions); a fresh store
+            # writes the file without needing the in-memory swarm state.
+            SwarmStore(session.cwd).record_gate_decision(
+                session.swarm_id,
+                session.swarm_task_id or "",
+                session.id,
+                gate_type="ownership_override" if approved else "ownership_denied",
+                confidence=1.0 if approved else 0.0,
+                detail=f"{tool_name} {path}: operator {'approved' if approved else 'denied'}",
+            )
+        if approved:
+            return True, "operator approved"
+        return False, why
+
+    gate.check = _checked  # type: ignore[method-assign]
+
+
+def _swarm_recall_text(session: ServerSession, text: str) -> str:
+    """Task-scoped recall for a swarm builder: recall filtered to ownedFiles
+    (VSWARM-07). Returns "" when there are no owned files or no scoped hits."""
+    if not session.swarm_owned_files:
+        return ""
+    from ..memory_store import MemoryStore
+    from ..swarm_store import scoped_recall
+
+    store = MemoryStore(session.cwd)
+    hits = scoped_recall(store, text, session.swarm_owned_files)
+    if not hits:
+        return ""
+    lines = ["## Task-scoped recall (your owned files)"]
+    for h in hits:
+        lines.append(f"- {h.locator}: {h.excerpt}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # turn runner
 # ---------------------------------------------------------------------------
 
@@ -213,8 +310,14 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             mode=mode,  # type: ignore[arg-type]
             store=PermissionStore.load(session.cwd),
             auto_yes=False,
+            # VSWARM-05: a swarm builder's ownership-deny policy rides the
+            # deny-wins project_policy layer. None for non-swarm sessions →
+            # byte-identical to pre-V25 behaviour.
+            project_policy=session.swarm_policy,
         )
         _install_server_permissions(gate, session, renderer)
+        if session.swarm_policy is not None:
+            _apply_swarm_escalation(gate, session, renderer)
 
         try:
             from .. import voss_md
@@ -234,9 +337,14 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             project_index_text = _render_project_index_text(
                 session.cwd, session_id=session.id
             )
-            code_recall_text = _render_code_recall_text(
-                session.cwd, text, session_id=session.id
-            )
+            # VSWARM-07: a swarm builder gets recall filtered to its ownedFiles;
+            # non-swarm sessions keep the unscoped code-recall path unchanged.
+            if session.swarm_owned_files:
+                code_recall_text = _swarm_recall_text(session, text)
+            else:
+                code_recall_text = _render_code_recall_text(
+                    session.cwd, text, session_id=session.id
+                )
         except Exception:
             project_index_text = ""
             code_recall_text = ""
@@ -351,6 +459,7 @@ class SwarmMessageBody(BaseModel):
     path: str | None = None
     summary: str | None = None
     task_count: int = 0
+    confidence: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -694,6 +803,9 @@ def create_app(token: str | None = None) -> FastAPI:
             if builder is not None:
                 builder.swarm_task_id = body.task_id
                 builder.swarm_owned_files = task.owned_files
+                # VSWARM-05: attach the per-task ownership-deny policy now that
+                # owned_files are known. _run_turn injects it into the gate.
+                builder.swarm_policy = build_ownership_policy(task.owned_files)
                 # In-process unblock (Pitfall 6 — independent of queue state).
                 if builder.gate_event is not None:
                     builder.gate_event.set()
@@ -720,6 +832,16 @@ def create_app(token: str | None = None) -> FastAPI:
                 ),
             )
         elif body.kind == "gate":
+            # A reviewer reject (or any gate) records a decision audit (VSWARM-10).
+            if "reject" in body.gate_type:
+                store.record_gate_decision(
+                    swarm_id,
+                    body.task_id or "",
+                    body.session_id or "",
+                    gate_type=body.gate_type,
+                    confidence=body.confidence,
+                    detail=body.detail,
+                )
             _emit_swarm_event(
                 swarm_id,
                 E.SwarmGate(

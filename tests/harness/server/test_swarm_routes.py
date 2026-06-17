@@ -6,13 +6,18 @@ run_turn monkeypatched; app.state.swarm_store redirected to a tmp event-log dir.
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from voss.harness.agent import Plan, TurnResult
+from voss.harness.memory_store import Hit, MemoryStore
+from voss.harness.permissions import PermissionGate
 from voss.harness.server import app as appmod
+from voss.harness.swarm_store import build_ownership_policy
 
 TOKEN = "test-token-swarm"
 
@@ -216,3 +221,104 @@ def test_swarm_sse_event_types(client):
 
     # No nudge file was written for delivery (events flow through queues only).
     assert not (Path(client._cwd) / ".voss" / "swarm" / sid / "nudge").exists()
+
+
+# ---------------------------------------------------------------------------
+# V25-05 Task 1 — ownership enforcement + operator escalation
+# ---------------------------------------------------------------------------
+def test_ownership_denies_non_owned_write():
+    # Deny-wins project_policy fires before mode/auto_yes — auto cannot bypass.
+    gate = PermissionGate(mode="auto", project_policy=build_ownership_policy(["a.py"]))
+
+    assert gate.check("fs_edit", {"path": "a.py"}, is_mutating=True)[0] is True
+    # `./`-prefixed owned path still allowed (Pitfall 1 normalization).
+    assert gate.check("fs_edit", {"path": "./a.py"}, is_mutating=True)[0] is True
+    # Non-owned writes denied in every form — the edit does not occur.
+    assert gate.check("fs_edit", {"path": "b.py"}, is_mutating=True)[0] is False
+    assert gate.check("fs_edit", {"path": "./b.py"}, is_mutating=True)[0] is False
+    assert gate.check("fs_write", {"path": "b.py"}, is_mutating=True)[0] is False
+    assert gate.check("fs_edit_many", {"path": "b.py"}, is_mutating=True)[0] is False
+
+
+def test_operator_escalation(monkeypatch, tmp_path):
+    app = _build_app(monkeypatch, tmp_path)
+    mgr = app.state.sessions
+    s = mgr.create(cwd=tmp_path, model="m", provider=object())
+    s.swarm_id = "sw1"
+    s.swarm_task_id = "t1"
+    s.swarm_policy = build_ownership_policy(["a.py"])
+
+    renderer = appmod.EventBusRenderer(s.queue, session_id=s.id)
+    gate = PermissionGate(mode="auto", project_policy=s.swarm_policy)
+    appmod._install_server_permissions(gate, s, renderer)
+    appmod._apply_swarm_escalation(gate, s, renderer)
+
+    result: dict = {}
+
+    def _run():
+        result["r"] = gate.check("fs_edit", {"path": "b.py"}, is_mutating=True)
+
+    th = threading.Thread(target=_run)
+    th.start()
+
+    # The denial registered a pending Future and emitted the escalation.
+    deadline = time.time() + 2.0
+    while not s.pending and time.time() < deadline:
+        time.sleep(0.01)
+    req_id = next(iter(s.pending))
+
+    types = []
+    while not s.queue.empty():
+        types.append(s.queue.get_nowait().type)
+    assert "swarm.needs_operator" in types
+
+    # Answer via the EXISTING permission endpoint — operator approves.
+    client = TestClient(app)
+    r = client.post(
+        f"/session/{s.id}/permission",
+        json={"id": req_id, "choice": "a"},
+        headers=_auth(),
+    )
+    assert r.json()["status"] == "ok"
+
+    th.join(timeout=2.0)
+    assert result["r"][0] is True  # operator override → allowed
+    # A decision audit was written for the resolved gate.
+    assert list((tmp_path / ".voss" / "decisions").glob("*.md"))
+
+
+# ---------------------------------------------------------------------------
+# V25-05 Task 2 — scoped recall + decision recording
+# ---------------------------------------------------------------------------
+def test_recall_scoped_injected_into_turn(monkeypatch, tmp_path):
+    app = _build_app(monkeypatch, tmp_path)
+    mgr = app.state.sessions
+
+    def _fake_recall(self, query, *, top_k=5, source=None):
+        return [
+            Hit(source="code", locator="code:a.py:0", score=1.0, excerpt="AAA"),
+            Hit(source="code", locator="code:b.py:0", score=0.9, excerpt="BBB"),
+            Hit(source="code", locator="code:a.py:1", score=0.8, excerpt="AAA2"),
+        ]
+
+    monkeypatch.setattr(MemoryStore, "recall", _fake_recall)
+
+    s = mgr.create(cwd=tmp_path, model="m", provider=object())
+    s.swarm_owned_files = ["a.py"]
+    txt = appmod._swarm_recall_text(s, "query")
+
+    assert "code:a.py:0" in txt and "AAA" in txt
+    assert "code:b.py:0" not in txt and "BBB" not in txt
+
+
+def test_reviewer_reject_writes_decision(tmp_path):
+    store = appmod.SwarmStore(cwd=tmp_path)
+    path = store.record_gate_decision(
+        "sw1", "t1", "sess-abc", gate_type="reviewer_reject",
+        confidence=0.8, detail="missing tests",
+    )
+    text = path.read_text()
+    assert "confidence: 0.8" in text
+    assert "related_session: sess-abc" in text
+    assert "gate_type: reviewer_reject" in text
+    assert "# Swarm Gate Decision" in text

@@ -143,7 +143,13 @@ def build_ownership_policy(owned_files: list[str]) -> PermissionsConfig:
     for tool in _WRITE_TOOLS:
         tool_rules: dict[str, str] = {"*": "deny"}
         for f in owned_files:
-            tool_rules[_norm(f)] = "allow"
+            n = _norm(f)
+            # The deny check fnmatches the RAW path the agent passes, which may
+            # carry a `./` prefix. Allow both the normalized and `./`-prefixed
+            # forms so an owned file is never falsely denied (Pitfall 1). The
+            # blanket "*":"deny" still catches every non-owned path/form.
+            tool_rules[n] = "allow"
+            tool_rules[f"./{n}"] = "allow"
         rules[tool] = tool_rules
     return PermissionsConfig(rules=rules)
 
@@ -311,6 +317,45 @@ class SwarmStore:
             for sid, rec in self._agents.items()
             if rec["swarm_id"] == swarm_id
         ]
+
+    # -- decision recording (VSWARM-10) ------------------------------------
+    def record_gate_decision(
+        self,
+        swarm_id: str,
+        task_id: str,
+        session_id: str,
+        gate_type: str,
+        confidence: float,
+        detail: str = "",
+    ) -> Path:
+        """Write a `.voss/decisions/<date>-<slug>.md` audit file for a gate
+        outcome (reviewer reject / resolved ownership gate). Create-exclusive —
+        a unique slug means an existing decision file is never overwritten
+        (T-V25-05-05). Mirrors the existing decision frontmatter format."""
+        decisions = self.cwd / ".voss" / "decisions"
+        decisions.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(timezone.utc)
+        slug = f"swarm-{gate_type}-{task_id}-{uuid.uuid4().hex[:6]}"
+        did = f"{now.date().isoformat()}-{slug}"
+        path = decisions / f"{did}.md"
+        content = (
+            "---\n"
+            f"id: {did}\n"
+            "status: active\n"
+            f"related_session: {session_id}\n"
+            f"confidence: {confidence}\n"
+            f"created_at: {now.isoformat(timespec='seconds')}\n"
+            f"swarm_id: {swarm_id}\n"
+            f"task_id: {task_id}\n"
+            f"gate_type: {gate_type}\n"
+            "---\n\n"
+            "# Swarm Gate Decision\n\n"
+            f"{detail}\n"
+        )
+        with open(path, "x") as f:  # create-exclusive — never overwrite
+            f.write(content)
+        path.chmod(0o600)
+        return path
 
     # -- replay (VSWARM-01 / VSWARM-11) ------------------------------------
     def replay(self, swarm_id: str) -> Swarm:
