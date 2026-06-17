@@ -133,6 +133,55 @@ describe('GridRoot — container + keymap mount (GRD-01, GRD-03)', () => {
     expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(1);
   });
 
+  it('sizes the inner tile to the visible grid container, not the window', () => {
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    const originalInnerWidth = window.innerWidth;
+    const originalInnerHeight = window.innerHeight;
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1200,
+    });
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 900,
+    });
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if ((this as HTMLElement).classList?.contains('grid-root')) {
+        return {
+          x: 0,
+          y: 0,
+          width: 720,
+          height: 480,
+          top: 0,
+          left: 0,
+          right: 720,
+          bottom: 480,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+      return originalRect.call(this);
+    };
+
+    try {
+      const el = mount(() => <GridRoot />);
+      const gr = el.querySelector('.grid-root') as HTMLElement;
+      const tile = gr.firstElementChild as HTMLElement;
+      expect(tile.style.width).toBe('720px');
+      expect(tile.style.height).toBe('480px');
+      expect(el.querySelector('[aria-label="Pane menu"]')).toBeTruthy();
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalRect;
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        value: originalInnerWidth,
+      });
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: originalInnerHeight,
+      });
+    }
+  });
+
   it('⌘\\ keydown reaches dispatchKey → splits to 2 panes', () => {
     const el = mount(() => <GridRoot />);
     expect(el.querySelectorAll('[data-testid="pane"]')).toHaveLength(1);

@@ -5,89 +5,25 @@
     "root": {
       "kind": "split",
       "orientation": "V",
-      "ratio": 0.8333333,
+      "ratio": 0.5,
       "left": {
-        "kind": "split",
-        "orientation": "H",
-        "ratio": 0.46281737,
-        "left": {
-          "kind": "pane",
-          "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
-          "cwd": "",
-          "shell": "",
-          "index": 1
-        },
-        "right": {
-          "kind": "split",
-          "orientation": "H",
-          "ratio": 0.75,
-          "left": {
-            "kind": "split",
-            "orientation": "H",
-            "ratio": 0.6666667,
-            "left": {
-              "kind": "split",
-              "orientation": "H",
-              "ratio": 0.5,
-              "left": {
-                "kind": "pane",
-                "id": "dd86f9d8-49ce-47c6-af7d-4fdfc6ef3f99",
-                "cwd": "",
-                "shell": "",
-                "index": 2
-              },
-              "right": {
-                "kind": "pane",
-                "id": "51816def-9f4e-401d-b16a-3755e3b63978",
-                "cwd": "",
-                "shell": "",
-                "index": 3
-              }
-            },
-            "right": {
-              "kind": "pane",
-              "id": "c93e0b2a-56b9-4ab2-83b0-f09eaf05096b",
-              "cwd": "",
-              "shell": "",
-              "index": 4
-            }
-          },
-          "right": {
-            "kind": "pane",
-            "id": "91fc0694-d40e-4519-a501-4c7023332cda",
-            "cwd": "",
-            "shell": "",
-            "index": 5
-          }
-        }
+        "kind": "pane",
+        "id": "91fc0694-d40e-4519-a501-4c7023332cda",
+        "cwd": "",
+        "shell": "",
+        "index": 1
       },
       "right": {
         "kind": "pane",
         "id": "609f75a0-ec07-488a-aabe-65e8abeabc50",
         "cwd": "/Users/benjaminmarks/Projects/Voss",
         "shell": "",
-        "index": 6
+        "index": 2
       }
     },
-    "focusedId": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2"
+    "focusedId": "91fc0694-d40e-4519-a501-4c7023332cda"
   },
   "panes": [
-    {
-      "id": "e66ff4b2-dfbe-47ba-8a70-a709b7d27fd2",
-      "scrollback": null
-    },
-    {
-      "id": "dd86f9d8-49ce-47c6-af7d-4fdfc6ef3f99",
-      "scrollback": null
-    },
-    {
-      "id": "51816def-9f4e-401d-b16a-3755e3b63978",
-      "scrollback": null
-    },
-    {
-      "id": "c93e0b2a-56b9-4ab2-83b0-f09eaf05096b",
-      "scrollback": null
-    },
     {
       "id": "91fc0694-d40e-4519-a501-4c7023332cda",
       "scrollback": null

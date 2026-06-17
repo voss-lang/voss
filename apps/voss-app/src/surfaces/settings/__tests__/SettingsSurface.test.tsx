@@ -1,12 +1,27 @@
-// V24-10 (VADE2-10) — Settings surface: persisted appearance controls.
-//
-// Asserts the surface reflects committed appearance settings and that changing a
-// control both applies (live) and persists. The appearance store module is mocked
-// so we can observe apply/save without a real Tauri backend.
+// V24-10 (VADE2-10) Settings surface.
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { DEFAULT_APPEARANCE_SETTINGS } from '../../../appearance/types';
+
+const h = vi.hoisted(() => ({
+  invoke: vi.fn(),
+}));
+
+const runtime = vi.hoisted(() => ({
+  applyThemeSpy: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: h.invoke }));
+
+vi.mock('../../../themes/themeRuntime', async () => {
+  const catalog = await import('../../../themes/themeCatalog');
+  return {
+    getCommittedTheme: () => catalog.getBundledTheme('voss-ignite')!,
+    applyThemeToRuntime: (theme: unknown, options: unknown) =>
+      runtime.applyThemeSpy(theme, options),
+  };
+});
 
 const applySpy = vi.fn();
 const saveSpy = vi.fn().mockResolvedValue(undefined);
@@ -34,31 +49,55 @@ function mount(ui: () => unknown): HTMLElement {
   return root;
 }
 
+beforeEach(() => {
+  h.invoke.mockReset();
+  h.invoke.mockResolvedValue(null);
+});
+
 afterEach(() => {
   dispose?.();
   dispose = undefined;
   document.body.innerHTML = '';
   applySpy.mockClear();
   saveSpy.mockClear();
+  runtime.applyThemeSpy.mockClear();
   committed = { ...DEFAULT_APPEARANCE_SETTINGS, fontSize: 13 };
 });
 
 describe('SettingsSurface', () => {
-  it('renders a Settings tabpanel reflecting committed appearance values', () => {
+  it('renders a real settings tabpanel with theme, interface, terminal, and agent sections', () => {
     const el = mount(() => <SettingsSurface />);
     const panel = el.querySelector('[role="tabpanel"][aria-label="Settings"]');
     expect(panel).toBeTruthy();
 
-    const fontSize = el.querySelector<HTMLInputElement>('input[aria-label="Font size"]');
-    expect(fontSize).toBeTruthy();
-    expect(fontSize!.value).toBe('13');
-
+    expect(el.querySelectorAll('.settings-theme-card')).toHaveLength(13);
+    expect(el.querySelector('[aria-label="Terminal font"]')).toBeTruthy();
+    expect(
+      el.querySelector<HTMLInputElement>('input[aria-label="Font size"]')?.value,
+    ).toBe('13');
     expect(el.querySelector('[aria-label="High contrast"]')).toBeTruthy();
     expect(el.querySelector('[aria-label="Bell behavior"]')).toBeTruthy();
     expect(el.querySelector('[aria-label="Cursor shape"]')).toBeTruthy();
+    expect(el.querySelector('[aria-label="Codex model"]')).toBeTruthy();
   });
 
-  it('applies AND persists a high-contrast change', () => {
+  it('applies and persists a theme selection through the active theme command', () => {
+    const el = mount(() => <SettingsSurface />);
+    const dracula = el.querySelector<HTMLButtonElement>(
+      'button[aria-label="Use theme: Dracula"]',
+    )!;
+    dracula.click();
+
+    expect(runtime.applyThemeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'dracula' }),
+      expect.objectContaining({ highContrast: false }),
+    );
+    expect(h.invoke).toHaveBeenCalledWith('save_active_theme_id', {
+      id: 'dracula',
+    });
+  });
+
+  it('applies and persists a high-contrast change', () => {
     const el = mount(() => <SettingsSurface />);
     const toggle = el.querySelector<HTMLInputElement>('input[aria-label="High contrast"]')!;
     toggle.checked = true;
@@ -70,17 +109,36 @@ describe('SettingsSurface', () => {
     expect(saveSpy.mock.calls[0][0]).toMatchObject({ highContrastEnabled: true });
   });
 
-  it('applies AND persists a bell-behavior change', () => {
+  it('applies and persists a bell behavior change', () => {
     const el = mount(() => <SettingsSurface />);
-    const select = el.querySelector<HTMLSelectElement>('select[aria-label="Bell behavior"]')!;
-    select.value = 'none';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const button = el.querySelector<HTMLButtonElement>(
+      'button[aria-label="Set bell behavior: none"]',
+    )!;
+    button.click();
 
     expect(applySpy).toHaveBeenCalledWith(
       expect.objectContaining({ bellBehavior: 'none' }),
     );
     expect(saveSpy).toHaveBeenCalledWith(
       expect.objectContaining({ bellBehavior: 'none' }),
+    );
+  });
+
+  it('persists per-CLI model defaults through appearance settings', () => {
+    const el = mount(() => <SettingsSurface />);
+    const input = el.querySelector<HTMLInputElement>('input[aria-label="Codex model"]')!;
+    input.value = 'gpt-5.1-codex';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(applySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cliDefaultModels: expect.objectContaining({ codex: 'gpt-5.1-codex' }),
+      }),
+    );
+    expect(saveSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cliDefaultModels: expect.objectContaining({ codex: 'gpt-5.1-codex' }),
+      }),
     );
   });
 });

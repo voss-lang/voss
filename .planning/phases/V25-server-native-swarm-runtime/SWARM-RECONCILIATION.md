@@ -234,6 +234,51 @@ SwarmStore/overlap/audit/escalation work is reused; the spawn-gate (VSWARM-04) a
 PermissionGate ownership (VSWARM-05) implementations are effectively superseded for CLI
 members. The 2-builder e2e test (V25-06) will need rewriting against the file-bus path.
 
+## Implementation status (2026-06-17) — R3 server plane shipped
+
+Built and tested (92 swarm tests green; full `tests/harness/server/` green). New code
+is additive — the V25 native path is untouched and backward compatible.
+
+**Wave 1 — foundation contract**
+- `swarm_store.Role` gains the agent axis: `agent` (default `"voss"`), `command`, `args`
+  (alongside existing `model`/`auth_pref`). Default roster stays all-native.
+- `SwarmStore.create(roster=...)` persists an explicit roster; replay reconstructs the
+  agent axis from the event log.
+- `RoleSpec` (route body) mirrors it; `POST /swarm` persists the explicit roster, spawns
+  native roles in-process as before, and records CLI roles as `pending` (axis visible
+  end-to-end). `GET /swarm` returns the agent axis.
+- NEW `voss/harness/swarm_agents.py` — `resolve_agent_argv(role, *, cwd, task_text)` +
+  `AGENT_CATALOG` mirroring the app's `modelPrefs.ts` (binary==key, `--model`/`--cwd`/
+  trailing task); `is_native`, `known_agents`, `custom` via shlex.
+
+**Wave 2 — leaf modules (new files)**
+- `swarm_worktree.py` — git worktree-per-member (create/list/remove/`changed_files`/
+  `merge_member`), `WorktreeMergeConflict`.
+- `swarm_watch.py` — `detect_violations` (reuses the SAME `build_ownership_policy` +
+  fnmatch as the native gate), `revert_paths`, threaded `OwnershipWatcher`.
+- `swarm_filebus.py` — A13-format `tasks/*.task.md` + `results/*.result.md` IO
+  (frontmatter via vendored pyyaml; emits both `agent:` and `cli:` for frontend compat).
+- `swarm_coordinator.py` — `decompose()` (single structured-output provider call →
+  disjoint-owned subtasks + per-task agent) + `to_tasks()` (overlap-validated).
+
+**Wave 3 — orchestrator + route**
+- `swarm_runtime.py` — injectable `SpawnFn`/`SpawnHandle` (+ `subprocess_spawn` headless
+  backend); `run_cli_member` (worktree → task file → spawn → **deterministic post-exit
+  ownership reconcile: detect→revert→escalate** → commit-in-scope → merge → read result →
+  `mark_done` → teardown) and `run_cli_swarm` (concurrent, native roles skipped,
+  `swarm.complete`). Transport-free (emits plain dicts).
+- `POST /swarm/{id}/run` — fire-and-forget driver; `_r3_event_adapter` maps the
+  orchestrator's dicts → typed `E.Swarm*` SSE events via the existing fan-out.
+
+**Deliberately deferred (not blocking the server plane):**
+- GUI swarm-setup menu (decision #4) and frontend reader convergence (decision #5) —
+  TS/Tauri work; the live frontend already reads the V25 `GET /swarm` snapshot, which now
+  carries the agent axis, so it is forward-compatible.
+- Rust/Tauri PTY spawn backend for GUI-mode CLI members (server subprocess backend ships).
+- Coordinator auto-decompose on `POST /swarm` (module ready; wiring is a one-liner when
+  desired) — today tasks are created via `POST /swarm/{id}/task` then driven by `/run`.
+- Rewriting the V25-06 e2e test against the file-bus path (the native e2e still passes).
+
 ## Note on the shipped fix
 The `Role.model` sentinel fix (`_effective_model` in `server/app.py`) is correct and
 needed under **all** options — it makes native members resolve a real model and honor an
