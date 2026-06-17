@@ -1,6 +1,6 @@
-// V24 Swarm Map — module accessor for the live `voss serve` connection.
+// V24 swarm surface — module accessor for the live `voss serve` connection.
 //
-// The Swarm Map (and its command bar) are mounted prop-less, so they reach the
+// The swarm surface (and its command bar) are mounted prop-less, so they reach the
 // live server through this module signal instead of props. App sets it from the
 // BuiltVossClient inside ensureVossClient; surfaces read baseUrl/token (swarm
 // snapshot fetch) and followUpClient (directing live agents). The token rides the

@@ -1,4 +1,4 @@
-// V24 Swarm Map — discover the active swarm from the agent registry (V25-03).
+// V24 swarm surface — discover the active swarm from the agent registry (V25-03).
 //
 // V25 deliberately has no app-side swarm launch and no list-swarms endpoint. But
 // V25-03 added swarm_id/role/owned_files to agent_registry, surfaced on AgentEntry

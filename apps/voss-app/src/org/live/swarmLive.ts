@@ -1,4 +1,4 @@
-// V24 Swarm Map — live ingestion of the V25 swarm SSE plane.
+// V24 swarm surface — live ingestion of the V25 swarm SSE plane.
 //
 // The 5 swarm.* events (voss/harness/server/events.py) fan out over the existing
 // SSE bus to every registered swarm session. sseClient routes each event here.

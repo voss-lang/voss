@@ -1,4 +1,4 @@
-// V24 Swarm Map — no-fake-signal guard for the V25-plane derive.
+// V24 swarm surface — no-fake-signal guard for the V25-plane derive.
 //
 // Every edge must carry a KNOWN_PLANE_SOURCE; a roster with no live signals
 // yields only the declared structural edges (coordinator→role, source

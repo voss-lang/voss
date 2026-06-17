@@ -1,4 +1,4 @@
-// V24 Swarm Map — a rich chip card for one swarm node (the reference look).
+// V24 swarm surface — a rich chip card for one swarm node (the reference look).
 //
 // Renders role icon tile + name + a current-work line (the builder's bound
 // Task.goal, real from the V25 plane) + a meta row (role tag, model, status dot).

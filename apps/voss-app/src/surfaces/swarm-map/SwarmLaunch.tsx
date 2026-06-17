@@ -1,4 +1,4 @@
-// V24 Swarm Map — launch panel (shown in the empty state).
+// V24 swarm surface — launch panel (shown in the empty state).
 //
 // A minimal intake (goal + builder count) that calls launchSwarm. Honest about
 // connection state: disabled-with-reason when there is no live server. On success
@@ -8,7 +8,12 @@ import { type Component, createSignal, Show } from 'solid-js';
 import { liveServer } from '../../org/live/liveServer';
 import { launchSwarm } from '../../org/live/swarmLaunch';
 
-const SwarmLaunch: Component = () => {
+interface SwarmLaunchProps {
+  compact?: boolean;
+  onClose?: () => void;
+}
+
+const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
   const [goal, setGoal] = createSignal('');
   const [builders, setBuilders] = createSignal(2);
   const [busy, setBusy] = createSignal(false);
@@ -28,25 +33,28 @@ const SwarmLaunch: Component = () => {
     setNote(null);
     try {
       await launchSwarm(srv, { goal: goal().trim(), builders: builders() });
+      props.onClose?.();
     } catch (e) {
-      setNote(`Couldn't launch swarm: ${e instanceof Error ? e.message : String(e)}`);
+      setNote(`Couldn't launch orchestra: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div class="swarm-launch" role="group" aria-label="Launch a swarm">
-      <p class="swarm-empty__title">No swarm running</p>
-      <p class="swarm-empty__hint">
-        Describe a goal and launch a swarm — a coordinator decomposes it and
-        builders work in parallel, live on this map.
-      </p>
+    <div class="swarm-launch" role="group" aria-label="Launch an orchestra">
+      <Show when={!props.compact}>
+        <p class="swarm-empty__title">No orchestra running</p>
+        <p class="swarm-empty__hint">
+          Describe a goal and launch an orchestra — a coordinator decomposes it
+          and builders work in parallel, live on this map.
+        </p>
+      </Show>
 
       <textarea
         class="swarm-launch__goal"
-        aria-label="Swarm goal"
-        placeholder="Ask the swarm to…"
+        aria-label="Orchestra goal"
+        placeholder="Ask the orchestra to…"
         rows="2"
         value={goal()}
         disabled={busy()}
@@ -74,7 +82,7 @@ const SwarmLaunch: Component = () => {
           disabled={!canLaunch()}
           onClick={() => void onLaunch()}
         >
-          {busy() ? 'Launching…' : 'Launch swarm'}
+          {busy() ? 'Launching…' : 'Launch orchestra'}
         </button>
       </div>
 

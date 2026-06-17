@@ -1,4 +1,4 @@
-// V24-06 (VADE2-06) — SwarmMap render smoke. Full-fixture render shows every
+// V24-06 (VADE2-06) — Orchestra render smoke. Full-fixture render shows every
 // node-type shape in a radial arrangement; no-data render shows the honest empty
 // state with zero node shapes (no fabricated graph). Mirrors cockpit.test.tsx
 // tauri-mock harness.
@@ -148,7 +148,21 @@ describe('SwarmMap — honest empty state', () => {
   it('with no run data shows the empty state and zero node shapes', () => {
     setRunData(null);
     const el = mount(() => <SwarmMap />);
-    expect(el.textContent).toContain('No swarm running');
+    expect(el.textContent).toContain('No orchestra running');
     expect(el.querySelectorAll('[data-node-type]').length).toBe(0);
+  });
+
+  it('keeps a New launcher available when a graph is already showing', () => {
+    setRunData(fullRun());
+    const el = mount(() => <SwarmMap />);
+    expect(el.querySelectorAll('[data-node-type]').length).toBeGreaterThan(0);
+
+    const btn = el.querySelector<HTMLButtonElement>('.swarm-map__new')!;
+    expect(btn.textContent).toBe('+ New');
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    const dialog = el.querySelector<HTMLElement>('[role="dialog"][aria-label="New orchestra"]');
+    expect(dialog).toBeTruthy();
+    expect(dialog?.textContent).toContain('Launch orchestra');
   });
 });

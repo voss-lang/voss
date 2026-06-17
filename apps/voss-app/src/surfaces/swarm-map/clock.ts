@@ -1,4 +1,4 @@
-// V24 Swarm Map — shared 1-second ticker for live elapsed-time text.
+// V24 swarm surface — shared 1-second ticker for live elapsed-time text.
 //
 // A single setInterval drives a `nowMs` signal that chips read to render elapsed
 // duration ("2m 22s"). This is a TEXT update, not a CSS animation — the

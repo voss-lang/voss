@@ -1,4 +1,4 @@
-// V24 Swarm Map — app-side swarm launch.
+// V24 swarm surface — app-side launch.
 //
 // V25 ships the runtime (POST /swarm spawns the roster sessions) but no app
 // launch. This wires it: create the swarm, mark it active so the map renders it

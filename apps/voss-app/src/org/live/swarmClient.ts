@@ -1,4 +1,4 @@
-// VADE2 (V24 Swarm Map) — typed client for the V25 server-native swarm plane.
+// VADE2 (V24 swarm surface) — typed client for the V25 server-native swarm plane.
 //
 // Read-only snapshot of a swarm's authoritative state: GET /swarm/{id} →
 // {v, swarm:{id, goal, cwd, roster:[Role], tasks:[Task]}}. This is the structure

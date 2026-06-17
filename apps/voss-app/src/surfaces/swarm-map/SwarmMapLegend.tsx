@@ -1,4 +1,4 @@
-// V24-06 (VADE2-06) — Swarm Map right legend panel (200px).
+// V24-06 (VADE2-06) — swarm surface right legend panel (200px).
 //
 // Shows the selected node's detail as kv rows (mirrors the cockpit kv-grid) plus
 // a deep-link button for work nodes; "Select a node to inspect" when nothing is

@@ -20,7 +20,9 @@ import { render } from 'solid-js/web';
 // @ts-ignore -- node builtin available in the vitest runtime; the app tsconfig is browser-lib only.
 import { readFileSync } from 'node:fs';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(() => Promise.resolve(null)),
+}));
 
 import PortalRail from '../portal/PortalRail';
 import { PORTAL_ITEMS } from '../portal/portalTypes';

@@ -498,7 +498,7 @@ export default function App() {
     const built = buildVossClientFromHandshake(handshake);
     vossClientCwd = cwd;
     setVossClient(built);
-    // Expose the live server to prop-less surfaces (Swarm Map snapshot fetch +
+    // Expose the live server to prop-less surfaces (swarm snapshot fetch +
     // command-bar directing) — token rides the Authorization header only.
     setLiveServer({
       baseUrl: built.baseUrl,

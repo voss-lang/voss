@@ -1,4 +1,4 @@
-// V24 Swarm Map — pure derivation from the V25 server-native swarm plane.
+// V24 swarm surface — pure derivation from the V25 server-native swarm plane.
 //
 // Supersedes the board-derived approximation (swarmMapDerive.ts) for real swarm
 // runs. Same HONESTY constraint: every node/edge traces to a real signal —
@@ -50,7 +50,7 @@ function displayName(name: string, ordinal?: number): string {
 }
 
 /**
- * Derive the Swarm Map graph from the V25 swarm plane. Null/empty snapshot →
+ * Derive the swarm graph from the V25 swarm plane. Null/empty snapshot →
  * { nodes: [], edges: [] } (never throws). Every node/edge carries a real source.
  */
 export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {

@@ -1,4 +1,4 @@
-// V24 Swarm Map — "Direct the Swarm" command bar + quick actions + hint strip.
+// V24 Orchestra — command bar + quick actions + hint strip.
 //
 // Directs LIVE agents only (honest): targets are the assigned builder sessions
 // known from swarm.assign (swarmAssignments: role ↔ sessionId). `@all` broadcasts
@@ -45,7 +45,7 @@ const SwarmCommandBar: Component = () => {
   const connected = () => !!followUp();
   const disabledReason = (): string | null => {
     if (!connected()) return 'Not connected to a live Voss server.';
-    if (liveCount() === 0) return 'No live agents to direct — start a swarm.';
+    if (liveCount() === 0) return 'No live agents to direct — start an orchestra.';
     return null;
   };
   const canSend = () => disabledReason() === null;
@@ -95,7 +95,7 @@ const SwarmCommandBar: Component = () => {
   }
 
   return (
-    <div class="swarm-direct" role="group" aria-label="Direct the Swarm">
+    <div class="swarm-direct" role="group" aria-label="Direct the Orchestra">
       <div class="swarm-hint">
         <span class="swarm-hint__text">
           Click a chip to inspect · drag to pan · ⌘+wheel to zoom
@@ -165,10 +165,10 @@ const SwarmCommandBar: Component = () => {
         <input
           class="swarm-bar__input"
           type="text"
-          aria-label="Direct the Swarm"
+          aria-label="Direct the Orchestra"
           placeholder={
             canSend()
-              ? 'Direct the Swarm…  (@ to target an agent)'
+              ? 'Direct the Orchestra…  (@ to target an agent)'
               : (disabledReason() ?? '')
           }
           disabled={!canSend()}

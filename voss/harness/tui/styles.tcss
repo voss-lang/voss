@@ -296,6 +296,12 @@ ModelPickerModal #picker-title {
 ModelPickerModal #picker-search {
     margin: 1 0;
 }
+ModelPickerModal #picker-list {
+    /* Fill the leftover space in the fixed-height box; without this the
+     * ListView defaults to height: auto and collapses to ~one row, hiding
+     * the rest of the catalog behind a scrollbar. */
+    height: 1fr;
+}
 ModelPickerModal #picker-footer {
     color: $dim;
     margin-top: 1;

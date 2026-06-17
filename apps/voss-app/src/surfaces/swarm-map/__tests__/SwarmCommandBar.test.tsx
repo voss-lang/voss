@@ -1,4 +1,4 @@
-// V24 Swarm Map — Direct-the-Swarm command bar: honest disabled-with-reason +
+// V24 Orchestra command bar: honest disabled-with-reason +
 // real postMessage send path. fetchSwarm/registry are not involved here.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -47,7 +47,7 @@ describe('SwarmCommandBar', () => {
     const el = mount();
     const input = el.querySelector<HTMLInputElement>('.swarm-bar__input')!;
     expect(input.disabled).toBe(true);
-    expect(input.placeholder).toMatch(/No live agents/);
+    expect(input.placeholder).toMatch(/start an orchestra/);
   });
 
   it('directs the selected target via postMessage when live', async () => {
@@ -59,6 +59,8 @@ describe('SwarmCommandBar', () => {
     const el = mount();
     const input = el.querySelector<HTMLInputElement>('.swarm-bar__input')!;
     expect(input.disabled).toBe(false);
+    expect(input.getAttribute('aria-label')).toBe('Direct the Orchestra');
+    expect(input.placeholder).toContain('Direct the Orchestra');
 
     // default target @all → broadcasts to both sessions
     input.value = 'ship it';

@@ -1,4 +1,4 @@
-// V24 Swarm Map — launchSwarm orchestration: create → activate → stream → kick.
+// V24 swarm surface — launchSwarm orchestration: create → activate → stream → kick.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

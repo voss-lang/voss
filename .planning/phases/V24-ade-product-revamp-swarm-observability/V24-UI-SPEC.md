@@ -97,7 +97,7 @@ All main-scale values are members of the standard set {4, 8, 16, 24, 32, 48, 64}
 
 **Exceptions (off-scale values, each justified):**
 
-- **Panel section padding: 12px** — existing cockpit pattern (`padding: 12px` from cockpitStyles.css `.cockpit-dhdr` / `.cockpit-dsec` / `.cockpit-drawer__title`) — preserves visual continuity with V14 cockpit components. Used for: drawer/panel section insets, surface-header internal padding, and the Swarm Map legend panel. Where it does not break V14 continuity (new mission-control rows, composer fields), prefer the on-scale `sm` (8px) / `lg` (16px) tokens instead.
+- **Panel section padding: 12px** — existing cockpit pattern (`padding: 12px` from cockpitStyles.css `.cockpit-dhdr` / `.cockpit-dsec` / `.cockpit-drawer__title`) — preserves visual continuity with V14 cockpit components. Used for: drawer/panel section insets, surface-header internal padding, and the Orchestra legend panel. Where it does not break V14 continuity (new mission-control rows, composer fields), prefer the on-scale `sm` (8px) / `lg` (16px) tokens instead.
 - **Left portal icon buttons: 48px** tall touch target (a fixed rail geometry, not a layout spacing token; ensures each nav item is tap-safe at density). Derived from sidebar header `height: 44px` pattern; rounded to 48px for 8-point alignment. (Numerically equals the `3xl` token but is consumed as a geometry constant.)
 - **Status dot indicators: 6–8px** diameter (fixed glyph size, not spacing).
 - **Pane header height: 22px** (existing A-track lock from MANIFEST.md and CONCEPT.md — do NOT change).
@@ -114,7 +114,7 @@ The system uses three weights total (400 / 500 / 600), but **each surface uses a
 
 | Role | Font | Size | Weight | Line Height | Used by surface(s) |
 |------|------|------|--------|-------------|--------------------|
-| Terminal / mono body | `--font-mono` | 13px | 400 | 1.5 | Terminal grid, Swarm Map node IDs, all numeric values |
+| Terminal / mono body | `--font-mono` | 13px | 400 | 1.5 | Terminal grid, Orchestra node IDs, all numeric values |
 | UI body | `--font-ui` | 12px | 400 | 1.4 | Mission-control rows, drawer body, descriptions |
 | UI label / chip | `--font-ui` | 11px | 500 | 1.2 | Status chips, surface-header controls, button text, kv keys |
 | Display / section heading | `--font-display` (Poppins) | 11px | 600 | 1.2 | Section group headings (ALL CAPS, letter-spacing 0.08em) |
@@ -130,13 +130,13 @@ The system uses three weights total (400 / 500 / 600), but **each surface uses a
 | Section/group headings (any surface) | 400 + 600 | 400 surrounding body; 600 the ALL-CAPS Poppins heading |
 | Composer | 400 + 600 | 400 ask field + labels; 600 the "Create Task" CTA |
 | Drawer (reused cockpit) | 400 + 600 | 400 body/kv values; 600 the 14px drawer title |
-| Swarm Map legend panel | 400 + 500 | 400 kv values; 500 the selected-node header |
+| Orchestra legend panel | 400 + 500 | 400 kv values; 500 the selected-node header |
 
 **Rules:**
 
 - Only 4 sizes in active use across the app: 11 / 12 / 13 / 14. (Terminal pane body uses the 13px baseline set by `html, body` in index.css.)
 - No single surface mixes more than two weights. The 600 weight is reserved for Poppins display headings and the primary CTA; the 500 weight is reserved for inline emphasis (labels, Task names). 400 is the default everywhere.
-- Mono font is used for: all numeric values (cost, token counts, run IDs, timestamps), glyph-prefixed terminal lines, Swarm Map node IDs.
+- Mono font is used for: all numeric values (cost, token counts, run IDs, timestamps), glyph-prefixed terminal lines, Orchestra node IDs.
 - Inter (UI font) is used for: human-readable labels, status text, Task names.
 - Poppins (display font) is used only for section headings (the existing `.cockpit-sect` / `.sidebar-section-label` pattern) and the 14px drawer title.
 
@@ -150,10 +150,10 @@ Reuse all tokens from `src/styles/variant-b.css`. V24 declares no new hex values
 
 | Role | Token | Approx share | Usage |
 |------|-------|--------------|-------|
-| Dominant | `--bg-0` (`#0a0b0e`) | ~60% | Terminal canvas, main panel background, Swarm Map canvas |
+| Dominant | `--bg-0` (`#0a0b0e`) | ~60% | Terminal canvas, main panel background, Orchestra canvas |
 | Secondary | `--bg-1` (`#11131a`) | ~30% | Top chrome, left portal rail, cockpit sidebar, drawer, timeline rail |
-| Card layer | `--bg-2` (`#171a23`) | surface within secondary | Mission-control row hover, kv cells, Swarm Map node fills |
-| Raised card | `--bg-3` (`#1f232e`) | used sparingly | Dropdowns, tooltips, Swarm Map cluster overlay |
+| Card layer | `--bg-2` (`#171a23`) | surface within secondary | Mission-control row hover, kv cells, Orchestra node fills |
+| Raised card | `--bg-3` (`#1f232e`) | used sparingly | Dropdowns, tooltips, Orchestra cluster overlay |
 
 ### Foreground Scale
 
@@ -170,13 +170,13 @@ Accents are reserved for specific semantic roles ONLY. Do NOT apply accents to d
 
 | Token | Hex | Reserved for |
 |-------|-----|-------------|
-| `--focus` | `#5a7cff` | Keyboard focus rings (`outline: 1px solid --focus`), active portal nav item left-border, primary CTA button fill, Swarm Map edge for active/live delegation |
-| `--accent-green` | `#6fd28f` | Status: done / adopted / passing / accepted; Swarm Map "done" node ring; diff `+` line tint; composer "Ask Voss to…" send button on hover |
-| `--accent-amber` | `#e8b86c` | Status: reviewing / pending / in-review; reviewer glyph `※`; attention queue warning; Swarm Map review/validation edge |
-| `--accent-red` | `#e87b7b` | Status: blocked / failed / error / destructive; Swarm Map blocker edge; budget-exceeded chip; destructive confirm button; diff `-` line tint |
-| `--accent-cyan` | `#6cc7d4` | Status: active / live / streaming; live chip dot; Swarm Map live edge pulse; in-progress node ring |
-| `--accent-magenta` | `#c084d4` | Tool-call glyph `⏵` color; Swarm Map tool-call edge; DSL hot-reload badge |
-| `--accent-blue` | `#7aa2ff` | User message glyph `❯` color; Swarm Map message edge |
+| `--focus` | `#5a7cff` | Keyboard focus rings (`outline: 1px solid --focus`), active portal nav item left-border, primary CTA button fill, Orchestra edge for active/live delegation |
+| `--accent-green` | `#6fd28f` | Status: done / adopted / passing / accepted; Orchestra "done" node ring; diff `+` line tint; composer "Ask Voss to…" send button on hover |
+| `--accent-amber` | `#e8b86c` | Status: reviewing / pending / in-review; reviewer glyph `※`; attention queue warning; Orchestra review/validation edge |
+| `--accent-red` | `#e87b7b` | Status: blocked / failed / error / destructive; Orchestra blocker edge; budget-exceeded chip; destructive confirm button; diff `-` line tint |
+| `--accent-cyan` | `#6cc7d4` | Status: active / live / streaming; live chip dot; Orchestra live edge pulse; in-progress node ring |
+| `--accent-magenta` | `#c084d4` | Tool-call glyph `⏵` color; Orchestra tool-call edge; DSL hot-reload badge |
+| `--accent-blue` | `#7aa2ff` | User message glyph `❯` color; Orchestra message edge |
 
 ### Border Tokens
 
@@ -188,7 +188,7 @@ Accents are reserved for specific semantic roles ONLY. Do NOT apply accents to d
 ### Semantic Color Notes
 
 - **Safety mode chips:** "Read only" = `--fg-3` text on `--bg-3` (intentionally muted — it is the safe default, not an alarm). "Can edit" = `--accent-amber` text. "Autopilot" = `--accent-red` text (highest risk, most salient).
-- **Swarm Map placeholder nodes** (missing signal): `--bg-3` fill, `--border-bright` ring, `--fg-3` dashed ring (2px dashed). No accent color. Must be visually distinct from real nodes without being distracting.
+- **Orchestra placeholder nodes** (missing signal): `--bg-3` fill, `--border-bright` ring, `--fg-3` dashed ring (2px dashed). No accent color. Must be visually distinct from real nodes without being distracting.
 - **Honest-signal contract:** if a node or edge has no real source, it renders in the placeholder style or is omitted entirely. Never use a color that implies "this is live data" on a fabricated signal.
 
 ---
@@ -228,7 +228,7 @@ New components introduced in V24. Existing components reused as-is are noted but
 2. Overview — `lucide-solid` icon: `LayoutDashboard`
 3. Tasks — `lucide-solid` icon: `ListChecks`
 4. Agents — `lucide-solid` icon: `Bot`
-5. Swarm Map — `lucide-solid` icon: `Network`
+5. Orchestra — `lucide-solid` icon: `Network` (internal/code name remains `swarm`)
 6. Review — `lucide-solid` icon: `ClipboardCheck`
 7. Context — `lucide-solid` icon: `FileText`
 8. Memory — `lucide-solid` icon: `Brain`
@@ -240,7 +240,7 @@ New components introduced in V24. Existing components reused as-is are noted but
 - **Review** → `reviewSlot()` (existing OrgViewShell).
 - **Context** → `contextSlot()` → `ContextSurface`, a full-canvas wrapper around the shipped `components/ContextPanel` (the F4 drawer), fed by the focused pane's `ContextData` from App. No re-derivation; ContextPanel owns its own empty state.
 - **Settings** → `SettingsSurface`, backed by the existing appearance store (`appearance/settings.ts`): font size, high contrast, reduced motion, bell behavior, cursor shape/blink. Each change calls `applyAppearanceSettings` (live) + `saveAppearanceSettings` (persist). Theme/font-family selection deferred (theme catalog lives behind `themeRuntime`).
-- **Memory** → `MemorySurface`, server-backed (V24-11): when the app has a live `voss serve` (baseUrl + token + cwd off `vossClient()`), it fetches `GET /memory` and renders the memory summary + a recall search box (hits list). With no live server it shows the honest harness-backed fallback (the `/memory` slash command). Renders only server-returned hits — no fabricated rows, same honest-signal discipline as the Swarm Map. Backend: bearer-authed read-only `GET /memory?cwd=&q=&top_k=` on the loopback server, `MemoryStore.summary()`/`recall()`-backed; the committed contract (`contracts/openapi.json`) is regenerated for the route.
+- **Memory** → `MemorySurface`, server-backed (V24-11): when the app has a live `voss serve` (baseUrl + token + cwd off `vossClient()`), it fetches `GET /memory` and renders the memory summary + a recall search box (hits list). With no live server it shows the honest harness-backed fallback (the `/memory` slash command). Renders only server-returned hits — no fabricated rows, same honest-signal discipline as the Orchestra. Backend: bearer-authed read-only `GET /memory?cwd=&q=&top_k=` on the loopback server, `MemoryStore.summary()`/`recall()`-backed; the committed contract (`contracts/openapi.json`) is regenerated for the route.
 
 **Bottom anchor:** "Ask Voss to…" trigger button at rail bottom (separate from nav items). Height: 44px. Full width. Background: `--bg-2` on hover. Icon: `❯` in `--accent-green`.
 
@@ -352,7 +352,7 @@ These three surfaces share a list-row pattern inspired by Linear's issue groupin
 
 **Agents surface distinction:** same row pattern but grouped by agent role (Voss main, reviewer, tester, terminal-agent) rather than status. Each row shows agent name, model, status dot, elapsed time, and cost (`--font-mono`, tabular-nums).
 
-### 5. Swarm Map Canvas (`SwarmMap`)
+### 5. Orchestra Canvas (`SwarmMap`)
 
 **Purpose:** Radial observability graph of one or more runs. The most visual surface in V24.
 
@@ -395,10 +395,10 @@ These three surfaces share a list-row pattern inspired by Linear's issue groupin
 - Deep link button at bottom: `"Open in grid →"` or `"Open in review →"`, 11px, `--focus` color, as a text button.
 - When nothing selected: `"Select a node to inspect"` in `--fg-3`, 11px, centered.
 
-**Swarm Map empty state:**
+**Orchestra empty state:**
 - No active runs with signal data: centered message `"No run data yet"` (`--fg-3`, 13px Inter) + secondary `"Start a Task with ⌘K to see agents appear here."` (`--fg-3`, 11px). No decorative nodes or fake graph.
 
-### 6. Live Swarm Map Connectors + Animation
+### 6. Live Orchestra Connectors + Animation
 
 **Motion is semantic only** — every animation communicates a real live state change.
 
@@ -410,14 +410,14 @@ These three surfaces share a list-row pattern inspired by Linear's issue groupin
 **All animations must use CSS `@keyframes` (not JS `setInterval`), with `animation-play-state: paused` when the tab is not focused.**
 
 **MANDATORY reduced-motion fallback:**
-- `@media (prefers-reduced-motion: reduce)` OR `html.reduced-motion` class (A8 pattern from index.css): ALL Swarm Map animations cease. Traveling dots do not appear.
+- `@media (prefers-reduced-motion: reduce)` OR `html.reduced-motion` class (A8 pattern from index.css): ALL Orchestra animations cease. Traveling dots do not appear.
 - Instead: an **Event Trace list** is shown in the right legend panel. The trace list is always present but collapsed by default in motion mode; it is expanded and pinned in reduced-motion mode.
 - Event Trace row: `[timestamp]  [edge type]  [source → destination]` — `--font-mono`, 11px, `--fg-2`.
 - The trace list must carry equivalent information to what the animations convey (VADE2-07 acceptance criterion).
 
 ### 7. Completed-Run Replay Scrubber
 
-**Placement:** bottom strip of the Swarm Map canvas, visible only when a completed run is selected and replay mode is active.
+**Placement:** bottom strip of the Orchestra canvas, visible only when a completed run is selected and replay mode is active.
 
 **Geometry:** 32px height. Full canvas width. Background `--bg-1`. Top border `1px solid --border`.
 
@@ -457,7 +457,7 @@ These three surfaces share a list-row pattern inspired by Linear's issue groupin
 - `Enter` in the ask textarea (without modifier) does NOT submit — use `⌘Enter` to create the Task (power-user expectation in terminal-dense app).
 - Advanced section keyboard: Tab-navigable in sequence.
 
-### Swarm Map
+### Orchestra
 
 - Pan: click-drag canvas background.
 - Zoom: scroll wheel or trackpad pinch.
@@ -501,7 +501,7 @@ All copy follows the locked vocabulary from VADE2-01 / D-08 / D-09 / D-10 / D-11
 | Portal item 2 | "Overview" | Title case |
 | Portal item 3 | "Tasks" | Locked vocabulary (D-08) — NOT "Runs" |
 | Portal item 4 | "Agents" | Title case |
-| Portal item 5 | "Swarm Map" | Locked vocabulary (D-10) |
+| Portal item 5 | "Orchestra" | Locked vocabulary (D-10); internal/code name remains `swarm` |
 | Portal item 6 | "Review" | Title case |
 | Portal item 7 | "Context" | Title case |
 | Portal item 8 | "Memory" | Title case |
@@ -522,7 +522,7 @@ All copy follows the locked vocabulary from VADE2-01 / D-08 / D-09 / D-10 / D-11
 | Mission control group: adopted | "ADOPTED" | ALL CAPS |
 | Mission control group: terminal agent | "TERMINAL AGENT" | ALL CAPS |
 | Empty state: no Tasks | "No active Tasks" (heading) + "Use ⌘K to ask Voss to start one." (body) | |
-| Empty state: Swarm Map | "No run data yet" (heading) + "Start a Task with ⌘K to see agents appear here." (body) | |
+| Empty state: Orchestra | "No orchestra running" (heading) + launch intake (goal + builder count) | |
 | Empty state: Agents | "No agents running" + "Create a Task to deploy agents." | |
 | Placeholder node tooltip | "Signal not available" | Honest missing-signal language |
 | Generic surface error: Retry button | "Try again" | Verb-first button label on the `.org-error-state` retry control |
@@ -546,7 +546,7 @@ All copy follows the locked vocabulary from VADE2-01 / D-08 / D-09 / D-10 / D-11
 | Error | `.org-error-state` pattern: heading 14px Poppins 500, body 12px Inter, "Try again" retry button |
 | Active | Content as specified |
 
-### Swarm Map specific
+### Orchestra specific
 
 | State | Visual treatment |
 |-------|-----------------|
@@ -575,10 +575,10 @@ All requirements from VADE2-08 are design-level contracts here:
 
 - **Focus rings:** all interactive elements use `outline: 1px solid var(--focus); outline-offset: -1px` on `:focus-visible`. No `:focus` without `:focus-visible` (avoids outline on mouse click).
 - **Color contrast:** minimum WCAG AA (4.5:1) for all text on its background. Verified by existing `contrastRatio()` utility in `src/themes/schema.ts`. The `--fg-0` on `--bg-0` combination (#e8eaf0 on #0a0b0e) exceeds AAA.
-- **Reduced motion:** see Swarm Map §6 and existing `@media (prefers-reduced-motion: reduce)` rules in `index.css`. V24 adds no new animations outside the Swarm Map connector system. All new Swarm Map animations must be governed by both the OS media query AND the `html.reduced-motion` class (A8 pattern — mandatory).
+- **Reduced motion:** see Orchestra §6 and existing `@media (prefers-reduced-motion: reduce)` rules in `index.css`. V24 adds no new animations outside the Orchestra connector system. All new Orchestra animations must be governed by both the OS media query AND the `html.reduced-motion` class (A8 pattern — mandatory).
 - **Deep-link affordances:** every node/row that navigates uses a `<button>` with a descriptive `aria-label`. Navigation outcome is announced via `aria-live="polite"` on the main canvas region.
 - **Portal navigation:** `role="tablist"` / `role="tab"` / `role="tabpanel"` as specified in Component Inventory §1.
-- **Swarm Map keyboard:** `Tab` cycles nodes; `Enter` selects; `⌘Enter` deep-links. Announced node name + type on selection via `aria-live`.
+- **Orchestra keyboard:** `Tab` cycles nodes; `Enter` selects; `⌘Enter` deep-links. Announced node name + type on selection via `aria-live`.
 - **Composer dialog:** `role="dialog"` with `aria-modal="true"` and `aria-label`. Focus trap while open.
 - **Timeline scrubber:** native `<input type="range">` with `aria-label`, `aria-valuenow`, `aria-valuemin`, `aria-valuemax`. The adjacent play/pause button carries a state-dependent `aria-label` ("Play replay" / "Pause replay").
 - **Status chips:** do not use color alone to communicate status. Each chip includes the text label ("ACTIVE", "BLOCKED", etc.) alongside the color dot.
@@ -595,11 +595,11 @@ All requirements from VADE2-08 are design-level contracts here:
 | Mission-control row hover bg | 80ms | `ease` | 0ms |
 | Attention action row expand | 120ms | `ease-out` | 0ms (instant show) |
 | Composer open/close | 120ms | `ease-out` | 0ms |
-| Swarm Map cluster focus (opacity) | 200ms | `ease` | 0ms |
-| Swarm Map node select (scale 1→1.1) | 100ms | `ease-out` | 0ms |
-| Swarm Map traveling dot | 2000ms linear | `linear` | none (omit) |
-| Swarm Map node ring pulse (SSE event) | 300ms | `ease-out`, fill-mode forward | none (omit) |
-| Swarm Map blocker edge pulse | 1500ms | `ease-in-out`, infinite | none (omit) |
+| Orchestra cluster focus (opacity) | 200ms | `ease` | 0ms |
+| Orchestra node select (scale 1→1.1) | 100ms | `ease-out` | 0ms |
+| Orchestra traveling dot | 2000ms linear | `linear` | none (omit) |
+| Orchestra node ring pulse (SSE event) | 300ms | `ease-out`, fill-mode forward | none (omit) |
+| Orchestra blocker edge pulse | 1500ms | `ease-in-out`, infinite | none (omit) |
 | Replay scrubber thumb drag | native | — | n/a |
 
 All new `@keyframes` in V24 must be wrapped in a `@media (not (prefers-reduced-motion: reduce))` block and additionally guarded by the `html.reduced-motion` class (double guard = A8 pattern).

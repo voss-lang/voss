@@ -1,6 +1,6 @@
-// V24-06 (VADE2-06) — pure Swarm Map derivation.
+// V24-06 (VADE2-06) — pure swarm graph derivation.
 //
-// The Swarm Map's single hardest constraint is HONESTY: every node and edge
+// The swarm surface's single hardest constraint is HONESTY: every node and edge
 // must trace to a real signal (RunData / board+session tree / audit-review /
 // attention queue). Missing signals render as placeholder nodes or are omitted —
 // nothing is synthesized. Every edge carries a non-empty `source` string and the
@@ -61,7 +61,7 @@ const artifactId = (runId: string, key: string) => `artifact:${runId}:${key}`;
 const alertId = (itemId: string) => `alert:${itemId}`;
 
 /**
- * Derive the Swarm Map graph from real signals only.
+ * Derive the swarm graph from real signals only.
  *
  * - null/empty runs → { nodes: [], edges: [] } (never throws).
  * - null runData for a run → a single objective placeholder node, zero edges.

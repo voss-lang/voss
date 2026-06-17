@@ -68,11 +68,11 @@ describe('VADE2-02 — PortalView contract', () => {
     expect(PORTAL_ITEMS[0].label).toBe('Workspaces');
   });
 
-  it('labels use locked PRODUCT.md vocabulary: "Tasks" not "Runs"; "Swarm Map" present', () => {
+  it('labels use locked PRODUCT.md vocabulary: "Tasks" not "Runs"; "Orchestra" present', () => {
     const labels = PORTAL_ITEMS.map((i) => i.label);
     expect(labels).toContain('Tasks');
     expect(labels).not.toContain('Runs');
-    expect(labels).toContain('Swarm Map');
+    expect(labels).toContain('Orchestra');
   });
 });
 

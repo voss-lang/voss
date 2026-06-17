@@ -1,4 +1,4 @@
-// V24 Swarm Map — swarm.* SSE ingestion into the live store.
+// V24 swarm surface — swarm.* SSE ingestion into the live store.
 
 import { afterEach, describe, expect, it } from 'vitest';
 import {

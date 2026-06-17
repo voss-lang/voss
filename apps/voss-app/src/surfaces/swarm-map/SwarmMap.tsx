@@ -1,4 +1,4 @@
-// V24-06/07 + V24 redesign — radial Swarm Map surface.
+// V24-06/07 + V24 redesign — radial swarm surface.
 //
 // Data source (re-based onto the V25 server-native swarm plane): when a live
 // swarm is discovered from the agent registry, the graph derives from GET
@@ -72,6 +72,7 @@ const SwarmMap: Component = () => {
   const [selected, setSelected] = createSignal<SwarmNode | null>(null);
   const [pan, setPan] = createSignal({ x: 480, y: 340 });
   const [zoom, setZoom] = createSignal(1);
+  const [launchOpen, setLaunchOpen] = createSignal(false);
   let canvasRef: SVGSVGElement | undefined;
   const now = useNow();
 
@@ -257,10 +258,20 @@ const SwarmMap: Component = () => {
   const hasGraph = () => graph().nodes.length > 0;
 
   return (
-    <div class="surface swarm-map" role="tabpanel" aria-label="Swarm Map">
+    <div class="surface swarm-map" role="tabpanel" aria-label="Orchestra">
       <div class="swarm-map__body">
         <div class="swarm-grid" aria-hidden="true" />
         <div class="swarm-watermark" aria-hidden="true" />
+        <div class="swarm-map__header" role="toolbar" aria-label="Orchestra actions">
+          <button
+            type="button"
+            class="swarm-map__new"
+            aria-label="New orchestra"
+            onClick={() => setLaunchOpen(true)}
+          >
+            + New
+          </button>
+        </div>
         <Show
           when={!loading()}
           fallback={
@@ -273,7 +284,7 @@ const SwarmMap: Component = () => {
             when={!loadError()}
             fallback={
               <div class="org-error-state">
-                <p class="org-error-state__heading">Couldn't load the Swarm Map.</p>
+                <p class="org-error-state__heading">Couldn't load Orchestra.</p>
                 <p class="org-error-state__body">Check that Voss is running.</p>
               </div>
             }
@@ -391,12 +402,34 @@ const SwarmMap: Component = () => {
                 </button>
               </div>
 
-              {/* Direct-the-Swarm command bar + quick actions (live swarm only). */}
+              {/* Orchestra command bar + quick actions (live swarm only). */}
               <Show when={onPlane()}>
                 <SwarmCommandBar />
               </Show>
             </Show>
           </Show>
+        </Show>
+        <Show when={launchOpen()}>
+          <div class="swarm-launch-modal">
+            <div
+              class="swarm-launch-modal__panel"
+              role="dialog"
+              aria-label="New orchestra"
+            >
+              <div class="swarm-launch-modal__head">
+                <span>New orchestra</span>
+                <button
+                  type="button"
+                  class="swarm-launch-modal__close"
+                  aria-label="Close"
+                  onClick={() => setLaunchOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+              <SwarmLaunch compact onClose={() => setLaunchOpen(false)} />
+            </div>
+          </div>
         </Show>
         {/* Replay scrubber — bottom strip, only for completed legacy runs. */}
         <Show when={!onPlane() && !loading() && !loadError() && runData()?.run_final}>

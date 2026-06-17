@@ -5,7 +5,7 @@
 // (baseUrl + token + cwd) this surface renders the real memory summary + a recall
 // search. With no live server it falls back to the honest harness-backed state
 // (the /memory slash command). It synthesizes NO rows — hits come only from the
-// server (honest-signal discipline, like the Swarm Map).
+// server (honest-signal discipline, like the swarm surface).
 
 import {
   type Component,

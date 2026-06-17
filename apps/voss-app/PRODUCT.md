@@ -35,7 +35,7 @@ presets, raw modes) is an implementation detail, not a user-facing word.
 
 Voss is the operating layer *around* the work, not a requirement imposed on every
 pane. The terminal workbench stands on its own; the managed-agent layer and the
-Swarm Map are what Voss adds on top.
+Orchestra is what Voss adds on top.
 
 ---
 
@@ -58,14 +58,14 @@ The left portal has **9 items, in this order**:
 | 2 | **Overview** | NEW product surface | Mission-control summary of managed work |
 | 3 | **Tasks** | NEW product surface | Top-level unit of managed agent work (D-08; NOT "Runs") |
 | 4 | **Agents** | NEW product surface | Agent roster by role/status |
-| 5 | **Swarm Map** | NEW product surface | Radial chip-card graph of the live **V25 server-native swarm** (coordinator + builders carrying real Task goals + reviewer; discovered from the agent registry, GET /swarm + swarm.* SSE). Inspect chips, zoom/pan, and **Direct the Swarm** (`@all`/`@role` → live `postMessage`). Falls back to the legacy board-derived graph + honest empty state when no swarm is running (D-10) |
+| 5 | **Orchestra** | NEW product surface | Radial chip-card graph of the live **V25 server-native swarm** (coordinator + builders carrying real Task goals + reviewer; discovered from the agent registry, GET /swarm + swarm.* SSE; internal/code name stays `swarm`). Inspect chips, zoom/pan, and **Direct the Orchestra** (`@all`/`@role` -> live `postMessage`). Falls back to the legacy board-derived graph + honest empty state when no orchestra is running (D-10) |
 | 6 | **Review** | Reused as-is | Wired to the existing V14 cockpit (`reviewSlot` → OrgViewShell) |
 | 7 | **Context** | Reused as-is | Wired (V24-10): `ContextSurface` wraps the shipped `ContextPanel`, fed by the focused pane's `ContextData` via `contextSlot` |
 | 8 | **Memory** | Live (server-backed) | Wired (V24-11): `MemorySurface` fetches the server's `GET /memory` (summary + recall search) when a workspace session is live; honest harness-backed fallback (the `/memory` slash command) when no server. Renders only server-returned hits — no fabricated rows |
 | 9 | **Settings** | Reused as-is | Wired (V24-10): `SettingsSurface` over the existing appearance store (font/contrast/reduced-motion/bell/cursor); persists + applies live |
 
 - **1 persistent grid destination:** Workspaces names the terminal/tmux grid home and returns to the mounted `GridRoot` through canvas-swap.
-- **4 NEW product surfaces:** Overview, Tasks, Agents, Swarm Map (built in V24-05/06/07).
+- **4 NEW product surfaces:** Overview, Tasks, Agents, Orchestra (built in V24-05/06/07).
 - **4 reused surfaces:** Review, Context, Settings wire to existing UIs as-is; Memory renders an honest harness-backed state (V24-10). The "Coming in a later V24 plan" placeholder is removed — every portal item now routes to a real surface.
 
 **Spatial model recap:** left portal = navigation; terminal grid = persistent
@@ -81,13 +81,13 @@ they are **not** product navigation (VADE2-03).
 The revamp is proven, not assumed. These are the falsifiable bars copied from
 **V24-SPEC §Acceptance Criteria**:
 
-- [ ] Product/design contract committed with IA, success criteria, and locked vocabulary (Task / Swarm Map / Read only·Can edit·Autopilot / steps·cards) — *this file*.
+- [ ] Product/design contract committed with IA, success criteria, and locked vocabulary (Task / Orchestra / Read only·Can edit·Autopilot / steps·cards) — *this file*.
 - [ ] Left portal exposes all 9 items; selecting a surface uses canvas-swap and grid/pane state survives a portal round-trip.
 - [ ] Fresh / project-less workspace boots to the terminal grid.
 - [ ] Default top chrome contains no `fanout/pipeline/swarm/watchers` presets and no raw `Plan/Edit/Auto` toggles; presets reachable via layout menu / pane control.
 - [ ] "Ask Voss to…" composer is global, defaults to **Read only**, and hides scope/agent/team/budget/context behind "Advanced".
 - [ ] Overview/Tasks/Agents show fixture runs under correct statuses with a working attention action + deep link.
-- [ ] Swarm Map renders radial clusters (one per run) from full fixture data.
+- [ ] Orchestra renders radial clusters (one per run) from full fixture data.
 - [ ] No-fake-signal guard test passes: empty/partial sources yield placeholders/omission and zero source-less edges.
 - [ ] Live edges update from a stream fixture; reduced-motion yields static connectors + trace fallback; a completed run is replay-scrubbable.
 - [ ] Manual terminal-first checklist passes and is documented; existing grid/pane/terminal unit tests stay green.
@@ -119,12 +119,12 @@ Contract. Each entry cites the decision that locks it.
 |---------|------------------|----------|-------|
 | Terminal/tmux grid home | **Workspaces** | VADE2-09 / D-01 | The portal item is **"Workspaces"**; it returns to the persistent grid canvas via canvas-swap, not a new surface. |
 | Top-level unit of managed agent work | **Task** | D-08 / VADE2-01 | The portal item is **"Tasks"**, **NOT "Runs."** The ROADMAP-listed "Runs" item is renamed to "Tasks" for IA consistency. |
-| Observability / replay surface | **Swarm Map** | D-10 / VADE2-01 | Nav label + brand; on-brand with the swarm-coordination differentiator. |
+| Observability / replay surface | **Orchestra** | D-10 / VADE2-01 | Nav label + brand; internal/code name remains `swarm`. |
 | Safety mode 1 (default) | **Read only** | D-11 / VADE2-01 | Two words, no hyphen. Default posture — agent can analyze/plan but not edit until elevated (D-04). |
 | Safety mode 2 | **Can edit** | D-11 / VADE2-01 | Two words. |
 | Safety mode 3 | **Autopilot** | D-11 / VADE2-01 | One word; highest risk, most salient. |
 | (Retired modes) | ~~Plan / Edit / Auto~~ | D-11 | The exposed top-level `Plan/Edit/Auto` toggles are **retired** — never shown in default chrome. |
-| Board work-items inside a Task | **steps** / **cards** | D-09 / VADE2-01 | Lowercase. **Never "tasks"** inside a Task, so the Swarm Map stays unambiguous. |
+| Board work-items inside a Task | **steps** / **cards** | D-09 / VADE2-01 | Lowercase. **Never "tasks"** inside a Task, so Orchestra stays unambiguous. |
 | Composer primary CTA | **Create Task** | D-08 / VADE2-01 | Verb + locked noun; the composer "creates a Task." |
 | Composer title | **Ask Voss to…** | VADE2-04 | Unicode ellipsis (…), not three dots. Global, always-present, Cmd-K-style (D-03). |
 | Internal code identifiers | `runId` / `RunData` / `currentRunId` | D-09 | **Retained in code only. NEVER shown to the user.** Zero display exposure; zero internal rename churn — display layer only. |

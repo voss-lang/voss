@@ -1,4 +1,4 @@
-/* V24-06 (VADE2-06) — Swarm Map radial canvas + legend. Token-only (no raw hex).
+/* V24-06 (VADE2-06) — Orchestra radial canvas + legend. Token-only (no raw hex).
    The A8 reduced-motion double-guard scaffold is present now; the live
    keyframes (traveling dots / pulses) land in V24-07. */
 
@@ -221,7 +221,7 @@
   r: 3;
 }
 
-/* Pause all Swarm Map animation when the tab is hidden (driven by SwarmMap.tsx). */
+/* Pause all swarm-canvas motion when the tab is hidden (driven by SwarmMap.tsx). */
 .swarm-paused * {
   animation-play-state: paused !important;
 }
@@ -339,7 +339,7 @@
   color: var(--fg-3);
 }
 
-/* ── V24 redesign: chip cards, dotted grid, watermark, zoom ──────────────────
+/* -- V24 redesign: chip cards, dotted grid, watermark, zoom ------------------
    No keyframe motion outside the sentinel-guarded block above. Hover/selection
    use border/background only (non-motion). */
 
@@ -366,6 +366,38 @@
 .swarm-map__body > .org-error-state {
   position: relative;
   z-index: 1;
+}
+
+.swarm-map__header {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.swarm-map__new {
+  pointer-events: auto;
+  padding: 6px 10px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  color: var(--fg-0, var(--fg));
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.swarm-map__new:hover {
+  background: var(--bg-2);
+}
+
+.swarm-map__new:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
 }
 
 /* Chip card (rendered inside an SVG <foreignObject> 180×68, centered on the node). */
@@ -530,7 +562,7 @@
   color: var(--fg-2);
 }
 
-/* Direct-the-Swarm command bar + quick actions — bottom-center overlay. The
+/* Orchestra command bar + quick actions — bottom-center overlay. The
    wrapper is click-through (pointer-events:none) so the bare canvas between
    controls still receives drag-to-pan; only the controls capture pointer events. */
 .swarm-direct {
@@ -680,7 +712,7 @@
   color: var(--accent-amber);
 }
 
-/* Swarm launch panel (empty state). */
+/* Orchestra launch panel (empty state and modal). */
 .swarm-launch {
   display: flex;
   flex-direction: column;
@@ -748,4 +780,61 @@
   margin: 0;
   font-size: 11px;
   color: var(--accent-amber);
+}
+
+.swarm-launch-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 56px 16px 16px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.swarm-launch-modal__panel {
+  width: min(460px, 100%);
+  box-sizing: border-box;
+  padding: 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  pointer-events: auto;
+}
+
+.swarm-launch-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--fg-0, var(--fg));
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.swarm-launch-modal__close {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-2);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.swarm-launch-modal__close:hover {
+  background: var(--bg-2);
+  color: var(--fg-0, var(--fg));
+}
+
+.swarm-launch-modal__close:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
 }

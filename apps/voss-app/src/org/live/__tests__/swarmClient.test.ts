@@ -1,4 +1,4 @@
-// V24 Swarm Map — fetchSwarm issues the right authed GET and unwraps {swarm}.
+// V24 swarm surface — fetchSwarm issues the right authed GET and unwraps {swarm}.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchSwarm } from '../swarmClient';
