@@ -186,6 +186,52 @@ class GateUpdated(_Base):
     decision: str
 
 
+# --- swarm (V25 VSWARM-02) -------------------------------------------------
+# First-class swarm event plane (D-03). Every model carries `swarm_id` so V24's
+# swarmReconcile can consume them directly off the existing SSE bus.
+
+
+class SwarmAssign(_Base):
+    type: Literal["swarm.assign"] = "swarm.assign"
+    swarm_id: str
+    task_id: str
+    session_id: str  # builder session that owns this task
+    owned_files: list[str] = Field(default_factory=list)
+    role: str
+
+
+class SwarmWorkerDone(_Base):
+    type: Literal["swarm.worker_done"] = "swarm.worker_done"
+    swarm_id: str
+    task_id: str
+    session_id: str
+    summary: str | None = None
+
+
+class SwarmGate(_Base):
+    type: Literal["swarm.gate"] = "swarm.gate"
+    swarm_id: str
+    task_id: str
+    gate_type: str  # "ownership_denied" | "reviewer_reject"
+    detail: str
+
+
+class SwarmNeedsOperator(_Base):
+    type: Literal["swarm.needs_operator"] = "swarm.needs_operator"
+    swarm_id: str
+    task_id: str
+    session_id: str
+    tool_name: str
+    path: str | None = None  # the denied file path
+
+
+class SwarmComplete(_Base):
+    type: Literal["swarm.complete"] = "swarm.complete"
+    swarm_id: str
+    task_count: int
+    summary: str | None = None
+
+
 # --- discriminated union ---------------------------------------------------
 
 AgentEvent = Annotated[
@@ -211,6 +257,11 @@ AgentEvent = Annotated[
         BudgetUpdated,
         ConfidenceUpdated,
         GateUpdated,
+        SwarmAssign,
+        SwarmWorkerDone,
+        SwarmGate,
+        SwarmNeedsOperator,
+        SwarmComplete,
     ],
     Field(discriminator="type"),
 ]

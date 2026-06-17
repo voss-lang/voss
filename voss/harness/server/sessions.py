@@ -41,6 +41,21 @@ class ServerSession:
     # M2: prior RunRecords from a resumed session, surfaced on the first turn
     # then cleared (deep history thereafter flows via `history`).
     prior_context: Any = None
+    # V25 swarm runtime (VSWARM-04). All default to None/empty so a normally
+    # created session is byte-identical to pre-V25 behaviour (ungated parity).
+    # gate_event: None = ungated/normal; a set asyncio.Event = a builder that
+    # blocks in _run_turn until the coordinator's swarm.assign arrives. The
+    # Event MUST be constructed inside an async route handler (Pitfall 2), not
+    # here — this field only holds it.
+    gate_event: "asyncio.Event | None" = None
+    swarm_id: str | None = None
+    swarm_task_id: str | None = None
+    swarm_owned_files: list[str] = field(default_factory=list)
+    swarm_role: str | None = None
+    # PermissionsConfig attached by V25-05; typed Any to avoid importing
+    # cognition_schemas into sessions.py.
+    # Tasks assigned by orchestraotr per init sys prompt
+    swarm_policy: Any = None
 
     @property
     def busy(self) -> bool:
