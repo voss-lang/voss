@@ -9,7 +9,7 @@ import pytest
 
 from voss.harness import auth as A
 from voss.harness.agent import Plan
-from voss.harness.providers import AnthropicOAuthProvider
+from voss.harness.providers import AnthropicOAuthProvider, OpenAIOAuthProvider
 
 
 def _creds(expires_in: int = 3600) -> A.AnthropicOAuthCreds:
@@ -143,6 +143,42 @@ async def test_oauth_provider_refreshes_on_401(monkeypatch: pytest.MonkeyPatch) 
     assert calls["n"] == 2
     assert p.creds.access_token == "NEW"
     await p.aclose()
+
+
+def _codex_creds() -> A.CodexCreds:
+    return A.CodexCreds(
+        api_key=None,
+        access_token="A",
+        refresh_token="R",
+        account_id="acct_1",
+        auth_mode="chatgpt",
+    )
+
+
+def test_openai_payload_omits_temperature_for_reasoning_models() -> None:
+    # The PUBLIC OpenAI Responses endpoint (base_url not ending in /codex) sends
+    # temperature for non-reasoning models, but gpt-5.x / o-series reject a
+    # custom temperature (only the default is accepted) — so it must be omitted.
+    p = OpenAIOAuthProvider(_codex_creds(), base_url=A.OPENAI_API_BASE)
+    assert not p._is_codex_backend()  # confirm we exercise the public path
+
+    reasoning = p._payload(
+        messages=[{"role": "user", "content": "hi"}],
+        model="gpt-5.5",
+        response_format=None,
+        temperature=0.2,
+        max_tokens=None,
+    )
+    assert "temperature" not in reasoning
+
+    legacy = p._payload(
+        messages=[{"role": "user", "content": "hi"}],
+        model="gpt-4o",
+        response_format=None,
+        temperature=0.2,
+        max_tokens=None,
+    )
+    assert legacy["temperature"] == 0.2
 
 
 @pytest.mark.asyncio

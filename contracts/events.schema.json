@@ -647,6 +647,234 @@
       "title": "StreamFinalize",
       "type": "object"
     },
+    "SwarmAssign": {
+      "properties": {
+        "owned_files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Owned Files",
+          "type": "array"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "swarm_id": {
+          "title": "Swarm Id",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "swarm.assign",
+          "default": "swarm.assign",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "swarm_id",
+        "task_id",
+        "session_id",
+        "role",
+        "type"
+      ],
+      "title": "SwarmAssign",
+      "type": "object"
+    },
+    "SwarmComplete": {
+      "properties": {
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "swarm_id": {
+          "title": "Swarm Id",
+          "type": "string"
+        },
+        "task_count": {
+          "title": "Task Count",
+          "type": "integer"
+        },
+        "type": {
+          "const": "swarm.complete",
+          "default": "swarm.complete",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "swarm_id",
+        "task_count",
+        "type"
+      ],
+      "title": "SwarmComplete",
+      "type": "object"
+    },
+    "SwarmGate": {
+      "properties": {
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "gate_type": {
+          "title": "Gate Type",
+          "type": "string"
+        },
+        "swarm_id": {
+          "title": "Swarm Id",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "swarm.gate",
+          "default": "swarm.gate",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "swarm_id",
+        "task_id",
+        "gate_type",
+        "detail",
+        "type"
+      ],
+      "title": "SwarmGate",
+      "type": "object"
+    },
+    "SwarmNeedsOperator": {
+      "properties": {
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "swarm_id": {
+          "title": "Swarm Id",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "tool_name": {
+          "title": "Tool Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "swarm.needs_operator",
+          "default": "swarm.needs_operator",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "swarm_id",
+        "task_id",
+        "session_id",
+        "tool_name",
+        "type"
+      ],
+      "title": "SwarmNeedsOperator",
+      "type": "object"
+    },
+    "SwarmWorkerDone": {
+      "properties": {
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "swarm_id": {
+          "title": "Swarm Id",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "swarm.worker_done",
+          "default": "swarm.worker_done",
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "swarm_id",
+        "task_id",
+        "session_id",
+        "type"
+      ],
+      "title": "SwarmWorkerDone",
+      "type": "object"
+    },
     "ThinkingEvent": {
       "properties": {
         "label": {
@@ -785,6 +1013,11 @@
           "status": "#/components/schemas/StatusEvent",
           "stream.delta": "#/components/schemas/StreamDelta",
           "stream.finalize": "#/components/schemas/StreamFinalize",
+          "swarm.assign": "#/components/schemas/SwarmAssign",
+          "swarm.complete": "#/components/schemas/SwarmComplete",
+          "swarm.gate": "#/components/schemas/SwarmGate",
+          "swarm.needs_operator": "#/components/schemas/SwarmNeedsOperator",
+          "swarm.worker_done": "#/components/schemas/SwarmWorkerDone",
           "thinking": "#/components/schemas/ThinkingEvent",
           "tool": "#/components/schemas/ToolEvent",
           "user": "#/components/schemas/UserEvent",
@@ -855,6 +1088,21 @@
         },
         {
           "$ref": "#/components/schemas/GateUpdated"
+        },
+        {
+          "$ref": "#/components/schemas/SwarmAssign"
+        },
+        {
+          "$ref": "#/components/schemas/SwarmWorkerDone"
+        },
+        {
+          "$ref": "#/components/schemas/SwarmGate"
+        },
+        {
+          "$ref": "#/components/schemas/SwarmNeedsOperator"
+        },
+        {
+          "$ref": "#/components/schemas/SwarmComplete"
         }
       ],
       "title": "Event"

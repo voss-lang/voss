@@ -135,6 +135,27 @@ def _codex_session_model() -> str:
     return SUBSCRIPTION_MODELS["codex"][0].id
 
 
+def _effective_model(requested: str | None, res: Any) -> str:
+    """Resolve a requested model id to a concrete one for a spawned session.
+
+    The swarm roster uses the literal `"default"` sentinel (swarm_store.Role)
+    to mean 'no explicit choice' — treat it (and None) as unspecified and fall
+    through to the serve-env default then the config default. An explicit,
+    non-sentinel model is honored as-is. In all cases the codex-oauth gpt-5.x
+    constraint is applied last (mirrors create_session, app.py:556-565), so a
+    non-gpt-5.x id never reaches the Codex backend and 400s the turn.
+    """
+    model = requested if (requested and requested != "default") else None
+    model = (
+        model
+        or os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
+        or get_config().default_model
+    )
+    if res.source == "codex-oauth" and not model.startswith("gpt-5."):
+        model = _codex_session_model()
+    return model
+
+
 # ---------------------------------------------------------------------------
 # permission bridge (H1.9) — mirrors tui/permissions_bridge over the protocol
 # ---------------------------------------------------------------------------
@@ -753,8 +774,9 @@ def create_app(token: str | None = None) -> FastAPI:
             res, provider = _resolve_provider(role.auth_pref)
             if provider is None:
                 raise HTTPException(400, f"no usable credentials ({res.detail})")
+            model = _effective_model(role.model, res)
             sess = mgr.create(
-                cwd=cwd, model=role.model, provider=provider, title=role.name
+                cwd=cwd, model=model, provider=provider, title=role.name
             )
             sess.swarm_id = swarm.id
             sess.swarm_role = role.name

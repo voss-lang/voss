@@ -311,6 +311,78 @@
         "title": "CreateSessionBody",
         "type": "object"
       },
+      "CreateSwarmBody": {
+        "properties": {
+          "builders": {
+            "default": 2,
+            "title": "Builders",
+            "type": "integer"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cwd"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "roster": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleSpec"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roster"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "title": "CreateSwarmBody",
+        "type": "object"
+      },
+      "CreateTaskBody": {
+        "properties": {
+          "depends_on": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "owned_files": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Owned Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "title": "CreateTaskBody",
+        "type": "object"
+      },
       "EventEnvelope": {
         "description": "OpenAPI schema anchor (H1.14).\n\nForced into the OpenAPI components so a typed client codegens a tagged\nenum over the full event union, even though no route returns it directly.",
         "properties": {
@@ -334,6 +406,11 @@
                 "status": "#/components/schemas/StatusEvent",
                 "stream.delta": "#/components/schemas/StreamDelta",
                 "stream.finalize": "#/components/schemas/StreamFinalize",
+                "swarm.assign": "#/components/schemas/SwarmAssign",
+                "swarm.complete": "#/components/schemas/SwarmComplete",
+                "swarm.gate": "#/components/schemas/SwarmGate",
+                "swarm.needs_operator": "#/components/schemas/SwarmNeedsOperator",
+                "swarm.worker_done": "#/components/schemas/SwarmWorkerDone",
                 "thinking": "#/components/schemas/ThinkingEvent",
                 "tool": "#/components/schemas/ToolEvent",
                 "user": "#/components/schemas/UserEvent",
@@ -404,6 +481,21 @@
               },
               {
                 "$ref": "#/components/schemas/GateUpdated"
+              },
+              {
+                "$ref": "#/components/schemas/SwarmAssign"
+              },
+              {
+                "$ref": "#/components/schemas/SwarmWorkerDone"
+              },
+              {
+                "$ref": "#/components/schemas/SwarmGate"
+              },
+              {
+                "$ref": "#/components/schemas/SwarmNeedsOperator"
+              },
+              {
+                "$ref": "#/components/schemas/SwarmComplete"
               }
             ],
             "title": "Event"
@@ -713,6 +805,29 @@
         "title": "ProbableEvent",
         "type": "object"
       },
+      "RoleSpec": {
+        "properties": {
+          "auth_pref": {
+            "default": "auto",
+            "title": "Auth Pref",
+            "type": "string"
+          },
+          "model": {
+            "default": "default",
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "RoleSpec",
+        "type": "object"
+      },
       "ServerConnected": {
         "properties": {
           "type": {
@@ -882,6 +997,330 @@
           "type"
         ],
         "title": "StreamFinalize",
+        "type": "object"
+      },
+      "SwarmAssign": {
+        "properties": {
+          "owned_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Owned Files",
+            "type": "array"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "swarm_id": {
+            "title": "Swarm Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "swarm.assign",
+            "default": "swarm.assign",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "swarm_id",
+          "task_id",
+          "session_id",
+          "role",
+          "type"
+        ],
+        "title": "SwarmAssign",
+        "type": "object"
+      },
+      "SwarmComplete": {
+        "properties": {
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Summary"
+          },
+          "swarm_id": {
+            "title": "Swarm Id",
+            "type": "string"
+          },
+          "task_count": {
+            "title": "Task Count",
+            "type": "integer"
+          },
+          "type": {
+            "const": "swarm.complete",
+            "default": "swarm.complete",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "swarm_id",
+          "task_count",
+          "type"
+        ],
+        "title": "SwarmComplete",
+        "type": "object"
+      },
+      "SwarmGate": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "gate_type": {
+            "title": "Gate Type",
+            "type": "string"
+          },
+          "swarm_id": {
+            "title": "Swarm Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "swarm.gate",
+            "default": "swarm.gate",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "swarm_id",
+          "task_id",
+          "gate_type",
+          "detail",
+          "type"
+        ],
+        "title": "SwarmGate",
+        "type": "object"
+      },
+      "SwarmMessageBody": {
+        "properties": {
+          "confidence": {
+            "default": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "from_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Session"
+          },
+          "gate_type": {
+            "default": "",
+            "title": "Gate Type",
+            "type": "string"
+          },
+          "kind": {
+            "default": "message",
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "task_count": {
+            "default": 0,
+            "title": "Task Count",
+            "type": "integer"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "tool_name": {
+            "default": "",
+            "title": "Tool Name",
+            "type": "string"
+          }
+        },
+        "title": "SwarmMessageBody",
+        "type": "object"
+      },
+      "SwarmNeedsOperator": {
+        "properties": {
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Path"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "swarm_id": {
+            "title": "Swarm Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "title": "Tool Name",
+            "type": "string"
+          },
+          "type": {
+            "const": "swarm.needs_operator",
+            "default": "swarm.needs_operator",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "swarm_id",
+          "task_id",
+          "session_id",
+          "tool_name",
+          "type"
+        ],
+        "title": "SwarmNeedsOperator",
+        "type": "object"
+      },
+      "SwarmWorkerDone": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Summary"
+          },
+          "swarm_id": {
+            "title": "Swarm Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "swarm.worker_done",
+            "default": "swarm.worker_done",
+            "title": "Type",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "swarm_id",
+          "task_id",
+          "session_id",
+          "type"
+        ],
+        "title": "SwarmWorkerDone",
         "type": "object"
       },
       "ThinkingEvent": {
@@ -1562,6 +2001,189 @@
           }
         },
         "summary": "List Saved Sessions"
+      }
+    },
+    "/swarm": {
+      "post": {
+        "operationId": "create_swarm_swarm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSwarmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Swarm Swarm Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Swarm"
+      }
+    },
+    "/swarm/{swarm_id}": {
+      "get": {
+        "operationId": "get_swarm_swarm__swarm_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "swarm_id",
+            "required": true,
+            "schema": {
+              "title": "Swarm Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Swarm Swarm  Swarm Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Swarm"
+      }
+    },
+    "/swarm/{swarm_id}/message": {
+      "post": {
+        "operationId": "swarm_message_swarm__swarm_id__message_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "swarm_id",
+            "required": true,
+            "schema": {
+              "title": "Swarm Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwarmMessageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Swarm Message Swarm  Swarm Id  Message Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Swarm Message"
+      }
+    },
+    "/swarm/{swarm_id}/task": {
+      "post": {
+        "operationId": "create_swarm_task_swarm__swarm_id__task_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "swarm_id",
+            "required": true,
+            "schema": {
+              "title": "Swarm Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Swarm Task Swarm  Swarm Id  Task Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Swarm Task"
       }
     }
   }
