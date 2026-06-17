@@ -21,6 +21,18 @@ export interface SwarmNode {
   runId: string;
   label: string;
   status?: string;
+  /** Roster role name (coordinator/builder-N/reviewer) for icon + tag + color. */
+  role?: string;
+  /** The chip's current-work line: a builder's bound Task.goal / the swarm goal. */
+  work?: string;
+  /** Per-role ordinal for "Builder 1"/"Builder 2" (1-based; omitted when single). */
+  ordinal?: number;
+  /** Roster Role.model, when distinct from the default. */
+  model?: string;
+  /** Bound session id (from swarm.assign) — direct target + elapsed/cost lookup. */
+  sessionId?: string;
+  /** Task ownedFiles, surfaced in the inspector. */
+  ownedFiles?: string[];
 }
 
 export interface SwarmEdge {

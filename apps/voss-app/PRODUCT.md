@@ -58,7 +58,7 @@ The left portal has **9 items, in this order**:
 | 2 | **Overview** | NEW product surface | Mission-control summary of managed work |
 | 3 | **Tasks** | NEW product surface | Top-level unit of managed agent work (D-08; NOT "Runs") |
 | 4 | **Agents** | NEW product surface | Agent roster by role/status |
-| 5 | **Swarm Map** | NEW product surface | Observability/replay graph (D-10) |
+| 5 | **Swarm Map** | NEW product surface | Radial chip-card graph of the live **V25 server-native swarm** (coordinator + builders carrying real Task goals + reviewer; discovered from the agent registry, GET /swarm + swarm.* SSE). Inspect chips, zoom/pan, and **Direct the Swarm** (`@all`/`@role` → live `postMessage`). Falls back to the legacy board-derived graph + honest empty state when no swarm is running (D-10) |
 | 6 | **Review** | Reused as-is | Wired to the existing V14 cockpit (`reviewSlot` → OrgViewShell) |
 | 7 | **Context** | Reused as-is | Wired (V24-10): `ContextSurface` wraps the shipped `ContextPanel`, fed by the focused pane's `ContextData` via `contextSlot` |
 | 8 | **Memory** | Live (server-backed) | Wired (V24-11): `MemorySurface` fetches the server's `GET /memory` (summary + recall search) when a workspace session is live; honest harness-backed fallback (the `/memory` slash command) when no server. Renders only server-returned hits — no fabricated rows |

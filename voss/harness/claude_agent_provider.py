@@ -3,8 +3,7 @@
 Replaces the retired raw-OAuth path (AnthropicOAuthProvider): Anthropic blocks
 subscription OAuth tokens in third-party tools server-side (2026-01-09) and
 prohibits them by ToS. The sanctioned route is the Agent SDK / `claude -p`,
-which since 2026-06-15 bills against a dedicated monthly subscription credit
-separate from interactive Claude Code limits.
+which uses the locally logged-in Claude Code subscription session.
 
 Design (provider mode): Voss keeps its own agent loop, tools, and permission
 gate. The spawned Claude Code runs with `max_turns=1`, all built-in tools
@@ -18,16 +17,13 @@ Known tradeoffs:
   markers; hostile content containing a marker could confuse turn attribution
   (same class of risk as the Responses-API flattening in OpenAIOAuthProvider).
 - No cross-iteration prompt caching: every call re-sends the transcript.
-  $0 under subscription, but burns the metered Agent SDK credit faster.
+  It consumes subscription usage faster than an equivalent cached session.
   Follow-up if painful: ClaudeSDKClient session mode behind a flag.
-- If ANTHROPIC_API_KEY is exported, the spawned CLI may bill the API key
-  instead of the subscription. Unreachable under --auth=auto (the key wins
-  earlier in resolve()); possible under explicit --auth=claude with a key
-  exported.
 """
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Optional
 
@@ -45,6 +41,16 @@ _LOGIN_HINT = "run `claude /login` in a terminal to connect your subscription"
 _JSON_TAIL = (
     "Respond as the assistant. Output only the JSON object matching the "
     "required schema."
+)
+
+_API_BILLING_ENV_KEYS = (
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
 )
 
 
@@ -86,6 +92,17 @@ def _flatten_messages(
     if want_json:
         prompt = f"{prompt}\n\n{_JSON_TAIL}" if prompt else _JSON_TAIL
     return "\n\n".join(system_chunks), prompt
+
+
+def _subscription_env_overrides() -> dict[str, str]:
+    """Shadow API-provider env vars for the Claude subscription subprocess.
+
+    The Python SDK merges ``options.env`` over the inherited process
+    environment, so an empty string is the closest portable equivalent to
+    unsetting a variable for the spawned ``claude`` process.
+    """
+
+    return {key: "" for key in _API_BILLING_ENV_KEYS if os.environ.get(key)}
 
 
 class ClaudeAgentProvider:
@@ -133,6 +150,7 @@ class ClaudeAgentProvider:
             # calling it (observed live with large harness system prompts).
             # Tools are disabled, so extra turns are cheap; 8 is a runaway
             # cap, not a target. Plain text fits in one.
+            # AgentSDK ensures Billing API usage is not called
             "max_turns": 8 if schema else 1,
             "tools": [],
             "allowed_tools": [],
@@ -140,6 +158,7 @@ class ClaudeAgentProvider:
             "permission_mode": "default",
             "cwd": None,
             "cli_path": self.cli_path,
+            "env": _subscription_env_overrides(),
             "include_partial_messages": False,
             "output_format": (
                 {"type": "json_schema", "schema": schema} if schema else None

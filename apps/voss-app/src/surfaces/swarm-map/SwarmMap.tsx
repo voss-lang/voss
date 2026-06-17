@@ -1,14 +1,18 @@
-// V24-06 (VADE2-06) — static radial Swarm Map surface.
+// V24-06/07 + V24 redesign — radial Swarm Map surface.
 //
-// Hand-rolled SVG radial graph derived ONLY from real signals. runData is
-// proxy-stripped (JSON.parse(JSON.stringify)) before the pure deriveSwarmGraph
-// (Pitfall 3 — Solid store proxies throw in plain reads). Honest empty state
-// when there is no real graph; placeholder nodes render dashed/no-accent. The
-// `swarm-paused` class pause-hook is wired now; the live keyframes land in V24-07.
+// Data source (re-based onto the V25 server-native swarm plane): when a live
+// swarm is discovered from the agent registry, the graph derives from GET
+// /swarm/{id} (roster + tasks) + the swarm.* SSE live store (assignments/gates/
+// operator). Otherwise it falls back to the legacy board-derived graph. Either
+// way every node/edge traces to a real signal (honest-signal contract); nodes
+// render as rich chip cards via SVG <foreignObject> inside the panned/zoomed <g>.
+// runData is proxy-stripped before the pure legacy derive (Pitfall 3).
 
 import {
   type Component,
   createEffect,
+  createMemo,
+  createResource,
   createSignal,
   For,
   onCleanup,
@@ -19,10 +23,23 @@ import './swarmMap.css';
 import { runData, loading, loadError } from '../../org/orgStore';
 import { attentionQueue } from '../../org/attention/attentionQueue';
 import { liveGraphPatches } from '../../org/live/sseClient';
+import { liveServer } from '../../org/live/liveServer';
+import { discoverActiveSwarmId } from '../../org/live/swarmDiscovery';
+import { fetchSwarm } from '../../org/live/swarmClient';
+import {
+  swarmAssignments,
+  swarmGates,
+  swarmOperatorNeeds,
+  swarmLiveEdges,
+} from '../../org/live/swarmLive';
 import { paneIdForCard } from '../../org/model/bridge';
 import { requestOpenInGrid, requestOpenInReview } from '../../org/selection';
 import { deriveSwarmGraph, type SwarmNode, type SwarmEdge } from './swarmMapDerive';
+import { deriveSwarmPlane } from './swarmPlaneDerive';
 import { layoutSwarm } from './swarmLayout';
+import { useNow } from './clock';
+import SwarmChip from './SwarmChip';
+import SwarmCommandBar from './SwarmCommandBar';
 import SwarmMapLegend from './SwarmMapLegend';
 import EventTraceList from './EventTraceList';
 import ReplayScrubber from './ReplayScrubber';
@@ -36,6 +53,10 @@ const EDGE_COLOR: Record<string, string> = {
   blocker: 'var(--accent-red)',
 };
 
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 2.0;
+const clampZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+
 /** Work-node deep-link: strip the `work:` prefix back to the real card id. */
 function openNode(node: SwarmNode): void {
   if (node.type !== 'work') return;
@@ -48,29 +69,63 @@ function openNode(node: SwarmNode): void {
 const SwarmMap: Component = () => {
   const [selected, setSelected] = createSignal<SwarmNode | null>(null);
   const [pan, setPan] = createSignal({ x: 480, y: 340 });
+  const [zoom, setZoom] = createSignal(1);
   let canvasRef: SVGSVGElement | undefined;
+  const now = useNow();
 
-  // Proxy-strip before the pure derive (MANDATORY — Pitfall 3).
+  // --- V25 swarm plane: discover + fetch snapshot, refetch on each swarm event ---
+  const [swarmData] = createResource(
+    () => {
+      const srv = liveServer();
+      if (!srv) return null;
+      // swarmLiveEdges length is the refetch trigger: a new swarm.* event arrived
+      // → re-pull the authoritative task-state snapshot.
+      return { srv, tick: swarmLiveEdges().length };
+    },
+    async (k: { srv: NonNullable<ReturnType<typeof liveServer>>; tick: number }) => {
+      const id = await discoverActiveSwarmId(k.srv.cwd ?? null);
+      if (!id) return null;
+      try {
+        return await fetchSwarm(k.srv.baseUrl, k.srv.token, id);
+      } catch {
+        return null;
+      }
+    },
+  );
+  const snapshot = () => swarmData.latest ?? null;
+
+  // Proxy-strip before the legacy pure derive (MANDATORY — Pitfall 3).
   const plainRunData = () => {
     const rd = runData();
     return rd ? JSON.parse(JSON.stringify(rd)) : null;
   };
 
-  const graph = () => {
+  // Prefer the real V25 swarm plane; fall back to the legacy board-derive.
+  const graph = createMemo(() => {
+    const snap = snapshot();
+    if (snap) {
+      return deriveSwarmPlane({
+        snapshot: snap,
+        assignments: swarmAssignments(),
+        gates: swarmGates(),
+        operatorNeeds: swarmOperatorNeeds(),
+      });
+    }
     const rd = plainRunData();
     const runs = rd ? [{ runData: rd, liveOverlay: {} }] : [];
     return deriveSwarmGraph(runs, attentionQueue());
-  };
+  });
+  const onPlane = () => snapshot() != null;
 
-  const positioned = () => layoutSwarm(graph().nodes);
+  const positioned = createMemo(() => layoutSwarm(graph().nodes));
   const posById = () => {
     const map = new Map<string, { x: number; y: number }>();
     for (const n of positioned()) map.set(n.id, { x: n.x, y: n.y });
     return map;
   };
 
-  // Reduced-motion: OS preference OR the html.reduced-motion class (A8). Under
-  // reduced motion the connectors render static and the EventTraceList pins open.
+  // Returns board state and reflects on snapshot to ensure context isn't clipped
+  // Reduced-motion: OS preference OR the html.reduced-motion class (A8).
   const [reduced, setReduced] = createSignal(false);
   onMount(() => {
     const mql =
@@ -87,10 +142,9 @@ const SwarmMap: Component = () => {
     onCleanup(() => mql?.removeEventListener?.('change', compute));
   });
 
-  // Live edges merged from the SSE patch stream — each keeps its real `source`
-  // (honest-signal preserved on the live path). Mapped to rendered node ids;
-  // undrawable patches still surface in the EventTraceList.
+  // Legacy live edges merged from the SSE patch stream (board path only).
   const liveEdges = (): SwarmEdge[] => {
+    if (onPlane()) return [];
     const nodes = positioned();
     const obj = nodes.find((n) => n.type === 'objective');
     if (!obj) return [];
@@ -111,9 +165,24 @@ const SwarmMap: Component = () => {
     return out;
   };
   const allEdges = () => [...graph().edges, ...liveEdges()];
-  const pulsedIds = () => new Set(liveEdges().map((e) => e.to));
 
-  // Pause-hook for V24-07 animations: toggle `swarm-paused` when the tab hides.
+  // Pulse: legacy = live-edge targets; plane = nodes bound to a swarm event in the
+  // last 2.5s (sessionId match), windowed by the 1s clock. Guarded by !reduced().
+  const pulsedIds = createMemo(() => {
+    if (onPlane()) {
+      const recent = swarmLiveEdges().filter((e) => now() - e.timestamp < 2500);
+      const ids = new Set<string>();
+      for (const n of positioned()) {
+        if (n.sessionId && recent.some((e) => e.sessionId === n.sessionId)) {
+          ids.add(n.id);
+        }
+      }
+      return ids;
+    }
+    return new Set(liveEdges().map((e) => e.to));
+  });
+
+  // Pause-hook for the guarded animations: toggle `swarm-paused` when tab hides.
   createEffect(() => {
     const el = canvasRef;
     if (!el) return;
@@ -122,11 +191,11 @@ const SwarmMap: Component = () => {
     onCleanup(() => document.removeEventListener('visibilitychange', onVis));
   });
 
-  // Background drag-to-pan.
+  // Background drag-to-pan (only the bare canvas, never a chip).
   let dragging = false;
   let last = { x: 0, y: 0 };
   const onDown = (e: PointerEvent) => {
-    if (e.target !== canvasRef) return; // only the background
+    if (e.target !== canvasRef) return;
     dragging = true;
     last = { x: e.clientX, y: e.clientY };
   };
@@ -141,11 +210,50 @@ const SwarmMap: Component = () => {
     dragging = false;
   };
 
+  // Cmd/Ctrl + wheel zoom, anchored at the cursor.
+  const onWheel = (e: WheelEvent) => {
+    if (!(e.ctrlKey || e.metaKey) || !canvasRef) return;
+    e.preventDefault();
+    const rect = canvasRef.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const old = zoom();
+    const next = clampZoom(old * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+    if (next === old) return;
+    setPan((p) => ({
+      x: cx - ((cx - p.x) / old) * next,
+      y: cy - ((cy - p.y) / old) * next,
+    }));
+    setZoom(next);
+  };
+  const stepZoom = (factor: number) => setZoom((z) => clampZoom(z * factor));
+  const fitToContent = () => {
+    const nodes = positioned();
+    if (nodes.length === 0 || !canvasRef) return;
+    const xs = nodes.map((n) => n.x);
+    const ys = nodes.map((n) => n.y);
+    const minX = Math.min(...xs) - 120;
+    const maxX = Math.max(...xs) + 120;
+    const minY = Math.min(...ys) - 80;
+    const maxY = Math.max(...ys) + 80;
+    const rect = canvasRef.getBoundingClientRect();
+    const z = clampZoom(
+      Math.min(rect.width / (maxX - minX), rect.height / (maxY - minY)),
+    );
+    setZoom(z);
+    setPan({
+      x: rect.width / 2 - ((minX + maxX) / 2) * z,
+      y: rect.height / 2 - ((minY + maxY) / 2) * z,
+    });
+  };
+
   const hasGraph = () => graph().nodes.length > 0;
 
   return (
     <div class="surface swarm-map" role="tabpanel" aria-label="Swarm Map">
       <div class="swarm-map__body">
+        <div class="swarm-grid" aria-hidden="true" />
+        <div class="swarm-watermark" aria-hidden="true" />
         <Show
           when={!loading()}
           fallback={
@@ -167,9 +275,10 @@ const SwarmMap: Component = () => {
               when={hasGraph()}
               fallback={
                 <div class="swarm-empty">
-                  <p class="swarm-empty__title">No run data yet</p>
+                  <p class="swarm-empty__title">No swarm running</p>
                   <p class="swarm-empty__hint">
-                    Start a Task with ⌘K to see agents appear here.
+                    Launch a swarm (coordinator + builders) and it appears here as a
+                    live map.
                   </p>
                 </div>
               }
@@ -183,9 +292,10 @@ const SwarmMap: Component = () => {
                 onPointerMove={onMove}
                 onPointerUp={onUp}
                 onPointerLeave={onUp}
+                onWheel={onWheel}
               >
-                <g transform={`translate(${pan().x},${pan().y})`}>
-                  {/* edges first, under the nodes (derived + live, all sourced) */}
+                <g transform={`translate(${pan().x},${pan().y}) scale(${zoom()})`}>
+                  {/* edges first, under the chips (derived + legacy live, all sourced) */}
                   <For each={allEdges()}>
                     {(edge) => {
                       const a = posById().get(edge.from);
@@ -207,7 +317,7 @@ const SwarmMap: Component = () => {
                     }}
                   </For>
 
-                  {/* Traveling dots on freshly-patched live edges (motion mode). */}
+                  {/* Traveling dots on freshly-patched legacy live edges (motion). */}
                   <Show when={!reduced()}>
                     <For each={liveEdges()}>
                       {(edge) => {
@@ -238,20 +348,55 @@ const SwarmMap: Component = () => {
                         onClick={() => setSelected(node)}
                         onDblClick={() => openNode(node)}
                       >
-                        <NodeShape node={node} />
-                        <text class="swarm-node__label" y="28">
-                          {node.label}
-                        </text>
+                        <foreignObject x="-90" y="-34" width="180" height="68">
+                          <SwarmChip node={node} selected={selected()?.id === node.id} />
+                        </foreignObject>
                       </g>
                     )}
                   </For>
                 </g>
               </svg>
+
+              {/* Zoom controls (bottom-left overlay; siblings of the canvas). */}
+              <div class="swarm-zoom" role="group" aria-label="Zoom controls">
+                <button
+                  type="button"
+                  class="swarm-zoom__btn"
+                  aria-label="Zoom out"
+                  onClick={() => stepZoom(1 / 1.1)}
+                >
+                  −
+                </button>
+                <span class="swarm-zoom__pct" aria-live="polite">
+                  {Math.round(zoom() * 100)}%
+                </span>
+                <button
+                  type="button"
+                  class="swarm-zoom__btn"
+                  aria-label="Zoom in"
+                  onClick={() => stepZoom(1.1)}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  class="swarm-zoom__btn"
+                  aria-label="Fit to content"
+                  onClick={fitToContent}
+                >
+                  ⤢
+                </button>
+              </div>
+
+              {/* Direct-the-Swarm command bar + quick actions (live swarm only). */}
+              <Show when={onPlane()}>
+                <SwarmCommandBar />
+              </Show>
             </Show>
           </Show>
         </Show>
-        {/* Replay scrubber — bottom strip, only for completed runs (D-06/D-07). */}
-        <Show when={!loading() && !loadError() && runData()?.run_final}>
+        {/* Replay scrubber — bottom strip, only for completed legacy runs. */}
+        <Show when={!onPlane() && !loading() && !loadError() && runData()?.run_final}>
           <ReplayScrubber data={runData()!} />
         </Show>
       </div>
@@ -261,28 +406,6 @@ const SwarmMap: Component = () => {
       </div>
     </div>
   );
-};
-
-/** SVG shape per node type (UI-SPEC §Component Inventory 5). */
-const NodeShape: Component<{ node: SwarmNode }> = (props) => {
-  const t = props.node.type;
-  if (t === 'objective')
-    return <circle class="swarm-shape swarm-shape--objective" r="20" />;
-  if (t === 'agent')
-    return <circle class="swarm-shape swarm-shape--agent" r="14" />;
-  if (t === 'work')
-    return (
-      <rect class="swarm-shape swarm-shape--work" x="-10" y="-10" width="20" height="20" />
-    );
-  if (t === 'artifact')
-    return (
-      <polygon class="swarm-shape swarm-shape--artifact" points="0,-11 11,0 0,11 -11,0" />
-    );
-  if (t === 'alert')
-    return (
-      <polygon class="swarm-shape swarm-shape--alert" points="0,-11 10,9 -10,9" />
-    );
-  return <circle class="swarm-shape swarm-shape--placeholder" r="10" />;
 };
 
 export default SwarmMap;

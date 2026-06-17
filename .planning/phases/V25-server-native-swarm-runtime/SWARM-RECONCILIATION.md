@@ -117,14 +117,122 @@ unenforced), (b) post-hoc detection via fs-watch + revert/flag on out-of-scope w
 (c) run CLI members in a sandbox/overlay that intercepts writes. This choice gates whether
 R2's ownership guarantee is real or advisory for CLI members.
 
-## Decision needed before any code
-1. R1, R2, or R3?
-2. If R2: ownership enforcement for CLI members — advisory / fs-watch-detect / sandbox?
-3. Who creates the swarm from the GUI (the missing menu)? New "Swarm" launch surface that
-   `POST /swarm` with an explicit roster (role → kind → agent/model/auth or command).
-4. Frontend: collapse the two swarm readers (A13-manifest reconciler vs V25 `GET /swarm`)
-   onto one shape — almost certainly the V25 server snapshot, extended with the member
-   kind/agent axis.
+## Decisions (all resolved 2026-06-17)
+1. **End-state: R3** — all-CLI swarm, V25 as backing spine. ✅
+2. **CLI ownership: fs-watch detect + flag/revert**, substrate = **git worktree per
+   member** (see resolved section above). ✅
+3. **Watch/enforcement plane: the Python `voss serve` server.** ✅ — see resolution below.
+4. **GUI swarm-create menu:** new "Swarm" launch surface (A13 D-15) reusing the existing
+   agent picker → `POST /swarm` with explicit roster (role → cli-agent → model/args →
+   ownedFiles). Build item, no further decision needed.
+5. **Frontend convergence:** collapse the two readers onto the V25 `GET /swarm` snapshot,
+   extended with the cli/agent axis (which makes it shape-compatible with the existing
+   `swarmReconcile.ts` manifest reader). Build item.
+
+### RESOLVED (2026-06-17): execution plane vs enforcement plane
+**Two spawn impls, ONE enforcement impl.**
+- **Python `voss serve` server = control + enforcement plane.** Owns SwarmStore, coordinator
+  decompose, overlap validation, audit, escalation — AND the fs-watch + worktree lifecycle
+  + ownership detect/revert. Rationale: enforcement must work **headless** (no Tauri app),
+  it belongs next to the overlap validator + audit that back it, and the libs are already
+  vendored (`watchdog` + `watchfiles` both present in the venv) so no new dep. The server
+  creates each member's worktree and hands the path out to be spawned into.
+- **Rust/Tauri = execution plane only.** Owns PTY spawn + grid pane binding +
+  `agent_registry`, and reports pane/PTY lifecycle to the server. It already owns PTY
+  (`voss_app_core::pty`) and carries **no fs-watch crate** (none in Cargo today) — so
+  putting the watcher in Python avoids adding `notify` to Rust.
+- **Spawn has two backends, enforcement has one:** GUI mode → Rust spawns the CLI in a pane
+  (into the server-provided worktree); headless mode → the server spawns the CLI as a
+  subprocess directly (A13's original spawn). Either way the **same server-side watcher**
+  enforces ownership, so the guarantee is identical with or without the GUI.
+
+## R3 Concrete Plan (the chosen path)
+
+### What V25 KEEPS (the backing spine)
+- **SwarmStore** as server-side source of truth (roster, tasks, lifecycle states).
+- **VSWARM-06 overlap validation** — still reject tasks whose `ownedFiles` overlap
+  unless `dependsOn`-ordered. More important under R3, since it's the *only* a-priori
+  ownership guard.
+- **VSWARM-11 events.jsonl** append-only audit/replay.
+- **VSWARM-10 operator escalation** — but the *trigger* moves from PermissionGate deny to
+  the fs-watch ownership violation (below). Decision markdown recording unchanged.
+- **agent_registry** (`cli_binary`, `swarm_id`, `role`, `owned_files`) — now the *primary*
+  member record, not a thin binding. This is finally the canonical member shape.
+
+### What V25 DROPS / repurposes (member coordination)
+- **VSWARM-04 SSE spawn-gate** → replaced by file-existence gating: a member is spawned
+  only when its `tasks/<role>.task.md` exists. Deterministic without asyncio.Event.
+- **VSWARM-05 in-process PermissionGate ownership** → impossible for black-box CLIs;
+  replaced by fs-watch detect+flag/revert.
+- **VSWARM-02 SSE to member sessions** → CLIs don't subscribe; SSE becomes **host→GUI
+  only** (drives SwarmMap/cockpit from SwarmStore mutations + fs-watch).
+- **VSWARM-07 per-turn recall injection** → can't inject into a CLI's turn; instead bake
+  task-scoped recall into `tasks/<role>.task.md` + `shared/context.md` at decompose time.
+- **run_turn / per-role ModelProvider** → N/A. `Role.model` becomes a **CLI flag**
+  (`claude --model …`, `codex -m …`). The shipped `_effective_model` sentinel fix still
+  applies for any native coordinator call, and its model-resolution logic is the template
+  for resolving a member's `--model` flag.
+
+### Net-new for R3
+1. **`Role` gains the agent axis** — `{name, agent/cli, model, args, owned_files}`.
+   `agent` = which CLI (claude|codex|opencode|grok|antigravity|bridgecode|custom command).
+   This is the field the runtime never had and the whole bug surfaced.
+2. **Coordinator** — server-side single LLM call (A13 D-03): goal → 2–6 tasks with
+   `ownedFiles` + per-task agent choice (D-16) → writes task files + seeds SwarmStore.
+   Reuse `_effective_model` for the coordinator's own model.
+3. **File-bus writer/reader** — host writes `tasks/*.task.md` from SwarmStore; fs-watch on
+   `results/*.result.md` for completion (+ PTY-idle fallback, SWM-06); parse frontmatter
+   back into SwarmStore → emit SSE to GUI.
+4. **Ownership watcher (fs-watch detect + flag/revert)** — see below.
+5. **Swarm setup menu** — the missing GUI. A "Swarm" launch surface (A13 D-15) reusing the
+   existing agent picker (the wizard screenshots) for per-role CLI choice → `POST /swarm`
+   with an explicit roster → coordinator decompose → spawn N CLI panes (apply swarm grid
+   preset, SWM-10 / `layouts.rs`).
+6. **Frontend convergence** — `swarmReconcile.ts` (A13 manifest, `cli`-based) is now the
+   *correct* shape. Extend `GET /swarm` (`swarmClient.ts`) to return the same cli-based
+   snapshot from SwarmStore; collapse the two readers onto it.
+
+### Ownership watcher — fs-watch detect + flag/revert (the hard part)
+Concurrent CLIs in the same cwd make per-member write **attribution** the core problem.
+Recommended substrate: **git worktree per member** — each CLI works in its own checkout.
+Then:
+- Writes are naturally **attributable** (which worktree changed) and **revertible**
+  (`git checkout`/`restore` in that worktree).
+- A write touching a path outside the member's `ownedFiles` → emit `swarm.needs_operator`
+  (reuse VSWARM-10 escalation) + revert that file in the member's worktree.
+- Fan-in becomes a **merge** of member worktrees, where `ownedFiles` disjointness (already
+  validated by VSWARM-06) guarantees conflict-free merge.
+This turns "flag/revert" from a fragile mtime-diff heuristic into a clean git operation,
+and makes overlap validation load-bearing at merge time.
+
+#### RESOLVED (2026-06-17): git worktree per member
+Single-cwd + snapshot-diff was rejected — its attribution is heuristic and racy under
+concurrent writes (two CLIs writing near-simultaneously is the exact failure mode), and a
+heuristic revert can clobber another member's legit concurrent write. R3's entire
+ownership guarantee rests on reliable attribution + revert, so the principled substrate
+wins. Grounding: `voss/layout.py:derive_layout` already does full git-worktree detection
+(`is_worktree`, git-dir vs common-dir), so the toolchain is worktree-aware today.
+
+Mechanics:
+- Each member's cwd is its own `git worktree add` checkout. Writes are attributable (which
+  worktree changed) and revertible (`git restore` in that worktree).
+- Out-of-`ownedFiles` write → `swarm.needs_operator` (reuse VSWARM-10) + revert in that
+  worktree.
+- **Fan-in = merge of member worktrees.** VSWARM-06 `ownedFiles` disjointness → conflict-
+  free merge.
+- **File-bus stays in the MAIN checkout's `.voss/swarm/<id>/`** (shared, not per-worktree).
+  Members never read `.voss` themselves — the host passes each CLI its task inline (CLI
+  positional arg / prompt) and an absolute result-file path. Keeps members hermetic in
+  their worktree.
+- Open follow-up (build-time, not blocking): shared-artifact strategy for worktrees
+  (node_modules / build cache) — symlink shared dirs or accept per-worktree setup cost.
+
+### Honest cost of R3 (acknowledged, decided)
+V25-01..06 shipped today; R3 sets aside its SSE spawn-gate + in-process ownership for member
+coordination and re-bases on the file-bus those phases were built to replace. The
+SwarmStore/overlap/audit/escalation work is reused; the spawn-gate (VSWARM-04) and
+PermissionGate ownership (VSWARM-05) implementations are effectively superseded for CLI
+members. The 2-builder e2e test (V25-06) will need rewriting against the file-bus path.
 
 ## Note on the shipped fix
 The `Role.model` sentinel fix (`_effective_model` in `server/app.py`) is correct and

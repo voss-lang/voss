@@ -63,6 +63,17 @@ class _Base(BaseModel):
 
 class Role(_Base):
     name: str
+    # R3 agent axis (SWARM-RECONCILIATION): which executor backs this role.
+    # "voss" = the native in-process run_turn loop (V25 behavior, default →
+    # backward compatible). Any other value names a real CLI spawned in the
+    # member's own git worktree; resolved to an argv by `swarm_agents`.
+    agent: str = "voss"
+    # Raw command for agent="custom" (host tokenizes via shlex). Ignored for
+    # catalog agents and the native loop.
+    command: str = ""
+    # Extra CLI flags appended after the model/cwd flags. Ignored for native.
+    args: list[str] = Field(default_factory=list)
+    # Native model id OR the chosen CLI's `--model` flag value.
     model: str = "default"
     auth_pref: str = "auto"
 
@@ -221,9 +232,19 @@ class SwarmStore:
         self._log.append(swarm_id, self._event(etype, swarm_id, actor, payload))
 
     # -- mutations ---------------------------------------------------------
-    def create(self, goal: str, cwd: str | None = None, *, builders: int = 2) -> Swarm:
+    def create(
+        self,
+        goal: str,
+        cwd: str | None = None,
+        *,
+        builders: int = 2,
+        roster: list[Role] | None = None,
+    ) -> Swarm:
         sid = uuid.uuid4().hex[:12]
-        roster = default_roster(builders=builders)
+        # An explicit roster (R3: per-role agent axis) is persisted as-is so the
+        # stored/replayed swarm matches what was spawned; otherwise the default
+        # coordinator + N builders + reviewer.
+        roster = roster if roster is not None else default_roster(builders=builders)
         swarm = Swarm(id=sid, goal=goal, cwd=cwd or str(self.cwd), roster=roster, tasks=[])
         self._emit(
             "swarm.create",

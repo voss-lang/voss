@@ -338,3 +338,344 @@
   font-variant-numeric: tabular-nums;
   color: var(--fg-3);
 }
+
+/* ── V24 redesign: chip cards, dotted grid, watermark, zoom ──────────────────
+   No keyframe motion outside the sentinel-guarded block above. Hover/selection
+   use border/background only (non-motion). */
+
+/* Background layers sit UNDER the (transparent) canvas. */
+.swarm-grid,
+.swarm-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.swarm-grid {
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.5;
+}
+.swarm-watermark {
+  background: center / 36% no-repeat url(/voss-watermark.svg);
+  opacity: 0.04;
+}
+.swarm-canvas,
+.swarm-empty,
+.swarm-map__body > .org-spinner,
+.swarm-map__body > .org-error-state {
+  position: relative;
+  z-index: 1;
+}
+
+/* Chip card (rendered inside an SVG <foreignObject> 180×68, centered on the node). */
+.swarm-chip {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  color: var(--fg-1, var(--fg));
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 80ms ease, background 80ms ease;
+}
+.swarm-chip:hover {
+  border-color: var(--border-bright);
+  background: var(--bg-3);
+}
+.swarm-chip:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.swarm-chip--selected {
+  border-color: var(--focus);
+}
+.swarm-chip--coordinator {
+  border-color: var(--accent-amber);
+}
+.swarm-chip--operator {
+  border-color: var(--accent-red);
+}
+.swarm-chip--placeholder {
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.swarm-chip__icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--bg-3);
+  color: var(--fg-2);
+}
+.swarm-chip--coordinator .swarm-chip__icon {
+  color: var(--accent-amber);
+}
+.swarm-chip[data-role='builder'] .swarm-chip__icon {
+  color: var(--accent-green);
+}
+.swarm-chip[data-role='reviewer'] .swarm-chip__icon {
+  color: var(--accent-amber);
+}
+.swarm-chip[data-role='scout'] .swarm-chip__icon {
+  color: var(--accent-cyan);
+}
+.swarm-chip--operator .swarm-chip__icon {
+  color: var(--accent-red);
+}
+
+.swarm-chip__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.swarm-chip__name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-0, var(--fg));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.swarm-chip__work {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.swarm-chip__chevron {
+  color: var(--fg-3);
+}
+.swarm-chip__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+}
+.swarm-chip__tag {
+  letter-spacing: 0.05em;
+  color: var(--fg-3);
+}
+.swarm-chip--coordinator .swarm-chip__tag {
+  color: var(--accent-amber);
+}
+.swarm-chip[data-role='builder'] .swarm-chip__tag {
+  color: var(--accent-green);
+}
+.swarm-chip__model {
+  color: var(--fg-2);
+  font-family: var(--font-mono);
+}
+.swarm-chip__status {
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Zoom controls — bottom-left overlay. */
+.swarm-zoom {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.swarm-zoom__btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--fg-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+.swarm-zoom__btn:hover {
+  background: var(--bg-2);
+  color: var(--fg-0, var(--fg));
+}
+.swarm-zoom__btn:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.swarm-zoom__pct {
+  min-width: 40px;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+}
+
+/* Direct-the-Swarm command bar + quick actions — bottom-center overlay. The
+   wrapper is click-through (pointer-events:none) so the bare canvas between
+   controls still receives drag-to-pan; only the controls capture pointer events. */
+.swarm-direct {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(680px, calc(100% - 120px));
+  pointer-events: none;
+}
+.swarm-direct > * {
+  pointer-events: auto;
+}
+
+.swarm-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.swarm-hint__text {
+  color: var(--fg-3);
+}
+.swarm-quick {
+  padding: 3px 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-2);
+  font-size: 11px;
+  cursor: pointer;
+}
+.swarm-quick:hover:not(:disabled) {
+  background: var(--bg-2);
+  color: var(--fg-0, var(--fg));
+  border-color: var(--border-bright);
+}
+.swarm-quick:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.swarm-quick:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.swarm-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-bright);
+  border-radius: 10px;
+}
+.swarm-bar__target {
+  position: relative;
+}
+.swarm-bar__target-btn {
+  padding: 6px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-1, var(--fg));
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.swarm-bar__target-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.swarm-bar__menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 140px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-3);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+}
+.swarm-bar__menu-item {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--fg-1, var(--fg));
+  border-radius: 4px;
+  cursor: pointer;
+}
+.swarm-bar__menu-item:hover {
+  background: var(--bg-2);
+}
+.swarm-bar__input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--fg-0, var(--fg));
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 6px;
+}
+.swarm-bar__input::placeholder {
+  color: var(--fg-3);
+}
+.swarm-bar__input:focus-visible {
+  outline: none;
+}
+.swarm-bar__input:disabled {
+  cursor: not-allowed;
+}
+.swarm-bar__send {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--focus);
+  border: none;
+  border-radius: 6px;
+  color: var(--bg-0);
+  cursor: pointer;
+}
+.swarm-bar__send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.swarm-bar__send:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+.swarm-bar__note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--accent-amber);
+}

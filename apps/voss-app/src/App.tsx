@@ -30,6 +30,7 @@ import { devlog } from './devlog';
 import PortalShell from './portal/PortalShell';
 import ContextSurface from './surfaces/context/ContextSurface';
 import MemorySurface from './surfaces/memory/MemorySurface';
+import { setLiveServer } from './org/live/liveServer';
 import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
@@ -497,6 +498,14 @@ export default function App() {
     const built = buildVossClientFromHandshake(handshake);
     vossClientCwd = cwd;
     setVossClient(built);
+    // Expose the live server to prop-less surfaces (Swarm Map snapshot fetch +
+    // command-bar directing) — token rides the Authorization header only.
+    setLiveServer({
+      baseUrl: built.baseUrl,
+      token: built.token,
+      cwd,
+      followUpClient: built.followUpClient,
+    });
     return built;
   };
 

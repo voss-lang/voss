@@ -660,8 +660,8 @@ def _build_provider_for_auth(
         if announce:
             click.echo(
                 "  [claude-agent: using your Claude subscription via the Agent SDK "
-                "(claude -p); bills the plan's Agent SDK monthly credit, not "
-                "interactive Claude Code limits.]",
+                "(claude -p); API-billing env vars are shadowed for this "
+                "subprocess.]",
                 err=True,
             )
         provider: ModelProvider = ClaudeAgentProvider(cli_path=res.cli_path)

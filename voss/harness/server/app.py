@@ -445,6 +445,10 @@ class PermissionReply(BaseModel):
 
 class RoleSpec(BaseModel):
     name: str
+    # R3 agent axis — mirrors swarm_store.Role (see SWARM-RECONCILIATION).
+    agent: str = "voss"
+    command: str = ""
+    args: list[str] = []
     model: str = "default"
     auth_pref: str = "auto"
 

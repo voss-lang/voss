@@ -148,7 +148,7 @@ describe('SwarmMap — honest empty state', () => {
   it('with no run data shows the empty state and zero node shapes', () => {
     setRunData(null);
     const el = mount(() => <SwarmMap />);
-    expect(el.textContent).toContain('No run data yet');
+    expect(el.textContent).toContain('No swarm running');
     expect(el.querySelectorAll('[data-node-type]').length).toBe(0);
   });
 });
