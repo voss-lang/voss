@@ -128,6 +128,9 @@ BOS0-BOS18 define the v0.2 Behavioral OS Foundation milestone. This track is doc
 - [ ] BOS1-01-PLAN.md — Build `.planning/AUDIT-INDEX.md`: two-axis (status × BOS-relationship) classification of 25 loose docs + 10 phase-track rollup + external appendix; verify BOS prefix + BOS0-18 split (BOS-PLAN-01, BOS-PLAN-02, BOS-PLAN-03, BOS-PLAN-04)
 - [ ] BOS1-02-PLAN.md — Human-gated cleanup: per-item approval → move archive-candidates into `.planning/archive/` → delete signed-off dead docs (autonomous:false; BOS-PLAN-02)
 
+**BOS2 planned (2026-06-18):** 1 plan, 1 wave (docs-only architecture decision doc; covers BOS-ARCH-01..04):
+- [ ] BOS2-01-PLAN.md — BOS2-ARCHITECTURE.md: current+target monorepo shape (apps/web + services/* in one tree), service/library boundary = deployability, language map, pnpm consolidation + named Turborepo trigger, SQLite/Postgres/DuckDB stores + one-directional SQLite→Postgres sync, V13.1 contracts as drift-gated source of truth (BOS-ARCH-01, BOS-ARCH-02, BOS-ARCH-03, BOS-ARCH-04)
+
 | BOS phase | Deliverable | Notes |
 |---|---|---|
 | BOS0 | Product thesis and discovery script | Clarifies ICP, wedge, and what problem is worth solving first |
