@@ -256,7 +256,15 @@ const SwarmMap: Component = () => {
     });
   };
 
-  const hasGraph = () => graph().nodes.length > 0;
+  // A real swarm to render: the live V25 plane, or a legacy run graph with
+  // actual structure (work / agent / artifact nodes). A lone objective or
+  // placeholder from an idle focused run is NOT a swarm — fall through to the
+  // launch wizard instead of rendering a phantom "CONTROLLER" node.
+  const hasSwarm = () =>
+    onPlane() ||
+    graph().nodes.some(
+      (n) => n.type === 'work' || n.type === 'agent' || n.type === 'artifact',
+    );
 
   return (
     <div class="surface swarm-map" role="tabpanel" aria-label="Orchestra">
@@ -291,7 +299,7 @@ const SwarmMap: Component = () => {
             }
           >
             <Show
-              when={hasGraph()}
+              when={hasSwarm()}
               fallback={
                 <Show when={!launchOpen()}>
                   <div class="swarm-empty swarm-empty--wizard">

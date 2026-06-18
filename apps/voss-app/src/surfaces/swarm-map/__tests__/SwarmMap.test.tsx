@@ -154,6 +154,24 @@ describe('SwarmMap — honest empty state', () => {
     expect(el.querySelectorAll('[data-node-type]').length).toBe(0);
   });
 
+  it('shows the wizard (not a phantom CONTROLLER) for an idle run with no swarm structure', () => {
+    // A focused native run with only a root session yields a lone objective +
+    // placeholder in the legacy derive — that is NOT a swarm, so the wizard wins.
+    setRunData({
+      run_id: 'run-lone',
+      session_tree: {
+        root_id: 'root',
+        nodes: [node({ id: 'root', parent_run_id: null, role: null })],
+      },
+      review: {},
+      audit: null,
+      run_final: null,
+    } as unknown as RunData);
+    const el = mount(() => <SwarmMap />);
+    expect(el.querySelector('[aria-label="Launch an orchestra"]')).toBeTruthy();
+    expect(el.querySelectorAll('[data-node-type]').length).toBe(0);
+  });
+
   it('keeps a New launcher available when a graph is already showing', () => {
     setRunData(fullRun());
     const el = mount(() => <SwarmMap />);
