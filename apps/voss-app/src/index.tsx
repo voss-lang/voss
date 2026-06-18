@@ -2,26 +2,38 @@ import { render } from 'solid-js/web';
 import { invoke } from '@tauri-apps/api/core';
 import App from './App';
 import { applyThemeOverrides } from './theme/applyTheme';
+import { getBundledTheme } from './themes/themeCatalog';
 import { applyThemeToRuntime, getCommittedTheme } from './themes/themeRuntime';
 import './index.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('No #root element');
 
-// Apply default theme (Voss Ignite) CSS vars before first render.
-// This overrides the baked variant-b.css fallback values with the warm palette.
-applyThemeToRuntime(getCommittedTheme());
+async function applySavedTheme(): Promise<void> {
+  // Apply default theme (Voss Ignite) before first render.
+  applyThemeToRuntime(getCommittedTheme());
 
-// Then apply any user-saved theme overrides from settings.json on top.
-invoke<Record<string, string>>('get_theme_overrides')
-  .then((overrides) => {
+  try {
+    const activeThemeId = await invoke<string | null>('load_active_theme_id');
+    const theme = activeThemeId ? getBundledTheme(activeThemeId) : undefined;
+    if (theme) {
+      applyThemeToRuntime(theme);
+    }
+  } catch (e) {
+    console.error('[voss-app] active theme load error:', e);
+  }
+
+  try {
+    const overrides = await invoke<Record<string, string>>('get_theme_overrides');
     if (Object.keys(overrides).length > 0) {
       applyThemeOverrides(overrides);
     }
-  })
-  .catch((e) => {
+  } catch (e) {
     console.error('[voss-app] theme override error:', e);
-  })
+  }
+}
+
+void applySavedTheme()
   .finally(() => {
     render(() => <App />, root);
   });

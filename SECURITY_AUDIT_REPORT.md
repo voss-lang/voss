@@ -1,165 +1,303 @@
-# Security Audit Report — Voss
+# Security Audit Report
 
-**Date:** 2026-06-09
-**Scope:** Quick Scan (11 categories: 1, 2, 3, 4, 5, 12, 15, 27, 31, 42, 65)
-**Stack:** Python harness (FastAPI+SSE server, litellm/anthropic/openai, keyring) + Rust crates + Tauri/Solid app + pnpm monorepo + GitHub Actions + Docker
-
----
+**Date:** 2026-06-17
+**Scope:** Snitch Quick Scan, assumed because the interactive Snitch menu tool was unavailable.
+**Worktree:** Current on-disk state on `dev`. The server-native swarm lines cited below are in commit `d06749d6`.
+**Stack:** Python harness and FastAPI/SSE server, AI provider integrations, Rust crates, Tauri/Solid app, Next static site, npm/pnpm/uv/Cargo locks, GitHub Actions, Docker.
 
 ## Summary
 
-- **Overall Risk:** Medium
-- **Findings:** 0 Critical, 0 High, 14 Medium, 1 Low
+- **Overall Risk:** High
+- **Findings:** 0 Critical, 3 High, 5 Medium, 2 Low
 - **Standards:** CWE Top 25 (2025), OWASP Top 10 (2025), CVSS 4.0
-- **scan_mode:** Quick | **subagent_dispatch:** true (4 parallel batches)
-- **scan_mode_detected_features:** FastAPI+SSE harness server, anthropic/openai/litellm SDKs, keyring credential storage, OAuth (codex) auth flow, pyyaml, rusqlite, xterm.js frontend, 6 GitHub Actions workflows, Dockerfile, pnpm/uv/Cargo lockfiles
-- **recheck_candidates:** `.github/workflows/ci.yml:39,40,146,174`, `.github/workflows/rust.yml:37,40`, `.github/workflows/publish-container.yml:34,38,46,60,69`, `.github/workflows/mcp-integration.yml:17,18,23`, `.github/workflows/haskell-frontend.yml:24`, `voss/harness/tools.py:716`
+- **Artifacts:** `SBOM.cdx.json` regenerated from the root npm lockfile in lockfile-only mode; `VEX.cdx.json` added for dependency findings.
+- **scan_mode_detected_features:** FastAPI bearer-gated harness server, agent tool loop, network fetch tool, Python regex search tools, Next static site, PostHog analytics, GitHub Actions release/container workflows, Dockerfile, `package-lock.json`, `pnpm-lock.yaml`, `uv.lock`, `Cargo.lock`.
+- **recheck_candidates:** `uv.lock:20,668`, `package-lock.json:412`, `site/package.json:22`, `voss/harness/net.py:135`, `voss/harness/tools.py:700`, `voss/harness/agent.py:466`, `voss/harness/server/app.py:212,696`, `.github/workflows/*.yml uses:`, `site/vercel.json:34`, `.github/workflows/ci.yml:146`.
 
-## Scan Comparison
+## High Findings
 
-Previous scan 2026-05-27 (Full, 32 cats): 5 findings (1 Critical, 0 High, 2 Medium, 2 Low) | This scan: 15
+### 1. Python lock pins vulnerable `aiohttp` and `cryptography`
 
-- **Resolved (verified):** "CI/CD tag pins on release workflow" — `release.yml` now pins all actions to commit SHA (e.g. `actions/checkout@de0fac2e…`). Confirmed as a Pass this scan.
-- **Not re-checked this run (out of Quick-Scan scope):** the prior Critical (Rust `shell_run` metacharacter guard, Cat 10) and PostHog consent / CSP items. Note: the Python sandbox now enforces metacharacter rejection + allowlist (`voss/harness/sandbox.py:43-73`); re-verify the Rust port in a Cat 10 scan.
-- **New:** 13 tag-pin findings in the five *non-release* workflows, 1 agent SSRF gap, 1 unpinned service image.
+- **Severity:** High | CVSS 4.0: ~7.5
+- **CWE:** CWE-1395 (Dependency With Known Vulnerability)
+- **OWASP:** A03:2025 Software Supply Chain Failures
+- **Files:** `uv.lock:20`, `uv.lock:668`, `uv.lock:1503`, `pyproject.toml:26`
+- **Evidence:**
+  ```toml
+  name = "aiohttp"
+  version = "3.13.5"
+  ...
+  name = "cryptography"
+  version = "48.0.0"
+  ...
+  { name = "aiohttp" }
+  ```
+- **Audit result:** `uvx pip-audit --no-deps --skip-editable --disable-pip -r /tmp/voss-requirements.txt --format json` found 12 known vulnerabilities in 2 packages. `aiohttp` fixes are listed at `3.14.0`/`3.14.1`; `cryptography` fixes at `48.0.1`.
+- **Reachability:** `aiohttp` is pulled by `litellm`; direct project source does not import it outside a test compatibility shim. `cryptography` is a direct runtime dependency and is imported by the trust/signature path.
+- **Risk:** Known vulnerable packages remain in the production Python lock; impact ranges from DoS and cookie/header handling issues to cryptographic wheel exposure depending on runtime path.
+- **Fix:** Refresh the lock after constraining `aiohttp >=3.14.1` and `cryptography >=48.0.1`, then rerun `pip-audit` and the harness test suite.
+- **Priority:** P2 | **Confidence:** High | **Author:** Ben
 
----
+### 2. Root npm lock pins vulnerable `form-data@4.0.5`
+
+- **Severity:** High | CVSS 4.0: ~7.5
+- **CWE:** CWE-1395 (Dependency With Known Vulnerability); advisory also maps to CWE-93
+- **OWASP:** A03:2025 Software Supply Chain Failures
+- **Files:** `package-lock.json:52`, `package-lock.json:412`
+- **Evidence:**
+  ```json
+  "node_modules/@types/node-fetch": {
+    "version": "2.6.13",
+    "dependencies": {
+      "form-data": "^4.0.4"
+    }
+  },
+  "node_modules/form-data": {
+    "version": "4.0.5"
+  }
+  ```
+- **Audit result:** `npm audit --omit=dev` and `pnpm audit --prod` report GHSA-hmw2-7cc7-3qxx / CVE-2026-12143, fixed in `form-data >=4.0.6`.
+- **Reachability:** The vulnerable package is transitive through `litellm` provider SDK dependencies. The advisory is conditional on untrusted multipart field names or filenames.
+- **Risk:** If the dependency path is used with attacker-controlled multipart names, it can alter outbound multipart headers/parts sent to downstream services.
+- **Fix:** Regenerate the root lock with `form-data >=4.0.6` or add a temporary package-manager override until upstream dependencies resolve it.
+- **Priority:** P2 | **Confidence:** High | **Author:** Ben
+
+### 3. Site `posthog-js` pulls vulnerable transitive telemetry packages
+
+- **Severity:** High | CVSS 4.0: ~7.5
+- **CWE:** CWE-1395 (Dependency With Known Vulnerability)
+- **OWASP:** A03:2025 Software Supply Chain Failures
+- **Files:** `site/package.json:22`, `site/package-lock.json:6403`, `site/package-lock.json:6466`
+- **Evidence:**
+  ```json
+  "posthog-js": "^1.376.4"
+  ...
+  "node_modules/posthog-js": {
+    "version": "1.376.4",
+    "dependencies": {
+      "@opentelemetry/exporter-logs-otlp-http": "^0.208.0",
+      "dompurify": "^3.3.2"
+    }
+  },
+  "node_modules/protobufjs": {
+    "version": "7.5.9"
+  }
+  ```
+- **Audit result:** `npm audit --omit=dev` in `site/` reports 11 production advisories: 1 high in `protobufjs`, plus moderate advisories through OpenTelemetry and DOMPurify. `posthog-js` is the direct dependency in the vulnerable range `1.319.0 - 1.379.0`.
+- **Reachability:** The site initializes and uses PostHog in `site/components/PostHogProvider.tsx:36` and `site/lib/analytics.ts:14`.
+- **Risk:** A production client dependency includes vulnerable transitive code; exploitability depends on whether the affected telemetry/parser paths process attacker-controlled input in the browser.
+- **Fix:** Upgrade `posthog-js` past the audited range, regenerate `site/package-lock.json`, and rerun `npm audit --omit=dev` in `site/`.
+- **Priority:** P2 | **Confidence:** High | **Author:** Ben
 
 ## Medium Findings
 
-### 1. GitHub Actions pinned by tag, not commit SHA (13 occurrences)
+### 4. `web_fetch` lacks URL scheme and private-address validation
 
-- **Severity:** Medium | CVSS 4.0: ~5.8
-- **CWE:** CWE-426 (Untrusted Search Path) / supply-chain workflow hijack
-- **OWASP:** A08:2025 Software & Data Integrity Failures
-- **Risk:** A force-pushed or re-tagged action version runs attacker code in CI at next trigger. Highest stakes in `publish-container.yml`, which holds GHCR login credentials and signs build provenance — a hijacked `docker/login-action` or `build-push-action` could exfiltrate registry credentials or inject malicious image layers with valid attestation.
-- **Shared fix:** Pin every `uses:` to a full commit SHA with a version comment, exactly as `release.yml` already does (e.g. `actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2`). Dependabot is already configured for action bumps (monthly + 3-day cooldown), so SHA pins stay maintained automatically.
-- **Priority:** P2 | **Confidence:** High | **Author:** Ben
-
-| File | Line | Action |
-|---|---|---|
-| `.github/workflows/ci.yml` | 39 | `actions/checkout@v6.0.2` |
-| `.github/workflows/ci.yml` | 40 | `actions/setup-python@v6` |
-| `.github/workflows/ci.yml` | 174 | `actions/setup-node@v6` |
-| `.github/workflows/rust.yml` | 37 | `dtolnay/rust-toolchain@stable` (branch ref — least reproducible) |
-| `.github/workflows/rust.yml` | 40 | `Swatinem/rust-cache@v2` |
-| `.github/workflows/publish-container.yml` | 34 | `docker/setup-buildx-action@v4` |
-| `.github/workflows/publish-container.yml` | 38 | `docker/login-action@v4` (holds GHCR creds) |
-| `.github/workflows/publish-container.yml` | 46 | `docker/metadata-action@v6` |
-| `.github/workflows/publish-container.yml` | 60 | `docker/build-push-action@v7` |
-| `.github/workflows/publish-container.yml` | 69 | `actions/attest-build-provenance@v4` (signs provenance) |
-| `.github/workflows/mcp-integration.yml` | 17 | `actions/checkout@v6.0.2` |
-| `.github/workflows/mcp-integration.yml` | 18 | `actions/setup-python@v6` |
-| `.github/workflows/mcp-integration.yml` | 23 | `actions/setup-node@v6` |
-| `.github/workflows/haskell-frontend.yml` | 24 | `haskell-actions/setup@v2` |
-
-### 2. Agent `web_fetch` tool has no URL validation (private-range / metadata reachability)
-
-- **Severity:** Medium | CVSS 4.0: ~5.3
+- **Severity:** Medium | CVSS 4.0: ~6.4
 - **CWE:** CWE-918 (Server-Side Request Forgery)
-- **OWASP:** A10:2025 SSRF
-- **File:** `voss/harness/tools.py:716`
+- **OWASP:** A10:2025 Server-Side Request Forgery
+- **Files:** `voss/harness/tools.py:830`, `voss/harness/net.py:135`, `voss/harness/permissions.py:304`
 - **Evidence:**
   ```python
   async def web_fetch(url: str, timeout_s: float = 30.0) -> str:
-      if net is None:
-          return ("<error: net disabled: set tools.allow_net = true in "
-                  "harness.toml or pass --allow-net>")
+      ...
       return await net.fetch(url, timeout_s=timeout_s)
+
+  resp = await self._http().get(url, timeout=timeout_s)
   ```
-- **Input trace:** URL originates from the LLM agent's tool call and reaches `net.fetch()` with no parsing, allow-list, or private-IP rejection. Mitigations on the path: tool gated behind `tools.allow_net` opt-in; harness server is localhost-bound and bearer-token-protected. Source classification: **un-traceable beyond the model** (LLM-generated, indirectly steerable by prompt-injected content the agent reads) → reported at reduced confidence.
-- **Risk:** A prompt-injected agent (e.g. via fetched page content or repo files) can be steered to request `169.254.169.254`, `localhost` services, or private-range hosts and feed the response back into the model context.
-- **Fix:** In `web_fetch` (or `net.fetch`): parse with `urllib.parse.urlparse`, reject loopback/link-local/private ranges (`127.0.0.0/8`, `169.254.0.0/16`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, `fc00::/7`) and non-http(s) schemes; optionally add a config allow-list.
-- **Priority:** P2 | **Confidence:** Medium — needs human verification (is local-network fetch ever intended?)
-- **Author:** Ben
+- **Input trace:** The URL originates in an agent tool call (`step.args`) and reaches the HTTP client through `web_fetch` with no URL parse, scheme allowlist, DNS/IP resolution check, or redirect target validation. The only observed gate is whether network tools are enabled.
+- **Risk:** When network access is enabled, prompt-injected or user-steered tool calls can fetch loopback, link-local, private-network, or cloud metadata targets and return the response into model context.
+- **Fix:** Parse URLs before request, allow only `http`/`https`, resolve hostnames, reject loopback/link-local/private/multicast/reserved ranges for both initial and redirected targets, and consider an explicit allowlist for intended domains.
+- **Priority:** P2 | **Confidence:** Medium, because the source is LLM-generated and needs human confirmation for intended local-network behavior | **Author:** Ben
+
+### 5. Python regex tools can be CPU-exhausted by model-supplied patterns
+
+- **Severity:** Medium | CVSS 4.0: ~5.5
+- **CWE:** CWE-1333 (Inefficient Regular Expression Complexity)
+- **OWASP:** A04:2025 Insecure Design
+- **Files:** `voss/harness/tools.py:700`, `voss/harness/code/regex_fallback.py:31`, `voss/harness/agent.py:1493`
+- **Evidence:**
+  ```python
+  rx = re.compile(pattern)
+  ...
+  if rx.search(line):
+
+  regex = re.compile(pattern)
+  ...
+  if regex.search(line):
+  ```
+- **Input trace:** The `pattern` argument comes from an agent tool call and is invoked directly by the Python search tools. These paths use Python's backtracking regex engine and do not wrap matching with a timeout or complexity guard.
+- **Risk:** A pathological pattern can monopolize CPU during a harness turn, causing local denial of service and potentially blocking a server-backed session.
+- **Fix:** Cap pattern length, reject known catastrophic shapes, and execute searches through a timeout-enforced worker or a linear-time engine. Add regression tests for rejected pathological patterns.
+- **Priority:** P3 | **Confidence:** High | **Author:** Ben
+
+### 6. Tool outputs replay into later model turns without an explicit untrusted-data boundary
+
+- **Severity:** Medium | CVSS 4.0: ~5.8
+- **CWE:** CWE-1427 (Input Used for LLM Prompting)
+- **OWASP:** A05:2025 Injection
+- **Files:** `voss/harness/agent.py:459`, `voss/harness/agent.py:466`, `voss/templates/prompts/plan_loop_system.txt.jinja:5`, `voss/harness/net.py:174`
+- **Evidence:**
+  ```python
+  lines = [f"Tool results for iteration {iter_rec.index}:"]
+  result_str = str(tr.get("result", ""))[:400]
+  lines.append(f"- {name}({args_str}) -> {result_str}")
+  user_msg = {"role": "user", "content": "\n".join(lines)}
+  ```
+- **Input trace:** External content returned by `web_fetch` is stored as a tool result, then serialized into a later user-role message. The prompt tells the model to review prior tool results but does not explicitly mark them as untrusted data whose instructions must be ignored.
+- **Risk:** Indirect prompt injection from fetched pages, files, or tool output can steer later tool calls; this chains with the URL validation gap when network tools are enabled.
+- **Fix:** Wrap every tool result in a structured untrusted-data envelope with provenance, add a system-level rule that tool-result text is data only, and require confirmation or policy checks before tool results can influence network or write actions.
+- **Priority:** P3 | **Confidence:** High | **Author:** Ben
+
+### 7. Swarm owned-file assignments are recorded but not enforced by the server permission gate
+
+- **Severity:** Medium | CVSS 4.0: ~5.6
+- **CWE:** CWE-862 (Missing Authorization)
+- **OWASP:** A01:2025 Broken Access Control
+- **Files:** `voss/harness/server/app.py:212`, `voss/harness/server/app.py:696`, `voss/harness/swarm_store.py:134`, `voss/harness/server/sessions.py:58`
+- **Evidence:**
+  ```python
+  gate = PermissionGate(
+      mode=mode,
+      store=PermissionStore.load(session.cwd),
+      auto_yes=False,
+  )
+  ...
+  builder.swarm_owned_files = task.owned_files
+  ```
+- **Input trace:** `/swarm/{swarm_id}/message` assignment stores `task.owned_files` on the builder session, and `build_ownership_policy()` exists, but `_run_turn()` still constructs `PermissionGate` without composing that ownership policy into `project_policy`.
+- **Risk:** A builder assigned a narrow file set is not technically prevented by the server gate from attempting writes outside that file set. This is bearer-gated and limited to server-native swarm mode, but it is a real current-state enforcement gap.
+- **Fix:** Compose `build_ownership_policy(session.swarm_owned_files)` into the server turn's `PermissionGate` for builder sessions, preserving existing project policy denial precedence. Add a server-route test proving a builder assigned `src/a.py` cannot write `src/b.py`.
+- **Priority:** P2 | **Confidence:** High | **Author:** Ben
+
+### 8. Non-release GitHub workflows still use tag-pinned actions
+
+- **Severity:** Medium | CVSS 4.0: ~5.8
+- **CWE:** CWE-1357 (Reliance on Insufficiently Trustworthy Component)
+- **OWASP:** A08:2025 Software and Data Integrity Failures
+- **Files:** `.github/workflows/ci.yml:39`, `.github/workflows/rust.yml:37`, `.github/workflows/publish-container.yml:43`, `.github/workflows/mcp-integration.yml:17`
+- **Evidence:**
+  ```yaml
+  - uses: actions/checkout@v6.0.2
+  - uses: dtolnay/rust-toolchain@stable
+  uses: docker/login-action@v4
+  ```
+- **Scope:** `rg` found 27 tag/branch action references across `ci.yml`, `rust.yml`, `publish-container.yml`, and `mcp-integration.yml`. `release.yml` is already SHA-pinned.
+- **Risk:** A moved tag or compromised action release can execute attacker-controlled code in CI. The highest-trust path is the container publish workflow, which logs into GHCR and signs provenance.
+- **Fix:** Pin every `uses:` reference to a full commit SHA with a version comment, matching the release workflow's pattern. Let Dependabot keep those SHAs current.
+- **Priority:** P2 | **Confidence:** High | **Author:** Ben
 
 ## Low Findings
 
-### 3. Unpinned `ollama/ollama:latest` service image in CI
+### 9. Site CSP permits inline scripts and styles
+
+- **Severity:** Low | CVSS 4.0: ~3.4
+- **CWE:** CWE-693 (Protection Mechanism Failure)
+- **OWASP:** A02:2025 Security Misconfiguration
+- **Files:** `site/vercel.json:34`, `site/public/_headers:2`
+- **Evidence:**
+  ```json
+  "Content-Security-Policy",
+  "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; ..."
+  ```
+- **Risk:** Inline script allowance weakens the CSP as a defense-in-depth control if an HTML injection bug is introduced later.
+- **Fix:** Move inline scripts to nonce/hash-based policy. Keep style exceptions only if the framework build truly needs them, and prefer hashes where practical.
+- **Priority:** P4 | **Confidence:** High | **Author:** Ben
+
+### 10. CI service image uses `latest`
 
 - **Severity:** Low | CVSS 4.0: ~3.5
 - **CWE:** CWE-1357 (Reliance on Insufficiently Trustworthy Component)
+- **OWASP:** A03:2025 Software Supply Chain Failures
 - **File:** `.github/workflows/ci.yml:146`
-- **Evidence:** `image: ollama/ollama:latest`
-- **Risk:** Next CI run silently pulls whatever the registry serves — non-reproducible, and a compromised tag runs in CI.
-- **Fix:** Pin to a version tag or digest; let Dependabot bump it.
-- **Priority:** P3 | **Confidence:** High | **Author:** Ben
+- **Evidence:**
+  ```yaml
+  image: ollama/ollama:latest
+  ```
+- **Risk:** Scheduled/live CI can silently pull a changed image, reducing reproducibility and making the job dependent on mutable registry state.
+- **Fix:** Pin the service image to a version tag or digest and update it through Dependabot or a scheduled maintenance task.
+- **Priority:** P4 | **Confidence:** High | **Author:** Ben
 
----
+## Attack Chains
+
+### Chain 1: Indirect Prompt Injection to Internal Network Fetch
+
+- **Severity:** High (escalated from Medium + Medium)
+- **Path:** Tool-output prompt injection (`voss/harness/agent.py:466`) + unvalidated network fetch (`voss/harness/net.py:135`)
+- **Scenario:** Attacker-controlled page content fetched by the agent can be replayed as tool-result text in the next iteration and steer the model toward fetching an internal or metadata URL. The fetch path has no private-address block once network tools are enabled.
+- **Combined CVSS:** ~7.1
+- **Fix priority:** P2 -- fix URL validation first to break the exfiltration path even if indirect prompt injection remains possible.
 
 ## Validation Signals
 
-### VS-001 Reproducibility Hooks
-- **Status:** pass | **Category Links:** 4, 5, 15
-- **Evidence:** `tests/harness/` contains `test_auth.py`, `test_auth_persistence.py`, `test_oauth_provider.py`, `test_server_app.py`, `test_sandbox.py`, `test_sandbox_fuzz.py` — risky paths (auth, server, shell sandbox) have dedicated suites.
+### VS-001 Auth and Timing Controls
+- **Status:** pass
+- **Category Links:** 4, 44, 50
+- **Evidence:** `voss/harness/server/app.py:71` uses constant-time bearer comparison; `voss/harness/server/app.py:381` installs bearer middleware globally.
+- **Impact:** The local server routes, including docs and swarm routes, are not unauthenticated by default.
 - **Confidence:** high
 
-### VS-002 Negative Testing Coverage
-- **Status:** pass | **Category Links:** 15
-- **Evidence:** `tests/harness/test_sandbox.py:38-59` — adversarial cases assert denial: `"wget http://x", # not in allowlist`, `assert not ok, f"should deny: {cmd}"`, pipeline-exfil cases; plus `test_sandbox_fuzz.py`.
+### VS-002 Dependency Audit Coverage
+- **Status:** warn
+- **Category Links:** 27, 69
+- **Evidence:** Ran `npm audit --omit=dev` at root, `site/`, `sdk/typescript/`, and `npm/`; ran `pnpm audit --prod`; ran `pip-audit` against an exported pinned requirements file. `cargo metadata --locked` passed, but `cargo audit` is not installed.
+- **Impact:** Node and Python advisories are current; Rust vulnerability coverage still needs `cargo-audit` or OSV scanning in CI/local tooling.
+- **Recommended Action:** Add or run Rust SCA before treating the dependency surface as fully covered.
 - **Confidence:** high
 
-### VS-003 Fix Verification Path
-- **Status:** pass | **Category Links:** 31
-- **Evidence:** `.github/workflows/ci.yml:58` runs `pytest -q -m "not live" --cov=voss_runtime` on every push/PR; live-marked tests at line 158; Rust + frontend jobs in sibling workflows.
+### VS-003 SBOM Coverage
+- **Status:** warn
+- **Category Links:** 27, 41, 69
+- **Evidence:** `SBOM.cdx.json` is CycloneDX 1.5 with 66 components and 68 dependency edges, generated from the root npm lockfile in lockfile-only mode.
+- **Impact:** The SBOM is useful but incomplete for the repo: it does not cover `site/package-lock.json`, `uv.lock`, or `Cargo.lock`.
+- **Recommended Action:** Generate separate SBOMs per ecosystem or use a multi-ecosystem SBOM tool.
 - **Confidence:** high
 
-### VS-005 Sensitive Flow Traceability
-- **Status:** pass | **Category Links:** 4, 12
-- **Evidence:** `voss/harness/telemetry.py:40-150` — redaction of `password`/`secret`/`token`/`api_key`/`authorization` fields and URL query/fragment/userinfo before logging.
+### VS-004 CI Baseline Controls
+- **Status:** warn
+- **Category Links:** 31, 45
+- **Evidence:** Workflows use explicit `permissions:` and no `pull_request_target`; `release.yml` is SHA-pinned. Non-release workflows still have tag-pinned `uses:` references.
+- **Impact:** CI has good least-privilege structure, but supply-chain reproducibility is uneven.
 - **Confidence:** high
 
-### VS-006 Runtime Guardrails
-- **Status:** pass | **Category Links:** 5, 15
-- **Evidence:** `voss/harness/tools.py:716` (`allow_net` opt-in gate, 30s fetch timeout); `voss/harness/sandbox.py:43-73` (shell allowlist + deny-tokens + metacharacter rejection, no shell interpreter); `voss/harness/providers.py:228` (`max_tokens` cap); `voss/harness/agent.py:511-578` (`max_iterations`, `token_budget`).
+### VS-005 Runtime Guardrails
+- **Status:** warn
+- **Category Links:** 5, 15, 30, 61, 68
+- **Evidence:** Network fetch has timeout, redirect cap, rate limit, TLS verification, and a 1 MB body cap; agent loops have iteration and token budgets. Missing controls are URL address validation and regex execution timeout.
+- **Impact:** Existing availability and cost controls reduce blast radius but do not close the reported source-to-sink gaps.
 - **Confidence:** high
-
----
 
 ## Passed Checks
 
-- [x] SQL parameterized throughout — `crates/voss-app-core/src/agent_registry.rs:118-228` uses `rusqlite::params!`/`params_from_iter`; placeholder `format!` interpolates indices only; no raw SQL string-building in Python (Cat 1)
-- [x] No unsafe HTML assignment in frontend — Solid components render via safe primitives/`textContent`; no raw-HTML property writes outside test resets (Cat 2)
-- [x] No committed secrets — `.env*.local` gitignored; no real key prefixes (`sk-ant-`, `AKIA`, `ghp_`) in tracked code; test fixtures use placeholders (`sk-test`, `OLD_RT`) (Cat 3)
-- [x] Harness server authenticated + localhost-bound — ASGI bearer middleware with `secrets.compare_digest()` (`voss/harness/server/app.py:51-76`); binds `127.0.0.1` ephemeral (`serve.py:39`); token = `secrets.token_urlsafe(32)`, handed off out-of-band (Cat 4)
-- [x] Constant-time token comparison on the server auth path (Cat 4 / timing)
-- [x] Telemetry + error responses redact secrets — `voss/harness/telemetry.py:40-150`; server errors name config *sources* (e.g. "keyring", env var name), not values (Cat 12)
-- [x] API keys from keychain/env only, never hardcoded — `voss/harness/auth.py:356-359` (Cat 15)
-- [x] System/user prompt roles strictly separated — `voss/harness/providers.py:200-209` (Cat 15)
-- [x] Shell tool: allowlist + deny-tokens + metachar rejection, `create_subprocess_exec` (never a shell), `stdin=DEVNULL` — `voss/harness/sandbox.py:43-73`, `voss/harness/tools.py:289-291` (Cat 15)
-- [x] File tools jailed to cwd — `jail_path()` `relative_to()` escape check + 30KB read cap — `voss/harness/tools.py:140-156` (Cat 15)
-- [x] LLM structured output validated via Pydantic `model_validate_json`; tool args inspected before dispatch, never executed raw — `voss/harness/providers.py:447-450,670` (Cat 15)
-- [x] Agent loop bounded — `max_iterations` + `token_budget` + confidence gating — `voss/harness/agent.py:511-578` (Cat 15)
-- [x] Tool-arg telemetry redaction — `voss/harness/telemetry.py:105-130` (Cat 15)
-- [x] `pnpm audit`: 0 vulnerabilities across 256 deps; lockfile committed; no postinstall scripts (Cat 27)
-- [x] Python + Rust deps version-pinned with `uv.lock` / `Cargo.lock` (`pip-audit`/`cargo audit` not installed — not run) (Cat 27)
-- [x] No `pull_request_target`; secrets only via `${{ secrets.* }}`; least-privilege `permissions:` blocks in all 6 workflows; no `github.event.*` interpolation into `run:` (Cat 31)
-- [x] `release.yml` fully SHA-pinned (the model the other workflows should copy) (Cat 31)
-- [x] Dependabot configured: monthly action bumps, 3-day cooldown, grouped PRs (Cat 31)
-- [x] Dockerfile: pinned `python:3.12-slim` base, non-root `USER voss`, apt cache cleaned, `COPY` not `ADD`, no secrets in ENV/ARG (Cat 42)
-- [x] `.dockerignore` excludes `.env`, `.git`, `node_modules`, build dirs (Cat 42)
-- [x] No pickle/marshal/shelve/dill anywhere; all YAML via `yaml.safe_load()`; JSON via stdlib; Rust serde only — loaded data is app-bundled templates + local config (Cat 65)
-
----
+- [x] SQL calls use literal statements and bound parameters in Python and Rust; no user input was found interpolated into raw SQL (Cat 1).
+- [x] Raw HTML render paths in the site are fed by build-time Shiki output or static JSON-LD constants, not user-controlled content (Cat 2).
+- [x] No committed production secret values found in source; local env files are ignored, and scanner hits were placeholders, tests, or env-var names (Cat 3).
+- [x] Harness server auth is bearer-gated, defaults to loopback serving, and restricts CORS to localhost/Tauri origins (Cat 4, 8, 44, 50).
+- [x] Telemetry/session paths redact token/key-like fields before persistence or replay where explicitly implemented (Cat 12, 15).
+- [x] API keys are sourced from env/keyring/OAuth files, not hardcoded into runtime source (Cat 15, 52).
+- [x] Dockerfile runs as non-root and uses selective `COPY`; `.dockerignore` excludes `.env` and `.env*.local` (Cat 42).
+- [x] No production debug endpoint was found without auth; FastAPI docs are covered by the same bearer middleware (Cat 51).
+- [x] YAML parsing uses the safe loader; JSON paths use standard typed decoding; no unsafe object deserialization path was found (Cat 65).
+- [x] Secret comparisons on the server auth path use constant-time comparison; targeted loose-comparison searches did not find an auth bypass pattern (Cat 50, 67).
 
 ## Final Tally
 
 | Severity | Count |
-|---|---|
+|---|---:|
 | Critical | 0 |
-| High     | 0 |
-| Medium   | 14 |
-| Low      | 1 |
-| Passed   | 21 |
+| High | 3 |
+| Medium | 5 |
+| Low | 2 |
+| Passed | 10 |
 
-**Categories scanned:** 11 of 67   |   **Sinks traced:** 17 documented trace points (cats 1, 2, 5, 12, 15, 65)   |   **Confidence:** High (one Medium-confidence finding flagged for human verification)
+**Categories scanned:** 22 of 67 | **Sinks traced:** 18 | **Confidence:** High overall; Medium for the model-generated URL source in Finding 4.
 
-### Top finding — fix this first
+### Top finding -- fix this first
 
-**[MED-001] Tag-pinned `docker/login-action@v4` in container publish workflow** — `.github/workflows/publish-container.yml:38`
+**[HIGH-001] Python lock pins vulnerable `aiohttp` and `cryptography`** -- `uv.lock:20`, `uv.lock:668`
 
-A re-tagged release of this third-party action would run attacker code in the job that holds GHCR registry credentials and signs build provenance — the single highest-trust job in the repo.
+This is the broadest runtime dependency exposure and has a straightforward remediation path: refresh the Python lock with patched package versions and rerun the dependency audit plus harness tests.
 
-**Quick fix:** SHA-pin all 13 listed actions the same way `release.yml` already does; Dependabot keeps them current.
+**Quick fix:** constrain `aiohttp >=3.14.1` and `cryptography >=48.0.1`, regenerate `uv.lock`, then run `pip-audit` again.
 
-*Scanned by Snitch for Claude Code v1.0.0 — 67 categories. https://snitchplugin.com*
+*Scanned by Snitch for Claude Code v1.0.0 -- 67 categories. https://snitchplugin.com*

@@ -21,6 +21,7 @@
 import { createSignal } from 'solid-js';
 
 import { ingestEvent } from '../attention/attentionQueue';
+import { ingestSwarmEvent } from './swarmLive';
 import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
 import { subscribeToEvents } from '../../../../../sdk/typescript/src/client/sse';
 
@@ -53,7 +54,7 @@ function mergeOverlay(key: string, patch: LiveOverlayEntry): void {
 // --- Live graph patches (V24-07, VADE2-07) -----------------------------------
 
 /**
- * A live edge the Swarm Map merges onto its derived graph. The honest-signal
+ * A live edge the swarm surface merges onto its derived graph. The honest-signal
  * contract extends to the live path: EVERY patch carries a real, non-empty
  * `source` of the form "sse_event:<type>". SwarmMap never renders a live edge
  * without one (Pitfall 2 on the live plane).
@@ -249,6 +250,7 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
         ingestEvent(ev, args.cardId ? { cardId: args.cardId } : {});
         applyOverlay(ev);
         emitGraphPatch(ev, args.cardId);
+        ingestSwarmEvent(ev); // V25 swarm.* plane (structural narrow; no-op otherwise)
         args.onEvent?.(ev);
       }
     } catch {

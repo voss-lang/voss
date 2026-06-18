@@ -30,9 +30,16 @@ def _as_response_format_param(response_format):
     }
 
 
-def _uses_max_completion_tokens(model: str) -> bool:
+def _is_reasoning_model(model: str) -> bool:
+    """gpt-5.x and OpenAI o-series reasoning models. They use
+    max_completion_tokens (not max_tokens) AND reject a custom `temperature`
+    (the API only accepts the default, 1)."""
     model_id = model.split("/", 1)[-1]
     return model_id.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
+def _uses_max_completion_tokens(model: str) -> bool:
+    return _is_reasoning_model(model)
 
 
 class LiteLLMProvider:
@@ -78,9 +85,12 @@ class LiteLLMProvider:
         kwargs: dict = {
             "model": model,
             "messages": messages,
-            "temperature": temperature,
             **self._route_kwargs(),
         }
+        # Reasoning models (gpt-5.x, o-series) reject a custom temperature — the
+        # API only accepts the default (1). Omit it for them; send for the rest.
+        if not _is_reasoning_model(model):
+            kwargs["temperature"] = temperature
         if max_tokens is not None:
             key = (
                 "max_completion_tokens"

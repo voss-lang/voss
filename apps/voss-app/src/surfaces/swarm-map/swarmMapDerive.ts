@@ -1,6 +1,6 @@
-// V24-06 (VADE2-06) — pure Swarm Map derivation.
+// V24-06 (VADE2-06) — pure swarm graph derivation.
 //
-// The Swarm Map's single hardest constraint is HONESTY: every node and edge
+// The swarm surface's single hardest constraint is HONESTY: every node and edge
 // must trace to a real signal (RunData / board+session tree / audit-review /
 // attention queue). Missing signals render as placeholder nodes or are omitted —
 // nothing is synthesized. Every edge carries a non-empty `source` string and the
@@ -21,6 +21,18 @@ export interface SwarmNode {
   runId: string;
   label: string;
   status?: string;
+  /** Roster role name (coordinator/builder-N/reviewer) for icon + tag + color. */
+  role?: string;
+  /** The chip's current-work line: a builder's bound Task.goal / the swarm goal. */
+  work?: string;
+  /** Per-role ordinal for "Builder 1"/"Builder 2" (1-based; omitted when single). */
+  ordinal?: number;
+  /** Roster Role.model, when distinct from the default. */
+  model?: string;
+  /** Bound session id (from swarm.assign) — direct target + elapsed/cost lookup. */
+  sessionId?: string;
+  /** Task ownedFiles, surfaced in the inspector. */
+  ownedFiles?: string[];
 }
 
 export interface SwarmEdge {
@@ -49,7 +61,7 @@ const artifactId = (runId: string, key: string) => `artifact:${runId}:${key}`;
 const alertId = (itemId: string) => `alert:${itemId}`;
 
 /**
- * Derive the Swarm Map graph from real signals only.
+ * Derive the swarm graph from real signals only.
  *
  * - null/empty runs → { nodes: [], edges: [] } (never throws).
  * - null runData for a run → a single objective placeholder node, zero edges.

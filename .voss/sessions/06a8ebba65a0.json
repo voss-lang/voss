@@ -1,0 +1,18 @@
+{
+  "id": "06a8ebba65a0",
+  "name": "session-06a8ebba",
+  "cwd": "/Users/benjaminmarks/Projects/Voss",
+  "model": "gpt-5.5",
+  "started_at": "2026-06-16T19:45:41+00:00",
+  "updated_at": "2026-06-16T19:47:13+00:00",
+  "total_cost_usd": 0.0,
+  "turns": [
+    {
+      "role": "user",
+      "content": "Analyze the codebase in depth"
+    }
+  ],
+  "runs": [],
+  "parent_id": null,
+  "parent_turn_index": null
+}

@@ -26,7 +26,11 @@ import ContextPanel from './components/ContextPanel';
 import OrgViewShell from './org/OrgViewShell';
 import PortalRail from './portal/PortalRail';
 import VossComposer from './composer/VossComposer';
+import { devlog } from './devlog';
 import PortalShell from './portal/PortalShell';
+import ContextSurface from './surfaces/context/ContextSurface';
+import MemorySurface from './surfaces/memory/MemorySurface';
+import { setLiveServer, setLiveServerConnector } from './org/live/liveServer';
 import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
@@ -38,7 +42,7 @@ import RunCommandBar, {
   type SpawnAgentFn,
 } from './org/cockpit/RunCommandBar';
 import type { RunMode } from './org/cockpit/runIntake';
-import { connectLiveStream, liveLabel } from './org/live/sseClient';
+import { liveLabel } from './org/live/sseClient';
 import {
   buildVossClientFromHandshake,
   type BuiltVossClient,
@@ -150,6 +154,27 @@ interface AgentEntry {
   cwd: string;
   status: string;
   lastSeen: number;
+}
+
+// Login shells a pane's foreground process can be while idle (poll may return
+// the login-dash form, e.g. "-zsh", or an absolute path).
+const LOGIN_SHELLS = new Set([
+  'zsh',
+  'bash',
+  'sh',
+  'fish',
+  'dash',
+  'tcsh',
+  'csh',
+  'ksh',
+]);
+
+/** A terminal pane is "idle" (reusable for a run) when nothing is running in
+ *  it — no foreground process recorded, or just a plain login shell. */
+function isIdleShellProc(proc: string | undefined): boolean {
+  if (!proc) return true;
+  const base = (proc.split('/').pop() ?? proc).replace(/^-/, '').toLowerCase();
+  return LOGIN_SHELLS.has(base);
 }
 
 async function fetchAgentConfigs(
@@ -460,49 +485,106 @@ export default function App() {
   const ensureVossClient = async (cwd: string): Promise<BuiltVossClient> => {
     const existing = vossClient();
     if (existing && vossClientCwd === cwd) return existing;
-    const handshake = await startVossServe(cwd);
+    devlog('info', 'sidecar.serve', 'start_voss_serve', { cwd });
+    let handshake;
+    try {
+      handshake = await startVossServe(cwd);
+    } catch (e) {
+      devlog('error', 'sidecar.serve', 'start_voss_serve failed', e);
+      throw e;
+    }
+    // T-V15-10: log the port only — the token is never logged or stringified.
+    devlog('info', 'sidecar.serve', 'handshake ok', { port: handshake.port });
     const built = buildVossClientFromHandshake(handshake);
     vossClientCwd = cwd;
     setVossClient(built);
+    // Expose the live server to prop-less surfaces (swarm snapshot fetch +
+    // command-bar directing) — token rides the Authorization header only.
+    setLiveServer({
+      baseUrl: built.baseUrl,
+      token: built.token,
+      cwd,
+      followUpClient: built.followUpClient,
+    });
     return built;
   };
 
-  // Live-stream handles for App-started native sessions — abort on unmount so
-  // no for-await loop dangles past the app.
-  const liveStreamHandles: { abort(): void }[] = [];
-  onCleanup(() => {
-    for (const h of liveStreamHandles) h.abort();
-  });
-
   // V15-03 (D-01/D-02/D-03): open a structured pane for a native session —
-  // flip Run Review → Live Work, split the focused pane, and bind the new
-  // pane id to the session record (PaneComponent renders ProtocolPane).
+  // flip Run Review → Live Work, place the run, and bind the pane id to the
+  // session record (SplitNode renders ProtocolPane for a bound leaf).
+  //
+  // Placement (user pref): reuse the LEFTMOST clean/idle terminal pane rather
+  // than splitting the focused pane (which dropped the run in the middle). A
+  // pane is reusable when it is NOT already a run, NOT an agent (spawned,
+  // latched, or detected-by-proc), and its foreground process is empty or a
+  // plain shell. If none is reusable, grow a fresh pane from the LEFT by
+  // splitting the leftmost leaf.
   // Also the attach seam Plans 04/05 consume (openAttachedPane export).
-  const openNativePane = (record: NativeSessionRecord): void => {
-    const ws = activeMounted();
-    const ctrl = ws?.gridController;
-    if (!ws || !ctrl) return;
-    setActiveView('grid'); // D-01: native work lives in the Live Work grid
-    const before = ctrl.snapshot().focusedId;
-    ctrl.splitFocused('H');
-    const newId = ctrl.snapshot().focusedId;
-    if (newId === before) return; // split rejected (e.g. pane cap)
+  const bindNativePane = (
+    ws: MountedWorkspace,
+    paneId: string,
+    record: NativeSessionRecord,
+  ): void => {
     ws.setNativeSessionByPaneId({
       ...ws.nativeSessionByPaneId(),
-      [newId]: record,
+      [paneId]: record,
     });
     // Real pane close (⌘W / reap / workspace teardown) tears the protocol
     // session down with it: drop the pane binding and — refcounted, another
     // attached pane may share the server session — abort the stream + state.
-    registerPaneDestroyHook(newId, () => {
+    registerPaneDestroyHook(paneId, () => {
       const map = { ...ws.nativeSessionByPaneId() };
-      delete map[newId];
+      delete map[paneId];
       ws.setNativeSessionByPaneId(map);
       const stillBound = Object.values(map).some(
         (r) => r.sessionId === record.sessionId,
       );
       if (!stillBound) destroyProtocolSession(record.sessionId);
     });
+  };
+  const openNativePane = (record: NativeSessionRecord): void => {
+    const ws = activeMounted();
+    const ctrl = ws?.gridController;
+    if (!ws || !ctrl) return;
+    setActiveView('grid'); // D-01: native work lives in the Live Work grid
+
+    const leaves = collectLeaves(ctrl.snapshot().root); // left→right (inorder)
+    const nativeMap = ws.nativeSessionByPaneId();
+    const agentCfgs = ws.agentConfigByPaneId();
+    const latched = agentPaneById();
+    const procs = procByPaneId();
+    const reusable = leaves.find(
+      (l) =>
+        !nativeMap[l.id] &&
+        !agentCfgs[l.id] &&
+        !latched[l.id] &&
+        isIdleShellProc(procs[l.id]),
+    );
+
+    devlog('info', 'run.pane', 'placement', {
+      leaves: leaves.map((l) => ({ id: l.id.slice(0, 6), proc: procs[l.id] ?? null })),
+      reusableId: reusable?.id?.slice(0, 6) ?? null,
+    });
+
+    if (reusable) {
+      // Take over the clean pane in place — no split.
+      bindNativePane(ws, reusable.id, record);
+      ctrl.focusPaneById(reusable.id);
+      devlog('info', 'run.pane', 'reused pane', { paneId: reusable.id.slice(0, 6) });
+      return;
+    }
+
+    // No clean pane — grow from the left: split the leftmost leaf.
+    ctrl.focusPaneById(leaves[0].id);
+    const before = ctrl.snapshot().focusedId;
+    ctrl.splitFocused('H');
+    const newId = ctrl.snapshot().focusedId;
+    if (newId === before) {
+      devlog('warn', 'run.pane', 'split rejected (pane cap?)');
+      return; // split rejected (e.g. pane cap)
+    }
+    bindNativePane(ws, newId, record);
+    devlog('info', 'run.pane', 'split new pane', { paneId: newId.slice(0, 6) });
   };
   openAttachedPaneImpl = openNativePane;
   onCleanup(() => {
@@ -517,21 +599,46 @@ export default function App() {
   // (T-V15-04 — the gates stay; this only satisfies them).
   const runBarNativeClient: RunNativeClient = {
     createSession: async (spec) => {
-      const built = await ensureVossClient(workspacePath() ?? '');
-      const r = await built.runNativeClient.createSession(spec);
-      liveStreamHandles.push(
-        connectLiveStream({
-          baseUrl: built.baseUrl,
-          sessionId: r.id,
-          token: built.token,
-          cardId: r.id,
-        }),
-      );
+      const cwd = workspacePath() ?? '';
+      devlog('info', 'run.native', 'createSession begin', { cwd });
+      const built = await ensureVossClient(cwd);
+      let r: { id: string };
+      try {
+        devlog('info', 'run.native', 'POST /session', { baseUrl: built.baseUrl });
+        r = await built.runNativeClient.createSession(spec);
+      } catch (e) {
+        // "Load failed" surfaces here when the webview blocks the loopback
+        // fetch (CSP connect-src) or the server lacks CORS for the webview
+        // origin (cross-origin localhost:5173 -> 127.0.0.1:port preflight).
+        devlog('error', 'run.native', 'createSession fetch failed', e);
+        throw e;
+      }
+      devlog('info', 'run.native', 'session created', { sessionId: r.id });
+      // The ProtocolPane owns the SINGLE live SSE stream (ensureProtocolStream
+      // on mount), which feeds both the transcript AND ingest/overlay/graph.
+      // The server event queue is single-consumer, so a second stream here
+      // would STEAL the pane's turn events — do not open one. Just mount the
+      // pane and start the turn.
       openNativePane({
         sessionId: r.id,
         baseUrl: built.baseUrl,
         token: built.token,
       });
+      // createSession only mints an IDLE session — the goal must be POSTed as
+      // the first message to actually start a turn (server `_run_turn`). Sent
+      // AFTER the stream subscribes above so its events are captured. The
+      // server PermissionGate mode is lowercase (Literal["plan","edit","auto"]),
+      // so map the humane RunMode ('Plan'/'Edit'/'Auto') down.
+      try {
+        devlog('info', 'run.native', 'POST first message (start turn)', {
+          mode: spec.mode,
+        });
+        await built.client.postMessage(r.id, spec.goal, spec.mode.toLowerCase());
+        devlog('info', 'run.native', 'turn started');
+      } catch (e) {
+        devlog('error', 'run.native', 'first message failed', e);
+        throw e;
+      }
       return r;
     },
   };
@@ -1386,6 +1493,15 @@ export default function App() {
 
   onMount(() => {
     window.addEventListener('keydown', onAppKey, true);
+    // On-demand live-server connect for prop-less surfaces (orchestra Launch):
+    // spawn the sidecar for the active workspace folder. No folder → no-op, so
+    // the store stays null and the surface keeps its honest "open a workspace"
+    // gate. ensureVossClient calls setLiveServer as its side-effect.
+    setLiveServerConnector(async () => {
+      const cwd = workspacePath();
+      if (!cwd) return;
+      await ensureVossClient(cwd);
+    });
     void applyWindowEffects({ enabled: true });
     void setAsAppMenu(registry(), (id) => {
       void dispatchCommandId(id);
@@ -1432,6 +1548,7 @@ export default function App() {
 
   onCleanup(() => {
     window.removeEventListener('keydown', onAppKey, true);
+    setLiveServerConnector(null);
     keymapUnlisten?.();
     prefixMode.cancel();
     closeSaveUnlisten?.();
@@ -1661,6 +1778,45 @@ export default function App() {
             gitBranch={activeMounted()?.project()?.gitBranch ?? null}
             onNewSession={handleNewWorkspace}
             onNewTask={() => setComposerOpen(true)}
+            contextSlot={() => {
+              const id = focusedPaneId();
+              return (
+                <ContextSurface
+                  context={id ? contextByPaneId()[id] ?? null : null}
+                  isAgentPane={(() => {
+                    if (!id) return false;
+                    const m = activeMounted();
+                    return m?.agentConfigByPaneId()?.[id] != null;
+                  })()}
+                  onTogglePin={(path, pinned) => {
+                    const ctx = id ? contextByPaneId()[id] : null;
+                    if (!ctx) return;
+                    const currentPinned = ctx.files
+                      .filter((f) => f.pinned)
+                      .map((f) => f.path);
+                    const next = pinned
+                      ? [...new Set([...currentPinned, path])]
+                      : currentPinned.filter((p) => p !== path);
+                    const wp = activeMounted()?.project()?.path;
+                    if (wp) {
+                      void invoke('write_context_pins', {
+                        workspacePath: wp,
+                        pinnedPaths: next,
+                      }).catch((e: unknown) =>
+                        console.error('[voss-app] write_context_pins failed:', e),
+                      );
+                    }
+                  }}
+                />
+              );
+            }}
+            memorySlot={() => (
+              <MemorySurface
+                baseUrl={vossClient()?.baseUrl}
+                token={vossClient()?.token}
+                cwd={workspacePath() ?? undefined}
+              />
+            )}
             reviewSlot={() => (
               <OrgViewShell
                 cwd={workspacePath() ?? ''}

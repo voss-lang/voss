@@ -1,4 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
+import {
+  bootApp,
+  stableRects,
+  paneRects,
+  type PaneRect,
+} from './_helpers';
 
 /**
  * Pane drag-rearrange — REAL-BROWSER integration (runs on macOS, no
@@ -11,10 +17,8 @@ import { test, expect, type Page } from '@playwright/test';
  * mutation. PTYs are inert (spawn_pty mocked) — the grid chrome is what's
  * under test.
  *
- * Requires the dev server: `pnpm dev` (http://localhost:5173).
+ * Requires the dev server (auto-started by playwright.config.ts webServer).
  */
-
-const APP_URL = process.env.VOSS_APP_URL ?? 'http://localhost:5173';
 
 // PW_BROWSER=webkit approximates Tauri's WKWebView on macOS.
 test.use({
@@ -29,145 +33,8 @@ declare global {
   }
 }
 
-/** Install a minimal Tauri v2 IPC mock before any app module loads. */
-async function installTauriMock(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    let nextCallbackId = 1;
-    let nextPty = 1;
-    const syncs: unknown[] = [];
-    (window as unknown as { __SYNCS__: unknown[] }).__SYNCS__ = syncs;
-
-    const invoke = (cmd: string, args?: Record<string, unknown>) => {
-      switch (cmd) {
-        case 'load_workspaces_index':
-          return Promise.resolve({
-            version: 1,
-            activeWorkspaceId: 'w1',
-            workspaces: [
-              {
-                id: 'w1',
-                name: 'Test',
-                projectPath: '/tmp/voss-e2e-proj',
-                accentColor: 'blue',
-                order: 0,
-              },
-            ],
-          });
-        case 'open_project':
-          return Promise.resolve({
-            path: (args?.path as string) ?? '/tmp/voss-e2e-proj',
-            name: 'voss-e2e-proj',
-            gitBranch: null,
-          });
-        case 'load_keymap_profile':
-          return Promise.resolve('"vscode"');
-        case 'load_appearance_settings':
-          return Promise.resolve({});
-        case 'load_recents':
-          return Promise.resolve([]);
-        case 'default_cwd':
-          return Promise.resolve('/tmp/voss-e2e-proj');
-        case 'spawn_pty':
-          return Promise.resolve(`mock-pty-${nextPty++}`);
-        case 'get_fg_process':
-          return Promise.resolve('');
-        case 'sync_grid':
-          syncs.push(JSON.parse(JSON.stringify(args?.newState ?? null)));
-          return Promise.resolve(null);
-        case 'get_active_agents':
-        case 'list_profiles':
-        case 'list_layouts':
-        case 'list_workspaces':
-        case 'list_system_fonts':
-        case 'list_dir':
-        case 'enumerate_runs':
-        case 'git_log':
-        case 'sweep_orphan_agents':
-          return Promise.resolve([]);
-        case 'plugin:os|platform':
-          return Promise.resolve('macos');
-        case 'plugin:os|os_type':
-          return Promise.resolve('macos');
-        case 'plugin:event|listen':
-          return Promise.resolve(nextCallbackId++);
-        default:
-          // load_session / load_default_layout / theme / etc. → "nothing saved"
-          return Promise.resolve(null);
-      }
-    };
-
-    const callbacks = new Map<number, (response: unknown) => void>();
-    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {
-      invoke,
-      transformCallback(cb: (response: unknown) => void, _once?: boolean) {
-        const id = nextCallbackId++;
-        callbacks.set(id, cb);
-        (window as unknown as Record<string, unknown>)[`_${id}`] = cb;
-        return id;
-      },
-      unregisterCallback(id: number) {
-        callbacks.delete(id);
-        delete (window as unknown as Record<string, unknown>)[`_${id}`];
-      },
-      convertFileSrc(p: string) {
-        return p;
-      },
-      metadata: {
-        currentWindow: { label: 'main' },
-        currentWebview: { label: 'main', windowLabel: 'main' },
-      },
-      plugins: {},
-    };
-  });
-}
-
-type PaneRect = { id: string; x: number; y: number; w: number; h: number };
-
-/** Visible pane leaves (active workspace only — hidden grids have 0×0 rects). */
-async function paneRects(page: Page): Promise<PaneRect[]> {
-  return page.$$eval('[data-pane-id]', (els) =>
-    els
-      .map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          id: el.getAttribute('data-pane-id') ?? '',
-          x: r.x,
-          y: r.y,
-          w: r.width,
-          h: r.height,
-        };
-      })
-      .filter((r) => r.w > 0 && r.h > 0),
-  );
-}
-
-/** Rects once they are identical across two consecutive frames. */
-async function stableRects(page: Page, count: number): Promise<PaneRect[]> {
-  let prev = '';
-  let rects: PaneRect[] = [];
-  await expect
-    .poll(
-      async () => {
-        rects = (await paneRects(page)).sort(
-          (a, b) => a.x - b.x || a.y - b.y,
-        );
-        const sig = JSON.stringify(rects);
-        const settled = rects.length === count && sig === prev;
-        prev = sig;
-        return settled;
-      },
-      { timeout: 7000 },
-    )
-    .toBe(true);
-  return rects;
-}
-
 async function bootThreePanes(page: Page): Promise<PaneRect[]> {
-  await installTauriMock(page);
-  await page.setViewportSize({ width: 1400, height: 900 });
-  await page.goto(APP_URL);
-  await page.waitForSelector('[data-pane-id]', { timeout: 15000 });
-
+  await bootApp(page);
   // ⌘D = pane.splitRight (vscode profile) — build a 3-pane row.
   await page.keyboard.press('Meta+KeyD');
   await stableRects(page, 2);

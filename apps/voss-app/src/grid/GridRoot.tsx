@@ -53,9 +53,9 @@ import PaneDragLayer from './PaneDragLayer';
  * `custom` so the titlebar switcher reflects the off-cycle state.
  *
  * `--bg-0` shows only mid-drag / mid-close (never steady state). When the OS
- * window is too small to honor 20×5 for every pane, the inner grid is tiled
- * at `minGridSize` (≥ window) and clipped by `overflow-hidden` — panes keep
- * the floor, `--bg-0` is never sub-floored (GRD-05 window-shrink stop).
+ * container is too small to honor 20×5 for every pane, the inner grid is tiled
+ * at `minGridSize` (≥ container) and clipped by `overflow-hidden` — panes keep
+ * the floor, `--bg-0` is never sub-floored (GRD-05 shrink stop).
  */
 
 const HEADER_PX = 22;
@@ -148,6 +148,9 @@ export default function GridRoot(props: {
   onFocusChange?: (paneId: string) => void;
   onLeafCountChange?: (count: number) => void;
 }) {
+  let gridRootEl!: HTMLDivElement;
+  let resizeObserver: ResizeObserver | null = null;
+
   // A6: initialize from restored session when available so no throwaway PTY spawns.
   const initResult = props.initialSession
     ? applySessionFile(props.initialSession)
@@ -178,6 +181,16 @@ export default function GridRoot(props: {
     w: window.innerWidth,
     h: window.innerHeight,
   });
+
+  const readContainerSize = () => {
+    const rect = gridRootEl?.getBoundingClientRect();
+    const w = Math.floor(rect?.width ?? 0);
+    const h = Math.floor(rect?.height ?? 0);
+    setWin({
+      w: w > 0 ? w : window.innerWidth,
+      h: h > 0 ? h : window.innerHeight,
+    });
+  };
 
   const grid = () => {
     const m = minGridSize(store.root, DEFAULT_CW, DEFAULT_CH);
@@ -405,10 +418,15 @@ export default function GridRoot(props: {
       applyPresetToStore(nextPreset(cur));
     }
   };
-  const onResize = () =>
-    setWin({ w: window.innerWidth, h: window.innerHeight });
+  const onResize = () => readContainerSize();
 
   onMount(() => {
+    readContainerSize();
+    resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => readContainerSize());
+    resizeObserver?.observe(gridRootEl);
     window.addEventListener('keydown', onKey);
     window.addEventListener('resize', onResize);
     props.controllerRef?.({
@@ -435,6 +453,8 @@ export default function GridRoot(props: {
   onCleanup(() => {
     window.removeEventListener('keydown', onKey);
     window.removeEventListener('resize', onResize);
+    resizeObserver?.disconnect();
+    resizeObserver = null;
     // True workspace teardown (tab SWITCH is display:none and never disposes
     // this component — D-01): kill every live pane session this grid owns.
     for (const leaf of collectLeaves(store.root)) {
@@ -443,7 +463,10 @@ export default function GridRoot(props: {
   });
 
   return (
-    <div class="grid-root bg-bg-0 w-full h-full overflow-hidden">
+    <div
+      ref={gridRootEl}
+      class="grid-root bg-bg-0 w-full h-full overflow-hidden"
+    >
       <div style={{ width: `${grid().w}px`, height: `${grid().h}px` }}>
         <SplitNodeView
           node={store.root}

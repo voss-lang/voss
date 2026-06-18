@@ -587,13 +587,17 @@ class OpenAIOAuthProvider:
         # diverges from the public Responses API: it REQUIRES a non-empty
         # `instructions` field and REJECTS `temperature`. Gate on the endpoint.
         is_codex = self._is_codex_backend()
+        eff_model = model or _OPENAI_MODEL_DEFAULT
+        # gpt-5.x / o-series reasoning models reject a custom temperature (only
+        # the default is accepted), like the Codex backend. Drop it for both.
+        _is_reasoning = eff_model.split("/", 1)[-1].startswith(("gpt-5", "o1", "o3", "o4"))
         body: dict[str, Any] = {
-            "model": model or _OPENAI_MODEL_DEFAULT,
+            "model": eff_model,
             "input": items,
             "store": False,
             "stream": False,
         }
-        if temperature is not None and not is_codex:
+        if temperature is not None and not is_codex and not _is_reasoning:
             body["temperature"] = temperature
         if max_tokens is not None and not is_codex:
             body["max_output_tokens"] = max_tokens

@@ -122,6 +122,49 @@ async def test_legacy_models_keep_max_tokens(monkeypatch):
     assert "max_completion_tokens" not in captured
 
 
+@pytest.mark.parametrize(
+    "model", ["gpt-5.5", "gpt-5.5-mini", "o1", "o3-mini", "openai/gpt-5.4"]
+)
+async def test_reasoning_models_omit_temperature(monkeypatch, model: str):
+    # Reasoning models (gpt-5.x, o-series) reject a custom temperature — the
+    # API only accepts the default (1), so we omit the param entirely.
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_resp("hello")
+
+    monkeypatch.setattr("litellm.acompletion", fake_acompletion)
+
+    p = LiteLLMProvider()
+    await p.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model=model,
+        temperature=0.2,
+    )
+
+    assert "temperature" not in captured
+
+
+async def test_non_reasoning_models_send_temperature(monkeypatch):
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_resp("hello")
+
+    monkeypatch.setattr("litellm.acompletion", fake_acompletion)
+
+    p = LiteLLMProvider()
+    await p.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model="claude-sonnet-4-5",
+        temperature=0.2,
+    )
+
+    assert captured["temperature"] == 0.2
+
+
 async def test_stream_structured_turn_emits_no_textdelta(monkeypatch):
     # Regression: a structured turn (response_format set) returns the schema
     # JSON as `text`. Streaming it as a TextDelta leaked raw {"rationale":...}

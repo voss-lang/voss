@@ -1,0 +1,18 @@
+{
+  "id": "b0adcd9e7387",
+  "name": "session-b0adcd9e",
+  "cwd": "/Users/benjaminmarks/Projects/Voss",
+  "model": "claude-sonnet-4-5",
+  "started_at": "2026-06-16T19:17:00+00:00",
+  "updated_at": "2026-06-16T19:17:01+00:00",
+  "total_cost_usd": 0.0,
+  "turns": [
+    {
+      "role": "user",
+      "content": "analyze the codebase in depth"
+    }
+  ],
+  "runs": [],
+  "parent_id": null,
+  "parent_turn_index": null
+}

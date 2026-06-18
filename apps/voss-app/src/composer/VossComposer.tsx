@@ -15,6 +15,7 @@
 
 import { type Component, createEffect, createSignal, For, Show } from 'solid-js';
 import './composer.css';
+import { devlog } from '../devlog';
 import {
   assembleRunSpec,
   validateAutoStart,
@@ -89,9 +90,17 @@ const VossComposer: Component<VossComposerProps> = (props) => {
     if (!canCreate()) return;
     setError(null);
     const state = buildState();
+    devlog('info', 'composer.create', 'clicked', {
+      mode: state.mode,
+      team: state.team,
+      target: state.target,
+      hasScope: Boolean(state.scope),
+      goalLen: state.goal.length,
+    });
     // Autopilot ("Auto") must pass the run-intake gate before dispatch.
     const gate = validateAutoStart(state);
     if (!gate.ok) {
+      devlog('warn', 'composer.create', 'gate blocked', { reason: gate.reason });
       setError(gate.reason ?? 'Cannot create Task.');
       return;
     }
@@ -99,9 +108,11 @@ const VossComposer: Component<VossComposerProps> = (props) => {
     try {
       await props.onCreated?.(spec);
     } catch (e) {
+      devlog('error', 'composer.create', 'onCreated threw', e);
       setError(e instanceof Error ? e.message : 'Could not start the Task.');
       return;
     }
+    devlog('info', 'composer.create', 'dispatched ok');
     props.onClose();
   };
 

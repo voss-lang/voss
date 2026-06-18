@@ -34,6 +34,13 @@ pub struct AgentEntry {
     pub cwd: String,
     pub status: String,
     pub last_seen: i64,
+    // V25 VSWARM-09: swarm pane-binding. All nullable — non-swarm agents leave
+    // them None. camelCase rename yields swarmId/role/ownedFiles for IPC.
+    // owned_files is a JSON array string; the frontend parses it defensively.
+    // Coordinator references init task list
+    pub swarm_id: Option<String>,
+    pub role: Option<String>,
+    pub owned_files: Option<String>,
 }
 
 fn epoch_seconds() -> i64 {
@@ -104,6 +111,39 @@ pub fn create_schema(conn: &Connection) -> Result<(), AgentRegistryError> {
         eprintln!("[voss-app] agent registry schema failed: {e}");
         AgentRegistryError::WriteFailed
     })?;
+    // V25 VSWARM-09: idempotent add of swarm columns. ALTER ADD COLUMN errors
+    // if the column already exists, so guard via PRAGMA table_info. Columns are
+    // nullable DEFAULT NULL → no table rewrite, safe across re-open.
+    let existing: std::collections::HashSet<String> = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(agent_sessions)")
+            .map_err(|e| {
+                eprintln!("[voss-app] agent registry pragma failed: {e}");
+                AgentRegistryError::QueryFailed
+            })?;
+        let cols = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| {
+                eprintln!("[voss-app] agent registry pragma map failed: {e}");
+                AgentRegistryError::QueryFailed
+            })?;
+        cols.collect::<Result<std::collections::HashSet<_>, _>>()
+            .map_err(|e| {
+                eprintln!("[voss-app] agent registry pragma collect failed: {e}");
+                AgentRegistryError::QueryFailed
+            })?
+    };
+    for col in ["swarm_id", "role", "owned_files"] {
+        if !existing.contains(col) {
+            conn.execute_batch(&format!(
+                "ALTER TABLE agent_sessions ADD COLUMN {col} TEXT DEFAULT NULL;"
+            ))
+            .map_err(|e| {
+                eprintln!("[voss-app] agent registry migrate {col} failed: {e}");
+                AgentRegistryError::WriteFailed
+            })?;
+        }
+    }
     Ok(())
 }
 
@@ -115,6 +155,10 @@ pub fn register_agent(
     cli_binary: &str,
     cli_args: &[String],
     cwd: &str,
+    // V25 VSWARM-09 swarm pane-binding — None for non-swarm agents (NULL cols).
+    swarm_id: Option<&str>,
+    role: Option<&str>,
+    owned_files: Option<&str>,
 ) -> Result<(), AgentRegistryError> {
     let args_json = serde_json::to_string(cli_args).map_err(|e| {
         eprintln!("[voss-app] agent registry args serialize failed: {e}");
@@ -123,9 +167,20 @@ pub fn register_agent(
     let now = epoch_seconds();
     conn.execute(
         "INSERT OR REPLACE INTO agent_sessions
-         (pane_id, session_id, cli_binary, cli_args, cwd, status, last_seen)
-         VALUES (?1, ?2, ?3, ?4, ?5, 'active', ?6)",
-        params![pane_id, session_id, cli_binary, args_json, cwd, now],
+         (pane_id, session_id, cli_binary, cli_args, cwd, status, last_seen,
+          swarm_id, role, owned_files)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'active', ?6, ?7, ?8, ?9)",
+        params![
+            pane_id,
+            session_id,
+            cli_binary,
+            args_json,
+            cwd,
+            now,
+            swarm_id,
+            role,
+            owned_files
+        ],
     )
     .map_err(|e| {
         eprintln!("[voss-app] agent registry register failed: {e}");
@@ -165,25 +220,58 @@ pub fn update_last_seen_all(conn: &Connection) -> Result<(), AgentRegistryError>
 pub fn get_active_agents(conn: &Connection) -> Result<Vec<AgentEntry>, AgentRegistryError> {
     let mut stmt = conn
         .prepare(
-            "SELECT pane_id, session_id, cli_binary, cli_args, cwd, status, last_seen
+            "SELECT pane_id, session_id, cli_binary, cli_args, cwd, status, last_seen,
+                    swarm_id, role, owned_files
              FROM agent_sessions WHERE status = 'active'",
         )
         .map_err(|e| {
             eprintln!("[voss-app] agent registry prepare failed: {e}");
             AgentRegistryError::QueryFailed
         })?;
+    let rows = stmt.query_map([], row_to_entry).map_err(|e| {
+        eprintln!("[voss-app] agent registry query failed: {e}");
+        AgentRegistryError::QueryFailed
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| {
+        eprintln!("[voss-app] agent registry row map failed: {e}");
+        AgentRegistryError::QueryFailed
+    })
+}
+
+/// Map a full `agent_sessions` row (10 columns, including swarm fields) to an
+/// `AgentEntry`. The SELECT column order MUST match the field order below.
+fn row_to_entry(row: &rusqlite::Row) -> rusqlite::Result<AgentEntry> {
+    Ok(AgentEntry {
+        pane_id: row.get(0)?,
+        session_id: row.get(1)?,
+        cli_binary: row.get(2)?,
+        cli_args: row.get(3)?,
+        cwd: row.get(4)?,
+        status: row.get(5)?,
+        last_seen: row.get(6)?,
+        swarm_id: row.get(7)?,
+        role: row.get(8)?,
+        owned_files: row.get(9)?,
+    })
+}
+
+/// Return all rows belonging to one swarm (VSWARM-09 listability).
+pub fn list_agents_by_swarm(
+    conn: &Connection,
+    swarm_id: &str,
+) -> Result<Vec<AgentEntry>, AgentRegistryError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT pane_id, session_id, cli_binary, cli_args, cwd, status, last_seen,
+                    swarm_id, role, owned_files
+             FROM agent_sessions WHERE swarm_id = ?1",
+        )
+        .map_err(|e| {
+            eprintln!("[voss-app] agent registry prepare failed: {e}");
+            AgentRegistryError::QueryFailed
+        })?;
     let rows = stmt
-        .query_map([], |row| {
-            Ok(AgentEntry {
-                pane_id: row.get(0)?,
-                session_id: row.get(1)?,
-                cli_binary: row.get(2)?,
-                cli_args: row.get(3)?,
-                cwd: row.get(4)?,
-                status: row.get(5)?,
-                last_seen: row.get(6)?,
-            })
-        })
+        .query_map(params![swarm_id], row_to_entry)
         .map_err(|e| {
             eprintln!("[voss-app] agent registry query failed: {e}");
             AgentRegistryError::QueryFailed
@@ -267,6 +355,9 @@ mod tests {
             cwd: "/tmp".into(),
             status: "active".into(),
             last_seen: 1,
+            swarm_id: Some("sw1".into()),
+            role: Some("builder".into()),
+            owned_files: Some("[\"a.py\"]".into()),
         };
         let json = serde_json::to_value(&entry).unwrap();
         let obj = json.as_object().unwrap();
@@ -278,10 +369,14 @@ mod tests {
             "cwd",
             "status",
             "lastSeen",
+            "swarmId",
+            "role",
+            "ownedFiles",
         ] {
             assert!(obj.contains_key(key), "missing camelCase key {key}");
         }
         assert!(!obj.contains_key("pane_id"), "snake_case leaked into IPC");
+        assert!(!obj.contains_key("swarm_id"), "snake_case leaked into IPC");
     }
 
     #[test]
@@ -311,9 +406,23 @@ mod tests {
             "/usr/bin/claude",
             &["--print".into()],
             "/repo",
+            None,
+            None,
+            None,
         )
         .unwrap();
-        register_agent(&conn, "pane-b", "sess-2", "/usr/bin/codex", &[], "/other").unwrap();
+        register_agent(
+            &conn,
+            "pane-b",
+            "sess-2",
+            "/usr/bin/codex",
+            &[],
+            "/other",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let active = get_active_agents(&conn).unwrap();
         assert_eq!(active.len(), 2);
@@ -326,7 +435,7 @@ mod tests {
     fn test_mark_stopped() {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
-        register_agent(&conn, "pane-a", "s1", "claude", &[], "/").unwrap();
+        register_agent(&conn, "pane-a", "s1", "claude", &[], "/", None, None, None).unwrap();
 
         mark_stopped(&conn, "pane-a").unwrap();
         assert!(get_active_agents(&conn).unwrap().is_empty());
@@ -345,7 +454,7 @@ mod tests {
     fn test_update_last_seen() {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
-        register_agent(&conn, "pane-a", "s1", "claude", &[], "/").unwrap();
+        register_agent(&conn, "pane-a", "s1", "claude", &[], "/", None, None, None).unwrap();
 
         let before: i64 = conn
             .query_row(
@@ -373,7 +482,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
         for id in ["a", "b", "c"] {
-            register_agent(&conn, id, "s", "bin", &[], "/").unwrap();
+            register_agent(&conn, id, "s", "bin", &[], "/", None, None, None).unwrap();
         }
 
         let n = sweep_orphans(&conn, &[String::from("a")]).unwrap();
@@ -388,8 +497,8 @@ mod tests {
     fn test_sweep_empty_valid() {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
-        register_agent(&conn, "a", "s", "bin", &[], "/").unwrap();
-        register_agent(&conn, "b", "s", "bin", &[], "/").unwrap();
+        register_agent(&conn, "a", "s", "bin", &[], "/", None, None, None).unwrap();
+        register_agent(&conn, "b", "s", "bin", &[], "/", None, None, None).unwrap();
 
         let n = sweep_orphans(&conn, &[]).unwrap();
         assert_eq!(n, 2);
@@ -411,11 +520,97 @@ mod tests {
     }
 
     #[test]
+    fn test_swarm_columns_register_and_list() {
+        let dir = tempdir().unwrap();
+        let conn = open_test_registry(dir.path());
+
+        register_agent(
+            &conn,
+            "pane-a",
+            "sess-1",
+            "claude",
+            &[],
+            "/repo",
+            Some("s1"),
+            Some("builder"),
+            Some("[\"a.py\"]"),
+        )
+        .unwrap();
+        register_agent(
+            &conn,
+            "pane-b",
+            "sess-2",
+            "codex",
+            &[],
+            "/repo",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        let agents = list_agents_by_swarm(&conn, "s1").unwrap();
+        assert_eq!(agents.len(), 1);
+        let a = &agents[0];
+        assert_eq!(a.pane_id, "pane-a");
+        assert_eq!(a.swarm_id.as_deref(), Some("s1"));
+        assert_eq!(a.role.as_deref(), Some("builder"));
+        assert_eq!(a.owned_files.as_deref(), Some("[\"a.py\"]"));
+
+        assert!(list_agents_by_swarm(&conn, "s2").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_schema_migration_idempotent_on_reopen() {
+        let dir = tempdir().unwrap();
+        let path = registry_path(dir.path());
+        {
+            let _conn = open_registry(&path).unwrap();
+        }
+        let conn = open_registry(&path).unwrap();
+        register_agent(
+            &conn,
+            "pane-a",
+            "s1",
+            "claude",
+            &[],
+            "/",
+            Some("sw"),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(list_agents_by_swarm(&conn, "sw").unwrap().len(), 1);
+    }
+
+    #[test]
     fn test_insert_or_replace() {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
-        register_agent(&conn, "pane-a", "sess-1", "claude", &["--a".into()], "/one").unwrap();
-        register_agent(&conn, "pane-a", "sess-2", "codex", &["--b".into()], "/two").unwrap();
+        register_agent(
+            &conn,
+            "pane-a",
+            "sess-1",
+            "claude",
+            &["--a".into()],
+            "/one",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        register_agent(
+            &conn,
+            "pane-a",
+            "sess-2",
+            "codex",
+            &["--b".into()],
+            "/two",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let row: (String, String, String) = conn
             .query_row(

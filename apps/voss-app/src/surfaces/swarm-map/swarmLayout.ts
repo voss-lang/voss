@@ -1,4 +1,4 @@
-// V24-06 (VADE2-06) — pure radial layout for the Swarm Map.
+// V24-06 (VADE2-06) — pure radial layout for the swarm surface.
 //
 // Fixed polar coordinates, no force simulation, no external library
 // (RESEARCH §Radial Layout Algorithm). Per cluster (one per run): objective at

@@ -357,6 +357,82 @@
   margin: 0;
 }
 
+/* --- Empty state: card variant (Context / Memory) --- */
+.surface-empty__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 380px;
+  padding: 28px 32px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  text-align: center;
+}
+
+.surface-empty__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-2);
+  color: var(--fg-2);
+}
+
+/* Larger, higher-contrast title/hint inside the card (scoped — leaves the
+   plain two-line empty state on other surfaces unchanged). */
+.surface-empty__card .surface-empty__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-0);
+}
+
+.surface-empty__card .surface-empty__hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-3);
+}
+
+.surface-empty__card code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.surface-empty__action {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--fg-0);
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 80ms ease, border-color 80ms ease;
+}
+
+.surface-empty__action:hover {
+  background: var(--bg-3, var(--bg-2));
+}
+
+.surface-empty__action:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+
 /* --- Overview roll-up chips --- */
 .surface-rollup {
   display: flex;

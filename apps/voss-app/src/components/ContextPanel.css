@@ -141,6 +141,27 @@
   text-align: center;
 }
 
+/* Full-canvas embedding — the Context surface mounts this same panel on a full
+   canvas (not the F4 side drawer). Neutralize the drawer geometry: fill the
+   surface and drop the absolute/240px/slide-in. The surface's own header band
+   stands in for the panel's (hidden) header. Scoped to `.surface` so the F4
+   drawer stays exactly as it was. */
+.surface .context-panel {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  flex: 1;
+  min-height: 0;
+  margin: 0 auto;
+  border-left: none;
+  background: transparent;
+}
+.surface .context-panel-header {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .context-panel {
     transition: none;

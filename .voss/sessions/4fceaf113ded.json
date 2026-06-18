@@ -1,0 +1,18 @@
+{
+  "id": "4fceaf113ded",
+  "name": "t",
+  "cwd": "/Users/benjaminmarks/Projects/Voss",
+  "model": "gpt-5.5",
+  "started_at": "2026-06-16T19:51:26+00:00",
+  "updated_at": "2026-06-16T19:51:26+00:00",
+  "total_cost_usd": 0.0,
+  "turns": [
+    {
+      "role": "user",
+      "content": "hello"
+    }
+  ],
+  "runs": [],
+  "parent_id": null,
+  "parent_turn_index": null
+}

@@ -1,0 +1,310 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-06-17T14:55:00-04:00",
+    "tools": [
+      {
+        "vendor": "Snitch",
+        "name": "snitch-security-audit",
+        "version": "1.0.0"
+      }
+    ]
+  },
+  "vulnerabilities": [
+    {
+      "id": "CVE-2026-12143",
+      "source": {
+        "name": "NVD"
+      },
+      "ratings": [
+        {
+          "score": 7.5,
+          "severity": "high",
+          "method": "CVSSv31"
+        }
+      ],
+      "affects": [
+        {
+          "ref": "pkg:npm/form-data@4.0.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by npm and pnpm audit through the root lockfile. Exploitability depends on whether untrusted multipart field names or filenames reach the transitive dependency path."
+      }
+    },
+    {
+      "id": "GHSA-wcpc-wj8m-hjx6",
+      "source": {
+        "name": "GitHub Advisory"
+      },
+      "ratings": [
+        {
+          "score": 7.5,
+          "severity": "high",
+          "method": "CVSSv31"
+        }
+      ],
+      "affects": [
+        {
+          "ref": "pkg:npm/protobufjs@7.5.9"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by npm audit in the site lockfile through posthog-js telemetry dependencies. Runtime reachability of the affected parser path was not proven in this scan."
+      }
+    },
+    {
+      "id": "GHSA-f38q-mgvj-vph7",
+      "source": {
+        "name": "GitHub Advisory"
+      },
+      "ratings": [
+        {
+          "score": 5.3,
+          "severity": "moderate",
+          "method": "CVSSv31"
+        }
+      ],
+      "affects": [
+        {
+          "ref": "pkg:npm/protobufjs@7.5.9"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by npm audit in the site lockfile through posthog-js telemetry dependencies."
+      }
+    },
+    {
+      "id": "GHSA-8988-4f7v-96qf",
+      "source": {
+        "name": "GitHub Advisory"
+      },
+      "ratings": [
+        {
+          "score": 5.3,
+          "severity": "moderate",
+          "method": "CVSSv31"
+        }
+      ],
+      "affects": [
+        {
+          "ref": "pkg:npm/@opentelemetry/core@2.2.0"
+        },
+        {
+          "ref": "pkg:npm/@opentelemetry/core@2.7.1"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by npm audit in the site lockfile through posthog-js telemetry dependencies."
+      }
+    },
+    {
+      "id": "GHSA-76mc-f452-cxcm",
+      "source": {
+        "name": "GitHub Advisory"
+      },
+      "ratings": [
+        {
+          "score": 6.1,
+          "severity": "moderate",
+          "method": "CVSSv31"
+        }
+      ],
+      "affects": [
+        {
+          "ref": "pkg:npm/dompurify@3.4.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by npm audit in the site lockfile through posthog-js. The site's own raw HTML render paths were traced to static/build-time sources, but dependency internals were not proven unreachable."
+      }
+    },
+    {
+      "id": "CVE-2026-34993",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. aiohttp is transitive through litellm; direct project source did not import the affected CookieJar path in production code during this scan."
+      }
+    },
+    {
+      "id": "CVE-2026-47265",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Exploitability depends on aiohttp client cookie usage through transitive dependencies."
+      }
+    },
+    {
+      "id": "CVE-2026-54273",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Runtime reachability of the affected server parser behavior was not proven in this scan."
+      }
+    },
+    {
+      "id": "CVE-2026-54277",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Runtime reachability of the affected HTTP parser behavior was not proven in this scan."
+      }
+    },
+    {
+      "id": "CVE-2026-54274",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Runtime reachability of websocket handling through transitive dependencies was not proven in this scan."
+      }
+    },
+    {
+      "id": "CVE-2026-54279",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Exploitability depends on aiohttp CookieJar save/load behavior through transitive dependencies."
+      }
+    },
+    {
+      "id": "CVE-2026-50269",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Exploitability depends on attacker-controlled multipart or payload headers through transitive dependencies."
+      }
+    },
+    {
+      "id": "CVE-2026-54276",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Exploitability depends on DigestAuthMiddleware redirect behavior through transitive dependencies."
+      }
+    },
+    {
+      "id": "CVE-2026-54278",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Runtime reachability of compressed request cleanup behavior was not proven in this scan."
+      }
+    },
+    {
+      "id": "CVE-2026-54280",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Runtime reachability of payload resource handling was not proven in this scan."
+      }
+    },
+    {
+      "id": "CVE-2026-54275",
+      "source": {
+        "name": "NVD"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/aiohttp@3.13.5"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. Exploitability depends on per-request TLS SNI behavior through transitive dependencies."
+      }
+    },
+    {
+      "id": "GHSA-537c-gmf6-5ccf",
+      "source": {
+        "name": "GitHub Advisory"
+      },
+      "affects": [
+        {
+          "ref": "pkg:pypi/cryptography@48.0.0"
+        }
+      ],
+      "analysis": {
+        "state": "under_investigation",
+        "detail": "Detected by pip-audit in uv.lock. cryptography is a direct runtime dependency and is imported by the trust/signature path."
+      }
+    }
+  ]
+}

@@ -4,7 +4,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
 };
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -200,6 +200,35 @@ fn build_env_with_agent_id(
     env
 }
 
+fn clipboard_image_extension(mime_type: &str) -> Option<&'static str> {
+    match mime_type.to_ascii_lowercase().as_str() {
+        "image/png" => Some("png"),
+        "image/jpeg" | "image/jpg" => Some("jpg"),
+        "image/gif" => Some("gif"),
+        "image/webp" => Some("webp"),
+        "image/tiff" => Some("tiff"),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+fn save_clipboard_image(bytes: Vec<u8>, mime_type: String) -> Result<String, String> {
+    if bytes.is_empty() {
+        return Err("clipboard image was empty".to_string());
+    }
+    let ext = clipboard_image_extension(&mime_type)
+        .ok_or_else(|| "unsupported clipboard image type".to_string())?;
+    let dir = std::env::temp_dir().join("voss-app-pastes");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let path = dir.join(format!("paste-{}-{nanos}.{ext}", std::process::id()));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 async fn spawn_agent(
@@ -241,8 +270,18 @@ async fn spawn_agent(
     start_reader(pty_id.clone(), reader, pause_rx, on_data, registry);
 
     let cwd_str = cwd.as_deref().unwrap_or("");
-    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
-        .map_err(|e| e.to_string())?;
+    register_agent(
+        conn,
+        &pane_id,
+        &session_id,
+        &cli_binary,
+        &cli_args,
+        cwd_str,
+        None,
+        None,
+        None,
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(pty_id)
 }
@@ -314,8 +353,18 @@ async fn spawn_managed_agent(
 
     // Roster shows the REAL CLI, not the sandbox launcher argv.
     let cwd_str = cwd.as_deref().unwrap_or("");
-    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
-        .map_err(|e| e.to_string())?;
+    register_agent(
+        conn,
+        &pane_id,
+        &session_id,
+        &cli_binary,
+        &cli_args,
+        cwd_str,
+        None,
+        None,
+        None,
+    )
+    .map_err(|e| e.to_string())?;
 
     // Honest tier: sandbox unavailable → downgrade to observe-only.
     let effective_tier = if sandboxed { tier } else { "C".to_string() };
@@ -328,7 +377,10 @@ async fn spawn_managed_agent(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_env_with_agent_id, env_for_embedded_cli, is_interactive_voss_command};
+    use super::{
+        build_env_with_agent_id, clipboard_image_extension, env_for_embedded_cli,
+        is_interactive_voss_command,
+    };
 
     /// VBUS-03 camelCase IPC round-trip guard (V14 AgentEntry lesson): a
     /// serde rename mismatch on `vossAgentId` would arrive here as `None`
@@ -418,6 +470,23 @@ mod tests {
         assert_eq!(env_for_embedded_cli("/opt/bin/voss", &chat_args), TUI_ENV);
         assert_eq!(env_for_embedded_cli("voss.exe", &chat_args), TUI_ENV);
         assert!(env_for_embedded_cli("claude", &claude_args).is_empty());
+    }
+
+    #[test]
+    fn clipboard_image_extension_accepts_common_types_only() {
+        assert_eq!(clipboard_image_extension("image/png"), Some("png"));
+        assert_eq!(clipboard_image_extension("IMAGE/JPEG"), Some("jpg"));
+        assert_eq!(clipboard_image_extension("image/webp"), Some("webp"));
+        assert_eq!(clipboard_image_extension("text/plain"), None);
+    }
+
+    #[test]
+    fn save_clipboard_image_writes_temp_file() {
+        let path = super::save_clipboard_image(vec![1, 2, 3], "image/png".into()).unwrap();
+        let path = PathBuf::from(path);
+        assert_eq!(path.extension().and_then(|s| s.to_str()), Some("png"));
+        assert_eq!(fs::read(&path).unwrap(), vec![1, 2, 3]);
+        fs::remove_file(path).ok();
     }
 
     // ---- V11 ADE org integration data-layer tests --------------------------
@@ -1403,6 +1472,22 @@ async fn start_voss_serve(cwd: String, state: VossServeMap<'_>) -> Result<ServeH
     Ok(handshake)
 }
 
+// ---- ui_log: webview diagnostics -> dev terminal ---------------------------
+// The webview's console.* only reaches devtools. This bridges frontend
+// lifecycle/error logs onto the Rust process stdout/stderr so they interleave
+// with the sidecar + Tauri output in the `pnpm tauri dev` terminal. `scope` is
+// a dotted tag (e.g. "composer.create"); `detail` is preformatted by the
+// caller. Never pass secrets (the serve token) — this is the shared console.
+#[tauri::command]
+fn ui_log(level: String, scope: String, detail: String) {
+    let line = format!("[ui] {scope}: {detail}");
+    if level == "error" {
+        eprintln!("{line}");
+    } else {
+        println!("{line}");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1416,6 +1501,7 @@ pub fn run() {
         .manage(Mutex::new(HashMap::<String, VossServe>::new()))
         .invoke_handler(tauri::generate_handler![
             get_theme_overrides,
+            save_clipboard_image,
             spawn_pty,
             pty_write,
             pty_resize,
@@ -1478,6 +1564,7 @@ pub fn run() {
             enumerate_runs,
             run_decision,
             start_voss_serve,
+            ui_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

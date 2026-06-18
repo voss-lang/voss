@@ -16,8 +16,8 @@ pub mod themes;
 pub mod workspaces;
 
 pub use agent_registry::{
-    create_schema, get_active_agents, global_registry_path, mark_stopped, open_registry,
-    register_agent, registry_path, sweep_orphans, update_last_seen_all, AgentEntry,
+    create_schema, get_active_agents, global_registry_path, list_agents_by_swarm, mark_stopped,
+    open_registry, register_agent, registry_path, sweep_orphans, update_last_seen_all, AgentEntry,
     AgentRegistryError,
 };
 pub use appearance::{

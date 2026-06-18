@@ -1,0 +1,69 @@
+/* V24-11 (VADE2-11) — Memory surface live view. */
+
+.memory-search {
+  margin-bottom: 12px;
+}
+
+.memory-search__input {
+  width: 100%;
+  background: var(--bg-2);
+  color: var(--fg-1, var(--fg));
+  border: 1px solid var(--border, var(--bg-3));
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.memory-search__input:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 1px;
+}
+
+.memory-summary {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-2, var(--fg));
+  line-height: 1.5;
+  margin: 0;
+}
+
+.memory-hits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-hit {
+  border: 1px solid var(--border, var(--bg-2));
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.memory-hit__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.memory-hit__locator {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-1, var(--fg));
+}
+
+.memory-hit__source {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-3);
+}
+
+.memory-hit__excerpt {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-2, var(--fg));
+  line-height: 1.5;
+}

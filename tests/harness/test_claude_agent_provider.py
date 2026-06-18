@@ -18,6 +18,7 @@ from voss.harness.agent import Plan
 from voss.harness.claude_agent_provider import (
     ClaudeAgentProvider,
     _flatten_messages,
+    _subscription_env_overrides,
 )
 from voss.harness.providers import Done, ParsedPlan, TextDelta, Usage
 
@@ -303,6 +304,30 @@ async def test_cli_path_threads_into_options() -> None:
     )
     await _drain(p)
     assert captured["options"].cli_path == "/opt/bin/claude"
+
+
+@pytest.mark.asyncio
+async def test_subscription_provider_shadows_api_billing_env(monkeypatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://proxy.example.test")
+    monkeypatch.setenv("CLAUDE_CODE_USE_BEDROCK", "1")
+
+    captured: dict = {}
+    p = ClaudeAgentProvider(
+        query_fn=_fake_query([FakeResultMessage(usage=USAGE)], captured),
+    )
+    await _drain(p)
+
+    opt = captured["options"]
+    assert opt.env["ANTHROPIC_API_KEY"] == ""
+    assert opt.env["ANTHROPIC_BASE_URL"] == ""
+    assert opt.env["CLAUDE_CODE_USE_BEDROCK"] == ""
+
+
+def test_subscription_env_overrides_omits_unset_keys(monkeypatch) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    assert _subscription_env_overrides() == {}
 
 
 def test_flatten_messages_markers_and_order() -> None:
