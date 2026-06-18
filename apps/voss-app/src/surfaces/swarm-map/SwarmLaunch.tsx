@@ -4,8 +4,12 @@
 // connection state: disabled-with-reason when there is no live server. On success
 // the map's createResource picks up the new active swarm id and renders it live.
 
-import { type Component, createSignal, Show } from 'solid-js';
-import { liveServer } from '../../org/live/liveServer';
+import { type Component, createSignal, onMount, Show } from 'solid-js';
+import {
+  liveServer,
+  connectLiveServer,
+  canConnectLiveServer,
+} from '../../org/live/liveServer';
 import { launchSwarm } from '../../org/live/swarmLaunch';
 
 interface SwarmLaunchProps {
@@ -17,27 +21,45 @@ const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
   const [goal, setGoal] = createSignal('');
   const [builders, setBuilders] = createSignal(2);
   const [busy, setBusy] = createSignal(false);
+  const [phase, setPhase] = createSignal<'connecting' | 'launching' | null>(null);
   const [note, setNote] = createSignal<string | null>(null);
+  let goalRef: HTMLTextAreaElement | undefined;
 
   const connected = () => !!liveServer();
-  const canLaunch = () => connected() && goal().trim().length > 0 && !busy();
+  // Launchable when already connected, or when we can spin up a server on
+  // demand — the click spawns the sidecar first, then launches.
+  const canLaunch = () =>
+    goal().trim().length > 0 &&
+    !busy() &&
+    (connected() || canConnectLiveServer());
+
+  onMount(() => {
+    if (props.compact) queueMicrotask(() => goalRef?.focus());
+  });
 
   async function onLaunch(): Promise<void> {
-    const srv = liveServer();
-    if (!srv) {
-      setNote('Not connected to a live Voss server.');
-      return;
-    }
     if (!goal().trim()) return;
     setBusy(true);
     setNote(null);
     try {
+      let srv = liveServer();
+      if (!srv) {
+        setPhase('connecting');
+        srv = await connectLiveServer();
+      }
+      if (!srv) {
+        setNote('Open a workspace folder to connect a live Voss server.');
+        return;
+      }
+      setPhase('launching');
       await launchSwarm(srv, { goal: goal().trim(), builders: builders() });
       props.onClose?.();
     } catch (e) {
-      setNote(`Couldn't launch orchestra: ${e instanceof Error ? e.message : String(e)}`);
+      const verb = phase() === 'connecting' ? 'connect' : 'launch orchestra';
+      setNote(`Couldn't ${verb}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
+      setPhase(null);
     }
   }
 
@@ -51,24 +73,25 @@ const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
       aria-label="Launch an orchestra"
     >
       <Show when={!props.compact}>
-        <div class="swarm-launch__header">
+        <div class="swarm-launch__intro">
+          <span class="swarm-launch__mark" aria-hidden="true" />
           <div>
-            <p class="swarm-launch__kicker">Orchestra setup</p>
-            <p class="swarm-empty__title">No orchestra running</p>
+            <p class="swarm-empty__title">Launch orchestra</p>
+            <p class="swarm-empty__hint">
+              No orchestra running. Give Voss a goal, then choose how many
+              builders to assign.
+            </p>
           </div>
-          <span class="swarm-launch__pill">Idle</span>
         </div>
-        <p class="swarm-empty__hint">
-          Set the goal Voss should coordinate, then choose the builder count.
-        </p>
       </Show>
 
       <label class="swarm-launch__field">
-        <span>Goal</span>
+        <span class="swarm-launch__label">Goal</span>
         <textarea
+          ref={goalRef}
           class="swarm-launch__goal"
           aria-label="Orchestra goal"
-          placeholder="What should the orchestra do?"
+          placeholder="Describe the work to coordinate..."
           rows="3"
           value={goal()}
           disabled={busy()}
@@ -97,18 +120,30 @@ const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
           disabled={!canLaunch()}
           onClick={() => void onLaunch()}
         >
-          {busy() ? 'Launching…' : 'Launch orchestra'}
+          {phase() === 'connecting'
+            ? 'Connecting…'
+            : phase() === 'launching'
+              ? 'Launching…'
+              : 'Launch orchestra'}
         </button>
       </div>
 
       <Show when={!connected()}>
-        <p class="swarm-launch__reason" role="note">
+        <p
+          classList={{
+            'swarm-launch__reason': true,
+            'swarm-launch__reason--warn': !canConnectLiveServer(),
+          }}
+          role="note"
+        >
           <span aria-hidden="true">●</span>
-          Open a workspace to connect a live Voss server.
+          {canConnectLiveServer()
+            ? 'Launch will start a live Voss server for this workspace.'
+            : 'Open a workspace to connect a live Voss server.'}
         </p>
       </Show>
       <Show when={note()}>
-        <p class="swarm-launch__reason" role="alert">
+        <p class="swarm-launch__reason swarm-launch__reason--warn" role="alert">
           <span aria-hidden="true">●</span>
           {note()}
         </p>

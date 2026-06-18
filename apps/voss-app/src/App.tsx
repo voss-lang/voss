@@ -30,7 +30,7 @@ import { devlog } from './devlog';
 import PortalShell from './portal/PortalShell';
 import ContextSurface from './surfaces/context/ContextSurface';
 import MemorySurface from './surfaces/memory/MemorySurface';
-import { setLiveServer } from './org/live/liveServer';
+import { setLiveServer, setLiveServerConnector } from './org/live/liveServer';
 import { PORTAL_ITEMS, type PortalView } from './portal/portalTypes';
 import AttentionPanel from './org/attention/AttentionPanel';
 import { attentionQueue } from './org/attention/attentionQueue';
@@ -1493,6 +1493,15 @@ export default function App() {
 
   onMount(() => {
     window.addEventListener('keydown', onAppKey, true);
+    // On-demand live-server connect for prop-less surfaces (orchestra Launch):
+    // spawn the sidecar for the active workspace folder. No folder → no-op, so
+    // the store stays null and the surface keeps its honest "open a workspace"
+    // gate. ensureVossClient calls setLiveServer as its side-effect.
+    setLiveServerConnector(async () => {
+      const cwd = workspacePath();
+      if (!cwd) return;
+      await ensureVossClient(cwd);
+    });
     void applyWindowEffects({ enabled: true });
     void setAsAppMenu(registry(), (id) => {
       void dispatchCommandId(id);
@@ -1539,6 +1548,7 @@ export default function App() {
 
   onCleanup(() => {
     window.removeEventListener('keydown', onAppKey, true);
+    setLiveServerConnector(null);
     keymapUnlisten?.();
     prefixMode.cancel();
     closeSaveUnlisten?.();

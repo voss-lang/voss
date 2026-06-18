@@ -292,9 +292,11 @@ const SwarmMap: Component = () => {
             <Show
               when={hasGraph()}
               fallback={
-                <div class="swarm-empty">
-                  <SwarmLaunch />
-                </div>
+                <Show when={!launchOpen()}>
+                  <div class="swarm-empty">
+                    <SwarmLaunch />
+                  </div>
+                </Show>
               }
             >
               <svg
@@ -414,7 +416,11 @@ const SwarmMap: Component = () => {
             <div
               class="swarm-launch-modal__panel"
               role="dialog"
+              aria-modal="true"
               aria-label="New orchestra"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setLaunchOpen(false);
+              }}
             >
               <div class="swarm-launch-modal__head">
                 <span>New orchestra</span>
