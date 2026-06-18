@@ -18,7 +18,7 @@ test.use({ browserName: BROWSER });
 function twoWorkspaces(): MockWorkspace[] {
   return [
     { id: 'w1', name: 'Alpha', projectPath: '/tmp/voss-e2e-proj', accentColor: 'blue', order: 0 },
-    { id: 'w2', name: 'Bravo', projectPath: null, accentColor: 'green', order: 1 },
+    { id: 'w2', name: 'Bravo', projectPath: '/tmp/voss-e2e-proj-2', accentColor: 'green', order: 1 },
   ];
 }
 

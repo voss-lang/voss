@@ -23,7 +23,6 @@ from sse_starlette import EventSourceResponse, ServerSentEvent
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
-from tests.harness.tui import snapshots
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
 
 from .. import auth as auth_mod

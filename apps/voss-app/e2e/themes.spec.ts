@@ -18,6 +18,7 @@ test.use({ browserName: BROWSER });
 
 const BUNDLED_THEME_IDS = [
   'variant-b',
+  'voss-ignite',
   'one-dark-pro',
   'dracula',
   'catppuccin-mocha',
@@ -32,7 +33,7 @@ const BUNDLED_THEME_IDS = [
 ] as const;
 
 test.describe('A8 themes (mock-IPC)', () => {
-  test('theme-ac1: appearance picker lists exactly 12 bundled themes', async ({ page }) => {
+  test('theme-ac1: appearance picker lists all bundled themes', async ({ page }) => {
     await bootApp(page);
 
     // Navigate to Settings via the portal rail.
@@ -41,11 +42,13 @@ test.describe('A8 themes (mock-IPC)', () => {
     const grid = page.locator('.settings-theme-grid');
     await expect(grid).toBeVisible();
     const cards = grid.locator('.settings-theme-card');
-    await expect(cards).toHaveCount(12);
+    // One card per bundled theme (catalog grows over time — assert parity
+    // with BUNDLED_THEME_IDS rather than hardcoding 12).
+    await expect(cards).toHaveCount(BUNDLED_THEME_IDS.length);
 
     // Each card has an aria-label "Use theme: <Name>" — just confirm count
     // matches the bundled catalog (one card per theme).
-    expect(BUNDLED_THEME_IDS).toHaveLength(12);
+    expect(BUNDLED_THEME_IDS.length).toBeGreaterThanOrEqual(12);
   });
 
   test('theme-ac2: clicking a theme commits it (aria-pressed reflects)', async ({ page }) => {
