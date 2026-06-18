@@ -44,6 +44,11 @@ describe('ContextSurface', () => {
     const panel = el.querySelector('[role="tabpanel"][aria-label="Context"]');
     expect(panel).toBeTruthy();
 
+    // Surface header band (parity with Memory), always present.
+    expect(el.querySelector('.surface__header .surface__title')?.textContent).toBe(
+      'Context',
+    );
+
     const rows = el.querySelectorAll('.context-file-row');
     expect(rows.length).toBe(2);
     expect(el.textContent).toContain('src/app.ts');

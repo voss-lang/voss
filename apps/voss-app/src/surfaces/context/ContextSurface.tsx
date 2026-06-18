@@ -41,8 +41,20 @@ const ContextIcon = () => (
   </svg>
 );
 
+function cwdBasename(cwd?: string): string {
+  if (!cwd) return '';
+  const parts = cwd.replace(/\/+$/, '').split('/');
+  return parts[parts.length - 1] || cwd;
+}
+
 const ContextSurface: Component<ContextSurfaceProps> = (props) => (
   <div class="surface" role="tabpanel" aria-label="Context">
+    <div class="surface__header">
+      <span class="surface__title">Context</span>
+      <Show when={props.isAgentPane && props.context && props.paneCwd}>
+        <span class="surface__count">{cwdBasename(props.paneCwd)}</span>
+      </Show>
+    </div>
     <Show
       when={props.isAgentPane && props.context}
       fallback={
