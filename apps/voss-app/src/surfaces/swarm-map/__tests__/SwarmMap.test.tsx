@@ -148,7 +148,9 @@ describe('SwarmMap — honest empty state', () => {
   it('with no run data shows the empty state and zero node shapes', () => {
     setRunData(null);
     const el = mount(() => <SwarmMap />);
-    expect(el.textContent).toContain('No orchestra running');
+    // Empty state = the launch wizard (Build your roster).
+    expect(el.querySelector('[aria-label="Launch an orchestra"]')).toBeTruthy();
+    expect(el.textContent).toContain('Step 1 of 3');
     expect(el.querySelectorAll('[data-node-type]').length).toBe(0);
   });
 

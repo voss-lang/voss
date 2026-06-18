@@ -15,12 +15,14 @@ const BROWSER =
   (process.env.PW_BROWSER as 'chromium' | 'webkit' | 'firefox') ?? 'chromium';
 test.use({ browserName: BROWSER });
 
-/** Build a minimal valid SessionFile with N horizontal leaves. */
+/** Build a minimal valid SessionFile with N horizontal pane leaves. */
 function hSession(n: number, opts: { focusedId?: string; version?: number } = {}): unknown {
   const leaves = Array.from({ length: n }, (_, i) => ({
-    kind: 'leaf',
+    kind: 'pane',
     id: `leaf-${i}`,
     cwd: '/tmp/voss-e2e-proj',
+    shell: null,
+    index: i,
   }));
   let root: unknown = leaves[0];
   for (let i = 1; i < leaves.length; i++) {

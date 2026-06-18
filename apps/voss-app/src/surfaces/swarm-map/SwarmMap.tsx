@@ -42,6 +42,7 @@ import { useNow } from './clock';
 import SwarmChip from './SwarmChip';
 import SwarmCommandBar from './SwarmCommandBar';
 import SwarmLaunch from './SwarmLaunch';
+import SwarmLaunchWizard from './SwarmLaunchWizard';
 import SwarmMapLegend from './SwarmMapLegend';
 import EventTraceList from './EventTraceList';
 import ReplayScrubber from './ReplayScrubber';
@@ -293,8 +294,8 @@ const SwarmMap: Component = () => {
               when={hasGraph()}
               fallback={
                 <Show when={!launchOpen()}>
-                  <div class="swarm-empty">
-                    <SwarmLaunch />
+                  <div class="swarm-empty swarm-empty--wizard">
+                    <SwarmLaunchWizard />
                   </div>
                 </Show>
               }

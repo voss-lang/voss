@@ -155,6 +155,13 @@
   pointer-events: none;
 }
 
+/* Wizard empty state — taller than the old intake, so pad less and let the
+   card own its own internal scroll (justify start avoids top clipping). */
+.swarm-empty--wizard {
+  padding: 24px 24px 24px;
+  justify-content: flex-start;
+}
+
 .swarm-empty__title {
   color: var(--fg-0, var(--fg));
   font-family: var(--font-ui), Inter, system-ui, sans-serif;

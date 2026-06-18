@@ -3,11 +3,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const createSwarm = vi.fn();
+const runSwarm = vi.fn().mockResolvedValue(undefined);
 const connectLiveStream = vi.fn((_args?: unknown) => ({ abort: vi.fn() }));
 
 vi.mock('../swarmClient', () => ({
   createSwarm: (baseUrl: string, token: string, body: unknown) =>
     createSwarm(baseUrl, token, body),
+  runSwarm: (baseUrl: string, token: string, id: string) =>
+    runSwarm(baseUrl, token, id),
 }));
 vi.mock('../sseClient', () => ({
   connectLiveStream: (args: unknown) => connectLiveStream(args),
@@ -19,6 +22,8 @@ import { activeSwarmId, __resetSwarmLive } from '../swarmLive';
 afterEach(() => {
   __resetSwarmLive();
   createSwarm.mockReset();
+  runSwarm.mockReset();
+  runSwarm.mockResolvedValue(undefined);
   connectLiveStream.mockReset();
 });
 
@@ -48,6 +53,34 @@ describe('launchSwarm', () => {
     expect(connectLiveStream).toHaveBeenCalledTimes(2);
     // coordinator kicked with the goal
     expect(postMessage).toHaveBeenCalledWith('s-co', 'ship it');
+    // a pending CLI role is present → the headless driver is kicked
+    expect(runSwarm).toHaveBeenCalledWith('http://x', 't', 'sw9');
+  });
+
+  it('forwards an explicit roster and skips runSwarm when all roles are native', async () => {
+    createSwarm.mockResolvedValue({
+      id: 'sw10',
+      sessions: [
+        { session_id: 's-co', role: 'coordinator' },
+        { session_id: 's-b1', role: 'builder-1' },
+      ],
+    });
+    const roster = [
+      { name: 'coordinator', agent: 'voss', model: 'default' },
+      { name: 'builder-1', agent: 'voss', model: 'default' },
+    ];
+    const srv = { baseUrl: 'http://x', token: 't', cwd: '/repo' };
+
+    await launchSwarm(srv, { goal: 'go', builders: 1, roster });
+
+    expect(createSwarm).toHaveBeenCalledWith('http://x', 't', {
+      goal: 'go',
+      builders: 1,
+      cwd: '/repo',
+      roster,
+    });
+    // all sessions native (session_id present) → no CLI driver call
+    expect(runSwarm).not.toHaveBeenCalled();
   });
 
   it('propagates a creation failure (e.g. no credentials)', async () => {
