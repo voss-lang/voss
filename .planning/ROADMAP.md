@@ -124,6 +124,10 @@ BOS0-BOS18 define the v0.2 Behavioral OS Foundation milestone. This track is doc
 - [ ] BOS0-01-PLAN.md — Product brief: boundary, ICP, buyer/user split, delegation wedge, positioning, anti-positioning, tension+resolution (BOS-PROD-01, BOS-PROD-02, BOS-PROD-03)
 - [ ] BOS0-02-PLAN.md — Mom-Test design-partner discovery script, problem-first ordering (BOS-PROD-03)
 
+**BOS1 planned (2026-06-18):** 2 plans, 2 waves (docs-first audit, then human-gated cleanup; covers BOS-PLAN-01..04):
+- [ ] BOS1-01-PLAN.md — Build `.planning/AUDIT-INDEX.md`: two-axis (status × BOS-relationship) classification of 25 loose docs + 10 phase-track rollup + external appendix; verify BOS prefix + BOS0-18 split (BOS-PLAN-01, BOS-PLAN-02, BOS-PLAN-03, BOS-PLAN-04)
+- [ ] BOS1-02-PLAN.md — Human-gated cleanup: per-item approval → move archive-candidates into `.planning/archive/` → delete signed-off dead docs (autonomous:false; BOS-PLAN-02)
+
 | BOS phase | Deliverable | Notes |
 |---|---|---|
 | BOS0 | Product thesis and discovery script | Clarifies ICP, wedge, and what problem is worth solving first |
