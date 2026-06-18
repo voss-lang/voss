@@ -2,108 +2,101 @@
 
 ## What This Is
 
-Voss is an **agent engineering organization layer**: it lets AI coding agents work like a high-performing engineering organization — scoped, budgeted, reviewed, and replayable — rather than a rigid automation pipeline. That layer sits atop two named substrates. The **harness** is the first product surface: the `voss` CLI/TUI that helps developers plan, execute, inspect, and resume AI-assisted code work in real repositories. The **`.voss` language** is the durable, compiler-checkable control layer for workflows that need explicit confidence gates, context budgets, semantic routing, tools, memory, agents, and fallbacks. See [`.planning/docs/ORCHESTRATION_LAYERS.md`](docs/ORCHESTRATION_LAYERS.md) — the canonical PRD — for the full org-layer model.
+Voss is an **agent engineering organization layer** and emerging **Behavioral OS for engineering teams**. The desktop ADE and harness give developers bounded, inspectable, replayable AI coding work; the Behavioral OS track turns that activity into a shared team control plane for delegation, review depth, validation, outcomes, and eventually learned policy recommendations.
+
+The near-term product is still local-first and developer-owned. The v0.2 foundation work decides how the existing harness, server plane, desktop ADE, and server-native swarm become the data substrate for a future web control plane and team workflow suite.
 
 ## Core Value
 
-A developer can give Voss a repo task and get bounded, inspectable, resumable AI coding work, while the most important agent logic is expressible as compiler-checkable `.voss` workflows instead of prompt soup.
+An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
 
-## Current Milestone: v0.1 Harness MVP
+## Current Milestone: v0.2 Behavioral OS Foundation
 
-**Goal:** Ship a tight vertical slice where `voss` can safely plan, execute, inspect, and resume AI-assisted code work in a real repository, with `.voss` preserved as the workflow-control language.
+**Goal:** Establish the product, technical, data, and governance foundation for a Behavioral OS that sits above Voss's ADE/swarm runtime and can later expand into an engineering-team project management suite.
 
 **Target features:**
-- M0 Scope Lock: align planning docs around harness-led v0.1 plus language control layer.
-- M1 Harness Happy Path: make `voss doctor`, `voss do`, and `voss edit` usable against a real repo.
-- M2 Project Cognition: persist project-local memory, plans, decisions, sessions, and validation state.
-- M3 Language Validation: prove `.voss` workflows parse, check, compile, and run as the control layer.
-- M4 Voss-authored Harness Loop: dogfood the harness loop under `voss/harness/agent/*.voss`.
-- M5 Eval and Distribution Prep: measure quality and prepare packaging after Python harness usage is proven.
+- BOS product thesis, ICP, wedge, and phase prefixing.
+- Legacy planning audit so stale v0.1/v0.1.1 docs are indexed before any archive/removal.
+- Monorepo and stack architecture for desktop ADE, web control plane, backend/event ledger, and Python RL/eval lab.
+- Engineering event schema, decision ledger, outcome labels, and guardrails for delegation/review/flow recommendations.
+- Swarm integration requirements: BOS consumes the existing server/SSE swarm plane and `SEED-001`, not a parallel coordination bus.
+- Initial roadmap from BOS0 through BOS18 with docs-first phases before implementation.
 
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- Voss already has a local harness/server/ADE substrate with persisted sessions, permission gates, audit surfaces, memory/recall, multi-agent organization primitives, and a server-native swarm runtime track.
 
 ### Active
 
-- [ ] `voss` launches an interactive harness REPL and `voss chat` remains an explicit alias.
-- [ ] `voss do "<task>"` runs natural-language agent tasks; `voss run <file.voss>` remains reserved for `.voss` programs.
-- [ ] `voss edit <path>` starts a scoped edit session with approval before risky changes.
-- [ ] `voss doctor`, `voss tools`, `voss config`, `voss sessions`, and `voss resume [id]` support the core harness loop.
-- [ ] Project-local durable state lives under `.voss/`; rebuildable machine state lives under `.voss-cache/`.
-- [ ] Every agent run records task goal, plan, inspected files, changed files, avoided files, assumptions, decisions, risks, validation, failures, diff summary, and follow-ups.
-- [ ] Controlled execution exposes a small safe tool registry: `fs_read`, `fs_glob`, `fs_grep`, `fs_write`, `fs_edit`, `shell_run`, `git_status`, `git_diff`, and `voss_check`.
-- [ ] Execution modes `plan`, `edit`, and `auto` enforce cwd path jail, permission prompts, allow/deny/always choices, diff preview, shell allowlist, timeouts, and no secrets in session payloads.
-- [ ] `.voss` remains scoped to AI workflow control, not general Python replacement.
-- [ ] Core language constructs remain supported: `probable<T>`, confidence gates, `ctx`, `within budget/fallback`, `match similar`, `agent`, `spawn`, `gather`, memory primitives, `@tool`, `prompt`, `try/catch`, and `use`.
-- [ ] Canonical repo-centric demo works: `voss doctor`, analyze repo, plan a change, apply approved plan, `voss check .`, and `voss resume`.
-- [ ] Language demo works: `voss init support-bot`, `voss check samples/support.voss`, and `voss run samples/support.voss`.
-- [ ] Harness loop can be dogfooded through `voss/harness/agent/loop.voss`, `router.voss`, `planner.voss`, `executor.voss`, and `reviewer.voss`.
-- [ ] Eval and packaging work tracks golden tasks, cost, success rate, confidence correlation, and install polish.
+- [ ] Define the Behavioral OS product boundary: ADE execution node plus shared team control plane, not a generic PM clone.
+- [ ] Decide web-vs-desktop responsibility: desktop remains the local execution/ADE node; web owns shared team state, dataset review, and management workflows when introduced.
+- [ ] Define a BOS phase prefix and roadmap that is explicit enough to avoid compressing product, data, governance, RL, and PM-suite expansion into one oversized phase.
+- [ ] Audit old planning docs before archiving or deletion; preserve historical V/M/A/F/E/V-track context where it still constrains BOS.
+- [ ] Specify an engineering event schema covering tasks, PRs, sessions, swarm events, review, CI, validation, deploy, and incident outcomes.
+- [ ] Specify a decision ledger for recommendation actions: task-to-agent, autonomy band, review depth, validation depth, escalation, and do-nothing.
+- [ ] Specify outcome labels and reward/guardrail metrics before any online learning.
+- [ ] Specify governance defaults: team-level reporting, human override, no individual ranking, no nudge engagement optimization, and no autonomy increase without offline eval.
+- [ ] Specify the monorepo stack evolution needed for a future web app, backend/event store, shared contracts, desktop client, and Python RL/eval services.
+- [ ] Map the current server-native swarm runtime into BOS as the first local ADE event source.
+- [ ] Reframe `SEED-001` as an external-agent surface over the existing server plane, not a new coordination substrate.
 
 ### Out of Scope
 
-- Full Python language parity — v0.1 is a harness plus AI workflow control language, not a Python replacement.
-- Native LLVM/Wasm compilation — Python target is sufficient for the current AI ecosystem.
-- TypeScript target — defer until the Python-targeted control layer proves usage.
-- Package manager — use Python packaging for now.
-- Debugger or full LSP — generated Python and compiler diagnostics are enough for v0.1.
-- Distributed or multi-machine agents — local bounded execution first.
-- Fine-tuning or training loops — inference and workflow control only.
-- Cloud sync, accounts, teams, marketplace, or web UI — not needed for the first repo-centric loop.
-- Split-pane TUI — terminal-native CLI is enough.
-- Windows support — defer.
-- Broad OSS launch campaign — behavior must be proven first.
-- Rust harness shell, MCP bridge, tree-sitter grammar, VSCode marketplace release, GitHub Linguist upstream PR, and full telemetry system — strategically relevant but deferred until the Python harness proves real usage.
+- Production RL or autonomous policy execution in this milestone - start with schemas, logs, heuristics, and offline-eval design.
+- Replacing Jira/Linear/Atlassian in v0.2 - define the path, but do not build a full PM suite yet.
+- Cloud sync, accounts, billing, multi-tenant SaaS, or enterprise admin in this milestone - design boundaries only.
+- Individual-developer rankings, raw activity scoring, keystroke telemetry, or productivity leaderboards - incompatible with the trust model.
+- A parallel coordination bus for external agents - BOS must use the existing harness server/SSE/swarm plane.
+- Deleting old planning docs without an audit/archive index - too much project context is encoded in historical tracks.
 
 ## Context
 
-- **Scope lock source:** `.vscode/voss_v_0_1_scope_lock.md` is the source of truth for v0.1.
-- **Product framing:** Voss should lead with "AI-native coding harness" and "programming language for agent workflows," not "Python fork" or "Python replacement."
-- **Primary user:** technically capable builders using AI coding tools who want less babysitting, safer edits, persistent context, and inspectable decisions.
-- **Harness-first order:** `voss/harness/` is the near-term product focus because it is the fastest path to a felt product loop.
-- **Language role:** `.voss` is still central, but specifically as a compact, inspectable language for AI workflow control.
-- **Rust role:** `crates/` is a **frozen spike** — preserved in source control, not on the v0.1 ship path. v0.1 distributes the Python harness via npm (M6, pyright bundled-Python pattern). Resurrect Rust only on a concrete dogfood signal (startup latency or wheel size proves painful in real use). Do not edit `crates/` or invest in keeping it building against current Python; leave it where it is until the trigger arrives.
-- **Docs and marketing:** `site/` remains minimal until v0.1 behavior is locked.
+- **Existing substrate:** Voss already has the harness server, SSE event union, session trees, budget/scope controls, audit surfaces, memory/recall, voss-app desktop ADE, and a V25 server-native swarm runtime track.
+- **Swarm impact:** Current swarm architecture already provides server-side state, task ownership, assignment, operator gates, worker completion, and audit files. BOS should observe and label those events rather than create new coordination infrastructure.
+- **Planted seed:** `SEED-001-coordination-bus` remains relevant as a future external-agent CLI surface, but only as a thin client over the existing server plane.
+- **Product direction:** The Behavioral OS should land first as a narrow recommendation/data layer over AI-assisted engineering work, then expand toward engineering-team workflow management after the decision/outcome corpus exists.
+- **Learning direction:** The pragmatic v1 is not a foundation model or online RL. It is a point-in-time-correct event store, decision ledger, heuristic policies, approve/override UI, outcome labeling, and offline evaluation. Bandits/RL follow only after enough logged decisions exist.
 
 ## Constraints
 
-- **CLI naming:** `voss run` executes `.voss` programs; `voss do` executes natural-language agent tasks.
-- **Project state:** `.voss/` is durable project knowledge; `.voss-cache/` is rebuildable machine state.
-- **Security:** controlled execution must enforce cwd path jail, permission prompts, shell allowlist, command timeouts, and no provider API keys in sessions.
-- **Runtime:** Python remains the runtime/compiler target because the AI ecosystem is Python-first.
-- **Compiler output:** generated Python must stay readable and import `voss_runtime`.
-- **Phase naming:** v0.1 roadmap phases use `M` prefixes (`M0` through `M5`) to match the scope-lock document.
+- **Trust:** Team-level defaults, explainable recommendations, human override, and auditability are non-negotiable.
+- **Stack:** Preserve the existing monorepo shape and Voss runtime before introducing web/backend/RL services; new stack decisions must be justified in BOS architecture docs first.
+- **Data:** Features must be point-in-time correct; outcomes cannot leak into the state used to make the original recommendation.
+- **Swarm:** BOS integrates with the existing server/SSE swarm plane. `.voss/swarm/` remains audit/shared host record, not the runtime bus.
+- **Desktop/Web split:** Desktop remains local execution and ADE. Web, if built, is the team control plane and dataset/recommendation review surface.
+- **Safety:** No learned policy can increase autonomy, reduce review, or skip validation without offline eval, guardrail checks, and human approval.
+- **Git safety:** Planning changes are docs-only unless Ben explicitly approves code or git write actions.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| v0.1 is harness-led | The harness is the product surface users feel first | Active |
-| `.voss` is the control layer | The language is strongest when it makes AI workflow decisions explicit and checkable | Active |
-| Keep compiler and harness verbs separate | Avoids ambiguity and preserves the language as a real layer | Active |
-| Python harness first, Rust frozen | v0.1 ships Python via npm (M6 pyright pattern). Rust `crates/` preserved in source control as a frozen spike but explicitly not on the ship path. Resurrect only on real dogfood signal (latency / wheel size). | Active |
-| `.voss/` durable, `.voss-cache/` rebuildable | Separates project knowledge from generated indexes/cache | Active |
-| M-prefixed phase naming | Mirrors the v0.1 scope-lock milestone structure | Active |
+| v0.2 uses `BOS` phase prefixes | Behavioral OS work is distinct from harness, ADE, V-track org runtime, and eval tracks | Active |
+| Start docs-first | The product, stack, data, and governance choices are not yet stable enough for implementation | Active |
+| Web is the shared control plane; desktop is the local ADE node | Team workflow state needs shared access; code execution and agent panes stay local-first | Pending validation |
+| Swarm is the first BOS event source | V25 already models multi-agent task assignment, ownership, gates, and completion | Active |
+| `SEED-001` wraps the server plane | Voss has a daemon/SSE bus, so a second file bus would fragment coordination | Active |
+| Heuristics and offline eval come before RL | Logged outcomes and counterfactual evaluation are prerequisites for safe learning | Active |
+| Governance is part of the foundation | Behavioral products fail if trust, surveillance boundaries, and guardrails are bolted on later | Active |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
 
 **After each phase transition**:
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
+1. Requirements invalidated? -> Move to Out of Scope with reason
+2. Requirements validated? -> Move to Validated with phase reference
+3. New requirements emerged? -> Add to Active
+4. Decisions to log? -> Add to Key Decisions
+5. "What This Is" still accurate? -> Update if drifted
 
 **After each milestone**:
 1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
+2. Core Value check - still the right priority?
+3. Audit Out of Scope - reasons still valid?
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-10 after v0.1 scope lock rebaseline*
+*Last updated: 2026-06-18 after v0.2 Behavioral OS Foundation milestone start*

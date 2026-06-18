@@ -1,38 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1.1
-milestone_name: patch)*
-status: executing
-last_updated: "2026-06-13T20:58:24Z"
-last_activity: 2026-06-13
+milestone: v0.2
+milestone_name: Behavioral OS Foundation
+status: planning
+last_updated: "2026-06-18T14:47:22Z"
+last_activity: 2026-06-18
 progress:
-  total_phases: 69
-  completed_phases: 4
-  total_plans: 19
-  completed_plans: 19
-  percent: 6
+  total_phases: 19
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: Voss
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-05-10)
+See: `.planning/PROJECT.md` (updated 2026-06-18)
 
-**Core value:** A developer can give Voss a repo task and get bounded, inspectable, resumable AI coding work, while the most important agent logic is expressible as compiler-checkable `.voss` workflows instead of prompt soup.
-**Current focus:** V22 — External Memory & Docs Ingest (4/5 plans complete; V22-04 CLI recall fan-out shipped 2026-06-13).
+**Core value:** An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
+**Current focus:** v0.2 Behavioral OS Foundation — docs-first product, architecture, event/data, governance, and roadmap reset.
 
 ## Current Position
 
-**Phase:** V22 — External Memory & Docs Ingest — EXECUTING (4/5 plans complete; V22-05 tools.py agent surface next).
-**Status:** Ready to execute V22-05
-**Workspace health note:** the concurrent watcher ran `npm install` at the pnpm-monorepo root (added JS `litellm` dep, 5e3f061) and gutted the pnpm store mid-V15-04 — repaired via `pnpm install` (7cc042a). JS `litellm` at root is likely unintended; operator should review.
-**Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
-**Next move:** V14 ADE Run Cockpit ✅ COMPLETE (13/13, operator-approved 2026-06-09). Frontier: structured-pane-rendering seed (`.planning/notes/seed-structured-pane-rendering.md`, gated on V13.1 live wiring) · VCKP-13b permission proxy · or resume the A-track (A4 Layout Presets, ready to execute).
-**Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).
-**Carry-over deviations (V13.3):** go floor 1.24 (audited deps oapi-codegen v2.7.1 + runtime v1.4.1 force it); in-SDK 3.1→3.0 codegen normalizer (`sdk/go/internal/specgen`, oapi-codegen v2.7.1 can't read FastAPI's OpenAPI 3.1); 60s spawn handshake + `LITELLM_LOCAL_MODEL_COST_MAP=true`.
-**Rust status:** `crates/` frozen-spike untouched. NEW `crates/voss-app-core` (A1, path-dep'd by src-tauri, populated A2+) + `apps/voss-app/src-tauri` are the live voss-app track members — distinct from the frozen v0.1-ship crates.
-**Last activity:** 2026-06-13
+**Phase:** BOS0 — Product Thesis, ICP, and Wedge — context gathered, ready to plan.
+**Plan:** -
+**Status:** BOS0 context captured (`BOS0-CONTEXT.md`): ICP = 3-15-dev multi-agent teams; wedge = delegation; buyer = EM/lead over already-on-ADE devs; external category = "control plane for AI engineering teams"; discovery = problem-first.
+**Last activity:** 2026-06-18 — Milestone v0.2 Behavioral OS Foundation started.
+**Seed context:** `SEED-001-coordination-bus` is selected as context, but BOS must wrap the existing server/SSE swarm plane rather than create a parallel file bus.
+**Swarm context:** V25 server-native swarm is the first ADE/swarm event source to map into BOS decision/outcome data.
+**Carry-forward context:** Historical V/M/A/F/E/V-track details remain below for reference until BOS1 audits and indexes stale planning docs.
 
 ## Phase Status
 
