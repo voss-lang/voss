@@ -115,10 +115,12 @@ pub fn create_schema(conn: &Connection) -> Result<(), AgentRegistryError> {
     // if the column already exists, so guard via PRAGMA table_info. Columns are
     // nullable DEFAULT NULL → no table rewrite, safe across re-open.
     let existing: std::collections::HashSet<String> = {
-        let mut stmt = conn.prepare("PRAGMA table_info(agent_sessions)").map_err(|e| {
-            eprintln!("[voss-app] agent registry pragma failed: {e}");
-            AgentRegistryError::QueryFailed
-        })?;
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(agent_sessions)")
+            .map_err(|e| {
+                eprintln!("[voss-app] agent registry pragma failed: {e}");
+                AgentRegistryError::QueryFailed
+            })?;
         let cols = stmt
             .query_map([], |row| row.get::<_, String>(1))
             .map_err(|e| {
@@ -169,7 +171,15 @@ pub fn register_agent(
           swarm_id, role, owned_files)
          VALUES (?1, ?2, ?3, ?4, ?5, 'active', ?6, ?7, ?8, ?9)",
         params![
-            pane_id, session_id, cli_binary, args_json, cwd, now, swarm_id, role, owned_files
+            pane_id,
+            session_id,
+            cli_binary,
+            args_json,
+            cwd,
+            now,
+            swarm_id,
+            role,
+            owned_files
         ],
     )
     .map_err(|e| {
@@ -218,12 +228,10 @@ pub fn get_active_agents(conn: &Connection) -> Result<Vec<AgentEntry>, AgentRegi
             eprintln!("[voss-app] agent registry prepare failed: {e}");
             AgentRegistryError::QueryFailed
         })?;
-    let rows = stmt
-        .query_map([], row_to_entry)
-        .map_err(|e| {
-            eprintln!("[voss-app] agent registry query failed: {e}");
-            AgentRegistryError::QueryFailed
-        })?;
+    let rows = stmt.query_map([], row_to_entry).map_err(|e| {
+        eprintln!("[voss-app] agent registry query failed: {e}");
+        AgentRegistryError::QueryFailed
+    })?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| {
         eprintln!("[voss-app] agent registry row map failed: {e}");
         AgentRegistryError::QueryFailed
@@ -404,7 +412,15 @@ mod tests {
         )
         .unwrap();
         register_agent(
-            &conn, "pane-b", "sess-2", "/usr/bin/codex", &[], "/other", None, None, None,
+            &conn,
+            "pane-b",
+            "sess-2",
+            "/usr/bin/codex",
+            &[],
+            "/other",
+            None,
+            None,
+            None,
         )
         .unwrap();
 
@@ -520,7 +536,18 @@ mod tests {
             Some("[\"a.py\"]"),
         )
         .unwrap();
-        register_agent(&conn, "pane-b", "sess-2", "codex", &[], "/repo", None, None, None).unwrap();
+        register_agent(
+            &conn,
+            "pane-b",
+            "sess-2",
+            "codex",
+            &[],
+            "/repo",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let agents = list_agents_by_swarm(&conn, "s1").unwrap();
         assert_eq!(agents.len(), 1);
@@ -542,7 +569,15 @@ mod tests {
         }
         let conn = open_registry(&path).unwrap();
         register_agent(
-            &conn, "pane-a", "s1", "claude", &[], "/", Some("sw"), None, None,
+            &conn,
+            "pane-a",
+            "s1",
+            "claude",
+            &[],
+            "/",
+            Some("sw"),
+            None,
+            None,
         )
         .unwrap();
         assert_eq!(list_agents_by_swarm(&conn, "sw").unwrap().len(), 1);
@@ -553,11 +588,27 @@ mod tests {
         let dir = tempdir().unwrap();
         let conn = open_test_registry(dir.path());
         register_agent(
-            &conn, "pane-a", "sess-1", "claude", &["--a".into()], "/one", None, None, None,
+            &conn,
+            "pane-a",
+            "sess-1",
+            "claude",
+            &["--a".into()],
+            "/one",
+            None,
+            None,
+            None,
         )
         .unwrap();
         register_agent(
-            &conn, "pane-a", "sess-2", "codex", &["--b".into()], "/two", None, None, None,
+            &conn,
+            "pane-a",
+            "sess-2",
+            "codex",
+            &["--b".into()],
+            "/two",
+            None,
+            None,
+            None,
         )
         .unwrap();
 

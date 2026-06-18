@@ -224,10 +224,7 @@ fn save_clipboard_image(bytes: Vec<u8>, mime_type: String) -> Result<String, Str
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_nanos();
-    let path = dir.join(format!(
-        "paste-{}-{nanos}.{ext}",
-        std::process::id()
-    ));
+    let path = dir.join(format!("paste-{}-{nanos}.{ext}", std::process::id()));
     std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }
@@ -274,7 +271,15 @@ async fn spawn_agent(
 
     let cwd_str = cwd.as_deref().unwrap_or("");
     register_agent(
-        conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str, None, None, None,
+        conn,
+        &pane_id,
+        &session_id,
+        &cli_binary,
+        &cli_args,
+        cwd_str,
+        None,
+        None,
+        None,
     )
     .map_err(|e| e.to_string())?;
 
@@ -349,7 +354,15 @@ async fn spawn_managed_agent(
     // Roster shows the REAL CLI, not the sandbox launcher argv.
     let cwd_str = cwd.as_deref().unwrap_or("");
     register_agent(
-        conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str, None, None, None,
+        conn,
+        &pane_id,
+        &session_id,
+        &cli_binary,
+        &cli_args,
+        cwd_str,
+        None,
+        None,
+        None,
     )
     .map_err(|e| e.to_string())?;
 
