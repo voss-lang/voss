@@ -8,7 +8,7 @@
 // decomposing/assigning — builders stay spawn-gated until it assigns.
 
 import { connectLiveStream } from './sseClient';
-import { createSwarm } from './swarmClient';
+import { createSwarm, runSwarm, type RoleSpecBody } from './swarmClient';
 import { setActiveSwarmId } from './swarmLive';
 import type { LiveServer } from './liveServer';
 
@@ -17,6 +17,8 @@ const isCoordinator = (role: string) => /^coord/i.test(role);
 export interface LaunchSwarmOpts {
   goal: string;
   builders: number;
+  /** Explicit roster (per-role agent/model). Omitted → server default roster. */
+  roster?: RoleSpecBody[];
 }
 
 /**
@@ -31,6 +33,7 @@ export async function launchSwarm(
     goal: opts.goal,
     builders: opts.builders,
     cwd: srv.cwd,
+    roster: opts.roster,
   });
   setActiveSwarmId(id);
 
@@ -48,6 +51,14 @@ export async function launchSwarm(
   const coord = native.find((s) => isCoordinator(s.role));
   if (coord?.session_id && srv.followUpClient) {
     await srv.followUpClient.postMessage(coord.session_id, opts.goal);
+  }
+
+  // CLI (non-native) roles come back spawn-pending (no session_id); kick the
+  // headless driver so they worktree-spawn with their chosen --model. Native-
+  // only rosters skip this entirely.
+  const hasCli = sessions.some((s) => s.pending || !s.session_id);
+  if (hasCli) {
+    await runSwarm(srv.baseUrl, srv.token, id);
   }
   return id;
 }

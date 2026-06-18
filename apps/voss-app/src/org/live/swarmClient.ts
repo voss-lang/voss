@@ -63,16 +63,31 @@ export interface CreateSwarmResult {
   sessions: SpawnedSession[];
 }
 
+/** One explicit roster role (R3 agent axis) sent to POST /swarm. */
+export interface RoleSpecBody {
+  name: string;
+  /** Agent axis: 'voss' native, or a CLI key (claude/codex/...). */
+  agent: string;
+  /** '--model' value for CLI roles; ignored for native. */
+  model: string;
+}
+
 /**
- * Create + spawn a swarm (POST /swarm). The server seeds the goal, builds the
- * default roster (coordinator + N builders + reviewer), spawns one in-process
- * session per native role (builders spawn-gated), and returns the swarm id + the
- * spawned sessions. The coordinator does NOT auto-run — the caller kicks it.
+ * Create + spawn a swarm (POST /swarm). With no `roster` the server builds the
+ * default (coordinator + N builders + reviewer); an explicit roster is spawned
+ * verbatim. Native roles spawn in-process (builders spawn-gated); CLI roles are
+ * recorded `pending` and run via runSwarm(). Returns the swarm id + spawned
+ * sessions. The coordinator does NOT auto-run — the caller kicks it.
  */
 export async function createSwarm(
   baseUrl: string,
   token: string,
-  body: { goal: string; builders?: number; cwd?: string | null },
+  body: {
+    goal: string;
+    builders?: number;
+    cwd?: string | null;
+    roster?: RoleSpecBody[];
+  },
 ): Promise<CreateSwarmResult> {
   const res = await fetch(`${baseUrl}/swarm`, {
     method: 'POST',
@@ -84,6 +99,7 @@ export async function createSwarm(
       goal: body.goal,
       builders: body.builders ?? 2,
       cwd: body.cwd ?? '.',
+      ...(body.roster && body.roster.length > 0 ? { roster: body.roster } : {}),
     }),
   });
   if (!res.ok) {
@@ -91,4 +107,24 @@ export async function createSwarm(
   }
   const out = (await res.json()) as { v: number; id: string; sessions: SpawnedSession[] };
   return { id: out.id, sessions: out.sessions ?? [] };
+}
+
+/**
+ * Drive a swarm's CLI (non-native) roles headlessly (POST /swarm/{id}/run).
+ * Fire-and-forget on the server: it worktree-spawns each pending CLI member
+ * with its `--model` and streams progress over the swarm SSE plane. Native
+ * roles are untouched. No-op to call when a roster is all-native.
+ */
+export async function runSwarm(
+  baseUrl: string,
+  token: string,
+  swarmId: string,
+): Promise<void> {
+  const res = await fetch(`${baseUrl}/swarm/${encodeURIComponent(swarmId)}/run`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`POST /swarm/${swarmId}/run failed: ${res.status}`);
+  }
 }

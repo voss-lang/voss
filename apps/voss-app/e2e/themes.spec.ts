@@ -71,17 +71,18 @@ test.describe('A8 themes (mock-IPC)', () => {
     await bootApp(page);
     await page.locator('button[aria-label="Settings"]').click();
 
-    // High contrast toggle lives in the Interface panel; find it by label.
-    const toggle = page.locator('input[type="checkbox"][aria-label="High contrast"]');
-    await expect(toggle).toHaveCount(1);
+    // The checkbox is wrapped in a <label> with an overlapping track span —
+    // click the label's text instead so Playwright doesn't fight the overlay.
+    const toggleLabel = page.locator('label', { hasText: 'High contrast' });
+    await expect(toggleLabel).toHaveCount(1);
 
     // Off initially.
     await expect(page.locator('html')).not.toHaveAttribute('data-high-contrast', 'true');
 
-    await toggle.check();
+    await toggleLabel.click();
     await expect(page.locator('html')).toHaveAttribute('data-high-contrast', 'true');
 
-    await toggle.uncheck();
+    await toggleLabel.click();
     await expect(page.locator('html')).not.toHaveAttribute('data-high-contrast', 'true');
   });
 });

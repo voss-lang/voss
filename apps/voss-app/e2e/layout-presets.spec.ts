@@ -67,26 +67,32 @@ test.describe('A4 layout presets (mock-IPC)', () => {
   test('lay-ac3: clicking a preset advances geometry without re-mounting panes', async ({ page }) => {
     const before = await buildFourPanes(page);
     const beforeIds = before.map((r) => r.id).sort();
+    // Capture a richer geometry signature (x, y, w, h) — not just x.
+    const beforeSig = before
+      .map((r) => `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.w)},${Math.round(r.h)}`)
+      .sort()
+      .join('|');
 
     await page.locator('button[aria-label="Layout presets"]').click();
-    // Click 'pipeline' (the 2nd preset button).
-    const pipelineBtn = page.locator('.portal-layout-menu button[aria-label="Switch layout to pipeline"]');
-    await expect(pipelineBtn).toHaveCount(1);
-    await pipelineBtn.click();
+    // Click 'watchers' — the most distinct silhouette (main on top, rest in
+    // a bottom H row). The 4-pane row is pipeline-shaped, so watchers must
+    // move panes to a different y band.
+    const targetBtn = page.locator('.portal-layout-menu button[aria-label="Switch layout to watchers"]');
+    await expect(targetBtn).toHaveCount(1);
+    await targetBtn.click();
 
     // Wait for geometry to settle at 4 panes.
     const after = await stableRects(page, 4);
     const afterIds = after.map((r) => r.id).sort();
+    const afterSig = after
+      .map((r) => `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.w)},${Math.round(r.h)}`)
+      .sort()
+      .join('|');
 
     // No pane was destroyed — same ids survive (A4 LAY-04 contract).
     expect(afterIds).toEqual(beforeIds);
-
-    // Geometry changed (pipeline silhouette differs from the row).
-    const beforeXs = before.map((r) => Math.round(r.x));
-    const afterXs = after.map((r) => Math.round(r.x));
-    // At least one pane moved horizontally or the set of x positions changed.
-    const geometryChanged = JSON.stringify(beforeXs) !== JSON.stringify(afterXs);
-    expect(geometryChanged).toBe(true);
+    // Geometry changed (watchers silhouette differs from the row).
+    expect(afterSig).not.toEqual(beforeSig);
   });
 });
 

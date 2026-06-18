@@ -112,6 +112,8 @@ export async function installTauriMock(
           return c.appearance;
         case 'load_active_theme_id':
           return c.activeThemeId;
+        case 'get_theme_overrides':
+          return {};
         case 'load_recents':
           return c.recents;
         case 'default_cwd':
@@ -131,17 +133,15 @@ export async function installTauriMock(
           return null;
         case 'get_active_agents':
         case 'list_profiles':
-        case 'list_layouts':
-          return c.layoutNames;
         case 'list_workspaces':
-          return c.workspaces;
         case 'list_system_fonts':
-          return ['JetBrains Mono', 'SF Mono', 'Menlo'];
         case 'list_dir':
         case 'enumerate_runs':
         case 'git_log':
         case 'sweep_orphan_agents':
           return [];
+        case 'list_layouts':
+          return c.layoutNames;
         case 'load_session':
         case 'load_global_session':
         case 'load_project_less_session':
@@ -227,7 +227,9 @@ export async function bootApp(
   await page.setViewportSize({ width: viewportWidth, height: viewportHeight });
   await page.goto(APP_URL);
   if (waitForGrid) {
-    await page.waitForSelector('[data-pane-id]', { timeout: 15000 });
+    // Wait for a VISIBLE pane (hidden grids from inactive workspaces have
+    // 0×0 panes that match the selector but aren't visible).
+    await page.waitForSelector('[data-pane-id]:visible', { timeout: 15000 });
   } else {
     await page.waitForSelector('main[aria-label="Project setup"]', { timeout: 15000 });
   }
