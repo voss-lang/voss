@@ -131,6 +131,10 @@ BOS0-BOS18 define the v0.2 Behavioral OS Foundation milestone. This track is doc
 **BOS2 planned (2026-06-18):** 1 plan, 1 wave (docs-only architecture decision doc; covers BOS-ARCH-01..04):
 - [ ] BOS2-01-PLAN.md — BOS2-ARCHITECTURE.md: current+target monorepo shape (apps/web + services/* in one tree), service/library boundary = deployability, language map, pnpm consolidation + named Turborepo trigger, SQLite/Postgres/DuckDB stores + one-directional SQLite→Postgres sync, V13.1 contracts as drift-gated source of truth (BOS-ARCH-01, BOS-ARCH-02, BOS-ARCH-03, BOS-ARCH-04)
 
+
+**BOS4 planned (2026-06-18):** 2 plans, 2 waves (docs-only decision ledger contract; covers BOS-DATA-02):
+- [ ] BOS4-01-PLAN.md — contracts/decision-ledger.schema.json: authoritative JSON Schema, discriminated union over `decision_type` with all 6 payloads (task_to_agent/autonomy_band/review_depth/validation_depth/escalation/no_action), as_of+feature_snapshot dual training-signal capture, recommended_action/human_verdict/actual_action + autonomy_band, no outcome/label field (no-leakage), event/entity refs as BOS3 upstream assumptions (BOS-DATA-02)
+- [ ] BOS4-02-PLAN.md — BOS4-DECISION-LEDGER.md: rationale doc — model, training-signal capture, no-leakage guard, override-as-signal, Upstream Assumptions (BOS3) for D-07/D-08, Rejected Alternatives, Open Questions (undecided amendment policy) (BOS-DATA-02)
 | BOS phase | Deliverable | Notes |
 |---|---|---|
 | BOS0 | Product thesis and discovery script | Clarifies ICP, wedge, and what problem is worth solving first |

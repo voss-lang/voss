@@ -36,10 +36,10 @@ const ICONS: Record<string, Comp<{ size?: number; 'stroke-width'?: number; 'aria
 };
 
 function tagFor(kind: string, node: SwarmNode): string {
-  if (kind === 'coordinator') return 'CONTROLLER';
-  if (kind === 'builder') return 'BUILD';
-  if (kind === 'reviewer') return 'REVIEW';
-  if (kind === 'scout') return 'SCOUT';
+  if (kind === 'coordinator') return 'CONDUCTOR';
+  if (kind === 'builder') return 'ENGINEER';
+  if (kind === 'reviewer') return 'AUDITOR';
+  if (kind === 'scout') return 'RESEARCHER';
   if (kind === 'operator') return 'OPERATOR';
   return (node.role ?? node.type).toUpperCase();
 }

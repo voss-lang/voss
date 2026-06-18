@@ -3,7 +3,7 @@ phase: BOS3-engineering-event-schema
 plan: 02
 type: execute
 wave: 2
-depends_on: ["BOS3-01-engineering-event-schema"]
+depends_on: ["BOS3-01"]
 files_modified:
   - .planning/schemas/examples/
   - tests/bos/__init__.py
