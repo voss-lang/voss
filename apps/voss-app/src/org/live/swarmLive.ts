@@ -84,7 +84,7 @@ const MAX_LIVE_EDGES = 200;
 const [swarmAssignments, setSwarmAssignments] = createSignal<
   Record<string, SwarmAssignment>
 >({});
-// task_id → open operator escalation (cleared when answered upstream; latest wins).
+// task_id → open operator escalation (latest wins; cleared on that task's worker_done).
 const [swarmOperatorNeeds, setSwarmOperatorNeeds] = createSignal<
   Record<string, SwarmNeedsOperatorEvent>
 >({});
@@ -149,6 +149,17 @@ export function ingestSwarmEvent(ev: unknown, ts: number = Date.now()): void {
       break;
     case 'swarm.worker_done':
       setSwarmDone((prev) => new Set([...prev, ev.task_id]));
+      // A finished task resolves any operator escalation it raised — the server
+      // resolves the block over the permission channel (no swarm.* clear event),
+      // so worker_done is the honest signal to drop the stale alert. Without
+      // this the swarm map shows an "Operator" alert forever after the gate is
+      // answered.
+      setSwarmOperatorNeeds((prev) => {
+        if (!(ev.task_id in prev)) return prev;
+        const next = { ...prev };
+        delete next[ev.task_id];
+        return next;
+      });
       pushLiveEdge({
         type: 'worker_done',
         taskId: ev.task_id,

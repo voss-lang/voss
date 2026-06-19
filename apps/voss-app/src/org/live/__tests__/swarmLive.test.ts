@@ -58,6 +58,17 @@ describe('ingestSwarmEvent', () => {
     expect(swarmComplete().sw1?.task_count).toBe(2);
   });
 
+  it('clears an operator escalation when its task reports worker_done', () => {
+    ingestSwarmEvent({ type: 'swarm.needs_operator', swarm_id: 'sw1', task_id: 't1', session_id: 's-b1', tool_name: 'fs_write', path: 'c.py' });
+    expect(swarmOperatorNeeds().t1).toBeDefined();
+    // A different task finishing must NOT clear t1's escalation.
+    ingestSwarmEvent({ type: 'swarm.worker_done', swarm_id: 'sw1', task_id: 't2', session_id: 's-b2' });
+    expect(swarmOperatorNeeds().t1).toBeDefined();
+    // t1 finishing resolves its own escalation.
+    ingestSwarmEvent({ type: 'swarm.worker_done', swarm_id: 'sw1', task_id: 't1', session_id: 's-b1' });
+    expect(swarmOperatorNeeds().t1).toBeUndefined();
+  });
+
   it('bounds the live-edge ring', () => {
     for (let i = 0; i < 250; i++) {
       ingestSwarmEvent(

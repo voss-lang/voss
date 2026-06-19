@@ -256,12 +256,18 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
     } catch {
       // Aborted / ended / network error — degrade to snapshot, never throw.
     } finally {
+      // liveHandles is the source of truth for the label: only fall back to
+      // 'snapshot' once THIS session's handle is gone AND none remain. A swarm
+      // launches many concurrent streams — one ending must not blank the label
+      // while siblings are still live (the multi-session fix, completed here).
+      let remaining = 0;
       setLiveHandles((prev) => {
         const s = new Set(prev);
         s.delete(args.sessionId);
+        remaining = s.size;
         return s;
       });
-      setLiveLabel('snapshot');
+      setLiveLabel(remaining > 0 ? 'live' : 'snapshot');
       args.onEnd?.();
     }
   })();
@@ -269,7 +275,17 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
   return {
     abort(): void {
       ac.abort();
-      setLiveLabel('snapshot');
+      // Drop this session's handle and recompute the label from the survivors —
+      // never blindly 'snapshot' (would lie while other streams are live) and
+      // never leave a leaked handle behind (parked generators end later).
+      let remaining = 0;
+      setLiveHandles((prev) => {
+        const s = new Set(prev);
+        s.delete(args.sessionId);
+        remaining = s.size;
+        return s;
+      });
+      setLiveLabel(remaining > 0 ? 'live' : 'snapshot');
     },
   };
 }

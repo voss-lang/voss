@@ -15,10 +15,10 @@
 
 ### Planning System
 
-- [ ] **BOS-PLAN-01**: Planning docs introduce `BOS` phase prefixes for Behavioral OS work.
-- [ ] **BOS-PLAN-02**: Stale planning documents are audited and indexed before archival, deletion, or supersession.
-- [ ] **BOS-PLAN-03**: The BOS roadmap is split into enough phases to avoid combining product thesis, stack architecture, data modeling, governance, RL, and PM-suite expansion into one phase.
-- [ ] **BOS-PLAN-04**: Existing Voss tracks are mapped into BOS as substrate, dependency, historical context, or explicitly out-of-scope.
+- [x] **BOS-PLAN-01**: Planning docs introduce `BOS` phase prefixes for Behavioral OS work. ✓ BOS1-01 (verified)
+- [x] **BOS-PLAN-02**: Stale planning documents are audited and indexed before archival, deletion, or supersession. ✓ BOS1-01
+- [x] **BOS-PLAN-03**: The BOS roadmap is split into enough phases to avoid combining product thesis, stack architecture, data modeling, governance, RL, and PM-suite expansion into one phase. ✓ BOS1-01 (verified-adequate)
+- [x] **BOS-PLAN-04**: Existing Voss tracks are mapped into BOS as substrate, dependency, historical context, or explicitly out-of-scope. ✓ BOS1-01
 
 ### Data And Learning
 
@@ -239,7 +239,7 @@ M7 promotes the missing names so private-path drift stops binding callers.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | BOS-PROD-01..03 | BOS0 | Complete (BOS0-01 + BOS0-02) |
-| BOS-PLAN-01..04 | BOS1 | Pending |
+| BOS-PLAN-01..04 | BOS1 | Complete (BOS1-01) |
 | BOS-ARCH-01..04 | BOS2 | Pending |
 | BOS-DATA-01 | BOS3 | Pending |
 | BOS-DATA-02 | BOS4 | Pending |
