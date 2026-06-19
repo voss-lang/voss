@@ -26,12 +26,12 @@ Supersession pointers mirror existing markers in STATE.md / ROADMAP.md (D-02 spe
 | HARNESS-PLAN.md | historical | dependency | v0.1 harness plan / M-track design reference; M0–M4 shipped, M6–M8 still ready — harness remains the BOS substrate | — |
 | HYBRID-REFACTOR-PLAN.md | active | substrate | Live client/server refactor contract (H0–H7); owns the harness server + SSE plane BOS consumes | supersedes RUST-PORT-PLAN.md |
 | MCP-PLAN.md | active | dependency | Explainer for M12 (MCP Bridge — expose harness as MCP server); M12 still TBD in ROADMAP | — |
-| OPENCODE-TUI-ADAPTER-CONTRACT.md | archive-candidate | historical-context | OpenCode TUI fork feasibility gate; paused — Textual TUI confirmed intact, fork deemed possibly unnecessary | — |
-| ORCHESTRATION-PLAN.md | superseded | historical-context | O1–O6 caged-autonomous-team design; whole O-track ⊘ superseded by V-track (banner in file line 1) | superseded by V-track (docs/ORCHESTRATION_LAYERS.md) |
+| ~~OPENCODE-TUI-ADAPTER-CONTRACT.md~~ | archive-candidate | historical-context | OpenCode TUI fork feasibility gate; paused — Textual TUI confirmed intact, fork deemed possibly unnecessary | **deleted 2026-06-19** |
+| ~~ORCHESTRATION-PLAN.md~~ | superseded | historical-context | O1–O6 caged-autonomous-team design; whole O-track ⊘ superseded by V-track (banner in file line 1) | superseded by V-track (docs/ORCHESTRATION_LAYERS.md); **deleted 2026-06-19** |
 | PROTOCOL.md | active | substrate | Live harness wire contract (v1, locked for H1–H6); V13.1 contracts derive from it; BOS event export builds on this | — |
-| RUST-PORT-PLAN.md | superseded | historical-context | Subprocess-bridge Rust port (R1–R9); replaced by hybrid client/server approach that keeps auth/providers in Python | superseded by HYBRID-REFACTOR-PLAN.md |
-| TUI-FIXES-HANDOFF.md | archive-candidate | historical-context | One-shot handoff for Textual TUI slash-palette + perf fixes; targeted fixes, likely applied, no longer a live plan | — |
-| VOSS-USERSPACE-OS-HANDOFF.md | archive-candidate | out-of-scope | Exploratory "Voss OS" thread; file self-declares "not a committed roadmap phase, no implementation started" | — |
+| ~~RUST-PORT-PLAN.md~~ | superseded | historical-context | Subprocess-bridge Rust port (R1–R9); replaced by hybrid client/server approach that keeps auth/providers in Python | superseded by HYBRID-REFACTOR-PLAN.md; **deleted 2026-06-19** |
+| ~~TUI-FIXES-HANDOFF.md~~ | archive-candidate | historical-context | One-shot handoff for Textual TUI slash-palette + perf fixes; targeted fixes, likely applied, no longer a live plan | **deleted 2026-06-19** |
+| ~~VOSS-USERSPACE-OS-HANDOFF.md~~ | archive-candidate | out-of-scope | Exploratory "Voss OS" thread; file self-declares "not a committed roadmap phase, no implementation started" | **deleted 2026-06-19** |
 
 ### seeds/
 
