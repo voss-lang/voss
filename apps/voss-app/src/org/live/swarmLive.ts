@@ -98,6 +98,11 @@ const [swarmComplete, setSwarmComplete] = createSignal<
 >({});
 // bounded ring of recent live edges (for pulse + EventTrace parity).
 const [swarmLiveEdges, setSwarmLiveEdges] = createSignal<SwarmLiveEdge[]>([]);
+// Monotonic count of swarm events ingested — a stable refetch trigger. The live-
+// edge ring length plateaus at MAX_LIVE_EDGES and is therefore USELESS as a
+// "new event happened" signal once saturated (it would freeze snapshot refetch);
+// this counter never plateaus. Increments once per ingested swarm event.
+const [swarmEventSeq, setSwarmEventSeq] = createSignal(0);
 // The app-launched swarm id (set by SwarmLaunch). Takes precedence over registry
 // discovery so a just-created swarm renders immediately, before any pane binding.
 const [activeSwarmId, setActiveSwarmId] = createSignal<string | null>(null);
@@ -127,6 +132,7 @@ function isSwarmEvent(ev: unknown): ev is SwarmEvent {
  */
 export function ingestSwarmEvent(ev: unknown, ts: number = Date.now()): void {
   if (!isSwarmEvent(ev)) return;
+  setSwarmEventSeq((n) => n + 1);
 
   switch (ev.type) {
     case 'swarm.assign':
@@ -203,6 +209,7 @@ export {
   swarmDone,
   swarmComplete,
   swarmLiveEdges,
+  swarmEventSeq,
   activeSwarmId,
   setActiveSwarmId,
 };
@@ -215,5 +222,6 @@ export function __resetSwarmLive(): void {
   setSwarmDone(new Set<string>());
   setSwarmComplete({});
   setSwarmLiveEdges([]);
+  setSwarmEventSeq(0);
   setActiveSwarmId(null);
 }
