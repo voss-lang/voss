@@ -613,7 +613,11 @@ This round-trip example is the canonical acceptance criterion for BOS5 (see §Va
 | A9 | `human_override` label severity is not needed (presence alone is significant) | Outcome Label Definitions | Low — could add severity to capture "forced vs exploratory" overrides; not needed now |
 | A10 | The 4-objective reward vector is sufficient for v0.2 baseline | Multi-Objective Reward Design | Low — additional objectives (e.g. "agent_cost_efficiency") can be added as new weight-set versions without a schema version bump (additive-only rule) |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All four resolved during planning — see BOS5-CONTEXT.md and the BOS5-01/02 PLAN `<interfaces>` blocks.
+> Resolutions: (1) severity = `low|medium|high`; (2) single `contracts/outcomes.schema.json`;
+> (3) `entity_type` = `task|pr|session|external_reserved`; (4) two named reward horizons (`short`, `long`).
 
 1. **Does the project have an existing incident severity convention (sev1..sev4, P0..P3, high/medium/low)?**
    - What we know: BOS5 must define an optional severity field on relevant labels (D-06). BOS12 will ingest external incident sources that carry their own severity.
