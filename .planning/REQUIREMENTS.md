@@ -8,9 +8,9 @@
 
 ### Product Boundary
 
-- [ ] **BOS-PROD-01**: Voss defines the Behavioral OS as a team control plane over AI-assisted engineering work, not as a generic project management clone.
-- [ ] **BOS-PROD-02**: Voss defines the initial wedge around delegation/review/validation decisions that can be observed through the existing ADE and swarm runtime.
-- [ ] **BOS-PROD-03**: Voss documents the ICP, buyer/user split, and first design-partner validation questions for engineering teams using multiple coding agents.
+- [x] **BOS-PROD-01**: Voss defines the Behavioral OS as a team control plane over AI-assisted engineering work, not as a generic project management clone. ✓ BOS0-01
+- [x] **BOS-PROD-02**: Voss defines the initial wedge around delegation/review/validation decisions that can be observed through the existing ADE and swarm runtime. ✓ BOS0-01
+- [x] **BOS-PROD-03**: Voss documents the ICP, buyer/user split, and first design-partner validation questions for engineering teams using multiple coding agents. ✓ BOS0-01 + BOS0-02
 - [ ] **BOS-PROD-04**: Voss defines what belongs in desktop ADE, web control plane, backend services, and local harness runtime.
 
 ### Planning System
@@ -238,7 +238,7 @@ M7 promotes the missing names so private-path drift stops binding callers.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOS-PROD-01..03 | BOS0 | Pending |
+| BOS-PROD-01..03 | BOS0 | Complete (BOS0-01 + BOS0-02) |
 | BOS-PLAN-01..04 | BOS1 | Pending |
 | BOS-ARCH-01..04 | BOS2 | Pending |
 | BOS-DATA-01 | BOS3 | Pending |
