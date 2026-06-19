@@ -67,10 +67,10 @@
 
 ### Stack Architecture
 
-- [ ] **BOS-ARCH-01**: Voss documents the target monorepo shape for desktop app, web app, backend/event services, shared contracts, SDKs, and RL/eval services.
-- [ ] **BOS-ARCH-02**: Voss decides which languages own each layer: TypeScript for web/shared contracts, Python for learning/eval, existing Python harness/server for local runtime, Rust/Tauri for desktop shell, and Go/Rust SDKs where already established.
-- [ ] **BOS-ARCH-03**: Voss defines package/workspace evolution for the current pnpm workspace and any future Turborepo-style orchestration.
-- [ ] **BOS-ARCH-04**: Voss documents data-store options and migration boundaries for local-first event logs, team-shared data, and analytics/offline-eval workloads.
+- [x] **BOS-ARCH-01**: Voss documents the target monorepo shape for desktop app, web app, backend/event services, shared contracts, SDKs, and RL/eval services. ✓ BOS2-01
+- [x] **BOS-ARCH-02**: Voss decides which languages own each layer: TypeScript for web/shared contracts, Python for learning/eval, existing Python harness/server for local runtime, Rust/Tauri for desktop shell, and Go/Rust SDKs where already established. ✓ BOS2-01
+- [x] **BOS-ARCH-03**: Voss defines package/workspace evolution for the current pnpm workspace and any future Turborepo-style orchestration. ✓ BOS2-01
+- [x] **BOS-ARCH-04**: Voss documents data-store options and migration boundaries for local-first event logs, team-shared data, and analytics/offline-eval workloads. ✓ BOS2-01
 
 ### Governance
 
@@ -240,7 +240,7 @@ M7 promotes the missing names so private-path drift stops binding callers.
 |-------------|-------|--------|
 | BOS-PROD-01..03 | BOS0 | Complete (BOS0-01 + BOS0-02) |
 | BOS-PLAN-01..04 | BOS1 | Complete (BOS1-01) |
-| BOS-ARCH-01..04 | BOS2 | Pending |
+| BOS-ARCH-01..04 | BOS2 | Complete (BOS2-01) |
 | BOS-DATA-01 | BOS3 | Pending |
 | BOS-DATA-02 | BOS4 | Pending |
 | BOS-DATA-03..04 | BOS5 | Pending |
