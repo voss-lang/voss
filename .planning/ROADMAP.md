@@ -144,6 +144,10 @@ BOS0-BOS18 define the v0.2 Behavioral OS Foundation milestone. This track is doc
 **BOS7 planned (2026-06-18):** 1 plan, 1 wave (docs-only responsibility map; covers BOS-PROD-04):
 - [ ] BOS7-01-PLAN.md — BOS7-RESPONSIBILITY-MAP.md: capability × surface matrix (owns/reads/none across local harness · desktop ADE · backend services · web control plane), source(harness)→backend→web flow, D-02 content-stays-local privacy invariant feeding BOS6, D-03 dual-target review via single BOS9 contract, D-04 offline-standalone + reserved identity seam (accounts out-of-scope), This-Constrains map to BOS6/BOS9/BOS10/BOS12/future apps/web (BOS-PROD-04)
 
+**BOS9 planned (2026-06-19):** 2 plans, 2 waves (docs-only UI/contract spec, view-over-BOS4; covers BOS-REC-01..03):
+- [ ] BOS9-01-PLAN.md — contracts/recommendation-view.schema.json: ONE generic recommendation-view envelope (D-02) carrying a typed ref to BOS4 four decision_type payloads (task_to_agent/review_depth/validation_depth/escalation) + presentation-only fields (rationale/policy_version/autonomy_band/qualitative-confidence) + four-verdict action set (approve/override/dismiss/do_nothing) referencing BOS4 human_verdict — no payload duplication, no numeric confidence, no parallel store, mirrors events.schema.json union/V13.1 drift gate (BOS-REC-03, BOS-REC-01, BOS-REC-02)
+- [ ] BOS9-02-PLAN.md — BOS9-REVIEW-SURFACE-SPEC.md: view-over-BOS4 output contract (refs the envelope schema), four-verdict semantics (accept/counter/decline/no-op, override-as-signal, write BOS4 human_verdict), mandatory display + qualitative-only confidence + training-signal-owned-by-BOS4 (no BOS9 telemetry, BOS6 no-nudge), band->action matrix (4 BOS6 bands + kill-switch safe-state), override-always-reversible-in-full_auto, interaction states (queue/empty/loading/stale/post-kill-switch), single-contract dual-target desktop my-scope + web team-scope (BOS7 D-03) (BOS-REC-01, BOS-REC-02, BOS-REC-03)
+
 | BOS phase | Deliverable | Notes |
 |---|---|---|
 | BOS0 | Product thesis and discovery script | Clarifies ICP, wedge, and what problem is worth solving first |
