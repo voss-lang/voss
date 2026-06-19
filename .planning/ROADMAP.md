@@ -140,6 +140,10 @@ BOS0-BOS18 define the v0.2 Behavioral OS Foundation milestone. This track is doc
 
 **BOS6 planned (2026-06-18):** 1 plan, 1 wave (docs-only governance spec; covers BOS-GOV-01..04):
 - [ ] BOS6-01-PLAN.md — BOS6-GOVERNANCE-SPEC.md: trust model + anti-surveillance rule (min-aggregation floor with N open, no cross-ranking, self-view, stored≠cross-reported reconciled with BOS4 `actor`), 4 autonomy bands + dual-scope kill-switch + gated-increase/immediate-decrease asymmetry, 3 privacy tiers + private-by-default-local + one-directional SQLite→Postgres boundary + tenant=team, all 6 guardrail dashboards with trip conditions, Open Questions (N, retention/deletion, kill-switch/autonomy RBAC), BOS3/BOS5/BOS12/BOS15 referenced as boundaries (BOS-GOV-01, BOS-GOV-02, BOS-GOV-03, BOS-GOV-04)
+
+**BOS7 planned (2026-06-18):** 1 plan, 1 wave (docs-only responsibility map; covers BOS-PROD-04):
+- [ ] BOS7-01-PLAN.md — BOS7-RESPONSIBILITY-MAP.md: capability × surface matrix (owns/reads/none across local harness · desktop ADE · backend services · web control plane), source(harness)→backend→web flow, D-02 content-stays-local privacy invariant feeding BOS6, D-03 dual-target review via single BOS9 contract, D-04 offline-standalone + reserved identity seam (accounts out-of-scope), This-Constrains map to BOS6/BOS9/BOS10/BOS12/future apps/web (BOS-PROD-04)
+
 | BOS phase | Deliverable | Notes |
 |---|---|---|
 | BOS0 | Product thesis and discovery script | Clarifies ICP, wedge, and what problem is worth solving first |

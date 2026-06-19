@@ -134,7 +134,8 @@ Output: `.planning/phases/BOS7-web-control-plane-boundary/BOS7-RESPONSIBILITY-MA
     <automated>MAP=.planning/phases/BOS7-web-control-plane-boundary/BOS7-RESPONSIBILITY-MAP.md; grep -q "## Data Flow" "$MAP" && grep -q "## Privacy Boundary" "$MAP" && grep -q "## Review Placement" "$MAP" && grep -q "## Offline + Identity Seam" "$MAP"</automated>
     <automated>MAP=.planning/phases/BOS7-web-control-plane-boundary/BOS7-RESPONSIBILITY-MAP.md; grep -Eqi "never leave[s]? the desktop" "$MAP" && grep -qi "invariant" "$MAP"</automated>
     <automated>MAP=.planning/phases/BOS7-web-control-plane-boundary/BOS7-RESPONSIBILITY-MAP.md; grep -Eqi "harness.*->.*backend.*->.*web|source.*->.*backend.*->.*web" "$MAP"</automated>
-    <automated>MAP=.planning/phases/BOS7-web-control-plane-boundary/BOS7-RESPONSIBILITY-MAP.md; grep -qi "single.*contract\|one.*contract\|BOS9" "$MAP" && grep -Eqi "out.of.scope|out of scope" "$MAP" && grep -qi "account" "$MAP"</automated>
+    <automated>MAP=.planning/phases/BOS7-web-control-plane-boundary/BOS7-RESPONSIBILITY-MAP.md; grep -qi "both" "$MAP" && grep -Eqi "single.*(bos9|output).*contract|single.*contract" "$MAP" && grep -Eqi "no.*duplicat" "$MAP"</automated>
+    <automated>MAP=.planning/phases/BOS7-web-control-plane-boundary/BOS7-RESPONSIBILITY-MAP.md; grep -Eqi "out.of.scope|out of scope" "$MAP" && grep -qi "account" "$MAP"</automated>
   </verify>
   <acceptance_criteria>
     - Doc contains `## Data Flow`, `## Privacy Boundary (Invariant)`, `## Review Placement`, and `## Offline + Identity Seam` sections.
