@@ -138,6 +138,19 @@ backend; it specifies the logical event contract, leaving physical store to BOS2
 - Physical storage backend / store engine choice — depends on BOS2 (skipped for now); BOS3 stays logical-contract-only.
 - Offline-eval requirements over this schema — BOS15 (BOS-DATA-05).
 
+### LEM-readiness (north-star, non-blocking — see `.planning/LEM-VISION.md`)
+The event schema is the future Large Event Model training corpus. Keep it **tokenizable**,
+but do NOT pull model work into BOS3:
+- **Trace/correlation id (D-04) must be a clean, complete sequence key** — every event in a
+  lineage resolves to one trace id; this is the LEM "document" boundary. Already intended by D-04;
+  just don't let it become optional/partial.
+- **Every continuous field needs a quantization story** (latency, durations, counts, diff sizes) —
+  not necessarily binned in BOS3, but the field must be representable as discretizable for the LEM
+  vocabulary (reuse BOS5's bin choices when they land, rather than inventing a second scheme).
+- **Bitemporal as-of (D-02) is the no-leakage guard for training**, not only for live features —
+  a sequence prefix predicting an outcome must contain only `event_time ≤ decision_time`.
+This is a forward-compatibility note only. No BOS3 deliverable changes; flag for the planner as context.
+
 ### Reviewed Todos (not folded)
 None — no todo cross-reference matches surfaced for this phase.
 

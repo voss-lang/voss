@@ -120,6 +120,8 @@ BOS0-BOS18 define the v0.2 Behavioral OS Foundation milestone. This track is doc
 
 **Build order:** BOS0 -> BOS1 -> BOS2 first. BOS3-BOS6 define the data and trust substrate. BOS7-BOS12 define surfaces and integrations. BOS13-BOS17 define recommendations, offline eval, RL boundary, and behavioral guardrails. BOS18 defines the future PM-suite expansion path.
 
+**LEM (Large Event Model) readiness (north-star — see `.planning/LEM-VISION.md`):** The long-horizon ambition is a foundation model over the engineering event stream (`LLM:text :: LEM:BOS3-events`) producing learned state embeddings, outcome priors, and counterfactual trajectory simulation for BOS13-16. It is explicitly NOT v1 (PROJECT.md: "v1 is not a foundation model or online RL") and is deferred to a future **BOS19+ "Large Event Model"** phase, opened only once the decision/outcome corpus is large enough. Two non-blocking readiness hooks are wired now: (1) **BOS3** carries a LEM-tokenizability note (clean trace-id sequence key + quantizable continuous fields + bitemporal as-of as the training no-leakage guard); (2) **BOS16** (BOS-RL-01) must, when specced, define a **point-in-time sequence export** (per-trace, as-of-correct, outcomes appended as terminal tokens) — one export serving both the contextual bandit (BOS-RL-02) and the LEM. No model work is authorized by this note.
+
 **BOS0 planned (2026-06-18):** 2 plans, 2 waves (docs-only; covers BOS-PROD-01..03):
 - [ ] BOS0-01-PLAN.md — Product brief: boundary, ICP, buyer/user split, delegation wedge, positioning, anti-positioning, tension+resolution (BOS-PROD-01, BOS-PROD-02, BOS-PROD-03)
 - [ ] BOS0-02-PLAN.md — Mom-Test design-partner discovery script, problem-first ordering (BOS-PROD-03)
