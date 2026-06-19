@@ -8,6 +8,7 @@ import {
   swarmOperatorNeeds,
   swarmComplete,
   swarmLiveEdges,
+  swarmEventSeq,
   __resetSwarmLive,
 } from '../swarmLive';
 
@@ -77,5 +78,49 @@ describe('ingestSwarmEvent', () => {
       );
     }
     expect(swarmLiveEdges().length).toBeLessThanOrEqual(200);
+  });
+
+  it('dedups broadcast fan-out copies by eid (same eid ingested once)', () => {
+    const copy = {
+      type: 'swarm.assign' as const,
+      eid: 'e-abc',
+      swarm_id: 'sw1',
+      task_id: 't1',
+      session_id: 's1',
+      owned_files: [],
+      role: 'builder-1',
+    };
+    // A 4-member swarm delivers the SAME logical event 4 times (one per stream).
+    ingestSwarmEvent(copy, 1000);
+    ingestSwarmEvent({ ...copy }, 1001);
+    ingestSwarmEvent({ ...copy }, 1002);
+    ingestSwarmEvent({ ...copy }, 1003);
+    // Only the first counts: one edge, one seq bump, one assignment.
+    expect(swarmLiveEdges()).toHaveLength(1);
+    expect(swarmEventSeq()).toBe(1);
+    // A genuinely distinct event (new eid) is NOT starved by the guard.
+    ingestSwarmEvent({ ...copy, eid: 'e-xyz', task_id: 't2', role: 'builder-2' }, 1004);
+    expect(swarmLiveEdges()).toHaveLength(2);
+    expect(swarmEventSeq()).toBe(2);
+  });
+
+  it('events without an eid bypass the dedup guard (older server back-compat)', () => {
+    ingestSwarmEvent({ type: 'swarm.assign', swarm_id: 'sw1', task_id: 't1', session_id: 's1', owned_files: [], role: 'r1' }, 1);
+    ingestSwarmEvent({ type: 'swarm.assign', swarm_id: 'sw1', task_id: 't1', session_id: 's1', owned_files: [], role: 'r1' }, 2);
+    expect(swarmEventSeq()).toBe(2);
+  });
+
+  it('swarmEventSeq increments monotonically and keeps climbing past the edge-ring cap', () => {
+    expect(swarmEventSeq()).toBe(0);
+    for (let i = 0; i < 250; i++) {
+      ingestSwarmEvent(
+        { type: 'swarm.assign', swarm_id: 'sw1', task_id: `t${i}`, session_id: `s${i}`, owned_files: [], role: `r${i}` },
+        i,
+      );
+    }
+    // The edge ring is capped at 200, but the seq counter must NOT plateau —
+    // otherwise SwarmMap's refetch trigger freezes after the ring saturates.
+    expect(swarmLiveEdges().length).toBeLessThanOrEqual(200);
+    expect(swarmEventSeq()).toBe(250);
   });
 });

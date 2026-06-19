@@ -31,6 +31,7 @@ import {
   swarmGates,
   swarmOperatorNeeds,
   swarmLiveEdges,
+  swarmEventSeq,
   activeSwarmId,
 } from '../../org/live/swarmLive';
 import { paneIdForCard } from '../../org/model/bridge';
@@ -82,9 +83,11 @@ const SwarmMap: Component = () => {
     () => {
       const srv = liveServer();
       if (!srv) return null;
-      // Refetch triggers: a new swarm.* event (length), or a freshly-launched
-      // swarm id → re-pull the authoritative roster/task-state snapshot.
-      return { srv, tick: swarmLiveEdges().length, id: activeSwarmId() };
+      // Refetch triggers: a new swarm.* event (monotonic seq — NOT the live-edge
+      // ring length, which plateaus at MAX_LIVE_EDGES and would freeze refetch
+      // once saturated), or a freshly-launched swarm id → re-pull the
+      // authoritative roster/task-state snapshot.
+      return { srv, tick: swarmEventSeq(), id: activeSwarmId() };
     },
     async (k: {
       srv: NonNullable<ReturnType<typeof liveServer>>;

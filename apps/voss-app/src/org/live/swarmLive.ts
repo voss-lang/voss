@@ -17,8 +17,14 @@ import { createSignal } from 'solid-js';
 
 // --- Event shapes (mirror voss/harness/server/events.py SwarmAssign etc.) ------
 
+/**
+ * `eid`: a server-generated id shared across all N broadcast copies of one
+ * logical swarm event (events.py `_SwarmBase`). Optional for back-compat with an
+ * older server that omits it. Used to dedup the fan-out duplicates at ingest.
+ */
 export interface SwarmAssignEvent {
   type: 'swarm.assign';
+  eid?: string;
   swarm_id: string;
   task_id: string;
   session_id: string;
@@ -27,6 +33,7 @@ export interface SwarmAssignEvent {
 }
 export interface SwarmWorkerDoneEvent {
   type: 'swarm.worker_done';
+  eid?: string;
   swarm_id: string;
   task_id: string;
   session_id: string;
@@ -34,6 +41,7 @@ export interface SwarmWorkerDoneEvent {
 }
 export interface SwarmGateEvent {
   type: 'swarm.gate';
+  eid?: string;
   swarm_id: string;
   task_id: string;
   gate_type: string; // "ownership_denied" | "reviewer_reject"
@@ -41,6 +49,7 @@ export interface SwarmGateEvent {
 }
 export interface SwarmNeedsOperatorEvent {
   type: 'swarm.needs_operator';
+  eid?: string;
   swarm_id: string;
   task_id: string;
   session_id: string;
@@ -49,6 +58,7 @@ export interface SwarmNeedsOperatorEvent {
 }
 export interface SwarmCompleteEvent {
   type: 'swarm.complete';
+  eid?: string;
   swarm_id: string;
   task_count: number;
   summary?: string | null;
@@ -79,6 +89,16 @@ export interface SwarmLiveEdge {
 }
 
 const MAX_LIVE_EDGES = 200;
+
+// Dedup of broadcast fan-out: one logical swarm event is delivered once per swarm
+// member (app.py `_emit_swarm_event`), so the same `eid` arrives N times across N
+// session streams. We ingest each eid ONCE. Bounded FIFO (non-reactive, mirrors
+// protocolSessions' handle map) so the guard can't grow unboundedly; far larger
+// than any realistic same-tick burst, so a genuine later re-event (distinct eid)
+// is never starved. Events without an eid (older server) bypass the guard.
+const MAX_SEEN_EIDS = 1024;
+const seenEids = new Set<string>();
+const seenEidOrder: string[] = [];
 
 // task_id → latest assignment (builder↔task binding).
 const [swarmAssignments, setSwarmAssignments] = createSignal<
@@ -132,6 +152,21 @@ function isSwarmEvent(ev: unknown): ev is SwarmEvent {
  */
 export function ingestSwarmEvent(ev: unknown, ts: number = Date.now()): void {
   if (!isSwarmEvent(ev)) return;
+
+  // Drop broadcast duplicates: the same logical event reaches us once per swarm
+  // member. Skip BEFORE any state mutation (seq bump, edge push) so a 4-member
+  // swarm doesn't quadruple the live ring or fire 4 redundant snapshot refetches.
+  const eid = ev.eid;
+  if (eid) {
+    if (seenEids.has(eid)) return;
+    seenEids.add(eid);
+    seenEidOrder.push(eid);
+    if (seenEidOrder.length > MAX_SEEN_EIDS) {
+      const evicted = seenEidOrder.shift();
+      if (evicted !== undefined) seenEids.delete(evicted);
+    }
+  }
+
   setSwarmEventSeq((n) => n + 1);
 
   switch (ev.type) {
@@ -224,4 +259,6 @@ export function __resetSwarmLive(): void {
   setSwarmLiveEdges([]);
   setSwarmEventSeq(0);
   setActiveSwarmId(null);
+  seenEids.clear();
+  seenEidOrder.length = 0;
 }
