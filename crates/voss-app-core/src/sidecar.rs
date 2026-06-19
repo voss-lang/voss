@@ -67,6 +67,7 @@ pub fn python_path() -> String {
 /// before it becomes a process-spawn argument. With empty `allowed_roots`,
 /// any existing directory is accepted (single-user local default); otherwise
 /// the canonical path must equal or descend from one of the roots.
+/// Path cannot exist outside of the root
 pub fn validate_workspace_cwd(
     cwd: &str,
     allowed_roots: &[std::path::PathBuf],
