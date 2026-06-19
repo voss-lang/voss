@@ -100,7 +100,7 @@
   height: 28px;
   padding: 0 8px;
   cursor: pointer;
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
   font-size: 11px;
   color: var(--fg-0);
 }

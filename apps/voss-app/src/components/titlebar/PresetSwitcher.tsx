@@ -51,7 +51,7 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
             color: 'var(--accent-amber)',
             border: '1px solid var(--border-bright)',
             padding: '2px 8px',
-            'font-family': 'var(--font-mono)',
+            'font-family': 'var(--font-ui)',
             'font-size': '11px',
             'line-height': '1',
           }}
@@ -96,7 +96,7 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
                     ? 'none'
                     : '1px solid var(--border)',
                   padding: '4px 10px',
-                  'font-family': 'var(--font-mono)',
+                  'font-family': 'var(--font-ui)',
                   'font-size': '11px',
                   cursor: props.disabled ? 'default' : 'pointer',
                   'line-height': '1',

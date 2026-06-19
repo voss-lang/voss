@@ -346,7 +346,7 @@ html.reduced-motion .pane--proto-ended {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   color: var(--accent-cyan);
 }

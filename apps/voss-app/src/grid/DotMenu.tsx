@@ -65,7 +65,7 @@ export default function DotMenu(props: {
   return (
     <div
       ref={root}
-      class="font-mono bg-bg-3"
+      class="font-ui bg-bg-3"
       role="menu"
       style={{
         position: 'absolute',

@@ -50,7 +50,7 @@ export default function PaneHeader(props: PaneHeaderProps) {
   return (
     <div
       data-pane-header-grab
-      class={`pane-header-bar font-mono ${props.focused && props.isAgent ? '' : props.focused ? 'bg-bg-2' : 'bg-bg-1'}`}
+      class={`pane-header-bar font-ui ${props.focused && props.isAgent ? '' : props.focused ? 'bg-bg-2' : 'bg-bg-1'}`}
       style={{
         display: 'grid',
         'grid-template-columns': 'auto 1fr auto',

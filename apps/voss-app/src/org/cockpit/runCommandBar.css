@@ -218,7 +218,7 @@
 }
 
 .run-bar__detail-input {
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-ui), Inter, system-ui, sans-serif;
 }
 
 .run-bar__detail-input--budget {

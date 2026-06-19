@@ -8,7 +8,7 @@
 export default function RestoreBanner(props: { lineCount: number }) {
   return (
     <div
-      class="font-mono"
+      class="font-ui"
       data-testid="restore-banner"
       style={{
         display: 'flex',

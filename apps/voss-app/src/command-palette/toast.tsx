@@ -79,7 +79,7 @@ export default function ToastStack() {
             aria-live={
               toast.severity === 'error' ? 'assertive' : 'polite'
             }
-            class="font-mono"
+            class="font-ui"
             style={{
               'min-height': '32px',
               padding: '8px 16px',
