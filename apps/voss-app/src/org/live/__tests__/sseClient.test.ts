@@ -247,4 +247,49 @@ describe('live SSE consumer — V15-02 extensions (../sseClient)', () => {
     await flush();
     expect(liveHandles().size).toBe(0);
   });
+
+  it('keeps liveLabel "live" while a sibling stream is still connected (multi-session swarm)', async () => {
+    const SESSION_B = 'b0b0b0b0b0b0';
+    let releaseB: (() => void) | undefined;
+    async function* finite(): AsyncGenerator<AgentEvent> {
+      yield {
+        type: 'budget.updated',
+        session_id: SESSION,
+        spent: 1,
+        remaining: 9,
+        limit: 10,
+        unit: 'tokens',
+        v: 1,
+      } as unknown as AgentEvent;
+    }
+    async function* heldOpen(): AsyncGenerator<AgentEvent> {
+      yield {
+        type: 'budget.updated',
+        session_id: SESSION_B,
+        spent: 1,
+        remaining: 9,
+        limit: 10,
+        unit: 'tokens',
+        v: 1,
+      } as unknown as AgentEvent;
+      await new Promise<void>((r) => {
+        releaseB = r;
+      });
+    }
+
+    // A is a short finite stream; B stays open (a swarm launches many at once).
+    connectLiveStream({ baseUrl: 'http://localhost:0', sessionId: SESSION, token: 'tok', stream: finite() });
+    connectLiveStream({ baseUrl: 'http://localhost:0', sessionId: SESSION_B, token: 'tok', stream: heldOpen() });
+
+    await flush();
+    // A has ended; B is still live → the label must NOT have flipped to snapshot.
+    expect(liveHandles().has(SESSION)).toBe(false);
+    expect(liveHandles().has(SESSION_B)).toBe(true);
+    expect(liveLabel()).toBe('live');
+
+    releaseB?.();
+    await flush();
+    expect(liveHandles().size).toBe(0);
+    expect(liveLabel()).toBe('snapshot');
+  });
 });

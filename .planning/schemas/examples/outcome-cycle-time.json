@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "outcome_id": "outcome-cycletime-001",
+  "entity_id": "task-abc123",
+  "entity_type": "task",
+  "trace_id": "trace-abc123",
+  "event_time": "2026-06-21T00:00:00Z",
+  "ingest_time": "2026-06-21T00:00:10Z",
+  "obs_window_id": "cycle-time-point",
+  "source_rule": "rule:cycle_time_on_completion",
+  "measure_type": "cycle_time",
+  "value": 259200,
+  "unit": "seconds",
+  "measure_definition_id": "cycle-time:task.created_at->pr.merged_at"
+}

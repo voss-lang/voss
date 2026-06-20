@@ -183,7 +183,7 @@ html.reduced-motion .pane-header.bell-flash {
   padding: 0 8px;
   background: var(--bg-3);
   border-top: 1px solid var(--border);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 12px;
   border-radius: 0;
   transition: none;

@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "outcome_id": "outcome-failedvalidation-001",
+  "entity_id": "task-abc123",
+  "entity_type": "task",
+  "trace_id": "trace-abc123",
+  "event_time": "2026-06-20T18:00:00Z",
+  "ingest_time": "2026-06-20T18:00:30Z",
+  "obs_window_id": "failed-validation-0d",
+  "source_rule": "rule:ci_failure",
+  "label_type": "failed_validation"
+}

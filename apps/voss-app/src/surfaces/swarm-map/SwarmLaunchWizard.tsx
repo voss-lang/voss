@@ -61,7 +61,7 @@ const RoleIcon: Component<{ kind: RoleKind }> = (props) => (
 );
 
 const roleLabel = (kind: RoleKind): string =>
-  kind === 'coordinator' ? 'Coordinator' : kind === 'builder' ? 'Builder' : 'Reviewer';
+  kind === 'coordinator' ? 'Conductor' : kind === 'builder' ? 'Engineer' : 'Auditor';
 
 const SwarmLaunchWizard: Component<SwarmLaunchWizardProps> = (props) => {
   const [step, setStep] = createSignal(1);
@@ -194,9 +194,9 @@ const SwarmLaunchWizard: Component<SwarmLaunchWizardProps> = (props) => {
           </div>
 
           <div class="swz__chips" aria-hidden="true">
-            <span class="swz-chip">1 Coordinator</span>
-            <span class="swz-chip">{builders()} Builder{builders() === 1 ? '' : 's'}</span>
-            <span class="swz-chip">1 Reviewer</span>
+            <span class="swz-chip">1 Conductor</span>
+            <span class="swz-chip">{builders()} Engineer{builders() === 1 ? '' : 's'}</span>
+            <span class="swz-chip">1 Auditor</span>
             <span class="swz-chip__total">{total()} total</span>
           </div>
 
@@ -243,7 +243,7 @@ const SwarmLaunchWizard: Component<SwarmLaunchWizardProps> = (props) => {
             disabled={builders() >= MAX_BUILDERS}
             onClick={addBuilder}
           >
-            + Add builder
+            + Add engineer
           </button>
         </Show>
 
@@ -257,7 +257,7 @@ const SwarmLaunchWizard: Component<SwarmLaunchWizardProps> = (props) => {
             <div class="swz-review__row">
               <span class="swz-review__k">Roster</span>
               <span class="swz-review__v">
-                {builders()} builder{builders() === 1 ? '' : 's'} · {total()} agents
+                {builders()} engineer{builders() === 1 ? '' : 's'} · {total()} agents
               </span>
             </div>
             <ul class="swz-review__list">

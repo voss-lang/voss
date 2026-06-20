@@ -1,0 +1,601 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voss.dev/contracts/outcomes.schema.json",
+  "title": "OutcomeContract",
+  "description": "BOS5 outcome label, measure, reward, and guardrail contract (BOS-DATA-03, BOS-DATA-04). Sibling to contracts/events.schema.json; mirrors its discriminated-union pattern ($defs + discriminator.mapping + oneOf). v: 1. Defines: (1) a bitemporal, no-leakage outcome-event envelope shared by every categorical label and measure record; (2) the 7 categorical label variants discriminated on label_type; (3) the continuous measure family discriminated on measure_type (cycle_time now, additive later); (4) the RewardRecord (computed/derived, append-only, MAY carry decision_id); (5) the versioned team-level WeightSetRecord (per decision_type); (6) the GuardrailMetricSpec (tension-pair counter-metric, hard_gate|dashboard). Outcome labels NEVER carry decision_id/recommended_action (no-leakage, BOS4 D-04 carried); outcome labels join to decisions later by entity_id + as-of. RewardRecord is the only record family here that carries decision_id, because a reward is computed FOR a decision after the fact.",
+  "$comment": "schema_version=1; additive changes (new label_type filling a reserved slot, new measure_type, new reward objective via a new weight-set version, new horizon name, new scalarization name) do NOT bump this version; breaking changes (altering an existing enum value, removing a required field, renaming a discriminator) increment the version and require a migration note in docs/BOS5-OUTCOME-REWARD-SPEC.md.",
+  "type": "object",
+  "properties": {
+    "categorical_label": {
+      "title": "CategoricalLabel",
+      "description": "Categorical outcome label event. Discriminated union over label_type (D-04 closed enum, 7 variants). Each variant composes the OutcomeEnvelope (bitemporal + no-leakage). Append-only over the entity lifecycle (D-05); may carry supersedes_outcome_id to point at an earlier label it revises (D-02).",
+      "discriminator": {
+        "propertyName": "label_type",
+        "mapping": {
+          "clean_merge": "#/$defs/CleanMergeLabel",
+          "rework": "#/$defs/ReworkLabel",
+          "revert": "#/$defs/RevertLabel",
+          "failed_validation": "#/$defs/FailedValidationLabel",
+          "escaped_defect": "#/$defs/EscapedDefectLabel",
+          "incident": "#/$defs/IncidentLabel",
+          "human_override": "#/$defs/HumanOverrideLabel"
+        }
+      },
+      "oneOf": [
+        {"$ref": "#/$defs/CleanMergeLabel"},
+        {"$ref": "#/$defs/ReworkLabel"},
+        {"$ref": "#/$defs/RevertLabel"},
+        {"$ref": "#/$defs/FailedValidationLabel"},
+        {"$ref": "#/$defs/EscapedDefectLabel"},
+        {"$ref": "#/$defs/IncidentLabel"},
+        {"$ref": "#/$defs/HumanOverrideLabel"}
+      ]
+    },
+    "outcome_measure": {
+      "title": "OutcomeMeasure",
+      "description": "Continuous outcome measure event. Discriminated union over measure_type. cycle_time now; additional measure_type variants are additive (no version bump). Each variant composes the OutcomeEnvelope.",
+      "discriminator": {
+        "propertyName": "measure_type",
+        "mapping": {
+          "cycle_time": "#/$defs/CycleTimeMeasure"
+        }
+      },
+      "oneOf": [
+        {"$ref": "#/$defs/CycleTimeMeasure"}
+      ]
+    },
+    "reward_record": {
+      "$ref": "#/$defs/RewardRecord"
+    },
+    "weight_set": {
+      "$ref": "#/$defs/WeightSetRecord"
+    },
+    "guardrail_metric_spec": {
+      "$ref": "#/$defs/GuardrailMetricSpec"
+    }
+  },
+  "$defs": {
+    "OutcomeEnvelope": {
+      "title": "OutcomeEnvelope",
+      "description": "Shared envelope composed by EVERY categorical label and measure record. Bitemporal (event_time valid time + ingest_time transaction time, ingest_time >= event_time) per BOS3 D-02. Carries the BOS3 entity anchor (entity_id + entity_type) per D-03, the trace_id, the obs_window_id (named observation window per D-02, referenced not hard-coded per Pitfall 4), and source_rule (the D-01 derivation rule id that produced this outcome). supersedes_outcome_id is OPTIONAL (D-02/D-05 supersession pointer). NO decision reference and NO recommended_action field here: outcome labels never reference the BOS4 decision record; the join runs decision -> outcome by entity_id + as-of (BOS4 D-04 no-leakage guard carried).",
+      "type": "object",
+      "properties": {
+        "v": {
+          "title": "V",
+          "description": "Schema version marker. const 1 (mirror events.schema.json).",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        },
+        "outcome_id": {
+          "title": "Outcome Id",
+          "description": "Stable unique id for this outcome event.",
+          "type": "string"
+        },
+        "entity_id": {
+          "title": "Entity Id",
+          "description": "BOS3 stable entity id (task / PR / session / correlation id) the outcome is observed on. Labels anchor to the entity (D-03); decisions join via entity refs + as-of.",
+          "type": "string"
+        },
+        "entity_type": {
+          "title": "Entity Type",
+          "description": "Kind of BOS3 entity this outcome anchors to. external_reserved is a forward-compat slot filled by BOS12 ingestion of external sources (review / CI / deploy / incident).",
+          "type": "string",
+          "enum": [
+            "task",
+            "pr",
+            "session",
+            "external_reserved"
+          ]
+        },
+        "trace_id": {
+          "title": "Trace Id",
+          "description": "BOS3 root correlation / trace id linking this outcome to the originating work.",
+          "type": "string"
+        },
+        "event_time": {
+          "title": "Event Time",
+          "description": "When the outcome occurred in the world (valid time).",
+          "type": "string",
+          "format": "date-time"
+        },
+        "ingest_time": {
+          "title": "Ingest Time",
+          "description": "When BOS recorded this outcome (transaction time). Always >= event_time. The as-of no-leakage join filters outcome events by ingest_time <= T_decision when reconstructing decision-time state (BOS4 D-04).",
+          "type": "string",
+          "format": "date-time"
+        },
+        "obs_window_id": {
+          "title": "Obs Window Id",
+          "description": "Identifies the named observation window definition that governs this label (D-02). The window length lives in a config table in the rationale spec, NOT as a schema constant (Pitfall 4); window tuning is a config change, not a schema version bump.",
+          "type": "string"
+        },
+        "source_rule": {
+          "title": "Source Rule",
+          "description": "The D-01 derivation rule id that produced this outcome event. Deterministic, auditable, replayable.",
+          "type": "string"
+        },
+        "supersedes_outcome_id": {
+          "title": "Supersedes Outcome Id",
+          "description": "OPTIONAL (D-02/D-05). Points to the outcome_id of an earlier label event on the same entity that this outcome revises (e.g. clean_merge superseded by escaped_defect). Absent on first-time labels. Append-only: the earlier record is never mutated; consumers reconstruct the maturation chain by ordering events by ingest_time.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "outcome_id",
+        "entity_id",
+        "entity_type",
+        "trace_id",
+        "event_time",
+        "ingest_time",
+        "obs_window_id",
+        "source_rule"
+      ],
+      "additionalProperties": false
+    },
+    "CleanMergeLabel": {
+      "title": "CleanMergeLabel",
+      "description": "label_type: clean_merge. A merged PR/commit that has not generated rework, revert, escaped defect, or incident within the observation window. The default positive outcome. Provisional; may be superseded by a later label (D-02). No severity field (D-06).",
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/OutcomeEnvelope"}
+      ],
+      "properties": {
+        "label_type": {
+          "title": "Label Type",
+          "description": "Discriminator value for clean_merge.",
+          "type": "string",
+          "const": "clean_merge",
+          "default": "clean_merge"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        }
+      },
+      "required": [
+        "label_type",
+        "v"
+      ],
+      "additionalProperties": false
+    },
+    "ReworkLabel": {
+      "title": "ReworkLabel",
+      "description": "label_type: rework. Work on the same entity required because earlier work was insufficient (follow-up PR on same files within the observation window). OPTIONAL severity (D-06): low|medium|high — magnitude matters here.",
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/OutcomeEnvelope"}
+      ],
+      "properties": {
+        "label_type": {
+          "title": "Label Type",
+          "type": "string",
+          "const": "rework",
+          "default": "rework"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        },
+        "severity": {
+          "title": "Severity",
+          "description": "OPTIONAL (D-06). Graded magnitude: low | medium | high.",
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "required": [
+        "label_type",
+        "v"
+      ],
+      "additionalProperties": false
+    },
+    "RevertLabel": {
+      "title": "RevertLabel",
+      "description": "label_type: revert. A commit/PR that explicitly reverts a previous merge. Strong negative signal; presence alone is significant. No severity field (D-06).",
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/OutcomeEnvelope"}
+      ],
+      "properties": {
+        "label_type": {
+          "title": "Label Type",
+          "type": "string",
+          "const": "revert",
+          "default": "revert"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        }
+      },
+      "required": [
+        "label_type",
+        "v"
+      ],
+      "additionalProperties": false
+    },
+    "FailedValidationLabel": {
+      "title": "FailedValidationLabel",
+      "description": "label_type: failed_validation. CI/validation run triggered by the entity's changes that did not pass; caught before merge. No severity field (D-06). May occur multiple times on the same entity (CI flap vs real failure) — each failure is a separate append-only label event (D-05).",
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/OutcomeEnvelope"}
+      ],
+      "properties": {
+        "label_type": {
+          "title": "Label Type",
+          "type": "string",
+          "const": "failed_validation",
+          "default": "failed_validation"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        }
+      },
+      "required": [
+        "label_type",
+        "v"
+      ],
+      "additionalProperties": false
+    },
+    "EscapedDefectLabel": {
+      "title": "EscapedDefectLabel",
+      "description": "label_type: escaped_defect. A defect not caught by validation/CI that reached production or was found by users/monitors after merge. Most delayed label — drives the long-horizon reward recomputation (D-09). OPTIONAL severity (D-06): low|medium|high.",
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/OutcomeEnvelope"}
+      ],
+      "properties": {
+        "label_type": {
+          "title": "Label Type",
+          "type": "string",
+          "const": "escaped_defect",
+          "default": "escaped_defect"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        },
+        "severity": {
+          "title": "Severity",
+          "description": "OPTIONAL (D-06). Graded magnitude: low | medium | high.",
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "required": [
+        "label_type",
+        "v"
+      ],
+      "additionalProperties": false
+    },
+    "IncidentLabel": {
+      "title": "IncidentLabel",
+      "description": "label_type: incident. A production incident attributed to the entity's changes (broader than escaped_defect — may include deploy failures, performance degradation). Highest negative signal; a high-severity incident should dominate scalar reward regardless of weights. OPTIONAL severity (D-06): low|medium|high.",
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/OutcomeEnvelope"}
+      ],
+      "properties": {
+        "label_type": {
+          "title": "Label Type",
+          "type": "string",
+          "const": "incident",
+          "default": "incident"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        },
+        "severity": {
+          "title": "Severity",
+          "description": "OPTIONAL (D-06). Graded magnitude: low | medium | high.",
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "required": [
+        "label_type",
+        "v"
+      ],
+      "additionalProperties": false
+    },
+    "HumanOverrideLabel": {
+      "title": "HumanOverrideLabel",
+      "description": "label_type: human_override. A human explicitly overrode a system recommendation for this entity (BOS4 D-05/D-06 human_verdict = override). Unique to AI-assisted workflow context; captures divergence between recommended and actual action (override-as-signal). No severity field (D-06 / A9).",
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/OutcomeEnvelope"}
+      ],
+      "properties": {
+        "label_type": {
+          "title": "Label Type",
+          "type": "string",
+          "const": "human_override",
+          "default": "human_override"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        }
+      },
+      "required": [
+        "label_type",
+        "v"
+      ],
+      "additionalProperties": false
+    },
+    "CycleTimeMeasure": {
+      "title": "CycleTimeMeasure",
+      "description": "measure_type: cycle_time. Time from task/story creation to merge/done, in seconds (float). Definition is pinned by measure_definition_id (Pitfall 1): the rationale spec fixes the definition to task.created_at -> pr.merged_at (the widest measure, consistent with DORA Lead Time for Changes decomposition). Point-in-time measurement; no observation window needed (measured at completion).",
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/OutcomeEnvelope"}
+      ],
+      "properties": {
+        "measure_type": {
+          "title": "Measure Type",
+          "type": "string",
+          "const": "cycle_time",
+          "default": "cycle_time"
+        },
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        },
+        "value": {
+          "title": "Value",
+          "description": "Cycle time in seconds (float).",
+          "type": "number"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string",
+          "const": "seconds",
+          "default": "seconds"
+        },
+        "measure_definition_id": {
+          "title": "Measure Definition Id",
+          "description": "Pins the named definition this measurement uses (Pitfall 1): references the task.created_at -> pr.merged_at definition in the rationale spec. Makes the measurement reproducible.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "measure_type",
+        "v",
+        "value",
+        "unit",
+        "measure_definition_id"
+      ],
+      "additionalProperties": false
+    },
+    "RewardRecord": {
+      "title": "RewardRecord",
+      "description": "Computed/derived reward record (NOT an outcome event — Pitfall 3). Append-only: when a later outcome arrives for the same decision, a NEW RewardRecord is appended with the same decision_id, higher ingest_time, and (typically) a longer horizon; the original is never mutated (D-09). MAY carry decision_id (reward is computed FOR a decision after the fact); this is the ONLY record family in this schema that carries decision_id. Point-in-time-correct reward: to reconstruct the reward available at policy-evaluation time T, select RewardRecord entries with ingest_time <= T.",
+      "type": "object",
+      "properties": {
+        "v": {
+          "title": "V",
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        },
+        "reward_id": {
+          "title": "Reward Id",
+          "description": "Stable unique id for this reward record.",
+          "type": "string"
+        },
+        "decision_id": {
+          "title": "Decision Id",
+          "description": "The BOS4 decision record id this reward is computed for. Joined after the fact (BOS4 D-04).",
+          "type": "string"
+        },
+        "objective_vector": {
+          "title": "Objective Vector",
+          "description": "Multi-objective vector (D-07): objective-name -> numeric value. Together with weight_set_version this fully determines the scalarized reward (reproducibility, D-08). Recommended objective keys: throughput, quality, rework_cost, flow.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "weight_set_version": {
+          "title": "Weight Set Version",
+          "description": "The versioned team-level weight-set this reward was scalarized against (D-08). Reproducibility: (objective_vector + weight_set_version) => scalarized_reward.",
+          "type": "string"
+        },
+        "horizon": {
+          "title": "Horizon",
+          "description": "The reward horizon (D-09): short = provisional reward soon after merge (captures fast feedback); long = full reward including escaped defects and incidents. Additional horizon names are additive (no version bump).",
+          "type": "string",
+          "enum": [
+            "short",
+            "long"
+          ]
+        },
+        "computed_at": {
+          "title": "Computed At",
+          "description": "When the reward computation was performed.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "ingest_time": {
+          "title": "Ingest Time",
+          "description": "When this reward record was appended (transaction time). Used for as-of reward reconstruction: select entries with ingest_time <= T to get the reward available at time T.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "scalarized_reward": {
+          "title": "Scalarized Reward",
+          "description": "OPTIONAL. The scalar reward produced by applying the named scalarization (WeightSetRecord.scalarization) with the weight_set_version weights to the objective_vector. Absent when only the raw vector is recorded.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "v",
+        "reward_id",
+        "decision_id",
+        "objective_vector",
+        "weight_set_version",
+        "horizon",
+        "computed_at",
+        "ingest_time"
+      ],
+      "additionalProperties": false
+    },
+    "WeightSetRecord": {
+      "title": "WeightSetRecord",
+      "description": "Versioned team-level scalarization weight config, per decision_type (D-08). Team-level (no individual ranking per PROJECT.md §Trust). Versioned alongside policy versions; may differ per decision_type (task_to_agent weights != review_depth weights). Every reward is reproducible from (objective_vector + weight_set_version). Credit weighting across the many decisions a single outcome touches (D-03) is expressed here. BOS5 defines the SHAPE only; concrete weight values are team config set per team and refined in BOS13/14/15.",
+      "type": "object",
+      "properties": {
+        "weight_set_id": {
+          "title": "Weight Set Id",
+          "description": "Stable id for this weight set.",
+          "type": "string"
+        },
+        "weight_set_version": {
+          "title": "Weight Set Version",
+          "description": "Version string referenced by RewardRecord.weight_set_version. Reward reproducibility keys off this.",
+          "type": "string"
+        },
+        "decision_type": {
+          "title": "Decision Type",
+          "description": "The BOS4 decision_type this weight set applies to (D-08 per-type weights). One of task_to_agent, autonomy_band, review_depth, validation_depth, escalation, no_action (BOS4 D-02).",
+          "type": "string"
+        },
+        "objectives": {
+          "title": "Objectives",
+          "description": "objective-name -> numeric weight (D-07/D-08). Recommended objective keys (D-07 discretion): throughput, quality, rework_cost, flow. BOS5 locks the shape, not the values.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "scalarization": {
+          "title": "Scalarization",
+          "description": "Named scalarization function (D-07). linear_weighted is the initial interpretable baseline (R = sum(w_i * o_i)). chebyshev and epsilon_constrained are reserved valid future values (additive, no version bump); a migration note is added when one is first wired in the rationale spec.",
+          "type": "string",
+          "enum": [
+            "linear_weighted",
+            "chebyshev",
+            "epsilon_constrained"
+          ]
+        },
+        "effective_from": {
+          "title": "Effective From",
+          "description": "When this weight set version became effective.",
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "weight_set_id",
+        "weight_set_version",
+        "decision_type",
+        "objectives",
+        "scalarization",
+        "effective_from"
+      ],
+      "additionalProperties": false
+    },
+    "GuardrailMetricSpec": {
+      "title": "GuardrailMetricSpec",
+      "description": "Anti-Goodhart tension-pair counter-metric spec (D-10/D-11). Config/spec record, NOT a runtime event. Every reward objective MUST appear as linked_reward_objective on >=1 GuardrailMetricSpec (coverage rule, ACC-05). role classifies each guardrail as hard_gate (a breach blocks autonomy increase / policy promotion in BOS15) or dashboard (surfaced to BOS6 BOS-GOV-04, no auto-block). BOS5 defines metric + threshold shape + role; BOS15 wires the actual gate. Threshold VALUES are tunable team config (shape fixed by contract, values set in BOS15).",
+      "type": "object",
+      "properties": {
+        "guardrail_id": {
+          "title": "Guardrail Id",
+          "description": "Stable id for this guardrail metric spec.",
+          "type": "string"
+        },
+        "counter_metric_formula": {
+          "title": "Counter Metric Formula",
+          "description": "The named counter-metric formula in tension with the linked reward objective (D-10). E.g. rework_count / merge_count in a rolling window. Auditable string, not a lambda.",
+          "type": "string"
+        },
+        "linked_reward_objective": {
+          "title": "Linked Reward Objective",
+          "description": "The reward objective name this counter-metric is in tension with. MUST match a key in WeightSetRecord.objectives for some weight set. Coverage rule (ACC-05): every objective named in WeightSetRecord.objectives appears as linked_reward_objective on >=1 GuardrailMetricSpec.",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "description": "EXACTLY hard_gate or dashboard (D-11). hard_gate: breach blocks autonomy increase / policy promotion (BOS15 wires the gate). dashboard: surfaced to BOS6 BOS-GOV-04 governance dashboard, no auto-block. No other values.",
+          "type": "string",
+          "enum": [
+            "hard_gate",
+            "dashboard"
+          ]
+        },
+        "threshold_shape": {
+          "title": "Threshold Shape",
+          "description": "Shape of the breach threshold. type names the threshold kind (e.g. rate, count, ratio). window_days is the rolling window in days. max_value is the threshold ceiling (number) or null (team-configured; the shape is fixed by the contract, the value is set in BOS15).",
+          "type": "object",
+          "properties": {
+            "type": {
+              "title": "Type",
+              "description": "Threshold kind, e.g. rate, count, ratio.",
+              "type": "string"
+            },
+            "window_days": {
+              "title": "Window Days",
+              "description": "Rolling window length in days over which the counter-metric is evaluated.",
+              "type": "integer"
+            },
+            "max_value": {
+              "title": "Max Value",
+              "description": "Threshold ceiling. null = team-configured (shape fixed by contract, value set in BOS15).",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "window_days"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "guardrail_id",
+        "counter_metric_formula",
+        "linked_reward_objective",
+        "role",
+        "threshold_shape"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

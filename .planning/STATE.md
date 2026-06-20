@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1.1
-milestone_name: patch)*
-status: executing
-last_updated: "2026-06-13T20:58:24Z"
-last_activity: 2026-06-13
+milestone: v0.2
+milestone_name: Behavioral OS Implementation Track
+status: completed
+last_updated: "2026-06-20T22:55:14.842Z"
+last_activity: 2026-06-20
 progress:
-  total_phases: 69
+  total_phases: 63
   completed_phases: 4
-  total_plans: 19
-  completed_plans: 19
+  total_plans: 24
+  completed_plans: 23
   percent: 6
 ---
 
@@ -17,27 +17,43 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-05-10)
+See: `.planning/PROJECT.md` (updated 2026-06-20)
 
-**Core value:** A developer can give Voss a repo task and get bounded, inspectable, resumable AI coding work, while the most important agent logic is expressible as compiler-checkable `.voss` workflows instead of prompt soup.
-**Current focus:** V22 — External Memory & Docs Ingest (4/5 plans complete; V22-04 CLI recall fan-out shipped 2026-06-13).
+**Core value:** An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
+**Current focus:** v0.2 Behavioral OS Implementation Track — one BOS-prefixed phase sequence, BOS1-BOS18, that turns Behavioral OS context into runtime behavior.
 
 ## Current Position
 
-**Phase:** V22 — External Memory & Docs Ingest — EXECUTING (4/5 plans complete; V22-05 tools.py agent surface next).
-**Status:** Ready to execute V22-05
-**Workspace health note:** the concurrent watcher ran `npm install` at the pnpm-monorepo root (added JS `litellm` dep, 5e3f061) and gutted the pnpm store mid-V15-04 — repaired via `pnpm install` (7cc042a). JS `litellm` at root is likely unintended; operator should review.
-**Goal (delivered, V13.4):** `docs/native-embedding.md` native/C embedder reference (loopback REST+SSE + Bearer handshake, PROTOCOL/contracts pointers, JSON→native table, five-tier stability, C-headers/FFI deferred w/ trigger) + `docs/check-native-embedding-refs.sh` refs-resolve gate. Zero code; PROTOCOL.md/sdk.md byte-unchanged.
-**Next move:** V14 ADE Run Cockpit ✅ COMPLETE (13/13, operator-approved 2026-06-09). Frontier: structured-pane-rendering seed (`.planning/notes/seed-structured-pane-rendering.md`, gated on V13.1 live wiring) · VCKP-13b permission proxy · or resume the A-track (A4 Layout Presets, ready to execute).
-**Open (V13.4):** VSDK-C-01 prose-readability human-check (manual-only) — a Voss-naive reviewer confirms transport+auth from `docs/native-embedding.md` alone. V13.4 refs gate full-PASS waits on V13 shipping `docs/ORCHESTRATION_LAYERS.md` (warn-skips cleanly until then).
-**Carry-over deviations (V13.3):** go floor 1.24 (audited deps oapi-codegen v2.7.1 + runtime v1.4.1 force it); in-SDK 3.1→3.0 codegen normalizer (`sdk/go/internal/specgen`, oapi-codegen v2.7.1 can't read FastAPI's OpenAPI 3.1); 60s spawn handshake + `LITELLM_LOCAL_MODEL_COST_MAP=true`.
-**Rust status:** `crates/` frozen-spike untouched. NEW `crates/voss-app-core` (A1, path-dep'd by src-tauri, populated A2+) + `apps/voss-app/src-tauri` are the live voss-app track members — distinct from the frozen v0.1-ship crates.
-**Last activity:** 2026-06-13
+**Phase:** BOS4 — Decision Ledger Runtime.
+**Plan:** BOS4 runtime replanning is next after BOS track reconciliation.
+**Status:** BOS track restart complete; ready to discuss/research/plan BOS4 runtime work
+**Last activity:** 2026-06-20
+**Seed context:** `SEED-001-coordination-bus` remains future external-agent context only; BOS must wrap the existing server/SSE swarm plane rather than create a parallel file bus.
+**Swarm context:** V25 server-native swarm is the first ADE/swarm event source to map into BOS decision/outcome data.
+**Carry-forward context:** BOS3 event projection and local event ledger are implemented with tests. Split-prefix tracks are no longer active.
 
 ## Phase Status
 
 | Phase | Name | Status |
 |---|---|---|
+| BOS1 | Scope, Wedge, and Track Reconciliation | Complete as 2026-06-20 track restart; source docs retained |
+| BOS2 | Runtime Architecture and Boundaries | Source docs exist; replan before further execution |
+| BOS3 | Engineering Event Schema and Projection Runtime | Schema, projection runtime, and local event ledger implemented with tests |
+| BOS4 | Decision Ledger Runtime | Schema exists; runtime replanning is next |
+| BOS5 | Outcome Labels and Reward Inputs | Pending |
+| BOS6 | Privacy and Governance Enforcement | Pending |
+| BOS7 | Web and Control-Plane Boundary | Pending |
+| BOS8 | Team, Project, and Work Model | Pending |
+| BOS9 | Recommendation Review Surface and Policy Baselines | Pending |
+| BOS10 | Swarm and ADE Event Integration | Pending |
+| BOS11 | External Integration Boundaries | Pending |
+| BOS12 | Identity and Entity Resolution | Pending |
+| BOS13 | Offline Evaluation Export and Replay | Pending |
+| BOS14 | Learning Lab Boundary | Pending |
+| BOS15 | Recommendation Policy Iteration | Pending |
+| BOS16 | Web Control Plane MVP | Pending |
+| BOS17 | Productized Team Workflow Path | Pending |
+| BOS18 | BOS Closeout and Expansion Gate | Pending |
 | M0 | Scope Lock | Ready to plan |
 | M1 | Harness Happy Path | Ready to execute (7 plans) |
 | M2 | Project Cognition | Ready to execute (7 plans) |

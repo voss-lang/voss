@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voss.dev/contracts/decision-ledger.schema.json",
+  "title": "DecisionLedgerRecord",
+  "description": "Authoritative JSON Schema for a single append-only decision ledger record (BOS-DATA-02). Sibling to contracts/events.schema.json. Mirrors its discriminated-union pattern: a $defs block of named sub-schemas, a discriminator on decision_type with a mapping, and a oneOf over six typed payload $refs. The outcome label (BOS5) is NEVER written into this record at decision time; it is joined later by decision_id (D-04 no-leakage guard).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decision_id": {
+      "title": "Decision Id",
+      "description": "Stable unique id for this decision ledger record. The join key BOS5 outcome labels attach to after the fact (D-04).",
+      "type": "string"
+    },
+    "decision_type": {
+      "title": "Decision Type",
+      "description": "Discriminator over the six closed decision kinds (D-02). Exactly these six values and no others.",
+      "enum": [
+        "task_to_agent",
+        "autonomy_band",
+        "review_depth",
+        "validation_depth",
+        "escalation",
+        "no_action"
+      ],
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "description": "Record write timestamp (when this decision was appended to the ledger).",
+      "type": "string",
+      "format": "date-time"
+    },
+    "as_of": {
+      "title": "As Of",
+      "description": "Immutable point-in-time event-state pointer into the BOS3 event stream identifying the state the recommendation was made against (D-01, D-03). UPSTREAM ASSUMPTION D-07: BOS3 must expose a stable, immutable as-of pointer (event sequence number or snapshot id) that this field references. This field's exact shape is reconciled when BOS3 lands; the small object below is a placeholder shape carrying event sequence number and/or snapshot id.",
+      "type": "object",
+      "properties": {
+        "event_seq": {
+          "title": "Event Seq",
+          "description": "BOS3 event sequence number at the as-of point. Reconciled with BOS3.",
+          "type": "integer"
+        },
+        "snapshot_id": {
+          "title": "Snapshot Id",
+          "description": "Optional BOS3 snapshot id for the as-of state. Reconciled with BOS3.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "feature_snapshot": {
+      "title": "Feature Snapshot",
+      "description": "Frozen copy of the exact feature vector used at decision time (D-03). Captured at decision time and immutable; makes each record a self-contained, reproducible training row alongside the as_of pointer (belt-and-suspenders).",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "entity_ref": {
+      "title": "Entity Ref",
+      "description": "Stable references to the entities this decision targets: task, session, agent, and/or swarm assignment ids (D-08). UPSTREAM ASSUMPTION D-07: BOS3 must define stable entity IDs the ledger can reference. Cross-source identity resolution is deferred to BOS12 (BOS-INT-03); BOS4 only locks this local entity-ref field shape.",
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "agent_id": {
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "swarm_id": {
+          "title": "Swarm Id",
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "autonomy_band": {
+      "title": "Autonomy Band",
+      "description": "The autonomy band in effect for this decision (D-06). The concrete band values are governed by BOS6 governance; this field records the band string at decision time.",
+      "type": "string"
+    },
+    "recommended_action": {
+      "title": "Recommended Action",
+      "description": "What the system proposed at decision time (D-05). Open object because action shape varies by decision_type.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "human_verdict": {
+      "title": "Human Verdict",
+      "description": "The human verdict on this recommendation (D-05). Honors the non-negotiable human-override governance constraint and maximal auditability. NOTE (D-06 override-as-signal): the divergence between recommended_action and actual_action under a verdict is an explicit captured training signal; it is observable from the three action fields and documented here, not derived into a separate field.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "title": "Verdict",
+          "description": "The verdict kind. Exactly these four values and no fifth (D-05).",
+          "enum": [
+            "approve",
+            "override",
+            "dismiss",
+            "do_nothing"
+          ],
+          "type": "string"
+        },
+        "actor_id": {
+          "title": "Actor Id",
+          "description": "Stable id of the human actor who issued the verdict.",
+          "type": "string"
+        },
+        "verdict_at": {
+          "title": "Verdict At",
+          "description": "Timestamp of the verdict.",
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "verdict",
+        "actor_id",
+        "verdict_at"
+      ]
+    },
+    "actual_action": {
+      "title": "Actual Action",
+      "description": "What was actually taken after the verdict (D-05). Open object, same modeling as recommended_action. The gap between recommended_action and actual_action under a verdict is an explicit captured training signal (D-06).",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "rationale": {
+      "title": "Rationale",
+      "description": "Explainability field capturing why the recommendation was made, satisfying PROJECT.md §Trust 'explainable recommendations'. String form; may be structured prose.",
+      "type": "string"
+    },
+    "payload": {
+      "title": "Payload",
+      "description": "Typed payload discriminated by decision_type. oneOf over the six payload $refs.",
+      "discriminator": {
+        "propertyName": "decision_type",
+        "mapping": {
+          "task_to_agent": "#/$defs/TaskToAgentPayload",
+          "autonomy_band": "#/$defs/AutonomyBandPayload",
+          "review_depth": "#/$defs/ReviewDepthPayload",
+          "validation_depth": "#/$defs/ValidationDepthPayload",
+          "escalation": "#/$defs/EscalationPayload",
+          "no_action": "#/$defs/NoActionPayload"
+        }
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TaskToAgentPayload"
+        },
+        {
+          "$ref": "#/$defs/AutonomyBandPayload"
+        },
+        {
+          "$ref": "#/$defs/ReviewDepthPayload"
+        },
+        {
+          "$ref": "#/$defs/ValidationDepthPayload"
+        },
+        {
+          "$ref": "#/$defs/EscalationPayload"
+        },
+        {
+          "$ref": "#/$defs/NoActionPayload"
+        }
+      ]
+    }
+  },
+  "required": [
+    "decision_id",
+    "decision_type",
+    "created_at",
+    "as_of",
+    "feature_snapshot",
+    "entity_ref",
+    "autonomy_band",
+    "recommended_action",
+    "human_verdict",
+    "actual_action",
+    "rationale",
+    "payload"
+  ],
+  "$defs": {
+    "TaskToAgentPayload": {
+      "title": "TaskToAgentPayload",
+      "description": "Payload for decision_type = task_to_agent. References the candidate/chosen agent for the task.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_type": {
+          "const": "task_to_agent",
+          "default": "task_to_agent",
+          "title": "Decision Type",
+          "type": "string"
+        },
+        "candidate_agents": {
+          "title": "Candidate Agents",
+          "description": "Ranked candidate agent ids considered for the task.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "chosen_agent_id": {
+          "title": "Chosen Agent Id",
+          "description": "The agent id recommended for the task.",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "description": "The task the decision targets.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_type",
+        "task_id"
+      ]
+    },
+    "AutonomyBandPayload": {
+      "title": "AutonomyBandPayload",
+      "description": "Payload for decision_type = autonomy_band. The proposed/selected autonomy band.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_type": {
+          "const": "autonomy_band",
+          "default": "autonomy_band",
+          "title": "Decision Type",
+          "type": "string"
+        },
+        "proposed_band": {
+          "title": "Proposed Band",
+          "description": "The autonomy band the recommendation proposed.",
+          "type": "string"
+        },
+        "current_band": {
+          "title": "Current Band",
+          "description": "The autonomy band in effect before this decision, for divergence analysis.",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "description": "Why the band change was proposed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_type",
+        "proposed_band"
+      ]
+    },
+    "ReviewDepthPayload": {
+      "title": "ReviewDepthPayload",
+      "description": "Payload for decision_type = review_depth. The proposed review depth level.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_type": {
+          "const": "review_depth",
+          "default": "review_depth",
+          "title": "Decision Type",
+          "type": "string"
+        },
+        "proposed_depth": {
+          "title": "Proposed Depth",
+          "description": "The review depth level the recommendation proposed (e.g. none, light, full).",
+          "type": "string"
+        },
+        "target_ref": {
+          "title": "Target Ref",
+          "description": "Reference to the artifact under review (task id, PR id, etc.).",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "description": "Why this review depth was proposed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_type",
+        "proposed_depth"
+      ]
+    },
+    "ValidationDepthPayload": {
+      "title": "ValidationDepthPayload",
+      "description": "Payload for decision_type = validation_depth. The proposed validation depth level.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_type": {
+          "const": "validation_depth",
+          "default": "validation_depth",
+          "title": "Decision Type",
+          "type": "string"
+        },
+        "proposed_depth": {
+          "title": "Proposed Depth",
+          "description": "The validation depth level the recommendation proposed (e.g. none, smoke, full suite).",
+          "type": "string"
+        },
+        "target_ref": {
+          "title": "Target Ref",
+          "description": "Reference to the artifact to validate (task id, PR id, build id, etc.).",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "description": "Why this validation depth was proposed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_type",
+        "proposed_depth"
+      ]
+    },
+    "EscalationPayload": {
+      "title": "EscalationPayload",
+      "description": "Payload for decision_type = escalation. The escalation target / reason.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_type": {
+          "const": "escalation",
+          "default": "escalation",
+          "title": "Decision Type",
+          "type": "string"
+        },
+        "escalation_target": {
+          "title": "Escalation Target",
+          "description": "Who or what the decision escalates to (human role, channel, on-call id, etc.).",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "description": "Why escalation was recommended.",
+          "type": "string"
+        },
+        "source_ref": {
+          "title": "Source Ref",
+          "description": "Reference to the triggering artifact or event.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_type",
+        "escalation_target"
+      ]
+    },
+    "NoActionPayload": {
+      "title": "NoActionPayload",
+      "description": "Payload for decision_type = no_action. The no-action record; near-empty beyond a reason.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_type": {
+          "const": "no_action",
+          "default": "no_action",
+          "title": "Decision Type",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "description": "Why no action was the recommendation.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_type"
+      ]
+    }
+  }
+}

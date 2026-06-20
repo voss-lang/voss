@@ -46,6 +46,7 @@ TARGET_PROVIDERS: tuple[str, ...] = (
     "opencode",      # OpenCode Zen
     "opencode-go",   # OpenCode Go
     "ollama-cloud",
+    "openrouter",
 )
 
 

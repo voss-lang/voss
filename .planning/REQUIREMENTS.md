@@ -1,8 +1,94 @@
-# Requirements: Voss v0.1 Harness MVP
+# Requirements: Voss
 
 **Defined:** 2026-05-10
-**Core Value:** A developer can give Voss a repo task and get bounded, inspectable, resumable AI coding work, while the most important agent logic is expressible as compiler-checkable `.voss` workflows instead of prompt soup.
-**Source:** `.vscode/voss_v_0_1_scope_lock.md`
+**Core Value:** An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
+**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1), BOS milestone discussion (2026-06-18), BOS track restart (2026-06-20), `.planning/seeds/SEED-001-coordination-bus.md`, V25 server-native swarm runtime context.
+
+## v0.2 BOS Implementation Requirements
+
+These requirements are active across BOS1-BOS18. The track uses only BOS phase
+and plan names; no split-prefix requirement namespace remains active.
+
+### Product Boundary
+
+- [x] **BOS-PROD-01**: Voss defines the Behavioral OS as a team control plane over AI-assisted engineering work, not as a generic project management clone. ✓ BOS1 product brief
+- [x] **BOS-PROD-02**: Voss defines the initial wedge around delegation/review/validation decisions that can be observed through the existing ADE and swarm runtime. ✓ BOS1 product brief
+- [x] **BOS-PROD-03**: Voss documents the ICP, buyer/user split, and first design-partner validation questions for engineering teams using multiple coding agents. ✓ BOS1 product brief + discovery script
+- [ ] **BOS-PROD-04**: Voss defines what belongs in desktop ADE, web control plane, backend services, and local harness runtime.
+
+### Planning System
+
+- [x] **BOS-PLAN-01**: Planning docs introduce `BOS` phase prefixes for Behavioral OS work. ✓ BOS1-01 (verified)
+- [x] **BOS-PLAN-02**: Stale planning documents are audited and indexed before archival, deletion, or supersession. ✓ BOS1-01
+- [x] **BOS-PLAN-03**: The BOS roadmap is split into enough phases to avoid combining product thesis, stack architecture, data modeling, governance, RL, and PM-suite expansion into one phase. ✓ BOS1-01 (verified-adequate)
+- [x] **BOS-PLAN-04**: Existing Voss tracks are mapped into BOS as substrate, dependency, historical context, or explicitly out-of-scope. ✓ BOS1-01
+
+### Data And Learning
+
+- [x] **BOS-DATA-01**: Voss specifies a point-in-time-correct engineering event schema covering tasks, sessions, swarm events, files, reviews, CI, validation, deploys, and incidents. ✓ BOS3-01
+- [x] **BOS-DATA-06**: Voss projects existing `SessionRecord`, `RunRecord`, and swarm JSONL events into BOS event-schema dictionaries without mutating source records. ✓ BOS3 runtime projection
+- [x] **BOS-DATA-07**: Voss persists projected BOS events in a local append-only ledger with duplicate-safe replay, filters, and torn-line tolerance. ✓ BOS3 local ledger
+- [ ] **BOS-DATA-02**: Voss specifies a decision ledger for task-to-agent, autonomy band, review depth, validation depth, escalation, and no-action decisions.
+- [ ] **BOS-DATA-03**: Voss specifies outcome labels for clean merge, rework, revert, failed validation, escaped defect, incident, cycle time, and human override.
+- [ ] **BOS-DATA-04**: Voss specifies reward and guardrail metrics before any learning system is introduced.
+- [ ] **BOS-DATA-05**: Voss specifies offline-evaluation requirements for heuristic policies, contextual bandits, and later RL policies.
+
+### Swarm And ADE Integration
+
+- [ ] **BOS-SWARM-01**: Voss maps V25 server-native swarm events into BOS event and decision records.
+- [ ] **BOS-SWARM-02**: Voss treats `.voss/swarm/` files as audit/shared host records, not as BOS runtime transport.
+- [ ] **BOS-SWARM-03**: Voss reframes `SEED-001` as future external-agent CLI verbs over the existing server/SSE plane.
+- [ ] **BOS-SWARM-04**: Voss defines how desktop ADE sessions become local worker nodes for a future shared team control plane.
+
+### Work Model And Recommendations
+
+- [ ] **BOS-WORK-01**: Voss specifies the team, project, task, PR, service, incident, agent-run, and engineer entities needed by the Behavioral OS.
+- [ ] **BOS-WORK-02**: Voss specifies work intake and lifecycle states for engineering tasks without requiring a full PM suite.
+- [ ] **BOS-WORK-03**: Voss specifies how work items connect to sessions, swarm tasks, files, reviews, validations, and outcomes.
+- [ ] **BOS-REC-01**: Voss specifies a recommendation review surface with approve, override, dismiss, and do-nothing actions.
+- [ ] **BOS-REC-02**: Voss specifies rationale, confidence, policy version, and training-signal logging for each recommendation.
+- [ ] **BOS-REC-03**: Voss specifies output contracts for delegation, review-depth, validation-depth, and escalation recommendations.
+
+### External Integrations
+
+- [ ] **BOS-INT-01**: Voss specifies ingestion boundaries for GitHub/GitLab, Jira/Linear, CI, deploy, observability, and incident systems.
+- [ ] **BOS-INT-02**: Voss specifies identity and entity resolution across tasks, PRs, commits, sessions, agent runs, deploys, incidents, services, and teams.
+- [ ] **BOS-INT-03**: Voss specifies historical backfill and ongoing ingestion requirements without pulling secrets, credentials, or sensitive production records into planning artifacts.
+
+### Policy And Evaluation
+
+- [ ] **BOS-POL-01**: Voss specifies a heuristic delegation policy baseline before any learned delegation policy.
+- [ ] **BOS-POL-02**: Voss specifies review-depth and validation-depth policy baselines before any learned reduction in human review or test coverage.
+- [ ] **BOS-POL-03**: Voss specifies policy versioning, replay, holdouts, and shadow-mode requirements.
+- [ ] **BOS-RL-01**: Voss specifies the Python learning/eval lab boundary and how it consumes exported event/decision/outcome data.
+- [ ] **BOS-RL-02**: Voss specifies offline replay, counterfactual evaluation, and guardrail gates before contextual bandits or RL.
+- [ ] **BOS-RL-03**: Voss specifies that online learning and autonomy increases are future work gated by enough logged decisions and safety review.
+
+### Behavioral Science
+
+- [ ] **BOS-BEH-01**: Voss specifies behavioral interventions as optional recommendations, not coercive automation.
+- [ ] **BOS-BEH-02**: Voss specifies fatigue, mute, sentiment, fairness, and focus-time guardrails for nudges and alerts.
+- [ ] **BOS-BEH-03**: Voss specifies team working-agreement primitives that can later support behavioral recommendations.
+
+### Stack Architecture
+
+- [x] **BOS-ARCH-01**: Voss documents the target monorepo shape for desktop app, web app, backend/event services, shared contracts, SDKs, and RL/eval services. ✓ BOS2-01
+- [x] **BOS-ARCH-02**: Voss decides which languages own each layer: TypeScript for web/shared contracts, Python for learning/eval, existing Python harness/server for local runtime, Rust/Tauri for desktop shell, and Go/Rust SDKs where already established. ✓ BOS2-01
+- [x] **BOS-ARCH-03**: Voss defines package/workspace evolution for the current pnpm workspace and any future Turborepo-style orchestration. ✓ BOS2-01
+- [x] **BOS-ARCH-04**: Voss documents data-store options and migration boundaries for local-first event logs, team-shared data, and analytics/offline-eval workloads. ✓ BOS2-01
+
+### Governance
+
+- [ ] **BOS-GOV-01**: Voss documents trust defaults: team-level reporting, no individual rankings, no raw activity scoring, and no nudge-engagement optimization.
+- [ ] **BOS-GOV-02**: Voss documents human approval, override logging, autonomy bands, and kill-switch expectations for every recommendation surface.
+- [ ] **BOS-GOV-03**: Voss documents privacy boundaries for code, prompts, agent sessions, calendar/identity data, and incident/deploy metadata.
+- [ ] **BOS-GOV-04**: Voss defines guardrail dashboards for fatigue, fairness, escaped defects, incidents, autonomy creep, and reward hacking.
+
+### Future PM Suite Path
+
+- [ ] **BOS-PM-01**: Voss defines the future path from recommendation/control plane into engineering-specific project management without committing to a Jira replacement in v0.2.
+- [ ] **BOS-PM-02**: Voss defines which PM primitives are first-class engineering objects: tasks, PRs, services, teams, incidents, agent runs, decisions, and outcomes.
+- [ ] **BOS-PM-03**: Voss documents which Atlassian-like capabilities are deferred until the decision/outcome dataset exists.
 
 ## v0.1 Requirements
 
@@ -132,10 +218,10 @@ M7 promotes the missing names so private-path drift stops binding callers.
 
 ### Deferred Product Surface
 
-- **TEAM-01**: Cloud sync.
-- **TEAM-02**: Team collaboration.
-- **TEAM-03**: Account system.
-- **WEB-01**: Web UI.
+- **TEAM-01**: Cloud sync. v0.2 may define architecture, but not implementation.
+- **TEAM-02**: Team collaboration. v0.2 may define control-plane requirements, but not implementation.
+- **TEAM-03**: Account system. v0.2 may define tenant boundaries, but not implementation.
+- **WEB-01**: Web UI. v0.2 may define the web control plane, but not implementation.
 
 ## Out of Scope
 
@@ -148,8 +234,8 @@ M7 promotes the missing names so private-path drift stops binding callers.
 | Debugger or full LSP | Generated Python, diagnostics, and harness validation are enough for v0.1 |
 | Distributed or multi-machine agents | Local bounded execution first |
 | Fine-tuning or training loops | v0.1 is inference and workflow control only |
-| Cloud sync, teams, accounts, marketplace | Not needed for the repo-centric MVP |
-| Web UI or split-pane TUI | CLI-first product surface |
+| Cloud sync, teams, accounts, marketplace | Out of scope for v0.1 implementation; v0.2 may define future architecture only |
+| Web UI or split-pane TUI | Out of scope for v0.1 implementation; BOS reopens web as a shared control-plane design question |
 | Windows support | Defer until core loop works |
 | Broad OSS launch campaign | Behavior must be proven first |
 
@@ -157,6 +243,24 @@ M7 promotes the missing names so private-path drift stops binding callers.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| BOS-PROD-01..04, BOS-PLAN-01..04 | BOS1 | Active |
+| BOS-ARCH-01..04, BOS-PROD-04 | BOS2 | Active |
+| BOS-DATA-01, BOS-DATA-06, BOS-DATA-07 | BOS3 | Active; runtime projection and local ledger implemented |
+| BOS-DATA-02 | BOS4 | Active; schema exists, runtime work next |
+| BOS-DATA-03..05 | BOS5 | Active |
+| BOS-GOV-01..04 | BOS6 | Active |
+| BOS-PROD-04, BOS-SWARM-04, BOS-WORK-03 | BOS7 | Active |
+| BOS-WORK-01..03 | BOS8 | Active |
+| BOS-POL-01..03, BOS-REC-01..03, BOS-BEH-01..03 | BOS9 | Active |
+| BOS-SWARM-01..04 | BOS10 | Active |
+| BOS-INT-01, BOS-INT-03 | BOS11 | Active |
+| BOS-INT-02 | BOS12 | Active |
+| BOS-DATA-05, BOS-POL-03, BOS-RL-02 | BOS13 | Active |
+| BOS-RL-01..03 | BOS14 | Active |
+| BOS-POL-03, BOS-REC-02 | BOS15 | Active |
+| BOS-PROD-04, BOS-SWARM-04 | BOS16 | Active |
+| BOS-PM-01..03 | BOS17 | Active |
+| BOS-PM-01..03 | BOS18 | Active |
 | SCOPE-01..04 | M0 | Pending |
 | CLIH-01..10 | M1 | Pending |
 | CTRL-01..09 | M1 | Pending |
@@ -168,10 +272,11 @@ M7 promotes the missing names so private-path drift stops binding callers.
 | SDK-01..05 | M7 | Pending |
 
 **Coverage:**
+- v0.2 BOS implementation requirements: 48 total
 - v0.1 requirements: 64 total (54 original + 5 NPM-* M6 + 5 SDK-* M7)
-- Mapped to phases: 64
-- Unmapped: 0
+- BOS requirements mapped to BOS1-BOS18: 48
+- BOS requirements unmapped: 0
 
 ---
 *Requirements defined: 2026-05-10*
-*Last updated: 2026-05-13 — promoted SDK-01..05 from v0.2 candidate to M7 SDK Polish phase*
+*Last updated: 2026-06-20 after BOS track restart*

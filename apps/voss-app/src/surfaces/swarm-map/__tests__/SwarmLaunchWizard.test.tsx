@@ -65,7 +65,7 @@ describe('SwarmLaunchWizard', () => {
     toRoster(el);
     expect(el.textContent).toContain('Build your roster');
     expect(el.querySelectorAll('.swz-role').length).toBe(4); // coord + 2 + reviewer
-    expect(el.textContent).toContain('2 Builders');
+    expect(el.textContent).toContain('2 Engineers');
     expect(el.textContent).toContain('4 total');
   });
 
@@ -77,7 +77,7 @@ describe('SwarmLaunchWizard', () => {
     ) as HTMLButtonElement;
     crew.click();
     expect(el.querySelectorAll('.swz-role').length).toBe(6); // coord + 4 + reviewer
-    expect(el.textContent).toContain('4 Builders');
+    expect(el.textContent).toContain('4 Engineers');
   });
 
   it('adds and removes builders, renumbering', () => {

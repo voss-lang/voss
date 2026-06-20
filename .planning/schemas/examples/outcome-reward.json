@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "reward_id": "reward-001",
+  "decision_id": "decision-abc123",
+  "objective_vector": {
+    "throughput": 0.9,
+    "quality": 1.0,
+    "rework_cost": 0.0,
+    "flow": 0.85
+  },
+  "weight_set_version": "ws-v1-task-to-agent",
+  "horizon": "short",
+  "computed_at": "2026-06-21T00:00:20Z",
+  "ingest_time": "2026-06-21T00:00:25Z",
+  "scalarized_reward": 0.91
+}

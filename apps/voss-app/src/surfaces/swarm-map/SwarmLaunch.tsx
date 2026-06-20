@@ -79,7 +79,7 @@ const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
             <p class="swarm-empty__title">Launch orchestra</p>
             <p class="swarm-empty__hint">
               No orchestra running. Give Voss a goal, then choose how many
-              builders to assign.
+              engineers to assign.
             </p>
           </div>
         </div>
@@ -101,12 +101,12 @@ const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
 
       <div class="swarm-launch__row">
         <label class="swarm-launch__builders">
-          <span>Builders</span>
+          <span>Engineers</span>
           <input
             type="number"
             min="1"
             max="6"
-            aria-label="Builder count"
+            aria-label="Engineer count"
             value={builders()}
             disabled={busy()}
             onChange={(e) =>

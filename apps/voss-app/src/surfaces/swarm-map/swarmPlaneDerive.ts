@@ -36,16 +36,16 @@ const isBuilder = (name: string) => /^build/i.test(name);
 const isReviewer = (name: string) => /^review/i.test(name);
 
 function roleTag(name: string): string {
-  if (isCoordinator(name)) return 'CONTROLLER';
-  if (isBuilder(name)) return 'BUILD';
-  if (isReviewer(name)) return 'REVIEW';
+  if (isCoordinator(name)) return 'CONDUCTOR';
+  if (isBuilder(name)) return 'ENGINEER';
+  if (isReviewer(name)) return 'AUDITOR';
   return name.toUpperCase();
 }
 
 function displayName(name: string, ordinal?: number): string {
-  if (isCoordinator(name)) return 'Coordinator';
-  if (isBuilder(name)) return ordinal != null ? `Builder ${ordinal}` : 'Builder';
-  if (isReviewer(name)) return ordinal != null ? `Reviewer ${ordinal}` : 'Reviewer';
+  if (isCoordinator(name)) return 'Conductor';
+  if (isBuilder(name)) return ordinal != null ? `Engineer ${ordinal}` : 'Engineer';
+  if (isReviewer(name)) return ordinal != null ? `Auditor ${ordinal}` : 'Auditor';
   return name;
 }
 
@@ -84,7 +84,7 @@ export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
     id: objId,
     type: 'objective',
     runId: swarmId,
-    label: snapshot.goal || 'Coordinator',
+    label: snapshot.goal || 'Conductor',
     role: 'coordinator',
     work: snapshot.goal || undefined,
     model: coordRole?.model && coordRole.model !== 'default' ? coordRole.model : undefined,

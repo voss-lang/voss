@@ -31,6 +31,7 @@ import {
   swarmGates,
   swarmOperatorNeeds,
   swarmLiveEdges,
+  swarmEventSeq,
   activeSwarmId,
 } from '../../org/live/swarmLive';
 import { paneIdForCard } from '../../org/model/bridge';
@@ -82,9 +83,11 @@ const SwarmMap: Component = () => {
     () => {
       const srv = liveServer();
       if (!srv) return null;
-      // Refetch triggers: a new swarm.* event (length), or a freshly-launched
-      // swarm id → re-pull the authoritative roster/task-state snapshot.
-      return { srv, tick: swarmLiveEdges().length, id: activeSwarmId() };
+      // Refetch triggers: a new swarm.* event (monotonic seq — NOT the live-edge
+      // ring length, which plateaus at MAX_LIVE_EDGES and would freeze refetch
+      // once saturated), or a freshly-launched swarm id → re-pull the
+      // authoritative roster/task-state snapshot.
+      return { srv, tick: swarmEventSeq(), id: activeSwarmId() };
     },
     async (k: {
       srv: NonNullable<ReturnType<typeof liveServer>>;
@@ -256,7 +259,15 @@ const SwarmMap: Component = () => {
     });
   };
 
-  const hasGraph = () => graph().nodes.length > 0;
+  // A real swarm to render: the live V25 plane, or a legacy run graph with
+  // actual structure (work / agent / artifact nodes). A lone objective or
+  // placeholder from an idle focused run is NOT a swarm — fall through to the
+  // launch wizard instead of rendering a phantom "CONTROLLER" node.
+  const hasSwarm = () =>
+    onPlane() ||
+    graph().nodes.some(
+      (n) => n.type === 'work' || n.type === 'agent' || n.type === 'artifact',
+    );
 
   return (
     <div class="surface swarm-map" role="tabpanel" aria-label="Orchestra">
@@ -291,7 +302,7 @@ const SwarmMap: Component = () => {
             }
           >
             <Show
-              when={hasGraph()}
+              when={hasSwarm()}
               fallback={
                 <Show when={!launchOpen()}>
                   <div class="swarm-empty swarm-empty--wizard">

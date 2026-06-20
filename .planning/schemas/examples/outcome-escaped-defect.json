@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "outcome_id": "outcome-escapeddefect-001",
+  "entity_id": "task-abc123",
+  "entity_type": "task",
+  "trace_id": "trace-abc123",
+  "event_time": "2026-07-15T00:00:00Z",
+  "ingest_time": "2026-07-15T00:10:00Z",
+  "obs_window_id": "escaped-defect-90d",
+  "source_rule": "rule:incident_attribution",
+  "label_type": "escaped_defect",
+  "severity": "medium",
+  "supersedes_outcome_id": "outcome-cleanmerge-001"
+}

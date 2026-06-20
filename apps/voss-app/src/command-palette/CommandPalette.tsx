@@ -168,7 +168,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
         role="dialog"
         aria-modal="true"
         data-testid="command-palette"
-        class="font-mono"
+        class="font-ui"
         style={{
           width: 'min(680px, calc(100vw - 64px))',
           'max-height': 'min(520px, calc(100vh - 96px))',

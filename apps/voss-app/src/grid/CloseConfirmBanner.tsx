@@ -62,7 +62,7 @@ export default function CloseConfirmBanner(props: {
 
   return (
     <div
-      class="font-mono bg-bg-3"
+      class="font-ui bg-bg-3"
       role="alertdialog"
       style={{
         display: 'flex',

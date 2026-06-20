@@ -14,6 +14,7 @@ Serialize per-event with `.model_dump_json()`. Parse an unknown event with
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
@@ -191,7 +192,17 @@ class GateUpdated(_Base):
 # swarmReconcile can consume them directly off the existing SSE bus.
 
 
-class SwarmAssign(_Base):
+class _SwarmBase(_Base):
+    """Swarm events fan out to EVERY session queue (app.py `_emit_swarm_event`),
+    so a single logical event is delivered N times — once per swarm member. `eid`
+    is generated ONCE at construction and shared across all fan-out copies (the
+    same instance is enqueued to every queue), giving consumers a stable key to
+    dedup the broadcast duplicates without dropping genuine later re-events."""
+
+    eid: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+
+
+class SwarmAssign(_SwarmBase):
     type: Literal["swarm.assign"] = "swarm.assign"
     swarm_id: str
     task_id: str
@@ -200,7 +211,7 @@ class SwarmAssign(_Base):
     role: str
 
 
-class SwarmWorkerDone(_Base):
+class SwarmWorkerDone(_SwarmBase):
     type: Literal["swarm.worker_done"] = "swarm.worker_done"
     swarm_id: str
     task_id: str
@@ -208,7 +219,7 @@ class SwarmWorkerDone(_Base):
     summary: str | None = None
 
 
-class SwarmGate(_Base):
+class SwarmGate(_SwarmBase):
     type: Literal["swarm.gate"] = "swarm.gate"
     swarm_id: str
     task_id: str
@@ -216,7 +227,7 @@ class SwarmGate(_Base):
     detail: str
 
 
-class SwarmNeedsOperator(_Base):
+class SwarmNeedsOperator(_SwarmBase):
     type: Literal["swarm.needs_operator"] = "swarm.needs_operator"
     swarm_id: str
     task_id: str
@@ -225,7 +236,7 @@ class SwarmNeedsOperator(_Base):
     path: str | None = None  # the denied file path
 
 
-class SwarmComplete(_Base):
+class SwarmComplete(_SwarmBase):
     type: Literal["swarm.complete"] = "swarm.complete"
     swarm_id: str
     task_count: int
