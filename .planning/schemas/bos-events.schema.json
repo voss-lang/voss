@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voss.local/.planning/schemas/bos-events/v1.schema.json",
+  "title": "BOS Engineering Event Schema",
+  "description": "Normative machine-readable contract for the Voss Behavioral OS engineering event log. Source of truth for ingestion, codegen, and validation. Human spec: .planning/BOS-EVENT-SCHEMA.md.",
+  "type": "object",
+  "$comment": "schema_version=1; breaking changes increment schema_version and require a migration note in BOS-EVENT-SCHEMA.md; additive changes (new optional field, new event_type under an existing category, filling a reserved payload) do NOT bump. Mirrors PROTOCOL.md v + migration-note convention. PROJECTION-DERIVED fields (never source-carried, D-03): ingest_time, trace_id, caused_by. external_identity_ref is the RESERVED BOS12 cross-integration identity hook (present-but-null in v1). Security: payloads MUST NOT carry secrets/credentials/PII; payload fields are enumerated, not free-form dumps; inherit the existing session-redaction invariant (tests/harness/test_session_redaction.py).",
+  "required": [
+    "schema_version", "event_id", "event_type", "category",
+    "event_time", "ingest_time", "trace_id",
+    "parent_event_id", "caused_by", "actor",
+    "source_ref", "external_identity_ref", "payload"
+  ],
+  "allOf": [{ "$ref": "#/$defs/envelope" }],
+  "oneOf": [
+    { "properties": { "category": { "const": "session" },     "payload": { "$ref": "#/$defs/payload.session" } } },
+    { "properties": { "category": { "const": "swarm" },       "payload": { "$ref": "#/$defs/payload.swarm" } } },
+    { "properties": { "category": { "const": "task" },        "payload": { "$ref": "#/$defs/payload.task" } } },
+    { "properties": { "category": { "const": "file" },        "payload": { "$ref": "#/$defs/payload.file" } } },
+    { "properties": { "category": { "const": "review" },      "payload": { "$ref": "#/$defs/payload.reserved" } } },
+    { "properties": { "category": { "const": "ci" },          "payload": { "$ref": "#/$defs/payload.reserved" } } },
+    { "properties": { "category": { "const": "validation" },  "payload": { "$ref": "#/$defs/payload.reserved" } } },
+    { "properties": { "category": { "const": "deploy" },      "payload": { "$ref": "#/$defs/payload.reserved" } } },
+    { "properties": { "category": { "const": "incident" },    "payload": { "$ref": "#/$defs/payload.reserved" } } }
+  ],
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "description": "Common bitemporal envelope present on every event of every category (D-01, D-02, D-03, D-04).",
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1, "description": "Drift detection; mirrors PROTOCOL.md v." },
+        "event_id": { "type": "string", "minLength": 1, "description": "Stable unique id; derived from source id (swarm id / run id / node id)." },
+        "event_type": { "type": "string", "pattern": "^[a-z]+(\\.[a-z_]+)+$", "description": "Namespaced discriminator, e.g. task.completed, session.started. Namespaced by category so external categories add values without colliding." },
+        "category": {
+          "type": "string",
+          "enum": ["session", "swarm", "task", "file", "review", "ci", "validation", "deploy", "incident"],
+          "description": "9-value taxonomy (D-01). LIVE: session, swarm, task, file. RESERVED: review, ci, validation, deploy, incident (field detail deferred to BOS12)."
+        },
+        "event_time": { "type": "string", "format": "date-time", "description": "Actual/valid time — when it occurred in the world. FROM SOURCE timestamp. (Fowler actual time; SQL:2011 valid time; XTDB valid-time.)" },
+        "ingest_time": { "type": "string", "format": "date-time", "description": "Transaction/record time — when BOS recorded it. PROJECTION-ASSIGNED, never source-derived. Invariant: ingest_time >= event_time; for retroactive outcomes ingest_time > event_time. (Fowler record time; SQL:2011 transaction time; XTDB transaction-time.)" },
+        "trace_id": { "type": "string", "minLength": 1, "description": "Root correlation id threading the full lineage (D-04). PROJECTION-DERIVED (join of originating user-task/root-session id; swarm runs inherit; standalone runs use session id)." },
+        "parent_event_id": { "type": ["string", "null"], "description": "Lineage parent event id; null at a root event. Partial source derivability (parent_id / parent_run_id / lineage_parent_id)." },
+        "caused_by": { "type": ["string", "null"], "description": "Explicit causation pointer (D-04). PROJECTION-DERIVED; null when no explicit cause." },
+        "actor": { "type": ["string", "null"], "description": "Who/what produced the event (operator/coordinator/builder/system). Partial source derivability (swarm actor; missing on watch/some SSE)." },
+        "source_ref": {
+          "type": "object",
+          "description": "Provenance back-pointer to the originating harness record (D-03 derivation proof).",
+          "required": ["source", "ref"],
+          "properties": {
+            "source": { "type": "string", "enum": ["swarm_log", "session", "audit", "sse", "watch"] },
+            "ref": { "type": "string", "minLength": 1, "description": "Source-local id or path." }
+          },
+          "additionalProperties": false
+        },
+        "external_identity_ref": {
+          "type": ["object", "null"],
+          "description": "RESERVED hook for BOS12 cross-integration identity resolution (D-04 scope note). Present-but-null for all live (v1) events.",
+          "$comment": "BOS12 will populate this with cross-integration identity (e.g. same human across Git/PM/CI accounts). Null in v1."
+        },
+        "payload": { "type": "object", "description": "Category/type-specific fields. Bound per-category by the top-level oneOf. Consumers MUST ignore unknown payload keys (additive-tolerant, mirrors extra=ignore)." }
+      },
+      "unevaluatedProperties": false
+    },
+    "payload.session": {
+      "type": "object",
+      "description": "LIVE session-category payload. Sources: SessionRecord + SSE final/status/stream.finalize + RunRecord.",
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "parent_session_id": { "type": ["string", "null"] },
+        "started_at": { "type": "string", "format": "date-time" },
+        "ended_at": { "type": ["string", "null"], "format": "date-time" },
+        "model": { "type": ["string", "null"] },
+        "total_cost_usd": { "type": "number", "minimum": 0 },
+        "turn_count": { "type": "integer", "minimum": 0 },
+        "tokens": { "type": "object", "description": "Optional token accounting (input/output/cache) from SSE status.", "additionalProperties": { "type": "integer", "minimum": 0 } },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "From SSE final/stream.finalize." },
+        "ctx_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100, "description": "Context-window utilization from SSE status." }
+      },
+      "required": ["session_id", "started_at"],
+      "$comment": "Closed payload: new optional fields are additive (no version bump). Security: no secrets/PII — inherit session-redaction invariant."
+    },
+    "payload.swarm": {
+      "type": "object",
+      "description": "LIVE swarm-category payload. Sources: swarm.create/swarm.assign + SSE swarm.gate/needs_operator/complete.",
+      "properties": {
+        "swarm_id": { "type": "string", "minLength": 1 },
+        "task_id": { "type": ["string", "null"] },
+        "session_id": { "type": ["string", "null"] },
+        "goal": { "type": ["string", "null"] },
+        "cwd": { "type": ["string", "null"] },
+        "roster": { "type": "array", "items": { "type": "string" } },
+        "owned_files": { "type": "array", "items": { "type": "string" } },
+        "role": { "type": ["string", "null"] },
+        "gate_type": { "type": ["string", "null"], "enum": ["ownership_denied", "reviewer_reject", null], "description": "From SSE swarm.gate." },
+        "gate_detail": { "type": ["string", "null"] },
+        "tool_name": { "type": ["string", "null"], "description": "From SSE swarm.needs_operator." },
+        "tool_path": { "type": ["string", "null"] },
+        "task_count": { "type": ["integer", "null"], "minimum": 0, "description": "From SSE swarm.complete." },
+        "summary": { "type": ["string", "null"] }
+      },
+      "required": ["swarm_id"],
+      "$comment": "Closed payload: additive-tolerant. No secrets/PII."
+    },
+    "payload.task": {
+      "type": "object",
+      "description": "LIVE task-category payload. Sources: swarm.task/swarm.worker_done + RunRecord (goal, exit_reason in EXIT_REASONS, changed[]) + SSE plan.",
+      "properties": {
+        "task_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": ["string", "null"] },
+        "swarm_id": { "type": ["string", "null"] },
+        "run_id": { "type": ["string", "null"], "description": "RunRecord id when the task is an agent run." },
+        "goal": { "type": "string" },
+        "owned_files": { "type": "array", "items": { "type": "string" } },
+        "depends_on": { "type": "array", "items": { "type": "string" } },
+        "exit_reason": { "type": ["string", "null"], "enum": ["done", "timeout", "interrupt", "budget", "error", null], "description": "EXIT_REASONS-style enum from RunRecord." },
+        "changed": { "type": "array", "items": { "type": "string" }, "description": "RunRecord.changed[] paths." },
+        "summary": { "type": ["string", "null"] },
+        "cost_usd": { "type": ["number", "null"], "minimum": 0 },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "From SSE plan/final." },
+        "plan_steps": { "type": "array", "items": { "type": "object" }, "description": "From SSE plan.steps[]. Closed-shape not enforced (additive)." }
+      },
+      "required": ["task_id", "goal"],
+      "$comment": "Closed payload: additive-tolerant. exit_reason is the EXIT_REASONS enum (done/timeout/interrupt/budget/error). No secrets/PII."
+    },
+    "payload.file": {
+      "type": "object",
+      "description": "LIVE file-category payload. PRIMARY source: RunRecord.changed/inspected/avoided (correlated, run-scoped). SECONDARY source: watch/backend.py (ts_ms epoch ms, NO correlation — best-effort, requires enrichment). SSE tool(fs_*).",
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "operation": { "type": "string", "enum": ["created", "modified", "deleted", "moved", "inspected", "avoided"], "description": "created/modified/deleted/moved from watch; inspected/avoided from RunRecord." },
+        "src_path": { "type": ["string", "null"], "description": "For moved events (watch src_path)." },
+        "task_id": { "type": ["string", "null"], "description": "Correlation; null for uncorrelated watch events (best-effort)." },
+        "session_id": { "type": ["string", "null"] },
+        "run_id": { "type": ["string", "null"] },
+        "swarm_id": { "type": ["string", "null"] },
+        "ts_ms": { "type": ["integer", "null"], "minimum": 0, "description": "Raw watch epoch-ms timestamp; normalized to event_time by the projection (Pitfall 5)." },
+        "diff_summary": { "type": ["string", "null"], "description": "From RunRecord.diff_summary." },
+        "tool_name": { "type": ["string", "null"], "description": "From SSE tool.name (fs_write/fs_edit/fs_edit_many)." }
+      },
+      "required": ["path", "operation"],
+      "$comment": "Closed payload: additive-tolerant. file events are never orphaned: trace_id + parent_event_id always thread back to the owning task. No secrets/PII (no file contents — paths only)."
+    },
+    "payload.reserved": {
+      "type": "object",
+      "description": "RESERVED external-category stub (review, ci, validation, deploy, incident). Envelope-only in v1; an external event validates against the envelope today with zero version bump.",
+      "properties": {},
+      "additionalProperties": true,
+      "$comment": "field detail deferred to BOS12 — payload shape will be filled without a schema_version bump (additive under an existing category)."
+    }
+  }
+}

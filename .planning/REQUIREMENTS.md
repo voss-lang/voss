@@ -22,7 +22,7 @@
 
 ### Data And Learning
 
-- [ ] **BOS-DATA-01**: Voss specifies a point-in-time-correct engineering event schema covering tasks, sessions, swarm events, files, reviews, CI, validation, deploys, and incidents.
+- [x] **BOS-DATA-01**: Voss specifies a point-in-time-correct engineering event schema covering tasks, sessions, swarm events, files, reviews, CI, validation, deploys, and incidents. ✓ BOS3-01
 - [ ] **BOS-DATA-02**: Voss specifies a decision ledger for task-to-agent, autonomy band, review depth, validation depth, escalation, and no-action decisions.
 - [ ] **BOS-DATA-03**: Voss specifies outcome labels for clean merge, rework, revert, failed validation, escaped defect, incident, cycle time, and human override.
 - [ ] **BOS-DATA-04**: Voss specifies reward and guardrail metrics before any learning system is introduced.
@@ -241,7 +241,7 @@ M7 promotes the missing names so private-path drift stops binding callers.
 | BOS-PROD-01..03 | BOS0 | Complete (BOS0-01 + BOS0-02) |
 | BOS-PLAN-01..04 | BOS1 | Complete (BOS1-01) |
 | BOS-ARCH-01..04 | BOS2 | Complete (BOS2-01) |
-| BOS-DATA-01 | BOS3 | Pending |
+| BOS-DATA-01 | BOS3 | Complete (BOS3-01) |
 | BOS-DATA-02 | BOS4 | Pending |
 | BOS-DATA-03..04 | BOS5 | Pending |
 | BOS-GOV-01..04 | BOS6 | Pending |
