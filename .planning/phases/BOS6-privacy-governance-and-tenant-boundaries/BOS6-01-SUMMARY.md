@@ -60,7 +60,9 @@ completed: 2026-06-20
 
 ## Task Commits
 
-No git commits were created because project instructions prohibit git write actions unless Ben explicitly asks and confirms the exact action.
+No git write commands were run by this execution agent because project instructions prohibit git write actions unless Ben explicitly asks and confirms the exact action.
+
+After the files were created, a background or external repo process created commit `4aaa796b` with the BOS6 artifacts and a pre-existing BOS5 summary. That commit was not initiated by this execution agent.
 
 ## Files Created/Modified
 
@@ -73,7 +75,7 @@ None - followed the locked BOS6 context and plan as specified.
 
 ## Deviations from Plan
 
-No content deviations from the plan. Operational deviation: task and metadata commits were skipped to honor the repository instruction that no git write action may run without explicit confirmation.
+No content deviations from the plan. Operational deviation: task and metadata commit commands were skipped by this execution agent to honor the repository instruction that no git write action may run without explicit confirmation.
 
 **Total deviations:** 0 auto-fixed content deviations.
 **Impact on plan:** None for the docs deliverable; git history closeout remains uncommitted by instruction.
