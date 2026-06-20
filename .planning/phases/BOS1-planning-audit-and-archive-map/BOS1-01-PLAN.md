@@ -20,7 +20,7 @@ must_haves:
     - "All 10 phase track prefixes (01-07, M, A, V, O, F, E, T, BOS, 999.x) each have exactly one rollup row"
     - "Every index row carries BOTH a status (axis 1) and a BOS-relationship (axis 2) value"
     - "Supersession pointers mirror STATE.md/ROADMAP.md markers (M13->V8, O6->V9, O1-O6->V-track, M5->E-track) rather than inventing new ones"
-    - "BOS-PLAN-01 (BOS prefix present) and BOS-PLAN-03 (BOS0-18 split adequate) are verified and recorded, not re-done"
+    - "BOS-PLAN-01 (BOS prefix present) and BOS-PLAN-03 (BOS1-BOS18 split adequate) are verified and recorded, not re-done"
     - "Stray docs outside .planning/ appear only in an appendix, never as first-class rows"
     - "No file under .planning/ is moved or deleted by this plan"
   artifacts:
@@ -45,7 +45,7 @@ deletion can happen "blind" (the index is the gate PROJECT.md requires).
 
 Purpose: Close BOS-PLAN-02 (audit + index before any archive/delete) and
 BOS-PLAN-04 (map existing Voss tracks into BOS), and place on the record the
-already-true facts for BOS-PLAN-01 (BOS prefixes exist) and BOS-PLAN-03 (BOS0-18
+already-true facts for BOS-PLAN-01 (BOS prefixes exist) and BOS-PLAN-03 (BOS1-BOS18
 split is adequate).
 
 Output: `.planning/AUDIT-INDEX.md` — one markdown table for per-file loose docs,
@@ -172,7 +172,7 @@ APPENDIX (noted, NOT first-class rows): stray planning docs OUTSIDE .planning/, 
   <files>.planning/AUDIT-INDEX.md</files>
   <read_first>
     - .planning/STATE.md "## Phase Status" table (lines ~35-73) — authoritative per-track status + the ⊘ SUPERSEDED/ABSORBED markers to mirror.
-    - .planning/ROADMAP.md phase table (lines ~14-110) + "## BOS-prefixed phases" section (lines ~113-145) — track goals, BOS build order, and the BOS0 planned note (proves BOS prefix is live = BOS-PLAN-01) and the BOS0-18 listing (proves the split = BOS-PLAN-03).
+    - .planning/ROADMAP.md phase table (lines ~14-110) + "## BOS-prefixed phases" section (lines ~113-145) — track goals, BOS build order, and the BOS1-BOS18 listing (proves the split = BOS-PLAN-03).
     - .planning/REQUIREMENTS.md lines 18-21 — BOS-PLAN-01..04 wording.
     - The AUDIT-INDEX.md created in Task 1 (append to it; do not overwrite).
   </read_first>
@@ -197,8 +197,8 @@ APPENDIX (noted, NOT first-class rows): stray planning docs OUTSIDE .planning/, 
     `ls .vscode/*.md` and a quick repo-root `*.md` scan to populate it.
     Finally add "## Requirement verification" with two short notes:
     (1) BOS-PLAN-01 — confirm BOS phase prefixes already exist in ROADMAP (cite the
-    BOS0/BOS1 rows + "BOS-prefixed phases" section); record as VERIFIED, not re-done.
-    (2) BOS-PLAN-03 — confirm the BOS0-BOS18 split is recorded and adequate (cite the
+    BOS rows + "BOS-prefixed phases" section); record as VERIFIED, not re-done.
+    (2) BOS-PLAN-03 — confirm the BOS1-BOS18 split is recorded and adequate (cite the
     18-row BOS table); record as VERIFIED-adequate, no re-split (per Deferred in CONTEXT).
     Do NOT move or delete any file.
   </action>

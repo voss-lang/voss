@@ -1,4 +1,4 @@
-# Phase BOS0: Product Thesis, ICP, and Wedge - Context
+# BOS1 Product Thesis, ICP, and Wedge - Context
 
 **Gathered:** 2026-06-18
 **Status:** Ready for planning
@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-BOS0 produces two docs-first artifacts that anchor the v0.2 Behavioral OS milestone:
+BOS1 includes two product-context artifacts that anchor the v0.2 Behavioral OS milestone:
 1. **Product brief** — boundary, ICP, buyer/user split, wedge, positioning (covers BOS-PROD-01..03).
 2. **Design-partner discovery script** — the validation questions for first interviews.
 
@@ -61,7 +61,7 @@ This phase decides WHO the Behavioral OS is for and WHAT the first wedge is. It 
 - V25 server-native swarm runtime (SwarmStore, `swarm.assign`, per-task `ownedFiles`, PermissionGate) — the delegation wedge is a label/recommendation layer over events this already emits. Docs-first phase: no code reuse yet, but the brief's wedge claim depends on this substrate existing.
 
 ### Established Patterns
-- Docs-first BOS track: every BOS phase produces a contract/spec before code. BOS0 sets the product framing all later BOS specs inherit.
+- Product-context precedent: BOS1 sets the product framing all later BOS specs inherit.
 
 ### Integration Points
 - None (docs-only). The product brief frames how the existing harness/server/ADE/swarm substrate becomes a team decision/outcome system; later phases (BOS3+) define the actual data contracts.
@@ -77,8 +77,8 @@ This phase decides WHO the Behavioral OS is for and WHAT the first wedge is. It 
 <deferred>
 ## Deferred Ideas
 
-- Competitive set / detailed competitive analysis — can be folded into the brief if useful, but not a locked BOS0 decision.
-- Pricing hypothesis / willingness-to-pay framing — discovery probes it after problem validation (D-07); not a BOS0 deliverable.
+- Competitive set / detailed competitive analysis — can be folded into the brief if useful, but not locked here.
+- Pricing hypothesis / willingness-to-pay framing — discovery probes it after problem validation (D-07); not locked here.
 - Design-partner sourcing plan (where to find the first teams) — operational, outside the brief/script artifacts.
 - Wedge success metric definition — belongs with outcome labels / reward spec (BOS5).
 - Review-depth and validation-depth wedges — explicitly later wedges (D-02).
@@ -87,5 +87,5 @@ This phase decides WHO the Behavioral OS is for and WHAT the first wedge is. It 
 
 ---
 
-*Phase: BOS0-product-thesis-icp-and-wedge*
+*Phase: BOS1-planning-audit-and-archive-map*
 *Context gathered: 2026-06-18*

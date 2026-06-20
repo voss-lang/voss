@@ -127,7 +127,7 @@ identity resolution (BOS12 — BOS8 reserves the slot only).
 - `.planning/phases/BOS7-web-control-plane-boundary/BOS7-CONTEXT.md` — D-01 (backend owns projection),
   D-02 (structured-signal-only crosses desktop→server). BOS8's projection model is the kind of
   derived state BOS7 places in backend services.
-- `.planning/phases/BOS0-product-thesis-icp-and-wedge/BOS0-CONTEXT.md` — wedge = delegation
+- `.planning/phases/BOS1-planning-audit-and-archive-map/BOS1-PRODUCT-CONTEXT.md` — wedge = delegation
   (task→agent); the work model's central object is the delegatable task.
 
 ### Existing substrate (the observed sources work items project FROM — D-05)

@@ -98,7 +98,7 @@ backend; it specifies the logical event contract, leaving physical store to BOS2
 - `voss/harness/watch/backend.py` — long-running/watch events (potential source).
 
 ### Prior BOS context
-- `.planning/phases/BOS0-product-thesis-icp-and-wedge/BOS0-CONTEXT.md` — wedge = delegation (task→agent); the event schema must capture delegation decisions + their observable signals (D-02 swarm.assign is the first event source).
+- `.planning/phases/BOS1-planning-audit-and-archive-map/BOS1-PRODUCT-CONTEXT.md` — wedge = delegation (task→agent); the event schema must capture delegation decisions + their observable signals (D-02 swarm.assign is the first event source).
 - `.planning/phases/BOS1-planning-audit-and-archive-map/BOS1-CONTEXT.md` — sibling docs-first BOS phase (pattern reference).
 - `.planning/docs/ORCHESTRATION_LAYERS.md` — V-track agent-org design; V25 server-native swarm is the first ADE event source feeding BOS.
 - `.planning/seeds/SEED-001-coordination-bus.md` — planted context; external-agent events arrive as CLI verbs over the existing server plane (relevant to external-event placeholders, D-01).

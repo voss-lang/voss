@@ -9,7 +9,7 @@ requires: []
 provides:
   - "AUDIT-INDEX.md — two-axis classification (status × BOS-relationship) of the full .planning corpus + track rollup + external appendix"
   - "Gate that makes any later archive/delete 'not blind' (PROJECT.md out-of-scope bar satisfied)"
-  - "BOS-PLAN-01 verified (BOS prefix live), BOS-PLAN-03 verified-adequate (BOS0-18 split recorded)"
+  - "BOS-PLAN-01 verified (BOS prefix live), BOS-PLAN-03 verified-adequate (BOS1-BOS18 split recorded)"
 affects: [BOS1-02, BOS2, BOS3]
 
 # Tech tracking
@@ -27,7 +27,7 @@ key-decisions:
   - "Audit net (D-01): 25 per-file rows (12 loose root + 6 seeds + 5 notes + 2 docs) + 10 track-rollup rows + external appendix."
   - "Index-first gate (D-04): AUDIT-INDEX.md exists before any move/delete; no files touched by this plan."
   - "Supersession pointers mirrored from STATE.md/ROADMAP.md (O1-O6→V-track, M13→V8, M5→E-track, A13-02..06→V25, RUST-PORT→HYBRID-REFACTOR) — none invented."
-  - "BOS-PLAN-01 (BOS prefix live in ROADMAP) and BOS-PLAN-03 (BOS0-18 split adequate) recorded as VERIFIED, not re-done."
+  - "BOS-PLAN-01 (BOS prefix live in ROADMAP) and BOS-PLAN-03 (BOS1-BOS18 split adequate) recorded as VERIFIED, not re-done."
 
 patterns-established:
   - "Audit index as the structural gate satisfying PROJECT.md's no-blind-deletion out-of-scope bar."
@@ -55,7 +55,7 @@ completed: 2026-06-19
 - AUDIT-INDEX.md written with 25 per-file rows (12 loose root plans + 6 seeds + 5 notes + 2 docs) and 10 track-rollup rows (01-07, M, A, V, O, F, E, T, BOS, 999.x).
 - Every data row carries both a status enum (active|historical|superseded|archive-candidate) and a BOS-relationship enum (substrate|dependency|historical-context|out-of-scope) — machine-verified.
 - Supersession pointers mirror STATE.md/ROADMAP.md exactly: O1-O6→V-track, M13→V8, M5→E-track, A13-02..06→V25, RUST-PORT-PLAN→HYBRID-REFACTOR-PLAN. No invented chains.
-- BOS-PLAN-01 (BOS prefix live) and BOS-PLAN-03 (BOS0-18 split adequate) recorded as VERIFIED in the Requirement verification section.
+- BOS-PLAN-01 (BOS prefix live) and BOS-PLAN-03 (BOS1-BOS18 split adequate) recorded as VERIFIED in the Requirement verification section.
 - External appendix lists 4 stray docs outside .planning/: `.vscode/voss_v_0_1_scope_lock.md`, `PRD.md`, `README.md`, `SECURITY_AUDIT_REPORT.md` — all marked non-first-class.
 - Zero files moved or deleted; zero code fences; no system planning docs leaked as rows.
 

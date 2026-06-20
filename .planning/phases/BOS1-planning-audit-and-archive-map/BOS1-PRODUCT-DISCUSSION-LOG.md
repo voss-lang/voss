@@ -1,10 +1,10 @@
-# Phase BOS0: Product Thesis, ICP, and Wedge - Discussion Log
+# BOS1 Product Thesis, ICP, and Wedge - Discussion Log
 
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
 **Date:** 2026-06-18
-**Phase:** BOS0-product-thesis-icp-and-wedge
+**Phase:** BOS1-planning-audit-and-archive-map
 **Areas discussed:** ICP / first beachhead, Primary wedge, Buyer/user + motion, Discovery script intent, Adoption-tension resolution, Positioning/category
 
 ---

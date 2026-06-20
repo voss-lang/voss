@@ -1,6 +1,6 @@
 """Projection helpers for BOS engineering events.
 
-BOSI1 intentionally keeps this layer pure: it reads existing session/run/swarm
+BOS3 intentionally keeps this layer pure: it reads existing session/run/swarm
 records and returns BOS-schema dictionaries. It does not write back to the
 source records, append a ledger, or alter the server/SSE event plane.
 """

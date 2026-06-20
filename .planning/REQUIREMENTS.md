@@ -2,27 +2,18 @@
 
 **Defined:** 2026-05-10
 **Core Value:** An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
-**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1), BOS milestone discussion (2026-06-18), BOSR reset (2026-06-20), `.planning/seeds/SEED-001-coordination-bus.md`, V25 server-native swarm runtime context.
+**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1), BOS milestone discussion (2026-06-18), BOS track restart (2026-06-20), `.planning/seeds/SEED-001-coordination-bus.md`, V25 server-native swarm runtime context.
 
-## v0.2 BOSR Runtime Foundation Requirements
+## v0.2 BOS Implementation Requirements
 
-- [x] **BOSR-01**: Voss reconciles BOS0-BOS18 and BOSI1-BOSI6 into one active Behavioral OS runtime phase, preserving source knowledge while retiring placeholder phase sprawl. ✓ BOSR-01
-- [x] **BOSR-02**: Voss persists projected BOS events in a local append-only ledger with replay and as-at read helpers. ✓ BOSR-02
-- [ ] **BOSR-03**: Voss records runtime decision rows for task-to-agent, autonomy band, review depth, validation depth, escalation, and no-action decisions.
-- [ ] **BOSR-04**: Voss records outcome labels and reward/guardrail inputs separately from decisions so outcomes cannot leak into decision-time features.
-- [ ] **BOSR-05**: Voss generates shadow-mode heuristic recommendations for delegation, review depth, validation depth, and escalation with approve/override/dismiss/no-op signals.
-- [ ] **BOSR-06**: Voss exposes a local control-plane read model for desktop/web consumption while preserving private-by-default code and prompt boundaries.
-
-## Historical BOS Source Requirements
-
-These requirements remain source material for BOSR. They are no longer mapped
-to separate active BOS0-BOS18 phases.
+These requirements are active across BOS1-BOS18. The track uses only BOS phase
+and plan names; no split-prefix requirement namespace remains active.
 
 ### Product Boundary
 
-- [x] **BOS-PROD-01**: Voss defines the Behavioral OS as a team control plane over AI-assisted engineering work, not as a generic project management clone. ✓ BOS0-01
-- [x] **BOS-PROD-02**: Voss defines the initial wedge around delegation/review/validation decisions that can be observed through the existing ADE and swarm runtime. ✓ BOS0-01
-- [x] **BOS-PROD-03**: Voss documents the ICP, buyer/user split, and first design-partner validation questions for engineering teams using multiple coding agents. ✓ BOS0-01 + BOS0-02
+- [x] **BOS-PROD-01**: Voss defines the Behavioral OS as a team control plane over AI-assisted engineering work, not as a generic project management clone. ✓ BOS1 product brief
+- [x] **BOS-PROD-02**: Voss defines the initial wedge around delegation/review/validation decisions that can be observed through the existing ADE and swarm runtime. ✓ BOS1 product brief
+- [x] **BOS-PROD-03**: Voss documents the ICP, buyer/user split, and first design-partner validation questions for engineering teams using multiple coding agents. ✓ BOS1 product brief + discovery script
 - [ ] **BOS-PROD-04**: Voss defines what belongs in desktop ADE, web control plane, backend services, and local harness runtime.
 
 ### Planning System
@@ -35,6 +26,8 @@ to separate active BOS0-BOS18 phases.
 ### Data And Learning
 
 - [x] **BOS-DATA-01**: Voss specifies a point-in-time-correct engineering event schema covering tasks, sessions, swarm events, files, reviews, CI, validation, deploys, and incidents. ✓ BOS3-01
+- [x] **BOS-DATA-06**: Voss projects existing `SessionRecord`, `RunRecord`, and swarm JSONL events into BOS event-schema dictionaries without mutating source records. ✓ BOS3 runtime projection
+- [x] **BOS-DATA-07**: Voss persists projected BOS events in a local append-only ledger with duplicate-safe replay, filters, and torn-line tolerance. ✓ BOS3 local ledger
 - [ ] **BOS-DATA-02**: Voss specifies a decision ledger for task-to-agent, autonomy band, review depth, validation depth, escalation, and no-action decisions.
 - [ ] **BOS-DATA-03**: Voss specifies outcome labels for clean merge, rework, revert, failed validation, escaped defect, incident, cycle time, and human override.
 - [ ] **BOS-DATA-04**: Voss specifies reward and guardrail metrics before any learning system is introduced.
@@ -250,8 +243,24 @@ M7 promotes the missing names so private-path drift stops binding callers.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOSR-01..06 | BOSR | Active |
-| BOS-PROD/PLAN/ARCH/DATA/GOV/WORK/REC/SWARM/INT/POL/RL/BEH/PM | BOSR source set | Superseded as separate active phases; retained as source requirements |
+| BOS-PROD-01..04, BOS-PLAN-01..04 | BOS1 | Active |
+| BOS-ARCH-01..04, BOS-PROD-04 | BOS2 | Active |
+| BOS-DATA-01, BOS-DATA-06, BOS-DATA-07 | BOS3 | Active; runtime projection and local ledger implemented |
+| BOS-DATA-02 | BOS4 | Active; schema exists, runtime work next |
+| BOS-DATA-03..05 | BOS5 | Active |
+| BOS-GOV-01..04 | BOS6 | Active |
+| BOS-PROD-04, BOS-SWARM-04, BOS-WORK-03 | BOS7 | Active |
+| BOS-WORK-01..03 | BOS8 | Active |
+| BOS-POL-01..03, BOS-REC-01..03, BOS-BEH-01..03 | BOS9 | Active |
+| BOS-SWARM-01..04 | BOS10 | Active |
+| BOS-INT-01, BOS-INT-03 | BOS11 | Active |
+| BOS-INT-02 | BOS12 | Active |
+| BOS-DATA-05, BOS-POL-03, BOS-RL-02 | BOS13 | Active |
+| BOS-RL-01..03 | BOS14 | Active |
+| BOS-POL-03, BOS-REC-02 | BOS15 | Active |
+| BOS-PROD-04, BOS-SWARM-04 | BOS16 | Active |
+| BOS-PM-01..03 | BOS17 | Active |
+| BOS-PM-01..03 | BOS18 | Active |
 | SCOPE-01..04 | M0 | Pending |
 | CLIH-01..10 | M1 | Pending |
 | CTRL-01..09 | M1 | Pending |
@@ -263,12 +272,11 @@ M7 promotes the missing names so private-path drift stops binding callers.
 | SDK-01..05 | M7 | Pending |
 
 **Coverage:**
-- v0.2 BOSR active requirements: 6 total
-- Historical BOS source requirements retained: 46 total
+- v0.2 BOS implementation requirements: 48 total
 - v0.1 requirements: 64 total (54 original + 5 NPM-* M6 + 5 SDK-* M7)
-- Mapped to phases: 64
-- Unmapped: 0
+- BOS requirements mapped to BOS1-BOS18: 48
+- BOS requirements unmapped: 0
 
 ---
 *Requirements defined: 2026-05-10*
-*Last updated: 2026-06-20 after BOSR consolidation reset*
+*Last updated: 2026-06-20 after BOS track restart*

@@ -75,7 +75,7 @@ One row per phase-track prefix (91 phase dirs rolled up to 10 tracks). Status so
 | F | active | dependency | v1 Layer 2 substrate features (F1–F6); F3 complete, F1/F2/F4/F5 ready — ADE/harness substrate features BOS depends on | — |
 | E | active | dependency | Internal Proof Suite (E1–E5); E3 ✅ complete, E1 planned, E4 in progress, E2/E5 TBD — on-demand e2e/eval proving the product, BOS validation surface | absorbs M5 eval scope (E1/E2) |
 | T | historical | historical-context | Gap-closure track (T1–T8); T1–T6/T8 implemented/complete, T7 TBD — daily-driver table stakes, mostly landed | — |
-| BOS | active | substrate | Behavioral OS Foundation (BOS0–BOS18); BOS0 ✅ complete, BOS1 in progress — the active milestone this audit serves | — |
+| BOS | active | substrate | Behavioral OS Foundation (BOS1-BOS18); BOS1 product/track reconciliation complete, BOS4 runtime replanning next — the active milestone this audit serves | — |
 | 999.x | archive-candidate | out-of-scope | Deferred voss-app spike phases (999.1 agents-launcher, 999.2 pane-resize-keybind); not committed, parked — outside the active milestone | — |
 
 ## Appendix: stray planning docs outside .planning/
@@ -89,5 +89,5 @@ These are NOT first-class index rows — appendix-only, noted per D-01. Status +
 
 ## Requirement verification
 
-- **BOS-PLAN-01** — VERIFIED. `BOS` phase prefixes already exist in ROADMAP.md: the BOS0 and BOS1 rows appear in the phase table (lines 15–16), and the dedicated `## BOS-prefixed phases: Behavioral OS Foundation` section (lines 113–171) defines BOS0–BOS18 with deliverables. No re-introduction needed — recorded as done.
-- **BOS-PLAN-03** — VERIFIED-adequate. The BOS0–BOS18 split is recorded in ROADMAP.md as an 18-row BOS table (lines 151–171, "BOS phase | Deliverable | Notes") plus per-phase rows in the phase-order table (lines 15–33). The split separates product thesis, stack architecture, data modeling (BOS3–BOS5), governance (BOS6), surfaces/integrations (BOS7–BOS12), policy/eval/RL (BOS13–BOS16), behavioral guardrails (BOS17), and PM-suite expansion (BOS18) into distinct phases. Adequate — no re-split performed.
+- **BOS-PLAN-01** — VERIFIED. `BOS` phase prefixes are the active Behavioral OS convention in ROADMAP.md.
+- **BOS-PLAN-03** — VERIFIED-adequate. The BOS1-BOS18 split is recorded in ROADMAP.md as the active implementation track. The split separates product/track reconciliation, stack architecture, event substrate, decision/outcome runtime, governance, surfaces/integrations, policy/eval/lab work, and expansion gates into distinct phases.

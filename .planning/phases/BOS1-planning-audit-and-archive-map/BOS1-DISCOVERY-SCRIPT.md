@@ -1,4 +1,4 @@
-# BOS0 Discovery Interview Script
+# BOS1 Discovery Interview Script
 
 Mom-Test-style first design-partner interviews for the Voss Behavioral OS (BOS) project. The goal of these conversations is to validate that the problem actually hurts today and to map how delegation decisions are made now — before any wedge is pitched. Interviewers must stay backward-looking and behavior-based: ask what the person did last week / last sprint / on a specific recent task. Never ask "would you use…" or pitch Voss. Save the wedge and willingness-to-pay probes for the end, after the problem is confirmed on the interviewee's own terms.
 
@@ -46,7 +46,7 @@ Probe for concrete artifacts wherever possible: "Can you show me the last place 
 
 ## Wedge resonance
 
-Only now — after the problem is confirmed on the interviewee's own terms — may the delegation wedge be surfaced. The wedge is narrow: a recommendation surface that says, for a given task, whether it should go to an agent or a human, and that captures ownership of the task once assigned. This is the V25 server-native swarm assignment flow (task ownership, operator gates, worker completion, audit) expressed as a recommendation — not a review-depth or validation-depth feature (those are later wedges, out of scope for BOS0). Keep these questions non-leading: do not describe the product, do not ask "would you use it," do not attach a price.
+Only now — after the problem is confirmed on the interviewee's own terms — may the delegation wedge be surfaced. The wedge is narrow: a recommendation surface that says, for a given task, whether it should go to an agent or a human, and that captures ownership of the task once assigned. This is the V25 server-native swarm assignment flow (task ownership, operator gates, worker completion, audit) expressed as a recommendation — not a review-depth or validation-depth feature. Keep these questions non-leading: do not describe the product, do not ask "would you use it," do not attach a price.
 
 1. If your team had a single place that, for a given task, recommended whether it should go to a coding agent or to a human — and recorded who owns it once assigned — what's the first task from last week you'd want that recommendation on? Walk me through that task.
 
@@ -70,4 +70,4 @@ This section is light and behavior-based. It is not a pricing study — pricing 
 
 4. When a new tool has gotten purchased for your team in the past year, what was the trigger that turned "interesting" into "bought"? What was the event?
 
-Close by asking if there's anyone else on the team or in their network running multiple coding agents who'd be worth a conversation — but do not turn this into a sourcing discussion. Sourcing is deferred per the BOS0 context.
+Close by asking if there's anyone else on the team or in their network running multiple coding agents who'd be worth a conversation — but do not turn this into a sourcing discussion. Sourcing is deferred beyond this product-context artifact.

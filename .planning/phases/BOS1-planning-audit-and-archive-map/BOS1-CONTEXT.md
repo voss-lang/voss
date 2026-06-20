@@ -8,14 +8,14 @@
 
 BOS1 inventories the accumulated Voss planning corpus and produces a single
 **audit index** that classifies each doc/track before any archive, supersession,
-or deletion. Docs-first phase, but unlike BOS0 it MAY touch files: after the
+or deletion. Planning-hygiene phases may touch files: after the
 index exists and per-item approval is given, BOS1 archives and deletes
 archive-candidate docs.
 
 Covers BOS-PLAN-01..04:
 - 01: BOS phase prefixes introduced (already done in ROADMAP — verify/record).
 - 02: stale docs audited + indexed before any archive/delete/supersede.
-- 03: roadmap split into enough phases (verify BOS0-18 split is recorded, not re-split).
+- 03: roadmap split into enough phases (verify BOS1-BOS18 split is recorded, not re-split).
 - 04: existing Voss tracks mapped into BOS as substrate / dependency / historical / out-of-scope.
 
 This phase does NOT: design data schemas (BOS3-5), governance (BOS6), or any
@@ -65,12 +65,12 @@ runtime/code. It is a planning-hygiene + track-mapping phase over `.planning/`.
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Phase definition & requirements
-- `.planning/ROADMAP.md` §"BOS-prefixed phases: Behavioral OS Foundation" (lines ~113-140) + BOS phase table (line ~16, BOS1 row) — phase goal, deliverable ("Audit index + no blind deletion"), build order BOS0→BOS1→BOS2.
+- `.planning/ROADMAP.md` §"BOS-prefixed phases: Behavioral OS Implementation Track" + BOS phase table — phase goals, deliverables, and build order.
 - `.planning/REQUIREMENTS.md` lines 18-21 (BOS-PLAN-01..04) + line 242 (coverage row) — the four requirements this phase closes.
 - `.planning/PROJECT.md` — Out-of-Scope bullet "Deleting old planning docs without an audit/archive index" (the constraint D-04 satisfies) + carry-forward stance on historical V/M/A/F/E-track context.
 
 ### Prior phase context
-- `.planning/phases/BOS0-product-thesis-icp-and-wedge/BOS0-CONTEXT.md` — sibling docs-first BOS phase; sets the BOS product framing tracks are mapped against in axis 2.
+- `.planning/phases/BOS1-planning-audit-and-archive-map/BOS1-PRODUCT-CONTEXT.md` — product framing tracks are mapped against in axis 2.
 
 ### Audit target corpus (the thing being inventoried)
 - `.planning/STATE.md` — authoritative per-phase status table + recent activity; primary source for track rollup status (axis 1). NOTE: large file (~317 lines / 77k tokens) — read the Phase Status table and headers, don't load whole.
@@ -108,7 +108,7 @@ runtime/code. It is a planning-hygiene + track-mapping phase over `.planning/`.
 ## Deferred Ideas
 
 - Machine-readable `AUDIT-INDEX.json` sidecar — only if future tooling/automation needs it (D-03).
-- Actually re-splitting the roadmap (BOS-PLAN-03) — BOS0-18 split already exists in ROADMAP.md; BOS1 only *verifies/records* the split is adequate, does not re-architect phases.
+- Actually re-splitting the roadmap (BOS-PLAN-03) — BOS1-BOS18 split exists in ROADMAP.md; BOS1 only *verifies/records* the split is adequate, does not re-architect phases.
 - Cleaning up source-code dead files / non-planning artifacts — out of scope; this audit is the `.planning/` corpus only.
 - Deleting historical V/M/A/F/E-track CONTEXT/SUMMARY artifacts inside phase dirs — track-level rollup classifies the track, but per-file phase-dir pruning is not in BOS1's net (D-01).
 

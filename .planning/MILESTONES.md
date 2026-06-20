@@ -4,7 +4,7 @@
 
 | Version | Name | Status | Started | Notes |
 |---|---|---|---|---|
-| v0.2 | Behavioral OS Foundation | Planning | 2026-06-18 | BOS0-BOS18 docs-first milestone; uses V25 server-native swarm as first ADE event source; includes `SEED-001` as server-plane wrapper context, not as a parallel bus. |
+| v0.2 | Behavioral OS Foundation | Planning | 2026-06-18 | BOS1-BOS18 implementation milestone; uses V25 server-native swarm as first ADE event source; includes `SEED-001` as server-plane wrapper context, not as a parallel bus. |
 
 ## Previous
 

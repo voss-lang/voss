@@ -22,7 +22,7 @@ multi-tenancy (out-of-scope this milestone). No code.
 ## Implementation Decisions
 
 ### Carried Forward (already locked — not re-decided here)
-- High-level split (PROJECT.md + BOS0 D-04): **desktop = local execution/ADE node; web = shared team state + dataset/recommendation review.**
+- High-level split (PROJECT.md + BOS1 product D-04): **desktop = local execution/ADE node; web = shared team state + dataset/recommendation review.**
 - BOS2 architecture: monorepo `apps/web` + `services/*` in one tree; **SQLite (local) → Postgres (shared) one-directional sync**; DuckDB for analytics; V13.1 contracts as drift-gated source of truth.
 - V24 already shipped the **desktop** portal (PortalShell: Overview/Runs/Agents/Swarm Map/Review/Context/Memory/Settings).
 
@@ -72,7 +72,7 @@ multi-tenancy (out-of-scope this milestone). No code.
 
 ### Locked upstream context (carry-forward — DO read, do not contradict)
 - `.planning/PROJECT.md` — "Desktop/Web split" constraint (line 68), "Web is the shared control plane" Key Decision (line 78), Out-of-Scope (no accounts/multi-tenant/billing).
-- `.planning/phases/BOS0-product-thesis-icp-and-wedge/BOS0-CONTEXT.md` — D-03/D-04 (EM buyer, devs already on ADE; web buys the control plane on top).
+- `.planning/phases/BOS1-planning-audit-and-archive-map/BOS1-PRODUCT-CONTEXT.md` — D-03/D-04 (EM buyer, devs already on ADE; web buys the control plane on top).
 - `.planning/phases/BOS2-monorepo-and-stack-architecture/BOS2-ARCHITECTURE.md` (if present from BOS2 plan) — apps/web + services/* tree, SQLite→Postgres one-directional sync, DuckDB. The data-tier mechanics D-02 sits on top of.
 - `.planning/phases/BOS3-engineering-event-schema/BOS3-CONTEXT.md` — derived analytics schema; projection placement (D-01 puts projection in backend services). PROTOCOL.md = harness wire contract (ephemeral loopback token referenced by D-04).
 - `.planning/PROTOCOL.md` — local harness auth (ephemeral loopback bearer token); the identity seam D-04 reserves.

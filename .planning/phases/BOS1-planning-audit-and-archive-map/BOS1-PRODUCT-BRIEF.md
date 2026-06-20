@@ -1,4 +1,4 @@
-# BOS0 Product Brief — Behavioral OS
+# BOS1 Product Brief — Behavioral OS
 
 ## Product boundary
 
@@ -20,7 +20,7 @@ The economic buyer is the **EM / engineering lead**; the daily users are the **d
 
 The first recommendation surface is **delegation — task to agent or human** (BOS-PROD-02, D-02). Delegation is the chosen entry point because it is already modeled in the V25 server-native swarm assignment flow: `swarm.assign`, task ownership, operator gates, worker completion, and the audit files the swarm runtime already emits. Of all the decision surfaces BOS could recommend on, delegation is the most directly observable today — the substrate is already producing the events, so the wedge is a label and recommendation layer over an existing stream, not a new instrumentation project.
 
-Review-depth and validation-depth are explicitly **later** wedges and are out of scope for BOS0. Review-depth needs review-outcome data that the substrate does not yet emit with enough structure; validation-depth depends on CI and validation ingestion that lands at BOS12. BOS0 ships the delegation wedge only. Widening the recommendation surface prematurely would require inventing event sources, and the whole point of the wedge is that the signal already exists.
+Review-depth and validation-depth are explicitly **later** wedges and are out of scope for the first product wedge. Review-depth needs review-outcome data that the substrate does not yet emit with enough structure; validation-depth depends on CI and validation ingestion that lands later in the BOS track. BOS1 locks the delegation wedge only. Widening the recommendation surface prematurely would require inventing event sources, and the whole point of the wedge is that the signal already exists.
 
 ## Positioning
 

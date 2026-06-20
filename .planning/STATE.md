@@ -1,7 +1,7 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.2
-milestone_name: Behavioral OS Runtime Foundation
+milestone_name: Behavioral OS Implementation Track
 status: executing
 last_updated: "2026-06-20T12:00:00.000Z"
 last_activity: 2026-06-20
@@ -20,22 +20,40 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-06-20)
 
 **Core value:** An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
-**Current focus:** v0.2 Behavioral OS Runtime Foundation — one consolidated BOSR phase that turns BOS source artifacts into a local runtime substrate.
+**Current focus:** v0.2 Behavioral OS Implementation Track — one BOS-prefixed phase sequence, BOS1-BOS18, that turns Behavioral OS context into runtime behavior.
 
 ## Current Position
 
-**Phase:** BOSR — Behavioral OS Runtime Foundation.
-**Plan:** BOSR-01 and BOSR-02 complete; BOSR-03 decision/outcome capture is next.
-**Status:** BOSR execution in progress
+**Phase:** BOS4 — Decision Ledger Runtime.
+**Plan:** BOS4 runtime replanning is next after BOS track reconciliation.
+**Status:** BOS track restart complete; ready to discuss/research/plan BOS4 runtime work
 **Last activity:** 2026-06-20
-**Seed context:** `SEED-001-coordination-bus` remains future external-agent context only; BOSR must wrap the existing server/SSE swarm plane rather than create a parallel file bus.
+**Seed context:** `SEED-001-coordination-bus` remains future external-agent context only; BOS must wrap the existing server/SSE swarm plane rather than create a parallel file bus.
 **Swarm context:** V25 server-native swarm is the first ADE/swarm event source to map into BOS decision/outcome data.
-**Carry-forward context:** BOS0-BOS9 and BOSI1 are retained as source artifacts. BOS10-BOS18 and BOSI2-BOSI6 are retired as active placeholders.
+**Carry-forward context:** BOS3 event projection and local event ledger are implemented with tests. Split-prefix tracks are no longer active.
 
 ## Phase Status
 
 | Phase | Name | Status |
 |---|---|---|
+| BOS1 | Scope, Wedge, and Track Reconciliation | Complete as 2026-06-20 track restart; source docs retained |
+| BOS2 | Runtime Architecture and Boundaries | Source docs exist; replan before further execution |
+| BOS3 | Engineering Event Schema and Projection Runtime | Schema, projection runtime, and local event ledger implemented with tests |
+| BOS4 | Decision Ledger Runtime | Schema exists; runtime replanning is next |
+| BOS5 | Outcome Labels and Reward Inputs | Pending |
+| BOS6 | Privacy and Governance Enforcement | Pending |
+| BOS7 | Web and Control-Plane Boundary | Pending |
+| BOS8 | Team, Project, and Work Model | Pending |
+| BOS9 | Recommendation Review Surface and Policy Baselines | Pending |
+| BOS10 | Swarm and ADE Event Integration | Pending |
+| BOS11 | External Integration Boundaries | Pending |
+| BOS12 | Identity and Entity Resolution | Pending |
+| BOS13 | Offline Evaluation Export and Replay | Pending |
+| BOS14 | Learning Lab Boundary | Pending |
+| BOS15 | Recommendation Policy Iteration | Pending |
+| BOS16 | Web Control Plane MVP | Pending |
+| BOS17 | Productized Team Workflow Path | Pending |
+| BOS18 | BOS Closeout and Expansion Gate | Pending |
 | M0 | Scope Lock | Ready to plan |
 | M1 | Harness Happy Path | Ready to execute (7 plans) |
 | M2 | Project Cognition | Ready to execute (7 plans) |

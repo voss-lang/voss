@@ -1,4 +1,4 @@
-"""BOSR-02: local append-only BOS event ledger."""
+"""BOS3: local append-only BOS event ledger."""
 from __future__ import annotations
 
 import json

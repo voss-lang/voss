@@ -1,4 +1,4 @@
-"""BOSI1: projection of existing harness records into BOS event records."""
+"""BOS3: projection of existing harness records into BOS event records."""
 from __future__ import annotations
 
 import json
@@ -96,7 +96,7 @@ def test_swarm_log_events_project_to_valid_bos_events(
     validator: jsonschema.Draft202012Validator, tmp_path: Path
 ) -> None:
     store = SwarmStore(cwd=tmp_path)
-    swarm = store.create(goal="ship BOSI", cwd=str(tmp_path))
+    swarm = store.create(goal="ship BOS", cwd=str(tmp_path))
     task = store.add_task(swarm.id, goal="wire projection", owned_files=["src/a.py"])
     store.mark_assigned(swarm.id, task.id, session_id="sess-builder")
     store.mark_done(swarm.id, task.id, summary="done")

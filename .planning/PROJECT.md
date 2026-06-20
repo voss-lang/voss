@@ -10,14 +10,14 @@ The near-term product is still local-first and developer-owned. The v0.2 foundat
 
 An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
 
-## Current Milestone: v0.2 Behavioral OS Runtime Foundation
+## Current Milestone: v0.2 Behavioral OS Implementation Track
 
-**Goal:** Convert the Behavioral OS contracts and source artifacts into one executable local-runtime foundation phase over Voss's ADE/swarm runtime.
+**Goal:** Execute the Behavioral OS as one BOS-prefixed implementation track over Voss's ADE/swarm runtime, with phases BOS1-BOS18 planned and executed through the normal discuss -> research -> plan -> execute loop.
 
 **Target features:**
-- One active BOSR phase replacing the BOS0-BOS18 plus BOSI split.
-- Preserve BOS0-BOS9 and BOSI1 knowledge as source material, not active phase sprawl.
-- Local BOS event ledger over the existing harness/session/swarm substrate.
+- One active BOS track with traditional phase and plan names: `BOS1-01`, `BOS2-01`, through `BOS18-*`.
+- Prior BOS context incorporated into BOS1-BOS18; no split-prefix side tracks.
+- BOS event projection and local BOS event ledger over the existing harness/session/swarm substrate.
 - Decision and outcome capture for delegation, review depth, validation depth, escalation, and no-action decisions.
 - Shadow-mode heuristic recommendations before any learned policy or autonomy increase.
 - Control-plane read model for desktop/web consumption without syncing raw code or prompts by default.
@@ -27,17 +27,17 @@ An engineering team can route AI-assisted work through bounded, reviewable execu
 ### Validated
 
 - Voss already has a local harness/server/ADE substrate with persisted sessions, permission gates, audit surfaces, memory/recall, multi-agent organization primitives, and a server-native swarm runtime track.
-- BOSI1 implemented a pure BOS event projection layer from existing `SessionRecord`, `RunRecord`, and swarm JSONL events.
-- BOSR-02 added a local append-only BOS event ledger at `.voss/bos/events.jsonl` with duplicate-safe replay.
+- BOS3 implemented a pure BOS event projection layer from existing `SessionRecord`, `RunRecord`, and swarm JSONL events.
+- BOS3 implemented a local append-only BOS event ledger at `.voss/bos/events.jsonl` with duplicate-safe replay.
 
 ### Active
 
-- [x] Reconcile BOS0-BOS18 and BOSI1-BOSI6 into one BOSR phase with discussion, research, and a finite executable plan set.
+- [x] Reconcile the abandoned split-track state into one BOS1-BOS18 implementation track with traditional GSD phase/plan naming.
 - [x] Persist projected BOS events in a local append-only ledger with replay/as-at reads.
 - [ ] Record decision and outcome rows from runtime gates/reviews without outcome leakage into decision-time features.
 - [ ] Generate shadow-mode recommendations for delegation, review depth, validation depth, and escalation using heuristic policies only.
 - [ ] Expose a local read model for desktop/web control-plane surfaces while preserving private-by-default local content boundaries.
-- [ ] Keep external PM/CI/deploy/incident ingestion, online learning, LEM work, multi-tenant SaaS, and PM-suite expansion out of BOSR.
+- [ ] Keep external PM/CI/deploy/incident ingestion, online learning, LEM work, multi-tenant SaaS, and PM-suite expansion out of early BOS phases until the local decision/outcome corpus exists.
 
 ### Out of Scope
 
@@ -59,19 +59,20 @@ An engineering team can route AI-assisted work through bounded, reviewable execu
 ## Constraints
 
 - **Trust:** Team-level defaults, explainable recommendations, human override, and auditability are non-negotiable.
-- **Stack:** Preserve the existing monorepo shape and Voss runtime before introducing web/backend/RL services; new stack decisions must be justified in BOSR context/research first.
+- **Stack:** Preserve the existing monorepo shape and Voss runtime before introducing web/backend/RL services; new stack decisions must be justified by the active BOS phase context/research first.
 - **Data:** Features must be point-in-time correct; outcomes cannot leak into the state used to make the original recommendation.
 - **Swarm:** BOS integrates with the existing server/SSE swarm plane. `.voss/swarm/` remains audit/shared host record, not the runtime bus.
 - **Desktop/Web split:** Desktop remains local execution and ADE. Web, if built, is the team control plane and dataset/recommendation review surface.
 - **Safety:** No learned policy can increase autonomy, reduce review, or skip validation without offline eval, guardrail checks, and human approval.
-- **Git safety:** BOSR phases may change code when the plan explicitly targets implementation. Git write actions still require Ben's explicit approval.
+- **Git safety:** BOS phases may change code when the plan explicitly targets implementation. Git write actions still require Ben's explicit approval.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Reset to `BOSR` | BOS0-BOS18 plus BOSI created too much plan-only sprawl; one executable phase keeps the knowledge and restores normal GSD flow | Active |
-| Supersede docs-first split | BOS contract artifacts remain source material, but the active milestone must now ship runtime behavior | Active |
+| Restart as one BOS track | Split prefixes created confusion; the active implementation track is BOS1-BOS18 with normal GSD phase/plan names | Active |
+| Delete split-prefix tracks | Projection and ledger work remain, but the track identity is BOS only | Active |
+| Supersede docs-first-only planning | BOS contract artifacts remain source material, but each active phase must ship or unlock runtime behavior | Active |
 | Web is the shared control plane; desktop is the local ADE node | Team workflow state needs shared access; code execution and agent panes stay local-first | Pending validation |
 | Swarm is the first BOS event source | V25 already models multi-agent task assignment, ownership, gates, and completion | Active |
 | `SEED-001` wraps the server plane | Voss has a daemon/SSE bus, so a second file bus would fragment coordination | Active |
@@ -96,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-20 after BOSR consolidation reset*
+*Last updated: 2026-06-20 after BOS track restart*
