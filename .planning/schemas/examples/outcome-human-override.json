@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "outcome_id": "outcome-humanoverride-001",
+  "entity_id": "task-abc123",
+  "entity_type": "task",
+  "trace_id": "trace-abc123",
+  "event_time": "2026-06-19T12:00:00Z",
+  "ingest_time": "2026-06-19T12:00:05Z",
+  "obs_window_id": "human-override-0d",
+  "source_rule": "rule:human_override",
+  "label_type": "human_override"
+}

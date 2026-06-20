@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "outcome_id": "outcome-incident-001",
+  "entity_id": "task-abc123",
+  "entity_type": "task",
+  "trace_id": "trace-abc123",
+  "event_time": "2026-07-20T00:00:00Z",
+  "ingest_time": "2026-07-20T00:00:30Z",
+  "obs_window_id": "incident-90d",
+  "source_rule": "rule:incident_attribution",
+  "label_type": "incident",
+  "severity": "high"
+}

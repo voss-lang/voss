@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "outcome_id": "outcome-revert-001",
+  "entity_id": "task-abc123",
+  "entity_type": "task",
+  "trace_id": "trace-abc123",
+  "event_time": "2026-06-22T00:00:00Z",
+  "ingest_time": "2026-06-22T00:00:00Z",
+  "obs_window_id": "revert-0d",
+  "source_rule": "rule:pr_revert",
+  "label_type": "revert"
+}
