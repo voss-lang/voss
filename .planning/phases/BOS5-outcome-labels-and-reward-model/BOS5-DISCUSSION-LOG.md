@@ -162,3 +162,58 @@
 - Field-level labels for external sources (review/CI/validation/deploy/incident) → BOS12 ingestion.
 - Reference/golden-label dataset + eval harness → BOS15.
 - Actual reward weight VALUES + tuning (vs the config shape D-08 defines) → BOS13/14/15.
+
+---
+
+# Second pass — BOS-DATA-05 offline-eval requirements (added 2026-06-20)
+
+**Date:** 2026-06-20
+**Areas discussed:** Artifact form, OPE estimator scope, Propensity-logging requirement, Promotion-gate shape
+**Context:** Original pass covered DATA-03/04; DATA-05 (offline-eval requirements) was punted to "BOS15". Traceability (REQUIREMENTS line 250) maps DATA-05 to BOS5 + BOS13. Corrected boundary: BOS5 owns the requirements spec, BOS13 ("Offline Evaluation Export and Replay") builds export/replay.
+
+## Artifact form
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| New sibling contract + spec doc | `contracts/offline-eval.schema.json` (EvalDatasetSpec + PolicyEvalReport) + `docs/BOS5-OFFLINE-EVAL-SPEC.md`; joins CI drift gate | ✓ |
+| Prose-only spec doc, no schema | Normative requirements only; defer record shapes to BOS13 | |
+| Extend existing outcome/reward artifact | Grow the DATA-03/04 doc + schema | |
+
+**User's choice:** New sibling contract + spec doc → D-13
+
+## OPE estimator scope
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Property-based, method-agnostic | Mandate propensity logging + variance/CI reporting + bias disclosure; name IPS/SNIPS/DR/DM/FQE as admissible family, bind none | ✓ |
+| Mandate a baseline estimator | Require doubly-robust (+SNIPS) default, allow others | |
+| Full estimator catalog w/ required impls | Enumerate + require each | |
+
+**User's choice:** Property-based, method-agnostic → D-14
+
+## Propensity-logging requirement (cross-phase: BOS4 ledger)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Mandate upstream on BOS4 ledger | Decisions log action-propensity + exploration metadata at decision time; deterministic now (p=1.0) but field must exist; flags BOS4 follow-up | ✓ |
+| Specify but mark advisory/deferred | BOS13 adds logging when policies become stochastic | |
+| Out of scope — leave to BOS13 | Don't touch the ledger contract from BOS5 | |
+
+**User's choice:** Mandate upstream on BOS4 ledger → D-15
+
+## Promotion-gate shape
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Define gate criteria shape, defer wiring | Min OPE-lift threshold-shape + D-11 hard-gate non-regression + required CI/uncertainty bound; BOS15 wires enforcement | ✓ |
+| Reference D-11 only, no new criteria | State a gate exists, reuse D-11 roles | |
+| Punt entirely to BOS13/BOS15 | BOS5 says nothing about gates | |
+
+**User's choice:** Define gate criteria shape, defer wiring → D-16
+
+## Boundary corrections / deferred (second pass)
+
+- Offline-eval export + replay machinery → BOS13 (was mislabeled "BOS15").
+- Concrete OPE estimator implementations + tuned thresholds → BOS13/14.
+- Reference/golden-label dataset → BOS13/BOS15.
+- D-15 implies a BOS4 follow-up plan to add the propensity/exploration field to `decisions.schema.json`.

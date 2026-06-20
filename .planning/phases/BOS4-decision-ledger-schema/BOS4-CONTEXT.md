@@ -56,10 +56,12 @@ runtime producer yet (`autonomy_band`, `review_depth`, `validation_depth`,
   dismiss / do-nothing (see D-R03).
 
 ### Recommendation Framing (pre-BOS9)
-- **D-R03:** **Operator-only records; `recommended_action` = null.** No heuristic
-  policy produces a recommendation until BOS9, so records written now capture the
-  actual operator/gate choice with `recommended_action` null and `rationale`
-  describing the gate. When BOS9 lands a policy, it fills `recommended_action` and
+- **D-R03:** **Operator-only records; `recommended_action` = `{}` (empty).** No
+  heuristic policy produces a recommendation until BOS9, so records written now
+  capture the actual operator/gate choice with an EMPTY `recommended_action`
+  object and `rationale` describing the gate. (Schema-reconciled: the contract
+  requires `recommended_action` present as `type:object` with no nulls — so
+  "no recommendation yet" is `{}`, NOT `null`.) When BOS9 lands a policy, it fills `recommended_action` and
   the override-as-signal (divergence between recommended and actual) becomes
   meaningful. A permission **deny** → `human_verdict.verdict = dismiss`; an
   explicit do-nothing → a `no_action` record.
@@ -78,7 +80,8 @@ runtime producer yet (`autonomy_band`, `review_depth`, `validation_depth`,
 - **D-R05:** **`as_of` = tail of the BOS3 event ledger at decision time.** At
   emission, read the tail of `.voss/bos/events.jsonl` and set `as_of` to the last
   appended BOS `event_id`, plus the active session `trace_id`. If the event
-  ledger is empty, `as_of` is null with a note. This gives a real, immutable
+  ledger is empty, `as_of` is `{}` (empty object — schema requires `type:object`,
+  no nulls; the inner tail-read returns None → `build_as_of` yields `{}`). This gives a real, immutable
   point-in-time reference into the BOS3 substrate (honors schema D-01/D-03/D-07).
 
 ### Feature Snapshot
