@@ -61,6 +61,20 @@
 
 ---
 
+## Follow-up Session — Resolving Open Questions (2026-06-20)
+
+Re-opened BOS6 (already discussed + executed) to resolve the three spec Open Questions.
+
+| Open question | Options | Selected |
+|--------|-------------|----------|
+| Min-aggregation N | 3 (hard floor) / 5 / configurable floor-3 / stay undecided | **3 (hard floor)** |
+| Retention/deletion | tiered / single global window / defer | **Tiered retention** |
+| Kill-switch + band RBAC | confirm defer to BOS7 / minimal v0.2 rule now / define full roles now | **Confirm defer to BOS7** |
+
+**Notes:** N=3 = smallest floor blocking pair/individual re-identification, usable for small teams, raisable not lowerable (D-12). Tiered retention = raw sensitive content bounded TTL + right-to-delete; decision/outcome corpus retained + de-identifiable, not deletable (D-13); exact TTL window stays deployment-config. RBAC = BOS6 states access-controlled+audit-logged requirement; actor/role model owned by BOS7 (D-14). Folded into GOVERNANCE-SPEC.md (Trust Model, new Retention and Deletion section, Autonomy authorization boundary, Open Questions) and CONTEXT.md (D-12..D-14).
+
+---
+
 ## Claude's Discretion
 
 - Governance-spec doc structure/format.

@@ -35,6 +35,11 @@ It defines the POLICY/TRUST contract every later BOS surface must honor. It does
 - **D-10:** **Define all six guardrails + a trip/alert condition for each now:** fatigue, fairness, escaped defects, incidents, autonomy creep, reward hacking. For each, the spec states what it measures and the alert/trip condition.
 - **D-11:** **Scope boundary:** BOS6 owns the governance/trust **dashboard** definition + trip conditions; it **references** the underlying reward/guardrail **metric** definitions from BOS5 (does not redefine them); **eval gates** stay in BOS15. The spec must cite these boundaries explicitly.
 
+### Resolved Open Questions (2026-06-20)
+- **D-12:** **Minimum-aggregation floor N = 3** (hard floor). Smallest N that blocks pair/individual re-identification while staying usable for small teams. A deployment may raise N but never lower it below 3. Resolves the D-08 open value.
+- **D-13:** **Tiered retention + deletion.** Raw sensitive content (code/prompts/transcripts, `never_leaves_local`) gets a bounded, deployment-configurable TTL plus right-to-delete. Decision/outcome records (audit/training corpus) are retained longer and are **de-identifiable, not individually deletable** (strip actor attribution, preserve signal). Honors both privacy and training-signal integrity; preserves "stored ≠ cross-reported." Exact TTL window stays a deployment-config value (see `<deferred>`).
+- **D-14:** **Kill-switch / autonomy-band RBAC deferred to BOS7.** BOS6 states the requirement that these control actions are access-controlled and audit-logged; the actor/role model (who may flip a kill-switch or change a band) is owned by the BOS7 web control-plane. BOS6 does not define roles.
+
 ### Carried Forward (locked elsewhere — NOT re-discussed)
 - Hard bans (PROJECT.md Out-of-Scope + Constraints): no individual rankings, no raw activity scoring, no keystroke/productivity telemetry, no nudge-engagement optimization, no autonomy increase without offline eval. BOS6 restates and operationalizes these; it does not relitigate them.
 - Store = SQLite local-first / Postgres shared, one-directional projection (BOS2 D-04/D-05).
@@ -92,9 +97,10 @@ It defines the POLICY/TRUST contract every later BOS surface must honor. It does
 <deferred>
 ## Deferred Ideas
 
-- **Value of N** for the min-aggregation floor (D-08) — open question; pick during planning or a follow-up. Rule holds regardless of N.
-- **Data retention / deletion policy** (how long sessions/prompts/decisions are kept, right-to-delete) — raised as a candidate area; not decided this phase. Flag for planner / a later governance refinement.
-- **RBAC: who may flip the kill-switch or change autonomy bands** — governance actors/roles; relevant but not decided here (likely BOS7 web control plane / a later phase). Flag, don't invent.
+- **Raw-content retention TTL window** — the tiered-retention model is decided (D-13); the exact TTL for raw sensitive content is a deployment-configuration value, not fixed by the spec.
+- ~~Value of N (D-08)~~ — RESOLVED 2026-06-20: N = 3 hard floor (D-12).
+- ~~Data retention / deletion policy~~ — RESOLVED 2026-06-20: tiered retention (D-13).
+- ~~RBAC: who may flip kill-switch / change autonomy bands~~ — RESOLVED 2026-06-20: deferred to BOS7 as an explicit boundary (D-14).
 - **Reward/guardrail metric definitions** — BOS5 (BOS6 references them, D-11).
 - **Offline-eval gate mechanics** — BOS15 (BOS6 states the gate exists, D-03).
 - **Event data classes detail** — BOS3 (BOS6 classifies sensitivity; BOS3 defines the event entities).
