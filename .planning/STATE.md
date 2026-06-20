@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.2
-milestone_name: Behavioral OS Foundation
+milestone_name: Behavioral OS Runtime Foundation
 status: executing
-last_updated: "2026-06-19T21:05:51.467Z"
-last_activity: 2026-06-19
+last_updated: "2026-06-20T12:00:00.000Z"
+last_activity: 2026-06-20
 progress:
   total_phases: 63
   completed_phases: 4
@@ -17,20 +17,20 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-06-18)
+See: `.planning/PROJECT.md` (updated 2026-06-20)
 
 **Core value:** An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
-**Current focus:** v0.2 Behavioral OS Foundation — docs-first product, architecture, event/data, governance, and roadmap reset.
+**Current focus:** v0.2 Behavioral OS Runtime Foundation — one consolidated BOSR phase that turns BOS source artifacts into a local runtime substrate.
 
 ## Current Position
 
-**Phase:** BOS0 — Product Thesis, ICP, and Wedge — context gathered, ready to plan.
-**Plan:** -
-**Status:** Ready to execute
-**Last activity:** 2026-06-19
-**Seed context:** `SEED-001-coordination-bus` is selected as context, but BOS must wrap the existing server/SSE swarm plane rather than create a parallel file bus.
+**Phase:** BOSR — Behavioral OS Runtime Foundation.
+**Plan:** BOSR-01 and BOSR-02 complete; BOSR-03 decision/outcome capture is next.
+**Status:** BOSR execution in progress
+**Last activity:** 2026-06-20
+**Seed context:** `SEED-001-coordination-bus` remains future external-agent context only; BOSR must wrap the existing server/SSE swarm plane rather than create a parallel file bus.
 **Swarm context:** V25 server-native swarm is the first ADE/swarm event source to map into BOS decision/outcome data.
-**Carry-forward context:** Historical V/M/A/F/E/V-track details remain below for reference until BOS1 audits and indexes stale planning docs.
+**Carry-forward context:** BOS0-BOS9 and BOSI1 are retained as source artifacts. BOS10-BOS18 and BOSI2-BOSI6 are retired as active placeholders.
 
 ## Phase Status
 

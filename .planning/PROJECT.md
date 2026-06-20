@@ -10,39 +10,34 @@ The near-term product is still local-first and developer-owned. The v0.2 foundat
 
 An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
 
-## Current Milestone: v0.2 Behavioral OS Foundation
+## Current Milestone: v0.2 Behavioral OS Runtime Foundation
 
-**Goal:** Establish the product, technical, data, and governance foundation for a Behavioral OS that sits above Voss's ADE/swarm runtime and can later expand into an engineering-team project management suite.
+**Goal:** Convert the Behavioral OS contracts and source artifacts into one executable local-runtime foundation phase over Voss's ADE/swarm runtime.
 
 **Target features:**
-- BOS product thesis, ICP, wedge, and phase prefixing.
-- Legacy planning audit so stale v0.1/v0.1.1 docs are indexed before any archive/removal.
-- Monorepo and stack architecture for desktop ADE, web control plane, backend/event ledger, and Python RL/eval lab.
-- Engineering event schema, decision ledger, outcome labels, and guardrails for delegation/review/flow recommendations.
-- Swarm integration requirements: BOS consumes the existing server/SSE swarm plane and `SEED-001`, not a parallel coordination bus.
-- Initial roadmap from BOS0 through BOS18 with docs-first phases before implementation.
-- BOSI implementation track that turns BOS contracts into runtime behavior in narrow, testable slices.
+- One active BOSR phase replacing the BOS0-BOS18 plus BOSI split.
+- Preserve BOS0-BOS9 and BOSI1 knowledge as source material, not active phase sprawl.
+- Local BOS event ledger over the existing harness/session/swarm substrate.
+- Decision and outcome capture for delegation, review depth, validation depth, escalation, and no-action decisions.
+- Shadow-mode heuristic recommendations before any learned policy or autonomy increase.
+- Control-plane read model for desktop/web consumption without syncing raw code or prompts by default.
 
 ## Requirements
 
 ### Validated
 
 - Voss already has a local harness/server/ADE substrate with persisted sessions, permission gates, audit surfaces, memory/recall, multi-agent organization primitives, and a server-native swarm runtime track.
+- BOSI1 implemented a pure BOS event projection layer from existing `SessionRecord`, `RunRecord`, and swarm JSONL events.
+- BOSR-02 added a local append-only BOS event ledger at `.voss/bos/events.jsonl` with duplicate-safe replay.
 
 ### Active
 
-- [ ] Define the Behavioral OS product boundary: ADE execution node plus shared team control plane, not a generic PM clone.
-- [ ] Decide web-vs-desktop responsibility: desktop remains the local execution/ADE node; web owns shared team state, dataset review, and management workflows when introduced.
-- [ ] Define a BOS phase prefix and roadmap that is explicit enough to avoid compressing product, data, governance, RL, and PM-suite expansion into one oversized phase.
-- [ ] Audit old planning docs before archiving or deletion; preserve historical V/M/A/F/E/V-track context where it still constrains BOS.
-- [ ] Specify an engineering event schema covering tasks, PRs, sessions, swarm events, review, CI, validation, deploy, and incident outcomes.
-- [ ] Specify a decision ledger for recommendation actions: task-to-agent, autonomy band, review depth, validation depth, escalation, and do-nothing.
-- [ ] Specify outcome labels and reward/guardrail metrics before any online learning.
-- [ ] Specify governance defaults: team-level reporting, human override, no individual ranking, no nudge engagement optimization, and no autonomy increase without offline eval.
-- [ ] Specify the monorepo stack evolution needed for a future web app, backend/event store, shared contracts, desktop client, and Python RL/eval services.
-- [ ] Map the current server-native swarm runtime into BOS as the first local ADE event source.
-- [ ] Reframe `SEED-001` as an external-agent surface over the existing server plane, not a new coordination substrate.
-- [ ] Implement the first BOSI runtime slice: project existing session/run/swarm records into BOS event-schema records without changing the source writers.
+- [x] Reconcile BOS0-BOS18 and BOSI1-BOSI6 into one BOSR phase with discussion, research, and a finite executable plan set.
+- [x] Persist projected BOS events in a local append-only ledger with replay/as-at reads.
+- [ ] Record decision and outcome rows from runtime gates/reviews without outcome leakage into decision-time features.
+- [ ] Generate shadow-mode recommendations for delegation, review depth, validation depth, and escalation using heuristic policies only.
+- [ ] Expose a local read model for desktop/web control-plane surfaces while preserving private-by-default local content boundaries.
+- [ ] Keep external PM/CI/deploy/incident ingestion, online learning, LEM work, multi-tenant SaaS, and PM-suite expansion out of BOSR.
 
 ### Out of Scope
 
@@ -64,20 +59,19 @@ An engineering team can route AI-assisted work through bounded, reviewable execu
 ## Constraints
 
 - **Trust:** Team-level defaults, explainable recommendations, human override, and auditability are non-negotiable.
-- **Stack:** Preserve the existing monorepo shape and Voss runtime before introducing web/backend/RL services; new stack decisions must be justified in BOS architecture docs first.
+- **Stack:** Preserve the existing monorepo shape and Voss runtime before introducing web/backend/RL services; new stack decisions must be justified in BOSR context/research first.
 - **Data:** Features must be point-in-time correct; outcomes cannot leak into the state used to make the original recommendation.
 - **Swarm:** BOS integrates with the existing server/SSE swarm plane. `.voss/swarm/` remains audit/shared host record, not the runtime bus.
 - **Desktop/Web split:** Desktop remains local execution and ADE. Web, if built, is the team control plane and dataset/recommendation review surface.
 - **Safety:** No learned policy can increase autonomy, reduce review, or skip validation without offline eval, guardrail checks, and human approval.
-- **Git safety:** BOS foundation phases are docs-only; BOSI phases may change code when the plan explicitly targets implementation. Git write actions still require Ben's explicit approval.
+- **Git safety:** BOSR phases may change code when the plan explicitly targets implementation. Git write actions still require Ben's explicit approval.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| v0.2 uses `BOS` phase prefixes | Behavioral OS work is distinct from harness, ADE, V-track org runtime, and eval tracks | Active |
-| Start docs-first | The product, stack, data, and governance choices are not yet stable enough for implementation | Active |
-| Add `BOSI` implementation phases | BOS contracts alone do not ship behavior; implementation needs separate, code-backed phases | Active |
+| Reset to `BOSR` | BOS0-BOS18 plus BOSI created too much plan-only sprawl; one executable phase keeps the knowledge and restores normal GSD flow | Active |
+| Supersede docs-first split | BOS contract artifacts remain source material, but the active milestone must now ship runtime behavior | Active |
 | Web is the shared control plane; desktop is the local ADE node | Team workflow state needs shared access; code execution and agent panes stay local-first | Pending validation |
 | Swarm is the first BOS event source | V25 already models multi-agent task assignment, ownership, gates, and completion | Active |
 | `SEED-001` wraps the server plane | Voss has a daemon/SSE bus, so a second file bus would fragment coordination | Active |
@@ -102,4 +96,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-18 after v0.2 Behavioral OS Foundation milestone start*
+*Last updated: 2026-06-20 after BOSR consolidation reset*

@@ -2,9 +2,21 @@
 
 **Defined:** 2026-05-10
 **Core Value:** An engineering team can route AI-assisted work through bounded, reviewable execution and convert the outcomes into a trustworthy decision dataset for better delegation, review, validation, and flow.
-**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1), BOS milestone discussion (2026-06-18), `.planning/seeds/SEED-001-coordination-bus.md`, V25 server-native swarm runtime context.
+**Source:** `.vscode/voss_v_0_1_scope_lock.md` (v0.1), BOS milestone discussion (2026-06-18), BOSR reset (2026-06-20), `.planning/seeds/SEED-001-coordination-bus.md`, V25 server-native swarm runtime context.
 
-## v0.2 Behavioral OS Foundation Requirements
+## v0.2 BOSR Runtime Foundation Requirements
+
+- [x] **BOSR-01**: Voss reconciles BOS0-BOS18 and BOSI1-BOSI6 into one active Behavioral OS runtime phase, preserving source knowledge while retiring placeholder phase sprawl. ✓ BOSR-01
+- [x] **BOSR-02**: Voss persists projected BOS events in a local append-only ledger with replay and as-at read helpers. ✓ BOSR-02
+- [ ] **BOSR-03**: Voss records runtime decision rows for task-to-agent, autonomy band, review depth, validation depth, escalation, and no-action decisions.
+- [ ] **BOSR-04**: Voss records outcome labels and reward/guardrail inputs separately from decisions so outcomes cannot leak into decision-time features.
+- [ ] **BOSR-05**: Voss generates shadow-mode heuristic recommendations for delegation, review depth, validation depth, and escalation with approve/override/dismiss/no-op signals.
+- [ ] **BOSR-06**: Voss exposes a local control-plane read model for desktop/web consumption while preserving private-by-default code and prompt boundaries.
+
+## Historical BOS Source Requirements
+
+These requirements remain source material for BOSR. They are no longer mapped
+to separate active BOS0-BOS18 phases.
 
 ### Product Boundary
 
@@ -238,25 +250,8 @@ M7 promotes the missing names so private-path drift stops binding callers.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOS-PROD-01..03 | BOS0 | Complete (BOS0-01 + BOS0-02) |
-| BOS-PLAN-01..04 | BOS1 | Complete (BOS1-01) |
-| BOS-ARCH-01..04 | BOS2 | Complete (BOS2-01) |
-| BOS-DATA-01 | BOS3 | Complete (BOS3-01) |
-| BOS-DATA-02 | BOS4 | Pending |
-| BOS-DATA-03..04 | BOS5 | Pending |
-| BOS-GOV-01..04 | BOS6 | Pending |
-| BOS-PROD-04 | BOS7 | Pending |
-| BOS-WORK-01..03 | BOS8 | Pending |
-| BOS-REC-01..03 | BOS9 | Pending |
-| BOS-SWARM-04 | BOS10 | Pending |
-| BOS-SWARM-01..03 | BOS11 | Pending |
-| BOS-INT-01..03 | BOS12 | Pending |
-| BOS-POL-01 | BOS13 | Pending |
-| BOS-POL-02 | BOS14 | Pending |
-| BOS-DATA-05, BOS-POL-03, BOS-RL-02 | BOS15 | Pending |
-| BOS-RL-01, BOS-RL-03 | BOS16 | Pending |
-| BOS-BEH-01..03 | BOS17 | Pending |
-| BOS-PM-01..03 | BOS18 | Pending |
+| BOSR-01..06 | BOSR | Active |
+| BOS-PROD/PLAN/ARCH/DATA/GOV/WORK/REC/SWARM/INT/POL/RL/BEH/PM | BOSR source set | Superseded as separate active phases; retained as source requirements |
 | SCOPE-01..04 | M0 | Pending |
 | CLIH-01..10 | M1 | Pending |
 | CTRL-01..09 | M1 | Pending |
@@ -268,12 +263,12 @@ M7 promotes the missing names so private-path drift stops binding callers.
 | SDK-01..05 | M7 | Pending |
 
 **Coverage:**
-- v0.2 BOS requirements: 46 total
-- BOS requirements mapped to phases: 46
+- v0.2 BOSR active requirements: 6 total
+- Historical BOS source requirements retained: 46 total
 - v0.1 requirements: 64 total (54 original + 5 NPM-* M6 + 5 SDK-* M7)
 - Mapped to phases: 64
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-10*
-*Last updated: 2026-06-18 after v0.2 Behavioral OS Foundation milestone start*
+*Last updated: 2026-06-20 after BOSR consolidation reset*

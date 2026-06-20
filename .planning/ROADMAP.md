@@ -2,41 +2,17 @@
 
 **Created:** 2026-05-10
 **Mode:** Behavioral OS planning reset -> harness/ADE/swarm substrate -> team control plane -> learning/eval platform
-**Granularity:** **BOS-prefixed Behavioral OS phases** (product/data/stack/governance foundation) · **BOSI-prefixed Behavioral OS implementation phases** (code-backed runtime slices over BOS contracts) · M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`) · **V-prefixed agent-org phases** (Agent Engineering Organization Layer — design in `.planning/docs/ORCHESTRATION_LAYERS.md`; supersedes the O-track + absorbs M13) · **E-prefixed internal proof phases** (on-demand e2e + eval suite, internal-only, subscription-backed models — decisions in `.planning/notes/e-track-eval-decisions.md`; supersedes M5 eval scope)
-**Requirements covered:** v0.2 BOS requirements 46 / 46; v0.1 locked requirements 64 / 64; v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A13 (counts TBD by SPEC.md); agent-org phases V0–V25 (requirements namespaced `V*`, locked per V{n}-SPEC.md)
-**Source:** BOS milestone discussion (2026-06-18), `.planning/seeds/SEED-001-coordination-bus.md`, V25 server-native swarm context, `.vscode/voss_v_0_1_scope_lock.md` (v0.1), `.planning/seeds/` (v0.2 M-phases), `.planning/notes/daily-driver-punch-list.md` (T-phases), `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
-**Last updated:** 2026-06-17 — added **V25 Server-Native Swarm Runtime** (server+SSE swarm coordination superseding A13's filesystem-as-IPC transport now that Voss has a real daemon; SwarmStore + spawn-gating + PermissionGate ownership enforcement + memory-scoped recall + per-role model routing; `.voss/swarm/` files demoted to audit layer; A13-01 file schema retained, A13-02..06 ⊘ superseded; pairs with V24 Swarm Map as runtime↔observability; SPEC pending). | 2026-06-14 — added **V24 ADE Product Revamp + Swarm Observability** (terminal-first workbench + Linear-like run/agent portal + mission-control swarm map; preserves Warp-style terminal grid while making Voss runs, review, context, budget, scope, and live agent interactions digestible; 8 provisional plans, SPEC pending; depends on V14/V15 and should consume V17/V20 where available). | 2026-06-12 — added **V23 Retrieval-Aware Memory Ranking & Hygiene** (froots.ai/memory teardown: retrieval telemetry → recency×frequency rescore → retrieval-aware eviction, pre-fusion quality floor, mirror reindex/drift gate, pinned always-inject tier; 6 provisional plans, SPEC pending; coordinates with V21 dual-store). | 2026-06-10 — added **E1–E5 Internal Proof Suite** track (on-demand, internal-only e2e + evals proving the product works; subscription-backed flagship models via existing voss auth; hybrid deterministic+LLM-judge scoring; surfaces × repo-shapes matrix; M5 eval scope superseded into E1/E2, packaging smoke M5-06 stays shipped; exploration: `.planning/notes/e-track-eval-decisions.md`). | 2026-06-08 — **V13.4 (C ABI/Schema Doc) ✅ COMPLETE** (1/1 plan, doc-only: `docs/native-embedding.md` native/C consumption reference + `docs/check-native-embedding-refs.sh` refs gate; VSDK-C-01..06; C headers/FFI deferred w/ trigger; zero code). | 2026-06-08 — **V13.3 (Go Local/Headless Client SDK) ✅ COMPLETE** (6/6 plans; `sdk/go/` generated+drift-gated types, 21-member Decode, typed REST/SSE, spawn/attach no-orphan supervisor, permission helper, no-FFI guard; full suite + real-server TestMain green; VSDK-GO-01..08). | 2026-06-07 — moved the contract snapshot + codegen substrate + CI drift gate from V13 into **V13.1** (the first client owns the artifact); V13 is now **docs-only** (VSDK-01..06: strategy/matrix/tiers + `sdk.md`↔`PROTOCOL.md` reconcile + Python/M7 linkage, no code/CI, doable anytime); **V13.1** produces the committed `openapi.json` + event-union snapshot that **V13.2–.4** reuse. | 2026-06-06 — added **V13 External Developer SDK Surfaces** + per-language sub-phases **V13.1 TS / V13.2 Rust / V13.3 Go / V13.4 C-ABI-doc**, each with its own SPEC; deep reader SDKs gated on V1/V3/V4/V9. | 2026-06-05 — added **V0–V12 Agent Engineering Organization Layer** track (design: `.planning/docs/ORCHESTRATION_LAYERS.md`). V supersedes the O-track (V3→O2, V4→O1, V5→O3, V6→O4, V7→O5, V9→O6 — O1–O6 archived-as-superseded; O6's ready plans re-point to V9) and absorbs M13 into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VAUD/VLANG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. | 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
-**Milestone update:** 2026-06-20 - started **BOSI Behavioral OS Implementation** as the code-backed track that turns BOS contracts into runtime behavior; BOS remains contract/foundation work, BOSI ships implementation slices. | 2026-06-18 - started **v0.2 Behavioral OS Foundation** with BOS0-BOS18 docs-first phases. BOS treats V25 server-native swarm as the first ADE event source and reframes `SEED-001` as future external-agent CLI verbs over the existing server/SSE plane, not a parallel coordination bus.
+**Granularity:** **BOSR-prefixed Behavioral OS Runtime Foundation phase** (consolidated product/data/governance/runtime implementation scope) · M-prefixed milestone phases · T-prefixed gap-closure phases · **A-prefixed voss-app phases** (terminal-grid desktop ADE in `apps/voss-app/`) · **O-prefixed ADE-orchestration phases** (Caged Autonomous Eng Team — design in `.planning/ORCHESTRATION-PLAN.md`) · **F-prefixed substrate feature phases** (v1 Layer 2 features — design in `.planning/Feature Plan.md`) · **V-prefixed agent-org phases** (Agent Engineering Organization Layer — design in `.planning/docs/ORCHESTRATION_LAYERS.md`; supersedes the O-track + absorbs M13) · **E-prefixed internal proof phases** (on-demand e2e + eval suite, internal-only, subscription-backed models — decisions in `.planning/notes/e-track-eval-decisions.md`; supersedes M5 eval scope)
+**Requirements covered:** BOSR active requirements 6 / 6; historical BOS source requirements 46 / 46; v0.1 locked requirements 64 / 64; v0.2 phases M8–M15 + T1–T8 (T-counts locked, M11–M15 TBD by SPEC.md); voss-app phases A1–A13 (counts TBD by SPEC.md); agent-org phases V0–V25 (requirements namespaced `V*`, locked per V{n}-SPEC.md)
+**Source:** BOS milestone discussion (2026-06-18), BOSR reset (2026-06-20), `.planning/seeds/SEED-001-coordination-bus.md`, V25 server-native swarm context, `.vscode/voss_v_0_1_scope_lock.md` (v0.1), `.planning/seeds/` (v0.2 M-phases), `.planning/notes/daily-driver-punch-list.md` (T-phases), `apps/voss-app/CONCEPT.md` + `apps/voss-app/FEATURES.md` (A-phases)
+**Last updated:** 2026-06-20 - reset BOS/BOSI into **BOSR Behavioral OS Runtime Foundation** (one consolidated implementation phase with discussion, research, and 6 executable plans; BOS0-BOS9 and BOSI1 retained as source material; BOS10-BOS18 and BOSI2-BOSI6 retired as active roadmap items). | 2026-06-17 — added **V25 Server-Native Swarm Runtime** (server+SSE swarm coordination superseding A13's filesystem-as-IPC transport now that Voss has a real daemon; SwarmStore + spawn-gating + PermissionGate ownership enforcement + memory-scoped recall + per-role model routing; `.voss/swarm/` files demoted to audit layer; A13-01 file schema retained, A13-02..06 ⊘ superseded; pairs with V24 Swarm Map as runtime↔observability; SPEC pending). | 2026-06-14 — added **V24 ADE Product Revamp + Swarm Observability** (terminal-first workbench + Linear-like run/agent portal + mission-control swarm map; preserves Warp-style terminal grid while making Voss runs, review, context, budget, scope, and live agent interactions digestible; 8 provisional plans, SPEC pending; depends on V14/V15 and should consume V17/V20 where available). | 2026-06-12 — added **V23 Retrieval-Aware Memory Ranking & Hygiene** (froots.ai/memory teardown: retrieval telemetry → recency×frequency rescore → retrieval-aware eviction, pre-fusion quality floor, mirror reindex/drift gate, pinned always-inject tier; 6 provisional plans, SPEC pending; coordinates with V21 dual-store). | 2026-06-10 — added **E1–E5 Internal Proof Suite** track (on-demand, internal-only e2e + evals proving the product works; subscription-backed flagship models via existing voss auth; hybrid deterministic+LLM-judge scoring; surfaces × repo-shapes matrix; M5 eval scope superseded into E1/E2, packaging smoke M5-06 stays shipped; exploration: `.planning/notes/e-track-eval-decisions.md`). | 2026-06-08 — **V13.4 (C ABI/Schema Doc) ✅ COMPLETE** (1/1 plan, doc-only: `docs/native-embedding.md` native/C consumption reference + `docs/check-native-embedding-refs.sh` refs gate; VSDK-C-01..06; C headers/FFI deferred w/ trigger; zero code). | 2026-06-08 — **V13.3 (Go Local/Headless Client SDK) ✅ COMPLETE** (6/6 plans; `sdk/go/` generated+drift-gated types, 21-member Decode, typed REST/SSE, spawn/attach no-orphan supervisor, permission helper, no-FFI guard; full suite + real-server TestMain green; VSDK-GO-01..08). | 2026-06-07 — moved the contract snapshot + codegen substrate + CI drift gate from V13 into **V13.1** (the first client owns the artifact); V13 is now **docs-only** (VSDK-01..06: strategy/matrix/tiers + `sdk.md`↔`PROTOCOL.md` reconcile + Python/M7 linkage, no code/CI, doable anytime); **V13.1** produces the committed `openapi.json` + event-union snapshot that **V13.2–.4** reuse. | 2026-06-06 — added **V13 External Developer SDK Surfaces** + per-language sub-phases **V13.1 TS / V13.2 Rust / V13.3 Go / V13.4 C-ABI-doc**, each with its own SPEC; deep reader SDKs gated on V1/V3/V4/V9. | 2026-06-05 — added **V0–V12 Agent Engineering Organization Layer** track (design: `.planning/docs/ORCHESTRATION_LAYERS.md`). V supersedes the O-track (V3→O2, V4→O1, V5→O3, V6→O4, V7→O5, V9→O6 — O1–O6 archived-as-superseded; O6's ready plans re-point to V9) and absorbs M13 into V8. Requirement IDs namespaced `V*` (VRFM/VCAP/VPRIN/VTEAM/VTREE/VBOARD/VREV/VEM/VMAG/VADE/VSAFE) to avoid LANG/MAG/ADE clashes with M3/M13/A12. | 2026-06-02 — H0.2 doc reconciliation: verified T1–T5 implemented in code **with tests** (iteration loop, streaming, interrupt, parallel reads/multi-edit, network+MCP, prompt caching, shell ergonomics); flipped their stale `TBD` success-criteria cells to **Implemented**. Added `.planning/HYBRID-REFACTOR-PLAN.md` (H0–H7, supersedes RUST-PORT-PLAN) + `.planning/PROTOCOL.md` (wire contract). | 2026-05-21 — planned F2 (Hybrid Semantic Search), locking FSRCH-01..04 to 3 plans / 3 waves. | 2026-05-19 — inserted A8 (Workspaces, UX Polish, Theming); old A8→A9, A9→A10, A10→A11; A-track now A1–A11. | 2026-05-19 — added F1–F6 substrate feature phases (v1 Layer 2); design in `.planning/Feature Plan.md`. | 2026-05-17 — added O1–O6 ADE-orchestration phases (Caged Autonomous Eng Team); design + decision log in `.planning/ORCHESTRATION-PLAN.md`. | 2026-05-16 — added A1–A11 voss-app Layer-1 phases (terminal-grid scaffold). voss-app is a sibling deliverable to the harness; Layer 2 (Voss integration) and Layer 3 (.voss DSL) lock once L1 ships.
+**Milestone update:** 2026-06-20 - reset BOS/BOSI into **BOSR Behavioral OS Runtime Foundation**, one consolidated implementation phase with discussion, research, and 6 executable plans. BOS0-BOS9 and BOSI1 are retained as source material; BOS10-BOS18 and BOSI2-BOSI6 are retired as active roadmap items. | 2026-06-18 - started **v0.2 Behavioral OS Foundation** with BOS0-BOS18 docs-first phases. BOS treats V25 server-native swarm as the first ADE event source and reframes `SEED-001` as future external-agent CLI verbs over the existing server/SSE plane, not a parallel coordination bus.
 
 ## Phase Order
 
 | Phase | Name | Goal | Requirements | Success Criteria |
 |---|---|---|---|---|
-| BOS0 | Product Thesis, ICP, and Wedge | Define the Behavioral OS product boundary, buyer/user, wedge, and validation questions | BOS-PROD-01..03 | Product brief + discovery script |
-| BOS1 | Planning Audit and Archive Map | Inventory stale planning docs and classify each as active, historical, superseded, or archive-candidate | BOS-PLAN-01..04 | Audit index + no blind deletion |
-| BOS2 | Monorepo and Stack Architecture | Specify the target stack, package layout, service boundaries, and Turborepo/pnpm evolution | BOS-ARCH-01..04 | Architecture decision doc |
-| BOS3 | Engineering Event Schema | Define the canonical event model and point-in-time correctness rules | BOS-DATA-01 | Event schema contract |
-| BOS4 | Decision Ledger Schema | Define recommendation/action records and training-signal capture | BOS-DATA-02 | Decision ledger contract |
-| BOS5 | Outcome Labels and Reward Model | Define labels, rewards, guardrails, and bad-proxy detection | BOS-DATA-03..04 | Outcome/reward spec |
-| BOS6 | Privacy, Governance, and Tenant Boundaries | Define trust model, privacy defaults, autonomy gates, and reporting boundaries | BOS-GOV-01..04 | Governance spec |
-| BOS7 | Web Control Plane Boundary | Decide what the web app owns vs. desktop ADE/local harness | BOS-PROD-04 | Web-vs-desktop responsibility map |
-| BOS8 | Team, Project, and Work Model | Define BOS entities and work lifecycle without overbuilding a PM suite | BOS-WORK-01..03 | Work model spec |
-| BOS9 | Recommendation Review Surface | Define approve/override/dismiss/do-nothing UI and output contracts | BOS-REC-01..03 | UI/contract spec |
-| BOS10 | Desktop ADE Worker Node Contract | Define how desktop sessions become local workers for shared BOS state | BOS-SWARM-04 | Desktop node contract |
-| BOS11 | Swarm Event Export and Seed-001 Reframe | Map V25 swarm events and external-agent seed into BOS without a second bus | BOS-SWARM-01..03 | Swarm-to-BOS mapping |
-| BOS12 | External Integration Ingestion Plan | Define Git/PM/CI/deploy/incident ingestion and identity resolution | BOS-INT-01..03 | Integration plan |
-| BOS13 | Heuristic Delegation Policy Baseline | Specify first non-learning delegation recommendations and logged features | BOS-POL-01 | Delegation policy spec |
-| BOS14 | Review and Validation Policy Baseline | Specify review-depth and validation-depth recommendation baselines | BOS-POL-02 | Review/validation policy spec |
-| BOS15 | Offline Evaluation and Policy Versioning | Specify shadow mode, holdouts, replay, and guardrail gates | BOS-DATA-05, BOS-POL-03, BOS-RL-02 | Offline eval spec |
-| BOS16 | RL Lab Boundary | Define Python learning/eval lab boundaries and no-online-learning gates | BOS-RL-01, BOS-RL-03 | RL lab spec |
-| BOS17 | Behavioral Science and Nudge Guardrails | Define optional interventions, fatigue guardrails, and working agreements | BOS-BEH-01..03 | Behavioral spec |
-| BOS18 | PM Suite Expansion Path | Define Atlassian-like expansion path and what stays deferred | BOS-PM-01..03 | Expansion roadmap |
-| BOSI1 | BOS Event Projection Runtime | Project current session/run/swarm records into BOS3 event-schema records | BOSI-EVENT-01..04 | Code + schema tests |
-| BOSI2 | Local BOS Event Ledger | Append projected events to a local immutable BOS event log with replay/as-at reads | BOSI-LEDGER-01..05 | Local JSONL ledger + tests |
-| BOSI3 | Decision and Outcome Writers | Record BOS4 decision rows and BOS5 outcome labels from runtime gates/reviews | BOSI-DEC-01..05 | Writers + no-leakage tests |
-| BOSI4 | Heuristic Policy Baselines | Generate shadow-mode delegation/review/validation recommendations from logged features | BOSI-POL-01..05 | Shadow recommendations + tests |
-| BOSI5 | Desktop Worker Node Sync Boundary | Export safe local ADE metadata for shared BOS state without code/prompt content by default | BOSI-NODE-01..05 | Local node manifest + sync guard tests |
-| BOSI6 | Web Control Plane Skeleton | Build a read-only team surface over projected BOS data before write workflows | BOSI-WEB-01..05 | Backend/web skeleton + smoke tests |
+| BOSR | Behavioral OS Runtime Foundation | Consolidate BOS0-BOS9/BOSI1 knowledge into one executable runtime phase: docs reconciliation, event ledger, decision/outcome capture, shadow recommendations, and read-model/control-plane readiness | BOSR-01..06 | 6 plans, code-backed after plan 01 |
 | M0 | Scope Lock | Align planning docs around harness-led v0.1 plus `.voss` as workflow control layer | SCOPE-01..04 | 3 |
 | M1 | Harness Happy Path | Make the Python harness usable on a real repo with minimal persistence | CLIH-01..10, CTRL-01..09 | 6 |
 | M2 | Project Cognition | Make Voss remember useful project facts across sessions | COG-01..08 | 5 |
@@ -116,83 +92,55 @@
 
 ---
 
-## BOS-prefixed phases: Behavioral OS Foundation
+## BOSR: Behavioral OS Runtime Foundation
 
-BOS0-BOS18 define the v0.2 Behavioral OS Foundation milestone. This track is contract-first: it produces product, architecture, data, governance, and future implementation contracts. BOS completion does not mean runtime behavior has shipped.
+BOSR replaces the active BOS0-BOS18/BOSI1-BOSI6 split. The prior material is
+not discarded: BOS0-BOS9 and BOSI1 become source artifacts for one consolidated
+runtime phase. BOS10-BOS18 and BOSI2-BOSI6 are retired as active roadmap rows
+because they were placeholders, not planned implementation work.
 
-**Milestone stance:** BOS is not a parallel runtime. It uses the existing harness/server/ADE/swarm substrate and defines how that substrate becomes a team-level decision and outcome system. The desktop app remains the local ADE/execution node. A future web app, if built, owns shared team state, dataset review, and management workflows.
+**Phase stance:** one phase, normal GSD flow. BOSR has discussion/context,
+research, a finite plan set, and execution summaries. Plans after BOSR-01 are
+code-backed; docs-only work is allowed only where it reconciles scope before
+implementation.
 
-**Seed stance:** `SEED-001-coordination-bus` is included as planted context only. Current V25 swarm already supplies the server/SSE coordination plane, so BOS may specify future CLI verbs over that plane but must not create another bus.
+**Milestone stance:** BOSR is not a parallel runtime. It implements a local
+Behavioral OS substrate over the existing harness/server/ADE/swarm plane:
+event stream, decisions, outcomes, shadow recommendations, and a read model.
+The desktop remains local execution/ADE. A future web surface reads shared team
+state once the local substrate is real.
 
-**Build order:** BOS0 -> BOS1 -> BOS2 first. BOS3-BOS6 define the data and trust substrate. BOS7-BOS12 define surfaces and integrations. BOS13-BOS17 define recommendations, offline eval, RL boundary, and behavioral guardrails. BOS18 defines the future PM-suite expansion path.
+**Seed stance:** `SEED-001-coordination-bus` remains future external-agent
+surface context only. V25 server/SSE swarm is the coordination plane; BOSR must
+not create another bus.
 
-**LEM (Large Event Model) readiness (north-star — see `.planning/LEM-VISION.md`):** The long-horizon ambition is a foundation model over the engineering event stream (`LLM:text :: LEM:BOS3-events`) producing learned state embeddings, outcome priors, and counterfactual trajectory simulation for BOS13-16. It is explicitly NOT v1 (PROJECT.md: "v1 is not a foundation model or online RL") and is deferred to a future **BOS19+ "Large Event Model"** phase, opened only once the decision/outcome corpus is large enough. Two non-blocking readiness hooks are wired now: (1) **BOS3** carries a LEM-tokenizability note (clean trace-id sequence key + quantizable continuous fields + bitemporal as-of as the training no-leakage guard); (2) **BOS16** (BOS-RL-01) must, when specced, define a **point-in-time sequence export** (per-trace, as-of-correct, outcomes appended as terminal tokens) — one export serving both the contextual bandit (BOS-RL-02) and the LEM. No model work is authorized by this note.
+**BOSI1 carry-forward:** `voss/harness/bos_events.py` and
+`tests/harness/test_bos_event_projection.py` are the first implemented slice
+and are folded into BOSR as the event-projection seed.
 
-**BOS0 planned (2026-06-18):** 2 plans, 2 waves (docs-only; covers BOS-PROD-01..03):
-- [ ] BOS0-01-PLAN.md — Product brief: boundary, ICP, buyer/user split, delegation wedge, positioning, anti-positioning, tension+resolution (BOS-PROD-01, BOS-PROD-02, BOS-PROD-03)
-- [ ] BOS0-02-PLAN.md — Mom-Test design-partner discovery script, problem-first ordering (BOS-PROD-03)
-
-**BOS1 planned (2026-06-18):** 2 plans, 2 waves (docs-first audit, then human-gated cleanup; covers BOS-PLAN-01..04):
-- [ ] BOS1-01-PLAN.md — Build `.planning/AUDIT-INDEX.md`: two-axis (status × BOS-relationship) classification of 25 loose docs + 10 phase-track rollup + external appendix; verify BOS prefix + BOS0-18 split (BOS-PLAN-01, BOS-PLAN-02, BOS-PLAN-03, BOS-PLAN-04)
-- [ ] BOS1-02-PLAN.md — Human-gated cleanup: per-item approval → move archive-candidates into `.planning/archive/` → delete signed-off dead docs (autonomous:false; BOS-PLAN-02)
-
-**BOS2 planned (2026-06-18):** 1 plan, 1 wave (docs-only architecture decision doc; covers BOS-ARCH-01..04):
-- [ ] BOS2-01-PLAN.md — BOS2-ARCHITECTURE.md: current+target monorepo shape (apps/web + services/* in one tree), service/library boundary = deployability, language map, pnpm consolidation + named Turborepo trigger, SQLite/Postgres/DuckDB stores + one-directional SQLite→Postgres sync, V13.1 contracts as drift-gated source of truth (BOS-ARCH-01, BOS-ARCH-02, BOS-ARCH-03, BOS-ARCH-04)
-
-
-**BOS4 planned (2026-06-18):** 2 plans, 2 waves (docs-only decision ledger contract; covers BOS-DATA-02):
-- [ ] BOS4-01-PLAN.md — contracts/decision-ledger.schema.json: authoritative JSON Schema, discriminated union over `decision_type` with all 6 payloads (task_to_agent/autonomy_band/review_depth/validation_depth/escalation/no_action), as_of+feature_snapshot dual training-signal capture, recommended_action/human_verdict/actual_action + autonomy_band, no outcome/label field (no-leakage), event/entity refs as BOS3 upstream assumptions (BOS-DATA-02)
-- [ ] BOS4-02-PLAN.md — BOS4-DECISION-LEDGER.md: rationale doc — model, training-signal capture, no-leakage guard, override-as-signal, Upstream Assumptions (BOS3) for D-07/D-08, Rejected Alternatives, Open Questions (undecided amendment policy) (BOS-DATA-02)
-
-**BOS6 planned (2026-06-18):** 1 plan, 1 wave (docs-only governance spec; covers BOS-GOV-01..04):
-- [ ] BOS6-01-PLAN.md — BOS6-GOVERNANCE-SPEC.md: trust model + anti-surveillance rule (min-aggregation floor with N open, no cross-ranking, self-view, stored≠cross-reported reconciled with BOS4 `actor`), 4 autonomy bands + dual-scope kill-switch + gated-increase/immediate-decrease asymmetry, 3 privacy tiers + private-by-default-local + one-directional SQLite→Postgres boundary + tenant=team, all 6 guardrail dashboards with trip conditions, Open Questions (N, retention/deletion, kill-switch/autonomy RBAC), BOS3/BOS5/BOS12/BOS15 referenced as boundaries (BOS-GOV-01, BOS-GOV-02, BOS-GOV-03, BOS-GOV-04)
-
-**BOS7 planned (2026-06-18):** 1 plan, 1 wave (docs-only responsibility map; covers BOS-PROD-04):
-- [ ] BOS7-01-PLAN.md — BOS7-RESPONSIBILITY-MAP.md: capability × surface matrix (owns/reads/none across local harness · desktop ADE · backend services · web control plane), source(harness)→backend→web flow, D-02 content-stays-local privacy invariant feeding BOS6, D-03 dual-target review via single BOS9 contract, D-04 offline-standalone + reserved identity seam (accounts out-of-scope), This-Constrains map to BOS6/BOS9/BOS10/BOS12/future apps/web (BOS-PROD-04)
-
-**BOS9 planned (2026-06-19):** 2 plans, 2 waves (docs-only UI/contract spec, view-over-BOS4; covers BOS-REC-01..03):
-- [ ] BOS9-01-PLAN.md — contracts/recommendation-view.schema.json: ONE generic recommendation-view envelope (D-02) carrying a typed ref to BOS4 four decision_type payloads (task_to_agent/review_depth/validation_depth/escalation) + presentation-only fields (rationale/policy_version/autonomy_band/qualitative-confidence) + four-verdict action set (approve/override/dismiss/do_nothing) referencing BOS4 human_verdict — no payload duplication, no numeric confidence, no parallel store, mirrors events.schema.json union/V13.1 drift gate (BOS-REC-03, BOS-REC-01, BOS-REC-02)
-- [ ] BOS9-02-PLAN.md — BOS9-REVIEW-SURFACE-SPEC.md: view-over-BOS4 output contract (refs the envelope schema), four-verdict semantics (accept/counter/decline/no-op, override-as-signal, write BOS4 human_verdict), mandatory display + qualitative-only confidence + training-signal-owned-by-BOS4 (no BOS9 telemetry, BOS6 no-nudge), band->action matrix (4 BOS6 bands + kill-switch safe-state), override-always-reversible-in-full_auto, interaction states (queue/empty/loading/stale/post-kill-switch), single-contract dual-target desktop my-scope + web team-scope (BOS7 D-03) (BOS-REC-01, BOS-REC-02, BOS-REC-03)
-
-| BOS phase | Deliverable | Notes |
+| BOSR plan | Deliverable | Intent |
 |---|---|---|
-| BOS0 | Product thesis and discovery script | Clarifies ICP, wedge, and what problem is worth solving first |
-| BOS1 | Planning audit/archive index | Classifies stale docs before any archive or deletion |
-| BOS2 | Monorepo/stack architecture | Decides pnpm/Turborepo evolution, app boundaries, language ownership |
-| BOS3 | Event schema | Point-in-time event model for tasks, sessions, swarm, reviews, CI, deploys, incidents |
-| BOS4 | Decision ledger | Records recommendation/action, rationale, version, approval, override |
-| BOS5 | Outcome/reward spec | Labels, reward model, guardrails, and bad-proxy monitors |
-| BOS6 | Governance spec | Privacy, trust, team-level reporting, autonomy bands, kill-switches |
-| BOS7 | Web/control-plane boundary | Defines desktop vs web responsibility before scaffolding UI |
-| BOS8 | Work model | Engineering objects and lifecycles without overbuilding Jira |
-| BOS9 | Recommendation surface | Approve/override/dismiss/do-nothing UX and contracts |
-| BOS10 | Desktop worker-node contract | Local ADE/session node semantics for future shared BOS state |
-| BOS11 | Swarm export mapping | V25 swarm -> BOS events/decisions; SEED-001 reframe |
-| BOS12 | External ingestion plan | Git/PM/CI/deploy/incident ingestion and identity resolution |
-| BOS13 | Delegation heuristic baseline | No learning yet; logged features and recommendation baseline |
-| BOS14 | Review/validation policy baseline | Review-depth and validation-depth baseline policies |
-| BOS15 | Offline eval | Shadow mode, replay, holdouts, policy versioning, guardrail gates |
-| BOS16 | RL lab boundary | Python learning/eval lab and no-online-learning gates |
-| BOS17 | Behavioral guardrails | Optional nudges, fatigue/fairness/focus-time guardrails |
-| BOS18 | PM-suite expansion path | Atlassian-like expansion only after decision/outcome corpus exists |
+| BOSR-01 | Phase reset and contract reconciliation | Collapse active BOS/BOSI roadmap state into BOSR, preserve source artifacts, update requirements/state |
+| BOSR-02 | Local BOS event ledger | Append-only `.voss/bos/events.jsonl`, replay/as-at reads, schema-gated projected events |
+| BOSR-03 | Decision and outcome capture | Runtime writers for BOS4/BOS5 contracts with no-leakage tests |
+| BOSR-04 | Shadow recommendation baseline | Heuristic delegation/review/validation recommendations, approve/override/dismiss/no-op signals |
+| BOSR-05 | Control-plane read model | Local read model for desktop/web consumption without code/prompt sync by default |
+| BOSR-06 | End-to-end validation and cleanup | Contract/e2e verification, stale-placeholder retirement, docs closeout |
 
-## BOSI-prefixed phases: Behavioral OS Implementation
+**Historical source artifacts:**
+- BOS0 product thesis, ICP, wedge, and discovery script.
+- BOS1 audit index and cleanup guard.
+- BOS2 monorepo/stack architecture.
+- BOS3 event schema and BOSI1 projector.
+- BOS4 decision ledger schema/doc.
+- BOS5 outcome/reward schema, examples, and tests.
+- BOS6 governance spec.
+- BOS7 web/control-plane responsibility map.
+- BOS8 work-model context.
+- BOS9 recommendation surface context/plans.
 
-BOSI turns the BOS contracts into shipped runtime behavior. A BOSI phase must include code, tests, and an explicit contract reference back to the BOS artifact it implements. If a phase only edits Markdown, it belongs in BOS, not BOSI.
-
-**Build order:** BOSI1 projects existing records into BOS events without changing source writers. BOSI2 persists those projections locally. BOSI3 adds decision/outcome writers. BOSI4 adds shadow-mode heuristics. BOSI5 defines local desktop worker-node sync. BOSI6 introduces the first read-only web/backend control-plane skeleton.
-
-**BOSI1 executed (2026-06-20):** 1 plan, 1 code wave (implements BOS3 over existing session/swarm sources):
-- [x] BOSI1-01-PLAN.md - Added a pure projection layer for `SessionRecord`, `RunRecord`, and swarm JSONL envelopes that returns BOS3 event-schema dictionaries, validates representative samples against `.planning/schemas/bos-events.schema.json`, and does not modify session or swarm writers.
-
-| BOSI phase | Deliverable | Notes |
-|---|---|---|
-| BOSI1 | Event projection runtime | Pure projection from existing records into BOS3 schema |
-| BOSI2 | Local event ledger | Append-only `.voss/bos/` event log and replay/as-at reads |
-| BOSI3 | Decision/outcome writers | Runtime writers for BOS4/BOS5 contracts |
-| BOSI4 | Shadow heuristics | First non-learning policy recommendations over logged features |
-| BOSI5 | Desktop worker node sync | Local ADE node metadata export with privacy defaults |
-| BOSI6 | Web control-plane skeleton | Read-only shared team surface over BOS data |
+**Deferred beyond BOSR:** external PM/CI/deploy/incident ingestion, online
+learning/RL/LEM work, multi-tenant SaaS/admin/billing, and PM-suite expansion.
 
 ## V-prefixed phases: Agent Engineering Organization Layer
 
@@ -2721,26 +2669,8 @@ Plans:
 
 | Phase | Requirements | Count |
 |---|---|---:|
-| BOS0 | BOS-PROD-01..03 | 3 |
-| BOS1 | BOS-PLAN-01..04 | 4 |
-| BOS2 | BOS-ARCH-01..04 | 4 |
-| BOS3 | BOS-DATA-01 | 1 |
-| BOS4 | BOS-DATA-02 | 1 |
-| BOS5 | BOS-DATA-03..04 | 2 |
-| BOS6 | BOS-GOV-01..04 | 4 |
-| BOS7 | BOS-PROD-04 | 1 |
-| BOS8 | BOS-WORK-01..03 | 3 |
-| BOS9 | BOS-REC-01..03 | 3 |
-| BOS10 | BOS-SWARM-04 | 1 |
-| BOS11 | BOS-SWARM-01..03 | 3 |
-| BOS12 | BOS-INT-01..03 | 3 |
-| BOS13 | BOS-POL-01 | 1 |
-| BOS14 | BOS-POL-02 | 1 |
-| BOS15 | BOS-DATA-05, BOS-POL-03, BOS-RL-02 | 3 |
-| BOS16 | BOS-RL-01, BOS-RL-03 | 2 |
-| BOS17 | BOS-BEH-01..03 | 3 |
-| BOS18 | BOS-PM-01..03 | 3 |
-| **v0.2 BOS Total** |  | **46 / 46** |
+| BOSR | BOSR-01..06 | 6 |
+| Historical BOS source set | BOS-PROD/BOS-PLAN/BOS-ARCH/BOS-DATA/BOS-GOV/BOS-WORK/BOS-REC/BOS-SWARM/BOS-INT/BOS-POL/BOS-RL/BOS-BEH/BOS-PM retained as source context | 46 |
 | M0 | SCOPE-01..04 | 4 |
 | M1 | CLIH-01..10, CTRL-01..09 | 19 |
 | M2 | COG-01..08 | 8 |
@@ -2799,7 +2729,7 @@ Plans:
 | F6 | FCNCL-01..0N | TBD by `F6-SPEC.md` |
 | **F-total** | | **TBD per SPEC** |
 
-All v0.2 BOS requirements mapped. All v0.1 requirements mapped. Older v0.2 M-track requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`. A-phase requirement IDs are placeholder prefixes; per-phase SPEC locks the count + exact text.
+BOSR active requirements are mapped, and historical BOS source requirements are retained for BOSR execution. All v0.1 requirements mapped. Older v0.2 M-track requirement IDs are minted by `/gsd-spec-phase` per phase. T-phase requirement IDs locked in this roadmap; full SPEC pending per-phase `/gsd-spec-phase`. A-phase requirement IDs are placeholder prefixes; per-phase SPEC locks the count + exact text.
 
 ---
 
