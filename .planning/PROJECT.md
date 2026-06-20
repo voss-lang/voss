@@ -21,6 +21,7 @@ An engineering team can route AI-assisted work through bounded, reviewable execu
 - Engineering event schema, decision ledger, outcome labels, and guardrails for delegation/review/flow recommendations.
 - Swarm integration requirements: BOS consumes the existing server/SSE swarm plane and `SEED-001`, not a parallel coordination bus.
 - Initial roadmap from BOS0 through BOS18 with docs-first phases before implementation.
+- BOSI implementation track that turns BOS contracts into runtime behavior in narrow, testable slices.
 
 ## Requirements
 
@@ -41,6 +42,7 @@ An engineering team can route AI-assisted work through bounded, reviewable execu
 - [ ] Specify the monorepo stack evolution needed for a future web app, backend/event store, shared contracts, desktop client, and Python RL/eval services.
 - [ ] Map the current server-native swarm runtime into BOS as the first local ADE event source.
 - [ ] Reframe `SEED-001` as an external-agent surface over the existing server plane, not a new coordination substrate.
+- [ ] Implement the first BOSI runtime slice: project existing session/run/swarm records into BOS event-schema records without changing the source writers.
 
 ### Out of Scope
 
@@ -67,7 +69,7 @@ An engineering team can route AI-assisted work through bounded, reviewable execu
 - **Swarm:** BOS integrates with the existing server/SSE swarm plane. `.voss/swarm/` remains audit/shared host record, not the runtime bus.
 - **Desktop/Web split:** Desktop remains local execution and ADE. Web, if built, is the team control plane and dataset/recommendation review surface.
 - **Safety:** No learned policy can increase autonomy, reduce review, or skip validation without offline eval, guardrail checks, and human approval.
-- **Git safety:** Planning changes are docs-only unless Ben explicitly approves code or git write actions.
+- **Git safety:** BOS foundation phases are docs-only; BOSI phases may change code when the plan explicitly targets implementation. Git write actions still require Ben's explicit approval.
 
 ## Key Decisions
 
@@ -75,6 +77,7 @@ An engineering team can route AI-assisted work through bounded, reviewable execu
 |----------|-----------|---------|
 | v0.2 uses `BOS` phase prefixes | Behavioral OS work is distinct from harness, ADE, V-track org runtime, and eval tracks | Active |
 | Start docs-first | The product, stack, data, and governance choices are not yet stable enough for implementation | Active |
+| Add `BOSI` implementation phases | BOS contracts alone do not ship behavior; implementation needs separate, code-backed phases | Active |
 | Web is the shared control plane; desktop is the local ADE node | Team workflow state needs shared access; code execution and agent panes stay local-first | Pending validation |
 | Swarm is the first BOS event source | V25 already models multi-agent task assignment, ownership, gates, and completion | Active |
 | `SEED-001` wraps the server plane | Voss has a daemon/SSE bus, so a second file bus would fragment coordination | Active |
