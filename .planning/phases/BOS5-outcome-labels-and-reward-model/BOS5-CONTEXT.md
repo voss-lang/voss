@@ -7,7 +7,7 @@
 ## Phase Boundary
 
 BOS5 produces ONE docs-first artifact: the **outcome/reward spec** contract. It covers
-BOS-DATA-03 (the eight outcome labels) and BOS-DATA-04 (reward + guardrail metrics, and
+BOS-DATA-03 (the seven categorical outcome labels) and BOS-DATA-04 (reward + guardrail metrics, and
 bad-proxy detection), defined *before* any learning system is introduced.
 
 It defines: how raw BOS3 events become outcome labels, the label/measure schema shape,

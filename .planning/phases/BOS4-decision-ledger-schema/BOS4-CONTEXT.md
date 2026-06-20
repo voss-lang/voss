@@ -1,50 +1,120 @@
-# Phase BOS4: Decision Ledger Schema - Context
+# Phase BOS4: Decision Ledger Runtime - Context
 
-**Gathered:** 2026-06-18
+**Gathered:** 2026-06-20
 **Status:** Ready for planning
+**Supersedes:** the 2026-06-18 "Decision Ledger Schema" context (schema shipped; this is the runtime reframe per ROADMAP 2026-06-20).
 
 <domain>
 ## Phase Boundary
 
-BOS4 produces ONE docs-first artifact: the **decision ledger contract** (covers BOS-DATA-02). It defines the record shape for recommendation/action decisions — task→agent, autonomy band, review depth, validation depth, escalation, and no-action — plus how each record doubles as a point-in-time-correct training signal.
+BOS4 now delivers the **decision ledger RUNTIME**: code that writes decision
+records (conforming to the already-shipped `contracts/decision-ledger.schema.json`)
+from real runtime gates and operator choices, into a local append-only ledger.
 
-It defines the SHAPE of decision records and their relationship to the engineering event stream. It does **not** define the event schema itself (BOS3), outcome labels / rewards (BOS5), the heuristic delegation policy that produces recommendations (BOS13), or any code/store implementation. No code, no migrations — contract + rationale only.
+**Already shipped, NOT re-built here (locked inputs):**
+- `contracts/decision-ledger.schema.json` — the authoritative decision record
+  contract (6 `decision_type`s, envelope with `decision_id`, `as_of`,
+  `feature_snapshot`, `entity_ref`, `autonomy_band`, `recommended_action`,
+  `human_verdict`, `actual_action`, `rationale`, `payload`). Decisions D-01..D-08
+  from the schema-era context remain in force.
+- `BOS4-DECISION-LEDGER.md` — the rationale doc.
 
-**Note on order:** BOS3 (Engineering Event Schema) was not locked before this discussion (user chose to discuss BOS4 directly). All references to event entities and the point-in-time "as-of" pointer are recorded below as **upstream assumptions BOS3 must satisfy** — see `<deferred>` and the `## Upstream Dependencies` decisions. BOS3 must reconcile against them.
+**This phase delivers:** a Python runtime writer + gate wiring that emits decision
+records at decision time, for the decision types that have a real runtime producer
+TODAY. Covers **BOS-DATA-02** (runtime half).
+
+**Out of scope (explicit):** the heuristic policy that produces recommendations
+(BOS9/BOS13/BOS14), outcome labels/rewards (BOS5), the BOS3 event schema itself,
+cross-source identity resolution (BOS12), and the four decision types with no
+runtime producer yet (`autonomy_band`, `review_depth`, `validation_depth`,
+`escalation`) — schema-only until their producers land.
 </domain>
 
 <decisions>
 ## Implementation Decisions
 
-### Decision Record ↔ Event Stream (BOS-DATA-02)
-- **D-01:** **Separate append-only ledger, not a BOS3 event.** Decisions live in their own append-only decision ledger, distinct from the BOS3 engineering-event log. A decision = a recommendation + a human verdict, which is semantically distinct from an immutable observed fact; conflating them would mix mutable verdict state into the event log. Each decision record carries a **point-in-time reference** (an "as-of" event sequence / snapshot id) into the BOS3 event stream identifying the state the recommendation was made against.
+### Capture Architecture
+- **D-R01:** **Inline emission at gates.** Decision records are written by calling
+  the decision ledger directly at the moment a gate/operator decision happens
+  (swarm assignment, permission verdict) — NOT reconstructed by after-the-fact
+  projection. This is the only way to faithfully freeze `as_of` +
+  `feature_snapshot` at decision time (schema D-03 point-in-time correctness).
+  This is a deliberate divergence from BOS3's pure-projection layer
+  (`bos_events.py`): BOS4 emission is inline because decisions, unlike observed
+  events, carry the exact state they were made against.
 
-### Decision-Type Taxonomy (BOS-DATA-02)
-- **D-02:** **Unified record + `decision_type` discriminator, all 6 payloads specified now.** One ledger record schema with a `decision_type` discriminator and a typed payload per kind. The decision set is closed and known, so all six payloads are specified in this phase: `task_to_agent`, `autonomy_band`, `review_depth`, `validation_depth`, `escalation`, `no_action`. (Mirrors the existing discriminated-union pattern in `contracts/events.schema.json`.)
+### Decision-Type Coverage (this phase)
+- **D-R02:** **Wire only the types with a real runtime producer now.** Two types
+  get live emission:
+  - `task_to_agent` — from the swarm assignment path (`swarm.assign` /
+    `swarm_runtime` role↔task pairing).
+  - human-verdict-bearing records — from `PermissionGate` when a human actually
+    answers a prompt.
+  The other four types (`autonomy_band`, `review_depth`, `validation_depth`,
+  `escalation`) stay schema-only — no stubs, no placeholder rows — until their
+  producers exist (BOS9+). `no_action` is written on an explicit operator
+  dismiss / do-nothing (see D-R03).
 
-### Training-Signal Capture / Point-in-Time Correctness (BOS-DATA-02)
-- **D-03:** **As-of pointer + frozen feature snapshot (belt-and-suspenders).** Each record stores BOTH (a) the immutable as-of event-state pointer (D-01) AND (b) a frozen copy of the exact feature vector used to make the recommendation. This makes every record a self-contained, reproducible training row.
-- **D-04:** **Outcome labels are joined later, never inline at decision time.** The outcome label (defined in BOS5) is associated to a decision **after the fact** by `decision_id` join — it is NEVER written into the decision record at decision time. This is the hard no-leakage guard from PROJECT.md (outcomes must not leak into the state used to make the original recommendation).
+### Recommendation Framing (pre-BOS9)
+- **D-R03:** **Operator-only records; `recommended_action` = null.** No heuristic
+  policy produces a recommendation until BOS9, so records written now capture the
+  actual operator/gate choice with `recommended_action` null and `rationale`
+  describing the gate. When BOS9 lands a policy, it fills `recommended_action` and
+  the override-as-signal (divergence between recommended and actual) becomes
+  meaningful. A permission **deny** → `human_verdict.verdict = dismiss`; an
+  explicit do-nothing → a `no_action` record.
 
-### Human Verdict & Autonomy Lifecycle (BOS-DATA-02 + governance)
-- **D-05:** **Three explicit action fields.** The record separates `recommended_action` (what the system proposed), `human_verdict` (one of approve / override / dismiss / do-nothing, with actor id + timestamp), and `actual_action` (what was actually taken). Maximally auditable; honors the non-negotiable human-override governance constraint.
-- **D-06:** **`autonomy_band` field** on the record; an **override is itself a captured training signal** (the divergence between recommended_action and actual_action under a human verdict is a labeled signal, surfaced for later learning).
+### PermissionGate → Decision Mapping
+- **D-R04:** **Only human-prompted verdicts become decision records.** A decision
+  is written ONLY when a prompt is actually shown to a human and they answer.
+  Auto-allows (rule `allow`, `mode=auto`, safe non-mutating) remain BOS3 events
+  only — they are not human decisions. Verdict mapping (pre-BOS9, no recommendation
+  to diverge from): allow once / allow always → `approve`; deny → `dismiss`.
+  `override` is reserved for when a recommendation exists to diverge from (BOS9+);
+  `do_nothing` maps to the `no_action` path. `human_verdict` carries
+  `{verdict, actor_id, verdict_at}` per the schema.
 
-### Upstream Dependencies (assumptions BOS3 must satisfy)
-- **D-07:** BOS3 must expose a **stable, immutable "as-of" pointer** (event sequence number or snapshot id) that the ledger can reference (D-01, D-03). If BOS3 lands a different correctness mechanism, BOS4's reference field must be reconciled then.
-- **D-08:** BOS3 must define **stable entity IDs** for the entities a decision targets (task, session, agent, swarm assignment) so the ledger can reference them. Cross-source identity resolution is deferred to BOS12 (BOS-INT-03) — BOS4 only locks the local entity-ref field shape.
+### Point-in-Time Pointer
+- **D-R05:** **`as_of` = tail of the BOS3 event ledger at decision time.** At
+  emission, read the tail of `.voss/bos/events.jsonl` and set `as_of` to the last
+  appended BOS `event_id`, plus the active session `trace_id`. If the event
+  ledger is empty, `as_of` is null with a note. This gives a real, immutable
+  point-in-time reference into the BOS3 substrate (honors schema D-01/D-03/D-07).
+
+### Feature Snapshot
+- **D-R06:** **Minimal-real gate context, not empty, not fabricated.** Capture
+  what the gate actually has at decision time:
+  - `task_to_agent` → `{goal, roster (role names), available_models, cwd}`
+  - permission verdict → `{tool_name, is_mutating, mode, signature, diff_summary}`
+  `feature_snapshot` keeps `additionalProperties: true` so BOS9 can add real
+  policy features later without a schema change. No fabricated policy/feature
+  vectors now.
+
+### Storage & Module Shape
+- **D-R07:** **Separate `.voss/bos/decisions.jsonl` + new `voss/harness/bos_decisions.py`.**
+  A separate append-only ledger (schema D-01), sibling to `.voss/bos/events.jsonl`.
+  Follow the BOS3 `bos_ledger.py` pattern exactly: portalocker exclusive lock,
+  dedup by `decision_id` (not `event_id`), torn-trailing-line tolerance on replay,
+  `0o600` perms. New module holds both the record builders (for the wired types)
+  and the append/replay writer.
 
 ### Carried Forward (locked elsewhere — NOT re-discussed)
-- Store = SQLite local-first, point-in-time-correct, offline (BOS2 D-04).
-- Contract mechanism = sibling JSON Schema under `contracts/` feeding the existing CI drift gate, extending the V13.1 artifact (BOS2 D-06).
-- Language = TypeScript owns shared contracts (BOS-ARCH-02).
-- Governance = team-level, explainable, human override, no individual ranking (PROJECT.md Constraints).
+- Schema D-01..D-08 (the decision record contract) — locked by
+  `contracts/decision-ledger.schema.json` + `BOS4-DECISION-LEDGER.md`.
+- Store = SQLite/JSONL local-first, point-in-time-correct, offline (BOS2 D-04);
+  the BOS3 runtime uses a local JSONL ledger and BOS4 mirrors it.
+- Governance = team-level, explainable, human override, no individual ranking
+  (PROJECT.md Constraints). Human verdict is the override authority.
+- No outcome leakage: outcome labels join by `decision_id` LATER (BOS5);
+  never written into a decision record at decision time (schema D-04).
 
 ### Claude's Discretion
-- Decision-ledger doc structure/format.
-- Exact field names within each of the 6 typed payloads (within D-02's closed type set).
-- How the doc represents the schema (JSON Schema excerpt, table, prose) — but the deliverable is the contract, and per BOS2 D-06 the authoritative form is a JSON Schema in `contracts/`.
-- The rationale/explainability field shape on the record (a recommendation must be explainable per governance) — recommended to include a `rationale` field; exact shape is discretionary.
+- Exact builder function signatures and internal naming in `bos_decisions.py`.
+- Whether the writer reuses/generalizes BOS3's `BosEventLedger` internals or
+  duplicates the small lock/dedup/replay loop (user accepted the new-module
+  lock; sharing the lock primitive is an implementation detail for the planner).
+- Exact `entity_ref` field population from the swarm/session context at the gate.
+- Test layout (mirroring `tests/harness/test_bos_event_ledger.py`).
 </decisions>
 
 <canonical_refs>
@@ -52,54 +122,104 @@ It defines the SHAPE of decision records and their relationship to the engineeri
 
 **Downstream agents MUST read these before planning or implementing.**
 
+### The locked contract (build TO this — do not change it)
+- `contracts/decision-ledger.schema.json` — authoritative decision record schema;
+  every emitted record MUST validate against it (BOS4-01, shipped).
+- `.planning/phases/BOS4-decision-ledger-schema/BOS4-DECISION-LEDGER.md` —
+  rationale doc; schema D-01..D-08, no-leakage guard, override-as-signal, open
+  question on amendment policy.
+
 ### Requirements & product/governance constraints
-- `.planning/REQUIREMENTS.md` — **BOS-DATA-02** (line ~26, the target requirement); BOS-DATA-01 (BOS3, the event schema this references); BOS-DATA-03..04 (BOS5, outcome labels/rewards joined later).
-- `.planning/PROJECT.md` — Constraints §Data (point-in-time correctness, no outcome leakage), §Trust (human override, no individual ranking, explainable recommendations), §Safety.
-- `.planning/ROADMAP.md` — BOS4 row + BOS3-BOS6 "data and trust substrate" build-order note (line ~121, ~139-140).
+- `.planning/REQUIREMENTS.md` — **BOS-DATA-02** (line ~31; status line ~249
+  "Active; schema exists, runtime work next"). BOS-DATA-03..05 (BOS5 outcomes,
+  joined later by `decision_id`).
+- `.planning/PROJECT.md` — Constraints §Data (point-in-time correctness, no
+  outcome leakage), §Trust (human override, explainable, no individual ranking).
+- `.planning/ROADMAP.md` — BOS4 row ("Decision Ledger Runtime", line ~18 / ~146);
+  BOS-track "Carry-forward implementation facts" note (line ~131+) and runtime
+  stance (BOS builds over the existing harness/server/swarm plane).
+
+### Carry-forward runtime pattern (mirror this)
+- `voss/harness/bos_ledger.py` — BOS3 append-only JSONL ledger; the exact
+  portalocker + dedup + torn-line + `0o600` pattern BOS4's writer mirrors.
+- `voss/harness/bos_events.py` — BOS3 pure projection layer (envelope shape,
+  `trace_id`/`event_id` conventions BOS4's `as_of` pointer references).
+- `tests/harness/test_bos_event_ledger.py`, `tests/harness/test_bos_event_projection.py`
+  — regression-gate style to mirror for BOS4 tests.
+
+### Runtime gates being wired
+- `voss/harness/permissions.py` — `PermissionGate` (`check`/`_check_impl`,
+  `needs_prompt`, `_prompt`, verdict surface); D-R04 maps human-prompted answers
+  to `human_verdict`.
+- `voss/harness/swarm_runtime.py` — role↔task pairing / assignment; D-R02 source
+  for `task_to_agent` records. Related: `swarm.assign` projection in
+  `bos_events.py`.
 
 ### Architecture (carried-forward locks)
-- `.planning/phases/BOS2-monorepo-and-stack-architecture/BOS2-CONTEXT.md` — D-04 (SQLite local store), D-06 (sibling JSON Schema in contracts/ + drift gate, extend V13.1).
-
-### Existing contract substrate (the form the ledger schema takes)
-- `contracts/events.schema.json` — existing discriminated-union JSON Schema (the `decision_type` discriminator pattern D-02 mirrors); BOS3's engineering-event schema + this ledger schema are siblings here.
-- `contracts/openapi.json` — the committed V13.1 contract artifact; the drift gate the ledger schema joins.
-
-### Upstream (not yet locked — BOS3)
-- BOS3 Engineering Event Schema (Pending, no dir yet) — must satisfy D-07 (as-of pointer) and D-08 (stable entity IDs). BOS4's event-ref fields are assumptions until BOS3 lands.
+- `.planning/phases/BOS2-monorepo-and-stack-architecture/BOS2-CONTEXT.md` — D-04
+  (local store), D-06 (sibling contracts/ + drift gate).
 </canonical_refs>
 
 <code_context>
 ## Existing Code Insights
 
 ### Reusable Assets
-- **`contracts/events.schema.json` discriminated-union pattern**: D-02's unified record + `decision_type` discriminator follows the same pydantic-`Field(discriminator=...)` → JSON Schema → codegen pattern already used for the runtime event union.
-- **V13.1 contract artifact + CI drift gate** (BOS2 D-06): the ledger schema joins this rather than introducing new contract tooling.
+- **`voss/harness/bos_ledger.py` (`BosEventLedger`)**: the append-only JSONL
+  writer pattern (portalocker exclusive non-blocking lock w/ 10s timeout,
+  dedup-by-id read under the same lock, torn-line-tolerant replay, `0o600`).
+  BOS4's `bos_decisions.py` writer is this pattern with `decision_id` as the
+  dedup key and `.voss/bos/decisions.jsonl` as the path.
+- **`contracts/decision-ledger.schema.json`**: the shipped target contract;
+  records are built to validate against it.
 
 ### Established Patterns
-- **Docs-first BOS track**: contract before code. BOS4's ledger contract is inherited by the policy phases (BOS13/14) that emit recommendations and the eval phase (BOS15) that consumes decision rows.
-- **Append-only + point-in-time correctness**: aligns with BOS2 D-04/D-05 (SQLite local-first, one-directional projection to shared Postgres).
+- **Local append-only ledger under `.voss/bos/`**: events (BOS3) and decisions
+  (BOS4) are sibling JSONL ledgers, both local-first and offline.
+- **Inline emission vs pure projection**: BOS3 is pure projection (read-only over
+  source logs). BOS4 deliberately breaks from this (D-R01) — decisions are emitted
+  inline at the gate to freeze point-in-time state. This distinction must be
+  explicit in the code so the two layers don't get conflated.
 
 ### Integration Points
-- None executed (docs-only). The contract frames how a future recommendation engine writes decision rows referencing BOS3 event state, and how BOS5 outcome labels join by `decision_id`.
+- `PermissionGate` answer path → emit a verdict-bearing decision record (only on
+  human-answered prompts, D-R04).
+- Swarm assignment path (`swarm_runtime` / `swarm.assign`) → emit a
+  `task_to_agent` decision record (D-R02).
+- `as_of` reads the tail of the BOS3 `.voss/bos/events.jsonl` at emission (D-R05).
 </code_context>
 
 <specifics>
 ## Specific Ideas
 
-- A decision record must be a **self-contained reproducible training row** (D-03): as-of pointer + frozen feature snapshot, with the outcome label joined strictly after the fact (D-04).
-- The **override-as-signal** idea (D-06): the gap between `recommended_action` and `actual_action` under a human verdict is one of the most valuable learning signals — the contract must make it explicit, not derived.
-- Mirror the existing `contracts/events.schema.json` discriminated-union style so the ledger schema is consistent with the runtime/event schemas and codegen-friendly.
+- Every emitted record must be a **self-contained, validate-able** decision row:
+  passes `contracts/decision-ledger.schema.json`, carries a real `as_of` pointer
+  and a minimal-real `feature_snapshot` (D-R05/D-R06).
+- **Honest emptiness**: `recommended_action` is null and the four no-producer
+  decision types are simply absent — no placeholder/fake rows. The ledger reflects
+  exactly what the runtime actually decides today.
+- The inline-emission break from BOS3 projection (D-R01) is the keystone — call
+  it out clearly in code and the plan so the purity boundary isn't accidentally
+  re-imposed.
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-- **BOS3 event schema itself** — entity model, event taxonomy, the concrete as-of/point-in-time mechanism. BOS4 assumes D-07/D-08; BOS3 must reconcile. (Out-of-order discussion noted in `<domain>`.)
-- **Outcome labels, rewards, guardrail metrics** — BOS5 (BOS-DATA-03..04). Joined to decisions by `decision_id` after the fact.
-- **The heuristic delegation/review/validation policies** that actually produce recommendations — BOS13 (delegation), BOS14 (review/validation).
-- **Cross-source identity resolution** (agent/human identity across Git/PM/CI) — BOS12 (BOS-INT-03). BOS4 locks only the local entity-ref field shape.
-- **Ledger correction/amendment policy** beyond append-only (e.g. how a mistaken verdict is corrected) — raised as a possible further area; not decided this phase. Flag for the planner or a follow-up.
-- **Offline-eval consumption** of decision rows — BOS15.
+- **`autonomy_band`, `review_depth`, `validation_depth`, `escalation` emission** —
+  no runtime producer until the heuristic/policy phases (BOS9 recommendation
+  review surface; BOS13/14 offline-eval/learning lab). Schema-only for now.
+- **`recommended_action` population + true override-as-signal** — needs a policy
+  that recommends (BOS9). Until then `recommended_action` is null and every
+  human verdict is `approve`/`dismiss`, never `override`.
+- **Outcome label join** — BOS5 (BOS-DATA-03..05), joined by `decision_id` after
+  the fact; never inline (schema D-04).
+- **Ledger correction/amendment policy beyond append-only** — open question
+  carried from `BOS4-DECISION-LEDGER.md` §Open Questions; not decided here.
+- **Cross-source identity resolution** for `entity_ref` — BOS12. BOS4 populates
+  only the local entity-ref shape from swarm/session context.
+- **Generalizing BOS3's ledger primitive** into a shared lock/dedup util — fine
+  to do if the planner sees clean reuse, but not required (D-R07 locks a new
+  module; sharing internals is discretionary).
 
 ### Reviewed Todos (not folded)
 None — no phase-matched todos surfaced for BOS4.
@@ -107,5 +227,7 @@ None — no phase-matched todos surfaced for BOS4.
 
 ---
 
-*Phase: BOS4-decision-ledger-schema*
-*Context gathered: 2026-06-18*
+*Phase: BOS4-decision-ledger-schema (scope: Decision Ledger Runtime)*
+*Context gathered: 2026-06-20*
+</content>
+</invoke>
