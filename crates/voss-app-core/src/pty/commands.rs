@@ -40,9 +40,18 @@ pub struct ContextData {
     pub files: Vec<FileContextEntry>,
 }
 
+/// Command metadata extracted from `ESC]1337;voss-cmd={json}BEL` emitted by
+/// the `voss shell-init` preexec hook (S3.1).
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+pub struct VossCmdData {
+    pub cmd_id: String,
+    pub argv_text: String,
+    pub cwd: String,
+}
+
 /// Events streamed to the webview over a `Channel<PtyEvent>`.
 /// serde-tagged like the ndjson `"type"` discriminant (A2-PATTERNS commands.rs).
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, Clone, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PtyEvent {
     Data { bytes: Vec<u8> },
@@ -51,6 +60,19 @@ pub enum PtyEvent {
     TitleChange { title: String },
     BudgetUpdate(BudgetData),
     ContextUpdate(ContextData),
+    CommandStarted {
+        cmd_id: String,
+        argv_text: String,
+        cwd: String,
+        at: String,
+    },
+    CommandFinished {
+        cmd_id: String,
+        exit: i32,
+        duration_ms: u64,
+        output: Vec<u8>,
+        truncated: bool,
+    },
 }
 
 type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;
