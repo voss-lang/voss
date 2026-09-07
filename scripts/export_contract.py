@@ -8,6 +8,7 @@ from pathlib import Path
 
 os.environ.setdefault("PYDANTIC_DISABLE_PLUGINS", "1")
 
+from voss.harness.observe.models import ObserveEventAdapter
 from voss.harness.server.app import create_app
 from voss.harness.server.events import EventEnvelope
 
@@ -44,21 +45,31 @@ def _require_type_if_discriminated(definition: dict) -> None:
         required.append("type")
 
 
+def generate_openapi_json() -> str:
+    openapi_schema = require_event_discriminators(create_app(FIXED_TOKEN).openapi())
+    return json.dumps(openapi_schema, indent=2, sort_keys=True) + "\n"
+
+
+def generate_events_json() -> str:
+    event_schema = EventEnvelope.model_json_schema(ref_template=EVENT_REF_TEMPLATE)
+    event_schema = require_event_discriminators(event_schema)
+    return json.dumps(event_schema, indent=2, sort_keys=True) + "\n"
+
+
+def generate_observe_events_json() -> str:
+    schema = ObserveEventAdapter.json_schema()
+    schema["title"] = "ObserveEvent"
+    return json.dumps(schema, indent=2, sort_keys=True) + "\n"
+
+
 def main() -> None:
     contracts_dir = Path(__file__).resolve().parents[1] / "contracts"
     contracts_dir.mkdir(exist_ok=True)
 
-    openapi_schema = require_event_discriminators(create_app(FIXED_TOKEN).openapi())
-    (contracts_dir / "openapi.json").write_text(
-        json.dumps(openapi_schema, indent=2, sort_keys=True) + "\n"
-    )
-
-    event_schema = EventEnvelope.model_json_schema(
-        ref_template=EVENT_REF_TEMPLATE
-    )
-    event_schema = require_event_discriminators(event_schema)
-    (contracts_dir / "events.schema.json").write_text(
-        json.dumps(event_schema, indent=2, sort_keys=True) + "\n"
+    (contracts_dir / "openapi.json").write_text(generate_openapi_json())
+    (contracts_dir / "events.schema.json").write_text(generate_events_json())
+    (contracts_dir / "observe-events.schema.json").write_text(
+        generate_observe_events_json()
     )
 
 
