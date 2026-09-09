@@ -344,7 +344,6 @@ pub fn start_reader(
                         }
                         continue;
                     }
-                    // No voss telemetry OSC — scan for shell marks, then display
                     if !emit_display(slice, &mut tracker, &on_data) {
                         break; // channel closed (pane gone)
                     }

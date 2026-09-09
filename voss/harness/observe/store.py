@@ -83,7 +83,16 @@ CREATE TABLE findings (
 );
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1]
+_MIGRATION_2 = """
+CREATE TABLE bos_outbox (
+    event_id      TEXT PRIMARY KEY REFERENCES events (event_id),
+    attempts      INTEGER NOT NULL DEFAULT 0,
+    last_error    TEXT,
+    delivered_at  TEXT
+);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2]
 
 
 def _now_iso() -> str:
@@ -158,6 +167,10 @@ class ObserveStore:
                         json.dumps(body, sort_keys=True),
                     ),
                 )
+                self._conn.execute(
+                    "INSERT INTO bos_outbox (event_id) VALUES (?)",
+                    (event.event_id,),
+                )
         except sqlite3.IntegrityError:
             return False
         return True
@@ -182,6 +195,30 @@ class ObserveStore:
             (after_seq, limit),
         ).fetchall()
         return [{"seq": row["seq"], "event": json.loads(row["body"])} for row in rows]
+
+    # -- bos_outbox -----------------------------------------------------------
+
+    def outbox_rows(self, *, undelivered_only: bool = False) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM bos_outbox"
+        if undelivered_only:
+            sql += " WHERE delivered_at IS NULL"
+        rows = self._conn.execute(sql + " ORDER BY event_id").fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_outbox_delivered(self, event_id: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE bos_outbox SET delivered_at = ? WHERE event_id = ?",
+                (_now_iso(), event_id),
+            )
+
+    def record_outbox_failure(self, event_id: str, error: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE bos_outbox SET attempts = attempts + 1, last_error = ? "
+                "WHERE event_id = ?",
+                (error, event_id),
+            )
 
     # -- evidence -----------------------------------------------------------
 

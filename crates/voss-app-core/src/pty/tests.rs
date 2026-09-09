@@ -50,7 +50,7 @@ fn read_until(mut reader: Box<dyn Read + Send>, needle: &str, timeout: Duration)
 #[test]
 fn test_pty_spawn_env() {
     // PTY-01: spawned shell inherits TERM=xterm-256color + COLORTERM=truecolor.
-    let (session, reader, _pause) = spawn_session(24, 80, None).expect("spawn");
+    let (session, reader, _pause) = spawn_session(24, 80, None, false).expect("spawn");
     session
         .write(
             b"printf 'T=%s C=%s VE=%s VA=%s\\n' \"$TERM\" \"$COLORTERM\" \"${VOSS_EMBEDDED-unset}\" \"${VOSS_AGENT_ID-unset}\"\n",
@@ -73,9 +73,31 @@ fn test_pty_spawn_env() {
 }
 
 #[test]
+fn test_pty_spawn_shell_integration_on() {
+    // S3.8 opt-in: flag on → VOSS_EMBEDDED=1 reaches the shell; every other
+    // VOSS_* var stays stripped. VOSS_TEST_STRIP is unique to this test so
+    // parallel tests never observe it.
+    std::env::set_var("VOSS_TEST_STRIP", "1");
+    let (session, reader, _pause) = spawn_session(24, 80, None, true).expect("spawn");
+    session
+        .write(
+            b"printf 'VE=%s TS=%s\\n' \"${VOSS_EMBEDDED-unset}\" \"${VOSS_TEST_STRIP-unset}\"\n",
+        )
+        .expect("write");
+    let out = read_until(reader, "VE=1", Duration::from_secs(8));
+    session.kill().ok();
+    std::env::remove_var("VOSS_TEST_STRIP");
+    assert!(out.contains("VE=1"), "VOSS_EMBEDDED not set; got: {out:?}");
+    assert!(
+        out.contains("TS=unset"),
+        "other VOSS_* vars must stay stripped; got: {out:?}"
+    );
+}
+
+#[test]
 fn test_pty_round_trip() {
     // PTY-02: bytes written to the PTY are echoed back through the reader.
-    let (session, reader, _pause) = spawn_session(24, 80, None).expect("spawn");
+    let (session, reader, _pause) = spawn_session(24, 80, None, false).expect("spawn");
     session.write(b"echo hi_marker_42\n").expect("write");
     let out = read_until(reader, "hi_marker_42", Duration::from_secs(8));
     session.kill().ok();
@@ -112,7 +134,7 @@ fn test_pty_write_validation() {
 #[test]
 fn test_foreground_pgid() {
     // PTY-06: foreground process name resolves via tcgetpgrp + pgid→pid.
-    let (session, mut reader, _pause) = spawn_session(24, 80, None).expect("spawn");
+    let (session, mut reader, _pause) = spawn_session(24, 80, None, false).expect("spawn");
     // Drain PTY output so the shell never blocks on a full master buffer.
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
@@ -494,7 +516,6 @@ fn test_tracker_voss_cmd_without_c_yields_zero_duration() {
 fn test_tracker_output_cap_head_plus_tail() {
     let mut t = CommandTracker::default();
     apply_all(&mut t, b"\x1b]133;C\x07");
-    // 1 MiB of distinct-phase output: head 192 KiB + tail 64 KiB retained.
     let mut big = Vec::with_capacity(1024 * 1024);
     for i in 0..(1024 * 1024) {
         big.push((i / 1024) as u8);

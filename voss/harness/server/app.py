@@ -8,6 +8,7 @@ this module only adds transport: routes, an event bus, and a permission bridge.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import secrets
 import uuid
@@ -18,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
@@ -28,6 +29,16 @@ from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config u
 from .. import auth as auth_mod
 from .. import session as session_store
 from ..agent import run_turn
+from ..observe import admission as observe_admission
+from ..observe.enrollment import (
+    RepoEnrollment,
+    get_repo_enrollment,
+    load_enrollment,
+    set_repo_enrollment,
+)
+from ..observe.models import ObserveEventAdapter
+from ..observe.redact import redact_text
+from ..observe.store import ObserveStore, db_path
 from ..permissions import PermissionGate, PermissionStore
 from ..swarm_agents import is_native
 from ..swarm_store import (
@@ -488,6 +499,35 @@ class SwarmMessageBody(BaseModel):
     confidence: float = 0.0
 
 
+# -- observe (S3.5) ---------------------------------------------------------
+
+
+class ObserveEvidenceItem(BaseModel):
+    kind: str = "command_output"
+    content: str = ""
+    truncated: bool = False
+
+
+class ObserveEventBody(BaseModel):
+    event: dict[str, Any]
+    evidence: list[ObserveEvidenceItem] = []
+
+
+class ObserveEnrollmentPatch(BaseModel):
+    enabled: bool | None = None
+    capture: bool | None = None
+    analysis: bool | None = None
+    provider: str | None = None
+    disclosure: bool | None = None
+    budget_usd: float | None = None
+    paused: bool | None = None
+
+
+class ObserveSettingsBody(BaseModel):
+    repository_id: str
+    enrollment: ObserveEnrollmentPatch
+
+
 # ---------------------------------------------------------------------------
 # app factory
 # ---------------------------------------------------------------------------
@@ -759,6 +799,141 @@ def create_app(token: str | None = None) -> FastAPI:
                 for h in hits
             ]
         return out
+
+    # -- observe (S3.5) -------------------------------------------------------
+
+    def _observe_reject(reason: str) -> JSONResponse:
+        return JSONResponse(
+            {"v": 1, "decision": "reject", "reason": reason}, status_code=403
+        )
+
+    @app.post("/observe/events")
+    def post_observe_event(body: ObserveEventBody):
+        try:
+            event = ObserveEventAdapter.validate_python(body.event)
+        except ValidationError as exc:
+            raise HTTPException(422, f"invalid observe event: {exc}")
+        enrollment = get_repo_enrollment(event.repository_id)
+        if enrollment is None or not enrollment.enabled:
+            return _observe_reject("not_enrolled")
+        if enrollment.paused:
+            return _observe_reject("paused")
+        if not enrollment.capture:
+            return _observe_reject("capture_disabled")
+        store = ObserveStore(event.repository_id)
+        try:
+            redacted = [redact_text(item.content) for item in body.evidence]
+            evidence_ids: list[str] = []
+            for index, (item, text) in enumerate(zip(body.evidence, redacted)):
+                # Evidence ids derive from event_id so a duplicate POST is an
+                # INSERT OR IGNORE no-op instead of a second evidence row.
+                evidence_id = f"{event.event_id}-ev{index}"
+                store.put_evidence(
+                    evidence_id,
+                    event.event_id,
+                    item.kind,
+                    text.encode("utf-8"),
+                    truncated=item.truncated,
+                )
+                evidence_ids.append(evidence_id)
+            if evidence_ids:
+                event.evidence_refs = [*event.evidence_refs, *evidence_ids]
+            error_text = "\n".join(
+                text
+                for item, text in zip(body.evidence, redacted)
+                if item.kind == "command_output"
+            )
+            result = observe_admission.admit(store, event, error_text=error_text)
+        finally:
+            store.close()
+        return {
+            "v": 1,
+            "decision": result.decision,
+            "reason": result.reason,
+            "policy_version": result.policy_version,
+            "event_id": result.event_id,
+            "fingerprint": result.fingerprint,
+            "investigation_id": result.investigation_id,
+            "derived_event_id": (
+                result.derived_event.event_id if result.derived_event else None
+            ),
+        }
+
+    @app.get("/observe/events")
+    def list_observe_events(
+        repository_id: str, cursor: int = 0, limit: int = 100
+    ) -> dict:
+        limit = max(1, min(limit, 1000))
+        if not db_path(repository_id).exists():
+            return {"v": 1, "events": [], "next_cursor": cursor}
+        store = ObserveStore(repository_id)
+        try:
+            events = store.list_events(after_seq=cursor, limit=limit)
+        finally:
+            store.close()
+        return {
+            "v": 1,
+            "events": events,
+            "next_cursor": events[-1]["seq"] if events else cursor,
+        }
+
+    @app.get("/observe/settings")
+    def get_observe_settings() -> dict:
+        enrollment = load_enrollment()
+        return {
+            "v": 1,
+            "repositories": {
+                rid: repo.model_dump(mode="json")
+                for rid, repo in enrollment.repositories.items()
+            },
+        }
+
+    @app.patch("/observe/settings")
+    def patch_observe_settings(body: ObserveSettingsBody) -> dict:
+        current = get_repo_enrollment(body.repository_id) or RepoEnrollment()
+        updated = current.model_copy(
+            update=body.enrollment.model_dump(exclude_unset=True)
+        )
+        set_repo_enrollment(body.repository_id, updated)
+        return {
+            "v": 1,
+            "repository_id": body.repository_id,
+            "enrollment": updated.model_dump(mode="json"),
+        }
+
+    @app.get("/observe/stream")
+    async def observe_stream(
+        request: Request, repository_id: str, cursor: int | None = None
+    ):
+        enrollment = get_repo_enrollment(repository_id)
+        if enrollment is None or not enrollment.enabled:
+            return _observe_reject("not_enrolled")
+        if cursor is None:
+            last_id = request.headers.get("last-event-id", "")
+            cursor = int(last_id) if last_id.isdigit() else 0
+
+        async def gen():
+            store = ObserveStore(repository_id)
+            try:
+                yield ServerSentEvent(
+                    event="server.connected", data=E.ServerConnected().model_dump_json()
+                )
+                after = cursor
+                while True:
+                    batch = store.list_events(after_seq=after, limit=500)
+                    for item in batch:
+                        after = item["seq"]
+                        yield ServerSentEvent(
+                            event="observe.event",
+                            id=str(item["seq"]),
+                            data=json.dumps(item, sort_keys=True),
+                        )
+                    if not batch:
+                        await asyncio.sleep(0.25)
+            finally:
+                store.close()
+
+        return EventSourceResponse(gen(), ping=15, send_timeout=30)
 
     # -- swarm (V25 VSWARM-02/03/04/06/08) ----------------------------------
 

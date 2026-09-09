@@ -1,6 +1,7 @@
 import { Show, createMemo } from 'solid-js';
 import { procByPaneId } from '../pane/procRegistry';
 import { isKnownAgentCli } from '../pane/agentDetect';
+import ObserveStatusDot from './ObserveStatusDot';
 import '../org/attention/attentionPanel.css';
 
 export type StatusBarProps = {
@@ -125,6 +126,7 @@ export default function StatusBar(props: StatusBarProps) {
 
       {/* Right: context panel toggle (F4 D-09) + git branch */}
       <div style={{ 'white-space': 'nowrap', display: 'flex', 'align-items': 'center', gap: '4px' }}>
+        <ObserveStatusDot />
         {/* V14 chunk C (mockup .budgmini): rendered ONLY with an honest
             denominator (see budgetLimit prop docs) — never a fake 43% bar. */}
         <Show when={(props.budgetLimit ?? 0) > 0}>

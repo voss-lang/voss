@@ -121,6 +121,7 @@ pub fn spawn_session(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
+    shell_integration: bool,
 ) -> anyhow::Result<SpawnedPtySession> {
     let pair = native_pty_system()
         .openpty(PtySize {
@@ -139,6 +140,9 @@ pub fn spawn_session(
         .to_string();
 
     let mut cmd = neutral_terminal_command(&shell);
+    if shell_integration {
+        cmd.env("VOSS_EMBEDDED", "1");
+    }
     let cwd_path = match cwd {
         Some(c) => {
             cmd.cwd(&c);

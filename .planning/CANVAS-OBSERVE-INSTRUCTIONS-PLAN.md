@@ -214,6 +214,8 @@ S0 and S1 run in parallel (no shared files). S3 and S2 run in parallel. S4 waits
 
 ## S3 — Observe capture
 
+**Status:** executed 2026-09-06 on branch `s3-observe-capture`. Shell-integration auto-sourcing is opt-in via the setup-screen toggle (`voss:shellIntegration`), threaded paneSession → `spawn_pty` → `spawn_session`; `VOSS_EMBEDDED=1` reaches plain shells only when on. `observeClient` derives `repository_id`/`worktree_id` as sha256 of the workspace paths — canonical for standard checkouts opened at the worktree root; symlinked/subdirectory/linked-worktree opens 403 once and cache `not_enrolled` (follow-up: canonical ids via a src-tauri git call). Server startup outbox recovery is `recover_outbox(store, ledger)` in `observe/bos_drain.py` (wired in S4+ when the server gains a startup hook).
+
 **Goal:** a failed command in a Voss terminal becomes one typed, deduplicated, bounded event in a local store, visible via CLI and SSE. No model calls.
 
 ### Tasks
@@ -235,15 +237,15 @@ S0 and S1 run in parallel (no shared files). S3 and S2 run in parallel. S4 waits
 
 ### Definition of done
 
-- [ ] `voss shell-init` for zsh, bash, fish with a manual walkthrough in `docs/shell-integration.md`
-- [ ] Reader parsing + `pty/tests.rs` cases for A/B/C/D, OSC 7, `voss-cmd`, truncation head/tail
-- [ ] `observeClient.ts` with queue/drop tests
-- [ ] `observe/` package with `tests/harness/observe/` (models, store, admission, repository, redact, enrollment)
-- [ ] Routes + `tests/harness/server/test_observe_routes.py`
-- [ ] `contracts/observe-events.schema.json` generated and checked by the schema-lint test
-- [ ] BOS live emitter with an append-only test
-- [ ] CLI + Settings section + status dot
-- [ ] Zero model calls anywhere in `observe/` (grep-guard test: no import of providers/agent from `observe/`)
+- [x] `voss shell-init` for zsh, bash, fish with a manual walkthrough in `docs/shell-integration.md`
+- [x] Reader parsing + `pty/tests.rs` cases for A/B/C/D, OSC 7, `voss-cmd`, truncation head/tail
+- [x] `observeClient.ts` with queue/drop tests
+- [x] `observe/` package with `tests/harness/observe/` (models, store, admission, repository, redact, enrollment)
+- [x] Routes + `tests/harness/server/test_observe_routes.py`
+- [x] `contracts/observe-events.schema.json` generated and checked by the schema-lint test
+- [x] BOS live emitter with an append-only test
+- [x] CLI + Settings section + status dot
+- [x] Zero model calls anywhere in `observe/` (grep-guard test: no import of providers/agent from `observe/`)
 
 ### Acceptance criteria
 
@@ -514,4 +516,14 @@ AC-S2-4 — src/canvas/__tests__/arrange.test.ts snapshot for 1/2/4/7 nodes per 
 AC-S2-5 — crates/voss-app-core/src/project.rs::ac_s2_5_read_project_file_rejects_escapes_and_oversize_and_reads_normal_files + NoteFileNodes.test.tsx (error shown) — 2026-09-06
 AC-S2-6 — src/canvas/__tests__/session.test.ts (note text + file path/line round trip) + e2e canvas-s2-ac6 (note text reaches the mirror, preview after blur); file line reopen covered by CanvasRoot openFile test — 2026-09-06
 AC-S2-7 — src/canvas/__tests__/camera.test.ts + CanvasRoot.test.tsx (reduced-motion pan is instant; tween ≤200 ms otherwise) — 2026-09-06
+AC-S3-1 — tests/harness/observe/test_admission.py::test_failing_test_command_derives_test_failed_and_queues + test_non_test_failure_derives_command_failed (caused_by link) — 2026-09-06
+AC-S3-2 — tests/harness/observe/test_admission.py::test_repeat_within_cooldown_suppressed + tests/harness/server/test_observe_routes.py::test_repeat_failure_within_cooldown_is_suppressed — 2026-09-06
+AC-S3-3 — tests/harness/server/test_observe_routes.py::test_ac_s3_3_duplicate_post_stores_one_row_and_reports_duplicate — 2026-09-06
+AC-S3-4 — tests/harness/observe/test_admission.py::test_expected_nonzero_recorded_only — 2026-09-06
+AC-S3-5 — crates/voss-app-core/src/pty/tests.rs::test_tracker_output_cap_head_plus_tail (192 KiB head + 64 KiB tail, truncated=true) — 2026-09-06
+AC-S3-6 — docs/shell-integration.md edge-behavior section (pipeline / background / nested) — 2026-09-06
+AC-S3-7 — src/pane/__tests__/observeClient.test.ts (fills to the limit and drops oldest; failing POST never rejects the caller) + src/components/__tests__/StatusBar.test.tsx (dropped count surfaced) — 2026-09-06
+AC-S3-8 — tests/harness/server/test_observe_routes.py::test_ac_s3_8_unenrolled_repository_rejected_and_nothing_stored + tests/harness/test_observe_cli.py (status prints "not enrolled") — 2026-09-06
+AC-S3-9 — tests/harness/observe/test_redact.py::test_env_assignment_secret_redacted + tests/harness/server/test_observe_routes.py::test_evidence_redacted_before_write_and_linked — 2026-09-06
+AC-S3-10 — tests/harness/server/test_observe_routes.py::test_ac_s3_10_stream_seq_order_and_reconnect_without_gaps_or_dupes — 2026-09-06
 ```
