@@ -5346,6 +5346,361 @@ def instructions_check_cmd(cwd_str: str, target: str | None) -> None:
     click.echo(f"  ok: {len(bundle.files)} file(s), {bundle.tokens} tokens, {bundle.bundle_hash[:16]}")
 
 
+# ---------------------------------------------------------------------------
+# shell-init: OSC 133 shell-integration snippets (S3.1)
+# ---------------------------------------------------------------------------
+
+_SHELL_INIT_ZSH = r"""# voss shell integration (zsh) — OSC 133/7 command marks for the Voss reader.
+# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on.
+# Source last, after any prompt theme (the 133;B mark is appended to PROMPT).
+[ "${VOSS_EMBEDDED:-}" = "1" ] || return 0
+
+_voss_json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  print -rn -- "$s"
+}
+
+_voss_preexec() {
+  local cmd="$1"
+  _voss_cmd_id="$(uuidgen 2>/dev/null)"
+  [ -n "$_voss_cmd_id" ] || _voss_cmd_id="voss-${EPOCHSECONDS:-$$}-${RANDOM}${RANDOM}"
+  printf '\033]133;C\007'
+  printf '\033]1337;voss-cmd={"cmd_id":"%s","argv_text":"%s","cwd":"%s"}\007' \
+    "$_voss_cmd_id" "$(_voss_json_escape "$cmd")" "$(_voss_json_escape "$PWD")"
+}
+
+_voss_precmd() {
+  local st=$?
+  if [ -n "${_voss_cmd_id:-}" ]; then
+    printf '\033]133;D;%d\007' "$st"
+    _voss_cmd_id=""
+  fi
+  printf '\033]133;A\007'
+  printf '\033]7;file://%s%s\007' "${HOST:-localhost}" "$PWD"
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec _voss_preexec
+add-zsh-hook precmd _voss_precmd
+PROMPT="${PROMPT}%{$'\033]133;B\007'%}"
+"""
+
+_SHELL_INIT_BASH = r"""# voss shell integration (bash) — OSC 133/7 command marks for the Voss reader.
+# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on.
+# Source last, after any prompt theme (the 133;B mark is appended to PS1).
+[ "${VOSS_EMBEDDED:-}" = "1" ] || return 0
+
+_voss_json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
+_voss_prompt_command() {
+  local st=$?
+  if [ -n "${_voss_cmd_active:-}" ]; then
+    printf '\033]133;D;%d\007' "$st"
+    _voss_cmd_active=""
+  fi
+  printf '\033]133;A\007'
+  printf '\033]7;file://%s%s\007' "${HOSTNAME:-localhost}" "$PWD"
+  _voss_at_prompt=1
+}
+
+# bash has no preexec; the DEBUG trap approximates it. _voss_at_prompt limits
+# the hook to the first simple command after each prompt.
+_voss_preexec() {
+  [ -n "${_voss_at_prompt:-}" ] || return 0
+  case "$BASH_COMMAND" in
+    _voss_prompt_command* | "$PROMPT_COMMAND") return 0 ;;
+  esac
+  _voss_at_prompt=""
+  _voss_cmd_active=1
+  local cmd="$BASH_COMMAND"
+  _voss_cmd_id="$(uuidgen 2>/dev/null)"
+  [ -n "$_voss_cmd_id" ] || _voss_cmd_id="voss-${EPOCHSECONDS:-$$}-${RANDOM}${RANDOM}"
+  printf '\033]133;C\007'
+  printf '\033]1337;voss-cmd={"cmd_id":"%s","argv_text":"%s","cwd":"%s"}\007' \
+    "$_voss_cmd_id" "$(_voss_json_escape "$cmd")" "$(_voss_json_escape "$PWD")"
+}
+
+trap '_voss_preexec' DEBUG
+PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND};}_voss_prompt_command"
+PS1="${PS1}\[\033]133;B\007\]"
+"""
+
+_SHELL_INIT_FISH = r"""# voss shell integration (fish) — OSC 133/7 command marks for the Voss reader.
+# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on.
+# Source last, after any prompt theme (fish_prompt is wrapped for 133;B).
+if test "$VOSS_EMBEDDED" = "1"
+    function __voss_json_escape
+        string replace -a -- '\\' '\\\\' $argv \
+            | string replace -a -- '"' '\\"' \
+            | string replace -a -- (printf '\n') '\\n' \
+            | string replace -a -- (printf '\r') '\\r' \
+            | string replace -a -- (printf '\t') '\\t'
+    end
+
+    function __voss_preexec --on-event fish_preexec
+        set -g __voss_cmd_id (uuidgen 2>/dev/null)
+        if test -z "$__voss_cmd_id"
+            set -g __voss_cmd_id "voss-"(date +%s)"-"(random)(random)
+        end
+        printf '\e]133;C\a'
+        printf '\e]1337;voss-cmd={"cmd_id":"%s","argv_text":"%s","cwd":"%s"}\a' \
+            $__voss_cmd_id (__voss_json_escape $argv) (__voss_json_escape $PWD)
+    end
+
+    function __voss_postexec --on-event fish_postexec
+        printf '\e]133;D;%d\a' $status
+    end
+
+    function __voss_prompt --on-event fish_prompt
+        printf '\e]133;A\a'
+        printf '\e]7;file://%s%s\a' (hostname) $PWD
+    end
+
+    if functions -q fish_prompt
+        functions -c fish_prompt __voss_fish_prompt_orig
+        function fish_prompt
+            __voss_fish_prompt_orig
+            printf '\e]133;B\a'
+        end
+    end
+end
+"""
+
+_SHELL_INIT_SNIPPETS = {
+    "zsh": _SHELL_INIT_ZSH,
+    "bash": _SHELL_INIT_BASH,
+    "fish": _SHELL_INIT_FISH,
+}
+
+
+@click.command("shell-init")
+@click.option(
+    "--shell",
+    "shell_name",
+    type=click.Choice(("zsh", "bash", "fish")),
+    required=True,
+    help="Shell to print the integration snippet for.",
+)
+def shell_init_cmd(shell_name: str) -> None:
+    """Print the OSC 133 shell-integration snippet (see docs/shell-integration.md)."""
+    click.echo(_SHELL_INIT_SNIPPETS[shell_name].rstrip())
+
+
+# ---------------------------------------------------------------------------
+# observe: enrollment, status, events, reconcile (S3.7)
+# ---------------------------------------------------------------------------
+
+
+@click.group("observe")
+def observe_group() -> None:
+    """Observe capture: per-repo enrollment, status, and stored events."""
+
+
+def _observe_repo(repo_str: str) -> tuple[Path, str]:
+    from .observe import repository as observe_repository
+
+    root = observe_repository.canonical_worktree_root(repo_str)
+    return root, observe_repository.repository_id(repo_str)
+
+
+def _observe_repo_or_fail(repo_str: str) -> tuple[Path, str]:
+    from .observe.repository import NotARepositoryError
+
+    try:
+        return _observe_repo(repo_str)
+    except NotARepositoryError as exc:
+        click.echo(f"  ! {exc}", err=True)
+        sys.exit(1)
+
+
+def _print_enrollment(enrollment) -> None:
+    def _onoff(flag: bool) -> str:
+        return "on" if flag else "off"
+
+    click.echo(
+        f"  enabled={'yes' if enrollment.enabled else 'no'}"
+        f"  capture={_onoff(enrollment.capture)}"
+        f"  analysis={_onoff(enrollment.analysis)}"
+        f"  paused={'yes' if enrollment.paused else 'no'}"
+        f"  provider={enrollment.provider or '-'}"
+        f"  disclosure={'yes' if enrollment.disclosure else 'no'}"
+        f"  budget_usd={enrollment.budget_usd if enrollment.budget_usd is not None else '-'}"
+    )
+
+
+def _observe_set(repo_str: str, **changes) -> None:
+    from .observe.enrollment import RepoEnrollment, get_repo_enrollment, set_repo_enrollment
+
+    root, repo_id = _observe_repo_or_fail(repo_str)
+    current = get_repo_enrollment(repo_id) or RepoEnrollment()
+    updated = current.model_copy(update=changes)
+    set_repo_enrollment(repo_id, updated)
+    click.echo(f"  repo: {root}")
+    _print_enrollment(updated)
+
+
+@observe_group.command("enable")
+@click.option("--repo", "repo_str", default=".", type=click.Path(file_okay=False), help="Repository path.")
+def observe_enable_cmd(repo_str: str) -> None:
+    """Enable observation for the repository (default: cwd's repo)."""
+    _observe_set(repo_str, enabled=True)
+
+
+@observe_group.command("disable")
+@click.option("--repo", "repo_str", default=".", type=click.Path(file_okay=False), help="Repository path.")
+def observe_disable_cmd(repo_str: str) -> None:
+    """Disable observation for the repository."""
+    _observe_set(repo_str, enabled=False)
+
+
+@observe_group.command("pause")
+@click.option("--repo", "repo_str", default=".", type=click.Path(file_okay=False), help="Repository path.")
+def observe_pause_cmd(repo_str: str) -> None:
+    """Pause capture without unenrolling the repository."""
+    _observe_set(repo_str, paused=True)
+
+
+@observe_group.command("resume")
+@click.option("--repo", "repo_str", default=".", type=click.Path(file_okay=False), help="Repository path.")
+def observe_resume_cmd(repo_str: str) -> None:
+    """Resume capture after a pause."""
+    _observe_set(repo_str, paused=False)
+
+
+@observe_group.command("status")
+@click.option("--repo", "repo_str", default=".", type=click.Path(file_okay=False), help="Repository path.")
+def observe_status_cmd(repo_str: str) -> None:
+    """Show enrollment state and BOS outbox backlog for the repository."""
+    from .observe import bos_drain
+    from .observe.enrollment import get_repo_enrollment
+    from .observe.store import ObserveStore, db_path
+
+    root, repo_id = _observe_repo_or_fail(repo_str)
+    enrollment = get_repo_enrollment(repo_id)
+    click.echo(f"  repo: {root}  [{repo_id[:12]}]")
+    if enrollment is None:
+        click.echo("  not enrolled")
+        return
+    _print_enrollment(enrollment)
+    backlog = {"pending": 0, "delivered": 0, "oldest_pending": None, "last_error": None}
+    if db_path(repo_id).exists():
+        with ObserveStore(repo_id) as store:
+            backlog = bos_drain.outbox_backlog(store)
+    line = f"  outbox: {backlog['pending']} pending, {backlog['delivered']} delivered"
+    if backlog["oldest_pending"]:
+        line += f"  oldest={backlog['oldest_pending']}"
+    if backlog["last_error"]:
+        line += f"  last_error={backlog['last_error']}"
+    click.echo(line)
+
+
+_SINCE_RELATIVE = re.compile(r"^(\d+)([smhd])$")
+
+
+def _parse_since(raw: str):
+    from datetime import datetime, timedelta, timezone
+
+    match = _SINCE_RELATIVE.match(raw.strip())
+    if match:
+        seconds = {"s": 1, "m": 60, "h": 3600, "d": 86400}[match.group(2)] * int(match.group(1))
+        return datetime.now(timezone.utc) - timedelta(seconds=seconds)
+    try:
+        parsed = datetime.fromisoformat(raw.strip())
+    except ValueError:
+        raise click.BadParameter(f"expected ISO 8601 or a relative span like 30m/2h/1d: {raw!r}")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _event_line(record: dict) -> str:
+    event = record["event"]
+    payload = event.get("payload") or {}
+    line = f"  {event.get('event_time', '?')}  [{event.get('event_type', '?')}]"
+    argv_text = payload.get("argv_text")
+    if argv_text:
+        line += f"  {argv_text}"
+    if "exit_code" in payload:
+        line += f"  exit={payload['exit_code']}"
+    failed_tests = payload.get("failed_tests")
+    if failed_tests:
+        line += f"  failed: {', '.join(failed_tests)}"
+    if payload.get("truncated"):
+        line += "  [truncated]"
+    return line
+
+
+@observe_group.command("events")
+@click.option("--repo", "repo_str", default=".", type=click.Path(file_okay=False), help="Repository path.")
+@click.option("--tail", "tail", default=20, show_default=True, help="Show the last N matching events.")
+@click.option("--since", "since_str", default=None, help="Only events at/after an ISO 8601 time or relative span (30m, 2h, 1d).")
+def observe_events_cmd(repo_str: str, tail: int, since_str: str | None) -> None:
+    """List recent stored events for the repository."""
+    from datetime import datetime
+
+    from .observe.store import ObserveStore, db_path
+
+    _, repo_id = _observe_repo_or_fail(repo_str)
+    since = _parse_since(since_str) if since_str else None
+    if not db_path(repo_id).exists():
+        click.echo("(no events)")
+        return
+    records: list[dict] = []
+    with ObserveStore(repo_id) as store:
+        after = 0
+        while True:
+            page = store.list_events(after_seq=after, limit=500)
+            if not page:
+                break
+            records.extend(page)
+            after = page[-1]["seq"]
+            if len(page) < 500:
+                break
+    if since is not None:
+        records = [
+            r for r in records
+            if datetime.fromisoformat(r["event"].get("event_time", "")) >= since
+        ]
+    if not records:
+        click.echo("(no events)")
+        return
+    for record in records[-tail:]:
+        click.echo(_event_line(record))
+
+
+@observe_group.command("reconcile")
+@click.option("--repo", "repo_str", default=".", type=click.Path(file_okay=False), help="Repository path.")
+def observe_reconcile_cmd(repo_str: str) -> None:
+    """Replay undelivered BOS outbox rows into the repo ledger."""
+    from .bos_ledger import BosEventLedger
+    from .observe import bos_drain
+    from .observe.store import ObserveStore, db_path
+
+    root, repo_id = _observe_repo_or_fail(repo_str)
+    if not db_path(repo_id).exists():
+        click.echo("  reconciled: replayed=0  pending=0  delivered=0")
+        return
+    with ObserveStore(repo_id) as store:
+        result = bos_drain.reconcile(store, BosEventLedger(root))
+    click.echo(
+        f"  reconciled: replayed={result['replayed']}"
+        f"  pending={result['pending']}  delivered={result['delivered']}"
+    )
+
+
 AGENT_COMMANDS = (
     do_cmd,
     serve_cmd,
@@ -5379,6 +5734,8 @@ AGENT_COMMANDS = (
     capabilities_group,
     principles_group,
     instructions_group,
+    shell_init_cmd,
+    observe_group,
     session_group,
     team_group,
     board_cmd,

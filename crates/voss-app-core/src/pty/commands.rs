@@ -83,9 +83,12 @@ pub async fn spawn_pty(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
+    shell_integration: Option<bool>,
     state: Reg<'_>,
 ) -> Result<String, String> {
-    let (session, reader, pause_rx) = spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
+    let (session, reader, pause_rx) =
+        spawn_session(rows, cols, cwd, shell_integration.unwrap_or(false))
+            .map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
     let id = registry.insert(session);
     start_reader(id.clone(), reader, pause_rx, on_data, registry);

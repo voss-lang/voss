@@ -5,6 +5,7 @@ import {
   type Component,
   For,
   Show,
+  createEffect,
   createMemo,
   createSignal,
   onCleanup,
@@ -17,6 +18,13 @@ import {
   MODEL_PRESETS,
   type ModelCliKey,
 } from '../../agents/modelPrefs';
+import { liveServer } from '../../org/live/liveServer';
+import {
+  getObserveSettings,
+  patchObserveSettings,
+  type ObserveRepoEnrollment,
+} from '../../org/live/sidecarClient';
+import { observeContextForWorkspace } from '../../pane/observeClient';
 import {
   type AppearanceSettings,
   type BellBehavior,
@@ -48,6 +56,16 @@ const FONT_FAMILIES = [
 ] as const;
 const LINE_HEIGHTS = [1.25, 1.35, 1.5, 1.65, 1.8] as const;
 const THEMES = listBundledThemes();
+
+const DEFAULT_ENROLLMENT: ObserveRepoEnrollment = {
+  enabled: false,
+  capture: true,
+  analysis: false,
+  provider: null,
+  disclosure: false,
+  budget_usd: null,
+  paused: false,
+};
 
 function themeVars(theme: Theme): string {
   return [
@@ -140,6 +158,57 @@ const SettingsSurface: Component = () => {
     });
   }
 
+  // S3.8 Observation: enrollment for the live workspace repo, via the sidecar.
+  const [enrollment, setEnrollment] =
+    createSignal<ObserveRepoEnrollment | null>(null);
+  const [enrollmentRepoId, setEnrollmentRepoId] = createSignal<string | null>(
+    null,
+  );
+  const [observeAvailable, setObserveAvailable] = createSignal(false);
+
+  createEffect(() => {
+    const server = liveServer();
+    const cwd = server?.cwd;
+    if (!server || !cwd) {
+      setObserveAvailable(false);
+      setEnrollment(null);
+      setEnrollmentRepoId(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const ctx = await observeContextForWorkspace(cwd);
+        const repos = await getObserveSettings(server.sidecarId);
+        setEnrollmentRepoId(ctx.repositoryId);
+        setEnrollment(repos[ctx.repositoryId] ?? null);
+        setObserveAvailable(true);
+      } catch (e: unknown) {
+        console.error('[voss-app] getObserveSettings failed:', e);
+        setObserveAvailable(false);
+      }
+    })();
+  });
+
+  function patchEnrollment(patch: Partial<ObserveRepoEnrollment>): void {
+    const server = liveServer();
+    const repoId = enrollmentRepoId();
+    if (!server || !repoId) return;
+    const prev = enrollment();
+    setEnrollment({ ...DEFAULT_ENROLLMENT, ...prev, ...patch });
+    void patchObserveSettings(server.sidecarId, repoId, patch)
+      .then((updated) => setEnrollment(updated))
+      .catch((e: unknown) => {
+        setEnrollment(prev);
+        console.error('[voss-app] patchObserveSettings failed:', e);
+      });
+  }
+
+  const observeMeta = createMemo(() => {
+    const e = enrollment();
+    if (!e?.enabled) return 'not enrolled';
+    return e.paused ? 'paused' : 'capturing';
+  });
+
   return (
     <div class="surface settings-surface" role="tabpanel" aria-label="Settings">
       <div class="surface__header">
@@ -152,6 +221,9 @@ const SettingsSurface: Component = () => {
             <a class="settings-nav__item" href="#settings-interface">Interface</a>
             <a class="settings-nav__item" href="#settings-terminal">Terminal</a>
             <a class="settings-nav__item" href="#settings-agents">Agents</a>
+            <a class="settings-nav__item" href="#settings-observation">
+              Observation
+            </a>
           </aside>
 
           <main class="settings-content">
@@ -530,6 +602,116 @@ const SettingsSurface: Component = () => {
                   )}
                 </For>
               </div>
+            </section>
+
+            <section class="settings-panel" id="settings-observation">
+              <div class="settings-panel__header">
+                <div>
+                  <h2 class="settings-panel__title">Observation</h2>
+                  <p class="settings-panel__meta">
+                    {observeMeta()}
+                    <Show when={enrollmentRepoId()}>
+                      {(id) => (
+                        <span class="settings-panel__meta-chip">
+                          {id().slice(0, 12)}
+                        </span>
+                      )}
+                    </Show>
+                  </p>
+                </div>
+              </div>
+
+              <Show
+                when={observeAvailable()}
+                fallback={
+                  <p class="settings-panel__meta">
+                    Open a project with a live session to manage observation.
+                  </p>
+                }
+              >
+                <div class="settings-toggle-row">
+                  <label class="settings-toggle">
+                    <input
+                      type="checkbox"
+                      aria-label="Observe this repository"
+                      checked={enrollment()?.enabled ?? false}
+                      onChange={(e) =>
+                        patchEnrollment({ enabled: e.currentTarget.checked })
+                      }
+                    />
+                    <span class="settings-toggle__track" aria-hidden="true">
+                      <span class="settings-toggle__thumb" />
+                    </span>
+                    <span class="settings-toggle__label">
+                      Observe this repository
+                    </span>
+                  </label>
+
+                  <label class="settings-toggle">
+                    <input
+                      type="checkbox"
+                      aria-label="Pause capture"
+                      checked={enrollment()?.paused ?? false}
+                      disabled={!enrollment()?.enabled}
+                      onChange={(e) =>
+                        patchEnrollment({ paused: e.currentTarget.checked })
+                      }
+                    />
+                    <span class="settings-toggle__track" aria-hidden="true">
+                      <span class="settings-toggle__thumb" />
+                    </span>
+                    <span class="settings-toggle__label">Pause capture</span>
+                  </label>
+
+                  <label class="settings-toggle">
+                    <input
+                      type="checkbox"
+                      aria-label="Capture command output"
+                      checked={enrollment()?.capture ?? true}
+                      disabled={!enrollment()?.enabled}
+                      onChange={(e) =>
+                        patchEnrollment({ capture: e.currentTarget.checked })
+                      }
+                    />
+                    <span class="settings-toggle__track" aria-hidden="true">
+                      <span class="settings-toggle__thumb" />
+                    </span>
+                    <span class="settings-toggle__label">
+                      Capture command output
+                    </span>
+                  </label>
+
+                  <label class="settings-toggle">
+                    <input
+                      type="checkbox"
+                      aria-label="Failure analysis"
+                      checked={enrollment()?.analysis ?? false}
+                      disabled={!enrollment()?.enabled}
+                      onChange={(e) =>
+                        patchEnrollment(
+                          e.currentTarget.checked
+                            ? { analysis: true, disclosure: true }
+                            : { analysis: false },
+                        )
+                      }
+                    />
+                    <span class="settings-toggle__track" aria-hidden="true">
+                      <span class="settings-toggle__thumb" />
+                    </span>
+                    <span class="settings-toggle__label">Failure analysis</span>
+                  </label>
+                </div>
+
+                <Show when={enrollment()?.provider}>
+                  {(provider) => (
+                    <p class="settings-panel__meta">
+                      Failure analysis sends captured commands and output to{' '}
+                      {provider()}. Enabling analysis acknowledges this
+                      disclosure.
+                    </p>
+                  )}
+                </Show>
+              </Show>
             </section>
           </main>
         </div>

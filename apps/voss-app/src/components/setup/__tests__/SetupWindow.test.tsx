@@ -4,6 +4,10 @@ import { fireEvent } from '@testing-library/dom';
 
 import SetupWindow from '../SetupWindow';
 import {
+  setShellIntegration,
+  shellIntegrationEnabled,
+} from '../shellIntegration';
+import {
   OPEN_PROJECT_LABEL,
   RECENTS_HEADING,
   START_PROJECT_LESS_LABEL,
@@ -190,6 +194,35 @@ describe('SetupWindow — controlled click behavior', () => {
     fireEvent.click(recentButton(el, path));
     expect(onOpenRecent).toHaveBeenCalledTimes(1);
     expect(onOpenRecent).toHaveBeenCalledWith(path);
+  });
+});
+
+describe('SetupWindow — shell integration opt-in (S3.1/S3.8)', () => {
+  afterEach(() => {
+    setShellIntegration(false);
+    localStorage.removeItem('voss:shellIntegration');
+  });
+
+  it('defaults to off and persists opt-in to localStorage', () => {
+    const el = mount(() => (
+      <SetupWindow
+        recents={[]}
+        onOpenProject={() => {}}
+        onOpenRecent={() => {}}
+        onStartProjectLess={() => {}}
+      />
+    ));
+    const toggle = el.querySelector<HTMLInputElement>(
+      'input[aria-label="Enable shell integration"]',
+    )!;
+    expect(toggle.checked).toBe(false);
+
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(localStorage.getItem('voss:shellIntegration')).toBe('true');
+    expect(shellIntegrationEnabled()).toBe(true);
+    expect(toggle.checked).toBe(true);
   });
 });
 
