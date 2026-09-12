@@ -5402,6 +5402,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "voss-sdk",
 ]
 
 [[package]]

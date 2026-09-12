@@ -1,17 +1,29 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
 use futures_util::StreamExt;
 use voss_sdk::error::VossError;
 use voss_sdk::types::events::AgentEvent;
-use voss_sdk::{event_stream, spawn_with, VossClient};
+use voss_sdk::{event_stream, LaunchOptions, Supervisor, VossClient};
 
 static SERVER_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-fn venv_python() -> Option<String> {
-    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
-    p.exists().then(|| p.to_string_lossy().into_owned())
+fn venv_voss() -> Option<PathBuf> {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/voss");
+    p.exists().then_some(p)
+}
+
+async fn spawn_with(voss: &Path, env: &[(&str, &str)]) -> Result<Supervisor, VossError> {
+    Supervisor::spawn(LaunchOptions {
+        executable: Some(voss.to_path_buf()),
+        env: env
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        ..Default::default()
+    })
+    .await
 }
 
 async fn with_timeout<F, T>(future: F) -> T
@@ -27,14 +39,14 @@ where
 
 #[tokio::test]
 async fn rest_roundtrip() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
     let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
-        let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
+        let supervisor = spawn_with(&voss, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
             .expect("server should start");
         let client = supervisor.client.clone();
@@ -55,14 +67,14 @@ async fn rest_roundtrip() {
 
 #[tokio::test]
 async fn auth_bad_token() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
     let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
-        let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
+        let supervisor = spawn_with(&voss, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
             .expect("server should start");
         let bad_client =
@@ -78,14 +90,14 @@ async fn auth_bad_token() {
 
 #[tokio::test]
 async fn post_while_busy() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
     let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
-        let supervisor = spawn_with(&python, &[]).await.expect("server should start");
+        let supervisor = spawn_with(&voss, &[]).await.expect("server should start");
         let client = supervisor.client.clone();
 
         let sid = match client.create_session(".").await {
@@ -114,14 +126,14 @@ async fn post_while_busy() {
 
 #[tokio::test]
 async fn sse_event_sequence() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
     let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
-        let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
+        let supervisor = spawn_with(&voss, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
             .expect("server should start");
         let client = supervisor.client.clone();
@@ -155,14 +167,14 @@ async fn sse_event_sequence() {
 
 #[tokio::test]
 async fn sse_drop_midstream() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
     let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
-        let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
+        let supervisor = spawn_with(&voss, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
             .expect("server should start");
         let client = supervisor.client.clone();
@@ -188,14 +200,14 @@ async fn sse_drop_midstream() {
 
 #[tokio::test]
 async fn supervisor_no_orphan() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
     let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
-        let supervisor = spawn_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
+        let supervisor = spawn_with(&voss, &[("VOSS_SERVE_FAKE_TURN", "1")])
             .await
             .expect("server should start");
         let pid = supervisor.pid();
@@ -224,14 +236,14 @@ async fn supervisor_no_orphan() {
 // permission test needs a future VOSS_SERVE_FAKE_TURN_PERMISSION server seam.
 #[tokio::test]
 async fn permission_roundtrip() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
     let _guard = SERVER_TEST_LOCK.lock().await;
     with_timeout(async {
-        let supervisor = spawn_with(&python, &[]).await.expect("server should start");
+        let supervisor = spawn_with(&voss, &[]).await.expect("server should start");
         let client = supervisor.client.clone();
 
         let sid = match client.create_session(".").await {

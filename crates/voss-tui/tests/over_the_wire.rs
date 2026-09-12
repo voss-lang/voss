@@ -1,15 +1,27 @@
 // ! Over-the-wire SSE test
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use tokio::sync::mpsc;
 use voss_tui::event::AppEvent;
+use voss_tui::server::LaunchOptions;
 use voss_tui::store::read_saved_sessions;
 use voss_tui::{net::HttpClient, server};
 
-fn venv_python() -> Option<String> {
-    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
-    p.exists().then(|| p.to_string_lossy().into_owned())
+fn venv_voss() -> Option<PathBuf> {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/voss");
+    p.exists().then_some(p)
+}
+
+fn launch(voss: &Path, env: &[(&str, &str)]) -> LaunchOptions {
+    LaunchOptions {
+        executable: Some(voss.to_path_buf()),
+        env: env
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        ..Default::default()
+    }
 }
 
 /// Live end-to-end smoke: real server + real provider (no fake seam) driven
@@ -17,12 +29,12 @@ fn venv_python() -> Option<String> {
 #[tokio::test]
 #[ignore]
 async fn real_turn_over_the_wire() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
-    let handle = server::spawn_server_with(&python, &[]) // NO fake-turn env
+    let handle = server::spawn_server_with(launch(&voss, &[])) // NO fake-turn env
         .await
         .expect("server should start");
     let http = HttpClient::new(handle.base.clone(), handle.token.clone());
@@ -83,8 +95,8 @@ async fn real_turn_over_the_wire() {
 /// Python server's /sessions/saved returns for the same directory. Hermetic
 #[tokio::test]
 async fn native_store_matches_server_listing() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
     let tmp = tempfile::tempdir().unwrap();
@@ -111,7 +123,7 @@ async fn native_store_matches_server_listing() {
         .unwrap();
     }
 
-    let handle = server::spawn_server_with(&python, &[]).await.unwrap();
+    let handle = server::spawn_server_with(launch(&voss, &[])).await.unwrap();
     let http = HttpClient::new(handle.base.clone(), handle.token.clone());
     let server_list = http.list_saved_sessions(&cwd).await.expect("server list");
     handle.shutdown().await;
@@ -131,12 +143,12 @@ async fn native_store_matches_server_listing() {
 
 #[tokio::test]
 async fn fake_turn_streams_over_the_wire() {
-    let Some(python) = venv_python() else {
-        eprintln!("skipping: .venv/bin/python not found");
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
         return;
     };
 
-    let handle = server::spawn_server_with(&python, &[("VOSS_SERVE_FAKE_TURN", "1")])
+    let handle = server::spawn_server_with(launch(&voss, &[("VOSS_SERVE_FAKE_TURN", "1")]))
         .await
         .expect("server should start");
     let http = HttpClient::new(handle.base.clone(), handle.token.clone());

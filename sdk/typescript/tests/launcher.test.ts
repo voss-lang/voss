@@ -13,7 +13,7 @@ describe("VossLauncher integration", () => {
 
     try {
       const launched = await launcher.start({
-        python: process.env.PYTHON_BIN,
+        executable: process.env.VOSS_BIN,
         cwd: await createTempCwd("voss-sdk-launcher-"),
       });
       pid = launched.pid;

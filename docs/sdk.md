@@ -191,6 +191,59 @@ Tool descriptors carry `is_mutating: bool`. Anything mutating is gated.
 
 ---
 
+## Launching `voss serve` from a client SDK
+
+The Rust (`crates/voss-sdk`) and TypeScript (`@vosslang/sdk/node`) clients
+support two separate use cases. Pick one; nothing forces a consumer to
+launch its own server.
+
+**Connect to a server you already have.** You hold a base URL and bearer
+token (for example from a handshake another process read). Build a client
+directly: `VossClient::new(base, token)` in Rust, `createVossClient(base,
+token)` in TypeScript.
+
+**Supervise a local server.** The SDK spawns `voss serve --port 0`, reads the
+one-line `{"v":1,"port":...,"token":...}` handshake from stdout, holds stdin
+open as a heartbeat, and kills the child on shutdown or drop.
+
+```rust
+use voss_sdk::{LaunchOptions, Supervisor};
+
+let sup = Supervisor::spawn(LaunchOptions {
+    executable: Some("/opt/voss/bin/voss".into()),
+    cwd: Some("/path/to/project".into()),
+    ..Default::default()
+}).await?;
+let client = sup.client.clone();
+// ...
+sup.shutdown().await;
+```
+
+```ts
+import { VossLauncher } from "@vosslang/sdk/node";
+
+const launcher = new VossLauncher();
+const { client } = await launcher.start({ executable: "/opt/voss/bin/voss" });
+// ...
+launcher.dispose();
+```
+
+The executable is resolved in this order, in both SDKs:
+
+1. `executable` passed by the consumer
+2. the `VOSS_BIN` environment variable
+3. `voss` on `PATH`
+
+The SDKs never look for a Python interpreter or a source checkout. Any
+`voss` executable that speaks the protocol works: the npm `@vosslang/cli`
+install, a pip console script, or a wheel-vendored binary.
+
+`voss-tui` is a first-party consumer of the same API. When run from a
+checkout with no `VOSS_BIN` set it prefers the sibling `.venv/bin/voss`;
+that convenience lives in the TUI, not the SDK.
+
+---
+
 ## Known gaps (closing in M7)
 
 These are public-API-shaped holes today. They are scoped to formal v0.1
