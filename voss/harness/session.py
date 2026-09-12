@@ -1,9 +1,43 @@
-"""
-Persisted session snapshots
+"""Persisted session snapshots.
 
-Redaction guarantee: only fixed schema fields are serialized. Provider credentials
-are not schema fields; user-authored transcript text is preserved as supplied.
-Sessions live at <cwd>/.voss/sessions/<id>.json. Legacy pre- sessions remain
+Sessions live at <cwd>/.voss/sessions/<id>.json. Legacy pre-M2 sessions remain
+readable in place at $XDG_STATE_HOME/voss/sessions/ but are never written to.
+Each snapshot stores the episodic transcript, cwd, model, total cost, and a
+per-turn list of RunRecords.
+
+Storage location
+----------------
+Sessions live at <cwd>/.voss/sessions/<id>.json. Legacy pre-M2 sessions remain
+readable in place at $XDG_STATE_HOME/voss/sessions/ but are never written to.
+
+Redaction guarantee
+-------------------
+SessionRecord is a fixed-field dataclass. Save serializes via dataclasses.asdict,
+which means nothing outside the schema gets written. Provider credentials
+(API keys, OAuth access/refresh tokens, Bearer headers, anthropic-beta marker)
+are NEVER fields on this record and therefore cannot be saved.
+
+User-provided prompt text is allowed to contain anything — including strings
+that look like secrets — because EpisodicMemory.content is part of the
+allowlist by design (the user typed it). The guarantee is specifically about
+what the harness itself attaches to the record (it attaches nothing
+secret-shaped).
+
+This invariant is enforced at build time by tests/harness/test_session_redaction.py.
+Adding a new SessionRecord field that could carry creds is a breaking change
+and must be paired with an explicit redaction step.
+
+RunRecord follows the same fixed-field allowlist. Adding a RunRecord field
+that could carry creds is a breaking change and must be paired with an
+explicit redaction step. The invariant is enforced by
+tests/harness/test_session_redaction.py over both SessionRecord and RunRecord
+field values.
+
+M9-06 added two additive fields — `parent_id` (Optional[str], UUID-shaped)
+and `parent_turn_index` (Optional[int], non-negative). Neither can carry
+provider credentials. Backward compat: `_hydrate` already filters unknown
+keys, so old reader + new file silently drops them, and new reader + old
+file falls back to the None defaults.
 """
 from __future__ import annotations
 
@@ -29,20 +63,20 @@ def _legacy_state_dir() -> Path:
     return base / "voss" / "sessions"
 
 
-# Public alias for callers outside this module (cli.doctor_cmd)
+# Public alias for callers outside this module (cli.doctor_cmd).
 legacy_state_dir = _legacy_state_dir
 
 
-# T1-01: Exit reason vocabulary for the iteration loop (SPEC ITER-06)
-# Single source of truth RunRecord __post_init__ enforces membership
-# T2-03: extended with "batch-invariant" (PAR-02) 5th additive value
-# surfaced when the partition scheduler raises BatchInvariantError
+# T1-01: Exit reason vocabulary for the iteration loop (SPEC ITER-06).
+# Single source of truth — RunRecord __post_init__ enforces membership.
+# T2-03: extended with "batch-invariant" (PAR-02) — 5th additive value
+# surfaced when the partition scheduler raises BatchInvariantError.
 EXIT_REASONS: frozenset[str] = frozenset(
     {"done", "max-iter", "budget", "interrupt", "batch-invariant", "timeout", "killed", "error"}
 )
-# OBRD-09 / R-04: "timeout" added for forced-timeout cards (additive)
-# OEM-10: "killed" added for EM kill-flow termination (additive)
-# VTREE-07: "error" added for exception-path subagent finalize (additive)
+# O3 OBRD-09 / R-04: "timeout" added for forced-timeout cards (additive).
+# O5 OEM-10: "killed" added for EM kill-flow termination (additive).
+# V4 VTREE-07: "error" added for exception-path subagent finalize (additive).
 
 
 @dataclass
@@ -72,7 +106,7 @@ class IterationRecord:
     cost_usd: float = 0.0
     prompt_tokens: int = 0
     completion_tokens: int = 0
-    # T4 CACHE-07 ( / Open Question 3): additive defaults preserve pre-T4 session JSON round-trip
+    # T4 CACHE-07 (Pitfall 8 / Open Question 3): additive defaults preserve pre-T4 session JSON round-trip.
     cache_creation_input_tokens: int = 0
     cache_read_input_tokens: int = 0
     started_at: str = ""
@@ -100,18 +134,18 @@ class RunRecord:
     follow_ups: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
     # T1-01: additive iteration-loop fields. Defaults preserve pre-T1 JSON
-    # round-trip and `voss resume` behavior unchanged from.1
+    # round-trip and `voss resume` behavior unchanged from v0.1.
     iterations: list[IterationRecord] = field(default_factory=list)
     iteration_count: int = 0
     exit_reason: Optional[str] = None
     iteration_total_prompt_tokens: int = 0
     iteration_total_completion_tokens: int = 0
-    # skill audit events (additive, defaults for back-compat)
+    # M15-05: skill audit events (additive, defaults for back-compat)
     skill_events: list[dict] = field(default_factory=list)
     scope_denials: list[dict] = field(default_factory=list)
-    # CAP-08: capability-invocation audit rows (additive, back-compat default)
+    # V1-04 CAP-08: capability-invocation audit rows (additive, back-compat default)
     capability_invocations: list[dict] = field(default_factory=list)
-    # VSAFE-05: safety factory-fallback rows (additive, back-compat default)
+    # V12 VSAFE-05: safety factory-fallback rows (additive, back-compat default)
     factory_fallbacks: list[dict] = field(default_factory=list)
     instructions_hash: str = ""
     instructions_files: list[str] = field(default_factory=list)
@@ -135,7 +169,7 @@ class SessionRecord:
     total_cost_usd: float = 0.0
     turns: list[dict] = field(default_factory=list)
     runs: list[dict] = field(default_factory=list)
-    # fork lineage. Additive Optional; pre- sessions hydrate as None
+    # M9-06 fork lineage. Additive Optional; pre-M9 sessions hydrate as None.
     parent_id: Optional[str] = None
     parent_turn_index: Optional[int] = None
     instructions_hash: str = ""
@@ -294,7 +328,7 @@ def delete(session_id: str, cwd: Optional[Path] = None) -> bool:
             if data.get("id", "").startswith(session_id) or data.get("name") == session_id:
                 p.unlink()
                 return True
-    # Refuse to delete legacy files
+    # Refuse to delete legacy files.
     legacy_dir = _legacy_state_dir()
     if legacy_dir.exists():
         for p in legacy_dir.glob("*.json"):

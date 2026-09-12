@@ -1,10 +1,12 @@
-"""
-owned frozen audit dataclasses
-These types normalize persisted data into an audit-specific snapshot
+"""O6-owned frozen audit dataclasses.
+
+These types normalize O1-O5 persisted data into an audit-specific snapshot.
+They use only primitives, tuples, and dicts — no imports from board, reviewer,
+EM, CLI, or TUI modules.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal, Optional
 
 
@@ -145,6 +147,6 @@ class AuditReport:
     calibration: CalibrationReport
     sections_missing: tuple[str, ...]
     unsupported_claims: tuple[str, ...] = ()
-    # VSAFE-05: strict-runbook/factory-fallback marker. Default empty so old
-    # audit snapshots hydrate; populated from run records' factory_fallbacks
+    # V12 VSAFE-05: strict-runbook/factory-fallback marker. Default empty so old
+    # audit snapshots hydrate; populated from run records' factory_fallbacks.
     factory_fallbacks: tuple[dict, ...] = ()

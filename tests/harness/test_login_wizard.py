@@ -1,12 +1,13 @@
-"""
-Phase 2 tests for the interactive login wizard.
+"""Phase 2 tests for the interactive login wizard.
+
 All external IO is injected, so no real terminal, subprocess, or filesystem
+access happens. The wizard's job is to route the user to one of three credential
+paths and return a Resolution (or None if they quit).
 """
 from __future__ import annotations
 
 import io
 from pathlib import Path
-from typing import Optional
 
 import pytest
 from rich.console import Console

@@ -1,10 +1,15 @@
-"""
-M9-07 Windows-console capability branch.
+"""M9-07 Windows-console capability branch.
+
 UI-SPEC + CONTEXT-locked decision: legacy Windows console (cmd.exe /
+conhost without WT_SESSION) hard-blocks the TUI and falls back to
+PlainRenderer with the locked stderr notice.
+`sys.platform == "win32"` + presence of `WT_SESSION` (set by Windows
+Terminal) preserves the normal capability check.
+
+Non-win32 platforms are unaffected.
 """
 from __future__ import annotations
 
-import os
 
 import pytest
 

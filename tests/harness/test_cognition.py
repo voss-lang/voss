@@ -1,6 +1,7 @@
-"""
-Wave 1 + Wave 3 tests for voss/harness/cognition.py.
+"""Wave 1 + Wave 3 tests for voss/harness/cognition.py.
+
 Wave 1: COG-01, COG-02, COG-07 (load, drift, repo.idx, gitignore).
+Wave 3 (M2-04): hybrid bootstrap helpers, /save-plan, analyze skill.
 """
 from __future__ import annotations
 
@@ -15,7 +16,6 @@ from voss_runtime.providers.base import ProviderResponse
 
 from voss.harness.agent import Plan, ToolCall
 from voss.harness.cognition import (
-    ArchitectureFrontmatter,
     FRONTMATTER_RE,
     _render_steps_for_plan_md,
     append_gitignore_line_idempotent,

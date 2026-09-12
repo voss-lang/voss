@@ -1,6 +1,7 @@
-"""
-MemoryStore: orchestrator over voss_runtime.memory +.voss/memory/ filesystem mirror
-Composition (not subclassing) of voss_runtime types per Req 7 grep gate
+"""MemoryStore: orchestrator over voss_runtime.memory + .voss/memory/ filesystem mirror.
+
+Composition (not subclassing) of voss_runtime types per Req 7 grep gate.
+Owned by M8-02 (MEM-03 + MEM-07). Lazy chroma init per Pitfall 4.
 """
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ import dataclasses
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -34,7 +36,7 @@ SOURCE_QUOTAS = {
 DEFAULT_CAP_BYTES = 100 * 1024 * 1024
 
 _SOURCES = ("turns", "ledgers", "decisions", "conventions", "notes")
-_VOSS_MEMORY_GITIGNORE = "chroma/\n.locks/\n.tombstones.jsonl\n"
+_VOSS_MEMORY_GITIGNORE = "chroma/\n.locks/\n.tombstones.jsonl\n.retrieval.jsonl\n.reindex-manifest.json\n"
 
 
 @dataclass
@@ -45,9 +47,9 @@ class Hit:
     excerpt: str
     session_id: str | None = None
     ts: str | None = None
-    # VSEM-01: code-chunk hits carry file:line locators through RRF fusion
+    # V19 VSEM-01: code-chunk hits carry file:line locators through RRF fusion.
     # Memory hits leave both None; appended after existing optionals so
-    # positional construction at existing call sites is unaffected
+    # positional construction at existing call sites is unaffected.
     line_start: int | None = None
     line_end: int | None = None
 
@@ -56,6 +58,20 @@ class Hit:
 class _BM25Candidate:
     hit: Hit
     text: str
+
+
+@dataclass
+class ReindexResult:
+    """Outcome of MemoryStore.reindex (VRNK-05); the CLI maps this to exit codes.
+
+    ``stale`` = locators whose mirror file drifted from / is missing in the
+    manifest. ``reembedded`` = count upserted into chroma (0 for a --check pass).
+    ``chroma_available`` = False when chroma is absent (clean no-op, exit 0).
+    """
+
+    stale: list[str]
+    reembedded: int
+    chroma_available: bool
 
 
 def make_id(source: str, locator: str, seq: int | None = None) -> str:
@@ -70,6 +86,11 @@ def _repo_id(cwd: Path) -> str:
     resolved = cwd.resolve()
     digest = hashlib.sha256(str(resolved).encode()).hexdigest()[:8]
     return f"{resolved.name}-{digest}"
+
+
+def _file_hash(text: str) -> str:
+    """sha256 of file text — reindex drift manifest key (mirrors V19 semantic_index)."""
+    return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
 
 
 def _global_memory_root() -> Path | None:
@@ -123,13 +144,15 @@ class MemoryStore:
         self._size_cache: dict[str, int] = {}
         self._session_id: Optional[str] = None
 
+    # ------------------------------------------------------------------
     # bind / layout
+    # ------------------------------------------------------------------
 
     def bind(self, *, session_id: str) -> "MemoryStore":
         """Attach a session id; ensures the .voss/memory/ layout exists.
 
-        # session_id is supplied by the caller from record.id; no
-        # SessionRecord field dependency
+        # Pitfall 6: session_id is supplied by the caller from record.id; no
+        # SessionRecord field dependency.
         Pitfall 4: chromadb is NOT imported here — first call to recall/write
         lazily probes.
         """
@@ -144,7 +167,9 @@ class MemoryStore:
             gitignore.write_text(_VOSS_MEMORY_GITIGNORE)
         return self
 
+    # ------------------------------------------------------------------
     # lazy chroma probe + lock + eviction stub
+    # ------------------------------------------------------------------
 
     def _maybe_chroma(self) -> "SemanticMemory | None":
         if self._chroma is not None:
@@ -218,9 +243,9 @@ class MemoryStore:
 
         # VRNK-04 retrieval-aware eviction: drop pinned rows from the candidate
         # set (never deleted, but they still count toward quota bytes), then sort
-        # by _eviction_key never-retrieved/stale evict before recently-retrieved
+        # by _eviction_key — never-retrieved/stale evict before recently-retrieved;
         # mtime ascending tie-break. With no telemetry sidecar every file lands in
-        # bucket 0 → the sort degrades to the pre- mtime ordering
+        # bucket 0 → the sort degrades to the pre-V23 mtime ordering.
         telemetry = self._load_telemetry_compacted()
         pins = self._load_pins()
         files = [f for f in files if self._locator_from_path(source, f) not in pins]
@@ -259,7 +284,9 @@ class MemoryStore:
         memory = data.get("memory") if isinstance(data, dict) else None
         return memory if isinstance(memory, dict) else {}
 
+    # ------------------------------------------------------------------
     # tombstones
+    # ------------------------------------------------------------------
 
     @property
     def _tombstones_path(self) -> Path:
@@ -285,7 +312,9 @@ class MemoryStore:
             return set()
         return ids
 
-    # retrieval telemetry (VRNK-01) sidecar append-log, never memory files
+    # ------------------------------------------------------------------
+    # retrieval telemetry (VRNK-01) — sidecar append-log, never memory files
+    # ------------------------------------------------------------------
 
     @property
     def _retrieval_path(self) -> Path:
@@ -405,7 +434,9 @@ class MemoryStore:
         except OSError:
             return
 
+    # ------------------------------------------------------------------
     # writes
+    # ------------------------------------------------------------------
 
     def write_turn(
         self,
@@ -492,13 +523,15 @@ class MemoryStore:
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
         path = reserve_filename(notes_dir, slug(text[:40]))
         composite_id = make_id("note", path.stem)
-        body = (
-            "---\n"
-            f"id: {path.stem}\n"
-            f"related_session: {session_id}\n"
-            f"created_at: {ts}\n"
-            "---\n\n"
-            f"{text}\n"
+        body = render_package_template(
+            "voss",
+            "templates/memory/note.md.jinja",
+            {
+                "id": path.stem,
+                "session_id": session_id,
+                "created_at": ts,
+                "text": text,
+            },
         )
         with self._lock("notes") as lock:
             if lock is None:
@@ -529,17 +562,18 @@ class MemoryStore:
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
         path = reserve_filename(conventions_dir, slug(candidate.statement[:40]))
         composite_id = make_id("convention", path.stem)
-        body = (
-            "---\n"
-            f"id: {path.stem}\n"
-            "status: active\n"
-            f"related_session: {session_id}\n"
-            f"evidence_turn_idx: {candidate.evidence_turn_idx}\n"
-            f"confidence: {candidate.confidence:.2f}\n"
-            f"created_at: {ts}\n"
-            "---\n\n"
-            f"# {candidate.statement}\n\n"
-            f"## Evidence\n\n> {candidate.evidence_quote}\n"
+        body = render_package_template(
+            "voss",
+            "templates/memory/convention.md.jinja",
+            {
+                "id": path.stem,
+                "session_id": session_id,
+                "evidence_turn_idx": candidate.evidence_turn_idx,
+                "confidence": f"{candidate.confidence:.2f}",
+                "created_at": ts,
+                "statement": candidate.statement,
+                "evidence_quote": candidate.evidence_quote,
+            },
         )
         with self._lock("conventions") as lock:
             if lock is None:
@@ -564,7 +598,9 @@ class MemoryStore:
             )
         return path
 
+    # ------------------------------------------------------------------
     # recall
+    # ------------------------------------------------------------------
 
     def recall(
         self,
@@ -587,8 +623,8 @@ class MemoryStore:
             else:
                 fused = self._rrf_merge([bm25_hits, chroma_hits], top_k=top_k)
         # VRNK-03 rescore hook (config-gated, default OFF). When disabled, `fused`
-        # is returned untouched → byte-identical to the pre- path (no extra
-        # sort/copy/mutation). Routes BOTH the fused and BM25-only-degraded paths
+        # is returned untouched → byte-identical to the pre-V23 path (no extra
+        # sort/copy/mutation). Routes BOTH the fused and BM25-only-degraded paths.
         cfg = self._load_memory_config()
         if cfg.get("rescore", False):
             fused = self._rescore(fused, cfg)
@@ -610,6 +646,58 @@ class MemoryStore:
 
         fused.sort(key=lambda hit: (-hit.score, hit.locator))
         return fused[:top_k]
+
+    def _rescore(self, hits: list[Hit], cfg: dict) -> list[Hit]:
+        """Deterministic recency×frequency multiplicative boost (VRNK-03).
+
+        Empty telemetry → input returned unchanged (no-op; SPEC constraint). The
+        boost is bounded in ``[1.0, 1 + w_recency + w_freq]`` so similarity still
+        dominates ranking (D-13). Missing ``last_retrieved`` → recency 0.0
+        (Pitfall 5). Deterministic: same hits + same telemetry → identical output,
+        ties broken by locator. Pure — no filesystem writes.
+        """
+        telemetry = self._load_telemetry_compacted()
+        if not telemetry:
+            return hits
+
+        def _f(key: str, default: float) -> float:
+            try:
+                return float(cfg.get(key, default))
+            except (TypeError, ValueError):
+                return default
+
+        half_life = max(_f("rescore_half_life_days", 7.0), 0.001)
+        freq_scale = max(_f("rescore_freq_scale", 10.0), 1.0)
+        w_recency = _f("rescore_w_recency", 0.3)
+        w_freq = _f("rescore_w_freq", 0.2)
+        now = datetime.now(timezone.utc)
+
+        rescored: list[Hit] = []
+        for hit in hits:
+            entry = telemetry.get(hit.locator)
+            if entry is None:
+                rescored.append(hit)
+                continue
+            try:
+                count = int(entry.get("count", 0))
+            except (TypeError, ValueError):
+                count = 0
+            last_ts = entry.get("last_retrieved") or ""
+            recency = 0.0
+            if last_ts:
+                try:
+                    days_ago = max(
+                        0.0,
+                        (now - datetime.fromisoformat(last_ts)).total_seconds() / 86400.0,
+                    )
+                    recency = math.exp(-days_ago / half_life)
+                except (ValueError, TypeError):
+                    recency = 0.0  # Pitfall 5: corrupt/naive ts → no recency boost
+            freq = math.log1p(count) / math.log1p(freq_scale)
+            boost = 1.0 + w_recency * recency + w_freq * min(freq, 1.0)
+            rescored.append(dataclasses.replace(hit, score=hit.score * boost))
+        rescored.sort(key=lambda h: (-h.score, h.locator))
+        return rescored
 
     def _chroma_recall(self, chroma, query, *, top_k, source) -> list[Hit]:
         where: dict[str, object] = {"tombstoned": False}
@@ -648,11 +736,11 @@ class MemoryStore:
                 )
             )
 
-        # VRNK-02 chroma absolute similarity floor (pre-fusion, /)
-        # score = max(0.0, 1 - distance); drop hits < chroma_floor (default 0.25
+        # VRNK-02 chroma absolute similarity floor (pre-fusion, D-04/D-06):
+        # score = max(0.0, 1 - distance); drop hits < chroma_floor (default 0.25,
         # NOT froots' 0.45). chroma_floor=0 disables → all nearest neighbors
-        # retained (pre-). This is what turns a junk query into 0 hits instead
-        # of top_k nearest-anything
+        # retained (pre-V23). This is what turns a junk query into 0 hits instead
+        # of top_k nearest-anything.
         cfg = self._load_memory_config()
         try:
             chroma_floor = float(cfg.get("chroma_floor", 0.25))
@@ -735,7 +823,7 @@ class MemoryStore:
             if score_float <= 0 and query_token_set.intersection(tokens):
                 # rank_bm25 can produce zero/negative IDF for tiny corpora
                 # where every query term appears in every document. Keep
-                # true lexical matches while still dropping no-overlap rows
+                # true lexical matches while still dropping no-overlap rows.
                 score_float = float(len(query_token_set.intersection(tokens)))
             if score_float <= 0:
                 continue
@@ -754,11 +842,11 @@ class MemoryStore:
             )
         ranked.sort(key=lambda item: item[0], reverse=True)
 
-        # VRNK-02 BM25 relative-to-top floor (pre-fusion, /): drop rows
-        # below bm25_floor_ratio of the top score. Guard top > 0 ( a
-        # zero top would pass everything). ratio=0 disables → pre- fill. The
+        # VRNK-02 BM25 relative-to-top floor (pre-fusion, D-05/D-06): drop rows
+        # below bm25_floor_ratio of the top score. Guard top > 0 (Pitfall 4 — a
+        # zero top would pass everything). ratio=0 disables → pre-V23 fill. The
         # tiny-corpus token-overlap rescue feeds positive scores that compare
-        # naturally against the relative cutoff
+        # naturally against the relative cutoff.
         cfg = self._load_memory_config()
         try:
             bm25_floor_ratio = float(cfg.get("bm25_floor_ratio", 0.1))
@@ -835,7 +923,9 @@ class MemoryStore:
             return make_id("note", stem)
         return f"{source_dir}:{stem}"
 
+    # ------------------------------------------------------------------
     # forget / summary / vacuum
+    # ------------------------------------------------------------------
 
     def forget(self, pattern: str, *, confirm: bool = False) -> int:
         if "*" in pattern and pattern.strip() == "*" and not confirm:
@@ -931,6 +1021,7 @@ class MemoryStore:
                     chroma._collection.delete(where={"tombstoned": True})
                 except Exception as exc:  # noqa: BLE001
                     print(f"vacuum: chroma delete failed: {exc}", file=sys.stderr)
+            self._vacuum_telemetry()
             return 0
 
         turn_ids: set[str] = set()
@@ -979,7 +1070,7 @@ class MemoryStore:
         # Pass (iv): compact retrieval telemetry sidecar (VRNK-01)
         self._vacuum_telemetry()
 
-        # Truncate tombstones index (do not unlink keeps layout stable)
+        # Truncate tombstones index (do not unlink — keeps layout stable)
         self._tombstones_path.write_text("")
 
         # Refresh size cache
@@ -1046,8 +1137,10 @@ class MemoryStore:
             return 0
         return sum(p.stat().st_size for p in self.root.rglob("*") if p.is_file())
 
-    # pins (VRNK-04 eviction exemption + VRNK-06/07 injection/CLI) COMMITTED
-    # sidecar (.pins.json is NOT gitignored, )
+    # ------------------------------------------------------------------
+    # pins (VRNK-04 eviction exemption + VRNK-06/07 injection/CLI) — COMMITTED
+    # sidecar (.pins.json is NOT gitignored, D-02)
+    # ------------------------------------------------------------------
 
     @property
     def _pins_path(self) -> Path:
@@ -1115,8 +1208,10 @@ class MemoryStore:
             return (0, "", mtime)
         return (1, str(entry["last_retrieved"]), mtime)
 
-    # reindex / drift hygiene (VRNK-05) chroma-only; sha256 manifest of the
-    # file-based sources (notes/decisions/conventions, )
+    # ------------------------------------------------------------------
+    # reindex / drift hygiene (VRNK-05) — chroma-only; sha256 manifest of the
+    # file-based sources (notes/decisions/conventions, D-10)
+    # ------------------------------------------------------------------
 
     @property
     def _reindex_manifest_path(self) -> Path:
@@ -1207,7 +1302,9 @@ class MemoryStore:
             stale=stale_locators, reembedded=reembedded, chroma_available=True
         )
 
-    # pinned-tier injection text (VRNK-06) always-injected, capped block
+    # ------------------------------------------------------------------
+    # pinned-tier injection text (VRNK-06) — always-injected, capped block
+    # ------------------------------------------------------------------
 
     def _read_pinned_body(self, locator: str) -> str | None:
         """Resolve a pinned locator to its full on-disk memory body (D-08)."""
@@ -1240,8 +1337,8 @@ class MemoryStore:
         accounting via the V18/V19 counter. Project store only — the global-store
         project-priority merge (D-09) lands post-V21.
         """
-        # TODO(post-): merge global_store pins here; project pins win on
-        # overflow. The global xfail test un-xfails once is merged
+        # D-09 TODO(post-V21): merge global_store pins here; project pins win on
+        # overflow. The V23-01 global xfail test un-xfails once V21 is merged.
         path = self._pins_path
         if not path.exists():
             return ""
@@ -1253,7 +1350,7 @@ class MemoryStore:
         entries = [e for e in raw if isinstance(e, dict) and e.get("locator")]
         if not entries:
             return ""
-        # Newest-pinned first so overflow drops the oldest
+        # Newest-pinned first so overflow drops the oldest (D-08).
         entries.sort(key=lambda e: str(e.get("pinned_at", "")), reverse=True)
 
         from voss.harness.agent import _default_token_count  # lazy: avoid import cycle

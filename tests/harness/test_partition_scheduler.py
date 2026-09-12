@@ -1,6 +1,15 @@
-"""
-T2-03 / PAR-01 + PAR-02 + PAR-06: partition scheduler tests.
+"""T2-03 / PAR-01 + PAR-02 + PAR-06: partition scheduler tests.
+
 Covers:
+- Author-order partition correctness ([R, W, R, R] → [R],[W],[R,R])
+- Semaphore cap enforcement (peak in-flight <= cap)
+- BatchInvariantError on synthetic mutating-in-batch
+- batch.start / batch.end telemetry on multi-step batches only
+- recorder.begin_batch / end_batch wiring on multi-step batches only
+- Per-step tool.call/tool.result preserved inside batches
+- Return contract (length + author order + failure-slot strings)
+- Cancellation discipline (outer cancel reaches in-flight reads)
+- _run_turn_exec exit_reason="batch-invariant" finalize path
 """
 from __future__ import annotations
 
@@ -18,7 +27,6 @@ from voss.harness.agent import (
     Plan,
     ToolCall,
     _dispatch_read_batch,
-    _dispatch_singleton,
     _run_step_loop,
     _run_turn_exec,
 )

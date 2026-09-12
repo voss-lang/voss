@@ -1,7 +1,10 @@
 """
-CodeIntelService – high level orchestration for search
-This is the facade that later tools and slash commands will call
+CodeIntelService – high level orchestration for search (M10-03 Task 3).
+
+This is the facade that later tools and slash commands will call.
+For now it only implements the search path (ast-grep + regex fallback).
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,7 +14,7 @@ import re
 from . import ast_grep, regex_fallback
 from .index import build_index, find_symbols, list_files
 from .lsp_registry import LspRegistry
-from .models import CodeLocation, ReferenceHit, SearchHit, SymbolHit
+from .models import CodeLocation, IndexSummary, SearchHit, SymbolHit
 
 
 class CodeIntelService:
@@ -110,13 +113,13 @@ class CodeIntelService:
             "score": hit.score,
         }
 
-    # Lazy registries for semantic operations
+    # --- Lazy registries for semantic operations (M10-04) ---
     def _get_registry(self) -> LspRegistry:
         if not hasattr(self, "_registry") or self._registry is None:
             self._registry = LspRegistry(self.cwd, self.session_id or "default")
         return self._registry
 
-    # Lazy semantic code index
+    # --- Lazy semantic code index (V19-03) ---
     def _get_code_index_service(self):
         """Only construction site for CodeIndexService — never eager in
         __init__/for_cwd (the embedding cold-load must stay off the session

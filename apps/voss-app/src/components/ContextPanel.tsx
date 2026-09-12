@@ -56,7 +56,7 @@ export default function ContextPanel(props: ContextPanelProps) {
           </div>
         }
       >
-        {/* Header */}
+        {/* Header (D-04) */}
         <div class="context-panel-header">
           <span>Context</span>
           <Show when={props.paneIndex != null}>
@@ -66,7 +66,7 @@ export default function ContextPanel(props: ContextPanelProps) {
           </Show>
         </div>
 
-        {/* Summary row */}
+        {/* Summary row (D-12) */}
         <div class="context-summary">
           <div class="context-summary-text">
             {formatTokens(props.context?.total_tokens ?? 0)}
@@ -91,7 +91,7 @@ export default function ContextPanel(props: ContextPanelProps) {
 
         {/* File list */}
         <div class="context-file-list">
-          {/* Special rows */}
+          {/* Special rows (D-17) */}
           <Show when={(props.context?.system_tokens ?? 0) > 0}>
             <div class="context-special-row">
               <span>System prompt</span>
@@ -105,6 +105,7 @@ export default function ContextPanel(props: ContextPanelProps) {
             </div>
           </Show>
 
+          {/* File rows (D-13, D-15, D-16) */}
           <For each={props.context?.files ?? []}>
             {(file) => {
               const filePct = () => {

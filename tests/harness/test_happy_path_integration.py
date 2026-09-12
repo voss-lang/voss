@@ -1,10 +1,14 @@
-"""
-End-to-end happy path for M1.
+"""End-to-end happy path for M1.
+
 Drives `voss do` with a mocked provider, then exercises sessions save/list/load.
+Asserts:
+  - voss do runs to completion in mode plan without crashing.
+  - the saved session JSON contains no provider creds (D-16 lockdown).
+  - voss sessions lists the new session.
+  - SessionRecord.load rehydrates cwd / transcript.
 """
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

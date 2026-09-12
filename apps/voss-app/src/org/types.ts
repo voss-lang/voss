@@ -63,6 +63,7 @@ export interface EmRescope {
   rescoped_at: string;
 }
 
+/** Discriminated union over `kind` — every transition shape a node may hold */
 export type Transition =
   | BoardTransition
   | EmTicket
@@ -84,6 +85,7 @@ export interface SessionTreeNode {
   role: string | null;
 }
 
+
 export interface SignOff {
   decision: 'approve' | 'reject';
   ts: string;
@@ -102,6 +104,7 @@ export interface RunFinal {
   ts: string;
   sign_off?: SignOff;
 }
+
 
 export interface AVerification {
   result: string;
@@ -123,6 +126,7 @@ export interface ReviewSidecar {
   b_verdict: BVerdict | null;
   final_outcome: 'pass' | 'fail' | 'block' | '?';
 }
+
 
 export interface AuditCard {
   node_id: string;
@@ -165,12 +169,15 @@ export interface AuditReport {
   unsupported_claims: string[];
 }
 
+
+/** One entry from `enumerate_runs` */
 export interface RunEntry {
   run_id: string;
   mtime_secs: number;
   has_run_final: boolean;
 }
 
+/** Result of `run_decision` (: stdout/stderr/exit captured) */
 export interface DecisionResult {
   success: boolean;
   stdout: string;
@@ -178,6 +185,7 @@ export interface DecisionResult {
   exit_code: number;
 }
 
+/** Aggregate returned by `load_run` — the root contract guards.ts validates */
 export interface RunData {
   run_id: string;
   session_tree: { root_id: string; nodes: SessionTreeNode[] };
@@ -185,6 +193,7 @@ export interface RunData {
   audit: AuditReport | null;
   run_final: RunFinal | null;
 }
+
 
 export interface CardSnapshot {
   id: string;
@@ -194,6 +203,7 @@ export interface CardSnapshot {
   budget: { limit: number; spent: number };
 }
 
+/** Board/card state reconstructed at a single replay step */
 export interface BoardFrame {
   columns: Record<string, CardSnapshot[]>;
   step: number;

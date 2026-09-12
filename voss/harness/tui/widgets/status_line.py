@@ -1,4 +1,18 @@
-"""StatusLine: single-row session metadata (provider, model, cwd, budget)."""
+"""StatusLine widget — single-row, two-zone session metadata (R5, spec §5.2).
+
+Left zone: brand `▌ voss` (accent, allow-listed site) + provider/model +
+phase. Right zone: 4-cell context bar + percent ($warn ≥ 75%, $error at
+100%), budget `used/total` when a budget is set, session cost, git. The
+left zone truncates first (Rich grid: left column ratio, right column
+content-width).
+
+Toasts no longer render here (spec §5.3): the `toast=` kwarg and the
+`set_persistent_toast`/`clear_toast` methods are deprecation shims that
+delegate to the app's Toast overlay widget so call sites (permissions
+bridge / show_thinking / fork flash) keep working unchanged.
+
+Colors come from the palette.py mirror — Rich Text cannot read tcss vars.
+"""
 from __future__ import annotations
 
 from rich.table import Table
@@ -7,10 +21,10 @@ from textual.widgets import Static
 
 from .. import glyphs, palette
 
-# Status line accent glyph matches InputBar prompt for visual consistency
+# Status line accent glyph — matches InputBar prompt for visual consistency.
 _BRAND_GLYPH = glyphs.PROMPT
 
-# Context-bar width in cells (spec .2 mock: `▰▰▱▱ 34%`)
+# Context-bar width in cells (spec §5.2 mock: `▰▰▱▱ 34%`).
 _CTX_CELLS = 4
 
 
@@ -21,6 +35,7 @@ class StatusLine(Static):
         self._provider: str = ""
         self._model: str = ""
         self._mode: str = ""
+        self._phase: str = ""
         self._git_status: str = ""
         self._tokens: int = 0
         self._cost_usd: float = 0.0
@@ -33,6 +48,7 @@ class StatusLine(Static):
         provider: str | None = None,
         model: str | None = None,
         mode: str | None = None,
+        phase: str | None = None,
         git_status: str | None = None,
         tokens: int | None = None,
         cost_usd: float | None = None,
@@ -46,6 +62,8 @@ class StatusLine(Static):
             self._model = model
         if mode is not None:
             self._mode = mode
+        if phase is not None:
+            self._phase = phase
         if git_status is not None:
             self._git_status = git_status
         if tokens is not None:
@@ -57,12 +75,14 @@ class StatusLine(Static):
         if budget_total is not None:
             self._budget_total = budget_total
         if toast is not None:
-            # Deprecation shim (spec .2/.3): toasts moved to the overlay
+            # Deprecation shim (spec §5.2/§5.3): toasts moved to the overlay.
             self._delegate_toast(toast, persistent=False)
         self.update(self._render_grid())
 
-    # Toast deprecation shims delegate to the app's Toast overlay so the
-    # renderer / permissions-bridge / fork call sites stay unchanged
+    # ------------------------------------------------------------------
+    # Toast deprecation shims — delegate to the app's Toast overlay so the
+    # renderer / permissions-bridge / fork call sites stay unchanged.
+    # ------------------------------------------------------------------
 
     def set_persistent_toast(self, text: str) -> None:
         """Shim: show a toast that stays until explicitly cleared."""
@@ -87,7 +107,9 @@ class StatusLine(Static):
         except Exception:  # noqa: BLE001 — headless StatusLine / no overlay mounted
             return None
 
+    # ------------------------------------------------------------------
     # rendering
+    # ------------------------------------------------------------------
 
     def _render_grid(self) -> Table:
         grid = Table.grid(expand=True, padding=(0, 0))
@@ -103,15 +125,16 @@ class StatusLine(Static):
         if pm:
             t.append(" · ", style=palette.DIM)
             t.append(pm, style=palette.TEXT)
-        if self._mode:
+        phase = self._phase or self._mode
+        if phase:
             t.append(" · ", style=palette.DIM)
-            t.append(self._mode, style=palette.DIM)
+            t.append(phase, style=palette.DIM)
         return t
 
     def _right_text(self) -> Text:
         t = Text(no_wrap=True)
-        # Context bar thresholds match the locked color contract rows
-        # $warn at 75..99%, $error at 100%
+        # Context bar — thresholds match the locked color contract rows:
+        # $warn at 75..99%, $error at 100%.
         pct = max(0.0, self._ctx_pct)
         filled = min(_CTX_CELLS, int(round(min(pct, 1.0) * _CTX_CELLS)))
         if pct >= 1.0:
@@ -122,7 +145,7 @@ class StatusLine(Static):
             bar_style = palette.DIM
         bar = glyphs.BUDGET_FILL * filled + glyphs.BUDGET_EMPTY * (_CTX_CELLS - filled)
         t.append(f"{bar} {pct:.0%}", style=bar_style)
-        # Budget used/total from the old HeaderBar (R5 spec .1)
+        # Budget used/total — from the old HeaderBar (R5 spec §5.1).
         if self._budget_total > 0:
             t.append(" · ", style=palette.DIM)
             t.append(

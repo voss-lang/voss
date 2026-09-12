@@ -1,6 +1,28 @@
-"""
-models.dev catalog the source for the `/models` picker
+"""models.dev catalog — the source for the `/models` picker.
+
 Fetches the public catalog at https://models.dev/api.json (the same source
+OpenCode uses), filters it to the provider families Voss can route, and
+normalizes each model into a flat `ModelEntry`. Cached to disk with a TTL so
+the picker opens instantly and works offline.
+
+Shape pinned from the live API (2026-06):
+
+    {provider_id: {
+        id, name, env:[KEY,...], api: base_url|null, npm, doc,
+        models: {model_id: {
+            id, name, family, cost:{input,output,...}|null,
+            limit:{context,output}, modalities, tool_call, reasoning, ...
+        }}
+    }}
+
+Every target provider is OpenAI-compatible (`@ai-sdk/openai-compatible`), so a
+single LiteLLM route (api_base + env key) serves Ollama Cloud and OpenCode Zen;
+`anthropic`/`openai` use their native LiteLLM prefixes. `cost.input == 0 and
+cost.output == 0` marks a Free model; `cost is None` (Ollama Cloud) is a
+subscription model with no price tag.
+
+Pure parsing (`parse_catalog`) is isolated from network/disk (`fetch_raw`) so
+it is unit-testable without hitting models.dev.
 """
 from __future__ import annotations
 
@@ -17,13 +39,14 @@ CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h
 _USER_AGENT = "voss-harness/0.1 (+models.dev catalog)"
 
 # Provider families Voss routes, in display order. Keys are models.dev provider
-# ids; the value is the order rank (lower = higher in the picker)
+# ids; the value is the order rank (lower = higher in the picker).
 TARGET_PROVIDERS: tuple[str, ...] = (
     "anthropic",
     "openai",
     "opencode",      # OpenCode Zen
     "opencode-go",   # OpenCode Go
     "ollama-cloud",
+    "openrouter",
 )
 
 

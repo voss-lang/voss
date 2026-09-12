@@ -1,6 +1,9 @@
-"""
-Per-turn mechanical observation collaborator (COG-08 )
+"""Per-turn mechanical observation collaborator (COG-08 D-15).
+
 Wraps run_turn's tool dispatch loop to capture inspected/changed/validation/
+failures without changing the agent surface. Semantic fields (goal/decisions/
+risks/follow_ups/assumptions/avoided) are populated by a separate privileged
+`record_run` closing call dispatched in M2-03.
 """
 from __future__ import annotations
 
@@ -70,7 +73,7 @@ class ContextTracker:
         raw_pins = data.get("pinned", [])
         if not isinstance(raw_pins, list):
             return
-        # only accept paths already in tracked files
+        # D-22: only accept paths already in tracked files
         self.pinned = {p for p in raw_pins if isinstance(p, str) and p in self.files}
         for path, fcs in self.files.items():
             fcs.pinned = path in self.pinned
@@ -205,7 +208,7 @@ class RunRecorder:
     failures: list[dict] = field(default_factory=list)
     cost_usd: float = 0.0
     diff_summary: str = ""
-    # semantic fields (populated by absorb in )
+    # semantic fields (populated by absorb() in M2-03)
     goal: str = ""
     plan: Optional[dict] = None
     avoided: list[dict] = field(default_factory=list)
@@ -213,17 +216,17 @@ class RunRecorder:
     decisions: list[dict] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
     follow_ups: list[str] = field(default_factory=list)
-    # skill install/run/deny audit events
+    # M15-05: skill install/run/deny audit events
     skill_events: list[dict] = field(default_factory=list)
     scope_denials: list[dict] = field(default_factory=list)
-    # CAP-08: one audit row per capability invocation (all outcomes)
+    # V1-04 CAP-08: one audit row per capability invocation (all outcomes).
     capability_invocations: list[dict] = field(default_factory=list)
-    # VSAFE-05: one row per safety factory-fallback route (additive)
+    # V12 VSAFE-05: one row per safety factory-fallback route (additive).
     factory_fallbacks: list[dict] = field(default_factory=list)
     instructions_hash: str = ""
     instructions_files: list[str] = field(default_factory=list)
     # T1-01: per-iteration sub-records appended via begin_iteration /
-    # end_iteration; forwarded to RunRecord.iterations on finalize
+    # end_iteration; forwarded to RunRecord.iterations on finalize.
     _iterations: list[IterationRecord] = field(default_factory=list)
     # F4: per-file context tracking for heatmap visualization
     _context_tracker: ContextTracker = field(default_factory=ContextTracker)

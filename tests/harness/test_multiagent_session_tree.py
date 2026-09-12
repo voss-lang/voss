@@ -1,6 +1,21 @@
-"""
-V8 VMAG-10/UNIFY/07/ROOT — persisted multi-agent session-tree tests.
+"""V8 VMAG-10/UNIFY/07/ROOT — persisted multi-agent session-tree tests.
+
 New test classes (plain assertions — no false-green markers):
+  TestPersistOnSpawn               VMAG-10: spawn creates persisted node; terminal finalized
+  TestUnifiedAllocator             VMAG-UNIFY: no M13Allocator; V4 manager governs spawns
+  TestPersistedRecursion           VMAG-07: depth>1 persisted fan-out; invariant at each level
+  TestViableFloorTermination       VMAG-07: viable-floor bounds recursion; no depth constant
+  TestChatRootEnvelope             VMAG-ROOT: root node 60k + reserve; exhaustion denies
+  TestConcurrentNoOversellChatRoot VMAG-ROOT: concurrent spawns cannot oversell
+
+These drive the REAL planned V8-02 surface — `attach_multiagent_tools(node_manager=...)`
+backed by a V4 `SessionTreeManager`, persisted child nodes, `ChildHandle.node`,
+`release_child`. They are RED now (the surface does not exist: `attach_multiagent_tools`
+still takes `allocator=`, spawns allocate via the in-memory `M13Allocator`, and no child
+node is persisted) and GREEN after V8-02. No false-green masking (memory
+`gsd-scaffold-fictional-api`); no depth constant (recursion is budget-structural).
+
+The shared scripted provider comes from `tests/harness/conftest.py::scripted_multiagent_provider`.
 """
 from __future__ import annotations
 
@@ -8,7 +23,6 @@ import asyncio
 import json
 from pathlib import Path
 
-import pytest
 
 from voss.harness import multiagent
 from voss.harness.session_tree import SessionTreeManager, SessionTreeNode

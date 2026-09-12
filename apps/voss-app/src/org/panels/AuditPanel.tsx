@@ -1,6 +1,11 @@
 import { For, Show } from 'solid-js';
 import type { RunData, AuditReport } from '../types';
 
+// 04 — renders the V9 audit JSON: summary sections, claims-vs-evidence
+// with the unsupported-EM-claim ⚑ flag, and the residual-risk (leak6) section.
+// Diffs / tests_evals are intentionally NOT rendered ( — always in
+// sections_missing for the V2-V7 substrate).
+
 const sectionHeader = {
   'font-family': 'var(--font-display), Poppins, system-ui, sans-serif',
   'font-size': '11px',
@@ -39,7 +44,7 @@ export default function AuditPanel(props: { data: RunData | null }) {
       >
         {(a) => (
           <div style={{ flex: '1', 'overflow-y': 'auto' }}>
-            {}
+            {/* Summary */}
             <div style={sectionHeader}>IDEA</div>
             <div style={bodyText}>{a().idea}</div>
 
@@ -65,7 +70,7 @@ export default function AuditPanel(props: { data: RunData | null }) {
               {a().snapshot.routings.length}
             </div>
 
-            {}
+            {/* Claims vs evidence */}
             <div style={sectionHeader}>CLAIMS</div>
             <For each={a().snapshot.cards}>
               {(card) => {
@@ -122,7 +127,7 @@ export default function AuditPanel(props: { data: RunData | null }) {
               }}
             </For>
 
-            {}
+            {/* Residual risk */}
             <div style={sectionHeader}>RESIDUAL RISK</div>
             <Show
               when={a().snapshot.leak6}

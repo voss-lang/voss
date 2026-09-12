@@ -1,11 +1,18 @@
-"""
-T2-04 / PAR-03: fs_edit_many atomic single-file multi-edit.
+"""T2-04 / PAR-03: fs_edit_many atomic single-file multi-edit.
+
 SPEC PAR-03 acceptance fixtures (a/b/c/d) + edge cases:
+- left-to-right buffer propagation (Pitfall 5)
+- buffer propagation creating new ambiguity
+- skip-is-strict (resolves RESEARCH.md Open Question 1)
+- empty edits list / empty old string
+- missing file / directory / binary
+- jail violation propagation
+- registration + is_mutating + fs_edit coexistence (D-10)
+- renderer=None test-friendly path
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 

@@ -1,6 +1,26 @@
-"""
-M13 Wave-0 — recursive spawn (MAG-06) + back-compat recursion-pin guard.
+"""M13 Wave-0 — recursive spawn (MAG-06) + back-compat recursion-pin guard.
+
 This file carries TWO distinct kinds of test, deliberately:
+
+  * `TestDepth2` — MAG-06 RED scaffold (xfail, strict=False): depth-2
+    parent→child→grandchild nested even-split budget + nested panels +
+    no-leak. Drives the not-yet-existing `voss.harness.multiagent`
+    (created in W1) imported inside the test body. RED-by-design.
+
+  * `TestBackCompatRecursionPinIntact` — the M13 back-compat regression
+    guard. GREEN from Wave 0 onward and MUST stay green through every
+    later wave. It is the tripwire that fails loudly if any M13 wave
+    breaches the recursion-pinning contract by adding a
+    depth/max_depth/MAX_DEPTH/DEPTH_LIMIT/RECURSION_LIMIT symbol to
+    `voss.harness.subagents` or modifies the unmodified pinning suite
+    `tests/harness/test_subagent_recursion.py`. It is NOT xfail-marked.
+
+Threat: T-M13-recursion-DoS (unbounded recursive spawn, DoS). Recursion is
+bounded by the viable-budget-floor denial in `subagent_spawn` (V8 V4-backed)
+(M13-VALIDATION.md §"Security Domain") — NOT by any depth constant. No test
+in this file introduces or references a depth/max_depth symbol for
+production use; the forbidden names appear only as negative assertions in
+the back-compat guard. No production code is written here.
 """
 from __future__ import annotations
 
@@ -9,7 +29,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 

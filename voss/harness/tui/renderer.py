@@ -1,6 +1,14 @@
-"""
-TextualRenderer bridges agent events into a running VossTUIApp
-Implements the full `voss.harness.render.Renderer` . Every `show_*`
+"""TextualRenderer — bridges agent events into a running VossTUIApp.
+
+Implements the full `voss.harness.render.Renderer` protocol. Every `show_*`
+forwards to a widget on the app. Failures are swallowed (logged via the
+Textual app log) so a rendering bug can never crash the agent.
+
+Thread-safety: subagents run in worker threads (see voss.harness.subagents);
+the `_post` helper routes off-loop callers through `app.call_from_thread`.
+For the M13 multi-agent fan-out path, children instead run as asyncio tasks
+on the app's own event loop (NOT worker threads), and `_post`'s
+main-thread branch already handles that case unchanged.
 """
 from __future__ import annotations
 
@@ -11,15 +19,12 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from rich.text import Text
 
 from .. import render as render_mod
 from . import glyphs
 from .app import VossTUIApp
 from .widgets import (
     BudgetExhaustedModal,
-    BudgetMeter,
-    CodeIntelPanel,
     ConfidenceBar,
     DiffDecision,
     DiffModal,
@@ -31,7 +36,7 @@ from .widgets import (
 
 # Defensive import: missing SPAWN_TOOL_NAME degrades show_tool_call to the
 # generic TranscriptView path (no panel mount). Tests exercise this via
-# monkeypatch.delattr(subagents, 'SPAWN_TOOL_NAME', raising=False)
+# monkeypatch.delattr(subagents, 'SPAWN_TOOL_NAME', raising=False).
 try:
     from ..subagents import SPAWN_TOOL_NAME as _SPAWN_TOOL_NAME
 except (ImportError, AttributeError):
@@ -41,20 +46,22 @@ except (ImportError, AttributeError):
 class TextualRenderer:
     """Concrete Renderer implementation backed by a `VossTUIApp` instance."""
 
-    # update_working coalescing window (spec .3): token-counter posts to
-    # the UI thread are bounded to ≤ 4 Hz regardless of delta rate
+    # update_working coalescing window (spec §6.3): token-counter posts to
+    # the UI thread are bounded to ≤ 4 Hz regardless of delta rate.
     WORKING_POST_INTERVAL_S = 0.25
 
     # R2 working-indicator token coalescing state (per turn). Class-level
     # defaults (not __init__-only) so test doubles that bypass __init__
-    # still work; writes shadow them per instance
+    # still work; writes shadow them per instance.
     _working_chars: int = 0
     _working_last_post: float = 0.0
 
     def __init__(self, app: VossTUIApp) -> None:
         self.app = app
 
+    # ------------------------------------------------------------------
     # internal plumbing
+    # ------------------------------------------------------------------
 
     def _post(self, fn, *args, **kwargs) -> None:
         """Safely invoke a widget method on the app's event loop."""
@@ -111,12 +118,14 @@ class TextualRenderer:
         except Exception:  # noqa: BLE001
             return None
 
+    # ------------------------------------------------------------------
     # Renderer protocol
+    # ------------------------------------------------------------------
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
-        # R5 (spec .1): HeaderBar deleted banner data feeds the two-zone
+        # R5 (spec §5.1): HeaderBar deleted — banner data feeds the two-zone
         # StatusLine (budget lands in the right zone) and the mode-aware
-        # InputBar border
+        # InputBar border.
         phase = getattr(self.app, "phase", "")
         display_mode = phase or getattr(self.app, "mode", "")
         status = self._status()
@@ -127,12 +136,24 @@ class TextualRenderer:
                 provider=getattr(self.app, "provider", ""),
                 model=model,
                 mode=getattr(self.app, "mode", ""),
+                phase=phase,
                 git_status=git_status or cwd_str,
                 budget_total=getattr(self.app, "budget_total", 0),
             )
         input_bar = self._input()
         if input_bar is not None:
-            self._post(input_bar.set_mode, getattr(self.app, "mode", ""))
+            self._post(input_bar.set_mode, display_mode)
+
+    def set_phase(self, phase: str) -> None:
+        normalized = (phase or "").strip()
+        self.app.phase = normalized
+        display_mode = normalized or getattr(self.app, "mode", "")
+        status = self._status()
+        if status is not None:
+            self._post(status.set_status, phase=normalized)
+        input_bar = self._input()
+        if input_bar is not None:
+            self._post(input_bar.set_mode, display_mode)
 
     def show_user(self, task: str) -> None:
         tv = self._turn_view()
@@ -144,7 +165,7 @@ class TextualRenderer:
         status = self._status()
         if status is None:
             return
-        # glyphs.TOOL_CALL (not a literal ⏵) so --no-unicode downgrades (R7)
+        # glyphs.TOOL_CALL (not a literal ⏵) so --no-unicode downgrades (R7).
         self._post(status.set_persistent_toast, f"{glyphs.TOOL_CALL} {label}")
 
     def show_plan(self, plan: Any, *, cost_usd: float) -> None:
@@ -196,16 +217,16 @@ class TextualRenderer:
         tv = self._turn_view()
         if tv is None:
             return
-        # R2 working-indicator label hook (spec .6): while a call is
+        # R2 working-indicator label hook (spec §3.6): while a call is
         # pending the label reads `tool: <name>`; it resets on settle. Only
-        # touches an ALREADY-active indicator never mounts one
+        # touches an ALREADY-active indicator — never mounts one.
         if getattr(tv, "working_active", False):
             label = f"tool: {name}" if state == "pending" else "working"
             self._post(tv.show_working, label)
-        # R3 ToolCards (spec .4/.1): pending mounts one card keyed by
+        # R3 ToolCards (spec §3.4/§6.1): pending mounts one card keyed by
         # call_id; the settled call mutates it in place. Settled-only paths
         # (unknown tool, denied, legacy call_id=None callers) create the
-        # card directly in its settled state
+        # card directly in its settled state.
         if state == "pending":
             self._post(self._mount_tool_card, tv, call_id, name, args)
             return
@@ -234,9 +255,11 @@ class TextualRenderer:
             card = tv.add_tool_card(call_id or uuid4().hex[:12], name, args or {})
         card.settle(state, summary, output=output)
 
-    # Subagent visualization private; NOT part of the Renderer protocol
-    # R4 (spec .5): spawns render inline as AgentTreeCards in the
-    # transcript; the SubAgentPanel side region is retired
+    # ------------------------------------------------------------------
+    # Subagent visualization — private; NOT part of the Renderer protocol.
+    # R4 (spec §3.5): spawns render inline as AgentTreeCards in the
+    # transcript; the SubAgentPanel side region is retired.
+    # ------------------------------------------------------------------
 
     def show_subagent_start(self, name: str, parent_id: str, budget_total: int = 0) -> None:
         self._safe(self._turn_view, "add_agent_tree", parent_id, name, budget_total)
@@ -247,7 +270,9 @@ class TextualRenderer:
     def show_subagent_end(self, parent_id: str, n_results: int = 0) -> None:
         self._safe(self._turn_view, "settle_agent_tree", parent_id, n_results)
 
-    # CodeIntelPanel private update methods (NOT on public Renderer)
+    # ------------------------------------------------------------------
+    # M9-08 CodeIntelPanel private update methods (NOT on public Renderer)
+    # ------------------------------------------------------------------
 
     def show_code_intel_tree(self, nodes: list[dict] | None = None) -> None:
         """M10 will call this to populate the idle project tree view."""
@@ -267,7 +292,9 @@ class TextualRenderer:
         if self.app._code_intel_panel:
             self._post(self.app._code_intel_panel.set_focus, hit, excerpt_lines)
 
-    # read-only modal hooks. Private; NOT part of the Renderer protocol
+    # ------------------------------------------------------------------
+    # M11 read-only modal hooks. Private; NOT part of the Renderer protocol.
+    # ------------------------------------------------------------------
 
     def show_probable_inspector(
         self, text: str, confidence: float | None = None
@@ -326,13 +353,15 @@ class TextualRenderer:
             confidence=conf,
             cost_usd=float(cost_usd),
         )
-        # No inline confidence bar in the chat it reads as agent metadata
-        # not conversation. Confidence still flows to telemetry / status
+        # No inline confidence bar in the chat — it reads as agent metadata,
+        # not conversation. Confidence still flows to telemetry / status.
         status = self._status()
         if status is not None:
             self._post(status.clear_toast)
 
-    # R2 working indicator (spec .6 / .1) forward to TranscriptView
+    # ------------------------------------------------------------------
+    # R2 working indicator (spec §3.6 / §6.1) — forward to TranscriptView.
+    # ------------------------------------------------------------------
 
     def show_working(self, label: str = "working") -> None:
         self._working_chars = 0
@@ -340,9 +369,9 @@ class TextualRenderer:
         self._safe(self._turn_view, "show_working", label)
 
     def update_working(self, elapsed_s: float, tokens: int) -> None:
-        # Coalesce before posting (spec .3): ≤ 4 Hz regardless of delta
+        # Coalesce before posting (spec §6.3): ≤ 4 Hz regardless of delta
         # rate so the UI thread isn't flooded. Elapsed self-times in the
-        # widget; tokens are the caller's running count
+        # widget; tokens are the caller's running count.
         now = time.monotonic()
         if now - self._working_last_post < self.WORKING_POST_INTERVAL_S:
             return
@@ -352,12 +381,12 @@ class TextualRenderer:
     def hide_working(self) -> None:
         self._safe(self._turn_view, "hide_working")
 
-    # T1-05: streaming entry points forward to TranscriptView via the _safe
-    # lookup + _post forwarding pattern used by show_plan / show_final
+    # T1-05: streaming entry points — forward to TranscriptView via the _safe
+    # lookup + _post forwarding pattern used by show_plan / show_final.
     def stream_delta(self, text: str) -> None:
         self._safe(self._turn_view, "stream_delta", text)
-        # Working-indicator token tick (spec .6): rough ~4 chars/token
-        # estimate from rendered deltas, coalesced by update_working
+        # Working-indicator token tick (spec §3.6): rough ~4 chars/token
+        # estimate from rendered deltas, coalesced by update_working.
         self._working_chars += len(text)
         self.update_working(0.0, self._working_chars // 4)
 
@@ -411,7 +440,7 @@ class TextualRenderer:
     ) -> None:
         # W5: derive total honestly. Only when 0 < ctx_pct <= 1 do we have
         # enough signal; otherwise StatusLine carries ctx_pct verbatim and
-        # the BudgetMeter (when mounted) renders the em-dash placeholder
+        # the BudgetMeter (when mounted) renders the em-dash placeholder.
         status = self._status()
         if status is None:
             return
@@ -485,8 +514,10 @@ class TextualRenderer:
             return
         self._post(tv.append_turn, "warning", f"{glyphs.WARN} {msg}")
 
-    # modal hooks. Called from worker threads via the permissions
-    # bridge. Each blocks on a Future until the user dismisses the modal
+    # ------------------------------------------------------------------
+    # M9-05 modal hooks. Called from worker threads via the permissions
+    # bridge. Each blocks on a Future until the user dismisses the modal.
+    # ------------------------------------------------------------------
 
     def show_diff_modal(
         self, hunks: list[Hunk], *, timeout_s: float = 300.0
@@ -555,5 +586,5 @@ def _optional_modal_class(class_name: str, module_name: str):
         return None
 
 
-# Eager protocol check fails at import time if any method is missing
+# Eager protocol check — fails at import time if any method is missing.
 assert isinstance(TextualRenderer.__new__(TextualRenderer), render_mod.Renderer) or True

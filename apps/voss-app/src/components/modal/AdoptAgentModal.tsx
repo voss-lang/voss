@@ -9,6 +9,12 @@ import {
   type AdoptRisk,
 } from '../../org/adopt';
 
+// 10 (-12, //): "Let Voss manage this agent" — adopt a
+// running ad-hoc terminal agent forward-only. Copy states OUTCOMES in plain
+// language only: the internal-mechanics vocabulary is banned from every string
+// here, and nothing may promise action gating for an external agent
+// (adopt is always tier C, ). Budget-stop is the one hard promise allowed.
+
 const RISKS: AdoptRisk[] = ['low', 'med', 'high'];
 
 type Destination = 'current' | 'new';
@@ -16,9 +22,9 @@ type Destination = 'current' | 'new';
 export interface AdoptAgentModalProps {
   paneId: string;
   cliBinary: string;
-    /** Existing run the agent can join, or null when none is open */
+/** Existing run the agent can join, or null when none is open */
   runId: string | null;
-    /** False when this build exposes no way to record the agent's work */
+/** False when this build exposes no way to record the agent's work */
   harnessAdoptAvailable: boolean;
   onDismiss: () => void;
   onAdopt: (result: AdoptResult) => void;
@@ -45,7 +51,7 @@ const AdoptAgentModal: Component<AdoptAgentModalProps> = (props) => {
   });
 
   // risk stays pre-inferred (tracking scope/budget edits) until the user
-  // picks one explicitly; after that the edit wins
+  // picks one explicitly; after that the edit wins.
   const effectiveRisk = createMemo<AdoptRisk>(() =>
     riskTouched() ? riskSel() : inferRisk({ scope: scope(), budget: budgetNum() }),
   );

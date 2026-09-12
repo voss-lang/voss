@@ -27,6 +27,7 @@ export interface SwarmSnapshot {
   tasks: SwarmTask[];
 }
 
+/** Fetch a swarm's authoritative snapshot through the Rust sidecar proxy */
 export async function fetchSwarm(
   sidecarId: string,
   swarmId: string,
@@ -38,6 +39,7 @@ export async function fetchSwarm(
   return body.swarm;
 }
 
+/** One spawned roster session returned by POST /swarm (native roles only) */
 export interface SpawnedSession {
   session_id?: string; // present for native (in-process) roles
   role: string;
@@ -51,14 +53,19 @@ export interface CreateSwarmResult {
   sessions: SpawnedSession[];
 }
 
+/** One explicit roster role sent to POST /swarm */
 export interface RoleSpecBody {
   name: string;
-
+/** Agent axis: 'voss' native, or a CLI key (claude/codex/...) */
   agent: string;
-
+/** '--model' value for CLI roles; ignored for native */
   model: string;
 }
 
+/**
+ * Create + spawn a swarm (POST /swarm). With no `roster` the server builds the
+ * default (coordinator + N builders + reviewer); an explicit roster is spawned
+ */
 export async function createSwarm(
   sidecarId: string,
   body: {
@@ -83,6 +90,10 @@ export async function createSwarm(
   return { id: out.id, sessions: out.sessions ?? [] };
 }
 
+/**
+ * Drive a swarm's CLI (non-native) roles headlessly (POST /swarm/{id}/run)
+ * Fire-and-forget on the server: it worktree-spawns each pending CLI member
+ */
 export async function runSwarm(
   sidecarId: string,
   swarmId: string,

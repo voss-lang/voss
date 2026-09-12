@@ -1,6 +1,9 @@
-"""
-VossTUIApp Textual app shell mounting the locked region grid
-region grid (1 row header, scrollable main pane + collapsible side
+"""VossTUIApp — Textual app shell mounting the locked region grid.
+
+UI-SPEC region grid (1 row header, scrollable main pane + collapsible side
+panel, 1 row status, 1+ row input). M9-02 ships the empty shell; later
+plans wire palette (M9-03), recorder (M9-04), modals (M9-05), resume
+(M9-06).
 """
 from __future__ import annotations
 
@@ -19,8 +22,8 @@ from voss_runtime.memory.episodic import EpisodicMemory
 
 from .keymap import KEYMAP
 
-# Fenced code block: ```lang\n...body... ``` (lang optional). DOTALL so a
-# block can span lines; non-greedy so adjacent blocks don't merge
+# Fenced code block: ```lang\n ...body... ```  (lang optional). DOTALL so a
+# block can span lines; non-greedy so adjacent blocks don't merge.
 _FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
 
 
@@ -78,28 +81,29 @@ class VossTUIApp(App):
         self.git_status: str = ""
         self.provider: str = ""
         self.mode: str = ""
+        self.phase: str = ""
         self.total_cost: float = 0.0
         self._turn_dispatch = None
-        # fork wiring. cli.py sets `record` on the live app
-        # `focused_turn_index` defaults to the most recent turn
+        # M9-06 fork wiring. cli.py (M9-07) sets `record` on the live app.
+        # `focused_turn_index` defaults to the most recent turn.
         self.record: SessionRecord | None = None
         self.focused_turn_index: int | None = None
-        # R4 (spec .2): app-scoped expand/collapse-all state ( quiet
+        # R4 (spec §7.2): app-scoped expand/collapse-all state (D-09 quiet-
         # by-default). action_toggle_detail (ctrl+o) applies it uniformly to
         # every mounted ToolCard / AgentTreeCard; cards mounted while
-        # expanded-mode is on mount expanded
+        # expanded-mode is on mount expanded.
         self._detail_expanded: bool = False
         # T1-06: tracks the in-flight agent turn task so action_interrupt
-        # can cancel it. Cleared via add_done_callback when the task ends
+        # can cancel it. Cleared via add_done_callback when the task ends.
         self.active_turn_task: Optional[asyncio.Task] = None
-        # R6 (spec .3): inputs submitted while a turn runs queue here and
+        # R6 (spec §7.3): inputs submitted while a turn runs queue here and
         # dispatch FIFO from _clear_turn_task. ctrl+c clears the queue
-        # before it interrupts
+        # before it interrupts.
         self._queued_inputs: list[str] = []
-        # R4 (spec .6): CodeIntelPanel is #side's only occupant
+        # R4 (spec §5.6): CodeIntelPanel is #side's only occupant.
         self._code_intel_panel: CodeIntelPanel | None = None
         # Last assistant response text, captured by TextualRenderer so
-        # action_copy_code (ctrl+y) can yank its last fenced code block
+        # action_copy_code (ctrl+y) can yank its last fenced code block.
         self._last_response_text: str = ""
 
     def register_turn_task(self, task: asyncio.Task) -> None:
@@ -116,19 +120,19 @@ class VossTUIApp(App):
 
     def _clear_turn_task(self, task: asyncio.Task) -> None:
         # done_callback fires whether the task completed naturally or was
-        # cancelled either way the slot is now free for the next turn and
-        # the working indicator comes down (R2 spec .6: removed on
-        # finalize AND on interrupt this single point covers both)
+        # cancelled — either way the slot is now free for the next turn and
+        # the working indicator comes down (R2 spec §3.6: removed on
+        # finalize AND on interrupt — this single point covers both).
         self.active_turn_task = None
         try:
             self.query_one("#main", TranscriptView).hide_working()
         except Exception:  # noqa: BLE001 — transcript absent in tests
             pass
-        # R6 (spec .3): turn finalize is the authoritative dispatch point
-        # for queued inputs FIFO, one at a time (the next queued message
+        # R6 (spec §7.3): turn finalize is the authoritative dispatch point
+        # for queued inputs — FIFO, one at a time (the next queued message
         # dispatches when THIS dispatch's own done-callback fires). The
         # interrupt path never reaches here with a queue: action_interrupt
-        # clears it before cancelling
+        # clears it before cancelling.
         if self._queued_inputs:
             next_value = self._queued_inputs.pop(0)
             self._refresh_queue_chips()
@@ -159,8 +163,8 @@ class VossTUIApp(App):
         self.refresh()
 
     def _toast(self, message: str) -> None:
-        # R5 (spec .3): toasts render in the overlay Toast widget, not the
-        # status line, so session metadata never jumps
+        # R5 (spec §5.3): toasts render in the overlay Toast widget, not the
+        # status line, so session metadata never jumps.
         try:
             self.query_one("#toast", Toast).show_toast(message)
         except Exception:  # noqa: BLE001 — toast widget absent in tests
@@ -189,27 +193,29 @@ class VossTUIApp(App):
         self._toast("copied code block" if block is not None else "copied response")
 
     def action_interrupt(self) -> None:
-        # Ctrl+C behavior: if a turn is running, cancel it. If idle, exit app
-        # R6 (spec .3): the queue clears BEFORE the interrupt so the turn's
-        # done-callback can't dispatch a queued message the user just killed
+        # Ctrl+C behavior: if a turn is running, cancel it. If idle, exit app.
+        # R6 (spec §7.3): the queue clears BEFORE the interrupt so the turn's
+        # done-callback can't dispatch a queued message the user just killed.
         if self._queued_inputs:
             self._queued_inputs.clear()
             self._refresh_queue_chips()
         task = self.active_turn_task
         if task is not None and not task.done():
-            # R2 spec .3: the streamed block keeps its content and the
+            # R2 spec §3.3: the streamed block keeps its content and the
             # footer reads `· interrupted`. Mark BEFORE cancelling so the
-            # agent's CancelledError finalize_stream consumes the flag
+            # agent's CancelledError finalize_stream consumes the flag.
             try:
                 self.query_one("#main", TranscriptView).mark_interrupted()
             except Exception:  # noqa: BLE001 — transcript absent in tests
                 pass
             task.cancel()
             return
-        # No active turn exit the Textual app (returns to normal terminal)
+        # No active turn — exit the Textual app (returns to normal terminal).
         self.exit()
 
-    # fork-from-turn (TUI-08)
+    # ------------------------------------------------------------------
+    # M9-06 fork-from-turn (TUI-08).
+    # ------------------------------------------------------------------
 
     def _resolve_fork_index(self) -> int | None:
         if self.record is None or not self.record.turns:
@@ -230,8 +236,8 @@ class VossTUIApp(App):
         def _on_confirm(confirmed) -> None:
             if not confirmed:
                 return
-            # Local import keeps fork.py UI-free (pure data) and avoids a
-            # circular import at module load
+            # Local import — keeps fork.py UI-free (pure data) and avoids a
+            # circular import at module load.
             from .fork import fork_session
 
             assert self.record is not None  # _resolve_fork_index guards
@@ -245,15 +251,17 @@ class VossTUIApp(App):
 
         self.push_screen(ForkConfirmModal(idx), _on_confirm)
 
-    # R4 global expand/collapse-all (spec .2, generalizes the
-    # sub-agent detail reveal same ctrl+o key, superset behavior)
-    # Bound via keymap.py's "main" tier; quiet-by-default preserved
+    # ------------------------------------------------------------------
+    # R4 global expand/collapse-all (spec §7.2, generalizes the M13-04
+    # sub-agent detail reveal — same ctrl+o key, superset behavior).
+    # Bound via keymap.py's "main" tier; D-09 quiet-by-default preserved.
+    # ------------------------------------------------------------------
 
     def action_toggle_detail(self) -> None:
         # One app-scoped toggle applied uniformly to every mounted ToolCard
-        # (AgentTreeCard included it subclasses ToolCard) so cards mounted
+        # (AgentTreeCard included — it subclasses ToolCard) so cards mounted
         # while expanded-mode is on stay consistent with the global state
-        # (TranscriptView checks `_detail_expanded` at mount)
+        # (TranscriptView checks `_detail_expanded` at mount).
         self._detail_expanded = not self._detail_expanded
         for card in self.query(ToolCard):
             if self._detail_expanded:
@@ -267,8 +275,10 @@ class VossTUIApp(App):
     def action_focus_previous(self) -> None:
         super().action_focus_previous()
 
-    # R4 (spec .6): #side has exactly one occupant CodeIntelPanel
-    # The region-share/pin state machine is deleted; show/hide only
+    # ------------------------------------------------------------------
+    # R4 (spec §5.6): #side has exactly one occupant — CodeIntelPanel.
+    # The M9-08 region-share/pin state machine is deleted; show/hide only.
+    # ------------------------------------------------------------------
 
     def show_code_intel_panel(self) -> None:
         """Show the CodeIntelPanel (the side region's only occupant)."""
@@ -313,10 +323,10 @@ class VossTUIApp(App):
     def on_input_bar_submitted(self, event: InputBar.Submitted) -> None:
         if self._turn_dispatch is None:
             return
-        # R6 (spec .3): a submit while a turn runs queues instead of
-        # dispatching (register_turn_task would raise on double-register)
-        # Slash commands queue uniformly they dispatch through the same
-        # path, in order, when the running turn finalizes
+        # R6 (spec §7.3): a submit while a turn runs queues instead of
+        # dispatching (register_turn_task would raise on double-register).
+        # Slash commands queue uniformly — they dispatch through the same
+        # path, in order, when the running turn finalizes.
         if self.active_turn_task is not None and not self.active_turn_task.done():
             self._queued_inputs.append(event.value)
             self._refresh_queue_chips()
@@ -337,8 +347,8 @@ class VossTUIApp(App):
 
             task = asyncio.create_task(_done())
         self.register_turn_task(task)
-        # R2 spec .6: indicator appears on dispatch (≤ 100 ms). Removal is
-        # the task done_callback in _clear_turn_task
+        # R2 spec §3.6: indicator appears on dispatch (≤ 100 ms). Removal is
+        # the task done_callback in _clear_turn_task.
         try:
             self.query_one("#main", TranscriptView).show_working()
         except Exception:  # noqa: BLE001 — transcript absent in tests
@@ -349,7 +359,7 @@ class VossTUIApp(App):
 
         Single-chip design: one queued message shows `queued: "<text>"`;
         more collapse to `queued (N): "<latest>"`. Bar/colors live in the
-        # queued-chips styles.tcss rule (accent-tint border, dim text)
+        #queued-chips styles.tcss rule (accent-tint border, dim text).
         """
         try:
             chips = self.query_one("#queued-chips", Static)
@@ -386,9 +396,9 @@ class VossTUIApp(App):
             self.query_one("#input", InputBar).load_text("")
         except Exception:  # noqa: BLE001 — input absent in widget tests
             pass
-        # Re-post as an InputBar.Submitted so _turn_dispatch handles it
-        # cmd_name may already carry a leading "/" (registry ids do) normalize
-        # so we never produce "//agent"
+        # Re-post as an InputBar.Submitted so _turn_dispatch handles it.
+        # cmd_name may already carry a leading "/" (registry ids do) — normalize
+        # so we never produce "//agent".
         self.on_input_bar_submitted(InputBar.Submitted("/" + cmd_name.lstrip("/")))
 
     def on_local_event(self, event_name: str, payload: dict) -> None:
@@ -417,24 +427,24 @@ class VossTUIApp(App):
         tv.add_local_block(block)
 
     def compose(self) -> ComposeResult:
-        # R5 (spec .1): HeaderBar deleted budget lives in the StatusLine
+        # R5 (spec §5.1): HeaderBar deleted — budget lives in the StatusLine
         # right zone; session id surfaces via the launch toast (and the R6
-        # HomeScreen data rows)
+        # HomeScreen data rows).
         with Horizontal():
             yield TranscriptView(id="main")
             yield SideRegion(id="side")
         yield StatusLine(id="status")
-        # R6 (spec .3): queued-input chip row hidden until a submit
-        # lands while a turn is running
+        # R6 (spec §7.3): queued-input chip row — hidden until a submit
+        # lands while a turn is running.
         yield Static("", id="queued-chips")
         yield InputBar(id="input")
         yield Toast(id="toast")
 
     def on_mount(self) -> None:
-        # Locked default focus = input bar
+        # Locked default focus = input bar.
         self.query_one("#input", InputBar).focus()
-        # keep CodeIntelPanel ready, but start in the focused composer
-        # layout. Sub-agent/code-intel activity can reveal the side region
+        # M9-08: keep CodeIntelPanel ready, but start in the focused composer
+        # layout. Sub-agent/code-intel activity can reveal the side region.
         self._code_intel_panel = CodeIntelPanel()
         side = self.query_one("#side")
         side.mount(self._code_intel_panel)
@@ -450,15 +460,16 @@ class VossTUIApp(App):
             provider=self.provider,
             model=self.model,
             mode=self.mode,
+            phase=self.phase,
             git_status=self.git_status or cwd_text,
             tokens=0,
             cost_usd=self.total_cost,
             ctx_pct=0.0,
             budget_total=self.budget_total,
         )
-        # R5 (spec .5): mode-aware input border (plan/restricted → $warn)
+        # R5 (spec §5.5): mode-aware input border (plan/restricted → $warn).
         self.query_one("#input", InputBar).set_mode(self.phase or self.mode)
-        # R5 (spec .1): session id is no longer in chrome surface it once
-        # on launch via the toast overlay (HomeScreen data rows land in R6)
+        # R5 (spec §5.1): session id is no longer in chrome — surface it once
+        # on launch via the toast overlay (HomeScreen data rows land in R6).
         if self.session_id:
             self._toast(f"session {self.session_id[:8]}")

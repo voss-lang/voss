@@ -1,12 +1,11 @@
-"""
-CLIH-10: `voss run` remains the compiler verb, NOT an agent task runner.
+"""CLIH-10: `voss run` remains the compiler verb, NOT an agent task runner.
+
 Guards against a future refactor that overloads `voss run` for natural-language
+tasks. If anyone confuses `voss run` with `voss do`, this test fails.
 """
 from __future__ import annotations
 
-from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
 from voss.cli import main

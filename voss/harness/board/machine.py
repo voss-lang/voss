@@ -1,6 +1,12 @@
-"""
-Board state machine: Card, Board, WIP enforcement, transition-delta emission
-Implements OBRD-01 (card == session-tree node), OBRD-02 (one board per team)
+"""Board state machine: Card, Board, WIP enforcement, transition-delta emission.
+
+Implements OBRD-01 (card == session-tree node), OBRD-02 (one board per team),
+OBRD-03 (6 columns + WIP), OBRD-06 (risk-tier thresholds from single source).
+
+Gate-predicate evaluation is O3-03. This wave enforces:
+  - Unknown-column rejection (BoardGateError)
+  - Per-column WIP cap (BoardWIPError)
+  - Transition-delta emission on every move attempt (passed or refused)
 """
 from __future__ import annotations
 
@@ -15,7 +21,6 @@ from typing import Callable, Literal, Optional
 
 from voss.harness.session_tree import (
     SessionTreeManager,
-    SessionTreeNode,
     _write_node_file,
     finalize_node,
 )
@@ -29,7 +34,6 @@ from .gates import (
     GateContext,
     a_verification_passes,
     b_passes,
-    conf_meets_p,
     eval_meets_threshold,
     human_approved,
     scope_clean,
@@ -38,7 +42,9 @@ from .verdict import Reviewer, ReviewerVerdict
 from .review_persistence import _write_review_sidecar
 
 
+# ---------------------------------------------------------------------------
 # Type aliases + constants
+# ---------------------------------------------------------------------------
 
 Column = Literal[
     "Backlog", "Planned", "InProgress", "InReview", "Blocked", "Done"
@@ -50,13 +56,13 @@ _COLUMNS: tuple[str, ...] = (
 )
 _TERMINAL_COLUMNS: frozenset[str] = frozenset({"Done", "Blocked"})
 
-# SPEC L116 SINGLE SOURCE OF TRUTH do not duplicate elsewhere
+# SPEC L116 SINGLE SOURCE OF TRUTH — do not duplicate elsewhere.
 _DEFAULT_RISK_THRESHOLDS: dict[str, float] = {
     "low": 0.60,
     "med": 0.80,
     "high": 0.95,
-    # VRES-04: confidence threshold only Done additionally requires an
-    # explicit human approval record (human_approved gate predicate)
+    # V20 VRES-04: confidence threshold only — Done additionally requires an
+    # explicit human approval record (human_approved gate predicate).
     "critical": 0.99,
 }
 
@@ -73,7 +79,9 @@ _DEFAULT_CARD_DEADLINE_S = 1800.0  # 30 min
 _DEFAULT_TICK_INTERVAL_S = 1.0
 
 
+# ---------------------------------------------------------------------------
 # Card (frozen value-object)
+# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class Card:
@@ -90,7 +98,7 @@ class Card:
     scope: Optional[TeamRoleScope] = None
     artifact: Optional[object] = None
     eval_threshold: float = 1.0
-    # additions additive, back-compat defaults (VBOARD-03)
+    # V5 additions — additive, back-compat defaults (VBOARD-03):
     idea: str = ""
     role: str = ""
     acceptance_criteria: str = ""
@@ -102,7 +110,9 @@ def card_status(card: "Card") -> str:
     return card.column
 
 
-# VRES-04: human approval records for critical-tier cards
+# ---------------------------------------------------------------------------
+# V20 VRES-04: human approval records for critical-tier cards
+# ---------------------------------------------------------------------------
 
 def _human_approval_path(cwd: Path, root_id: str, card_id: str) -> Path:
     return cwd / ".voss" / "sessions" / root_id / "approvals" / f"{card_id}.json"
@@ -152,7 +162,9 @@ def card_budget(node_envelope: dict) -> tuple[int, int]:
     return node_envelope.get("spent", 0), node_envelope.get("limit", 0)
 
 
+# ---------------------------------------------------------------------------
 # _BoardConfig + adapter
+# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class _BoardConfig:
@@ -284,7 +296,9 @@ def _lit_float(val: object) -> float | None:
     return None
 
 
+# ---------------------------------------------------------------------------
 # Board
+# ---------------------------------------------------------------------------
 
 class Board:
     """6-column Kanban state machine bound to a SessionTreeManager (OBRD-02/03)."""
@@ -305,16 +319,16 @@ class Board:
         reserve: int = 0,
     ) -> None:
         self._manager = manager
-        # legacy single `reviewer` aliases both A and B slots. The
+        # V6 (D-01): legacy single `reviewer` aliases both A and B slots. The
         # legacy slot drives conf_meets_p at InProgress→InReview; when only the
-        # A/B slots are supplied, B owns that intermediate confidence check
+        # A/B slots are supplied, B owns that intermediate confidence check.
         self._reviewer = reviewer if reviewer is not None else reviewer_b
         self._reviewer_a = reviewer_a if reviewer_a is not None else reviewer
         self._reviewer_b = reviewer_b if reviewer_b is not None else reviewer
         # VBOARD-07: track whether ANY independent reviewer was injected. Note
         # self._reviewer defaults to reviewer_b above, so a bare `is None` check
         # on the legacy slot alone would misfire for A/B-only construction
-        # (two-source gate). Equivalent to `self._reviewer is not None`
+        # (two-source gate). Equivalent to `self._reviewer is not None`.
         self._reviewer_injected = (
             reviewer is not None or reviewer_a is not None or reviewer_b is not None
         )
@@ -362,7 +376,7 @@ class Board:
             clock=clock,
             per_card_budget=per_card_budget,
         )
-        # Derive p_overrides from team_config.policy.p if it's a dict
+        # Derive p_overrides from team_config.policy.p if it's a dict.
         if isinstance(team_config.policy.p, dict):
             board._team_p_overrides = dict(team_config.policy.p)
         elif cfg.p_overrides:
@@ -430,7 +444,7 @@ class Board:
                 )
                 raise BoardWIPError(to, cap)
 
-        # 2.5 VBOARD-07: Done requires an independent reviewer (no self-Done)
+        # 2.5 VBOARD-07: Done requires an independent reviewer (no self-Done).
         if to == "Done" and not self._reviewer_injected:
             self._append_delta(
                 card, from_col=card.column, to_col=to,
@@ -441,12 +455,12 @@ class Board:
                 failing_clauses=["no-reviewer"],
             )
 
-        # 3. Gate predicate evaluation
+        # 3. Gate predicate evaluation (O3-03).
         transition = (card.column, to)
         predicates = self._gates.transitions.get(transition)
         verdict_snapshot = None
         if predicates is not None:
-            # AI-vs-code Done variant: swap by artifact introspection
+            # AI-vs-code Done variant: swap by artifact introspection.
             if transition == ("InReview", "Done") and card.artifact is not None:
                 if hasattr(card.artifact, "eval_score") and not hasattr(
                     card.artifact, "tests_passed"
@@ -461,8 +475,8 @@ class Board:
             node = self._manager.get_node(card.node_id)
             if node is None:
                 raise BoardGateError("card node missing", failing_clauses=["scope"])
-            # (VRES-04): hydrate the operator decision for the Done gate
-            # an explicit rejection is terminal (NOT a resumable refusal)
+            # V20 (VRES-04): hydrate the operator decision for the Done gate;
+            # an explicit rejection is terminal (NOT a resumable refusal).
             human_decision = None
             if transition == ("InReview", "Done") and card.risk_tier == "critical":
                 human_decision = read_human_decision(
@@ -489,18 +503,18 @@ class Board:
                     if p.name not in failing:
                         failing.append(p.name)
                     if p.name == "human":
-                        # (VRES-04) gate-before-spend: do not pay A/B
-                        # reviews while the card waits on its operator
+                        # V20 (VRES-04) gate-before-spend: do not pay A/B
+                        # reviews while the card waits on its operator.
                         break
-            # Snapshot whichever verdict the evaluated predicates produced
+            # Snapshot whichever verdict the evaluated predicates produced:
             # ctx.verdict at the intermediate (conf) gate; verdict_b/verdict_a
-            # at the two-source Done gate
+            # at the two-source Done gate.
             snap_verdict = ctx.verdict or ctx.verdict_b or ctx.verdict_a
             if snap_verdict is not None:
                 verdict_snapshot = dataclasses.asdict(snap_verdict)
             if failing:
-                # a B `block` at the Done gate is TERMINAL, not a
-                # retry. Persist the review then force the card to Blocked
+                # V6 (D-03): a B `block` at the Done gate is TERMINAL, not a
+                # retry. Persist the review then force the card to Blocked.
                 if ctx.verdict_b is not None and ctx.verdict_b.verdict == "block":
                     _write_review_sidecar(
                         card, ctx, outcome="Blocked",
@@ -517,10 +531,10 @@ class Board:
                 )
                 raise BoardGateError("gate refused", failing_clauses=failing)
 
-        # 4. Emit passed delta + rebuild card with new column
-        # (VREV-09): on a successful two-source Done, persist the review
+        # 4. Emit passed delta + rebuild card with new column.
+        # V6 (VREV-09): on a successful two-source Done, persist the review
         # sidecar. Guard on BOTH verdicts present so a pure A-fail (verdict_b
-        # never populated) cannot write a partial sidecar
+        # never populated) cannot write a partial sidecar (Pitfall 5).
         if (
             transition == ("InReview", "Done")
             and ctx.verdict_a is not None
@@ -540,7 +554,7 @@ class Board:
             verdict_snapshot=verdict_snapshot,
         )
 
-        # 5. Finalize on Done
+        # 5. Finalize on Done (O3-04).
         if to == "Done":
             node = self._manager.get_node(new_card.node_id)
             if node is not None and not node._finalized:
@@ -560,7 +574,7 @@ class Board:
         predicates = self._gates.transitions.get(transition)
         if predicates is None:
             return (True, [])
-        # AI-vs-code Done variant same logic as move
+        # AI-vs-code Done variant — same logic as move.
         if transition == ("InReview", "Done") and card.artifact is not None:
             if hasattr(card.artifact, "eval_score") and not hasattr(
                 card.artifact, "tests_passed"
@@ -628,7 +642,7 @@ class Board:
         node.transitions.append(delta)
         _write_node_file(node, self._cwd)
 
-    # tick, forced terminal, critic loop, start/stop
+    # --- O3-04: tick, forced terminal, critic loop, start/stop ----------------
 
     def _tick_once(self, now: float) -> None:
         """Synchronous test entry. Forces terminal states only — no forward
@@ -636,11 +650,11 @@ class Board:
         for card in list(self._cards):
             if card.column in _TERMINAL_COLUMNS:
                 continue
-            # 1. Wall-clock deadline check
+            # 1. Wall-clock deadline check.
             if now >= card.deadline:
                 self._force_terminal(card, reason="timeout")
                 continue
-            # 2. Budget exhaustion check
+            # 2. Budget exhaustion check.
             node = self._manager.get_node(card.node_id)
             if node is None:
                 continue
@@ -698,7 +712,7 @@ class Board:
             new_card if c.node_id == card.node_id else c
             for c in self._cards
         ]
-        # Append RetryNote to node
+        # Append RetryNote to node.
         node = self._manager.get_node(card.node_id)
         if node is not None:
             note = {
@@ -707,7 +721,7 @@ class Board:
                 "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             }
             node.retry_notes.append(note)
-        # Emit passed transition InReview→InProgress
+        # Emit passed transition InReview→InProgress.
         self._append_delta(
             card, from_col="InReview", to_col="InProgress",
             outcome="passed",

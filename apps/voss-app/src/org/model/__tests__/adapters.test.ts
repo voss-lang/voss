@@ -1,9 +1,17 @@
 import { describe, it, expect } from 'vitest';
 
+// 01: pure adapter `buildModel(snapshot, liveAgents, budgets, bridge)` that
+// uses cardsFromRunData as the spine and overlays live-plane fields by the
+// id-bridge. buildModel is pure (no Solid/produce), so it is fixture-testable
+// like boardDerive.ts — imported eagerly here now that ../adapters exists.
+
 import { buildModel, type AgentEntry, type CardBridge } from '../adapters';
 import type { BudgetEntry } from '../../../pane/budgetRegistry';
 import type { RunData } from '../../types';
 
+
+// A minimal RunData whose single non-root node has id "C1" (snapshot card id IS
+// the node id — boardDerive uses n.id). cardsFromRunData yields one card: C1.
 const SNAPSHOT = {
   run_id: 'root-run',
   session_tree: {
@@ -40,6 +48,7 @@ const SNAPSHOT = {
   },
 } as unknown as RunData;
 
+// Fake live registry: an agent running on pane P1 (mirrors live-registry.json).
 const LIVE_AGENTS: AgentEntry[] = [
   {
     paneId: 'P1',
@@ -52,6 +61,7 @@ const LIVE_AGENTS: AgentEntry[] = [
   },
 ];
 
+// Budgets keyed by paneId; carries the live cost_usd we expect to surface.
 const BUDGETS: Record<string, BudgetEntry> = {
   P1: {
     tokens_used: 1200,
@@ -63,6 +73,7 @@ const BUDGETS: Record<string, BudgetEntry> = {
   },
 };
 
+// Bridge resolver: card C1 -> pane P1 (the keystone binding).
 const BRIDGE: CardBridge = {
   paneIdForCard: (cardId) => (cardId === 'C1' ? 'P1' : undefined),
 };
@@ -102,14 +113,18 @@ describe('adapters.buildModel — VCKP-01', () => {
 
   it('buildModel is pure: a merged card carries snapshot title/role/risk/column AND paneId/liveBudget from ONE call', () => {
     const card = buildModel(SNAPSHOT, LIVE_AGENTS, BUDGETS, BRIDGE).cards[0];
+    // snapshot plane
     expect(card.title).toBe('implement board panel');
     expect(card.role).toBe('backend');
     expect(card.risk).toBe('high');
     expect(card.column).toBe('Done');
+    // live overlay plane
     expect(card.paneId).toBe('P1');
     expect(card.liveBudget).toBe(0.42);
     expect(card.liveStatus).toBe('running');
   });
+
+  // Behavior 2: card with no bound pane
 
   it('a card with no bound pane gets no paneId/liveBudget but keeps snapshot fields + sessionNodeId === own id', () => {
     const noBind: CardBridge = { paneIdForCard: () => undefined };
@@ -117,12 +132,16 @@ describe('adapters.buildModel — VCKP-01', () => {
     expect(card.paneId).toBeUndefined();
     expect(card.liveBudget).toBeUndefined();
     expect(card.liveStatus).toBeUndefined();
+    // snapshot fields survive
     expect(card.title).toBe('implement board panel');
     expect(card.role).toBe('backend');
     expect(card.risk).toBe('high');
     expect(card.column).toBe('Done');
+    // sessionNodeId defaults to the card's own id
     expect(card.sessionNodeId).toBe('C1');
   });
+
+  // Behavior 3: null tolerance (mirror boardDerive)
 
   it('buildModel(null, [], {}, bridge) returns an empty-cards Run without throwing', () => {
     const run = buildModel(null, [], {}, BRIDGE);

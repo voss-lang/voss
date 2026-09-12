@@ -15,7 +15,7 @@ import WorkspaceTabBar, {
 import type { WorkspaceRecord } from '../../../workspaces/workspaceStore';
 
 /**
- * WorkspaceTabBar + context menu (TDD)
+ * Task 1 — WorkspaceTabBar + context menu (TDD)
  * Contract: Workspace Tab Bar + Copywriting sections
  */
 
@@ -82,7 +82,7 @@ describe('WorkspaceTabBar — active/inactive tab markers', () => {
 });
 
 describe('WorkspaceTabBar — fixed dimensions contract', () => {
-  it('tab bar is 28px and tabs are 24px via CSS contract classes', () => {
+  it('tab bar matches pane header height via CSS contract classes', () => {
     const el = mount(() => <WorkspaceTabBar {...defaultProps()} />);
     const bar = el.querySelector('[data-workspace-tabbar]') as HTMLElement;
     expect(bar).not.toBeNull();

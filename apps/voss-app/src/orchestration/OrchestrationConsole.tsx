@@ -102,7 +102,7 @@ const OrchestrationConsole: Component = () => {
       setError(cause instanceof Error ? cause.message : String(cause));
       setLoading(false);
     });
-    void listen<OrchestrationContext>('voss: // orchestration-context', (event) => {
+    void listen<OrchestrationContext>('voss://orchestration-context', (event) => {
       void connect(event.payload);
     }).then((stop) => {
       unlisten = stop;

@@ -1,14 +1,14 @@
 """
-LSP Client Adapter for Voss
+LSP Client Adapter for Voss (M10-02).
+
 Strict isolation: pygls is never imported at module level and never leaks
+into any public API or other modules.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from .models import CodeLocation, ReferenceHit, SymbolHit
@@ -43,7 +43,9 @@ class LspClientAdapter(ABC):
         ...
 
 
+# ------------------------------------------------------------------
 # pygls-backed implementation (pygls is imported only inside this class)
+# ------------------------------------------------------------------
 
 class _PyglsLspClient(LspClientAdapter):
     """Real implementation using pygls as a client."""
@@ -152,7 +154,7 @@ class _PyglsLspClient(LspClientAdapter):
             "fallback": "ast-grep",
         }
 
-    # Very small converters real ones would be more complete
+    # Very small converters — real ones would be more complete
     def _convert_locations(self, result: Any) -> list[CodeLocation]:
         if not result:
             return []

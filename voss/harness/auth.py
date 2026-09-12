@@ -1,6 +1,13 @@
-"""
-Credential discovery for Claude Code (Anthropic) and Codex (OpenAI)
-Order of preference (when --auth=auto)
+"""Credential discovery for Claude Code (Anthropic) and Codex (OpenAI).
+
+Order of preference (when --auth=auto):
+  1. Explicit env vars (ANTHROPIC_API_KEY / OPENAI_API_KEY)
+  2. Claude Code OAuth tokens (macOS Keychain or ~/.claude/.credentials.json)
+  3. Codex auth.json (~/.codex/auth.json — uses bundled OPENAI_API_KEY)
+
+For Claude Code OAuth: tokens auto-refresh via Anthropic's token endpoint.
+The harness reuses Claude Code's published client_id; this is intended for
+personal use and may break if Anthropic changes the protocol.
 """
 from __future__ import annotations
 
@@ -10,6 +17,7 @@ import platform
 import shutil
 import subprocess
 import time
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional
@@ -21,16 +29,18 @@ ANTHROPIC_TOKEN_URL = "https://console.anthropic.com/v1/oauth/token"
 ANTHROPIC_API_BASE = "https://api.anthropic.com"
 ANTHROPIC_OAUTH_BETA = "oauth-2025-04-20"
 
-# Codex CLI client. Reused for refresh
+# Codex CLI client. Reused for refresh.
 CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token"
 OPENAI_API_BASE = "https://api.openai.com"
-# ChatGPT subscription tokens reach the Responses API via chatgpt.com
-# not api.openai.com. The Codex CLI uses this endpoint for "ChatGPT" auth_mode
+# ChatGPT subscription tokens reach the Responses API via chatgpt.com,
+# not api.openai.com. The Codex CLI uses this endpoint for "ChatGPT" auth_mode.
 CHATGPT_BACKEND_BASE = "https://chatgpt.com/backend-api/codex"
 
 
+# ---------------------------------------------------------------------------
 # Anthropic OAuth (Claude Code)
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -42,7 +52,7 @@ class AnthropicOAuthCreds:
 
     @property
     def expired(self) -> bool:
-        # Refresh proactively 60s before stated expiry
+        # Refresh proactively 60s before stated expiry.
         return time.time() * 1000 >= self.expires_at_ms - 60_000
 
     @property
@@ -68,7 +78,7 @@ def _login_keychain_path() -> Optional[str]:
         return None
     if out.returncode != 0:
         return None
-    # Output is quoted: e.g. ` "/Users/x/Library/Keychains/login.keychain-db"`
+    # Output is quoted: e.g. `    "/Users/x/Library/Keychains/login.keychain-db"`
     line = out.stdout.strip().strip('"')
     return line or None
 
@@ -202,10 +212,10 @@ def refresh_anthropic(creds: AnthropicOAuthCreds, *, client: Optional[httpx.Clie
         expires_at_ms=int((time.time() + body.get("expires_in", 3600)) * 1000),
         subscription_type=creds.subscription_type,
     )
-    # Persist back to the SAME source the creds came from
+    # Persist back to the SAME source the creds came from.
     # If creds originated in the keychain, update there; otherwise stay in the
     # file. This prevents triggering macOS "no keychain to store" notifications
-    # for users whose tokens live in ~/.claude/.credentials.json
+    # for users whose tokens live in ~/.claude/.credentials.json.
     keychain_blob = _read_macos_keychain()
     file_blob = _read_claude_credentials_file() if keychain_blob is None else None
     blob = keychain_blob or file_blob or {}
@@ -221,7 +231,9 @@ def refresh_anthropic(creds: AnthropicOAuthCreds, *, client: Optional[httpx.Clie
     return new
 
 
-# Codex (OpenAI) reads ~/.codex/auth.json and non-secret config.toml
+# ---------------------------------------------------------------------------
+# Codex (OpenAI) — reads ~/.codex/auth.json and non-secret config.toml
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -267,7 +279,7 @@ def refresh_codex(creds: CodexCreds, *, client: Optional[httpx.Client] = None) -
         account_id=creds.account_id,
         auth_mode=creds.auth_mode,
     )
-    # Persist back to ~/.codex/auth.json
+    # Persist back to ~/.codex/auth.json.
     path = Path.home() / ".codex" / "auth.json"
     try:
         data = json.loads(path.read_text()) if path.exists() else {}
@@ -320,7 +332,9 @@ def load_codex_default_model(path: Path | None = None) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
 # Resolution
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -330,8 +344,8 @@ class Resolution:
     anthropic_oauth: Optional[AnthropicOAuthCreds] = None
     openai_api_key: Optional[str] = None
     codex_oauth: Optional[CodexCreds] = None
-    # claude-agent: absolute path to the `claude` CLI found during resolution
-    # threaded into ClaudeAgentProvider so it never re-probes PATH
+    # claude-agent: absolute path to the `claude` CLI found during resolution,
+    # threaded into ClaudeAgentProvider so it never re-probes PATH.
     cli_path: Optional[Path] = None
 
 
@@ -353,11 +367,27 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     if preference == "none":
         return Resolution(source="none", detail="forced none")
 
+    codex_model = load_codex_default_model()
+    if preference == "auto" and codex_model and codex_model.startswith("gpt-5."):
+        if codex := load_codex():
+            if codex.api_key:
+                return Resolution(
+                    source="codex",
+                    detail=f"~/.codex/auth.json ({codex.auth_mode}, api key)",
+                    openai_api_key=codex.api_key,
+                )
+            if codex.has_oauth:
+                return Resolution(
+                    source="codex-oauth",
+                    detail=f"~/.codex/auth.json ({codex.auth_mode}, OAuth)",
+                    codex_oauth=codex,
+                )
+
     if preference in ("auto", "api"):
         if k := load_voss_creds("anthropic"):
             # Inject into env so downstream providers (LiteLLM, anthropic SDK)
             # that read ANTHROPIC_API_KEY directly continue to work without
-            # bespoke wiring
+            # bespoke wiring.
             os.environ["ANTHROPIC_API_KEY"] = k
             return Resolution(source="voss-anthropic", detail="keyring", openai_api_key=None)
         if k := load_voss_creds("openai"):
@@ -368,10 +398,10 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
         if k := os.environ.get("OPENAI_API_KEY"):
             return Resolution(source="env-openai", detail="OPENAI_API_KEY", openai_api_key=k)
 
-    # Codex stays ahead of Claude under `auto` for now (no behavior churn)
-    # Claude resolution targets the Agent SDK path (`claude -p` subprocess)
-    # sanctioned by Anthropic's 2026-06-15 subscription-credit policy the
-    # old raw-OAuth reuse is server-blocked. Explicit `--auth=claude` wins
+    # Codex stays ahead of Claude under `auto` for now (no behavior churn).
+    # Claude resolution targets the Agent SDK path (`claude -p` subprocess),
+    # sanctioned by Anthropic's 2026-06-15 subscription-credit policy — the
+    # old raw-OAuth reuse is server-blocked. Explicit `--auth=claude` wins.
     if preference in ("auto", "codex"):
         if codex := load_codex():
             if codex.api_key:
@@ -419,7 +449,9 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     return Resolution(source="none", detail="no creds found via any path")
 
 
-# Login wizard helpers
+# ---------------------------------------------------------------------------
+# Login wizard helpers (Phase 1)
+# ---------------------------------------------------------------------------
 
 
 UpstreamCli = Literal["claude", "codex"]
@@ -456,8 +488,8 @@ def wait_for_creds(
         if provider == "claude":
             creds = load_anthropic_oauth()
             if creds is not None:
-                # The wizard only reaches here after detect("claude") succeeded
-                # so the CLI is present; re-detect to fill cli_path
+                # The wizard only reaches here after detect("claude") succeeded,
+                # so the CLI is present; re-detect to fill cli_path.
                 return Resolution(
                     source="claude-agent",
                     detail=f"claude CLI + subscription creds ({creds.subscription_type})",
@@ -484,13 +516,16 @@ def wait_for_creds(
         sleep(poll)
 
 
-# Voss-managed credential store
+# ---------------------------------------------------------------------------
+# Voss-managed credential store (Phase 3)
+# ---------------------------------------------------------------------------
+#
 # Backed by the OS keychain via the `keyring` package: macOS Keychain on
 # Darwin, Windows Credential Locker on win32, Secret Service on Linux when
 # present. On hosts where keyring has no usable backend (e.g. headless Linux
 # without secretstorage / a session DBus), the load/save/delete calls
 # degrade to no-ops and log a warning to stderr. This keeps voss working in
-# CI / containers without dragging in plaintext file-store fallbacks
+# CI / containers without dragging in plaintext file-store fallbacks.
 
 KEYRING_SERVICE = "voss"
 StoredProvider = Literal["anthropic", "openai"]
@@ -513,7 +548,7 @@ def _keyring_available() -> bool:
         return False
     try:
         backend = kr.get_keyring()  # type: ignore[attr-defined]
-        # The chainer / fail backends used as last resort are unusable; skip them
+        # The chainer / fail backends used as last resort are unusable; skip them.
         name = type(backend).__name__.lower()
         if "fail" in name:
             return False
@@ -560,11 +595,13 @@ def delete_voss_creds(provider: StoredProvider) -> bool:
         return False
 
 
-# Generic provider keys, keyed by ENV-VAR NAME (e.g. "OLLAMA_API_KEY")
+# ---------------------------------------------------------------------------
+# Generic provider keys, keyed by ENV-VAR NAME (e.g. "OLLAMA_API_KEY").
 # Used by the /models picker's connect-provider flow for endpoints that route
 # through env vars (Ollama Cloud, OpenCode Zen/Go). Distinct from the wizard's
 # "anthropic"/"openai" buckets above; keying by env var lets opencode + go
-# share one OPENCODE_API_KEY
+# share one OPENCODE_API_KEY.
+# ---------------------------------------------------------------------------
 
 
 def load_provider_key(env_key: str) -> Optional[str]:

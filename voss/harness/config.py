@@ -1,6 +1,11 @@
-"""
-Harness config persistence (~/.config/voss/config.toml)
+"""Harness config persistence (~/.config/voss/config.toml).
+
 Today the only key is [harness] preferred_model, set by the REPL /model
+slash command. Kept narrow on purpose — anything richer goes under .voss/ in M2.
+
+T1-04 added an [agent] section reader / writer for max_iterations (default
+8). [agent] was picked over [loop] because it leaves room for future agent-
+loop neighbors (confidence_threshold, timeout, etc.) without renaming.
 """
 from __future__ import annotations
 
@@ -18,43 +23,38 @@ def config_path() -> Path:
     return base / "voss" / "config.toml"
 
 
-def app_state_dir() -> Path:
-    base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
-    return base / "voss"
-
-
 _RESERVED_SOURCE_NAMES = frozenset({"code", "memory", "global"})
 
 _HARNESS_BLOCK = re.compile(r"^\[harness\][^\[]*", re.MULTILINE)
 _AGENT_BLOCK = re.compile(r"^\[agent\][^\[]*", re.MULTILINE)
 _EVAL_BLOCK = re.compile(r"^\[eval\][^\[]*", re.MULTILINE)
 _TOOLS_BLOCK = re.compile(r"^\[tools\][^\[]*", re.MULTILINE)
-# VOPT-06: packing profile block. `[context]` does not collide with any
-# existing section (verified only harness/agent/eval/tools/net.rate_limits/
-# model_tiers exist)
+# V18 VOPT-06: packing profile block. `[context]` does not collide with any
+# existing section (verified — only harness/agent/eval/tools/net.rate_limits/
+# model_tiers exist).
 _CONTEXT_BLOCK = re.compile(r"^\[context\][^\[]*", re.MULTILINE)
 _MEMORY_BLOCK = re.compile(r"^\[memory\][^\[]*", re.MULTILINE)
 _INSTRUCTIONS_BLOCK = re.compile(r"^\[instructions\][^\[]*", re.MULTILINE)
 _BILLING_BLOCK = re.compile(r"^\[billing\][^\[]*", re.MULTILINE)
-# T3-04: escape the dot. Un-escaped `r"^\[net.rate_limits\]"`
+# T3-04: PITFALL 6 — escape the dot. Un-escaped `r"^\[net.rate_limits\]"`
 # also matches `[netXrate_limits]` (any single char), corrupting the
-# bucket config. The escape is
+# bucket config. The escape is load-bearing.
 _NET_RATE_BLOCK = re.compile(r"^\[net\.rate_limits\][^\[]*", re.MULTILINE)
 _MODEL_TIERS_BLOCK = re.compile(r"^\[model_tiers\][^\[]*", re.MULTILINE)
-# `web_fetch = "60/min"` quoted string form
+# `web_fetch = "60/min"` — quoted string form.
 _RATE_STR = re.compile(r'^\s*(\w+)\s*=\s*"(\d+)/min"\s*$', re.MULTILINE)
-# `web_fetch = { rate = 60, burst = 120 }` one-line inline-table form
+# `web_fetch = { rate = 60, burst = 120 }` — one-line inline-table form.
 _RATE_TABLE = re.compile(r"^\s*(\w+)\s*=\s*\{([^}]+)\}\s*$", re.MULTILINE)
-# Inside-braces kv (rate / burst only)
+# Inside-braces kv (rate / burst only).
 _RATE_TABLE_KV = re.compile(r"\s*(rate|burst)\s*=\s*(\d+)\s*,?")
 _KV = re.compile(r'^\s*(\w+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*$', re.MULTILINE)
 # Bare (unquoted) right-hand values for [tools] keys like
 # `allow_net = true`. The existing _KV regex only matches double-quoted
-# strings; TOML booleans are bare, so they need their own matcher
+# strings; TOML booleans are bare, so they need their own matcher.
 # The pattern captures any non-whitespace token after `=`; get_allow_net
-# validates 'true' / 'false' and warns on anything else
+# validates 'true' / 'false' and warns on anything else.
 _KV_BARE = re.compile(r"^\s*(\w+)\s*=\s*([^\s\"#]+)\s*$", re.MULTILINE)
-# `[billing]` keys are auth-source names such as `claude-agent`; allow hyphens
+# `[billing]` keys are auth-source names such as `claude-agent`; allow hyphens.
 _KV_DASHED = re.compile(r'^\s*([\w-]+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*$', re.MULTILINE)
 
 
@@ -94,7 +94,7 @@ def _parse_tools_section(text: str) -> dict[str, str]:
         out[k] = v
     for k, v in _KV_BARE.findall(block):
         # Don't overwrite a quoted-string match with a stray bare token
-        # (e.g. when a value coincidentally lacks quotes)
+        # (e.g. when a value coincidentally lacks quotes).
         out.setdefault(k, v)
     return out
 
@@ -355,10 +355,10 @@ def get_net_rate_limits() -> dict[str, dict[str, int]]:
     return _parse_net_rate_limits_section(text)
 
 
-# (VTEAM-08): tier alias -> concrete model id. This dict is the ONLY place
+# V3 (VTEAM-08): tier alias -> concrete model id. This dict is the ONLY place
 # concrete model NAME strings live for the team compiler; team.py references the
-# three tier keywords and resolves through get_model_tiers. Ids target the
-# anthropic provider (model_catalog.TARGET_PROVIDERS[0])
+# three tier keywords and resolves through get_model_tiers(). Ids target the
+# anthropic provider (model_catalog.TARGET_PROVIDERS[0]).
 _DEFAULT_MODEL_TIERS: dict[str, str] = {
     "strong": "claude-opus-4-8",
     "cheap": "claude-haiku-4-5",
@@ -394,17 +394,19 @@ def get_model_tiers() -> dict[str, str]:
     return merged
 
 
-# (VSEM-07/08): index_enrich role + [code_recall] section
-# Example config
-# [model_tiers]
-# index_enrich = "ollama/gpt-oss" # Ollama-local default
-# # Haiku-class alternate: "claude-haiku-4-5"
-# [code_recall]
-# enrich_profile = true
-# enrich_budget_tokens = 50000
-# inject = true
+# --- V19-06 (VSEM-07/08): index_enrich role + [code_recall] section ----------
+#
+# Example config:
+#   [model_tiers]
+#   index_enrich = "ollama/gpt-oss"        # Ollama-local default (D-12);
+#                                          # Haiku-class alternate: "claude-haiku-4-5"
+#   [code_recall]
+#   enrich_profile = true
+#   enrich_budget_tokens = 50000
+#   inject = true
+#
 # Absent index_enrich → enrichment unavailable even with enrich_profile=true
-# (fail-closed, NEVER falls back to the session model)
+# (fail-closed, D-06 — NEVER falls back to the session model).
 
 _CODE_RECALL_BLOCK = re.compile(r"^\[code_recall\][^\[]*", re.MULTILINE)
 _CODE_RECALL_BOOL = re.compile(r"^\s*(enrich_profile|inject)\s*=\s*(true|false)\s*$", re.MULTILINE | re.IGNORECASE)

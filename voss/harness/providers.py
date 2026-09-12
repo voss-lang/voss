@@ -1,6 +1,9 @@
-"""
-Harness-specific providers
-These wrap the same `ModelProvider` as `voss_runtime.providers` but
+"""Harness-specific providers.
+
+These wrap the same `ModelProvider` protocol as `voss_runtime.providers` but
+add OAuth bearer auth (Claude Code subscription) and direct httpx transport.
+
+For simple API-key flows we still use voss_runtime's LiteLLMProvider.
 """
 from __future__ import annotations
 
@@ -16,10 +19,12 @@ from voss_runtime.providers.base import ProviderResponse
 from . import auth
 
 
-# T1-02: Streaming event contract typed union consumed by the agent loop
+# ---------------------------------------------------------------------------
+# T1-02: Streaming event contract — typed union consumed by the agent loop
 # (T1-05/T1-06) and the iteration loop's terminating-Plan parse. Bodies of
-# stream land in T1-03; this module ships only shapes + Protocol so
-# downstream waves can pin against a stable surface
+# stream() land in T1-03; this module ships only shapes + Protocol so
+# downstream waves can pin against a stable surface.
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,9 +54,9 @@ class Usage:
     prompt_tokens: int
     completion_tokens: int
     cost_usd: float
-    # T4 CACHE-02: streaming half symmetric with ProviderResponse
+    # T4 CACHE-02 (D-01): streaming half — symmetric with ProviderResponse
     # on the non-streaming path; OAuth-path emission sites pass through
-    # defaults ( deferral)
+    # defaults (Pitfall 3 deferral).
     cache_creation_input_tokens: int = 0
     cache_read_input_tokens: int = 0
 
@@ -112,10 +117,12 @@ class StreamingProvider(Protocol):
         ...
 
 
-# Anthropic OAuth provider Claude Pro/Max subscription via Claude Code creds
+# ---------------------------------------------------------------------------
+# Anthropic OAuth provider — Claude Pro/Max subscription via Claude Code creds
+# ---------------------------------------------------------------------------
 
 
-# Conservative model alias map. LiteLLM-style names → Anthropic API IDs
+# Conservative model alias map. LiteLLM-style names → Anthropic API IDs.
 _MODEL_ALIASES = {
     "claude-sonnet-4-5": "claude-sonnet-4-5",
     "claude-sonnet-4-7": "claude-sonnet-4-5",  # placeholder until 4.7 alias settles
@@ -124,9 +131,9 @@ _MODEL_ALIASES = {
 }
 
 # Anthropic's OAuth tokens are scoped to Claude Code. The API rejects requests
-# whose system prompt does not begin with the Claude Code identity line
+# whose system prompt does not begin with the Claude Code identity line.
 # Including this preamble keeps the harness compatible with the subscription
-# auth path (it sits in front of any harness-provided system prompts)
+# auth path (it sits in front of any harness-provided system prompts).
 CLAUDE_CODE_PREAMBLE = "You are Claude Code, Anthropic's official CLI for Claude."
 
 
@@ -194,7 +201,7 @@ class AnthropicOAuthProvider:
         temperature: float,
         max_tokens: Optional[int],
     ) -> dict[str, Any]:
-        # Split out system messages Anthropic API takes them separately
+        # Split out system messages — Anthropic API takes them separately.
         system_chunks: list[Any] = []
         chat: list[dict] = []
         for m in messages:
@@ -208,7 +215,7 @@ class AnthropicOAuthProvider:
         # Anthropic API accepts `system` as either a string or a list of
         # content blocks. Use the block form so we can prepend the Claude Code
         # preamble required by OAuth-scoped tokens without polluting the
-        # harness's own system message
+        # harness's own system message.
         system_blocks = [{"type": "text", "text": CLAUDE_CODE_PREAMBLE}]
         for chunk in system_chunks:
             if isinstance(chunk, list):
@@ -336,7 +343,7 @@ class AnthropicOAuthProvider:
         url = f"{self.base_url}/v1/messages"
 
         # Try once with current creds; on 401 refresh + reopen in a second
-        # async-with. Cannot reopen inside the same context manager
+        # async-with. Cannot reopen inside the same context manager.
         refreshed = False
         while True:
             client = self._http()
@@ -354,7 +361,7 @@ class AnthropicOAuthProvider:
                         f"{body_text[:500]!r}"
                     )
 
-                # SSE decode state
+                # SSE decode state.
                 current_tool_use_id: Optional[str] = None
                 tool_use_json: dict[str, list[str]] = {}
                 captured_stop_reason: str = "end_turn"
@@ -450,21 +457,23 @@ class AnthropicOAuthProvider:
                         yield Done(stop_reason=captured_stop_reason)
                         return
 
-                # Server hangup without message_stop
+                # Server hangup without message_stop.
                 yield Done(stop_reason="incomplete")
                 return
 
     def count_tokens(self, *, text: str, model: str) -> int:
-        # Quick estimate. Anthropic's counter requires an extra API call
-        # for harness budgeting a 4-chars-per-token heuristic is fine
+        # Quick estimate. Anthropic's counter requires an extra API call;
+        # for harness budgeting a 4-chars-per-token heuristic is fine.
         return max(len(text) // 4, 1)
 
 
-# OpenAI OAuth provider ChatGPT subscription via Codex CLI tokens
+# ---------------------------------------------------------------------------
+# OpenAI OAuth provider — ChatGPT subscription via Codex CLI tokens
+# ---------------------------------------------------------------------------
 
 
 # Current default for the ChatGPT-account Codex backend. gpt-5/gpt-5-codex were
-# retired April 2026 and the endpoint 400s on them; gpt-5.5 is the live default
+# retired April 2026 and the endpoint 400s on them; gpt-5.5 is the live default.
 _OPENAI_MODEL_DEFAULT = "gpt-5.5"
 
 
@@ -484,7 +493,7 @@ class OpenAIOAuthProvider:
     ):
         self.creds = creds
         self._client = client
-        # ChatGPT-mode tokens go to chatgpt.com; api-key mode goes to api.openai.com
+        # ChatGPT-mode tokens go to chatgpt.com; api-key mode goes to api.openai.com.
         if base_url is None:
             base_url = (
                 auth.CHATGPT_BACKEND_BASE
@@ -492,6 +501,9 @@ class OpenAIOAuthProvider:
                 else auth.OPENAI_API_BASE
             )
         self.base_url = base_url
+
+    def _is_codex_backend(self) -> bool:
+        return self.base_url.rstrip("/").endswith("/codex")
 
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -516,7 +528,7 @@ class OpenAIOAuthProvider:
         return h
 
     def _maybe_refresh(self) -> None:
-        # Codex tokens lack expiry metadata in the local file; rely on 401
+        # Codex tokens lack expiry metadata in the local file; rely on 401.
         return
 
     @staticmethod
@@ -573,19 +585,19 @@ class OpenAIOAuthProvider:
         system_chunks, items = self._to_responses_input(messages)
         # The ChatGPT-account Codex backend (chatgpt.com/backend-api/codex)
         # diverges from the public Responses API: it REQUIRES a non-empty
-        # `instructions` field and REJECTS `temperature`. Gate on the endpoint
+        # `instructions` field and REJECTS `temperature`. Gate on the endpoint.
         is_codex = self._is_codex_backend()
         eff_model = model or _OPENAI_MODEL_DEFAULT
         # gpt-5.x / o-series reasoning models reject a custom temperature (only
-        # the default is accepted), like the Codex backend. Drop it for both
+        # the default is accepted), like the Codex backend. Drop it for both.
         _is_reasoning = eff_model.split("/", 1)[-1].startswith(("gpt-5", "o1", "o3", "o4"))
         body: dict[str, Any] = {
-            "model": model or _OPENAI_MODEL_DEFAULT,
+            "model": eff_model,
             "input": items,
             "store": False,
             "stream": False,
         }
-        if temperature is not None and not is_codex:
+        if temperature is not None and not is_codex and not _is_reasoning:
             body["temperature"] = temperature
         if max_tokens is not None and not is_codex:
             body["max_output_tokens"] = max_tokens
@@ -598,7 +610,7 @@ class OpenAIOAuthProvider:
             # NON-strict json_schema. strict=True forces additionalProperties:false
             # on every nested object and rejects open fields (Plan.args is an open
             # dict) → the endpoint 400s. Non-strict still supplies the schema as
-            # guidance; we validate the returned JSON against the model ourselves
+            # guidance; we validate the returned JSON against the model ourselves.
             body["text"] = {
                 "format": {
                     "type": "json_schema",
@@ -620,6 +632,43 @@ class OpenAIOAuthProvider:
         max_tokens: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> ProviderResponse:
+        if self._is_codex_backend():
+            effective_model = model or _OPENAI_MODEL_DEFAULT
+            text_chunks: list[str] = []
+            prompt_tokens = 0
+            completion_tokens = 0
+            parsed: Any = None
+            stop_reason = "completed"
+
+            async for event in self.stream(
+                messages=messages,
+                model=effective_model,
+                response_format=response_format,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout,
+            ):
+                if isinstance(event, TextDelta):
+                    text_chunks.append(event.text)
+                elif isinstance(event, Usage):
+                    prompt_tokens = event.prompt_tokens
+                    completion_tokens = event.completion_tokens
+                elif isinstance(event, ParsedPlan):
+                    parsed = event.plan
+                elif isinstance(event, Done):
+                    stop_reason = event.stop_reason
+
+            return ProviderResponse(
+                text="".join(text_chunks),
+                model=effective_model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cost_usd=0.0,
+                raw={"stream": True, "stop_reason": stop_reason},
+                parsed=parsed,
+            )
+
         self._maybe_refresh()
         body = self._payload(
             messages=messages,
@@ -628,10 +677,10 @@ class OpenAIOAuthProvider:
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        # api.openai.com uses //responses; chatgpt.com/backend-api/codex uses /responses
+        # api.openai.com uses /v1/responses; chatgpt.com/backend-api/codex uses /responses.
         url = (
             f"{self.base_url}/responses"
-            if self.base_url.endswith("/codex")
+            if self._is_codex_backend()
             else f"{self.base_url}/v1/responses"
         )
 
@@ -660,7 +709,7 @@ class OpenAIOAuthProvider:
                 for c in block.get("content", []):
                     if c.get("type") in ("output_text", "text"):
                         text += c.get("text", "")
-        # Some response shapes flatten to top-level "output_text"
+        # Some response shapes flatten to top-level "output_text".
         if not text and isinstance(data.get("output_text"), str):
             text = data["output_text"]
 
@@ -711,7 +760,7 @@ class OpenAIOAuthProvider:
         body["stream"] = True
         url = (
             f"{self.base_url}/responses"
-            if self.base_url.endswith("/codex")
+            if self._is_codex_backend()
             else f"{self.base_url}/v1/responses"
         )
 
@@ -779,7 +828,7 @@ class OpenAIOAuthProvider:
                         yield Done(stop_reason=stop)
                         return
                     # response.created / response.in_progress / output_item.*
-                    # / etc. are ignored not for the loop
+                    # / etc. are ignored — not load-bearing for the loop.
 
                 yield Done(stop_reason="incomplete")
                 return

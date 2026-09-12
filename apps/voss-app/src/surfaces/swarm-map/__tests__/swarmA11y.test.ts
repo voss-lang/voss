@@ -1,9 +1,3 @@
-// V24-07 (VADE2-07) — swarm surface reduced-motion a11y gate. jsdom does not
-// evaluate media queries, so the guard is asserted on the stylesheet source
-// (same readFileSync discipline as cockpit a11y.test.tsx): every `animation:`
-// declaration MUST live inside the reduced-motion double-guard block. RED until
-// Task 2 lands the guarded keyframes.
-
 import { describe, it, expect } from 'vitest';
 // @ts-ignore -- node builtin available in the vitest runtime; app tsconfig is browser-lib only.
 import { readFileSync } from 'node:fs';

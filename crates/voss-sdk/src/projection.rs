@@ -1,6 +1,6 @@
 use crate::types::events::AgentEvent;
 
-/// A lossy UI-facing projection of the canonical [`AgentEvent`] union
+/// A lossy UI-facing projection of the canonical [`AgentEvent`] union.
 #[derive(Debug, Clone, PartialEq)]
 pub enum UiProjection {
     Connected,
@@ -80,10 +80,18 @@ impl TryFrom<&AgentEvent> for UiProjection {
             AgentEvent::CognitionLoaded(_) => Err(()),
             AgentEvent::CognitionOverflow(_) => Err(()),
             AgentEvent::PrinciplesOverflow(_) => Err(()),
+            AgentEvent::InstructionsOverflow(_) => Err(()),
             AgentEvent::ProbableEvent(_) => Err(()),
             AgentEvent::BudgetUpdated(_) => Err(()),
             AgentEvent::ConfidenceUpdated(_) => Err(()),
             AgentEvent::GateUpdated(_) => Err(()),
+            AgentEvent::SwarmAssign(_)
+            | AgentEvent::SwarmCandidateReady(_)
+            | AgentEvent::SwarmCandidatesReady(_)
+            | AgentEvent::SwarmWorkerDone(_)
+            | AgentEvent::SwarmGate(_)
+            | AgentEvent::SwarmNeedsOperator(_)
+            | AgentEvent::SwarmComplete(_) => Err(()),
         }
     }
 }

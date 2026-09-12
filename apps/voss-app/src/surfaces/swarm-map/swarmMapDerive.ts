@@ -9,17 +9,17 @@ export interface SwarmNode {
   runId: string;
   label: string;
   status?: string;
-    /** Roster role name (coordinator/builder-N/reviewer) for icon + tag + color */
+/** Roster role name (coordinator/builder-N/reviewer) for icon + tag + color */
   role?: string;
-    /** The chip's current-work line: a builder's bound Task.goal / the swarm goal */
+/** The chip's current-work line: a builder's bound Task.goal / the swarm goal */
   work?: string;
-    /** Per-role ordinal for "Builder 1"/"Builder 2" (1-based; omitted when single) */
+/** role ordinal for "Builder 1"/"Builder 2" (1-based; omitted when single) */
   ordinal?: number;
-    /** Roster Role.model, when distinct from the default */
+/** Roster Role.model, when distinct from the default */
   model?: string;
-    
+/** Bound session id (from swarm.assign) — direct target + elapsed/cost lookup */
   sessionId?: string;
-    /** Task ownedFiles, surfaced in the inspector */
+/** Task ownedFiles, surfaced in the inspector */
   ownedFiles?: string[];
 }
 
@@ -28,7 +28,7 @@ export interface SwarmEdge {
   from: string;
   to: string;
   type: 'delegation' | 'message' | 'tool-call' | 'file-edit' | 'review' | 'blocker';
-    /** REQUIRED a real source. The no-fake-signal guard asserts this is set */
+/** REQUIRED — a real source. The no-fake-signal guard asserts this is set */
   source: string;
 }
 
@@ -48,6 +48,10 @@ const workId = (nodeId: string) => `work:${nodeId}`;
 const artifactId = (runId: string, key: string) => `artifact:${runId}:${key}`;
 const alertId = (itemId: string) => `alert:${itemId}`;
 
+/**
+ * Derive the swarm graph from real signals only
+ * null/empty runs → { nodes: [], edges: [] } (never throws)
+ */
 export function deriveSwarmGraph(
   runs: SwarmRun[],
   attentionItems: AttentionItem[],
@@ -57,7 +61,7 @@ export function deriveSwarmGraph(
   const nodes: SwarmNode[] = [];
   const edges: SwarmEdge[] = [];
   const nodeIds = new Set<string>();
-  // node-id (session/card id) → runId, for resolving which run an alert belongs to
+  // node-id (session/card id) → runId, for resolving which run an alert belongs to.
   const cardRunIndex = new Map<string, string>();
 
   const addNode = (node: SwarmNode) => {
@@ -84,7 +88,7 @@ export function deriveSwarmGraph(
       return;
     }
 
-    // objective (center) show the idea, never the raw run id
+    // objective (center) — show the idea, never the raw run id
     const idea = data.audit?.idea ?? data.run_final?.idea;
     addNode({
       id: objId(runId),
@@ -101,7 +105,7 @@ export function deriveSwarmGraph(
     for (const role of roles) {
       addNode({ id: agentId(runId, role), type: 'agent', runId, label: role });
     }
-    // Missing-agent slot → honest placeholder (never a fabricated agent)
+    // Missing-agent slot → honest placeholder (never a fabricated agent).
     if (roles.size === 0) {
       addNode({
         id: `placeholder:${runId}:agent`,
@@ -141,7 +145,7 @@ export function deriveSwarmGraph(
     // edges from real transitions (NEVER co-presence)
     for (const node of data.session_tree.nodes) {
       for (const t of node.transitions) {
-        // delegation: an explicit routing decision routed this card to a role
+        // delegation: an explicit routing decision routed this card to a role.
         if (t.kind === 'em.routing') {
           addEdge({
             id: `delegation:${t.id}`,
@@ -151,7 +155,7 @@ export function deriveSwarmGraph(
             source: 'board_transition:em.routing',
           });
         }
-        // review: a board transition carrying a real verdict snapshot
+        // review: a board transition carrying a real verdict snapshot.
         if (t.kind === 'board.transition' && t.verdict_snapshot !== null) {
           addEdge({
             id: `review:${node.id}`,
@@ -162,7 +166,7 @@ export function deriveSwarmGraph(
           });
         }
       }
-      // blocker: derived column Blocked or a killed terminal state
+      // blocker: derived column Blocked or a killed terminal state.
       const blocked =
         deriveColumn(node) === 'Blocked' ||
         node.terminal_state?.exit_reason === 'killed';
@@ -177,7 +181,7 @@ export function deriveSwarmGraph(
       }
     }
 
-    // file-edit: a real audit a_verification artifact for a card
+    // file-edit: a real audit a_verification artifact for a card.
     for (const key in sidecars) {
       const ver = sidecars[key]?.a_verification;
       if (ver && ver.test_path_or_rubric) {

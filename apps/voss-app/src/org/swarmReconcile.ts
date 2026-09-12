@@ -1,5 +1,6 @@
 import type { Card, Agent } from './model/normalized';
 
+
 interface SwarmAgent {
   id: string;
   paneId?: string;
@@ -16,6 +17,10 @@ interface SwarmManifest {
   agents?: SwarmAgent[];
 }
 
+/**
+ * Map a swarm agent status onto an EXISTING board column key (BoardPanel
+ * COLUMNS). Null-tolerant: unknown/undefined falls back to 'Backlog'. Never
+ */
 export function swarmStatusToColumn(status: string | undefined): string {
   switch (status) {
     case 'running':
@@ -34,6 +39,10 @@ export interface SwarmReconcileResult {
   idea?: string;
 }
 
+/**
+ * Reconcile a swarm manifest into roster rows (Agent) + cards (Card). Mirrors
+ * boardDerive cardsFromRunData null-tolerance: a missing manifest yields empty
+ */
 export function reconcileSwarm(
   manifest: SwarmManifest | null | undefined,
 ): SwarmReconcileResult {

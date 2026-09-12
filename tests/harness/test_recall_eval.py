@@ -1,6 +1,8 @@
-"""
-M8-03 recall hit-rate evaluation (chroma 80% / BM25 60% top-3 gates).
+"""M8-03 recall hit-rate evaluation (chroma 80% / BM25 60% top-3 gates).
+
 `fake_session_corpus` (conftest.py) seeds a 5-session corpus across all four
+source types plus a ledger; this test exercises `MemoryStore.recall` against
+that fixture under both chroma and BM25-fallback configurations.
 """
 from __future__ import annotations
 
@@ -9,6 +11,17 @@ from pathlib import Path
 import pytest
 
 from voss.harness.memory_store import MemoryStore
+
+
+@pytest.fixture(autouse=True)
+def _offline_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force the offline SentenceTransformer embedder before any fixture embeds.
+
+    CI sets a stub OPENAI_API_KEY=k; with it present chroma routes to the
+    OpenAI embedder and the corpus-seeding fixture 401s at setup. Autouse so it
+    runs before `fake_session_corpus` builds the chroma collection.
+    """
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
 def _hit_rate(store: MemoryStore, corpus: dict) -> float:

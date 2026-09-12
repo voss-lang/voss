@@ -1,6 +1,8 @@
-"""
-NET-07 acceptance tests for TokenBucket + [net.rate_limits] loader.
+"""NET-07 acceptance tests for TokenBucket + [net.rate_limits] loader.
+
 test_mcp_bypasses_bucket stays skipped; T3-05 un-skips when
+NetSession.acquire is wired and the MCP-bypass invariant is testable
+against a real session.
 """
 
 from __future__ import annotations
@@ -10,7 +12,6 @@ import pytest
 from voss.harness import config as harness_config
 from voss.harness.config import (
     _NET_RATE_BLOCK,
-    _parse_net_rate_limits_section,
     get_net_rate_limits,
 )
 from voss.harness.rate_limit import (

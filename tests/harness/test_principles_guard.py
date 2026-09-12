@@ -1,6 +1,14 @@
-"""
-V2-03 guards (VPRIN-03 + schema/redaction hard constraint).
+"""V2-03 guards (VPRIN-03 + schema/redaction hard constraint).
+
 GUARD 1 — principles are OPAQUE text: no harness/agent code path may branch
+(if / comparison / match-case) on an individual principle key or default text.
+The literal keys/texts may appear only in DATA positions (the DEFAULT_PRINCIPLES
+constant, dict/tuple construction), never as a conditional operand.
+
+GUARD 2 — schema/redaction baseline: RunRecord / SessionRecord / BudgetScope
+field-name sets are frozen here to force review for any new persisted field.
+Later authorized additive fields may be added to this baseline only when they
+preserve the redaction invariant enforced by test_session_redaction.py.
 """
 from __future__ import annotations
 

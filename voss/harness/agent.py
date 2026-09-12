@@ -1,6 +1,9 @@
-"""
-Agent loop for `voss do` and the REPL
-This is a Python skeleton. Phase H3 ports it to.voss; the structure here
+"""Agent loop for `voss do` and the REPL.
+
+This is a Python skeleton. Phase H3 ports it to .voss; the structure here
+mirrors the constructs that will be lowered: ContextScope (token budget),
+ProbableValue<Plan> (confidence-gated planning), gather (later, parallel
+sub-agents), within/fallback (later, model tier-down).
 """
 from __future__ import annotations
 
@@ -53,7 +56,7 @@ from .tools import ToolEntry
 
 
 COGNITION_BUDGET_TOKENS = 6000
-# principles inject as their own ~1k-token block, mirroring cognition
+# V2-02 D-05: principles inject as their own ~1k-token block, mirroring cognition.
 PRINCIPLES_BUDGET_TOKENS = 1000
 
 
@@ -77,7 +80,7 @@ def _default_token_count(text: str, *, model: str) -> int:
             return int(litellm.token_counter(model=model, text=text))
         except Exception:  # noqa: BLE001 — never crash a turn over a token count
             pass
-    # Fallback to a 4-chars-per-token approximation
+    # Fallback to a 4-chars-per-token approximation.
     return max(len(text) // 4, 1)
 
 
@@ -239,9 +242,9 @@ def _compose_principles_block(
     return "## Principles" + marker
 
 
-# how much conversation history to inject into the per-turn prompt, and how
+# M2: how much conversation history to inject into the per-turn prompt, and how
 # many prior RunRecords to summarise on resume. last(6) lost deep context on
-# `voss resume`; widen the window (bounded; EpisodicMemory summarises overflow)
+# `voss resume`; widen the window (bounded; EpisodicMemory summarises overflow).
 HISTORY_WINDOW = 30
 PRIOR_RUNS_WINDOW = 5
 
@@ -305,7 +308,9 @@ def _compose_prior_context_block(run: dict | list | None) -> str:
         },
     )
 
-# Plan schema what the model must return
+# ---------------------------------------------------------------------------
+# Plan schema — what the model must return
+# ---------------------------------------------------------------------------
 
 
 class ToolCall(BaseModel):
@@ -349,7 +354,9 @@ class RunSemantics(BaseModel):
     follow_ups: list[str] = Field(default_factory=list)
 
 
+# ---------------------------------------------------------------------------
 # Driver
+# ---------------------------------------------------------------------------
 
 
 PLAN_SYSTEM = render_package_template(
@@ -368,7 +375,7 @@ RECORD_RUN_SYSTEM = render_package_template(
 
 # T1-05: PLAN_LOOP_SYSTEM is the iteration-loop system prompt. The
 # `{max_iterations}` token is filled by _compose_loop_system via str.replace
-# (NOT f-string) so the prefix stays cacheable across calls for future T4
+# (NOT f-string) so the prefix stays cacheable across calls for future T4.
 PLAN_LOOP_SYSTEM = render_package_template(
     "voss",
     "templates/prompts/plan_loop_system.txt.jinja",
@@ -377,8 +384,8 @@ PLAN_LOOP_SYSTEM = render_package_template(
 
 
 # T1-05: exact final-string sentinels for hit-cap and budget-exhaustion
-# exits. SPEC ITER-01 acceptance + "halted: max-iter" lock the
-# exact lowercase-hyphenated substring; tests grep for it
+# exits. SPEC ITER-01 acceptance + CONTEXT.md "halted: max-iter" lock the
+# exact lowercase-hyphenated substring; tests grep for it.
 HALTED_MAX_ITER_FINAL = "halted: max-iter"
 HALTED_BUDGET_FINAL = "halted: budget"
 
@@ -572,9 +579,9 @@ async def run_turn(
         data={"task_preview": preview, "cwd": str(cwd.resolve())},
     )
     try:
-        # R2 working indicator (tui-redesign-spec .6/.1): turn start
-        # getattr-guarded bridge/fake renderers may predate the protocol
-        # addition, and indicator failures must never crash the turn
+        # R2 working indicator (tui-redesign-spec §3.6/§6.1): turn start.
+        # getattr-guarded — bridge/fake renderers may predate the protocol
+        # addition, and indicator failures must never crash the turn.
         _show_working = getattr(renderer, "show_working", None)
         if _show_working is not None:
             try:
@@ -607,8 +614,8 @@ async def run_turn(
         _tel_err = str(e)[:500]
         raise
     finally:
-        # Indicator comes down however the turn ends (finalize, error
-        # interrupt) same guard rationale as show_working above
+        # Indicator comes down however the turn ends (finalize, error,
+        # interrupt) — same guard rationale as show_working above.
         _hide_working = getattr(renderer, "hide_working", None)
         if _hide_working is not None:
             try:
@@ -656,8 +663,8 @@ async def _run_turn_exec(
 
     history_block = ""
     if history is not None:
-        # include the rolling summary (if any) + a wider window so resumed
-        # sessions see real conversation depth, not just the last 6 turns
+        # M2: include the rolling summary (if any) + a wider window so resumed
+        # sessions see real conversation depth, not just the last 6 turns.
         parts: list[str] = []
         summary = getattr(history, "summary", "")
         if summary:
@@ -702,15 +709,15 @@ async def _run_turn_exec(
             budget=int(instructions_cfg["budget_tokens"]),
             renderer=renderer,
         )
-        # VPRIN-04: resolve + inject the team's principles as a distinct
-        # cacheable block (capped, overflow-warned) alongside cognition
+        # V2-02 VPRIN-04: resolve + inject the team's principles as a distinct
+        # cacheable block (capped, overflow-warned) alongside cognition.
         principles_text = _compose_principles_block(
             resolve_principles(cwd),
             model=model,
             token_count_fn=_default_token_count,
             renderer=renderer,
         )
-        # T4 CACHE-01: cached static prefix as block list; rider (below, per-iter) stays a string and remains uncached
+        # T4 CACHE-01: cached static prefix as block list; rider (below, per-iter) stays a string and remains uncached.
         sys_blocks = _compose_system_blocks(
             voss_md_block=voss_md_block,
             cognition_text=cognition_text,
@@ -742,7 +749,7 @@ async def _run_turn_exec(
                 },
             )
 
-        # Loop-scoped state
+        # Loop-scoped state.
         iteration_index: int = 0
         exit_reason: str | None = None
         final_plan: Plan | None = None
@@ -750,27 +757,27 @@ async def _run_turn_exec(
         total_prompt_tokens: int = 0
         total_completion_tokens: int = 0
         all_iter_records: list[IterationRecord] = []
-        # per-turn buffer for parent->child steer guidance drained
+        # M13-03 D-04: per-turn buffer for parent->child steer guidance drained
         # from steer_inbox at the loop boundary (agent.py:830) and injected
-        # once as a synthetic next-iteration user message (see injection site)
+        # once as a synthetic next-iteration user message (see injection site).
         pending_steer: list[str] = []
         this_iter_plan: Plan | None = None
         this_iter_usage: Usage | None = None
-        # R2 working indicator token tick (tui-redesign-spec .6): running
+        # R2 working indicator token tick (tui-redesign-spec §3.6): running
         # ~4-chars/token estimate across the whole turn; the renderer
-        # coalesces posts to <= 4 Hz. getattr-guarded like show_working
+        # coalesces posts to <= 4 Hz. getattr-guarded like show_working.
         _working_chars: int = 0
         _update_working = getattr(renderer, "update_working", None)
 
-        # VOPT-03/06: profile + allocator resolved ONCE per run (not per
+        # V18 VOPT-03/06: profile + allocator resolved ONCE per run (not per
         # iteration) so the stable-region hysteresis state persists and the
-        # T4 prompt cache stays warm
+        # T4 prompt cache stays warm (RESEARCH Pitfall 1).
         from voss.harness.config import get_packing_profile
         from voss.harness.context_allocator import ContextAllocator
 
         _packing_profile = get_packing_profile()
         # VOSS_NO_PACK env disables packing on paths that bypass the CLI
-        # flag (eval runner calls run_turn directly VOPT-07 driver)
+        # flag (eval runner calls run_turn directly — VOPT-07 driver).
         _packing_env_off = os.environ.get("VOSS_NO_PACK", "") not in ("", "0")
         _allocator = ContextAllocator(
             token_count=functools.partial(_default_token_count, model=model)
@@ -811,10 +818,10 @@ async def _run_turn_exec(
                     or _packing_env_off
                 )
                 if all_iter_records and not _packing_disabled:
-                    # VOPT-01: pack the replay tail under what remains of
+                    # V18 VOPT-01: pack the replay tail under what remains of
                     # token_budget after the cached prefix + rider + prompt +
                     # completion headroom. sys_blocks NEVER enters the
-                    # allocator (T4 prefix stays byte-identical, VOPT-06)
+                    # allocator (T4 prefix stays byte-identical, VOPT-06).
                     _reserve = (
                         sum(
                             _default_token_count(b["text"], model=model)
@@ -832,8 +839,8 @@ async def _run_turn_exec(
                     for a_msg, u_msg in _replay_pairs:
                         messages.append(a_msg)
                         messages.append(u_msg)
-                    # VOPT-05: honest baseline render the full replay
-                    # for MEASUREMENT only (never sent when packing is on)
+                    # V18 VOPT-05: honest baseline — render the full replay
+                    # for MEASUREMENT only (never sent when packing is on).
                     _full_pairs = [
                         _serialize_iter_for_replay(p) for p in all_iter_records
                     ]
@@ -854,13 +861,13 @@ async def _run_turn_exec(
                         f"-M{_packing_profile.digest_cutoff_m}"
                     )
                 else:
-                    # VOPT-06 disabled branch: the ORIGINAL replay loop
-                    # verbatim byte-identity by code path, not by golden
+                    # V18 VOPT-06 disabled branch: the ORIGINAL replay loop,
+                    # verbatim — byte-identity by code path, not by golden.
                     for prior in all_iter_records:
                         a_msg, u_msg = _serialize_iter_for_replay(prior)
                         messages.append(a_msg)
                         messages.append(u_msg)
-                    # VOPT-05: no packing original == packed by definition
+                    # V18 VOPT-05: no packing — original == packed by definition.
                     _orig_est = _packed_est = sum(
                         _default_token_count(str(m["content"]), model=model)
                         for m in messages[3:]
@@ -874,15 +881,15 @@ async def _run_turn_exec(
                     else 0,
                 }
 
-                # OQ- ( Pattern 3): land a parent steer as ONE
-                # synthetic next-iteration user message a sibling of the
+                # M13-03 OQ-A2 (RESEARCH Pattern 3): land a parent steer as ONE
+                # synthetic next-iteration user message — a sibling of the
                 # replay messages above. This is the ONLY route that surfaces
                 # mid-loop: `history_block` is built ONCE before the while-loop
                 # from history.last(HISTORY_WINDOW) and is NEVER rebuilt
                 # per iteration, so mutating history/EpisodicMemory after turn
                 # start cannot reach the model. The `messages` list IS rebuilt
                 # every loop entry, so this append (then clear, inject-once) is
-                # the correct landing site (no shared mutable history)
+                # the correct landing site (no shared mutable history).
                 if pending_steer:
                     messages.append(
                         {
@@ -921,9 +928,9 @@ async def _run_turn_exec(
                     if isinstance(event, TextDelta):
                         # Plan-phase deltas are the structured-output JSON, not
                         # prose. Buffer for the unparsed-fallback below, but do
-                        # NOT render streaming raw {"rationale":...} leaks the
+                        # NOT render — streaming raw {"rationale":...} leaks the
                         # schema into the chat (provider-agnostic fix; some
-                        # providers emit the JSON as TextDelta by contract)
+                        # providers emit the JSON as TextDelta by contract).
                         accumulated_text_buffer.append(event.text)
                         _working_chars += len(event.text)
                         if _update_working is not None:
@@ -938,7 +945,7 @@ async def _run_turn_exec(
                     elif isinstance(event, Done):
                         this_iter_stop = event.stop_reason
                     # ToolUseStart / ToolUseDelta / ToolUseEnd are consumed
-                    # internally by the provider into ParsedPlan
+                    # internally by the provider into ParsedPlan.
 
                 iter_cost = this_iter_usage.cost_usd if this_iter_usage else 0.0
                 iter_prompt_tokens = (
@@ -958,8 +965,8 @@ async def _run_turn_exec(
                     else 0
                 )
 
-                # VOPT-05: one ledger row per assembled turn
-                # only a ledger failure must never crash the turn
+                # V18 VOPT-05: one ledger row per assembled turn. Best-effort
+                # only — a ledger failure must never crash the turn.
                 if session_id is not None:
                     try:
                         _saved_tokens = max(_orig_est - _packed_est, 0)
@@ -993,7 +1000,7 @@ async def _run_turn_exec(
                     cost_usd=iter_cost,
                     timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     # accumulated_text is the structured-output JSON, not a
-                    # displayable assistant message never surface it
+                    # displayable assistant message — never surface it.
                     accumulated_text=None,
                 )
 
@@ -1022,15 +1029,15 @@ async def _run_turn_exec(
                         "cost_usd": iter_cost,
                         "stop_reason": this_iter_stop,
                         # T4 CACHE-07: flat additive keys, NO nested
-                        # cache: {...} sub-object
+                        # cache: {...} sub-object.
                         "cache_creation_input_tokens": iter_cache_creation,
                         "cache_read_input_tokens": iter_cache_read,
                     },
                 )
                 # Only surface the plan when it proposes work. A terminating
-                # (stepless) plan's rationale is internal "thinking" showing
+                # (stepless) plan's rationale is internal "thinking" — showing
                 # it makes a plain Q&A read like a log instead of a chat; the
-                # answer itself lands via show_final below
+                # answer itself lands via show_final below.
                 if this_iter_plan.steps:
                     renderer.show_plan(this_iter_plan, cost_usd=iter_cost)
                 telemetry.emit(
@@ -1044,7 +1051,7 @@ async def _run_turn_exec(
                 )
 
                 if _is_done_plan(this_iter_plan):
-                    # Terminating iter confidence gate fires HERE only
+                    # Terminating iter — confidence gate fires HERE only.
                     if this_iter_plan.confidence < confidence_threshold:
                         question = (
                             this_iter_plan.open_question
@@ -1133,7 +1140,7 @@ async def _run_turn_exec(
                     all_iter_records.append(rec._iterations[-1])
                     break
 
-                # Non-terminating iter: execute the proposed steps and continue
+                # Non-terminating iter: execute the proposed steps and continue.
                 results = await _run_step_loop(
                     this_iter_plan.steps,
                     tools,
@@ -1183,12 +1190,12 @@ async def _run_turn_exec(
                 total_completion_tokens += iter_completion_tokens
                 all_iter_records.append(rec._iterations[-1])
 
-                # steer-inbox drain ( Pattern 3). This sits
+                # M13-03 D-04 steer-inbox drain (RESEARCH Pattern 3). This sits
                 # in the NON-terminating branch only: the _is_done_plan branch
                 # (line ~787) breaks BEFORE here, so a "done" child never
-                # consumes a pending steer ( / ). Non-blocking
+                # consumes a pending steer (D-04 / Pitfall 2). Non-blocking
                 # drain of every queued guidance into pending_steer; injected
-                # once on the next iteration's messages build (see above)
+                # once on the next iteration's messages build (see above).
                 if steer_inbox is not None:
                     while not steer_inbox.empty():
                         try:
@@ -1210,14 +1217,14 @@ async def _run_turn_exec(
                 exit_reason = "max-iter"
         # End ContextScope async-with
 
-        # Resolve user-facing final string per exit_reason
+        # Resolve user-facing final string per exit_reason.
         if exit_reason == "done":
             final = (final_plan.final_when_done if final_plan else "") or "(no final answer)"
         elif exit_reason == "max-iter":
             final = HALTED_MAX_ITER_FINAL
             if final_plan is None and all_iter_records:
                 last_plan_dict = all_iter_records[-1].plan or {}
-                # Build a synthetic Plan to keep TurnResult shape stable
+                # Build a synthetic Plan to keep TurnResult shape stable.
                 final_plan = Plan(
                     rationale=last_plan_dict.get("rationale", "") or "(max-iter)",
                     steps=[],
@@ -1237,7 +1244,7 @@ async def _run_turn_exec(
         else:
             final = "(no final answer)"
 
-        # Closing record_run + finalize
+        # Closing record_run + finalize.
         transcript_plan = final_plan if isinstance(final_plan, Plan) else this_iter_plan
         transcript_results = (
             [r["result"] for r in all_iter_records[-1].tool_results]
@@ -1306,7 +1313,7 @@ async def _run_turn_exec(
     except BatchInvariantError as e:
         # T2-03 / PAR-02: partition-time invariant violation. Close any
         # open iteration with exit_reason="batch-invariant", finalize the
-        # recorder, surface in the TurnView, emit telemetry, then re-raise
+        # recorder, surface in the TurnView, emit telemetry, then re-raise.
         open_iter = next(
             (ir for ir in reversed(rec._iterations) if not ir.ended_at), None
         )
@@ -1352,10 +1359,10 @@ async def _run_turn_exec(
     except asyncio.CancelledError:
         # T1-06: interrupt handler. Close any open iteration with
         # exit_reason="interrupt", finalize the recorder, surface the
-        # cancel in the TurnView, emit telemetry, then re-raise
-        # Interrupt precedence: this except runs BEFORE the
-        # post-while-loop fallthrough that would otherwise pick "max-iter"
-        # so cancel at the cap iteration still records as "interrupt"
+        # cancel in the TurnView, emit telemetry, then re-raise.
+        # Interrupt precedence (CONTEXT.md): this except runs BEFORE the
+        # post-while-loop fallthrough that would otherwise pick "max-iter",
+        # so cancel at the cap iteration still records as "interrupt".
         open_iter = next(
             (ir for ir in reversed(rec._iterations) if not ir.ended_at), None
         )
@@ -1446,9 +1453,9 @@ async def _invoke_step_with_gate(
             recorder.observe(step.name, step.args, "<unknown tool>", ok=False)
         return text
     # A bridge-injected prompt_fn (server/TUI permission bridge) blocks on a
-    # Future resolved by the event loop checking on-loop deadlocks until
+    # Future resolved by the event loop — checking on-loop deadlocks until
     # the 300s timeout (E3-04). Offload those gates to a thread; plain gates
-    # (auto_yes, interactive TTY) keep the existing sync path
+    # (auto_yes, interactive TTY) keep the existing sync path.
     if gate.prompt_fn is not None:
         allowed, why = await asyncio.to_thread(
             gate.check,
@@ -1464,8 +1471,8 @@ async def _invoke_step_with_gate(
             is_mutating=entry.is_mutating,
             is_network=entry.is_network,
         )
-    # VSAFE-05: persist factory-fallback evidence for every strict-procedure
-    # route (confirmed irreversible that proceeds, or routed/denied dangerous op)
+    # V12 VSAFE-05: persist factory-fallback evidence for every strict-procedure
+    # route (confirmed irreversible that proceeds, or routed/denied dangerous op).
     if recorder is not None and getattr(gate, "safety_policy", None) is not None:
         from .safety import classify as _safety_classify
 

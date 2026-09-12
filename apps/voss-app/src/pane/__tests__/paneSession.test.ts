@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Pane-session survival (grid-rearrange fix): the live session must outlive
 // PaneComponent remounts (drag/swap/layout). These tests drive the registry +
+// adoption lifecycle directly with mocked xterm/Tauri — the real xterm needs
+// a measured DOM and canvas, neither of which jsdom provides.
 
 const h = vi.hoisted(() => {
   const channels: Array<{ onmessage: ((m: unknown) => void) | null }> = [];
@@ -115,7 +117,7 @@ describe('paneSession — remount survives without kill/respawn', () => {
     expect(spawnCalls.length).toBe(1);
     const termBefore = s.term;
 
-    // Simulated remount (drag): old component releases, new one adopts
+    // Simulated remount (drag): old component releases, new one adopts.
     releasePaneSession(s, t1);
     expect(s.sink).toBe(NOOP_SINK);
     const b = slot();
@@ -139,7 +141,7 @@ describe('paneSession — remount survives without kill/respawn', () => {
     const liveSink = makeSink();
     adoptPaneSession(s, slot(), liveSink, keyHandler, SETTINGS);
 
-    releasePaneSession(s, t1); // stale must not detach the new adopter
+    releasePaneSession(s, t1); // stale — must not detach the new adopter
     expect(s.sink).toBe(liveSink);
     expect(s.hostEl.parentElement).not.toBeNull();
   });
@@ -150,13 +152,13 @@ describe('paneSession — remount survives without kill/respawn', () => {
     await spawnPaneSession(s);
     releasePaneSession(s, t1);
 
-    // PTY exits while no component is mounted
+    // PTY exits while no component is mounted.
     h.channels[h.channels.length - 1].onmessage?.({ type: 'exit', code: 137 });
     expect(s.dot).toBe('exited');
     expect(s.lastExitCode).toBe(137);
 
     // The next adopter reads the canonical mirrors (PaneComponent hydrates
-    // from s.dot/s.lastExitCode on mount) assert they are current
+    // from s.dot/s.lastExitCode on mount) — assert they are current.
     const codes: (number | null)[] = [];
     adoptPaneSession(
       s,
@@ -174,7 +176,7 @@ describe('paneSession — explicit destruction paths', () => {
     const s = createPaneSession({ paneId: 'p1', settings: SETTINGS });
     adoptPaneSession(s, slot(), makeSink(), keyHandler, SETTINGS);
     await spawnPaneSession(s);
-    // Seed a registry entry the destroy must clear
+    // Seed a registry entry the destroy must clear.
     h.channels[h.channels.length - 1].onmessage?.({
       type: 'fg_process',
       name: 'claude',

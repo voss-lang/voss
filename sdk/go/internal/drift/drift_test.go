@@ -1,5 +1,8 @@
-// Package drift_test holds the V13.3 Go SDK drift gate: it regenerates
+// Package drift_test holds the.3 Go SDK drift gate: it regenerates
 // types.gen.go from the committed OpenAPI snapshot and fails on any diff, plus
+// a parity check that the server's event union exposes exactly the 21 members
+// the SDK targets. Mirrors crates/voss-tui/tests/protocol_parity.rs and the
+// .2 Rust drift pattern.
 package drift_test
 
 import (
@@ -13,13 +16,14 @@ import (
 // pathsFromHere are relative to this test's working directory
 // (sdk/go/internal/drift).
 const (
-	sdkGoDir      = "../.."                            // sdk/go
+	sdkGoDir      = "../.."                              // sdk/go
 	contractsPath = "../../../../contracts/openapi.json" // repo-root contracts/
-	repoRootRel   = "../../../.."                       // repo root
+	repoRootRel   = "../../../.."                        // repo root
 )
 
 // TestTypesAreUpToDate regenerates types.gen.go via `go generate ./...` and
 // asserts the committed file is byte-identical. It skips when the upstream
+// contract is absent (.1 unexecuted) so pre-.1 development is unblocked.
 func TestTypesAreUpToDate(t *testing.T) {
 	if _, err := os.Stat(contractsPath); os.IsNotExist(err) {
 		t.Skip("contracts/openapi.json not yet generated (V13.1 unexecuted)")
@@ -40,6 +44,10 @@ func TestTypesAreUpToDate(t *testing.T) {
 
 // TestDecodeCoversAllServerEventTypes drives the live Python server module to
 // enumerate the AgentEvent union's `type` strings and asserts the full
+// 21-member set is present (including principles_overflow, which is in
+// events.py but absent from PROTOCOL.md. 's
+// Decode() switch must cover this exact set. Skips when no interpreter is
+// available.
 func TestDecodeCoversAllServerEventTypes(t *testing.T) {
 	py := pickPython(t)
 	if py == "" {
@@ -74,7 +82,7 @@ print(json.dumps([m.model_fields['type'].default for m in models]))`
 		t.Fatalf("server union missing principles_overflow (RESEARCH Pitfall 4): %v", got)
 	}
 	t.Logf("server AgentEvent union (21 members): %v", got)
-	// TODO(V13.3-02): cross-check this set against voss.Decode()'s switch once
+	// TODO(.3: cross-check this set against voss.Decode's switch once
 	// Decode is implemented, asserting no member is missing or extra.
 }
 

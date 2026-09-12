@@ -1,6 +1,8 @@
-"""
-E2E for `voss do` against StubProvider.
+"""E2E for `voss do` against StubProvider.
+
 Covers: exit codes, mode flag plumbing, NDJSON event sequence, default model
+override, --auth none contract (sanity check that empty-task path still
+exits 2 even under stub injection).
 """
 from __future__ import annotations
 
@@ -14,7 +16,11 @@ def test_do_emits_full_ndjson_event_sequence(cli_runner: CliRunner) -> None:
     payloads = r.json_payloads()
     types = [p.get("type") for p in payloads]
 
-    for required in ("banner", "user", "plan", "final"):
+    # A stepless terminating plan (the stub's plain Q&A response) deliberately
+    # does NOT emit a 'plan' event — show_plan only fires when the plan
+    # proposes work (agent.py: `if this_iter_plan.steps`). The answer lands via
+    # 'final'. So 'plan' is not part of the guaranteed sequence here.
+    for required in ("banner", "user", "final"):
         assert required in types, f"missing event {required!r} in {types}"
 
     final = next(p for p in payloads if p["type"] == "final")

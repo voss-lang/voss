@@ -1,4 +1,13 @@
-"""Cage-bounded EM facade — the EM's only board API."""
+"""EMBoardHandle — cage-bounded facade for the EM (O5-02, OEM-02/06/07/08).
+
+The handle is the EM's ONLY board API. Legal verbs are explicitly listed;
+everything else (ceiling writes, budget extension, agent invention) does NOT
+exist on this class. Cage by API surface area, not by trust.
+
+Audit records live in an in-memory side-table (_node_audit), NOT on
+SessionTreeNode directly. This preserves O1 SPEC-5's strict-additive field
+invariant. W5 integration confirms the on-disk persistence shape.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -12,8 +21,6 @@ from typing import Callable, Optional
 from voss.harness.permissions import PermissionGate
 from voss.harness.session_tree import (
     SessionTreeManager,
-    SessionTreeNode,
-    _write_node_file,
     finalize_node,
 )
 from voss.harness.subagents import (
@@ -33,7 +40,7 @@ from voss.harness.team import (
 from voss.harness.tools import make_toolset
 
 from .errors import EMCageViolation
-from .protocols import TERMINAL_COLUMNS, BoardProtocol, Column
+from .protocols import TERMINAL_COLUMNS, BoardProtocol
 from .tickets import (
     KillRecord,
     RescopeRecord,
@@ -43,7 +50,9 @@ from .tickets import (
 )
 
 
+# ---------------------------------------------------------------------------
 # BoardSnapshot (read-only view)
+# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class BoardSnapshot:
@@ -52,18 +61,22 @@ class BoardSnapshot:
     tickets: tuple
 
 
+# ---------------------------------------------------------------------------
 # NodeAudit (in-memory side-table per node)
+# ---------------------------------------------------------------------------
 
 @dataclass
 class _NodeAudit:
     routing_rationales: list = field(default_factory=list)
     kill_record: Optional[KillRecord] = None
     rescope_record: Optional[RescopeRecord] = None
-    # VRES-03: full worker prompt assembled at dispatch (additive)
+    # V20 VRES-03: full worker prompt assembled at dispatch (additive).
     dispatched_prompt: Optional[str] = None
 
 
+# ---------------------------------------------------------------------------
 # EMBoardHandle
+# ---------------------------------------------------------------------------
 
 class EMBoardHandle:
     """Cage-bounded facade — the EM's ONLY board API.
@@ -163,7 +176,7 @@ class EMBoardHandle:
         for tid, t in self._tickets.items():
             if tid == card_id:
                 continue
-            # A ticket with no card yet counts as in-flight (pending dispatch)
+            # A ticket with no card yet counts as in-flight (pending dispatch).
             column = columns.get(t.card_node_id, "") if t.card_node_id else ""
             if column in TERMINAL_COLUMNS:
                 continue
@@ -177,7 +190,7 @@ class EMBoardHandle:
             claimed_scopes=self._read_claimed_scopes(),
         )
 
-    # READ
+    # --- READ ----------------------------------------------------------------
 
     def snapshot(self) -> BoardSnapshot:
         return BoardSnapshot(
@@ -191,7 +204,7 @@ class EMBoardHandle:
             for c in self._board.cards()
         )
 
-    # WRITE: ticket lifecycle
+    # --- WRITE: ticket lifecycle ---------------------------------------------
 
     def create_ticket(
         self,
@@ -237,7 +250,7 @@ class EMBoardHandle:
         self._tickets[card_id] = new_ticket
         return new_ticket
 
-    # WRITE: board mutation
+    # --- WRITE: board mutation -----------------------------------------------
 
     def dispatch_card(
         self,
@@ -249,14 +262,14 @@ class EMBoardHandle:
         candidates_considered: tuple[str, ...],
         confidence_hint: float | None = None,
     ) -> RoutingRationale:
-        # Cage: role must be in roster
+        # Cage: role must be in roster.
         if role_id not in self._team_config.roster_ids:
             raise EMCageViolation(
                 op="dispatch_card",
                 reason=f"role {role_id!r} not in roster {sorted(self._team_config.roster_ids)}",
             )
 
-        # Emit RoutingRationale BEFORE subagent fires (audit-survives-crash)
+        # Emit RoutingRationale BEFORE subagent fires (audit-survives-crash).
         rr = RoutingRationale(
             id=uuid.uuid4().hex[:12],
             card_id=card_id,
@@ -267,25 +280,25 @@ class EMBoardHandle:
             ts=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         )
 
-        # Store on side-table
-        # Use card_id as node_id proxy (tickets map card_id → ticket → card_node_id)
+        # Store on side-table.
+        # Use card_id as node_id proxy (tickets map card_id → ticket → card_node_id).
         ticket = self._tickets.get(card_id)
         node_id = ticket.card_node_id if ticket else card_id
         self._get_audit(node_id).routing_rationales.append(rr)
 
-        # Derive per-role gate + toolset via helpers
+        # Derive per-role gate + toolset via O2 helpers.
         spec = self._role_spec(role_id)
         role_gate = self._derive_role_gate(role_id)
         base_toolset = make_toolset(self._cwd, renderer=self._renderer)
         role_toolset = filter_toolset_for_role(spec, base_toolset)
 
-        # VRES-03: mission brief outcome, sibling roster, claimed
-        # scopes so the worker is not dispatched blind. Assembled prompt
-        # recorded on the audit side-table (additive)
+        # V20 VRES-03: mission brief — outcome, sibling roster, claimed
+        # scopes — so the worker is not dispatched blind. Assembled prompt
+        # recorded on the audit side-table (additive).
         brief = self._build_mission_brief(card_id=card_id)
         self._get_audit(node_id).dispatched_prompt = agent_task(spec, task, brief=brief)
 
-        # Fire subagent (async, fire-and-forget if runner provided)
+        # Fire subagent (async, fire-and-forget if runner provided).
         if self._subagent_runner is not None:
             asyncio.ensure_future(
                 self._subagent_runner(
@@ -304,18 +317,18 @@ class EMBoardHandle:
         return rr
 
     def kill_card(self, card_id: str, rationale_text: str) -> KillRecord:
-        # Find the card via the board
+        # Find the card via the board.
         card = None
         for c in self._board.cards():
             if getattr(c, "node_id", None) == card_id:
                 card = c
                 break
 
-        # Cage: cannot kill a Done card
+        # Cage: cannot kill a Done card.
         if card is not None and getattr(card, "column", "") == "Done":
             raise EMCageViolation(
                 op="kill_card",
-                reason=f"cannot kill card in column 'Done'",
+                reason="cannot kill card in column 'Done'",
             )
 
         kr = KillRecord(
@@ -326,7 +339,7 @@ class EMBoardHandle:
         )
         self._get_audit(card_id).kill_record = kr
 
-        # Finalize the session-tree node (exit_reason="killed")
+        # Finalize the session-tree node (exit_reason="killed").
         node = self._manager.get_node(card_id)
         if node is not None and not node._finalized:
             finalize_node(node, exit_reason="killed", cwd=self._cwd)
@@ -343,21 +356,21 @@ class EMBoardHandle:
         new_dod: tuple[str, ...] = (),
         new_scope: TeamRoleScope | None = None,
     ) -> RescopeRecord:
-        # Find the card
+        # Find the card.
         card = None
         for c in self._board.cards():
             if getattr(c, "node_id", None) == card_id:
                 card = c
                 break
 
-        # Cage: cannot rescope a Done card
+        # Cage: cannot rescope a Done card.
         if card is not None and getattr(card, "column", "") == "Done":
             raise EMCageViolation(
                 op="rescope_card",
-                reason=f"cannot rescope card in column 'Done'",
+                reason="cannot rescope card in column 'Done'",
             )
 
-        # Cage: new_scope must be contained in ceiling.scope
+        # Cage: new_scope must be contained in ceiling.scope.
         if new_scope is not None and self._team_config.ceiling.scope is not None:
             if not new_scope.is_contained_in(self._team_config.ceiling.scope):
                 raise EMCageViolation(
@@ -365,7 +378,7 @@ class EMBoardHandle:
                     reason="new_scope exceeds ceiling.scope",
                 )
 
-        # Kill the predecessor
+        # Kill the predecessor.
         successor_id = uuid.uuid4().hex[:12]
         kr = KillRecord(
             killed_node_id=card_id,
@@ -376,12 +389,12 @@ class EMBoardHandle:
         )
         self._get_audit(card_id).kill_record = kr
 
-        # Finalize predecessor node
+        # Finalize predecessor node.
         node = self._manager.get_node(card_id)
         if node is not None and not node._finalized:
             finalize_node(node, exit_reason="killed", cwd=self._cwd)
 
-        # Emit RescopeRecord on the successor
+        # Emit RescopeRecord on the successor.
         rr = RescopeRecord(
             predecessor_card_id=card_id,
             successor_card_id=successor_id,
@@ -395,7 +408,7 @@ class EMBoardHandle:
 
         return rr
 
-    # DRIVER
+    # --- DRIVER --------------------------------------------------------------
 
     async def tick(self) -> None:
         import time

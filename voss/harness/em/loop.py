@@ -1,11 +1,17 @@
-"""
-EM autonomous loop idea in, board run to Done, human sign-off only
-Implements OEM-05/06: the EM's plan-and-tick cycle. Reads a board snapshot
+"""EM autonomous loop — idea in, board run to Done, human sign-off only (O5-04).
+
+Implements OEM-05/06: the EM's plan-and-tick cycle. Reads a board snapshot,
+calls the EM agent (LLM or stub) for one EMPlanResponse, executes every op
+via EMBoardHandle, awaits one Board.tick(), repeats until all cards terminal
+or max_iterations exhausted.
+
+Cage invariants are preserved because every op goes through EMBoardHandle
+(W2 facade). EMCageViolation from any single op is logged and the loop
+continues (audit-not-abort). BudgetExceededError forces all cards to Blocked.
 """
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from voss_runtime.exceptions import BudgetExceededError
 
@@ -112,7 +118,7 @@ async def em_loop(
             )
             _execute_plan(em_handle, plan)
         except EMCageViolation:
-            # Audit-not-abort: log and continue
+            # Audit-not-abort: log and continue.
             pass
         except BudgetExceededError:
             em_handle.force_block_all(reason="budget")
@@ -122,7 +128,7 @@ async def em_loop(
         iteration += 1
 
     rf = em_handle.finalize_run()
-    # Patch em_iterations onto the RunFinal (frozen rebuild)
+    # Patch em_iterations onto the RunFinal (frozen — rebuild).
     import dataclasses
     rf = dataclasses.replace(rf, em_iterations=iteration)
     return rf

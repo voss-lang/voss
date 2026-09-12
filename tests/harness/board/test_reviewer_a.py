@@ -1,21 +1,20 @@
-"""
-O4-03 Task 2: Reviewer-A tests — ORVW-01..03, ORVW-08, ORVW-09.
+"""O4-03 Task 2: Reviewer-A tests — ORVW-01..03, ORVW-08, ORVW-09.
+
 Tests mock run_turn and judge_run via dependency injection (run_turn_fn,
+judge_run_fn) rather than scripting the full provider interaction. This
+tests the ReviewerA CONTRACT (idea in, verdict out, fresh memory), not
+run_turn's internals.
 """
 from __future__ import annotations
 
-import dataclasses
 from types import SimpleNamespace
-from typing import Optional
 
-import pytest
 
 from voss.eval.judge import Verdict
 from voss.harness.agent import TurnResult
-from voss.harness.board.reviewer_a import ReviewerA, REVIEWER_A_ROLE_PROMPT
-from voss.harness.board.verdict import Reviewer, ReviewerVerdict
+from voss.harness.board.reviewer_a import ReviewerA
+from voss.harness.board.verdict import Reviewer
 from voss.harness.permissions import PermissionGate
-from voss.harness.render import Renderer
 
 
 # --- Fakes -------------------------------------------------------------------

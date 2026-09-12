@@ -1,6 +1,12 @@
-"""
-shell_run timeout handling.
+"""shell_run timeout handling.
+
 `shell_run` enforces a 30s timeout. We monkey-patch it to use a 0.3s
+timeout via a parametrize trick — driving the real 30s wait under pytest
+would be cripplingly slow. Tests:
+
+  - Bounded `sleep` returns `<timeout: ...>` when wall-clock exceeds limit.
+  - Killed child does not leak a zombie (proc.returncode is observable).
+  - Denied commands (metachars, deny tokens) short-circuit before exec.
 """
 from __future__ import annotations
 
@@ -17,7 +23,7 @@ from voss.harness.tools import make_toolset
 # Use a hand-rolled async timeout shim that mimics the contract but with a
 # short ceiling so the test runs in ~0.5s instead of 30s.
 async def _short_timeout_shell_run(cwd: Path, cmd: str, timeout: float = 0.3) -> str:
-    from voss.harness.sandbox import shell_allowed, split_command, SandboxError
+    from voss.harness.sandbox import shell_allowed, split_command
 
     ok, reason = shell_allowed(cmd)
     if not ok:

@@ -7,6 +7,11 @@ import {
 import { refreshRun } from './orgStore';
 import type { DecisionResult } from './types';
 
+// 09 — decision confirmation dialog (/). Shows the EXACT CLI
+// command before execution, shells it via run_decision (the sole write path —
+// this component never touches the filesystem), renders inline success/failure,
+// and auto-closes + refreshes the run 1500ms after a successful decision.
+
 export default function DecisionDialog(props: {
   action: DecisionAction;
   runId: string;
@@ -57,7 +62,7 @@ export default function DecisionDialog(props: {
       if (r.success) {
         closeTimer = setTimeout(() => {
           props.onDismiss();
-          void refreshRun(props.cwd, props.cliBinary);
+          void refreshRun(props.cwd, props.cliBinary); // auto-refresh
         }, 1500);
       }
     } catch (e) {
@@ -96,7 +101,7 @@ export default function DecisionDialog(props: {
           transition: 'opacity 150ms ease-out, transform 150ms ease-out',
         }}
       >
-        {}
+        {/* Header */}
         <div
           style={{
             height: '48px',
@@ -135,7 +140,6 @@ export default function DecisionDialog(props: {
           </button>
         </div>
 
-        {}
         <div style={{ margin: '16px' }}>
           <div
             style={{
@@ -164,7 +168,7 @@ export default function DecisionDialog(props: {
           </pre>
         </div>
 
-        {}
+        {/* Result */}
         <Show when={result()}>
           {(r) => (
             <div style={{ margin: '0 16px 16px' }}>
@@ -192,7 +196,7 @@ export default function DecisionDialog(props: {
           )}
         </Show>
 
-        {}
+        {/* Footer */}
         <div
           style={{
             display: 'flex',

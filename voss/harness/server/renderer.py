@@ -1,7 +1,24 @@
-"""
-EventBusRenderer
+"""EventBusRenderer (HYBRID-REFACTOR-PLAN H1.3).
+
 A `render.Renderer` implementation that publishes events onto an
+`asyncio.Queue` instead of writing to a terminal. The SSE endpoint (H1.8)
+drains the queue. Because it satisfies the existing 13-method `Renderer`
+protocol, the agent loop (`agent.run_turn`) drives it unchanged — this is the
+seam that makes the server cheap.
+
+Renderer methods are SYNCHRONOUS and may be called from TWO thread contexts:
+the event loop (streaming) and harness worker threads (tool/permission
+callbacks run via `asyncio.to_thread` — see `tui/permissions_bridge.py`).
+`asyncio.Queue.put_nowait` is NOT thread-safe across threads, so when a `loop`
+is supplied the renderer routes every enqueue through `loop.call_soon_threadsafe`
+from off-loop threads. On a full bounded queue the oldest event is dropped to
+keep the latest (lossy-latest); a single localhost SSE consumer normally keeps
+up, and dropping a stale token beats blocking the agent loop.
+
+`loop=None` (the default) keeps a direct synchronous `put_nowait` for tests
+that drive the renderer without a running loop.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,7 +42,7 @@ class EventBusRenderer:
         self._sid = session_id
         self._loop = loop
 
-    # internal
+    # -- internal -----------------------------------------------------------
 
     def _put(self, ev: E._Base) -> None:
         """Enqueue on the loop thread; drop oldest if the queue is full."""
@@ -55,7 +72,7 @@ class EventBusRenderer:
         else:
             loop.call_soon_threadsafe(self._put, ev)
 
-    # Renderer protocol (13 methods)
+    # -- Renderer protocol (13 methods) -------------------------------------
 
     def banner(self, *, model: str, cwd: Path, git_status: str) -> None:
         self._emit(E.BannerEvent(model=model, cwd=str(cwd), git=git_status))
@@ -88,13 +105,13 @@ class EventBusRenderer:
         *,
         output: str | None = None,
     ) -> None:
-        # R3: call_id/output accepted and dropped the server event contract
-        # (ToolEvent) is gated and must not change here
+        # R3: call_id/output accepted and dropped — the server event contract
+        # (ToolEvent) is V15-gated and must not change here.
         self._emit(E.ToolEvent(name=name, args=args, summary=summary, state=state))
 
     def show_clarify(self, question: str, confidence: float) -> None:
         self._emit(E.ClarifyEvent(question=question, confidence=confidence))
-        # surface the confidence gate firing as an observable gate event
+        # H5.2: surface the confidence gate firing as an observable gate event.
         self._emit(
             E.GateUpdated(session_id=self._sid, gate="confidence", decision="ask")
         )
@@ -123,9 +140,9 @@ class EventBusRenderer:
             )
         )
 
-    # R2 working indicator (tui-redesign-spec .1): protocol no-ops the
+    # R2 working indicator (tui-redesign-spec §6.1): protocol no-ops — the
     # event-bus vocabulary is a locked contract; turn activity is already
-    # observable via stream/tool events
+    # observable via stream/tool events.
     def show_working(self, label: str = "working") -> None:
         pass
 
@@ -191,7 +208,7 @@ class EventBusRenderer:
     def show_warning(self, msg: str) -> None:
         self._emit(E.WarningEvent(message=msg))
 
-    # server-only helpers (not part of the Renderer protocol)
+    # -- server-only helpers (not part of the Renderer protocol) ------------
 
     def emit(self, ev: E._Base) -> None:
         """Publish a server-originated event (handshake, permission, idle, Voss)."""

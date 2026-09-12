@@ -1,11 +1,19 @@
-"""
-M6 NPM-04: pack @vosslang/cli, install via npm, smoke CLI surface via vendored Python.
+"""M6 NPM-04: pack @vosslang/cli, install via npm, smoke CLI surface via vendored Python.
+
 Marked @pytest.mark.slow; mirrors tests/packaging/test_wheel_install.py for
+the npm distribution surface. The whole module skips cleanly when any
+prerequisite is missing (node, npm, host triple unsupported, or the host
+platform subpackage's `python/` tree has not been built by
+`npm/scripts/build_platform.py`). This keeps the test useful for both
+contributors on a vanilla checkout and the M6-04 CI runners that
+materialize `python/` as part of the release workflow.
+
+Scope substitution: the M6 plans reference `@voss/cli` but M6-01 D-1
+swapped to `@vosslang/cli` because the `voss` npm org was taken.
 """
 
 from __future__ import annotations
 
-import os
 import platform
 import shutil
 import subprocess

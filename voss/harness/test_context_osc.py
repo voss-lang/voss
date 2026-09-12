@@ -1,6 +1,4 @@
-"""
-F4: ContextTracker + _emit_context_osc unit tests
-"""
+"""F4: ContextTracker + _emit_context_osc unit tests."""
 from __future__ import annotations
 
 import io
@@ -8,9 +6,8 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
-from .recorder import ContextTracker, FileContextState, _emit_context_osc
+from .recorder import ContextTracker, _emit_context_osc
 
 
 class TestContextTrackerTrackFile:
@@ -41,7 +38,7 @@ class TestContextTrackerDetectDrops:
         tracker.detect_drops(1000)
         assert all(f.state == "full" for f in tracker.files.values())
 
-        # Second call with decrease should drop oldest
+        # Second call with decrease — should drop oldest
         tracker.detect_drops(800)
         assert tracker.files["a.py"].state == "dropped"
 

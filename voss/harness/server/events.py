@@ -1,7 +1,17 @@
+"""Protocol event models (HYBRID-REFACTOR-PLAN H1.2).
+
+Pydantic v2 discriminated union mirroring the wire contract in
+`.planning/PROTOCOL.md` §6. Each member's `type` literal is BOTH the SSE
+`event:` name and the serde discriminator. The core 13 mirror the existing
+`JsonRenderer` emit shapes (`voss/harness/render.py:493-567`) field-for-field
+so the server emits exactly what the harness already produces; the rest are
+Voss-native additions (`probable`/`budget`/`confidence`) and server-only
+control events (`server.connected`, `permission.updated`, `session.idle`).
+
+Serialize per-event with `.model_dump_json()`. Parse an unknown event with
+`AgentEventAdapter.validate_json(...)`.
 """
-event models
-Pydantic discriminated union mirroring the wire contract in
-"""
+
 from __future__ import annotations
 
 import uuid
@@ -19,7 +29,7 @@ class _Base(BaseModel):
     v: int = PROTOCOL_VERSION
 
 
-# control (server-only)
+# --- control (server-only) -------------------------------------------------
 
 
 class ServerConnected(_Base):
@@ -39,7 +49,7 @@ class PermissionUpdated(_Base):
     dimension: str = "tool"  # tool | confidence | budget
 
 
-# core 13 (mirror JsonRenderer)
+# --- core 13 (mirror JsonRenderer) ----------------------------------------
 
 
 class BannerEvent(_Base):
@@ -103,7 +113,7 @@ class StreamFinalize(_Base):
     confidence: float | None = None
     cost_usd: float | None = None
     timestamp: str | None = None
-    # NOTE: accumulated_text is intentionally dropped (matches JsonRenderer)
+    # NOTE: accumulated_text is intentionally dropped (matches JsonRenderer).
 
 
 class StatusEvent(_Base):
@@ -146,7 +156,7 @@ class WarningEvent(_Base):
     message: str
 
 
-# Voss-native (additive)
+# --- Voss-native (additive) ------------------------------------------------
 
 
 class Alternative(BaseModel):
@@ -184,9 +194,9 @@ class GateUpdated(_Base):
     decision: str
 
 
-# swarm ( VSWARM-02)
-# First-class swarm event plane. Every model carries `swarm_id` so 's
-# swarmReconcile can consume them directly off the existing SSE bus
+# --- swarm (V25 VSWARM-02) -------------------------------------------------
+# First-class swarm event plane (D-03). Every model carries `swarm_id` so V24's
+# swarmReconcile can consume them directly off the existing SSE bus.
 
 
 class _SwarmBase(_Base):
@@ -257,7 +267,7 @@ class SwarmComplete(_SwarmBase):
     summary: str | None = None
 
 
-# discriminated union
+# --- discriminated union ---------------------------------------------------
 
 AgentEvent = Annotated[
     Union[

@@ -8,10 +8,11 @@ export interface HermeticServe {
   port: number;
   token: string;
   kill: () => Promise<void>;
-
+/** stderr captured so far (diagnostics) */
   stderrTail: () => string;
 }
 
+/** Repo root: apps/voss-app/src/org/live/__tests__ → five dirs up */
 function repoRoot(): string {
   return join(__dirname, '..', '..', '..', '..', '..', '..');
 }
@@ -23,7 +24,7 @@ function pythonPath(): string {
   return 'python3';
 }
 
-const HANDSHAKE_BUDGET_MS = 60_000; // cold .pyc ~45s; warm ~1.5s (SPIKE)
+const HANDSHAKE_BUDGET_MS = 60_000; // cold.pyc ~45s; warm ~1.5s
 
 export async function spawnHermeticServe(cwd: string): Promise<HermeticServe> {
   const child: ChildProcess = spawn(
@@ -82,6 +83,7 @@ export async function spawnHermeticServe(cwd: string): Promise<HermeticServe> {
             resolve({ port: parsed.port, token: parsed.token });
           }
         } catch {
+          // Non-JSON log line — ignore (handshake parse mirrors sidecar.rs).
         }
       });
 

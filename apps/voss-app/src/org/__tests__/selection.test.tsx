@@ -3,6 +3,7 @@ import { render } from 'solid-js/web';
 
 import { selectedCardId, setSelectedCardId } from '../selection';
 
+
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown) {
   const root = document.createElement('div');
@@ -14,8 +15,11 @@ afterEach(() => {
   dispose?.();
   dispose = undefined;
   document.body.innerHTML = '';
+  // selection.ts uses module-level (global) signals — reset so this test
+  // does not leak state into the rest of the suite.
   setSelectedCardId(null);
 });
+
 
 function SurfaceA() {
   return <div data-surface="A">{selectedCardId() ?? 'none'}</div>;
@@ -24,6 +28,7 @@ function SurfaceA() {
 function SurfaceB() {
   return <div data-surface="B">{selectedCardId() ?? 'none'}</div>;
 }
+
 
 describe('selection store — one action observed by >=2 surfaces', () => {
   it('setSelectedCardId(C1) is reflected by two independent rendered surfaces', () => {
@@ -39,8 +44,10 @@ describe('selection store — one action observed by >=2 surfaces', () => {
     expect(a.textContent).toBe('none');
     expect(b.textContent).toBe('none');
 
+    // One action.
     setSelectedCardId('C1');
 
+    // Both distinct surfaces observe it via the shared global signal.
     expect(a.textContent).toBe('C1');
     expect(b.textContent).toBe('C1');
   });

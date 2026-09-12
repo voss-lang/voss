@@ -1,8 +1,15 @@
 import type { RunData, SessionTreeNode } from '../types';
 
+
 export type CapabilityTier = 'A' | 'B' | 'C';
 
+
+/**
+ * A board card: the snapshot-derived fields (id/title/column/role/risk/scope/
+ * budget) plus optional live-overlay fields bound via the id-bridge (-02)
+ */
 export interface Card {
+  // Snapshot fields (from cardsFromRunData / CardSnapshot)
   id: string;
   title: string;
   column: string;
@@ -11,11 +18,13 @@ export interface Card {
   scope: string | null;
   budget: { limit: number; spent: number };
 
+  // Live overlay (bridge-resolved; absent for pure-snapshot cards)
   paneId?: string;
   sessionNodeId?: string;
   liveBudget?: number;
   liveStatus?: string;
 }
+
 
 export interface Agent {
   id: string;
@@ -31,7 +40,10 @@ export interface Agent {
   capabilityTier?: CapabilityTier;
 }
 
+
+/** Normalized session-tree node; aliases the snapshot `SessionTreeNode` */
 export interface SessionNode extends SessionTreeNode {}
+
 
 export interface Evidence {
   id: string;
@@ -50,6 +62,8 @@ export interface Decision {
   ts: string;
 }
 
+
+/** The merged model: the snapshot run spine overlaid with live cards/agents */
 export interface Run {
   runId: string;
   snapshot: RunData | null;

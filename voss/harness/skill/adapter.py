@@ -1,6 +1,8 @@
-"""
-VossSkillAdapter SkillEntry-compatible handler for.voss bundle skills
-Compiles the bundle's.voss file via the existing compiler and runs it as a
+"""VossSkillAdapter — SkillEntry-compatible handler for .voss bundle skills.
+
+Compiles the bundle's .voss file via the existing compiler and runs it as a
+subprocess under a scope-limited PermissionGate. Third-party code never
+executes in-process (the subprocess boundary is the confinement layer).
 """
 from __future__ import annotations
 
@@ -9,11 +11,14 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import click
 
 from voss.harness.skill.scope import ScopeSpec, scoped_gate
+
+if TYPE_CHECKING:
+    from voss.harness.skill_registry import SkillHandler
 
 
 def make_voss_skill_handler(
@@ -29,7 +34,7 @@ def make_voss_skill_handler(
     """
 
     def handler(ctx: Any, args: list[str]) -> None:
-        # Build scope-limited gate (: auto_yes, no store)
+        # Build scope-limited gate (Pitfall 2: auto_yes, no store)
         _scoped = scoped_gate(spec, ctx.gate) if hasattr(ctx, "gate") else None  # noqa: F841
 
         with tempfile.TemporaryDirectory(prefix="voss-skill-") as tmp:
@@ -48,7 +53,7 @@ def make_voss_skill_handler(
                 cache_dir=cache_dir,
             )
 
-            # Build subprocess env mirror voss/cli.py:run pattern
+            # Build subprocess env — mirror voss/cli.py:run pattern
             env = os.environ.copy()
             env["VOSS_HERMETIC"] = "1"
             if not spec.net:

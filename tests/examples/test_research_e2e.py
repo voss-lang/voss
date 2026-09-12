@@ -1,6 +1,8 @@
-"""
-End-to-end validation for ``research.voss`` (PRD §7.3, EX-03).
+"""End-to-end validation for ``research.voss`` (PRD §7.3, EX-03).
+
 Tests are deterministic: a ``StubProvider`` returns ``"STUB SUMMARY"`` for every
+ask call, and the timeout-fallback test forces ``run_with_budget`` to raise
+``BudgetExceededError`` rather than relying on real wall-clock latency.
 """
 from __future__ import annotations
 
@@ -9,7 +11,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
 
 from tests.examples.helpers import (
     assert_no_repo_cache_artifacts,

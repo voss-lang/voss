@@ -2,8 +2,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+/// On-disk recents schema version. Bump when the schema shape changes.
 pub const CURRENT_RECENTS_VERSION: u32 = 1;
 
+/// Maximum number of recent project paths persisted.
 pub const RECENTS_CAP: usize = 5;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -14,6 +16,8 @@ pub struct ProjectInfo {
     pub git_branch: Option<String>,
 }
 
+/// user-facing copy so app-level command wrappers can pass them through
+/// verbatim.
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectError {
     #[error("project not found")]
@@ -30,6 +34,7 @@ pub struct RecentsFile {
     pub recents: Vec<String>,
 }
 
+/// Largest file a file node will open.
 pub const MAX_PROJECT_FILE_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -74,6 +79,9 @@ pub fn language_for_path(path: &str) -> &'static str {
     }
 }
 
+/// Read a UTF-8 file inside `workspace`. The joined path is canonicalised
+/// (symlinks resolved) and must stay under the canonical workspace root;
+/// files over `max_bytes` are refused before any read.
 pub fn read_project_file(
     workspace: &Path,
     rel_path: &str,
@@ -146,6 +154,8 @@ pub fn default_cwd(project_path: Option<&Path>) -> String {
     home_dir_string(dirs::home_dir())
 }
 
+/// Read the current git branch, if any. `Repository::discover` intentionally
+/// walks up from `path`, matching `git status` behavior for nested folders.
 fn read_git_branch(path: &Path) -> Option<String> {
     let repo = git2::Repository::discover(path).ok()?;
     let head = repo.head().ok()?;
@@ -212,7 +222,11 @@ fn save_recents(file: &RecentsFile) -> std::io::Result<()> {
 #[cfg(not(test))]
 fn recents_path() -> PathBuf {
     // NOTE: build the path manually from home_dir() so it resolves to
+    // ~/.config/voss-app/recents.json on every platform (CONTEXT /).
     // The `dirs` crate's platform-native config helper is intentionally NOT
+    // used: on macOS it resolves to ~/Library/Application Support, which
+    // diverges from the user-facing ~/.config path locked by.
+    // See A1-.md and A1-.md Theme Override System Contract.
     dirs::home_dir()
         .unwrap_or_default()
         .join(".config")
@@ -275,6 +289,68 @@ mod tests {
         let sig = git2::Signature::now("Voss Test", "test@example.com").unwrap();
         repo.commit(Some("HEAD"), &sig, &sig, "initial", &tree, &[])
             .unwrap();
+    }
+
+    #[test]
+    fn ac_s2_5_read_project_file_rejects_escapes_and_oversize_and_reads_normal_files() {
+        let ws = tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("src")).unwrap();
+        std::fs::write(ws.path().join("src/main.rs"), "fn main() {}\n").unwrap();
+
+        let ok = read_project_file(ws.path(), "src/main.rs", MAX_PROJECT_FILE_BYTES).unwrap();
+        assert_eq!(ok.content, "fn main() {}\n");
+        assert_eq!(ok.language, "rust");
+        assert_eq!(ok.path, "src/main.rs");
+        assert_eq!(ok.size, 13);
+
+        let traversal = read_project_file(ws.path(), "../../etc/passwd", MAX_PROJECT_FILE_BYTES);
+        assert!(
+            matches!(
+                traversal,
+                Err(ProjectFileError::OutsideWorkspace) | Err(ProjectFileError::NotFound)
+            ),
+            "{traversal:?}"
+        );
+        let absolute = read_project_file(ws.path(), "/etc/hosts", MAX_PROJECT_FILE_BYTES);
+        assert!(
+            matches!(absolute, Err(ProjectFileError::OutsideWorkspace)),
+            "{absolute:?}"
+        );
+
+        let outside = tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.txt"), "s").unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                outside.path().join("secret.txt"),
+                ws.path().join("link.txt"),
+            )
+            .unwrap();
+            let via_link = read_project_file(ws.path(), "link.txt", MAX_PROJECT_FILE_BYTES);
+            assert!(
+                matches!(via_link, Err(ProjectFileError::OutsideWorkspace)),
+                "{via_link:?}"
+            );
+        }
+
+        let big = vec![b'a'; 3 * 1024 * 1024];
+        std::fs::write(ws.path().join("big.txt"), big).unwrap();
+        let too_large = read_project_file(ws.path(), "big.txt", MAX_PROJECT_FILE_BYTES);
+        assert!(
+            matches!(too_large, Err(ProjectFileError::TooLarge)),
+            "{too_large:?}"
+        );
+
+        let dir = read_project_file(ws.path(), "src", MAX_PROJECT_FILE_BYTES);
+        assert!(matches!(dir, Err(ProjectFileError::NotAFile)), "{dir:?}");
+    }
+
+    #[test]
+    fn language_detection_by_extension() {
+        assert_eq!(language_for_path("a/b/c.tsx"), "typescript");
+        assert_eq!(language_for_path("Cargo.toml"), "toml");
+        assert_eq!(language_for_path("README"), "plain");
+        assert_eq!(language_for_path("x.YML"), "yaml");
     }
 
     #[test]

@@ -19,7 +19,7 @@ import {
 } from '../../org/live/roster';
 
 interface SwarmLaunchWizardProps {
-    /** Called after a successful launch (the map then renders the live swarm) */
+/** Called after a successful launch (the map then renders the live swarm) */
   onLaunched?: () => void;
 }
 
@@ -149,7 +149,7 @@ const SwarmLaunchWizard: Component<SwarmLaunchWizardProps> = (props) => {
       </div>
 
       <div class="swz__body">
-        {/* Step 1 Goal */}
+        {/* Step 1 — Goal */}
         <Show when={step() === 1}>
           <label class="swz__field">
             <span class="swz__label">Goal</span>
@@ -165,7 +165,7 @@ const SwarmLaunchWizard: Component<SwarmLaunchWizardProps> = (props) => {
           </label>
         </Show>
 
-        {/* Step 2 Roster */}
+        {/* Step 2 — Roster */}
         <Show when={step() === 2}>
           <div class="swz__section-label">Quick presets</div>
           <div class="swz__presets">
@@ -238,7 +238,7 @@ const SwarmLaunchWizard: Component<SwarmLaunchWizardProps> = (props) => {
           </button>
         </Show>
 
-        {/* Step 3 Review */}
+        {/* Step 3 — Review */}
         <Show when={step() === 3}>
           <div class="swz-review">
             <div class="swz-review__row">

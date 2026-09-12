@@ -1,6 +1,9 @@
 import { For, Show } from 'solid-js';
 import type { RunData, ReviewSidecar } from '../types';
 
+// 05 — Reviewer-A and Reviewer-B in two visually-separated half-panes.
+// A (left) header --role-reviewer; B (right) header --accent-magenta.
+
 function verdictColor(label: string): string {
   const v = label.toUpperCase();
   if (v === 'PASS') return 'var(--accent-green)';
@@ -63,7 +66,7 @@ export default function VerdictPanel(props: { data: RunData | null }) {
 
   return (
     <div class="org-panel" style={{ 'flex-direction': 'row' }}>
-      {}
+      {/* Reviewer A */}
       <div style={{ ...halfStyle, 'border-right': '1px solid var(--border)' }}>
         <div style={{ ...headerBase, color: 'var(--role-reviewer)' }}>REVIEWER A</div>
         <Show
@@ -89,7 +92,7 @@ export default function VerdictPanel(props: { data: RunData | null }) {
         </Show>
       </div>
 
-      {}
+      {/* Reviewer B */}
       <div style={halfStyle}>
         <div style={{ ...headerBase, color: 'var(--accent-magenta)' }}>REVIEWER B</div>
         <Show

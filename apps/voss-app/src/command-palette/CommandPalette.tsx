@@ -4,6 +4,11 @@ import { rankCommandItems } from './fuzzy';
 import { filterQuickItems, type QuickOpenItem } from './quickOpen';
 import type { Command, CommandCategory } from './registry';
 
+/**
+ * Task 1 — Variant B command palette
+ * One component, two modes
+ */
+
 const CATEGORY_GLYPH: Record<CommandCategory, string> = {
   Window: 'W',
   Workspace: 'K',
@@ -156,7 +161,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
         role="dialog"
         aria-modal="true"
         data-testid="command-palette"
-        class="font-mono"
+        class="font-ui"
         style={{
           width: 'min(680px, calc(100vw - 64px))',
           'max-height': 'min(520px, calc(100vh - 96px))',

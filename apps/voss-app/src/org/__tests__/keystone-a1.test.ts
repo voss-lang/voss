@@ -1,5 +1,13 @@
+/**
+ * KEYSTONE A1 — native create-response id ↔ snapshot node id verification
+ * Gates (-02 binding wave). The bridge mechanism depends on which
+ */
 import { describe, it, expect } from 'vitest';
+// Node builtins are resolved by vitest at runtime; this app's tsconfig has no
+// @types/node, so declare the tiny surface we use locally to keep `tsc` clean.
+// @ts-ignore node:fs may lack types in this tsconfig (runtime-only, vitest provides it)
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
+// @ts-ignore node:path may lack types in this tsconfig (runtime-only, vitest provides it)
 import { join, dirname, basename } from 'node:path';
 declare const process: { cwd(): string };
 
@@ -8,8 +16,13 @@ import nodeChild from './fixtures/node-child.json';
 import liveRegistry from './fixtures/live-registry.json';
 import bridgeBinding from './fixtures/bridge-binding.json';
 
+/** 11: sessionID = uuid4.hex[:12] → exactly 12 lowercase hex chars */
 const HEX12 = /^[0-9a-f]{12}$/;
 
+/**
+ * A1_FINDING — verbatim resolution of Open-Q1 / Assumptions Log A1
+ * reads this string. It states the create-response-id ↔ node-id relation
+ */
 export const A1_FINDING =
   'A1 RESOLVED (verified against a real .voss/sessions tree): for a native run the ' +
   "create-response id (harness sessionID = uuid4().hex[:12], 12-hex) IS the snapshot " +
@@ -21,6 +34,7 @@ export const A1_FINDING =
   'resolveCard\'s `cardToSessionNode[cardId] ?? cardId` fallback covers any future ' +
   'multi-node run-dir divergence without a silent mis-bind.';
 
+/** Walk up from CWD to the git repo root (the dir containing `.git`) */
 function findRepoRoot(start: string): string {
   let dir = start;
   for (let i = 0; i < 12; i++) {
@@ -32,6 +46,7 @@ function findRepoRoot(start: string): string {
   return start;
 }
 
+/** Find all `.voss/sessions/` dirs under the repo (skip node_modules) */
 function findSessionTrees(root: string): string[] {
   const found: string[] = [];
   const skip = new Set(['node_modules', '.git', 'target', 'dist']);
@@ -70,6 +85,7 @@ function findSessionTrees(root: string): string[] {
 const repoRoot = findRepoRoot(process.cwd());
 const sessionTrees = findSessionTrees(repoRoot);
 
+/** Collect flat `<id>.json` session records from the first non-empty tree */
 function collectRealSessions(): { id: string; stem: string }[] {
   for (const tree of sessionTrees) {
     const out: { id: string; stem: string }[] = [];
@@ -80,7 +96,7 @@ function collectRealSessions(): { id: string; stem: string }[] {
         const rec = JSON.parse(readFileSync(join(tree, fname), 'utf8'));
         if (rec && typeof rec.id === 'string') out.push({ id: rec.id, stem });
       } catch {
-
+        /* ignore unreadable */
       }
     }
     if (out.length) return out;
@@ -105,6 +121,7 @@ describe('V14 Keystone A1 — create-response id ↔ SessionTreeNode.id', () => 
       if (usingRealTree) {
         expect(sessionTrees.length).toBeGreaterThan(0);
       } else {
+        // Fallback: the node fixtures stand in for the snapshot plane.
         expect([nodeRoot.id, nodeChild.id].every((id) => typeof id === 'string')).toBe(true);
       }
     },
@@ -112,11 +129,14 @@ describe('V14 Keystone A1 — create-response id ↔ SessionTreeNode.id', () => 
 
   it('PROTOCOL §11: the native sessionID / node id is 12-hex (uuid4().hex[:12])', () => {
     if (usingRealTree) {
+      // (c) Every real session record stem matches the 12-hex sessionID format AND
+      //     the in-file `id` equals the filename stem (record id === stem).
       for (const { id, stem } of realSessions) {
         expect(stem, `real session file stem ${stem}`).toMatch(HEX12);
         expect(id, `record id for ${stem} must equal its filename stem`).toBe(stem);
       }
     } else {
+      // Fallback: snapshot node ids stand in; assert they are 12-hex.
       for (const id of [nodeRoot.id, nodeChild.id]) {
         expect(id).toMatch(HEX12);
       }
@@ -124,17 +144,27 @@ describe('V14 Keystone A1 — create-response id ↔ SessionTreeNode.id', () => 
   });
 
   it('Bridge A convention: a native create-response id EQUALS the snapshot node id (no second lookup)', () => {
+    // Model the native create-response: POST /session returns { id }. We assert the
+    // bridge convention that this id IS the snapshot node id used by the board.
+    //   (a) run-directory / session-record name === (b) node filename stem (= node.id)
+    //   (c) === the 12-hex create-response sessionID.
     const createResponseId = usingRealTree ? realSessions[0].id : nodeRoot.id;
     const nodeId = usingRealTree ? realSessions[0].stem : nodeRoot.id;
 
     expect(createResponseId).toMatch(HEX12); // (c) 12-hex sessionID format
     expect(createResponseId).toBe(nodeId); // create-response id === node id
 
+    // Because they are equal, Bridge A stores the create-response id directly into
+    // cardToSessionNode. If this ever fails, must add a second lookup.
     const cardToSessionNode: Record<string, string> = { C1: createResponseId };
     expect(cardToSessionNode.C1).toBe(nodeId);
   });
 
   it('registry session_id is a SEPARATE app-minted namespace (does NOT join to node id)', () => {
+    // The fake live registry's native agent (pane P1) carries an app-supplied
+    // sessionId. For the native agent it happens to be a real 12-hex harness id,
+    // but the convention is that registry.session_id is NOT, in general, the node id
+    // the terminal agent proves it (non-hex, Bridge B)
     const terminal = (liveRegistry as Array<{ paneId: string; sessionId: string }>).find(
       (a) => a.paneId === 'P2',
     );
@@ -149,9 +179,11 @@ describe('V14 Keystone A1 — binding fixtures', () => {
     expect(Array.isArray(arr)).toBe(true);
     const p1 = arr.find((a) => a.paneId === 'P1');
     expect(p1, 'an agent must be bound to pane P1').toBeDefined();
+    // camelCase AgentEntry shape (agent_registry.rs serialized).
     for (const k of ['paneId', 'sessionId', 'cliBinary', 'cliArgs', 'cwd', 'status', 'lastSeen']) {
       expect(p1!, `AgentEntry must carry ${k}`).toHaveProperty(k);
     }
+    // The native agent's sessionId is a real 12-hex harness id (grounds the bridge).
     expect(p1!.sessionId as string).toMatch(HEX12);
   });
 

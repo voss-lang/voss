@@ -1,6 +1,14 @@
-"""
-M9-01 stdout byte parity for `--plain` and auto-fallback.
+"""M9-01 stdout byte parity for `--plain` and auto-fallback.
+
 The baseline at `tests/harness/tui/baseline/plain_baseline.txt` is the
+pre-M9 stdout for a deterministic `voss do --plain` invocation against the
+locked `FakeProvider` (imported from `tests/harness/test_voss_loop_parity.py`).
+Every subsequent plan in M9 must keep this test green.
+
+Idempotent capture: if the baseline file is missing AND
+`VOSS_CAPTURE_BASELINE=1` is set, the test writes the baseline and skips.
+Otherwise the test always compares bytes; the env flag is IGNORED when the
+file already exists.
 """
 from __future__ import annotations
 
@@ -11,10 +19,8 @@ from types import SimpleNamespace
 import pytest
 from click.testing import CliRunner
 
-from voss.harness import auth as auth_mod
 from voss.harness.agent import Plan
 from voss.harness.cli import do_cmd
-from voss_runtime.providers.base import ProviderResponse
 
 from tests.harness.test_voss_loop_parity import FakeProvider
 

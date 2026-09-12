@@ -5,6 +5,7 @@ import { deriveColumn } from '../boardDerive';
 import type { RunData } from '../types';
 import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
 
+
 export type AttentionKind =
   | 'permission'
   | 'budget'
@@ -23,29 +24,39 @@ export interface DeepLink {
 }
 
 export interface AttentionItem {
-
+/** Stable dedup key. Re-ingesting the same id never adds a second item */
   id: string;
   kind: AttentionKind;
   cardId?: string;
   sessionNodeId?: string;
-
+/** Human summary for the panel row */
   summary: string;
-
+/** resolveCard result — focuses the bound card/session/evidence on click */
   deepLink: DeepLink;
 
+  // permission-only fields
   tool?: string;
   args?: Record<string, unknown>;
   dimension?: string;
   affectedPath?: string;
-
+/**
+ * allow-once / allow-scoped / deny. EMPTY for adopted external agents
+ * ( / tier C — no tool gating promise)
+ */
   actions?: PermissionAction[];
 
+  // budget / confidence numeric context
   value?: number;
   limit?: number;
 }
 
+
 const [attentionQueue, setAttentionQueue] = createSignal<AttentionItem[]>([]);
 
+/**
+ * Dedup'd immutable push. If an item with the same id already exists the queue
+ * is returned UNCHANGED (no second item, no re-render). Otherwise a fresh array
+ */
 function pushItem(item: AttentionItem): void {
   setAttentionQueue((prev) => {
     if (prev.some((existing) => existing.id === item.id)) return prev;
@@ -53,14 +64,23 @@ function pushItem(item: AttentionItem): void {
   });
 }
 
+/**
+ * 04 (-05): the inverse of pushItem — remove one row by id
+ * (immutable filter). Permission rows use the prefixed id
+ */
 export function resolveAttentionItem(id: string): void {
   setAttentionQueue((prev) => prev.filter((item) => item.id !== id));
 }
 
+/** Current live bridge maps, read at ingest time (Bridge A/B correlation) */
 function liveMaps() {
   return { cardToPane: cardToPane(), cardToSessionNode: cardToSessionNode() };
 }
 
+/**
+ * Reverse-resolve a session id (`session_id` on the SSE event === the snapshot
+ * node id for native runs, A1) back to its cardId via cardToSessionNode. Falls
+ */
 function cardIdForSession(sessionId: string): string {
   const map = cardToSessionNode();
   for (const cardId in map) {
@@ -69,10 +89,12 @@ function cardIdForSession(sessionId: string): string {
   return sessionId; // snapshot/native: card id IS the session node id
 }
 
+/** Permission actions, honest about tier C: empty for adopted external agents */
 export function permissionActionsFor(adopted: boolean): PermissionAction[] {
   return adopted ? [] : ['allow-once', 'allow-scoped', 'deny'];
 }
 
+/** Best-effort affected-path extraction from a permission tool's args */
 function affectedPathFromArgs(
   args: Record<string, unknown> | undefined,
 ): string | undefined {
@@ -84,19 +106,29 @@ function affectedPathFromArgs(
   return undefined;
 }
 
+
 export interface IngestContext {
-
+/**
+ * cardId for events that carry no `session_id` (permission.updated has none
+ * see 6). When omitted the permission item's id IS the cardId/dedup
+ */
   cardId?: string;
-
+/** Adopted external agent → suppress tool gating actions */
   adopted?: boolean;
 }
 
+/**
+ * Map one SSE AgentEvent to an AttentionItem and enqueue it (dedup'd). Returns
+ * the item, or null for event types the queue does not surface
+ */
 export function ingestEvent(
   ev: AgentEvent,
   ctx: IngestContext = {},
 ): AttentionItem | null {
   switch (ev.type) {
     case 'permission.updated': {
+      // 6/§7: permission.updated = {id, tool_name, args, dimension}.
+      // No session_id → the cardId comes from context (live grid binding).
       const args = ev.args as Record<string, unknown> | undefined;
       const cardId = ctx.cardId;
       const deepLink = cardId
@@ -120,6 +152,7 @@ export function ingestEvent(
     }
 
     case 'budget.updated': {
+      // Threshold reached (spent ≥ limit). Honor only crossings.
       if (ev.limit <= 0 || ev.spent < ev.limit) return null;
       const cardId = cardIdForSession(ev.session_id);
       const deepLink = resolveCard(liveMaps(), cardId);
@@ -188,6 +221,11 @@ export function ingestEvent(
   }
 }
 
+
+/**
+ * Raw Claude Code `PreToolUse` hook payload shape (best-effort; the CLI's schema
+ * may evolve — confirm at build). OpenCode's `permission` callback is shaped
+ */
 export interface CliPreToolUsePayload {
   hook_event_name?: string; // "PreToolUse"
   tool_name: string;
@@ -197,10 +235,16 @@ export interface CliPreToolUsePayload {
   permission_request_id?: string;
 }
 
+/**
+ * Normalize a raw CLI hook payload into the SAME `permission.updated` event the
+ * native server emits, so the proxy routes through ingestEvent with no separate
+ */
 export function normalizeCliPermission(
   raw: CliPreToolUsePayload,
 ): Extract<AgentEvent, { type: 'permission.updated' }> {
   const args: Record<string, unknown> = { ...(raw.tool_input ?? {}) };
+  // PreToolUse carries cwd at the top level, not inside tool_input — fold it in
+  // so affectedPathFromArgs can surface it.
   if (raw.cwd && args.cwd === undefined) args.cwd = raw.cwd;
   return {
     type: 'permission.updated',
@@ -212,6 +256,11 @@ export function normalizeCliPermission(
   };
 }
 
+
+/**
+ * Map a loaded run snapshot to AttentionItems
+ * Blocked column (deriveColumn === 'Blocked') → blocked item
+ */
 export function ingestSnapshotDecisions(runData: RunData | null): void {
   if (!runData) return;
   const maps = liveMaps();
@@ -261,6 +310,10 @@ export function ingestSnapshotDecisions(runData: RunData | null): void {
 
 export { attentionQueue };
 
+/**
+ * Test-only reset: clears the global queue. Tests call this in afterEach so
+ * ingest state does not leak across tests (mirrors __resetBridgeMaps)
+ */
 export function __resetAttentionQueue(): void {
   setAttentionQueue([]);
 }
