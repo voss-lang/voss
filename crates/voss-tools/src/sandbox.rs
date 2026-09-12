@@ -1,7 +1,6 @@
 //! Sandbox: path jailing + shell allowlist. Verbatim port of
 //! `voss/harness/sandbox.py`. Allowlist persists to
 
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 

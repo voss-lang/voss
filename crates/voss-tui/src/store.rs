@@ -1,7 +1,6 @@
 // ! Native session-store reader
 //! Reads `<cwd>/.voss/sessions/*.json` the exact on-disk format the Python
 
-
 use std::path::Path;
 
 use serde::Deserialize;

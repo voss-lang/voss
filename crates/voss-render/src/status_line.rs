@@ -1,7 +1,6 @@
 //! End-of-turn status line. (,, )
 //! Format: `─ {model} · {tokens} tok · ${cost} · ctx {pct}% ` plus filler dashes
 
-
 #[derive(Clone, Copy)]
 pub enum Accent {
     Dim,

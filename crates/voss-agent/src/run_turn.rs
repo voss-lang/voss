@@ -1,7 +1,6 @@
 //! `run_turn` one agent turn. Mirrors `voss/harness/agent.py::run_turn`
 //! but partitions tool execution per.. (parallel-by-default)
 
-
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

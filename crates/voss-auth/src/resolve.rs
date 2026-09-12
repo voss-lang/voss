@@ -1,6 +1,5 @@
 // ! Auth-path resolution. Mirrors `voss/harness/auth.py::resolve` (lines 286
 
-
 use crate::anthropic::AnthropicOAuthCreds;
 use crate::codex::CodexCreds;
 use crate::{load_anthropic_oauth, load_codex};

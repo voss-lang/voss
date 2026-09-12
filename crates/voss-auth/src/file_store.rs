@@ -1,7 +1,6 @@
 //! File-based credential store: `~/.claude/.credentials.json` (Anthropic) and
 //! `~/.codex/auth.json` (Codex)
 
-
 use std::path::PathBuf;
 
 use crate::anthropic::AnthropicOAuthCreds;

@@ -49,7 +49,6 @@ pub enum WorkspacesError {
     SaveFailed,
 }
 
-
 #[cfg(not(test))]
 pub fn workspaces_index_path() -> PathBuf {
     config_dir().join("workspaces.json")
@@ -71,7 +70,6 @@ fn config_dir() -> PathBuf {
         .join(".config")
         .join("voss-app")
 }
-
 
 /// Workspace ids must be stable filename-safe tokens (alphanumeric + hyphen).
 pub fn validate_workspace_id(id: &str) -> Result<(), WorkspacesError> {
@@ -97,7 +95,6 @@ fn validate_index(index: &WorkspacesIndex) -> Result<(), WorkspacesError> {
     Ok(())
 }
 
-
 /// Single project-less default workspace — used when the index cannot be loaded.
 pub fn default_workspaces_index() -> WorkspacesIndex {
     let entry = WorkspaceEntry {
@@ -115,7 +112,6 @@ pub fn default_workspaces_index() -> WorkspacesIndex {
         workspaces: vec![entry],
     }
 }
-
 
 /// Load `workspaces.json`. Missing, corrupt, unsupported, or empty → default
 /// index (never blocks boot).
@@ -209,7 +205,6 @@ pub fn workspace_session_path(entry: &WorkspaceEntry) -> PathBuf {
     crate::session::session_path(&entry.id)
 }
 
-
 #[cfg(test)]
 thread_local! {
     static TEST_WORKSPACES_INDEX_PATH: std::cell::RefCell<Option<PathBuf>> =
@@ -243,7 +238,6 @@ mod tests {
             focused_id: "a".into(),
         }
     }
-
 
     #[test]
     fn workspace_entry_round_trips_camel_case() {
@@ -281,7 +275,6 @@ mod tests {
         assert!(!json.contains("projectPath"), "omit null: {json}");
     }
 
-
     #[test]
     fn validate_workspace_id_accepts_alphanumeric_and_hyphen() {
         assert!(validate_workspace_id("default").is_ok());
@@ -296,7 +289,6 @@ mod tests {
         assert!(validate_workspace_id("../evil").is_err());
         assert!(validate_workspace_id("ws 1").is_err());
     }
-
 
     #[test]
     fn load_missing_index_returns_default_workspace() {
@@ -343,7 +335,6 @@ mod tests {
         .unwrap();
         assert_eq!(load_workspaces_index(), default_workspaces_index());
     }
-
 
     #[test]
     fn save_then_load_round_trips_index() {
@@ -396,7 +387,6 @@ mod tests {
         assert!(workspaces_index_path().exists());
         assert!(!workspaces_index_path().with_extension("json.tmp").exists());
     }
-
 
     #[test]
     fn workspace_session_path_project_uses_private_app_data() {

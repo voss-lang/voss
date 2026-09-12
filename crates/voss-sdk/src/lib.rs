@@ -1,6 +1,5 @@
 //! Rust client SDK for the Voss local harness REST and SSE protocol
 
-
 pub mod auth;
 pub mod client;
 pub mod error;

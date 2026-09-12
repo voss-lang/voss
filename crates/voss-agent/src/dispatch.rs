@@ -1,7 +1,6 @@
 //! step dispatch. Read-only tools fan out concurrently (cap N)
 //! mutating tools execute serially in plan order. Permission gate consulted
 
-
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 

@@ -1,7 +1,6 @@
 //! LSP-style Content-Length framing for JSON-RPC over stdio
 //! Per phase..: header lines terminated by `\r\n`, header block
 
-
 use std::io;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 

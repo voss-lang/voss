@@ -156,8 +156,10 @@ impl OscBuffer {
                 continue;
             }
             let mut end = i + 2;
-            while end < self.pending.len() && self.pending[end] != 0x07
-                && !(self.pending[end] == 0x1b && self.pending.get(end + 1) == Some(&b'\\')) {
+            while end < self.pending.len()
+                && self.pending[end] != 0x07
+                && !(self.pending[end] == 0x1b && self.pending.get(end + 1) == Some(&b'\\'))
+            {
                 end += 1;
             }
             if end == self.pending.len() {
@@ -238,7 +240,10 @@ impl CommandTracker {
                 vec![]
             }
             ShellMark::CommandStart => {
-                self.capture = Some(Capture::new(self.cwd.clone(), Some(std::time::Instant::now())));
+                self.capture = Some(Capture::new(
+                    self.cwd.clone(),
+                    Some(std::time::Instant::now()),
+                ));
                 vec![]
             }
             ShellMark::CommandMeta(meta) => {
@@ -338,8 +343,7 @@ fn emit_display(
             }
         }
     }
-    display.is_empty()
-        || on_data.send(PtyEvent::Data { bytes: display }).is_ok()
+    display.is_empty() || on_data.send(PtyEvent::Data { bytes: display }).is_ok()
 }
 
 /// Start the blocking read loop for `session_id`. On EOF/err it emits

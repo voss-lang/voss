@@ -1,7 +1,6 @@
 //! Chat REPL with reedline line editing, slash commands, and Ctrl-C
 //! turn-cancel
 
-
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};

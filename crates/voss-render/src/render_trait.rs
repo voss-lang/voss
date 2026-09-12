@@ -1,7 +1,6 @@
 //! Renderer trait shared by all 3 impls. Plan/ToolCall live in voss-agent
 //! and are passed through as primitive views (`PlanStepView`) so this crate
 
-
 use std::path::Path;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

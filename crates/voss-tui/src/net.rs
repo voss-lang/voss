@@ -1,7 +1,6 @@
 //! HTTP + SSE client (, )
 //! Thin REST commands (create session, post message, abort, permission reply)
 
-
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};

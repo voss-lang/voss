@@ -22,7 +22,6 @@ pub enum ProfileError {
     SettingsSaveFailed,
 }
 
-
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SettingsProfiles {
@@ -77,7 +76,6 @@ fn profiles_dir() -> PathBuf {
     })
 }
 
-
 pub fn profile_path(name: &str) -> Result<PathBuf, ProfileError> {
     validate_profile_name(name)?;
     Ok(profiles_dir().join(format!("{name}.json")))
@@ -101,7 +99,6 @@ pub fn validate_profile_name(name: &str) -> Result<(), ProfileError> {
     }
     Ok(())
 }
-
 
 pub fn list_profiles() -> Vec<String> {
     let dir = profiles_dir();
@@ -153,7 +150,6 @@ pub fn save_profile(name: &str, profile: &ProfileFile) -> Result<(), ProfileErro
     atomic_write(&path, &json)
 }
 
-
 pub fn load_active_profile_id() -> Option<String> {
     let path = settings_path();
     let raw = std::fs::read_to_string(&path).ok()?;
@@ -185,7 +181,6 @@ pub fn save_active_profile_id(id: Option<&str>) -> Result<(), ProfileError> {
     Ok(())
 }
 
-
 fn parse_profile(raw: &str) -> Result<ProfileFile, &'static str> {
     let value: serde_json::Value = serde_json::from_str(raw).map_err(|_| "invalid JSON")?;
     let version = value.get("version").and_then(|v| v.as_u64());
@@ -216,7 +211,6 @@ fn atomic_write(path: &Path, json: &str) -> Result<(), ProfileError> {
     })?;
     Ok(())
 }
-
 
 #[cfg(test)]
 thread_local! {

@@ -342,6 +342,8 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             project_policy=session.swarm_policy,
         )
         _install_server_permissions(gate, session, renderer)
+        if session.swarm_policy is not None:
+            _apply_swarm_escalation(gate, session, renderer)
 
         try:
             from .. import voss_md
@@ -384,6 +386,8 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             history=session.history,
             session_id=session.id,
             voss_md_text=voss_md_text,
+            project_index_text=project_index_text,
+            code_recall_text=code_recall_text,
             prior_context=session.prior_context,
         )
         # Consume resume context once: deep history now flows via session.history

@@ -1,7 +1,6 @@
 //! OAuth refresh paths for Anthropic (JSON body) and Codex (form-encoded body)
 //! Wire shape mirrors `voss/harness/auth.py` lines 147-251 so existing
 
-
 use crate::anthropic::{AnthropicOAuthCreds, ANTHROPIC_TOKEN_URL, CLAUDE_CODE_CLIENT_ID};
 use crate::codex::{CodexCreds, CODEX_CLIENT_ID, OPENAI_TOKEN_URL};
 use crate::{file_store, keychain};

@@ -1,6 +1,5 @@
 //! voss-providers model provider implementations
 
-
 pub mod anthropic;
 pub mod openai;
 pub mod traits;

@@ -1,7 +1,6 @@
 //! PyBridge spawns `python -m voss.bridge_server` as a long-lived child
 //! and dispatches JSON-RPC over LSP-framed stdio
 
-
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 

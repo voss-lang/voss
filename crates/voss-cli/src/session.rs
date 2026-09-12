@@ -1,7 +1,6 @@
 //! Persisted session snapshots. Wire-format-compatible with
 //! `voss/harness/session.py`
 
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 

@@ -1,7 +1,6 @@
 //! Permission gate for tool calls. Verbatim port of
 //! `voss/harness/permissions.py` semantics with TOML persistence
 
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 

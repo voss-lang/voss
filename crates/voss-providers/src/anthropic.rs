@@ -1,7 +1,6 @@
 //! Anthropic OAuth provider Claude Code subscription via Messages API
 //! Verbatim port of `voss/harness/providers.py::AnthropicOAuthProvider` (lines
 
-
 use std::sync::Arc;
 use std::time::Duration;
 

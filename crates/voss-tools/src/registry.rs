@@ -1,6 +1,5 @@
 //! Default toolset registry
 
-
 use std::path::Path;
 use std::sync::Arc;
 

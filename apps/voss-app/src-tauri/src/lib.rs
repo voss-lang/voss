@@ -882,7 +882,6 @@ async fn get_fg_process(session_id: String, state: Reg<'_>) -> Result<Option<Str
     Ok(foreground::get_foreground_name(fd))
 }
 
-
 #[tauri::command]
 fn load_appearance_settings() -> AppearanceSettings {
     appearance::load_appearance_settings()
@@ -974,7 +973,6 @@ fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Resu
     std::fs::rename(&tmp, &target).map_err(|e| e.to_string())?;
     Ok(())
 }
-
 
 const SWARM_RESULT_EVENT: &str = "voss://swarm-result-added";
 
@@ -1307,7 +1305,6 @@ fn load_active_profile_id() -> Option<String> {
 fn save_active_profile_id(id: Option<String>) -> Result<(), String> {
     profiles::save_active_profile_id(id.as_deref()).map_err(|e| e.to_string())
 }
-
 
 #[derive(Debug, serde::Serialize)]
 struct DirEntry {
@@ -1816,7 +1813,9 @@ enum SidecarOperation {
         event: serde_json::Value,
         evidence: Vec<serde_json::Value>,
     },
-    ObserveContext { cwd: String },
+    ObserveContext {
+        cwd: String,
+    },
     ObserveSettingsGet,
     ObserveSettingsPatch {
         repository_id: String,

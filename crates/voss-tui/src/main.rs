@@ -1,7 +1,6 @@
 //! voss-tui entry point
 //! Spawns (or attaches to) the harness server, creates a session, then runs the
 
-
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 

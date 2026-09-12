@@ -1,6 +1,5 @@
 //! `voss-cli sessions` list saved session records, mtime-descending
 
-
 use crate::session;
 
 pub fn run_sessions() -> std::process::ExitCode {

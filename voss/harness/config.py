@@ -23,6 +23,11 @@ def config_path() -> Path:
     return base / "voss" / "config.toml"
 
 
+def app_state_dir() -> Path:
+    base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    return base / "voss"
+
+
 _RESERVED_SOURCE_NAMES = frozenset({"code", "memory", "global"})
 
 _HARNESS_BLOCK = re.compile(r"^\[harness\][^\[]*", re.MULTILINE)

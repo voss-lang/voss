@@ -3,9 +3,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::pty::commands::{ContextData, FileContextEntry, PtyEvent};
-use crate::pty::reader::{
-    extract_voss_osc, scan_shell_marks, CommandTracker, ScanItem, ShellMark,
-};
+use crate::pty::reader::{extract_voss_osc, scan_shell_marks, CommandTracker, ScanItem, ShellMark};
 use crate::pty::writer::validate_write;
 use crate::pty::{spawn_session, PtyRegistry};
 
@@ -80,9 +78,7 @@ fn test_pty_spawn_shell_integration_on() {
     std::env::set_var("VOSS_TEST_STRIP", "1");
     let (session, reader, _pause) = spawn_session(24, 80, None, true).expect("spawn");
     session
-        .write(
-            b"printf 'VE=%s TS=%s\\n' \"${VOSS_EMBEDDED-unset}\" \"${VOSS_TEST_STRIP-unset}\"\n",
-        )
+        .write(b"printf 'VE=%s TS=%s\\n' \"${VOSS_EMBEDDED-unset}\" \"${VOSS_TEST_STRIP-unset}\"\n")
         .expect("write");
     let out = read_until(reader, "VE=1", Duration::from_secs(8));
     session.kill().ok();
@@ -566,9 +562,7 @@ fn test_tracker_sequential_commands_get_separate_events() {
         apply_all(&mut t, format!("output-{n}\n").as_bytes());
         let finished = apply_all(&mut t, b"\x1b]133;D;0\x07");
         match &finished[0] {
-            PtyEvent::CommandFinished {
-                cmd_id, output, ..
-            } => {
+            PtyEvent::CommandFinished { cmd_id, output, .. } => {
                 assert_eq!(*cmd_id, id);
                 assert_eq!(*output, format!("output-{n}\n").into_bytes());
             }
@@ -619,7 +613,13 @@ fn command_capture_survives_every_read_boundary() {
         }
         assert_eq!(events.len(), 2, "split {split}");
         match &events[1] {
-            PtyEvent::CommandFinished { cmd_id, exit, output, truncated, .. } => {
+            PtyEvent::CommandFinished {
+                cmd_id,
+                exit,
+                output,
+                truncated,
+                ..
+            } => {
                 assert_eq!(cmd_id, "boundary");
                 assert_eq!(*exit, 1);
                 assert_eq!(output, b"FAIL sample.spec.ts");
@@ -657,17 +657,26 @@ fn shell_integration_sources_hooks_only_when_enabled() {
     let shell = dir.path().join("bash");
     std::fs::write(&shell, "#!/bin/sh\nexec /bin/bash --noprofile --norc -i\n").unwrap();
     let voss = dir.path().join("voss");
-    std::fs::write(&voss, "#!/bin/sh\nprintf '%s\\n' 'printf \"VOSS_CAPTURE_INSTALLED\\n\"'\n").unwrap();
+    std::fs::write(
+        &voss,
+        "#!/bin/sh\nprintf '%s\\n' 'printf \"VOSS_CAPTURE_INSTALLED\\n\"'\n",
+    )
+    .unwrap();
     for path in [&shell, &voss] {
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
     let status = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "pty::tests::shell_integration_sources_hooks_only_when_enabled", "--nocapture"])
+        .args([
+            "--exact",
+            "pty::tests::shell_integration_sources_hooks_only_when_enabled",
+            "--nocapture",
+        ])
         .env_clear()
         .env("VOSS_CAPTURE_TEST_CHILD", "1")
         .env("HOME", dir.path())
         .env("SHELL", shell)
         .env("PATH", format!("{}:/usr/bin:/bin", dir.path().display()))
-        .status().unwrap();
+        .status()
+        .unwrap();
     assert!(status.success());
 }

@@ -1,6 +1,5 @@
 //! `voss doctor` env diagnostics. Output mirrors `voss/harness/cli.py::doctor_cmd`
 
-
 use voss_auth::{load_anthropic_oauth, load_codex, resolve, AuthPref};
 
 const DEFAULT_MODEL: &str = "claude-sonnet-4-5";

@@ -1,7 +1,6 @@
 //! OpenAI/Codex provider ChatGPT subscription and API-key Responses API
 //! ChatGPT-mode credentials use Codex's Responses endpoint under
 
-
 use std::sync::Arc;
 use std::time::Duration;
 

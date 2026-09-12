@@ -1,7 +1,6 @@
 //! macOS Keychain access for Anthropic OAuth
 //! Stores a single generic-password item under service `Claude Code-credentials`
 
-
 #[cfg_attr(not(target_os = "macos"), allow(unused_imports))]
 use crate::anthropic::{AnthropicOAuthCreds, KEYCHAIN_SERVICE};
 

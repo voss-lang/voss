@@ -1,6 +1,5 @@
 //! Codex (OpenAI) credential type + endpoint constants
 
-
 use serde::{Deserialize, Serialize};
 
 pub const CODEX_CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";

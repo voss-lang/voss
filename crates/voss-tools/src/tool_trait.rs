@@ -1,7 +1,6 @@
 //! `Tool` trait shared by every concrete tool impl
 //! Per: `is_mutating` is a static, data-driven flag. Read-only tools
 
-
 use async_trait::async_trait;
 use serde_json::Value;
 

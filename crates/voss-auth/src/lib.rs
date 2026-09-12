@@ -1,7 +1,6 @@
 //! voss-auth credential discovery, refresh, and resolution for Claude
 //! (Anthropic OAuth) and Codex (OpenAI) auth
 
-
 pub mod anthropic;
 pub mod codex;
 pub mod file_store;

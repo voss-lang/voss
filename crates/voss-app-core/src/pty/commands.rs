@@ -47,10 +47,18 @@ pub struct VossCmdData {
 #[derive(serde::Serialize, Clone, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PtyEvent {
-    Data { bytes: Vec<u8> },
-    Exit { code: i32 },
-    FgProcess { name: String },
-    TitleChange { title: String },
+    Data {
+        bytes: Vec<u8>,
+    },
+    Exit {
+        code: i32,
+    },
+    FgProcess {
+        name: String,
+    },
+    TitleChange {
+        title: String,
+    },
     BudgetUpdate(BudgetData),
     ContextUpdate(ContextData),
     CommandStarted {

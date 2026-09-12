@@ -26,6 +26,15 @@ const KNOWN: &[&str] = &[
     "budget.updated",
     "confidence.updated",
     "gate.updated",
+    "principles_overflow",
+    "instructions_overflow",
+    "swarm.assign",
+    "swarm.candidate_ready",
+    "swarm.candidates_ready",
+    "swarm.worker_done",
+    "swarm.gate",
+    "swarm.needs_operator",
+    "swarm.complete",
 ];
 
 /// The subset the MVP client renders to a specific (non-Other) AppEvent.

@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum KeymapProfile {
@@ -30,7 +29,6 @@ struct KeymapSection {
     #[serde(default)]
     profile: KeymapProfile,
 }
-
 
 pub const CURRENT_KEYMAP_VERSION: u32 = 1;
 
@@ -75,7 +73,6 @@ pub enum KeymapError {
     LoadFailed,
 }
 
-
 #[cfg(not(test))]
 fn settings_path() -> PathBuf {
     dirs::home_dir()
@@ -97,7 +94,6 @@ fn settings_path() -> PathBuf {
 pub fn keymap_override_path(workspace: &Path) -> PathBuf {
     workspace.join(".voss").join("keymap.json")
 }
-
 
 /// Load the active keymap profile from `~/.config/voss-app/settings.json`.
 /// Missing or corrupt settings default to `vscode`.
@@ -143,7 +139,6 @@ pub fn save_keymap_profile(profile: &KeymapProfile) -> Result<(), KeymapError> {
     })?;
     Ok(())
 }
-
 
 /// Load `.voss/keymap.json`. Returns `None` for missing, corrupt, or
 /// unsupported files. Never creates `.voss/`.
@@ -234,7 +229,6 @@ pub fn validate_workspace_keymap_overrides(
         },
     }
 }
-
 
 #[cfg(test)]
 thread_local! {

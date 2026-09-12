@@ -1,6 +1,5 @@
 //! voss-render terminal renderer (Tty/Plain/NDJSON)
 
-
 pub mod markdown;
 pub mod ndjson;
 pub mod plain;

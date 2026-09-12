@@ -1,0 +1,20 @@
+{
+  "id": "4d9af5a4d994",
+  "name": "session-4d9af5a4",
+  "cwd": "/Users/benjaminmarks/Projects/Voss/crates/voss-sdk",
+  "model": "claude-sonnet-4-5",
+  "started_at": "2026-09-12T17:53:43+00:00",
+  "updated_at": "2026-09-12T17:53:43+00:00",
+  "total_cost_usd": 0.0,
+  "turns": [
+    {
+      "role": "user",
+      "content": "Use a shell command to print the current working directory."
+    }
+  ],
+  "runs": [],
+  "parent_id": null,
+  "parent_turn_index": null,
+  "instructions_hash": "2cb33835efd3c126af8496c2fcb9228091400aa6b61bd33d885cc45c83b029ef",
+  "instructions_files": []
+}
