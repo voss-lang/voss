@@ -1,7 +1,6 @@
 //! `voss-tui sessions` list resumable saved sessions
 //! The server reads them from the on-disk session store; the client only
 
-
 use anyhow::Result;
 use serde::Deserialize;
 

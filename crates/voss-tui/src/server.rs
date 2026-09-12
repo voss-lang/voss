@@ -1,7 +1,6 @@
 //! Server child supervision
 //! Spawns `voss serve`, reads the one-line `{port, token}` handshake, and keeps
 
-
 use std::process::Stdio;
 
 use anyhow::{anyhow, Result};

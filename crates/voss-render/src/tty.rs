@@ -1,7 +1,6 @@
 //! TTY renderer. Boxed cards for plan / tool calls, ANSI-styled assistant
 //! replies via the markdown sub-module, and a budget-bar at end-of-turn
 
-
 use std::io::{Stdout, Write};
 use std::path::Path;
 

@@ -148,7 +148,6 @@ pub fn legacy_layout_path(workspace: &Path, name: &str) -> Result<PathBuf, Layou
         .join(format!("{name}.json")))
 }
 
-
 /// Save `layout` to private app data.
 pub fn save_layout(workspace_id: &str, name: &str, layout: &LayoutFile) -> Result<(), LayoutError> {
     let path = layout_path(workspace_id, name)?;
@@ -347,7 +346,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn layout_file_round_trips_through_json_with_version_2() {
         let original = LayoutFile::new(sample_grid(), Some("fanout".into()));
@@ -438,7 +436,6 @@ mod tests {
         let err = layout_path("ws-1", "../escape").unwrap_err();
         assert!(matches!(err, LayoutError::InvalidName));
     }
-
 
     #[test]
     fn save_then_load_round_trips_the_layout() {

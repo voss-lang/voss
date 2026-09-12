@@ -1,7 +1,6 @@
 //! Content-hash line anchors (hashline edits)
 //! A line's anchor is the first 8 hex chars of SHA-256 of the line's raw
 
-
 use sha2::{Digest, Sha256};
 
 /// 8-hex-char content anchor for a single line (newline excluded)

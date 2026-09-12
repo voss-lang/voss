@@ -12,7 +12,18 @@ const runtime = vi.hoisted(() => ({
   applyThemeSpy: vi.fn(),
 }));
 
+const observeApi = vi.hoisted(() => ({
+  getObserveSettings: vi.fn(),
+  patchObserveSettings: vi.fn(),
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({ invoke: h.invoke }));
+
+vi.mock('../../../org/live/sidecarClient', () => ({
+  callSidecar: vi.fn(),
+  getObserveSettings: observeApi.getObserveSettings,
+  patchObserveSettings: observeApi.patchObserveSettings,
+}));
 
 vi.mock('../../../themes/themeRuntime', async () => {
   const catalog = await import('../../../themes/themeCatalog');
@@ -40,6 +51,21 @@ vi.mock('../../../appearance/settings', async () => {
 });
 
 import SettingsSurface from '../SettingsSurface';
+import {
+  __resetLiveServer,
+  setLiveServer,
+} from '../../../org/live/liveServer';
+vi.mock('../../../pane/observeClient', () => ({
+  observeContextForWorkspace: async () => ({ repositoryId: 'repo-1', worktreeId: 'wt-1' }),
+}));
+
+import { observeContextForWorkspace } from '../../../pane/observeClient';
+
+async function settle(rounds = 10): Promise<void> {
+  for (let i = 0; i < rounds; i++) {
+    await new Promise((r) => setTimeout(r, 0));
+  }
+}
 
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown): HTMLElement {
@@ -52,6 +78,9 @@ function mount(ui: () => unknown): HTMLElement {
 beforeEach(() => {
   h.invoke.mockReset();
   h.invoke.mockResolvedValue(null);
+  __resetLiveServer();
+  observeApi.getObserveSettings.mockReset().mockResolvedValue({});
+  observeApi.patchObserveSettings.mockReset();
 });
 
 afterEach(() => {
@@ -140,5 +169,158 @@ describe('SettingsSurface', () => {
         cliDefaultModels: expect.objectContaining({ codex: 'gpt-5.1-codex' }),
       }),
     );
+  });
+});
+
+describe('SettingsSurface — Observation section (S3.8)', () => {
+  const ENROLLED = {
+    enabled: true,
+    capture: true,
+    analysis: false,
+    provider: 'anthropic',
+    disclosure: false,
+    budget_usd: null,
+    paused: false,
+  };
+
+  async function mountWithServer(
+    repos: Record<string, typeof ENROLLED>,
+  ): Promise<HTMLElement> {
+    observeApi.getObserveSettings.mockResolvedValue(repos);
+    setLiveServer({ sidecarId: 'sc-1', cwd: '/ws' });
+    const el = mount(() => <SettingsSurface />);
+    await settle();
+    return el;
+  }
+
+  it('shows a fallback instead of toggles when no live server exists', async () => {
+    const el = mount(() => <SettingsSurface />);
+    await settle();
+
+    expect(el.querySelector('#settings-observation')).toBeTruthy();
+    expect(el.textContent).toContain(
+      'Open a project with a live session to manage observation.',
+    );
+    expect(observeApi.getObserveSettings).not.toHaveBeenCalled();
+  });
+
+  it('reflects enrollment state and shows the provider disclosure text', async () => {
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
+    const el = await mountWithServer({ [ctx.repositoryId]: ENROLLED });
+
+    const section = el.querySelector('#settings-observation')!;
+    expect(section.querySelector('.settings-panel__meta')?.textContent).toContain(
+      'capturing',
+    );
+    expect(
+      section.querySelector<HTMLInputElement>(
+        'input[aria-label="Observe this repository"]',
+      )?.checked,
+    ).toBe(true);
+    expect(section.textContent).toContain(
+      'Failure analysis sends captured commands and output to anthropic.',
+    );
+  });
+
+  it('pauses capture via PATCH with the repository id', async () => {
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
+    observeApi.patchObserveSettings.mockResolvedValue({
+      ...ENROLLED,
+      paused: true,
+    });
+    const el = await mountWithServer({ [ctx.repositoryId]: ENROLLED });
+
+    const toggle = el.querySelector<HTMLInputElement>(
+      'input[aria-label="Pause capture"]',
+    )!;    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+
+    expect(observeApi.patchObserveSettings).toHaveBeenCalledWith(
+      'sc-1',
+      ctx.repositoryId,
+      { paused: true },
+    );
+  });
+
+  it('enabling analysis acknowledges the provider disclosure', async () => {
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
+    observeApi.patchObserveSettings.mockResolvedValue({
+      ...ENROLLED,
+      analysis: true,
+      disclosure: true,
+    });
+    const el = await mountWithServer({ [ctx.repositoryId]: ENROLLED });
+
+    const toggle = el.querySelector<HTMLInputElement>(
+      'input[aria-label="Failure analysis"]',
+    )!;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+
+    expect(observeApi.patchObserveSettings).toHaveBeenCalledWith(
+      'sc-1',
+      ctx.repositoryId,
+      { analysis: true, disclosure: true },
+    );
+  });
+
+  it('enrolls an unenrolled repository via PATCH when observation is enabled', async () => {
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
+    observeApi.patchObserveSettings.mockResolvedValue({
+      ...ENROLLED,
+      provider: null,
+    });
+    const el = await mountWithServer({});
+
+    const toggle = el.querySelector<HTMLInputElement>(
+      'input[aria-label="Observe this repository"]',
+    )!;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+
+    expect(observeApi.patchObserveSettings).toHaveBeenCalledWith(
+      'sc-1',
+      ctx.repositoryId,
+      { enabled: true },
+    );
+  });
+
+  it('falls back to the unavailable notice when settings cannot be loaded', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    observeApi.getObserveSettings.mockRejectedValue(new Error('sidecar down'));
+    setLiveServer({ sidecarId: 'sc-1', cwd: '/ws' });
+    const el = mount(() => <SettingsSurface />);
+    await settle();
+
+    expect(
+      el.querySelector('input[aria-label="Observe this repository"]'),
+    ).toBeNull();
+    expect(el.textContent).toContain(
+      'Open a project with a live session to manage observation.',
+    );
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('reverts the optimistic toggle when PATCH fails', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
+    observeApi.patchObserveSettings.mockRejectedValue(new Error('403'));
+    const el = await mountWithServer({ [ctx.repositoryId]: ENROLLED });
+
+    const toggle = el.querySelector<HTMLInputElement>(
+      'input[aria-label="Pause capture"]',
+    )!;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+
+    expect(observeApi.patchObserveSettings).toHaveBeenCalled();
+    expect(toggle.checked).toBe(false);
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
   });
 });

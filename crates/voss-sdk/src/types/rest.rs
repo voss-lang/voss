@@ -1,6 +1,5 @@
 //! Hand-written REST request/response types for the local Voss harness
 
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

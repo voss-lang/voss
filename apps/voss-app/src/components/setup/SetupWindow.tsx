@@ -4,6 +4,10 @@ import {
   RECENTS_HEADING,
   START_PROJECT_LESS_LABEL,
 } from '../../project/projectStorage';
+import {
+  setShellIntegration,
+  shellIntegrationEnabled,
+} from './shellIntegration';
 
 export type SetupWindowProps = {
   recents: string[];
@@ -114,6 +118,34 @@ export default function SetupWindow(props: SetupWindowProps) {
             {START_PROJECT_LESS_LABEL}
           </button>
         </div>
+
+        <label
+          style={{
+            display: 'flex',
+            'align-items': 'baseline',
+            gap: '8px',
+            cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            aria-label="Enable shell integration"
+            checked={shellIntegrationEnabled()}
+            onChange={(e) => setShellIntegration(e.currentTarget.checked)}
+          />
+          <span
+            style={{
+              color: 'var(--fg-1)',
+              'font-family': 'var(--font-mono)',
+              'font-size': '12px',
+            }}
+          >
+            Shell integration
+          </span>
+          <span style={{ color: 'var(--fg-2)', 'font-size': '12px' }}>
+            Capture commands run in Voss terminals (OSC 133 marks)
+          </span>
+        </label>
 
         <Show when={props.recents.length > 0}>
           <section

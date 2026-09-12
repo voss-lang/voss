@@ -1,7 +1,6 @@
 //! `voss-tui doctor`
 //! The thin client reimplements NO diagnostics: it asks the server's `/doctor`
 
-
 use anyhow::Result;
 use serde::Deserialize;
 

@@ -34,17 +34,46 @@ pub struct ContextData {
     pub files: Vec<FileContextEntry>,
 }
 
+/// Command metadata extracted from `ESC]1337;voss-cmd={json}BEL` emitted by
+/// the `voss shell-init` preexec hook (S3.1).
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+pub struct VossCmdData {
+    pub cmd_id: String,
+    pub argv_text: String,
+    pub cwd: String,
+}
+
 /// Events streamed to the webview over a `Channel<PtyEvent>`.
-// / serde-tagged like the ndjson `"type"` discriminant
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, Clone, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PtyEvent {
-    Data { bytes: Vec<u8> },
-    Exit { code: i32 },
-    FgProcess { name: String },
-    TitleChange { title: String },
+    Data {
+        bytes: Vec<u8>,
+    },
+    Exit {
+        code: i32,
+    },
+    FgProcess {
+        name: String,
+    },
+    TitleChange {
+        title: String,
+    },
     BudgetUpdate(BudgetData),
     ContextUpdate(ContextData),
+    CommandStarted {
+        cmd_id: String,
+        argv_text: String,
+        cwd: String,
+        at: String,
+    },
+    CommandFinished {
+        cmd_id: String,
+        exit: i32,
+        duration_ms: u64,
+        output: Vec<u8>,
+        truncated: bool,
+    },
 }
 
 type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;
@@ -55,9 +84,12 @@ pub async fn spawn_pty(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
+    shell_integration: Option<bool>,
     state: Reg<'_>,
 ) -> Result<String, String> {
-    let (session, reader, pause_rx) = spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
+    let (session, reader, pause_rx) =
+        spawn_session(rows, cols, cwd, shell_integration.unwrap_or(false))
+            .map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
     let id = registry.insert(session);
     start_reader(id.clone(), reader, pause_rx, on_data, registry);

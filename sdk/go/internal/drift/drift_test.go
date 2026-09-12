@@ -1,6 +1,6 @@
 // Package drift_test holds the.3 Go SDK drift gate: it regenerates
 // types.gen.go from the committed OpenAPI snapshot and fails on any diff, plus
-// a parity check that the server's event union exposes exactly the 21 members
+// a parity check that the server's event union exposes exactly the 29 members
 // the SDK targets. Mirrors crates/voss-tui/tests/protocol_parity.rs and the
 // .2 Rust drift pattern.
 package drift_test
@@ -44,7 +44,7 @@ func TestTypesAreUpToDate(t *testing.T) {
 
 // TestDecodeCoversAllServerEventTypes drives the live Python server module to
 // enumerate the AgentEvent union's `type` strings and asserts the full
-// 21-member set is present (including principles_overflow, which is in
+// 29-member set is present (including principles_overflow, which is in
 // events.py but absent from PROTOCOL.md. 's
 // Decode() switch must cover this exact set. Skips when no interpreter is
 // available.
@@ -75,13 +75,13 @@ print(json.dumps([m.model_fields['type'].default for m in models]))`
 		t.Fatalf("parse python output %q: %v", string(out), err)
 	}
 
-	if len(got) != 21 {
-		t.Fatalf("server AgentEvent union has %d members, want 21: %v", len(got), got)
+	if len(got) != 29 {
+		t.Fatalf("server AgentEvent union has %d members, want 29: %v", len(got), got)
 	}
 	if !contains(got, "principles_overflow") {
 		t.Fatalf("server union missing principles_overflow (RESEARCH Pitfall 4): %v", got)
 	}
-	t.Logf("server AgentEvent union (21 members): %v", got)
+	t.Logf("server AgentEvent union (29 members): %v", got)
 	// TODO(.3: cross-check this set against voss.Decode's switch once
 	// Decode is implemented, asserting no member is missing or extra.
 }

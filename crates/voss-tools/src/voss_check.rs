@@ -1,7 +1,6 @@
 //! `voss_check` tool delegates to `voss_bridge::PyBridge::check`
 //! Bridge caching: a single `PyBridge` instance is constructed lazily on
 
-
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;

@@ -1,7 +1,6 @@
 //! Protocol event parsing
 //! Maps an SSE frame (`event:` name + JSON `data`) to a UI-facing [`AppEvent`]
 
-
 /// UI-facing event decoded from the wire
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppEvent {

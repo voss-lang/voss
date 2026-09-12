@@ -14,6 +14,17 @@ export interface SidecarHandle {
   sidecarId: string;
 }
 
+/** Mirrors RepoEnrollment in voss/harness/observe/enrollment.py. */
+export interface ObserveRepoEnrollment {
+  enabled: boolean;
+  capture: boolean;
+  analysis: boolean;
+  provider: string | null;
+  disclosure: boolean;
+  budget_usd: number | null;
+  paused: boolean;
+}
+
 type SidecarOperation =
   | { kind: 'create_session' }
   | { kind: 'list_sessions' }
@@ -33,7 +44,15 @@ type SidecarOperation =
       builders: number;
       roster?: Array<Record<string, unknown>>;
     }
-  | { kind: 'run_swarm'; swarm_id: string };
+  | { kind: 'run_swarm'; swarm_id: string }
+  | { kind: 'observe_event'; event: unknown; evidence: unknown }
+  | { kind: 'observe_context'; cwd: string }
+  | { kind: 'observe_settings_get' }
+  | {
+      kind: 'observe_settings_patch';
+      repository_id: string;
+      enrollment: Partial<ObserveRepoEnrollment>;
+    };
 
 export async function startVossServe(cwd: string): Promise<SidecarHandle> {
   return invoke<SidecarHandle>('start_voss_serve', { cwd });
@@ -44,6 +63,43 @@ export async function callSidecar<T>(
   operation: SidecarOperation,
 ): Promise<T> {
   return invoke<T>('call_voss_sidecar', { sidecarId, operation });
+}
+
+export async function getObserveSettings(
+  sidecarId: string,
+): Promise<Record<string, ObserveRepoEnrollment>> {
+  const value = await callSidecar<unknown>(sidecarId, {
+    kind: 'observe_settings_get',
+  });
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    typeof (value as { repositories?: unknown }).repositories !== 'object'
+  ) {
+    throw new Error('invalid observe settings response');
+  }
+  return (value as { repositories: Record<string, ObserveRepoEnrollment> })
+    .repositories;
+}
+
+export async function patchObserveSettings(
+  sidecarId: string,
+  repositoryId: string,
+  enrollment: Partial<ObserveRepoEnrollment>,
+): Promise<ObserveRepoEnrollment> {
+  const value = await callSidecar<unknown>(sidecarId, {
+    kind: 'observe_settings_patch',
+    repository_id: repositoryId,
+    enrollment,
+  });
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    typeof (value as { enrollment?: unknown }).enrollment !== 'object'
+  ) {
+    throw new Error('invalid observe settings response');
+  }
+  return (value as { enrollment: ObserveRepoEnrollment }).enrollment;
 }
 
 function sessionsFrom(value: unknown): SessionInfo[] {

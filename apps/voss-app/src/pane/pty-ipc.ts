@@ -10,7 +10,9 @@ export type PtyEvent =
   | { type: 'fg_process'; name: string }
   | { type: 'title_change'; title: string }
   | { type: 'budget_update'; tokens_used: number; token_limit: number | null; cost_usd: number; iteration: number; model: string }
-  | { type: 'context_update'; system_tokens: number; conversation_tokens: number; total_tokens: number; token_limit: number | null; files: FileContextEntry[] };
+  | { type: 'context_update'; system_tokens: number; conversation_tokens: number; total_tokens: number; token_limit: number | null; files: FileContextEntry[] }
+  | { type: 'command_started'; cmd_id: string; argv_text: string; cwd: string; at: string }
+  | { type: 'command_finished'; cmd_id: string; exit: number; duration_ms: number; output: number[]; truncated: boolean };
 
 export type FileContextEntry = {
   path: string;
@@ -73,6 +75,9 @@ export interface PtyTransportOpts {
   onTitle?: (title: string) => void;
   onBudgetUpdate?: (data: BudgetState) => void;
   onContextUpdate?: (data: ContextData) => void;
+  /** S3.2 shell-integration marks (OSC 133 + voss-cmd) from the PTY reader. */
+  onCommandStarted?: (ev: { cmd_id: string; argv_text: string; cwd: string; at: string }) => void;
+  onCommandFinished?: (ev: { cmd_id: string; exit: number; duration_ms: number; output: Uint8Array; truncated: boolean }) => void;
   agentPaneId?: string;
   workspacePath?: string;
 /** 13c budget-kill: cost_usd at/over this → pty_kill the pane */
@@ -164,6 +169,23 @@ export class PtyTransport {
           files: ev.files,
         });
         break;
+      case 'command_started':
+        this.opts.onCommandStarted?.({
+          cmd_id: ev.cmd_id,
+          argv_text: ev.argv_text,
+          cwd: ev.cwd,
+          at: ev.at,
+        });
+        break;
+      case 'command_finished':
+        this.opts.onCommandFinished?.({
+          cmd_id: ev.cmd_id,
+          exit: ev.exit,
+          duration_ms: ev.duration_ms,
+          output: Uint8Array.from(ev.output),
+          truncated: ev.truncated,
+        });
+        break;
     }
   }
 
@@ -185,12 +207,14 @@ export class PtyTransport {
     rows: number;
     cols: number;
     cwd?: string;
+    shellIntegration?: boolean;
   }): Promise<string> {
     this.sessionId = await invoke<string>('spawn_pty', {
       onData: this.channel,
       rows: o.rows,
       cols: o.cols,
       cwd: o.cwd,
+      shellIntegration: o.shellIntegration ?? false,
     });
     return this.sessionId;
   }

@@ -78,7 +78,6 @@ pub enum SessionError {
     LoadFailed,
 }
 
-
 /// `~/.config/voss-app/sessions/<workspace_id>.json`.
 pub fn session_path(workspace_id: &str) -> PathBuf {
     project_less_sessions_dir().join(format!("{workspace_id}.json"))
@@ -129,7 +128,6 @@ fn config_voss_app_dir() -> PathBuf {
         .join(".config")
         .join("voss-app")
 }
-
 
 /// Save a workspace session to private app data.
 pub fn save_session(workspace_id: &str, session: &SessionFile) -> Result<(), SessionError> {
@@ -221,7 +219,6 @@ fn is_filename_safe_workspace_id(id: &str) -> bool {
     !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
-
 /// Locked write: create parent dir → open lock file → lock exclusively →
 /// write tmp → rename over destination. Lock released on drop.
 fn locked_write(path: &Path, json: &str) -> Result<(), SessionError> {
@@ -301,7 +298,6 @@ fn parse_session(raw: &str) -> Result<SessionFile, &'static str> {
     }
 }
 
-
 #[cfg(test)]
 thread_local! {
     static TEST_GLOBAL_SESSION_PATH: std::cell::RefCell<Option<PathBuf>> =
@@ -371,7 +367,6 @@ mod tests {
         });
         dir
     }
-
 
     #[test]
     fn session_file_new_sets_current_version() {
@@ -456,7 +451,6 @@ mod tests {
             "could not load session"
         );
     }
-
 
     #[test]
     fn session_path_resolves_under_private_app_data() {
@@ -581,7 +575,6 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&legacy).unwrap(), json);
         assert!(session_path("ws-1").exists());
     }
-
 
     #[test]
     fn project_less_session_path_resolves_under_config_sessions() {

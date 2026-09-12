@@ -5,12 +5,19 @@ import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { invoke } from '@tauri-apps/api/core';
 import { PtyTransport, type AgentConfig } from './pty-ipc';
+import {
+  createObserveClient,
+  disposeObserveClient,
+  observeContextForWorkspace,
+} from './observeClient';
+import { liveServer } from '../org/live/liveServer';
 import { adoptionByPaneId } from './adoptionRegistry';
 import { registerPaneProc } from './procRegistry';
 import { registerPaneBudget } from './budgetRegistry';
 import { registerPaneContext } from './contextRegistry';
 import { maybeLatchAgent } from './agentPaneRegistry';
 import { mintSlug, registerSlug, slugByPaneId } from './slugRegistry';
+import { shellIntegrationEnabled } from '../components/setup/shellIntegration';
 import {
   registerScrollbackProvider,
 } from './scrollbackRegistry';
@@ -23,6 +30,7 @@ import type { AppearanceSettings } from '../appearance/settings';
 import {
   NOOP_SINK,
   trackPaneSession,
+  registerPaneDestroyHook,
   type PaneSession,
   type PaneSink,
 } from './paneSessionRegistry';
@@ -153,6 +161,20 @@ export function createPaneSession(args: CreatePaneSessionArgs): PaneSession {
     },
   };
 
+  // S3.3: project panes forward PTY command events to the Observe sidecar.
+  // Project-less panes have no repository to enroll — no client, no events.
+  const observe = args.workspacePath
+    ? createObserveClient({
+        paneId: args.paneId,
+        actor: args.agentConfig ? 'voss' : 'developer',
+        context: () => observeContextForWorkspace(args.workspacePath!, liveServer()!.sidecarId),
+        sidecarId: () => liveServer()?.sidecarId ?? null,
+      })
+    : null;
+  if (observe) {
+    registerPaneDestroyHook(args.paneId, () => disposeObserveClient(args.paneId));
+  }
+
   s.transport = new PtyTransport({
     write: (data, cb) => term.write(data, cb),
     onExit: (code) => {
@@ -183,6 +205,23 @@ export function createPaneSession(args: CreatePaneSessionArgs): PaneSession {
     onContextUpdate: (data) => {
       registerPaneContext(s.paneId, data);
     },
+    ...(observe
+      ? {
+          onCommandStarted: (ev: {
+            cmd_id: string;
+            argv_text: string;
+            cwd: string;
+            at: string;
+          }) => observe.commandStarted(ev),
+          onCommandFinished: (ev: {
+            cmd_id: string;
+            exit: number;
+            duration_ms: number;
+            output: Uint8Array;
+            truncated: boolean;
+          }) => observe.commandFinished(ev),
+        }
+      : {}),
     ...(args.agentConfig
       ? {
           agentPaneId: args.paneId,
@@ -327,6 +366,7 @@ export async function spawnPaneSession(s: PaneSession): Promise<void> {
       rows: s.term.rows,
       cols: s.term.cols,
       cwd,
+      shellIntegration: shellIntegrationEnabled(),
     });
   }
   s.dot = 'running';

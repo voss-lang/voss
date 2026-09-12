@@ -39,7 +39,6 @@ pub enum ThemeError {
     SettingsSaveFailed,
 }
 
-
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SettingsThemes {
@@ -76,7 +75,6 @@ fn settings_path() -> PathBuf {
     })
 }
 
-
 pub fn custom_theme_path(workspace: &Path, name: &str) -> Result<PathBuf, ThemeError> {
     validate_theme_name(name)?;
     Ok(workspace
@@ -103,7 +101,6 @@ pub fn validate_theme_name(name: &str) -> Result<(), ThemeError> {
     }
     Ok(())
 }
-
 
 pub fn list_custom_themes(workspace: &Path) -> Vec<String> {
     let dir = workspace.join(".voss").join("themes");
@@ -159,7 +156,6 @@ pub fn save_custom_theme(
     atomic_write(&path, &json)
 }
 
-
 pub fn load_active_theme_id() -> Option<String> {
     let path = settings_path();
     let raw = std::fs::read_to_string(&path).ok()?;
@@ -180,7 +176,6 @@ pub fn save_active_theme_id(id: Option<&str>) -> Result<(), ThemeError> {
     })?;
     settings_atomic_write(&path, &json)
 }
-
 
 fn parse_custom_theme(raw: &str) -> Result<CustomThemeFile, &'static str> {
     let value: serde_json::Value = serde_json::from_str(raw).map_err(|_| "invalid JSON")?;
@@ -239,7 +234,6 @@ fn settings_atomic_write(path: &Path, json: &str) -> Result<(), ThemeError> {
     })?;
     Ok(())
 }
-
 
 #[cfg(test)]
 thread_local! {

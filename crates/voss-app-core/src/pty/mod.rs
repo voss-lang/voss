@@ -121,6 +121,7 @@ pub fn spawn_session(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
+    shell_integration: bool,
 ) -> anyhow::Result<SpawnedPtySession> {
     let pair = native_pty_system()
         .openpty(PtySize {
@@ -139,6 +140,9 @@ pub fn spawn_session(
         .to_string();
 
     let mut cmd = neutral_terminal_command(&shell);
+    if shell_integration {
+        cmd.env("VOSS_EMBEDDED", "1");
+    }
     let cwd_path = match cwd {
         Some(c) => {
             cmd.cwd(&c);
@@ -160,9 +164,20 @@ pub fn spawn_session(
         _slave: Mutex::new(pair.slave),
         child: Mutex::new(child),
         pause_tx,
-        shell_name,
+        shell_name: shell_name.clone(),
         cwd: cwd_path,
     });
+
+    if shell_integration {
+        let init = match shell_name.as_str() {
+            "zsh" | "bash" => format!(" eval \"$(voss shell-init --shell {shell_name})\"\r"),
+            "fish" => " voss shell-init --shell fish | source\r".to_string(),
+            _ => String::new(),
+        };
+        if !init.is_empty() {
+            session.write(init.as_bytes())?;
+        }
+    }
 
     Ok((session, reader, pause_rx))
 }

@@ -4,7 +4,6 @@
 //! ratatui UI loop (, , )
 //! A single UI task owns terminal + state and runs `tokio::select!` over three
 
-
 use anyhow::Result;
 use crossterm::event::{Event as CtEvent, EventStream, KeyCode, KeyEventKind, KeyModifiers};
 use futures_util::StreamExt;

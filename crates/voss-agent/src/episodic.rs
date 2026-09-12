@@ -1,6 +1,5 @@
 //! EpisodicMemory minimal Rust port of `voss_runtime.memory.episodic.EpisodicMemory`
 
-
 use std::collections::VecDeque;
 
 use serde::{Deserialize, Serialize};

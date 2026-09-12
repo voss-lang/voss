@@ -2,12 +2,16 @@
 
 BOS3 intentionally keeps this layer pure: it reads existing session/run/swarm
 records and returns BOS-schema dictionaries. It does not write back to the
-source records, append a ledger, or alter the server/SSE event plane.
+source records or alter the server/SSE event plane. `emit_live` is the live
+emit path (ADR 0001): it appends to the local BOS ledger only.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping
+
+from voss.harness import bos_ledger
 
 BOS_SCHEMA_VERSION = 1
 
@@ -363,8 +367,26 @@ def project_swarm_log_event(
     )
 
 
+def emit_live(
+    cwd: Path,
+    event: dict[str, Any],
+    *,
+    ingest_time: str | None = None,
+) -> bool:
+    """Append one live event to the local BOS ledger.
+
+    `ingest_time` is assigned at write when the event does not already carry
+    one. Returns False when the ledger already holds `event_id`.
+    """
+
+    body = dict(event)
+    body["ingest_time"] = ingest_time or body.get("ingest_time") or _now_iso()
+    return bos_ledger.append_event(cwd, body)
+
+
 __all__ = [
     "BOS_SCHEMA_VERSION",
+    "emit_live",
     "project_run_file_events",
     "project_run_record",
     "project_session_record",

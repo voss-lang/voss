@@ -1,6 +1,5 @@
 //! Plain renderer. Mirrors `voss/harness/render.py::PlainRenderer`
 
-
 use std::io::Write;
 use std::path::Path;
 

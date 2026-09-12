@@ -1,7 +1,6 @@
 //! Minimal markdown → ANSI styler for TTY rendering of assistant replies
 //! Handles: headings, bold, italic, inline code, fenced code, lists
 
-
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 const RESET: &str = "\x1b[0m";

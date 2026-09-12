@@ -1,7 +1,6 @@
 //! Plan + ToolCall Rust mirror of `voss/harness/agent.py::Plan / ToolCall`
 //! Field names and required-ness MUST match the Python pydantic schema
 
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

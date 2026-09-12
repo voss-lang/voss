@@ -1,7 +1,6 @@
 //! `_shell_capture` mirror run a process, capture combined stdout+stderr
 //! enforce a timeout, format with `[exit N]` + 4KB truncation
 
-
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;

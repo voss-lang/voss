@@ -1,6 +1,5 @@
 //! `voss-cli do <task>` one-shot agent invocation
 
-
 use std::path::Path;
 
 use voss_agent::{run_turn, EpisodicMemory, TurnConfig};

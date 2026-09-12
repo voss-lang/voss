@@ -36,6 +36,16 @@ function assertExhaustiveAgentEvent(event: AgentEvent): AgentEvent {
       return event;
     case "principles_overflow":
       return event;
+    case "instructions_overflow":
+      return event;
+    case "swarm.assign":
+    case "swarm.worker_done":
+    case "swarm.gate":
+    case "swarm.complete":
+    case "swarm.needs_operator":
+    case "swarm.candidate_ready":
+    case "swarm.candidates_ready":
+      return event;
     case "warning":
       return event;
     case "probable":

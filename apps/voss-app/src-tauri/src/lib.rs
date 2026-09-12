@@ -822,9 +822,12 @@ async fn spawn_pty(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
+    shell_integration: Option<bool>,
     state: Reg<'_>,
 ) -> Result<String, String> {
-    let (session, reader, pause_rx) = spawn_session(rows, cols, cwd).map_err(|e| e.to_string())?;
+    let (session, reader, pause_rx) =
+        spawn_session(rows, cols, cwd, shell_integration.unwrap_or(false))
+            .map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
     let id = registry.insert(session);
     start_reader(id.clone(), reader, pause_rx, on_data, registry);
@@ -878,7 +881,6 @@ async fn get_fg_process(session_id: String, state: Reg<'_>) -> Result<Option<Str
     };
     Ok(foreground::get_foreground_name(fd))
 }
-
 
 #[tauri::command]
 fn load_appearance_settings() -> AppearanceSettings {
@@ -971,7 +973,6 @@ fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Resu
     std::fs::rename(&tmp, &target).map_err(|e| e.to_string())?;
     Ok(())
 }
-
 
 const SWARM_RESULT_EVENT: &str = "voss://swarm-result-added";
 
@@ -1304,7 +1305,6 @@ fn load_active_profile_id() -> Option<String> {
 fn save_active_profile_id(id: Option<String>) -> Result<(), String> {
     profiles::save_active_profile_id(id.as_deref()).map_err(|e| e.to_string())
 }
-
 
 #[derive(Debug, serde::Serialize)]
 struct DirEntry {
@@ -1809,6 +1809,18 @@ enum SidecarOperation {
     RunSwarm {
         swarm_id: String,
     },
+    ObserveEvent {
+        event: serde_json::Value,
+        evidence: Vec<serde_json::Value>,
+    },
+    ObserveContext {
+        cwd: String,
+    },
+    ObserveSettingsGet,
+    ObserveSettingsPatch {
+        repository_id: String,
+        enrollment: serde_json::Value,
+    },
 }
 
 #[derive(Clone, Serialize)]
@@ -1880,6 +1892,37 @@ async fn send_sidecar_request(
     serde_json::from_slice(&bytes).map_err(|_| "invalid sidecar response".to_string())
 }
 
+/// S3.3 observe ingest. A 403 is the enrollment gate (not_enrolled / paused /
+/// capture_disabled) — the reason rides the error string so the webview
+/// client can cache not_enrolled and stop retrying the repo.
+async fn send_observe_event(
+    token: &str,
+    request: reqwest::RequestBuilder,
+) -> Result<serde_json::Value, String> {
+    let response = request
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|_| "sidecar request failed".to_string())?;
+    let status = response.status();
+    if status == reqwest::StatusCode::FORBIDDEN {
+        let reason = response
+            .json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|value| value.get("reason")?.as_str().map(String::from))
+            .unwrap_or_else(|| "unknown".into());
+        return Err(format!("observe_rejected:{reason}"));
+    }
+    if !status.is_success() {
+        return Err(format!("sidecar request failed: {status}"));
+    }
+    response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|_| "invalid sidecar response".to_string())
+}
+
 #[tauri::command]
 async fn call_voss_sidecar(
     window: tauri::WebviewWindow,
@@ -1901,6 +1944,7 @@ async fn call_voss_sidecar(
         }
     }
 
+    let is_observe = matches!(operation, SidecarOperation::ObserveEvent { .. });
     let request = match operation {
         SidecarOperation::CreateSession => client
             .post(sidecar_url(handshake.port, &["session"])?)
@@ -1996,8 +2040,29 @@ async fn call_voss_sidecar(
         SidecarOperation::RunSwarm { swarm_id } => {
             client.post(sidecar_url(handshake.port, &["swarm", &swarm_id, "run"])?)
         }
+        SidecarOperation::ObserveEvent { event, evidence } => client
+            .post(sidecar_url(handshake.port, &["observe", "events"])?)
+            .json(&serde_json::json!({ "event": event, "evidence": evidence })),
+        SidecarOperation::ObserveContext { cwd } => client
+            .get(sidecar_url(handshake.port, &["observe", "context"])?)
+            .query(&[("cwd", cwd)]),
+        SidecarOperation::ObserveSettingsGet => {
+            client.get(sidecar_url(handshake.port, &["observe", "settings"])?)
+        }
+        SidecarOperation::ObserveSettingsPatch {
+            repository_id,
+            enrollment,
+        } => client
+            .patch(sidecar_url(handshake.port, &["observe", "settings"])?)
+            .json(&serde_json::json!({
+                "repository_id": repository_id,
+                "enrollment": enrollment,
+            })),
     };
 
+    if is_observe {
+        return send_observe_event(&handshake.token, request).await;
+    }
     send_sidecar_request(&handshake.token, request).await
 }
 
