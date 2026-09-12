@@ -1,13 +1,11 @@
-"""Typed protocols for the O3 Board surface (O5-02).
-
+"""
+Typed protocols for the Board surface
 EMBoardHandle codes against these protocols so it never imports from
-voss.harness.board.* directly — the board may not be shipped when W2
-tests run. When O3 lands, the real Board satisfies BoardProtocol
-structurally.
 """
 from __future__ import annotations
 
-from typing import Literal, Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Literal, Optional, Protocol, runtime_checkable
 
 
 Column = Literal["Backlog", "Planned", "InProgress", "InReview", "Blocked", "Done"]

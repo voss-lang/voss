@@ -1,20 +1,4 @@
-"""Reviewer-B: independent tiered judgment reviewer (O4-02, ORVW-04..07).
-
-B sees ONLY: original idea, acceptance criteria, artifact, repository context,
-and Reviewer-A's verification summary. Zero EM narrative. The isolation
-guarantee is structural: `messages[]` contains exactly 2 entries (system + user)
-and the user message is built from card attributes only. No method on ReviewerB
-accepts EM context.
-
-B produces a ReviewerVerdict via a single `provider.complete()` call.
-ParseError / None → fail-safe verdict="block" (a parse failure at the gate
-is safer than a silent skip — contrast with judge.py which returns None).
-
-ReviewerVerdict is a frozen dataclass (O3-01), not a pydantic BaseModel. This
-module defines a pydantic mirror `_ReviewerBOutput` for use as `response_format`
-in `provider.complete()`, then translates the parsed output back to the frozen
-dataclass with source="B" and tier hardcoded (do not trust the LLM's values).
-"""
+"""Reviewer-B: independent tiered judgment reviewer."""
 from __future__ import annotations
 
 import asyncio
@@ -27,13 +11,14 @@ from pydantic import BaseModel, ConfigDict
 
 from voss.template_render import render_package_template
 from voss.harness.prompt_override import default_runtime_vars, load_prompt
+from voss_runtime.exceptions import ParseError
 from voss_runtime.providers.base import ModelProvider, ProviderResponse
 
 from .verdict import ReviewerVerdict
 
 
-# Pydantic mirror — ReviewerVerdict is a frozen dataclass; provider.complete()
-# needs a pydantic BaseModel as response_format.
+# Pydantic mirror ReviewerVerdict is a frozen dataclass; provider.complete
+# needs a pydantic BaseModel as response_format
 class _ReviewerBOutput(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -50,7 +35,7 @@ REVIEWER_B_SYSTEM = render_package_template(
     {},
 )
 
-# VRES-05 repo-context caps: strong tier pays for this once per ->Done.
+# VRES-05 repo-context caps: strong tier pays for this once per ->Done
 REPO_CONTEXT_MAX_LINES_PER_FILE = 200
 REPO_CONTEXT_MAX_CHARS = 8_000
 
@@ -105,8 +90,8 @@ class ReviewerB:
         self._provider = provider
         self._fast_model = fast_model
         self._strong_model = strong_model
-        # Project root for .voss/prompts/ overrides (V16-04). None falls back
-        # to process cwd — callers with a real workspace root should pass it.
+        # Project root for.voss/prompts/ overrides. None falls back
+        # to process cwd callers with a real workspace root should pass it
         self._cwd = cwd
 
     def review(
@@ -123,32 +108,32 @@ class ReviewerB:
         """
         model = self._fast_model if tier == "fast" else self._strong_model
 
-        # Build user message from card attributes ONLY — isolation guarantee.
+        # Build user message from card attributes ONLY isolation guarantee
         original_idea = getattr(card, "original_idea", "") or ""
         acceptance = getattr(card, "acceptance_criteria", "") or getattr(card, "acceptance", "") or ""
         artifact_text = getattr(card, "artifact_text", "") or str(getattr(card, "artifact", "") or "")
         file_diff = getattr(card, "file_diff", "") or ""
         a_verification = getattr(card, "a_verification_summary", "") or ""
         # VRES-05: pre-existing source for files the diff touches. Card
-        # attribute only — populated upstream via build_repo_context, B never
-        # touches the filesystem (isolation guarantee intact).
+        # attribute only populated upstream via build_repo_context, B never
+        # touches the filesystem (isolation guarantee intact)
         repo_context = getattr(card, "repo_context", "") or ""
 
-        user_msg = render_package_template(
-            "voss",
-            "templates/prompts/reviewer_b_user.md.jinja",
-            {
-                "original_idea": original_idea,
-                "acceptance": acceptance,
-                "artifact_text": artifact_text,
-                "file_diff": file_diff,
-                "a_verification": a_verification,
-                "repo_context": repo_context,
-            },
+        user_msg = (
+            f"## Original Idea\n{original_idea}\n\n"
+            f"## Acceptance Criteria\n{acceptance}\n\n"
+            f"## Artifact\n{artifact_text}\n\n"
+            f"## File Diff\n{file_diff}\n\n"
+            f"## Reviewer-A Verification Summary\n{a_verification}\n"
         )
+        if repo_context:
+            user_msg += (
+                "\n## Repo Context (current source of files touched by the diff)\n"
+                f"{repo_context}\n"
+            )
 
-        # Prompt resolved at load time so a project copy under .voss/prompts/
-        # is honored; absent copy is byte-identical to REVIEWER_B_SYSTEM (R5).
+        # Prompt resolved at load time so a project copy under.voss/prompts/
+        # is honored; absent copy is byte-identical to REVIEWER_B_SYSTEM (R5)
         prompt_root = (self._cwd or Path.cwd()).resolve()
         system = load_prompt(
             "reviewer_b_system",
@@ -177,15 +162,15 @@ class ReviewerB:
         )
         try:
             asyncio.get_running_loop()
-            # Already in async context (e.g. pytest-asyncio) — run in thread.
+            # Already in async context (e.g. pytest-asyncio) run in thread
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 return pool.submit(asyncio.run, coro).result()
         except RuntimeError:
-            # No running loop — straightforward.
+            # No running loop straightforward
             return asyncio.run(coro)
 
-    # VREV-06 (T-V6-02-01): the LLM-controlled domain string is clamped to this
-    # closed set before it becomes a verdict value; anything else -> "unknown".
+    # VREV-06: the LLM-controlled domain string is clamped to this
+    # closed set before it becomes a verdict value; anything else -> "unknown"
     _ALLOWED_DOMAINS: frozenset[str] = frozenset({"code", "ai", "docs", "unknown"})
 
     @staticmethod

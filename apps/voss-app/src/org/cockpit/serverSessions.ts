@@ -2,29 +2,23 @@ import { createSignal } from 'solid-js';
 
 import type {
   SessionInfo,
+  VossClient,
 } from '../../../../../sdk/typescript/src/client/rest';
-import type { SidecarVossClient } from '../live/sidecarClient';
 import { registerNativeCard } from '../model/bridge';
 
 const [serverSessions, setServerSessions] = createSignal<SessionInfo[]>([]);
 const [sessionsLoading, setSessionsLoading] = createSignal(false);
 
-/** Required id ('' for malformed rows — callers skip those) */
 export function sessionId(info: SessionInfo): string {
   return typeof info.id === 'string' ? info.id : '';
 }
 
-/** Display title; falls back to the id (live sessions may carry title:null) */
 export function sessionTitle(info: SessionInfo): string {
   if (typeof info.title === 'string' && info.title.length > 0)
     return info.title;
   return sessionId(info);
 }
 
-/**
- * Relative age ("3m" / "2h" / "1d") from an updated_at/created_at-like field
- * (epoch seconds, epoch ms, or ISO string); blank when absent — live
- */
 export function sessionAgeLabel(info: SessionInfo): string {
   const ts =
     (info as Record<string, unknown>).updated_at ??
@@ -43,10 +37,6 @@ export function sessionAgeLabel(info: SessionInfo): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-/**
- * Newest first: sort by timestamp when present, else reverse the
- * server's oldest→newest insertion order. Immutable
- */
 function sortNewestFirst(list: SessionInfo[]): SessionInfo[] {
   const ts = (info: SessionInfo): number | null => {
     const raw =
@@ -65,13 +55,11 @@ function sortNewestFirst(list: SessionInfo[]): SessionInfo[] {
   return [...list].reverse();
 }
 
-/** Populate the list from GET /session; degrade silently on error */
 export async function refreshSessions(client: SidecarVossClient): Promise<void> {
   setSessionsLoading(true);
   try {
     setServerSessions(sortNewestFirst(await client.listSessions()));
   } catch {
-    // Server gone / decode error — keep the previous list, never throw.
   } finally {
     setSessionsLoading(false);
   }
@@ -80,35 +68,32 @@ export async function refreshSessions(client: SidecarVossClient): Promise<void> 
 export interface AttachSessionArgs {
   cwd: string;
   sessionId: string;
-/** Respawns the sidecar if cold (post-restart) — ensureVossClient */
+
   ensureClient: (
     cwd: string,
   ) => Promise<{ sidecarId: string; client: SidecarVossClient }>;
-/** App seam: split + nativeSessionByPaneId bind */
+
   openAttachedPane: (record: {
     sessionId: string;
-    sidecarId: string;
-    client: SidecarVossClient;
+    baseUrl: string;
+    token: string;
+    client: VossClient;
   }) => void;
 }
 
-/**
- * Attach a structured pane onto an existing server session (: attached ≡
- * started). Ensures a live client first (, then
- */
 export async function attachSession(args: AttachSessionArgs): Promise<void> {
-  const { sidecarId, client } = await args.ensureClient(args.cwd);
+  const { baseUrl, token, client } = await args.ensureClient(args.cwd);
   registerNativeCard(args.sessionId, args.sessionId);
   args.openAttachedPane({
     sessionId: args.sessionId,
-    sidecarId,
+    baseUrl,
+    token,
     client,
   });
 }
 
 export { serverSessions, sessionsLoading };
 
-/** Test-only reset (mirrors __resetLiveStream) */
 export function __resetServerSessions(): void {
   setServerSessions([]);
   setSessionsLoading(false);

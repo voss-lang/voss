@@ -8,13 +8,8 @@ import {
 } from './attentionQueue';
 import { setSelectedCardId } from '../selection';
 
-/** Blocking kinds drive the pill pulse; here they only tint the row badge */
 const BLOCKING_KINDS = new Set<AttentionItem['kind']>(['permission', 'signoff']);
 
-/**
- * chunk C row polish (mockup.ai colored kind-dot): red for the hard
- * blockers (permission / blocked), focus-orange for sign-off, amber for the
- */
 function kindDotColor(kind: AttentionItem['kind']): string {
   switch (kind) {
     case 'permission':
@@ -32,17 +27,10 @@ function kindDotColor(kind: AttentionItem['kind']): string {
 export type AttentionPanelProps = {
   open: boolean;
   onClose: () => void;
-/**
- * Permission resolution backend is out of scope for this plan — the buttons
- * must exist + be clickable. App passes a stub (or none) and we no-op
- */
+
   onPermissionAction?: (item: AttentionItem, action: PermissionAction) => void;
 };
 
-/**
- * Deep-link focus: set the global selection to the bound card/session. The
- * cockpit (Board spine / drawer / rail) all read selectedCardId, so this is the
- */
 function focusItem(item: AttentionItem): void {
   setSelectedCardId(item.cardId ?? item.deepLink.sessionNodeId ?? null);
 }

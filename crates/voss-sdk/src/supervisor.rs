@@ -23,20 +23,20 @@ impl Supervisor {
         self.child.id()
     }
 
-    /// Kill the server child and reap it, preventing a zombie process.
+    /// Kill the server child and reap it, preventing a zombie process
     pub async fn shutdown(mut self) {
         let _ = self.child.start_kill();
         let _ = self.child.wait().await;
     }
 }
 
-/// Interpreter used to launch the server:
-/// `VOSS_PYTHON` > repo `.venv/bin/python` > `python3`.
+/// Interpreter used to launch the server
+/// `VOSS_PYTHON` > repo `.venv/bin/python` > `python3`
 pub fn python_path() -> String {
     if let Ok(p) = std::env::var("VOSS_PYTHON") {
         return p;
     }
-    // CARGO_MANIFEST_DIR = <repo>/crates/voss-sdk, so ../.. reaches repo root.
+    // CARGO_MANIFEST_DIR = <repo>/crates/voss-sdk, so../.. reaches repo root
     let venv = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
     if venv.exists() {
         return venv.to_string_lossy().into_owned();
@@ -44,12 +44,12 @@ pub fn python_path() -> String {
     "python3".to_string()
 }
 
-/// Spawn `voss serve` and complete the startup handshake.
+/// Spawn `voss serve` and complete the startup handshake
 pub async fn spawn() -> Result<Supervisor, VossError> {
     spawn_with(&python_path(), &[]).await
 }
 
-/// Spawn with an explicit interpreter and extra environment.
+/// Spawn with an explicit interpreter and extra environment
 pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supervisor, VossError> {
     let mut cmd = Command::new(python);
     cmd.args(["-m", "voss.cli", "serve", "--port", "0"])
@@ -57,11 +57,8 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("PYDANTIC_DISABLE_PLUGINS", "1")
-        // litellm fetches its model-cost map over the network at import time,
+        // litellm fetches its model-cost map over the network at import time
         // adding ~12s (and a hang risk) to server startup. Force the bundled
-        // local map so a freshly spawned server never blocks the handshake on
-        // a remote request. litellm matches this case-insensitively against
-        // "true".
         .env("LITELLM_LOCAL_MODEL_COST_MAP", "true")
         .kill_on_drop(true);
     for (key, value) in extra_env {
@@ -78,7 +75,7 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
         .take()
         .ok_or_else(|| VossError::Handshake("server: no stderr pipe".into()))?;
     // Continuously drain stderr so the pipe never fills (which would block the
-    // server) and so captured lines can be reported on a handshake failure.
+    // server) and so captured lines can be reported on a handshake failure
     let stderr_buf = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     {
         let stderr_buf = std::sync::Arc::clone(&stderr_buf);
@@ -96,7 +93,6 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
 
     // litellm's import tree is large; a cold `.pyc` compile can take ~45s on
     // first run, so the handshake budget must tolerate it (warm startup is
-    // ~15s). The stdin-EOF heartbeat reaps the server if we give up early.
     let handshake = tokio::time::timeout(std::time::Duration::from_secs(60), async {
         while let Some(line) = lines
             .next_line()
@@ -115,10 +111,12 @@ pub async fn spawn_with(python: &str, extra_env: &[(&str, &str)]) -> Result<Supe
     .await
     .map_err(|_| {
         let captured = stderr_buf.lock().map(|b| b.clone()).unwrap_or_default();
-        VossError::Handshake(format!("server handshake timed out; stderr:\n{captured}"))
+        VossError::Handshake(format!(
+            "server handshake timed out; stderr:\n{captured}"
+        ))
     })??;
 
-    // Drain remaining stdout so a full pipe buffer never blocks the server.
+    // Drain remaining stdout so a full pipe buffer never blocks the server
     tokio::spawn(async move { while let Ok(Some(_)) = lines.next_line().await {} });
 
     Ok(Supervisor {

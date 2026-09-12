@@ -1,9 +1,4 @@
-"""EM LLM call wrapper — mirrors voss/eval/judge.py:judge_run (O5-03, OEM-03).
-
-Async `em_plan(...)` calls provider.complete with response_format=EMPlanResponse
-and temperature=0.0. On ParseError or parsed=None, returns a Noop fallback
-(never raises for parse failures — only other exceptions bubble).
-"""
+"""EM LLM call wrapper for structured em_plan responses."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -37,19 +32,20 @@ async def em_plan(
     On ParseError or parsed=None, returns EMPlanResponse(ops=[NoopOp(reason="parse_failure")]).
     On other exceptions, re-raises (the loop's responsibility to handle).
     """
-    user_msg = render_package_template(
-        "voss",
-        "templates/prompts/em_user.md.jinja",
-        {
-            "idea": idea,
-            "snapshot": snapshot,
-            "roster": list(roster_descriptions.items()) if roster_descriptions else [],
-        },
+    roster_text = ""
+    if roster_descriptions:
+        lines = [f"  - {role}: {desc}" for role, desc in roster_descriptions.items()]
+        roster_text = "\n## Available Roster Roles\n" + "\n".join(lines) + "\n"
+
+    user_msg = (
+        f"## Original Idea\n{idea}\n\n"
+        f"## Current Board Snapshot\n{snapshot}\n"
+        f"{roster_text}"
     )
 
-    # Prompt resolved at load time so a project copy under .voss/prompts/
+    # Prompt resolved at load time so a project copy under.voss/prompts/
     # is honored; absent copy is byte-identical to EM_SYSTEM (R5). Callers
-    # with a real workspace root pass cwd; None falls back to process cwd.
+    # with a real workspace root pass cwd; None falls back to process cwd
     prompt_root = (cwd or Path.cwd()).resolve()
     system = load_prompt(
         "em_system",

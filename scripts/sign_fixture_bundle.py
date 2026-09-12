@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Author-side tool to sign the voss-git-summary fixture bundle manifest.
-
+"""
+Author-side tool to sign the voss-git-summary fixture bundle manifest.
 Generates the test Ed25519 keypair if absent, serialization is in raw 32-byte Base64.
-Computes a detached Ed25519 signature over manifest.toml and writes it as hex to manifest.toml.sig.
 """
 from __future__ import annotations
 

@@ -87,7 +87,7 @@ describe('themeRuntime — preview stack', () => {
     previewTheme(dracula);
     commitThemePreview();
 
-    cancelThemePreview(); // no-op — preview stack cleared
+    cancelThemePreview(); // no-op preview stack cleared
     expect(document.documentElement.style.getPropertyValue('--bg-0')).toBe(
       dracula.cssVars['--bg-0'],
     );

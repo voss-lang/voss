@@ -1,15 +1,15 @@
-"""O4-02 Task 2: Reviewer-B tests — ORVW-04..07 + ORVW-09.
-
+"""
+O4-02 Task 2: Reviewer-B tests — ORVW-04..07 + ORVW-09.
 FakeReviewerBProvider mirrors FakeJudgeProvider from tests/eval/test_judge_verdict.py:
-canned ProviderResponse with .parsed field, records calls for inspection.
 """
 from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Optional
 
+import pytest
 
-from voss_runtime.providers.base import ProviderResponse
+from voss_runtime.providers.base import ModelProvider, ProviderResponse
 
 from voss.harness.board.reviewer_b import ReviewerB, REVIEWER_B_SYSTEM, _ReviewerBOutput
 from voss.harness.board.verdict import Reviewer, ReviewerVerdict

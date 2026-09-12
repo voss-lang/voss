@@ -1,15 +1,6 @@
-"""Curated model lists for subscription auth paths (R8 `/model` picker).
-
+"""
+Curated model lists for subscription auth paths (R8 `/model` picker)
 The catalog-driven `/models` picker routes API-key providers; subscription
-providers (Claude via the Agent SDK, ChatGPT via the Codex backend) accept
-only a narrow, account-billed model set with no listing API. This module is
-the ONE place that set lives: `SUBSCRIPTION_MODELS` maps auth mode →
-curated entries, `detect_auth_mode` maps the live provider object back to
-its auth mode, and `match` implements the `/model <query>` precedence
-(exact id → unique prefix → unique substring).
-
-Lists are best-effort: neither backend validates a model id up front, so a
-stale/wrong id surfaces as a turn error, same as a hand-typed `/model <id>`.
 """
 from __future__ import annotations
 
@@ -29,8 +20,8 @@ class SubscriptionModel:
 
 # Auth mode → curated models, in picker order. Claude ids track the ones the
 # harness already pins (cli.py boot snap, config.py role aliases); Codex ids
-# are the gpt-5.x set the ChatGPT backend serves (providers.py:475 — older
-# gpt-5/gpt-5-codex ids 400).
+# are the gpt-5.x set the ChatGPT backend serves (providers.py:475 older
+# gpt-5/gpt-5-codex ids 400)
 SUBSCRIPTION_MODELS: dict[str, tuple[SubscriptionModel, ...]] = {
     "claude": (
         SubscriptionModel(
@@ -63,19 +54,9 @@ SUBSCRIPTION_MODELS: dict[str, tuple[SubscriptionModel, ...]] = {
             recommended=True,
         ),
         SubscriptionModel(
-            "gpt-5.4",
-            "GPT-5.4",
-            "Strong general-purpose Codex model",
-        ),
-        SubscriptionModel(
-            "gpt-5.4-mini",
-            "GPT-5.4 mini",
+            "gpt-5.5-mini",
+            "GPT-5.5 mini",
             "Smaller and faster · light tasks",
-        ),
-        SubscriptionModel(
-            "gpt-5.3-codex-spark",
-            "GPT-5.3 Codex Spark",
-            "Fast coding-specialized model",
         ),
     ),
 }

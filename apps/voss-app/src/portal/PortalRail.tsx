@@ -21,7 +21,7 @@ export interface PortalRailProps {
   expanded?: boolean;
   onToggleExpanded?: () => void;
   onOpenComposer?: () => void;
-/** Active layout preset (App-owned, shared with ⌘G). Drives the layout menu */
+    /** Active layout preset (App-owned, shared with ⌘G). Drives the layout menu */
   activeLayout?: ActiveLayout;
   layoutDisabled?: boolean;
   onLayoutSelect?: (preset: LayoutPreset) => void;
@@ -81,6 +81,7 @@ const PortalRail: Component<PortalRailProps> = (props) => {
           }}
         </For>
       </div>
+      {/* "Ask Voss to…" composer trigger . The composer itself lands in onOpenComposer is wired then */}
       <button
         type="button"
         class="portal-ask"
@@ -90,6 +91,7 @@ const PortalRail: Component<PortalRailProps> = (props) => {
       >
         <span aria-hidden="true">❯</span>
       </button>
+      {/* Layout presets demoted from the top chrome. Distinct from the 9 nav tabs and the ask trigger. Opens a menu that mounts the unchanged */}
       <Show when={props.onLayoutSelect}>
         <div class="portal-layout-wrap">
           <button

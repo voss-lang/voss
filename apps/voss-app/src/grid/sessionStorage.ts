@@ -1,58 +1,56 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { LayoutPreset } from '../canvas/arrange';
-import type { LegacyGridStore } from '../canvas/migrate';
-import type { CanvasState } from '../canvas/model';
+import type { GridStore } from './tree';
+import type { LayoutPreset } from './layoutPresets';
 
 /**
  * Frontend bridge for Rust session persistence commands. Mirrors
- * `layoutStorage.ts` — thin invoke wrappers, no remap logic
+ * `layoutStorage.ts` thin invoke wrappers, no remap logic
  */
 
-/** pane scrollback payload — mirrors Rust `SessionPane` */
 export type SessionPane = {
   id: string;
   scrollback: string[] | null;
 };
 
-/** v1 (split tree) — still loadable; migrated to v2 on first save */
+/** (split tree) still loadable; migrated to on first save */
 export type SessionFileV1 = {
   version: 1;
   activePreset: LayoutPreset | null;
-  grid: LegacyGridStore;
+  grid: GridStore;
   panes: SessionPane[];
   projectLessAccepted: boolean;
 };
 
-/** v2 (free canvas) — mirrors Rust `SessionFile` with `canvas` set */
 export type SessionFileV2 = {
   version: 2;
   activePreset: LayoutPreset | null;
-/** Absent only for files Rust wrote from a legacy tree; `grid` is set then */
+    /** Absent only for files Rust wrote from a legacy tree; `grid` is set then */
   canvas?: CanvasState;
   grid?: LegacyGridStore;
   panes: SessionPane[];
   projectLessAccepted: boolean;
 };
 
-/** Wire-level session shape — mirrors Rust `SessionFile` */
 export type SessionFile = SessionFileV1 | SessionFileV2;
 
+// Error copy constants (match Rust SessionError::Display)
 
 export const SESSION_SAVE_FAILED = 'could not save session';
 export const SESSION_LOAD_FAILED = 'could not load session';
 
+// Tauri command bridges
 
 export async function saveSession(
-  workspaceId: string,
+  workspacePath: string,
   session: SessionFile,
 ): Promise<void> {
-  await invoke('save_session', { workspaceId, session });
+  await invoke('save_session', { workspacePath, session });
 }
 
 export async function loadSession(
-  workspaceId: string,
+  workspacePath: string,
 ): Promise<SessionFile | null> {
-  return invoke<SessionFile | null>('load_session', { workspaceId });
+  return invoke<SessionFile | null>('load_session', { workspacePath });
 }
 
 export async function saveGlobalSession(

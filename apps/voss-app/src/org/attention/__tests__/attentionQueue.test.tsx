@@ -16,13 +16,10 @@ import {
   __resetAttentionQueue,
 } from '../attentionQueue';
 
-// 04 global AttentionQueue. The module-level queue + bridge maps are GLOBAL
-// signals — reset both after every test so ingest/register state never leaks.
 afterEach(() => {
   __resetAttentionQueue();
   __resetBridgeMaps();
 });
-
 
 const permissionEvent: AgentEvent = {
   type: 'permission.updated',
@@ -45,7 +42,6 @@ function budgetThresholdEvent(sessionId: string): AgentEvent {
   };
 }
 
-/** A run snapshot whose RunFinal carries a sign_off (signoff item source) */
 function runDataWithSignOff(): RunData {
   return {
     run_id: 'R1',
@@ -68,15 +64,11 @@ function runDataWithSignOff(): RunData {
   };
 }
 
-
 describe('AttentionQueue — aggregator (permission + budget + sign-off)', () => {
   it('injecting permission + budget-threshold + sign-off yields exactly 3 items, each deep-linked via resolveCard', () => {
-    // Bind a terminal card to a pane (Bridge B) — permission item deep-links to it.
     const permCardId = registerTerminalCard('PANE-A');
-    // Bind a native card to a session (Bridge A) — budget item deep-links to it.
     const budgetSession = '0139377ff590';
     registerNativeCard('CARD-NATIVE', budgetSession);
-    // Bind the snapshot root so the sign-off item deep-links too.
     registerNativeCard('ROOT1', 'ROOT1');
 
     ingestEvent(permissionEvent, { cardId: permCardId });
@@ -88,16 +80,12 @@ describe('AttentionQueue — aggregator (permission + budget + sign-off)', () =>
 
     const byKind = Object.fromEntries(items.map((i) => [i.kind, i]));
 
-    // permission → bound pane
     expect(byKind.permission.deepLink.paneId).toBe('PANE-A');
 
-    // budget → bound session node (Bridge A: session id IS the node id)
     expect(byKind.budget.deepLink.sessionNodeId).toBe(budgetSession);
 
-    // sign-off → bound root session node
     expect(byKind.signoff.deepLink.sessionNodeId).toBe('ROOT1');
 
-    // every item carries a non-empty deep-link (paneId OR sessionNodeId)
     for (const item of items) {
       expect(
         item.deepLink.paneId !== undefined ||
@@ -106,7 +94,6 @@ describe('AttentionQueue — aggregator (permission + budget + sign-off)', () =>
     }
   });
 });
-
 
 describe('AttentionQueue — permission item shape', () => {
   it('exposes allow-once/allow-scoped/deny and carries tool + args + dimension + affectedPath', () => {
@@ -131,7 +118,6 @@ describe('AttentionQueue — permission item shape', () => {
   });
 });
 
-
 describe('AttentionQueue — dedup', () => {
   it('re-ingesting the same event id does not add a second item', () => {
     const cardId = registerTerminalCard('PANE-C');
@@ -142,12 +128,10 @@ describe('AttentionQueue — dedup', () => {
   });
 });
 
-
 describe('AttentionQueue — VCKP-13b CLI permission-proxy (best-effort)', () => {
   it('a simulated Claude Code PreToolUse-shaped payload routes through ingestEvent → permission item with tool + affectedPath', () => {
     const cardId = registerTerminalCard('PANE-CLI');
 
-    // Raw Claude Code PreToolUse hook payload (cwd at top level, args in tool_input).
     const rawPreToolUse = {
       hook_event_name: 'PreToolUse',
       tool_name: 'Edit',
@@ -157,7 +141,6 @@ describe('AttentionQueue — VCKP-13b CLI permission-proxy (best-effort)', () =>
       permission_request_id: 'cli-perm-7',
     };
 
-    // Normalize to the permission event shape, then route through the SAME path.
     const ev = normalizeCliPermission(rawPreToolUse);
     ingestEvent(ev, { cardId });
 
@@ -166,14 +149,11 @@ describe('AttentionQueue — VCKP-13b CLI permission-proxy (best-effort)', () =>
     const item = items[0];
     expect(item.kind).toBe('permission');
     expect(item.tool).toBe('Edit');
-    // affectedPath surfaces from tool_input.file_path (proxy routing proven).
     expect(item.affectedPath).toBe('/proj/app.py');
-    // cwd folded into args for downstream consumers.
     expect(item.args?.cwd).toBe('/proj');
     expect(item.deepLink.paneId).toBe('PANE-CLI');
   });
 });
-
 
 describe('AttentionQueue — resolveAttentionItem (V15-04)', () => {
   it('removes exactly the row with the prefixed permission id, leaving others intact', () => {

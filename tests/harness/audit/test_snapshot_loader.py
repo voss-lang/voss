@@ -1,7 +1,6 @@
-"""O6-02 Task 2: Snapshot loader tests (OAUD-02).
-
+"""
+O6-02 Task 2: Snapshot loader tests (OAUD-02).
 Verifies the loader is read-only, hydrates all audit data from fixtures,
-handles malformed input, and does not require live O3-O5 imports.
 """
 from __future__ import annotations
 
@@ -17,7 +16,10 @@ from voss.harness.audit.model import (
     AuditSnapshot,
     KillRecord,
     Leak6Assessment,
+    LivenessEvent,
     RescopeRecord,
+    ReviewerAssessment,
+    RoutingRationale,
 )
 
 

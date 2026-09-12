@@ -1,12 +1,6 @@
 import { For, Show, createSignal } from 'solid-js';
 import type { RunData, ReviewSidecar } from '../types';
 
-// 08 — card verification drilldown.
-// raw diff text NEVER persists in the V2-V7 substrate
-// (sections_missing always contains diff_summary). So the card surface is
-// the review sidecar's a_verification; the "No diff recorded" state is the
-// verified reality, NOT a placeholder.
-
 function outcomeColor(result: string): string {
   const v = result.toUpperCase();
   if (v === 'PASS') return 'var(--accent-green)';
@@ -30,7 +24,7 @@ export default function DiffPanel(props: {
 
   return (
     <div class="org-panel">
-      {/* Card picker */}
+      {}
       <div
         style={{
           display: 'flex',
@@ -85,12 +79,12 @@ export default function DiffPanel(props: {
         when={activeId()}
         fallback={<div class="org-empty">Select a card to view its diff.</div>}
       >
-        {/* Diff view — always the explicit no-diff state in this substrate */}
+        {}
         <div class="org-empty" style={{ 'min-height': '80px', flex: '0 0 auto' }}>
           No diff recorded for this card.
         </div>
 
-        {/* Verification surface from a_verification */}
+        {}
         <div
           style={{
             'font-family': 'var(--font-display), Poppins, system-ui, sans-serif',

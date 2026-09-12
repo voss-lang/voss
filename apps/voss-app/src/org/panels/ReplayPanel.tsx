@@ -2,10 +2,6 @@ import { For, Show, createSignal } from 'solid-js';
 import type { RunData, SessionTreeNode, CardSnapshot } from '../types';
 import { computeBoardAtStep } from '../replayReducer';
 
-// 10 — step through persisted transitions; the board snapshot at each step
-// is computed by the pure client-side reducer (/: board/card only).
-// Other panels stay final-snapshot. The replay board is READ-ONLY.
-
 const COLUMNS: Array<{ key: string; label: string; color: string }> = [
   { key: 'Backlog', label: 'Backlog', color: 'var(--org-col-backlog)' },
   { key: 'Planned', label: 'Todo', color: 'var(--org-col-todo)' },
@@ -62,8 +58,6 @@ function ReplayCard(props: { card: CardSnapshot }) {
 export default function ReplayPanel(props: { data: RunData | null }) {
   const [step, setStep] = createSignal(0);
 
-  // strip Solid store proxies before the pure reducer.
-  // NEVER produce()/structuredClone() here.
   const plainNodes = (): SessionTreeNode[] =>
     JSON.parse(JSON.stringify(props.data?.session_tree.nodes ?? []));
 
@@ -84,7 +78,7 @@ export default function ReplayPanel(props: { data: RunData | null }) {
           </div>
         }
       >
-        {/* Controls bar */}
+        {}
         <div
           style={{
             display: 'flex',
@@ -166,6 +160,7 @@ export default function ReplayPanel(props: { data: RunData | null }) {
           </span>
         </div>
 
+        {}
         <div
           style={{
             height: '24px',
@@ -182,7 +177,7 @@ export default function ReplayPanel(props: { data: RunData | null }) {
           Audit, Verdict, Budget, and Scope panels show final-run state only.
         </div>
 
-        {/* Read-only board snapshot */}
+        {}
         <div style={{ flex: '1', 'min-height': '0', display: 'flex', overflow: 'hidden', position: 'relative' }}>
           <span
             style={{

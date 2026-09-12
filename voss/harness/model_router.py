@@ -1,36 +1,19 @@
-"""Route a catalog ModelEntry to a live provider + litellm model string.
-
+"""
+Route a catalog ModelEntry to a live provider + litellm model string
 The picker (P3/P4) hands a `ModelEntry` here; this module turns it into a
-ready-to-use `(provider, model_string)` pair. Two routes:
-
-  * native       — Anthropic / OpenAI models litellm knows by id
-                   (api_base is None) → model = entry.id
-  * openai-compat — Ollama Cloud / OpenCode Zen / Go (api_base set, all
-                   `@ai-sdk/openai-compatible`) → model = "openai/<id>" with
-                   the provider's api_base + api key.
-
-Key resolution reads the provider's env var today; P2 layers a keyring lookup
-in front via the injectable `getter`. The actual swap of the *live* session
-provider (ctx.provider / app provider) is wired in P6 — this module stays a
-pure, testable factory.
 """
 from __future__ import annotations
 
 import os
 from typing import Callable
 
+from voss_runtime.providers import LiteLLMProvider
 from voss_runtime.providers.base import ModelProvider
 
 from . import auth
 from .model_catalog import ModelEntry, ProviderGroup
 
 KeyGetter = Callable[[str], str | None]
-
-
-def _new_litellm_provider(**kwargs) -> ModelProvider:
-    from voss_runtime.providers import LiteLLMProvider
-
-    return LiteLLMProvider(**kwargs)
 
 
 def resolve_key(
@@ -52,10 +35,7 @@ def resolve_key(
 def _default_oauth_check(provider_id: str) -> bool:
     """Native families are also 'connected' via existing OAuth/Codex creds."""
     if provider_id == "anthropic":
-        try:
-            return auth.resolve("claude").source == "claude-agent"
-        except Exception:  # noqa: BLE001 — credential probing must not break picker
-            return False
+        return auth.load_anthropic_oauth() is not None
     if provider_id == "openai":
         codex = auth.load_codex()
         return bool(codex and (codex.api_key or codex.has_oauth))
@@ -118,31 +98,10 @@ def build_provider_for_model(
     when known, else litellm reads it from the env).
     """
     if entry.api_base:
-        provider = _new_litellm_provider(api_base=entry.api_base, api_key=api_key)
+        provider = LiteLLMProvider(api_base=entry.api_base, api_key=api_key)
     else:
-        provider = _new_litellm_provider(api_key=api_key)
-    setattr(provider, "voss_provider_id", entry.provider_id)
-    setattr(provider, "voss_provider_label", entry.provider_label)
-    setattr(provider, "voss_model_id", entry.id)
+        provider = LiteLLMProvider(api_key=api_key)
     return provider, model_string(entry)
-
-
-def _claude_subscription_provider(entry: ModelEntry) -> tuple[ModelProvider, str] | None:
-    if entry.provider_id != "anthropic" or entry.api_base:
-        return None
-    try:
-        res = auth.resolve("claude")
-    except Exception:  # noqa: BLE001 — fall back to normal API-key handling
-        return None
-    if res.source != "claude-agent":
-        return None
-    from .claude_agent_provider import ClaudeAgentProvider
-
-    provider = ClaudeAgentProvider(model_default=entry.id, cli_path=res.cli_path)
-    setattr(provider, "voss_provider_id", entry.provider_id)
-    setattr(provider, "voss_provider_label", entry.provider_label)
-    setattr(provider, "voss_model_id", entry.id)
-    return provider, entry.id
 
 
 def flatten(groups: list[ProviderGroup]) -> list[ModelEntry]:
@@ -235,11 +194,6 @@ def prepare_model(
     surfaces this as "needs connect" (P5) rather than failing a turn later.
     """
     key = resolve_key(entry, getter=getter, keyring_get=keyring_get)
-    if key is None:
-        subscription = _claude_subscription_provider(entry)
-        if subscription is not None:
-            provider, model = subscription
-            return provider, model, True
     provider, model = build_provider_for_model(entry, api_key=key)
     needs_key = entry.env_key is not None
     key_present = (key is not None) if needs_key else True

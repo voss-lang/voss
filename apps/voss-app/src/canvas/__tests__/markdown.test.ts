@@ -3,10 +3,10 @@ import { renderMarkdown } from '../markdown';
 
 describe('renderMarkdown', () => {
   it('renders headings, lists, paragraphs, and inline marks', () => {
-    const html = renderMarkdown('# Title\n\n- one\n- **two**\n\n1. a\n2. `b`\n\nSome _text_ with [a link](https://x.y).');
+    const html = renderMarkdown('# Title\n\n- one\n- **two**\n\n1. a\n2. `b`\n\nSome _text_ with [a link](https: // x.y).')
     expect(html).toBe(
       '<h1>Title</h1><ul><li>one</li><li><strong>two</strong></li></ul><ol><li>a</li><li><code>b</code></li></ol>' +
-        '<p>Some <em>text</em> with <a href="https://x.y" target="_blank" rel="noreferrer">a link</a>.</p>',
+        '<p>Some <em>text</em> with <a href="https: // x.y" target="_blank" rel="noreferrer">a link</a>.</p>'
     );
   });
 

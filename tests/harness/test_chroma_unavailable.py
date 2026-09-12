@@ -1,15 +1,12 @@
-"""MemoryStore behavior when chromadb is unavailable.
-
+"""
+MemoryStore behavior when chromadb is unavailable.
 The harness must not crash if `chromadb` is unimportable. `_maybe_chroma`
-returns None; `recall` falls back to BM25 search; `write_*` paths return
-without crashing.
-
-Uses the existing `chroma_disabled_env` fixture from tests/harness/conftest.py.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 
 from voss.harness.memory_store import MemoryStore
 

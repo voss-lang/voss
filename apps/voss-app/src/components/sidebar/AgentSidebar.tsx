@@ -5,7 +5,6 @@ import ActivitySection from './ActivitySection';
 import type { ActivityEvent } from './ActivitySection';
 import UsageSection from './UsageSection';
 import type { UsageEntry } from './UsageSection';
-import FileTree from './FileTree';
 import './sidebar.css';
 
 type AgentEntry = Omit<AgentItemProps, 'onClick' | 'onContextMenu' | 'isActive'>;
@@ -21,7 +20,6 @@ export interface AgentSidebarProps {
   activityEvents: ActivityEvent[];
   usageEntries: UsageEntry[];
   workspacePath: string | null;
-  onOpenFile?: (relPath: string) => void;
 }
 
 const AgentSidebar: Component<AgentSidebarProps> = (props) => {
@@ -125,8 +123,7 @@ const AgentSidebar: Component<AgentSidebarProps> = (props) => {
               )}
             </For>
           </Show>
-          {/* V14 chunk C — quick-launch row (mockup .qlbtn): same launch
-              path as the header + button. */}
+          {/* quick-launch row ( .qlbtn): same launch path as the header + button */}
           <button
             type="button"
             class="sidebar-quick-launch"
@@ -147,12 +144,6 @@ const AgentSidebar: Component<AgentSidebarProps> = (props) => {
         <div class="sidebar-section-label">USAGE</div>
         <div class="sidebar-section-body">
           <UsageSection entries={props.usageEntries} />
-        </div>
-
-        {/* FILES section */}
-        <div class="sidebar-section-label">FILES</div>
-        <div class="sidebar-section-body" style={{ flex: '1', 'min-height': '0', overflow: 'auto' }}>
-          <FileTree projectPath={props.workspacePath} onOpenFile={props.onOpenFile} />
         </div>
       </div>
 

@@ -14,15 +14,11 @@ import {
 import AuditPanel from '../panels/AuditPanel';
 import BlockedPanel from '../panels/BlockedPanel';
 
-// Same one-write-path disabled reason BlockedPanel shows for reject/unblock —
-// decisionActions has no non-interactive reject surface (no invented behavior).
 const NO_REJECT_REASON =
   'No non-interactive CLI command exists yet — use the harness sign-off';
 const OPEN_DISABLED_REASON =
   'No live agent is bound to this card — it comes from a saved run.';
 
-// Board column key -> display label + token color (cockpit-scoped: the
-// --org-col-* aliases live outside the A12 allowed set, so map to base tokens).
 const COLUMN_LABELS: Record<string, string> = {
   Backlog: 'Backlog',
   Planned: 'Planned',
@@ -74,28 +70,19 @@ function DrawerCollapse(props: { title: string; children: JSX.Element }) {
   );
 }
 
-/**
- * Persistent drawer. Reads the global `selectedCardId` / `runData`. A
- * `data` prop is accepted so CockpitShell may pass the snapshot explicitly, but
- */
 export default function CardDrawer(props: {
   data?: RunData | null;
-/** 1 client -up write path (absent = no live wiring) */
+
   followUpClient?: FollowUpClient;
 }) {
   const data = (): RunData | null =>
     props.data !== undefined ? props.data : runData();
 
-  // the bound live pane for the selected card (undefined for pure
-  // snapshot cards). Drives the peek section + the Open-in-grid enabled state.
   const boundPaneId = (): string | undefined => {
     const id = selectedCardId();
     return id ? paneIdForCard(id) : undefined;
   };
 
-  // UI-REVIEW 2a: the drawer leads with the card's TITLE (scope), never the
-  // raw internal id. Falls back to the id only when the node isn't in the
-  // snapshot (e.g. live-only cards).
   const selectedNode = () => {
     const id = selectedCardId();
     const d = data();
@@ -109,16 +96,11 @@ export default function CardDrawer(props: {
     return id && d ? (d.review[id] ?? null) : null;
   };
 
-  // LIVE-only confidence: the SSE overlay keyed by the session correlation key
-  // (card id IS the session node id for snapshot cards). Never from RunData.
   const confidence = (): number | undefined => {
     const id = selectedCardId();
     return id ? liveOverlay()[id]?.confidence : undefined;
   };
 
-  // EM acceptance criteria: tolerant read of a `criteria: string[]` field on
-  // the em.ticket transition. No such field persists in the V2-V7 substrate
-  // yet, so this resolves [] (section hidden) — never fabricated.
   const criteria = (): string[] => {
     const n = selectedNode();
     if (!n) return [];
@@ -142,9 +124,6 @@ export default function CardDrawer(props: {
     return null;
   };
 
-  // 09: a comment can dispatch only when a live client exists AND the
-  // selected card is bound to a NATIVE session (snapshot cards have no write
-  // path → disabled-with-reason, never a silent no-op).
   const [comment, setComment] = createSignal('');
   const canComment = (): boolean => {
     const id = selectedCardId();
@@ -179,7 +158,7 @@ export default function CardDrawer(props: {
       }
     >
       <div class="cockpit-drawer__body">
-        {/* Header (mockup .dhdr): mono id line, title, kv grid. */}
+        {}
         <header class="cockpit-dhdr">
           <div class="cockpit-dhdr__id">
             {selectedCardId()}
@@ -222,7 +201,7 @@ export default function CardDrawer(props: {
                     {node().envelope.spent} / {node().envelope.limit}
                   </div>
                 </div>
-                {/* Confidence: live SSE overlay only — omitted on snapshot. */}
+                {}
                 <Show when={confidence() !== undefined}>
                   <div class="cockpit-kv">
                     <div class="cockpit-kv__k">Confidence</div>
@@ -236,6 +215,7 @@ export default function CardDrawer(props: {
           </Show>
         </header>
 
+        {}
         <Show when={boundPaneId()}>
           <section class="cockpit-dsec" aria-label="Live execution">
             <div class="cockpit-dsec__title">Live execution</div>
@@ -251,7 +231,7 @@ export default function CardDrawer(props: {
           </section>
         </Show>
 
-        {/* EM acceptance criteria — only when the ticket carries them. */}
+        {}
         <Show when={criteria().length > 0}>
           <section class="cockpit-dsec" aria-label="Acceptance criteria">
             <div class="cockpit-dsec__title">EM acceptance criteria</div>
@@ -266,7 +246,7 @@ export default function CardDrawer(props: {
           </section>
         </Show>
 
-        {/* Reviewers — A/B verdict rows from the ReviewSidecar. */}
+        {}
         <section class="cockpit-dsec" aria-label="Reviewers">
           <div class="cockpit-dsec__title">Reviewers</div>
           <div class="cockpit-verdict">
@@ -319,6 +299,7 @@ export default function CardDrawer(props: {
           </div>
         </section>
 
+        {}
         <section class="cockpit-dsec" aria-label="Diff">
           <div class="cockpit-dsec__title">Diff</div>
           <div class="cockpit-diff">
@@ -338,7 +319,7 @@ export default function CardDrawer(props: {
           </Show>
         </section>
 
-        {/* Routing rationale — from the em.routing transition when present. */}
+        {}
         <Show when={routing()}>
           {(r) => (
             <section class="cockpit-dsec" aria-label="Routing rationale">
@@ -350,6 +331,7 @@ export default function CardDrawer(props: {
           )}
         </Show>
 
+        {}
         <section class="cockpit-comment" aria-label="Follow-up comment">
           <textarea
             class="cockpit-comment__box"
@@ -378,7 +360,7 @@ export default function CardDrawer(props: {
           </Show>
         </section>
 
-        {/* Run-level Audit / Blocked panel bodies — compact collapsibles. */}
+        {}
         <DrawerCollapse title="Audit">
           <AuditPanel data={data()} />
         </DrawerCollapse>
@@ -386,7 +368,7 @@ export default function CardDrawer(props: {
           <BlockedPanel data={data()} />
         </DrawerCollapse>
 
-        {/* Bottom action row (mockup .dactions). */}
+        {}
         <div class="cockpit-dactions">
           <button
             type="button"

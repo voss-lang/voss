@@ -1,9 +1,3 @@
-/**
- * Task 2 — typed command registry and v0 command catalog
- * Single source of truth for keyboard dispatch, palette search, and
- */
-
-
 export type CommandCategory =
   | 'Window'
   | 'Workspace'
@@ -17,9 +11,9 @@ export interface CommandDefinition {
   id: string;
   label: string;
   category: CommandCategory;
-/** Primary keybinding (shown in palette chord hint) */
+    /** Primary keybinding (shown in palette chord hint) */
   keybinding?: string;
-/** Additional chord bindings not shown in palette */
+    /** Additional chord bindings not shown in palette */
   aliases?: string[];
   handler: (ctx: AppContext) => void;
 }
@@ -31,8 +25,8 @@ export type KeyBindingOverrides = Readonly<
 >;
 
 /**
- * Cross-module action callbacks. Built once at App.tsx mount
- * Handlers destructure what they need — no Solid imports leak in
+ * Cross-module action callbacks . Built once at App.tsx mount
+ * Handlers destructure what they need no Solid imports leak in
  */
 export interface AppContext {
   splitFocused: (orientation: 'H' | 'V') => void;
@@ -44,12 +38,6 @@ export interface AppContext {
   focusIndex: (n: number) => void;
   focusDirection: (dir: 'left' | 'right' | 'up' | 'down') => void;
   resizeDirection: (dir: 'left' | 'right' | 'up' | 'down') => void;
-  zoomReset?: () => void;
-  zoomFit?: () => void;
-  zoomToFocused?: () => void;
-  moveMode?: () => void;
-  newTerminalNode?: () => void;
-  newNoteNode?: () => void;
   openQuickPalette: () => void;
   openFullPalette: () => void;
   openProject: () => void;
@@ -72,6 +60,7 @@ export interface AppContext {
   toggleSidebar?: () => void;
 }
 
+// Registry
 
 export interface CommandRegistry {
   readonly commands: ReadonlyMap<string, Command>;
@@ -125,6 +114,7 @@ export function createCommandRegistry(
   };
 }
 
+// Command Catalog
 
 const DIRECTIONS = ['Left', 'Right', 'Up', 'Down'] as const;
 type Dir = (typeof DIRECTIONS)[number];
@@ -315,6 +305,7 @@ export function v0Commands(): CommandDefinition[] {
   ];
 }
 
+// Workspace Command Catalog ( / UXP-03)
 
 export function workspaceCommands(): CommandDefinition[] {
   return [
@@ -366,6 +357,7 @@ export function workspaceCommands(): CommandDefinition[] {
   ];
 }
 
+// Agent Command Catalog
 
 export function agentCommands(): CommandDefinition[] {
   return [
@@ -378,6 +370,7 @@ export function agentCommands(): CommandDefinition[] {
   ];
 }
 
+// Appearance Command Catalog ( / UXP-04..07)
 
 export function appearanceCommands(): CommandDefinition[] {
   return [

@@ -1,21 +1,16 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 
-// 04: the live permission gate replies through the SDK — mock it so the
-// gate tests assert the POST contract without a server.
-// 04: the spawn-failure Retry re-invokes startVossServe — mock the Tauri
-// wrapper so no command is issued under jsdom.
+// the live permission gate replies through the SDK mock it so the
+// gate tests assert the POST contract without a server
 vi.mock('../../org/live/sidecarClient', () => ({
   startVossServe: vi.fn(),
-  replySidecarPermission: vi.fn(),
 }));
 
 import ProtocolPane from '../ProtocolPane';
 import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
-import {
-  replySidecarPermission,
-  startVossServe,
-} from '../../org/live/sidecarClient';
+import { replyPermission } from '../../../../../sdk/typescript/src/client/permission';
+import { startVossServe } from '../../org/live/sidecarClient';
 import {
   attentionQueue,
   __resetAttentionQueue,
@@ -24,14 +19,11 @@ import { __resetLiveStream } from '../../org/live/sseClient';
 import { __resetProtocolSessions } from '../../org/live/protocolSessions';
 import { __resetBridgeMaps } from '../../org/model/bridge';
 
-const mockReply = vi.mocked(replySidecarPermission);
+const mockReply = vi.mocked(replyPermission);
 const mockStartServe = vi.mocked(startVossServe);
 
-// 03: the structured protocol pane renders the §6 union as DOM
-// per the — dedicated rows for user/tool/plan/stream/final/thinking,
-// a generic fallback for everything else (nothing silently dropped),
-// collapsed tool lines with click-expand, and the capped/pinned transcript.
-// The stream is injected ( — the webview only consumes).
+// (VLIVE-04): the structured pane renders the union as DOM
+// per the dedicated rows for user/tool/plan/stream/final/thinking
 
 function ev(payload: Record<string, unknown>): AgentEvent {
   return { v: 1, ...payload } as unknown as AgentEvent;
@@ -55,7 +47,8 @@ function mount(
     () => (
       <ProtocolPane
         sessionId={sessionId}
-        sidecarId="test-sidecar"
+        baseUrl="http://localhost:0"
+        token="tok"
         stream={stream}
       />
     ),
@@ -121,7 +114,7 @@ describe('ProtocolPane — dedicated rows (UI-SPEC §2)', () => {
     expect(row).not.toBeNull();
     expect(row?.textContent).toContain('fs_edit');
     expect(row?.textContent).toContain('src/auth.ts +34 −2');
-    // Collapsed default: no expanded body, no args excerpt visible.
+    // Collapsed default: no expanded body, no args excerpt visible
     expect(c.querySelector('.proto-tool-row--expanded')).toBeNull();
     expect(c.querySelector('.proto-tool-row__expanded-body')).toBeNull();
 
@@ -275,7 +268,7 @@ describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
       'Allow once',
       expect.stringContaining('Allow for'),
     ]);
-    // Dual surface: ingestEvent enqueued the row with the prefixed id.
+    // Dual surface: ingestEvent enqueued the row with the prefixed id
     expect(attentionQueue().map((i) => i.id)).toContain('permission:perm-1');
   });
 
@@ -290,18 +283,16 @@ describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
     await flush();
 
     expect(mockReply).toHaveBeenCalledTimes(1);
-    expect(mockReply).toHaveBeenCalledWith(
-      'test-sidecar',
-      'sess-1',
-      'perm-1',
-      'a',
-    );
+    expect(mockReply).toHaveBeenCalledWith(expect.anything(), 'sess-1', {
+      id: 'perm-1',
+      choice: 'a',
+    });
     const gate = c.querySelector('.proto-permission-gate');
     expect(gate?.classList.contains('proto-permission-gate--resolved')).toBe(
       true,
     );
     expect(gate?.textContent).toContain('allowed once');
-    // Queue row cleared by the SAME prefixed id (-11).
+    // Queue row cleared by the SAME prefixed id
     expect(
       attentionQueue().find((i) => i.id === 'permission:perm-1'),
     ).toBeUndefined();
@@ -313,27 +304,23 @@ describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
     await flush();
     gateButtons(c)[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush();
-    expect(mockReply).toHaveBeenLastCalledWith(
-      'test-sidecar',
-      'sess-1',
-      'perm-1',
-      'd',
-    );
+    expect(mockReply).toHaveBeenLastCalledWith(expect.anything(), 'sess-1', {
+      id: 'perm-1',
+      choice: 'd',
+    });
 
-    // Fresh server session — the protocolSessions store keys gate state by
-    // session id, and 'sess-1' just resolved its gate above.
+    // Fresh server session the protocolSessions store keys gate state by
+    // session id, and 'sess-1' just resolved its gate above
     const c2 = mount(scripted([PERMISSION_EVENT()]), 'sess-2');
     await flush();
     gateButtons(c2)[2].dispatchEvent(
       new MouseEvent('click', { bubbles: true }),
     );
     await flush();
-    expect(mockReply).toHaveBeenLastCalledWith(
-      'test-sidecar',
-      'sess-2',
-      'perm-1',
-      'A',
-    );
+    expect(mockReply).toHaveBeenLastCalledWith(expect.anything(), 'sess-2', {
+      id: 'perm-1',
+      choice: 'A',
+    });
   });
 
   it('a rejected reply re-enables the buttons and keeps the queue row (no optimistic grant)', async () => {
@@ -356,7 +343,7 @@ describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
 
 describe('ProtocolPane — lifecycle states (V15-04, VLIVE-07)', () => {
   it('shows the D-10 boot placeholder before any event, replaced by the transcript after the first', async () => {
-    // Never-yielding stream: stays booting. (Distinct session ids — the
+    // Never-yielding stream: stays booting. (Distinct session ids the
     // protocolSessions store is keyed by server session id.)
     const pending = (async function* (): AsyncGenerator<AgentEvent> {
       await new Promise(() => {});
@@ -368,7 +355,7 @@ describe('ProtocolPane — lifecycle states (V15-04, VLIVE-07)', () => {
       'Starting…',
     );
 
-    // Yielding stream: boot gone, transcript present.
+    // Yielding stream: boot gone, transcript present
     const c2 = mount(
       scripted([ev({ type: 'user', task: 'go' })]),
       'sess-boot-2',
@@ -395,8 +382,7 @@ describe('ProtocolPane — lifecycle states (V15-04, VLIVE-07)', () => {
     expect(subscribes).toBe(1);
 
     // Simulated drag remount: dispose the component, mount a fresh one for
-    // the SAME server session (a second injected stream must be IGNORED —
-    // ensureProtocolStream is connect-once).
+    // the SAME server session (a second injected stream must be IGNORED
     disposers.pop()!();
     const c2 = mount(counting(), 'sess-remount');
     await flush();
@@ -409,7 +395,7 @@ describe('ProtocolPane — lifecycle states (V15-04, VLIVE-07)', () => {
   });
 
   it('a stream that ends with zero events shows the D-12 spawn error; Retry re-invokes startVossServe', async () => {
-    mockStartServe.mockResolvedValueOnce({ sidecarId: 'test-sidecar-2' });
+    mockStartServe.mockResolvedValueOnce({ port: 50099, token: 'tok-2' });
     const c = mount(scripted([]));
     await flush();
     await flush();
@@ -440,7 +426,8 @@ describe('ProtocolPane — lifecycle states (V15-04, VLIVE-07)', () => {
       () => (
         <ProtocolPane
           sessionId="sess-1"
-          sidecarId="test-sidecar"
+          baseUrl="http://localhost:0"
+          token="tok"
           onEnded={onEnded}
           stream={scripted([ev({ type: 'user', task: 'go' })])}
         />
@@ -502,16 +489,16 @@ describe('ProtocolPane — D-08 cap with pins', () => {
     await flush();
     await flush();
 
-    // Pins survive the flood.
+    // Pins survive the flood
     expect(c.querySelector('.proto-task-hdr__text')?.textContent).toBe(
       'THE TASK',
     );
     expect(c.querySelector('.proto-permission-gate')).not.toBeNull();
-    // The earliest non-pinned row was trimmed; the newest survives.
+    // The earliest non-pinned row was trimmed; the newest survives
     expect(c.textContent).not.toContain('step-0');
     expect(c.textContent).toContain('step-339');
-    // Cap holds (#rows bounded by CAP).
+    // Cap holds (#rows bounded by CAP)
     const thinkingRows = c.querySelectorAll('.proto-thinking-row');
     expect(thinkingRows.length).toBeLessThanOrEqual(300);
-  }, 30_000);
+  });
 });

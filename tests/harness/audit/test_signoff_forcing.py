@@ -1,14 +1,13 @@
-"""V9 RED scaffolds for sign-off risk forcing (VAUD-SIGNOFF).
-
+"""
+V9 RED scaffolds for sign-off risk forcing (VAUD-SIGNOFF).
 Pins ``voss.harness.cli._write_signoff_ack`` (the .signoff-ack.json writer)
-and the team_run_cmd acknowledgement gate. Expected RED until V9-06 lands.
-Uses tmp_path; never writes to the real ``.voss/``. No xfail masking.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from tests.harness.audit.test_o6_fixtures import build_fixture_tree

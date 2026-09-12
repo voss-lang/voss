@@ -1,20 +1,10 @@
-import { Channel, invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 
-import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
-import type {
-  AcceptedResponse,
-  CostInfo,
-  DoctorReport,
-  SavedSession,
-  SessionInfo,
-} from '../../../../../sdk/typescript/src/client/rest';
-import type { PermissionChoice } from '../../../../../sdk/typescript/src/client/permission';
-
-export interface SidecarHandle {
-  sidecarId: string;
+export interface ServeHandshake {
+  port: number;
+  token: string;
 }
 
-/** Mirrors RepoEnrollment in voss/harness/observe/enrollment.py. */
 export interface ObserveRepoEnrollment {
   enabled: boolean;
   capture: boolean;

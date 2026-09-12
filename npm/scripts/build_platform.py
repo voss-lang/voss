@@ -1,21 +1,7 @@
 #!/usr/bin/env python3
-"""Build one platform's vendored Python tree for the npm wrapper.
-
+"""
+Build one platform's vendored Python tree for the npm wrapper.
 Steps (per RESEARCH §3-§5):
-  1. Build (or accept) the voss wheel.
-  2. Download the pinned PBS tarball for <triple>.
-  3. Verify sha256 against npm/scripts/pbs_manifest.json (or capture+log
-     if the manifest's slot is PENDING).
-  4. Extract; confirm the expected interpreter exists.
-  5. Run prune_pbs.py to trim stdlib bloat.
-  6. pip-install the voss wheel into the vendored interpreter (no
-     --target / --prefix — RESEARCH §5).
-  7. Measure site-packages size, print SITE_PACKAGES_SIZE_MB=<N>, and
-     gate on SIZE_BUDGET_MB. SIZE_BUDGET_MB = 1500 is the v0.1 cap raised
-     from RESEARCH §5 Risk 2's original 300 MB target per the M6-03 Task 4
-     decision (see .planning/phases/M6-npm-wrapper/M6-03-host-build-log.txt
-     §DECISION). v0.1 ships with the full torch+transformers chain; v0.2
-     should optionalize semantic-memory deps and reset the cap.
 """
 
 from __future__ import annotations

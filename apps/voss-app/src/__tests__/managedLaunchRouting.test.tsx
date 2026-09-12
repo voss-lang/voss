@@ -92,7 +92,7 @@ describe('VCKP-13 — managed launch routes to spawn_managed_agent', () => {
     expect(payload.scope).toBe('/repo/tests');
     expect(payload.tier).toBe('B');
     expect(payload.cliBinary).toBe('claude');
-    expect(payload.sessionId).toBe(cardId); // Bridge B passthrough preserved
+    expect(payload.sessionId).toBe(cardId); // passthrough preserved
     expect(callsTo('spawn_agent')).toHaveLength(0); // NOT the unsandboxed spawn
   });
 
@@ -164,7 +164,7 @@ describe('VCKP-13 — budget-kill terminates the pane at the limit', () => {
     await routeDoSpawn(transport, cfg, 'pane-b');
 
     const ch = h.channels[h.channels.length - 1];
-    // Below the limit: no kill.
+    // Below the limit: no kill
     ch.onmessage!({
       type: 'budget_update',
       tokens_used: 10,
@@ -175,7 +175,7 @@ describe('VCKP-13 — budget-kill terminates the pane at the limit', () => {
     });
     expect(callsTo('pty_kill')).toHaveLength(0);
 
-    // At the limit: killed via the existing pty_kill path.
+    // At the limit: killed via the existing pty_kill path
     ch.onmessage!({
       type: 'budget_update',
       tokens_used: 20,

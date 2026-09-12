@@ -1,11 +1,7 @@
-"""SQLite-backed project index (CODE-01 foundation).
-
-Storage: .voss-cache/code/index.db (rebuildable cache, never durable).
-
-This module performs only filesystem scanning + best-effort symbol extraction
-via simple language regexes. No LSP or ast-grep calls are made here.
 """
-
+SQLite-backed project index (CODE-01 foundation)
+Storage:.voss-cache/code/index.db (rebuildable cache, never durable)
+"""
 from __future__ import annotations
 
 import os
@@ -13,6 +9,7 @@ import re
 import sqlite3
 import time
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -40,7 +37,7 @@ LANGUAGE_EXTS = {
     ".go": "go",
 }
 
-# Very lightweight symbol extraction — good enough for index + later LSP enrichment
+# Very lightweight symbol extraction good enough for index + later LSP enrichment
 SYMBOL_PATTERNS = {
     "python": re.compile(r"^(?:async\s+)?(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", re.M),
     "javascript": re.compile(r"(?:function\s+|const\s+|let\s+|var\s+)([A-Za-z_][A-Za-z0-9_]*)\s*[=:(]", re.M),
@@ -209,7 +206,7 @@ def build_index(cwd: Path) -> Path:
 
 def refresh(cwd: Path, paths: Iterable[str] | None = None) -> Path:
     """Rebuild the index (full rebuild in v0.2; paths param is accepted for future partial support)."""
-    # For v0.2 we always do a full deterministic rebuild.
+    # For.2 we always do a full deterministic rebuild
     return build_index(cwd)
 
 

@@ -1,8 +1,6 @@
-"""Agent commands for the unified `voss` CLI.
-
-Defines `do_cmd`, `chat_cmd`, `doctor_cmd` as standalone click Commands.
-- `voss.cli` imports them and adds them to the compiler's `main` group.
-- `python -m voss.harness` builds a small standalone group for testing.
+"""
+Agent commands for the unified `voss` CLI
+Defines `do_cmd`, `chat_cmd`, `doctor_cmd` as standalone click Commands
 """
 from __future__ import annotations
 
@@ -15,7 +13,7 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,7 +21,8 @@ import click
 import psutil
 
 from voss_runtime import EpisodicMemory, configure, get_config
-from voss_runtime.providers.base import ModelProvider, ProviderResponse
+from voss_runtime.providers import LiteLLMProvider
+from voss_runtime.providers.base import ModelProvider
 
 from . import auth as auth_mod
 from . import cognition as cognition_mod
@@ -31,10 +30,9 @@ from . import conventions
 from . import session as session_store
 from . import voss_md
 from .memory_cli import memory_group
-from .memory_store import MemoryStore, make_global_store
+from .memory_store import MemoryStore
 from .agent import Plan
 from .claims import claims_group
-from .net import NetSession
 from .permissions import PermissionGate, PermissionStore
 from .plugins import load_plugins, set_plugin_enabled
 from .claude_agent_provider import ClaudeAgentProvider
@@ -58,6 +56,11 @@ from .voss_inspect import (
     render_decision_sequence,
 )
 
+try:
+    import litellm as _litellm  # type: ignore
+except Exception:  # noqa: BLE001
+    _litellm = None  # type: ignore[assignment]
+
 
 def _bootstrap_runtime_config() -> None:
     """Wire on-disk [agent] config into the RuntimeConfig singleton.
@@ -77,10 +80,10 @@ def _bootstrap_runtime_config() -> None:
     )
 
 
-_NET_SESSION: NetSession | None = None
+_NET_SESSION: "NetSession | None" = None
 
 
-def _get_net_session() -> NetSession:
+def _get_net_session() -> "NetSession":
     """Lazily construct the process-wide NetSession.
 
     Lazy so test-import never allocates an httpx client and the boot
@@ -90,6 +93,7 @@ def _get_net_session() -> NetSession:
     global _NET_SESSION
     if _NET_SESSION is None:
         from .config import get_net_rate_limits
+        from .net import NetSession
 
         _NET_SESSION = NetSession(rate_overrides=get_net_rate_limits())
     return _NET_SESSION
@@ -113,119 +117,6 @@ _INTENT_ALLOWLIST = frozenset(
 def _classify_intent(line: str) -> str | None:
     """Literal-match natural-language router. No LLM. Returns intent name or None."""
     return "analyze" if line.lower().strip() in _INTENT_ALLOWLIST else None
-
-
-_AMBIENT_SYSTEM = """You are the ambient assistant inside the Voss shell.
-Answer directly and concisely. You may use the provided harness state and
-project summary, but you do not have tool access in this phase. If the user
-asks for code changes, tests, shell execution, multi-agent work, or any durable
-repo operation, say that the request should be handled as a Voss run instead of
-pretending to do it. Do not identify yourself as Voss; Voss is the harness that
-can promote this conversation into a structured run."""
-
-_WORK_INTENT_PREFIXES = (
-    "add ",
-    "build ",
-    "change ",
-    "create ",
-    "debug ",
-    "fix ",
-    "implement ",
-    "make ",
-    "modify ",
-    "patch ",
-    "refactor ",
-    "remove ",
-    "repair ",
-    "run ",
-    "update ",
-    "write ",
-)
-_WORK_INTENT_TERMS = (
-    " add test",
-    " add tests",
-    " change ",
-    " edit ",
-    " fix ",
-    " implement ",
-    " refactor ",
-    " run tests",
-    " update ",
-    " write ",
-)
-_STATUS_QUESTION_TERMS = (
-    "what model",
-    "which model",
-    "model are you",
-    "model is active",
-    "what auth",
-    "which auth",
-    "auth path",
-    "credential source",
-    "who are you",
-    "what are you",
-    "status",
-)
-
-
-def _ambient_route(line: str) -> str:
-    """Route a REPL turn before entering the structured Voss Plan loop."""
-    normalized = " ".join(line.lower().strip().split())
-    if not normalized:
-        return "ambient"
-    if normalized.startswith(_WORK_INTENT_PREFIXES):
-        return "voss_run"
-    padded = f" {normalized} "
-    if any(term in padded for term in _WORK_INTENT_TERMS):
-        return "voss_run"
-    if any(term in normalized for term in _STATUS_QUESTION_TERMS):
-        return "local"
-    return "ambient"
-
-
-def _ambient_status_answer(ctx: object, *, auth_detail: str = "") -> str:
-    provider_label = _provider_label_for_runtime(
-        getattr(ctx, "provider", None),
-        fallback=_provider_label(auth_detail),
-    )
-    model = get_config().default_model
-    mode = getattr(getattr(ctx, "gate", None), "mode", "")
-    parts = [
-        f"Provider: {provider_label or 'unknown'}",
-        f"Model: {model}",
-        "Phase: ambient",
-    ]
-    if mode:
-        parts.append(f"Permission mode: {mode}")
-    return "\n".join(parts)
-
-
-async def _run_ambient_provider_turn(line: str, ctx: ReplContext) -> ProviderResponse:
-    model = get_config().default_model
-    if ctx.project_index_text:
-        project_context = f"\n\nProject summary:\n{ctx.project_index_text}"
-    else:
-        project_context = ""
-    status = _ambient_status_answer(ctx)
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                f"{_AMBIENT_SYSTEM}\n\nHarness state:\n{status}\n"
-                f"Working directory: {ctx.cwd}{project_context}"
-            ),
-        },
-        {"role": "user", "content": line},
-    ]
-    ctx.history.add(line, role="user")
-    response = await ctx.provider.complete(
-        messages=messages,
-        model=model,
-        temperature=0.2,
-        max_tokens=1200,
-    )
-    ctx.history.add(response.text, role="assistant")
-    return response
 
 
 def _handle_analyze(
@@ -280,13 +171,10 @@ def _handle_save_plan(
         click.echo(f"warning: failed to save plan: {exc}", err=True)
 
 
-# ---------------------------------------------------------------------------
 # helpers
-# ---------------------------------------------------------------------------
 
 
 AUTH_CHOICES = ("auto", "claude", "codex", "api", "none")
-_SUBSCRIPTION_AUTH_SOURCES = frozenset({"claude-agent", "codex-oauth"})
 
 
 @dataclass
@@ -310,11 +198,11 @@ class ReplContext:
     memory_store: object | None = None
     model: str | None = None
     persist_conventions_selection: str | None = None
-    # T6 / SLASH-04 — session-scoped USD ceiling. None = unbounded.
+    # T6 / SLASH-04 session-scoped USD ceiling. None = unbounded
     budget_usd: float | None = None
     project_index_text: str = ""
     # Git-backed undo/redo (OpenCode-leverage port): each /undo snapshots the
-    # agent's content for the reverted files so /redo can restore them.
+    # agent's content for the reverted files so /redo can restore them
     redo_stack: list = field(default_factory=list)
 
 
@@ -337,79 +225,6 @@ def _resolve_default_model(user_explicit: str | None) -> None:
     persisted = harness_config.load_harness_config().get("preferred_model")
     if persisted:
         configure(default_model=persisted)
-
-
-def _is_codex_model(model: str) -> bool:
-    return model.startswith("gpt-5.")
-
-
-def _codex_default_model() -> str:
-    model = auth_mod.load_codex_default_model()
-    if model and _is_codex_model(model):
-        return model
-    from .subscription_models import SUBSCRIPTION_MODELS
-
-    return SUBSCRIPTION_MODELS["codex"][0].id
-
-
-def _openai_default_model() -> str:
-    from .subscription_models import SUBSCRIPTION_MODELS
-
-    return SUBSCRIPTION_MODELS["codex"][0].id
-
-
-def _provider_label_for_runtime(provider: object, *, fallback: str = "") -> str:
-    label = getattr(provider, "voss_provider_label", None)
-    if isinstance(label, str) and label:
-        return label
-    if isinstance(provider, ClaudeAgentProvider):
-        return "Anthropic"
-    if isinstance(provider, OpenAIOAuthProvider):
-        return "Codex"
-    return fallback
-
-
-def _provider_label_for_auth(res: auth_mod.Resolution, provider: object) -> str:
-    if res.source in ("codex", "codex-oauth"):
-        return "Codex"
-    if res.source in ("claude-agent", "env-anthropic", "voss-anthropic"):
-        return "Anthropic"
-    if res.source in ("env-openai", "voss-openai"):
-        return "OpenAI"
-    return _provider_label_for_runtime(
-        provider,
-        fallback=_provider_label(f"{res.source} — {res.detail}"),
-    )
-
-
-def _sync_model_selection(
-    ctx: object,
-    *,
-    model: str,
-    provider: ModelProvider | None = None,
-    provider_label: str | None = None,
-    toast: str | None = None,
-) -> None:
-    if provider is not None:
-        setattr(ctx, "provider", provider)
-    setattr(ctx, "model", model)
-    app = getattr(getattr(ctx, "renderer", None), "app", None)
-    if app is None or app.__class__.__name__ != "VossTUIApp":
-        return
-    app.model = model
-    if provider_label is not None:
-        app.provider = provider_label
-    try:
-        from .tui.widgets.status_line import StatusLine
-
-        kwargs: dict[str, str] = {"model": model}
-        if provider_label is not None:
-            kwargs["provider"] = provider_label
-        if toast is not None:
-            kwargs["toast"] = toast
-        app.query_one("#status", StatusLine).set_status(**kwargs)
-    except Exception:  # noqa: BLE001 — status widget absent in tests
-        pass
 
 
 def _apply_role_chain(provider, role: str, *, user_explicit: str | None = None):
@@ -435,12 +250,7 @@ def _apply_role_chain(provider, role: str, *, user_explicit: str | None = None):
     return new_provider
 
 
-def _apply_boot_model(
-    provider,
-    *,
-    user_explicit: str | None,
-    auth_source: str | None = None,
-):
+def _apply_boot_model(provider, *, user_explicit: str | None):
     """Honor a persisted catalog-routed selection (/models) + default role chain.
 
     When `[harness] preferred_provider` is set and the model resolves in the
@@ -451,8 +261,6 @@ def _apply_boot_model(
     the auth-resolved provider in place.
     """
     if user_explicit:
-        return provider
-    if auth_source in _SUBSCRIPTION_AUTH_SOURCES:
         return provider
     from . import model_router
 
@@ -537,7 +345,7 @@ def _run_turn_cancellable(coro, *, renderer):
             handler_installed = True
         except (NotImplementedError, RuntimeError):
             # Windows / non-main-thread fallback; KeyboardInterrupt still
-            # reaches the loop via the default handler.
+            # reaches the loop via the default handler
             pass
         try:
             return loop.run_until_complete(task)
@@ -667,7 +475,7 @@ def _build_provider_for_auth(
         provider: ModelProvider = ClaudeAgentProvider(cli_path=res.cli_path)
         cfg = get_config()
         # The Agent SDK only serves claude-* models. Snap any non-claude
-        # default to the current baseline; leave an explicit claude-* alone.
+        # default to the current baseline; leave an explicit claude-* alone
         if not cfg.default_model.startswith("claude"):
             configure(default_model="claude-sonnet-4-5")
     elif res.source == "codex-oauth":
@@ -682,12 +490,12 @@ def _build_provider_for_auth(
         cfg = get_config()
         # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
         # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
-        # to Codex CLI's own default when set; leave a compatible choice alone.
+        # to Codex CLI's own default when set; leave a compatible choice alone
         if not _is_codex_model(cfg.default_model):
             configure(default_model=_codex_default_model())
     elif res.source in ("env-anthropic", "voss-anthropic"):
-        # `resolve()` already injected ANTHROPIC_API_KEY into env for the
-        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
+        # `resolve` already injected ANTHROPIC_API_KEY into env for the
+        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic
         provider = _new_litellm_provider()
     elif res.source in ("env-openai", "voss-openai", "codex"):
         if res.openai_api_key:
@@ -717,7 +525,7 @@ def _resolve_auth_or_die(
     """
     # Honor a persisted default (`[harness] auth`) when the caller didn't force
     # a specific source. Lets `voss chat` always use e.g. codex even when
-    # OPENAI_API_KEY is exported in the shell. Explicit --auth=<x> still wins.
+    # OPENAI_API_KEY is exported in the shell. Explicit --auth=<x> still wins
     if preference == "auto":
         from . import config as _hc
 
@@ -747,7 +555,47 @@ def _resolve_auth_or_die(
             )
             sys.exit(2)
 
-    return res, _build_provider_for_auth(res, announce=announce)
+    if res.source == "claude-agent":
+        click.echo(
+            "  [claude-agent: using your Claude subscription via the Agent SDK "
+            "(claude -p); bills the plan's Agent SDK monthly credit, not "
+            "interactive Claude Code limits.]",
+            err=True,
+        )
+        provider: ModelProvider = ClaudeAgentProvider(cli_path=res.cli_path)
+        cfg = get_config()
+        # The Agent SDK only serves claude-* models. Snap any non-claude
+        # default to the current baseline; leave an explicit claude-* alone.
+        if not cfg.default_model.startswith("claude"):
+            configure(default_model="claude-sonnet-4-5")
+    elif res.source == "codex-oauth":
+        click.echo(
+            "  [codex-oauth: using your ChatGPT subscription via "
+            "chatgpt.com/backend-api/codex (unofficial endpoint; $0 per-token "
+            "but ToS-gray and may change without notice).]",
+            err=True,
+        )
+        provider = OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
+        cfg = get_config()
+        # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
+        # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
+        # to the current best, gpt-5.5; leave an explicit gpt-5.x choice alone.
+        if not cfg.default_model.startswith("gpt-5."):
+            configure(default_model="gpt-5.5")
+    elif res.source in ("env-anthropic", "voss-anthropic"):
+        # `resolve()` already injected ANTHROPIC_API_KEY into env for the
+        # voss-anthropic case, so LiteLLM picks it up the same as env-anthropic.
+        provider = LiteLLMProvider()
+    elif res.source in ("env-openai", "voss-openai", "codex"):
+        if res.openai_api_key:
+            os.environ.setdefault("OPENAI_API_KEY", res.openai_api_key)
+        cfg = get_config()
+        if cfg.default_model.startswith("claude"):
+            configure(default_model="gpt-4o")
+        provider = LiteLLMProvider()
+    else:
+        provider = LiteLLMProvider()
+    return res, provider
 
 
 def _git_status(cwd: Path) -> str:
@@ -910,7 +758,7 @@ def _memory(ctx, args: list[str], _line: str) -> None:
 
 
 def _save_note(ctx, args: list[str], _line: str) -> None:
-    # Pitfall 1 invariant: do NOT mutate ctx.record.name — that is /save-session's job.
+    # invariant: do NOT mutate ctx.record.name that is /save-session's job
     text = " ".join(args).strip()
     if not text:
         click.echo("usage: /save <note text>", err=True)
@@ -991,10 +839,10 @@ def _render_project_index_text(cwd: Path, session_id: str | None = None) -> str:
         return ""
 
 
-# --- V19-05 VSEM-06: code-recall auto-injection -----------------------------
+# VSEM-06: code-recall auto-injection
 
-# One CodeIndexService (one Chroma client) per cwd for the injection path —
-# a fresh service per render would re-spawn builds and never reach ready.
+# One CodeIndexService (one Chroma client) per cwd for the injection path
+# a fresh service per render would re-spawn builds and never reach ready
 _CODE_RECALL_SERVICES: dict[str, object] = {}
 
 _CODE_RECALL_TOKEN_CAP = 1000  # VSEM-06 hard cap, measured by the V18 counter
@@ -1065,28 +913,6 @@ def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str 
         return {}
     text = _render_code_recall_text(cwd, task_text, session_id=session_id)
     return {"code_recall_text": text} if text else {}
-
-
-def _pinned_memory_kwargs(run_turn_fn, cwd: Path, *, model: str) -> dict:
-    """kwargs-splat guard for VRNK-06 pinned-memory injection.
-
-    Returns {} when the resolved run_turn predates `pinned_memory_text` (compiled
-    loop.voss compat — same hazard as packing_enabled/code_recall_text), else
-    renders the always-injected pinned block and passes it only when non-empty.
-    Pins do NOT go through recall, so no telemetry is recorded here.
-    """
-    try:
-        import inspect as _inspect
-
-        if "pinned_memory_text" not in _inspect.signature(run_turn_fn).parameters:
-            return {}
-    except (TypeError, ValueError):
-        return {}
-    try:
-        text = MemoryStore(cwd).render_pinned_memory_text(model=model)
-    except Exception:  # noqa: BLE001 — injection is additive; failures render nothing
-        return {}
-    return {"pinned_memory_text": text} if text else {}
 
 
 def _show_code_intel_results(ctx: ReplContext, query: str, items: list[dict]) -> None:
@@ -1197,7 +1023,7 @@ def _build_slash_registry() -> SlashRegistry:
         click.echo("episodic memory cleared.")
 
     def _cost(ctx: ReplContext, args: list[str], _line: str) -> None:
-        # T6 / SLASH-07: support --by-model and --by-tool flags.
+        # T6 / SLASH-07: support --by-model and --by-tool flags
         flags = {a.lstrip("-") for a in args}
         if "by-tool" in flags:
             click.echo(
@@ -1207,7 +1033,7 @@ def _build_slash_registry() -> SlashRegistry:
             return
         if "by-model" in flags:
             # SessionRecord pins one model per session today. Group by
-            # record.model from each run; falls back to "unknown".
+            # record.model from each run; falls back to "unknown"
             by_model: dict[str, float] = {}
             for run in ctx.record.runs:
                 m = (
@@ -1224,7 +1050,7 @@ def _build_slash_registry() -> SlashRegistry:
             for m, c in sorted(by_model.items(), key=lambda kv: -kv[1]):
                 click.echo(f"  {m:<{width}}  ${c:.4f}")
             return
-        # Default: flat total (existing behavior).
+        # Default: flat total (existing behavior)
         budget = ctx.budget_usd
         if budget is not None:
             pct = (ctx.total_cost / budget * 100.0) if budget > 0 else 0.0
@@ -1234,9 +1060,9 @@ def _build_slash_registry() -> SlashRegistry:
             )
         else:
             click.echo(f"session cost: ${ctx.total_cost:.4f}")
-        # V18 VOPT-05 (D-01/D-03): one labeled savings line from the session
+        # VOPT-05 (/): one labeled savings line from the session
         # ledger. Silent when no ledger (short runs / --no-pack feels like
-        # nothing changed); a malformed ledger never breaks /cost.
+        # nothing changed); a malformed ledger never breaks /cost
         try:
             from voss.harness.session import _sessions_dir
 
@@ -1270,7 +1096,7 @@ def _build_slash_registry() -> SlashRegistry:
             pass
 
     def _budget(ctx: ReplContext, args: list[str], _line: str) -> None:
-        # T6 / SLASH-04. No args → show current. One arg → set USD ceiling.
+        # T6 / SLASH-04. No args → show current. One arg → set USD ceiling
         if not args:
             if ctx.budget_usd is None:
                 click.echo("  budget: unbounded")
@@ -1369,7 +1195,7 @@ def _build_slash_registry() -> SlashRegistry:
 
     def _why(ctx: ReplContext, _args: list[str], _line: str) -> None:
         # T6 / SLASH-06. Render last plan's rationale + per-step why +
-        # confidence. No provider call — reads ctx.last_plan only.
+        # confidence. No provider call reads ctx.last_plan only
         plan = ctx.last_plan
         if plan is None:
             click.echo("no plan yet — run a turn first", err=True)
@@ -1388,9 +1214,9 @@ def _build_slash_registry() -> SlashRegistry:
             click.echo(f"  final-when-done: {plan.final_when_done}")
 
     def _diff(ctx: ReplContext, args: list[str], _line: str) -> None:
-        # T6 / SLASH-01. v0.1 applies edits immediately (no queued-diff
-        # store yet — that lands with T1 iteration loop). Surface honest
-        # diff against the working tree via `git diff`.
+        # T6 / SLASH-01..1 applies edits immediately (no queued-diff
+        # store yet that lands with T1 iteration loop). Surface honest
+        # diff against the working tree via `git diff`
         cmd = ["git", "diff"]
         if args and args[0] in ("--staged", "--cached"):
             cmd.append("--cached")
@@ -1417,10 +1243,10 @@ def _build_slash_registry() -> SlashRegistry:
         click.echo(body)
 
     def _apply(_ctx: ReplContext, _args: list[str], _line: str) -> None:
-        # T6 / SLASH-02. Honest stub: v0.1 has no pending-edit queue. Edits
+        # T6 / SLASH-02. Honest stub:.1 has no pending-edit queue. Edits
         # commit immediately under PermissionGate. Real queued-apply lands
         # with T1 iteration loop (per ROADMAP). Surface this rather than
-        # silently no-op.
+        # silently no-op
         click.echo(
             "  /apply: v0.1 applies edits immediately under PermissionGate. "
             "Pending-edit queue + per-hunk approval lands with T1 + M9-05. "
@@ -1428,9 +1254,9 @@ def _build_slash_registry() -> SlashRegistry:
         )
 
     def _discard(ctx: ReplContext, args: list[str], _line: str) -> None:
-        # T6 / SLASH-03. v0.1 has no pending-edit queue; the meaningful
+        # T6 / SLASH-03..1 has no pending-edit queue; the meaningful
         # action is reverting files the agent changed in the most recent
-        # run. Requires --confirm flag; lists files otherwise.
+        # run. Requires --confirm flag; lists files otherwise
         if not ctx.record.runs:
             click.echo("  no runs yet — nothing to discard.")
             return
@@ -1468,9 +1294,9 @@ def _build_slash_registry() -> SlashRegistry:
 
     def _undo(ctx: ReplContext, _args: list[str], _line: str) -> None:
         # OpenCode-leverage port of /undo (ctrl+x u): git-backed revert of the
-        # last run's file changes, but reversible — snapshot the agent's content
+        # last run's file changes, but reversible snapshot the agent's content
         # first so /redo can put it back. Unlike /discard, no --confirm (it's
-        # undoable) and it records a redo entry.
+        # undoable) and it records a redo entry
         if not ctx.record.runs:
             click.echo("  no runs yet — nothing to undo.")
             return
@@ -1515,7 +1341,7 @@ def _build_slash_registry() -> SlashRegistry:
             )
 
     def _redo(ctx: ReplContext, _args: list[str], _line: str) -> None:
-        # Restore the agent's content captured by the most recent /undo.
+        # Restore the agent's content captured by the most recent /undo
         if not ctx.redo_stack:
             click.echo("  nothing to redo.")
             return
@@ -1540,7 +1366,7 @@ def _build_slash_registry() -> SlashRegistry:
     def _resume(ctx: ReplContext, args: list[str], _line: str) -> None:
         # T6 / SLASH-05. Live REPL resume: swap history + record without
         # restarting the process. Gate/cognition/tools stay bound to the
-        # live cwd — cross-cwd resume still requires `voss resume <id>`.
+        # live cwd cross-cwd resume still requires `voss resume <id>`
         if not args:
             click.echo("usage: /resume <session-id-or-name>", err=True)
             return
@@ -1584,14 +1410,12 @@ def _build_slash_registry() -> SlashRegistry:
     def _model(ctx: ReplContext, args: list[str], _line: str) -> None:
         """Auth-aware model selector (R8).
 
-        Bare in the TUI: the provider catalog (`/models`) so the obvious
-        model picker can move from Codex auth into Anthropic, OpenAI, OpenCode,
-        Ollama, etc.
-        `/model auth` keeps the curated active-subscription picker for Claude
-        Agent SDK / Codex ChatGPT backend. Bare in plain CLI: availability
-        lines + the numbered curated list. With args: exact-id → prefix →
-        substring match against the curated list; no match falls back to the
-        raw set-anything behavior.
+        Bare in the TUI: curated picker for the active subscription auth
+        (Claude Agent SDK / Codex ChatGPT backend), else delegates to the
+        /models catalog modal. Bare in plain CLI: availability lines + the
+        numbered curated list. With args: exact-id → prefix → substring
+        match against the curated list; no match falls back to the raw
+        set-anything behavior.
 
         A pick takes effect immediately without a provider rebuild: every
         turn passes get_config().default_model (cli.py turn dispatch) and
@@ -1609,42 +1433,46 @@ def _build_slash_registry() -> SlashRegistry:
         def _apply(m) -> None:
             configure(default_model=m.id)
             harness_config.set_preferred_model(m.id)
-            _sync_model_selection(
-                ctx,
-                model=m.id,
-                toast=f"model: {m.label} · {m.id} (persisted)",
-            )
+            if in_tui:
+                app.model = m.id
+                try:
+                    from .tui.widgets.status_line import StatusLine
+
+                    app.query_one("#status", StatusLine).set_status(
+                        model=m.id, toast=f"model: {m.label} · {m.id} (persisted)"
+                    )
+                except Exception:  # noqa: BLE001 — status widget absent in tests
+                    pass
             click.echo(f"  model: {m.id} (persisted)")
-
-        def _open_auth_picker() -> bool:
-            if not in_tui or not models:
-                return False
-            from .tui.widgets.auth_model_picker_modal import (
-                AuthModelPickerModal,
-            )
-
-            label = "Claude" if auth_mode == "claude" else "Codex"
-
-            def _on_pick(m) -> None:
-                if m is not None:
-                    _apply(m)
-
-            app.push_screen(
-                AuthModelPickerModal(
-                    models,
-                    cfg.default_model,
-                    subtitle=(
-                        f"Switch between {label} models. Your pick "
-                        "becomes the default for new sessions."
-                    ),
-                ),
-                _on_pick,
-            )
-            return True
 
         if not args:
             if in_tui:
-                _models(ctx, [], "/models")
+                if not models:
+                    # API-key/auto auth — the catalog picker is the useful
+                    # surface; delegate so bare /model always works.
+                    _models(ctx, [], "/models")
+                    return
+                from .tui.widgets.auth_model_picker_modal import (
+                    AuthModelPickerModal,
+                )
+
+                label = "Claude" if auth_mode == "claude" else "Codex"
+
+                def _on_pick(m) -> None:
+                    if m is not None:
+                        _apply(m)
+
+                app.push_screen(
+                    AuthModelPickerModal(
+                        models,
+                        cfg.default_model,
+                        subtitle=(
+                            f"Switch between {label} models. Your pick "
+                            "becomes the default for new sessions."
+                        ),
+                    ),
+                    _on_pick,
+                )
                 return
             claude = auth_mod.load_anthropic_oauth()
             codex = auth_mod.load_codex()
@@ -1663,17 +1491,6 @@ def _build_slash_registry() -> SlashRegistry:
                 click.echo("\n  select: /model <id>")
             return
 
-        if args[0].strip().lower() in ("auth", "subscription", "subscriptions"):
-            if _open_auth_picker():
-                return
-            if not models:
-                click.echo("  no active subscription model picker for this auth mode", err=True)
-                return
-            args = args[1:]
-            if not args:
-                click.echo("  select: /model <id>", err=True)
-                return
-
         new_model = " ".join(args).strip()
         if auth_mode is not None:
             matches = sub.match(auth_mode, new_model)
@@ -1687,10 +1504,9 @@ def _build_slash_registry() -> SlashRegistry:
                     err=True,
                 )
                 return
-            # 0 matches → raw set-anything fallback below (power users).
+            # 0 matches → raw set-anything fallback below (power users)
         configure(default_model=new_model)
         harness_config.set_preferred_model(new_model)
-        _sync_model_selection(ctx, model=new_model)
         click.echo(f"  model: {get_config().default_model} (persisted)")
 
     def _models(ctx: ReplContext, args: list[str], _line: str) -> None:
@@ -1717,21 +1533,11 @@ def _build_slash_registry() -> SlashRegistry:
                 )
                 return
             configure(default_model=model_str)
-            if isinstance(provider, ClaudeAgentProvider) and entry.provider_id == "anthropic":
-                harness_config.set_preferred_model(entry.id)
-                harness_config.set_preferred_auth("claude")
-            else:
-                harness_config.set_preferred_routed(entry.id, entry.provider_id)
+            harness_config.set_preferred_routed(entry.id, entry.provider_id)
             from . import model_prefs
 
             model_prefs.record_recent(entry.provider_id, entry.id)
-            _sync_model_selection(
-                ctx,
-                model=model_str,
-                provider=provider,
-                provider_label=entry.provider_label,
-                toast=f"model: {entry.name} · {entry.provider_label} (persisted)",
-            )
+            ctx.provider = provider
             click.echo(f"  model: {entry.name} · {entry.provider_label} (persisted)")
 
         def _print(entries) -> None:
@@ -1746,7 +1552,7 @@ def _build_slash_registry() -> SlashRegistry:
                 click.echo(f"    {m.id}{tag}{here}")
 
         # Bare `/models` in the TUI opens the searchable modal picker, with
-        # Favorites + Recent sections pinned on top (models.dev catalog below).
+        # Favorites + Recent sections pinned on top (models.dev catalog below)
         app = getattr(getattr(ctx, "renderer", None), "app", None)
         if not args and app is not None and app.__class__.__name__ == "VossTUIApp":
             from . import model_prefs
@@ -1785,7 +1591,7 @@ def _build_slash_registry() -> SlashRegistry:
             )
             return
 
-        # `/models set <id> [provider]` — non-interactive, works in CLI + TUI.
+        # `/models set <id> [provider]` non-interactive, works in CLI + TUI
         if args and args[0] == "set":
             if len(args) < 2:
                 click.echo("  usage: /models set <model-id> [provider-id]", err=True)
@@ -1818,7 +1624,7 @@ def _build_slash_registry() -> SlashRegistry:
                 click.echo("\n  refine, or `/models set <id> [provider]`")
             return
 
-        # No args: full grouped list + hint.
+        # No args: full grouped list + hint
         _print(model_router.flatten(groups))
         click.echo(
             f"\n  active: {current}\n"
@@ -1828,9 +1634,8 @@ def _build_slash_registry() -> SlashRegistry:
     def _auth(ctx: ReplContext, args: list[str], _line: str) -> None:
         """Show or persist the default credential source (`[harness] auth`).
 
-        `/auth codex` switches the current session immediately and persists it
-        so plain `voss chat` keeps using Codex even if OPENAI_API_KEY is
-        exported.
+        Takes effect on the next launch. `/auth codex` -> plain `voss chat`
+        uses the ChatGPT subscription even if OPENAI_API_KEY is exported.
         """
         from . import config as harness_config
 
@@ -1843,43 +1648,16 @@ def _build_slash_registry() -> SlashRegistry:
         if pref not in AUTH_CHOICES:
             click.echo(f"  invalid: {pref}. choices: {', '.join(AUTH_CHOICES)}", err=True)
             return
-        if pref == "none":
-            harness_config.set_preferred_auth(pref)
-            click.echo("  default auth: none (persisted; current session unchanged)")
-            return
-        res = auth_mod.resolve(pref)
-        if res.source == "none":
-            click.echo(
-                f"  auth switch failed: no usable credentials ({res.detail})",
-                err=True,
-            )
-            return
-        try:
-            provider = _build_provider_for_auth(res, announce=False)
-        except Exception as exc:  # noqa: BLE001
-            click.echo(f"  auth switch failed: {exc}", err=True)
-            return
         harness_config.set_preferred_auth(pref)
-        model = get_config().default_model
-        provider_label = _provider_label_for_auth(res, provider)
-        _sync_model_selection(
-            ctx,
-            model=model,
-            provider=provider,
-            provider_label=provider_label,
-            toast=f"auth: {pref} · {provider_label}",
-        )
-        ctx.record.model = model
-        click.echo(f"  default auth: {pref} (persisted)")
-        click.echo(f"  active auth: {res.source} · {provider_label} / {model}")
+        click.echo(f"  default auth: {pref} (persisted — applies next launch)")
 
     def _mode(ctx: ReplContext, args: list[str], _line: str) -> None:
         if not args:
             click.echo(f"  mode: {ctx.gate.mode}")
             return
         new_mode = args[0].strip()
-        if new_mode not in ("plan", "edit", "auto", "observe"):
-            click.echo("mode must be plan|edit|auto|observe", err=True)
+        if new_mode not in ("plan", "edit", "auto"):
+            click.echo("mode must be plan|edit|auto", err=True)
             return
         if new_mode == "auto" and "--confirm" not in args:
             click.echo(
@@ -1892,8 +1670,8 @@ def _build_slash_registry() -> SlashRegistry:
         click.echo(f"  mode: {new_mode}")
 
     def _login(_ctx: ReplContext, args: list[str], _line: str) -> None:
-        # /login              → interactive wizard (first-run setup)
-        # /login status [p]   → status + refresh for existing creds (legacy)
+        # /login → interactive wizard (first-run setup)
+        # /login status [p] → status + refresh for existing creds (legacy)
         # /login anthropic|openai|codex → status for a single provider
         if not args:
             from . import login_wizard
@@ -2028,7 +1806,7 @@ def _build_slash_registry() -> SlashRegistry:
         ),
         SlashCommand("/tools", "list registered tools", _tools),
         SlashCommand("/login", "launch sign-in wizard (or `/login status` for cred status)", _login),
-        SlashCommand("/model", "pick a model/provider (TUI catalog; `/model auth` for subscription list)", _model),
+        SlashCommand("/model", "pick a model for the active auth (curated; persists to config.toml)", _model),
         SlashCommand("/models", "pick a model from the models.dev catalog (Zen, Ollama Cloud, …)", _models),
         SlashCommand("/auth", "show/set default credential source (auto|claude|codex|api|none)", _auth),
         SlashCommand("/mode", "plan | edit | auto; auto requires --confirm", _mode),
@@ -2045,7 +1823,7 @@ def _build_slash_registry() -> SlashRegistry:
         SlashCommand("/skill", "run a registered skill", _skill, mutating=True),
         SlashCommand("/agents", "list registered subagents", _agents),
         SlashCommand("/agent", "spawn a registered subagent", _agent, mutating=True),
-        # M10-04 code intelligence slash surface
+        # code intelligence slash surface
         SlashCommand("/symbol", "find symbols matching <name> (uses index + LSP)", _symbol),
         SlashCommand("/refs", "find references to <symbol>", _refs),
         SlashCommand("/refresh", "rebuild code index (and optionally refresh cognition)", _refresh, mutating=False),
@@ -2055,9 +1833,7 @@ def _build_slash_registry() -> SlashRegistry:
     return registry
 
 
-# ---------------------------------------------------------------------------
-# do — one-shot
-# ---------------------------------------------------------------------------
+# do one-shot
 
 
 def _apply_no_unicode_env(no_unicode: bool) -> None:
@@ -2069,12 +1845,6 @@ def _apply_no_unicode_env(no_unicode: bool) -> None:
     """
     if no_unicode:
         os.environ["VOSS_NO_UNICODE"] = "1"
-
-
-def _new_litellm_provider() -> ModelProvider:
-    from voss_runtime.providers import LiteLLMProvider
-
-    return LiteLLMProvider()
 
 
 def _repl_prompt() -> str:
@@ -2120,7 +1890,7 @@ def _wire_tui_permissions_if_textual(gate: PermissionGate, renderer) -> None:
 )
 @click.option(
     "--mode",
-    type=click.Choice(["plan", "edit", "auto", "observe"]),
+    type=click.Choice(["plan", "edit", "auto"]),
     default="plan",  # D-07: do defaults to plan
     help="Permission tier.",
 )
@@ -2178,7 +1948,7 @@ def do_cmd(
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
     res, provider = _resolve_auth_or_die(auth_pref)
-    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -2193,8 +1963,8 @@ def do_cmd(
         sys.exit(2)
 
     renderer = make_renderer(json_mode=json_mode, plain=plain)
-    # T5: deliberate _nosession — do_record is defined later; one-shot voss do
-    # bg jobs are reaped at process exit, with no voss jobs contract.
+    # T5: deliberate _nosession do_record is defined later; one-shot voss do
+    # bg jobs are reaped at process exit, with no voss jobs contract
     tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     voss_md.ensure_migrated(cwd)
     do_bundle = cognition_mod.load(cwd)
@@ -2219,16 +1989,16 @@ def do_cmd(
         cognition=do_bundle,
     )
 
-    # Conventions hook locals: do_record/do_history/do_memory_store — pinned by M8-04 plan.
+    # Conventions hook locals: do_record/do_history/do_memory_store pinned by plan
     do_cwd = cwd
     do_provider = provider
     do_model = cfg.default_model
     do_record = session_store.SessionRecord.new(cwd=cwd, model=do_model)
     do_history = EpisodicMemory(capacity=40)
     do_memory_store = MemoryStore(cwd).bind(session_id=do_record.id)
-    # V21 (VGMEM-*): wire the cross-project global corpus into agent recall when
+    # (VGMEM-*): wire the cross-project global corpus into agent recall when
     # global memory is enabled. The agent reads global hits but can never write
-    # them (memory_remember only ever targets the project store).
+    # them (memory_remember only ever targets the project store)
     do_global_store = make_global_store()
     attach_memory_tools(
         tools,
@@ -2242,8 +2012,8 @@ def do_cmd(
     renderer.show_user(text)
 
     run_turn = _resolve_run_turn(cwd)
-    # V18 VOPT-06: the compiled-harness run_turn (cache loop.py) predates
-    # packing — only thread the flag when the resolved surface accepts it.
+    # VOPT-06: the compiled-harness run_turn (cache loop.py) predates
+    # packing only thread the flag when the resolved surface accepts it
     import inspect as _inspect
 
     _rt_kwargs: dict = {}
@@ -2266,7 +2036,6 @@ def do_cmd(
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
             **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
-            **_pinned_memory_kwargs(run_turn, cwd, model=do_model),
             **_rt_kwargs,
         ),
         renderer=renderer,
@@ -2293,9 +2062,7 @@ def do_cmd(
         click.echo(f"conventions extraction skipped: {exc}", err=True)
 
 
-# ---------------------------------------------------------------------------
-# chat — REPL
-# ---------------------------------------------------------------------------
+# chat REPL
 
 
 @click.command("chat")
@@ -2362,8 +2129,8 @@ def chat_cmd(
     elif allow_net is False:
         configure(allow_net=False)
     # else allow_net is None: TOML setting applied at bootstrap wins
-    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
-    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
+    res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -2432,8 +2199,8 @@ def edit_cmd(
     cwd = Path(cwd_str).resolve()
     _apply_no_unicode_env(no_unicode)
     _resolve_default_model(model)
-    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
-    provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
+    res, provider = _resolve_auth_or_die(auth_pref)
+    provider = _apply_boot_model(provider, user_explicit=model)
     cfg = get_config()
 
     _emit_harness_boot_telemetry(cwd, cfg.default_model)
@@ -2489,11 +2256,10 @@ def _run_repl(
     slash_registry = _build_slash_registry()
 
     def _tok_count(text: str) -> int:
-        litellm = sys.modules.get("litellm")
-        if litellm is not None:
+        if _litellm is not None:
             try:
                 return int(
-                    litellm.token_counter(model=cfg.default_model, text=text)
+                    _litellm.token_counter(model=cfg.default_model, text=text)
                 )
             except Exception:  # noqa: BLE001
                 pass
@@ -2548,17 +2314,17 @@ def _run_repl(
         cognition=bundle,
     )
     attach_memory_tools(tools, store=ctx.memory_store, session_id=record.id)
-    # M13-06: additively attach the non-blocking multi-agent fan-out toolset
+    # additively attach the non-blocking multi-agent fan-out toolset
     # (subagent_spawn/steer/status/gather) alongside the unchanged serial
-    # subagent_run tool (D-02 back-compat). attach_multiagent_tools returns the
-    # defensive _teardown_orphans awaitable (M13-03) — captured here and run in
+    # subagent_run tool ( back-compat). attach_multiagent_tools returns the
+    # defensive _teardown_orphans awaitable captured here and run in
     # a finally on the per-turn run_turn await below so an un-gathered or
-    # cancelled chat turn cannot leak orphan child tasks/panels (T-M13-02).
-    # V8 (VMAG-ROOT): create the chat session's V4 root node ONCE per REPL
-    # (session-scoped — NOT per-turn, Pitfall 4). 60_000 is the configurable
+    # cancelled chat turn cannot leak orphan child tasks/panels
+    # (VMAG-ROOT): create the chat session's root node ONCE per REPL
+    # (session-scoped NOT per-turn, ). 60_000 is the configurable
     # chat-root envelope default (matches agent.py run_turn token_budget); the
     # carved reserve is DEFAULT_PARENT_RESERVE (30_000). The manager is injected
-    # as node_manager so every chat spawn allocates a persisted child of it.
+    # as node_manager so every chat spawn allocates a persisted child of it
     _chat_root = SessionTreeNode.create_root(cwd=cwd, limit=60_000)
     _chat_tree = SessionTreeManager(
         _chat_root, reserve=DEFAULT_PARENT_RESERVE, cwd=cwd
@@ -2591,8 +2357,8 @@ def _run_repl(
     if record.turns:
         click.echo(f"resumed: {record.name} ({len(record.turns)} prior turns)")
 
-    # D-04: non-blocking drift hint. T-M2-22: wrap in try/except so a
-    # malformed frontmatter can never crash REPL boot.
+    # non-blocking drift hint.: wrap in try/except so a
+    # malformed frontmatter can never crash REPL boot
     if bundle.initialized and bundle.architecture_frontmatter:
         try:
             drift = cognition_mod.drift_check(cwd, bundle.architecture_frontmatter)
@@ -2612,12 +2378,8 @@ def _run_repl(
             renderer.app.slash_registry = slash_registry
             renderer.app.model = cfg.default_model
             renderer.app.git_status = git_status
-            renderer.app.provider = _provider_label_for_runtime(
-                provider,
-                fallback=_provider_label(auth_detail),
-            )
+            renderer.app.provider = _provider_label(auth_detail)
             renderer.app.mode = mode
-            renderer.set_phase("ambient")
             renderer.app.total_cost = ctx.total_cost
 
             async def _dispatch_tui_turn(line: str):
@@ -2651,54 +2413,32 @@ def _run_repl(
                     renderer.show_warning(f"unknown command: {line}. /help for list.")
                     return None
                 renderer.show_user(line)
-                route = _ambient_route(line)
-                if route == "local":
-                    answer = _ambient_status_answer(ctx, auth_detail=auth_detail)
-                    ctx.history.add(line, role="user")
-                    ctx.history.add(answer, role="assistant")
-                    renderer.show_final(answer, confidence=1.0, cost_usd=0.0)
-                    return None
                 try:
                     if not ctx.project_index_text:
                         ctx.project_index_text = _render_project_index_text(
                             cwd, session_id=record.id
                         )
-                    if route == "ambient":
-                        response = await _run_ambient_provider_turn(line, ctx)
-                        ctx.total_cost += response.cost_usd
-                        renderer.show_final(
-                            response.text,
-                            confidence=1.0,
-                            cost_usd=response.cost_usd,
-                        )
-                        return None
-                    renderer.set_phase("run")
-                    try:
-                        renderer.show_thinking("starting Voss run")
-                        run_turn = _resolve_run_turn(cwd)
-                        result = await _run_turn_with_teardown(
-                            run_turn(
-                                line,
-                                tools=tools,
-                                cwd=cwd,
-                                renderer=renderer,
-                                model=get_config().default_model,
-                                history=ctx.history,
-                                permissions=gate,
-                                provider=ctx.provider,
-                                session_id=record.id,
-                                cognition=bundle,
-                                prior_context=ctx.prior_context,
-                                voss_md_text=ctx.voss_md_text,
-                                project_index_text=ctx.project_index_text,
-                                **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                                **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model),
-                            ),
-                            _multiagent_teardown,
-                        )
-                        ctx.prior_context = None
-                    finally:
-                        renderer.set_phase("ambient")
+                    run_turn = _resolve_run_turn(cwd)
+                    result = await _run_turn_with_teardown(
+                        run_turn(
+                            line,
+                            tools=tools,
+                            cwd=cwd,
+                            renderer=renderer,
+                            model=get_config().default_model,
+                            history=ctx.history,
+                            permissions=gate,
+                            provider=ctx.provider,
+                            session_id=record.id,
+                            cognition=bundle,
+                            prior_context=ctx.prior_context,
+                            voss_md_text=ctx.voss_md_text,
+                            project_index_text=ctx.project_index_text,
+                            **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
+                        ),
+                        _multiagent_teardown,
+                    )
+                    ctx.prior_context = None
                 except Exception as e:  # noqa: BLE001
                     renderer.show_warning(f"error: {e}")
                     return None
@@ -2714,7 +2454,7 @@ def _run_repl(
                 return result
 
             renderer.app._turn_dispatch = _dispatch_tui_turn
-            _run_textual_app(renderer.app)
+            asyncio.run(renderer.app.run_async())
             try:
                 conventions.run_on_clean_exit(
                     ctx,
@@ -2745,7 +2485,7 @@ def _run_repl(
             if not line:
                 continue
 
-            # Slash commands.
+            # Slash commands
             if line.startswith("/"):
                 try:
                     handled = slash_registry.dispatch(ctx, line)
@@ -2768,31 +2508,7 @@ def _run_repl(
                 continue
 
             renderer.show_user(line)
-            route = _ambient_route(line)
-            if route == "local":
-                answer = _ambient_status_answer(ctx, auth_detail=auth_detail)
-                ctx.history.add(line, role="user")
-                ctx.history.add(answer, role="assistant")
-                renderer.show_final(answer, confidence=1.0, cost_usd=0.0)
-                continue
             try:
-                if not ctx.project_index_text:
-                    ctx.project_index_text = _render_project_index_text(
-                        cwd, session_id=record.id
-                    )
-                if route == "ambient":
-                    response = _run_turn_cancellable(
-                        _run_ambient_provider_turn(line, ctx),
-                        renderer=renderer,
-                    )
-                    ctx.total_cost += response.cost_usd
-                    renderer.show_final(
-                        response.text,
-                        confidence=1.0,
-                        cost_usd=response.cost_usd,
-                    )
-                    continue
-                renderer.show_thinking("starting Voss run")
                 run_turn = _resolve_run_turn(cwd)
                 result = _run_turn_cancellable(
                     _run_turn_with_teardown(
@@ -2811,13 +2527,12 @@ def _run_repl(
                             voss_md_text=ctx.voss_md_text,
                             project_index_text=ctx.project_index_text,
                             **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                            **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model),
                         ),
                         _multiagent_teardown,
                     ),
                     renderer=renderer,
                 )
-                # prior_context is one-shot: only the first turn rehydrates it.
+                # prior_context is one-shot: only the first turn rehydrates it
                 ctx.prior_context = None
             except Exception as e:  # noqa: BLE001
                 click.echo(f"error: {e}", err=True)
@@ -2830,9 +2545,9 @@ def _run_repl(
                 result.final, confidence=result.confidence, cost_usd=result.cost_usd
             )
     finally:
-        # V8 (VMAG-ROOT): finalize the chat root on session exit (idempotent;
+        # (VMAG-ROOT): finalize the chat root on session exit (idempotent
         # safe on Ctrl+C / EOF / normal / TUI close). "done" is a valid existing
-        # EXIT_REASON — no new reason invented.
+        # EXIT_REASON no new reason invented
         try:
             finalize_node(_chat_root, exit_reason="done", final="", cwd=cwd)
         except Exception as exc:  # noqa: BLE001
@@ -2855,9 +2570,7 @@ def _run_repl(
             click.echo(f"job reap skipped: {exc}", err=True)
 
 
-# ---------------------------------------------------------------------------
-# login / logout — credential setup
-# ---------------------------------------------------------------------------
+# login / logout credential setup
 
 
 @click.command("login")
@@ -2901,13 +2614,11 @@ def logout_cmd(provider: str) -> None:
         sys.exit(1)
 
 
-# ---------------------------------------------------------------------------
-# doctor — diagnostics
-# ---------------------------------------------------------------------------
+# doctor diagnostics
 
 
 # Mirrors diagnostics.Category values; kept literal so the click decorator
-# doesn't force an eager diagnostics import. Drift-guarded by test.
+# doesn't force an eager diagnostics import. Drift-guarded by test
 _DOCTOR_CATEGORIES = ("env", "auth", "config", "state", "project")
 
 
@@ -3089,8 +2800,8 @@ def doctor_cmd(
     if code != 0:
         click.echo("\nfailed checks. fix above and re-run.", err=True)
     elif warns and not fails:
-        # D-14: WARN-only runs exit 0 but surface a one-line stderr summary
-        # so CI / shell prompts can notice informational misses.
+        # WARN-only runs exit 0 but surface a one-line stderr summary
+        # so CI / shell prompts can notice informational misses
         names = ", ".join(c.name for c in warns)
         plural = "warning" if len(warns) == 1 else "warnings"
         click.echo(f"doctor: {len(warns)} {plural} ({names})", err=True)
@@ -3107,8 +2818,8 @@ def _print_slash_help(registry: SlashRegistry | None = None) -> None:
     """
     registry = registry or _build_slash_registry()
 
-    # Explicit buckets finalized against live _build_slash_registry() contents.
-    # Order of groups and members within groups is semantic (not alpha).
+    # Explicit buckets finalized against live _build_slash_registry contents
+    # Order of groups and members within groups is semantic (not alpha)
     named_groups: list[tuple[str, list[str]]] = [
         ("Editing", ["/diff", "/apply", "/discard"]),
         ("Session", ["/resume", "/budget", "/cost", "/clear", "/save-session"]),
@@ -3132,7 +2843,7 @@ def _print_slash_help(registry: SlashRegistry | None = None) -> None:
             click.echo(f"  {c.name:<{width}}  {c.help}")
         click.echo()
 
-    # Long-tail Other bucket (D-05 / M9-03 parity): everything not yet placed.
+    # Long-tail Other bucket ( / parity): everything not yet placed
     other_members: list[SlashCommand] = []
     for name in registry.ids(include_hidden=False):
         if name not in placed:
@@ -3269,7 +2980,7 @@ def audit_cmd(
     sessions_dir = cwd / ".voss" / "sessions"
 
     if run_id is not None:
-        # T-V9-04-01: reject traversal BEFORE any FS read.
+        # reject traversal BEFORE any FS read
         if "/" in run_id or "\\" in run_id or ".." in run_id:
             click.echo(f"<error: invalid run_id {run_id!r}>", err=True)
             raise SystemExit(1)
@@ -3298,7 +3009,7 @@ def audit_cmd(
         from voss.harness.audit.calibration import compute_calibration
 
         # Fixed seed → deterministic spot-audit selection (VAUD-08: audit output
-        # must be reproducible from persisted data).
+        # must be reproducible from persisted data)
         calibration = compute_calibration(sessions_dir, seed=0)
     except Exception:
         calibration = None  # calibration optional; build tolerates None
@@ -3306,7 +3017,7 @@ def audit_cmd(
     report = build_audit_report(cwd, run_id=run_id, calibration=calibration)
 
     # VAUD-SIGNOFF readback: approve is refused when killed/misroute risks exist
-    # and the .signoff-ack.json governance record is absent.
+    # and the.signoff-ack.json governance record is absent
     if approve:
         risks = bool(report.snapshot.kills) or any(
             r.confidence_hint is not None and r.confidence_hint < 0.7
@@ -3728,8 +3439,7 @@ def resume_cmd(
     cwd = Path(record.cwd)
     if record.model:
         configure(default_model=record.model)
-    _warn_instructions_drift(record, cwd)
-    res, provider = _resolve_auth_or_die(auth_pref, announce=False)
+    res, provider = _resolve_auth_or_die(auth_pref)
     prior = record.runs[-1] if record.runs else None
     _run_repl(
         cwd=cwd,
@@ -3744,9 +3454,7 @@ def resume_cmd(
     )
 
 
-# ---------------------------------------------------------------------------
-# tools — registry table
-# ---------------------------------------------------------------------------
+# tools registry table
 
 
 @click.command("tools")
@@ -3760,7 +3468,7 @@ def resume_cmd(
 def tools_cmd(cwd_str: str) -> None:
     """List registered harness tools."""
     cwd = Path(cwd_str).resolve()
-    # T5: no session_id — tools_cmd never invokes tools (deliberate _nosession).
+    # T5: no session_id tools_cmd never invokes tools (deliberate _nosession)
     tools = make_toolset(cwd)
     name_w = max(len(n) for n in tools)
     click.echo(f"  {'name':<{name_w}}  {'mutating':<8}  description")
@@ -3785,7 +3493,7 @@ def _extension_context(
     subagent_registry = default_subagent_registry()
     slash_registry = _build_slash_registry()
     renderer = renderer or make_renderer(json_mode=False)
-    # T5: deliberate _nosession — not a live session loop.
+    # T5: deliberate _nosession not a live session loop
     tools = make_toolset(cwd, renderer=renderer, net=_get_net_session())
     gate = gate or PermissionGate(mode="edit", store=PermissionStore.load(cwd))
     ctx = SimpleNamespace(
@@ -4016,9 +3724,7 @@ def agent_spawn_cmd(
     click.echo(result)
 
 
-# ---------------------------------------------------------------------------
-# config — open/show ~/.config/voss/config.toml
-# ---------------------------------------------------------------------------
+# config open/show ~/.config/voss/config.toml
 
 
 def _config_toml_path() -> Path:
@@ -4472,8 +4178,8 @@ def consensus_cmd(input_mode: str, ref: str | None, cwd_str: str, auth_pref: str
 
     res, provider = _resolve_auth_or_die(auth_pref)
     provider = _apply_boot_model(provider, user_explicit=model, auth_source=res.source)
-    # commit-time critique runs the `commit` role chain when configured,
-    # overriding the default-role provider; --model still wins.
+    # commit-time critique runs the `commit` role chain when configured
+    # overriding the default-role provider; --model still wins
     provider = _apply_role_chain(provider, "commit", user_explicit=model)
     cfg = get_config()
     result = asyncio.run(run_critique(provider, cfg.default_model, constraints, diff_text))
@@ -4909,7 +4615,7 @@ def team_approve_cmd(
 
     cwd = Path(cwd_str).resolve()
     sessions_dir = cwd / ".voss" / "sessions"
-    # Same traversal guards as cli_view.render_board.
+    # Same traversal guards as cli_view.render_board
     for value, label in ((card_id, "card_id"), (root_id or "", "root_id")):
         if "/" in value or "\\" in value or ".." in value:
             click.echo(f"<error: invalid {label} {value!r}>", err=True)
@@ -4993,7 +4699,7 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
             cwd=cwd,
             per_card_budget=100_000,
         )
-        # Pre-spawn >=1 card so RunFinal.total_cards >= 1 (Pitfall 1).
+        # Pre-spawn >=1 card so RunFinal.total_cards >= 1
         await board.spawn_card(risk_tier="med")
         base_gate = PermissionGate(mode="auto", auto_yes=True)
         handle = EMBoardHandle(
@@ -5028,8 +4734,8 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
         click.echo(str(exc), err=True)
         raise click.exceptions.Exit(2) from exc
 
-    # finalize_run() leaves idea="" (handle.py:352); thread the goal in via the
-    # frozen-replace mechanism em_loop itself uses for em_iterations.
+    # finalize_run leaves idea="" (handle.py:352); thread the goal in via the
+    # frozen-replace mechanism em_loop itself uses for em_iterations
     import dataclasses
 
     rf = dataclasses.replace(rf, idea=goal)
@@ -5046,7 +4752,7 @@ def team_run_cmd(goal: str, cwd_str: str, max_iterations: int) -> None:
 
     # VAUD-SIGNOFF: gate approve behind a forced acknowledgement of the
     # killed-card + misroute risk diff. Misroute = a routing with a stated
-    # confidence_hint below 0.7 (read-only from the just-persisted snapshot).
+    # confidence_hint below 0.7 (read-only from the just-persisted snapshot)
     killed_count = rf.killed_count
     misroute_count = 0
     try:
@@ -5114,10 +4820,10 @@ def session_tree_cmd(root_id: str, cwd_str: str, json_mode: bool) -> None:
         )
 
 
-# --- V19-04 VSEM-05: unified cross-corpus recall verb (D-09 user-locked) ---
+# VSEM-05: unified cross-corpus recall verb ( user-locked)
 
-# T-V19-04: excerpts are raw repo source — scrub secret-shaped strings before
-# they leave the process (plain AND --json output).
+# excerpts are raw repo source scrub secret-shaped strings before
+# they leave the process (plain AND --json output)
 _RECALL_SECRET_PATTERNS = (
     re.compile(r"AKIA[0-9A-Z]{12,}"),
     re.compile(r"\bsk-[A-Za-z0-9_-]{10,}"),
@@ -5145,7 +4851,7 @@ def _recall_hit_fields(hit) -> dict:
         parts = hit.locator.split(":")
         path = ":".join(parts[1:-1]) if len(parts) >= 3 else hit.locator
     return {
-        "source": hit.source,
+        "source": "code" if is_code else "memory",
         "locator": hit.locator,
         "path": path,
         "line_start": hit.line_start if is_code else None,
@@ -5153,21 +4859,6 @@ def _recall_hit_fields(hit) -> dict:
         "score": hit.score,
         "excerpt": _redact_recall_text((hit.excerpt or "").replace("\n", " ")[:160]),
     }
-
-
-def _recall_external_rankings(rankings: list[list]) -> list[list]:
-    """Keep CLI source labels as corpus names even when an index marks BM25 fallback."""
-    normalized: list[list] = []
-    for hits in rankings:
-        normalized.append(
-            [
-                replace(hit, source=hit.source.removesuffix("[degraded]"))
-                if (hit.source or "").endswith("[degraded]")
-                else hit
-                for hit in hits
-            ]
-        )
-    return normalized
 
 
 @click.command("recall")
@@ -5186,10 +4877,8 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
     cwd = Path(cwd_str).resolve()
 
     from voss.harness.code.semantic_index import CodeIndex
-    from voss.harness.recall.external_index import ExternalRecallService
 
     code_index = CodeIndex(cwd)
-    ext_svc = ExternalRecallService(cwd)
     if do_refresh:
         try:
             from voss.harness.code.index import build_index as _build_m10
@@ -5198,12 +4887,6 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         except Exception:  # noqa: BLE001 — M10 refresh is best-effort; chunker falls back
             pass
         code_index.build()
-        ext_svc.build_all()
-    else:
-        try:
-            ext_svc.ensure_background_build()
-        except Exception:  # noqa: BLE001 — source config/build issues must not kill recall
-            pass
 
     recall_k = max(top_k * 3, top_k)
     code_hits = code_index.query(query_str, top_k=recall_k)
@@ -5211,9 +4894,9 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         mem_hits = MemoryStore(cwd).recall(query_str, top_k=recall_k)
     except Exception:  # noqa: BLE001 — missing/corrupt memory store must not kill code recall
         mem_hits = []
-    # V21 (VGMEM-*): fuse the cross-project global corpus. Global hits carry a
+    # (VGMEM-*): fuse the cross-project global corpus. Global hits carry a
     # `global:` locator prefix so they survive RRF dedup distinctly and render
-    # with a `[global]` label (stripped from the displayed locator).
+    # with a `[global]` label (stripped from the displayed locator)
     global_hits: list = []
     try:
         import dataclasses as _dc
@@ -5229,8 +4912,8 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
     except Exception:  # noqa: BLE001 — missing/misconfigured sources must not kill recall
         external_hits_per_source = []
 
-    # RRF is rank-based and corpus-agnostic (D-09); the code: id prefix
-    # guarantees no locator collision with memory/external ids in the dedup.
+    # RRF is rank-based and corpus-agnostic; the code: id prefix
+    # guarantees no locator collision with memory/external ids in the dedup
     fused = MemoryStore._rrf_merge([code_hits, mem_hits, global_hits, *external_hits_per_source], top_k=top_k)
 
     if json_out:
@@ -5242,16 +4925,11 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
         return
     for hit in fused:
         fields = _recall_hit_fields(hit)
-        if hit.locator.startswith("global:"):
-            label = "global"
-            display = hit.locator[len("global:"):]
-        elif fields["source"] == "code":
-            label = fields["source"]
+        if fields["source"] == "code":
             display = f"{fields['path']}:{fields['line_start']}" if fields["line_start"] else fields["path"]
         else:
-            label = fields["source"]
             display = hit.locator
-        click.echo(f"[{label}] {display} (score {hit.score:.2f})")
+        click.echo(f"[{fields['source']}] {display} (score {hit.score:.2f})")
         if fields["excerpt"]:
             click.echo(f"  {fields['excerpt']}")
 
@@ -5346,13 +5024,11 @@ def instructions_check_cmd(cwd_str: str, target: str | None) -> None:
     click.echo(f"  ok: {len(bundle.files)} file(s), {bundle.tokens} tokens, {bundle.bundle_hash[:16]}")
 
 
-# ---------------------------------------------------------------------------
-# shell-init: OSC 133 shell-integration snippets (S3.1)
-# ---------------------------------------------------------------------------
+# shell-init: OSC 133 shell-integration snippets
 
 _SHELL_INIT_ZSH = r"""# voss shell integration (zsh) — OSC 133/7 command marks for the Voss reader.
-# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on.
-# Source last, after any prompt theme (the 133;B mark is appended to PROMPT).
+# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on
+# Source last, after any prompt theme (the 133;B mark is appended to PROMPT)
 [ "${VOSS_EMBEDDED:-}" = "1" ] || return 0
 
 _voss_json_escape() {
@@ -5391,8 +5067,8 @@ PROMPT="${PROMPT}%{$'\033]133;B\007'%}"
 """
 
 _SHELL_INIT_BASH = r"""# voss shell integration (bash) — OSC 133/7 command marks for the Voss reader.
-# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on.
-# Source last, after any prompt theme (the 133;B mark is appended to PS1).
+# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on
+# Source last, after any prompt theme (the 133;B mark is appended to PS1)
 [ "${VOSS_EMBEDDED:-}" = "1" ] || return 0
 
 _voss_json_escape() {
@@ -5417,7 +5093,7 @@ _voss_prompt_command() {
 }
 
 # bash has no preexec; the DEBUG trap approximates it. _voss_at_prompt limits
-# the hook to the first simple command after each prompt.
+# the hook to the first simple command after each prompt
 _voss_preexec() {
   [ -n "${_voss_at_prompt:-}" ] || return 0
   case "$BASH_COMMAND" in
@@ -5439,8 +5115,8 @@ PS1="${PS1}\[\033]133;B\007\]"
 """
 
 _SHELL_INIT_FISH = r"""# voss shell integration (fish) — OSC 133/7 command marks for the Voss reader.
-# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on.
-# Source last, after any prompt theme (fish_prompt is wrapped for 133;B).
+# Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on
+# Source last, after any prompt theme (fish_prompt is wrapped for 133;B)
 if test "$VOSS_EMBEDDED" = "1"
     function __voss_json_escape
         string replace -a -- '\\' '\\\\' $argv \
@@ -5499,9 +5175,7 @@ def shell_init_cmd(shell_name: str) -> None:
     click.echo(_SHELL_INIT_SNIPPETS[shell_name].rstrip())
 
 
-# ---------------------------------------------------------------------------
-# observe: enrollment, status, events, reconcile (S3.7)
-# ---------------------------------------------------------------------------
+# observe: enrollment, status, events, reconcile
 
 
 @click.group("observe")
@@ -5733,9 +5407,6 @@ AGENT_COMMANDS = (
     hooks_group,
     capabilities_group,
     principles_group,
-    instructions_group,
-    shell_init_cmd,
-    observe_group,
     session_group,
     team_group,
     board_cmd,
@@ -5750,9 +5421,7 @@ def register(group: click.Group) -> None:
         group.add_command(cmd)
 
 
-# ---------------------------------------------------------------------------
-# standalone entry: `python -m voss.harness ...`
-# ---------------------------------------------------------------------------
+# standalone entry: `python -m voss.harness...`
 
 
 @click.group(

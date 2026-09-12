@@ -6,7 +6,6 @@ import { selectedCardId } from '../selection';
 import { liveOverlay } from '../live/sseClient';
 import { deriveColumn } from '../boardDerive';
 
-// COPIED from BoardPanel.tsx (private helper; copy not import).
 function budgetColor(pct: number): string {
   return pct >= 90
     ? 'var(--accent-red)'
@@ -20,7 +19,6 @@ const mono = {
   'font-variant-numeric': 'tabular-nums',
 } as const;
 
-// Mockup .gate .gk — small uppercase gate label.
 const gateKey = {
   color: 'var(--fg-3)',
   'font-family': 'var(--font-ui), Inter, system-ui, sans-serif',
@@ -35,7 +33,6 @@ const gateRow = {
   gap: '8px',
 } as const;
 
-// Mockup .gbar — mini progress track.
 const barTrack = {
   width: '88px',
   height: '4px',
@@ -44,10 +41,6 @@ const barTrack = {
   overflow: 'hidden',
 } as const;
 
-/**
- * Bottom bar reading the global `selectedCardId` / `runData`. A `data` prop
- * is accepted (defaults to global `runData`) to keep CockpitShell wiring thin
- */
 export default function GateBar(props: {
   data?: RunData | null;
   liveCard?: Card | null;
@@ -68,8 +61,6 @@ export default function GateBar(props: {
 
   const unsupportedCount = () => data()?.audit?.unsupported_claims.length ?? 0;
 
-  // LIVE-only confidence: SSE overlay score (numeric, drives the bar) or the
-  // normalized liveCard.liveStatus overlay (text) — never RunData.
   const overlayConfidence = (): number | undefined => {
     const id = selectedCardId();
     return id ? liveOverlay()[id]?.confidence : undefined;
@@ -80,7 +71,6 @@ export default function GateBar(props: {
     return props.liveCard?.liveStatus ?? null;
   };
 
-  // Sign-off state (run-level): RunFinal.sign_off, else blocked count.
   const runFinal = () => data()?.run_final ?? data()?.audit?.run_final ?? null;
   const blockedCount = () => {
     const d = data();
@@ -106,7 +96,6 @@ export default function GateBar(props: {
     return { text: 'locked · run active', color: 'var(--fg-3)' };
   };
 
-  // Component (not a shared node): both Show branches mount their own copy.
   const SignOffGate = () => (
     <Show when={data()}>
       <div style={{ ...gateRow, 'margin-left': 'auto' }}>
@@ -149,7 +138,7 @@ export default function GateBar(props: {
           color: 'var(--fg-0)',
         }}
       >
-        {/* Budget: label + threshold-colored mini-bar + monospace numerics */}
+        {}
         <div style={gateRow}>
           <span style={gateKey}>Budget</span>
           <div style={barTrack}>
@@ -166,7 +155,7 @@ export default function GateBar(props: {
           </span>
         </div>
 
-        {/* Per-card confidence — LIVE overlay only, hidden when no live data */}
+        {}
         <Show when={confidenceText()}>
           <div style={gateRow}>
             <span style={gateKey}>Confidence</span>
@@ -187,7 +176,7 @@ export default function GateBar(props: {
           </div>
         </Show>
 
-        {/* Scope (declared) */}
+        {}
         <Show when={scope()}>
           <div style={{ ...gateRow, 'min-width': '0' }}>
             <span style={gateKey}>Scope</span>
@@ -206,7 +195,7 @@ export default function GateBar(props: {
           </div>
         </Show>
 
-        {/* Unsupported-claims count (from AuditReport.unsupported_claims) */}
+        {}
         <div style={gateRow}>
           <span style={gateKey}>Unsupported claims</span>
           <span
@@ -220,7 +209,7 @@ export default function GateBar(props: {
           </span>
         </div>
 
-        {/* Sign-off state — right-aligned (run-level) */}
+        {}
         <SignOffGate />
       </div>
     </Show>

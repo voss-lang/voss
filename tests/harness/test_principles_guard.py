@@ -1,14 +1,6 @@
-"""V2-03 guards (VPRIN-03 + schema/redaction hard constraint).
-
+"""
+V2-03 guards (VPRIN-03 + schema/redaction hard constraint).
 GUARD 1 — principles are OPAQUE text: no harness/agent code path may branch
-(if / comparison / match-case) on an individual principle key or default text.
-The literal keys/texts may appear only in DATA positions (the DEFAULT_PRINCIPLES
-constant, dict/tuple construction), never as a conditional operand.
-
-GUARD 2 — schema/redaction baseline: RunRecord / SessionRecord / BudgetScope
-field-name sets are frozen here to force review for any new persisted field.
-Later authorized additive fields may be added to this baseline only when they
-preserve the redaction invariant enforced by test_session_redaction.py.
 """
 from __future__ import annotations
 
@@ -152,13 +144,11 @@ _RUN_RECORD_FIELDS = {
     "exit_reason", "iteration_total_prompt_tokens",
     "iteration_total_completion_tokens", "skill_events", "scope_denials",
     "capability_invocations", "factory_fallbacks",
-    "instructions_hash", "instructions_files",
 }
 
 _SESSION_RECORD_FIELDS = {
     "id", "name", "cwd", "model", "started_at", "updated_at", "total_cost_usd",
     "turns", "runs", "parent_id", "parent_turn_index",
-    "instructions_hash", "instructions_files",
 }
 
 _BUDGET_SCOPE_FIELDS = {

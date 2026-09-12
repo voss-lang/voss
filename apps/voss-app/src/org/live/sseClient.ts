@@ -1,9 +1,8 @@
 import { createSignal } from 'solid-js';
 
 import { ingestEvent } from '../attention/attentionQueue';
-import { ingestSwarmEvent } from './swarmLive';
 import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
-import { subscribeSidecarEvents } from './sidecarClient';
+import { subscribeToEvents } from '../../../../../sdk/typescript/src/client/sse';
 
 export interface LiveOverlayEntry {
   budget?: { spent: number; remaining: number; limit: number; unit: string };
@@ -84,7 +83,6 @@ function emitGraphPatch(ev: AgentEvent, cardId: string | undefined): void {
   });
 }
 
-
 const [liveLabel, setLiveLabel] = createSignal<'live' | 'snapshot'>('snapshot');
 
 const [liveHandles, setLiveHandles] = createSignal<Set<string>>(new Set());
@@ -99,7 +97,7 @@ function sessionKeyOf(ev: AgentEvent): string | undefined {
 
 function applyOverlay(ev: AgentEvent): void {
   const key = sessionKeyOf(ev);
-  if (key === undefined) return;
+  if (key === undefined) return; // permission.updated has no session — overlay n/a
 
   switch (ev.type) {
     case 'budget.updated':
@@ -127,29 +125,46 @@ function applyOverlay(ev: AgentEvent): void {
   }
 }
 
-
 export interface ConnectLiveStreamArgs {
-  sidecarId?: string;
+  baseUrl: string;
   sessionId: string;
+  token: string;
+  /**
+   * The card bound to this stream (Bridge A: the native session id IS the
+   * cardId). Threaded into ingestEvent so permission.updated rows carry a
+   * defined cardId (Pitfall 3 — the event itself has no session field).
+   */
   cardId?: string;
+
   onEvent?: (ev: AgentEvent) => void;
+
   onEnd?: () => void;
+  /**
+   * Test/mock injection: an async-iterable of AgentEvents to consume instead of
+   * the real `subscribeToEvents` fetch. When omitted, the real SDK consumer is
+   * used with the AbortController's signal.
+   */
   stream?: AsyncIterable<AgentEvent>;
 }
 
 export interface LiveStreamHandle {
+
   abort(): void;
 }
 
+/**
+ * Connect a live SSE stream for the selected run. Consumes `subscribeToEvents`
+ * (or an injected `stream`) inside a `for await`, routing each event into both
+ * ingestEvent (attention queue) and the live overlay. Sets liveLabel to 'live'
+ * while the stream is active and resets to 'snapshot' on end / abort / error.
+ *
+ * Returns a handle with `abort()` for clean teardown (no dangling generator).
+ */
 export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle {
   const ac = new AbortController();
   const stream =
     args.stream ??
-    subscribeSidecarEvents(
-      args.sidecarId ?? '',
-      args.sessionId,
-      ac.signal,
-    );
+    subscribeToEvents(args.baseUrl, args.sessionId, args.token, ac.signal);
 
   setLiveLabel('live');
   setLiveHandles((prev) => new Set([...prev, args.sessionId]));
@@ -170,10 +185,9 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
       setLiveHandles((prev) => {
         const s = new Set(prev);
         s.delete(args.sessionId);
-        remaining = s.size;
         return s;
       });
-      setLiveLabel(remaining > 0 ? 'live' : 'snapshot');
+      setLiveLabel('snapshot');
       args.onEnd?.();
     }
   })();
@@ -193,11 +207,10 @@ export function connectLiveStream(args: ConnectLiveStreamArgs): LiveStreamHandle
   };
 }
 
-export { liveLabel, liveOverlay, liveHandles, liveGraphPatches };
+export { liveLabel, liveOverlay, liveHandles };
 
 export function __resetLiveStream(): void {
   setLiveOverlay({});
   setLiveLabel('snapshot');
   setLiveHandles(new Set<string>());
-  setLiveGraphPatches([]);
 }

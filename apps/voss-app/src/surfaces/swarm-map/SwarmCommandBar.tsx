@@ -39,7 +39,7 @@ const SwarmCommandBar: Component = () => {
   };
   const canSend = () => disabledReason() === null;
 
-/** Resolve the current "@target" selection to session ids */
+    
   function targetSessions(): string[] {
     return targets().find((t) => t.label === target())?.sessionIds ?? [];
   }
@@ -56,7 +56,7 @@ const SwarmCommandBar: Component = () => {
       setNote(reason);
       return;
     }
-    // Parse a leading @token to override the dropdown target inline.
+    // Parse a leading @token to override the dropdown target inline
     let body = text();
     let ids = targetSessions();
     const m = body.match(/^@(\S+)\s+(.*)$/s);

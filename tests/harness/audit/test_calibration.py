@@ -1,16 +1,10 @@
-"""V9 RED scaffolds for reviewer calibration (VAUD-CAL).
-
+"""
+V9 RED scaffolds for reviewer calibration (VAUD-CAL).
 Pins ``voss.harness.audit.calibration.compute_calibration`` and the
-``CalibrationReport`` model. Expected RED until V9-05 lands. Uses tmp_path;
-never writes to the real ``.voss/``. No xfail masking.
-
-Calibration pairs from the fixture sidecars:
-  - node_misroute1: A=pass / B=fail  -> false-pass pair
-  - node_ab_block1: A=pass / B=block -> false-pass + slop-rejection
-  - node_done_0001: A=pass / B=pass  -> clean
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest

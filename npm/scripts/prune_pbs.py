@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-"""Trim a Python-Build-Standalone extract per RESEARCH §4.
-
+"""
+Trim a Python-Build-Standalone extract per RESEARCH §4.
 CLI:
-  prune_pbs.py <dir-containing-python/>  [--dry-run]
-
-Auto-detects platform shape by looking for sentinel files inside python/:
-  python/python.exe      -> Windows targets
-  python/bin/python3     -> Unix targets
-
-Missing prune targets are NOT errors; PBS layout evolves and the script is
-tolerant by design (RESEARCH §4). Always exits 0 if shape was detected,
-even if some targets were absent.
-
-Idempotent: running twice removes everything possible the first time and
-finds nothing the second.
 """
 
 from __future__ import annotations

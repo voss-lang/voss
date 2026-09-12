@@ -8,14 +8,10 @@ const isCoordinator = (role: string) => /^coord/i.test(role);
 export interface LaunchSwarmOpts {
   goal: string;
   builders: number;
-/** Explicit roster (role agent/model). Omitted → server default roster */
+
   roster?: RoleSpecBody[];
 }
 
-/**
- * Launch a swarm from the app. Returns the new swarm id. Throws if creation
- * fails (e.g. no credentials → POST /swarm 400)
- */
 export async function launchSwarm(
   srv: LiveServer,
   opts: LaunchSwarmOpts,
@@ -36,16 +32,11 @@ export async function launchSwarm(
     });
   }
 
-  // Kick the coordinator: post the goal so it takes its first turn (it is not
-  // spawn-gated). Builders unblock when the coordinator emits swarm.assign.
   const coord = native.find((s) => isCoordinator(s.role));
   if (coord?.session_id && srv.followUpClient) {
     await srv.followUpClient.postMessage(coord.session_id, opts.goal);
   }
 
-  // CLI (non-native) roles come back spawn-pending (no session_id); kick the
-  // headless driver so they worktree-spawn with their chosen --model. Native-
-  // only rosters skip this entirely.
   const hasCli = sessions.some((s) => s.pending || !s.session_id);
   if (hasCli) {
     await runSwarm(srv.sidecarId, id);

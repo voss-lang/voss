@@ -75,91 +75,10 @@ const PILLARS: { title: string; body: string; icon: LucideIcon; href: string }[]
 const TEAM_SAMPLE = `team "default" {
   ceiling {
     budget: 120000 tokens
-    scope: ["src/**", "tests/**", "docs/**"]
-    latency: 30m
-  }
-
-  principles {
-    diff: "Smallest diff that solves it"
-    evidence: "No claim without evidence"
-  }
-
-  role architect {
-    model: "strong"
-    mode:  "plan"
-    scope: ["src/**", "docs/**"]
-    tools: ["fs", "code", "git"]
-    budget: 12000 tokens
-  }
-
-  role backend {
-    model: "cheap"
-    mode:  "edit"
-    scope: ["src/server/**", "tests/server/**"]
-    tools: ["fs", "code", "test", "git"]
-    budget: 24000 tokens
-  }
-
-  role reviewer {
-    model: "strong"
-    mode:  "plan"
-    scope: ["src/**", "tests/**"]
-    tools: ["fs", "code", "test", "git"]
-    budget: 16000 tokens
-  }
-}`;
-
-export default async function OrchestrationPage() {
-  const teamHtml = await codeToHtml(TEAM_SAMPLE.trimEnd(), {
-    lang: "python",
-    theme: "github-dark-default",
-  });
-
-  return (
-    <>
-      <Nav />
-      <main>
-        <section className="relative overflow-hidden border-b border-[var(--border)]">
-          <div className="grid-backdrop absolute inset-0 -z-10" aria-hidden="true" />
-          <div className="glow absolute inset-0 -z-10" aria-hidden="true" />
-          <div className="mx-auto max-w-6xl px-6 pt-24 pb-20">
-            <Reveal>
-              <Badge variant="secondary" className="font-mono uppercase tracking-wider">
-                Orchestration
-              </Badge>
-            </Reveal>
-            <Reveal delay={0.05}>
-              <h1 className="display mt-5 max-w-4xl text-[clamp(2.5rem,6vw,4.5rem)]">
-                A controlled AI engineering <span className="em">organization</span>.
-              </h1>
-            </Reveal>
-            <Reveal delay={0.1}>
-              <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[var(--muted)]">
-                Most AI coding tools optimize one agent writing code faster. Voss optimizes verified
-                parallel engineering: multiple agents, declared roles, independent review, hard
-                budgets, scoped tools, and a replayable audit.
-              </p>
-            </Reveal>
-            <Reveal delay={0.15}>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button asChild size="lg">
-                  <Link href="/audit">
-                    See the audit
-                    <ScrollText />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="lg">
-                  <Link href={site.docsUrl} target="_blank" rel="noreferrer">
-                    Read docs
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* Pillars */}
+    scope: ["src/**
+ * ", "tests/**", "docs/**"]
+ * latency: 30m
+ */}
         <section className="border-b border-[var(--border)]">
           <div className="mx-auto max-w-6xl px-6 py-20">
             <Stagger className="grid gap-px overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--border)] md:grid-cols-2">

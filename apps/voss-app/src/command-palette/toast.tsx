@@ -1,10 +1,5 @@
 import { createSignal, For } from 'solid-js';
 
-/**
- * Task 3 — minimal Variant B toast stack
- * Fixed bottom-right, max 3 visible, auto-dismiss (5s normal, 8s error)
- */
-
 export type ToastSeverity = 'success' | 'warning' | 'error' | 'info';
 
 export interface ToastItem {
@@ -26,6 +21,7 @@ const DISMISS_MS_ERROR = 8000;
 
 let nextId = 1;
 
+// Shared toast store (module-level, one per app)
 
 const [toasts, setToasts] = createSignal<ToastItem[]>([]);
 
@@ -47,6 +43,7 @@ export function _resetToastsForTest(): void {
   setToasts([]);
 }
 
+// Component
 
 export default function ToastStack() {
   return (
@@ -74,7 +71,7 @@ export default function ToastStack() {
             aria-live={
               toast.severity === 'error' ? 'assertive' : 'polite'
             }
-            class="font-ui"
+            class="font-mono"
             style={{
               'min-height': '32px',
               padding: '8px 16px',

@@ -1,10 +1,7 @@
-"""Frozen value objects for the team / organizational cage (O2).
-
-Implements the structural shell for OTEAM-04 (immutable cage metadata) and
-OTEAM-08 (opaque board/ritual carriers). `compile_team` maps `TeamDecl` AST
-from O2-01 into immutable `TeamConfig` + `SubagentRegistry`.
 """
-
+Frozen value objects for the team / organizational cage
+Implements the structural shell for OTEAM-04 (immutable cage metadata) and
+"""
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
@@ -19,7 +16,10 @@ from voss.ast_nodes import (
     BoardDecl,
     BudgetArg,
     CeilingDecl,
+    Identifier,
     ListLit,
+    RosterDecl,
+    RosterRoleDecl,
     Span,
     StringLit,
     TeamAgentDecl,
@@ -100,7 +100,7 @@ class RoleDefaults:
 
 # Default product-engineering roster. It keeps the PRD specialist core and adds
 # product/design, platform/reliability/security, and data/AI lenses common in
-# engineering orgs. Tiers only — never concrete model names.
+# engineering orgs. Tiers only never concrete model names
 _ROLE_DEFAULTS: dict[str, RoleDefaults] = {
     "product": RoleDefaults(
         description="Product engineer",
@@ -202,8 +202,8 @@ _ROLE_DEFAULTS: dict[str, RoleDefaults] = {
     ),
 }
 
-# Legacy roster names (pre-V3) kept resolvable for back-compat (D-05). These are
-# only desc/prompt carriers; their scope/tools come from the explicit declaration.
+# Legacy roster names (pre-) kept resolvable for back-compat. These are
+# only desc/prompt carriers; their scope/tools come from the explicit declaration
 _LEGACY_ROLE_DESC: dict[str, tuple[str, str]] = {
     "ui": (
         "UI engineer",
@@ -237,7 +237,7 @@ def default_team_role_defaults(role_name: str) -> tuple[str, str]:
 EM_DESCRIPTION: str = "Engineering Manager (orchestrator)"
 EM_ROLE_PROMPT: str = "<EM role prompt — populated in O5>"
 
-# OQ-03-A: hybrid alias table (shorthand groups + exact tool names accepted separately).
+# OQ-03-A: hybrid alias table (shorthand groups + exact tool names accepted separately)
 TOOL_GROUP_ALIASES: dict[str, frozenset[str]] = {
     "fs": frozenset({"fs_read", "fs_write", "fs_edit", "fs_glob", "fs_grep"}),
     "code": frozenset(
@@ -307,12 +307,12 @@ def gate_for_role(spec: SubagentSpec, base_gate: PermissionGate) -> PermissionGa
     )
 
 
-# V1-capability-seam (VTEAM-07): this raw toolset-key + net-alias filter is the
-# binding point where V1's capability registry will later resolve a role's
-# declared capabilities to a concrete toolset. The replacement is V1's concern;
+# capability-seam (VTEAM-07): this raw toolset-key + net-alias filter is the
+# binding point where 's capability registry will later resolve a role's
+# declared capabilities to a concrete toolset. The replacement is 's concern
 # the current behavior (alias expansion + exact-key match, net opt-in) is locked
-# and unchanged here. Do not add capability logic to this function — bind it at
-# this seam in V1.
+# and unchanged here. Do not add capability logic to this function bind it at
+# this seam in
 def filter_toolset_for_role(
     spec: SubagentSpec,
     base_toolset: Mapping[str, ToolEntry],
@@ -330,8 +330,8 @@ def filter_toolset_for_role(
         return dict(base_toolset)
     expanded: set[str] = set()
     for entry in spec.tools:
-        # V1-capability binding site: today raw alias/key expansion; in V1 a
-        # capability registry lookup replaces this branch (behavior unchanged now).
+        # capability binding site: today raw alias/key expansion; in a
+        # capability registry lookup replaces this branch (behavior unchanged now)
         if entry in TOOL_GROUP_ALIASES:
             expanded |= set(TOOL_GROUP_ALIASES[entry])
         else:
@@ -397,7 +397,7 @@ class RitualSpec:
     raw_kvs: tuple[tuple[str, object], ...]
 
 
-# ----- V10 coordination configs (VLANG-01b/01c) — informational, compile-to-config only -----
+# coordination configs (VLANG-01b/01c) informational, compile-to-config only
 @dataclass(frozen=True, slots=True)
 class GateConfig:
     """A `gate <name> { require ... }` block compiled to config (no enforcement)."""
@@ -596,16 +596,16 @@ def subagent_spec_from_role(
     apply_role_defaults: bool = False,
 ) -> SubagentSpec:
     # Per-role tier/scope/tools defaults flow only for default-roster injection
-    # (VTEAM-09). Explicitly declared roles keep the shipped behavior — omitted
-    # scope inherits the ceiling, omitted tools/model stay empty/None — so
-    # existing O2 specs/tests compile unchanged (D-05 back-compat).
+    # (VTEAM-09). Explicitly declared roles keep the shipped behavior omitted
+    # scope inherits the ceiling, omitted tools/model stay empty/None so
+    # existing specs/tests compile unchanged ( back-compat)
     rd = role_full_defaults(role_name) if apply_role_defaults else None
 
     parsed_scope_opt = (
         _parse_scope_literal(kvs["scope"], role_decl_span) if "scope" in kvs else None
     )
 
-    # Precedence: declared scope > per-role default scope > ceiling scope.
+    # Precedence: declared scope > per-role default scope > ceiling scope
     if parsed_scope_opt is not None:
         scope: TeamRoleScope | None = parsed_scope_opt
     elif rd is not None:
@@ -641,7 +641,7 @@ def subagent_spec_from_role(
                 ceiling_span=ceiling_ast.span if ceiling_ast else None,
             )
 
-    # Precedence: declared tools > per-role default tools > empty.
+    # Precedence: declared tools > per-role default tools > empty
     if "tools" in kvs:
         tools = _parse_tools_value(kvs["tools"], role_decl_span)
     elif rd is not None:
@@ -650,7 +650,7 @@ def subagent_spec_from_role(
         tools = frozenset()
     net = "net" in tools
 
-    # Precedence: declared model > per-role default tier > none.
+    # Precedence: declared model > per-role default tier > none
     if "model" in kvs:
         model = _parse_model_value(kvs["model"], role_decl_span)
     elif rd is not None:
@@ -854,7 +854,7 @@ def compile_team(
     # VTEAM-09: a team{} with no agents and no roster roles gets the built-in
     # product-engineering roster, each carrying its full tier-based defaults
     # (desc/prompt/model/scope/tools) via the same spec path. Declared cages are
-    # never overridden — injection only when both are empty (T-V3-02).
+    # never overridden injection only when both are empty
     if not roster_id_set:
         for name in DEFAULT_ROSTER:
             spec_d = subagent_spec_from_role(

@@ -83,6 +83,9 @@ vi.mock('../workspaces/workspaceStorage', async (importOriginal) => {
     saveProjectLessSession: vi.fn().mockResolvedValue(undefined),
   };
 });
+vi.mock('../grid/sessionCommands', () => ({
+  layoutToSession: vi.fn((layout: unknown) => layout),
+}));
 vi.mock('../command-palette/CommandPalette', () => ({
   default: () => null,
 }));
@@ -124,7 +127,7 @@ vi.mock('@tauri-apps/api/window', () => ({
   })),
 }));
 
-vi.mock('../canvas/CanvasRoot', () => ({
+vi.mock('../grid/GridRoot', () => ({
   default: (props: {
     active?: () => boolean;
     controllerRef?: (ctrl: {
@@ -275,27 +278,15 @@ beforeEach(() => {
 });
 
 describe('App — setup branch', () => {
-  it('renders workspace tab bar above the terminal grid when a workspace is ready', async () => {
+  it('renders workspace tab bar below the titlebar', async () => {
     const el = mount(() => <App />);
     await waitFor(() => expect(h.workspaceStore).not.toBeNull());
-    expect(el.querySelector('[data-workspace-tabbar]')).toBeNull();
-    fireEvent.click(
-      el.querySelector('button[aria-label="Start without project"]')!,
-    );
-    await waitFor(() =>
-      expect(el.querySelector('[data-workspace-tabbar]')).not.toBeNull(),
-    );
+    expect(el.querySelector('[data-workspace-tabbar]')).not.toBeNull();
   });
 
   it('+ opens the new workspace picker', async () => {
     const el = mount(() => <App />);
     await waitFor(() => expect(h.workspaceStore).not.toBeNull());
-    fireEvent.click(
-      el.querySelector('button[aria-label="Start without project"]')!,
-    );
-    await waitFor(() =>
-      expect(el.querySelector('[data-workspace-tabbar]')).not.toBeNull(),
-    );
     fireEvent.click(el.querySelector('[aria-label="New workspace"]')!);
     expect(el.querySelector('[data-testid="new-workspace-picker"]')).not.toBeNull();
   });
@@ -344,7 +335,7 @@ describe('App — project open flow', () => {
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
     await waitFor(() => expect(el.textContent).toContain('x'));
-    await waitFor(() => expect(h.loadDefaultLayout).toHaveBeenCalledWith('default'));
+    await waitFor(() => expect(h.loadDefaultLayout).toHaveBeenCalledWith('/tmp/x'));
     expect(h.openProject).toHaveBeenCalledWith('/tmp/x');
     expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull();
   });
@@ -358,8 +349,8 @@ describe('App — project open flow', () => {
     await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
-    // A6: session/default resolved before project state set.
-    // Rejected default is caught silently → project still opens.
+    // session/default resolved before project state set
+    // Rejected default is caught silently → project still opens
     await waitFor(() => expect(el.textContent).toContain('x'));
     expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull();
   });
@@ -428,7 +419,7 @@ describe('App — project open flow', () => {
     await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
-    // A6 flow: session/default are resolved BEFORE project state is set.
+    // flow: session/default are resolved BEFORE project state is set
     await waitFor(() =>
       expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull(),
     );

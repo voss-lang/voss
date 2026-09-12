@@ -98,7 +98,7 @@ export default function BudgetPopover(props: BudgetPopoverProps) {
           </span>
         </div>
 
-        {/* limit row — hidden when null */}
+        {/* limit row hidden when null */}
         <Show when={b().token_limit != null}>
           <div style={ROW}>
             <span style={LABEL}>limit:</span>

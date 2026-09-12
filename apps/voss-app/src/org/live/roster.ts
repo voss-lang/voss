@@ -3,32 +3,29 @@ import type { RoleSpecBody } from './swarmClient';
 
 export type RoleKind = 'coordinator' | 'builder' | 'reviewer';
 
-/** Native agent key — the in-process loop. Mirrors swarm_agents.NATIVE */
 export const NATIVE_AGENT = 'voss';
-/** Sentinel meaning "no explicit model" (native default / CLI default) */
+
 export const DEFAULT_MODEL = 'default';
 
 export interface RosterRole {
-/** Server role name: 'coordinator' | 'builder-N' | 'reviewer' */
+
   name: string;
   kind: RoleKind;
   agent: string;
   model: string;
 }
 
-/** One selectable agent+model option for a role dropdown */
 export interface AgentModelOption {
   id: string;
   label: string;
   agent: string;
   model: string;
-/** Whether this option actually runs from the app launch path */
+
   native: boolean;
 }
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-/** Honest agent/model options, sourced from the verified model catalog */
 export const AGENT_MODEL_OPTIONS: AgentModelOption[] = [
   { id: NATIVE_AGENT, label: 'Native · Voss', agent: NATIVE_AGENT, model: DEFAULT_MODEL, native: true },
   ...MODEL_PRESETS.claude.alternates.map((m) => ({
@@ -53,7 +50,6 @@ export function optionFor(role: { agent: string; model: string }): AgentModelOpt
   );
 }
 
-/** Named team-size presets. `total` (the big number) = builders + coordinator + reviewer */
 export interface RosterPreset {
   name: string;
   builders: number;
@@ -66,7 +62,6 @@ export const ROSTER_PRESETS: RosterPreset[] = [
   { name: 'Swarm', builders: 6, total: 8 },
 ];
 
-/** Build coordinator + N builders + reviewer, all sharing `base` agent/model */
 export function buildRoster(
   builders: number,
   base: AgentModelOption = DEFAULT_OPTION,
@@ -85,7 +80,6 @@ export function buildRoster(
   ];
 }
 
-/** Re-sequence builder names builder.N (after add/remove) */
 export function renumberBuilders(roles: RosterRole[]): RosterRole[] {
   let b = 0;
   return roles.map((r) => {
@@ -98,11 +92,9 @@ export function renumberBuilders(roles: RosterRole[]): RosterRole[] {
 export const builderCount = (roles: RosterRole[]): number =>
   roles.filter((r) => r.kind === 'builder').length;
 
-/** Map roster roles to the POST /swarm payload shape */
 export function toRoleSpecs(roles: RosterRole[]): RoleSpecBody[] {
   return roles.map((r) => ({ name: r.name, agent: r.agent, model: r.model }));
 }
 
-/** Whether any role runs as a CLI subprocess (needs runSwarm after create) */
 export const hasCliRole = (roles: RosterRole[]): boolean =>
   roles.some((r) => r.agent !== NATIVE_AGENT);

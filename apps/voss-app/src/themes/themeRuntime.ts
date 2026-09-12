@@ -16,9 +16,8 @@ let committedTheme: Theme = DEFAULT_THEME;
 let committedHighContrast = false;
 let committedAppearance: AppearanceSettings | null = null;
 
-/** Baseline committed state saved when preview begins */
 let previewBaseline: { theme: Theme; highContrast: boolean } | null = null;
-/** Theme currently shown during preview (if any) */
+
 let previewThemeCurrent: Theme | null = null;
 let previewHighContrast = false;
 
@@ -41,7 +40,6 @@ const ANSI_XTERM_KEYS = [
   'brightWhite',
 ] as const satisfies readonly (keyof ITheme)[];
 
-/** Build xterm ITheme from theme cssVars + 16-color ANSI palette */
 export function themeToXtermTheme(
   theme: Theme,
   highContrast = false,
@@ -76,7 +74,6 @@ function cursorBlinkEnabled(blink: AppearanceSettings['cursorBlink']): boolean {
   return blink !== 'off';
 }
 
-/** Apply font/cursor options to one live terminal without remount */
 export function applyAppearanceToTerminal(
   terminal: Terminal,
   settings: AppearanceSettings,
@@ -161,7 +158,6 @@ export function applyThemeToRuntime(
   applyVisual(theme, highContrast);
 }
 
-/** Hover preview: save committed snapshot, apply theme without committing */
 export function previewTheme(
   theme: Theme,
   options?: { highContrast?: boolean },
@@ -169,7 +165,6 @@ export function previewTheme(
   applyThemeToRuntime(theme, { ...options, preview: true });
 }
 
-/** Restore committed theme after preview (Esc / cancel) */
 export function cancelThemePreview(): void {
   if (!previewBaseline) return;
 
@@ -179,7 +174,6 @@ export function cancelThemePreview(): void {
   applyVisual(theme, highContrast);
 }
 
-/** Clear preview stack after user commits the previewed theme */
 export function commitThemePreview(): void {
   if (previewThemeCurrent) {
     committedTheme = previewThemeCurrent;
@@ -189,7 +183,6 @@ export function commitThemePreview(): void {
   previewThemeCurrent = null;
 }
 
-/** Test-only: reset registry and committed state */
 export function _resetForTest(): void {
   terminals.clear();
   committedTheme = DEFAULT_THEME;

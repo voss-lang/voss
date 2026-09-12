@@ -1,25 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { subscribeStructuralChange } from '../canvas/sync';
-import { buildSessionFile } from '../canvas/session';
+import { subscribeStructuralChange } from '../grid/sync';
+import { buildSessionFile } from '../grid/sessionCommands';
 import { saveSession } from '../grid/sessionStorage';
 import { getScrollbackSnapshot } from '../pane/scrollbackRegistry';
-import type { CanvasController } from '../canvas/CanvasRoot';
-import type { ActiveLayout } from '../canvas/arrange';
+import type { GridController } from '../grid/GridRoot';
+import type { ActiveLayout } from '../grid/layoutPresets';
 import type { WorkspacesIndex } from './workspaceStorage';
 import { saveProjectLessSession } from './workspaceStorage';
 
-/**
- * multi-workspace session lifecycle
- * One app-level close handler saves every mounted workspace controller
- */
-
 export type WorkspaceSessionContext = {
   workspaceId: string;
-  getController: () => CanvasController | undefined;
+  getController: () => GridController | undefined;
   getActiveLayout: () => ActiveLayout;
   getProjectLessAccepted: () => boolean;
-/** null = project-less session target for this workspace id */
+    /** null = project-less session target for this workspace id */
   projectPath: string | null;
 };
 
@@ -32,15 +27,17 @@ async function saveWorkspaceSession(
   const controller = ctx.getController();
   if (!controller) return;
 
+  const snap = controller.snapshot();
   const session = buildSessionFile(
-    controller.snapshot(),
+    snap.root,
+    snap.focusedId,
     ctx.getActiveLayout(),
     scrollbackByPaneId,
     ctx.getProjectLessAccepted(),
   );
 
   if (ctx.projectPath) {
-    await saveSession(ctx.workspaceId, session);
+    await saveSession(ctx.projectPath, session);
   } else {
     await saveProjectLessSession(ctx.workspaceId, session);
   }
@@ -72,10 +69,6 @@ export function installWorkspaceStructuralAutosave(
   };
 }
 
-/**
- * Install a single close-request handler that snapshots every workspace
- * saves each session and the workspace index, then closes with reentry guard
- */
 export async function installAllWorkspacesCloseSave(
   getContexts: () => WorkspaceSessionContext[],
   getIndex: () => WorkspacesIndex,

@@ -3,13 +3,6 @@ import type { RunData, ReviewSidecar } from '../types';
 import { cardsFromRunData, type BoardCard } from '../boardDerive';
 import { paneIdForCard } from '../model/bridge';
 
-// 02 — 6-column Kanban, restyled in chunk B to the cockpit mockup
-// .card/.colhdr: role-colored left accent, title-first cards, badge row
-// (id / risk·tier / mono budget / ● live / A·B reviewer dots), mini progress
-// bar, and count-pill column headers (WIP-colored for In Progress).
-// Columns render harness keys (data-col) with the mockup display labels;
-// cards are grouped by their derived column. The selection contract is
-// unchanged: data-card-id + onCardSelect(card.id).
 const COLUMNS: Array<{ key: string; label: string; color: string }> = [
   { key: 'Backlog', label: 'Backlog', color: 'var(--org-col-backlog)' },
   { key: 'Planned', label: 'Planned', color: 'var(--org-col-todo)' },
@@ -45,7 +38,6 @@ function roleColor(role: string | null): string {
   }
 }
 
-// Risk badge tint (mockup .b.risk-*): token text on a color-mix soft fill.
 function riskBadgeColor(risk: string): string {
   return risk === 'high'
     ? 'var(--accent-red)'
@@ -54,7 +46,6 @@ function riskBadgeColor(risk: string): string {
       : 'var(--accent-amber)';
 }
 
-// A/B reviewer dot (mockup .abdot): verdict-tinted, grey while pending.
 function verdictDotColor(verdict: string | null | undefined): string {
   if (!verdict) return 'var(--fg-3)';
   const v = verdict.toUpperCase();
@@ -82,7 +73,6 @@ function BoardCardView(props: {
   const pct = () =>
     props.card.limit > 0 ? (props.card.spent / props.card.limit) * 100 : 0;
   const rc = () => roleColor(props.card.role);
-  // chunk B: ● live badge when the id-bridge binds this card to a pane.
   const live = () => paneIdForCard(props.card.id) !== undefined;
   return (
     <div
@@ -91,9 +81,6 @@ function BoardCardView(props: {
       onClick={() => props.onSelect()}
       style={{
         background: 'var(--bg-2)',
-        // Border stays a uniform shorthand (selection ring assertions read
-        // style.border); the mockup's 3px role-colored left accent is the
-        // inset box-shadow stripe below.
         border: props.selected ? '1px solid var(--focus)' : '1px solid var(--border)',
         'box-shadow': props.selected
           ? '0 0 0 1px var(--focus), inset 3px 0 0 var(--focus)'
@@ -107,7 +94,7 @@ function BoardCardView(props: {
         gap: '4px',
       }}
     >
-      {/* Title first (mockup .card .ct): 12px fg-0, 2-line clamp. */}
+      {}
       <div
         style={{
           'font-family': 'var(--font-ui), Inter, system-ui, sans-serif',
@@ -123,7 +110,7 @@ function BoardCardView(props: {
         {props.card.title}
       </div>
 
-      {/* Badge row (mockup .badges): id · risk·tier · budget · role · live · A/B. */}
+      {}
       <div
         style={{
           display: 'flex',
@@ -208,7 +195,7 @@ function BoardCardView(props: {
         </Show>
       </div>
 
-      {/* Mini progress bar (mockup .miniprog): spent/limit %. */}
+      {}
       <Show when={props.card.limit > 0}>
         <div
           style={{
@@ -285,7 +272,7 @@ export default function BoardPanel(props: {
                 }}
               >
                 {col.label}
-                {/* Count pill (mockup .colhdr .cn) — WIP-colored for In Progress. */}
+                {}
                 <span
                   class="org-board-col__count"
                   style={{

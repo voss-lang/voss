@@ -8,22 +8,23 @@ import signal as _signal
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from voss_runtime import ToolDescriptor, tool
 
-from .net import NetSession
 from .sandbox import jail_path, shell_allowed, split_command, SandboxError
-from .tui.widgets.diff_modal import Hunk
-from .memory_store import MemoryStore
+from .tui.widgets.diff_modal import DiffDecision, Hunk
+
+if TYPE_CHECKING:
+    from voss.harness.net import NetSession
 
 
 SHELL_OUTPUT_CAP_BYTES = 30720
 
-# V1-01 / D-05: the EXACTLY nine capability groups every ToolEntry must declare.
-# No tenth bucket (e.g. "orchestration") — the subagent/task family maps to
+# /: the EXACTLY nine capability groups every ToolEntry must declare
+# No tenth bucket (e.g. "orchestration") the subagent/task family maps to
 # "review" (the run-artifact / meta-work bucket). Group + scope_requirements are
-# auditable data at registration (D-01), never name-prefix guesswork.
+# auditable data at registration, never name-prefix guesswork
 CAPABILITY_GROUPS = ("fs", "git", "test", "shell", "net", "code", "memory", "review", "mcp")
 
 _AUDIT_BEHAVIORS = ("full", "redact_args", "metadata_only")
@@ -74,14 +75,14 @@ class ToolEntry:
 
     descriptor: ToolDescriptor
     is_mutating: bool
-    # V1-01 CAP-01: `group` is REQUIRED (no default) so every construction site
-    # must tag it explicitly (D-01). It sits before the defaulted fields so the
+    # CAP-01: `group` is REQUIRED (no default) so every construction site
+    # must tag it explicitly. It sits before the defaulted fields so the
     # frozen dataclass allows a required field here; an untagged site TypeErrors
-    # loudly rather than mislabeling silently.
+    # loudly rather than mislabeling silently
     group: str
     is_network: bool = False
-    # CAP-03: coarse permission buckets (group-level only, D-03) drawn from
-    # CAPABILITY_GROUPS. CAP-06: audit shaping. is_stateful → order-dependent.
+    # CAP-03: coarse permission buckets (group-level only, ) drawn from
+    # CAPABILITY_GROUPS. CAP-06: audit shaping. is_stateful → order-dependent
     scope_requirements: tuple[str, ...] = ()
     audit_behavior: str = "full"
     is_stateful: bool = False
@@ -155,28 +156,13 @@ def _read_one_for_bundle(cwd: Path, path: str) -> str:
     return text
 
 
-def attach_memory_tools(
-    tools: dict[str, "ToolEntry"],
-    *,
-    store,
-    session_id: str,
-    external_service=None,
-    global_store=None,
-) -> None:
+def attach_memory_tools(tools: dict[str, "ToolEntry"], *, store, session_id: str) -> None:
     """Register agent-callable durable-memory tools backed by `MemoryStore`.
 
     Exposes the recall/retain verbs the model can drive itself (previously
     only user/CLI-driven via /recall and /save). `memory_recall` is read-only
     (fans out concurrently); `memory_remember` writes a note (mutating). The
     store is bound to a session elsewhere; `session_id` tags written notes.
-
-    V22-05: When `external_service` is provided, recall fuses its hits with
-    durable-memory hits via reciprocal-rank fusion.
-
-    V21 (VGMEM-*): When `global_store` is provided, recall also queries the
-    cross-project global corpus and fuses those hits in; global hits render
-    with a `[global]` label. `memory_remember` only ever writes the
-    project-scoped `store` — the agent can never write the global corpus.
     """
 
     @tool(
@@ -204,9 +190,9 @@ def attach_memory_tools(
                     hits = MemoryStore._rrf_merge([hits, *ext], top_k=top_k)
             except Exception:  # noqa: BLE001 — external recall must not break the turn
                 pass
-        # V21 (VGMEM-*): fuse the cross-project global corpus. Global hits carry
+        # (VGMEM-*): fuse the cross-project global corpus. Global hits carry
         # a `global:` locator prefix so they survive RRF dedup distinctly and
-        # render with a `[global]` label (stripped from the displayed locator).
+        # render with a `[global]` label (stripped from the displayed locator)
         if global_store is not None:
             try:
                 global_hits = global_store.recall(query, top_k=top_k, source=source)
@@ -219,10 +205,10 @@ def attach_memory_tools(
                 pass
         if not hits:
             return "(no hits)"
-        # VRNK-01: agent-path recall records retrieval telemetry (sidecar only;
-        # memory files stay immutable). CLI recall stays no-touch. V23-06 wires
-        # global_store telemetry post-V21 — out of scope here. Guarded so a
-        # store without telemetry support (or any fs error) never breaks recall.
+        # VRNK-01: agent-path recall records retrieval telemetry (sidecar only
+        # memory files stay immutable). CLI recall stays no-touch. wires
+        # global_store telemetry post- out of scope here. Guarded so a
+        # store without telemetry support (or any fs error) never breaks recall
         record_telemetry = getattr(store, "_record_telemetry", None)
         if callable(record_telemetry):
             try:
@@ -231,13 +217,7 @@ def attach_memory_tools(
                 pass
         lines: list[str] = []
         for h in hits:
-            if h.locator.startswith("global:"):
-                label = "global"
-                locator = h.locator[len("global:"):]
-            else:
-                label = h.source
-                locator = h.locator
-            lines.append(f"[{label}] {locator} (score {h.score:.2f})")
+            lines.append(f"[{h.source}] {h.locator} (score {h.score:.2f})")
             excerpt = (h.excerpt or "").replace("\n", " ")[:160]
             if excerpt:
                 lines.append(f"  {excerpt}")
@@ -295,7 +275,7 @@ def attach_code_recall_tool(tools: dict[str, "ToolEntry"], *, code_index_service
             return "(no hits)"
         lines: list[str] = []
         for h in hits:
-            # locator is code:<rel_path>:<seq> — surface as path:line_start.
+            # locator is code:<rel_path>:<seq> surface as path:line_start
             parts = h.locator.split(":")
             path = ":".join(parts[1:-1]) if len(parts) >= 3 else h.locator
             anchor = f"{path}:{h.line_start}" if h.line_start else path
@@ -312,17 +292,13 @@ def make_toolset(
     cwd: Path,
     *,
     renderer=None,
-    net: NetSession | None = None,
+    net: "NetSession | None" = None,
     session_id: str | None = None,
-    background_indexing: bool = True,
 ) -> dict[str, ToolEntry]:
     """Build the harness toolset bound to a project cwd.
 
     Returns a dict of tool name -> ToolEntry. Each entry carries an
     explicit `is_mutating` boolean used by PermissionGate.
-
-    Ephemeral callers can disable background indexing so worker threads do
-    not outlive and write into a temporary cwd during teardown.
 
     T2-04: When `renderer` is provided AND exposes `show_diff_modal`,
     `fs_edit_many` routes through the M9-05 DiffModal for per-hunk
@@ -371,10 +347,10 @@ def make_toolset(
 
     @tool(name="shell_run", description="Run an allowlisted command (no shell). Output truncated to 30KB.")
     async def shell_run(cmd: str) -> str:
-        # Allowlist + metacharacter check first. shell_allowed rejects pipelines,
-        # redirection, command substitution, chaining — anything that requires a
+        # Allowlist + metacharacter check first. shell_allowed rejects pipelines
+        # redirection, command substitution, chaining anything that requires a
         # shell to interpret. The actual invocation uses `create_subprocess_exec`
-        # so the binary is executed directly, never via `/bin/sh -c`.
+        # so the binary is executed directly, never via `/bin/sh -c`
         ok, reason = shell_allowed(cmd)
         if not ok:
             return f"<denied: {reason}>"
@@ -401,7 +377,7 @@ def make_toolset(
         except (OSError, SandboxError) as e:
             return f"<error: {e}>"
         text = out.decode("utf-8", errors="replace")
-        # T5 cap: 30720 bytes via SHELL_OUTPUT_CAP_BYTES.
+        # T5 cap: 30720 bytes via SHELL_OUTPUT_CAP_BYTES
         if len(text) > SHELL_OUTPUT_CAP_BYTES:
             text = text[:SHELL_OUTPUT_CAP_BYTES] + f"\n<truncated, total {len(out)} bytes>"
         return f"[exit {proc.returncode}]\n{text}"
@@ -419,10 +395,10 @@ def make_toolset(
         cmd: str,
         no_output_deadline_s: float = 30.0,
     ) -> str:
-        # Allowlist + metacharacter check first. shell_allowed rejects pipelines,
-        # redirection, command substitution, chaining — anything that requires a
+        # Allowlist + metacharacter check first. shell_allowed rejects pipelines
+        # redirection, command substitution, chaining anything that requires a
         # shell to interpret. The actual invocation uses `create_subprocess_exec`
-        # so the binary is executed directly, never via `/bin/sh -c`.
+        # so the binary is executed directly, never via `/bin/sh -c`
         ok, reason = shell_allowed(cmd)
         if not ok:
             return f"<denied: {reason}>"
@@ -520,11 +496,11 @@ def make_toolset(
         )
 
     def _maybe_queue_rehash(*paths: str) -> None:
-        # D-13 reindex trigger #2: targeted off-thread re-hash of agent-written
-        # code files. Not-ready → no-op (in-flight full build covers the file).
-        # Never raises and never blocks the write return path.
+        # reindex trigger #2: targeted off-thread re-hash of agent-written
+        # code files. Not-ready → no-op (in-flight full build covers the file)
+        # Never raises and never blocks the write return path
         # `_code_index_service` is bound later in this function body (closure
-        # lookup happens at call time, after make_toolset completes).
+        # lookup happens at call time, after make_toolset completes)
         svc = _code_index_service
         if svc is None or not svc.is_ready():
             return
@@ -572,7 +548,7 @@ def make_toolset(
         if anchor is None and end_anchor is not None:
             return "<error: `end_anchor` requires `anchor`>"
         # Resolve the change into (new_text, replaced-old-block, 1-based start
-        # line) so a single diff Hunk can be staged before any write.
+        # line) so a single diff Hunk can be staged before any write
         if anchor is not None:
             segs = text.split("\n")
             start, err = _resolve_anchor(segs, anchor)
@@ -602,9 +578,9 @@ def make_toolset(
             return "<error: supply `old` or `anchor`>"
 
         # Preview-then-accept: stage one Hunk through the diff modal when the
-        # renderer supports it (TUI). Non-textual renderers (JSON/plain/None,
-        # e.g. tests) skip the modal and write after validation — same policy
-        # as fs_edit_many.
+        # renderer supports it (TUI). Non-textual renderers (JSON/plain/None
+        # e.g. tests) skip the modal and write after validation same policy
+        # as fs_edit_many
         modal = getattr(renderer, "show_diff_modal", None) if renderer is not None else None
         if modal is not None:
             hunk = Hunk(
@@ -616,7 +592,7 @@ def make_toolset(
             decisions = modal([hunk], timeout_s=300.0)
             if not decisions:
                 return "<denied: modal cancelled or timed out>"
-            # STRICT: skip is treated as reject (matches fs_edit_many).
+            # STRICT: skip is treated as reject (matches fs_edit_many)
             if decisions[0].decision in ("reject", "skip"):
                 return "<denied: edit rejected>"
 
@@ -637,7 +613,7 @@ def make_toolset(
         ),
     )
     async def fs_edit_many(path: str, edits: list[dict]) -> str:
-        # T2-04 / PAR-03: validate-then-write-once single-file multi-edit.
+        # T2-04 / PAR-03: validate-then-write-once single-file multi-edit
         if not edits:
             return "<error: empty edits list>"
         p = jail_path(cwd, path)
@@ -650,8 +626,8 @@ def make_toolset(
         except UnicodeDecodeError:
             return f"<error: binary file: {path}>"
 
-        # Phase 1: validate each edit against the CURRENT working buffer
-        # (not the original snapshot — Pitfall 5: left-to-right propagation).
+        # validate each edit against the CURRENT working buffer
+        # (not the original snapshot : left-to-right propagation)
         buf = snapshot
         hunks: list[Hunk] = []
         for i, e in enumerate(edits):
@@ -676,8 +652,8 @@ def make_toolset(
             )
             buf = buf[:idx] + new + buf[idx + len(old):]
 
-        # Phase 2: per-hunk modal approval (skipped when renderer lacks
-        # show_diff_modal — test or non-TUI renderers).
+        # per-hunk modal approval (skipped when renderer lacks
+        # show_diff_modal test or non-TUI renderers)
         modal = getattr(renderer, "show_diff_modal", None) if renderer is not None else None
         if modal is not None:
             decisions = modal(hunks, timeout_s=300.0)
@@ -685,11 +661,11 @@ def make_toolset(
                 return "<denied: modal cancelled or timed out>"
             for i, d in enumerate(decisions):
                 # STRICT skip semantics: skip is treated as reject (resolves
-                # RESEARCH.md Open Question 1 per the recommendation).
+                # md Open Question 1 per the recommendation)
                 if d.decision in ("reject", "skip"):
                     return f"<denied: hunk {i} rejected>"
 
-        # Phase 3: atomic single write (file untouched until here).
+        # atomic single write (file untouched until here)
         p.write_text(buf)
         _maybe_queue_rehash(path)
         delta = buf.count("\n") - snapshot.count("\n")
@@ -899,7 +875,7 @@ def make_toolset(
             scope_requirements=("test",),
         ),
         # record_run writes the run artifact (potentially large payloads); audit
-        # keeps metadata only to avoid echoing the full run blob into the log.
+        # keeps metadata only to avoid echoing the full run blob into the log
         "record_run": ToolEntry(descriptor=record_run, is_mutating=True, group="review", scope_requirements=("review",), audit_behavior="metadata_only"),
         "web_fetch": ToolEntry(
             descriptor=web_fetch, is_mutating=False, is_network=True, group="net", scope_requirements=("net",)
@@ -909,7 +885,7 @@ def make_toolset(
     if net is not None:
         _merge_mcp_tools(result, cwd)
 
-    # --- M10-04 Code Intelligence tools (read-only) ---
+    # Code Intelligence tools (read-only)
     try:
         from voss.harness.code.service import CodeIntelService as _CodeIntelService
     except Exception:
@@ -949,16 +925,16 @@ def make_toolset(
     result["find_references"] = ToolEntry(descriptor=find_references, is_mutating=False, group="code", scope_requirements=("code",))
     result["code_refresh"] = ToolEntry(descriptor=code_refresh, is_mutating=False, group="code", scope_requirements=("code",))
 
-    # --- V19-03 semantic code recall (VSEM-03/04) ---
+    # semantic code recall (VSEM-03/04)
     # ONE held service (one Chroma client) per toolset; the accessor threads
     # session_id through and kicks off the background build so session start
-    # never blocks on the embedding cold-load.
+    # never blocks on the embedding cold-load
     if _CodeIntelService is not None and background_indexing:
         try:
-            # Construct directly — NOT via _code_service()/for_cwd(), whose
-            # synchronous M10 build_index walks the cwd on the boot thread
+            # Construct directly NOT via _code_service/for_cwd, whose
+            # synchronous build_index walks the cwd on the boot thread
             # (an os.walk over a large non-git cwd hangs `voss chat` before
-            # the TUI appears). build_index stays lazy in the tool calls.
+            # the TUI appears). build_index stays lazy in the tool calls
             _code_index_service = _CodeIntelService(
                 cwd, session_id=session_id
             )._get_code_index_service()
@@ -969,7 +945,7 @@ def make_toolset(
     if _code_index_service is not None:
         attach_code_recall_tool(result, code_index_service=_code_index_service)
 
-    # --- V22-05 external-source recall ---
+    # external-source recall
     if background_indexing:
         try:
             from voss.harness.recall.external_index import ExternalRecallService

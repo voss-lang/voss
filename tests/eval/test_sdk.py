@@ -1,11 +1,6 @@
-"""RED scaffold for E4 SDK proof.
-
+"""
+RED scaffold for E4 SDK proof.
 xfail stubs map 1:1 to EVSDK-01..08; W1 adds drivers, W2 adds consumers,
-W3 adds scenarios. Permission-gate behavior is live-only (FAKE_TURN emits
-no permission.updated -- app.py:166-178), so EVSDK-07 stays xfail/skip in
-automated runs. The three build-verification tests are real (non-xfail):
-they de-risk the TS file:-dep, Go replace-directive, and Rust examples/
-open questions and must pass once the consumer subprograms exist.
 """
 from __future__ import annotations
 
@@ -19,13 +14,6 @@ import pytest
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
-
-
-# The TS consumer imports @vosslang/sdk (symlinked to sdk/typescript); the
-# built dist is required to resolve the import. CI's stub job does not build it,
-# so skip the TS round-trip tests when it is absent (mirrors the node/go/cargo
-# which-checks above).
-_TS_SDK_DIST = _repo_root() / "sdk" / "typescript" / "dist" / "index.js"
 
 
 # ---------------------------------------------------------------------------
@@ -98,9 +86,6 @@ def _drive_consumer_hermetic(
 
 @pytest.mark.slow
 @pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
-@pytest.mark.skipif(
-    not _TS_SDK_DIST.exists(), reason="TS SDK not built (sdk/typescript/dist missing)"
-)
 def test_drive_sdk_client_ts_stub(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:  # EVSDK-03
@@ -331,9 +316,6 @@ def _assert_schema(result: dict, surface: str) -> None:
 
 @pytest.mark.slow
 @pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
-@pytest.mark.skipif(
-    not _TS_SDK_DIST.exists(), reason="TS SDK not built (sdk/typescript/dist missing)"
-)
 def test_ts_consumer_output_schema(tmp_path: Path) -> None:  # EVSDK-03
     consumer = _repo_root() / "tests" / "eval" / "sdk" / "consumers" / "ts" / "consumer.js"
     result = _run_consumer_schema(tmp_path, ["node", str(consumer)], None)
@@ -373,9 +355,6 @@ def test_rust_consumer_output_schema(tmp_path: Path) -> None:  # EVSDK-05
 
 @pytest.mark.slow
 @pytest.mark.skipif(not shutil.which("node"), reason="node not installed")
-@pytest.mark.skipif(
-    not _TS_SDK_DIST.exists(), reason="TS SDK not built (sdk/typescript/dist missing)"
-)
 def test_ts_consumer_resolves() -> None:
     """`node consumer.js` with no VOSS_BASE_URL must fail on the env guard,
     proving the @vosslang/sdk import resolved + parsed (not ERR_MODULE_NOT_FOUND)."""

@@ -1,14 +1,7 @@
-"""FastAPI app: the harness REST+SSE server (HYBRID-REFACTOR-PLAN H1.5-H1.14).
-
-Wraps the existing `agent.run_turn` behind the protocol in `.planning/PROTOCOL.md`.
-Auth, providers, tools, sessions, and permissions are reused from the harness —
-this module only adds transport: routes, an event bus, and a permission bridge.
-"""
-
+"""FastAPI app: harness REST+SSE server wrapping agent.run_turn."""
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import secrets
 import uuid
@@ -19,9 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from sse_starlette import EventSourceResponse, ServerSentEvent
-from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
@@ -29,24 +21,7 @@ from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config u
 from .. import auth as auth_mod
 from .. import session as session_store
 from ..agent import run_turn
-from ..observe import admission as observe_admission
-from ..observe.enrollment import (
-    RepoEnrollment,
-    get_repo_enrollment,
-    load_enrollment,
-    set_repo_enrollment,
-)
-from ..observe.models import ObserveEventAdapter
-from ..observe.redact import redact_text
-from ..observe.store import ObserveStore, db_path
 from ..permissions import PermissionGate, PermissionStore
-from ..swarm_agents import is_native
-from ..swarm_store import (
-    OwnershipOverlapError,
-    Role,
-    SwarmStore,
-    build_ownership_policy,
-)
 from ..tools import make_toolset
 from . import events as E
 from .renderer import EventBusRenderer
@@ -95,9 +70,7 @@ class _BearerASGI:
         await self._app(scope, receive, send)
 
 
-# ---------------------------------------------------------------------------
 # auth -> provider (mirrors cli._resolve_auth_or_die, minus TTY wizard/sys.exit)
-# ---------------------------------------------------------------------------
 
 
 def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
@@ -107,7 +80,7 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
     switch, but a missing credential is a caller error (raised by the route),
     not a login wizard / `sys.exit`.
     """
-    # Test seam: a hermetic fake turn needs a session without real creds.
+    # Test seam: a hermetic fake turn needs a session without real creds
     if os.environ.get("VOSS_SERVE_FAKE_TURN"):
         return _FakeResolution(), object()
 
@@ -125,7 +98,7 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
         provider = OpenAIOAuthProvider(res.codex_oauth)
     else:
         # env/voss anthropic|openai|codex all go through LiteLLM (key already
-        # injected into os.environ by auth.resolve).
+        # injected into os.environ by auth.resolve)
         provider = LiteLLMProvider()
     return res, provider
 
@@ -168,9 +141,7 @@ def _effective_model(requested: str | None, res: Any) -> str:
     return model
 
 
-# ---------------------------------------------------------------------------
-# permission bridge (H1.9) — mirrors tui/permissions_bridge over the protocol
-# ---------------------------------------------------------------------------
+# permission bridge mirrors tui/permissions_bridge over the protocol
 
 
 def _install_server_permissions(
@@ -203,19 +174,17 @@ def _install_server_permissions(
         return _ask(tool_name, args, "tool")
 
     def scope_prompt(target: str) -> str:
-        # Scope-expand uses the same channel; map y/n at the client.
+        # Scope-expand uses the same channel; map y/n at the client
         return _ask("scope_expand", {"target": target}, "tool")
 
     gate.prompt_fn = prompt
     gate.scope_prompt_fn = scope_prompt
 
 
-# ---------------------------------------------------------------------------
-# swarm ownership escalation + scoped recall (V25 VSWARM-05/07/10)
-# ---------------------------------------------------------------------------
+# swarm ownership escalation + scoped recall ( VSWARM-05/07/10)
 
 # fs_edit_many is NOT in permissions.WRITE but the ownership policy keys it, so
-# escalate on it too.
+# escalate on it too
 _SWARM_WRITE_TOOLS = {"fs_write", "fs_edit", "fs_edit_many"}
 
 
@@ -238,7 +207,7 @@ def _apply_swarm_escalation(
         )
         if allowed or tool_name not in _SWARM_WRITE_TOOLS:
             return allowed, why
-        # Ownership denial → escalate through the existing permission bridge.
+        # Ownership denial → escalate through the existing permission bridge
         path = str(args.get("path", ""))
         req_id = uuid.uuid4().hex[:8]
         fut: Future[str] = Future()
@@ -253,7 +222,7 @@ def _apply_swarm_escalation(
             )
         )
         # Paired event on the existing permission channel carries the id so a
-        # client answers via POST /session/{id}/permission (reuse, not new wire).
+        # client answers via POST /session/{id}/permission (reuse, not new wire)
         renderer.emit(
             E.PermissionUpdated(
                 id=req_id, tool_name=tool_name, args=dict(args), dimension="tool"
@@ -268,7 +237,7 @@ def _apply_swarm_escalation(
         approved = answer in ("a", "A", "y")
         if session.swarm_id:
             # Decision audit is cwd-scoped (.voss/decisions); a fresh store
-            # writes the file without needing the in-memory swarm state.
+            # writes the file without needing the in-memory swarm state
             SwarmStore(session.cwd).record_gate_decision(
                 session.swarm_id,
                 session.swarm_task_id or "",
@@ -302,9 +271,7 @@ def _swarm_recall_text(session: ServerSession, text: str) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
 # turn runner
-# ---------------------------------------------------------------------------
 
 
 async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
@@ -315,13 +282,13 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     # VSWARM-04 spawn-gate: a builder session created before its assignment
     # holds a set (unsignaled) gate_event and runs ZERO turns until the
     # coordinator's swarm.assign sets it. await directly in the coroutine
-    # (NOT asyncio.to_thread — RESEARCH Pitfall) so it suspends, yields the
+    # (NOT asyncio.to_thread Pitfall) so it suspends, yields the
     # loop, and integrates with cancellation. Ungated sessions (gate_event is
-    # None) skip this entirely — byte-identical to pre-V25 behaviour.
+    # None) skip this entirely byte-identical to pre- behaviour
     if session.gate_event is not None:
         await session.gate_event.wait()
 
-    # Test seam: emit a canned turn over the real event/SSE path (no provider).
+    # Test seam: emit a canned turn over the real event/SSE path (no provider)
     if os.environ.get("VOSS_SERVE_FAKE_TURN"):
         try:
             renderer.show_user(text)
@@ -345,12 +312,10 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             auto_yes=False,
             # VSWARM-05: a swarm builder's ownership-deny policy rides the
             # deny-wins project_policy layer. None for non-swarm sessions →
-            # byte-identical to pre-V25 behaviour.
+            # byte-identical to pre- behaviour
             project_policy=session.swarm_policy,
         )
         _install_server_permissions(gate, session, renderer)
-        if session.swarm_policy is not None:
-            _apply_swarm_escalation(gate, session, renderer)
 
         try:
             from .. import voss_md
@@ -359,19 +324,19 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         except Exception:
             voss_md_text = None
 
-        # Seed the turn with the project index + task-relevant code recall (V19)
+        # Seed the turn with the project index + task-relevant code recall
         # so the agent has a map of the repo instead of blind-globbing to
         # discover it. Mirrors the CLI's `voss do` injection path; both renders
         # are additive and self-guard (return "" on any failure / not-ready /
-        # inject-off), so a turn never breaks because injection is unavailable.
+        # inject-off), so a turn never breaks because injection is unavailable
         try:
             from ..cli import _render_project_index_text, _render_code_recall_text
 
             project_index_text = _render_project_index_text(
                 session.cwd, session_id=session.id
             )
-            # VSWARM-07: a swarm builder gets recall filtered to its ownedFiles;
-            # non-swarm sessions keep the unscoped code-recall path unchanged.
+            # VSWARM-07: a swarm builder gets recall filtered to its ownedFiles
+            # non-swarm sessions keep the unscoped code-recall path unchanged
             if session.swarm_owned_files:
                 code_recall_text = _swarm_recall_text(session, text)
             else:
@@ -393,11 +358,9 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             history=session.history,
             session_id=session.id,
             voss_md_text=voss_md_text,
-            project_index_text=project_index_text,
-            code_recall_text=code_recall_text,
             prior_context=session.prior_context,
         )
-        # Consume resume context once: deep history now flows via session.history.
+        # Consume resume context once: deep history now flows via session.history
         session.prior_context = None
         renderer.show_final(
             result.final, confidence=result.confidence, cost_usd=result.cost_usd
@@ -411,7 +374,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         # provider.stream) would otherwise propagate past this finally as an
         # un-awaited task exception, leaving the user a bare session.idle with
         # no signal. Surface it visibly on the transcript BEFORE the finally
-        # idles — mirrors agent.py's interrupt/batch-invariant error paths.
+        # idles mirrors agent.py's interrupt/batch-invariant error paths
         renderer.stream_delta(f"\n[error: {e}]\n")
         renderer.finalize_stream(role="system", confidence=None, cost_usd=None)
     finally:
@@ -423,9 +386,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
         session.task = None
 
 
-# ---------------------------------------------------------------------------
 # request models
-# ---------------------------------------------------------------------------
 
 
 class CreateSessionBody(BaseModel):
@@ -452,12 +413,12 @@ class PermissionReply(BaseModel):
     choice: str  # a | A | d  (or y | n for scope)
 
 
-# -- swarm (V25) ------------------------------------------------------------
+# swarm
 
 
 class RoleSpec(BaseModel):
     name: str
-    # R3 agent axis — mirrors swarm_store.Role (see SWARM-RECONCILIATION).
+    # R3 agent axis mirrors swarm_store.Role (see SWARM-RECONCILIATION)
     agent: str = "voss"
     command: str = ""
     args: list[str] = []
@@ -470,7 +431,7 @@ class CreateSwarmBody(BaseModel):
     cwd: str | None = None
     builders: int = 2
     # Optional explicit roster; when omitted the SwarmStore default_roster
-    # (coordinator + N builders + reviewer) is spawned (VSWARM-08).
+    # (coordinator + N builders + reviewer) is spawned (VSWARM-08)
     roster: list[RoleSpec] | None = None
 
 
@@ -484,7 +445,7 @@ class SwarmMessageBody(BaseModel):
     # Inter-agent / operator message. `kind` selects the lifecycle event the
     # route emits over the swarm SSE plane (assign also unblocks a builder's
     # spawn-gate). gate/needs_operator are scriptable here; their automatic
-    # emit points are wired in V25-05.
+    # emit points are wired in
     from_session: str | None = None
     text: str = ""
     kind: str = "message"  # message|assign|worker_done|gate|needs_operator|complete
@@ -499,7 +460,7 @@ class SwarmMessageBody(BaseModel):
     confidence: float = 0.0
 
 
-# -- observe (S3.5) ---------------------------------------------------------
+# observe
 
 
 class ObserveEvidenceItem(BaseModel):
@@ -528,9 +489,7 @@ class ObserveSettingsBody(BaseModel):
     enrollment: ObserveEnrollmentPatch
 
 
-# ---------------------------------------------------------------------------
 # app factory
-# ---------------------------------------------------------------------------
 
 
 def create_app(token: str | None = None) -> FastAPI:
@@ -548,9 +507,9 @@ def create_app(token: str | None = None) -> FastAPI:
     app = FastAPI(title="voss-harness", version="1", lifespan=lifespan)
     app.state.token = token
     app.state.sessions = mgr
-    # App-scoped SwarmStore (NOT a module global — module globals leak across
-    # TestClient instances; RESEARCH Anti-Pattern). Event-log cwd defaults to
-    # the serve cwd; tests override app.state.swarm_store to point at a tmp dir.
+    # App-scoped SwarmStore (NOT a module global module globals leak across
+    # TestClient instances; Anti-Pattern). Event-log cwd defaults to
+    # the serve cwd; tests override app.state.swarm_store to point at a tmp dir
     app.state.swarm_store = SwarmStore(cwd=Path(".").resolve())
 
     app.add_middleware(_BearerASGI, token=token)
@@ -564,7 +523,7 @@ def create_app(token: str | None = None) -> FastAPI:
     # enforced on the real request. Loopback-bound + token-gated, so the origin
     # set is restricted to localhost / 127.0.0.1 / [::1] (any port) and the
     # Tauri custom-protocol origins; credentials are off (token rides the
-    # Authorization header, not cookies).
+    # Authorization header, not cookies)
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=(
@@ -582,15 +541,15 @@ def create_app(token: str | None = None) -> FastAPI:
             raise HTTPException(404, "session not found")
         return s
 
-    # -- session CRUD (H1.6) ------------------------------------------------
+    # session CRUD
 
     @app.post("/session", status_code=201)
     def create_session(body: CreateSessionBody) -> dict:
         cwd = Path(body.cwd or ".").resolve()
-        # Serve-owner session defaults (E4): SDK clients post only {cwd} — the
+        # Serve-owner session defaults (E4): SDK clients post only {cwd} the
         # public createSession surfaces carry no auth/model. The process that
         # spawns `voss serve` may pin defaults via env; an explicit body value
-        # always wins.
+        # always wins
         auth_pref = body.auth
         if auth_pref == "auto":
             auth_pref = os.environ.get("VOSS_SERVE_DEFAULT_AUTH", "auto")
@@ -604,7 +563,7 @@ def create_app(token: str | None = None) -> FastAPI:
                 raise HTTPException(404, f"no saved session {body.resume!r}")
             except ValueError as exc:  # ambiguous id
                 raise HTTPException(409, str(exc))
-            # M2: forward ALL prior runs as prior context (consumed on turn 1).
+            # forward ALL prior runs as prior context (consumed on turn 1)
             s = mgr.adopt(
                 record=record,
                 history=history,
@@ -613,9 +572,9 @@ def create_app(token: str | None = None) -> FastAPI:
             )
             # Twin of the create snap: a saved record may carry a non-gpt-5.x
             # model (e.g. the old default) that the Codex backend 400s on. Snap
-            # the EFFECTIVE session model only — `record.model` stays intact so
+            # the EFFECTIVE session model only `record.model` stays intact so
             # the turn-end save (app.py: session_store.save) never corrupts the
-            # user's saved model.
+            # user's saved model
             if res.source == "codex-oauth" and not s.model.startswith("gpt-5."):
                 s.model = _codex_session_model()
             return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
@@ -626,7 +585,7 @@ def create_app(token: str | None = None) -> FastAPI:
         )
         # codex-oauth: snap a non-gpt-5.x model to Codex's default so the
         # backend doesn't 400 the turn into a bare idle (session-scoped; mirrors
-        # cli.py:686-687 without the global configure() mutation).
+        # cli.py:686-687 without the global configure mutation)
         if res.source == "codex-oauth" and not model.startswith("gpt-5."):
             model = _codex_session_model()
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
@@ -637,13 +596,7 @@ def create_app(token: str | None = None) -> FastAPI:
         return {
             "v": 1,
             "sessions": [
-                {
-                    "id": s.id,
-                    "cwd": str(s.cwd),
-                    "model": s.model,
-                    "title": s.title,
-                    "busy": s.busy,
-                }
+                {"id": s.id, "cwd": str(s.cwd), "model": s.model, "title": s.title, "busy": s.busy}
                 for s in mgr.list()
             ],
         }
@@ -670,21 +623,12 @@ def create_app(token: str | None = None) -> FastAPI:
     @app.get("/session/{session_id}")
     def get_session(session_id: str) -> dict:
         s = _require(session_id)
-        return {
-            "v": 1,
-            "id": s.id,
-            "cwd": str(s.cwd),
-            "model": s.model,
-            "title": s.title,
-            "busy": s.busy,
-        }
+        return {"v": 1, "id": s.id, "cwd": str(s.cwd), "model": s.model, "title": s.title, "busy": s.busy}
 
     @app.delete("/session/{session_id}", status_code=204)
     def delete_session(session_id: str) -> None:
         if not mgr.delete(session_id):
             raise HTTPException(404, "session not found")
-
-    # -- message + abort + permission (H1.7, H1.10, H1.9) -------------------
 
     @app.post("/session/{session_id}/message", status_code=202)
     async def post_message(session_id: str, body: MessageBody) -> dict:
@@ -720,7 +664,6 @@ def create_app(token: str | None = None) -> FastAPI:
             return {"v": 1, "status": "ok"}
         return {"v": 1, "status": "stale"}
 
-    # -- SSE (H1.8) ---------------------------------------------------------
 
     @app.get(
         "/session/{session_id}/events",
@@ -753,8 +696,8 @@ def create_app(token: str | None = None) -> FastAPI:
 
         return EventSourceResponse(gen(), ping=15, send_timeout=30)
 
-    # -- doctor (H1.7; expanded H3.1 — full registry via diagnostics.to_dict;
-    #    read-only by design: repairs are CLI-local `voss doctor --fix` only) --
+    # doctor (; expanded full registry via diagnostics.to_dict
+    # read-only by design: repairs are CLI-local `voss doctor --fix` only)
 
     @app.get("/doctor")
     def doctor(auth: str = "auto", cwd: str = ".") -> dict:
@@ -772,13 +715,13 @@ def create_app(token: str | None = None) -> FastAPI:
             "checks": [diag.to_dict(c) for c in checks],
         }
 
-    # -- memory (read-only) -------------------------------------------------
+    # memory (read-only)
 
     @app.get("/memory")
     def get_memory(cwd: str = ".", q: str | None = None, top_k: int = 5) -> dict:
-        # Read-only view of the harness memory store for the workspace. summary()
-        # is a cheap fs walk (handles missing dirs); recall() runs only when a
-        # query is given (it lazily builds the semantic index). VADE2-11.
+        # Read-only view of the harness memory store for the workspace. summary
+        # is a cheap fs walk (handles missing dirs); recall runs only when a
+        # query is given (it lazily builds the semantic index). VADE2-11
         from ..memory_store import MemoryStore
 
         store = MemoryStore(Path(cwd).resolve())
@@ -800,7 +743,7 @@ def create_app(token: str | None = None) -> FastAPI:
             ]
         return out
 
-    # -- observe (S3.5) -------------------------------------------------------
+    # observe
 
     def _observe_reject(reason: str) -> JSONResponse:
         return JSONResponse(
@@ -826,7 +769,7 @@ def create_app(token: str | None = None) -> FastAPI:
             evidence_ids: list[str] = []
             for index, (item, text) in enumerate(zip(body.evidence, redacted)):
                 # Evidence ids derive from event_id so a duplicate POST is an
-                # INSERT OR IGNORE no-op instead of a second evidence row.
+                # INSERT OR IGNORE no-op instead of a second evidence row
                 evidence_id = f"{event.event_id}-ev{index}"
                 store.put_evidence(
                     evidence_id,
@@ -935,7 +878,7 @@ def create_app(token: str | None = None) -> FastAPI:
 
         return EventSourceResponse(gen(), ping=15, send_timeout=30)
 
-    # -- swarm (V25 VSWARM-02/03/04/06/08) ----------------------------------
+    # swarm ( VSWARM-02/03/04/06/08)
 
     def _emit_swarm_event(swarm_id: str, ev: E._Base) -> None:
         """Fan a swarm event out to EVERY registered session's queue (Pitfall
@@ -955,7 +898,7 @@ def create_app(token: str | None = None) -> FastAPI:
         cwd = Path(body.cwd or ".").resolve()
         # Persist the explicit roster (R3 per-role agent axis) so the stored /
         # replayed swarm matches what is spawned; swarm.roster is then the single
-        # source the spawn loop iterates.
+        # source the spawn loop iterates
         explicit = (
             [Role(**r.model_dump()) for r in body.roster] if body.roster else None
         )
@@ -963,10 +906,10 @@ def create_app(token: str | None = None) -> FastAPI:
             goal=body.goal, cwd=str(cwd), builders=body.builders, roster=explicit
         )
         # Per-role spawn: native (agent="voss") roles run the in-process run_turn
-        # loop (V25 behavior). R3 CLI roles (agent!="voss") are spawned in their
-        # own git worktree by the host — that integration lands in a later wave;
-        # here they are recorded as pending so the axis is visible end-to-end.
-        # Builders are spawn-gated (asyncio.Event created HERE — async handler).
+        # loop ( behavior). R3 CLI roles (agent!="voss") are spawned in their
+        # own git worktree by the host that integration lands in a later wave
+        # here they are recorded as pending so the axis is visible end-to-end
+        # Builders are spawn-gated (asyncio.Event created HERE async handler)
         spawned: list[dict] = []
         for role in swarm.roster:
             if not is_native(role):
@@ -1012,7 +955,7 @@ def create_app(token: str | None = None) -> FastAPI:
         if store.get(swarm_id) is None:
             raise HTTPException(404, "swarm not found")
         try:
-            # add_task runs validate_no_overlap; overlap → 4xx (VSWARM-06).
+            # add_task runs validate_no_overlap; overlap → 4xx (VSWARM-06)
             task = store.add_task(
                 swarm_id, body.goal, body.owned_files, body.depends_on
             )
@@ -1039,9 +982,9 @@ def create_app(token: str | None = None) -> FastAPI:
                 builder.swarm_task_id = body.task_id
                 builder.swarm_owned_files = task.owned_files
                 # VSWARM-05: attach the per-task ownership-deny policy now that
-                # owned_files are known. _run_turn injects it into the gate.
+                # owned_files are known. _run_turn injects it into the gate
                 builder.swarm_policy = build_ownership_policy(task.owned_files)
-                # In-process unblock (Pitfall 6 — independent of queue state).
+                # In-process unblock ( independent of queue state)
                 if builder.gate_event is not None:
                     builder.gate_event.set()
             _emit_swarm_event(
@@ -1067,7 +1010,7 @@ def create_app(token: str | None = None) -> FastAPI:
                 ),
             )
         elif body.kind == "gate":
-            # A reviewer reject (or any gate) records a decision audit (VSWARM-10).
+            # A reviewer reject (or any gate) records a decision audit (VSWARM-10)
             if "reject" in body.gate_type:
                 store.record_gate_decision(
                     swarm_id,
@@ -1193,7 +1136,7 @@ def create_app(token: str | None = None) -> FastAPI:
         asyncio.create_task(_drive())
         return {"v": 1, "status": "running"}
 
-    # -- OpenAPI: force the event union into components (H1.14) --------------
+    # OpenAPI: force the event union into components
 
     _force_event_schema(app)
     return app

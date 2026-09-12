@@ -1,12 +1,13 @@
-"""Unit tests for voss/harness/diagnostics.py and the doctor CLI.
-
+"""
+Unit tests for voss/harness/diagnostics.py and the doctor CLI.
 Covers D-11 (check set + display order), D-12 (glyphs), D-13 (diagnose-only),
-and D-14 (exit code semantics including WARN-only stderr nuance).
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from voss.harness import auth as auth_mod

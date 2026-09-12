@@ -1,15 +1,11 @@
 import { Show } from 'solid-js';
 
-/**
- * Warp-style pane header — one 22px row: status + index, centered session
- * title, trailing menu (06). Grid owns this chrome; PaneComponent hides
- */
 export interface PaneHeaderProps {
   index: number;
   focused: boolean;
   cwd: string;
   shell: string;
-/** Foreground process / session title (from procRegistry when live) */
+    /** Foreground process / session title (from procRegistry when live) */
   process?: string;
   dotState?: 'running' | 'exited';
   prefixActive?: boolean;
@@ -49,7 +45,7 @@ export default function PaneHeader(props: PaneHeaderProps) {
   return (
     <div
       data-pane-header-grab
-      class={`pane-header-bar font-ui ${props.focused && props.isAgent ? '' : props.focused ? 'bg-bg-2' : 'bg-bg-1'}`}
+      class={`pane-header-bar font-mono ${props.focused && props.isAgent ? '' : props.focused ? 'bg-bg-2' : 'bg-bg-1'}`}
       style={{
         display: 'grid',
         'grid-template-columns': 'auto 1fr auto',

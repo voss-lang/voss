@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum KeymapProfile {
@@ -12,14 +11,11 @@ pub enum KeymapProfile {
     Tmux,
 }
 
-/// Other settings fields are preserved on read/write via `flatten`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SettingsKeymap {
     #[serde(default)]
     keymap: KeymapSection,
-    /// Preserve unknown top-level keys so writing the profile back does
-    /// not clobber theme/font/other settings.
     #[serde(flatten)]
     rest: serde_json::Map<String, serde_json::Value>,
 }
@@ -31,10 +27,8 @@ struct KeymapSection {
     profile: KeymapProfile,
 }
 
-
 pub const CURRENT_KEYMAP_VERSION: u32 = 1;
 
-/// On-disk `.voss/keymap.json`. `bindings` maps command id → override.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeymapOverrideFile {
@@ -42,8 +36,6 @@ pub struct KeymapOverrideFile {
     pub bindings: HashMap<String, Option<KeyBindingOverride>>,
 }
 
-/// A single binding override. `key` is the chord string (e.g. `"Cmd+D"`).
-/// `null` in the bindings map means unbind (represented as `None<KeyBindingOverride>`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyBindingOverride {
@@ -57,13 +49,10 @@ pub struct KeymapValidationIssue {
     pub reason: String,
 }
 
-/// Result of validating a keymap override file.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeymapValidationResult {
-    /// Valid entries that should be applied.
     pub valid: HashMap<String, Option<KeyBindingOverride>>,
-    /// Entries that were skipped with reasons.
     pub issues: Vec<KeymapValidationIssue>,
 }
 
@@ -74,7 +63,6 @@ pub enum KeymapError {
     #[error("could not load keymap settings")]
     LoadFailed,
 }
-
 
 #[cfg(not(test))]
 fn settings_path() -> PathBuf {
@@ -98,9 +86,6 @@ pub fn keymap_override_path(workspace: &Path) -> PathBuf {
     workspace.join(".voss").join("keymap.json")
 }
 
-
-/// Load the active keymap profile from `~/.config/voss-app/settings.json`.
-/// Missing or corrupt settings default to `vscode`.
 pub fn load_keymap_profile() -> KeymapProfile {
     let path = settings_path();
     let raw = match std::fs::read_to_string(&path) {
@@ -117,8 +102,6 @@ pub fn load_keymap_profile() -> KeymapProfile {
     settings.keymap.profile
 }
 
-/// Persist the keymap profile to `~/.config/voss-app/settings.json`.
-/// Preserves other settings fields.
 pub fn save_keymap_profile(profile: &KeymapProfile) -> Result<(), KeymapError> {
     let path = settings_path();
     if let Some(dir) = path.parent() {
@@ -127,7 +110,6 @@ pub fn save_keymap_profile(profile: &KeymapProfile) -> Result<(), KeymapError> {
             KeymapError::SaveFailed
         })?;
     }
-    // Read existing settings to preserve other fields.
     let mut settings: SettingsKeymap = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -144,9 +126,6 @@ pub fn save_keymap_profile(profile: &KeymapProfile) -> Result<(), KeymapError> {
     Ok(())
 }
 
-
-/// Load `.voss/keymap.json`. Returns `None` for missing, corrupt, or
-/// unsupported files. Never creates `.voss/`.
 pub fn load_keymap_overrides(workspace: &Path) -> Option<KeymapOverrideFile> {
     let path = keymap_override_path(workspace);
     let raw = std::fs::read_to_string(&path).ok()?;
@@ -165,7 +144,6 @@ pub fn load_keymap_overrides(workspace: &Path) -> Option<KeymapOverrideFile> {
     }
 }
 
-/// Validate override entries against known command ids and valid chords.
 pub fn validate_keymap_overrides(
     overrides: &KeymapOverrideFile,
     known_command_ids: &[String],
@@ -178,7 +156,6 @@ pub fn validate_keymap_overrides(
     let mut issues = Vec::new();
 
     for (cmd_id, binding) in &overrides.bindings {
-        // Check command id exists
         if !id_set.contains(cmd_id.as_str()) {
             issues.push(KeymapValidationIssue {
                 command_id: cmd_id.clone(),
@@ -186,14 +163,11 @@ pub fn validate_keymap_overrides(
             });
             continue;
         }
-        // Null unbind is always valid
         if binding.is_none() {
             valid.insert(cmd_id.clone(), None);
             continue;
         }
         let b = binding.as_ref().unwrap();
-        // Validate chord syntax: must be non-empty and not conflict
-        // (conflict checking is simplified — just validate non-empty chord)
         if b.key.is_empty() {
             issues.push(KeymapValidationIssue {
                 command_id: cmd_id.clone(),
@@ -201,16 +175,11 @@ pub fn validate_keymap_overrides(
             });
             continue;
         }
-        // Check for chord conflict with existing bindings
         let chord_in_use = known_chords.contains(&b.key)
             && !overrides.bindings.values().any(|v| {
-                // The same chord reassigned by another override is OK
                 v.as_ref().map(|o| &o.key) == Some(&b.key)
             });
         if chord_in_use {
-            // Simple conflict detection — allow overrides to reassign
-            // More sophisticated conflict detection would check the
-            // override set itself for duplicates
         }
         valid.insert(cmd_id.clone(), Some(b.clone()));
     }
@@ -218,9 +187,6 @@ pub fn validate_keymap_overrides(
     KeymapValidationResult { valid, issues }
 }
 
-/// Load and validate the workspace override file for hot-reload.
-/// Missing, corrupt, or unsupported files resolve to an empty result so
-/// callers can clear any previously-applied overrides.
 pub fn validate_workspace_keymap_overrides(
     workspace: &Path,
     known_command_ids: &[String],
@@ -234,7 +200,6 @@ pub fn validate_workspace_keymap_overrides(
         },
     }
 }
-
 
 #[cfg(test)]
 thread_local! {

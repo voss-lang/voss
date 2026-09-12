@@ -1,36 +1,20 @@
-"""Gate-predicate registry for the board state machine (O3-03).
-
-Implements OBRD-04 (typed gate predicates), OBRD-05 (artifact-only confidence),
-OBRD-06 (risk-tier thresholds from _DEFAULT_RISK_THRESHOLDS single source).
-
-SPEC L114: 7 stable predicate names = ("conf","tests","eval","scope","budget","retry","timeout").
-SPEC L115: confidence (conf) only checked on transitions with an artifact
-           (InProgress→InReview, InReview→Done).
-SPEC L116: risk thresholds sourced from _DEFAULT_RISK_THRESHOLDS (machine.py) — IMPORTED, not redefined.
-
-Predicate ordering: cheap (budget/scope/retry/timeout) → expensive (conf/tests/eval).
-
-Two predicates share name="scope" (scope_ok and scope_clean). This is intentional per
-OQ scope-clean-naming — SPEC's 7-name enumeration is the contract; dry_run_gate
-deduplicates duplicate clause names via order-preserving append-if-absent.
-
-Reviewer cardinality: conf_meets_p calls reviewer.review(card) AT MOST ONCE per move
-attempt; the result is cached on GateContext.verdict for the duration of a single
-evaluation pass. Cross-attempt caching is forbidden (artifact may change).
+"""
+Gate-predicate registry for the board state machine
+Implements OBRD-04 (typed gate predicates), OBRD-05 (artifact-only confidence)
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Protocol
 
-from voss.harness.team import TeamCeiling
+from voss.harness.team import TeamCeiling, TeamRoleScope
 from .verdict import Reviewer, ReviewerVerdict
 
 if TYPE_CHECKING:
-    from .machine import Card
+    from .machine import Card, Column, RiskTier
 
 
-# SPEC L114 — 7 stable predicate names. Tests pin this tuple.
+# SPEC L114 7 stable predicate names. Tests pin this tuple
 _PREDICATE_NAMES: tuple[str, ...] = (
     "conf", "tests", "eval", "scope", "budget", "retry", "timeout",
 )
@@ -54,20 +38,18 @@ class GateContext:
     now: float
     reviewer: Optional[Reviewer] = None
     verdict: Optional[ReviewerVerdict] = None
-    # V6 (VREV-03/07): independent A/B reviewer slots + their cached verdicts.
-    # All defaulted — existing GateContext(...) constructions are unaffected.
+    # (VREV-03/07): independent A/B reviewer slots + their cached verdicts
+    # All defaulted existing GateContext(...) constructions are unaffected
     reviewer_a: Optional[Reviewer] = None
     reviewer_b: Optional[Reviewer] = None
     verdict_a: Optional[ReviewerVerdict] = None
     verdict_b: Optional[ReviewerVerdict] = None
-    # V20 (VRES-04): operator decision hydrated by Board from the approval
-    # sidecar — "approved" | "rejected" | None. Predicate stays pure.
+    # (VRES-04): operator decision hydrated by Board from the approval
+    # sidecar "approved" | "rejected" | None. Predicate stays pure
     human_decision: Optional[str] = None
 
 
-# ---------------------------------------------------------------------------
 # 8 predicate classes (7 stable names; scope_ok + scope_clean share "scope")
-# ---------------------------------------------------------------------------
 
 class scope_ok:
     """Card scope is contained within team ceiling scope."""
@@ -133,8 +115,8 @@ class b_passes:
         if ctx.reviewer_b is None:
             return False
         if ctx.verdict_b is None:
-            # b_passes lives only in the Done tuples — strong tier per the
-            # verdict.py contract: B.fast intermediate, B.strong at ->Done.
+            # b_passes lives only in the Done tuples strong tier per the
+            # verdict.py contract: B.fast intermediate, B.strong at ->Done
             ctx.verdict_b = ctx.reviewer_b.review(ctx.card, tier="strong")
         return ctx.verdict_b.verdict == "pass"
 
@@ -194,18 +176,16 @@ class not_timed_out:
         return ctx.now < ctx.card.deadline
 
 
-# ---------------------------------------------------------------------------
 # Gates registry
-# ---------------------------------------------------------------------------
 
-# Pre-built predicate tuples for the two Done variants.
-# V6 (D-05): the Done gate is two-source — A verification AND B pass, both
+# Pre-built predicate tuples for the two Done variants
+# the Done gate is two-source A verification AND B pass, both
 # independent. Ordering cheap→expensive: scope_clean, then A (test/LLM), then B
 # (one provider.complete), then the artifact check. conf_meets_p stays on the
-# intermediate (InProgress,InReview) gate only — Open Question 2.
-# V20 (VRES-04): human_approved sits FIRST — a critical card pending its
+# intermediate (InProgress,InReview) gate only Open Question 2
+# (VRES-04): human_approved sits FIRST a critical card pending its
 # operator refuses before paying A/B reviews (Board.move stops the predicate
-# walk on a failing 'human' clause: gate-before-spend).
+# walk on a failing 'human' clause: gate-before-spend)
 _CODE_DONE_PREDICATES = (human_approved(), scope_clean(), a_verification_passes(), b_passes(), tests_pass())
 _AI_DONE_PREDICATES = (human_approved(), scope_clean(), a_verification_passes(), b_passes(), eval_meets_threshold())
 

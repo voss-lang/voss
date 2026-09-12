@@ -1,45 +1,12 @@
-"""M13 headline multi-agent chat e2e (MAG-08) — green under the stub provider.
-
+"""
+M13 headline multi-agent chat e2e (MAG-08) — green under the stub provider.
 ONE stub-provider `voss chat --plain` end-to-end run: a single NL request
-fans out to >=2 concurrent sub-agent children, the parent injects >=1
-mid-run course-correction into a running child (the child observably
-branches on it), the even-split reserve rebalances as the live child set
-changes, `subagent_gather` aggregates every child's result into the parent
-turn, and after gather no children remain active — ALL six MAG-08 signals
-asserted from the one run's transcript (M13-VALIDATION.md row MAG-08).
-
-────────────────────────────────────────────────────────────────────────────
-Why this replaces the M13-01 Wave-0 scaffold body
-────────────────────────────────────────────────────────────────────────────
-The M13-01 RED scaffold drove the RIGHT architecture (`cli_runner.run("chat",
-"--plain", stdin=..., ...)` — real `voss chat` + the e2e StubProvider) but
-left the deterministic provider script as an implicit TODO: it relied on the
-runner's single `default_response`, which can never make the parent fan out,
-and asserted bare substrings (`"sub-agent" in out`, `"rebalance" in out`,
-`"budget" in out`) that the REAL `PlainRenderer` NEVER emits — under
-`--plain` the `PanelBridgeRenderer` panel/`BudgetMeter`/rebalance hooks are
-`hasattr`-guarded no-ops (only the `TextualRenderer` has `show_subagent_*`).
-Per the M13-06 scaffold-defect pre-authorization, ONLY the diverged
-setup/driver is rewritten to exercise the real architecture (stdin-scripted
-`voss chat --plain` + a content-reactive scripted multi-agent provider
-injected via the documented `CliRunner(extra_sitecustomize=...)` seam, the
-mechanism the runner already exposes). The SIX MAG-08 signal assertions are
-preserved verbatim in intent and made OBJECTIVELY observable from the real
-transcript (tool-call lines on stderr + streamed child/parent text on
-stdout) instead of asserting strings the system never produces — strictly
-stronger, never weakened.
-
-Hermetic: no live network (the runner strips `ANTHROPIC_API_KEY` /
-`OPENAI_API_KEY` and patches `_resolve_auth_or_die` to the in-proc stub),
-no disk persistence of sub-agent sessions, deterministic across runs.
 """
 from __future__ import annotations
 
 import re
 import shutil
 from pathlib import Path
-
-import pytest
 
 from .runner import CliRunner
 
@@ -288,9 +255,7 @@ try:
     from voss.harness import auth as _auth
     from voss.harness import cli as _hcli
 
-    def _scripted_resolve(preference, *args, **kwargs):
-        # Mirror _resolve_auth_or_die(preference, *, announce=...); absorb any
-        # extra kwargs so signature drift in the real resolver can't break e2e.
+    def _scripted_resolve(preference):
         return (
             _auth.Resolution(source="env-anthropic", detail="m13-e2e-scripted"),
             _scripted,
@@ -316,27 +281,6 @@ def _scripted_runner(tmp_path: Path) -> CliRunner:
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "MAG-08 child-output signals are architecturally void against the "
-        "current run_turn: (1) run_turn never calls show_final and children run "
-        "headless through PanelBridgeRenderer, so a child's final_when_done text "
-        "(CHILD-AUTH/CHILD-RATE RESULT=...) reaches neither parent stdout nor "
-        "stderr — subagent_gather returns it as a tool-result string that the "
-        "CLI renderer truncates to the ≤80-char summary first line "
-        "(render.py: only `summary` is printed, `output` dropped); (2) "
-        "plan-phase TextDelta is buffered-not-streamed (agent.py:884), so the "
-        "scripted child prose never streams to stdout; (3) the steer->gather "
-        "ordering is racy — a parent that gathers on the iteration after "
-        "subagent_steer can force-join the child before it drains the queued "
-        "steer (agent.py:1149 drain is non-terminating-branch only), so "
-        "AUTH_STEERED is not deterministically reachable. The `announce` kwarg "
-        "TypeError and the `_ambient_route` work-intent routing regression are "
-        "fixed above; these six stdout/stderr stream-routing signal assertions "
-        "need a separate rewrite against the current multi-agent architecture.",
-    ),
-    strict=False,
-)
 def test_multiagent_chat_e2e(cli_runner: CliRunner, tmp_path: Path) -> None:
     """MAG-08 — all six headline signals in one stub `voss chat --plain` run.
 
@@ -355,12 +299,8 @@ def test_multiagent_chat_e2e(cli_runner: CliRunner, tmp_path: Path) -> None:
         "--mode",
         "auto",
         stdin=(
-            # Must start with a work-intent prefix ("Debug ") so the post-2026-06
-            # `_ambient_route` promotes it into the structured Voss run loop
-            # (voss_run) instead of the tool-less ambient chat path — only the
-            # run loop drives the sub-agent fan-out this test asserts.
-            f"Debug the auth bug and the rate-limiter latency in parallel "
-            f"using sub-agents, then summarize both. {_REQ}\n"
+            f"{_REQ}: Investigate the auth bug and the rate-limiter latency "
+            "in parallel using sub-agents, then summarize both.\n"
             "/exit\n"
         ),
         timeout=60.0,

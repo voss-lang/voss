@@ -1,12 +1,7 @@
-/**
- * Task 1 — quick-open item builders for ⌘P palette mode
- * Converts saved layout names and recent project paths into palette rows
- */
-
 export interface QuickOpenItem {
   id: string;
   label: string;
-  section: 'Layouts' | 'Recent Projects' | 'Files';
+  section: 'Layouts' | 'Recent Projects';
   glyph: string;
   secondary?: string;
 }
@@ -31,7 +26,6 @@ export function flattenFiles(entries: readonly DirEntryLike[], prefix = ''): str
 export function buildQuickOpenItems(
   layouts: readonly string[],
   recents: readonly string[],
-  files: readonly string[] = [],
 ): QuickOpenItem[] {
   const items: QuickOpenItem[] = [];
   for (const name of layouts) {
@@ -52,19 +46,9 @@ export function buildQuickOpenItems(
       secondary: path,
     });
   }
-  for (const path of files) {
-    items.push({
-      id: `file:${path}`,
-      label: path.split('/').pop() || path,
-      section: 'Files',
-      glyph: 'F',
-      secondary: path,
-    });
-  }
   return items;
 }
 
-/** Simple case-insensitive filter for quick-open items */
 export function filterQuickItems(
   items: readonly QuickOpenItem[],
   query: string,

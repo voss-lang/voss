@@ -1,11 +1,6 @@
-"""T1 acceptance test suite — 12 SPEC checkboxes + 4 quantitative thresholds.
-
+"""
+T1 acceptance test suite — 12 SPEC checkboxes + 4 quantitative thresholds.
 This file is the goal-backward contract for phase T1. Earlier plan tests
-covered individual mechanisms; these tests assert each SPEC acceptance
-checkbox from the user-visible perspective so refactors in the
-implementation tests don't silently break the contract.
-
-Run isolated: `uv run pytest -m t1 -v`.
 """
 from __future__ import annotations
 
@@ -15,6 +10,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -26,6 +22,7 @@ from voss.harness.agent import (
     Plan,
     ToolCall,
     _run_turn_exec,
+    run_turn,
 )
 from voss.harness.permissions import PermissionGate
 from voss.harness.providers import (
@@ -34,7 +31,11 @@ from voss.harness.providers import (
     OpenAIOAuthProvider,
     ParsedPlan,
     ProviderStreamEvent,
+    StreamingProvider,
     TextDelta,
+    ToolUseStart,
+    ToolUseDelta,
+    ToolUseEnd,
     Usage,
 )
 from voss.harness.session import EXIT_REASONS, RunRecord

@@ -1,16 +1,6 @@
-"""E2E runner for subprocess-driven Voss CLI tests.
-
+"""
+E2E runner for subprocess-driven Voss CLI tests.
 CliRunner invokes `python -m voss.cli <args>` from a tmp project root with a
-deterministic env that:
-
-  1. Registers a StubProvider in ``voss_runtime`` (mirrors
-     ``tests/examples/helpers.deterministic_subprocess_env``).
-  2. Monkey-patches ``voss.harness.cli._resolve_auth_or_die`` to return the
-     StubProvider directly, bypassing the live OAuth / API-key resolution
-     that would otherwise exit 2 in CI without creds.
-
-Both patches are installed via a generated ``sitecustomize.py`` prepended to
-``PYTHONPATH`` so any child process imports land on the deterministic stub.
 """
 from __future__ import annotations
 
@@ -22,7 +12,7 @@ import textwrap
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterable, Iterator
 
 import pytest
 
@@ -107,9 +97,7 @@ try:
     from voss.harness import auth as _auth
     from voss.harness import cli as _hcli
 
-    def _stub_resolve(preference, *args, **kwargs):  # type: ignore[no-redef]
-        # Mirror _resolve_auth_or_die(preference, *, announce=...); absorb any
-        # extra kwargs so signature drift in the real resolver can't break e2e.
+    def _stub_resolve(preference):  # type: ignore[no-redef]
         return (
             _auth.Resolution(source="env-anthropic", detail="stub-e2e"),
             _stub,

@@ -1,10 +1,6 @@
 export type RunMode = 'Plan' | 'Edit' | 'Auto';
 export type RunTarget = 'native' | 'terminal';
 
-/**
- * Intake state captured by the RunCommandBar segmented controls. `budget` and
- * `scope` are optional because Auto mode gates on their presence; the assembler
- */
 export interface RunIntakeState {
   goal: string;
   mode: RunMode;
@@ -14,10 +10,6 @@ export interface RunIntakeState {
   target: RunTarget;
 }
 
-/**
- * Assembled, typed run spec carrying ALL intake fields. This is the object the
- * start paths (terminal spawnAgent / native createSession) consume
- */
 export interface RunSpec {
   goal: string;
   mode: RunMode;
@@ -27,10 +19,6 @@ export interface RunSpec {
   target: RunTarget;
 }
 
-/**
- * Pure config assembler: build the typed RunSpec from intake state. Carries
- * every field (goal/mode/team/scope/budget/target) through unchanged
- */
 export function assembleRunSpec(state: RunIntakeState): RunSpec {
   return {
     goal: state.goal,
@@ -42,10 +30,6 @@ export function assembleRunSpec(state: RunIntakeState): RunSpec {
   };
 }
 
-/**
- * Auto-mode gating. Plan/Edit are never blocked. Auto requires BOTH a budget
- * and a scope present; missing either returns `ok:false` with a human reason
- */
 export function validateAutoStart(
   state: Pick<RunIntakeState, 'mode'> &
     Partial<Pick<RunIntakeState, 'budget' | 'scope'>>,
@@ -55,13 +39,13 @@ export function validateAutoStart(
   if (!state.budget) {
     return {
       ok: false,
-      reason: 'Autopilot needs a budget before it can start.',
+      reason: 'Auto mode needs a budget before it can start.',
     };
   }
   if (!state.scope) {
     return {
       ok: false,
-      reason: 'Autopilot needs a scope before it can start.',
+      reason: 'Auto mode needs a scope before it can start.',
     };
   }
   return { ok: true };

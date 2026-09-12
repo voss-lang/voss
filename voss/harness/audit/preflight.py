@@ -1,12 +1,11 @@
-"""O6 blocking preflight: verify O1-O5 audit inputs exist before execution.
-
-Returns a structured result with ok, missing, and warnings. If not ok,
-downstream O6 code must not run.
+"""
+blocking preflight: verify audit inputs exist before execution
+Returns a structured result with ok, missing, and warnings. If not ok
 """
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +50,7 @@ def run_o6_preflight() -> PreflightResult:
         if not hasattr(mod, attr):
             missing.append(f"{name} (attribute {attr} missing from {mod_path})")
 
-    # Check SessionTreeNode has expected fields for audit data.
+    # Check SessionTreeNode has expected fields for audit data
     try:
         from voss.harness.session_tree import SessionTreeNode
         import dataclasses as _dc
@@ -65,7 +64,7 @@ def run_o6_preflight() -> PreflightResult:
     except ImportError:
         pass  # Already caught above.
 
-    # Check EM ticket kinds are discoverable.
+    # Check EM ticket kinds are discoverable
     try:
         from voss.harness.em.tickets import (
             KillRecord as _KR,
@@ -88,7 +87,7 @@ def run_o6_preflight() -> PreflightResult:
     except ImportError:
         pass  # Already caught above.
 
-    # Check ReviewerVerdict has source field.
+    # Check ReviewerVerdict has source field
     try:
         from voss.harness.board.verdict import ReviewerVerdict as _RV
         import dataclasses as _dc3

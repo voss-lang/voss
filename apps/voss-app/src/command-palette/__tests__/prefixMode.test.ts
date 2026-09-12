@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createPrefixMode } from '../prefixMode';
 
 /**
- * Task 1 — tmux prefix state machine tests
+ * tmux prefix state machine tests
  * Verifies: profile gate, mapped keys, timeout, Esc cancel
  */
 
@@ -39,20 +39,6 @@ describe('prefixMode — profile gate', () => {
     expect(prefix.tryEnter('vscode')).toBe(false);
     expect(prefix.isActive()).toBe(false);
     expect(onActivate).not.toHaveBeenCalled();
-  });
-});
-
-describe('prefixMode — canvas keys', () => {
-  it.each([
-    ['m', 'canvas.moveMode'],
-    ['z', 'canvas.zoomFit'],
-    ['0', 'canvas.zoomReset'],
-    ['f', 'canvas.zoomToFocused'],
-  ])('%s dispatches %s', (key, commandId) => {
-    const { prefix, dispatch } = setup();
-    prefix.tryEnter('tmux');
-    expect(prefix.handleKey(key)).toEqual({ action: 'consumed', commandId });
-    expect(dispatch).toHaveBeenCalledWith(commandId);
   });
 });
 
@@ -110,8 +96,8 @@ describe('prefixMode — cancel behaviors', () => {
   it('unknown key cancels and returns passthrough', () => {
     const { prefix, dispatch } = setup();
     prefix.tryEnter('tmux');
-    const result = prefix.handleKey('q');
-    expect(result).toEqual({ action: 'passthrough', key: 'q' });
+    const result = prefix.handleKey('z');
+    expect(result).toEqual({ action: 'passthrough', key: 'z' });
     expect(dispatch).not.toHaveBeenCalled();
     expect(prefix.isActive()).toBe(false);
   });

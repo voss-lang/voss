@@ -1,7 +1,6 @@
 import { Show, createMemo } from 'solid-js';
 import { procByPaneId } from '../pane/procRegistry';
 import { isKnownAgentCli } from '../pane/agentDetect';
-import ObserveStatusDot from './ObserveStatusDot';
 import '../org/attention/attentionPanel.css';
 
 export type StatusBarProps = {
@@ -13,17 +12,17 @@ export type StatusBarProps = {
   onToggleContextPanel: () => void;
   agentCount: number;
   totalCost: number;
-/**
- * chunk C (mockup.budgmini) — run-budget mini-bar inputs. `budgetLimit`
- * is the HONEST denominator: the sum of agent budgetUsd limits (launch
- */
+    /**
+   * ( .budgmini) run-budget mini-bar inputs. `budgetLimit`
+   * is the HONEST denominator: the sum of per-agent budgetUsd limits (launch
+   */
   budgetSpent?: number;
   budgetLimit?: number;
   onToggleSidebar: () => void;
   orgViewOpen: boolean;
   onToggleOrgView: () => void;
-  // 04 AttentionQueue pill (/). Count + blocking flag flow from App
-  // (mirrors agentCount); clicking toggles the dockable AttentionPanel.
+  // AttentionQueue pill (/). Count + blocking flag flow from App
+  // (mirrors agentCount); clicking toggles the dockable AttentionPanel
   attentionCount: number;
   attentionBlocking: boolean;
   onToggleAttention: () => void;
@@ -41,8 +40,8 @@ export default function StatusBar(props: StatusBarProps) {
     return proc ? isKnownAgentCli(proc) : false;
   });
 
-  // Mini-bar fill, BudgetBar color convention: <70% green, <90% amber,
-  // else red. Clamped so over-limit never overflows the track.
+  // Mini-bar fill, BudgetBar color convention: <70% green, <90% amber
+  // else red. Clamped so over-limit never overflows the track
   const budgetPct = createMemo(() => {
     const limit = props.budgetLimit ?? 0;
     if (limit <= 0) return 0;
@@ -124,11 +123,10 @@ export default function StatusBar(props: StatusBarProps) {
         </Show>
       </div>
 
-      {/* Right: context panel toggle (F4 D-09) + git branch */}
+      {/* Right: context panel toggle (F4 ) + git branch */}
       <div style={{ 'white-space': 'nowrap', display: 'flex', 'align-items': 'center', gap: '4px' }}>
         <ObserveStatusDot />
-        {/* V14 chunk C (mockup .budgmini): rendered ONLY with an honest
-            denominator (see budgetLimit prop docs) — never a fake 43% bar. */}
+        {/* ( .budgmini): rendered ONLY with an honest denominator (see budgetLimit prop docs) never a fake 43% bar */}
         <Show when={(props.budgetLimit ?? 0) > 0}>
           <span
             title="Spend of budget-limited agents against their combined limit"

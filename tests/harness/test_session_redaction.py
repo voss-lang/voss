@@ -1,13 +1,13 @@
-"""Lock the SessionRecord redaction guarantee (D-17).
-
+"""
+Lock the SessionRecord redaction guarantee (D-17).
 If a future change adds a SessionRecord field that holds provider creds or
-adds a serialization path that bypasses the dataclass, these tests fail.
 """
 from __future__ import annotations
 
 import dataclasses
 import json
 from dataclasses import asdict
+from pathlib import Path
 
 import pytest
 
@@ -35,8 +35,6 @@ class TestSchemaAllowlist:
             "total_cost_usd", "turns", "runs",
             # M9-06 fork lineage (additive Optional, default None).
             "parent_id", "parent_turn_index",
-            # S0.5 instruction-file bundle identity (paths + hash only, never text).
-            "instructions_hash", "instructions_files",
         }
         assert set(data.keys()) == expected
 
@@ -123,11 +121,9 @@ class TestRunRecordRedaction:
             # V12 VSAFE-05: factory-fallback audit (additive; args redacted via
             # telemetry.redact_tool_args or omitted, no credentials).
             "factory_fallbacks",
-            # S0.5: instruction bundle identity (paths + hash, never file text).
-            "instructions_hash", "instructions_files",
         }
         assert set(asdict(rec).keys()) == expected
-        assert len(dataclasses.fields(RunRecord)) == 27
+        assert len(dataclasses.fields(RunRecord)) == 25
 
     def test_run_record_no_secret_patterns(self, state_dir, tmp_path):
         record = SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")

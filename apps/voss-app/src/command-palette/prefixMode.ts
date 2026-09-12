@@ -1,19 +1,14 @@
-/**
- * Task 1 — tmux ⌘B prefix state machine (/)
- * Timed 1.5s prefix window. Press ⌘B → enter prefix. Next bare key
- */
-
 import type { KeymapProfile } from './keymapStorage';
 
 const PREFIX_TIMEOUT_MS = 1500;
 
 /** tmux prefix key → registry command id */
 const PREFIX_MAP: Record<string, string> = {
-  '%': 'pane.splitBelow',   // tmux % = vertical split (new pane below)
-  '"': 'pane.splitRight',   // tmux " = horizontal split (new pane right)
+  '%': 'pane.splitBelow', // tmux % = vertical split (new pane below)
+  '"': 'pane.splitRight', // tmux " = horizontal split (new pane right)
   o: 'pane.focusNext',
   x: 'pane.close',
-  c: 'pane.splitRight',     // tmux c = new pane (maps to split right in L1)
+  c: 'pane.splitRight', // tmux c = new pane (maps to split right in L1)
   m: 'canvas.moveMode',
   z: 'canvas.zoomFit',
   '0': 'canvas.zoomReset',
@@ -27,14 +22,10 @@ export type PrefixResult =
 
 export interface PrefixState {
   active: boolean;
-/** Clear the prefix window */
+    /** Clear the prefix window */
   cancel: () => void;
 }
 
-/**
- * Create a prefix mode controller
- * `onActivate` / `onDeactivate`: called when prefix enters/exits
- */
 export function createPrefixMode(opts: {
   onActivate: () => void;
   onDeactivate: () => void;
@@ -42,13 +33,13 @@ export function createPrefixMode(opts: {
   setTimeout: (fn: () => void, ms: number) => number;
   clearTimeout: (id: number) => void;
 }): {
-/** Try to enter prefix mode. Returns true if ⌘B was consumed */
+    /** Try to enter prefix mode. Returns true if ⌘B was consumed */
   tryEnter: (profile: KeymapProfile) => boolean;
-/** Handle a bare key during prefix mode. Returns the result */
+    /** Handle a bare key during prefix mode. Returns the result */
   handleKey: (key: string) => PrefixResult;
-/** Whether prefix is currently active */
+    
   isActive: () => boolean;
-/** Cancel prefix (Esc, timeout, or external) */
+    /** Cancel prefix (Esc, timeout, or external) */
   cancel: () => void;
 } {
   let active = false;

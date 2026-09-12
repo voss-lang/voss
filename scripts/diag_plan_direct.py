@@ -1,19 +1,7 @@
 #!/usr/bin/env python
-"""DIAG-A: direct agent-loop / provider instrumentation for the bare-idle bug.
-
+"""
+DIAG-A: direct agent-loop / provider instrumentation for the bare-idle bug.
 Isolates provider vs loop for the failing task ("Analyze the codebase in depth",
-mode=plan, codex-oauth). Scratch diagnostic — NOT shipped, NOT imported by voss/.
-
-Run:  .venv/bin/python scripts/diag_plan_direct.py [--full]
-
-Probes (decisive data printed first):
-  1. provider.stream(REPRO_MODEL)   — what the SERVER actually sent. Captures the
-     raw provider response / error for a non-gpt-5 model on the codex backend.
-  2. provider.stream(CONTROL_MODEL) — gpt-5.5 (valid codex model). Captures a real
-     parsed Plan: steps / confidence / open_question / final_when_done.
-  3. run_turn(REPRO_MODEL) loop     — proves the end-to-end behaviour: does the
-     loop raise (swallowed → bare idle) and which renderer events fire?
-  --full also runs the run_turn loop on CONTROL_MODEL (slower; real tool reads).
 """
 from __future__ import annotations
 

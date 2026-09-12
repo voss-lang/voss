@@ -1,9 +1,9 @@
 """
 M10-06 TUI integration bridge test (Task 3 of M10-05 / close-out).
-
 Verifies that slash results reach the CodeIntelPanel via the M9-08 private methods
-without the backend importing TUI modules.
 """
+
+import pytest
 
 
 def test_code_intel_tui_bridge_exists():

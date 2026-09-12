@@ -1,19 +1,6 @@
-"""Interactive login wizard for first-run / `/login` flows.
-
+"""
+Interactive login wizard for first-run / `/login` flows
 Wraps upstream credential CLIs (`claude`, `codex`) rather than driving OAuth
-directly — see D-10. Surfaces three credential paths:
-
-  1. Claude Code OAuth — spawns `claude` so the user can run `/login` inside
-     it, then polls `~/.claude/.credentials.json` (via auth.wait_for_creds).
-  2. Codex OAuth — runs `codex login`, then polls `~/.codex/auth.json`.
-  3. Paste an API key — sets it in the process env so the current voss
-     session resolves immediately. Persistence is added in Phase 3.
-
-Style: minimal, monospace, single accent, no emoji. Matches `render.py`.
-
-All external IO is injectable (`input_fn`, `secret_input_fn`, `detect`,
-`spawn`, `waiter`, `console`) so the wizard is unit-testable without touching
-real terminals, processes, or the filesystem.
 """
 from __future__ import annotations
 
@@ -46,9 +33,7 @@ OPENAI_KEY_PREFIX = "sk-"
 DEFAULT_POLL_TIMEOUT = 180.0
 
 
-# ---------------------------------------------------------------------------
 # Injection types
-# ---------------------------------------------------------------------------
 
 
 InputFn = Callable[[str], str]
@@ -70,9 +55,7 @@ def _default_spawn(argv: list[str]) -> int:
         return 127
 
 
-# ---------------------------------------------------------------------------
 # Wizard
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -143,7 +126,7 @@ def run_login_wizard(
                 {"source": res.source},
             )
             return res
-        # Branch returned None (timeout / install missing / aborted) — loop.
+        # Branch returned None (timeout / install missing / aborted) loop
 
 
 def _emit(kind: str, level: str, msg: str, data: Optional[dict] = None) -> None:
@@ -156,9 +139,7 @@ def _emit(kind: str, level: str, msg: str, data: Optional[dict] = None) -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
 # Menu rendering
-# ---------------------------------------------------------------------------
 
 
 def _render_menu(deps: _Deps, reason: str) -> None:
@@ -189,15 +170,13 @@ def _prompt_menu(deps: _Deps) -> str:
         return "q"
 
 
-# ---------------------------------------------------------------------------
 # Branch: Claude Code OAuth
-# ---------------------------------------------------------------------------
 
 
 def _branch_claude(deps: _Deps) -> Optional[Resolution]:
     cli = deps.detect("claude")
     if cli is None:
-        deps.console.print("[yellow]`claude` CLI not found on PATH.[/yellow]")
+        deps.console.print(f"[yellow]`claude` CLI not found on PATH.[/yellow]")
         deps.console.print(CLAUDE_INSTALL_HINT)
         return None
 
@@ -210,15 +189,13 @@ def _branch_claude(deps: _Deps) -> Optional[Resolution]:
     return deps.waiter("claude", timeout=deps.poll_timeout)
 
 
-# ---------------------------------------------------------------------------
 # Branch: Codex OAuth
-# ---------------------------------------------------------------------------
 
 
 def _branch_codex(deps: _Deps) -> Optional[Resolution]:
     cli = deps.detect("codex")
     if cli is None:
-        deps.console.print("[yellow]`codex` CLI not found on PATH.[/yellow]")
+        deps.console.print(f"[yellow]`codex` CLI not found on PATH.[/yellow]")
         deps.console.print(CODEX_INSTALL_HINT)
         return None
 
@@ -228,9 +205,7 @@ def _branch_codex(deps: _Deps) -> Optional[Resolution]:
     return deps.waiter("codex", timeout=deps.poll_timeout)
 
 
-# ---------------------------------------------------------------------------
 # Branch: paste API key
-# ---------------------------------------------------------------------------
 
 
 def _branch_apikey(deps: _Deps) -> Optional[Resolution]:
@@ -258,7 +233,7 @@ def _branch_apikey(deps: _Deps) -> Optional[Resolution]:
 
     # Persist to the OS keychain so the key survives across sessions. If the
     # keyring backend is unavailable (e.g. headless Linux), fall back to the
-    # transient env var path and warn — voss still works for this session.
+    # transient env var path and warn voss still works for this session
     persisted = auth_mod.save_voss_creds(provider, key)
     if persisted:
         deps.console.print(
@@ -292,9 +267,7 @@ def _prompt_apikey_provider(deps: _Deps) -> Optional[str]:
     return None
 
 
-# ---------------------------------------------------------------------------
 # Module-level entry helpers
-# ---------------------------------------------------------------------------
 
 
 def stdin_is_interactive() -> bool:

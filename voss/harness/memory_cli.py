@@ -1,12 +1,10 @@
-"""Click subcommand group for `voss memory <vacuum|adopt|size>`.
-
-Owned by M8-04 (MEM-06). Group + command shells defined concretely so the
-main CLI can register them.
+"""
+Click subcommand group for `voss memory <vacuum|adopt|size>`
+Owned by (MEM-06). Group + command shells defined concretely so the
 """
 from __future__ import annotations
 
 import hashlib
-import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -319,12 +317,10 @@ def memory_size_cmd(cwd_str: str) -> None:
     click.echo(f"  TOTAL: {total} / {store.cap_bytes} bytes ({pct:.1f}%)")
 
 
-# ---------------------------------------------------------------------------
-# V23 VRNK-07 operator verbs: pin / unpin / list / show / reindex
-# ---------------------------------------------------------------------------
+# VRNK-07 operator verbs: pin / unpin / list / show / reindex
 
-# Locator vocabulary accepted for pinning/showing — guards .pins.json against
-# path-injection (T-V23-07-01); must mirror make_id prefixes.
+# Locator vocabulary accepted for pinning/showing guards.pins.json against
+# path-injection; must mirror make_id prefixes
 _VALID_PIN_PREFIXES = ("turn", "ledger", "decision", "convention", "note")
 
 

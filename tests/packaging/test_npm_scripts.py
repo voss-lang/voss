@@ -1,11 +1,6 @@
-"""M6-03 NPM-02: fast unit tests for bump_version.py and prune_pbs.py.
-
+"""
+M6-03 NPM-02: fast unit tests for bump_version.py and prune_pbs.py.
 These tests build a synthetic npm/ tree in tmp_path and invoke each
-script as a subprocess so the scripts run exactly as they would in
-M6-04 CI. The build_platform.py script is NOT covered here — its full
-exercise is the [BLOCKING] host build in Task 3 of M6-03 (real PBS
-download + pip install). Static AST checks of build_platform.py live
-in the plan's verify block, not in this test module.
 """
 
 from __future__ import annotations
@@ -16,6 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 
 from tests.packaging.test_entrypoint import _repo_root
 

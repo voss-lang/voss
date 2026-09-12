@@ -73,10 +73,8 @@ const SwarmMap: Component = () => {
     () => {
       const srv = liveServer();
       if (!srv) return null;
-      // Refetch triggers: a new swarm.* event (monotonic seq — NOT the live-edge
+      // Refetch triggers: a new swarm.* event (monotonic seq NOT the live-edge
       // ring length, which plateaus at MAX_LIVE_EDGES and would freeze refetch
-      // once saturated), or a freshly-launched swarm id → re-pull the
-      // authoritative roster/task-state snapshot.
       return { srv, tick: swarmEventSeq(), id: activeSwarmId() };
     },
     async (k: {
@@ -84,7 +82,7 @@ const SwarmMap: Component = () => {
       tick: number;
       id: string | null;
     }) => {
-      // Prefer an app-launched swarm id; else discover one from the registry.
+      // Prefer an app-launched swarm id; else discover one from the registry
       const id = activeSwarmId() ?? (await discoverActiveSwarmId(k.srv.cwd ?? null));
       if (!id) return null;
       try {
@@ -96,12 +94,13 @@ const SwarmMap: Component = () => {
   );
   const snapshot = () => swarmData.latest ?? null;
 
+  // Proxy-strip before the legacy pure derive (MANDATORY )
   const plainRunData = () => {
     const rd = runData();
     return rd ? JSON.parse(JSON.stringify(rd)) : null;
   };
 
-  // Prefer the real swarm plane; fall back to the legacy board-derive.
+  // Prefer the real swarm plane; fall back to the legacy board-derive
   const graph = createMemo(() => {
     const snap = snapshot();
     if (snap) {
@@ -143,7 +142,7 @@ const SwarmMap: Component = () => {
     onCleanup(() => mql?.removeEventListener?.('change', compute));
   });
 
-  // Legacy live edges merged from the SSE patch stream (board path only).
+  // Legacy live edges merged from the SSE patch stream (board path only)
   const liveEdges = (): SwarmEdge[] => {
     if (onPlane()) return [];
     const nodes = positioned();
@@ -168,7 +167,7 @@ const SwarmMap: Component = () => {
   const allEdges = () => [...graph().edges, ...liveEdges()];
 
   // Pulse: legacy = live-edge targets; plane = nodes bound to a swarm event in the
-  // last 2.5s (sessionId match), windowed by the 1s clock. Guarded by !reduced().
+  // last 2.5s (sessionId match), windowed by the 1s clock. Guarded by !reduced
   const pulsedIds = createMemo(() => {
     if (onPlane()) {
       const recent = swarmLiveEdges().filter((e) => now() - e.timestamp < 2500);
@@ -183,7 +182,7 @@ const SwarmMap: Component = () => {
     return new Set(liveEdges().map((e) => e.to));
   });
 
-  // Pause-hook for the guarded animations: toggle `swarm-paused` when tab hides.
+  // Pause-hook for the guarded animations: toggle `swarm-paused` when tab hides
   createEffect(() => {
     const el = canvasRef;
     if (!el) return;
@@ -192,7 +191,7 @@ const SwarmMap: Component = () => {
     onCleanup(() => document.removeEventListener('visibilitychange', onVis));
   });
 
-  // Background drag-to-pan (only the bare canvas, never a chip).
+  // Background drag-to-pan (only the bare canvas, never a chip)
   let dragging = false;
   let last = { x: 0, y: 0 };
   const onDown = (e: PointerEvent) => {
@@ -211,7 +210,7 @@ const SwarmMap: Component = () => {
     dragging = false;
   };
 
-  // Cmd/Ctrl + wheel zoom, anchored at the cursor.
+  // Cmd/Ctrl + wheel zoom, anchored at the cursor
   const onWheel = (e: WheelEvent) => {
     if (!(e.ctrlKey || e.metaKey) || !canvasRef) return;
     e.preventDefault();
@@ -250,8 +249,6 @@ const SwarmMap: Component = () => {
 
   // A real swarm to render: the live plane, or a legacy run graph with
   // actual structure (work / agent / artifact nodes). A lone objective or
-  // placeholder from an idle focused run is NOT a swarm — fall through to the
-  // launch wizard instead of rendering a phantom "CONTROLLER" node.
   const hasSwarm = () =>
     onPlane() ||
     graph().nodes.some(
@@ -334,7 +331,7 @@ const SwarmMap: Component = () => {
                     }}
                   </For>
 
-                  {/* Traveling dots on freshly-patched legacy live edges (motion). */}
+                  {/* Traveling dots on freshly-patched legacy live edges (motion) */}
                   <Show when={!reduced()}>
                     <For each={liveEdges()}>
                       {(edge) => {
@@ -374,7 +371,7 @@ const SwarmMap: Component = () => {
                 </g>
               </svg>
 
-              {/* Zoom controls (bottom-left overlay; siblings of the canvas). */}
+              {/* Zoom controls (bottom-left overlay; siblings of the canvas) */}
               <div class="swarm-zoom" role="group" aria-label="Zoom controls">
                 <button
                   type="button"
@@ -405,7 +402,7 @@ const SwarmMap: Component = () => {
                 </button>
               </div>
 
-              {/* Orchestra command bar + quick actions (live swarm only). */}
+              {/* Orchestra command bar + quick actions (live swarm only) */}
               <Show when={onPlane()}>
                 <SwarmCommandBar />
               </Show>
@@ -438,7 +435,7 @@ const SwarmMap: Component = () => {
             </div>
           </div>
         </Show>
-        {/* Replay scrubber — bottom strip, only for completed legacy runs. */}
+        {/* Replay scrubber bottom strip, only for completed legacy runs */}
         <Show when={!onPlane() && !loading() && !loadError() && runData()?.run_final}>
           <ReplayScrubber data={runData()!} />
         </Show>

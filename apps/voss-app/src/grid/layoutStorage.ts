@@ -1,27 +1,25 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { LayoutPreset } from '../canvas/arrange';
-import type { LegacyGridStore } from '../canvas/migrate';
-import type { CanvasNode, CanvasView } from '../canvas/model';
+import type { GridStore } from './tree';
+import type { LayoutPreset } from './layoutPresets';
 
 /**
  * Frontend bridge for the Rust layout persistence commands. These
- * wrappers carry no remap or geometry logic — that lives in
+ * wrappers carry no remap or geometry logic that lives in
  */
 
-/** Wire-level layout shape — mirrors Rust `voss_app_core::layouts::LayoutFile` */
 export type LayoutFile = {
-  version: 1 | 2;
+  version: 1;
   activePreset: LayoutPreset | null;
-/** v1 split tree; v2 files written from the canvas omit it */
+    /** split tree; files written from the canvas omit it */
   grid?: LegacyGridStore;
-/** Canvas geometry; absent on v1 layouts saved before the canvas */
+    
   nodes?: CanvasNode[];
   view?: CanvasView;
   focusedId?: string;
 };
 
+// Exact copy
 // Single source of truth for the renderer and tests; renaming any of these
-// is a deliberate spec change.
 
 export const SAVE_LAYOUT_LABEL = 'Save layout as...';
 export const LOAD_LAYOUT_LABEL = 'Load layout...';
@@ -37,28 +35,29 @@ export const UNSUPPORTED_VERSION = 'layout ignored: unsupported version';
 export const SAVE_FAILED = 'could not save layout';
 export const LOAD_FAILED = 'could not load layout';
 
+// Tauri command bridges
 
 export async function saveLayout(
-  workspaceId: string,
+  workspacePath: string,
   name: string,
   layout: LayoutFile,
 ): Promise<void> {
-  await invoke('save_layout', { workspaceId, name, layout });
+  await invoke('save_layout', { workspacePath, name, layout });
 }
 
 export async function loadLayout(
-  workspaceId: string,
+  workspacePath: string,
   name: string,
 ): Promise<LayoutFile> {
-  return invoke<LayoutFile>('load_layout', { workspaceId, name });
+  return invoke<LayoutFile>('load_layout', { workspacePath, name });
 }
 
-export async function listLayouts(workspaceId: string): Promise<string[]> {
-  return invoke<string[]>('list_layouts', { workspaceId });
+export async function listLayouts(workspacePath: string): Promise<string[]> {
+  return invoke<string[]>('list_layouts', { workspacePath });
 }
 
 export async function loadDefaultLayout(
-  workspaceId: string,
+  workspacePath: string,
 ): Promise<LayoutFile | null> {
-  return invoke<LayoutFile | null>('load_default_layout', { workspaceId });
+  return invoke<LayoutFile | null>('load_default_layout', { workspacePath });
 }

@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveTier, hookCapableCli } from '../capabilityTier';
 
-// 13: honest A/B/C capability tiers. A = tool gate + sandbox +
-// budget; B = sandbox + budget; C = observe-only. Adopt is ALWAYS C.
-
 describe('resolveTier — honest capability tiers (VCKP-13)', () => {
   it('a non-hook managed CLI resolves to tier B (sandbox + budget, no per-tool prompt, no error)', () => {
     expect(

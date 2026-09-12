@@ -1,7 +1,6 @@
-"""Terminal renderer for the harness.
-
-Goal: minimal, monospace, single accent. Glyphs: `▌ ❯ ⏵ ⚠`. No emoji.
-TTY mode = rich Live updates. Non-TTY = plain text on stdout, traces on stderr.
+"""
+Terminal renderer for the harness
+Goal: minimal, monospace, single accent. Glyphs: `▌ ❯ ⏵ ⚠`. No emoji
 """
 from __future__ import annotations
 
@@ -19,9 +18,7 @@ from rich.console import Console
 ACCENT_ORANGE = "#ff5b1f"
 
 
-# ---------------------------------------------------------------------------
 # Public protocol
-# ---------------------------------------------------------------------------
 
 
 @runtime_checkable
@@ -30,11 +27,11 @@ class Renderer(Protocol):
     def show_user(self, task: str) -> None: ...
     def show_thinking(self, label: str) -> None: ...
     def show_plan(self, plan: Any, *, cost_usd: float) -> None: ...
-    # R3 ToolCards (tui-redesign-spec §6.1): `call_id` is minted by the
+    # R3 ToolCards (tui-redesign-spec .1): `call_id` is minted by the
     # harness at dispatch so the SAME id arrives on the pending and settled
-    # calls for one step — the textual renderer mutates one card in place.
+    # calls for one step the textual renderer mutates one card in place
     # `output` is the full tool result text (settled calls only); summary
-    # stays the one-line digest. Non-TUI renderers ignore both.
+    # stays the one-line digest. Non-TUI renderers ignore both
     def show_tool_call(
         self,
         call_id: str | None,
@@ -57,9 +54,9 @@ class Renderer(Protocol):
         timestamp: str | None = None,
         accumulated_text: str | None = None,
     ) -> None: ...
-    # R2 working indicator (tui-redesign-spec §6.1). Textual renderer drives
+    # R2 working indicator (tui-redesign-spec .1). Textual renderer drives
     # the live TranscriptView indicator; plain prints a single `working...`
-    # line on turn start; everything else is a no-op.
+    # line on turn start; everything else is a no-op
     def show_working(self, label: str = "working") -> None: ...
     def update_working(self, elapsed_s: float, tokens: int) -> None: ...
     def hide_working(self) -> None: ...
@@ -77,9 +74,6 @@ class Renderer(Protocol):
     ) -> None: ...
     def show_principles_overflow(
         self, *, principles_tokens: int, budget: int = 1000
-    ) -> None: ...
-    def show_instructions_overflow(
-        self, *, instructions_tokens: int, budget: int = 4000, truncated: list[str] | None = None
     ) -> None: ...
     def show_warning(self, msg: str) -> None: ...
 
@@ -144,8 +138,8 @@ def make_renderer(
 
         return TextualRenderer(VossTUIApp())
 
-    # M9-07 Windows-console strategy: locked notice to stderr, PlainRenderer
-    # fallback. Fires whether stdout is a TTY or not.
+    # Windows-console strategy: locked notice to stderr, PlainRenderer
+    # fallback. Fires whether stdout is a TTY or not
     if decision.reason.startswith("Windows console missing capability"):
         sys.stderr.write(
             "voss: Windows console missing capability · using --plain mode\n"
@@ -158,9 +152,7 @@ def make_renderer(
     return TtyRenderer()
 
 
-# ---------------------------------------------------------------------------
 # TTY (rich)
-# ---------------------------------------------------------------------------
 
 
 GLYPH_TOOL = "⏵"
@@ -321,15 +313,6 @@ class TtyRenderer:
             f"tokens (over {budget} budget) — truncated[/yellow]"
         )
 
-    def show_instructions_overflow(
-        self, *, instructions_tokens: int, budget: int = 4000, truncated: list[str] | None = None
-    ) -> None:
-        names = ", ".join(truncated or [])
-        self.console.print(
-            f"[yellow]{GLYPH_WARN} instruction files truncated to {budget} tokens "
-            f"({names})[/yellow]"
-        )
-
     def show_warning(self, msg: str) -> None:
         self.console.print(f"[yellow]{GLYPH_WARN} {msg}[/yellow]")
 
@@ -472,15 +455,6 @@ class CompactRenderer:
             f"principles block is {principles_tokens} tokens (over {budget})"
         )
 
-    def show_instructions_overflow(
-        self, *, instructions_tokens: int, budget: int = 4000, truncated: list[str] | None = None
-    ) -> None:
-        names = ", ".join(truncated or [])
-        self.console.print(
-            f"[{ACCENT_ORANGE}]{GLYPH_WARN}[/{ACCENT_ORANGE}] "
-            f"instruction files truncated to {budget} tokens ({names})"
-        )
-
     def show_warning(self, msg: str) -> None:
         self.console.print(f"[{ACCENT_ORANGE}]{GLYPH_WARN}[/{ACCENT_ORANGE}] {msg}")
 
@@ -492,9 +466,7 @@ def _short(v: Any, limit: int = 40) -> str:
     return s
 
 
-# ---------------------------------------------------------------------------
 # Plain (non-TTY pipe target)
-# ---------------------------------------------------------------------------
 
 
 class PlainRenderer:
@@ -522,8 +494,8 @@ class PlainRenderer:
         *,
         output: str | None = None,
     ) -> None:
-        # R3: call_id/output accepted and ignored — the plain one-line
-        # format is a locked parity contract (test_plain_parity).
+        # R3: call_id/output accepted and ignored the plain one-line
+        # format is a locked parity contract (test_plain_parity)
         print(f"[{state}] {name}({args}) -> {summary}", file=sys.stderr)
 
     def show_clarify(self, question: str, confidence: float) -> None:
@@ -557,8 +529,8 @@ class PlainRenderer:
         print(" · ".join(parts), file=sys.stderr)
 
     def show_working(self, label: str = "working") -> None:
-        # R2 parity rule: a single `working...` line on turn start (stderr,
-        # like every other plain side-channel line), no animation, no updates.
+        # R2 parity rule: a single `working...` line on turn start (stderr
+        # like every other plain side-channel line), no animation, no updates
         print("working...", file=sys.stderr)
 
     def update_working(self, elapsed_s: float, tokens: int) -> None:
@@ -599,22 +571,11 @@ class PlainRenderer:
             file=sys.stderr,
         )
 
-    def show_instructions_overflow(
-        self, *, instructions_tokens: int, budget: int = 4000, truncated: list[str] | None = None
-    ) -> None:
-        print(
-            f"instructions overflow: {instructions_tokens} > {budget} "
-            f"({', '.join(truncated or [])})",
-            file=sys.stderr,
-        )
-
     def show_warning(self, msg: str) -> None:
         print(f"warning: {msg}", file=sys.stderr)
 
 
-# ---------------------------------------------------------------------------
 # JSON (NDJSON, one event per line on stdout)
-# ---------------------------------------------------------------------------
 
 
 class JsonRenderer:
@@ -653,7 +614,7 @@ class JsonRenderer:
         output: str | None = None,
     ) -> None:
         # call_id/output dropped: the NDJSON event vocabulary is a locked
-        # contract (same policy as show_working).
+        # contract (same policy as show_working)
         self._emit(type="tool", name=name, args=args, summary=summary, state=state)
 
     def show_clarify(self, question: str, confidence: float) -> None:
@@ -683,8 +644,8 @@ class JsonRenderer:
         )
 
     def show_working(self, label: str = "working") -> None:
-        # Deliberately silent — the NDJSON event vocabulary is a locked
-        # contract; turn activity is already observable via stream events.
+        # Deliberately silent the NDJSON event vocabulary is a locked
+        # contract; turn activity is already observable via stream events
         pass
 
     def update_working(self, elapsed_s: float, tokens: int) -> None:
@@ -728,16 +689,6 @@ class JsonRenderer:
             type="principles_overflow",
             principles_tokens=principles_tokens,
             budget=budget,
-        )
-
-    def show_instructions_overflow(
-        self, *, instructions_tokens: int, budget: int = 4000, truncated: list[str] | None = None
-    ) -> None:
-        self._emit(
-            type="instructions_overflow",
-            instructions_tokens=instructions_tokens,
-            budget=budget,
-            truncated=list(truncated or []),
         )
 
     def show_warning(self, msg: str) -> None:

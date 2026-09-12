@@ -8,7 +8,7 @@ export interface TimelineNodeView {
   key: string;
   label: string;
   state: TimelineNodeState;
-/** Present only for card nodes — wired to the global selection */
+
   cardId?: string;
 }
 
@@ -16,7 +16,6 @@ function shortId(id: string): string {
   return id.length > 8 ? `${id.slice(0, 8)}…` : id;
 }
 
-/** Pure milestone derivation: idea -> cards -> card terminal -> sign-off */
 export function timelineNodesFromRunData(
   data: RunData | null,
 ): TimelineNodeView[] {
@@ -52,7 +51,6 @@ export function timelineNodesFromRunData(
   return nodes;
 }
 
-/** Total persisted board.transition count (the replay step total) */
 export function transitionCount(data: RunData | null): number {
   if (!data) return 0;
   let n = 0;

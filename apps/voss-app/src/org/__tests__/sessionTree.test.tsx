@@ -37,7 +37,6 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-
 describe('buildTree — flat nodes → parent→child', () => {
   it('root + child fixture → 1 root with 1 child', () => {
     const roots = buildTree([ROOT, CHILD]);
@@ -59,7 +58,6 @@ describe('buildTree — flat nodes → parent→child', () => {
     expect(ids).toEqual([ROOT.id, orphan.id].sort());
   });
 });
-
 
 function rowFor(root: HTMLElement, id: string): HTMLElement | null {
   return root.querySelector(`[data-node-id="${id}"]`);

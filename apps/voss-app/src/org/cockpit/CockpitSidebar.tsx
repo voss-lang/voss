@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createSignal } from 'solid-js';
 import type { RunData } from '../types';
 import type { SwarmReconcileResult } from '../swarmReconcile';
-import type { SidecarVossClient } from '../live/sidecarClient';
+import type { VossClient } from '../../../../../sdk/typescript/src/client/rest';
 import { rosterRows, type RosterRow } from '../panels/RosterPanel';
 import { cardToPane } from '../model/bridge';
 import SessionTreePanel from '../panels/SessionTreePanel';
@@ -14,8 +14,6 @@ import {
 } from './serverSessions';
 import './serverSessions.css';
 
-// COPIED from RosterPanel.tsx (private helper; copy not import — the GateBar
-// budgetColor precedent).
 function roleColor(role: string): string {
   switch (role) {
     case 'planner':
@@ -55,18 +53,14 @@ interface ExternalRow {
 export default function CockpitSidebar(props: {
   data: RunData | null;
   swarm: SwarmReconcileResult;
-/**
- * 05: live sidecar client — the "Server sessions" section is hidden
- * entirely without it (nothing to list)
- */
+
   vossClient?: SidecarVossClient;
-/** 05: Attach action → App attachSession/openAttachedPane seam */
+
   onAttach?: (sessionId: string) => void;
 }) {
   const [sessionsOpen, setSessionsOpen] = createSignal(false);
   const [serverSessionsOpen, setServerSessionsOpen] = createSignal(false);
 
-  // refresh the honest GET /session mirror whenever the section opens.
   createEffect(() => {
     const client = props.vossClient;
     if (serverSessionsOpen() && client) void refreshSessions(client);
@@ -84,7 +78,6 @@ export default function CockpitSidebar(props: {
   const roleScope = (role: string) =>
     nodes().find((n) => n.role === role)?.scope ?? null;
 
-  // Live launched agents: swarm roster + bridge-bound cards (deduped by pane).
   const externalRows = (): ExternalRow[] => {
     const swarmRows: ExternalRow[] = props.swarm.rosterRows.map((a) => ({
       key: `swarm-${a.id}`,
@@ -108,7 +101,7 @@ export default function CockpitSidebar(props: {
 
   return (
     <>
-      {/* 1 — Voss team roster */}
+      {}
       <div class="cockpit-sect">Voss team</div>
       <Show
         when={roster().length > 0}
@@ -147,7 +140,7 @@ export default function CockpitSidebar(props: {
         </For>
       </Show>
 
-      {/* 2 — external terminal agents (live plane) */}
+      {}
       <Show when={externalRows().length > 0}>
         <div class="cockpit-sect">External terminal agents</div>
         <Show when={props.swarm.idea}>
@@ -172,7 +165,7 @@ export default function CockpitSidebar(props: {
         </For>
       </Show>
 
-      {/* 3 — sessions / run lineage */}
+      {}
       <Show when={props.data}>
         {(d) => (
           <>
@@ -206,6 +199,7 @@ export default function CockpitSidebar(props: {
         )}
       </Show>
 
+      {}
       <Show when={props.vossClient}>
         <div
           class="cockpit-sect"

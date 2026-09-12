@@ -1,7 +1,6 @@
-"""V20-05 (VRES-05): Done gate must run Reviewer-B at tier="strong".
-
+"""
+V20-05 (VRES-05): Done gate must run Reviewer-B at tier="strong".
 Contract (verdict.py:21): B.fast at intermediate gates; B.strong at ->Done.
-b_passes lives only in the Done predicate tuples, so strong-at-Done is safe.
 """
 from __future__ import annotations
 
@@ -10,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from voss.harness.board import Board
+from voss.harness.board import Board, BoardGateError
 from voss.harness.board.stub import DeterministicReviewerStub
 from voss.harness.board.verdict import ReviewerVerdict
 

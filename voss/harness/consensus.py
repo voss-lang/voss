@@ -1,7 +1,6 @@
-"""Single-shot LLM critique of diffs against natural-language constraints.
-
+"""
+Single-shot LLM critique of diffs against natural-language constraints
 Reads `.voss/constraints.yml`, captures a git diff, sends a single
-provider.complete call, and returns structured violations.
 """
 from __future__ import annotations
 
@@ -18,9 +17,7 @@ from voss.template_render import render_package_template
 MAX_DIFF_CHARS = 30_000
 
 
-# ---------------------------------------------------------------------------
 # Pydantic models
-# ---------------------------------------------------------------------------
 
 
 class Violation(BaseModel):
@@ -53,9 +50,7 @@ class ConstraintsConfig(BaseModel):
     rules: list[str] = Field(default_factory=list)
 
 
-# ---------------------------------------------------------------------------
 # Constraint loading
-# ---------------------------------------------------------------------------
 
 
 def load_constraints(cwd: Path) -> Optional[ConstraintsConfig]:
@@ -70,9 +65,7 @@ def load_constraints(cwd: Path) -> Optional[ConstraintsConfig]:
         return None
 
 
-# ---------------------------------------------------------------------------
 # Diff capture
-# ---------------------------------------------------------------------------
 
 
 def capture_diff(mode: str, cwd: Path, ref: Optional[str] = None) -> str:
@@ -116,9 +109,7 @@ def capture_diff(mode: str, cwd: Path, ref: Optional[str] = None) -> str:
     return text
 
 
-# ---------------------------------------------------------------------------
 # Prompt assembly
-# ---------------------------------------------------------------------------
 
 
 def build_prompt(constraints: ConstraintsConfig, diff_text: str) -> str:
@@ -133,9 +124,7 @@ def build_prompt(constraints: ConstraintsConfig, diff_text: str) -> str:
     )
 
 
-# ---------------------------------------------------------------------------
 # Single-shot critique
-# ---------------------------------------------------------------------------
 
 
 async def run_critique(
@@ -167,9 +156,7 @@ async def run_critique(
     return resp.parsed
 
 
-# ---------------------------------------------------------------------------
 # Output formatting
-# ---------------------------------------------------------------------------
 
 
 def format_violations(
@@ -180,19 +167,20 @@ def format_violations(
         n = result.summary.total_checked
         return (f"\u2713 All clear — {n} constraints checked, 0 violations.", False)
 
-    violations: list[dict] = []
+    lines: list[str] = []
     for v in result.violations:
-        loc = None
+        lines.append(f"  constraint: {v.constraint}")
         if v.file:
             loc = v.file
             if v.line is not None:
                 loc += f":{v.line}"
-        violations.append(
-            {"constraint": v.constraint, "location": loc, "explanation": v.explanation}
-        )
+            lines.append(f"  location:   {loc}")
+        if v.explanation:
+            lines.append(f"  why:        {v.explanation}")
+        lines.append("")
 
     # Template ends with a final newline (keep_trailing_newline); the original
-    # "\n".join() produced none, so strip it to preserve byte parity.
+    # "\n".join produced none, so strip it to preserve byte parity
     text = render_package_template(
         "voss",
         "templates/consensus/violations.txt.jinja",

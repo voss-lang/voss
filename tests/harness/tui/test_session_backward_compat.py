@@ -1,7 +1,6 @@
-"""M9-06: pre-M9 session JSON files must round-trip via the new reader.
-
+"""
+M9-06: pre-M9 session JSON files must round-trip via the new reader.
 `_hydrate` (voss/harness/session.py) already filters to schema fields, so
-adding `parent_id` / `parent_turn_index` is safe in BOTH directions.
 """
 from __future__ import annotations
 
@@ -9,6 +8,7 @@ import dataclasses
 import json
 from pathlib import Path
 
+import pytest
 
 from voss.harness import session as session_store
 from voss.harness.session import SessionRecord

@@ -1,14 +1,10 @@
-"""Phase 4 integration tests: wizard entry into the CLI.
-
+"""
+Phase 4 integration tests: wizard entry into the CLI.
 Covers:
-  - `voss login` invokes the wizard; success exits 0, cancel exits 2.
-  - `voss logout <provider>` removes a keyring entry.
-  - `_resolve_auth_or_die` launches the wizard on TTY + no creds, falls back
-    to the original exit-2 error on non-TTY.
-  - REPL `/login` and `/login status` route to the right handler.
 """
 from __future__ import annotations
 
+import io
 from typing import Any
 
 import pytest

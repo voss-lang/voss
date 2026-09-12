@@ -1,18 +1,6 @@
-"""Skill smoke tests — one per SKL + a registry-count guard.
-
+"""
+Skill smoke tests — one per SKL + a registry-count guard.
 Each stub fails with `pytest.fail("not yet")` until its owning downstream
-plan turns it green. Test names are FINAL contracts — do not rename.
-
-Ownership:
-  T7-02 → test_rename_symbol (SKL-01), test_voss_lint (SKL-06)  [GREEN]
-  T7-03 → test_summarize_diff (SKL-03), test_audit_cognition (SKL-05)
-  T7-04 → test_add_test (SKL-02), test_port_py_to_voss (SKL-04)
-
-`test_registry_count` is the last-to-green guard: it asserts the FINAL
-registry count of 7 and is owned by T7-04. It legitimately stays RED through
-T7-02 and T7-03 and MUST NOT be weakened (T7-01-PLAN registry-count
-contract). T7-02 proves its own two registrations via direct
-`default_skill_registry().get(...)` checks inside the two tests it owns.
 """
 import io
 import json
@@ -23,6 +11,7 @@ import types
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 
 from voss.harness.skill_registry import default_skill_registry
 

@@ -1,9 +1,10 @@
-"""Claude subscription provider via the official `claude-agent-sdk` package.
-
+"""
+Claude subscription provider via the official `claude-agent-sdk` package
 Replaces the retired raw-OAuth path (AnthropicOAuthProvider): Anthropic blocks
 subscription OAuth tokens in third-party tools server-side (2026-01-09) and
 prohibits them by ToS. The sanctioned route is the Agent SDK / `claude -p`,
-which uses the locally logged-in Claude Code subscription session.
+which since 2026-06-15 bills against a dedicated monthly subscription credit
+separate from interactive Claude Code limits.
 
 Design (provider mode): Voss keeps its own agent loop, tools, and permission
 gate. The spawned Claude Code runs with `max_turns=1`, all built-in tools
@@ -17,13 +18,16 @@ Known tradeoffs:
   markers; hostile content containing a marker could confuse turn attribution
   (same class of risk as the Responses-API flattening in OpenAIOAuthProvider).
 - No cross-iteration prompt caching: every call re-sends the transcript.
-  It consumes subscription usage faster than an equivalent cached session.
+  $0 under subscription, but burns the metered Agent SDK credit faster.
   Follow-up if painful: ClaudeSDKClient session mode behind a flag.
+- If ANTHROPIC_API_KEY is exported, the spawned CLI may bill the API key
+  instead of the subscription. Unreachable under --auth=auto (the key wins
+  earlier in resolve()); possible under explicit --auth=claude with a key
+  exported.
 """
 from __future__ import annotations
 
 import asyncio
-import os
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Optional
 
@@ -41,17 +45,6 @@ _LOGIN_HINT = "run `claude /login` in a terminal to connect your subscription"
 _JSON_TAIL = (
     "Respond as the assistant. Output only the JSON object matching the "
     "required schema."
-)
-
-# Calls only when needed, not invoked at startup or on request
-_API_BILLING_ENV_KEYS_TO_SHADOW = (
-    "ANTHROPIC_API_KEY",
-    "ANTHROPIC_AUTH_TOKEN",
-    "ANTHROPIC_BASE_URL",
-    "CLAUDE_CODE_USE_BEDROCK",
-    "CLAUDE_CODE_USE_ANTHROPIC_AWS",
-    "CLAUDE_CODE_USE_VERTEX",
-    "CLAUDE_CODE_USE_FOUNDRY",
 )
 
 
@@ -95,21 +88,6 @@ def _flatten_messages(
     return "\n\n".join(system_chunks), prompt
 
 
-def _subscription_env_overrides() -> dict[str, str]:
-    """Shadow API-provider env vars for the Claude subscription subprocess.
-
-    The Python SDK merges ``options.env`` over the inherited process
-    environment, so an empty string is the closest portable equivalent to
-    unsetting a variable for the spawned ``claude`` process.
-    """
-
-    return {
-        key: ""
-        for key in _API_BILLING_ENV_KEYS_TO_SHADOW
-        if os.environ.get(key)
-    }
-
-
 class ClaudeAgentProvider:
     """Drives the Claude Code CLI through `claude_agent_sdk.query()`.
 
@@ -133,9 +111,7 @@ class ClaudeAgentProvider:
         self.cli_path = str(cli_path) if cli_path is not None else None
         self._query_fn = query_fn
 
-    # ------------------------------------------------------------------
     # SDK plumbing
-    # ------------------------------------------------------------------
 
     def _resolve_query(self) -> Callable[..., AsyncIterator[Any]]:
         if self._query_fn is not None:
@@ -152,9 +128,9 @@ class ClaudeAgentProvider:
             "model": model,
             # Structured output rides an internal StructuredOutput tool
             # round-trip, and the model may spend text-only turns before
-            # calling it (observed live with large harness system prompts).
+            # calling it (observed live with large harness system prompts)
             # Tools are disabled, so extra turns are cheap; 8 is a runaway
-            # cap, not a target. Plain text fits in one.
+            # cap, not a target. Plain text fits in one
             # AgentSDK ensures Billing API usage is not called
             "max_turns": 8 if schema else 1,
             "tools": [],
@@ -163,7 +139,6 @@ class ClaudeAgentProvider:
             "permission_mode": "default",
             "cwd": None,
             "cli_path": self.cli_path,
-            "env": _subscription_env_overrides(),
             "include_partial_messages": False,
             "output_format": (
                 {"type": "json_schema", "schema": schema} if schema else None
@@ -178,7 +153,7 @@ class ClaudeAgentProvider:
         except ImportError:
             if self._query_fn is None:
                 raise RuntimeError(_INSTALL_HINT) from None
-            # Test seam active: a plain attribute bag is enough for fakes.
+            # Test seam active: a plain attribute bag is enough for fakes
             from types import SimpleNamespace
 
             return SimpleNamespace(**kwargs)
@@ -196,9 +171,7 @@ class ClaudeAgentProvider:
             )
         return RuntimeError(f"claude-agent call failed ({name}): {e}")
 
-    # ------------------------------------------------------------------
     # Protocol surface
-    # ------------------------------------------------------------------
 
     async def stream(
         self,
@@ -243,7 +216,7 @@ class ClaudeAgentProvider:
                 except Exception as e:  # noqa: BLE001 — SDK error types stay contained
                     raise self._wrap_error(e) from e
 
-                # ResultMessage: terminal accounting + structured output.
+                # ResultMessage: terminal accounting + structured output
                 if hasattr(msg, "total_cost_usd"):
                     if getattr(msg, "is_error", False):
                         subtype = getattr(msg, "subtype", "error")
@@ -261,7 +234,7 @@ class ClaudeAgentProvider:
                     break
 
                 # AssistantMessage: text blocks → deltas; thinking / stray
-                # tool-use blocks are ignored (tools are disabled).
+                # tool-use blocks are ignored (tools are disabled)
                 content = getattr(msg, "content", None)
                 if isinstance(content, list):
                     for block in content:
@@ -270,7 +243,7 @@ class ClaudeAgentProvider:
                             yield TextDelta(text=block.text)
                         elif hasattr(block, "input"):
                             # StructuredOutput is the SDK's own json_schema
-                            # delivery mechanism, not a stray tool call.
+                            # delivery mechanism, not a stray tool call
                             name = getattr(block, "name", "?")
                             if name != "StructuredOutput":
                                 telemetry.emit(
@@ -278,17 +251,17 @@ class ClaudeAgentProvider:
                                     "warn",
                                     data={"name": name},
                                 )
-                # SystemMessage(init) and anything else: not load-bearing.
+                # SystemMessage(init) and anything else: not
 
             if result_msg is None:
                 yield Done(stop_reason="incomplete")
                 return
 
             # Drain to natural exhaustion so the SDK generator finishes its
-            # own subprocess cleanup — closing it mid-stream via GeneratorExit
+            # own subprocess cleanup closing it mid-stream via GeneratorExit
             # leaves the SDK's internal tasks pending ("Task was destroyed but
             # it is pending" on interpreter exit). Bounded: post-result the
-            # stream ends immediately; 5s is a hang guard, not a wait target.
+            # stream ends immediately; 5s is a hang guard, not a wait target
             try:
                 while True:
                     await asyncio.wait_for(anext(it), 5)
@@ -297,7 +270,7 @@ class ClaudeAgentProvider:
 
             usage = getattr(result_msg, "usage", None) or {}
             # Subscription turns must not count as harness spend; the SDK's
-            # advisory total_cost_usd goes to telemetry only.
+            # advisory total_cost_usd goes to telemetry only
             telemetry.emit(
                 "provider.claude_agent.result",
                 "debug",
@@ -324,8 +297,8 @@ class ClaudeAgentProvider:
                 stop_reason=getattr(result_msg, "stop_reason", None) or "end_turn"
             )
         finally:
-            # Closing the SDK iterator terminates the subprocess on cancel,
-            # timeout, or error paths.
+            # Closing the SDK iterator terminates the subprocess on cancel
+            # timeout, or error paths
             aclose = getattr(it, "aclose", None)
             if aclose is not None:
                 try:
@@ -393,5 +366,5 @@ class ClaudeAgentProvider:
         )
 
     def count_tokens(self, *, text: str, model: str) -> int:
-        # Same 4-chars-per-token heuristic as the OAuth providers.
+        # Same 4-chars-per-token heuristic as the OAuth providers
         return max(len(text) // 4, 1)

@@ -7,20 +7,16 @@ import Plus from 'lucide-solid/icons/plus';
 import Search from 'lucide-solid/icons/search';
 import WindowControls from './WindowControls';
 
-/**
- * 09 — reference-design top chrome
- * Single 44px bar: window controls + project identity, centered section label
- */
 export type TopChromeProps = {
   projectName?: string;
   gitBranch?: string | null;
-/** Uppercase portal section label (e.g. "WORKSPACES") */
+    /** Uppercase portal section label (e.g. "WORKSPACES") */
   sectionLabel: string;
-/** Live/snapshot data-source state (sseClient liveLabel, via App) */
+    /** Live/snapshot data-source state (sseClient liveLabel, via App) */
   liveState?: 'live' | 'snapshot';
-/** Safety mode of the most-recently-created Task; chip hidden when absent */
+    
   currentSafetyMode?: 'Read only' | 'Can edit' | 'Autopilot';
-/** Opens the ⌘K "Ask Voss to…" composer */
+    /** Opens the ⌘K "Ask Voss to…" composer */
   onOpenComposer?: () => void;
 };
 
@@ -51,7 +47,7 @@ export default function TopChrome(props: TopChromeProps) {
         overflow: 'hidden',
       }}
     >
-      {/* Left cluster — fixed width; no drag region on interactive children. */}
+      {/* Left cluster fixed width; no drag region on interactive children */}
       <div
         style={{
           'flex-shrink': '0',
@@ -132,7 +128,7 @@ export default function TopChrome(props: TopChromeProps) {
         </button>
       </div>
 
-      {/* Center cluster — flex with drag spacers flanking the section label. */}
+      {/* Center cluster flex with drag spacers flanking the section label */}
       <div
         style={{
           flex: '1',
@@ -160,7 +156,7 @@ export default function TopChrome(props: TopChromeProps) {
         <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
       </div>
 
-      {/* Right cluster — interactive controls only; NOT a drag region. */}
+      {/* Right cluster interactive controls only; NOT a drag region */}
       <div
         style={{
           'flex-shrink': '0',

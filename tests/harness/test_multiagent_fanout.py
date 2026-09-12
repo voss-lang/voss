@@ -1,22 +1,12 @@
-"""M13 Wave-0 RED scaffold — concurrent fan-out + even-split + no-oversell.
-
+"""
+M13 Wave-0 RED scaffold — concurrent fan-out + even-split + no-oversell.
 Pins MAG-01 (concurrency overlap), MAG-03 (even-split / rebalance) and
-MAG-04 (race-safe no-oversell + exactly-once release + depth-bound) from
-M13-VALIDATION.md against the not-yet-existing `voss.harness.multiagent`
-module (created in Wave 1).
-
-Wave-0 discipline: `voss.harness.multiagent` does NOT exist yet. It is
-imported INSIDE each test body (never at module scope) so collection stays
-clean, and every MAG class is `@pytest.mark.xfail(strict=False)` so the
-suite runs RED-by-design (xfail) — not skipped, not errored. Later waves
-flip these xfail→xpass; tightening to strict is out of Wave-0 scope.
-
-No production code is written here. The shared scripted provider comes from
-`tests/harness/conftest.py::scripted_multiagent_provider`.
 """
 from __future__ import annotations
 
 import asyncio
+
+import pytest
 
 
 class _NullRenderer:

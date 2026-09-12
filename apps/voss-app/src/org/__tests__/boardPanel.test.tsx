@@ -29,7 +29,6 @@ function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T;
 }
 
-
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown) {
   const root = document.createElement('div');
@@ -42,7 +41,6 @@ afterEach(() => {
   dispose = undefined;
   document.body.innerHTML = '';
 });
-
 
 describe('boardDerive — column/risk (verified harness algorithm)', () => {
   it('deriveColumn: last board.transition + terminal "done" → Done', () => {
@@ -80,7 +78,6 @@ describe('boardDerive — column/risk (verified harness algorithm)', () => {
     expect(cardsFromRunData(null)).toEqual([]);
   });
 });
-
 
 describe('BoardPanel — 6 columns + cards + selection', () => {
   it('renders all 6 columns', () => {

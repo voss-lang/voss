@@ -1,7 +1,6 @@
-"""Integration test fixtures for O5 EM loop tests.
-
+"""
+Integration test fixtures for O5 EM loop tests.
 Self-contained: duplicates key fixtures from tests/harness/em/conftest.py
-rather than cross-importing (integration tests should be self-contained).
 """
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ from typing import Optional
 import pytest
 
 from voss.harness.em.handle import EMBoardHandle
+from voss.harness.em.protocols import TERMINAL_COLUMNS
 from voss.harness.permissions import PermissionGate
 from voss.harness.session_tree import SessionTreeManager, SessionTreeNode
 from voss.harness.subagents import SubagentRegistry, SubagentSpec
