@@ -20,7 +20,7 @@ import {
 } from '../orgStore';
 import { selectedCardId, setSelectedCardId } from '../selection';
 import type { FollowUpClient } from '../feedbackWritePath';
-import type { VossClient } from '../../../../../sdk/typescript/src/client/rest';
+import type { SidecarVossClient } from '../live/sidecarClient';
 import { liveLabel } from '../live/sseClient';
 import { cardsFromRunData } from '../boardDerive';
 import { reconcileSwarm, type SwarmReconcileResult } from '../swarmReconcile';
@@ -39,22 +39,29 @@ const CockpitShell: Component<{
   cwd: string;
   cliBinary: string;
   onClose: () => void;
-
+/** 02: live follow-up write client, forwarded to the CardDrawer */
   followUpClient?: FollowUpClient;
-
+/** 05: live sidecar client for the sidebar "Server sessions" section */
   vossClient?: SidecarVossClient;
-
+/** 05: Attach action — App attachSession/openAttachedPane seam */
   onAttach?: (sessionId: string) => void;
 }> = (props) => {
   const [pickerOpen, setPickerOpen] = createSignal(false);
   const [swarmManifest, setSwarmManifest] = createSignal<unknown>(null);
 
+  // 07 (GATED, best-effort): the swarm roster derives from the
+  // .voss/swarm/manifest.json. reconcileSwarm is null-tolerant, so absence of a
+  // manifest yields empty roster/cards and the sidebar section stays unrendered.
   const swarm = (): SwarmReconcileResult =>
     reconcileSwarm(swarmManifest() as any);
 
   let pickerRef: HTMLDivElement | undefined;
   let railRef: HTMLDivElement | undefined;
 
+  // UI-REVIEW 6a: the timeline rail REACTS to the global selection — selecting
+  // a board card highlights the matching timeline node. The rail's card
+  // nodes carry data-node-id (TimelineRail), the same hook the old vertical
+  // rail exposed.
   createEffect(() => {
     const id = selectedCardId();
     if (!id || !railRef) return;
@@ -68,12 +75,18 @@ const CockpitShell: Component<{
   });
 
   onMount(() => {
+    // auto-load the most-recent run on open.
     void enumerateRuns(props.cwd).then((entries) => {
       if (entries.length > 0) {
         void loadRun(entries[0].run_id, props.cwd, props.cliBinary);
       }
     });
 
+    // 07 (GATED, best-effort): read.voss/swarm/manifest.json if a
+    // future read path exists. No read command / fs-plugin ships in, so this
+    // degrades silently to no-swarm. We do NOT call a non-existent invoke (avoids
+    // console noise); the "when present" path is covered by the swarmReconcile
+    // adapter test, not faked here. Establish the null default explicitly.
     setSwarmManifest(null);
 
     const onDocKey = (e: KeyboardEvent) => {
@@ -100,6 +113,9 @@ const CockpitShell: Component<{
     void loadRun(runId, props.cwd, props.cliBinary);
   };
 
+  // Run header derivations: idea from the audit/run-final when persisted
+  // (falls back to the run id already shown in the picker button); progress
+  // counts from the same boardDerive columns the board renders.
   const idea = (): string | null =>
     runData()?.audit?.idea ?? runData()?.run_final?.idea ?? null;
 
@@ -117,11 +133,9 @@ const CockpitShell: Component<{
 
   return (
     <div class="org-view-shell" role="region" aria-label="Run cockpit">
-      {}
-
       <div class="cockpit-body">
         <div class="cockpit-grid">
-          {}
+          {/* 1 — Team sidebar (mockup .sidebar) */}
           <aside class="cockpit-sidebar" aria-label="Team sidebar" tabindex={0}>
             <CockpitSidebar
               data={runData()}
@@ -131,9 +145,10 @@ const CockpitShell: Component<{
             />
           </aside>
 
-          {}
+          {/* 2/3 — Main column: run header + board + horizontal timeline */}
           <div class="cockpit-main">
-            {}
+            {/* Run header (mockup .runhdr) — hosts the lifted picker/refresh/
+                back controls so they survive loading/error states below. */}
             <div class="cockpit-runhdr">
               <button class="org-header-btn" onClick={() => props.onClose()}>
                 ← Grid
@@ -158,7 +173,6 @@ const CockpitShell: Component<{
                 </span>
                 Refresh
               </button>
-              {}
               <span
                 class={`cockpit-live-label cockpit-live-label--${liveLabel()}`}
                 aria-label={`Data source: ${liveLabel()}`}
@@ -210,7 +224,8 @@ const CockpitShell: Component<{
               </Show>
             </div>
 
-            {}
+            {/* Board + timeline — loading/error <Show> wrappers lifted from
+                OrgViewShell occupy this slot so the header stays mounted. */}
             <Show
               when={!loading()}
               fallback={
@@ -262,12 +277,12 @@ const CockpitShell: Component<{
             </Show>
           </div>
 
-          {}
+          {/* 4 — Card detail drawer (mockup .drawer) */}
           <div class="cockpit-drawer" aria-label="Card detail" tabindex={0}>
             <CardDrawer followUpClient={props.followUpClient} />
           </div>
 
-          {}
+          {/* 5 — Gate bar */}
           <div class="cockpit-gate" aria-label="Gate bar" tabindex={0}>
             <GateBar />
           </div>

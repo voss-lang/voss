@@ -134,6 +134,49 @@ pub(crate) fn scan_shell_marks(data: &[u8]) -> Vec<ScanItem> {
     items
 }
 
+#[derive(Default)]
+pub(crate) struct OscBuffer {
+    pending: Vec<u8>,
+}
+
+impl OscBuffer {
+    pub(crate) fn push(&mut self, data: &[u8]) -> Vec<u8> {
+        self.pending.extend_from_slice(data);
+        let mut i = 0;
+        while i < self.pending.len() {
+            if self.pending[i] != 0x1b {
+                i += 1;
+                continue;
+            }
+            if i + 1 == self.pending.len() {
+                break;
+            }
+            if self.pending[i + 1] != b']' {
+                i += 2;
+                continue;
+            }
+            let mut end = i + 2;
+            while end < self.pending.len() && self.pending[end] != 0x07
+                && !(self.pending[end] == 0x1b && self.pending.get(end + 1) == Some(&b'\\')) {
+                end += 1;
+            }
+            if end == self.pending.len() {
+                break;
+            }
+            i = end + if self.pending[end] == 0x07 { 1 } else { 2 };
+        }
+        // A malformed/oversize OSC must not hide terminal output indefinitely.
+        if self.pending.len() - i > 64 * 1024 {
+            i = self.pending.len();
+        }
+        self.pending.drain(..i).collect()
+    }
+
+    fn finish(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.pending)
+    }
+}
+
 struct Capture {
     cmd_id: String,
     argv_text: String,
@@ -311,6 +354,7 @@ pub fn start_reader(
     tokio::task::spawn_blocking(move || {
         let mut buf = [0u8; 8192];
         let mut tracker = CommandTracker::default();
+        let mut osc = OscBuffer::default();
         loop {
             // Non-blocking backpressure check; if paused, block until resumed.
             if let Ok(true) = pause_rx.try_recv() {
@@ -319,7 +363,8 @@ pub fn start_reader(
             match reader.read(&mut buf) {
                 Ok(0) => break, // EOF — child exited
                 Ok(n) => {
-                    let slice = &buf[..n];
+                    let data = osc.push(&buf[..n]);
+                    let slice = data.as_slice();
                     // Budget OSC check
                     if let Some((json_bytes, display_bytes)) =
                         extract_voss_osc(slice, BUDGET_PREFIX)
@@ -351,6 +396,8 @@ pub fn start_reader(
                 Err(_) => break,
             }
         }
+
+        emit_display(&osc.finish(), &mut tracker, &on_data);
 
         let code = registry
             .get(&session_id)

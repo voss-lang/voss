@@ -22,7 +22,7 @@ vi.mock('@tauri-apps/api/window', () => ({
   }),
 }));
 
-vi.mock('../../grid/GridRoot', () => ({
+vi.mock('../../canvas/CanvasRoot', () => ({
   default: (props: {
     controllerRef?: (ctrl: {
       applyPreset: () => void;
@@ -137,7 +137,7 @@ describe('WS-01 — folder picker opens a local project', () => {
     h.openDialog.mockResolvedValueOnce('/tmp/voss-a');
     const el = mount(() => <App />);
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
-    // SPEC AC #2: User can select a local directory and the active path becomes it
+    // SPEC AC #2: User can select a local directory and the active path becomes it.
     await waitFor(() => expect(h.invoke).toHaveBeenCalledWith('open_project', { path: '/tmp/voss-a' }));
     await waitFor(() => expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull());
     expect(el.textContent).toContain('voss-a');
@@ -155,16 +155,16 @@ describe('WS-02 — recents round-trip through global app storage', () => {
     expect(recents).toEqual(['/tmp/a', '/tmp/b']);
   });
   it('maps same-dir dedupe and cap-5 to Rust acceptance coverage', () => {
-    // SPEC AC #3: Re-selecting the same directory succeeds without duplicate recents
+    // SPEC AC #3: Re-selecting the same directory succeeds without duplicate recents.
     expect(RUST_COVERAGE).toContain('update_recents_moves_existing_path_to_front_without_duplicate');
-    // SPEC AC #8: Recents retain only the last 5 unique folders, newest first
+    // SPEC AC #8: Recents retain only the last 5 unique folders, newest first.
     expect(RUST_COVERAGE).toContain('update_recents_caps_at_five_newest_first');
   });
 });
 
 describe('WS-03 — project open stays lazy with respect to .voss', () => {
   it('maps the lazy .voss invariant to the Rust filesystem test', () => {
-    // SPEC AC #9: Project open and recents reads do not create `.voss/`
+    // SPEC AC #9: Project open and recents reads do not create `.voss/`.
     expect(RUST_COVERAGE).toContain('open_project_does_not_create_voss_directory');
   });
 });
@@ -173,9 +173,9 @@ describe('WS-04 — project metadata exposes name and git branch', () => {
   it('ProjectInfo carries path, folder basename, and nullable gitBranch', async () => {
     h.invoke.mockResolvedValueOnce({ path: '/repo/voss', name: 'voss', gitBranch: 'main' });
     const info = await openProject('/repo/voss');
-    // SPEC AC #5: Project name is derived from folder basename
+    // SPEC AC #5: Project name is derived from folder basename.
     expect(info.name).toBe('voss');
-    // SPEC AC #6: Git repos expose branch; non-git repos expose null
+    // SPEC AC #6: Git repos expose branch; non-git repos expose null.
     expect(info.gitBranch).toBe('main');
   });
   it('maps non-git branch nullability to Rust acceptance coverage', () => {
@@ -187,11 +187,11 @@ describe('WS-04 — project metadata exposes name and git branch', () => {
 describe('WS-05 — project-less mode is an explicit setup choice', () => {
   it('shows setup first, then starts grid without a project path', async () => {
     const el = mount(() => <App />);
-    // SPEC AC #1: Startup with no active project shows setup before any project path
+    // SPEC AC #1: Startup with no active project shows setup before any project path.
     expect(el.querySelector('[aria-label="Project setup"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="grid-root"]')).toBeNull();
     fireEvent.click(el.querySelector('button[aria-label="Start without project"]')!);
-    // SPEC AC #7: Starting without a project uses home cwd and no project path
+    // SPEC AC #7: Starting without a project uses home cwd and no project path.
     await waitFor(() =>
       expect(el.querySelector('[data-testid="grid-root"]')?.getAttribute('data-project-cwd')).toBe('/Users/ben'),
     );
@@ -232,9 +232,9 @@ describe('WS-07 — project switching path exists before palette UI lands', () =
     await waitFor(() => expect(el.textContent).toContain('voss-a'));
     const firstGrid = el.querySelector('[data-testid="grid-root"]');
     fireEvent.click(el.querySelector('button[aria-label="Open recent: voss-b"]')!);
-    // SPEC AC #4: Selecting a different directory updates active project metadata
+    // SPEC AC #4: Selecting a different directory updates active project metadata.
     await waitFor(() => expect(el.textContent).toContain('voss-b'));
-    // SPEC AC #11: Changing project while panes exist does not destroy pane/session identities
+    // SPEC AC #11: Changing project while panes exist does not destroy pane/session identities.
     expect(el.querySelector('[data-testid="grid-root"]')).toBe(firstGrid);
   });
   it('attempts default layout load and ignores failure while keeping the project open', async () => {
@@ -251,8 +251,8 @@ describe('WS-07 — project switching path exists before palette UI lands', () =
     });
     const el = mount(() => <App />);
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
-    // session/default resolved before project state; rejected default
-    // caught silently → project still opens
+    // A6: session/default resolved before project state; rejected default
+    // caught silently → project still opens.
     await waitFor(() =>
       expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull(),
     );

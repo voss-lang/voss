@@ -1,26 +1,18 @@
 import { Show } from 'solid-js';
 import WindowControls from './WindowControls';
-import PresetSwitcher from './PresetSwitcher';
-import type {
-  ActiveLayout,
-  LayoutPreset,
-} from '../../grid/layoutPresets';
 
 /**
- * titlebar shell. Window controls, drag regions, title text, the Voss logo
+ * A1 titlebar shell. Window controls, drag regions, title text, the Voss logo
  * the LIVE/snapshot chip, and the 28px height all stay unchanged
  */
 export type TitlebarProps = {
-  activeLayout?: ActiveLayout;
-  layoutDisabled?: boolean;
-  onLayoutSelect?: (preset: LayoutPreset) => void;
   projectName?: string;
-    /** Live/snapshot data-source state (sseClient liveLabel, via App) */
+/** Live/snapshot data-source state (sseClient liveLabel, via App) */
   liveState?: 'live' | 'snapshot';
 };
 
 export default function Titlebar(props: TitlebarProps = {}) {
-  // Empty project names fall back too; only a non-empty open project replaces the brand
+  // Empty project names fall back too; only a non-empty open project replaces the brand.
   const titleText = () =>
     props.projectName && props.projectName.length > 0
       ? props.projectName
@@ -39,17 +31,17 @@ export default function Titlebar(props: TitlebarProps = {}) {
         overflow: 'hidden',
       }}
     >
-      {/* Window controls platform-switched (mac: traffic lights; others: stub) */}
+      {/* Window controls — platform-switched (mac: traffic lights; others: stub) */}
       <WindowControls />
 
-      {/* Left drag spacer the drag attribute belongs on the spacer ONLY, never on */}
-      {/* the outer container or any button-bearing child */}
+      {/* Left drag spacer — the drag attribute belongs on the spacer ONLY, never on  */}
+      {/* the outer container or any button-bearing child (RESEARCH Pitfall 1).        */}
       <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
 
-      {/* projectName: wires this from App.tsx project signal; 'Voss ADE' is the project-less / pre-open fallback (CONCEPT Q1) */}
-      {/* Drag attr on the text element itself so clicking the title drags the */}
+      {/* projectName: A5-05 wires this from App.tsx project() signal; 'Voss ADE' is the project-less / pre-open fallback (CONCEPT §10 Q1). */}
+      {/* Drag attr on the text element itself so clicking the title drags the    */}
       {/* window (matches macOS standard titlebar behavior). Safe because the div */}
-      {/* contains plain text only no buttons / interactive children */}
+      {/* contains plain text only — no buttons / interactive children.           */}
       <div
         data-tauri-drag-region
         style={{
@@ -83,7 +75,9 @@ export default function Titlebar(props: TitlebarProps = {}) {
       {/* Right drag spacer */}
       <div data-tauri-drag-region style={{ flex: '1', 'align-self': 'stretch' }} />
 
-      {/* LIVE/snapshot chip ( .livechip). Pulsing cyan dot only while a live stream is connected; muted 'snapshot' */}
+      {/* V14 chunk A — LIVE/snapshot chip (mockup .livechip). Pulsing cyan
+          dot only while a live stream is connected; muted 'snapshot'
+          otherwise. The CockpitShell header keeps its own VCKP-06 label. */}
       <div
         class={`titlebar-livechip titlebar-livechip--${liveState()}`}
         aria-label={`Data source: ${liveState()}`}

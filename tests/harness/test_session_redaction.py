@@ -35,6 +35,7 @@ class TestSchemaAllowlist:
             "total_cost_usd", "turns", "runs",
             # M9-06 fork lineage (additive Optional, default None).
             "parent_id", "parent_turn_index",
+            "instructions_hash", "instructions_files",
         }
         assert set(data.keys()) == expected
 
@@ -121,9 +122,10 @@ class TestRunRecordRedaction:
             # V12 VSAFE-05: factory-fallback audit (additive; args redacted via
             # telemetry.redact_tool_args or omitted, no credentials).
             "factory_fallbacks",
+            "instructions_hash", "instructions_files",
         }
         assert set(asdict(rec).keys()) == expected
-        assert len(dataclasses.fields(RunRecord)) == 25
+        assert len(dataclasses.fields(RunRecord)) == 27
 
     def test_run_record_no_secret_patterns(self, state_dir, tmp_path):
         record = SessionRecord.new(cwd=tmp_path, model="claude-sonnet-4")

@@ -167,7 +167,7 @@ export function createPaneSession(args: CreatePaneSessionArgs): PaneSession {
     ? createObserveClient({
         paneId: args.paneId,
         actor: args.agentConfig ? 'voss' : 'developer',
-        context: observeContextForWorkspace(args.workspacePath),
+        context: () => observeContextForWorkspace(args.workspacePath!, liveServer()!.sidecarId),
         sidecarId: () => liveServer()?.sidecarId ?? null,
       })
     : null;

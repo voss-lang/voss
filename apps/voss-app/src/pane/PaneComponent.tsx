@@ -1,4 +1,5 @@
 import { onMount, onCleanup, createSignal, Show } from 'solid-js';
+import { invoke } from '@tauri-apps/api/core';
 import '@xterm/xterm/css/xterm.css';
 import './pane.css';
 import { type AgentConfig, type BudgetState } from './pty-ipc';
@@ -35,31 +36,38 @@ import {
   type AppearanceSettings,
 } from '../appearance/settings';
 import { DEFAULT_APPEARANCE_SETTINGS } from '../appearance/types';
+import {
+  clipboardImageFile,
+  imageFileToBytes,
+  quotePathForShell,
+  resolveTerminalCopyAction,
+  shouldGuardTerminalPaste,
+  type CopyMode,
+} from './terminalClipboard';
 
 export interface PaneProps {
-    /** Pane id for scrollback registry and restore keying */
+/** Pane id for scrollback registry and restore keying */
   id?: string;
-    /** Working directory for the spawned shell; header shows its basename */
+/** Working directory for the spawned shell; header shows its basename */
   cwd?: string;
-    /** $SHELL basename for the header shell slot ( = static; wires real) */
+/** $SHELL basename for the header shell slot */
   shell?: string;
-    /** Pane index is always 1; assigns real indices */
+/** Pane index — A2 is always 1; A3 assigns real indices */
   index?: number;
-    /** Session-restored scrollback lines to seed before shell interaction */
+/** Session-restored scrollback lines to seed before shell interaction */
   restoredScrollback?: string[];
-    /** Called once on first user input in a restored pane (dismiss RestoreBanner) */
+/** Called once on first user input in a restored pane (dismiss RestoreBanner) */
   onFirstInput?: () => void;
   agentConfig?: AgentConfig;
   workspacePath?: string;
-    /** Grid supplies PaneHeader; hide this pane's duplicate chrome row */
+/** Grid supplies PaneHeader; hide this pane's duplicate chrome row */
   embeddedInGrid?: boolean;
-    /**
-   * (VLIVE-04): native server session when set, the pane body is a
-   * structured ProtocolPane and NO PTY is spawned (discriminator)
-   */
+/**
+ * 03: native server session — when set, the pane body is a
+ * structured ProtocolPane and NO PTY is spawned (discriminator)
+ */
   nativeSessionId?: string;
-  nativeBaseUrl?: string;
-  nativeToken?: string;
+  nativeSidecarId?: string;
 }
 
 function basename(p: string): string {
@@ -69,12 +77,13 @@ function basename(p: string): string {
 
 type DotState = import('./paneSessionRegistry').DotState;
 
-/** copy/interrupt mode. 'smart' = selection→copy else SIGINT. surfaces UI */
+/** copy/interrupt mode. 'smart' = selection→copy else SIGINT. A8 surfaces UI */
 export default function PaneComponent(props: PaneProps) {
   let containerRef!: HTMLDivElement;
   let bodyRef!: HTMLDivElement;
   // The live session (Terminal + transport + host element) persists in the
-  // paneSession registry across remounts (drag/swap/layout) this component
+  // paneSession registry across remounts (drag/swap/layout) — this component
+  // only ADOPTS it. See paneSessionRegistry.ts.
   let session: PaneSession | undefined;
   let adoptToken: symbol | undefined;
   let observer: ResizeObserver | undefined;
@@ -87,7 +96,7 @@ export default function PaneComponent(props: PaneProps) {
   let bellBadgeTimer: ReturnType<typeof setTimeout> | undefined;
   let appearanceUnsub: (() => void) | undefined;
   let headerRef!: HTMLDivElement;
-  const copyMode = 'smart' as CopyMode; // configurable hook ( UI)
+  const copyMode = 'smart' as CopyMode; // configurable hook
 
   const [focused, setFocused] = createSignal(true); // single pane = focused
   const [dot, setDot] = createSignal<DotState>('loading');
@@ -107,11 +116,12 @@ export default function PaneComponent(props: PaneProps) {
   const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
   const isAgentCli = () => isKnownAgentCli(proc());
 
-  // role chrome (.pane::before /.ph) AGENT panes
-  // only (props.agentConfig present)
+  // chunk C role chrome (mockup.pane::before /.ph) — AGENT panes
+  // only (props.agentConfig present). ---------------------------------------
 
-  // Role from the launch CLI the same CLI→role mapping the sidebar/grid
+  // Role from the launch CLI — the same CLI→role mapping the sidebar/grid
   // chrome use (App.mapRole / SplitNode.mapCliToRoleColor). Unknown agent CLIs
+  // default to executor: these panes are agent launches by construction.
   const agentRole = (): 'planner' | 'executor' | 'reviewer' | 'watcher' => {
     switch (props.agentConfig?.cliBinary) {
       case 'claude':
@@ -127,8 +137,8 @@ export default function PaneComponent(props: PaneProps) {
   };
   const roleColor = () => `var(--role-${agentRole()})`;
 
-  // Bound board card ( reverse lookup) reactive via the live
-  // cardToPane signal; undefined until the bridge binds one
+  // Bound board card (Bridge B reverse lookup) — reactive via the live
+  // cardToPane signal; undefined until the bridge binds one.
   const boundCardId = () => {
     const paneId = props.id;
     if (!paneId || !props.agentConfig) return undefined;
@@ -138,8 +148,10 @@ export default function PaneComponent(props: PaneProps) {
     );
   };
 
-  // Honest streaming signal: budget telemetry seen within the last 3s the
+  // Honest streaming signal: budget telemetry seen within the last 3s — the
   // SAME recency definition the sidebar + grid PaneHeader already use
+  // (budgetRegistry lastSeenMs < 3000). Event-driven decay via timeout; no
+  // fabricated state.
   const [streaming, setStreaming] = createSignal(false);
   let streamDecayTimer: ReturnType<typeof setTimeout> | undefined;
   const markStreaming = () => {
@@ -207,7 +219,7 @@ export default function PaneComponent(props: PaneProps) {
 
   const restart = async () => {
     if (!session) return;
-    await respawnPaneSession(session); // scrollback preserved same Terminal
+    await respawnPaneSession(session); // scrollback preserved — same Terminal
   };
 
   const keyHandler = (e: KeyboardEvent): boolean => {
@@ -215,53 +227,77 @@ export default function PaneComponent(props: PaneProps) {
     if (!meta) return true;
     const k = e.key.toLowerCase();
 
-    // ⌘⇧V one-shot paste bypass (let the native paste through, no banner)
+    // ⌘⇧V — one-shot paste bypass (let the native paste through, no banner).
     if (e.shiftKey && k === 'v') {
       bypassFlag = true;
       return true;
     }
-    // ⌘⇧K clear scrollback
+    // ⌘⇧K — clear scrollback.
     if (e.shiftKey && k === 'k') {
       session?.term.clear();
       return false;
     }
-    // ⌘F open find bar
+    // ⌘F — open find bar.
     if (!e.shiftKey && k === 'f') {
       setShowFind(true);
       return false;
     }
-    // ⌘C copies terminal selection. Ctrl+C remains the interrupt path
+    // ⌘C copies terminal selection. Ctrl+C remains the interrupt path.
     if (!e.shiftKey && k === 'c') {
-      const hasSel = !!session?.term.hasSelection();
-      if (copyMode !== 'sigint' && hasSel) {
+      const action = resolveTerminalCopyAction(
+        !!session?.term.hasSelection(),
+        copyMode,
+      );
+      if (action === 'copy-selection') {
         const sel = session?.term.getSelection() ?? '';
         void navigator.clipboard?.writeText(sel);
         session?.term.clearSelection();
         return false;
       }
-      if (copyMode !== 'copy') {
+      if (action === 'interrupt') {
         writeBytes(new Uint8Array([0x03])); // ETX → SIGINT to fg pgid
         return false;
       }
+      return false;
     }
     return true;
   };
 
-  const onPaste = (e: ClipboardEvent) => {
-    e.preventDefault();
-    const text = e.clipboardData?.getData('text') ?? '';
+  const pasteText = (text: string, bypass: boolean) => {
     if (!text) return;
-    if (text.includes('\n') && !bypassFlag) {
+    if (shouldGuardTerminalPaste(text, bypass)) {
       setPendingPaste(text);
     } else {
       writeStr(text);
     }
+  };
+
+  const onPaste = (e: ClipboardEvent) => {
+    e.preventDefault();
+    const data = e.clipboardData;
+    const imageFile = clipboardImageFile(data);
+    if (imageFile) {
+      void (async () => {
+        try {
+          const payload = await imageFileToBytes(imageFile);
+          const path = await invoke<string>('save_clipboard_image', payload);
+          writeStr(quotePathForShell(path));
+        } catch (err) {
+          console.error('[voss-app] image paste failed:', err);
+        } finally {
+          bypassFlag = false;
+        }
+      })();
+      return;
+    }
+    const text = e.clipboardData?.getData('text') ?? '';
+    pasteText(text, bypassFlag);
     bypassFlag = false; // consume one-shot
   };
 
   onMount(async () => {
-    // native panes render <ProtocolPane> instead of xterm
-    // skip terminal/transport setup entirely (the body div is swapped out)
+    // 03: native protocol panes render <ProtocolPane> instead of xterm
+    // skip terminal/transport setup entirely (the body div is swapped out).
     if (props.nativeSessionId) {
       setDot('running');
       return;
@@ -275,7 +311,7 @@ export default function PaneComponent(props: PaneProps) {
     }
 
     // Adopt the existing live session (remount after drag/swap/layout) or
-    // create a fresh one. Only creation spawns adoption never respawns
+    // create a fresh one. Only creation spawns — adoption never respawns.
     const paneId = props.id ?? String(props.index ?? 1);
     let created = false;
     session = getPaneSession(paneId);
@@ -303,8 +339,8 @@ export default function PaneComponent(props: PaneProps) {
     };
     adoptToken = adoptPaneSession(s, bodyRef, sink, keyHandler, settings);
 
-    // Hydrate component signals from the session's canonical state the
-    // process may have progressed or exited while detached
+    // Hydrate component signals from the session's canonical state — the
+    // process may have progressed or exited while detached.
     setDot(s.dot);
     setExitCode(s.lastExitCode);
     if (s.lastBudget) setBudget(s.lastBudget);
@@ -319,7 +355,7 @@ export default function PaneComponent(props: PaneProps) {
       applyAppearanceToTerminal(s.term, next);
     });
 
-    // fallback: poll pgid only when no recent OSC title (>2s)
+    // fallback: poll pgid only when no recent OSC title (>2s).
     fgPoll = setInterval(() => {
       if (Date.now() - s.lastOscTitleAt < 2000) return;
       s.transport
@@ -330,7 +366,7 @@ export default function PaneComponent(props: PaneProps) {
         .catch(() => {});
     }, 500);
 
-    // Debounced container resize → fit + pty_resize (Pattern 6)
+    // Debounced container resize → fit + pty_resize (Pattern 6).
     observer = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
@@ -340,14 +376,14 @@ export default function PaneComponent(props: PaneProps) {
     });
     observer.observe(containerRef);
 
-    // re-fit on DPR (Retina ↔ external display) change
+    // re-fit on DPR (Retina ↔ external display) change.
     dprMedia = window.matchMedia(
       `(resolution: ${window.devicePixelRatio}dppx)`,
     );
     dprMedia.addEventListener('change', onDpr);
 
     // test-only perf probe: records rAF deltas into a ring buffer for
-    // the flood-perf harness. Inert in production (env guard)
+    // the flood-perf harness. Inert in production (env guard) — T-.
     if (import.meta.env.MODE === 'test') {
       const w = window as unknown as { __vossPerf?: { frames: number[] } };
       w.__vossPerf = { frames: [] };
@@ -378,6 +414,7 @@ export default function PaneComponent(props: PaneProps) {
     containerRef?.removeEventListener('paste', onPaste, true);
     // The session SURVIVES this unmount (drag/swap/layout rearrange). It is
     // killed only via destroyPaneSession (real close, orphan reap, workspace
+    // teardown). A stale token (swap re-adopted first) makes this a no-op.
     if (session && adoptToken) releasePaneSession(session, adoptToken);
   });
 
@@ -406,7 +443,6 @@ export default function PaneComponent(props: PaneProps) {
       class={paneClass()}
       onClick={() => setFocused(true)}
     >
-      {/* role-colored full-height left edge ( pane::before), agent panes only. Color set inline from the */}
       <Show when={props.agentConfig}>
         <span
           class="pane-role-edge"
@@ -434,7 +470,6 @@ export default function PaneComponent(props: PaneProps) {
           <span class="sep">·</span>
           <span class={isAgentCli() ? 'proc agent-proc' : 'proc'}>{proc()}</span>
         </Show>
-        {/* role pill ( .ppill, 11px ≥ floor). For configured agent panes it supersedes the generic "agent" hint */}
         <Show when={props.agentConfig}>
           <span class="sep">·</span>
           <span
@@ -462,7 +497,6 @@ export default function PaneComponent(props: PaneProps) {
           </span>
         </Show>
         <span class="spacer" />
-        {/* bound-card chip ( .pcard): reverse lookup; clicking selects the card and jumps to Run Review */}
         <Show when={boundCardId()}>
           {(cardId) => (
             <button
@@ -486,7 +520,6 @@ export default function PaneComponent(props: PaneProps) {
             />
           )}
         </Show>
-        {/* streaming flag ( .pstream): budget-event recency (<3s), the registry signal the sidebar already shows */}
         <Show when={props.agentConfig && streaming()}>
           <span class="stream-flag">streaming</span>
         </Show>
@@ -501,11 +534,10 @@ export default function PaneComponent(props: PaneProps) {
       >
         <ProtocolPane
           sessionId={props.nativeSessionId!}
-          baseUrl={props.nativeBaseUrl!}
-          token={props.nativeToken!}
+          sidecarId={props.nativeSidecarId!}
           onEnded={() => {
-            // ProtocolPane renders its own inline ended banner the
-            // header dot reflects the state; no absolute PTY ExitBanner here
+            // ProtocolPane renders its own inline ended banner — the
+            // header dot reflects the state; no absolute PTY ExitBanner here.
             setDot('exited');
           }}
         />

@@ -12,6 +12,9 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import pytest
+from pathlib import Path
+from voss.harness.observe import repository
 from urllib.parse import urlencode
 
 from fastapi.testclient import TestClient
@@ -23,6 +26,17 @@ from voss.harness.observe.store import ObserveStore, db_path
 
 TOKEN = "observe-routes-test-token"
 REPO = "repo-1"
+REPO_ROOT = "/repo"
+WORKTREE = "wt-1"
+
+
+@pytest.fixture(autouse=True)
+def real_repository(git_repo, monkeypatch, tmp_path_factory):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("observe-state")))
+    monkeypatch.setattr(__import__(__name__, fromlist=["REPO"]), "REPO", repository.repository_id(git_repo))
+    monkeypatch.setattr(__import__(__name__, fromlist=["REPO"]), "REPO_ROOT", str(git_repo))
+    monkeypatch.setattr(__import__(__name__, fromlist=["REPO"]), "WORKTREE", repository.worktree_id(git_repo))
+
 
 
 def _auth() -> dict:
@@ -43,7 +57,7 @@ def _event(event_id: str, event_type: str, payload: dict) -> dict:
         "event_type": event_type,
         "command_id": f"cmd-{event_id}",
         "repository_id": REPO,
-        "worktree_id": "wt-1",
+        "worktree_id": WORKTREE,
         "adapter_id": "voss-pty",
         "repository_state_id": "head:abc:def",
         "source_ref": {"source": "adapter", "ref": "pane-1"},
@@ -55,7 +69,7 @@ def _started(event_id: str) -> dict:
     return _event(
         event_id,
         "command.started",
-        {"argv": ["ls"], "argv_text": "ls", "cwd": "/repo"},
+        {"argv": ["ls"], "argv_text": "ls", "cwd": REPO_ROOT},
     )
 
 
@@ -67,7 +81,7 @@ def _completed(event_id: str, argv: list[str] | None = None, exit_code: int = 0)
         {
             "argv": argv,
             "argv_text": " ".join(argv),
-            "cwd": "/repo",
+            "cwd": REPO_ROOT,
             "exit_code": exit_code,
             "duration_ms": 42,
         },
@@ -415,3 +429,175 @@ async def test_stream_honors_last_event_id_header() -> None:
     )
     assert status == 200
     assert _sse_seqs(body) == [8, 9, 10]
+
+
+def test_context_canonicalizes_subdirectories_and_symlinks(git_repo, tmp_path):
+    sub = git_repo / "src"
+    sub.mkdir()
+    link = tmp_path / "alias"
+    link.symlink_to(sub, target_is_directory=True)
+    c = _client()
+    expected = {"repositoryId": REPO, "worktreeId": WORKTREE}
+    for path in (git_repo, sub, link):
+        response = c.get("/observe/context", params={"cwd": str(path)}, headers=_auth())
+        assert response.status_code == 200
+        assert response.json() == expected
+
+
+def test_ingest_rejects_a_forged_worktree_before_storage():
+    _enroll()
+    event = _started("forged")
+    event["worktree_id"] = "another-worktree"
+    response = _client().post("/observe/events", json={"event": event}, headers=_auth())
+    assert response.status_code == 403
+    assert response.json()["reason"] == "scope_mismatch"
+    assert not db_path(REPO).exists()
+
+
+def test_code_change_breaks_cooldown_and_bos_writes_do_not(git_repo):
+    _enroll()
+    c = _client()
+    evidence = [{"content": "FAIL example.spec.ts"}]
+    decisions = []
+    for i in range(3):
+        if i == 2:
+            (git_repo / "README.md").write_text("changed code\n")
+        response = c.post("/observe/events", json={
+            "event": _completed(f"state-{i}", ["pnpm", "test"], 1),
+            "evidence": evidence,
+        }, headers=_auth())
+        decisions.append(response.json()["decision"])
+    assert decisions == ["queue", "suppress", "queue"]
+    with ObserveStore(REPO) as store:
+        first = store.get_event("state-0")["event"]
+        last = store.get_event("state-2")["event"]
+        assert first["repository_state_id"] != "unavailable"
+        assert first["repository_state_id"] != last["repository_state_id"]
+        assert all(row["delivered_at"] for row in store.outbox_rows())
+
+
+def test_repo_policy_excludes_paths_and_unlisted_commands(git_repo):
+    _enroll()
+    policy_dir = git_repo / ".voss"
+    policy_dir.mkdir(exist_ok=True)
+    (policy_dir / "observe.yml").write_text("""exclude_paths: ['private/**']
+commands:
+  tests:
+    argv: [pnpm, test]
+""")
+    c = _client()
+    for event, reason in [
+        (_completed("unlisted", ["cargo", "test"], 1), "command_not_allowed"),
+        (_completed("excluded", ["pnpm", "test", "private/spec.ts"], 1), "excluded_path"),
+    ]:
+        response = c.post("/observe/events", json={"event": event}, headers=_auth())
+        assert response.status_code == 403
+        assert response.json()["reason"] == reason
+    assert not db_path(REPO).exists()
+
+
+@pytest.mark.parametrize("limit", [262144, 128])
+def test_capture_cap_preserves_head_and_tail_before_durable_write(git_repo, limit):
+    _enroll()
+    if limit < 262144:
+        policy_dir = git_repo / ".voss"
+        policy_dir.mkdir(exist_ok=True)
+        (policy_dir / "observe.yml").write_text(f"capture:\n  max_output_bytes: {limit}\n")
+    c = _client()
+    response = c.post("/observe/events", json={
+        "event": _completed("bounded", ["pnpm", "test"], 1),
+        "evidence": [{"content": "HEAD" + "x" * (1024 * 1024) + "TAIL"}],
+    }, headers=_auth())
+    assert response.status_code == 200
+    with ObserveStore(REPO) as store:
+        evidence = store.get_evidence("bounded-ev0")
+        assert len(evidence["content"]) == limit
+        assert evidence["content"].startswith(b"HEAD")
+        assert evidence["content"].endswith(b"TAIL")
+        assert evidence["truncated"] is True
+        assert store.get_event("bounded")["event"]["payload"]["truncated"] is True
+
+
+def test_argv_is_redacted_and_duplicate_evidence_is_immutable():
+    _enroll()
+    c = _client()
+    event = _completed("immutable", ["env", "API_KEY=synthetic-value", "pytest"], 1)
+    for evidence in ([{"content": "first"}], [{"content": "changed"}, {"content": "extra"}]):
+        response = c.post("/observe/events", json={"event": event, "evidence": evidence}, headers=_auth())
+        assert response.status_code == 200
+    assert response.json()["reason"] == "duplicate"
+    with ObserveStore(REPO) as store:
+        assert "synthetic-value" not in json.dumps(store.get_event("immutable"))
+        assert store.get_evidence("immutable-ev0")["content"] == b"first"
+        assert store.get_evidence("immutable-ev1") is None
+
+
+def test_startup_recovers_failed_live_delivery_once(git_repo, monkeypatch):
+    from voss.harness.bos_ledger import BosEventLedger
+    _enroll()
+    append = BosEventLedger.append_event
+    with monkeypatch.context() as patch:
+        def unavailable(*args):
+            raise OSError("synthetic ledger outage")
+        patch.setattr(BosEventLedger, "append_event", unavailable)
+        response = _client().post("/observe/events", json={"event": _started("recover")}, headers=_auth())
+        assert response.status_code == 200
+    with ObserveStore(REPO) as store:
+        assert store.outbox_rows()[0]["delivered_at"] is None
+        assert store.outbox_rows()[0]["attempts"] == 3
+    for _ in range(2):
+        with _client():
+            pass
+    ledger = BosEventLedger(git_repo)
+    assert [e["event_id"] for e in ledger.read_events()] == ["recover"]
+    with ObserveStore(REPO) as store:
+        assert store.outbox_rows()[0]["delivered_at"] is not None
+
+
+def test_repository_id_cannot_escape_store_directory():
+    c = _client()
+    response = c.get("/observe/events", params={"repository_id": "../escape"}, headers=_auth())
+    assert response.status_code == 422
+
+
+def test_stored_observe_events_validate_against_shared_bos_envelope():
+    from jsonschema import Draft202012Validator
+    _enroll()
+    c = _client()
+    c.post("/observe/events", json={"event": _completed("bos-shared", ["pnpm", "test"], 1)}, headers=_auth())
+    schema = json.loads((Path(__file__).resolve().parents[3] / ".planning/schemas/bos-events.schema.json").read_text())
+    validator = Draft202012Validator(schema)
+    with ObserveStore(REPO) as store:
+        for row in store.list_events():
+            validator.validate(row["event"])
+
+
+def test_invalid_settings_do_not_corrupt_other_enrollment_fields():
+    _enroll()
+    c = _client()
+    response = c.patch('/observe/settings', json={
+        'repository_id': REPO, 'enrollment': {'enabled': None},
+    }, headers=_auth())
+    assert response.status_code == 422
+    assert c.get('/observe/settings', headers=_auth()).json()['repositories'][REPO]['enabled'] is True
+
+
+def test_ingest_time_is_server_assigned():
+    _enroll()
+    event = _started('server-time')
+    event['ingest_time'] = '2000-01-01T00:00:00Z'
+    response = _client().post('/observe/events', json={'event': event}, headers=_auth())
+    assert response.status_code == 200
+    with ObserveStore(REPO) as store:
+        assert store.get_event('server-time')['event']['ingest_time'] != event['ingest_time']
+
+
+def test_grep_execution_errors_are_not_expected_no_match():
+    _enroll()
+    c = _client()
+    for exit_code, expected in [(1, 'record_only'), (2, 'queue')]:
+        response = c.post('/observe/events', json={
+            'event': _completed(f'grep-{exit_code}', ['grep', 'pattern', 'missing'], exit_code),
+        }, headers=_auth())
+        assert response.status_code == 200
+        assert response.json()['decision'] == expected

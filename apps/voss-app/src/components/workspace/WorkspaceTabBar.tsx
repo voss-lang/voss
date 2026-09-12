@@ -11,6 +11,7 @@ import type {
 } from '../../workspaces/workspaceStore';
 import './workspace.css';
 
+/** copy constants — Copywriting Contract */
 export const COPY_NEW_WORKSPACE = 'New workspace';
 export const COPY_RENAME_WORKSPACE = 'Rename workspace';
 export const COPY_COLOR = 'Color';
@@ -42,6 +43,7 @@ export const WORKSPACE_ACCENT_COLORS = [
 export type WorkspaceAccentColor = (typeof WORKSPACE_ACCENT_COLORS)[number];
 
 export type WorkspaceTabBarProps = {
+  class?: string;
   workspaces: readonly WorkspaceRecord[];
   activeId: string | null;
   onActivate: (id: string) => void;
@@ -193,7 +195,7 @@ export default function WorkspaceTabBar(props: WorkspaceTabBarProps) {
 
   return (
     <div
-      class="workspace-tabbar"
+      class={`workspace-tabbar${props.class ? ` ${props.class}` : ''}`}
       data-workspace-tabbar=""
       data-bar-height={WORKSPACE_BAR_HEIGHT_PX}
     >

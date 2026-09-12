@@ -13,6 +13,7 @@
   ],
   "allOf": [{ "$ref": "#/$defs/envelope" }],
   "oneOf": [
+    {"properties": {"category": {"const": "command"}, "payload": {"$ref": "#/$defs/payload.command"}}, "required": ["repository_id", "worktree_id", "adapter_id", "command_id", "repository_state_id", "evidence_refs"]},
     { "properties": { "category": { "const": "session" },     "payload": { "$ref": "#/$defs/payload.session" } } },
     { "properties": { "category": { "const": "swarm" },       "payload": { "$ref": "#/$defs/payload.swarm" } } },
     { "properties": { "category": { "const": "task" },        "payload": { "$ref": "#/$defs/payload.task" } } },
@@ -33,8 +34,8 @@
         "event_type": { "type": "string", "pattern": "^[a-z]+(\\.[a-z_]+)+$", "description": "Namespaced discriminator, e.g. task.completed, session.started. Namespaced by category so external categories add values without colliding." },
         "category": {
           "type": "string",
-          "enum": ["session", "swarm", "task", "file", "review", "ci", "validation", "deploy", "incident"],
-          "description": "9-value taxonomy (D-01). LIVE: session, swarm, task, file. RESERVED: review, ci, validation, deploy, incident (field detail deferred to BOS12)."
+          "enum": ["session", "swarm", "task", "file", "review", "ci", "validation", "deploy", "incident", "command"],
+          "description": "BOS taxonomy. LIVE: session, swarm, task, file, command. RESERVED: review, ci, validation, deploy, incident (field detail deferred to BOS12)."
         },
         "event_time": { "type": "string", "format": "date-time", "description": "Actual/valid time — when it occurred in the world. FROM SOURCE timestamp. (Fowler actual time; SQL:2011 valid time; XTDB valid-time.)" },
         "ingest_time": { "type": "string", "format": "date-time", "description": "Transaction/record time — when BOS recorded it. PROJECTION-ASSIGNED, never source-derived. Invariant: ingest_time >= event_time; for retroactive outcomes ingest_time > event_time. (Fowler record time; SQL:2011 transaction time; XTDB transaction-time.)" },
@@ -47,7 +48,7 @@
           "description": "Provenance back-pointer to the originating harness record (D-03 derivation proof).",
           "required": ["source", "ref"],
           "properties": {
-            "source": { "type": "string", "enum": ["swarm_log", "session", "audit", "sse", "watch"] },
+            "source": { "type": "string", "enum": ["swarm_log", "session", "audit", "sse", "watch", "adapter"] },
             "ref": { "type": "string", "minLength": 1, "description": "Source-local id or path." }
           },
           "additionalProperties": false
@@ -57,9 +58,72 @@
           "description": "RESERVED hook for BOS12 cross-integration identity resolution (D-04 scope note). Present-but-null for all live (v1) events.",
           "$comment": "BOS12 will populate this with cross-integration identity (e.g. same human across Git/PM/CI accounts). Null in v1."
         },
+        "repository_id": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "title": "Repository Id", "type": "string"},
+        "worktree_id": {"title": "Worktree Id", "type": "string"},
+        "adapter_id": {"title": "Adapter Id", "type": "string"},
+        "command_id": {"title": "Command Id", "type": "string"},
+        "repository_state_id": {"title": "Repository State Id", "type": "string"},
+        "evidence_refs": {"items": {"type": "string"}, "title": "Evidence Refs", "type": "array"},
         "payload": { "type": "object", "description": "Category/type-specific fields. Bound per-category by the top-level oneOf. Consumers MUST ignore unknown payload keys (additive-tolerant, mirrors extra=ignore)." }
       },
       "unevaluatedProperties": false
+    },
+    "payload.command": {
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Argv",
+          "type": "array"
+        },
+        "argv_text": {
+          "title": "Argv Text",
+          "type": "string"
+        },
+        "cwd": {
+          "title": "Cwd",
+          "type": "string"
+        },
+        "exit_code": {
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "duration_ms": {
+          "default": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "error_signature": {
+          "default": "",
+          "title": "Error Signature",
+          "type": "string"
+        },
+        "runner": {
+          "title": "Runner",
+          "type": "string"
+        },
+        "failed_tests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Failed Tests",
+          "type": "array"
+        }
+      },
+      "required": [
+        "argv",
+        "argv_text",
+        "cwd"
+      ],
+      "title": "BOS command payload",
+      "type": "object"
     },
     "payload.session": {
       "type": "object",

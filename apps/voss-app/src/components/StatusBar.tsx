@@ -1,3 +1,4 @@
+import ObserveStatusDot from './ObserveStatusDot';
 import { Show, createMemo } from 'solid-js';
 import { procByPaneId } from '../pane/procRegistry';
 import { isKnownAgentCli } from '../pane/agentDetect';

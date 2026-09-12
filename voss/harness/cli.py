@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 import threading
@@ -5030,31 +5031,21 @@ _SHELL_INIT_ZSH = r"""# voss shell integration (zsh) — OSC 133/7 command marks
 # Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on
 # Source last, after any prompt theme (the 133;B mark is appended to PROMPT)
 [ "${VOSS_EMBEDDED:-}" = "1" ] || return 0
-
-_voss_json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\n'/\\n}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\t'/\\t}"
-  print -rn -- "$s"
-}
+[ "${_voss_shell_initialized:-}" = "1" ] && return 0
+_voss_shell_initialized=1
 
 _voss_preexec() {
   local cmd="$1"
-  _voss_cmd_id="$(uuidgen 2>/dev/null)"
-  [ -n "$_voss_cmd_id" ] || _voss_cmd_id="voss-${EPOCHSECONDS:-$$}-${RANDOM}${RANDOM}"
+  _voss_cmd_active=1
   printf '\033]133;C\007'
-  printf '\033]1337;voss-cmd={"cmd_id":"%s","argv_text":"%s","cwd":"%s"}\007' \
-    "$_voss_cmd_id" "$(_voss_json_escape "$cmd")" "$(_voss_json_escape "$PWD")"
+  __VOSS_COMMAND_MARK__ "$cmd" "$PWD"
 }
 
 _voss_precmd() {
   local st=$?
-  if [ -n "${_voss_cmd_id:-}" ]; then
+  if [ -n "${_voss_cmd_active:-}" ]; then
     printf '\033]133;D;%d\007' "$st"
-    _voss_cmd_id=""
+    _voss_cmd_active=""
   fi
   printf '\033]133;A\007'
   printf '\033]7;file://%s%s\007' "${HOST:-localhost}" "$PWD"
@@ -5070,16 +5061,8 @@ _SHELL_INIT_BASH = r"""# voss shell integration (bash) — OSC 133/7 command mar
 # Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on
 # Source last, after any prompt theme (the 133;B mark is appended to PS1)
 [ "${VOSS_EMBEDDED:-}" = "1" ] || return 0
-
-_voss_json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\n'/\\n}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\t'/\\t}"
-  printf '%s' "$s"
-}
+[ "${_voss_shell_initialized:-}" = "1" ] && return 0
+_voss_shell_initialized=1
 
 _voss_prompt_command() {
   local st=$?
@@ -5089,7 +5072,8 @@ _voss_prompt_command() {
   fi
   printf '\033]133;A\007'
   printf '\033]7;file://%s%s\007' "${HOSTNAME:-localhost}" "$PWD"
-  _voss_at_prompt=1
+  _voss_at_prompt=""
+  return "$st"
 }
 
 # bash has no preexec; the DEBUG trap approximates it. _voss_at_prompt limits
@@ -5101,39 +5085,33 @@ _voss_preexec() {
   esac
   _voss_at_prompt=""
   _voss_cmd_active=1
-  local cmd="$BASH_COMMAND"
-  _voss_cmd_id="$(uuidgen 2>/dev/null)"
-  [ -n "$_voss_cmd_id" ] || _voss_cmd_id="voss-${EPOCHSECONDS:-$$}-${RANDOM}${RANDOM}"
+  local cmd="$BASH_COMMAND" line
+  line=$(HISTTIMEFORMAT= builtin history 1)
+  if [[ $line =~ ^[[:space:]]*[0-9]+[[:space:]]+(.*)$ ]]; then
+    cmd="${BASH_REMATCH[1]}"
+  fi
   printf '\033]133;C\007'
-  printf '\033]1337;voss-cmd={"cmd_id":"%s","argv_text":"%s","cwd":"%s"}\007' \
-    "$_voss_cmd_id" "$(_voss_json_escape "$cmd")" "$(_voss_json_escape "$PWD")"
+  __VOSS_COMMAND_MARK__ "$cmd" "$PWD"
 }
 
 trap '_voss_preexec' DEBUG
-PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND};}_voss_prompt_command"
+_voss_prompt_chain=_voss_prompt_command
+for _voss_prompt_part in "${PROMPT_COMMAND[@]}"; do
+  [ -n "$_voss_prompt_part" ] && _voss_prompt_chain="${_voss_prompt_chain}; ${_voss_prompt_part}"
+done
+unset PROMPT_COMMAND
+PROMPT_COMMAND="${_voss_prompt_chain}; _voss_at_prompt=1"
 PS1="${PS1}\[\033]133;B\007\]"
 """
 
 _SHELL_INIT_FISH = r"""# voss shell integration (fish) — OSC 133/7 command marks for the Voss reader.
 # Inert outside Voss: the app sets VOSS_EMBEDDED=1 only where capture is on
 # Source last, after any prompt theme (fish_prompt is wrapped for 133;B)
-if test "$VOSS_EMBEDDED" = "1"
-    function __voss_json_escape
-        string replace -a -- '\\' '\\\\' $argv \
-            | string replace -a -- '"' '\\"' \
-            | string replace -a -- (printf '\n') '\\n' \
-            | string replace -a -- (printf '\r') '\\r' \
-            | string replace -a -- (printf '\t') '\\t'
-    end
-
+if test "$VOSS_EMBEDDED" = "1"; and not set -q __voss_shell_initialized
+    set -g __voss_shell_initialized 1
     function __voss_preexec --on-event fish_preexec
-        set -g __voss_cmd_id (uuidgen 2>/dev/null)
-        if test -z "$__voss_cmd_id"
-            set -g __voss_cmd_id "voss-"(date +%s)"-"(random)(random)
-        end
         printf '\e]133;C\a'
-        printf '\e]1337;voss-cmd={"cmd_id":"%s","argv_text":"%s","cwd":"%s"}\a' \
-            $__voss_cmd_id (__voss_json_escape $argv) (__voss_json_escape $PWD)
+        __VOSS_COMMAND_MARK__ "$argv[1]" "$PWD"
     end
 
     function __voss_postexec --on-event fish_postexec
@@ -5155,6 +5133,14 @@ if test "$VOSS_EMBEDDED" = "1"
 end
 """
 
+_SHELL_COMMAND_MARK = (
+    "import json,sys,uuid; "
+    "sys.stdout.write('\\033]1337;voss-cmd=' + json.dumps({"
+    "'cmd_id': str(uuid.uuid4()), 'argv_text': sys.argv[1], 'cwd': sys.argv[2]"
+    "}) + '\\007')"
+)
+
+
 _SHELL_INIT_SNIPPETS = {
     "zsh": _SHELL_INIT_ZSH,
     "bash": _SHELL_INIT_BASH,
@@ -5172,7 +5158,8 @@ _SHELL_INIT_SNIPPETS = {
 )
 def shell_init_cmd(shell_name: str) -> None:
     """Print the OSC 133 shell-integration snippet (see docs/shell-integration.md)."""
-    click.echo(_SHELL_INIT_SNIPPETS[shell_name].rstrip())
+    mark = f"{shlex.quote(sys.executable)} -I -S -c {shlex.quote(_SHELL_COMMAND_MARK)}"
+    click.echo(_SHELL_INIT_SNIPPETS[shell_name].replace("__VOSS_COMMAND_MARK__", mark).rstrip())
 
 
 # observe: enrollment, status, events, reconcile
@@ -5412,6 +5399,9 @@ AGENT_COMMANDS = (
     board_cmd,
     audit_cmd,
     claims_group,
+    instructions_group,
+    shell_init_cmd,
+    observe_group,
 )
 
 

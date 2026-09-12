@@ -45,14 +45,23 @@ def worktree_id(path: str | Path) -> str:
     return hashlib.sha256(str(canonical_worktree_root(path)).encode()).hexdigest()
 
 
+def context(path: str | Path) -> dict[str, str]:
+    return {"repositoryId": repository_id(path), "worktreeId": worktree_id(path)}
+
+
+def ledger_root(path: str | Path) -> Path:
+    common = canonical_common_dir(path)
+    return common.parent if common.name == ".git" else canonical_worktree_root(path)
+
+
 def repository_state_id(path: str | Path) -> str:
     path = Path(path)
     try:
         head = _git(path, "rev-parse", "--verify", "HEAD")
     except NotARepositoryError:
         head = "unborn"
-    status = _git(path, "status", "--porcelain")
-    diff = _git(path, "diff", "HEAD", "--") if head != "unborn" else ""
+    status = _git(path, "status", "--porcelain", "--untracked-files=all", "--", ".", ":(exclude).voss/bos")
+    diff = _git(path, "diff", "HEAD", "--") if head != "unborn" else _git(path, "diff", "--cached", "--")
     status_hash = hashlib.sha256(status.encode()).hexdigest()[:12]
     diff_hash = hashlib.sha256(diff.encode()).hexdigest()[:12]
     return f"{head}:{status_hash}:{diff_hash}"

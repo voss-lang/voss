@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const h = vi.hoisted(() => ({
   invoke: vi.fn().mockResolvedValue(null),
@@ -25,6 +25,12 @@ import {
   type ObservePost,
 } from '../observeClient';
 
+const testClients: ObserveClient[] = [];
+afterEach(() => {
+  for (const client of testClients.splice(0)) client.dispose();
+  __resetObserveClients();
+});
+
 const CTX = { repositoryId: 'repo-1', worktreeId: 'wt-1' };
 
 function started(cmdId = 'cmd-1') {
@@ -47,13 +53,15 @@ function finished(cmdId = 'cmd-1', output = 'FAIL src/x.test.ts') {
 }
 
 function makeClient(post: ObservePost) {
-  return new ObserveClient({
+  const client = new ObserveClient({
     paneId: 'pane-1',
     actor: 'developer',
     context: CTX,
     sidecarId: () => 'sc-1',
     post,
   });
+  testClients.push(client);
+  return client;
 }
 
 type Posted = { sidecarId: string; event: ObserveEventEnvelope; evidence: ObserveEvidence[] };
@@ -256,47 +264,21 @@ describe('observeClient — bounded drop-oldest queue (AC-S3-7 client half)', ()
 });
 
 describe('observeClient — enrollment gating (AC-S3-8 client half)', () => {
-  it('403 not_enrolled drops the event, caches the rejection, stops retrying', async () => {
-    let attempts = 0;
-    const post: ObservePost = () => {
-      attempts += 1;
-      // Tauri invoke rejects with the plain error string, not an Error.
-      return Promise.reject('observe_rejected:not_enrolled');
-    };
-    const client = makeClient(post);
-    client.commandStarted(started('cmd-1'));
-    await settle();
-
-    expect(attempts).toBe(1);
-    expect(client.queueSize).toBe(0);
-    expect(client.droppedCount).toBe(1);
-
-    client.commandStarted(started('cmd-2'));
-    client.commandFinished(finished('cmd-2'));
-    await settle();
-    expect(attempts).toBe(1);
-    expect(client.queueSize).toBe(0);
-    expect(client.droppedCount).toBe(1);
-  });
-
-  it('not_enrolled clears a backlog queued while the sidecar was down', async () => {
-    let down = true;
-    const post: ObservePost = () =>
-      down
-        ? Promise.reject(new Error('sidecar request failed'))
-        : Promise.reject(new Error('observe_rejected:not_enrolled'));
-    const client = makeClient(post);
-    for (let i = 0; i < 5; i++) {
-      client.commandStarted(started(`cmd-${i}`));
-    }
-    await settle();
-    expect(client.queueSize).toBe(5);
-
-    down = false;
-    client.commandStarted(started('cmd-5'));
+  it('enrolling a rejected pane resumes capture on its next command', async () => {
+    let enrolled = false;
+    const calls: string[] = [];
+    const client = makeClient(async (_id, event) => {
+      calls.push(event.command_id);
+      if (!enrolled) throw new Error('observe_rejected:not_enrolled');
+    });
+    client.commandStarted(started('before'));
     await settle();
     expect(client.queueSize).toBe(0);
-    expect(client.droppedCount).toBe(6);
+    enrolled = true;
+    client.commandStarted(started('after'));
+    client.commandFinished(finished('after'));
+    await settle();
+    expect(calls).toEqual(['before', 'after', 'after']);
   });
 
   it('403 paused drops the event without caching — the next command retries', async () => {
@@ -348,14 +330,12 @@ describe('observeClient — registry + status-bar stats', () => {
 });
 
 describe('observeClient — workspace context + default transport', () => {
-  it('derives repository/worktree ids as sha256 hex of the project paths', async () => {
-    const ctx = await observeContextForWorkspace('/repo/');
-    expect(ctx.worktreeId).toMatch(/^[0-9a-f]{64}$/);
-    expect(ctx.repositoryId).toMatch(/^[0-9a-f]{64}$/);
-    expect(ctx.repositoryId).not.toBe(ctx.worktreeId);
-
-    const again = await observeContextForWorkspace('/repo');
-    expect(again).toEqual(ctx); // trailing slash normalized, deterministic
+  it('uses canonical identity returned by the sidecar for any workspace path', async () => {
+    h.invoke.mockResolvedValueOnce(CTX);
+    expect(await observeContextForWorkspace('/repo/link/subdir', 'sc-1')).toEqual(CTX);
+    expect(h.invoke).toHaveBeenCalledWith('call_voss_sidecar', {
+      sidecarId: 'sc-1', operation: { kind: 'observe_context', cwd: '/repo/link/subdir' },
+    });
   });
 
   it('default post routes through the sidecar proxy as an observe_event op', async () => {
@@ -380,4 +360,36 @@ describe('observeClient — workspace context + default transport', () => {
       },
     });
   });
+});
+
+it('retries the same event id after a lost response, without another command', async () => {
+  vi.useFakeTimers();
+  try {
+    const ids: string[] = [];
+    const client = makeClient(async (_id, event) => {
+      ids.push(event.event_id);
+      if (ids.length === 1) throw new Error('response lost');
+    });
+    client.commandStarted(started());
+    await vi.advanceTimersByTimeAsync(1001);
+    expect(ids).toHaveLength(2);
+    expect(ids[1]).toBe(ids[0]);
+    expect(client.queueSize).toBe(0);
+  } finally { vi.useRealTimers(); }
+});
+
+it('an in-flight dropped item does not remove the next surviving event', async () => {
+  let release!: () => void;
+  const calls: string[] = [];
+  const client = makeClient(async (_id, event) => {
+    calls.push(event.command_id);
+    if (calls.length === 1) await new Promise<void>((resolve) => { release = resolve; });
+  });
+  client.commandStarted(started('in-flight'));
+  await settle();
+  for (let i = 0; i < OBSERVE_QUEUE_LIMIT; i++) client.commandStarted(started(`next-${i}`));
+  release();
+  await settle();
+  expect(calls[1]).toBe('next-0');
+  expect(calls).toHaveLength(OBSERVE_QUEUE_LIMIT + 1);
 });

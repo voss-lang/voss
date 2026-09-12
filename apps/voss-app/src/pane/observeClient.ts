@@ -80,7 +80,7 @@ export type ObservePost = (
 export interface ObserveClientConfig {
   paneId: string;
   actor: ObserveActor;
-  context: ObserveContext | Promise<ObserveContext>;
+  context: ObserveContext | Promise<ObserveContext> | (() => Promise<ObserveContext>);
   sidecarId: () => string | null;
   post?: ObservePost;
 }
@@ -97,7 +97,7 @@ function rejectionReason(err: unknown): string | null {
   return REJECTION_RE.exec(msg)?.[1] ?? null;
 }
 
-type QueuedEvent =
+type QueuedEvent = { eventId: string } & (
   | { kind: 'started'; ev: ObserveCommandStarted }
   | {
       kind: 'finished';
@@ -105,7 +105,7 @@ type QueuedEvent =
       argv_text: string;
       cwd: string;
       at: string;
-    };
+    });
 
 function splitArgv(text: string): string[] {
   return text.split(/\s+/).filter((w) => w.length > 0);
@@ -122,7 +122,6 @@ function buildEnvelope(
   ctx: ObserveContext,
   item: QueuedEvent,
 ): { event: ObserveEventEnvelope; evidence: ObserveEvidence[] } {
-  const eventId = crypto.randomUUID().replaceAll('-', '');
   const evidence: ObserveEvidence[] = [];
   if (item.kind === 'finished' && item.ev.output.length > 0) {
     evidence.push({
@@ -144,7 +143,7 @@ function buildEnvelope(
   return {
     event: {
       schema_version: 1,
-      event_id: eventId,
+      event_id: item.eventId,
       category: 'command',
       event_type: item.kind === 'started' ? 'command.started' : 'command.completed',
       event_time: item.kind === 'started' ? item.ev.at : item.at,
@@ -159,8 +158,7 @@ function buildEnvelope(
       worktree_id: ctx.worktreeId,
       adapter_id: OBSERVE_ADAPTER_ID,
       command_id: item.ev.cmd_id,
-      // The webview has no git handle; the explicit unavailable marker per
-      // OBS-03 until the sidecar resolves state at ingest.
+      // The sidecar resolves Git state at ingest.
       repository_state_id: 'unavailable',
       evidence_refs: [],
       payload,
@@ -176,8 +174,9 @@ export class ObserveClient {
   private commands = new Map<string, { argv_text: string; cwd: string }>();
   private dropped = 0;
   private flushing = false;
-  private rejected = false;
   private ctx: ObserveContext | null = null;
+  private retry: ReturnType<typeof setTimeout> | undefined;
+  private disposed = false;
 
   constructor(cfg: ObserveClientConfig) {
     this.cfg = cfg;
@@ -193,17 +192,17 @@ export class ObserveClient {
   }
 
   commandStarted(ev: ObserveCommandStarted): void {
-    if (this.rejected) return;
+    if (this.disposed) return;
     if (this.commands.size >= MAX_TRACKED_COMMANDS) {
       const oldest = this.commands.keys().next().value;
       if (oldest !== undefined) this.commands.delete(oldest);
     }
     this.commands.set(ev.cmd_id, { argv_text: ev.argv_text, cwd: ev.cwd });
-    this.enqueue({ kind: 'started', ev });
+    this.enqueue({ kind: 'started', ev, eventId: crypto.randomUUID().replaceAll('-', '') });
   }
 
   commandFinished(ev: ObserveCommandFinished): void {
-    if (this.rejected) return;
+    if (this.disposed) return;
     const startedCmd = this.commands.get(ev.cmd_id);
     this.commands.delete(ev.cmd_id);
     // The reader only emits finished for a started command; an unknown cmd_id
@@ -211,6 +210,7 @@ export class ObserveClient {
     if (!startedCmd) return;
     this.enqueue({
       kind: 'finished',
+      eventId: crypto.randomUUID().replaceAll('-', ''),
       ev,
       argv_text: startedCmd.argv_text,
       cwd: startedCmd.cwd,
@@ -228,57 +228,52 @@ export class ObserveClient {
   }
 
   private async flush(): Promise<void> {
-    if (this.flushing || this.rejected) return;
+    if (this.flushing || this.disposed) return;
+    clearTimeout(this.retry);
     this.flushing = true;
     try {
-      this.ctx ??= await this.cfg.context;
       const sidecarId = this.cfg.sidecarId();
       if (!sidecarId) return;
-      while (this.queue.length > 0) {
-        const { event, evidence } = buildEnvelope(this.cfg, this.ctx, this.queue[0]);
+      this.ctx ??= await (typeof this.cfg.context === 'function' ? this.cfg.context() : this.cfg.context);
+      while (this.queue.length > 0 && !this.disposed) {
+        const item = this.queue[0];
+        const { event, evidence } = buildEnvelope(this.cfg, this.ctx, item);
         try {
           await this.post(sidecarId, event, evidence);
         } catch (err) {
           const reason = rejectionReason(err);
-          if (reason === 'not_enrolled') {
-            // Unenrolled repo 403s every event — drop the backlog and stop
-            // retrying instead of re-POSTing rejects on every command.
-            this.dropped += this.queue.length;
+          if (reason !== null) {
             this.queue = [];
-            this.rejected = true;
-          } else if (reason !== null) {
-            // paused / capture_disabled: drop without caching so capture
-            // resumes on the next command after the setting flips.
-            this.queue.shift();
+            this.commands.clear();
           }
           break;
         }
-        this.queue.shift();
+        if (this.queue[0] === item) this.queue.shift();
       }
     } catch {
       // Context resolution failed — events stay queued for the next flush.
     } finally {
       this.flushing = false;
+      if (this.queue.length > 0 && !this.disposed) {
+        this.retry = setTimeout(() => void this.flush(), 1000);
+      }
     }
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    clearTimeout(this.retry);
+    this.queue = [];
+    this.commands.clear();
   }
 }
 
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-/** Ids mirror observe/repository.py: sha256 of the canonical worktree root
- *  and of its common git dir (`<root>/.git` for a standard checkout). */
+/** Resolve identity through the same Git discovery used by CLI enrollment. */
 export async function observeContextForWorkspace(
   workspacePath: string,
+  sidecarId: string,
 ): Promise<ObserveContext> {
-  const root = workspacePath.replace(/\/+$/, '');
-  const [repositoryId, worktreeId] = await Promise.all([
-    sha256Hex(`${root}/.git`),
-    sha256Hex(root),
-  ]);
-  return { repositoryId, worktreeId };
+  return callSidecar<ObserveContext>(sidecarId, { kind: 'observe_context', cwd: workspacePath });
 }
 
 const clients = new Map<string, ObserveClient>();
@@ -290,6 +285,7 @@ export function createObserveClient(cfg: ObserveClientConfig): ObserveClient {
 }
 
 export function disposeObserveClient(paneId: string): void {
+  clients.get(paneId)?.dispose();
   clients.delete(paneId);
 }
 
@@ -306,5 +302,6 @@ export function observeQueueStats(): { queued: number; dropped: number } {
 
 /** Test-only reset. */
 export function __resetObserveClients(): void {
+  for (const client of clients.values()) client.dispose();
   clients.clear();
 }

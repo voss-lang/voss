@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import fnmatch
+import json
+import logging
+import sqlite3
+import shlex
 import os
 import secrets
 import uuid
@@ -11,9 +16,10 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from pydantic import BaseModel, Field, ValidationError
 from sse_starlette import EventSourceResponse, ServerSentEvent
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
@@ -21,7 +27,27 @@ from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config u
 from .. import auth as auth_mod
 from .. import session as session_store
 from ..agent import run_turn
+from ..observe import admission as observe_admission
+from ..observe import bos_drain, repository as observe_repository
+from ..bos_ledger import BosEventLedger
+from ..observe.enrollment import (
+    RepoEnrollment,
+    get_repo_enrollment,
+    load_enrollment,
+    load_repo_policy,
+    set_repo_enrollment,
+)
+from ..observe.models import ObserveEventAdapter
+from ..observe.redact import redact_argv, redact_text
+from ..observe.store import ObserveStore, db_path, observe_dir
 from ..permissions import PermissionGate, PermissionStore
+from ..swarm_agents import is_native
+from ..swarm_store import (
+    OwnershipOverlapError,
+    Role,
+    SwarmStore,
+    build_ownership_policy,
+)
 from ..tools import make_toolset
 from . import events as E
 from .renderer import EventBusRenderer
@@ -485,7 +511,7 @@ class ObserveEnrollmentPatch(BaseModel):
 
 
 class ObserveSettingsBody(BaseModel):
-    repository_id: str
+    repository_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
     enrollment: ObserveEnrollmentPatch
 
 
@@ -496,9 +522,38 @@ def create_app(token: str | None = None) -> FastAPI:
     token = token or secrets.token_urlsafe(32)
     mgr = SessionManager()
 
+    def drain_observe(repository_id: str | None = None) -> None:
+        paths = [db_path(repository_id)] if repository_id else observe_dir().glob("*.sqlite")
+        for path in paths:
+            try:
+                with ObserveStore(path.stem) as store:
+                    events = store.list_events(limit=1)
+                    if events and store.outbox_rows(undelivered_only=True):
+                        cwd = events[0]["event"]["payload"]["cwd"]
+                        if observe_repository.repository_id(cwd) == path.stem:
+                            bos_drain.recover_outbox(
+                                store, BosEventLedger(observe_repository.ledger_root(cwd))
+                            )
+            except (OSError, ValueError, sqlite3.Error):
+                logging.getLogger(__name__).warning("Observe outbox recovery unavailable for %s", path.stem)
+
+    async def retry_observe() -> None:
+        while True:
+            await asyncio.sleep(30)
+            await asyncio.to_thread(drain_observe)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        yield
+        await asyncio.to_thread(drain_observe)
+        retry = asyncio.create_task(retry_observe())
+        try:
+            yield
+        finally:
+            retry.cancel()
+            try:
+                await retry
+            except asyncio.CancelledError:
+                pass
         # shutdown: cancel any in-flight turns
         for s in mgr.list():
             if s.busy and s.task is not None:
@@ -750,8 +805,15 @@ def create_app(token: str | None = None) -> FastAPI:
             {"v": 1, "decision": "reject", "reason": reason}, status_code=403
         )
 
+    @app.get("/observe/context")
+    def observe_context(cwd: str) -> dict[str, str]:
+        try:
+            return observe_repository.context(cwd)
+        except (OSError, ValueError):
+            raise HTTPException(422, "not a repository")
+
     @app.post("/observe/events")
-    def post_observe_event(body: ObserveEventBody):
+    def post_observe_event(body: ObserveEventBody, background_tasks: BackgroundTasks):
         try:
             event = ObserveEventAdapter.validate_python(body.event)
         except ValidationError as exc:
@@ -763,32 +825,48 @@ def create_app(token: str | None = None) -> FastAPI:
             return _observe_reject("paused")
         if not enrollment.capture:
             return _observe_reject("capture_disabled")
+        try:
+            ctx = observe_repository.context(event.payload.cwd)
+            root = observe_repository.canonical_worktree_root(event.payload.cwd)
+        except (OSError, ValueError):
+            return _observe_reject("repository_unavailable")
+        if ctx != {"repositoryId": event.repository_id, "worktreeId": event.worktree_id}:
+            return _observe_reject("scope_mismatch")
+        loaded = load_repo_policy(root)
+        if loaded.warnings:
+            return _observe_reject("invalid_policy")
+        policy = loaded.policy
+        try:
+            event.payload.argv = shlex.split(event.payload.argv_text)
+        except ValueError:
+            return _observe_reject("invalid_command")
+        paths = [Path(event.payload.cwd), *(Path(event.payload.cwd) / arg for arg in event.payload.argv)]
+        for path in paths:
+            resolved = path.resolve()
+            if resolved.is_relative_to(root):
+                rel = resolved.relative_to(root).as_posix()
+                if any(
+                    fnmatch.fnmatchcase(rel, pattern) or
+                    fnmatch.fnmatchcase(rel + "/", pattern) or
+                    any(fnmatch.fnmatchcase(parent.as_posix() + "/", pattern) for parent in Path(rel).parents)
+                    for pattern in policy.exclude_paths
+                ):
+                    return _observe_reject("excluded_path")
+        if policy.commands is not None and not any(
+            event.payload.argv[:len(command.argv)] == command.argv
+            for command in policy.commands.values()
+        ):
+            return _observe_reject("command_not_allowed")
+        event.repository_state_id = observe_repository.repository_state_id(root)
+        event.payload.argv = redact_argv(event.payload.argv)
+        event.payload.argv_text = redact_text(event.payload.argv_text)
         store = ObserveStore(event.repository_id)
         try:
-            redacted = [redact_text(item.content) for item in body.evidence]
-            evidence_ids: list[str] = []
-            for index, (item, text) in enumerate(zip(body.evidence, redacted)):
-                # Evidence ids derive from event_id so a duplicate POST is an
-                # INSERT OR IGNORE no-op instead of a second evidence row
-                evidence_id = f"{event.event_id}-ev{index}"
-                store.put_evidence(
-                    evidence_id,
-                    event.event_id,
-                    item.kind,
-                    text.encode("utf-8"),
-                    truncated=item.truncated,
-                )
-                evidence_ids.append(evidence_id)
-            if evidence_ids:
-                event.evidence_refs = [*event.evidence_refs, *evidence_ids]
-            error_text = "\n".join(
-                text
-                for item, text in zip(body.evidence, redacted)
-                if item.kind == "command_output"
-            )
-            result = observe_admission.admit(store, event, error_text=error_text)
+            with store.transaction():
+                result = persist_observe(store, event, body, policy.capture.max_output_bytes)
         finally:
             store.close()
+        background_tasks.add_task(drain_observe, event.repository_id)
         return {
             "v": 1,
             "decision": result.decision,
@@ -797,14 +875,50 @@ def create_app(token: str | None = None) -> FastAPI:
             "event_id": result.event_id,
             "fingerprint": result.fingerprint,
             "investigation_id": result.investigation_id,
-            "derived_event_id": (
-                result.derived_event.event_id if result.derived_event else None
-            ),
+            "derived_event_id": result.derived_event.event_id if result.derived_event else None,
         }
+
+    def persist_observe(store, event, body, output_limit):
+        if store.has_event(event.event_id):
+            return observe_admission.admit(store, event)
+        redacted = []
+        remaining = output_limit
+        for item in body.evidence:
+            content = redact_text(item.content).encode("utf-8")
+            if len(content) > remaining:
+                head = remaining * 3 // 4
+                tail = remaining - head
+                content = content[:head] + (content[-tail:] if tail else b"")
+                item.truncated = True
+                if hasattr(event.payload, "truncated"):
+                    event.payload.truncated = True
+            remaining -= len(content)
+            redacted.append(content)
+        evidence_ids: list[str] = []
+        for index, (item, content) in enumerate(zip(body.evidence, redacted)):
+            # Evidence ids derive from event_id so a duplicate POST is an
+            # INSERT OR IGNORE no-op instead of a second evidence row
+            evidence_id = f"{event.event_id}-ev{index}"
+            store.put_evidence(
+                evidence_id,
+                event.event_id,
+                item.kind,
+                content,
+                truncated=item.truncated,
+            )
+            evidence_ids.append(evidence_id)
+        if evidence_ids:
+            event.evidence_refs = [*event.evidence_refs, *evidence_ids]
+        error_text = "\n".join(
+            content.decode("utf-8", errors="replace")
+            for item, content in zip(body.evidence, redacted)
+            if item.kind == "command_output"
+        )
+        return observe_admission.admit(store, event, error_text=error_text)
 
     @app.get("/observe/events")
     def list_observe_events(
-        repository_id: str, cursor: int = 0, limit: int = 100
+        repository_id: str = Query(pattern=r"^[A-Za-z0-9_-]{1,128}$"), cursor: int = 0, limit: int = 100
     ) -> dict:
         limit = max(1, min(limit, 1000))
         if not db_path(repository_id).exists():
@@ -834,9 +948,12 @@ def create_app(token: str | None = None) -> FastAPI:
     @app.patch("/observe/settings")
     def patch_observe_settings(body: ObserveSettingsBody) -> dict:
         current = get_repo_enrollment(body.repository_id) or RepoEnrollment()
-        updated = current.model_copy(
-            update=body.enrollment.model_dump(exclude_unset=True)
-        )
+        try:
+            updated = RepoEnrollment.model_validate({
+                **current.model_dump(), **body.enrollment.model_dump(exclude_unset=True)
+            })
+        except ValidationError:
+            raise HTTPException(422, "invalid enrollment settings")
         set_repo_enrollment(body.repository_id, updated)
         return {
             "v": 1,

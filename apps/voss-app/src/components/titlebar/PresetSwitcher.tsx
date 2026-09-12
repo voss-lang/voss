@@ -2,9 +2,13 @@ import { For, Show } from 'solid-js';
 import type {
   ActiveLayout,
   LayoutPreset,
-} from '../../grid/layoutPresets';
-import { LAYOUT_PRESETS } from '../../grid/layoutPresets';
+} from '../../canvas/arrange';
+import { LAYOUT_PRESETS } from '../../canvas/arrange';
 
+/**
+ * Controlled titlebar preset switcher ( Task 1, )
+ * No local state — `activeLayout` and `onSelect` are owned by App.tsx
+ */
 export type PresetSwitcherProps = {
   activeLayout: ActiveLayout;
   disabled?: boolean;
@@ -20,11 +24,15 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
         'flex-shrink': '0',
         'margin-right': '10px',
         gap: '6px',
-        // Ensure Tauri drag-region siblings don't swallow pointer events
+        // Ensure Tauri drag-region siblings don't swallow pointer events.
         'pointer-events': 'auto',
       }}
     >
-      {/* Custom state label only rendered when the tree is off-cycle Display-only: not a button, not focusable, no click handler */}
+      {/*
+        Custom state label — only rendered when the tree is off-cycle.
+        Display-only: not a button, not focusable, no click handler.
+        aria-label per UI-SPEC.
+      */}
       <Show when={props.activeLayout === 'custom'}>
         <span
           data-preset-state="custom"
@@ -35,7 +43,7 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
             color: 'var(--accent-amber)',
             border: '1px solid var(--border-bright)',
             padding: '2px 8px',
-            'font-family': 'var(--font-mono)',
+            'font-family': 'var(--font-ui)',
             'font-size': '11px',
             'line-height': '1',
           }}
@@ -69,7 +77,7 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
                 }}
                 style={{
                   background: active() ? 'var(--focus)' : 'transparent',
-                  // Token text only never raw white ( color table)
+                  // Token text only — never raw white ( color table).
                   color: active()
                     ? 'var(--fg-0)'
                     : props.disabled
@@ -80,7 +88,7 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
                     ? 'none'
                     : '1px solid var(--border)',
                   padding: '4px 10px',
-                  'font-family': 'var(--font-mono)',
+                  'font-family': 'var(--font-ui)',
                   'font-size': '11px',
                   cursor: props.disabled ? 'default' : 'pointer',
                   'line-height': '1',

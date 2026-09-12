@@ -1,13 +1,11 @@
 import { createSignal } from 'solid-js';
 
 import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
-import {
-  replyPermission,
-  type PermissionChoice,
-} from '../../../../../sdk/typescript/src/client/permission';
-import { createVossClient } from '../../../../../sdk/typescript/src/client/rest';
+import type { PermissionChoice } from '../../../../../sdk/typescript/src/client/permission';
 import { connectLiveStream, type LiveStreamHandle } from './sseClient';
+import { replySidecarPermission } from './sidecarClient';
 import { resolveAttentionItem } from '../attention/attentionQueue';
+import { devlog } from '../../devlog';
 
 export type GateState =
   | { state: 'pending' }
@@ -21,17 +19,21 @@ export interface ProtocolSessionState {
   gateStates: Record<string, GateState>;
   bootState: ProtoBootState;
   errorMsg: string;
-
+/** Server death (stream ended with no final/session.idle) — ≠ clean idle */
   died: boolean;
   sawCleanEnd: boolean;
   eventCount: number;
-
+/** The view derives props.onEnded from this — no callbacks stored here */
   endedReason: 'idle' | 'death' | null;
-  conn: { baseUrl: string; token: string };
+  conn: { sidecarId: string };
 }
 
 export const PROTO_CAP = 300;
 
+/**
+ * trim: drop oldest entries until length ≤ cap, never trimming the task
+ * header (a `user` event at index 0) or any `permission.updated`. Pure
+ */
 export function trimOldest(list: AgentEvent[], cap: number): AgentEvent[] {
   if (list.length <= cap) return list;
   const out = [...list];
@@ -53,12 +55,14 @@ const [protocolSessions, setProtocolSessions] = createSignal<
   Record<string, ProtocolSessionState>
 >({});
 
+// Non-reactive plumbing: one live handle + connection epoch per session id.
+// The epoch guards a reconnect race — an aborted stream's finally must not
+// mark the FRESH connection ended/errored.
 const handles = new Map<string, LiveStreamHandle>();
 const epochs = new Map<string, number>();
 
 export function defaultProtocolState(conn: {
-  baseUrl: string;
-  token: string;
+  sidecarId: string;
 }): ProtocolSessionState {
   return {
     events: [],
@@ -75,12 +79,16 @@ export function defaultProtocolState(conn: {
 
 function appendEvent(sessionId: string, epoch: number, ev: AgentEvent): void {
   if (epochs.get(sessionId) !== epoch) return; // stale stream
+  devlog('info', 'proto.stream', 'event', {
+    sessionId: sessionId.slice(0, 6),
+    type: ev.type,
+  });
   setProtocolSessions((prev) => {
     const st = prev[sessionId];
     if (!st) return prev;
     const next: ProtocolSessionState = { ...st };
     next.eventCount = st.eventCount + 1;
-    if (st.bootState === 'booting') next.bootState = 'live';
+    if (st.bootState === 'booting') next.bootState = 'live'; // first event = connected
     if (ev.type === 'session.idle' || ev.type === 'final') {
       next.sawCleanEnd = true;
     }
@@ -100,13 +108,14 @@ function streamEnded(sessionId: string, epoch: number): void {
     if (!st) return prev;
     const next: ProtocolSessionState = { ...st };
     if (st.bootState === 'booting' && st.eventCount === 0) {
+      // Zero events while booting = the stream never connected.
       next.bootState = 'error';
       next.errorMsg = 'stream did not connect';
     } else {
       next.bootState = 'ended';
       if (!st.sawCleanEnd) {
         next.died = true;
-        next.endedReason = 'death';
+        next.endedReason = 'death'; // flips write affordances
       } else {
         next.endedReason = st.endedReason ?? 'idle';
       }
@@ -117,16 +126,14 @@ function streamEnded(sessionId: string, epoch: number): void {
 
 function connect(
   sessionId: string,
-  baseUrl: string,
-  token: string,
+  sidecarId: string,
   stream?: AsyncIterable<AgentEvent>,
 ): void {
   const epoch = (epochs.get(sessionId) ?? 0) + 1;
   epochs.set(sessionId, epoch);
   const handle = connectLiveStream({
-    baseUrl,
+    sidecarId,
     sessionId,
-    token,
     cardId: sessionId, // Bridge A: the session id IS the cardId
     stream,
     onEvent: (ev) => appendEvent(sessionId, epoch, ev),
@@ -135,30 +142,36 @@ function connect(
   handles.set(sessionId, handle);
 }
 
+/**
+ * Idempotent connect-once: the first mounting ProtocolPane subscribes; a
+ * remounted one finds the live handle and just renders the store
+ */
 export function ensureProtocolStream(
   sessionId: string,
-  baseUrl: string,
-  token: string,
+  sidecarId: string,
   stream?: AsyncIterable<AgentEvent>,
 ): void {
   setProtocolSessions((prev) =>
     prev[sessionId]
       ? prev
-      : { ...prev, [sessionId]: defaultProtocolState({ baseUrl, token }) },
+      : { ...prev, [sessionId]: defaultProtocolState({ sidecarId }) },
   );
   if (handles.has(sessionId)) return;
-  connect(sessionId, baseUrl, token, stream);
+  connect(sessionId, sidecarId, stream);
 }
 
+/**
+ * "Retry start": abort the old stream (its finally is epoch-fenced)
+ * reset the lifecycle flags, and rebind to the fresh handshake
+ */
 export function reconnectProtocolStream(
   sessionId: string,
-  baseUrl: string,
-  token: string,
+  sidecarId: string,
 ): void {
   handles.get(sessionId)?.abort();
   handles.delete(sessionId);
   setProtocolSessions((prev) => {
-    const st = prev[sessionId] ?? defaultProtocolState({ baseUrl, token });
+    const st = prev[sessionId] ?? defaultProtocolState({ sidecarId });
     return {
       ...prev,
       [sessionId]: {
@@ -169,13 +182,17 @@ export function reconnectProtocolStream(
         sawCleanEnd: false,
         eventCount: 0,
         endedReason: null,
-        conn: { baseUrl, token },
+        conn: { sidecarId },
       },
     };
   });
-  connect(sessionId, baseUrl, token);
+  connect(sessionId, sidecarId);
 }
 
+/**
+ * One reply loop for both surfaces (-05): POST first, clear ONLY on
+ * success (; the queue clear uses the identical
+ */
 export async function replyToProtocolGate(
   sessionId: string,
   id: string,
@@ -199,15 +216,16 @@ export async function replyToProtocolGate(
     });
   setGate({ state: 'inflight', choice });
   try {
-    const client = createVossClient(st.conn.baseUrl, st.conn.token);
-    await replyPermission(client, sessionId, { id, choice });
+    await replySidecarPermission(st.conn.sidecarId, sessionId, id, choice);
     setGate({ state: 'resolved', choice });
     resolveAttentionItem(`permission:${id}`);
   } catch {
+    // Failed POST: both surfaces stay pending; buttons re-enable.
     setGate({ state: 'pending' });
   }
 }
 
+/** Real teardown (pane close / reap via the pane destroy hook) */
 export function destroyProtocolSession(sessionId: string): void {
   epochs.delete(sessionId); // fence the aborted stream's finally
   handles.get(sessionId)?.abort();
@@ -222,6 +240,7 @@ export function destroyProtocolSession(sessionId: string): void {
 
 export { protocolSessions };
 
+/** Test-only reset (mirrors __resetLiveStream) */
 export function __resetProtocolSessions(): void {
   for (const [, h] of handles) h.abort();
   handles.clear();

@@ -18,9 +18,9 @@ Observe events are a BOS category. There is no second envelope.
 | `received_at` | `ingest_time` (assigned at write, never source-carried) |
 | `caused_by_event_id` | `caused_by` |
 | `origin` | `actor` (`developer` / `voss` / `external` / `unknown`) |
-| `adapter_id`, `adapter_session_id` | `source_ref = {source: "adapter", ref: adapter_session_id}` plus `payload.adapter_id` |
+| `adapter_id`, `adapter_session_id` | `source_ref = {source: "adapter", ref: adapter_session_id}` plus top-level `adapter_id` |
 | `run_id` | `trace_id` join when a harness run exists; else payload |
-| `repository_id`, `worktree_id`, `repository_state_id`, `command_id`, `evidence_refs` | `payload` (enumerated per event type) |
+| `repository_id`, `worktree_id`, `repository_state_id`, `command_id`, `evidence_refs` | Additive top-level fields on the shared BOS envelope, required for command events |
 
 Event types: `command.started`, `command.completed`, `command.failed`, `test.failed` under `category="command"`; later `git.diff.changed`, `git.branch.changed`. Findings are BOS4 decisions. Dismiss and resolve write BOS5 outcome labels.
 
@@ -36,7 +36,7 @@ Observe's SQLite store is the operational index; the BOS ledger (`bos_ledger.py`
 **Secrets.** Two different guarantees, stated separately:
 
 - Typed payload fields (ids, hashes, argv text after redaction, exit codes, paths) carry no secrets by construction, matching the BOS3 rule.
-- Free-text evidence (captured output, file excerpts) is redacted with the session redactor before durable write. That is best effort. A repository with strict confidentiality sets `capture.output = false` in `.voss/observe.yml` or disables remote analysis in enrollment, which fails closed: no output is stored and no evidence text reaches a provider.
+- Free-text evidence (captured output, file excerpts) is redacted with the session redactor before durable write. That is best effort. A repository that must not store command output disables capture in device enrollment. S3 makes no model calls; remote analysis remains separate from capture.
 
 ## Consequences
 

@@ -2,6 +2,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal, createEffect } from 'solid-js';
 
+// RunCommandBar / the spawn path import `@tauri-apps/api/core`. Stub so any module
+// import resolves under jsdom; we also assert against the captured mock when a spawn
+// path actually invokes it (runCommandBar.test.tsx:13).
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
 import {
@@ -20,7 +23,7 @@ import {
 } from '../org/model/bridge';
 import CardDrawer from '../org/cockpit/CardDrawer';
 import type { AgentConfig } from '../pane/pty-ipc';
-import type { GridController } from '../grid/GridRoot';
+import type { GridController } from '../canvas/CanvasRoot';
 
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown): HTMLElement {
@@ -34,6 +37,8 @@ afterEach(() => {
   dispose?.();
   dispose = undefined;
   document.body.innerHTML = '';
+  // selection.ts signals are module-level (global) — no reset helper exists, clear
+  // them manually (note: selection.ts:8-9 / 15). bridge.ts has __resetBridgeMaps.
   setSelectedCardId(null);
   setSelectedRunId(null);
   setOpenInGridRequest(null);
@@ -41,6 +46,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// Case 1 — SELECTION PERSISTS ACROSS A LIVE->REVIEW->LIVE TOGGLE
+//
+// orgViewOpen is App-local; the ⌘⇧O path is `setOrgViewOpen((p) => !p)`
+// (App.tsx:1061/1335). Replicate that exact toggle and round-trip it twice. The
+// selection signals are a SEPARATE global module (selection.ts), so the toggle must
+// not perturb them — that is the asserts
 describe('VCKP-08 — selection persists across the Live/Review toggle', () => {
   it('selectedRunId + selectedCardId survive a Live->Review->Live round-trip', () => {
     const [orgViewOpen, setOrgViewOpen] = createSignal(false); // false = Live (grid)
@@ -48,6 +59,7 @@ describe('VCKP-08 — selection persists across the Live/Review toggle', () => {
     setSelectedRunId('run-7');
     setSelectedCardId('card-99');
 
+    // Live -> Review -> Live (the same ⌘⇧O signal flip, twice).
     setOrgViewOpen((p) => !p); // Live -> Review
     expect(orgViewOpen()).toBe(true);
     setOrgViewOpen((p) => !p); // Review -> Live
@@ -58,6 +70,12 @@ describe('VCKP-08 — selection persists across the Live/Review toggle', () => {
   });
 });
 
+// Case 2 — GRID STAYS MOUNTED (: no conditional unmount)
+//
+// App.tsx:1234 wraps the grid in a node whose ONLY toggle is the inline
+// `display: orgViewOpen() ? 'none' : 'flex'`. The node is NEVER torn down. Replicate
+// that exact container and assert the SAME element reference persists across the
+// toggle — only `display` flips between 'flex' and 'none'.
 describe('VCKP-08 — grid container stays mounted across the toggle', () => {
   it('the grid node is the same element reference; only inline display flips', () => {
     const [orgViewOpen, setOrgViewOpen] = createSignal(false);
@@ -75,13 +93,14 @@ describe('VCKP-08 — grid container stays mounted across the toggle', () => {
     const gridBefore = root.querySelector('[data-testid="grid-root"]');
     expect(before.style.display).toBe('flex'); // Live
 
-    setOrgViewOpen(true); // > Review
+    setOrgViewOpen(true); // -> Review
     const duringReview = root.querySelector('[data-testid="grid-host"]') as HTMLElement;
-    expect(duringReview).toBe(before); // same element reference not remounted
+    expect(duringReview).toBe(before); // same element reference — not remounted
     expect(duringReview.style.display).toBe('none');
+    // The inner grid is still present (hidden, not removed).
     expect(root.querySelector('[data-testid="grid-root"]')).toBe(gridBefore);
 
-    setOrgViewOpen(false); // > Live
+    setOrgViewOpen(false); // -> Live
     const after = root.querySelector('[data-testid="grid-host"]') as HTMLElement;
     expect(after).toBe(before); // still the same node across the full round-trip
     expect(after.style.display).toBe('flex');
@@ -89,8 +108,18 @@ describe('VCKP-08 — grid container stays mounted across the toggle', () => {
   });
 });
 
+// Case 3 — OPEN-IN-GRID
+//
+// Two halves:
+//  (a) CardDrawer button: bind a card to a pane via registerTerminalCard so
+//      boundPaneId() is set, render the real CardDrawer, click "Open in grid", and
+// assert it pushes the bound paneId onto openInGridRequest (CardDrawer.tsx:89
+//  (b) App-side effect: replicate App.tsx:317-323 — read openInGridRequest(), flip
+//      orgViewOpen(false), call gridController.focusPaneById(paneId), clear the
+//      request — and assert all three on a spy controller.
 describe('VCKP-08 — open-in-grid (D-07)', () => {
   it("CardDrawer 'Open in grid' button publishes the bound pane onto openInGridRequest", () => {
+    // Bind a card to a pane (Bridge B) and select it so boundPaneId() resolves.
     const cardId = registerTerminalCard('pane-77');
     expect(cardToPane()[cardId]).toBe('pane-77');
     setSelectedCardId(cardId);
@@ -105,6 +134,7 @@ describe('VCKP-08 — open-in-grid (D-07)', () => {
 
     btn.click();
 
+    // The drawer requested the grid open the bound pane.
     expect(openInGridRequest()).toBe('pane-77');
   });
 
@@ -114,6 +144,7 @@ describe('VCKP-08 — open-in-grid (D-07)', () => {
 
     const [orgViewOpen, setOrgViewOpen] = createSignal(true); // start in Review
 
+    // Replicates App.tsx:317-323 verbatim.
     dispose = render(() => {
       createEffect(() => {
         const paneId = openInGridRequest();
@@ -125,9 +156,11 @@ describe('VCKP-08 — open-in-grid (D-07)', () => {
       return null as never;
     }, document.createElement('div'));
 
+    // Nothing fired yet.
     expect(orgViewOpen()).toBe(true);
     expect(focusPaneById).not.toHaveBeenCalled();
 
+    // Fire the request (what CardDrawer does).
     requestOpenInGrid('pane-31');
 
     expect(orgViewOpen()).toBe(false); // jumped back to the grid (Live)
@@ -137,6 +170,15 @@ describe('VCKP-08 — open-in-grid (D-07)', () => {
   });
 });
 
+// Case 4 — SPAWN WIRING (Bridge B), asserted at the GridController seam.
+//
+// Replicate handleLaunchAgent's exact race-free ordering (App.tsx:286 against a
+// fake controller whose snapshot() returns a fresh focusedId after splitFocused.
+// Assert: a cardId is minted, bound to the new pane (cardToPane), and carried as the
+// AgentConfig.sessionId written to the pane config map. This is the seam doSpawn
+// later reads to take the spawnAgent branch.
+
+/** Minimal re-statement of App.tsx handleLaunchAgent against an injected seam */
 function wireAgentLaunch(
   ctrl: Pick<GridController, 'splitFocused' | 'snapshot'>,
   config: { cliBinary: string; cliArgs: string[]; taskPrompt: string },
@@ -145,7 +187,7 @@ function wireAgentLaunch(
   const before = ctrl.snapshot().focusedId;
   ctrl.splitFocused('H');
   const newId = ctrl.snapshot().focusedId;
-  if (newId === before) return null; // guard: split rejected abort
+  if (newId === before) return null; // 05 guard: split rejected — abort.
 
   const cardId = registerTerminalCard(newId);
   const cfg: AgentConfig = {
@@ -164,7 +206,7 @@ describe('VCKP-08 — spawn wiring mints a cardId and carries it as sessionId (B
       splitFocused: vi.fn(() => {
         focusedId = 'pane-new'; // split succeeds -> focus moves to the new pane
       }),
-      snapshot: vi.fn(() => ({ root: {} as never, focusedId })),
+      snapshot: vi.fn(() => ({ nodes: [], view: { x: 0, y: 0, zoom: 1 }, focusedId })),
     };
     const configByPane: Record<string, AgentConfig> = {};
 
@@ -180,9 +222,11 @@ describe('VCKP-08 — spawn wiring mints a cardId and carries it as sessionId (B
     expect(ctrl.splitFocused).toHaveBeenCalledWith('H');
     expect(out!.newId).toBe('pane-new');
 
+    // Bridge B: the minted cardId is bound to the new pane...
     expect(typeof out!.cardId).toBe('string');
     expect(cardToPane()[out!.cardId]).toBe('pane-new');
 
+    // ...and rides through as the AgentConfig.sessionId on the new pane's config.
     expect(configByPane['pane-new']).toBeDefined();
     expect(configByPane['pane-new'].sessionId).toBe(out!.cardId);
     expect(configByPane['pane-new'].cliBinary).toBe('claude');
@@ -192,7 +236,7 @@ describe('VCKP-08 — spawn wiring mints a cardId and carries it as sessionId (B
   it('GRD-05 guard: a rejected split mints NO cardId and writes NO config', () => {
     const ctrl = {
       splitFocused: vi.fn(), // no-op: focusedId unchanged (min-size rejection)
-      snapshot: vi.fn(() => ({ root: {} as never, focusedId: 'pane-stuck' })),
+      snapshot: vi.fn(() => ({ nodes: [], view: { x: 0, y: 0, zoom: 1 }, focusedId: 'pane-stuck' })),
     };
     const configByPane: Record<string, AgentConfig> = {};
 

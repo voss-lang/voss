@@ -17,7 +17,7 @@ import {
   watchWorkspaceKeymap,
 } from '../keymapStorage';
 
-/** keymapStorage invoke wrapper tests */
+/** Task 2 — keymapStorage invoke wrapper tests */
 
 describe('keymapStorage — profile commands', () => {
   beforeEach(() => h.invoke.mockReset());
@@ -69,7 +69,7 @@ describe('keymapStorage — watch event', () => {
     h.listen.mockReset();
   });
 
-  it('watchWorkspaceKeymap starts Rust watcher and listens on voss: // keymap-updated', async => {
+  it('watchWorkspaceKeymap starts Rust watcher and listens on voss://keymap-updated', async () => {
     let capturedHandler: ((e: unknown) => void) | undefined;
     h.listen.mockImplementation(
       ((_event: string, handler: (e: unknown) => void) => {
@@ -88,7 +88,7 @@ describe('keymapStorage — watch event', () => {
     );
 
     expect(h.listen).toHaveBeenCalledWith(
-      'voss: // keymap-updated'
+      'voss://keymap-updated',
       expect.any(Function),
     );
     expect(h.invoke).toHaveBeenCalledWith('watch_keymap_overrides', {

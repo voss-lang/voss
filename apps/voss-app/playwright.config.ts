@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+const APP_URL = process.env.VOSS_APP_URL ?? 'http://localhost:5173';
+
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: false,

@@ -55,6 +55,10 @@ import {
   __resetLiveServer,
   setLiveServer,
 } from '../../../org/live/liveServer';
+vi.mock('../../../pane/observeClient', () => ({
+  observeContextForWorkspace: async () => ({ repositoryId: 'repo-1', worktreeId: 'wt-1' }),
+}));
+
 import { observeContextForWorkspace } from '../../../pane/observeClient';
 
 async function settle(rounds = 10): Promise<void> {
@@ -201,7 +205,7 @@ describe('SettingsSurface — Observation section (S3.8)', () => {
   });
 
   it('reflects enrollment state and shows the provider disclosure text', async () => {
-    const ctx = await observeContextForWorkspace('/ws');
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
     const el = await mountWithServer({ [ctx.repositoryId]: ENROLLED });
 
     const section = el.querySelector('#settings-observation')!;
@@ -219,7 +223,7 @@ describe('SettingsSurface — Observation section (S3.8)', () => {
   });
 
   it('pauses capture via PATCH with the repository id', async () => {
-    const ctx = await observeContextForWorkspace('/ws');
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
     observeApi.patchObserveSettings.mockResolvedValue({
       ...ENROLLED,
       paused: true,
@@ -240,7 +244,7 @@ describe('SettingsSurface — Observation section (S3.8)', () => {
   });
 
   it('enabling analysis acknowledges the provider disclosure', async () => {
-    const ctx = await observeContextForWorkspace('/ws');
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
     observeApi.patchObserveSettings.mockResolvedValue({
       ...ENROLLED,
       analysis: true,
@@ -263,7 +267,7 @@ describe('SettingsSurface — Observation section (S3.8)', () => {
   });
 
   it('enrolls an unenrolled repository via PATCH when observation is enabled', async () => {
-    const ctx = await observeContextForWorkspace('/ws');
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
     observeApi.patchObserveSettings.mockResolvedValue({
       ...ENROLLED,
       provider: null,

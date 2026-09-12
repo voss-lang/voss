@@ -4,16 +4,17 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
 };
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use voss_app_core::agent_registry::{
     get_active_agents as registry_get_active_agents, global_registry_path, mark_stopped,
     open_registry, register_agent, registry_path, sweep_orphans, update_last_seen_all, AgentEntry,
 };
 use voss_app_core::appearance::{self, AppearanceSettings};
+use voss_app_core::canvas::{self, CanvasState};
 use voss_app_core::fonts;
 use voss_app_core::grid::{self, GridState};
 use voss_app_core::keymap::{self, KeymapOverrideFile, KeymapProfile, KeymapValidationResult};
@@ -23,7 +24,7 @@ use voss_app_core::project::{self, ProjectInfo};
 use voss_app_core::pty::reader::start_reader;
 use voss_app_core::pty::writer::validate_write;
 use voss_app_core::pty::{
-    foreground, spawn_command_session_managed, spawn_command_session_with_env,
+    foreground, spawn_command_session_managed, spawn_command_session_with_env, spawn_session,
 };
 use voss_app_core::session::{self, SessionFile};
 use voss_app_core::sidecar::{
@@ -32,6 +33,9 @@ use voss_app_core::sidecar::{
 use voss_app_core::themes::{self, CustomThemeFile};
 use voss_app_core::workspaces::{self, WorkspacesIndex};
 use voss_app_core::{PtyEvent, PtyRegistry};
+
+#[cfg(test)]
+mod command_manifest;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct CustomAgent {
@@ -46,7 +50,12 @@ struct SettingsFile {
 }
 
 fn settings_path() -> PathBuf {
-    // Use ~/.config/voss-app/settings.json instead of dirs::config_dir() — on macOS that resolves to ~/Library/Application Support.
+    // NOTE: build the path manually from home_dir() so it resolves to
+    // ~/.config/voss-app/settings.json on every platform (CONTEXT /).
+    // The `dirs` crate's platform-native config helper is intentionally NOT
+    // used: on macOS it resolves to ~/Library/Application Support, which
+    // diverges from the user-facing ~/.config path locked by.
+    // See A1-.md and A1-.md Theme Override System Contract.
     dirs::home_dir()
         .unwrap_or_default()
         .join(".config")
@@ -114,26 +123,89 @@ fn save_custom_agents(agents: Vec<CustomAgent>) -> Result<(), String> {
     Ok(())
 }
 
+// Thin app-level #[tauri::command] wrappers over the voss-app-core `pty`
+// public API. They live in the APP crate (not voss-app-core) because
+// `tauri::generate_handler!` can only resolve the hidden command helper
+// macros generated in the SAME crate — a `pub use` of cross-crate commands
+// does not bring those macros into scope. This keeps the frontend's bare
+// `invoke('spawn_pty', …)` contract and app-managed `Arc<PtyRegistry>` state.
+
 type Reg<'a> = tauri::State<'a, Arc<PtyRegistry>>;
-type AgentDb<'a> = tauri::State<'a, Mutex<Option<Connection>>>;
-type VossServeMap<'a> = tauri::State<'a, Mutex<HashMap<String, VossServe>>>;
+type AgentRegistryMap = HashMap<PathBuf, Connection>;
+type AgentDb<'a> = tauri::State<'a, Mutex<AgentRegistryMap>>;
+struct VossServeEntry {
+    id: String,
+    root: PathBuf,
+    serve: VossServe,
+}
+
+type VossServeMap<'a> = tauri::State<'a, Mutex<HashMap<String, VossServeEntry>>>;
+type VossStreamTasks = Arc<Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>>;
+type VossStreamMap<'a> = tauri::State<'a, VossStreamTasks>;
+
+const ORCHESTRATION_WINDOW_LABEL: &str = "orchestration";
+const ORCHESTRATION_CONTEXT_EVENT: &str = "voss://orchestration-context";
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OrchestrationContext {
+    cwd: String,
+    initial_view: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    card_id: Option<String>,
+}
+
+#[derive(Default)]
+struct OrchestrationWindowState {
+    context: Mutex<Option<OrchestrationContext>>,
+}
+
+fn require_orchestration_window(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() == ORCHESTRATION_WINDOW_LABEL {
+        Ok(())
+    } else {
+        Err("operation is not available from this window".to_string())
+    }
+}
 
 fn ensure_registry<'a>(
-    db: &'a Mutex<Option<Connection>>,
+    db: &'a Mutex<AgentRegistryMap>,
     workspace_path: Option<&str>,
-) -> Result<std::sync::MutexGuard<'a, Option<Connection>>, String> {
+) -> Result<(std::sync::MutexGuard<'a, AgentRegistryMap>, PathBuf), String> {
     let mut guard = db
         .lock()
         .map_err(|_| "agent registry lock poisoned".to_string())?;
-    if guard.is_none() {
-        let path = match workspace_path {
-            Some(ws) => registry_path(Path::new(ws)),
-            None => global_registry_path(),
-        };
+    let path = match workspace_path {
+        Some(ws) => {
+            let workspace_id =
+                registered_workspace_id_for_path(ws, &workspaces::load_workspaces_index())?;
+            registry_path(&workspace_id).map_err(|e| e.to_string())?
+        }
+        None => global_registry_path(),
+    };
+    if !guard.contains_key(&path) {
         let conn = open_registry(&path).map_err(|e| e.to_string())?;
-        *guard = Some(conn);
+        guard.insert(path.clone(), conn);
     }
-    Ok(guard)
+    Ok((guard, path))
+}
+
+fn registered_workspace_id_for_path(
+    workspace_path: &str,
+    index: &WorkspacesIndex,
+) -> Result<String, String> {
+    let canonical = std::fs::canonicalize(workspace_path)
+        .map_err(|_| "workspace path does not exist".to_string())?;
+    index
+        .workspaces
+        .iter()
+        .filter_map(|workspace| {
+            let project_path = workspace.project_path.as_deref()?;
+            let registered = std::fs::canonicalize(project_path).ok()?;
+            (registered == canonical).then(|| workspace.id.clone())
+        })
+        .next()
+        .ok_or_else(|| "workspace is not a registered project".to_string())
 }
 
 fn is_voss_cli_binary(cli_binary: &str) -> bool {
@@ -143,9 +215,14 @@ fn is_voss_cli_binary(cli_binary: &str) -> bool {
         .is_some_and(|name| name == "voss" || name == "voss.exe")
 }
 
+/// Classify whether a Voss CLI invocation is interactive (→ full Textual TUI)
+/// or one-shot (→ compact renderer).
+///
+/// Interactive commands that enter the REPL: `chat`, `resume`, `edit`, and bare
+/// `voss` (no subcommand — click group defaults to `chat`).
 fn is_interactive_voss_command(cli_args: &[String]) -> bool {
     match cli_args.first().map(|s| s.as_str()) {
-        None => true,
+        None => true, // bare `voss` → defaults to chat
         Some("chat" | "resume" | "edit") => true,
         _ => false,
     }
@@ -166,6 +243,8 @@ fn env_for_embedded_cli(
     vec![("VOSS_EMBEDDED", "1"), ("VOSS_RENDERER", "compact")]
 }
 
+/// VBUS-03: append the agent-identity slug to an owned env set. Owned
+/// `(String, String)` because the slug is dynamic — `env_for_embedded_cli`'s
 fn build_env_with_agent_id(
     base: Vec<(String, String)>,
     voss_agent_id: Option<String>,
@@ -177,6 +256,35 @@ fn build_env_with_agent_id(
         }
     }
     env
+}
+
+fn clipboard_image_extension(mime_type: &str) -> Option<&'static str> {
+    match mime_type.to_ascii_lowercase().as_str() {
+        "image/png" => Some("png"),
+        "image/jpeg" | "image/jpg" => Some("jpg"),
+        "image/gif" => Some("gif"),
+        "image/webp" => Some("webp"),
+        "image/tiff" => Some("tiff"),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+fn save_clipboard_image(bytes: Vec<u8>, mime_type: String) -> Result<String, String> {
+    if bytes.is_empty() {
+        return Err("clipboard image was empty".to_string());
+    }
+    let ext = clipboard_image_extension(&mime_type)
+        .ok_or_else(|| "unsupported clipboard image type".to_string())?;
+    let dir = std::env::temp_dir().join("voss-app-pastes");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let path = dir.join(format!("paste-{}-{nanos}.{ext}", std::process::id()));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -195,9 +303,9 @@ async fn spawn_agent(
     db: AgentDb<'_>,
     pty_state: Reg<'_>,
 ) -> Result<String, String> {
-    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let (mut guard, registry_key) = ensure_registry(db.inner(), workspace_path.as_deref())?;
     let conn = guard
-        .as_mut()
+        .get_mut(&registry_key)
         .ok_or_else(|| "agent registry unavailable".to_string())?;
 
     let embedded_env = env_for_embedded_cli(&cli_binary, &cli_args);
@@ -212,26 +320,32 @@ async fn spawn_agent(
         .iter()
         .map(|(k, v)| (k.as_str(), v.as_str()))
         .collect();
-    let (session, reader, pause_rx) = spawn_command_session_with_env(
-        &cli_binary,
-        &cli_args,
-        &env_refs,
-        rows,
-        cols,
-        cwd.clone(),
-    )
-    .map_err(|e| e.to_string())?;
+    let (session, reader, pause_rx) =
+        spawn_command_session_with_env(&cli_binary, &cli_args, &env_refs, rows, cols, cwd.clone())
+            .map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(pty_state.inner());
     let pty_id = registry.insert(session);
     start_reader(pty_id.clone(), reader, pause_rx, on_data, registry);
 
     let cwd_str = cwd.as_deref().unwrap_or("");
-    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
-        .map_err(|e| e.to_string())?;
+    register_agent(
+        conn,
+        &pane_id,
+        &session_id,
+        &cli_binary,
+        &cli_args,
+        cwd_str,
+        None,
+        None,
+        None,
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(pty_id)
 }
 
+/// when no sandbox tool exists on this host the requested tier is downgraded
+/// to "C" (observe-only) — the UI must never claim enforcement that is not
 #[derive(Serialize, Clone)]
 struct ManagedSpawnResult {
     pty_id: String,
@@ -239,6 +353,9 @@ struct ManagedSpawnResult {
     sandboxed: bool,
 }
 
+/// scope-sandbox (Seatbelt/bwrap) from t0. Identical body except the spawn
+/// argv) and the effective tier is returned for honest recording. Bridge B
+/// sessionId passthrough is preserved.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 async fn spawn_managed_agent(
@@ -257,9 +374,9 @@ async fn spawn_managed_agent(
     db: AgentDb<'_>,
     pty_state: Reg<'_>,
 ) -> Result<ManagedSpawnResult, String> {
-    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let (mut guard, registry_key) = ensure_registry(db.inner(), workspace_path.as_deref())?;
     let conn = guard
-        .as_mut()
+        .get_mut(&registry_key)
         .ok_or_else(|| "agent registry unavailable".to_string())?;
 
     let embedded_env = env_for_embedded_cli(&cli_binary, &cli_args);
@@ -290,8 +407,18 @@ async fn spawn_managed_agent(
 
     // Roster shows the REAL CLI, not the sandbox launcher argv.
     let cwd_str = cwd.as_deref().unwrap_or("");
-    register_agent(conn, &pane_id, &session_id, &cli_binary, &cli_args, cwd_str)
-        .map_err(|e| e.to_string())?;
+    register_agent(
+        conn,
+        &pane_id,
+        &session_id,
+        &cli_binary,
+        &cli_args,
+        cwd_str,
+        None,
+        None,
+        None,
+    )
+    .map_err(|e| e.to_string())?;
 
     // Honest tier: sandbox unavailable → downgrade to observe-only.
     let effective_tier = if sandboxed { tier } else { "C".to_string() };
@@ -304,8 +431,155 @@ async fn spawn_managed_agent(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_env_with_agent_id, env_for_embedded_cli, is_interactive_voss_command};
+    use super::{
+        authorize_sidecar_cwd, build_env_with_agent_id, clipboard_image_extension,
+        command_manifest, decode_sse_frame, env_for_embedded_cli, is_interactive_voss_command,
+        normalize_orchestration_view, registered_workspace_id_for_path, sidecar_url,
+        take_sse_frame, SidecarHandle,
+    };
+    use std::collections::HashSet;
+    use voss_app_core::workspaces::{WorkspaceEntry, WorkspacesIndex, CURRENT_WORKSPACES_VERSION};
 
+    fn workspace_index(project_path: Option<String>) -> WorkspacesIndex {
+        WorkspacesIndex {
+            version: CURRENT_WORKSPACES_VERSION,
+            active_workspace_id: Some("workspace-1".into()),
+            workspaces: vec![WorkspaceEntry {
+                id: "workspace-1".into(),
+                name: "Workspace".into(),
+                project_path,
+                accent_color: "#ff5b1f".into(),
+                order: 0,
+                active_layout_preset: None,
+                pinned_profile: None,
+            }],
+        }
+    }
+
+    #[test]
+    fn sidecar_cwd_must_equal_a_registered_project_root() {
+        let root = std::env::temp_dir().join(format!(
+            "voss-sidecar-auth-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let project = root.join("project");
+        let child = project.join("child");
+        let other = root.join("other");
+        std::fs::create_dir_all(&child).unwrap();
+        std::fs::create_dir_all(&other).unwrap();
+
+        let index = workspace_index(Some(project.to_string_lossy().into_owned()));
+        assert_eq!(
+            authorize_sidecar_cwd(project.to_str().unwrap(), &index).unwrap(),
+            std::fs::canonicalize(&project).unwrap()
+        );
+        assert!(authorize_sidecar_cwd(child.to_str().unwrap(), &index).is_err());
+        assert!(authorize_sidecar_cwd(other.to_str().unwrap(), &index).is_err());
+        assert!(authorize_sidecar_cwd(project.to_str().unwrap(), &workspace_index(None),).is_err());
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn sidecar_handle_never_serializes_port_or_token() {
+        let value = serde_json::to_value(SidecarHandle {
+            sidecar_id: "opaque-id".into(),
+        })
+        .unwrap();
+        assert_eq!(value, serde_json::json!({"sidecarId": "opaque-id"}));
+    }
+
+    #[test]
+    fn sidecar_url_encodes_path_segments() {
+        let url = sidecar_url(1234, &["session", "../other", "events"]).unwrap();
+        assert!(!url.as_str().contains("/../"));
+        assert!(url.as_str().contains("..%2Fother"));
+    }
+
+    #[test]
+    fn sidecar_sse_parser_handles_chunked_crlf_frames() {
+        let mut buffer =
+            b"data: {\"type\":\"thinking\"}\r\n\r\ndata: {\"type\":\"final\"}".to_vec();
+        let first = take_sse_frame(&mut buffer).unwrap();
+        assert_eq!(
+            decode_sse_frame(&first).unwrap()["type"],
+            serde_json::json!("thinking")
+        );
+        assert!(take_sse_frame(&mut buffer).is_none());
+    }
+
+    fn capability_commands(raw: &str) -> HashSet<String> {
+        serde_json::from_str::<serde_json::Value>(raw).unwrap()["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|permission| permission.as_str())
+            .filter_map(|permission| permission.strip_prefix("allow-"))
+            .map(|permission| permission.replace('-', "_"))
+            .collect()
+    }
+
+    #[test]
+    fn app_manifest_covers_every_registered_command() {
+        let source = include_str!("lib.rs");
+        let handler = source
+            .rsplit_once(".invoke_handler(tauri::generate_handler![")
+            .unwrap()
+            .1
+            .split_once("])")
+            .unwrap()
+            .0;
+        let registered: HashSet<&str> = handler
+            .split(',')
+            .map(str::trim)
+            .filter(|command| !command.is_empty())
+            .collect();
+        let manifest: HashSet<&str> = command_manifest::APP_COMMANDS.iter().copied().collect();
+        assert_eq!(registered, manifest);
+    }
+
+    #[test]
+    fn capability_files_match_the_reviewed_command_sets() {
+        let main = capability_commands(include_str!("../capabilities/default.json"));
+        let orchestration = capability_commands(include_str!("../capabilities/orchestration.json"));
+        assert_eq!(
+            main,
+            command_manifest::MAIN_COMMANDS
+                .iter()
+                .map(|command| (*command).to_string())
+                .collect()
+        );
+        assert_eq!(
+            orchestration,
+            command_manifest::ORCHESTRATION_COMMANDS
+                .iter()
+                .map(|command| (*command).to_string())
+                .collect()
+        );
+        assert!(!main.contains("start_voss_serve"));
+        assert!(!main.contains("call_voss_sidecar"));
+        assert!(!orchestration.contains("spawn_pty"));
+        assert!(!orchestration.contains("spawn_agent"));
+    }
+
+    #[test]
+    fn orchestration_view_allowlist_rejects_unknown_surfaces() {
+        assert_eq!(
+            normalize_orchestration_view(Some("memory".to_string())),
+            "memory"
+        );
+        assert_eq!(
+            normalize_orchestration_view(Some("settings".to_string())),
+            "review"
+        );
+    }
+
+    /// serde rename mismatch on `vossAgentId` would arrive here as `None`
+    /// and silently skip injection — the Some case pins the env entry shape.
     #[test]
     fn agent_id_env_injected_when_some() {
         let base = vec![("VOSS_EMBEDDED".to_string(), "1".to_string())];
@@ -327,6 +601,7 @@ mod tests {
 
     #[test]
     fn interactive_commands_classified_correctly() {
+        // Bare voss (no subcommand) defaults to chat
         assert!(is_interactive_voss_command(&[]));
         assert!(is_interactive_voss_command(&["chat".into()]));
         assert!(is_interactive_voss_command(&[
@@ -343,6 +618,7 @@ mod tests {
             "file.py".into()
         ]));
 
+        // Non-interactive
         assert!(!is_interactive_voss_command(&["do".into(), "task".into()]));
         assert!(!is_interactive_voss_command(&["doctor".into()]));
         assert!(!is_interactive_voss_command(&[
@@ -412,6 +688,7 @@ mod tests {
     use std::path::PathBuf;
     use std::time::SystemTime;
 
+    /// Unique temp dir without pulling in the `tempfile` crate (no new deps).
     fn unique_tmp(tag: &str) -> PathBuf {
         let nanos = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -421,15 +698,35 @@ mod tests {
     }
 
     #[test]
+    fn registry_identity_comes_from_the_registered_workspace() {
+        let base = unique_tmp("registries");
+        let first = base.join("first");
+        let second = base.join("second");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+
+        let index = workspace_index(Some(first.to_string_lossy().into_owned()));
+        assert_eq!(
+            registered_workspace_id_for_path(first.to_str().unwrap(), &index).unwrap(),
+            "workspace-1"
+        );
+        assert!(registered_workspace_id_for_path(second.to_str().unwrap(), &index).is_err());
+        assert!(!first.join(".voss").exists());
+
+        fs::remove_dir_all(base).ok();
+    }
+
+    #[test]
     fn enumerate_runs_filters_flat_session_files() {
         let base = unique_tmp("enum");
         let sessions = base.join(".voss").join("sessions");
         let run_dir = sessions.join("abc123run456");
         fs::create_dir_all(&run_dir).unwrap();
         fs::write(run_dir.join("node1.json"), "{}").unwrap();
+        // Legacy flat SessionRecord — must be excluded.
         fs::write(sessions.join("legacyflat999.json"), "{}").unwrap();
 
-        let runs = super::enumerate_runs(base.to_string_lossy().into_owned());
+        let runs = super::enumerate_runs_impl(base.to_string_lossy().into_owned());
         let ids: Vec<String> = runs.iter().map(|r| r.run_id.clone()).collect();
         assert_eq!(ids, vec!["abc123run456".to_string()]);
 
@@ -438,7 +735,7 @@ mod tests {
 
     #[test]
     fn load_run_rejects_traversal() {
-        let res = super::load_run("../etc".into(), "/tmp".into(), "voss".into());
+        let res = super::load_run_impl("../etc".into(), "/tmp".into(), "voss".into());
         assert!(res.is_err());
     }
 
@@ -448,11 +745,12 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let base = unique_tmp("decision");
         fs::create_dir_all(&base).unwrap();
+        // Fake `voss` binary (filename passes is_voss_cli_binary) that exits 3.
         let fake = base.join("voss");
         fs::write(&fake, "#!/bin/sh\nexit 3\n").unwrap();
         fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
 
-        let res = super::run_decision(
+        let res = super::run_decision_impl(
             fake.to_string_lossy().into_owned(),
             base.to_string_lossy().into_owned(),
             vec!["audit".into(), "deadbeef1234".into(), "--approve".into()],
@@ -470,10 +768,11 @@ fn get_active_agents(
     workspace_path: Option<String>,
     db: AgentDb<'_>,
 ) -> Result<Vec<AgentEntry>, String> {
-    let Ok(mut guard) = ensure_registry(db.inner(), workspace_path.as_deref()) else {
+    let Ok((mut guard, registry_key)) = ensure_registry(db.inner(), workspace_path.as_deref())
+    else {
         return Ok(Vec::new());
     };
-    let Some(conn) = guard.as_mut() else {
+    let Some(conn) = guard.get_mut(&registry_key) else {
         return Ok(Vec::new());
     };
     Ok(registry_get_active_agents(conn).unwrap_or_else(|e| {
@@ -488,18 +787,18 @@ fn mark_agent_stopped(
     workspace_path: Option<String>,
     db: AgentDb<'_>,
 ) -> Result<(), String> {
-    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let (mut guard, registry_key) = ensure_registry(db.inner(), workspace_path.as_deref())?;
     let conn = guard
-        .as_mut()
+        .get_mut(&registry_key)
         .ok_or_else(|| "agent registry unavailable".to_string())?;
     mark_stopped(conn, &pane_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn update_agents_last_seen(workspace_path: Option<String>, db: AgentDb<'_>) -> Result<(), String> {
-    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let (mut guard, registry_key) = ensure_registry(db.inner(), workspace_path.as_deref())?;
     let conn = guard
-        .as_mut()
+        .get_mut(&registry_key)
         .ok_or_else(|| "agent registry unavailable".to_string())?;
     update_last_seen_all(conn).map_err(|e| e.to_string())
 }
@@ -510,9 +809,9 @@ fn sweep_orphan_agents(
     workspace_path: Option<String>,
     db: AgentDb<'_>,
 ) -> Result<usize, String> {
-    let mut guard = ensure_registry(db.inner(), workspace_path.as_deref())?;
+    let (mut guard, registry_key) = ensure_registry(db.inner(), workspace_path.as_deref())?;
     let conn = guard
-        .as_mut()
+        .get_mut(&registry_key)
         .ok_or_else(|| "agent registry unavailable".to_string())?;
     sweep_orphans(conn, &valid_pane_ids).map_err(|e| e.to_string())
 }
@@ -523,23 +822,11 @@ async fn spawn_pty(
     rows: u16,
     cols: u16,
     cwd: Option<String>,
-    voss_agent_id: Option<String>,
+    shell_integration: Option<bool>,
     state: Reg<'_>,
 ) -> Result<String, String> {
-    // Plain-shell spawn routed through the env-carrying path so every pane
-    // receives VOSS_AGENT_ID (VBUS-03 D-11). Mirrors spawn_session's
-    // behavior: $SHELL + VOSS_EMBEDDED=1 (TERM/COLORTERM set by the callee).
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-    let full_env = build_env_with_agent_id(
-        vec![("VOSS_EMBEDDED".to_string(), "1".to_string())],
-        voss_agent_id,
-    );
-    let env_refs: Vec<(&str, &str)> = full_env
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
     let (session, reader, pause_rx) =
-        spawn_command_session_with_env(&shell, &[], &env_refs, rows, cols, cwd)
+        spawn_session(rows, cols, cwd, shell_integration.unwrap_or(false))
             .map_err(|e| e.to_string())?;
     let registry: Arc<PtyRegistry> = Arc::clone(state.inner());
     let id = registry.insert(session);
@@ -595,6 +882,7 @@ async fn get_fg_process(session_id: String, state: Reg<'_>) -> Result<Option<Str
     Ok(foreground::get_foreground_name(fd))
 }
 
+
 #[tauri::command]
 fn load_appearance_settings() -> AppearanceSettings {
     appearance::load_appearance_settings()
@@ -609,6 +897,10 @@ fn save_appearance_settings(settings: AppearanceSettings) -> Result<(), String> 
 fn list_system_fonts() -> Vec<String> {
     fonts::list_system_fonts()
 }
+
+// Thin app-level wrappers delegating to voss-app-core's plain `grid::overwrite`
+// PTY commands above (the core's own `#[tauri::command]` macros are not in
+// scope here). In-memory mirror only; zero disk I/O.
 
 type GridSlot<'a> = tauri::State<'a, Mutex<GridState>>;
 
@@ -634,25 +926,42 @@ fn get_canvas(state: CanvasSlot<'_>) -> Result<CanvasState, String> {
     canvas::snapshot(state.inner())
 }
 
+// Thin app-level wrappers over `voss_app_core::layouts`. Same cross-crate
+// `generate_handler!` constraint as the PTY and grid commands above — the
+// core's own `#[tauri::command]` macros are not in scope here.
+//
+// Private layouts are keyed by the registered workspace UUID. The project path
+// is derived in Rust and used only for copy-only legacy migration.
+// Errors propagate as `LayoutError`'s Display strings — those match the
+// error copy exactly, so the renderer can surface them
+// verbatim.
+
 #[tauri::command]
-fn save_layout(workspace_path: String, name: String, layout: LayoutFile) -> Result<(), String> {
-    layouts::save_layout(Path::new(&workspace_path), &name, &layout).map_err(|e| e.to_string())
+fn save_layout(workspace_id: String, name: String, layout: LayoutFile) -> Result<(), String> {
+    let _ = registered_project_path(&workspace_id)?;
+    layouts::save_layout(&workspace_id, &name, &layout).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn load_layout(workspace_path: String, name: String) -> Result<LayoutFile, String> {
-    layouts::load_layout(Path::new(&workspace_path), &name).map_err(|e| e.to_string())
+fn load_layout(workspace_id: String, name: String) -> Result<LayoutFile, String> {
+    let legacy_project = registered_project_path(&workspace_id)?;
+    layouts::load_layout(&workspace_id, Some(&legacy_project), &name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn list_layouts(workspace_path: String) -> Result<Vec<String>, String> {
-    layouts::list_layouts(Path::new(&workspace_path)).map_err(|e| e.to_string())
+fn list_layouts(workspace_id: String) -> Result<Vec<String>, String> {
+    let legacy_project = registered_project_path(&workspace_id)?;
+    layouts::list_layouts(&workspace_id, Some(&legacy_project)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn load_default_layout(workspace_path: String) -> Result<Option<LayoutFile>, String> {
-    layouts::load_default_layout(Path::new(&workspace_path)).map_err(|e| e.to_string())
+fn load_default_layout(workspace_id: String) -> Result<Option<LayoutFile>, String> {
+    let legacy_project = registered_project_path(&workspace_id)?;
+    layouts::load_default_layout(&workspace_id, Some(&legacy_project)).map_err(|e| e.to_string())
 }
+
+// Write .voss/context-pins.json atomically (write-then-rename). The harness
+// reads this file at iteration start. ADE is the sole writer
 
 #[tauri::command]
 fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Result<(), String> {
@@ -665,6 +974,7 @@ fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Resu
     std::fs::rename(&tmp, &target).map_err(|e| e.to_string())?;
     Ok(())
 }
+
 
 const SWARM_RESULT_EVENT: &str = "voss://swarm-result-added";
 
@@ -703,43 +1013,6 @@ fn emit_new_swarm_results(
             eprintln!("[voss-app] swarm result event failed: {e}");
         }
     }
-}
-
-#[tauri::command]
-fn get_env_var(name: String) -> Result<String, String> {
-    std::env::var(&name).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn write_swarm_files(
-    workspace_path: String,
-    manifest_json: String,
-    tasks: Vec<(String, String)>,
-    shared_context: String,
-) -> Result<(), String> {
-    if workspace_path.trim().is_empty() {
-        return Err("workspace_path must not be empty".to_string());
-    }
-
-    let swarm_dir = Path::new(&workspace_path).join(".voss").join("swarm");
-    let tasks_dir = swarm_dir.join("tasks");
-    let results_dir = swarm_dir.join("results");
-    let shared_dir = swarm_dir.join("shared");
-    std::fs::create_dir_all(&tasks_dir).map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&results_dir).map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&shared_dir).map_err(|e| e.to_string())?;
-
-    let manifest_target = swarm_dir.join("manifest.json");
-    let manifest_tmp = swarm_dir.join("manifest.json.tmp");
-    std::fs::write(&manifest_tmp, manifest_json).map_err(|e| e.to_string())?;
-    std::fs::rename(&manifest_tmp, &manifest_target).map_err(|e| e.to_string())?;
-
-    for (filename, content) in tasks {
-        std::fs::write(tasks_dir.join(filename), content).map_err(|e| e.to_string())?;
-    }
-
-    std::fs::write(shared_dir.join("context.md"), shared_context).map_err(|e| e.to_string())?;
-    Ok(())
 }
 
 #[tauri::command]
@@ -789,6 +1062,9 @@ fn stop_swarm_watcher(
     Ok(())
 }
 
+// Thin app-level wrappers over `voss_app_core::project`. Same cross-crate
+// `generate_handler!` constraint as the PTY, grid, and layout commands above.
+
 #[tauri::command]
 fn open_project(path: String) -> Result<ProjectInfo, String> {
     project::open_project(Path::new(&path)).map_err(|e| e.to_string())
@@ -804,6 +1080,11 @@ fn default_cwd(project_path: Option<String>) -> String {
     project::default_cwd(project_path.as_deref().map(Path::new))
 }
 
+// Thin app-level wrappers over `voss_app_core::session`. Same cross-crate
+// `generate_handler!` constraint as the PTY, grid, layout, and project
+// commands above. Project sessions are keyed by the registered workspace UUID;
+// repository paths are used only for copy-only legacy migration.
+
 fn registered_project_path(workspace_id: &str) -> Result<PathBuf, String> {
     workspaces::load_workspaces_index()
         .workspaces
@@ -815,8 +1096,15 @@ fn registered_project_path(workspace_id: &str) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-fn load_session(workspace_path: String) -> Result<Option<SessionFile>, String> {
-    session::load_session(Path::new(&workspace_path)).map_err(|e| e.to_string())
+fn save_session(workspace_id: String, session: SessionFile) -> Result<(), String> {
+    let _ = registered_project_path(&workspace_id)?;
+    session::save_session(&workspace_id, &session).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_session(workspace_id: String) -> Result<Option<SessionFile>, String> {
+    let legacy_project = registered_project_path(&workspace_id)?;
+    session::load_session(&workspace_id, Some(&legacy_project)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -828,6 +1116,8 @@ fn save_global_session(session: SessionFile) -> Result<(), String> {
 fn load_global_session() -> Result<Option<SessionFile>, String> {
     session::load_global_session().map_err(|e| e.to_string())
 }
+
+// Thin wrappers over `voss_app_core::workspaces` and extended session paths.
 
 #[tauri::command]
 fn load_workspaces_index() -> WorkspacesIndex {
@@ -853,6 +1143,9 @@ fn save_project_less_session(workspace_id: String, session: SessionFile) -> Resu
 fn load_project_less_session(workspace_id: String) -> Result<Option<SessionFile>, String> {
     session::load_project_less_session(&workspace_id).map_err(|e| e.to_string())
 }
+
+// Thin wrappers over `voss_app_core::keymap`. Profile persistence uses
+// `settings.json`; workspace overrides use `.voss/keymap.json`.
 
 const KEYMAP_UPDATED_EVENT: &str = "voss://keymap-updated";
 
@@ -955,6 +1248,9 @@ fn watch_keymap_overrides(
     Ok(initial)
 }
 
+// Thin wrappers over `voss_app_core::themes`. Custom themes live under
+// `<workspace>/.voss/themes/`; active theme id is in `settings.json`.
+
 #[tauri::command]
 fn list_custom_themes(workspace_path: String) -> Vec<String> {
     themes::list_custom_themes(Path::new(&workspace_path))
@@ -984,6 +1280,9 @@ fn save_active_theme_id(id: Option<String>) -> Result<(), String> {
     themes::save_active_theme_id(id.as_deref()).map_err(|e| e.to_string())
 }
 
+// Thin wrappers over `voss_app_core::profiles`. Snapshots live at
+// `~/.config/voss-app/profiles/`; active profile id is in `settings.json`.
+
 #[tauri::command]
 fn list_profiles() -> Vec<String> {
     profiles::list_profiles()
@@ -1008,6 +1307,7 @@ fn load_active_profile_id() -> Option<String> {
 fn save_active_profile_id(id: Option<String>) -> Result<(), String> {
     profiles::save_active_profile_id(id.as_deref()).map_err(|e| e.to_string())
 }
+
 
 #[derive(Debug, serde::Serialize)]
 struct DirEntry {
@@ -1042,10 +1342,12 @@ fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
         .filter_map(|e| e.ok())
         .filter_map(|e| {
             let name = e.file_name().to_string_lossy().into_owned();
+            // Skip hidden files/dirs
             if name.starts_with('.') {
                 return None;
             }
             let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            // Skip noise directories
             if is_dir && SKIP_DIRS.contains(&name.as_str()) {
                 return None;
             }
@@ -1061,6 +1363,7 @@ fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
             })
         })
         .collect();
+    // Sort: dirs first, then alphabetical
     entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
     entries
 }
@@ -1069,6 +1372,19 @@ fn read_dir_shallow(path: &std::path::Path, depth: u32) -> Vec<DirEntry> {
 fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
     let canonical = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
     Ok(read_dir_shallow(&canonical, 2))
+}
+
+#[tauri::command]
+fn read_project_file(
+    workspace_path: String,
+    rel_path: String,
+    max_bytes: Option<u64>,
+) -> Result<voss_app_core::ProjectFile, String> {
+    let limit = max_bytes
+        .unwrap_or(voss_app_core::MAX_PROJECT_FILE_BYTES)
+        .min(voss_app_core::MAX_PROJECT_FILE_BYTES);
+    voss_app_core::read_project_file(Path::new(&workspace_path), &rel_path, limit)
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -1092,6 +1408,7 @@ fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, Strin
         .map_err(|e| e.to_string())?;
 
     if !output.status.success() {
+        // Not a git repo or other git error — return empty gracefully
         return Ok(Vec::new());
     }
 
@@ -1114,6 +1431,13 @@ fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, Strin
 
     Ok(commits)
 }
+
+// The single CLI-JSON data path for the org view. `load_run` aggregates a run's
+// node files + review sidecars + audit JSON + run-final into one typed payload
+// . `enumerate_runs` discovers V4+ session-tree dirs only.
+// `run_decision` shells the voss CLI — the sole non-interactive write path —
+// and captures stdout/stderr/exit. No `.voss/sessions` parsing happens
+// in the frontend.
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct RunData {
@@ -1140,10 +1464,7 @@ struct DecisionResult {
 }
 
 fn is_safe_run_id(run_id: &str) -> bool {
-    !run_id.is_empty()
-        && !run_id.contains('/')
-        && !run_id.contains('\\')
-        && !run_id.contains("..")
+    !run_id.is_empty() && !run_id.contains('/') && !run_id.contains('\\') && !run_id.contains("..")
 }
 
 fn sessions_dir(cwd: &str) -> PathBuf {
@@ -1151,6 +1472,7 @@ fn sessions_dir(cwd: &str) -> PathBuf {
 }
 
 fn load_run_impl(run_id: String, cwd: String, cli_binary: String) -> Result<RunData, String> {
+    // Path traversal guard BEFORE any filesystem access (mirror audit_cmd).
     if !is_safe_run_id(&run_id) {
         return Err(format!("invalid run_id: {run_id}"));
     }
@@ -1159,6 +1481,9 @@ fn load_run_impl(run_id: String, cwd: String, cli_binary: String) -> Result<RunD
         return Err(format!("run not found: {run_id}"));
     }
 
+    // (a) node `.json` files (exclude run-final.json + *.review.json) and
+    // (b) `*.review.json` sidecars keyed by node id — direct Rust read per
+    // Open-Q2 (`voss board` has no JSON output; no session subprocess).
     let mut node_files: Vec<PathBuf> = Vec::new();
     let mut review = serde_json::Map::new();
     if let Ok(rd) = std::fs::read_dir(&run_dir) {
@@ -1190,17 +1515,25 @@ fn load_run_impl(run_id: String, cwd: String, cli_binary: String) -> Result<RunD
     }
     let session_tree = serde_json::json!({ "root_id": run_id, "nodes": nodes });
 
+    // (c) audit section: shell `voss audit <run_id> --cwd <cwd> --format json`
+    // via Command::args (. Degrade to null
     let audit = match std::process::Command::new(&cli_binary)
-        .args(["audit", run_id.as_str(), "--cwd", cwd.as_str(), "--format", "json"])
+        .args([
+            "audit",
+            run_id.as_str(),
+            "--cwd",
+            cwd.as_str(),
+            "--format",
+            "json",
+        ])
         .output()
     {
-        Ok(out) if out.status.success() => {
-            serde_json::from_slice::<serde_json::Value>(&out.stdout)
-                .unwrap_or(serde_json::Value::Null)
-        }
+        Ok(out) if out.status.success() => serde_json::from_slice::<serde_json::Value>(&out.stdout)
+            .unwrap_or(serde_json::Value::Null),
         _ => serde_json::Value::Null,
     };
 
+    // (d) optional run-final.json ( — absence tolerated).
     let run_final = std::fs::read_to_string(run_dir.join("run-final.json"))
         .ok()
         .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
@@ -1215,8 +1548,7 @@ fn load_run_impl(run_id: String, cwd: String, cli_binary: String) -> Result<RunD
     })
 }
 
-#[tauri::command]
-fn enumerate_runs(cwd: String) -> Vec<RunEntry> {
+fn enumerate_runs_impl(cwd: String) -> Vec<RunEntry> {
     let dir = sessions_dir(&cwd);
     let rd = match std::fs::read_dir(&dir) {
         Ok(rd) => rd,
@@ -1225,11 +1557,13 @@ fn enumerate_runs(cwd: String) -> Vec<RunEntry> {
     let mut entries: Vec<RunEntry> = rd
         .filter_map(|e| e.ok())
         .filter_map(|e| {
+            // flat `.json` files are legacy SessionRecords, not runs.
             let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
             if !is_dir {
                 return None;
             }
             let path = e.path();
+            // Require at least one node `.json` file inside
             let has_node = std::fs::read_dir(&path)
                 .ok()?
                 .filter_map(|f| f.ok())
@@ -1254,19 +1588,20 @@ fn enumerate_runs(cwd: String) -> Vec<RunEntry> {
             })
         })
         .collect();
-    entries.sort_by(|a, b| b.mtime_secs.cmp(&a.mtime_secs));
+    entries.sort_by_key(|e| std::cmp::Reverse(e.mtime_secs));
     entries
 }
 
-#[tauri::command]
-fn run_decision(
+fn run_decision_impl(
     cli_binary: String,
     cwd: String,
     args: Vec<String>,
 ) -> Result<DecisionResult, String> {
+    // Only the voss CLI may be exec'd (-06).
     if !is_voss_cli_binary(&cli_binary) {
         return Err(format!("not a voss CLI binary: {cli_binary}"));
     }
+    // Validate run_id-shaped positionals — reject traversal
     for arg in &args {
         if arg.starts_with('-') {
             continue;
@@ -1275,6 +1610,7 @@ fn run_decision(
             return Err(format!("invalid argument: {arg}"));
         }
     }
+    // Command::args(vector) — never shell string interpolation
     let output = std::process::Command::new(&cli_binary)
         .args(&args)
         .current_dir(&cwd)
@@ -1338,6 +1674,11 @@ fn run_decision(
         args,
     )
 }
+
+// 01: lazily spawn one `voss serve` per workspace cwd, reuse it while
+// alive, and reap all on app exit (map entries drop with the managed state —
+// Only the Tauri side can spawn the server (
+// the webview launcher imports node:child_process).
 
 fn authorize_sidecar_cwd(cwd: &str, index: &WorkspacesIndex) -> Result<PathBuf, String> {
     let canonical = validate_workspace_cwd(cwd, &[])?;
@@ -1475,6 +1816,7 @@ enum SidecarOperation {
         event: serde_json::Value,
         evidence: Vec<serde_json::Value>,
     },
+    ObserveContext { cwd: String },
     ObserveSettingsGet,
     ObserveSettingsPatch {
         repository_id: String,
@@ -1551,6 +1893,9 @@ async fn send_sidecar_request(
     serde_json::from_slice(&bytes).map_err(|_| "invalid sidecar response".to_string())
 }
 
+/// S3.3 observe ingest. A 403 is the enrollment gate (not_enrolled / paused /
+/// capture_disabled) — the reason rides the error string so the webview
+/// client can cache not_enrolled and stop retrying the repo.
 async fn send_observe_event(
     token: &str,
     request: reqwest::RequestBuilder,
@@ -1699,6 +2044,9 @@ async fn call_voss_sidecar(
         SidecarOperation::ObserveEvent { event, evidence } => client
             .post(sidecar_url(handshake.port, &["observe", "events"])?)
             .json(&serde_json::json!({ "event": event, "evidence": evidence })),
+        SidecarOperation::ObserveContext { cwd } => client
+            .get(sidecar_url(handshake.port, &["observe", "context"])?)
+            .query(&[("cwd", cwd)]),
         SidecarOperation::ObserveSettingsGet => {
             client.get(sidecar_url(handshake.port, &["observe", "settings"])?)
         }
@@ -1840,25 +2188,34 @@ async fn start_voss_serve(
     state: VossServeMap<'_>,
 ) -> Result<SidecarHandle, String> {
     require_orchestration_window(&window)?;
+    // Canonicalize and require an exact persisted project-workspace match before
+    // the webview-controlled cwd reaches a process-spawn argument.
     let index = workspaces::load_workspaces_index();
     let canonical = authorize_sidecar_cwd(&cwd, &index)?;
     let key = canonical.to_string_lossy().into_owned();
 
+    // Reuse-if-alive; pid() == None means the child was reaped — drop the
+    // stale entry and respawn. Lock scope closes before any await.
     {
         let mut map = state.lock().map_err(|_| "lock poisoned".to_string())?;
-        match map.get(&cwd) {
-            Some(serve) if serve.pid().is_some() => return Ok(serve.handshake.clone()),
+        match map.get(&key) {
+            Some(entry) if entry.serve.pid().is_some() => {
+                return Ok(SidecarHandle {
+                    sidecar_id: entry.id.clone(),
+                })
+            }
             Some(_) => {
-                map.remove(&cwd);
+                map.remove(&key);
             }
             None => {}
         }
     }
 
+    // 10: the error path carries stderr tails but never the token.
     let serve = spawn_voss_serve(&python_path(), &canonical)
         .await
         .map_err(|e| e.to_string())?;
-    let handshake = serve.handshake.clone();
+    let sidecar_id = uuid::Uuid::new_v4().to_string();
 
     let mut map = state.lock().map_err(|_| "lock poisoned".to_string())?;
     map.insert(
@@ -1872,6 +2229,11 @@ async fn start_voss_serve(
     Ok(SidecarHandle { sidecar_id })
 }
 
+// The webview's console.* only reaches devtools. This bridges frontend
+// lifecycle/error logs onto the Rust process stdout/stderr so they interleave
+// with the sidecar + Tauri output in the `pnpm tauri dev` terminal. `scope` is
+// a dotted tag (e.g. "composer.create"); `detail` is preformatted by the
+// caller. Never pass secrets (the serve token) — this is the shared console.
 #[tauri::command]
 fn ui_log(level: String, scope: String, detail: String) {
     let line = format!("[ui] {scope}: {detail}");
@@ -1889,12 +2251,19 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(PtyRegistry::default()))
         .manage(Mutex::new(GridState::default()))
-        .manage(Mutex::new(None::<Connection>))
+        .manage(Mutex::new(CanvasState::default()))
+        .manage(Mutex::new(AgentRegistryMap::new()))
         .manage(SwarmWatchState::default())
         .manage(KeymapWatchState::default())
-        .manage(Mutex::new(HashMap::<String, VossServe>::new()))
+        .manage(OrchestrationWindowState::default())
+        .manage(Mutex::new(HashMap::<String, VossServeEntry>::new()))
+        .manage(Arc::new(Mutex::new(HashMap::<
+            String,
+            tauri::async_runtime::JoinHandle<()>,
+        >::new())))
         .invoke_handler(tauri::generate_handler![
             get_theme_overrides,
+            save_clipboard_image,
             spawn_pty,
             pty_write,
             pty_resize,
@@ -1910,6 +2279,8 @@ pub fn run() {
             sweep_orphan_agents,
             sync_grid,
             get_grid,
+            sync_canvas,
+            get_canvas,
             save_layout,
             load_layout,
             list_layouts,
@@ -1921,8 +2292,6 @@ pub fn run() {
             load_session,
             save_global_session,
             load_global_session,
-            get_env_var,
-            write_swarm_files,
             watch_swarm_results,
             stop_swarm_watcher,
             load_workspaces_index,
@@ -1952,11 +2321,18 @@ pub fn run() {
             load_custom_agents,
             save_custom_agents,
             list_dir,
+            read_project_file,
             git_log,
             load_run,
             enumerate_runs,
             run_decision,
             start_voss_serve,
+            call_voss_sidecar,
+            subscribe_voss_events,
+            unsubscribe_voss_events,
+            open_orchestration_console,
+            get_orchestration_context,
+            ui_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

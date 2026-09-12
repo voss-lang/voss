@@ -1,4 +1,5 @@
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { bootApp, stableRects, paneRects, type PaneRect } from './_helpers';
 
 /**
  * A4 layout presets end-to-end — preset cycle, custom-state surfacing,

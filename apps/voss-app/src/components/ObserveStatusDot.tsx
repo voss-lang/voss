@@ -24,11 +24,11 @@ export default function ObserveStatusDot() {
       return;
     }
     try {
-      const ctx = await observeContextForWorkspace(server.cwd);
+      const ctx = await observeContextForWorkspace(server.cwd, server.sidecarId);
       const repos = await getObserveSettings(server.sidecarId);
       const enrollment = repos[ctx.repositoryId];
       setState(
-        !enrollment?.enabled ? null : enrollment.paused ? 'paused' : 'active',
+        !enrollment?.enabled ? null : enrollment.paused || !enrollment.capture ? 'paused' : 'active',
       );
     } catch {
       // Sidecar unreachable: keep the last known state; the dropped count

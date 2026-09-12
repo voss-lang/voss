@@ -75,7 +75,7 @@ export async function watchWorkspaceKeymap(
   knownChords: string[],
   onUpdate: (payload: KeymapUpdatePayload) => void,
 ): Promise<UnlistenFn> {
-  const unlisten = await listen<KeymapUpdatePayload>('voss: // keymap-updated', (event) => {
+  const unlisten = await listen<KeymapUpdatePayload>('voss://keymap-updated', (event) => {
     onUpdate(event.payload);
   });
 

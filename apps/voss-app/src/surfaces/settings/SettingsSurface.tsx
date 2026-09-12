@@ -177,7 +177,7 @@ const SettingsSurface: Component = () => {
     }
     void (async () => {
       try {
-        const ctx = await observeContextForWorkspace(cwd);
+        const ctx = await observeContextForWorkspace(cwd, server.sidecarId);
         const repos = await getObserveSettings(server.sidecarId);
         setEnrollmentRepoId(ctx.repositoryId);
         setEnrollment(repos[ctx.repositoryId] ?? null);

@@ -1,5 +1,5 @@
 import { batch, createSignal, type Accessor } from 'solid-js';
-import type { LayoutPreset } from '../grid/layoutPresets';
+import type { LayoutPreset } from '../canvas/arrange';
 import {
   CURRENT_WORKSPACES_VERSION,
   DEFAULT_ACCENT_COLOR,
@@ -10,8 +10,10 @@ import {
   type WorkspacesIndex,
 } from './workspaceStorage';
 
+/** Runtime workspace record — same wire shape as `WorkspaceEntry` */
 export type WorkspaceRecord = WorkspaceEntry;
 
+/** UXP-08 close-guard metadata for tab UI (last workspace cannot close) */
 export type WorkspaceCloseGuard = {
   canClose: boolean;
   isLastWorkspace: boolean;
@@ -65,6 +67,7 @@ function findWorkspace(
   return workspaces.find((w) => w.id === id);
 }
 
+/** Compute UXP-08 close-guard metadata for a workspace tab */
 export function closeGuardFor(
   workspaces: readonly WorkspaceRecord[],
   _id: string,

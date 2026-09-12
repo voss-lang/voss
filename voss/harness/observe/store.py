@@ -9,6 +9,8 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import re
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -104,6 +106,8 @@ def observe_dir(state_dir: Path | None = None) -> Path:
 
 
 def db_path(repository_id: str, *, state_dir: Path | None = None) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", repository_id):
+        raise ValueError("invalid repository id")
     return observe_dir(state_dir) / f"{repository_id}.sqlite"
 
 
@@ -116,7 +120,25 @@ class ObserveStore:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
+        self._transaction_depth = 0
         self._migrate()
+
+    @contextmanager
+    def transaction(self):
+        outer = self._transaction_depth == 0
+        if outer:
+            self._conn.execute("BEGIN IMMEDIATE")
+        self._transaction_depth += 1
+        try:
+            yield
+            if outer:
+                self._conn.commit()
+        except BaseException:
+            if outer:
+                self._conn.rollback()
+            raise
+        finally:
+            self._transaction_depth -= 1
 
     def _migrate(self) -> None:
         version = self._conn.execute("PRAGMA user_version").fetchone()[0]
@@ -140,10 +162,10 @@ class ObserveStore:
     def insert_event(self, event: ObserveEvent, *, fingerprint: str | None = None) -> bool:
         """Insert one event; returns False when `event_id` is already stored."""
         body = event.model_dump(mode="json")
-        ingest_time = body.get("ingest_time") or _now_iso()
+        ingest_time = _now_iso()
         body["ingest_time"] = ingest_time
         try:
-            with self._conn:
+            with self.transaction():
                 self._conn.execute(
                     """
                     INSERT INTO events (
@@ -206,14 +228,14 @@ class ObserveStore:
         return [dict(row) for row in rows]
 
     def mark_outbox_delivered(self, event_id: str) -> None:
-        with self._conn:
+        with self.transaction():
             self._conn.execute(
                 "UPDATE bos_outbox SET delivered_at = ? WHERE event_id = ?",
                 (_now_iso(), event_id),
             )
 
     def record_outbox_failure(self, event_id: str, error: str) -> None:
-        with self._conn:
+        with self.transaction():
             self._conn.execute(
                 "UPDATE bos_outbox SET attempts = attempts + 1, last_error = ? "
                 "WHERE event_id = ?",
@@ -232,7 +254,7 @@ class ObserveStore:
         truncated: bool = False,
     ) -> str:
         digest = hashlib.sha256(content).hexdigest()
-        with self._conn:
+        with self.transaction():
             self._conn.execute(
                 """
                 INSERT OR IGNORE INTO evidence (
@@ -279,7 +301,7 @@ class ObserveStore:
         policy_version: str,
         decided_at: float,
     ) -> None:
-        with self._conn:
+        with self.transaction():
             self._conn.execute(
                 """
                 INSERT INTO admissions (
@@ -328,7 +350,7 @@ class ObserveStore:
         fingerprint: str,
     ) -> None:
         now = _now_iso()
-        with self._conn:
+        with self.transaction():
             self._conn.execute(
                 """
                 INSERT INTO investigations (
@@ -386,7 +408,7 @@ class ObserveStore:
         investigation_id: str | None = None,
     ) -> None:
         now = _now_iso()
-        with self._conn:
+        with self.transaction():
             self._conn.execute(
                 """
                 INSERT INTO findings (

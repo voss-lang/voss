@@ -79,7 +79,7 @@ class _ObserveBase(BaseModel):
     actor: Literal["developer", "voss", "external", "unknown"] = "unknown"
     source_ref: SourceRef
     external_identity_ref: None = None
-    repository_id: str
+    repository_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
     worktree_id: str
     adapter_id: str
     command_id: str

@@ -4,6 +4,7 @@ Pydantic discriminated union mirroring the wire contract in
 """
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
@@ -131,6 +132,13 @@ class PrinciplesOverflow(_Base):
     type: Literal["principles_overflow"] = "principles_overflow"
     principles_tokens: int
     budget: int = 1000
+
+
+class InstructionsOverflow(_Base):
+    type: Literal["instructions_overflow"] = "instructions_overflow"
+    instructions_tokens: int
+    budget: int = 4000
+    truncated: list[str] = Field(default_factory=list)
 
 
 class WarningEvent(_Base):
@@ -269,11 +277,19 @@ AgentEvent = Annotated[
         CognitionLoaded,
         CognitionOverflow,
         PrinciplesOverflow,
+        InstructionsOverflow,
         WarningEvent,
         ProbableEvent,
         BudgetUpdated,
         ConfidenceUpdated,
         GateUpdated,
+        SwarmAssign,
+        SwarmCandidateReady,
+        SwarmCandidatesReady,
+        SwarmWorkerDone,
+        SwarmGate,
+        SwarmNeedsOperator,
+        SwarmComplete,
     ],
     Field(discriminator="type"),
 ]

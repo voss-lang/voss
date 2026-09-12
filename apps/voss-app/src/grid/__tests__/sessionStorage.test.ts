@@ -10,15 +10,15 @@ import {
   loadSession,
   saveGlobalSession,
   loadGlobalSession,
-  type SessionFile,
+  type SessionFileV1,
 } from '../sessionStorage';
 
 /**
- * session invoke wrappers + error copy
+ * Task 1 — session invoke wrappers + error copy
  * Command names and payload keys must match
  */
 
-function makeSession(): SessionFile {
+function makeSession(): SessionFileV1 {
   return {
     version: 1,
     activePreset: 'fanout',
@@ -47,30 +47,30 @@ describe('sessionStorage — error copy constants', () => {
 describe('sessionStorage — project session commands', () => {
   beforeEach(() => h.invoke.mockReset());
 
-  it('saveSession → invoke("save_session", { workspacePath, session })', async () => {
+  it('saveSession → invoke("save_session", { workspaceId, session })', async () => {
     h.invoke.mockResolvedValueOnce(undefined);
     const session = makeSession();
-    await saveSession('/ws', session);
+    await saveSession('ws-1', session);
     expect(h.invoke).toHaveBeenCalledTimes(1);
     expect(h.invoke).toHaveBeenCalledWith('save_session', {
-      workspacePath: '/ws',
+      workspaceId: 'ws-1',
       session,
     });
   });
 
-  it('loadSession → invoke("load_session", { workspacePath }) returns SessionFile', async () => {
+  it('loadSession → invoke("load_session", { workspaceId }) returns SessionFileV1', async () => {
     const session = makeSession();
     h.invoke.mockResolvedValueOnce(session);
-    const got = await loadSession('/ws');
+    const got = await loadSession('ws-1');
     expect(h.invoke).toHaveBeenCalledWith('load_session', {
-      workspacePath: '/ws',
+      workspaceId: 'ws-1',
     });
     expect(got).toBe(session);
   });
 
   it('loadSession returns null for missing session', async () => {
     h.invoke.mockResolvedValueOnce(null);
-    const got = await loadSession('/ws');
+    const got = await loadSession('ws-1');
     expect(got).toBeNull();
   });
 });
@@ -88,7 +88,7 @@ describe('sessionStorage — global session commands', () => {
     });
   });
 
-  it('loadGlobalSession → invoke("load_global_session") returns SessionFile | null', async () => {
+  it('loadGlobalSession → invoke("load_global_session") returns SessionFileV1 | null', async () => {
     h.invoke.mockResolvedValueOnce(null);
     const missing = await loadGlobalSession();
     expect(h.invoke).toHaveBeenCalledWith('load_global_session');
@@ -106,13 +106,13 @@ describe('sessionStorage — propagates Rust error strings', () => {
 
   it('saveSession surfaces save failure', async () => {
     h.invoke.mockRejectedValueOnce(SESSION_SAVE_FAILED);
-    await expect(saveSession('/ws', makeSession())).rejects.toBe(
+    await expect(saveSession('ws-1', makeSession())).rejects.toBe(
       SESSION_SAVE_FAILED,
     );
   });
 
   it('loadSession surfaces load failure', async () => {
     h.invoke.mockRejectedValueOnce(SESSION_LOAD_FAILED);
-    await expect(loadSession('/ws')).rejects.toBe(SESSION_LOAD_FAILED);
+    await expect(loadSession('ws-1')).rejects.toBe(SESSION_LOAD_FAILED);
   });
 });

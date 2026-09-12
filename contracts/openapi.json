@@ -806,6 +806,7 @@
             "$ref": "#/components/schemas/ObserveEnrollmentPatch"
           },
           "repository_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
             "title": "Repository Id",
             "type": "string"
           }
@@ -1936,6 +1937,49 @@
         "summary": "Get Memory"
       }
     },
+    "/observe/context": {
+      "get": {
+        "operationId": "observe_context_observe_context_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cwd",
+            "required": true,
+            "schema": {
+              "title": "Cwd",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Observe Context Observe Context Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Observe Context"
+      }
+    },
     "/observe/events": {
       "get": {
         "operationId": "list_observe_events_observe_events_get",
@@ -1945,6 +1989,7 @@
             "name": "repository_id",
             "required": true,
             "schema": {
+              "pattern": "^[A-Za-z0-9_-]{1,128}$",
               "title": "Repository Id",
               "type": "string"
             }

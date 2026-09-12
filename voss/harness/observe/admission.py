@@ -58,8 +58,8 @@ def _basename(arg0: str) -> str:
     return PurePath(arg0).name
 
 
-def is_expected_nonzero(argv: list[str]) -> bool:
-    if not argv:
+def is_expected_nonzero(argv: list[str], exit_code: int = 1) -> bool:
+    if not argv or exit_code != 1 or any(arg in ("|", "||", "&&", ";") for arg in argv):
         return False
     base = _basename(argv[0])
     if base in ("grep", "diff", "test"):
@@ -160,7 +160,7 @@ def admit(
         return _record(store, event.event_id, fp, RECORD_ONLY, "duplicate", now)
 
     if isinstance(event, CommandCompletedEvent) and event.payload.exit_code != 0:
-        if is_expected_nonzero(event.payload.argv):
+        if is_expected_nonzero(event.payload.argv, event.payload.exit_code):
             store.insert_event(event, fingerprint=fp)
             return _record(
                 store, event.event_id, fp, RECORD_ONLY, "expected_nonzero", now
@@ -172,7 +172,7 @@ def admit(
         return _admit_failure(store, derived, fp, now, derived_event=derived)
 
     if isinstance(event, (CommandFailedEvent, TestFailedEvent)):
-        if is_expected_nonzero(event.payload.argv):
+        if is_expected_nonzero(event.payload.argv, event.payload.exit_code):
             store.insert_event(event, fingerprint=fp)
             return _record(
                 store, event.event_id, fp, RECORD_ONLY, "expected_nonzero", now

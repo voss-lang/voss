@@ -3,10 +3,10 @@ import { render } from 'solid-js/web';
 import { fireEvent } from '@testing-library/dom';
 
 import PresetSwitcher from '../PresetSwitcher';
-import type { ActiveLayout, LayoutPreset } from '../../../grid/layoutPresets';
+import type { ActiveLayout, LayoutPreset } from '../../../canvas/arrange';
 
 /**
- * PresetSwitcher is a controlled component
+ * Task 1 — PresetSwitcher is a controlled component
  * Contract (from )
  */
 
@@ -101,7 +101,7 @@ describe('PresetSwitcher — custom state label', () => {
     const custom = el.querySelector('[data-preset-state="custom"]') as HTMLElement;
     expect(custom.tagName).not.toBe('BUTTON');
     expect(custom.getAttribute('aria-label')).toBe('Custom layout');
-    // Either no tabindex or tabindex=-1
+    // Either no tabindex or tabindex=-1.
     const ti = custom.getAttribute('tabindex');
     expect(ti === null || ti === '-1').toBe(true);
     fireEvent.click(custom);
@@ -132,7 +132,7 @@ describe('PresetSwitcher — controlled click behavior', () => {
       <PresetSwitcher activeLayout={layout} onSelect={() => {}} />
     ));
     expect(presetButton(el, 'fanout').getAttribute('aria-pressed')).toBe('true');
-    // Clicking does NOT change DOM by itself (no local state)
+    // Clicking does NOT change DOM by itself (no local state).
     fireEvent.click(presetButton(el, 'pipeline'));
     expect(presetButton(el, 'fanout').getAttribute('aria-pressed')).toBe('true');
     expect(presetButton(el, 'pipeline').getAttribute('aria-pressed')).toBe(
@@ -165,6 +165,7 @@ describe('PresetSwitcher — token-only colors (no raw white)', () => {
     const inactive = presetButton(el, 'pipeline');
     // Active must not declare raw white text. Inline style is what the
     // existing implementation drives; assert the color value reads from a
+    // CSS var (no literal 'white' anywhere in the inline style).
     expect(active.getAttribute('style')).not.toMatch(/white/);
     expect(inactive.getAttribute('style')).not.toMatch(/white/);
   });

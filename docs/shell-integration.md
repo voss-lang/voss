@@ -15,8 +15,9 @@ Observe (S3).
 | command end (`precmd`) | `ESC ] 133 ; D ; <exit> BEL` | command finished with exit code |
 | every prompt | `ESC ] 7 ; file://<host><cwd> BEL` | current working directory |
 
-`cmd_id` is a uuid4 minted by the shell (`uuidgen`, with a
-timestamp/pid/random fallback when `uuidgen` is absent).
+`cmd_id` is a UUID4. The hooks use the Python interpreter that generated the
+snippet, with isolated stdlib-only startup, to encode command metadata as JSON.
+Quotes, Unicode, and multiline commands retain their original text.
 
 ## Install
 
@@ -39,20 +40,23 @@ rebuilds the prompt after sourcing would drop it.
 
 The snippet is inert unless `VOSS_EMBEDDED=1` is set — outside Voss panes it
 installs no hooks and emits nothing. The desktop app sets `VOSS_EMBEDDED=1`
-for embedded launches; the setup-screen opt-in toggle (S3.8) controls which
-panes get it. Sourcing the snippet in a plain terminal is always safe.
+only when the setup-screen toggle is on. New Bash, Zsh, and Fish panes then
+run the matching `voss shell-init` command before user input. This requires
+`voss` on the shell's PATH. Existing panes keep their current hooks until reopened.
+Sourcing twice is idempotent; no shell startup files are edited.
 
 ## Reader behavior
 
 - Output evidence = the display bytes between `133;C` and `133;D`, capped at
   256 KiB (first 192 KiB + last 64 KiB, `truncated=true` when anything was
   dropped).
-- `duration_ms` is measured from `133;C` to `133;D`; if the `C` mark was lost
-  to read fragmentation it reports `0`.
+- `duration_ms` is measured from `133;C` to `133;D`. Missing `C` from an
+  external emitter produces zero duration.
 - A `133;D` with no open capture (e.g. the first prompt after spawn) is
   ignored.
-- OSC sequences split across PTY reads pass through to the terminal
-  unparsed (same stance as the existing budget/context OSC parsing).
+- OSC sequences split across PTY reads are buffered until complete. An
+  unterminated sequence exceeding 64 KiB passes through as display bytes so
+  malformed output cannot hide the terminal indefinitely.
 
 ## Edge behavior (supported / unsupported)
 
@@ -64,9 +68,11 @@ panes get it. Sourcing the snippet in a plain terminal is always safe.
 - **Nested shell (`zsh -c ...`, `ssh`, `tmux`)**: produces its own events only
   if the snippet is sourced inside that shell too. Non-interactive `sh -c`
   subshells never emit.
-- **bash**: there is no real `preexec`; a DEBUG trap approximates it and fires
-  for the first simple command after each prompt. Exotic `PROMPT_COMMAND`
-  chains may emit a spurious mark when Enter is pressed on an empty line.
+- **bash**: a DEBUG trap records the first command after each prompt; shell
+  history supplies the full command line, falling back to `BASH_COMMAND` when
+  history is unavailable. The capture hook runs before existing prompt commands
+  so they cannot overwrite the command's exit status. With history disabled,
+  compound-command text may contain only the first simple command.
 - **fish**: `133;B` requires wrapping `fish_prompt`; if no `fish_prompt`
   function exists at source time the `B` mark is skipped (A/C/D still work).
 
@@ -80,3 +86,25 @@ VOSS_EMBEDDED=1 zsh -c 'source <(voss shell-init --shell zsh); _voss_precmd; _vo
 
 Reader unit tests: `cargo test -p voss-app-core pty::` (scanner, tracker
 lifecycle, truncation head/tail, wire format).
+
+## Enrollment and recovery
+
+Enable shell integration in setup, open a repository terminal, then run
+`voss observe enable --repo .`. Observation settings expose the same enrollment.
+A command run before enrollment does not permanently disable the pane: capture
+resumes on its next command after enrollment. Pause/disable rejects queued capture.
+
+`voss observe status --repo .` shows capture state and BOS backlog;
+`voss observe events --repo . --tail 20` lists stored command events.
+Subdirectories, symlinks, and linked worktrees use canonical Git identity.
+Commands outside the pane's enrolled worktree are rejected. `.voss/observe.yml`
+can exclude paths, restrict command prefixes, and lower the output cap; invalid
+policy fails closed. Output and argv are redacted before storage.
+
+Transient delivery failures retain at most 200 events per pane and retry once a
+second, preserving event IDs. Closing a pane disposes its queue; restart persistence
+is S9. The status bar reports queue overflow. BOS delivery runs after ingestion,
+retries failures with bounded backoff, and recovers pending rows at server startup.
+`voss observe reconcile --repo .` remains available for explicit replay.
+
+See [S3 verification](s3-observe-verification.md) for checked behavior and limits.

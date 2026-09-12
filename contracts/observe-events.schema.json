@@ -94,6 +94,7 @@
           "$ref": "#/$defs/CommandCompletedPayload"
         },
         "repository_id": {
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
           "title": "Repository Id",
           "type": "string"
         },
@@ -275,6 +276,7 @@
           "$ref": "#/$defs/CommandFailedPayload"
         },
         "repository_id": {
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
           "title": "Repository Id",
           "type": "string"
         },
@@ -461,6 +463,7 @@
           "$ref": "#/$defs/CommandStartedPayload"
         },
         "repository_id": {
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
           "title": "Repository Id",
           "type": "string"
         },
@@ -647,6 +650,7 @@
           "$ref": "#/$defs/TestFailedPayload"
         },
         "repository_id": {
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
           "title": "Repository Id",
           "type": "string"
         },

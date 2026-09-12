@@ -600,3 +600,74 @@ fn test_command_events_serde_tagged_wire_format() {
     assert_eq!(finished["exit"], 1);
     assert_eq!(finished["duration_ms"], 42);
 }
+
+#[test]
+fn command_capture_survives_every_read_boundary() {
+    use super::reader::OscBuffer;
+    let wire = b"\x1b]133;C\x07\x1b]1337;voss-cmd={\"cmd_id\":\"boundary\",\"argv_text\":\"pnpm test\",\"cwd\":\"/repo\"}\x07FAIL sample.spec.ts\x1b]133;D;1\x1b\\";
+    for split in 0..=wire.len() {
+        let mut buffer = OscBuffer::default();
+        let mut tracker = CommandTracker::default();
+        let mut events = Vec::new();
+        for chunk in [&wire[..split], &wire[split..]] {
+            for item in scan_shell_marks(&buffer.push(chunk)) {
+                match item {
+                    ScanItem::Mark(mark) => events.extend(tracker.apply(&mark)),
+                    ScanItem::Display(bytes) => tracker.capture_bytes(&bytes),
+                }
+            }
+        }
+        assert_eq!(events.len(), 2, "split {split}");
+        match &events[1] {
+            PtyEvent::CommandFinished { cmd_id, exit, output, truncated, .. } => {
+                assert_eq!(cmd_id, "boundary");
+                assert_eq!(*exit, 1);
+                assert_eq!(output, b"FAIL sample.spec.ts");
+                assert!(!truncated);
+            }
+            other => panic!("unexpected event {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn malformed_osc_buffer_is_bounded() {
+    use super::reader::OscBuffer;
+    let mut buffer = OscBuffer::default();
+    assert!(buffer.push(b"\x1b]1337;").is_empty());
+    assert_eq!(buffer.push(&vec![b'x'; 65536]).len(), 65543);
+    assert_eq!(buffer.push(b"visible"), b"visible");
+}
+
+#[test]
+fn shell_integration_sources_hooks_only_when_enabled() {
+    use std::os::unix::fs::PermissionsExt;
+    if std::env::var_os("VOSS_CAPTURE_TEST_CHILD").is_some() {
+        for enabled in [false, true] {
+            let (session, reader, _) = spawn_session(24, 80, None, enabled).unwrap();
+            session.write(b"printf 'shell %s\\n' ready\n").unwrap();
+            let output = read_until(reader, "shell ready", Duration::from_secs(8));
+            session.kill().ok();
+            assert!(output.contains("shell ready"));
+            assert_eq!(output.contains("VOSS_CAPTURE_INSTALLED"), enabled);
+        }
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let shell = dir.path().join("bash");
+    std::fs::write(&shell, "#!/bin/sh\nexec /bin/bash --noprofile --norc -i\n").unwrap();
+    let voss = dir.path().join("voss");
+    std::fs::write(&voss, "#!/bin/sh\nprintf '%s\\n' 'printf \"VOSS_CAPTURE_INSTALLED\\n\"'\n").unwrap();
+    for path in [&shell, &voss] {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "pty::tests::shell_integration_sources_hooks_only_when_enabled", "--nocapture"])
+        .env_clear()
+        .env("VOSS_CAPTURE_TEST_CHILD", "1")
+        .env("HOME", dir.path())
+        .env("SHELL", shell)
+        .env("PATH", format!("{}:/usr/bin:/bin", dir.path().display()))
+        .status().unwrap();
+    assert!(status.success());
+}
