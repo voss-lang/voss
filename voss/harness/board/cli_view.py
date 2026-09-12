@@ -1,14 +1,6 @@
-"""VBOARD-10 read-only board renderer.
-
+"""
+VBOARD-10 read-only board renderer
 Renders the board from persisted session-tree node JSON
-(``<cwd>/.voss/sessions/<root_id>/<node_id>.json``) without constructing a
-live ``Board`` or ``SessionTreeManager``. Mirrors the read-only column
-derivation rule in ``voss/harness/audit/load.py`` (lines 206-220) exactly.
-
-Root selection defaults to the most-recently-modified root directory
-(by ``st_mtime``, NOT lexical name — UUID-hex root ids are not chronologically
-sortable). A user-supplied ``root_id`` is validated for path traversal before
-any filesystem access.
 """
 from __future__ import annotations
 
@@ -18,8 +10,8 @@ from typing import Any
 
 import click
 
-# Redeclared locally (do NOT import from machine.py — avoids pulling in the
-# full board state-machine import chain for this read-only view).
+# Redeclared locally (do NOT import from machine.py avoids pulling in the
+# full board state-machine import chain for this read-only view)
 _COLUMNS: tuple[str, ...] = (
     "Backlog", "Planned", "InProgress", "InReview", "Blocked", "Done",
 )
@@ -94,7 +86,7 @@ def render_board(cwd: Path, root_id: str | None = None) -> int:
         return 1
 
     if root_id is not None:
-        # T-V5-03: reject traversal BEFORE touching the filesystem.
+        # reject traversal BEFORE touching the filesystem
         if "/" in root_id or "\\" in root_id or ".." in root_id:
             click.echo(
                 f"<error: invalid root_id {root_id!r}>", err=True
@@ -102,7 +94,7 @@ def render_board(cwd: Path, root_id: str | None = None) -> int:
             return 1
         candidate = (sessions_dir / root_id).resolve()
         sessions_resolved = sessions_dir.resolve()
-        # Confirm the resolved candidate is a child of the sessions dir.
+        # Confirm the resolved candidate is a child of the sessions dir
         if candidate.parent != sessions_resolved:
             click.echo(
                 f"<error: invalid root_id {root_id!r}>", err=True
@@ -127,7 +119,7 @@ def render_board(cwd: Path, root_id: str | None = None) -> int:
             return 1
         root_dir = root_dirs[0]
 
-    # Read every node JSON and bucket into columns.
+    # Read every node JSON and bucket into columns
     columns: dict[str, list[dict[str, Any]]] = {c: [] for c in _COLUMNS}
     for nf in sorted(root_dir.glob("*.json")):
         data = _read_node_file(nf)

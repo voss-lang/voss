@@ -1,7 +1,6 @@
-"""Typed exceptions for the board state machine (O3).
-
+"""
+Typed exceptions for the board state machine
 `BoardError` is the base; the three subclasses each carry a structured
-attribute the audit surface (O6) reads.
 """
 from __future__ import annotations
 

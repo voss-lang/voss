@@ -1,14 +1,6 @@
-"""SKL-06 `voss-lint-as-skill`: deterministic, read-only `.voss` linter.
-
-ZERO provider calls (D-08/D-10) — no LLM, no agent loop, no tool dispatch,
-no event loop. Walks `.voss` sources with the PUBLIC `voss.parser.parse` +
-`voss.analyzer.analyze` API (never the private CLI helpers) and emits the
-FROZEN M11 diagnostics schema (D-12) to stdout.
-
-SCHEMA IS A CONTRACT. Top level: `version` (int 1) + `findings` (list).
-Each finding has EXACTLY: file, line, col, rule, severity, msg, hint — in
-that order. Do not add/rename/remove fields once shipped; M11 consumers
-depend on this shape.
+"""
+`voss-lint-as-skill`: deterministic, read-only `.voss` linter
+ZERO provider calls (/) no LLM, no agent loop, no tool dispatch
 """
 from __future__ import annotations
 

@@ -1,7 +1,6 @@
-"""VADE2-11: GET /memory read-only route on the loopback server.
-
+"""
+VADE2-11: GET /memory read-only route on the loopback server.
 Covers the summary (no query), recall (with query → hits), and bearer-auth
-enforcement. MemoryStore runs for real against a tmp cwd.
 """
 
 from __future__ import annotations

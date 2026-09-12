@@ -1,7 +1,6 @@
-"""V12-02 runtime safety gate: confirmation + factory routing in PermissionGate.
-
+"""
+V12-02 runtime safety gate: confirmation + factory routing in PermissionGate.
 Covers VSAFE-01/02/03/06 at the gate layer. The gate is exercised directly with
-injected confirmation functions — no real stdin/TTY.
 """
 from __future__ import annotations
 

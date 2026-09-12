@@ -1,7 +1,6 @@
-"""VSEM-01 RED tests: symbol-boundary chunking + derived-cache rebuild.
-
+"""
+VSEM-01 RED tests: symbol-boundary chunking + derived-cache rebuild.
 Wave-0 scaffold (V19-01). Imports of voss.harness.code.semantic_index live
-inside test bodies: ModuleNotFoundError IS the RED signal until V19-02 lands.
 """
 from __future__ import annotations
 

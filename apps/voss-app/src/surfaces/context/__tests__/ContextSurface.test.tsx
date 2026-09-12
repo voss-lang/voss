@@ -1,9 +1,3 @@
-// V24-10 (VADE2-10) — Context surface wraps the shipped ContextPanel.
-//
-// Asserts the surface renders a Context tabpanel, shows file rows from ContextData
-// (agent pane), and falls back to the panel's own empty state when there is no
-// agent context. No new data path — it just forwards props to ContextPanel.
-
 import { afterEach, describe, expect, it } from 'vitest';
 import { render } from 'solid-js/web';
 import ContextSurface from '../ContextSurface';
@@ -44,7 +38,7 @@ describe('ContextSurface', () => {
     const panel = el.querySelector('[role="tabpanel"][aria-label="Context"]');
     expect(panel).toBeTruthy();
 
-    // Surface header band (parity with Memory), always present.
+    // Surface header band (parity with Memory), always present
     expect(el.querySelector('.surface__header .surface__title')?.textContent).toBe(
       'Context',
     );
@@ -61,7 +55,7 @@ describe('ContextSurface', () => {
     ));
     expect(el.querySelector('[role="tabpanel"][aria-label="Context"]')).toBeTruthy();
     // Full-canvas surface uses the shared centered card, not ContextPanel's
-    // narrow-drawer empty text.
+    // narrow-drawer empty text
     expect(el.querySelector('.surface-empty__card')).toBeTruthy();
     expect(el.textContent).toContain('No context to show');
     expect(el.querySelector('.context-empty')).toBeNull();

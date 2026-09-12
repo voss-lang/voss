@@ -12,7 +12,6 @@ from voss.harness.em.schema import (
 from voss.harness.em.stub import DeterministicEMStub
 
 
-
 class _BudgetBombStub:
     """Raises BudgetExceededError on the Nth plan call."""
     def __init__(self, bomb_on: int = 2):

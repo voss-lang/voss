@@ -1,8 +1,6 @@
-"""VREV-09 RED scaffold: .review.json sidecar persistence on the Done gate.
-
+"""
+VREV-09 RED scaffold: .review.json sidecar persistence on the Done gate.
 RED until V6 adds _write_review_sidecar (0o600 JSON with a_verification /
-b_verdict / final_outcome) on the InReview->Done transition. Fails at runtime
-(sidecar absent), NOT at collection.
 """
 
 from __future__ import annotations

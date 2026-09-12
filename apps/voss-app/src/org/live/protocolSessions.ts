@@ -1,15 +1,3 @@
-// Protocol-session store (grid-rearrange fix, Part B). A native pane's
-// transcript/gate/lifecycle state and its SSE stream now live HERE, keyed by
-// SERVER session id — not in ProtocolPane component signals. A remounted
-// ProtocolPane (drag/swap/layout) re-renders from this store and never loses
-// the transcript or re-subscribes; the stream is aborted only by
-// destroyProtocolSession (real pane close via the paneSessionRegistry destroy
-// hook — App.openNativePane wires it).
-//
-// Mirrors the sseClient.ts module pattern: createSignal + immutable spreads
-// (no produce/structuredClone — Pitfall 5). Handlers append to the store, so
-// nothing closes over component state and nothing needs rebinding on remount.
-
 import { createSignal } from 'solid-js';
 
 import type { AgentEvent } from '../../../../../sdk/typescript/src/client/sse';
@@ -31,11 +19,11 @@ export interface ProtocolSessionState {
   gateStates: Record<string, GateState>;
   bootState: ProtoBootState;
   errorMsg: string;
-  /** Server death (stream ended with no final/session.idle) — ≠ clean idle. */
+/** Server death (stream ended with no final/session.idle) — ≠ clean idle */
   died: boolean;
   sawCleanEnd: boolean;
   eventCount: number;
-  /** The view derives props.onEnded from this — no callbacks stored here. */
+/** The view derives props.onEnded from this — no callbacks stored here */
   endedReason: 'idle' | 'death' | null;
   conn: { sidecarId: string };
 }
@@ -43,8 +31,8 @@ export interface ProtocolSessionState {
 export const PROTO_CAP = 300;
 
 /**
- * D-08 trim: drop oldest entries until length ≤ cap, never trimming the task
- * header (a `user` event at index 0) or any `permission.updated`. Pure.
+ * trim: drop oldest entries until length ≤ cap, never trimming the task
+ * header (a `user` event at index 0) or any `permission.updated`. Pure
  */
 export function trimOldest(list: AgentEvent[], cap: number): AgentEvent[] {
   if (list.length <= cap) return list;
@@ -100,7 +88,7 @@ function appendEvent(sessionId: string, epoch: number, ev: AgentEvent): void {
     if (!st) return prev;
     const next: ProtocolSessionState = { ...st };
     next.eventCount = st.eventCount + 1;
-    if (st.bootState === 'booting') next.bootState = 'live'; // first event = connected (D-10)
+    if (st.bootState === 'booting') next.bootState = 'live'; // first event = connected
     if (ev.type === 'session.idle' || ev.type === 'final') {
       next.sawCleanEnd = true;
     }
@@ -120,14 +108,14 @@ function streamEnded(sessionId: string, epoch: number): void {
     if (!st) return prev;
     const next: ProtocolSessionState = { ...st };
     if (st.bootState === 'booting' && st.eventCount === 0) {
-      // Zero events while booting = the stream never connected (D-12).
+      // Zero events while booting = the stream never connected.
       next.bootState = 'error';
       next.errorMsg = 'stream did not connect';
     } else {
       next.bootState = 'ended';
       if (!st.sawCleanEnd) {
         next.died = true;
-        next.endedReason = 'death'; // flips write affordances (D-11)
+        next.endedReason = 'death'; // flips write affordances
       } else {
         next.endedReason = st.endedReason ?? 'idle';
       }
@@ -156,7 +144,7 @@ function connect(
 
 /**
  * Idempotent connect-once: the first mounting ProtocolPane subscribes; a
- * remounted one finds the live handle and just renders the store.
+ * remounted one finds the live handle and just renders the store
  */
 export function ensureProtocolStream(
   sessionId: string,
@@ -173,8 +161,8 @@ export function ensureProtocolStream(
 }
 
 /**
- * D-12 "Retry start": abort the old stream (its finally is epoch-fenced),
- * reset the lifecycle flags, and rebind to the fresh handshake.
+ * "Retry start": abort the old stream (its finally is epoch-fenced)
+ * reset the lifecycle flags, and rebind to the fresh handshake
  */
 export function reconnectProtocolStream(
   sessionId: string,
@@ -202,10 +190,8 @@ export function reconnectProtocolStream(
 }
 
 /**
- * One reply loop for both surfaces (VLIVE-05): POST first, clear ONLY on
- * success (never optimistic — T-V15-07); the queue clear uses the identical
- * `permission:${id}` prefixed id (T-V15-11). Client is built from the
- * session's own handshake (Bearer middleware — T-V15-03).
+ * One reply loop for both surfaces (-05): POST first, clear ONLY on
+ * success (; the queue clear uses the identical
  */
 export async function replyToProtocolGate(
   sessionId: string,
@@ -239,7 +225,7 @@ export async function replyToProtocolGate(
   }
 }
 
-/** Real teardown (pane close / reap via the pane destroy hook). */
+/** Real teardown (pane close / reap via the pane destroy hook) */
 export function destroyProtocolSession(sessionId: string): void {
   epochs.delete(sessionId); // fence the aborted stream's finally
   handles.get(sessionId)?.abort();
@@ -254,7 +240,7 @@ export function destroyProtocolSession(sessionId: string): void {
 
 export { protocolSessions };
 
-/** Test-only reset (mirrors __resetLiveStream). */
+/** Test-only reset (mirrors __resetLiveStream) */
 export function __resetProtocolSessions(): void {
   for (const [, h] of handles) h.abort();
   handles.clear();

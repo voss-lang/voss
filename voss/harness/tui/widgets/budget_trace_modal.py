@@ -1,4 +1,6 @@
-"""Read-only budget trace modal (M11-05)."""
+"""
+Read-only budget trace modal
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

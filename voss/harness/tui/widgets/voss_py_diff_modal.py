@@ -1,4 +1,6 @@
-"""Read-only `.voss` source vs generated Python modal (M11-05)."""
+"""
+Read-only `.voss` source vs generated Python modal
+"""
 from __future__ import annotations
 
 from typing import Any

@@ -1,15 +1,6 @@
-"""Shared fixtures for harness tests.
-
+"""
+Shared fixtures for harness tests.
 `isolated_state` is autouse — every harness test gets an XDG_STATE_HOME
-sandbox pointed at its own tmp_path so session JSON / permission state never
-leaks between tests.
-
-`git_repo` is opt-in: tests request it by parameter when they need a real
-git tree with one commit (drift tests, ls-files tests).
-
-M8 additions: `tmp_voss_repo`, `pre_m8_architecture_md`, `pre_m8_session_json`,
-`fake_session_corpus`, `chroma_disabled_env` — see M8-RESEARCH.md §Validation
-Architecture.
 """
 from __future__ import annotations
 

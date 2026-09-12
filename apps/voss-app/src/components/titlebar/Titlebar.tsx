@@ -2,22 +2,12 @@ import { Show } from 'solid-js';
 import WindowControls from './WindowControls';
 
 /**
- * A1 titlebar shell. Window controls, drag regions, title text, the Voss logo,
- * the LIVE/snapshot chip, and the 28px height all stay unchanged.
- *
- * V24-03 (VADE2-03) demoted the preset switcher and the Live Work / Run Review
- * mode toggle out of the titlebar: the App root now mounts `TopChrome`
- * (quiet chrome) instead, and layout presets live in the portal rail's layout
- * menu. This component is retained for the legacy A1/A5 chrome tests; it no
- * longer surfaces any preset or mode-toggle controls.
- *
- * Props are optional so existing A1/A5 tests that render `<Titlebar />`
- * continue to work; when omitted the chip reads 'snapshot' (the sseClient
- * default) and the title falls back to 'Voss ADE'.
+ * A1 titlebar shell. Window controls, drag regions, title text, the Voss logo
+ * the LIVE/snapshot chip, and the 28px height all stay unchanged
  */
 export type TitlebarProps = {
   projectName?: string;
-  /** Live/snapshot data-source state (sseClient liveLabel, via App). */
+/** Live/snapshot data-source state (sseClient liveLabel, via App) */
   liveState?: 'live' | 'snapshot';
 };
 

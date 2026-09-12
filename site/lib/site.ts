@@ -13,9 +13,9 @@ export const site = {
   tagline: "A local control plane for coding agents.",
   description:
     "Voss gives local agent runs scoped tools, reusable project memory, approval gates, independent review, and an audit trail you can replay before you trust the result.",
-  /** Canonical marketing origin (metadataBase, sitemap, robots, llms.txt). */
+/** Canonical marketing origin (metadataBase, sitemap, robots, llms.txt) */
   url: "https://www.tryvoss.dev",
-  /** Static marketing routes (trailing slash applied in sitemap). */
+/** Static marketing routes (trailing slash applied in sitemap) */
   routes: [
     "",
     "/harness",

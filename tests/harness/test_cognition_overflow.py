@@ -1,11 +1,6 @@
-"""Cognition prompt token budget overflow.
-
+"""
+Cognition prompt token budget overflow.
 `_compose_cognition_prompt` enforces a 6000-token budget. When the
-architecture body + constraints exceed it, the constraints section is
-truncated and the renderer's `show_cognition_overflow` hook fires.
-
-This test pins both behaviors with a tiny synthetic bundle and a custom
-token counter that forces overflow.
 """
 from __future__ import annotations
 

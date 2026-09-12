@@ -6,16 +6,8 @@ import type {
 import { LAYOUT_PRESETS } from '../../canvas/arrange';
 
 /**
- * Controlled titlebar preset switcher (A4-02 Task 1, A4-UI-SPEC).
- *
+ * Controlled titlebar preset switcher ( Task 1, )
  * No local state — `activeLayout` and `onSelect` are owned by App.tsx
- * (single source of truth shared with `Cmd+G` cycling and grid
- * transforms). The `custom` state label appears only when the current
- * tree is off-cycle; it is display-only (not focusable, non-clickable).
- *
- * Tokens only (no raw hex, no white): active uses `--focus` background
- * with `--fg-0` text; inactive uses transparent with `--fg-2`; custom
- * uses `--bg-3` with `--accent-amber` per UI-SPEC.
  */
 export type PresetSwitcherProps = {
   activeLayout: ActiveLayout;
@@ -85,7 +77,7 @@ export default function PresetSwitcher(props: PresetSwitcherProps) {
                 }}
                 style={{
                   background: active() ? 'var(--focus)' : 'transparent',
-                  // Token text only — never raw white (UI-SPEC color table).
+                  // Token text only — never raw white ( color table).
                   color: active()
                     ? 'var(--fg-0)'
                     : props.disabled

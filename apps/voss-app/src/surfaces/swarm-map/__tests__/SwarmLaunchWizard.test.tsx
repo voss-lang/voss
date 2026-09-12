@@ -1,6 +1,3 @@
-// V24 swarm surface — SwarmLaunchWizard: stepped intake, presets, per-role
-// agent/model, self-connect launch with an explicit roster.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 
@@ -45,7 +42,6 @@ const primary = (el: HTMLElement) =>
   el.querySelector('.swz__nav--primary') as HTMLButtonElement;
 const back = (el: HTMLElement) => el.querySelector('.swz__nav--ghost') as HTMLButtonElement;
 
-/** Advance from step 1 (goal) to step 2 (roster). */
 function toRoster(el: HTMLElement): void {
   typeGoal(el, 'ship the thing');
   primary(el).click();
@@ -98,7 +94,7 @@ describe('SwarmLaunchWizard', () => {
     const el = mount(() => <SwarmLaunchWizard />);
     toRoster(el);
 
-    // Set the coordinator's option to Claude · Opus.
+    // Set the coordinator's option to Claude · Opus
     const coordSelect = el.querySelector('.swz-role__select') as HTMLSelectElement;
     coordSelect.value = 'claude:opus';
     coordSelect.dispatchEvent(new Event('change', { bubbles: true }));

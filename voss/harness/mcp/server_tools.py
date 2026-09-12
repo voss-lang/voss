@@ -1,5 +1,6 @@
-"""MCP server tool advertisement and gate-enforced dispatch helpers."""
-
+"""
+MCP server tool advertisement and gate-enforced dispatch helpers
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Mapping

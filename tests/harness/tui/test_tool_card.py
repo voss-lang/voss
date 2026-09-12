@@ -1,9 +1,6 @@
-"""R3 ToolCard tests — in-place tool cards (tui-redesign-spec §3.4/§6.1).
-
+"""
+R3 ToolCard tests — in-place tool cards (tui-redesign-spec §3.4/§6.1).
 Covers the R3 acceptance rules: one tool call occupies exactly ONE card
-pending→settled (no duplicate lines), error output auto-expands, settled-only
-paths create a settled-first card, and concurrent same-name calls (read
-batches run via asyncio.gather) stay on distinct cards keyed by call_id.
 """
 from __future__ import annotations
 

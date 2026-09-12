@@ -1,8 +1,5 @@
 //! E4 Rust consumer subprogram: public-API-only (VossClient::new + event_stream
 //! + permission_reply). The Python eval runner owns the serve lifecycle and
-//! passes coordinates via env — this example never spawns the server itself.
-//! No per-runtime scoring: emits one structured-JSON line; the runner scores
-//! via the single E1 substrate.
 #![allow(clippy::doc_lazy_continuation)]
 
 use futures_util::StreamExt;
@@ -31,7 +28,7 @@ async fn main() {
     let cwd = std::env::var("VOSS_CWD").unwrap_or_else(|_| ".".into());
     let prompt = std::env::var("VOSS_PROMPT").unwrap_or_default();
     let mode = std::env::var("VOSS_MODE").unwrap_or_else(|_| "plan".into());
-    // Plan 07 drives Deny through this same example with VOSS_PERMISSION_CHOICE=d.
+    // drives Deny through this same example with VOSS_PERMISSION_CHOICE=d.
     let choice = std::env::var("VOSS_PERMISSION_CHOICE").unwrap_or_else(|_| "a".into());
 
     let client = VossClient::new(base, token);

@@ -1,10 +1,6 @@
-//! Native session-store reader (HYBRID-REFACTOR-PLAN H7, first increment).
-//!
-//! Reads `<cwd>/.voss/sessions/*.json` — the exact on-disk format the Python
-//! `session.save` writes — directly in Rust, no server round-trip. This is the
-//! load-bearing proof for *all* incremental server→Rust porting: Rust reads
-//! what Python writes, identically. The hot-path ports (agent loop, providers)
-//! remain Python; this is the cheap, verifiable first step.
+// ! Native session-store reader
+//! Reads `<cwd>/.voss/sessions/*.json` the exact on-disk format the Python
+
 
 use std::path::Path;
 
@@ -30,7 +26,7 @@ struct OnDiskRecord {
 }
 
 /// Read + parse saved sessions for `cwd`, newest first (matches the Python
-/// `session.list_sessions` ordering: `updated_at` descending).
+/// `session.list_sessions` ordering: `updated_at` descending)
 pub fn read_saved_sessions(cwd: &str) -> Vec<SavedSession> {
     let dir = Path::new(cwd).join(".voss").join("sessions");
     let mut out: Vec<SavedSession> = Vec::new();

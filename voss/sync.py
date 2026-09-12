@@ -1,9 +1,6 @@
-"""`voss sync` context contract + orchestrator (V16-01/V16-03).
-
+"""
+`voss sync` context contract + orchestrator (V16-01/V16-03).
 SyncContext is the single frozen struct every synced artifact renders from
-(D-17): layout vars + project facts + capabilities. sync() renders the
-managed docs and the VOSS.md workflow fence from one SyncContext, diffs
-byte-for-byte against disk, and writes only on difference (R1 idempotency).
 """
 from __future__ import annotations
 

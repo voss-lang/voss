@@ -1,11 +1,6 @@
-"""Token-savings ledger tests (VOPT-05).
-
+"""
+Token-savings ledger tests (VOPT-05).
 Ledger lives at `.voss/sessions/<id>/token-savings.jsonl` (RESEARCH A7 —
-subdirectory of the sessions dir, NOT the flat `<id>.json` convention).
-
-Contract pinned here:
-    _append_savings_record(cwd: Path, session_id: str, record: dict) -> None
-    estimate_savings_usd(saved_tokens: int, cache_read_tokens: int, model: str) -> float | None
 """
 from __future__ import annotations
 

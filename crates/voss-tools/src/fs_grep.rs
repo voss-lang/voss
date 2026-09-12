@@ -18,9 +18,9 @@ fn default_glob() -> String {
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FsGrepArgs {
-    /// Regex pattern.
+    /// Regex pattern
     pub pattern: String,
-    /// Glob filter (default: `**/*`).
+    /// Glob filter (default: `**/*`)
     #[serde(default = "default_glob")]
     pub glob: String,
 }

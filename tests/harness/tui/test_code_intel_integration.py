@@ -6,7 +6,6 @@ without the backend importing TUI modules.
 """
 
 
-
 def test_code_intel_tui_bridge_exists():
     """The private methods added in M9-08 are the bridge surface."""
     from voss.harness.tui.renderer import TextualRenderer

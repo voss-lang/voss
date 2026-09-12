@@ -10,7 +10,7 @@ import (
 )
 
 // Handshake is the one-line JSON `voss serve` prints after binding its port:
-// {"v":1,"port":51234,"token":"..."}. Token is a per-process secret.
+// {"v":1,"port":51234,"token":"..."}. Token is a process secret.
 type Handshake struct {
 	V     int    `json:"v"`
 	Port  uint16 `json:"port"`

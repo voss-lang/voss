@@ -1,7 +1,3 @@
-/**
- * Shared reactive registry: pane id → foreground process name.
- * PaneComponent writes; StatusBar reads.
- */
 import { createSignal } from 'solid-js';
 
 const [procByPaneId, setProcByPaneId] = createSignal<Record<string, string>>(

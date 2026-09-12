@@ -1,14 +1,6 @@
-"""M6-02 NPM-03: structural + branch tests for the Node bin shim.
-
+"""
+M6-02 NPM-03: structural + branch tests for the Node bin shim.
 These tests pin the static guarantees of `npm/bin/voss.js` so that
-accidental edits in later plans break loudly. They are intentionally
-fast (file reads + one short subprocess invocation) and are NOT marked
-`@pytest.mark.slow`. The full behavioural smoke (real PBS extract +
-spawn) is M6-05's job.
-
-If the host has no `node` on PATH, every test in this module skips
-rather than fails — Voss is still primarily a Python project; npm is a
-distribution channel.
 """
 
 from __future__ import annotations

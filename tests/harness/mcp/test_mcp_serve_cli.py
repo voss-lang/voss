@@ -1,7 +1,6 @@
-"""M12-04: CliRunner-level surface tests for `voss mcp serve`.
-
+"""
+M12-04: CliRunner-level surface tests for `voss mcp serve`.
 Surface checks only — no actual stdio server loop (that's M12-05's e2e
-subprocess concern).
 """
 from __future__ import annotations
 

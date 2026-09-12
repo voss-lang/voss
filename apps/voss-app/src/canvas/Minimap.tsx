@@ -5,7 +5,7 @@ import { MINIMAP_SIZE, minimapLayout, viewCenteredOnMinimapPoint } from './minim
 
 /**
  * Bottom-right overview: every node as a rectangle, the viewport as an
- * outline. Click centres the view there; dragging scrubs it.
+ * outline. Click centres the view there; dragging scrubs it
  */
 export default function Minimap(props: {
   nodes: readonly CanvasNode[];

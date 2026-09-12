@@ -1,9 +1,6 @@
-"""D-09 resolution order: persisted preferred_model overrides hard-coded default.
-
+"""
+D-09 resolution order: persisted preferred_model overrides hard-coded default.
 Catches the B3 regression where _run_repl's `if persisted and not record.model:`
-guard was always False because callers built SessionRecord with cfg.default_model
-already populated. The fix moves the lookup into the command (do/chat/edit)
-BEFORE SessionRecord.new(...). These tests pin that behavior.
 """
 from __future__ import annotations
 

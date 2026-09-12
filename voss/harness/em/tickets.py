@@ -1,10 +1,6 @@
-"""Frozen value-objects for the EM's audit trail (O5 OEM-01/07/10).
-
+"""
+Frozen value-objects for the EM's audit trail ( OEM-01/07/10)
 Every record is `frozen=True, slots=True` so the EM cannot mutate emitted
-audit records. The `kind` field carries a `Literal["em.*"]` discriminator
-so O6's audit surface can distinguish EM records from O3's `board.*` records.
-
-Imports: typing + dataclasses only (mirrors O3 verdict.py's zero-deps discipline).
 """
 from __future__ import annotations
 
@@ -12,9 +8,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 
-# ---------------------------------------------------------------------------
 # Ticket
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class Ticket:
@@ -36,9 +30,7 @@ class Ticket:
         assert self.kind == "em.ticket", f"kind must be 'em.ticket', got {self.kind!r}"
 
 
-# ---------------------------------------------------------------------------
 # RoutingRationale
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class RoutingRationale:
@@ -61,9 +53,7 @@ class RoutingRationale:
                 )
 
 
-# ---------------------------------------------------------------------------
 # KillRecord
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class KillRecord:
@@ -82,9 +72,7 @@ class KillRecord:
             raise ValueError("self-parented kill: lineage_parent_id == killed_node_id")
 
 
-# ---------------------------------------------------------------------------
 # RescopeRecord
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class RescopeRecord:
@@ -104,9 +92,7 @@ class RescopeRecord:
             raise ValueError("self-rescope: predecessor_card_id == successor_card_id")
 
 
-# ---------------------------------------------------------------------------
 # RunFinal
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class RunFinal:

@@ -33,7 +33,6 @@ function bestOnAxis(
 /**
  * Snap `moving` to the edges and centres of `others` when within
  * `threshold` world px on an axis. Returns the snapped origin and the guide
- * lines to draw (one per snapped axis).
  */
 export function snapRect(
   moving: Rect,

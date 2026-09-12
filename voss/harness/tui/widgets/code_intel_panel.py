@@ -1,11 +1,7 @@
-"""CodeIntelPanel — M9-08 side-region default widget for codebase intelligence landing zone.
-
-Standalone (no imports from voss.harness.code or any M10 backend).
-Accepts plain dict/list payloads from M10 later via the three setters.
-Renders in three stable modes: idle (tree), results, focused (excerpt).
-Uses only existing M9 palette tokens ($accent, $dim) and no new glyphs.
 """
-
+CodeIntelPanel side-region default widget for codebase intelligence landing zone
+Standalone (no imports from voss.harness.code or any backend)
+"""
 from __future__ import annotations
 
 from typing import Any
@@ -22,8 +18,8 @@ class CodeIntelPanel(Vertical):
     State is preserved across spawn/gather cycles (M9-08 region-share contract).
     """
 
-    # CSS rules live in styles.tcss (M9 palette tokens $accent / $dim).
-    # Widget declares only the class names used by the rules.
+    # CSS rules live in styles.tcss ( palette tokens $accent / $dim)
+    # Widget declares only the class names used by the rules
     DEFAULT_CSS = """"""
 
     def __init__(self, **kw: Any) -> None:

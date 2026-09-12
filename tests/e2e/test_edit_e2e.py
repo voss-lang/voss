@@ -1,10 +1,6 @@
-"""E2E for `voss edit <path>`.
-
+"""
+E2E for `voss edit <path>`.
 Scoped edit REPL. Validates:
-  - path argument must exist (Click validation)
-  - REPL launches with session name `edit-<basename>`
-  - /exit closes cleanly
-  - --mode flag plumbing
 """
 from __future__ import annotations
 

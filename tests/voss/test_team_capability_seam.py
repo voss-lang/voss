@@ -1,7 +1,6 @@
-"""V1 capability-registry binding seam + alias/exact-subset tool filtering.
-
+"""
+V1 capability-registry binding seam + alias/exact-subset tool filtering.
 These tests assert (a) alias/exact-subset filtering with net opt-in, and (b)
-the greppable V1-capability seam marker is present in team.py.
 """
 
 from __future__ import annotations

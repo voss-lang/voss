@@ -1,8 +1,6 @@
-"""T2-02 Task 2: cli.py bootstrap wires [agent] config into RuntimeConfig.
-
+"""
+T2-02 Task 2: cli.py bootstrap wires [agent] config into RuntimeConfig.
 Uses subprocess.run with a fresh Python interpreter to avoid RuntimeConfig
-singleton contamination across tests (the bootstrap runs at import time
-and configure() mutates global state).
 """
 from __future__ import annotations
 

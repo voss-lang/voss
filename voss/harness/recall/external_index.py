@@ -1,7 +1,6 @@
-"""External-source recall index skeleton.
-
+"""
+External-source recall index skeleton
 Mirrors code/semantic_index.py with heading-boundary markdown chunking and
-per-source isolation under .voss-cache/recall/<name>/.
 """
 from __future__ import annotations
 

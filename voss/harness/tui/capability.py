@@ -1,17 +1,6 @@
-"""TUI activation decision shim.
-
+"""
+TUI activation decision shim
 Pure-Python capability probe. The `textual` import is deferred inside
-`tui_available()` so importing this module never pays the Textual bootstrap
-cost when the PlainRenderer path is taken.
-
-The decision order in `tui_should_activate` is locked (first match wins):
-  1. `--plain` in argv
-  2. `VOSS_PLAIN=1` in env
-  3. `json_mode` True
-  4. stdout is not a TTY
-  5. terminal size < 60x12
-  6. `textual` import unavailable
-  7. activate
 """
 from __future__ import annotations
 
@@ -82,10 +71,10 @@ def tui_should_activate(
         return TUIDecision(activate=False, reason="--json mode")
     if not stdout_isatty:
         return TUIDecision(activate=False, reason="non-TTY stdout")
-    # M9-07 Windows-console branch (planner decision: hard-block legacy
-    # cmd.exe / conhost; allow Windows Terminal which sets WT_SESSION).
+    # Windows-console branch (planner decision: hard-block legacy
+    # cmd.exe / conhost; allow Windows Terminal which sets WT_SESSION)
     # Fires BEFORE size + textual_available checks so the locked notice
-    # is emitted even if those would also fail.
+    # is emitted even if those would also fail
     if sys.platform == "win32" and not env.get("WT_SESSION"):
         return TUIDecision(activate=False, reason="Windows console missing capability")
     if size[0] < _MIN_COLS or size[1] < _MIN_ROWS:

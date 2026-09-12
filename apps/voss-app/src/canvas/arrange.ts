@@ -1,10 +1,3 @@
-/**
- * Auto-arrangements over free nodes. Pure: takes a node count and a
- * world-space box, returns rects in reading order. Callers assign and
- * recompute indices. Silhouettes match the A4 tree presets: fanout = primary
- * left half + right column; pipeline = one row; swarm = near-square grid up
- * to four columns; watchers = primary top half + bottom row.
- */
 import { MIN_NODE_H, MIN_NODE_W, NODE_GAP, type CanvasNode } from './model';
 import type { Rect, Size } from './geometry';
 
@@ -21,7 +14,7 @@ export const LAYOUT_PRESETS: readonly LayoutPreset[] = [
 
 const SWARM_MAX_COLS = 4;
 
-/** ⌘G cycle: custom snaps to fanout; within the cycle, wrap watchers → fanout. */
+/** ⌘G cycle: custom snaps to fanout; within the cycle, wrap watchers → fanout */
 export function nextPreset(active: ActiveLayout): LayoutPreset {
   if (active === 'custom') return LAYOUT_PRESETS[0];
   const idx = LAYOUT_PRESETS.indexOf(active);
@@ -32,7 +25,7 @@ export function isLayoutPreset(value: unknown): value is LayoutPreset {
   return (LAYOUT_PRESETS as readonly unknown[]).includes(value);
 }
 
-/** Most columns/rows of at-least-minimum nodes that fit `box`. */
+/** Most columns/rows of at-least-minimum nodes that fit `box` */
 function maxCols(box: Size): number {
   return Math.max(1, Math.floor((box.w + NODE_GAP) / (MIN_NODE_W + NODE_GAP)));
 }
@@ -40,8 +33,10 @@ function maxRows(box: Size): number {
   return Math.max(1, Math.floor((box.h + NODE_GAP) / (MIN_NODE_H + NODE_GAP)));
 }
 
-/** Evenly split `box`; nodes never shrink below the terminal floor, so a box
- * too small for the count overflows instead of producing sub-floor rects. */
+/**
+ * Evenly split `box`; nodes never shrink below the terminal floor, so a box
+ * too small for the count overflows instead of producing sub-floor rects
+ */
 function slots(cols: number, rows: number, box: Size, offset = { x: 0, y: 0 }): Rect[] {
   const w = Math.max(MIN_NODE_W, (box.w - NODE_GAP * (cols - 1)) / cols);
   const h = Math.max(MIN_NODE_H, (box.h - NODE_GAP * (rows - 1)) / rows);
@@ -74,7 +69,7 @@ function swarmRects(n: number, box: Size): Rect[] {
   return squareRects(n, box, SWARM_MAX_COLS);
 }
 
-/** Primary on the left at half width; the rest stacked in a column on the right. */
+/** Primary on the left at half width; the rest stacked in a column on the right */
 function fanoutRects(n: number, box: Size): Rect[] {
   if (n <= 1) return gridRects(n, box);
   const leftW = Math.max(MIN_NODE_W, Math.round((box.w - NODE_GAP) / 2));
@@ -85,7 +80,7 @@ function fanoutRects(n: number, box: Size): Rect[] {
   return [{ x: 0, y: 0, w: leftW, h: Math.max(MIN_NODE_H, box.h) }, ...rest];
 }
 
-/** Left to right; wraps to more rows once a row cannot hold minimum-width nodes. */
+/** Left to right; wraps to more rows once a row cannot hold minimum-width nodes */
 function pipelineRects(n: number, box: Size): Rect[] {
   if (n === 0) return [];
   const cols = Math.max(1, Math.min(n, maxCols(box)));
@@ -93,7 +88,7 @@ function pipelineRects(n: number, box: Size): Rect[] {
   return slots(cols, rows, box).slice(0, n);
 }
 
-/** Primary on top at half height spanning the width; the rest in a row beneath. */
+/** Primary on top at half height spanning the width; the rest in a row beneath */
 function watchersRects(n: number, box: Size): Rect[] {
   if (n <= 1) return gridRects(n, box);
   const topH = Math.max(MIN_NODE_H, Math.round((box.h - NODE_GAP) / 2));
@@ -123,7 +118,7 @@ export function arrangeRects(
   }
 }
 
-/** Assign arrangement rects to `nodes` (already in reading order), in place. */
+/** Assign arrangement rects to `nodes` (already in reading order), in place */
 export function applyArrangement(
   nodes: CanvasNode[],
   arrangement: Arrangement,

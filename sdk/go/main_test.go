@@ -27,8 +27,6 @@ func pythonAvailable() bool {
 
 // TestMain spawns one shared fake-turn server (when an interpreter is available)
 // for the integration tests, runs the suite, and tears the server down with no
-// orphan. When no interpreter is available, integration tests skip and unit
-// tests still run.
 func TestMain(m *testing.M) {
 	os.Exit(func() int {
 		if !pythonAvailable() {

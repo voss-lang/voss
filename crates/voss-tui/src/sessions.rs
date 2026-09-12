@@ -1,7 +1,6 @@
-//! `voss-tui sessions` (H4.1) — list resumable saved sessions.
-//!
+//! `voss-tui sessions` list resumable saved sessions
 //! The server reads them from the on-disk session store; the client only
-//! renders. Resume happens via `voss-tui resume <id>` (see main.rs).
+
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -43,13 +42,13 @@ fn print_sessions(cwd: &str, sessions: &[SavedSession]) {
     println!("\nresume with: voss-tui resume <id>");
 }
 
-/// List via the server's `/sessions/saved` (Python).
+/// List via the server's `/sessions/saved` (Python)
 pub async fn list(http: &HttpClient, cwd: &str) -> Result<()> {
     print_sessions(cwd, &http.list_saved_sessions(cwd).await?);
     Ok(())
 }
 
-/// List by reading `.voss/sessions/*.json` natively — no Python server (H7).
+// / List by reading `.voss/sessions/*.json` natively no Python server
 pub fn list_native(cwd: &str) -> Result<()> {
     print_sessions(cwd, &crate::store::read_saved_sessions(cwd));
     Ok(())

@@ -7,7 +7,6 @@ from voss.harness.em.errors import EMCageViolation
 from voss.harness.team import TeamRoleScope
 
 
-
 FORBIDDEN_METHODS = {
     "set_ceiling", "set_p", "set_budget", "extend_budget",
     "register_role", "register_agent", "mutate_team_config",

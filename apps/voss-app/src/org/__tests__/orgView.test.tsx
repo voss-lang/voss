@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createSignal, Show } from 'solid-js';
 import { render } from 'solid-js/web';
 
-// invoke resolves to [] so OrgViewShell.onMount → enumerateRuns() is inert.
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(() => Promise.resolve([])),
 }));
@@ -23,8 +22,6 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-// Harness reproducing App.tsx's display-toggle structure: the grid area is
-// hidden via display:none (NOT unmounted) when the Org view is active.
 function Harness() {
   const [open, setOpen] = createSignal(false);
   return (
@@ -77,27 +74,21 @@ describe('VADE-VIEW — Org/Run view toggle', () => {
     const root = mount(() => <Harness />);
     orgButton(root).click();
 
-    // Grid node persists in the DOM, just hidden — proves no PTY unmount (Pitfall 6).
     const grid = root.querySelector('[data-testid="grid"]') as HTMLElement;
     expect(grid).toBeTruthy();
     expect(grid.style.display).toBe('none');
 
-    // V14 D-01: the tab shell is gone — OrgViewShell now mounts the 4-region
-    // Run cockpit. Assert the cockpit region + that NO tablist survives.
     const shell = root.querySelector('[role="region"]');
     expect(shell).toBeTruthy();
     expect(shell?.getAttribute('aria-label')).toBe('Run cockpit');
     expect(root.querySelectorAll('[role="tab"]').length).toBe(0);
 
-    // Org button now in active styling.
     expect(orgButton(root).style.color).toContain('--focus');
   });
 
   it('the cockpit renders its four regions, not a tab bar (V14 D-01)', () => {
     const root = mount(() => <Harness />);
     orgButton(root).click();
-    // The cockpit composes four labelled regions from one shell; the old
-    // ORG_TABS tab switcher is removed (D-01/D-02 — no legacy tab escape hatch).
     const regionLabels = [
       ...root.querySelectorAll('[aria-label]'),
     ]

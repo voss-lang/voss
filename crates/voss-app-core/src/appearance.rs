@@ -1,7 +1,3 @@
-//! A8 appearance settings persistence in `settings.json` (`appearance` section).
-//!
-//! Follows `themes.rs` / `profiles.rs` flatten pattern — unknown keys preserved.
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -31,9 +27,6 @@ pub struct AppearanceSettings {
     pub high_contrast_enabled: bool,
     #[serde(default)]
     pub reduced_motion_enabled: bool,
-    /// Per-CLI chosen default model (V14-09). Keyed by CLI binary
-    /// (`claude`/`codex`/...) → model alias/id. Round-trips through the
-    /// existing appearance flatten store; absent → preset built-in default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cli_default_models: Option<std::collections::HashMap<String, String>>,
 }
@@ -147,7 +140,6 @@ fn settings_path() -> PathBuf {
     })
 }
 
-/// Load appearance settings. Missing/corrupt file → defaults.
 pub fn load_appearance_settings() -> AppearanceSettings {
     let path = settings_path();
     let raw = match std::fs::read_to_string(&path) {
@@ -176,7 +168,6 @@ pub fn load_appearance_settings() -> AppearanceSettings {
     }
 }
 
-/// Persist appearance settings, preserving unknown `settings.json` keys.
 pub fn save_appearance_settings(settings: &AppearanceSettings) -> Result<(), AppearanceError> {
     let path = settings_path();
     if let Some(dir) = path.parent() {

@@ -1,6 +1,3 @@
-//! `voss-cli resume <id-prefix-or-name>` — resolve and print session identity.
-//! Full REPL hookup lands in R7.
-
 use crate::session;
 
 pub fn run_resume(id_or_name: &str) -> std::process::ExitCode {

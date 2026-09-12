@@ -1,17 +1,3 @@
-// VCKP-04 AttentionPanel (D-05/D-06). A DOCKABLE, non-modal panel that lists the
-// global attentionQueue() items. There is NO backdrop — the cockpit stays
-// interactive behind it (D-06: pulse-not-modal; the pill pulses, the panel
-// never hard-modals).
-//
-// Each row: a kind badge, a summary, optional permission meta (tool/affected
-// path), a deep-link "Focus" action that sets the global selection to the bound
-// card/session (via the resolveCard-derived deepLink), and — for permission
-// items — allow-once / allow-scoped / deny buttons sourced from item.actions
-// (rendered only when actions is non-empty; empty for adopted/tier-C agents).
-//
-// State (open/closed) is owned by App.tsx and passed via props, mirroring how
-// contextPanelOpen / orgViewOpen flow from App into StatusBar.
-
 import { For, Show } from 'solid-js';
 
 import './attentionPanel.css';
@@ -22,14 +8,12 @@ import {
 } from './attentionQueue';
 import { setSelectedCardId } from '../selection';
 
-/** Blocking kinds drive the pill pulse; here they only tint the row badge. */
+/** Blocking kinds drive the pill pulse; here they only tint the row badge */
 const BLOCKING_KINDS = new Set<AttentionItem['kind']>(['permission', 'signoff']);
 
 /**
- * V14 chunk C row polish (mockup .ai colored kind-dot): red for the hard
+ * chunk C row polish (mockup.ai colored kind-dot): red for the hard
  * blockers (permission / blocked), focus-orange for sign-off, amber for the
- * advisory kinds (budget / confidence / gate / unsupported), neutral for idle.
- * Existing A12 tokens only.
  */
 function kindDotColor(kind: AttentionItem['kind']): string {
   switch (kind) {
@@ -48,18 +32,16 @@ function kindDotColor(kind: AttentionItem['kind']): string {
 export type AttentionPanelProps = {
   open: boolean;
   onClose: () => void;
-  /**
-   * Permission resolution backend is out of scope for this plan — the buttons
-   * must exist + be clickable. App passes a stub (or none) and we no-op.
-   */
+/**
+ * Permission resolution backend is out of scope for this plan — the buttons
+ * must exist + be clickable. App passes a stub (or none) and we no-op
+ */
   onPermissionAction?: (item: AttentionItem, action: PermissionAction) => void;
 };
 
 /**
  * Deep-link focus: set the global selection to the bound card/session. The
  * cockpit (Board spine / drawer / rail) all read selectedCardId, so this is the
- * focus path. A paneId deep-link (terminal agents) is noted on the item but the
- * selection focus is the cockpit path per the plan.
  */
 function focusItem(item: AttentionItem): void {
   setSelectedCardId(item.cardId ?? item.deepLink.sessionNodeId ?? null);

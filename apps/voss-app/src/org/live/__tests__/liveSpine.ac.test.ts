@@ -1,17 +1,3 @@
-// V15-06 (VLIVE-08) — hermetic live-spine AC suite. Spawns a REAL
-// `voss serve` (VOSS_SERVE_FAKE_TURN canned turn — no creds, no network) and
-// drives the full spine: handshake → client construction → createSession →
-// SSE subscription → events → follow-up → teardown label flip.
-//
-// GATED: default `vitest run` SKIPS this file (it spawns a real process).
-// Run with `VOSS_AC_LIVE=1 npx vitest run src/org/live/__tests__/liveSpine.ac.test.ts`.
-//
-// Permission leg honesty (plan step 4): the canned turn never requests
-// permission, so no permission.updated is fabricated into the real stream.
-// The transport is proven by POSTing a reply for a known-absent id and
-// asserting the server's stale-tolerant 200 — the in-pane gate behavior is
-// covered by the Plan-04 ProtocolPane unit gate.
-
 import { describe, it, expect, afterAll } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,7 +24,7 @@ describe.skipIf(process.env.VOSS_AC_LIVE !== '1')(
   'VLIVE-08 live spine (hermetic)',
   () => {
     afterAll(async () => {
-      // T-V15-SC / T-V15-02: reap deterministically — no orphan survives.
+      // reap deterministically — no orphan survives
       await serve?.kill();
       __resetLiveStream();
       __resetAttentionQueue();
@@ -70,7 +56,7 @@ describe.skipIf(process.env.VOSS_AC_LIVE !== '1')(
         expect(typeof sessionId).toBe('string');
         expect(sessionId.length).toBeGreaterThan(0);
 
-        // The honest list mirror sees it (VLIVE-06 transport).
+        // The honest list mirror sees it (-06 transport).
         const sessions = await client.listSessions();
         expect(sessions.map((s) => s.id)).toContain(sessionId);
       },

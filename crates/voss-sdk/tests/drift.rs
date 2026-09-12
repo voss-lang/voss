@@ -36,7 +36,7 @@ fn codegen_is_current() {
         return;
     }
 
-    // V13.1 owns the Python snapshot drift gate; this is the SDK-side generated
+    // .1 owns the Python snapshot drift gate; this is the SDK-side generated
     // Rust gate from contracts/events.schema.json.
     let output = Command::new(python(&root))
         .args(["scripts/generate_sdk_events.py", "--check"])

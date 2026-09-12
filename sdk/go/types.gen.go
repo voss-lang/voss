@@ -102,7 +102,7 @@ type CreateSessionBody struct {
 	Title    *string `json:"title,omitempty"`
 }
 
-// EventEnvelope OpenAPI schema anchor (H1.14).
+// EventEnvelope OpenAPI schema anchor.
 //
 // Forced into the OpenAPI components so a typed client codegens a tagged
 // enum over the full event union, even though no route returns it directly.

@@ -1,4 +1,6 @@
-"""Consumer for the frozen `voss-lint-as-skill` JSON schema."""
+"""
+Consumer for the frozen `voss-lint-as-skill` JSON schema
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

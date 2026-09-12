@@ -2,9 +2,8 @@ import { createSignal, onMount, Show } from 'solid-js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
 
-// macOS traffic-light colors — hardcoded per OS convention (NOT token vars).
-// Sole exception to the "no raw hex in components" rule.
-// Source: A1-UI-SPEC.md "macOS Traffic-Light Colors" table.
+// macOS traffic-light colors hardcoded per OS convention (NOT token vars)
+// Sole exception to the "no raw hex in components" rule
 const TRAFFIC_CLOSE    = '#ff5f57';
 const TRAFFIC_MINIMIZE = '#febc2e';
 const TRAFFIC_ZOOM     = '#28c840';
@@ -54,7 +53,7 @@ function MacTrafficLights() {
   );
 }
 
-// linux/win placeholder — null. Replaced in A10 soak / CI matrix (CONTEXT D-04).
+// linux/win placeholder null. Replaced in soak / CI matrix (CONTEXT )
 function StubControls() {
   return null;
 }

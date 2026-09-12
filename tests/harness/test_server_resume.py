@@ -1,8 +1,6 @@
-"""H4.1 + H4.2 — resume + prior-context (M2 fix).
-
+"""
+H4.1 + H4.2 — resume + prior-context (M2 fix).
 Covers the M2 prior-context renderer (single dict back-compat + multi-run list)
-and the server resume path (load a saved session, forward all prior runs as
-prior_context, rehydrate history).
 """
 
 from __future__ import annotations

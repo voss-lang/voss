@@ -1,10 +1,6 @@
-//! End-of-turn status line. (D-08, D-09, D-10)
-//!
-//! Format: `─ {model} · {tokens} tok · ${cost} · ctx {pct}% ` plus filler dashes.
-//! Accent rules:
-//!   - Yellow when `ctx_pct > 0.8`.
-//!   - Red    when `cost_usd > 1.0`.
-//!   - Audible bell (`\x07`) when `ctx_pct >= 0.9`.
+//! End-of-turn status line. (,, )
+//! Format: `─ {model} · {tokens} tok · ${cost} · ctx {pct}% ` plus filler dashes
+
 
 #[derive(Clone, Copy)]
 pub enum Accent {
@@ -67,7 +63,7 @@ fn format_thousands(n: usize) -> String {
     out.chars().rev().collect()
 }
 
-/// Strip ANSI SGR sequences for length calc.
+/// Strip ANSI SGR sequences for length calc
 fn visible_len(s: &str) -> usize {
     let mut n: usize = 0;
     let mut iter = s.chars();

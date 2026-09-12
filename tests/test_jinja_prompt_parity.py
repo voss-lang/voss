@@ -1,9 +1,6 @@
-"""Byte-parity guard for prompt user-messages migrated to Jinja (Phase 1).
-
+"""
+Byte-parity guard for prompt user-messages migrated to Jinja (Phase 1).
 Each migrated user-message template must render byte-identical to the original
-inline f-string it replaced. The `_old_*` functions below are frozen copies of
-that pre-migration logic; the assertions compare them against the live template
-output. If a template edit changes the bytes, these tests fail.
 """
 from __future__ import annotations
 

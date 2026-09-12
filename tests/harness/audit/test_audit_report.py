@@ -1,8 +1,6 @@
-"""V9 RED scaffolds for build_audit_report (VAUD-02/03/04/05/06/07/10).
-
+"""
+V9 RED scaffolds for build_audit_report (VAUD-02/03/04/05/06/07/10).
 Pins the planned ``voss.harness.audit.report.build_audit_report`` surface.
-Expected RED until V9-03 lands. Uses tmp_path; never writes to the real
-``.voss/`` directory. No xfail masking.
 """
 from __future__ import annotations
 

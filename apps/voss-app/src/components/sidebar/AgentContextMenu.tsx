@@ -10,7 +10,7 @@ export interface AgentContextMenuProps {
   onStopAgent: (paneId: string) => void;
   onRestartAgent: (paneId: string) => void;
   onDetachAgent: (paneId: string) => void;
-  /** VCKP-12: open the "Let Voss manage this agent" adopt flow. */
+/** open the "Let Voss manage this agent" adopt flow */
   onManageAgent: (paneId: string) => void;
 }
 

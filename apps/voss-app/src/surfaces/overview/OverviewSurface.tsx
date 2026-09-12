@@ -1,10 +1,3 @@
-// V24-05 (VADE2-05) — Overview mission-control surface.
-//
-// Condensed roll-up over the same status grouping as TasksSurface: a per-group
-// count strip plus the ACTIVE and BLOCKED groups expanded (the work that needs
-// eyes). Reuses GROUPS / groupCards / TaskRow from TasksSurface — no
-// re-derivation, no duplicated row markup.
-
 import { type Component, For, Show } from 'solid-js';
 import '../surfaces.css';
 import { runData, loading, loadError } from '../../org/orgStore';
@@ -17,7 +10,7 @@ export type OverviewSurfaceProps = Pick<
   'projectName' | 'projectPath' | 'gitBranch' | 'onNewSession' | 'onNewTask'
 >;
 
-// The groups the Overview expands inline (the rest are roll-up counts only).
+// The groups the Overview expands inline (the rest are roll-up counts only)
 const EXPANDED_KEYS = ['active', 'blocked'] as const;
 const EXPANDED_GROUPS = GROUPS.filter((g) =>
   (EXPANDED_KEYS as readonly string[]).includes(g.key),

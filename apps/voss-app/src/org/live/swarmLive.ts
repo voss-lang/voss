@@ -1,27 +1,5 @@
-// V24 swarm surface — live ingestion of the V25 swarm SSE plane.
-//
-// The swarm.* events (voss/harness/server/events.py) fan out over the existing
-// SSE bus to every registered swarm session. sseClient routes each event here.
-// This module keeps the LIVE half of the swarm graph the GET /swarm snapshot
-// cannot express:
-//   - builder↔task binding (swarm.assign: session_id ↔ task_id ↔ role ↔ owned_files)
-//   - reviewer gates, operator escalations, worker-done, completion
-//   - a bounded ring of recent live edges (honest source "sse_event:swarm.*") for
-//     the guarded pulse / EventTrace fallback.
-//
-// The SDK AgentEvent union does NOT include swarm types (SDK typegen not run), so
-// events are narrowed STRUCTURALLY by `type` here — mirroring the server models.
-// Module-level signals + immutable spreads only (Pitfall 5: no produce/structuredClone).
-
 import { createSignal } from 'solid-js';
 
-// --- Event shapes (mirror voss/harness/server/events.py SwarmAssign etc.) ------
-
-/**
- * `eid`: a server-generated id shared across all N broadcast copies of one
- * logical swarm event (events.py `_SwarmBase`). Optional for back-compat with an
- * older server that omits it. Used to dedup the fan-out duplicates at ingest.
- */
 export interface SwarmAssignEvent {
   type: 'swarm.assign';
   eid?: string;
@@ -90,7 +68,7 @@ export type SwarmEvent =
   | SwarmCandidatesReadyEvent
   | SwarmCompleteEvent;
 
-/** The binding the GET /swarm snapshot omits: which session/role owns a task. */
+/** The binding the GET /swarm snapshot omits: which session/role owns a task */
 export interface SwarmAssignment {
   taskId: string;
   sessionId: string;
@@ -98,7 +76,7 @@ export interface SwarmAssignment {
   ownedFiles: string[];
 }
 
-/** A live swarm edge for the guarded pulse / EventTrace fallback. Honest source. */
+/** A live swarm edge for the guarded pulse / EventTrace fallback. Honest source */
 export interface SwarmLiveEdge {
   type: 'assign' | 'worker_done' | 'gate' | 'needs_operator' | 'candidate_ready';
   taskId: string;
@@ -109,12 +87,6 @@ export interface SwarmLiveEdge {
 
 const MAX_LIVE_EDGES = 200;
 
-// Dedup of broadcast fan-out: one logical swarm event is delivered once per swarm
-// member (app.py `_emit_swarm_event`), so the same `eid` arrives N times across N
-// session streams. We ingest each eid ONCE. Bounded FIFO (non-reactive, mirrors
-// protocolSessions' handle map) so the guard can't grow unboundedly; far larger
-// than any realistic same-tick burst, so a genuine later re-event (distinct eid)
-// is never starved. Events without an eid (older server) bypass the guard.
 const MAX_SEEN_EIDS = 1024;
 const seenEids = new Set<string>();
 const seenEidOrder: string[] = [];
@@ -145,13 +117,7 @@ const [swarmCandidatesReady, setSwarmCandidatesReady] = createSignal<
 >({});
 // bounded ring of recent live edges (for pulse + EventTrace parity).
 const [swarmLiveEdges, setSwarmLiveEdges] = createSignal<SwarmLiveEdge[]>([]);
-// Monotonic count of swarm events ingested — a stable refetch trigger. The live-
-// edge ring length plateaus at MAX_LIVE_EDGES and is therefore USELESS as a
-// "new event happened" signal once saturated (it would freeze snapshot refetch);
-// this counter never plateaus. Increments once per ingested swarm event.
 const [swarmEventSeq, setSwarmEventSeq] = createSignal(0);
-// The app-launched swarm id (set by SwarmLaunch). Takes precedence over registry
-// discovery so a just-created swarm renders immediately, before any pane binding.
 const [activeSwarmId, setActiveSwarmId] = createSignal<string | null>(null);
 
 function pushLiveEdge(edge: SwarmLiveEdge): void {
@@ -175,7 +141,6 @@ function isSwarmEvent(ev: unknown): ev is SwarmEvent {
 /**
  * Route one SSE event into the live swarm store. No-op for non-swarm events, so
  * sseClient can call it unconditionally in its for-await loop. `ts` is injectable
- * for deterministic tests (defaults to Date.now()).
  */
 export function ingestSwarmEvent(ev: unknown, ts: number = Date.now()): void {
   if (!isSwarmEvent(ev)) return;
@@ -291,7 +256,7 @@ export {
   setActiveSwarmId,
 };
 
-/** Test-only reset (mirrors __resetLiveStream). */
+/** Test-only reset (mirrors __resetLiveStream) */
 export function __resetSwarmLive(): void {
   setSwarmAssignments({});
   setSwarmOperatorNeeds({});

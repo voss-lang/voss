@@ -31,7 +31,7 @@ describe('PasteGuard (PTY-04)', () => {
     expect(root.textContent).toContain('(3 lines)');
     expect(root.textContent).toContain('Discard');
     expect(root.textContent).not.toContain('Cancel');
-    // bypass hint copy is load-bearing (UI-SPEC §9)
+    // bypass hint copy is
     expect(root.textContent).toContain('⌘⇧V skips this');
   });
 

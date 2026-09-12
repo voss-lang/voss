@@ -1,6 +1,6 @@
-//! D-11..D-14 step dispatch. Read-only tools fan out concurrently (cap N);
+//! step dispatch. Read-only tools fan out concurrently (cap N)
 //! mutating tools execute serially in plan order. Permission gate consulted
-//! per step before scheduling. Denial of one step does not block siblings.
+
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -30,7 +30,7 @@ pub(crate) async fn dispatch_steps(
 ) -> Vec<String> {
     let mut results: Vec<Option<String>> = vec![None; steps.len()];
 
-    // Resolve each step + consult gate up-front (D-14).
+    // Resolve each step + consult gate up-front
     let mut resolved: Vec<Resolved> = Vec::with_capacity(steps.len());
     for (i, step) in steps.iter().enumerate() {
         let args = serde_json::Value::Object(step.args.clone());
@@ -55,7 +55,7 @@ pub(crate) async fn dispatch_steps(
     }
 
     // Fill unknown-tool + denial slots up front so renderer ordering follows
-    // plan order on the failure path.
+    // plan order on the failure path
     for r in &resolved {
         if r.tool.is_none() {
             renderer.show_tool_call(&r.name, &r.args, "<unknown tool>", ToolState::Error);
@@ -67,7 +67,7 @@ pub(crate) async fn dispatch_steps(
         }
     }
 
-    // Partition the still-unresolved into read-only (parallel) vs mutating (serial).
+    // Partition the still-unresolved into read-only (parallel) vs mutating (serial)
     let live: Vec<&Resolved> = resolved
         .iter()
         .filter(|r| r.tool.is_some() && r.denied_reason.is_none() && results[r.idx].is_none())
@@ -76,8 +76,8 @@ pub(crate) async fn dispatch_steps(
         .into_iter()
         .partition(|r| !r.tool.as_ref().unwrap().is_mutating());
 
-    // D-13: read-only group first, with concurrency cap. Print "running…"
-    // for the chunk, await all, then print final state per-step in plan order.
+    // read-only group first, with concurrency cap. Print "running…"
+    // for the chunk, await all, then print final state step in plan order
     let cap = parallel_cap.max(1);
     for chunk in parallel.chunks(cap) {
         if cancelled(&cancel) {
@@ -101,7 +101,7 @@ pub(crate) async fn dispatch_steps(
             })
             .collect();
         let outs = join_all(futs).await;
-        // Sort outs by idx so renderer events match plan order within chunk.
+        // Sort outs by idx so renderer events match plan order within chunk
         let mut outs = outs;
         outs.sort_by_key(|(idx, _)| *idx);
         for (idx, res) in outs {
@@ -121,7 +121,7 @@ pub(crate) async fn dispatch_steps(
         }
     }
 
-    // Mutating: serial in plan order.
+    // Mutating: serial in plan order
     for r in serial {
         if cancelled(&cancel) {
             results[r.idx] = Some("<cancelled>".into());

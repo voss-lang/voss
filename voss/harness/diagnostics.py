@@ -1,12 +1,6 @@
-"""voss doctor checks. Diagnose-only by default (D-13); repairs run only
-via the explicit opt-in repair engine (`voss doctor --fix`).
-
-Each check is a pure function returning a `Check` carrying a CheckResult
-(✓/⚠/✗), a one-line detail, an optional `fix` shell command suggestion,
-and (when machine-repairable) a `repair` callable gated by a RepairTier.
-The CLI in `voss.harness.cli.doctor_cmd` renders the table and computes
-exit semantics per D-14. The check set itself never mutates state beyond
-the pre-existing mkdir probes.
+"""
+voss doctor checks. Diagnose-only by default; repairs run only
+via the explicit opt-in repair engine (`voss doctor --fix`)
 """
 from __future__ import annotations
 

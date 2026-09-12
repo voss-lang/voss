@@ -1,19 +1,3 @@
-//! A5 project-open persistence — canonical project metadata, recents JSON,
-//! best-effort git branch detection, and project-less default cwd resolution.
-//!
-//! The on-disk recents shape is versioned so the same camelCase payload the
-//! TypeScript model uses (`"gitBranch"`) round-trips unchanged while the
-//! persisted file remains a small `{ version, recents }` schema. Bump
-//! `CURRENT_RECENTS_VERSION` whenever the recents file shape changes.
-//!
-//! All errors are typed (`ProjectError`) so app-level `#[tauri::command]`
-//! wrappers can pass the UI copy through verbatim. Corrupt, missing, or
-//! unsupported `recents.json` files fail closed to an empty list so app
-//! startup is never blocked by a convenience file (D-10).
-//!
-//! `open_project` never touches `<workspace>/.voss/`; that directory remains
-//! lazily created by later write paths such as layout save (CONCEPT §10 Q7).
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -32,7 +16,6 @@ pub struct ProjectInfo {
     pub git_branch: Option<String>,
 }
 
-/// Typed errors for project open. Display strings match the UI-SPEC
 /// user-facing copy so app-level command wrappers can pass them through
 /// verbatim.
 #[derive(Debug, thiserror::Error)]
@@ -239,11 +222,11 @@ fn save_recents(file: &RecentsFile) -> std::io::Result<()> {
 #[cfg(not(test))]
 fn recents_path() -> PathBuf {
     // NOTE: build the path manually from home_dir() so it resolves to
-    // ~/.config/voss-app/recents.json on every platform (CONTEXT D-08/D-09).
+    // ~/.config/voss-app/recents.json on every platform (CONTEXT /).
     // The `dirs` crate's platform-native config helper is intentionally NOT
     // used: on macOS it resolves to ~/Library/Application Support, which
-    // diverges from the user-facing ~/.config path locked by D-08.
-    // See A1-RESEARCH.md Pitfall 8 and A1-UI-SPEC.md Theme Override System Contract.
+    // diverges from the user-facing ~/.config path locked by.
+    // See A1-.md and A1-.md Theme Override System Contract.
     dirs::home_dir()
         .unwrap_or_default()
         .join(".config")

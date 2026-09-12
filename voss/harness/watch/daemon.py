@@ -1,5 +1,6 @@
-"""Daemon detach helper for long-running watch tasks."""
-
+"""
+Daemon detach helper for long-running watch tasks
+"""
 from __future__ import annotations
 
 import subprocess
@@ -17,8 +18,8 @@ def spawn_detached_worker(original_argv: list[str]) -> int:
 
     worker_argv = [sys.executable, "-m", "voss.harness.cli", "watch"] + filtered_args
 
-    # start_new_session is True to detach the child on POSIX (by calling setsid()).
-    # On Windows, start_new_session is ignored/supported best-effort.
+    # start_new_session is True to detach the child on POSIX (by calling setsid)
+    # On Windows, start_new_session is ignored/supported
     proc = subprocess.Popen(
         worker_argv,
         stdin=subprocess.DEVNULL,
@@ -28,5 +29,5 @@ def spawn_detached_worker(original_argv: list[str]) -> int:
         start_new_session=True,
     )
 
-    # Intentionally do not wait or block on the process.
+    # Intentionally do not wait or block on the process
     return proc.pid

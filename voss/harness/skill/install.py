@@ -1,4 +1,6 @@
-"""Install, remove, and update skill bundles with staging-verify-copy discipline."""
+"""
+Install, remove, and update skill bundles with staging-verify-copy discipline
+"""
 from __future__ import annotations
 
 import shutil
@@ -80,7 +82,7 @@ def install_bundle(
                     f"Run: voss skill trust {pub_key_b64}"
                 )
 
-        # Verify signature — nothing copied until this passes (Pitfall 1)
+        # Verify signature nothing copied until this passes
         manifest_path = bundle_dir / "manifest.toml"
         sig_path = bundle_dir / sig_file
         ok, reason = verify_manifest(manifest_path, sig_path, pub_key_b64=pub_key_b64)
@@ -175,7 +177,7 @@ def update_bundle(skill_id: str, *, cwd: Path) -> None:
         if not ok:
             raise SkillTrustError(f"update signature verification failed: {reason}")
 
-        # Atomic swap: current→.bak, new→current, rm .bak
+        # Atomic swap: current→.bak, new→current, rm.bak
         bak_dir = install_dir.with_name(install_dir.name + ".bak")
         try:
             install_dir.rename(bak_dir)
@@ -189,7 +191,7 @@ def update_bundle(skill_id: str, *, cwd: Path) -> None:
                         shutil.rmtree(install_dir)
                     bak_dir.rename(install_dir)
                 raise
-            # Success — remove backup
+            # Success remove backup
             shutil.rmtree(bak_dir, ignore_errors=True)
         except OSError:
             # Restore from backup if swap failed

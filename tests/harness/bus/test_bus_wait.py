@@ -1,8 +1,6 @@
-"""VBUS-04 `voss bus wait` scaffold — xfail until V15 ships.
-
+"""
+VBUS-04 `voss bus wait` scaffold — xfail until V15 ships.
 Contract: `wait --mention <me> --timeout <s>` blocks on the SSE stream,
-unblocks within 2s of a matching `bus send`, prints the message, exit 0;
-no match by the deadline → exit 124.
 """
 from __future__ import annotations
 

@@ -1,9 +1,6 @@
-"""V9 RED scaffolds for the ``voss audit`` CLI command (VAUD-01).
-
+"""
+V9 RED scaffolds for the ``voss audit`` CLI command (VAUD-01).
 Pins ``voss.harness.cli.audit_cmd`` (a click command). Expected RED until
-V9-04/V9-06 land. Uses tmp_path; never writes to the real ``.voss/``. No
-xfail masking. The audit_cmd import is inside each test so collection
-succeeds before the command exists.
 """
 from __future__ import annotations
 

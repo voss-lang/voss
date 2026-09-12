@@ -1,12 +1,6 @@
-"""Voss EM (Engineering Manager) subpackage (O5).
-
-Frozen value-objects for the EM's audit trail: tickets, routing rationale,
-kill/rescope lineage, and run-final summaries. Every record carries a
-`kind="em.*"` discriminator distinct from O3's `board.*` records.
-
-EMBoardHandle is the cage-bounded facade — the EM's ONLY board API.
-EMPlanResponse + em_plan provide the LLM structured-output surface.
-DeterministicEMStub is for tests only.
+"""
+Voss EM (Engineering Manager) subpackage
+Frozen value-objects for the EM's audit trail: tickets, routing rationale
 """
 from .tickets import Ticket, KillRecord, RescopeRecord, RoutingRationale, RunFinal
 from .errors import EMCageViolation

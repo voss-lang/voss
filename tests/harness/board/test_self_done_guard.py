@@ -1,14 +1,6 @@
-"""VBOARD-07 self-Done independence guard — Wave 0 RED scaffold.
-
+"""
+VBOARD-07 self-Done independence guard — Wave 0 RED scaffold.
 Drives the REAL planned behavior (V5-02): move(card,"Done") on a Board built
-with reviewer=None raises BoardGateError carrying "no-reviewer" in
-failing_clauses. Today the gate refuses with ["conf"] (the explicit guard is
-missing), so the no-reviewer assertion is RED until V5-02 lands.
-
-The positive path (valid reviewer permits Done) and the structural
-no-verdict-injection tripwire are GREEN now and pin invariants.
-
-No xfail/skip masking — failures are genuine.
 """
 from __future__ import annotations
 

@@ -1,8 +1,6 @@
-"""Layout-context derivation for `voss sync` (V16, R2).
-
+"""
+Layout-context derivation for `voss sync` (V16, R2).
 Derives project layout facts from git/fs probes at sync time. Deterministic
-by construction: no timestamps, no mtimes, no environment-dependent ordering
-— the same unchanged tree always yields the same Layout.
 """
 from __future__ import annotations
 

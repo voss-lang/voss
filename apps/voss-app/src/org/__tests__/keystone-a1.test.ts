@@ -1,26 +1,6 @@
 /**
- * V14 KEYSTONE A1 — native create-response id ↔ snapshot node id verification.
- *
- * Gates plan 02 (VCKP-02 binding wave). The bridge mechanism depends on which
- * ids actually equal each other, so this test pins the convention against a REAL
- * `.voss/sessions` tree when one exists in the repo, falling back to the snapshot
- * node fixtures otherwise.
- *
- * Facts established by inspection (see references below):
- *   - PROTOCOL §10/§11: `POST /session` mints `sessionID = uuid4().hex[:12]` (12 hex
- *     chars) server-side and persists `<cwd>/.voss/sessions/<id>.json`. The
- *     create-response returns `{ id }` === that sessionID.
- *   - The persisted record's JSON `id` field === the filename stem (`<id>.json`).
- *   - lib.rs:1112 `load_run` derives `SessionTreeNode.id` from a node-file stem;
- *     for a native single-node run the persisted session id IS that node id.
- *   - agent_registry.rs `session_id` is APP-minted (pty-ipc spawn) and is NOT the
- *     harness sessionID — it does not join to a node id (registry.session_id ≠ node.id).
- *
- * Real-tree observation (2026-06): `.voss/sessions/` holds flat `<id>.json` files,
- * every stem a 12-hex string, JSON `id` === stem. No `<run_id>/<node>.json`
- * subdirectory layout was present, so the single-node native case holds: the
- * create-response id equals the node id and Bridge A can store it directly into
- * `cardToSessionNode` with no second lookup.
+ * KEYSTONE A1 — native create-response id ↔ snapshot node id verification
+ * Gates (-02 binding wave). The bridge mechanism depends on which
  */
 import { describe, it, expect } from 'vitest';
 // Node builtins are resolved by vitest at runtime; this app's tsconfig has no
@@ -36,12 +16,12 @@ import nodeChild from './fixtures/node-child.json';
 import liveRegistry from './fixtures/live-registry.json';
 import bridgeBinding from './fixtures/bridge-binding.json';
 
-/** PROTOCOL §11: sessionID = uuid4().hex[:12] → exactly 12 lowercase hex chars. */
+/** 11: sessionID = uuid4.hex[:12] → exactly 12 lowercase hex chars */
 const HEX12 = /^[0-9a-f]{12}$/;
 
 /**
- * A1_FINDING — verbatim resolution of RESEARCH Open-Q1 / Assumptions Log A1.
- * Plan 02 reads this string. It states the create-response-id ↔ node-id relation.
+ * A1_FINDING — verbatim resolution of Open-Q1 / Assumptions Log A1
+ * reads this string. It states the create-response-id ↔ node-id relation
  */
 export const A1_FINDING =
   'A1 RESOLVED (verified against a real .voss/sessions tree): for a native run the ' +
@@ -54,7 +34,7 @@ export const A1_FINDING =
   'resolveCard\'s `cardToSessionNode[cardId] ?? cardId` fallback covers any future ' +
   'multi-node run-dir divergence without a silent mis-bind.';
 
-/** Walk up from CWD to the git repo root (the dir containing `.git`). */
+/** Walk up from CWD to the git repo root (the dir containing `.git`) */
 function findRepoRoot(start: string): string {
   let dir = start;
   for (let i = 0; i < 12; i++) {
@@ -66,7 +46,7 @@ function findRepoRoot(start: string): string {
   return start;
 }
 
-/** Find all `.voss/sessions/` dirs under the repo (skip node_modules). */
+/** Find all `.voss/sessions/` dirs under the repo (skip node_modules) */
 function findSessionTrees(root: string): string[] {
   const found: string[] = [];
   const skip = new Set(['node_modules', '.git', 'target', 'dist']);
@@ -105,7 +85,7 @@ function findSessionTrees(root: string): string[] {
 const repoRoot = findRepoRoot(process.cwd());
 const sessionTrees = findSessionTrees(repoRoot);
 
-/** Collect flat `<id>.json` session records from the first non-empty tree. */
+/** Collect flat `<id>.json` session records from the first non-empty tree */
 function collectRealSessions(): { id: string; stem: string }[] {
   for (const tree of sessionTrees) {
     const out: { id: string; stem: string }[] = [];
@@ -175,7 +155,7 @@ describe('V14 Keystone A1 — create-response id ↔ SessionTreeNode.id', () => 
     expect(createResponseId).toBe(nodeId); // create-response id === node id
 
     // Because they are equal, Bridge A stores the create-response id directly into
-    // cardToSessionNode. If this ever fails, plan 02 must add a second lookup.
+    // cardToSessionNode. If this ever fails, must add a second lookup.
     const cardToSessionNode: Record<string, string> = { C1: createResponseId };
     expect(cardToSessionNode.C1).toBe(nodeId);
   });
@@ -184,7 +164,7 @@ describe('V14 Keystone A1 — create-response id ↔ SessionTreeNode.id', () => 
     // The fake live registry's native agent (pane P1) carries an app-supplied
     // sessionId. For the native agent it happens to be a real 12-hex harness id,
     // but the convention is that registry.session_id is NOT, in general, the node id
-    // — the terminal agent (P2) proves it (non-hex, Bridge B).
+    // the terminal agent proves it (non-hex, Bridge B)
     const terminal = (liveRegistry as Array<{ paneId: string; sessionId: string }>).find(
       (a) => a.paneId === 'P2',
     );

@@ -1,11 +1,6 @@
-"""R7 trim policy tests (tui-redesign-spec §3.2).
-
+"""
+R7 trim policy tests (tui-redesign-spec §3.2).
 Above TRIM_THRESHOLD mounted blocks, TranscriptView flattens the oldest
-blocks into a single static `≈ N earlier turns · /resume to reload`
-placeholder (always first child), keeping the newest TRIM_KEEP real blocks —
-bounds widget count on long sessions (RichLog had `max_lines`). Trimmed
-ToolCard / AgentTreeCard ids are dropped from the in-place-update
-registries; the working indicator and auto-follow are untouched.
 """
 from __future__ import annotations
 

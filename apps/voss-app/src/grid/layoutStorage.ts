@@ -4,30 +4,22 @@ import type { LegacyGridStore } from '../canvas/migrate';
 import type { CanvasNode, CanvasView } from '../canvas/model';
 
 /**
- * Frontend bridge for the A4-03 Rust layout persistence commands. These
+ * Frontend bridge for the Rust layout persistence commands. These
  * wrappers carry no remap or geometry logic — that lives in
- * `layoutCommands.ts`. Errors come back as the exact UI-SPEC strings
- * (Rust's `LayoutError::Display` matches the copy table verbatim) so the
- * UI can surface them without translation.
- *
- * Tauri converts snake_case Rust param names to camelCase on the JS
- * side; payload keys here MUST match the Rust function signatures from
- * `apps/voss-app/src-tauri/src/lib.rs`.
  */
 
-/** Wire-level layout shape — mirrors Rust `voss_app_core::layouts::LayoutFile`. */
+/** Wire-level layout shape — mirrors Rust `voss_app_core::layouts::LayoutFile` */
 export type LayoutFile = {
   version: 1 | 2;
   activePreset: LayoutPreset | null;
-  /** v1 split tree; v2 files written from the canvas omit it. */
+/** v1 split tree; v2 files written from the canvas omit it */
   grid?: LegacyGridStore;
-  /** Canvas geometry; absent on v1 layouts saved before the canvas. */
+/** Canvas geometry; absent on v1 layouts saved before the canvas */
   nodes?: CanvasNode[];
   view?: CanvasView;
   focusedId?: string;
 };
 
-// --- Exact UI-SPEC copy ----------------------------------------------------
 // Single source of truth for the renderer and tests; renaming any of these
 // is a deliberate spec change.
 
@@ -45,7 +37,6 @@ export const UNSUPPORTED_VERSION = 'layout ignored: unsupported version';
 export const SAVE_FAILED = 'could not save layout';
 export const LOAD_FAILED = 'could not load layout';
 
-// --- Tauri command bridges -------------------------------------------------
 
 export async function saveLayout(
   workspaceId: string,

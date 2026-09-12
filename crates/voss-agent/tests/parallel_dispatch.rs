@@ -1,5 +1,3 @@
-//! D-11..D-14 dispatch invariants.
-
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

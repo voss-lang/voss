@@ -1,14 +1,5 @@
-// Pure client-side replay reducer (D-05/D-06, powers VADE-10).
-//
-// Reconstructs board/card state at any step N by folding `board.transition`
-// entries in order. No Solid imports, no invoke, no DOM. CRITICAL: never use
-// `produce()` or `structuredClone()` here — board nodes may arrive as Solid
-// store proxies and both throw DATA_CLONE_ERR on proxies (memory
-// voss-app-solid-produce-no-structuredclone). Use plain spreads only.
-
 import type { SessionTreeNode, BoardFrame, CardSnapshot } from './types';
 
-/** The 6 canonical board columns, in display order. */
 export const CANONICAL_COLUMNS = [
   'Backlog',
   'Planned',
@@ -28,7 +19,6 @@ interface CollectedTransition {
   label: string;
 }
 
-/** First `em.ticket.risk_tier` in a node, default "med". */
 function deriveRisk(node: SessionTreeNode): string {
   for (const t of node.transitions) {
     if (t.kind === 'em.ticket') return t.risk_tier;
@@ -36,7 +26,6 @@ function deriveRisk(node: SessionTreeNode): string {
   return 'med';
 }
 
-/** Flatten every node's `board.transition` entries into one ordered list. */
 function collectBoardTransitions(nodes: SessionTreeNode[]): CollectedTransition[] {
   const out: CollectedTransition[] = [];
   for (const node of nodes) {
@@ -63,11 +52,6 @@ function emptyColumns(): Record<string, CardSnapshot[]> {
   return cols;
 }
 
-/**
- * Reconstruct the board at `step`: applies transitions 0..step inclusive, then
- * overrides any node whose terminal_state has been reached by `step`
- * (done → Done, killed/timeout → Blocked). Returns plain object literals.
- */
 export function computeBoardAtStep(
   nodes: SessionTreeNode[],
   step: number,
@@ -89,7 +73,6 @@ export function computeBoardAtStep(
     columns[t.to] = [...(columns[t.to] ?? []), snap];
   }
 
-  // terminal_state override — only once `step` reaches a node's last transition
   for (const node of nodes) {
     const ts = node.terminal_state;
     if (!ts) continue;

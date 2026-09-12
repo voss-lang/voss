@@ -1,20 +1,4 @@
-"""Multi-agent-in-chat fan-out tools — V4-persisted (V8 VMAG-10/UNIFY/07/ROOT).
-
-The four non-blocking fan-out tools (`subagent_spawn`/`steer`/`status`/`gather`),
-the `ChildHandle` dataclass, the `ChildRegistry` in-memory child tracker, and the
-`PanelBridgeRenderer`. V8 unified the budget+persistence backend onto the V4
-`SessionTreeManager` (the prior in-memory even-split allocator was removed):
-every spawn allocates a persisted `SessionTreeNode` child of the level's node,
-and recursion builds a per-node child manager (reserve = `VIABLE_FLOOR`) so each
-level divides only its own node's envelope. The chat-root manager is owned and
-injected by `cli.py`.
-
-Budget constants `DEFAULT_PARENT_RESERVE` (30_000, the chat-root reserve, sourced
-from agent.py's `token_budget: int = 60_000` chat default) and `VIABLE_FLOOR`
-(2_000) live here. No recursion-depth ceiling constant appears anywhere —
-recursion is bounded SOLELY by the viable-floor denial in `subagent_spawn`
-(budget-structural, preserves `test_subagent_recursion.py`).
-"""
+"""Multi-agent-in-chat fan-out tools (spawn, steer, status, gather)."""
 from __future__ import annotations
 
 import asyncio
@@ -22,30 +6,27 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-# OQ-A1 resolution constants (Claude's discretion; agent.py:419 anchor) ──────
+# OQ- resolution constants (Claude's discretion; agent.py:419 anchor) ──────
 
-#: Synthetic parent reserve. Half of the chat parent's effective working
-#: budget: the chat `run_turn` call (cli.py:1695) passes no `token_budget`,
-#: so `_run_turn_exec` uses the default ``token_budget: int = 60_000`` at
-#: agent.py:419. M13 carves DEFAULT_PARENT_RESERVE from that 60_000, leaving
-#: the parent ~30_000 for its own orchestration turn (D-05: "a parent reserve
-#: is carved").
+# Synthetic parent reserve. Half of the chat parent's effective working
+# budget: the chat `run_turn` call (cli.py:1695) passes no `token_budget`
+# so `_run_turn_exec` uses the default ``token_budget: int = 60_000`` at
+# agent.py:419. carves DEFAULT_PARENT_RESERVE from that 60_000, leaving
+# the parent ~30_000 for its own orchestration turn (: "a parent reserve
+# is carved")
 DEFAULT_PARENT_RESERVE: int = 30_000
 
-#: Minimum allotment that still funds >=1 child iteration; must be
-#: < reserve // expected_fanout so a first/second spawn is allowed but
-#: unbounded recursion is denied. With DEFAULT_PARENT_RESERVE=30_000 this
-#: allows up to floor(30_000/2_000)=15 concurrent first-level children before
-#: denial; in the recursive case a child's sub-allocator reserve = that
-#: child's allotment (D-07, slice-scoped), so depth is bounded naturally
-#: without any depth/max_depth constant (M13-RESEARCH line 442; preserves
-#: test_subagent_recursion.py — which only pins the agent.py:419-fed
-#: subagents.py module, not this one).
+# Minimum allotment that still funds >=1 child iteration; must be
+# < reserve // expected_fanout so a first/second spawn is allowed but
+# unbounded recursion is denied. With DEFAULT_PARENT_RESERVE=30_000 this
+# allows up to floor(30_000/2_000)=15 concurrent first-level children before
+# denial; in the recursive case a child's sub-allocator reserve = that
+# Child allotment is slice-scoped, so depth is bounded without a max_depth constant.
 DEFAULT_VIABLE_FLOOR: int = 2_000
 
-#: V8 alias used by the inline even-split denial in ``subagent_spawn``. A
-#: budget floor (the recursion bound) — NOT a depth constant; it stays in this
-#: module and never appears in subagents.py (V8-RESEARCH Pitfall 6).
+# alias used by the inline even-split denial in ``subagent_spawn``. A
+# budget floor (the recursion bound) NOT a depth constant; it stays in this
+# module and never appears in subagents.py
 VIABLE_FLOOR: int = DEFAULT_VIABLE_FLOOR
 
 
@@ -57,31 +38,31 @@ class ChildHandle:
     NOT ``frozen`` — ``done``/``result`` mutate over the child's lifetime.
     """
 
-    #: ``uuid.uuid4().hex[:12]`` handle (also the ``panel_id``, RESEARCH
-    #: Pattern 1).
+    # ``uuid.uuid4.hex[:12]`` handle (also the ``panel_id``
+    # Pattern 1)
     id: str
-    #: The detached ``asyncio.Task`` running the child ``run_turn`` (typed
-    #: ``Any`` so M13-02 imports/awaits nothing; M13-03 populates it).
+    # The detached ``asyncio.Task`` running the child ``run_turn`` (typed
+    # ``Any`` so imports/awaits nothing; populates it)
     task: Any = None
-    #: Budget slice (the child node's envelope limit) granted at spawn.
+    # Budget slice (the child node's envelope limit) granted at spawn
     allotment: int = 0
-    #: Lifecycle flag flipped by the gather path.
+    # Lifecycle flag flipped by the gather path
     done: bool = False
-    #: Aggregated child output, set on completion by the gather path.
+    # Aggregated child output, set on completion by the gather path
     result: str | None = None
-    #: M13-03 ADDITIVE (D-03): per-child steer inbox. The parent enqueues
-    #: ``subagent_steer`` guidance here; the child ``run_turn`` drains it at
-    #: its loop boundary (agent.py:830). Defaulted so M13-02's 5-field
-    #: construction stays valid; populated by ``subagent_spawn``.
+    # ADDITIVE: per-child steer inbox. The parent enqueues
+    # ``subagent_steer`` guidance here; the child ``run_turn`` drains it at
+    # its loop boundary (agent.py:830). Defaulted so 's 5-field
+    # construction stays valid; populated by ``subagent_spawn``
     queue: Any = None
-    #: M13-03 ADDITIVE: the renderer panel/tree parent_id (== :attr:`id`).
+    # ADDITIVE: the renderer panel/tree parent_id (==:attr:`id`)
     panel_id: str = ""
-    #: DEPRECATED in V8 (kept only for positional back-compat; always set to
-    #: None at construction). The recursive sub-allocator is now a per-node V4
-    #: ``SessionTreeManager`` built in ``subagent_spawn``, not stored here.
+    # DEPRECATED in (kept only for positional back-compat; always set to
+    # None at construction). The recursive sub-allocator is now a per-node
+    # ``SessionTreeManager`` built in ``subagent_spawn``, not stored here
     sub_allocator: Any = None
-    #: V8 ADDITIVE: the persisted V4 ``SessionTreeNode`` for this child, used to
-    #: ``finalize_node`` on gather/teardown. Last field (positional back-compat).
+    # ADDITIVE: the persisted ``SessionTreeNode`` for this child, used to
+    # ``finalize_node`` on gather/teardown. Last field (positional back-compat)
     node: Any = None
 
 
@@ -121,11 +102,9 @@ def new_handle_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-# ════════════════════════════════════════════════════════════════════════════
 # Non-blocking fan-out tools, panel bridge, attach entry, defensive
-# orphan-teardown net (extends the ChildHandle / ChildRegistry above;
-# stdlib + in-repo only).
-# ════════════════════════════════════════════════════════════════════════════
+# orphan-teardown net (extends the ChildHandle / ChildRegistry above
+# stdlib + in-repo only)
 
 from pathlib import Path  # noqa: E402  (in-repo, additive — Analog A param shape)
 from typing import Callable  # noqa: E402
@@ -165,7 +144,7 @@ class PanelBridgeRenderer:
 
     def step(self, line: str, used: int) -> None:
         # Calls the existing renderer.py:203 method name (the dead seam); the
-        # renderer.py wiring itself is M13-04's TUI track, NOT touched here.
+        # renderer.py wiring itself is 's TUI track, NOT touched here
         if hasattr(self._base, "show_subagent_progress"):
             self._base.show_subagent_progress(self._panel_id, line, used)
 
@@ -175,7 +154,7 @@ class PanelBridgeRenderer:
 
     def __getattr__(self, attr: str) -> Any:
         # Everything not overridden above (the full Renderer protocol the
-        # child run_turn calls) delegates to the base renderer unchanged.
+        # child run_turn calls) delegates to the base renderer unchanged
         return getattr(self._base, attr)
 
 
@@ -217,11 +196,11 @@ def attach_multiagent_tools(
     """
     base_renderer = renderer
     child_registry = ChildRegistry()
-    # V4-backed default when no manager is injected (e.g. a direct
+    # backed default when no manager is injected (e.g. a direct
     # attach without a chat root). cli.py injects the real session-scoped
     # chat-root manager; this fallback keeps the tool surface usable
-    # standalone. This is a real persisted V4 root, not the removed
-    # in-memory even-split allocator.
+    # standalone. This is a real persisted root, not the removed
+    # in-memory even-split allocator
     if node_manager is None:
         node_manager = SessionTreeManager(
             SessionTreeNode.create_root(cwd=cwd, limit=60_000),
@@ -229,12 +208,12 @@ def attach_multiagent_tools(
             cwd=cwd,
         )
     # handle id -> PanelBridgeRenderer (so gather/teardown can end_panel even
-    # though M13-02's ChildHandle dataclass has no bridge field).
+    # though 's ChildHandle dataclass has no bridge field)
     bridges: dict[str, PanelBridgeRenderer] = {}
 
     def _resolve_task(agent: str, task: str) -> str:
         # Reuse the registered subagent role framing when the agent id is a
-        # known SubagentSpec; else fall back to the raw task string.
+        # known SubagentSpec; else fall back to the raw task string
         spec = registry.get(agent) if registry is not None else None
         return agent_task(spec, task) if spec is not None else task
 
@@ -249,9 +228,9 @@ def attach_multiagent_tools(
         ),
     )
     async def subagent_spawn(agent: str, task: str) -> str:
-        # Inline even-split over the V4 node envelope. Compute the allotment
-        # under the manager lock (Pitfall 1 — but do NOT hold it across the
-        # allocate_child / create_task below).
+        # Inline even-split over the node envelope. Compute the allotment
+        # under the manager lock ( but do NOT hold it across the
+        # allocate_child / create_task below)
         async with node_manager._lock:
             active_children = [
                 c for c in node_manager._children if c.terminal_state is None
@@ -263,13 +242,13 @@ def attach_multiagent_tools(
                 - allocated
             )
             # Divide by active+2 (not active+1) so the new child takes only a
-            # SHARE of `available`, leaving headroom for further siblings. V4
-            # node limits are immutable (unlike M13's rebalancing allocator), so
+            # SHARE of `available`, leaving headroom for further siblings
+            # node limits are immutable (unlike 's rebalancing allocator), so
             # a greedy `// (active+1)` would let the first child swallow the
             # whole envelope and deny every later sibling. Reserving headroom
             # lets multiple sequential children coexist while no-oversell
             # (allocate_child's BudgetAllocationError) and the viable-floor
-            # denial still hold.
+            # denial still hold
             n = len(active_children) + 2
             allotment = available // n
         if allotment < VIABLE_FLOOR:  # viable-floor denial -> bounds recursion
@@ -277,8 +256,8 @@ def attach_multiagent_tools(
                 f"<denied: budget below viable floor — cannot spawn {agent!r}>"
             )
         # OUTSIDE the lock: allocate the persisted node. allocate_child re-checks
-        # under its own lock and raises BudgetAllocationError — the authoritative
-        # guard against the TOCTOU window (Pitfall 1).
+        # under its own lock and raises BudgetAllocationError the authoritative
+        # guard against the TOCTOU window
         try:
             child_node = await node_manager.allocate_child(
                 allotment, scope="chat", role=agent
@@ -286,7 +265,7 @@ def attach_multiagent_tools(
         except BudgetAllocationError as exc:
             return f"<denied: {exc}>"
         # Use the persisted node id as the handle so registry lookups, panel
-        # keying, and finalize_node all align on one id.
+        # keying, and finalize_node all align on one id
         handle = child_node.id
         queue: asyncio.Queue = asyncio.Queue()
         panel_id = handle
@@ -295,11 +274,11 @@ def attach_multiagent_tools(
         bridges[handle] = bridge
         picked_model = model() if callable(model) else model
         child_tools = make_toolset(cwd, renderer=bridge)
-        # Per-node recursion (Pitfall 5): the child becomes a parent via its OWN
-        # V4 manager rooted at child_node (reserve == VIABLE_FLOOR), injected as
+        # Per-node recursion: the child becomes a parent via its OWN
+        # manager rooted at child_node (reserve == VIABLE_FLOOR), injected as
         # the recursive node_manager=. Each level divides only its own node's
         # envelope; grandchildren persist under child_node.id. Recursion is
-        # bounded SOLELY by the viable-floor denial — no depth constant.
+        # bounded SOLELY by the viable-floor denial no depth constant
         child_manager = SessionTreeManager(
             child_node, reserve=VIABLE_FLOOR, cwd=cwd
         )
@@ -327,8 +306,8 @@ def attach_multiagent_tools(
             token_budget=allotment,
             steer_inbox=queue,
         )
-        # RESEARCH Pattern 1 — the INVERSION of subagents.py:92 `await
-        # run_turn(...)`: schedule, do NOT await the child here.
+        # Pattern 1 the INVERSION of subagents.py:92 `await
+        # run_turn(...)`: schedule, do NOT await the child here
         t = asyncio.create_task(coro)
         child_registry.add(
             ChildHandle(
@@ -341,8 +320,8 @@ def attach_multiagent_tools(
                 node=child_node,
             )
         )
-        # Pitfall 1: the return string makes the pending-gather obligation
-        # explicit so the parent LLM actually gathers.
+        # the return string makes the pending-gather obligation
+        # explicit so the parent LLM actually gathers
         return (
             f"spawned {agent} handle={handle} budget={allotment} — "
             f"call subagent_gather when ready"

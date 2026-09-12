@@ -1,19 +1,6 @@
-/**
- * A7-05 Task 1 — native OS menu generation from command registry (D-04).
- *
- * Two-layer design:
- * - `buildNativeMenuModel`: pure model generation from registry metadata.
- *   Testable in jsdom.
- * - `setAsAppMenu`: Tauri API side-effect that installs the model.
- *   Requires live Tauri runtime — manual-only verification.
- *
- * Category order matches the UI-SPEC and palette category order:
- * Window → Workspace → Pane → Layout → Project → Settings → Help.
- */
-
 import type { CommandCategory, CommandRegistry } from './registry';
 
-// --- Menu model (pure, testable) ---------------------------------------------
+// Menu model (pure, testable)
 
 export interface NativeMenuItem {
   id: string;
@@ -26,7 +13,7 @@ export interface NativeMenuGroup {
   items: NativeMenuItem[];
 }
 
-/** Fixed category order matching UI-SPEC. */
+/** Fixed category order matching */
 const CATEGORY_ORDER: CommandCategory[] = [
   'Window',
   'Workspace',
@@ -37,11 +24,6 @@ const CATEGORY_ORDER: CommandCategory[] = [
   'Help',
 ];
 
-/**
- * Convert a registry chord string to a Tauri accelerator string.
- * `Cmd+D` → `CmdOrCtrl+D`, `Cmd+Shift+D` → `CmdOrCtrl+Shift+D`,
- * `Cmd+Alt+ArrowRight` → `CmdOrCtrl+Alt+Right`.
- */
 export function chordToAccelerator(chord: string): string {
   return chord
     .replace('Cmd', 'CmdOrCtrl')
@@ -49,8 +31,8 @@ export function chordToAccelerator(chord: string): string {
 }
 
 /**
- * Build a pure menu model from registry metadata. No Tauri dependency.
- * Each command becomes a menu item; groups follow CATEGORY_ORDER.
+ * Build a pure menu model from registry metadata. No Tauri dependency
+ * Each command becomes a menu item; groups follow CATEGORY_ORDER
  */
 export function buildNativeMenuModel(
   registry: CommandRegistry,
@@ -67,11 +49,11 @@ export function buildNativeMenuModel(
   })).filter((g) => g.items.length > 0);
 }
 
-// --- Tauri installation (side-effect, not unit-testable) ---------------------
+// Tauri installation (side-effect, not unit-testable)
 
 /**
- * Install the native OS menu from registry metadata.
- * Requires live Tauri runtime — no-ops silently in non-Tauri environments.
+ * Install the native OS menu from registry metadata
+ * Requires live Tauri runtime no-ops silently in non-Tauri environments
  */
 export async function setAsAppMenu(
   registry: CommandRegistry,
@@ -100,7 +82,7 @@ export async function setAsAppMenu(
     const menu = await Menu.new({ items: submenus });
     await menu.setAsAppMenu();
   } catch (e) {
-    // Non-Tauri environment (dev server, test) — silently skip.
+    // Non-Tauri environment (dev server, test) silently skip
     console.warn('[voss-app] native menu setup skipped:', e);
   }
 }

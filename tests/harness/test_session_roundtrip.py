@@ -1,9 +1,6 @@
-"""T2-01: BatchRecord schema + IterationRecord.batches additive field.
-
+"""
+T2-01: BatchRecord schema + IterationRecord.batches additive field.
 Locks the additive substrate for PAR-06: BatchRecord dataclass, the new
-batches field on IterationRecord, and the round-trip guarantees that
-preserve pre-T2 on-disk fixtures (no "batches" key) and reconstruct
-multi-batch iterations losslessly.
 """
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js';
 
-/** UI-SPEC §8 / PTY-03 — ⌘F scrollback search overlay (SearchAddon-wired). */
+/** / PTY-03 ⌘F scrollback search overlay (SearchAddon-wired) */
 export interface FindBarProps {
   onNext: (query: string) => void;
   onPrev: (query: string) => void;

@@ -1,14 +1,3 @@
-// V24 Orchestra — command bar + quick actions + hint strip.
-//
-// Directs LIVE agents only (honest): targets are the assigned builder sessions
-// known from swarm.assign (swarmAssignments: role ↔ sessionId). `@all` broadcasts
-// to every live session; `@<role>` targets one. Send goes through the existing
-// live write path (FollowUpClient.postMessage → POST /session/{id}/message). When
-// nothing is live or there's no connection, the bar is disabled WITH A REASON —
-// never a silent no-op, never a fake send. It does NOT start runs (⌘K composer
-// owns that). Quick actions: Status report / Wrap up = canned broadcasts;
-// Pause work has no server op yet → disabled-with-reason.
-
 import { type Component, createMemo, createSignal, For, Show } from 'solid-js';
 import { liveServer } from '../../org/live/liveServer';
 import { swarmAssignments } from '../../org/live/swarmLive';
@@ -50,7 +39,7 @@ const SwarmCommandBar: Component = () => {
   };
   const canSend = () => disabledReason() === null;
 
-  /** Resolve the current "@target" selection to session ids. */
+/** Resolve the current "@target" selection to session ids */
   function targetSessions(): string[] {
     return targets().find((t) => t.label === target())?.sessionIds ?? [];
   }

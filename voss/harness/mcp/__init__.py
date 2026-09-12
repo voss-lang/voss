@@ -1,4 +1,6 @@
-"""Public MCP harness package surface."""
+"""
+Public MCP harness package surface
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

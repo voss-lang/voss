@@ -1,17 +1,6 @@
-"""M9-07 CLI integration — default-path renderer flip + permissions bridge wiring.
-
+"""
+M9-07 CLI integration — default-path renderer flip + permissions bridge wiring.
 This file pins three contracts:
-
-1. **make_renderer default flip**: a TTY user with adequate capability gets
-   a `TextualRenderer`. A CliRunner caller (non-TTY) still gets a
-   `PlainRenderer`. `--plain` still wins. `FORCE_TUI=1` still wins.
-2. **install_tui_permissions wiring**: when `TextualRenderer` is active,
-   the gate's `prompt_fn` AND `scope_prompt_fn` are wired through the
-   M9-05 modal bridge. When `PlainRenderer` (or `TtyRenderer`) is active,
-   both callables remain at their `None` defaults (stderr/stdin fallback).
-3. **`--no-unicode` flag sets the env BEFORE make_renderer**: glyphs.py
-   reads the env at import; the flag must set it before the renderer
-   constructs any widget.
 """
 from __future__ import annotations
 

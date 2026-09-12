@@ -1,18 +1,6 @@
-"""RED scaffold: `voss team run` acceptance surface (VEM-CLI / VEM-PERSIST / VEM-SIGNOFF).
-
+"""
+RED scaffold: `voss team run` acceptance surface (VEM-CLI / VEM-PERSIST / VEM-SIGNOFF).
 Wave 0 (V7-01). These tests encode the V7 acceptance contract BEFORE the
-implementation in V7-02. They are RED now — the `team run` subcommand does not
-exist on the team group yet, so CliRunner invocations exit non-zero and the
-sidecar assertions fail. GREEN follows V7-02.
-
-The bodies drive the REAL planned surface (no fictional API, no xfail):
-  voss team run "<goal>" --cwd <dir>  composing V3 team config + V4 session tree
-  + V5 board + V6 Reviewer-A/B slots + the O5 em_loop, pre-spawning >=1 card,
-  persisting RunFinal (10 fields) to <cwd>/.voss/sessions/<root_id>/run-final.json
-  with a superset "sign_off" key, then prompting approve/reject via click.prompt.
-
-RunFinal is the 10-field frozen record at voss/harness/em/tickets.py:112 —
-do NOT assert on evidence_refs/diff_summary/residual (those live on Ticket).
 """
 
 from __future__ import annotations

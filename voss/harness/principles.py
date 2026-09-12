@@ -1,16 +1,6 @@
-"""Engineering principles config substrate (V2 VPRIN-01/03/05/06).
-
-A frozen, immutable, ordered set of engineering principles — the six shipped
-defaults, optionally extended/overridden/disabled by a project-local
-`.voss/principles.yml`. Mirrors the `TeamConfig` frozen-config + loud-error
-(`VossTeamConfigError`) precedent in `team.py`, and the `.voss/*.yml`
-`yaml.safe_load` pattern in `consensus.py` — but, deliberately unlike
-`load_constraints`, this loader RAISES on malformed input (D-02) rather than
-silently falling back to defaults.
-
-Principle text is strictly OPAQUE: no code in this module branches on any
-individual principle key or string — the merge is key-agnostic set algebra
-(guard-tested in V2-03).
+"""
+Engineering principles config substrate ( VPRIN-01/03/05/06)
+A frozen, immutable, ordered set of engineering principles the six shipped
 """
 from __future__ import annotations
 
@@ -19,9 +9,9 @@ from pathlib import Path
 
 import yaml
 
-# D-02: the six shipped defaults live here as the single source of truth (no
-# shipped .voss/principles.default.yml file). Ordered — order is stable for
-# injection (V2-02) and `voss principles show` (V2-03).
+# the six shipped defaults live here as the single source of truth (no
+# shipped.voss/principles.default.yml file). Ordered order is stable for
+# injection and `voss principles show`
 DEFAULT_PRINCIPLES: tuple[tuple[str, str], ...] = (
     ("diff", "Make the smallest diff that solves the task."),
     ("evidence", "No factual claim without evidence."),

@@ -10,14 +10,8 @@ import {
 } from '../registry';
 
 /**
- * A7-01 Task 2 — command registry tests.
- *
- * Verifies:
- * - v0 catalog covers all six categories
- * - Command ids are unique
- * - Dispatch returns true for handled chords, false for unmatched
- * - Registry metadata is accessible by chord and category
- * - Alias chords dispatch to the same command
+ * Task 2 — command registry tests
+ * Verifies
  */
 
 function mockCtx(): AppContext {

@@ -2,7 +2,7 @@ import { For, Show, createSignal } from 'solid-js';
 import type { RunData, SessionTreeNode } from '../types';
 import { buildTree, type TreeNode } from '../treeBuild';
 
-// VADE-03 — navigable parent→child session tree with expand/collapse,
+// 03 — navigable parent→child session tree with expand/collapse,
 // selection, and a metadata strip for the selected node.
 
 function roleColor(role: string | null): string {

@@ -1,11 +1,6 @@
-"""T1-05 Task 2b: stream_delta + finalize_stream on every Renderer impl.
-
+"""
+T1-05 Task 2b: stream_delta + finalize_stream on every Renderer impl.
 Renderer Protocol gains two methods; every concrete impl (TtyRenderer,
-PlainRenderer, JsonRenderer, TextualRenderer) implements them following
-that class's existing output-channel convention.
-
-Also pins telemetry.note_turn(**kwargs) passthrough for the new
-iteration_count + exit_reason keys (no telemetry.py source change).
 """
 from __future__ import annotations
 

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// Tauri mock — reducer makes no invoke calls, but keep the import chain inert.
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
 import { computeBoardAtStep, CANONICAL_COLUMNS } from '../replayReducer';
@@ -8,9 +7,6 @@ import type { SessionTreeNode } from '../types';
 import nodeRoot from './fixtures/node-root.json';
 import nodeChild from './fixtures/node-child.json';
 
-// node-child carries 4 board.transition entries (the only ones across nodes):
-//   step 0: Backlog→Planned   step 1: Planned→InProgress
-//   step 2: InProgress→InReview   step 3: InReview→Done
 const NODES = [nodeRoot, nodeChild] as unknown as SessionTreeNode[];
 const CHILD_ID = nodeChild.id;
 const FINAL_STEP = 3;
@@ -26,7 +22,6 @@ describe('replayReducer — VADE-10 board/card reconstruction', () => {
       expect(frame.columns[col]).toBeInstanceOf(Array);
     }
     expect(Object.keys(frame.columns).sort()).toEqual([...CANONICAL_COLUMNS].sort());
-    // 0th transition is Backlog→Planned, so the card is in Planned, not Backlog.
     expect(frame.columns.Backlog).toHaveLength(0);
     expect(frame.columns.Planned.map((c) => c.id)).toContain(CHILD_ID);
   });
@@ -34,7 +29,6 @@ describe('replayReducer — VADE-10 board/card reconstruction', () => {
   it('advances the card to InProgress at the step of its Backlog→…→InProgress transition', () => {
     const frame = computeBoardAtStep(NODES, 1);
     expect(frame.columns.InProgress.map((c) => c.id)).toContain(CHILD_ID);
-    // and it has left earlier columns
     expect(frame.columns.Planned).toHaveLength(0);
   });
 
@@ -63,7 +57,6 @@ describe('replayReducer — VADE-10 board/card reconstruction', () => {
     const before = clone(NODES);
     const frame = computeBoardAtStep(NODES, FINAL_STEP);
     expect(NODES).toEqual(before); // inputs untouched
-    // plain literals — round-trips through JSON without loss/throw
     expect(() => JSON.stringify(frame)).not.toThrow();
     expect(clone(frame)).toEqual(frame);
   });

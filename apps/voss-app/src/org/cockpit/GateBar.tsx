@@ -1,17 +1,3 @@
-// VCKP-05 — bottom gate bar, extended in V14 chunk B to the mockup .gatebar:
-// label + mini-bar + mono value per gate.
-//
-// Gates: Budget (selected card's envelope {limit, spent}, threshold-colored
-// bar), Confidence (LIVE data only — the SSE overlay score or the normalized
-// `liveCard.liveStatus` overlay; hidden on pure snapshots), Scope (declared
-// scope text), Unsupported claims (AuditReport.unsupported_claims), and the
-// right-aligned Sign-off state (RunFinal.sign_off + blocked-card count).
-//
-// Budget threshold coloring is COPIED verbatim from BoardPanel (budgetColor is
-// a private helper there — not exported — so it is copied, not imported).
-// Per-card confidence is NEVER a snapshot field — it renders only from live
-// overlays, absent live data → hidden.
-
 import { Show } from 'solid-js';
 import type { RunData } from '../types';
 import type { Card } from '../model/normalized';
@@ -59,10 +45,8 @@ const barTrack = {
 } as const;
 
 /**
- * Bottom bar reading the global `selectedCardId()` / `runData()`. A `data` prop
- * is accepted (defaults to global `runData()`) to keep CockpitShell wiring thin.
- * `liveCard` (normalized overlay) and the SSE liveOverlay are the only sources
- * for per-card confidence.
+ * Bottom bar reading the global `selectedCardId` / `runData`. A `data` prop
+ * is accepted (defaults to global `runData`) to keep CockpitShell wiring thin
  */
 export default function GateBar(props: {
   data?: RunData | null;

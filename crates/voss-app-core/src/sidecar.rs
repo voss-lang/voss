@@ -1,24 +1,9 @@
-//! V15 SPIKE — `voss serve` sidecar: spawn/own the server from the Tauri
-//! (Rust) side and hand the `{v,port,token}` stdout handshake to the webview.
-//!
-//! Ported from the proven `crates/voss-sdk` supervisor (60s cold-start budget,
-//! `LITELLM_LOCAL_MODEL_COST_MAP=true`, stdin-pipe heartbeat, stderr drain).
-//! This module is the intended production home; the Tauri command wrapper
-//! (`start_voss_serve` in src-tauri) lands in the V15 phase proper.
-//!
-//! Spike scope proven by the gated test below:
-//!   spawn → handshake parse → authed `GET /session` (200) → missing Bearer
-//!   (401) → kill + reap (no orphan).
-
 use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 
-/// The one-line startup handshake `voss serve` prints on stdout. Serialized
-/// camelCase-free (all lowercase single words) — safe to return through Tauri
-/// IPC as-is.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServeHandshake {
     pub port: u16,
@@ -31,8 +16,6 @@ impl ServeHandshake {
     }
 }
 
-/// A running `voss serve` owned by the app. Dropping kills the child
-/// (kill_on_drop) — hold it in Tauri state for the app's lifetime.
 pub struct VossServe {
     child: Child,
     pub handshake: ServeHandshake,
@@ -43,15 +26,12 @@ impl VossServe {
         self.child.id()
     }
 
-    /// Kill and reap (no zombie).
     pub async fn shutdown(mut self) {
         let _ = self.child.start_kill();
         let _ = self.child.wait().await;
     }
 }
 
-/// Interpreter resolution: `VOSS_PYTHON` > repo `.venv/bin/python` > `python3`.
-/// CARGO_MANIFEST_DIR = `<repo>/crates/voss-app-core`, so `../..` is the root.
 pub fn python_path() -> String {
     if let Ok(p) = std::env::var("VOSS_PYTHON") {
         return p;
@@ -63,11 +43,6 @@ pub fn python_path() -> String {
     "python3".to_string()
 }
 
-/// T-V15-01: canonicalize and validate a webview-supplied workspace `cwd`
-/// before it becomes a process-spawn argument. With empty `allowed_roots`,
-/// any existing directory is accepted (single-user local default); otherwise
-/// the canonical path must equal or descend from one of the roots.
-/// Path cannot exist outside of the root
 pub fn validate_workspace_cwd(
     cwd: &str,
     allowed_roots: &[std::path::PathBuf],
@@ -83,11 +58,6 @@ pub fn validate_workspace_cwd(
     Ok(canonical)
 }
 
-/// Spawn `voss serve --port 0` in `cwd` and complete the startup handshake.
-///
-/// litellm's import tree cold-compiles in ~45s on first run (warm ~15s), so
-/// the handshake budget is 60s; `LITELLM_LOCAL_MODEL_COST_MAP=true` removes
-/// the boot-time network fetch entirely (voss-sdk findings, V13.2-06).
 pub async fn spawn_voss_serve(python: &str, cwd: &std::path::Path) -> anyhow::Result<VossServe> {
     let mut cmd = Command::new(python);
     cmd.args(["-m", "voss.cli", "serve", "--port", "0"])
@@ -109,8 +79,6 @@ pub async fn spawn_voss_serve(python: &str, cwd: &std::path::Path) -> anyhow::Re
         .take()
         .ok_or_else(|| anyhow::anyhow!("voss serve: no stderr pipe"))?;
 
-    // Drain stderr continuously (a full pipe blocks the server); keep the tail
-    // for timeout diagnostics.
     let stderr_buf = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     {
         let stderr_buf = std::sync::Arc::clone(&stderr_buf);
@@ -140,7 +108,6 @@ pub async fn spawn_voss_serve(python: &str, cwd: &std::path::Path) -> anyhow::Re
         anyhow::anyhow!("voss serve handshake timed out; stderr:\n{captured}")
     })??;
 
-    // Drain remaining stdout so a full pipe never blocks the server.
     tokio::spawn(async move { while let Ok(Some(_)) = lines.next_line().await {} });
 
     Ok(VossServe { child, handshake })
@@ -151,8 +118,6 @@ mod tests {
     use super::*;
     use std::io::{Read, Write};
 
-    /// Minimal HTTP/1.1 GET over a raw TcpStream — keeps the spike dependency-
-    /// free. Returns the status line + body.
     fn http_get(port: u16, path: &str, bearer: Option<&str>) -> (u16, String) {
         let mut stream =
             std::net::TcpStream::connect(("127.0.0.1", port)).expect("connect voss serve");
@@ -182,15 +147,9 @@ mod tests {
         assert_eq!(h.port, 54321);
         assert_eq!(h.token, "abc");
         assert!(ServeHandshake::from_line("not json").is_none());
-        // Server log lines must not parse as handshakes.
         assert!(ServeHandshake::from_line("INFO: started").is_none());
     }
 
-    /// V15 SPIKE proof — the full sidecar loop against the real server:
-    /// spawn → handshake → authed GET /session 200 → no-Bearer 401 → reap.
-    ///
-    /// Needs the repo Python env (heavy, ~15-60s): runs only when
-    /// `VOSS_SIDECAR_SPIKE=1` (set VOSS_PYTHON to override the interpreter).
     #[test]
     fn spike_spawn_handshake_authed_request_and_reap() {
         if std::env::var("VOSS_SIDECAR_SPIKE").as_deref() != Ok("1") {
@@ -215,18 +174,15 @@ mod tests {
             assert!(!token.is_empty());
             let pid = serve.pid().expect("child pid");
 
-            // Authed request succeeds.
             let (status_ok, body) = http_get(port, "/session", Some(&token));
             assert_eq!(status_ok, 200, "authed GET /session: {body}");
 
-            // Missing Bearer is rejected.
             let (status_unauth, _) = http_get(port, "/session", None);
             assert!(
                 status_unauth == 401 || status_unauth == 403,
                 "unauthenticated GET must be rejected, got {status_unauth}"
             );
 
-            // Reap: no orphan after shutdown.
             serve.shutdown().await;
             let alive = std::process::Command::new("kill")
                 .args(["-0", &pid.to_string()])
@@ -239,7 +195,6 @@ mod tests {
         });
     }
 
-    /// V15-01: cwd validation (T-V15-01) — pure path checks, no spawn, ungated.
     #[test]
     fn cwd_validation() {
         assert!(validate_workspace_cwd("/definitely/not/a/real/path/xyz", &[]).is_err());
@@ -249,11 +204,9 @@ mod tests {
         std::fs::create_dir_all(&dir_a).unwrap();
         std::fs::create_dir_all(&dir_b).unwrap();
 
-        // Empty roots: any existing directory is accepted (canonicalized).
         let ok = validate_workspace_cwd(dir_a.to_str().unwrap(), &[]).expect("existing dir ok");
         assert!(ok.is_dir());
 
-        // A path outside every allowed root is rejected; inside its root passes.
         let canon_b = std::fs::canonicalize(&dir_b).unwrap();
         assert!(
             validate_workspace_cwd(dir_a.to_str().unwrap(), std::slice::from_ref(&canon_b))
@@ -265,11 +218,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir_b);
     }
 
-    /// V15-01 reuse-if-alive sentinel proof: different cwds spawn different
-    /// server processes, and after kill+reap `pid()` returns `None` — the
-    /// stale-map signal `start_voss_serve` keys respawn on (Pitfall 5).
-    ///
-    /// Heavy (real server spawns): gated exactly like the spike test.
     #[test]
     fn reuse_if_alive() {
         if std::env::var("VOSS_SIDECAR_SPIKE").as_deref() != Ok("1") {
@@ -297,8 +245,6 @@ mod tests {
             let pid_b = serve_b.pid().expect("pid B");
             assert_ne!(pid_a, pid_b, "different cwds must spawn different servers");
 
-            // Kill + reap B in place (same-module access to the private child),
-            // then assert the stale-entry sentinel: pid() is None after reap.
             let _ = serve_b.child.start_kill();
             let _ = serve_b.child.wait().await;
             assert!(

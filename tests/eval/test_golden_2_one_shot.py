@@ -1,17 +1,6 @@
-"""T1 ITER-01 / SPEC criterion 11: M5 golden #2 rename-symbol completes one-shot.
-
+"""
+T1 ITER-01 / SPEC criterion 11: M5 golden #2 rename-symbol completes one-shot.
 Pre-T1 this multi-step coding task required the user to re-prompt because
-the single-shot loop couldn't react to tool results. T1's iteration loop
-fixes it. This test exercises the ACTUAL `voss/harness/agent.py` loop
-(not a mock of `_run_turn_exec`) with a scripted streaming provider that
-plays out a four-iteration rename flow and asserts a single `run_turn`
-call completes the task.
-
-Follow-up note (CONTEXT.md "M5 fixture compatibility = hard break"):
-pre-T1 single-shot M5 golden fixtures will be re-recorded against the
-new iteration semantics in a separate M5 follow-up. This stub-provider
-test exists so phase T1 can ship without the fixture re-record blocking
-the merge.
 """
 from __future__ import annotations
 

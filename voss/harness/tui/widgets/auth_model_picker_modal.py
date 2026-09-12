@@ -1,16 +1,6 @@
-"""AuthModelPickerModal — Claude-CLI-style `/model` picker (R8).
-
+"""
+AuthModelPickerModal Claude-CLI-style `/model` picker (R8)
 A small numbered picker over the curated subscription model list
-(`subscription_models.SUBSCRIPTION_MODELS`) for the ACTIVE auth — Claude
-subscription (Agent SDK) or Codex (ChatGPT backend). Unlike the searchable
-catalog ModelPickerModal (`/models`, API-key providers), rows here are a
-fixed handful: number keys 1-9 quick-pick, j/k/arrows + enter select, esc
-cancels. `dismiss(model)` returns the chosen `SubscriptionModel` (or None);
-the caller (cli `/model`) applies + persists it.
-
-Design contract: no accent-color literal in this file — styling lives in
-styles.tcss under `AuthModelPickerModal` (declaration site). The current
-marker uses `glyphs.CHECK` (R8 allow-list addition) so --no-unicode holds.
 """
 from __future__ import annotations
 
@@ -81,7 +71,7 @@ class AuthModelPickerModal(ModalScreen):
     def on_mount(self) -> None:
         self.query_one("#auth-picker-list", ListView).focus()
         # ListView assigns its own default index after mount; set the current
-        # model's row once that has settled (same dance as ModelPickerModal).
+        # model's row once that has settled (same dance as ModelPickerModal)
         self.call_after_refresh(self._highlight_current)
 
     def _highlight_current(self) -> None:
@@ -94,7 +84,7 @@ class AuthModelPickerModal(ModalScreen):
         return self.query_one("#auth-picker-list", ListView)
 
     def on_key(self, event) -> None:
-        # 1-9 quick-pick (rows are at most a handful; no 10+ paging).
+        # 1-9 quick-pick (rows are at most a handful; no 10+ paging)
         if event.key in "123456789":
             i = int(event.key) - 1
             if i < len(self._models):
@@ -102,7 +92,7 @@ class AuthModelPickerModal(ModalScreen):
                 self.dismiss(self._models[i])
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        # Mouse click / enter on a row.
+        # Mouse click / enter on a row
         self._dismiss_index(self._list().index)
 
     def action_cursor_down(self) -> None:

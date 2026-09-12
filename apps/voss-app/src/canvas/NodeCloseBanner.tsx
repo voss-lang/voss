@@ -1,13 +1,12 @@
 import { onCleanup, onMount } from 'solid-js';
 
 /**
- * Close-confirm row under a node header when its foreground process is busy.
+ * Close-confirm row under a node header when its foreground process is busy
  * Enter / "Close anyway" confirms, Escape / "Keep open" dismisses; any other
- * key passes through to the PTY.
  */
 export default function NodeCloseBanner(props: {
   process: string;
-  /** Only the focused node's banner answers Enter and Escape. */
+/** Only the focused node's banner answers Enter and Escape */
   active: boolean;
   onConfirm: () => void;
   onKeepOpen: () => void;

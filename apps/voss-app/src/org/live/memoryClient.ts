@@ -1,5 +1,3 @@
-// VADE2-11 — typed client for the loopback server's GET /memory route.
-//
 import { callSidecar } from './sidecarClient';
 
 export interface MemoryHit {
@@ -20,9 +18,6 @@ export interface MemoryResponse {
   hits: MemoryHit[];
 }
 
-/**
- * Fetch memory through the Rust-owned sidecar operation proxy.
- */
 export async function fetchMemory(
   sidecarId: string,
   q?: string,

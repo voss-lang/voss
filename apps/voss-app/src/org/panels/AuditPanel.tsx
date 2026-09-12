@@ -1,9 +1,9 @@
 import { For, Show } from 'solid-js';
 import type { RunData, AuditReport } from '../types';
 
-// VADE-04 — renders the V9 audit JSON: summary sections, claims-vs-evidence
+// 04 — renders the V9 audit JSON: summary sections, claims-vs-evidence
 // with the unsupported-EM-claim ⚑ flag, and the residual-risk (leak6) section.
-// Diffs / tests_evals are intentionally NOT rendered (Pitfall 4 — always in
+// Diffs / tests_evals are intentionally NOT rendered ( — always in
 // sections_missing for the V2-V7 substrate).
 
 const sectionHeader = {

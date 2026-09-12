@@ -1,31 +1,6 @@
-"""V23 RED scaffold — pins all eight retrieval-aware ranking/hygiene requirements.
-
+"""
+V23 RED scaffold — pins all eight retrieval-aware ranking/hygiene requirements.
 Wave 0 tests-first gate (V23-VALIDATION.md): every later V23 plan turns one or
-more of these RED tests GREEN. Tests assert the *post-V23* contract, so most fail
-today (feature code absent) and flip green as plans land. A handful are
-deliberate always-green regression locks (byte-identical off-path, disable-knob
-restores fill, mtime eviction fallback) — these guard the "no behaviour change
-unless opted in" constraint and must stay green before AND after the feature.
-
-RED mechanism per requirement:
-  - VRNK-01 telemetry  → not-yet-existing `store._record_telemetry` /
-                         `store._load_telemetry_compacted`
-  - VRNK-02 floors     → post-floor `recall()` returns 0 for a weak/ubiquitous
-                         query that today fills
-  - VRNK-03 rescore    → telemetry-driven re-ranking (config `memory.rescore`)
-                         not yet honoured; off-path byte-identical
-  - VRNK-04 eviction   → pin/telemetry-aware eviction order (today mtime-only)
-  - VRNK-05 reindex    → `voss memory reindex [--check]` CLI verbs absent
-  - VRNK-06 pins       → not-yet-existing `store._load_pins` + pin-aware eviction
-  - VRNK-07 cli        → `pin/unpin/list/show` CLI verbs absent
-  - VRNK-08            → byte-identical baseline (shared with VRNK-03)
-
-Sidecar contract (gitignored under .voss/memory/, never the memory files):
-  - telemetry: .voss/memory/.retrieval.jsonl  (append-only per agent recall)
-  - pins:      .voss/memory/.pins.json
-
-Tests import only from voss.harness.memory_store / memory_cli (no reach into
-voss_runtime.memory.semantic) per V23-RESEARCH Test Map.
 """
 
 from __future__ import annotations

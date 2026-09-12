@@ -1,16 +1,6 @@
-"""Local append-only BOS decision ledger.
-
+"""
+Local append-only BOS decision ledger
 Inline emission (D-R01): decision records are written AT gate/operator decision
-time, carrying the frozen state they were made against (the as_of pointer and
-feature_snapshot). This is a deliberate break from BOS3's pure projection layer
-(`bos_events.py`), which reconstructs observed facts after the fact. Decisions
-are not observed facts; they pin point-in-time state at the moment of choice.
-This inline-emission contract is the keystone of BOS4 (D-R01).
-
-Records are written to `.voss/bos/decisions.jsonl`, a sibling of the BOS3 event
-ledger, and every record validates against
-`contracts/decision-ledger.schema.json`. The outcome label (BOS5) is NEVER
-written here at decision time; it is joined later by `decision_id` (D-04).
 """
 from __future__ import annotations
 

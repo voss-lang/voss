@@ -1,10 +1,6 @@
-//! HTTP + SSE client (H2.3, H2.5).
-//!
+//! HTTP + SSE client (, )
 //! Thin REST commands (create session, post message, abort, permission reply)
-//! plus an SSE consumer that parses the event stream into [`AppEvent`]s and
-//! forwards them over an mpsc channel to the UI task. Uses reqwest's
-//! `bytes_stream()` + `eventsource-stream` (avoids the stale
-//! `reqwest-eventsource` crate, which pins an incompatible reqwest).
+
 
 use std::time::Duration;
 
@@ -15,12 +11,11 @@ use tokio::sync::mpsc;
 
 use crate::event::AppEvent;
 
-/// Per-request timeout for the short REST calls. NOT applied to the SSE stream
-/// (long-lived); the client's connect_timeout covers establishing that.
+/// (long-lived); the client's connect_timeout covers establishing that
 const REST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Turn a non-2xx response into an error that carries the server's `{detail}`
-/// (PROTOCOL.md §9) instead of reqwest's status-only message.
+/// ( ) instead of reqwest's status-only message
 async fn ok_or_detail(resp: reqwest::Response) -> Result<reqwest::Response> {
     let status = resp.status();
     if status.is_success() {
@@ -46,7 +41,7 @@ pub struct HttpClient {
 impl HttpClient {
     pub fn new(base: String, token: String) -> Self {
         // connect_timeout bounds connection establishment for ALL requests
-        // (incl. the SSE GET) without capping the long-lived stream body.
+        // (incl. the SSE GET) without capping the long-lived stream body
         let inner = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .build()
@@ -58,7 +53,7 @@ impl HttpClient {
         rb.bearer_auth(&self.token)
     }
 
-    /// POST /session — returns the new session id.
+    /// POST /session returns the new session id
     pub async fn create_session(&self, cwd: &str) -> Result<String> {
         let resp = self
             .auth(self.inner.post(format!("{}/session", self.base)))
@@ -74,7 +69,7 @@ impl HttpClient {
             .ok_or_else(|| anyhow!("create_session: no id in response"))
     }
 
-    /// POST /session/:id/message — enqueue a turn (server returns 202).
+    /// POST /session/:id/message enqueue a turn (server returns 202)
     pub async fn post_message(&self, sid: &str, text: &str, mode: &str) -> Result<()> {
         let resp = self
             .auth(
@@ -92,7 +87,7 @@ impl HttpClient {
         Ok(())
     }
 
-    /// POST /session/:id/abort.
+    /// POST /session/:id/abort
     pub async fn abort(&self, sid: &str) -> Result<()> {
         let resp = self
             .auth(
@@ -106,7 +101,7 @@ impl HttpClient {
         Ok(())
     }
 
-    /// POST /session/:id/permission — reply to a pending request.
+    /// POST /session/:id/permission reply to a pending request
     pub async fn permission_reply(&self, sid: &str, id: &str, choice: &str) -> Result<()> {
         let resp = self
             .auth(
@@ -121,7 +116,7 @@ impl HttpClient {
         Ok(())
     }
 
-    /// GET /sessions/saved — on-disk sessions resumable for this cwd.
+    /// GET /sessions/saved on-disk sessions resumable for this cwd
     pub async fn list_saved_sessions(
         &self,
         cwd: &str,
@@ -144,7 +139,7 @@ impl HttpClient {
         Ok(serde_json::from_value(list)?)
     }
 
-    /// POST /session {resume} — adopt a saved session; returns its id.
+    /// POST /session {resume} adopt a saved session; returns its id
     pub async fn create_session_resume(&self, resume_id: &str, cwd: &str) -> Result<String> {
         let resp = self
             .auth(self.inner.post(format!("{}/session", self.base)))
@@ -160,7 +155,7 @@ impl HttpClient {
             .ok_or_else(|| anyhow!("resume: no id in response"))
     }
 
-    /// GET /session/:id/cost — session cost total.
+    /// GET /session/:id/cost session cost total
     pub async fn cost(&self, sid: &str) -> Result<(f64, u64)> {
         let resp = self
             .auth(
@@ -182,7 +177,7 @@ impl HttpClient {
         ))
     }
 
-    /// GET /doctor — server-side diagnostics (the client renders, never computes).
+    /// GET /doctor server-side diagnostics (the client renders, never computes)
     pub async fn doctor(&self, cwd: &str) -> Result<crate::doctor::DoctorReport> {
         let resp = self
             .auth(
@@ -197,11 +192,8 @@ impl HttpClient {
         Ok(resp.json().await?)
     }
 
-    /// GET /session/:id/events — stream SSE, forwarding parsed events to `tx`.
-    ///
+    /// GET /session/:id/events stream SSE, forwarding parsed events to `tx`
     /// Returns when the turn ends (`session.idle`), the stream errors, or the
-    /// receiver is dropped. One call streams one turn; the caller reopens per
-    /// turn.
     pub async fn stream_events(&self, sid: &str, tx: mpsc::Sender<AppEvent>) -> Result<()> {
         let resp = self
             .auth(

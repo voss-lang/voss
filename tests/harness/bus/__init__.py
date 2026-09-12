@@ -1,10 +1,6 @@
-"""Shared server-lifecycle helper for the V17 bus test scaffold (V15-gated).
-
+"""
+Shared server-lifecycle helper for the V17 bus test scaffold (V15-gated).
 `bus_server_env` runs the harness FastAPI app (which V17-05 extends with
-POST /bus/send, GET /bus/inbox, GET /bus/events) on a loopback port inside
-the given cwd, yielding the discovery env (`VOSS_SERVER_PORT` /
-`VOSS_SERVER_TOKEN`) the bus verbs resolve. Restartable: each `with` block
-is one server lifetime over the same `.voss/bus/` journal (D-10 durability).
 """
 from __future__ import annotations
 

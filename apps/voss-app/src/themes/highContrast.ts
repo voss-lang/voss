@@ -1,6 +1,6 @@
 import type { RequiredCssVar } from './schema';
 
-/** High-contrast overlay applied after the active theme (A8 UI-SPEC). */
+/** High-contrast overlay applied after the active theme */
 export const HIGH_CONTRAST_OVERLAY: Partial<Record<RequiredCssVar, string>> = {
   '--bg-0': '#000',
   '--bg-1': '#050505',

@@ -3,7 +3,6 @@ import { render } from 'solid-js/web';
 
 import { selectedCardId, setSelectedCardId } from '../selection';
 
-// --- Test harness (mirrors boardPanel.test.tsx) ------------------------------
 
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown) {
@@ -21,7 +20,6 @@ afterEach(() => {
   setSelectedCardId(null);
 });
 
-// --- Two trivial surfaces, each reading the global selectedCardId signal ------
 
 function SurfaceA() {
   return <div data-surface="A">{selectedCardId() ?? 'none'}</div>;
@@ -31,7 +29,6 @@ function SurfaceB() {
   return <div data-surface="B">{selectedCardId() ?? 'none'}</div>;
 }
 
-// --- VCKP-01: one selection action observed by >=2 distinct surfaces ----------
 
 describe('selection store — one action observed by >=2 surfaces', () => {
   it('setSelectedCardId(C1) is reflected by two independent rendered surfaces', () => {

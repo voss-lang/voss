@@ -1,4 +1,6 @@
-"""Voss TUI widget public surface (M9-02 + M9-05)."""
+"""
+Voss TUI widget public surface ( + )
+"""
 from __future__ import annotations
 
 from .agent_tree import AgentTreeCard

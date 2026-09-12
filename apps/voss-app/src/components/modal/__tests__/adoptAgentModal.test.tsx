@@ -18,9 +18,8 @@ import {
 } from '../../../pane/budgetRegistry';
 import AdoptAgentModal from '../AdoptAgentModal';
 
-// V14-10 (VCKP-12): forward-only adopt logic + "Let Voss manage this agent"
-// modal. The adopt-logic suite covers the five behaviors from Task 1; the modal
-// suite (Task 2) asserts D-10 plain-language copy and D-11 no-overclaim.
+// forward-only adopt logic + "Let Voss manage this agent"
+// modal. The adopt-logic suite covers the five behaviors from ; the modal
 
 const PANE = 'pane-adopt-1';
 
@@ -54,9 +53,9 @@ describe('adoptAgent — bind + audit + review (adopt logic)', () => {
     const res = adoptAgent(baseInput());
     if (res.disabled) throw new Error('expected a binding, got disabled');
     expect(res.cardId).toBeTruthy();
-    // The bound card resolves back to the running pane (Bridge B).
+    // The bound card resolves back to the running pane
     expect(paneIdForCard(res.cardId)).toBe(PANE);
-    // No harness session exists — the session node id falls back to the card id.
+    // No harness session exists the session node id falls back to the card id
     expect(res.sessionNodeId).toBe(res.cardId);
     expect(res.runId).toBe('run-7');
     expect(res.scope).toBe('src/');
@@ -81,7 +80,7 @@ describe('adoptAgent — bind + audit + review (adopt logic)', () => {
     });
     const res = adoptAgent(baseInput());
     if (res.disabled) throw new Error('expected a binding, got disabled');
-    // Baseline = the pane's spend at adoption; forward cost = current - baseline.
+    // Baseline = the pane's spend at adoption; forward cost = current - baseline
     expect(res.auditNode.costBaselineUsd).toBe(1.25);
   });
 
@@ -97,7 +96,7 @@ describe('adoptAgent — bind + audit + review (adopt logic)', () => {
     if (!res.disabled) throw new Error('expected disabled');
     expect(res.reason).toBe(ADOPT_UNAVAILABLE_REASON);
     expect(res.reason.length).toBeGreaterThan(0);
-    // No fake affordance: no card was minted, no pane binding exists.
+    // No fake affordance: no card was minted, no pane binding exists
     expect(Object.keys(cardToPane())).toHaveLength(0);
   });
 });
@@ -133,7 +132,7 @@ describe('inferRole / inferRisk — editable adopt defaults (D-12)', () => {
   });
 });
 
-// --- Modal (Task 2) ----------------------------------------------------------
+// Modal
 
 const modalProps = () => ({
   paneId: PANE,
@@ -160,7 +159,7 @@ function segBtn(el: HTMLElement, label: string) {
   ) as HTMLButtonElement;
 }
 
-/** Every user-visible string: rendered text + placeholder/aria-label/title attrs. */
+/** Every user-visible string: rendered text + placeholder/aria-label/title attrs */
 function allCopy(el: HTMLElement): string {
   const attrs = Array.from(
     el.querySelectorAll('[placeholder],[aria-label],[title]'),
@@ -212,7 +211,7 @@ describe('AdoptAgentModal — adopt copy is plain language (D-10)', () => {
     for (const re of gating) {
       expect(copy, `per-tool gating language ${re} found in modal copy`).not.toMatch(re);
     }
-    // The honest promises ARE present: budget stop/warn + review-before-done.
+    // The honest promises ARE present: budget stop/warn + review-before-done
     expect(copy).toMatch(/stop it at the limit/i);
     expect(copy).toMatch(/review the result/i);
   });
@@ -256,7 +255,7 @@ describe('AdoptAgentModal — adopt action wiring', () => {
   it('adopt risk is pre-inferred from scope/budget, visible, and editable (D-12)', () => {
     const p = modalProps();
     const el = mount(() => <AdoptAgentModal {...p} />);
-    // Pre-inferred: budget 10 + empty scope → med is the active chip.
+    // Pre-inferred: budget 10 + empty scope → med is the active chip
     expect(segBtn(el, 'med').className).toContain('modal-segmented__btn--active');
     fireEvent.click(segBtn(el, 'high'));
     fireEvent.click(ctaBtn(el));
@@ -290,7 +289,7 @@ describe('AdoptAgentModal — adopt disabled-with-reason (no fake affordance)', 
     expect(el.textContent).toContain(ADOPT_UNAVAILABLE_REASON);
     fireEvent.click(ctaBtn(el));
     expect(p.onAdopt).not.toHaveBeenCalled();
-    // Nothing was bound — no card minted.
+    // Nothing was bound no card minted
     expect(Object.keys(cardToPane())).toHaveLength(0);
   });
 });

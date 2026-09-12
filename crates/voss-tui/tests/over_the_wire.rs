@@ -1,12 +1,4 @@
-//! Over-the-wire SSE test (H2 exit criterion, deferred from H1).
-//!
-//! Spawns the real Python server with VOSS_SERVE_FAKE_TURN (hermetic, no creds
-//! or provider), then drives it through the actual Rust net+SSE client:
-//! create session -> post message -> consume the event stream. Verifies the
-//! full Rust<->Python protocol path end to end.
-//!
-//! Skips (does not fail) if the repo venv interpreter is missing, so the suite
-//! stays green in environments without the Python harness installed.
+// ! Over-the-wire SSE test
 
 use std::path::Path;
 
@@ -22,8 +14,6 @@ fn venv_python() -> Option<String> {
 
 /// Live end-to-end smoke: real server + real provider (no fake seam) driven
 /// through the Rust net+SSE client. `#[ignore]` so normal runs cost nothing;
-/// opt in with `cargo test -p voss-tui --test over_the_wire -- --ignored
-/// --nocapture`. Requires real credentials (e.g. Claude OAuth in keychain).
 #[tokio::test]
 #[ignore]
 async fn real_turn_over_the_wire() {
@@ -91,7 +81,6 @@ async fn real_turn_over_the_wire() {
 
 /// H7 parity: the native Rust session reader produces the same listing the
 /// Python server's /sessions/saved returns for the same directory. Hermetic
-/// (crafted sessions in a tmp dir, no creds). Skips if no venv.
 #[tokio::test]
 async fn native_store_matches_server_listing() {
     let Some(python) = venv_python() else {

@@ -6,18 +6,8 @@ import PresetSwitcher from '../PresetSwitcher';
 import type { ActiveLayout, LayoutPreset } from '../../../canvas/arrange';
 
 /**
- * A4-02 Task 1 — PresetSwitcher is a controlled component.
- *
- * Contract (from A4-UI-SPEC):
- * - Props: { activeLayout, disabled?, onSelect }
- * - Renders four buttons in fixed order: fanout | pipeline | swarm | watchers
- * - `custom` label appears only when activeLayout === 'custom'; it is
- *   display-only (not focusable, non-clickable).
- * - aria-pressed='true' is set only on the active preset.
- * - aria-label="Switch layout to <preset>" on each preset button.
- * - No local createSignal — switcher reflects props exactly.
- * - Colors use --focus background and --fg-0 text on active (no raw white).
- * - Disabled buttons do not fire onSelect.
+ * Task 1 — PresetSwitcher is a controlled component
+ * Contract (from )
  */
 
 const PRESETS: readonly LayoutPreset[] = [

@@ -1,7 +1,6 @@
-"""V12-03 factory fallback audit (VSAFE-05).
-
+"""
+V12-03 factory fallback audit (VSAFE-05).
 Additive, redacted evidence for every safety strict-procedure route; old run
-records without the field stay readable; capability audit semantics unchanged.
 """
 from __future__ import annotations
 

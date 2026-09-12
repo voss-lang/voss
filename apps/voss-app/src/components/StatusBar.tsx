@@ -12,21 +12,16 @@ export type StatusBarProps = {
   onToggleContextPanel: () => void;
   agentCount: number;
   totalCost: number;
-  /**
-   * V14 chunk C (mockup .budgmini) — run-budget mini-bar inputs. `budgetLimit`
-   * is the HONEST denominator: the sum of per-agent budgetUsd limits (launch
-   * configs + adoptions); `budgetSpent` is the spend of those limited agents
-   * only. The bar renders ONLY when budgetLimit > 0 — with no limits set there
-   * is no real denominator, so the plain mono cost text in the agents pill
-   * stands alone and no percentage is faked. Optional: harnesses that predate
-   * the bar omit them.
-   */
+/**
+ * chunk C (mockup.budgmini) — run-budget mini-bar inputs. `budgetLimit`
+ * is the HONEST denominator: the sum of agent budgetUsd limits (launch
+ */
   budgetSpent?: number;
   budgetLimit?: number;
   onToggleSidebar: () => void;
   orgViewOpen: boolean;
   onToggleOrgView: () => void;
-  // VCKP-04 AttentionQueue pill (D-05/D-06). Count + blocking flag flow from App
+  // 04 AttentionQueue pill (/). Count + blocking flag flow from App
   // (mirrors agentCount); clicking toggles the dockable AttentionPanel.
   attentionCount: number;
   attentionBlocking: boolean;
@@ -45,7 +40,7 @@ export default function StatusBar(props: StatusBarProps) {
     return proc ? isKnownAgentCli(proc) : false;
   });
 
-  // Mini-bar fill, BudgetBar D-08 color convention: <70% green, <90% amber,
+  // Mini-bar fill, BudgetBar color convention: <70% green, <90% amber,
   // else red. Clamped so over-limit never overflows the track.
   const budgetPct = createMemo(() => {
     const limit = props.budgetLimit ?? 0;

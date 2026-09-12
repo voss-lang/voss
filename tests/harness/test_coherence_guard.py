@@ -1,8 +1,6 @@
-"""VBUS-08 coherence guard — enforceable NOW, not xfail.
-
+"""
+VBUS-08 coherence guard — enforceable NOW, not xfail.
 V17 adds no parallel substrate. These assertions pass on the pre-V17
-baseline and must keep passing through phase end; a violation (new swarm
-file, fs-watcher dependency, V17-named Solid component) turns them RED.
 """
 from __future__ import annotations
 

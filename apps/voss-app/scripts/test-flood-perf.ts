@@ -1,24 +1,6 @@
 /**
- * D-02 flood-performance assertion harness.
- *
- * Contract (A2-RESEARCH / A2-VALIDATION): while `yes` OR
- * `cat /dev/urandom | strings` floods the PTY, the measured
- * requestAnimationFrame p95 delta must be < 33ms AND a keystroke injected
- * mid-flood must echo back in < 200ms. Both `yes` and `--cat` modes must pass
- * (the `cat /dev/urandom` mode is the one that fails if watermark
- * backpressure is missing).
- *
- * Execution model: this script drives the Playwright perf spec
- * (`e2e/flood-perf.spec.ts`) against a live Tauri app, reads back
- * `{ p95Ms, echoMs }`, and asserts the thresholds — failing the build
- * (process.exit(1)) on violation.
- *
- * PLATFORM NOTE (project memory `voss-app-tauri-e2e-macos-blocked`): Tauri
- * WebDriver is unavailable on macOS (no WKWebView WebDriver). On macOS this
- * script DEFERS the live measurement (exit 0 with a DEFERRED notice) — it is
- * NOT a silent pass-mask: the assertion code path below is real and runs on
- * Linux CI, and the D-02 *mechanism* is unit-proven on macOS by
- * `src/pane/__tests__/pty-ipc.test.ts` (coalescing + watermark pause/resume).
+ * flood-performance assertion harness
+ * Contract: while `yes` OR
  */
 
 import { spawnSync } from 'node:child_process';
@@ -35,7 +17,7 @@ function isCat(argv: string[]): boolean {
   return argv.includes('--cat') || !!process.env.PERF_CAT;
 }
 
-/** Linux CI path: run the Playwright perf spec and parse {p95Ms, echoMs}. */
+/** Linux CI path: run the Playwright perf spec and parse {p95Ms, echoMs} */
 function runLivePerf(cat: boolean): PerfResult {
   const res = spawnSync(
     'pnpm',

@@ -1,9 +1,6 @@
-"""SlashPalette — popup palette anchored above the InputBar.
-
+"""
+SlashPalette popup palette anchored above the InputBar
 `rank_commands` factors out the pure ranking logic so it can be unit-tested
-without a Textual app fixture. The widget itself is a `ListView` that
-filters by query, sorts by substring-position + recency + alphabetical,
-and emits a `PaletteSubmitted` message on Enter.
 """
 from __future__ import annotations
 
@@ -14,9 +11,9 @@ from voss.harness.slash import SlashRegistry
 from voss.harness.tui.reserved_slash_names import RESERVED_SLASH_NAMES
 
 
-# `/save` is M8-owned (memory note); the deprecation-alias era from the
-# original plan was retired when M8 shipped. The palette still surfaces
-# `/save` because it is a live command — bypass the reserved filter.
+# `/save` is owned (memory note); the deprecation-alias era from the
+# original plan was retired when shipped. The palette still surfaces
+# `/save` because it is a live command bypass the reserved filter
 _PALETTE_KEEP_ALIVE: tuple[str, ...] = ("/save",)
 
 _MAX_RESULTS = 8
@@ -170,7 +167,7 @@ class SlashPalette(ListView):
         self.action_dismiss()
 
     def action_dismiss(self) -> None:
-        # Refocus InputBar before removal so user can keep typing.
+        # Refocus InputBar before removal so user can keep typing
         try:
             input_bar = self.app.query_one("#input")
             self.remove()

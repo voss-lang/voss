@@ -1,8 +1,3 @@
-// V24-07 (VADE2-07) — live edge honest-signal contract. A mock SSE stream of
-// each mapped event type must yield a liveGraphPatches entry whose source is a
-// non-empty "sse_event:*" string. Mirrors swarmReconcile.test.ts + the sseClient
-// injected-stream mock.
-
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -48,7 +43,7 @@ describe('sseClient liveGraphPatches — honest live signal', () => {
     expect(byType['message'].source).toBe('sse_event:budget.updated');
     expect(byType['blocker'].source).toBe('sse_event:gate.updated');
 
-    // Honest-signal: every live patch carries a non-empty sse_event source.
+    // Honest-signal: every live patch carries a non-empty sse_event source
     expect(
       patches.every(
         (p) => typeof p.source === 'string' && p.source.startsWith('sse_event:'),

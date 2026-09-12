@@ -1,5 +1,3 @@
-// V24 swarm surface — swarm.* SSE ingestion into the live store.
-
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   ingestSwarmEvent,
@@ -88,7 +86,6 @@ describe('ingestSwarmEvent', () => {
     // A different task finishing must NOT clear t1's escalation.
     ingestSwarmEvent({ type: 'swarm.worker_done', swarm_id: 'sw1', task_id: 't2', session_id: 's-b2' });
     expect(swarmOperatorNeeds().t1).toBeDefined();
-    // t1 finishing resolves its own escalation.
     ingestSwarmEvent({ type: 'swarm.worker_done', swarm_id: 'sw1', task_id: 't1', session_id: 's-b1' });
     expect(swarmOperatorNeeds().t1).toBeUndefined();
   });
@@ -113,15 +110,12 @@ describe('ingestSwarmEvent', () => {
       owned_files: [],
       role: 'builder-1',
     };
-    // A 4-member swarm delivers the SAME logical event 4 times (one per stream).
     ingestSwarmEvent(copy, 1000);
     ingestSwarmEvent({ ...copy }, 1001);
     ingestSwarmEvent({ ...copy }, 1002);
     ingestSwarmEvent({ ...copy }, 1003);
-    // Only the first counts: one edge, one seq bump, one assignment.
     expect(swarmLiveEdges()).toHaveLength(1);
     expect(swarmEventSeq()).toBe(1);
-    // A genuinely distinct event (new eid) is NOT starved by the guard.
     ingestSwarmEvent({ ...copy, eid: 'e-xyz', task_id: 't2', role: 'builder-2' }, 1004);
     expect(swarmLiveEdges()).toHaveLength(2);
     expect(swarmEventSeq()).toBe(2);
@@ -141,8 +135,6 @@ describe('ingestSwarmEvent', () => {
         i,
       );
     }
-    // The edge ring is capped at 200, but the seq counter must NOT plateau —
-    // otherwise SwarmMap's refetch trigger freezes after the ring saturates.
     expect(swarmLiveEdges().length).toBeLessThanOrEqual(200);
     expect(swarmEventSeq()).toBe(250);
   });

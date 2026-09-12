@@ -192,7 +192,7 @@ def default_skill_registry() -> SkillRegistry:
             mutating=True,
         )
     )
-    # Load third-party .voss skills AFTER built-ins (built-in ids win on collision)
+    # Load third-party.voss skills AFTER built-ins (built-in ids win on collision)
     load_voss_skills(Path.cwd(), registry)
     return registry
 

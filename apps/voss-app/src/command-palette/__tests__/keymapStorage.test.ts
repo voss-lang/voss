@@ -17,9 +17,7 @@ import {
   watchWorkspaceKeymap,
 } from '../keymapStorage';
 
-/**
- * A7-03 Task 2 — keymapStorage invoke wrapper tests.
- */
+/** Task 2 — keymapStorage invoke wrapper tests */
 
 describe('keymapStorage — profile commands', () => {
   beforeEach(() => h.invoke.mockReset());

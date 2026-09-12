@@ -1,7 +1,7 @@
 import { For, Show } from 'solid-js';
 import type { RunData, SessionTreeNode } from '../types';
 
-// VADE-01 — team roster: role rows with role-color dots + status badges,
+// 01 — team roster: role rows with role-color dots + status badges,
 // derived from audit.team_config.roster_ids ∪ distinct node roles.
 
 export interface RosterRow {
@@ -39,7 +39,7 @@ function statusForRole(
   return 'idle';
 }
 
-// Exported for the V14 cockpit team sidebar (chunk B): the sidebar reuses this
+// Exported for the cockpit team sidebar (chunk B): the sidebar reuses this
 // derivation (audit.team_config.roster_ids ∪ distinct node roles + status) but
 // renders the mockup .arow visual instead of this panel's row style.
 export function rosterRows(data: RunData): RosterRow[] {

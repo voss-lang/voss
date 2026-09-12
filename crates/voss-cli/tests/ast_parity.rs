@@ -76,7 +76,6 @@ fn rust_and_python_ast_agree() {
 
     // The Rust path wraps Python's program in a versioned envelope:
     //   { "v": 1, "program": <to_dict(program)> }
-    // Python `voss ast` emits the bare program dict.
     assert_eq!(rs_json.get("v").and_then(|v| v.as_i64()), Some(1));
     let rs_program = rs_json
         .get("program")

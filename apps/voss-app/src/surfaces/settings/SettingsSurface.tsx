@@ -1,4 +1,4 @@
-// V24-10 (VADE2-10) — Settings surface.
+// 10 (VADE2 — Settings surface
 
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -98,7 +98,7 @@ const SettingsSurface: Component = () => {
       );
   });
 
-  /** Apply live + persist a single-field change. */
+/** Apply live + persist a single-field change */
   function update(patch: Partial<AppearanceSettings>): void {
     const next = { ...settings(), ...patch };
     setSettings(next);

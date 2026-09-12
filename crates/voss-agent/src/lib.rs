@@ -1,4 +1,5 @@
-//! voss-agent — agent loop, plan schema, turn execution.
+//! voss-agent agent loop, plan schema, turn execution
+
 
 mod dispatch;
 pub mod episodic;

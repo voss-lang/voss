@@ -1,9 +1,6 @@
-"""Voss board state machine package (O3).
-
-Public API:
-    ReviewerVerdict, Reviewer   — O4 plug-in contract (verdict.py)
-    BoardWIPError, BoardGateError, BoardTimeoutError — typed errors (errors.py)
-    Board, Card, Column, RiskTier — state machine (machine.py, O3-02)
+"""
+Voss board state machine package
+Public API
 """
 from .verdict import ReviewerVerdict, Reviewer
 from .errors import BoardError, BoardWIPError, BoardGateError, BoardTimeoutError

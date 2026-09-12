@@ -1,7 +1,6 @@
-"""Convention extraction service: D-09 signal pre-filter + D-10 LLM call + D-11 review UX.
-
-Owned by M8-03 (MEM-04). ConventionCandidate schema and regex constants are
-concretely defined here.
+"""
+Convention extraction service: signal pre-filter + LLM call + review UX
+Owned by (MEM-04). ConventionCandidate schema and regex constants are
 """
 from __future__ import annotations
 

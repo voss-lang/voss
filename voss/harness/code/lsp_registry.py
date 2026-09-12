@@ -1,7 +1,6 @@
 """
-LspRegistry – lazy, well-behaved language server management for M10.
+LspRegistry – lazy, well-behaved language server management for
 """
-
 from __future__ import annotations
 
 import asyncio

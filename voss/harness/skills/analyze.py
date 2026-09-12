@@ -1,11 +1,6 @@
-"""`/analyze` skill: hybrid bootstrap of `.voss/` + `.voss-cache/`.
-
+"""
+`/analyze` skill: bootstrap of `.voss/` + `.voss-cache/`
 Harness owns 4 cognition files (preserve-if-exists). LLM owns the
-`id=architecture` fence body of `VOSS.md` (post-M8). The agent emits a
-single `fs_write` to a staging path; the harness folds the staged content
-into the fence atomically via `voss_md.write_fence_body`. Post-turn
-rebuilds `repo.idx` + `.voss/.gitignore` + appends `.voss-cache/` to the
-project-root `.gitignore`.
 """
 from __future__ import annotations
 

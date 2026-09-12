@@ -1,12 +1,6 @@
-"""Permission scoping and PermissionGate integration for third-party skills.
-
-Converts manifest scopes into the existing harness PermissionGate mode axis.
-Confinement is enforced by mapping tools to existing Mode tiers (plan, edit, auto)
-and running the skill subprocess with allow_net=ScopeSpec.net.
-
-Direct Python calls (e.g. open(), urllib.request) executed inside a skill's .voss
-subprocess are NOT sandboxed (OS-level sandboxing is deferred). Gate-confinement
-restricts harness tool calls only.
+"""
+Permission scoping and PermissionGate integration for third-party skills
+Converts manifest scopes into the existing harness PermissionGate mode axis
 """
 from __future__ import annotations
 

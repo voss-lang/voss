@@ -3,7 +3,7 @@ import { bootApp, stableRects } from './_helpers';
 
 /**
  * S2 canvas end-to-end (mock-IPC): snap guides, low-detail chips, note and
- * file nodes.
+ * file nodes
  */
 
 test.describe.configure({ mode: 'serial' });

@@ -1,19 +1,6 @@
-"""SKL-05 `audit-cognition`: agentic, read-only cognition-drift auditor.
-
-Agentic (D-07) — drives a model turn via `run_turn`. Read-only (D-10,
-`mutating=False`).
-
-HARD INVARIANT (D-05 / D-10 / Pitfall 3): this skill only PROPOSES an
-update to the project's architecture description. It NEVER writes the
-architecture file or the project doc (or any file). A human or a separate
-flow applies the proposal. The no-write guarantee is defended in three
-layers: (1) the prompt explicitly forbids file writes and demands a
-`PROPOSAL:`-prefixed paragraph; (2) this module reaches no write API at all
-(no edit/write tool helper imported or called); (3) the smoke test
-byte-compares the cognition file before and after the run.
-
-The `.voss` companion at voss/harness/skills/voss/audit-cognition.voss is a
-dogfood demonstration (D-05), NOT the runtime exec path.
+"""
+`audit-cognition`: agentic, read-only cognition-drift auditor
+Agentic drives a model turn via `run_turn`. Read-only (
 """
 from __future__ import annotations
 
@@ -75,7 +62,7 @@ def run(
             session_id=record.id,
         )
     )
-    # Surface the proposal (read-only — stdout only, never a file write).
+    # Surface the proposal (read-only stdout only, never a file write)
     final = getattr(result, "final", "") or ""
     if final.strip():
         click.echo(final)

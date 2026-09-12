@@ -1,27 +1,6 @@
-"""Structured NDJSON telemetry for local harness debugging.
-
-Enable with VOSS_LOG=1. Optional VOSS_LOG_PATH=<file> appends one JSON object per line.
-If VOSS_LOG_PATH is unset, tries Unix fd 3 when open; otherwise writes VOSSLOG-prefixed
-lines to stderr (grep-friendly).
-
-Schema tag: voss.log/v1 (field ``v`` == 1).
-
-Event Kinds (T3-03 contract — NET-06 / D-15)
---------------------------------------------
-emit() is generic on `data: dict`; the schema below is documentation,
-enforced at the T3-05 / T3-06 / T3-07 call sites (no runtime validation
-here). Every `url` field MUST be passed through `redact_url` before
-emit. Pre-T3 records that lack these kinds round-trip unchanged.
-
-| kind          | required data fields                                                            |
-|---------------|---------------------------------------------------------------------------------|
-| net.request   | tool: str, url: <redacted>, method: str, started_at: float                      |
-| net.response  | tool: str, url: <redacted>, status: int, bytes: int, duration_ms: int           |
-| mcp.request   | server: str, tool: str, args: dict (redact_tool_args), started_at: float        |
-| mcp.response  | server: str, tool: str, status: "ok"|"error", duration_ms: int, error: str|None |
-
-Invariant (D-15): MCP stdio calls emit `mcp.*` events ONLY; HTTP/HTTPS
-calls emit `net.*` events ONLY. The two never overlap on a single hop.
+"""
+Structured NDJSON telemetry for local harness debugging
+Enable with VOSS_LOG=1. Optional VOSS_LOG_PATH=<file> appends one JSON object per line
 """
 from __future__ import annotations
 

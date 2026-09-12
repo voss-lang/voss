@@ -1,10 +1,7 @@
-"""Core data models for the code intelligence layer.
-
-These are pure data containers returned by the index, LSP adapter,
-ast-grep wrapper, and the public service facade. They do not carry
-any runtime or third-party library types.
 """
-
+Core data models for the code intelligence layer
+These are pure data containers returned by the index, LSP adapter
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

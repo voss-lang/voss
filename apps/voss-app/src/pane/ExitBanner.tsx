@@ -1,10 +1,9 @@
-/** UI-SPEC §4 / PTY-07 — shell-exit banner with Restart. */
 export interface ExitBannerProps {
   exitCode: number;
   onRestart: () => void;
-  /** V15 D-11: override message (e.g. "[session ended]"); default "[exited {code}]". */
+/** override message (e.g. "[session ended]"); default "[exited {code}]" */
   message?: string;
-  /** V15 D-11: hide Restart for server-death (default true = current behavior). */
+/** hide Restart for server-death (default true = current behavior) */
   showRestart?: boolean;
 }
 

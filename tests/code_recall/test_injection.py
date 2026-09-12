@@ -1,10 +1,6 @@
-"""VSEM-06 RED tests: ## Code Recall auto-injection — token cap, evictability,
+"""
+VSEM-06 RED tests: ## Code Recall auto-injection — token cap, evictability,
 off-switch.
-
-Planned seams (V19-RESEARCH / V19-PATTERNS):
-  voss.harness.cli._render_code_recall_text(cwd, task_text) -> str
-  voss.harness.agent._compose_system_blocks(..., code_recall_text="")
-  [code_recall] inject = false  in config.toml
 """
 from __future__ import annotations
 

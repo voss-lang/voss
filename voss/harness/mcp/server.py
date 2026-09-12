@@ -1,5 +1,6 @@
-"""Stdio JSON-RPC MCP server scaffold for exposing harness tools."""
-
+"""
+Stdio JSON-RPC MCP server scaffold for exposing harness tools
+"""
 from __future__ import annotations
 
 import json

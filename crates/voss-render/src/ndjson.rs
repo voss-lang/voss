@@ -1,5 +1,6 @@
-//! NDJSON renderer — one JSON object per line on stdout, every payload
-//! prefixed with `"v": 1`. Mirrors `voss/harness/render.py::JsonRenderer`.
+//! NDJSON renderer one JSON object per line on stdout, every payload
+//! prefixed with `"v": 1`. Mirrors `voss/harness/render.py::JsonRenderer`
+
 
 use std::io::Write;
 use std::path::Path;

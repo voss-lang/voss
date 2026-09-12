@@ -1,17 +1,9 @@
-// VCKP-13 capability-tier resolver (D-13). Pure module: no Solid imports, no
-// produce/structuredClone — plain logic, fixture-testable.
-//
-// Tiers (SPEC VCKP-13): A = per-tool gate + sandbox + budget; B = sandbox +
-// budget (no per-tool prompt); C = observe-only (budget-kill + audit + review).
-// Honesty rules: an adopted already-running agent is ALWAYS C (a live PID
-// cannot be retro-sandboxed, D-11); unmanaged spawns are C (nothing enforced).
-
 import type { CapabilityTier } from './model/normalized';
 
 export interface TierInput {
   cli: string;
   managed: boolean;
-  /** True only when a per-tool permission proxy is ACTIVE for this CLI. */
+/** True only when a tool permission proxy is ACTIVE for this CLI */
   hookCapable: boolean;
   adopted: boolean;
 }
@@ -23,12 +15,8 @@ export function resolveTier(input: TierInput): CapabilityTier {
 }
 
 /**
- * Whether a per-tool permission proxy is ENFORCED for this CLI today.
- *
- * The VCKP-13b proxy (Claude Code hooks / OpenCode permission config) is not
- * shipped yet, so NO CLI is hook-enforced — every managed launch records tier
- * B (sandbox + budget). Flip per-CLI here when the proxy lands; never return
- * true ahead of real enforcement (T-V14-03: no overstated control).
+ * Whether a tool permission proxy is ENFORCED for this CLI today
+ * The -13b proxy (Claude Code hooks / OpenCode permission config) is not
  */
 export function hookCapableCli(_cli: string): boolean {
   return false;

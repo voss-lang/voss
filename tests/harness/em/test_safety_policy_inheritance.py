@@ -1,8 +1,6 @@
-"""V12-04: safety policy inheritance through EM-derived role gates.
-
+"""
+V12-04: safety policy inheritance through EM-derived role gates.
 Proves derived ``gate_for_role()`` gates carry the same safety policy as the
-base harness gate, attach role/model-tier actor context for weak-model scaffold
-rules, and route factory-only operations identically at the gate layer.
 """
 from __future__ import annotations
 

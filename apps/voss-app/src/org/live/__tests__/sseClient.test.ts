@@ -15,15 +15,15 @@ import {
 import { __resetBridgeMaps } from '../../model/bridge';
 import type { AgentEvent } from '../../../../../../sdk/typescript/src/client/sse';
 
-// VCKP-06: the live SSE client wrapper `../sseClient` consumes V13.1
+// 06: the live SSE client wrapper `../sseClient` consumes.1
 // `subscribeToEvents` (never raw EventSource), routes each event into ingestEvent
 // + the live overlay keyed by the session correlation key, and exposes a
-// 'live' | 'snapshot' label with graceful snapshot fallback (Pitfall 4 — the
+// 'live' | 'snapshot' label with graceful snapshot fallback ( — the
 // webview only consumes; the stream is mocked here).
 
 const SESSION = '0139377ff590';
 
-/** Drain the connect handle's async loop to completion (mock stream ends fast). */
+/** Drain the connect handle's async loop to completion (mock stream ends fast) */
 async function flush(): Promise<void> {
   // Two microtask turns is enough for the mock generator (2 yields) to drain
   // and the finally-block to run; await a macrotask to be safe.
@@ -160,8 +160,8 @@ describe('live SSE consumer — VCKP-06 (../sseClient)', () => {
   });
 });
 
-// V15-02 (VLIVE-03): per-pane onEvent sink, permission cardId context
-// (Pitfall 3), and the session-keyed liveHandles set (multi-session label fix).
+// 02: pane onEvent sink, permission cardId context
+// , and the session-keyed liveHandles set (multi-session label fix).
 describe('live SSE consumer — V15-02 extensions (../sseClient)', () => {
   it('onEvent receives every event from an injected stream', async () => {
     const seen: AgentEvent[] = [];

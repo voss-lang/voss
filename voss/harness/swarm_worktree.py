@@ -1,28 +1,7 @@
-"""Git-worktree-per-member lifecycle for the R3 all-CLI swarm.
-
-Under R3 (see `SWARM-RECONCILIATION.md`) every swarm member is a black-box CLI
-(`claude`/`codex`/`opencode`/…) that writes to disk directly — voss cannot gate
-its writes in-process the way it gates a native session. The reconciliation
-resolves this by giving each member its **own `git worktree` checkout** as its
-cwd. That buys two properties the ownership guarantee rests on:
-
-- **attribution** — a change is attributable to exactly one member (its
-  worktree), with none of the racy mtime-diff heuristics a shared cwd would
-  force; and
-- **revertibility** — an out-of-scope write is undone with a plain
-  `git restore` in that one worktree, never clobbering another member's
-  concurrent legit write.
-
-Fan-in is then a `git merge` of the member branches; VSWARM-06 overlap
-validation (`swarm_store.validate_no_overlap`) guarantees disjoint
-`owned_files`, which is exactly what makes that merge conflict-free.
-
-This module is subprocess-`git` only (mirroring `voss.layout._git_rev_parse`),
-holds no global state, and never reads `.voss` — the file-bus lives in the MAIN
-checkout and the host hands members their task inline, so worktrees stay
-hermetic.
 """
-
+Git-worktree-per-member lifecycle for the R3 all-CLI swarm
+Under R3 (see `SWARM-RECONCILIATION.md`) every swarm member is a black-box CLI
+"""
 from __future__ import annotations
 
 import subprocess
@@ -94,8 +73,8 @@ def _branch_name(swarm_id: str, role_name: str) -> str:
 
 
 def _worktrees_dir(repo_root: Path, swarm_id: str) -> Path:
-    # Kept under .voss/swarm/<id>/worktrees so the whole swarm's scratch state is
-    # co-located with its file-bus + audit, and trivially cleanable per swarm.
+    # Kept under.voss/swarm/<id>/worktrees so the whole swarm's scratch state is
+    # co-located with its file-bus + audit, and trivially cleanable per swarm
     return repo_root / ".voss" / "swarm" / swarm_id / "worktrees"
 
 
@@ -171,9 +150,9 @@ def changed_files(mw: MemberWorktree) -> list[str]:
     the watcher must catch). Paths are returned relative to the worktree root,
     which equals the member's cwd — the same frame `owned_files` is expressed in.
     """
-    # NOT via _git(): porcelain status lines begin with a significant leading
-    # space (e.g. " M path"), which _git's .strip() would eat and shift the path
-    # slice. Run raw and slice each NUL-separated entry's 2-char XY + space.
+    # NOT via _git: porcelain status lines begin with a significant leading
+    # space (e.g. " M path"), which _git's.strip would eat and shift the path
+    # slice. Run raw and slice each NUL-separated entry's 2-char XY + space
     result = subprocess.run(
         ["git", "-C", str(mw.path), "status", "--porcelain", "-z"],
         capture_output=True,
@@ -185,9 +164,9 @@ def changed_files(mw: MemberWorktree) -> list[str]:
             result.returncode, ["git", "status"], result.stdout, result.stderr
         )
     files: list[str] = []
-    # -z gives NUL-separated entries; a rename record carries two NUL fields
+    # z gives NUL-separated entries; a rename record carries two NUL fields
     # (old\0new) but a swarm member's edits are creates/edits/deletes, so the
-    # simple split is sufficient and each entry's path starts at offset 3.
+    # simple split is sufficient and each entry's path starts at offset 3
     for entry in result.stdout.split("\0"):
         if not entry:
             continue
@@ -216,7 +195,7 @@ def merge_member(repo_root: Path, mw: MemberWorktree) -> None:
         )
     except subprocess.CalledProcessError as exc:
         conflicts = _conflicted_paths(repo_root)
-        # Leave HEAD in a clean state — a half-merged repo is worse than no merge.
+        # Leave HEAD in a clean state a half-merged repo is worse than no merge
         _safe(repo_root, "merge", "--abort")
         detail = ", ".join(conflicts) if conflicts else (exc.stderr or "").strip()
         raise WorktreeMergeConflict(
@@ -232,9 +211,7 @@ def remove_member_worktree(repo_root: Path, mw: MemberWorktree) -> None:
     _safe_delete_branch(repo_root, mw.branch)
 
 
-# ---------------------------------------------------------------------------
-# Internal best-effort helpers (teardown / recovery must not raise on absence)
-# ---------------------------------------------------------------------------
+# Internal helpers (teardown / recovery must not raise on absence)
 def _conflicted_paths(repo: Path) -> list[str]:
     try:
         out = _git(repo, "diff", "--name-only", "--diff-filter=U")
@@ -254,7 +231,7 @@ def _safe(repo: Path, *args: str) -> None:
 def _safe_remove_worktree(repo: Path, path: Path) -> None:
     _safe(repo, "worktree", "remove", "--force", str(path))
     # `worktree remove` can leave a stale prune entry if the dir vanished; prune
-    # so a subsequent add on the same path is never blocked.
+    # so a subsequent add on the same path is never blocked
     _safe(repo, "worktree", "prune")
 
 

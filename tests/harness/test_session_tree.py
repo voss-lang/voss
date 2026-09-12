@@ -1,7 +1,6 @@
-"""O1 session-tree substrate; no provider, no git.
-
+"""
+O1 session-tree substrate; no provider, no git.
 Tests cover tree persistence, budget fan-out invariant, cap-raise guard,
-concurrency no-oversell, and schema isolation (redaction invariant).
 """
 from __future__ import annotations
 

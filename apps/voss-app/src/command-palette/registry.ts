@@ -1,13 +1,8 @@
 /**
- * A7-01 Task 2 — typed command registry and v0 command catalog.
- *
+ * Task 2 — typed command registry and v0 command catalog
  * Single source of truth for keyboard dispatch, palette search, and
- * native OS menus (D-01). Replaces the A3 switch-based keymap.ts as
- * the canonical command surface (D-02). Handlers receive an AppContext
- * object built once at App.tsx mount (D-03).
  */
 
-// --- Types -------------------------------------------------------------------
 
 export type CommandCategory =
   | 'Window'
@@ -22,9 +17,9 @@ export interface CommandDefinition {
   id: string;
   label: string;
   category: CommandCategory;
-  /** Primary keybinding (shown in palette chord hint). */
+/** Primary keybinding (shown in palette chord hint) */
   keybinding?: string;
-  /** Additional chord bindings not shown in palette. */
+/** Additional chord bindings not shown in palette */
   aliases?: string[];
   handler: (ctx: AppContext) => void;
 }
@@ -36,8 +31,8 @@ export type KeyBindingOverrides = Readonly<
 >;
 
 /**
- * Cross-module action callbacks (D-03). Built once at App.tsx mount.
- * Handlers destructure what they need — no Solid imports leak in.
+ * Cross-module action callbacks. Built once at App.tsx mount
+ * Handlers destructure what they need — no Solid imports leak in
  */
 export interface AppContext {
   splitFocused: (orientation: 'H' | 'V') => void;
@@ -77,7 +72,6 @@ export interface AppContext {
   toggleSidebar?: () => void;
 }
 
-// --- Registry ----------------------------------------------------------------
 
 export interface CommandRegistry {
   readonly commands: ReadonlyMap<string, Command>;
@@ -131,7 +125,6 @@ export function createCommandRegistry(
   };
 }
 
-// --- v0 Command Catalog (CMD-03) ---------------------------------------------
 
 const DIRECTIONS = ['Left', 'Right', 'Up', 'Down'] as const;
 type Dir = (typeof DIRECTIONS)[number];
@@ -139,7 +132,7 @@ const dir = (d: Dir) => d.toLowerCase() as 'left' | 'right' | 'up' | 'down';
 
 export function v0Commands(): CommandDefinition[] {
   return [
-    // ---- Pane ---------------------------------------------------------------
+    // Pane
     {
       id: 'pane.splitRight',
       label: 'Split Right',
@@ -209,7 +202,7 @@ export function v0Commands(): CommandDefinition[] {
       handler: (ctx: AppContext) => ctx.resizeDirection(dir(d)),
     })),
 
-    // ---- Canvas -------------------------------------------------------------
+    // Canvas
     {
       id: 'canvas.zoomReset',
       label: 'Reset Zoom',
@@ -251,7 +244,7 @@ export function v0Commands(): CommandDefinition[] {
       handler: (ctx) => ctx.newNoteNode?.(),
     },
 
-    // ---- Layout -------------------------------------------------------------
+    // Layout
     {
       id: 'layout.cycle',
       label: 'Cycle Layout',
@@ -272,7 +265,7 @@ export function v0Commands(): CommandDefinition[] {
       handler: (ctx) => ctx.loadLayout(),
     },
 
-    // ---- Window -------------------------------------------------------------
+    // Window
     {
       id: 'palette.quick',
       label: 'Quick Open',
@@ -296,7 +289,7 @@ export function v0Commands(): CommandDefinition[] {
       handler: (ctx) => ctx.toggleSidebar?.(),
     },
 
-    // ---- Project ------------------------------------------------------------
+    // Project
     {
       id: 'project.open',
       label: 'Open Project',
@@ -304,7 +297,7 @@ export function v0Commands(): CommandDefinition[] {
       handler: (ctx) => ctx.openProject(),
     },
 
-    // ---- Settings -----------------------------------------------------------
+    // Settings
     {
       id: 'settings.switchProfile',
       label: 'Switch Keymap Profile',
@@ -312,7 +305,7 @@ export function v0Commands(): CommandDefinition[] {
       handler: (ctx) => ctx.switchProfile(),
     },
 
-    // ---- Help ---------------------------------------------------------------
+    // Help
     {
       id: 'help.keybindings',
       label: 'Keyboard Shortcuts',
@@ -322,7 +315,6 @@ export function v0Commands(): CommandDefinition[] {
   ];
 }
 
-// --- Workspace Command Catalog (A8-03 / UXP-03) -----------------------------
 
 export function workspaceCommands(): CommandDefinition[] {
   return [
@@ -374,7 +366,6 @@ export function workspaceCommands(): CommandDefinition[] {
   ];
 }
 
-// --- Agent Command Catalog ----------------------------------------------------
 
 export function agentCommands(): CommandDefinition[] {
   return [
@@ -387,7 +378,6 @@ export function agentCommands(): CommandDefinition[] {
   ];
 }
 
-// --- Appearance Command Catalog (A8-03 / UXP-04..07) ------------------------
 
 export function appearanceCommands(): CommandDefinition[] {
   return [

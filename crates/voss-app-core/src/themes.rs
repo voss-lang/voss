@@ -1,10 +1,3 @@
-//! A8 custom theme persistence — workspace `.voss/themes/<name>.json` and
-//! active theme id in `settings.json`.
-//!
-//! Bundled themes live in the frontend repo; this module handles user-authored
-//! custom themes only. Follows `keymap.rs` (settings flatten) and `session.rs`
-//! (atomic tmp+rename writes, fail-safe loads).
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -12,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 pub const CURRENT_THEME_VERSION: u32 = 1;
 
-/// On-disk custom theme schema (aligns with TS `CustomTheme` concept).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomThemeFile {
@@ -47,7 +39,6 @@ pub enum ThemeError {
     SettingsSaveFailed,
 }
 
-// --- Settings (active theme id) ----------------------------------------------
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,7 +76,6 @@ fn settings_path() -> PathBuf {
     })
 }
 
-// --- Path helpers ------------------------------------------------------------
 
 pub fn custom_theme_path(workspace: &Path, name: &str) -> Result<PathBuf, ThemeError> {
     validate_theme_name(name)?;
@@ -114,10 +104,7 @@ pub fn validate_theme_name(name: &str) -> Result<(), ThemeError> {
     Ok(())
 }
 
-// --- Custom theme I/O --------------------------------------------------------
 
-/// List custom theme names (stems of `*.json`) under `.voss/themes/`.
-/// Missing directory → empty list. Never creates `.voss/`.
 pub fn list_custom_themes(workspace: &Path) -> Vec<String> {
     let dir = workspace.join(".voss").join("themes");
     if !dir.exists() {
@@ -144,8 +131,6 @@ pub fn list_custom_themes(workspace: &Path) -> Vec<String> {
     names
 }
 
-/// Load `.voss/themes/<name>.json`. Returns `None` for missing, corrupt, or
-/// unsupported files. Never creates directories.
 pub fn load_custom_theme(workspace: &Path, name: &str) -> Option<CustomThemeFile> {
     let path = custom_theme_path(workspace, name).ok()?;
     if !path.exists() {
@@ -161,7 +146,6 @@ pub fn load_custom_theme(workspace: &Path, name: &str) -> Option<CustomThemeFile
     }
 }
 
-/// Save a custom theme to `.voss/themes/<name>.json` (lazy `.voss/` creation).
 pub fn save_custom_theme(
     workspace: &Path,
     name: &str,
@@ -175,9 +159,7 @@ pub fn save_custom_theme(
     atomic_write(&path, &json)
 }
 
-// --- Active theme id in settings.json ----------------------------------------
 
-/// Load `appearance.activeThemeId` from settings. Missing/corrupt → `None`.
 pub fn load_active_theme_id() -> Option<String> {
     let path = settings_path();
     let raw = std::fs::read_to_string(&path).ok()?;
@@ -185,7 +167,6 @@ pub fn load_active_theme_id() -> Option<String> {
     settings.appearance.active_theme_id
 }
 
-/// Persist `appearance.activeThemeId`, preserving unknown settings keys.
 pub fn save_active_theme_id(id: Option<&str>) -> Result<(), ThemeError> {
     let path = settings_path();
     let mut settings: SettingsThemes = std::fs::read_to_string(&path)
@@ -200,7 +181,6 @@ pub fn save_active_theme_id(id: Option<&str>) -> Result<(), ThemeError> {
     settings_atomic_write(&path, &json)
 }
 
-// --- Internal helpers --------------------------------------------------------
 
 fn parse_custom_theme(raw: &str) -> Result<CustomThemeFile, &'static str> {
     let value: serde_json::Value = serde_json::from_str(raw).map_err(|_| "invalid JSON")?;
@@ -260,7 +240,6 @@ fn settings_atomic_write(path: &Path, json: &str) -> Result<(), ThemeError> {
     Ok(())
 }
 
-// --- Tests -------------------------------------------------------------------
 
 #[cfg(test)]
 thread_local! {

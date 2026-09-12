@@ -1,9 +1,6 @@
-"""E2E for extension surfaces: tools, skills, plugins, agents.
-
+"""
+E2E for extension surfaces: tools, skills, plugins, agents.
 Listings are read-only and don't need stub plumbing. `agent spawn` and
-`skill run` do call the provider — both should succeed under the stubbed
-auth resolver. We only assert exit codes + visible registry markers, not
-specific provider output (subagent output shape is its own contract).
 """
 from __future__ import annotations
 

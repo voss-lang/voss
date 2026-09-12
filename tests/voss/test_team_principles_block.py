@@ -1,8 +1,6 @@
-"""V10 RED scaffold — principles{} block compile + YAML merge (VLANG-01a).
-
+"""
+V10 RED scaffold — principles{} block compile + YAML merge (VLANG-01a).
 Targets the planned surface: TeamConfig.principles (a PrinciplesConfig) and the
-`compile_team(decl, cwd=...)` keyword. These do not exist yet — RED expected.
-No expected-fail/skip masks (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations
 

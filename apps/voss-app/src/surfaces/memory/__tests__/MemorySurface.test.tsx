@@ -1,6 +1,3 @@
-// V24-11 (VADE2-11) — MemorySurface: live data when a server is present, honest
-// fallback when not. fetchMemory is mocked so no real server is needed.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 

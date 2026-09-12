@@ -1,13 +1,3 @@
-/**
- * A7-01 Task 1 — chord normalization and display formatting.
- *
- * Converts KeyboardEvents into canonical chord strings (`Cmd+D`,
- * `Cmd+Shift+D`, `Cmd+Alt+ArrowRight`) and formats them for palette
- * row display (`⌘D`, `⌘⇧D`, `⌘⌥→`). Pure — no DOM state, no Solid.
- */
-
-// --- Code → key-name map (layout-independent via KeyboardEvent.code) --------
-
 const CODE_MAP: Record<string, string> = {
   KeyA: 'A', KeyB: 'B', KeyC: 'C', KeyD: 'D', KeyE: 'E', KeyF: 'F',
   KeyG: 'G', KeyH: 'H', KeyI: 'I', KeyJ: 'J', KeyK: 'K', KeyL: 'L',
@@ -25,7 +15,7 @@ const CODE_MAP: Record<string, string> = {
   Backspace: 'Backspace', Delete: 'Delete',
 };
 
-// --- Display symbols --------------------------------------------------------
+// Display symbols
 
 const DISPLAY: Record<string, string> = {
   Cmd: '⌘', Shift: '⇧', Alt: '⌥',
@@ -34,13 +24,8 @@ const DISPLAY: Record<string, string> = {
   Escape: 'Esc',
 };
 
-// --- Public API --------------------------------------------------------------
+// Public API
 
-/**
- * Normalize a KeyboardEvent to a canonical chord string.
- * Returns `null` for bare modifier presses and unrecognized codes.
- * Bare keys (no modifier) return `null` — those belong to the PTY.
- */
 export function normalizeChord(evt: KeyboardEvent): string | null {
   // Ignore bare modifier key presses
   if (['Meta', 'Shift', 'Alt', 'Control'].includes(evt.key)) return null;
@@ -60,11 +45,6 @@ export function normalizeChord(evt: KeyboardEvent): string | null {
   return parts.join('+');
 }
 
-/**
- * Normalize a KeyboardEvent for tmux prefix mode dispatch.
- * Returns the bare printable character or `Escape`. Ignores events
- * with Cmd/Alt/Ctrl modifiers (those aren't valid prefix keys).
- */
 export function normalizePrefixKey(evt: KeyboardEvent): string | null {
   if (evt.metaKey || evt.altKey || evt.ctrlKey) return null;
   if (evt.key === 'Escape') return 'Escape';
@@ -72,10 +52,6 @@ export function normalizePrefixKey(evt: KeyboardEvent): string | null {
   return null;
 }
 
-/**
- * Format a canonical chord string for display in palette rows.
- * `Cmd+D` → `⌘D`, `Cmd+Shift+D` → `⌘⇧D`, `Cmd+Alt+ArrowRight` → `⌘⌥→`.
- */
 export function formatChord(chord: string): string {
   return chord
     .split('+')

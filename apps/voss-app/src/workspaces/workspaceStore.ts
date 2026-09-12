@@ -10,10 +10,10 @@ import {
   type WorkspacesIndex,
 } from './workspaceStorage';
 
-/** Runtime workspace record — same wire shape as `WorkspaceEntry`. */
+/** Runtime workspace record — same wire shape as `WorkspaceEntry` */
 export type WorkspaceRecord = WorkspaceEntry;
 
-/** UXP-08 close-guard metadata for tab UI (last workspace cannot close). */
+/** UXP-08 close-guard metadata for tab UI (last workspace cannot close) */
 export type WorkspaceCloseGuard = {
   canClose: boolean;
   isLastWorkspace: boolean;
@@ -67,7 +67,7 @@ function findWorkspace(
   return workspaces.find((w) => w.id === id);
 }
 
-/** Compute UXP-08 close-guard metadata for a workspace tab. */
+/** Compute UXP-08 close-guard metadata for a workspace tab */
 export function closeGuardFor(
   workspaces: readonly WorkspaceRecord[],
   _id: string,

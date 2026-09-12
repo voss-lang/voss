@@ -1,17 +1,4 @@
-"""Python-side mirror of the styles.tcss Contract v2 palette (R5, spec §4.1).
-
-styles.tcss is the single source of truth for the 9 locked hex values.
-Rich renderables (Text style strings rendered inside Static widgets)
-cannot read TCSS `$vars`, so this module mirrors them for the few
-unavoidable Rich-side call sites (assistant gutter, HomeScreen logo,
-StatusLine zones, DiffModal line colors).
-
-Audit rules (tests/harness/tui/test_glyph_and_color_contract.py):
-  - this is the ONLY .py file under voss/harness/tui/ allowed to contain
-    hex color literals;
-  - every value below must exactly match its styles.tcss declaration
-    (cross-checked by test_palette_matches_tcss).
-"""
+"""Python mirror of the locked styles.tcss color palette."""
 from __future__ import annotations
 
 ACCENT = "#ff5b1f"   # $accent
@@ -24,7 +11,7 @@ SURFACE = "#1c1c1c"  # $surface
 RAISED = "#262626"   # $raised
 TEXT = "#dadada"     # $text
 
-# tcss-var-name → value mapping consumed by the contract cross-check test.
+# tcss-var-name → value mapping consumed by the contract cross-check test
 TCSS_VARS = {
     "accent": ACCENT,
     "dim": DIM,

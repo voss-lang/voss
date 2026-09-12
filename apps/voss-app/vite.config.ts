@@ -19,12 +19,6 @@ export default defineConfig({
   build: {
     // Tauri 2 ships modern WebViews — macOS WKWebView ≥ 16.4 (Safari 16.4+
     // engine), Edge Chromium on Windows. `safari13` triggers a
-    // rolldown/esbuild destructuring-transform error against solid-js's
-    // compiled output (the runtime supports destructuring but the
-    // transformer refuses to lower it for that target). Bump to
-    // `safari15` to silence it without dropping any platform Tauri
-    // actually runs on.
-    // @ts-expect-error process is a nodejs global
     target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari15',
     // @ts-expect-error process is a nodejs global
     minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,

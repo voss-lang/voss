@@ -1,7 +1,6 @@
-"""O3-01 Task 2: AST import-set proof for verdict.py (O4 plug-in safety).
-
+"""
+O3-01 Task 2: AST import-set proof for verdict.py (O4 plug-in safety).
 This is the load-bearing OBRD-07 acceptance test. If this test breaks,
-O4's Reviewer A/B impls will have circular-import problems.
 """
 from __future__ import annotations
 

@@ -1,8 +1,6 @@
-"""VBUS-05 durable journal across server restart — xfail until V15 ships.
-
+"""
+VBUS-05 durable journal across server restart — xfail until V15 ships.
 Contract (D-10): messages append to <cwd>/.voss/bus/messages.jsonl, per-agent
-cursors in cursors.json; after a server kill + restart, `inbox` still returns
-the pre-restart unread message.
 """
 from __future__ import annotations
 

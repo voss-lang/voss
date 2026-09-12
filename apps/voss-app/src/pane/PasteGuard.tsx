@@ -1,6 +1,5 @@
 import { Show } from 'solid-js';
 
-/** UI-SPEC §5 / D-04 / D-05 — inline non-modal multi-line paste banner. */
 export interface PasteGuardProps {
   pendingText: string;
   onSend: () => void;

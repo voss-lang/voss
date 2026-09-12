@@ -1,14 +1,6 @@
-"""TUI bridge: install modal-driven prompt callables into a PermissionGate.
-
+"""
+TUI bridge: install modal-driven prompt callables into a PermissionGate
 The bridge does NOT modify `voss.harness.permissions.PermissionGate`. It uses
-the existing `prompt_fn` and `scope_prompt_fn` dependency-injection points
-(permissions.py lines 113-115) to route prompts through Textual modals while
-the gate's `check()` logic stays byte-unchanged.
-
-Threading: agent tools run on worker threads. The Future round-trip uses
-`app.call_from_thread` to push the modal on the event loop, then blocks the
-worker on `Future.result(timeout=...)` until the user makes a choice or the
-inattention timeout (5 minutes default) elapses. Timeout → 'd' / 'n' (deny).
 """
 from __future__ import annotations
 
@@ -20,7 +12,7 @@ from voss.harness.permissions import PermissionGate
 from .widgets import PermissionModal, ScopeExpandModal
 
 
-# 5-minute hard cap on user inattention. Test override allowed.
+# 5-minute hard cap on user inattention. Test override allowed
 DEFAULT_TIMEOUT_S: float = 300.0
 
 
@@ -63,7 +55,7 @@ def install_tui_permissions(
 
         def _on_result(choice):
             # `dismiss(result)` callback path. `result` may be None if the
-            # screen is popped without a value (defensive).
+            # screen is popped without a value (defensive)
             if choice is None:
                 choice = "d"
             if not fut.done():

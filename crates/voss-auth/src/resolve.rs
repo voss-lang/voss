@@ -1,4 +1,5 @@
-//! Auth-path resolution. Mirrors `voss/harness/auth.py::resolve` (lines 286-329).
+// ! Auth-path resolution. Mirrors `voss/harness/auth.py::resolve` (lines 286
+
 
 use crate::anthropic::AnthropicOAuthCreds;
 use crate::codex::CodexCreds;
@@ -142,7 +143,7 @@ mod tests {
 
     #[test]
     fn source_strings_match_python() {
-        // Verify the exact string identifiers Python uses.
+        // Verify the exact string identifiers Python uses
         let cases: &[(Resolution, &str)] = &[
             (
                 Resolution::EnvAnthropic { detail: "x".into() },

@@ -57,7 +57,6 @@ function isBellBehavior(value: unknown): value is BellBehavior {
   return typeof value === 'string' && BELL_BEHAVIORS.has(value as BellBehavior);
 }
 
-/** Fail-safe parse for wire/partial values. */
 export function parseAppearanceSettings(wire: unknown): AppearanceSettings {
   const base = { ...DEFAULT_APPEARANCE_SETTINGS };
   if (typeof wire !== 'object' || wire === null || Array.isArray(wire)) {
@@ -156,7 +155,6 @@ function applyDocumentAppearance(settings: AppearanceSettings): void {
   root.classList.toggle('reduced-motion', settings.reducedMotionEnabled);
 }
 
-/** Apply settings to document, theme high-contrast overlay, and live terminals. */
 export function applyAppearanceSettings(settings: AppearanceSettings): void {
   const normalized = parseAppearanceSettings(settings);
   committedSettings = normalized;
@@ -172,7 +170,6 @@ export function applyAppearanceSettings(settings: AppearanceSettings): void {
   }
 }
 
-/** Test-only reset. */
 export function _resetAppearanceForTest(): void {
   committedSettings = { ...DEFAULT_APPEARANCE_SETTINGS };
   listeners.clear();

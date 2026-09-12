@@ -2,15 +2,8 @@ import { test, expect } from '@playwright/test';
 import { bootApp, APP_URL } from './_helpers';
 
 /**
- * A7 command palette + keymap end-to-end — palette open/close,
- * command execution, category discovery, tmux prefix mode.
- *
- * Runs on macOS via mock-IPC (no tauri-driver needed). Boots the app against
- * `vite dev` with `window.__TAURI_INTERNALS__` mocked. PTYs are inert —
- * palette UI behavior is what's under test.
- *
- * PTY-dependent scenarios (native menu click → pane splits via real PTY,
- * keymap.json file watch toast) stay deferred to Linux CI under TAURI_E2E=1.
+ * A7 command palette + keymap end-to-end — palette open/close
+ * command execution, category discovery, tmux prefix mode
  */
 
 test.describe.configure({ mode: 'serial' });
@@ -117,7 +110,6 @@ test.describe('A7 command palette (mock-IPC)', () => {
   });
 });
 
-// --- Native menu + keymap.json file-watch scenarios ---------------------------
 // These need either real OS menus (Tauri runtime) or the keymap.json watcher
 // (real filesystem). Both stay deferred to Linux CI under TAURI_E2E=1.
 const TAURI_E2E =

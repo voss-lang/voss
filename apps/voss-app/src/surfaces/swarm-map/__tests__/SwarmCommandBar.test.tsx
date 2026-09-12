@@ -1,6 +1,3 @@
-// V24 Orchestra command bar: honest disabled-with-reason +
-// real postMessage send path. fetchSwarm/registry are not involved here.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import SwarmCommandBar from '../SwarmCommandBar';

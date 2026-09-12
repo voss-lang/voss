@@ -1,9 +1,6 @@
-"""T1-03 Task 2: cross-provider parity — same logical Plan via both stream() paths.
-
+"""
+T1-03 Task 2: cross-provider parity — same logical Plan via both stream() paths.
 SPEC ITER-03: "both providers pass a parity test against a recorded fixture
-stream". Asymmetry tolerated — Anthropic emits ToolUseStart/Delta/End,
-OpenAI does not (Plan parse goes through accumulated output_text chunks
-in `text.format` json_schema mode).
 """
 from __future__ import annotations
 

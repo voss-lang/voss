@@ -1,7 +1,6 @@
-"""V25-04: /swarm routes, overlap 4xx, per-role routing, spawn-gate, fan-out SSE.
-
+"""
+V25-04: /swarm routes, overlap 4xx, per-role routing, spawn-gate, fan-out SSE.
 Mirrors tests/harness/test_server_app.py — TestClient with _resolve_provider +
-run_turn monkeypatched; app.state.swarm_store redirected to a tmp event-log dir.
 """
 
 from __future__ import annotations

@@ -1,10 +1,6 @@
-"""R3 ownership detection + revert tests (SWARM-RECONCILIATION).
-
+"""
+R3 ownership detection + revert tests (SWARM-RECONCILIATION).
 `detect_violations` is exercised exhaustively as a pure function (it is the load-
-bearing decision that must match the native PermissionGate). `revert_paths` and
-the watcher's per-batch unit run against a real temp git repo. The live
-watchfiles loop is NOT raced against real fs events — its body is a thin call to
-the deterministic `_handle_batch`, which is tested directly.
 """
 from __future__ import annotations
 

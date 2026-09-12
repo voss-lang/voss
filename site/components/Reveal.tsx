@@ -40,7 +40,6 @@ export default function Reveal({
 /**
  * Stagger plays once on mount (not viewport-gated) so children
  * always become visible, even when JS-driven scroll listeners
- * don't fire (e.g. headless screenshot tools).
  */
 export function Stagger({
   children,

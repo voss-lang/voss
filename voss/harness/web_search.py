@@ -1,9 +1,7 @@
-"""Brave Search backend for web_search tool. T3-06 / NET-02.
-
-SPEC explicitly says Brave only; Tavily abstraction is OUT OF SCOPE per
-CONTEXT.md Deferred Ideas.
 """
-
+Brave Search backend for web_search tool. T3-06 / NET-02
+SPEC explicitly says Brave only; Tavily abstraction is OUT OF SCOPE per
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,9 +1,3 @@
-/**
- * session.json / layout v1 (binary split tree) → canvas nodes. Each leaf
- * becomes a node at the rect the tree's ratios gave it inside `box`. The
- * legacy tree types live here because this is the only code that still
- * reads them; the Rust `grid.rs` mirror round-trips the same keys.
- */
 import {
   MIN_NODE_H,
   MIN_NODE_W,

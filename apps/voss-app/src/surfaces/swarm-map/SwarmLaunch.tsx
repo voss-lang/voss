@@ -1,9 +1,3 @@
-// V24 swarm surface — launch panel (shown in the empty state).
-//
-// A minimal intake (goal + builder count) that calls launchSwarm. Honest about
-// connection state: disabled-with-reason when there is no live server. On success
-// the map's createResource picks up the new active swarm id and renders it live.
-
 import { type Component, createSignal, onMount, Show } from 'solid-js';
 import {
   liveServer,
@@ -27,7 +21,7 @@ const SwarmLaunch: Component<SwarmLaunchProps> = (props) => {
 
   const connected = () => !!liveServer();
   // Launchable when already connected, or when we can spin up a server on
-  // demand — the click spawns the sidecar first, then launches.
+  // demand the click spawns the sidecar first, then launches
   const canLaunch = () =>
     goal().trim().length > 0 &&
     !busy() &&

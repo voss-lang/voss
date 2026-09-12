@@ -1,7 +1,6 @@
-"""M9-08 CodeIntelPanel standalone widget tests.
-
+"""
+M9-08 CodeIntelPanel standalone widget tests.
 Uses a minimal pilot host for active-app context (Textual requirement for
-child mutations). Widget logic remains standalone with no M10 imports.
 """
 
 from __future__ import annotations

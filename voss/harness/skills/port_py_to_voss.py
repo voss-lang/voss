@@ -1,18 +1,6 @@
-"""SKL-04 `port-py-to-voss`: agentic, mutating Python→.voss translator.
-
-Agentic (D-07) — drives a model turn via `run_turn`. Mutating (D-09,
-`mutating=True`): the agent reads the input Python file (`source`, i.e.
-`args[0]`) and writes the translated `.voss` through the gated `fs_write`
-tool. The skill performs NO direct write and constructs NO raw filesystem
-path itself — every mutation flows through `run_turn`'s tool dispatch, so
-the standard permission gate + mode rules apply with NO skill-level
-escalation or bypass (D-09/D-11). Path-traversal is mitigated by the gated
-write tool's jail confining writes to `cwd` (the skill never escapes the
-project root). In `plan` mode the write is refused cleanly.
-
-The `.voss` companion at voss/harness/skills/voss/port-py-to-voss.voss is a
-dogfood demonstration modeling samples/research.voss (D-05), NOT the runtime
-exec path.
+"""
+`port-py-to-voss`: agentic, mutating Python→.voss translator
+Agentic drives a model turn via `run_turn`. Mutating (
 """
 from __future__ import annotations
 

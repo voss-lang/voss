@@ -1,17 +1,6 @@
-"""ModelPickerModal — OpenCode-style "Select model" picker.
-
+"""
+ModelPickerModal OpenCode-style "Select model" picker
 A searchable, provider-grouped modal over the models.dev catalog. Type to
-filter, up/down to move (group headers are skipped), enter/click to choose,
-esc to cancel. `dismiss(entry)` returns the chosen `ModelEntry` (or None); the
-caller (cli `/models`) applies it via the model router.
-
-Design contract: no accent-color literal in this file — all such styling lives
-in styles.tcss under `.model-picker-*` / `ModelPickerModal` (the allow-listed
-site), so the accent audit stays clean. Tags/markers are ASCII so the
---no-unicode contract holds.
-
-Connect-provider (ctrl+a) and favorites (ctrl+f) land in P5; this ship is the
-searchable grouped picker + selection.
 """
 from __future__ import annotations
 
@@ -43,7 +32,7 @@ class _PickerList(ListView):
         self._connected = connected
         self._current = current
         self._synthetic = synthetic_ids
-        # Parallel arrays describing every appended item.
+        # Parallel arrays describing every appended item
         self._is_header: list[bool] = []
         self._entries: list[Optional[ModelEntry]] = []
         self._group_of: list[str] = []
@@ -93,10 +82,10 @@ class _PickerList(ListView):
                 self._group_of.append(g.id)
         self.filter("")
         # ListView assigns its own default index after mount; set the current
-        # model's row once that has settled.
+        # model's row once that has settled
         self.call_after_refresh(self._highlight_current)
 
-    # -- filtering -------------------------------------------------------
+    # filtering
     def filter(self, query: str) -> None:
         q = query.strip().lower()
         matched = {
@@ -145,7 +134,7 @@ class _PickerList(ListView):
     def _matches_current(self, entry: ModelEntry) -> bool:
         return entry.id == self._current or f"openai/{entry.id}" == self._current
 
-    # -- header-skipping cursor movement --------------------------------
+    # header-skipping cursor movement
     def move(self, delta: int) -> None:
         rows = self._rows()
         if not rows:
@@ -203,7 +192,7 @@ class ModelPickerModal(ModalScreen):
         ("down", "cursor_down", "Down"),
         ("up", "cursor_up", "Up"),
         # priority: the focused search Input binds ctrl+a/ctrl+f and would
-        # otherwise swallow them before the screen sees it.
+        # otherwise swallow them before the screen sees it
         Binding("ctrl+a", "connect", "Connect provider", priority=True),
         Binding("ctrl+f", "favorite", "Favorite", priority=True),
     ]
@@ -219,7 +208,7 @@ class ModelPickerModal(ModalScreen):
     ) -> None:
         super().__init__(**kw)
         self._groups = groups
-        # Copy: connect-flow mutates this; never touch the caller's dict.
+        # Copy: connect-flow mutates this; never touch the caller's dict
         self._connected = dict(connected)
         self._current = current
         self._synthetic = synthetic_ids
@@ -251,7 +240,7 @@ class ModelPickerModal(ModalScreen):
         self._select_current()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        # Mouse click / enter on a row.
+        # Mouse click / enter on a row
         entry = getattr(event.item, "_voss_entry", None)
         if entry is not None:
             self.dismiss(entry)

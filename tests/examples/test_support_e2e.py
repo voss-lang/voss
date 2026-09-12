@@ -1,8 +1,6 @@
-"""End-to-end validation for ``support.voss`` (PRD §7.2, EX-02).
-
+"""
+End-to-end validation for ``support.voss`` (PRD §7.2, EX-02).
 Default tests are hermetic: they patch ``SemanticMatcher`` so cases are
-encoded with synthetic 3-D vectors and use the runtime ``StubProvider``
-for the ``ctx.ask`` fallback. No live providers, no model downloads.
 """
 from __future__ import annotations
 

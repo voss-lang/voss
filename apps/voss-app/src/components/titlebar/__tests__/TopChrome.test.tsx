@@ -1,19 +1,10 @@
-// V24-09 — reference-design top chrome contract.
-//
-// Pins away preset switcher / Plan·Edit·Auto toggle, and asserts the new bar
-// affordances: search + ⌘K composer trigger, section label, project/branch
-// identity pill, "New task" CTA, safety chip, and live chip.
-//
-// jsdom does not run WindowControls' Tauri onMount path (platform() throws and
-// is caught → StubControls), matching the existing Titlebar.test.tsx contract.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
 import TopChrome from '../TopChrome';
-// @ts-ignore -- node builtin available in the vitest runtime; app tsconfig is browser-lib only.
+// @ts-ignore -- node builtin available in the vitest runtime; app tsconfig is browser-lib only
 import { readFileSync } from 'node:fs';
 
 const rawTopChrome: string = readFileSync(

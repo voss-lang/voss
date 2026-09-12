@@ -1,29 +1,6 @@
-"""V18 budget-aware context allocator (VOPT-01/02/03/04).
-
+"""
+budget-aware context allocator (VOPT-01/02/03/04)
 Pure transformer: packs the variable replay region of the agent message
-list under a token ceiling using three age tiers —
-
-  FULL   — the last ``recent_full_k`` iterations, rendered by delegating
-           to ``agent._serialize_iter_for_replay`` (byte-identical to the
-           pre-V18 replay; preserves redaction + 400-char caps).
-  DIGEST — iterations between the fold boundary and the FULL tier, one
-           ``[digest] Iter i: ...`` structural line each (mirrors the
-           rider digest format at agent.py:418-427).
-  FOLD   — everything older, collapsed into a single "Earlier work
-           summary" pair carrying deduped, capped re-fetch pointers to
-           the existing M10 code-intel surfaces (no retrieval call).
-
-Purity: no model client, no filesystem, no second tokenizer — token
-estimation is injected as a callable (the caller binds
-``functools.partial(_default_token_count, model=...)``).
-
-Cache coherence (VOPT-03): the FOLD region is the *stable region*. It is
-frozen across pack() calls and rewritten only when the packed estimate
-crosses ``high_water * packing_budget`` (recompaction), at which point
-digests are absorbed into the fold until the estimate drops to
-``low_water * packing_budget``. Below high-water the fold pairs are
-returned verbatim turn-over-turn, so ``stable_region_hash()`` is
-append-only-stable between recompactions.
 """
 from __future__ import annotations
 
@@ -46,10 +23,10 @@ class PackingProfile:
 
 
 def _full_renderer():
-    # Lazy import: agent.py will import ContextAllocator (Plan 03 seam),
+    # Lazy import: agent.py will import ContextAllocator (Plan 03 seam)
     # so a module-level import here would create a cycle. The FULL tier
-    # must delegate — not re-implement — to keep redaction + caps and the
-    # below-threshold byte-identity guarantee (RESEARCH Pitfall 2).
+    # must delegate not re-implement to keep redaction + caps and the
+    # below-threshold byte-identity guarantee
     from voss.harness.agent import _serialize_iter_for_replay
 
     return _serialize_iter_for_replay
@@ -74,13 +51,13 @@ class ContextAllocator:
     def __init__(self, token_count: Callable[[str], int]):
         self._token_count = token_count
         # Stable region: frozen FOLD pairs + how many leading iters they
-        # consumed. Rewritten only on recompaction (hysteresis).
+        # consumed. Rewritten only on recompaction (hysteresis)
         self._stable_pairs: list[tuple[dict, dict]] = []
         self._stable_upto: int = 0
         self._initialized: bool = False
         self._recompactions: int = 0
 
-    # -- rendering -----------------------------------------------------
+    # rendering
 
     def _pair_tokens(self, pair: tuple[dict, dict]) -> int:
         return sum(self._token_count(str(m.get("content", ""))) for m in pair)
@@ -140,8 +117,8 @@ class ContextAllocator:
         }
         user_msg = {"role": "user", "content": f"(iteration {iter_rec.index} digested)"}
         digest_pair = (assistant_msg, user_msg)
-        # Pitfall 4: a digest must never cost more than the full rendering
-        # it replaces — fall back to full for degenerate tiny iterations.
+        # a digest must never cost more than the full rendering
+        # it replaces fall back to full for degenerate tiny iterations
         full_pair = _full_renderer()(iter_rec)
         if self._pair_tokens(digest_pair) > self._pair_tokens(full_pair):
             return full_pair
@@ -173,13 +150,13 @@ class ContextAllocator:
             "content": f"({len(iter_recs)} earlier iterations folded)",
         }
         fold_pairs = [(assistant_msg, user_msg)]
-        # Pitfall 4: never let the fold cost more than the full pairs it folds.
+        # never let the fold cost more than the full pairs it folds
         full_pairs = [_full_renderer()(ir) for ir in iter_recs]
         if self._estimate(fold_pairs) > self._estimate(full_pairs):
             return full_pairs
         return fold_pairs
 
-    # -- packing -------------------------------------------------------
+    # packing
 
     def _assemble(
         self,
@@ -204,7 +181,7 @@ class ContextAllocator:
         n = len(iter_records)
         serialize = _full_renderer()
         if not profile.enabled:
-            # No-op below threshold: verbatim full replay, byte-identical.
+            # No-op below threshold: verbatim full replay, byte-identical
             return [serialize(p) for p in iter_records]
         if n <= profile.recent_full_k:
             full_pairs = [serialize(p) for p in iter_records]
@@ -212,7 +189,7 @@ class ContextAllocator:
 
         if not self._initialized:
             # First packing call seeds the fold boundary age-based; this
-            # is the baseline the stable-region hash is measured against.
+            # is the baseline the stable-region hash is measured against
             fold_upto = max(0, n - profile.digest_cutoff_m)
             self._stable_pairs = self._render_fold_summary(iter_records[:fold_upto])
             self._stable_upto = fold_upto
@@ -225,11 +202,11 @@ class ContextAllocator:
         high = profile.high_water * packing_budget
         if est < high and est <= packing_budget:
             # Below high-water: hold the frozen fold (append-only stable
-            # region); only the digest/full tail slides.
+            # region); only the digest/full tail slides
             return self._fit_to_budget(pairs, iter_records, packing_budget)
 
         # Recompaction: re-fold age-based, then absorb digests oldest-first
-        # until the estimate drops to the low-water target (hysteresis).
+        # until the estimate drops to the low-water target (hysteresis)
         target = min(profile.low_water * packing_budget, packing_budget)
         fold_upto = max(self._stable_upto, n - profile.digest_cutoff_m, 0)
         max_fold = n - profile.recent_full_k  # the newest K are never folded

@@ -18,7 +18,7 @@ const ICON_PROPS = {
   strokeWidth: 1.75,
 } as const;
 
-/** Shorten absolute paths under `/Users/<user>/` to `~/…`; otherwise last segment. */
+/** Shorten absolute paths under `/Users/<user>/` to `~/…`; otherwise last segment */
 export function formatProjectPath(path: string | null | undefined): string | null {
   if (!path || path.trim().length === 0) return null;
 

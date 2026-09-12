@@ -1,4 +1,4 @@
-// V24-10 (VADE2-10) Settings surface.
+// 10 (VADE2 Settings surface
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';

@@ -1,5 +1,6 @@
-//! `_shell_capture` mirror — run a process, capture combined stdout+stderr,
-//! enforce a timeout, format with `[exit N]` + 4KB truncation.
+//! `_shell_capture` mirror run a process, capture combined stdout+stderr
+//! enforce a timeout, format with `[exit N]` + 4KB truncation
+
 
 use std::path::Path;
 use std::process::Stdio;
@@ -26,7 +27,7 @@ pub async fn shell_capture(cwd: &Path, argv: &[&str], timeout_secs: u64) -> Stri
         Ok(Err(e)) => return format!("<error: {e}>"),
         Err(_) => return format!("<timeout: {timeout_secs}s>"),
     };
-    // Mirror Python: stderr piped to stdout. Concatenate.
+    // Mirror Python: stderr piped to stdout. Concatenate
     let mut combined = out.stdout;
     combined.extend(out.stderr);
     let total = combined.len();

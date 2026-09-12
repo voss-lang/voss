@@ -1,20 +1,3 @@
-//! VCKP-13a OS scope-sandbox — per-run profile generation + wrapper argv.
-//!
-//! The CLI-agnostic enforcement floor for managed launches: the spawned CLI's
-//! filesystem writes are denied at the kernel outside the declared scope.
-//! macOS uses Seatbelt (`sandbox-exec -f profile.sb`); Linux uses `bwrap`
-//! best-effort. When no sandbox tool is available the caller receives
-//! `WrapOutcome::Unavailable` and MUST downgrade the displayed capability tier
-//! honestly (never claim enforcement that is not active).
-//!
-//! Security invariants (T-V14-04/05, V5/V12):
-//! - Scope paths are canonicalized + validated BEFORE any profile is built;
-//!   traversal (`..`), relative paths, and profile-injection characters are
-//!   rejected.
-//! - The write policy starts from `(deny file-write*)` and allows ONLY the
-//!   canonical scope subpath, the temp dirs, and `/dev/` (PTY ttys) — never
-//!   `allow default` for writes.
-
 use std::path::PathBuf;
 
 use thiserror::Error;
@@ -60,10 +43,6 @@ pub fn validate_scope(scope: &str) -> Result<PathBuf, SandboxError> {
     Ok(canon)
 }
 
-/// Generate the per-run Seatbelt profile. Write policy starts from
-/// `(deny file-write*)`; only the canonical scope, temp dirs, and `/dev/`
-/// (the PTY tty the CLI writes its output to) are writable. Reads stay open
-/// (`allow default`) — the floor targets write blast-radius (V12: never widen).
 pub fn generate_profile(scope_abs: &str) -> Result<String, SandboxError> {
     let canon = validate_scope(scope_abs)?;
     Ok(format!(

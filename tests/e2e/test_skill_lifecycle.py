@@ -1,7 +1,6 @@
-"""E2E test for SKILL-06 (comprehensive skill lifecycle).
-
+"""
+E2E test for SKILL-06 (comprehensive skill lifecycle).
 Exercises the full trust → add → list → run → update → remove cycle
-against the shipped signed example bundle.
 """
 from __future__ import annotations
 

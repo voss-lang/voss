@@ -1,5 +1,6 @@
-"""Register MCP-discovered tools as harness ToolEntry records."""
-
+"""
+Register MCP-discovered tools as harness ToolEntry records
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

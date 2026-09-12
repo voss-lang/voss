@@ -10,9 +10,9 @@ use crate::tool_trait::Tool;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FsWriteArgs {
-    /// Path relative to cwd.
+    /// Path relative to cwd
     pub path: String,
-    /// File contents.
+    /// File contents
     pub content: String,
 }
 

@@ -1,18 +1,6 @@
-"""T2-05 / PAR-04: fs_read_many bundled multi-file read primitive.
-
+"""
+T2-05 / PAR-04: fs_read_many bundled multi-file read primitive.
 SPEC PAR-04 acceptance fixtures (a/b/c/d) + edge cases:
-- three readable files in request order (a)
-- partial result with inline error for missing slot (b)
-- duplicate paths not deduped (c)
-- empty paths sentinel (d)
-- 30KB truncation boundaries (==30720, ==30721, >>30720)
-- jail violation inline error (D-14)
-- directory inline error
-- binary file inline error
-- registration with is_mutating=False
-- fs_read coexistence
-- deterministic output
-- exact bundle format
 """
 from __future__ import annotations
 

@@ -15,10 +15,10 @@ DENY_TOKENS = ("rm -rf", "sudo", "curl http", "nc ", " > /", "shutdown", "reboot
 # Shell metacharacters that change command-flow semantics. Even though Voss
 # invokes the allowlisted binary directly via `create_subprocess_exec` (not
 # `_shell`), we still reject these tokens at allowlist time so a misuse of
-# the API by a future caller can't accidentally re-enable shell parsing.
-# These cover: command chaining (`;`, `&&`, `||`, `&`), pipelines (`|`),
-# redirection (`>`, `<`, `>>`, `<<`), command substitution (`$(`, backtick),
-# and process substitution (`<(`, `>(`).
+# the API by a future caller can't accidentally re-enable shell parsing
+# These cover: command chaining (`;`, `&&`, `||`, `&`), pipelines (`|`)
+# redirection (`>`, `<`, `>>`, `<<`), command substitution (`$(`, backtick)
+# and process substitution (`<(`, `>(`)
 SHELL_METACHARS = (";", "|", "&&", "||", "&", "$(", "`", ">", "<", ">>", "<<", "<(", ">(")
 
 

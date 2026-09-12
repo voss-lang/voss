@@ -1,4 +1,6 @@
-"""Render `.voss` source beside its generated Python."""
+"""
+Render `.voss` source beside its generated Python
+"""
 from __future__ import annotations
 
 import tempfile

@@ -10,12 +10,8 @@ import type { WorkspacesIndex } from './workspaceStorage';
 import { saveProjectLessSession } from './workspaceStorage';
 
 /**
- * A8-02 — multi-workspace session lifecycle.
- *
- * One app-level close handler saves every mounted workspace controller,
- * then persists workspaces.json. Per-workspace structural autosave mirrors
- * A6 `sessionPersist.ts` but routes project-less saves to
- * `sessions/<workspaceId>.json`.
+ * multi-workspace session lifecycle
+ * One app-level close handler saves every mounted workspace controller
  */
 
 export type WorkspaceSessionContext = {
@@ -23,7 +19,7 @@ export type WorkspaceSessionContext = {
   getController: () => CanvasController | undefined;
   getActiveLayout: () => ActiveLayout;
   getProjectLessAccepted: () => boolean;
-  /** null = project-less session target for this workspace id. */
+/** null = project-less session target for this workspace id */
   projectPath: string | null;
 };
 
@@ -50,9 +46,7 @@ async function saveWorkspaceSession(
   }
 }
 
-/**
- * Debounced tree-only save for one mounted workspace.
- */
+/** Debounced tree-only save for one mounted workspace */
 export function installWorkspaceStructuralAutosave(
   ctx: WorkspaceSessionContext,
 ): () => void {
@@ -79,8 +73,8 @@ export function installWorkspaceStructuralAutosave(
 }
 
 /**
- * Install a single close-request handler that snapshots every workspace,
- * saves each session and the workspace index, then closes with reentry guard.
+ * Install a single close-request handler that snapshots every workspace
+ * saves each session and the workspace index, then closes with reentry guard
  */
 export async function installAllWorkspacesCloseSave(
   getContexts: () => WorkspaceSessionContext[],

@@ -1,8 +1,6 @@
-"""E2E for `voss sessions` listing.
-
+"""
+E2E for `voss sessions` listing.
 Covers: empty state, cwd-scoped vs --all legacy XDG merging. Sessions are
-written directly to the filesystem (not via the CLI, because `voss do` does
-not persist today) so the test exercises only the listing path.
 """
 from __future__ import annotations
 

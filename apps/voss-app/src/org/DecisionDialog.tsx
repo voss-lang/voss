@@ -7,7 +7,7 @@ import {
 import { refreshRun } from './orgStore';
 import type { DecisionResult } from './types';
 
-// VADE-09 — decision confirmation dialog (D-07/D-08). Shows the EXACT CLI
+// 09 — decision confirmation dialog (/). Shows the EXACT CLI
 // command before execution, shells it via run_decision (the sole write path —
 // this component never touches the filesystem), renders inline success/failure,
 // and auto-closes + refreshes the run 1500ms after a successful decision.
@@ -62,7 +62,7 @@ export default function DecisionDialog(props: {
       if (r.success) {
         closeTimer = setTimeout(() => {
           props.onDismiss();
-          void refreshRun(props.cwd, props.cliBinary); // D-08 auto-refresh
+          void refreshRun(props.cwd, props.cliBinary); // auto-refresh
         }, 1500);
       }
     } catch (e) {
@@ -140,7 +140,6 @@ export default function DecisionDialog(props: {
           </button>
         </div>
 
-        {/* CLI preview (D-07: exact command) */}
         <div style={{ margin: '16px' }}>
           <div
             style={{

@@ -1,8 +1,3 @@
-//! PTY Tauri IPC commands + the typed Channel event enum.
-//!
-//! The plugin manages `Arc<PtyRegistry>` (lib.rs setup) so the blocking reader
-//! thread can own a cheap clone while commands borrow it via Tauri `State`.
-
 use std::sync::Arc;
 
 use crate::pty::reader::start_reader;
@@ -21,7 +16,6 @@ pub struct BudgetData {
     pub model: String,
 }
 
-/// Per-file entry within ContextData.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct FileContextEntry {
     pub path: String,
@@ -41,7 +35,7 @@ pub struct ContextData {
 }
 
 /// Events streamed to the webview over a `Channel<PtyEvent>`.
-/// serde-tagged like the ndjson `"type"` discriminant (A2-PATTERNS commands.rs).
+// / serde-tagged like the ndjson `"type"` discriminant
 #[derive(serde::Serialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PtyEvent {

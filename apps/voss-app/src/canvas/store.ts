@@ -1,8 +1,3 @@
-/**
- * Pure canvas operations (S1). Each function mutates the passed state and
- * calls `onChange` when something structural happened, mirroring the grid
- * operations contract so callers wrap them in `setStore(produce(...))`.
- */
 import {
   MIN_NODE_H,
   MIN_NODE_W,
@@ -32,7 +27,6 @@ export function clampSize(w: number, h: number): { w: number; h: number } {
 /**
  * Rect after dragging `handle` by (dx, dy) world px from `start`. West and
  * north handles move the origin; the opposite edge stays put and the size
- * never drops below the terminal floor.
  */
 export function resizeFromHandle(start: Rect, handle: ResizeHandle, dx: number, dy: number): Rect {
   let { x, y, w, h } = start;
@@ -81,7 +75,7 @@ export function addNode(
 
 /**
  * ⌘D / ⌘⇧D: a new node the same size as the focused one, snapped to its
- * right or bottom edge. Falls back to the origin when nothing is focused.
+ * right or bottom edge. Falls back to the origin when nothing is focused
  */
 export function placeAdjacent(
   state: CanvasState,
@@ -101,10 +95,6 @@ export function placeAdjacent(
   return addNode(state, node, onChange);
 }
 
-/**
- * Close a node. The app is never empty: closing the last node respawns a
- * fresh default node in its place. Returns the removed id, or null.
- */
 export function removeNode(
   state: CanvasState,
   id: string,
@@ -171,7 +161,7 @@ export function setRect(
   finish(state, onChange);
 }
 
-/** ⌘⌥⇧arrow: grow or shrink the focused node by one step along `dir`. */
+/** ⌘⌥⇧arrow: grow or shrink the focused node by one step along `dir` */
 export function resizeFocusedByStep(
   state: CanvasState,
   dir: Direction,
@@ -207,7 +197,7 @@ export function cycleFocus(
   focusNode(state, ordered[j].id, onChange);
 }
 
-/** i3-style nearest node on the requested side of the focused node. */
+/** i3-style nearest node on the requested side of the focused node */
 export function focusByDirection(
   state: CanvasState,
   dir: Direction,

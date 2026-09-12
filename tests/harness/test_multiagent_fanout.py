@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 
 
-
 class _NullRenderer:
     """No-op renderer: every Renderer-protocol call the child run_turn makes
     is swallowed. It deliberately has NO show_subagent_* methods so the

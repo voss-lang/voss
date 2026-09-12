@@ -11,8 +11,8 @@ from watchdog.events import FileSystemEvent, PatternMatchingEventHandler
 from watchdog.observers import Observer
 
 # Never react to writes inside the harness cache (the watch log itself lives
-# under .voss-cache/watch/<handle>.log). Without this a broad glob (e.g. the
-# CLI default **/*) would feed the log writes back as events — a self loop.
+# under.voss-cache/watch/<handle>.log). Without this a broad glob (e.g. the
+# CLI default **/*) would feed the log writes back as events a self loop
 _IGNORE_PATTERNS = ["*.voss-cache*"]
 
 

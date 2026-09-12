@@ -1,7 +1,6 @@
-"""T1-02: ProviderStreamEvent union + StreamingProvider Protocol.
-
+"""
+T1-02: ProviderStreamEvent union + StreamingProvider Protocol.
 Locks the typed-event contract for the iteration loop's streaming path.
-T1-03 fills the stream() bodies on both providers against these shapes.
 """
 from __future__ import annotations
 

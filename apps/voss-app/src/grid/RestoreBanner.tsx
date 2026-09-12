@@ -1,9 +1,6 @@
 /**
- * A6-05 — session restore banner (D-07/D-08/D-09).
- *
+ * session restore banner (//)
  * 22px row below PaneHeader with Variant B dim fg. Reports the actual
- * restored line count. No dismiss button — auto-dismissed on first
- * keystroke in the pane (via `onFirstInput` in PaneComponent).
  */
 export default function RestoreBanner(props: { lineCount: number }) {
   return (

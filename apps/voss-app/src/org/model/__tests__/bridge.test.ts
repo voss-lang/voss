@@ -12,13 +12,13 @@ import {
   __resetBridgeMaps,
 } from '../bridge';
 
-// VCKP-02 keystone: the id-bridge. `resolveCard(maps, cardId) -> { paneId?,
+// 02 keystone: the id-bridge. `resolveCard(maps, cardId) -> { paneId?,
 // sessionNodeId? }` correlates the live plane (pane) and the snapshot plane
-// (session node). Two mechanisms (A1, V14-00):
+// (session node)
 //   Bridge A (native): create-response sessionID IS the snapshot node id, stored
 //     DIRECTLY into cardToSessionNode.
 //   Bridge B (terminal): client-minted cardId mapped to paneId via cardToPane.
-// registry.session_id is NEVER joined to SessionTreeNode.id directly (Pitfall 1).
+// registry.session_id is NEVER joined to SessionTreeNode.id directly.
 
 // The module-level signal maps are GLOBAL — reset them after every test so
 // register* state does not leak across tests.
@@ -100,7 +100,7 @@ describe('bridge register* — two-mechanism separation (Bridge A / Bridge B)', 
   //    per the A1 finding. Asserts the two mechanisms are SEPARATE — the native
   //    sessionID lands in cardToSessionNode only, never in cardToPane, and is
   //    never joined to a pane (registry.session_id NOT joined to node id —
-  //    Pitfall 1).
+  // ).
   it('registerNativeCard stores create-response sessionID directly into cardToSessionNode (A1 finding)', () => {
     const cardId = 'C-native-1';
     const sessionID = '0139377ff590'; // 12-hex create-response id (= node id, A1)
@@ -132,7 +132,7 @@ describe('bridge register* — two-mechanism separation (Bridge A / Bridge B)', 
     expect(cardToPane()[nativeCardId]).toBeUndefined();
 
     // The native sessionID ('aabbccddeeff') is never used as a pane key, i.e.
-    // registry.session_id is NOT joined to SessionTreeNode.id (Pitfall 1).
+    // registry.session_id is NOT joined to SessionTreeNode.id.
     expect(resolvePane(
       { cardToPane: cardToPane(), cardToSessionNode: cardToSessionNode() },
       'aabbccddeeff',

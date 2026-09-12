@@ -1,9 +1,6 @@
-"""V10 RED scaffold — VossTeamConfigError diagnostic shape (VLANG-02).
-
+"""
+V10 RED scaffold — VossTeamConfigError diagnostic shape (VLANG-02).
 Asserts the planned diagnostic surface that V10-04 retrofits: every config error
-carries a non-empty `construct`, a non-empty `fix_hint`, and a
-`format_diagnostic()` rendering a `file:line` substring. Those attributes do not
-exist yet — RED expected. No expected-fail/skip masks (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations
 

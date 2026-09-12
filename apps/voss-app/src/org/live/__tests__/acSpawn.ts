@@ -1,16 +1,3 @@
-// V15-06 (VLIVE-08) — hermetic AC spawn helper. Reimplements the MINIMAL
-// `voss serve` spawn from crates/voss-app-core/src/sidecar.rs in Node/TS for
-// the AC suite ONLY (the production spawn stays in Rust): interpreter chain
-// VOSS_PYTHON > repo .venv/bin/python > python3, `-m voss.cli serve --port 0`,
-// one-line {v,port,token} stdout handshake (log lines never false-parse),
-// continuous stderr drain, stdin held open as heartbeat, SIGKILL + exit-await
-// reap (T-V15-SC / T-V15-02).
-//
-// Hermetic env: VOSS_SERVE_FAKE_TURN=1 is the server's canned-turn seam
-// (harness/server/app.py — no creds, no network); VOSS_HERMETIC=1 is set too
-// for the CLI-side stub discipline. LITELLM_LOCAL_MODEL_COST_MAP=true removes
-// the boot-time network fetch (V13.2-06).
-
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
@@ -21,11 +8,11 @@ export interface HermeticServe {
   port: number;
   token: string;
   kill: () => Promise<void>;
-  /** stderr captured so far (diagnostics). */
+/** stderr captured so far (diagnostics) */
   stderrTail: () => string;
 }
 
-/** Repo root: apps/voss-app/src/org/live/__tests__ → five dirs up. */
+/** Repo root: apps/voss-app/src/org/live/__tests__ → five dirs up */
 function repoRoot(): string {
   return join(__dirname, '..', '..', '..', '..', '..', '..');
 }
@@ -37,7 +24,7 @@ function pythonPath(): string {
   return 'python3';
 }
 
-const HANDSHAKE_BUDGET_MS = 60_000; // cold .pyc ~45s; warm ~1.5s (SPIKE)
+const HANDSHAKE_BUDGET_MS = 60_000; // cold.pyc ~45s; warm ~1.5s
 
 export async function spawnHermeticServe(cwd: string): Promise<HermeticServe> {
   const child: ChildProcess = spawn(

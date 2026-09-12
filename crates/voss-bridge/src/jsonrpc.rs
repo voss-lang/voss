@@ -1,8 +1,6 @@
-//! PyBridge — spawns `python -m voss.bridge_server` as a long-lived child
-//! and dispatches JSON-RPC over LSP-framed stdio.
-//!
-//! Cross-cutting constraint (07-CONTEXT.md): Rust must NOT link libpython.
-//! All Python interaction goes through this subprocess via std::process.
+//! PyBridge spawns `python -m voss.bridge_server` as a long-lived child
+//! and dispatches JSON-RPC over LSP-framed stdio
+
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -27,8 +25,8 @@ struct BridgeChild {
 }
 
 impl PyBridge {
-    /// Discover the Python interpreter to use.
-    /// Order: `$VOSS_PYTHON`, `.venv/bin/python` (relative to CWD), then `python3` on PATH.
+    /// Discover the Python interpreter to use
+    /// Order: `$VOSS_PYTHON`, `.venv/bin/python` (relative to CWD), then `python3` on PATH
     pub fn discover() -> std::io::Result<Self> {
         let python = if let Some(v) = std::env::var_os("VOSS_PYTHON") {
             PathBuf::from(v)
@@ -47,7 +45,7 @@ impl PyBridge {
         })
     }
 
-    /// Override the python interpreter path (used by tests).
+    /// Override the python interpreter path (used by tests)
     pub fn with_python(python: PathBuf) -> Self {
         Self {
             python,

@@ -1,9 +1,4 @@
-"""Read-only audit snapshot loader (O6-02, OAUD-02).
-
-Reads fixture-compatible session-tree JSON, sorts nodes/cards
-deterministically, normalizes missing optional O3-O5 payloads to empty
-tuples, and never writes to disk.
-"""
+"""Read-only audit snapshot loader for session-tree JSON."""
 from __future__ import annotations
 
 import json
@@ -236,7 +231,7 @@ def _build_card(data: dict, *, is_root: bool) -> AuditCard | None:
     routing = _extract_routing(transitions)
     verdicts = _extract_verdicts(transitions)
 
-    # Determine column from last board transition.
+    # Determine column from last board transition
     column = "Backlog"
     for t in transitions:
         if t.get("kind") == "board.transition":
@@ -293,17 +288,17 @@ def load_audit_snapshot(root: Path, run_id: str | None = None) -> AuditSnapshot:
         if not tree_dir.is_dir():
             raise AuditLoadError(sessions_dir, f"unknown run_id: {run_id}")
     else:
-        # Find root directories (each is a session tree).
+        # Find root directories (each is a session tree)
         root_dirs = [d for d in sessions_dir.iterdir() if d.is_dir()]
         if not root_dirs:
             raise AuditLoadError(sessions_dir, "no session tree directories found")
-        # Select the latest run by mtime (mirrors cli._latest_root_id).
+        # Select the latest run by mtime (mirrors cli._latest_root_id)
         tree_dir = max(root_dirs, key=lambda d: d.stat().st_mtime)
-    # Filter sidecars that are not session-tree nodes: run-final.json (no `id`),
-    # *.review.json (per-card reviewer sidecars), and .signoff-ack.json (the
+    # Filter sidecars that are not session-tree nodes: run-final.json (no `id`)
+    # *.review.json (per-card reviewer sidecars), and.signoff-ack.json (the
     # governance ack record) live in the same dir but are loaded separately by
-    # report.py. Globbing them as nodes trips the required-`id` check (V9 glob
-    # landmine).
+    # report.py. Globbing them as nodes trips the required-`id` check ( glob
+    # landmine)
     _non_node = {"run-final.json", ".signoff-ack.json"}
     node_files = [
         p
@@ -317,7 +312,7 @@ def load_audit_snapshot(root: Path, run_id: str | None = None) -> AuditSnapshot:
     for nf in node_files:
         raw_nodes.append(_read_node_file(nf))
 
-    # Sort deterministically by id.
+    # Sort deterministically by id
     raw_nodes.sort(key=lambda d: d["id"])
 
     root_id = raw_nodes[0].get("root_id", raw_nodes[0]["id"])
@@ -380,9 +375,9 @@ def load_audit_snapshot(root: Path, run_id: str | None = None) -> AuditSnapshot:
 
     # The separate run-final.json file is authoritative for real runs; merge it
     # over the root node's em.run_final transition (the fixture path) so file
-    # fields (sign_off, counts) win while transition-only keys are preserved.
+    # fields (sign_off, counts) win while transition-only keys are preserved
     # NOTE: per-node scope denials (rejected_raises) live on the raw node dict
-    # and are surfaced by report.py (V9-03), not on the frozen AuditNode.
+    # and are surfaced by report.py, not on the frozen AuditNode
     run_final_file = _load_run_final_file(tree_dir)
     if run_final_file is not None:
         run_final = {**(run_final or {}), **run_final_file}

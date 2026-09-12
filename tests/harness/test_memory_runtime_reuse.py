@@ -1,12 +1,6 @@
-"""M8 Req 7 grep gate + M8-03 SemanticMemory reuse assertions.
-
+"""
+M8 Req 7 grep gate + M8-03 SemanticMemory reuse assertions.
 The first test is a STATIC GREP GATE — runs green from Wave 0 onward to
-guarantee no `class *Memory` subclasses appear under voss/harness/. This
-pins the Req 7 invariant from day one.
-
-The second test asserts that `SemanticMemory.__init__` is invoked at least
-once on the first `recall` call (proves composition-not-rewrite of the
-runtime semantic store).
 """
 from __future__ import annotations
 

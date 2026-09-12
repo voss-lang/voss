@@ -18,7 +18,7 @@ import { isIdleShellProc, type MountedWorkspace, type WorkspaceHost } from './wo
 
 let openAttachedPaneImpl: ((record: NativeSessionRecord) => void) | null = null;
 
-/** Open a structured pane for an existing server session (attach seam). */
+/** Open a structured pane for an existing server session (attach seam) */
 export function openAttachedPane(record: NativeSessionRecord): void {
   openAttachedPaneImpl?.(record);
 }
@@ -61,10 +61,10 @@ export function createLiveBoot(ws: WorkspaceHost, view: { setActiveView: (v: 'gr
     });
   };
 
-  /**
-   * Place a native run: reuse the first idle terminal node in reading order,
-   * else grow a new node beside the first one.
-   */
+/**
+ * Place a native run: reuse the first idle terminal node in reading order
+ * else grow a new node beside the first one
+ */
   const openNativePane = (record: NativeSessionRecord): void => {
     const mounted = ws.activeMounted();
     const ctrl = mounted?.gridController;

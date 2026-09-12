@@ -1,6 +1,7 @@
-"""NET-01 web_fetch acceptance: registration, allow_net gate, 1 MB
+"""
+NET-01 web_fetch acceptance: registration, allow_net gate, 1 MB
 truncation, timeout clamp, HTTP error envelope. Plus redaction + rate-
-limit-envelope bonus coverage."""
+"""
 
 from __future__ import annotations
 

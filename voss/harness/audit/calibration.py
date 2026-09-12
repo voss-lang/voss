@@ -1,11 +1,6 @@
-"""V9 reviewer calibration telemetry (VAUD-CAL).
-
+"""
+reviewer calibration telemetry (VAUD-CAL)
 Read-only aggregation over the persisted ``.review.json`` sidecars across ALL
-runs under a sessions dir. Derives the false-pass rate (Reviewer-A said pass but
-Reviewer-B failed/blocked) and the slop-rejection rate (Reviewer-B blocked),
-plus a deterministic sampled spot-audit selection hook for human review.
-
-Stdlib only (json, random). Imports nothing from the board / EM / CLI layers.
 """
 from __future__ import annotations
 

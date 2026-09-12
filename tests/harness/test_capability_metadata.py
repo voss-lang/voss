@@ -1,7 +1,6 @@
-"""V1-01: ToolEntry capability metadata (CAP-01/02/03/06).
-
+"""
+V1-01: ToolEntry capability metadata (CAP-01/02/03/06).
 Task 1 covers the extended ToolEntry schema + nine-group constant.
-Task 2 adds registry-wide + attach-helper completeness coverage.
 """
 from __future__ import annotations
 

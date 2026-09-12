@@ -1,10 +1,4 @@
-"""BudgetExhaustedModal — turn-budget exhaustion modal (M9-05, TUI-07).
-
-UI-SPEC locked copy:
-  Heading: `Budget exhausted`
-  Body:    `Turn stopped at {tokens} / {limit} tokens. Continue with a new budget, or end the turn.`
-  Buttons: `[c] Continue +2000 · [e] End turn · [Esc] Cancel`
-"""
+"""Turn-budget exhaustion modal."""
 from __future__ import annotations
 
 from typing import Literal

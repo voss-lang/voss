@@ -1,8 +1,6 @@
-"""M12-03: MCP server skill-execution bridge tests.
-
+"""
+M12-03: MCP server skill-execution bridge tests.
 Proves one real deterministic skill (voss-lint-as-skill) runs end-to-end
-through the bridge, unknown ids raise KeyError, the handler runs off the
-event loop (asyncio.to_thread), and stdout capture is per-call.
 """
 from __future__ import annotations
 

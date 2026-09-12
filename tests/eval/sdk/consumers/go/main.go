@@ -1,8 +1,5 @@
 // E4 Go consumer subprogram: public-API-only (AttachClient/Events/PermissionReply).
 // The Python eval runner owns the serve lifecycle and passes coordinates via
-// env — never Spawn (interpreterPath resolves .venv/bin/python relative to CWD).
-// No per-runtime scoring: emits one structured-JSON line; the runner scores
-// via the single E1 substrate.
 package main
 
 import (
@@ -61,7 +58,7 @@ func main() {
 	if mode == "" {
 		mode = "plan"
 	}
-	// Plan 07 drives Deny through this same file with VOSS_PERMISSION_CHOICE=d.
+	// drives Deny through this same file with VOSS_PERMISSION_CHOICE=d.
 	choice := os.Getenv("VOSS_PERMISSION_CHOICE")
 	if choice == "" {
 		choice = "a"

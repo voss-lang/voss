@@ -1,9 +1,6 @@
-//! `voss_check` tool — delegates to `voss_bridge::PyBridge::check`.
-//!
+//! `voss_check` tool delegates to `voss_bridge::PyBridge::check`
 //! Bridge caching: a single `PyBridge` instance is constructed lazily on
-//! first call and reused for the lifetime of the `VossCheck` tool. This
-//! amortizes the Python subprocess startup over repeated checks within a
-//! session. (Per-invoke construction would re-spawn Python on every call.)
+
 
 use std::path::{Path, PathBuf};
 
@@ -23,7 +20,7 @@ fn default_path() -> String {
 
 #[derive(Deserialize, JsonSchema)]
 pub struct VossCheckArgs {
-    /// Path (file or directory) to check.
+    /// Path (file or directory) to check
     #[serde(default = "default_path")]
     pub path: String,
 }
@@ -72,7 +69,7 @@ impl Tool for VossCheck {
         match bridge.check(Path::new(&p)).await {
             Ok(v) => {
                 // Python tool prints raw diagnostics text; we surface JSON
-                // result for now (parity test only checks args schema).
+                // result for now (parity test only checks args schema)
                 Ok(serde_json::to_string_pretty(&v)
                     .unwrap_or_else(|_| "<error: bad json>".to_string()))
             }

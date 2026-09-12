@@ -1,12 +1,5 @@
-// VCKP-09 (best-effort) — inline feedback write path. Where the protocol
-// exposes a write path (NATIVE session: POST /session/:id/message via V13.1),
-// a comment dispatches a follow-up to the bound sessionNodeId; where it does
-// not (snapshot card), the affordance is disabled-with-reason — never a silent
-// no-op (decisionActions.ts discipline).
-
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-// CardDrawer's import chain (orgStore) touches @tauri-apps/api/core.
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
 import { render } from 'solid-js/web';
@@ -60,7 +53,6 @@ describe('dispatchFollowUp — native write path (VCKP-09)', () => {
     });
 
     expect(client.postMessage).toHaveBeenCalledOnce();
-    // resolveCard routes to the harness sessionID, NOT the card id.
     expect(client.postMessage).toHaveBeenCalledWith(
       'sess-abc123def456',
       'tighten the test coverage',

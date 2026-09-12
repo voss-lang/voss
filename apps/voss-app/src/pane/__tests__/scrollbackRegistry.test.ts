@@ -7,9 +7,8 @@ import {
 } from '../scrollbackRegistry';
 
 /**
- * A6-03 Task 1 — scrollback registry tests.
- *
- * Pure JS — no xterm, no DOM.
+ * scrollback registry tests
+ * Pure JS no xterm, no DOM
  */
 
 beforeEach(() => _resetForTest());

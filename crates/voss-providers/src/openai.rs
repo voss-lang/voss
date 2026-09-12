@@ -1,9 +1,6 @@
-//! OpenAI/Codex provider — ChatGPT subscription and API-key Responses API.
-//!
+//! OpenAI/Codex provider ChatGPT subscription and API-key Responses API
 //! ChatGPT-mode credentials use Codex's Responses endpoint under
-//! `chatgpt.com/backend-api/codex`. The captured Codex CLI fixture in
-//! `.planning/codex-fixtures/` shows the current protocol uses SSE, reasoning
-//! inclusion, a prompt cache key, and Codex session headers.
+
 
 use std::sync::Arc;
 use std::time::Duration;

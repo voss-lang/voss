@@ -1,15 +1,3 @@
-// V24 swarm surface — pure derivation from the V25 server-native swarm plane.
-//
-// Supersedes the board-derived approximation (swarmMapDerive.ts) for real swarm
-// runs. Same HONESTY constraint: every node/edge traces to a real signal —
-//   - snapshot:roster      GET /swarm/{id} roster (the declared swarm structure)
-//   - snapshot:task        GET /swarm/{id} task state
-//   - snapshot:depends_on  GET /swarm/{id} task.depends_on
-//   - sse_event:swarm.*    a live swarm event (assign/gate/needs_operator/worker_done)
-// Missing signals stay undefined / become placeholders; edges are never inferred
-// from mere co-presence (roster membership is a DECLARED relationship, not
-// co-presence). No Solid imports, no produce — fixture-testable.
-
 import type { SwarmNode, SwarmEdge, SwarmGraph } from './swarmMapDerive';
 import type { SwarmSnapshot } from '../../org/live/swarmClient';
 import type {
@@ -18,16 +6,16 @@ import type {
   SwarmNeedsOperatorEvent,
 } from '../../org/live/swarmLive';
 
-/** The accepted plane source prefixes — the no-fake-signal guard asserts these. */
+/** The accepted plane source prefixes the no-fake-signal guard asserts these */
 export const KNOWN_PLANE_SOURCE = /^(snapshot:(roster|task|depends_on)|sse_event:swarm\.)/;
 
 export interface SwarmPlaneInput {
   snapshot: SwarmSnapshot | null;
-  /** task_id → live assignment (builder↔task binding from swarm.assign). */
+/** task_id → live assignment (builder↔task binding from swarm.assign) */
   assignments: Record<string, SwarmAssignment>;
-  /** task_id → latest gate outcome (swarm.gate). */
+/** task_id → latest gate outcome (swarm.gate) */
   gates: Record<string, SwarmGateEvent>;
-  /** task_id → open operator escalation (swarm.needs_operator). */
+/** task_id → open operator escalation (swarm.needs_operator) */
   operatorNeeds: Record<string, SwarmNeedsOperatorEvent>;
 }
 
@@ -49,10 +37,6 @@ function displayName(name: string, ordinal?: number): string {
   return name;
 }
 
-/**
- * Derive the swarm graph from the V25 swarm plane. Null/empty snapshot →
- * { nodes: [], edges: [] } (never throws). Every node/edge carries a real source.
- */
 export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
   const { snapshot, assignments, gates, operatorNeeds } = input;
   const nodes: SwarmNode[] = [];
@@ -63,7 +47,7 @@ export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
 
   const swarmId = snapshot.id;
   const taskById = new Map(snapshot.tasks.map((t) => [t.id, t]));
-  // role-name → assignment (the live builder↔task binding is keyed by task; index by role).
+  // role-name → assignment (the live builder↔task binding is keyed by task; index by role)
   const assignByRole = new Map<string, SwarmAssignment>();
   for (const a of Object.values(assignments)) assignByRole.set(a.role, a);
 
@@ -78,7 +62,7 @@ export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
     edges.push(e);
   };
 
-  // --- Center: coordinator (objective). Always present so the graph has a hub. ---
+  // Center: coordinator (objective). Always present so the graph has a hub
   const coordRole = snapshot.roster.find((r) => isCoordinator(r.name));
   add({
     id: objId,
@@ -91,7 +75,7 @@ export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
     status: 'controller',
   });
 
-  // --- Orbit: builders + reviewer (+ any other non-coordinator role). ---
+  // Orbit: builders + reviewer (+ any other non-coordinator role)
   let builderN = 0;
   let reviewerN = 0;
   for (const role of snapshot.roster) {
@@ -119,7 +103,7 @@ export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
     });
 
     // coordinator → role edge. Assigned builders carry a live source; otherwise
-    // the roster membership (a declared swarm-structure signal) is the source.
+    // the roster membership (a declared swarm-structure signal) is the source
     addEdge({
       id: `edge:assign:${role.name}`,
       from: objId,
@@ -129,7 +113,7 @@ export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
     });
   }
 
-  // --- depends_on between assigned tasks → edge between their builder chips. ---
+  // depends_on between assigned tasks → edge between their builder chips
   for (const task of snapshot.tasks) {
     for (const dep of task.depends_on) {
       const aFrom = Object.values(assignments).find((a) => a.taskId === dep);
@@ -145,7 +129,7 @@ export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
     }
   }
 
-  // --- Operator escalation → alert node + blocker edge from the blocked builder. ---
+  // Operator escalation → alert node + blocker edge from the blocked builder
   const opNeeds = Object.values(operatorNeeds);
   if (opNeeds.length > 0) {
     const opId = `alert:operator:${swarmId}`;
@@ -172,7 +156,7 @@ export function deriveSwarmPlane(input: SwarmPlaneInput): SwarmGraph {
     }
   }
 
-  // --- Reviewer-reject gates → blocker edge coordinator → the rejected builder. ---
+  // Reviewer-reject gates → blocker edge coordinator → the rejected builder
   for (const gate of Object.values(gates)) {
     if (gate.gate_type !== 'reviewer_reject') continue;
     const a = assignments[gate.task_id];

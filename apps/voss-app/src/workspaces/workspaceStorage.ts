@@ -2,19 +2,14 @@ import { invoke } from '@tauri-apps/api/core';
 import type { SessionFile } from '../grid/sessionStorage';
 
 /**
- * Frontend bridge for A8-02 Rust workspace index + project-less session commands.
- * Mirrors `sessionStorage.ts` — thin invoke wrappers, no remap logic.
- *
- * Tauri converts snake_case Rust param names to camelCase on the JS side;
- * payload keys here MUST match the Rust function signatures from
- * `apps/voss-app/src-tauri/src/lib.rs`.
+ * Frontend bridge for Rust workspace index + project-less session commands
+ * Mirrors `sessionStorage.ts` thin invoke wrappers, no remap logic
  */
 
 export const CURRENT_WORKSPACES_VERSION = 1 as const;
 export const DEFAULT_WORKSPACE_ID = 'default';
 export const DEFAULT_ACCENT_COLOR = 'blue';
 
-/** One workspace tab's persisted metadata — mirrors Rust `WorkspaceEntry`. */
 export type WorkspaceEntry = {
   id: string;
   name: string;
@@ -25,18 +20,17 @@ export type WorkspaceEntry = {
   pinnedProfile?: string | null;
 };
 
-/** On-disk workspace index — mirrors Rust `WorkspacesIndex`. */
 export type WorkspacesIndex = {
   version: typeof CURRENT_WORKSPACES_VERSION;
   activeWorkspaceId?: string | null;
   workspaces: WorkspaceEntry[];
 };
 
-// --- Error copy constants (match Rust WorkspacesError::Display) ------------
+// Error copy constants (match Rust WorkspacesError::Display)
 
 export const WORKSPACES_SAVE_FAILED = 'could not save workspaces index';
 
-// --- Tauri command bridges ---------------------------------------------------
+// Tauri command bridges
 
 export async function loadWorkspacesIndex(): Promise<WorkspacesIndex> {
   return invoke<WorkspacesIndex>('load_workspaces_index');

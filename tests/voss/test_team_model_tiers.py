@@ -1,8 +1,6 @@
-"""Tier->model resolution for the team compiler (VTEAM-08).
-
+"""
+Tier->model resolution for the team compiler (VTEAM-08).
 Single home for tier behavior: the config-backed tier table (Task 1) and the
-`_parse_model_value` closed-set resolution + raw passthrough + diagnostics
-(Task 3). Team-level cases stay RED until Task 3 lands.
 """
 
 from __future__ import annotations

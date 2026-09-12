@@ -1,8 +1,6 @@
 //! Chat REPL with reedline line editing, slash commands, and Ctrl-C
-//! turn-cancel.
-//!
-//! Input layer: `reedline` (multi-line, history, menu completion, custom
-//! prompt with right-side status). Replaces the legacy `rustyline` impl.
+//! turn-cancel
+
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -47,8 +45,7 @@ const SLASH_COMMANDS: &[&str] = &[
     "/agent",
 ];
 
-/// History file location. `~/.local/state/voss/history` (single global; per-cwd
-/// scoping deferred — reedline filters duplicates on read).
+/// scoping deferred reedline filters duplicates on read)
 fn history_path() -> PathBuf {
     let base = dirs::state_dir()
         .or_else(dirs::data_local_dir)
@@ -99,7 +96,6 @@ pub async fn run_repl(
 
     // SIGINT → cancel current turn (not exit). reedline traps Ctrl-C in raw
     // mode during read_line; this handler only fires while run_turn owns the
-    // terminal.
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let c = cancel.clone();
@@ -132,7 +128,7 @@ pub async fn run_repl(
             Ok(Signal::Success(l)) => l,
             Ok(Signal::CtrlC) => {
                 // Empty buffer Ctrl-C → noop. Reedline already cleared the
-                // current edit. Continue to next prompt.
+                // current edit. Continue to next prompt
                 continue;
             }
             Ok(Signal::CtrlD) => {
@@ -278,7 +274,7 @@ pub async fn run_repl(
 
         renderer.show_user(&line);
 
-        // Reset cancel for this turn. SIGINT handler above will flip it.
+        // Reset cancel for this turn. SIGINT handler above will flip it
         cancel.store(false, Ordering::Relaxed);
 
         let mut adapter = GateAdapter { gate: &mut gate };
@@ -327,7 +323,7 @@ fn build_reedline() -> std::io::Result<Reedline> {
             .map_err(|e| std::io::Error::other(e.to_string()))?,
     );
 
-    // Emacs keybindings + Tab opens the completion menu.
+    // Emacs keybindings + Tab opens the completion menu
     let mut kb = default_emacs_keybindings();
     kb.add_binding(
         KeyModifiers::NONE,
@@ -337,7 +333,7 @@ fn build_reedline() -> std::io::Result<Reedline> {
             ReedlineEvent::MenuNext,
         ]),
     );
-    // Shift-Enter inserts newline (multi-line input).
+    // Shift-Enter inserts newline (multi-line input)
     kb.add_binding(
         KeyModifiers::SHIFT,
         KeyCode::Enter,
@@ -365,7 +361,7 @@ fn build_reedline() -> std::io::Result<Reedline> {
 }
 
 /// Slash-command completer. Suggests `/help`, `/cost`, etc. when the buffer
-/// starts with `/`. Falls back to empty (no noise on regular prompts).
+/// starts with `/`. Falls back to empty (no noise on regular prompts)
 struct SlashCompleter;
 
 impl Completer for SlashCompleter {
@@ -530,7 +526,6 @@ fn git_status(cwd: &Path) -> String {
 
 /// Adapter: implements `voss_agent::PermissionCheck` (defined in voss-agent)
 /// by delegating to voss-cli's `PermissionGate`. Trait lives in voss-agent so
-/// voss-agent has zero dep on voss-cli; voss-cli hosts the impl here.
 pub struct GateAdapter<'a> {
     pub gate: &'a mut PermissionGate,
 }

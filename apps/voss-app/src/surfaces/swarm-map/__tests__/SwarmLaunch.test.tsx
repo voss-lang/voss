@@ -1,5 +1,3 @@
-// V24 swarm surface — launch intake copy and compact overlay mode.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 
@@ -79,7 +77,7 @@ describe('SwarmLaunch', () => {
 
   it('spawns the server on launch, then launches the orchestra', async () => {
     const srv: LiveServer = { sidecarId: 'test-sidecar', cwd: '/repo' };
-    // Connector mimics ensureVossClient: side-effect sets the live server.
+    // Connector mimics ensureVossClient: side-effect sets the live server
     setLiveServerConnector(async () => setLiveServer(srv));
     launchSwarmMock.mockResolvedValue(undefined);
 
@@ -95,7 +93,7 @@ describe('SwarmLaunch', () => {
   });
 
   it('reports an honest reason when on-demand connect finds no workspace', async () => {
-    // Connector resolves without setting a server (no folder open).
+    // Connector resolves without setting a server (no folder open)
     setLiveServerConnector(async () => {});
     const el = mount(() => <SwarmLaunch />);
     typeGoal(el, 'ship it');

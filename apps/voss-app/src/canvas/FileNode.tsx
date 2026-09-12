@@ -15,7 +15,7 @@ export function readProjectFile(workspacePath: string, relPath: string): Promise
   return invoke<ProjectFile>('read_project_file', { workspacePath, relPath, maxBytes: MAX_FILE_BYTES });
 }
 
-/** Read-only file view at a path (and optional line) inside the workspace. */
+/** Read-only file view at a path (and optional line) inside the workspace */
 export default function FileNode(props: {
   path: string;
   line?: number;

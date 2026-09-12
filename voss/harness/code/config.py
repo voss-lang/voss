@@ -1,10 +1,7 @@
-"""Configuration loader for .voss/lsp.yml + packaged defaults.
-
-Strict Pydantic models (extra=forbid). Defaults are always loaded from the
-installed package; user .voss/lsp.yml is an overlay that can disable languages
-or override command/args.
 """
-
+Configuration loader for.voss/lsp.yml + packaged defaults
+Strict Pydantic models (extra=forbid). Defaults are always loaded from the
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -79,7 +76,7 @@ def load_lsp_config(cwd: Path | None = None) -> LspConfig:
     merged_servers = dict(base.servers)
     for name, user_server in user_cfg.servers.items():
         if name in merged_servers:
-            # Simple override — user can disable by setting disabled: true
+            # Simple override user can disable by setting disabled: true
             merged_servers[name] = user_server
         else:
             merged_servers[name] = user_server

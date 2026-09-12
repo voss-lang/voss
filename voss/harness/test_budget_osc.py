@@ -1,4 +1,6 @@
-"""Tests for _emit_budget_osc (F3-01 D-02/D-04)."""
+"""
+Tests for _emit_budget_osc (F3-01 /)
+"""
 from __future__ import annotations
 
 import io

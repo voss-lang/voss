@@ -1,8 +1,3 @@
-// V24-06 (VADE2-06) — Orchestra render smoke. Full-fixture render shows every
-// node-type shape in a radial arrangement; no-data render shows the honest empty
-// state with zero node shapes (no fabricated graph). Mirrors cockpit.test.tsx
-// tauri-mock harness.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 
@@ -148,7 +143,7 @@ describe('SwarmMap — honest empty state', () => {
   it('with no run data shows the empty state and zero node shapes', () => {
     setRunData(null);
     const el = mount(() => <SwarmMap />);
-    // Empty state = the launch wizard (Build your roster).
+    // Empty state = the launch wizard (Build your roster)
     expect(el.querySelector('[aria-label="Launch an orchestra"]')).toBeTruthy();
     expect(el.textContent).toContain('Step 1 of 3');
     expect(el.querySelectorAll('[data-node-type]').length).toBe(0);
@@ -156,7 +151,7 @@ describe('SwarmMap — honest empty state', () => {
 
   it('shows the wizard (not a phantom CONTROLLER) for an idle run with no swarm structure', () => {
     // A focused native run with only a root session yields a lone objective +
-    // placeholder in the legacy derive — that is NOT a swarm, so the wizard wins.
+    // placeholder in the legacy derive that is NOT a swarm, so the wizard wins
     setRunData({
       run_id: 'run-lone',
       session_tree: {

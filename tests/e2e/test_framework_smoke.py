@@ -1,13 +1,6 @@
-"""Smoke test for the e2e framework itself.
-
+"""
+Smoke test for the e2e framework itself.
 Validates:
-  - CliRunner can invoke `voss --help` and `voss check` against the minimal
-    fixture project.
-  - The sitecustomize.py injection makes `voss tools` succeed without creds.
-  - The `--auth none` exit-2 contract still fires (sanity check that stub
-    injection is gated on actual auth resolution, not a global override).
-
-These tests run on every PR via the CI `stub` job.
 """
 from __future__ import annotations
 

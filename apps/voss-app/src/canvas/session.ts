@@ -1,12 +1,7 @@
-/**
- * Canvas ↔ session.json / layout file helpers. Pure: no DOM, Solid, Tauri,
- * or xterm. Callers own scrollback extraction and store assignment.
- */
 import { isLayoutPreset, type ActiveLayout } from './arrange';
 import type { LayoutFile } from '../grid/layoutStorage';
 import type { SessionFile, SessionFileV2, SessionPane } from '../grid/sessionStorage';
 
-/** A v2 file this module wrote: `canvas` is always present. */
 export type CanvasSessionFile = SessionFileV2 & { canvas: CanvasState };
 import { gridToCanvas, type LegacyGridStore } from './migrate';
 import {
@@ -44,7 +39,7 @@ function cloneNode(n: CanvasNode): CanvasNode {
   return out;
 }
 
-/** Whitelist copy: runtime fields can never reach disk. */
+/** Whitelist copy: runtime fields can never reach disk */
 export function cloneCanvas(state: CanvasState): CanvasState {
   return {
     nodes: state.nodes.map(cloneNode),
@@ -88,7 +83,7 @@ export function buildSessionFile(
   };
 }
 
-/** Load either version. v1 trees become nodes via the migration box. */
+/** Load either version. trees become nodes via the migration box */
 export function applySessionFile(session: SessionFile): CanvasRestoreResult {
   const canvas =
     session.version === 2 && session.canvas
@@ -106,7 +101,6 @@ export function applySessionFile(session: SessionFile): CanvasRestoreResult {
   return { canvas, activeLayout: activeLayoutOf(session.activePreset), restoredScrollbackByPaneId };
 }
 
-/** Nodes a layout describes: its own canvas geometry, else its migrated tree. */
 export function layoutCanvas(layout: LayoutFile): CanvasState {
   if (layout.nodes && layout.nodes.length > 0) {
     const nodes = layout.nodes.map(cloneNode);
@@ -152,11 +146,6 @@ export type LayoutApplyResult = {
   activeLayout: ActiveLayout;
 };
 
-/**
- * Apply a saved layout to live nodes without destroying any. Existing nodes
- * take the saved rects in reading order; extra saved slots spawn fresh nodes
- * with the saved cwd/shell; extra live nodes keep their place.
- */
 export function applyLayoutToCanvas(
   current: CanvasState,
   layout: LayoutFile,

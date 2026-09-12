@@ -61,10 +61,10 @@ export function createAgentHost(ws: WorkspaceHost) {
     null,
   );
 
-  /**
-   * Synchronous by design: the new pane's mount reads the config map before
-   * this returns, so the map must be set before the split's effects flush.
-   */
+/**
+ * Synchronous by design: the new pane's mount reads the config map before
+ * this returns, so the map must be set before the split's effects flush
+ */
   const handleLaunchAgent = (config: LaunchAgentConfig) => {
     setAgentModalOpen(false);
     const mounted = ws.activeMounted();

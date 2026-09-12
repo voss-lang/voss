@@ -1,31 +1,6 @@
-"""M9-07 UI-SPEC Acceptance Visual Check 5 — `--no-unicode` glyph fallback.
-
+"""
+M9-07 UI-SPEC Acceptance Visual Check 5 — `--no-unicode` glyph fallback.
 The glyphs module reads `VOSS_NO_UNICODE=1` at import time and replaces
-its locked Unicode codepoints with ASCII fallbacks from
-`NO_UNICODE_FALLBACK`. The `--no-unicode` CLI flag exists on every
-interactive entry (do/chat/edit/resume) and sets that env var BEFORE
-make_renderer fires.
-
-The import-time check forces a SUBPROCESS approach: once the glyphs
-module has been imported once in a parent process, flipping the env var
-won't re-run the module body. Each test runs a fresh Python interpreter
-with the desired env state.
-
-Contract v2 rebaseline (tui-redesign-spec §4.2, phase R2): `WORKING`
-(`✦` → `*`) and `SPINNER_FRAMES` join the table. New rule: SPINNER_FRAMES
-is a multi-char string iterated by index, so its fallback is the 4-char
-ASCII cycle `|/-\\` (the only entry whose fallback is a frame SET, not a
-1:1 glyph substitution).
-
-Contract v2 rebaseline (tui-redesign-spec §4.2, phase R3 — ToolCards):
-`TOOL_OK` (`⏺` → `*`), `OUTPUT_ELBOW` (`⎿` → `|_`), `CHEVRON_CLOSED`
-(`▸` → `>`), and `CHEVRON_OPEN` (`▾` → `v`) join the table.
-
-Contract v2 rebaseline (tui-redesign-spec §3.2 trim policy, phase R7):
-`APPROX` (`≈` → `~`) joins the table for the transcript trim placeholder.
-
-Contract v2 rebaseline (R8 — auth-aware `/model` picker): `CHECK`
-(`✓` → `*`) joins the table for the current-selection marker.
 """
 from __future__ import annotations
 

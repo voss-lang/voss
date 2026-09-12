@@ -1,9 +1,6 @@
-"""T1-05 Task 2a: _run_turn_exec rewritten as iteration while-loop.
-
+"""
+T1-05 Task 2a: _run_turn_exec rewritten as iteration while-loop.
 Covers ITER-01/02/05/06 acceptance via scripted FakeStreamingProvider +
-RecordingRenderer doubles. Tests are sync-only in shape (using
-asyncio.run / pytest-asyncio) and do NOT depend on any real provider,
-TUI app, or git state.
 """
 from __future__ import annotations
 

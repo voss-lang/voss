@@ -1,11 +1,3 @@
-// V24-06 (VADE2-06) — pure radial layout for the swarm surface.
-//
-// Fixed polar coordinates, no force simulation, no external library
-// (RESEARCH §Radial Layout Algorithm). Per cluster (one per run): objective at
-// the cluster centroid, agents on a 120px ring, work/artifact on 220px, alerts
-// on 300px. Multiple clusters pack across the canvas via a golden-angle
-// Phyllotaxis spiral. Deterministic — fixture-testable.
-
 import type { SwarmNode } from './swarmMapDerive';
 
 export interface PositionedSwarmNode extends SwarmNode {
@@ -13,15 +5,15 @@ export interface PositionedSwarmNode extends SwarmNode {
   y: number;
 }
 
-// Ring radii (px) per UI-SPEC §Component Inventory 5.
+// Ring radii (px) per §Component Inventory 5
 const RING_AGENT = 120;
 const RING_WORK = 220;
 const RING_ALERT = 300;
 
-// Golden angle for the Phyllotaxis cluster spiral.
+// Golden angle for the Phyllotaxis cluster spiral
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 // Cluster centre spacing: 2×max-radius (300) + 80px min gap, rounded up so two
-// clusters' outer rings never overlap.
+// clusters' outer rings never overlap
 const CLUSTER_GAP = 760;
 
 function ringFor(type: SwarmNode['type']): number {
@@ -31,13 +23,9 @@ function ringFor(type: SwarmNode['type']): number {
   return RING_AGENT; // placeholder (non-centre) orbits with the agents
 }
 
-/**
- * Assign (x, y) to every node. Center of cluster 0 is the origin; later
- * clusters spiral outward by the golden angle. Within a cluster, each ring's
- * nodes are evenly distributed by angle.
- */
+/** Assign (x, y) to every node; clusters spiral outward from the origin */
 export function layoutSwarm(nodes: SwarmNode[]): PositionedSwarmNode[] {
-  // Group by runId, preserving first-seen order (deterministic).
+  // Group by runId, preserving first-seen order (deterministic)
   const order: string[] = [];
   const byRun = new Map<string, SwarmNode[]>();
   for (const n of nodes) {
@@ -64,12 +52,12 @@ export function layoutSwarm(nodes: SwarmNode[]): PositionedSwarmNode[] {
     const centre = group.filter(isCentre);
     const orbit = group.filter((n) => !isCentre(n));
 
-    // Centre node(s) at the cluster centroid (tiny offset if more than one).
+    // Centre node(s) at the cluster centroid (tiny offset if more than one)
     centre.forEach((n, i) => {
       out.push({ ...n, x: cx + i * 6, y: cy + i * 6 });
     });
 
-    // Distribute orbit nodes evenly within each ring radius.
+    // Distribute orbit nodes evenly within each ring radius
     const byRadius = new Map<number, SwarmNode[]>();
     for (const n of orbit) {
       const r = ringFor(n.type);

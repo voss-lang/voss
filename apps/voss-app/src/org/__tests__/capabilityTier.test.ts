@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolveTier, hookCapableCli } from '../capabilityTier';
 
-// VCKP-13 (D-13): honest A/B/C capability tiers. A = per-tool gate + sandbox +
+// 13: honest A/B/C capability tiers. A = tool gate + sandbox +
 // budget; B = sandbox + budget; C = observe-only. Adopt is ALWAYS C.
 
 describe('resolveTier — honest capability tiers (VCKP-13)', () => {

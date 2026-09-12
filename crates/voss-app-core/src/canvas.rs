@@ -1,7 +1,3 @@
-//! S1 free-floating canvas mirror — the Rust reflection of the Solid canvas
-//! store, and the persisted root of `session.json` v2. Field names round-trip
-//! `src/canvas/model.ts` exactly (camelCase; `kind` is a literal string).
-
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};

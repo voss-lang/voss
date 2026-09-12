@@ -1,10 +1,5 @@
-// Pure swarm-manifest reconciler (V14-07). Maps the A13 .voss/swarm/manifest.json
-// shape onto the normalized board model (Card/Agent). No Solid imports, no
-// produce/structuredClone — plain reads + object literals, fixture-testable.
-
 import type { Card, Agent } from './model/normalized';
 
-// --- Manifest input shape (A13 .voss/swarm/manifest.json) --------------------
 
 interface SwarmAgent {
   id: string;
@@ -25,8 +20,6 @@ interface SwarmManifest {
 /**
  * Map a swarm agent status onto an EXISTING board column key (BoardPanel
  * COLUMNS). Null-tolerant: unknown/undefined falls back to 'Backlog'. Never
- * invents columns — valid keys are only Backlog/Planned/InProgress/InReview/
- * Done/Blocked.
  */
 export function swarmStatusToColumn(status: string | undefined): string {
   switch (status) {
@@ -49,7 +42,6 @@ export interface SwarmReconcileResult {
 /**
  * Reconcile a swarm manifest into roster rows (Agent) + cards (Card). Mirrors
  * boardDerive cardsFromRunData null-tolerance: a missing manifest yields empty
- * arrays without throwing.
  */
 export function reconcileSwarm(
   manifest: SwarmManifest | null | undefined,

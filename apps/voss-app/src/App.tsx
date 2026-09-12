@@ -15,7 +15,7 @@ export type { MountedWorkspace } from './app/workspaceHost';
 
 /**
  * Composition root. Each host owns one concern; this file only wires them
- * and mounts the shell. See `src/app/`.
+ * and mounts the shell. See `src/app/`
  */
 export default function App() {
   let keys: ReturnType<typeof createKeymapHost> | undefined;

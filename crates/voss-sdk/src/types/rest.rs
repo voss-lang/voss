@@ -1,4 +1,5 @@
-//! Hand-written REST request/response types for the local Voss harness.
+//! Hand-written REST request/response types for the local Voss harness
+
 
 use serde::{Deserialize, Serialize};
 

@@ -1,24 +1,6 @@
-"""R3 swarm agent axis — resolve a swarm `Role` to a concrete CLI argv.
-
+"""
+R3 swarm agent axis resolve a swarm `Role` to a concrete CLI argv
 Single server-side source of truth, mirroring the desktop app's catalog
-(`apps/voss-app/src/agents/modelPrefs.ts`): the CLI binary equals the agent key,
-the model is passed as `--model <value>`, the working dir as `--cwd <value>`, and
-the task prompt as a trailing positional — exactly how the app's
-`AgentLaunchModal.buildConfig` assembles argv, so a swarm member launched
-headlessly and one launched from the GUI invoke the CLI identically.
-
-Two special agents:
-  * `voss`   — the native in-process `run_turn` loop (V25). No argv; the swarm
-               runs it directly, not as a subprocess. This is the default so an
-               unspecified roster stays backward compatible.
-  * `custom` — `Role.command` tokenized via `shlex`; the operator owns the full
-               invocation. Only the task prompt is appended (no model/cwd flags
-               injected, since an arbitrary command may not accept them).
-
-The returned argv is run by the host with `cwd` = the member's git worktree
-(see SWARM-RECONCILIATION: worktree-per-member). This module is pure — no spawn,
-no fs, no git — so it is trivially unit-testable and importable from both the
-server routes and the worktree/host layers.
 """
 from __future__ import annotations
 
@@ -28,11 +10,11 @@ from pathlib import Path
 
 from .swarm_store import Role
 
-# The native loop key. A role with this agent is not a subprocess.
+# The native loop key. A role with this agent is not a subprocess
 NATIVE = "voss"
 CUSTOM = "custom"
 
-# A model value meaning "unspecified" — fall through to the agent's default.
+# A model value meaning "unspecified" fall through to the agent's default
 _UNSET_MODELS = {"", "default"}
 
 
@@ -45,9 +27,9 @@ class AgentSpec:
     default_model: str | None = None
 
 
-# Mirrors MODEL_PRESETS in apps/voss-app/src/agents/modelPrefs.ts (binary == key).
+# Mirrors MODEL_PRESETS in apps/voss-app/src/agents/modelPrefs.ts (binary == key)
 # Only Claude has a known-safe default model alias; the others let the local CLI
-# pick unless the role names a model explicitly.
+# pick unless the role names a model explicitly
 AGENT_CATALOG: dict[str, AgentSpec] = {
     "claude": AgentSpec("claude", default_model="sonnet"),
     "codex": AgentSpec("codex"),
@@ -93,7 +75,7 @@ def resolve_agent_argv(role: Role, *, cwd: str | Path, task_text: str = "") -> l
         argv = shlex.split(role.command)
         if not argv:
             raise ValueError(f"role {role.name!r} agent={CUSTOM!r} has an empty command")
-        # Operator owns the full invocation; only append the task prompt.
+        # Operator owns the full invocation; only append the task prompt
         if task_text:
             argv.append(task_text)
         return argv

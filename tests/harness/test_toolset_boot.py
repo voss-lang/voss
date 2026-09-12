@@ -1,9 +1,6 @@
-"""Boot-path regression for make_toolset (V19-03 fallout).
-
+"""
+Boot-path regression for make_toolset (V19-03 fallout).
 `voss chat` from a large non-git cwd hung before the TUI appeared: the
-V19-03 recall wiring called CodeIntelService.for_cwd() at toolset-build
-time, whose synchronous M10 build_index os.walk'd the entire cwd on the
-boot thread. build_index must stay lazy in the code_* tool calls.
 """
 from __future__ import annotations
 

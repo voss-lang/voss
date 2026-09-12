@@ -1,11 +1,4 @@
-"""Toast widget — 1-line overlay notification (R5, spec §5.3).
-
-Top-right, `$raised` background, overlay layer (styling lives in
-styles.tcss). Auto-dismisses after 1.5 s; a persistent variant stays
-until `clear()` — the permissions/thinking paths use it via the
-StatusLine deprecation shims. Replaces the old status-line toast field
-so session metadata never jumps.
-"""
+"""Toast overlay notification widget."""
 from __future__ import annotations
 
 from textual.widgets import Static

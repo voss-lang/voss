@@ -1,8 +1,6 @@
-"""Golden concept-query quality gate (D-08): real semantic queries against the
+"""
+Golden concept-query quality gate (D-08): real semantic queries against the
 Voss repo itself, expected file in top-5.
-
-@pytest.mark.slow — builds a real embedding index over the live repo (needs
-the HF/ONNX model cache; minutes, not seconds).
 """
 from __future__ import annotations
 

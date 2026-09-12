@@ -1,15 +1,8 @@
 import type { Page } from '@playwright/test';
 
 /**
- * Shared Tauri v2 IPC mock + app boot helpers for mock-IPC e2e tests.
- *
+ * Shared Tauri v2 IPC mock + app boot helpers for mock-IPC e2e tests
  * Extracted from pane-drag-rearrange.spec.ts. Boots the app against `vite dev`
- * (no Tauri runtime required) with `window.__TAURI_INTERNALS__` mocked via
- * addInitScript. PTYs are inert (spawn_pty mocked) — UI behavior is what's
- * under test.
- *
- * Requires the dev server: `pnpm dev` (http://localhost:5173) — or rely on
- * the webServer auto-start in playwright.config.ts.
  */
 
 export const APP_URL = process.env.VOSS_APP_URL ?? 'http://localhost:5173';
@@ -23,34 +16,40 @@ export interface MockWorkspace {
 }
 
 export interface MockConfig {
-  /** Workspaces returned by load_workspaces_index. Default: single workspace
-   *  with projectPath='/tmp/voss-e2e-proj' so the grid mounts immediately. */
+/**
+ * Workspaces returned by load_workspaces_index. Default: single workspace
+ * with projectPath='/tmp/voss-e2e-proj' so the grid mounts immediately
+ */
   workspaces?: MockWorkspace[];
-  /** Active workspace id (default: first workspace's id). */
+/** Active workspace id (default: first workspace's id) */
   activeWorkspaceId?: string;
-  /** Recents returned by load_recents (default: []). */
+/** Recents returned by load_recents (default: []) */
   recents?: string[];
-  /** Layout names returned by list_layouts (default: []). */
+/** Layout names returned by list_layouts (default: []) */
   layoutNames?: string[];
-  /** Default layout returned by load_default_layout (default: null). */
+/** Default layout returned by load_default_layout (default: null) */
   defaultLayout?: unknown | null;
-  /** Session returned by load_session (default: null). */
+/** Session returned by load_session (default: null) */
   session?: unknown | null;
-  /** Active theme id returned by load_active_theme_id (default: null). */
+/** Active theme id returned by load_active_theme_id (default: null) */
   activeThemeId?: string | null;
-  /** Appearance settings returned by load_appearance_settings (default: {}). */
+/** Appearance settings returned by load_appearance_settings (default: {}) */
   appearance?: Record<string, unknown>;
-  /** Keymap profile returned by load_keymap_profile (default: '"vscode"'). */
+/** Keymap profile returned by load_keymap_profile (default: '"vscode"') */
   keymapProfile?: string;
-  /** Keymap overrides returned by load_keymap_overrides (default: null). */
+/** Keymap overrides returned by load_keymap_overrides (default: null) */
   keymapOverrides?: unknown | null;
-  /** Result of the native folder dialog (plugin:dialog|open). Default: null
-   *  (cancel). Set to a path string to simulate a folder pick. */
+/**
+ * Result of the native folder dialog (plugin:dialog|open). Default: null
+ * (cancel). Set to a path string to simulate a folder pick
+ */
   dialogOpenResult?: string | null;
-  /** Per-command overrides: command name → return value. Checked before the
-   *  built-in defaults, so these win. Values must be JSON-serializable. */
+/**
+ * command overrides: command name → return value. Checked before the
+ * built-in defaults, so these win. Values must be JSON-serializable
+ */
   commandOverrides?: Record<string, unknown>;
-  /** Track sync_grid calls into window.__SYNCS__ (default: true). */
+/** Track sync_grid calls into window.__SYNCS__ (default: true) */
   trackSyncs?: boolean;
 }
 
@@ -222,8 +221,10 @@ export async function installTauriMock(
 export interface BootOptions extends MockConfig {
   viewportWidth?: number;
   viewportHeight?: number;
-  /** Wait for the grid to mount (default: true). Set false to test the setup
-   *  window (no project state). */
+/**
+ * Wait for the grid to mount (default: true). Set false to test the setup
+ * window (no project state)
+ */
   waitForGrid?: boolean;
 }
 

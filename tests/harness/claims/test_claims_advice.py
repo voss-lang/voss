@@ -1,8 +1,6 @@
-"""VBUS-06 advice arrays on conflict.
-
+"""
+VBUS-06 advice arrays on conflict.
 GREEN as of V17-03. `claims check --json` on conflict emits a dict with a
-non-empty "advice" list containing a runnable `voss bus send` command
-naming the conflicting owner (D-07).
 """
 from __future__ import annotations
 

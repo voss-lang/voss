@@ -46,24 +46,26 @@ import {
 } from './terminalClipboard';
 
 export interface PaneProps {
-  /** Pane id for scrollback registry and restore keying (A6). */
+/** Pane id for scrollback registry and restore keying */
   id?: string;
-  /** Working directory for the spawned shell; header shows its basename. */
+/** Working directory for the spawned shell; header shows its basename */
   cwd?: string;
-  /** $SHELL basename for the header shell slot (A2 = static; A8 wires real). */
+/** $SHELL basename for the header shell slot */
   shell?: string;
-  /** Pane index — A2 is always 1; A3 assigns real indices. */
+/** Pane index — A2 is always 1; A3 assigns real indices */
   index?: number;
-  /** Session-restored scrollback lines to seed before shell interaction (A6 D-09). */
+/** Session-restored scrollback lines to seed before shell interaction */
   restoredScrollback?: string[];
-  /** Called once on first user input in a restored pane (dismiss RestoreBanner). */
+/** Called once on first user input in a restored pane (dismiss RestoreBanner) */
   onFirstInput?: () => void;
   agentConfig?: AgentConfig;
   workspacePath?: string;
-  /** Grid supplies PaneHeader; hide this pane's duplicate chrome row. */
+/** Grid supplies PaneHeader; hide this pane's duplicate chrome row */
   embeddedInGrid?: boolean;
-  /** V15-03 (VLIVE-04): native server session — when set, the pane body is a
-   *  structured ProtocolPane and NO PTY is spawned (discriminator). */
+/**
+ * 03: native server session — when set, the pane body is a
+ * structured ProtocolPane and NO PTY is spawned (discriminator)
+ */
   nativeSessionId?: string;
   nativeSidecarId?: string;
 }
@@ -75,7 +77,7 @@ function basename(p: string): string {
 
 type DotState = import('./paneSessionRegistry').DotState;
 
-/** D-06 copy/interrupt mode. 'smart' = selection→copy else SIGINT. A8 surfaces UI. */
+/** copy/interrupt mode. 'smart' = selection→copy else SIGINT. A8 surfaces UI */
 export default function PaneComponent(props: PaneProps) {
   let containerRef!: HTMLDivElement;
   let bodyRef!: HTMLDivElement;
@@ -94,9 +96,9 @@ export default function PaneComponent(props: PaneProps) {
   let bellBadgeTimer: ReturnType<typeof setTimeout> | undefined;
   let appearanceUnsub: (() => void) | undefined;
   let headerRef!: HTMLDivElement;
-  const copyMode = 'smart' as CopyMode; // D-06 configurable hook (A8 UI)
+  const copyMode = 'smart' as CopyMode; // configurable hook
 
-  const [focused, setFocused] = createSignal(true); // single pane = focused (A2)
+  const [focused, setFocused] = createSignal(true); // single pane = focused
   const [dot, setDot] = createSignal<DotState>('loading');
   const [proc, setProc] = createSignal('');
   const [pendingPaste, setPendingPaste] = createSignal<string | null>(null);
@@ -114,7 +116,7 @@ export default function PaneComponent(props: PaneProps) {
   const closeBudgetPopover = () => setBudgetPopoverAnchor(null);
   const isAgentCli = () => isKnownAgentCli(proc());
 
-  // --- V14 chunk C role chrome (mockup .pane::before / .ph) — AGENT panes
+  // chunk C role chrome (mockup.pane::before /.ph) — AGENT panes
   // only (props.agentConfig present). ---------------------------------------
 
   // Role from the launch CLI — the same CLI→role mapping the sidebar/grid
@@ -294,7 +296,7 @@ export default function PaneComponent(props: PaneProps) {
   };
 
   onMount(async () => {
-    // V15-03: native protocol panes render <ProtocolPane> instead of xterm —
+    // 03: native protocol panes render <ProtocolPane> instead of xterm
     // skip terminal/transport setup entirely (the body div is swapped out).
     if (props.nativeSessionId) {
       setDot('running');
@@ -353,7 +355,7 @@ export default function PaneComponent(props: PaneProps) {
       applyAppearanceToTerminal(s.term, next);
     });
 
-    // D-07 fallback: poll pgid only when no recent OSC title (>2s).
+    // fallback: poll pgid only when no recent OSC title (>2s).
     fgPoll = setInterval(() => {
       if (Date.now() - s.lastOscTitleAt < 2000) return;
       s.transport
@@ -374,14 +376,14 @@ export default function PaneComponent(props: PaneProps) {
     });
     observer.observe(containerRef);
 
-    // Pitfall 5: re-fit on DPR (Retina ↔ external display) change.
+    // re-fit on DPR (Retina ↔ external display) change.
     dprMedia = window.matchMedia(
       `(resolution: ${window.devicePixelRatio}dppx)`,
     );
     dprMedia.addEventListener('change', onDpr);
 
-    // D-02 test-only perf probe: records rAF deltas into a ring buffer for
-    // the flood-perf harness. Inert in production (env guard) — T-A2-12.
+    // test-only perf probe: records rAF deltas into a ring buffer for
+    // the flood-perf harness. Inert in production (env guard) — T-.
     if (import.meta.env.MODE === 'test') {
       const w = window as unknown as { __vossPerf?: { frames: number[] } };
       w.__vossPerf = { frames: [] };
@@ -441,9 +443,6 @@ export default function PaneComponent(props: PaneProps) {
       class={paneClass()}
       onClick={() => setFocused(true)}
     >
-      {/* V14 chunk C — role-colored full-height left edge (mockup
-          .pane::before), agent panes only. Color set inline from the
-          --role-* tokens (mirrors AgentItem); no new custom properties. */}
       <Show when={props.agentConfig}>
         <span
           class="pane-role-edge"
@@ -471,9 +470,6 @@ export default function PaneComponent(props: PaneProps) {
           <span class="sep">·</span>
           <span class={isAgentCli() ? 'proc agent-proc' : 'proc'}>{proc()}</span>
         </Show>
-        {/* V14 chunk C — role pill (mockup .ppill, 11px ≥ A12 floor). For
-            configured agent panes it supersedes the generic "agent" hint
-            below (same slot, more specific). */}
         <Show when={props.agentConfig}>
           <span class="sep">·</span>
           <span
@@ -501,8 +497,6 @@ export default function PaneComponent(props: PaneProps) {
           </span>
         </Show>
         <span class="spacer" />
-        {/* V14 chunk C — bound-card chip (mockup .pcard): Bridge B reverse
-            lookup; clicking selects the card and jumps to Run Review. */}
         <Show when={boundCardId()}>
           {(cardId) => (
             <button
@@ -526,8 +520,6 @@ export default function PaneComponent(props: PaneProps) {
             />
           )}
         </Show>
-        {/* V14 chunk C — streaming flag (mockup .pstream): budget-event
-            recency (<3s), the registry signal the sidebar already shows. */}
         <Show when={props.agentConfig && streaming()}>
           <span class="stream-flag">streaming</span>
         </Show>
@@ -544,7 +536,7 @@ export default function PaneComponent(props: PaneProps) {
           sessionId={props.nativeSessionId!}
           sidecarId={props.nativeSidecarId!}
           onEnded={() => {
-            // D-11: ProtocolPane renders its own inline ended banner — the
+            // ProtocolPane renders its own inline ended banner — the
             // header dot reflects the state; no absolute PTY ExitBanner here.
             setDot('exited');
           }}

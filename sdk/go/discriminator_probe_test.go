@@ -6,19 +6,7 @@ import (
 )
 
 // TestDiscriminatorProbe is a passing diagnostic that RECORDS the empirical
-// shape of the oapi-codegen-generated union accessors, resolving RESEARCH open
-// question A1 for Plan 02's Decode() dispatcher.
-//
-// Verified conclusion (see V13.3-01-SUMMARY.md):
-//   - The generated union type is EventEnvelope_Event (the `event` field of the
-//     EventEnvelope wrapper), not EventEnvelope itself.
-//   - It exposes `func (t EventEnvelope_Event) Discriminator() (string, error)`
-//     — the method EXISTS and returns (string, error). No json.Unmarshal
-//     fallback is needed; Plan 02's Decode() reads the type via Discriminator().
-//   - Per-member `AsX()` accessors exist for all 21 members, returning
-//     (X, error) (e.g. AsServerConnected, AsGateUpdated, AsPrinciplesOverflow).
-//   - *EventEnvelope_Event implements UnmarshalJSON, so an event object can be
-//     loaded with json.Unmarshal into the union value directly.
+// shape of the oapi-codegen-generated union accessors, resolving open
 func TestDiscriminatorProbe(t *testing.T) {
 	var ev EventEnvelope_Event
 	if err := json.Unmarshal([]byte(`{"v":1,"type":"server.connected"}`), &ev); err != nil {

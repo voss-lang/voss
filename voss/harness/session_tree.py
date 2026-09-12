@@ -1,7 +1,6 @@
-"""Session-tree substrate: per-node budget envelopes and fan-out allocation.
-
-Nodes persist at <cwd>/.voss/sessions/<root_id>/<node_id>.json (0o600).
-Separate from flat SessionRecord snapshots — never merged into session.save().
+"""
+Session-tree substrate: per-node budget envelopes and fan-out allocation
+Nodes persist at <cwd>/.voss/sessions/<root_id>/<node_id>.json (0o600)
 """
 from __future__ import annotations
 
@@ -60,7 +59,7 @@ class SessionTreeNode:
     created_at: str
     ended_at: Optional[str]
     rejected_raises: list = field(default_factory=list)
-    # O3 OBRD-01 / R-01+R-03: per-card transition + retry history on the node.
+    # OBRD-01 / R-01+R-03: per-card transition + retry history on the node
     transitions: list = field(default_factory=list)
     retry_notes: list = field(default_factory=list)
     scope: Optional[str] = None

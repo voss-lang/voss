@@ -1,9 +1,6 @@
-"""Pilot tests for slash-palette KEYBOARD interaction (review HIGH/MEDIUM fix).
-
+"""
+Pilot tests for slash-palette KEYBOARD interaction (review HIGH/MEDIUM fix).
 The 15 existing palette tests never drove selection via keystrokes, so a
-non-interactive palette (focus stolen back to the textarea, nav/select/dismiss
-keys never reaching it) shipped green. These tests press real keys through the
-mounted palette: filter → navigate → select, plus the two dismiss paths.
 """
 
 from __future__ import annotations

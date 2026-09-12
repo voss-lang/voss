@@ -1,4 +1,5 @@
-//! voss-providers — model provider implementations.
+//! voss-providers model provider implementations
+
 
 pub mod anthropic;
 pub mod openai;

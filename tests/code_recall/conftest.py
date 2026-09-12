@@ -1,12 +1,6 @@
-"""Shared fixtures for the V19 semantic-code-memory suite (tests/code_recall/).
-
+"""
+Shared fixtures for the V19 semantic-code-memory suite (tests/code_recall/).
 Wave-0 RED scaffold (V19-01). Imports of the planned Wave-1+ module
-`voss.harness.code.semantic_index` are deferred into fixture/test bodies so
-pytest COLLECTION succeeds before the module exists — the ImportError at
-runtime IS the RED signal (never fabricate a fake module API to dodge it).
-
-Planned API these fixtures pin (see V19-01-PLAN.md <interfaces>):
-    from voss.harness.code.semantic_index import CodeIndex, CodeIndexService
 """
 from __future__ import annotations
 

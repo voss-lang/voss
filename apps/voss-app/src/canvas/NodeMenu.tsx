@@ -2,7 +2,7 @@ import { For, Show, onCleanup, onMount } from 'solid-js';
 
 /**
  * The `⋯` popup for a canvas node: Fork / Split right / Split below /
- * separator / Close. Same contract as the grid DotMenu, callback-driven.
+ * separator / Close. Same contract as the grid DotMenu, callback-driven
  */
 export default function NodeMenu(props: {
   onFork: () => void;

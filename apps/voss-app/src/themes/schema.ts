@@ -1,4 +1,3 @@
-/** Required CSS variable keys every theme must supply (A8 UI-SPEC). */
 export const REQUIRED_CSS_VARS = [
   '--bg-0',
   '--bg-1',
@@ -105,7 +104,6 @@ export function validateTheme(value: unknown): ThemeValidationResult {
   return { ok: true };
 }
 
-/** Parse #rgb, #rrggbb, or rgba(...) into sRGB channels 0–1. */
 function parseColor(input: string): [number, number, number] {
   const hex = input.trim();
   if (RGBA_RE.test(hex)) {
@@ -134,7 +132,6 @@ function relativeLuminance([r, g, b]: [number, number, number]): number {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 }
 
-/** WCAG 2.x contrast ratio between two CSS colors (hex or rgba). */
 export function contrastRatio(a: string, b: string): number {
   const l1 = relativeLuminance(parseColor(a));
   const l2 = relativeLuminance(parseColor(b));

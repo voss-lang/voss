@@ -1,9 +1,6 @@
-"""NET-05 acceptance: allow_net gate, TOML + CLI override, zero-socket invariant.
-
+"""
+NET-05 acceptance: allow_net gate, TOML + CLI override, zero-socket invariant.
 SPEC NET-05d criterion `voss --allow-net=false` is implemented as the
-click-idiomatic `--no-allow-net`; click `--flag/--no-flag` pairs do not
-accept `=value` syntax. Override semantics (CLI > TOML > default) are
-identical regardless of surface syntax.
 """
 
 from __future__ import annotations

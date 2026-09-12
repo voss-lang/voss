@@ -1,8 +1,6 @@
 """
 M10-06 performance sampling (10K / 100K).
-
 These tests are intentionally lightweight. Real large-fixture generation
-and timing is a manual checkpoint as described in M10-06 Task 2.
 """
 
 import pytest

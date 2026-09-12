@@ -1,10 +1,6 @@
-"""V20-02 friction reducer (VRES-02): score the thrash already recorded.
-
+"""
+V20-02 friction reducer (VRES-02): score the thrash already recorded.
 RunRecorder captures failures[]={tool,error} and validation[]={cmd,exit,
-summary} per run, but nothing reduced them — a run with 10 failed tool
-calls and 5 red validations looked identical to a clean one as long as
-the judge passed it. friction() is one pure reducer over those existing
-fields: no new capture surface, no provider, no I/O.
 """
 from __future__ import annotations
 

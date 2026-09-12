@@ -10,7 +10,7 @@ export const ogImage = {
 
 const homeTitle = `${site.name} - ${site.tagline}`;
 
-/** Root layout defaults (metadataBase, OG image, Twitter card). */
+/** Root layout defaults (metadataBase, OG image, Twitter card) */
 export const rootMetadata: Metadata = {
   title: homeTitle,
   description: site.description,
@@ -34,7 +34,7 @@ function canonicalPath(path: string): string {
   return path.endsWith("/") ? path : `${path}/`;
 }
 
-/** Per-route title, description, Open Graph, Twitter, and canonical. */
+/** route title, description, Open Graph, Twitter, and canonical */
 export function pageMetadata(opts: {
   title: string;
   description: string;

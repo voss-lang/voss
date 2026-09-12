@@ -10,10 +10,10 @@ use crate::tool_trait::Tool;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct GitDiffArgs {
-    /// Pass `--cached` (staged) when true.
+    /// Pass `--cached` (staged) when true
     #[serde(default)]
     pub staged: bool,
-    /// Optional path argument for git diff.
+    /// Optional path argument for git diff
     #[serde(default)]
     pub path: String,
 }

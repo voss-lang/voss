@@ -1,8 +1,6 @@
-"""Shared helpers for tests/examples e2e tests, sourcing samples from samples/.
-
+"""
+Shared helpers for tests/examples e2e tests, sourcing samples from samples/.
 These helpers run the real Voss CLI from temp project roots and execute
-generated Python in subprocesses with deterministic provider configuration.
-They never fall back to live providers.
 """
 from __future__ import annotations
 

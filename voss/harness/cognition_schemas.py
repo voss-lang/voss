@@ -1,7 +1,6 @@
-"""Strict pydantic v2 schemas for .voss/*.yml and .voss/project.json (D-07).
-
-Every model uses `model_config = STRICT` so unknown keys are rejected loud.
-This is the "fail at REPL boot, not mid-turn" contract from D-07.
+"""
+Strict pydantic schemas for.voss/*.yml and.voss/project.json
+Every model uses `model_config = STRICT` so unknown keys are rejected loud
 """
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 
 STRICT = {"extra": "forbid"}
 McpScope = Literal["plan", "edit", "auto"]
-# V12 dangerous-operation classes (VSAFE-02).
+# dangerous-operation classes (VSAFE-02)
 SafetyClass = Literal[
     "irreversible", "deploy", "delete", "migration", "money", "prod"
 ]
@@ -58,18 +57,18 @@ class PermissionsConfig(BaseModel):
     tool_policy: ToolPolicy = Field(default_factory=ToolPolicy)
     path_scopes: list[PathScope] = Field(default_factory=list)
     mcp: dict[str, McpScope] = Field(default_factory=dict)
-    # H5.1: OpenCode-style wildcard rule map. Either a per-tool decision
-    # (`"bash": "ask"`) or per-command sub-map (`"bash": {"*": "ask",
-    # "git status *": "allow"}`). Values are "allow" | "ask" | "deny".
+    # OpenCode-style wildcard rule map. Either a per-tool decision
+    # (`"bash": "ask"`) or per-command sub-map (`"bash": {"*": "ask"
+    # "git status *": "allow"}`). Values are "allow" | "ask" | "deny"
     # Last-match-wins within a sub-map (put "*" first). Empty by default →
-    # existing tool_policy.deny behaviour is unchanged.
+    # existing tool_policy.deny behaviour is unchanged
     rules: dict[str, Any] = Field(default_factory=dict)
 
 
-# safety.yml (V12 — VSAFE-02/03/04/06)
+# safety.yml ( VSAFE-02/03/04/06)
 # Strict project-local safety policy. Separate from permissions.yml: this file
 # routes dangerous/factory-only operations through named runbooks/pipelines or
-# scaffolded procedures — it does NOT change allow/ask/deny semantics.
+# scaffolded procedures it does NOT change allow/ask/deny semantics
 class SafetyRunbook(BaseModel):
     model_config = STRICT
     name: str

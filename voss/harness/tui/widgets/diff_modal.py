@@ -1,19 +1,4 @@
-"""DiffModal — per-hunk diff approval modal (M9-05, TUI-06).
-
-UI-SPEC heading copy locked: `Review changes · {n} hunks · {file_count} files`.
-Key bindings locked per UI-SPEC destructive-actions inventory:
-  [y] Accept · [n] Reject · [s] Skip · [a] Accept all · [q] Reject all · [Esc] Cancel review.
-
-Diff marker glyphs (`+` `-`) are bare ASCII to keep --no-unicode fallback
-byte-identical. Line CONTENT is unchanged from upstream; color + syntax
-highlighting are style overlays only, and the decided-state labels
-(`[accepted]` etc.) are ASCII so the no-unicode contract holds.
-
-The per-hunk approve-BEFORE-write gate is a Voss differentiator (OpenCode
-applies-then-undoes); this module upgrades only the *rendering* — colored
-+/- lines, syntax-highlighted code, and a cursor that actually tracks the
-hunk under decision — without touching the decision flow.
-"""
+"""Per-hunk diff approval modal."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,15 +10,15 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-# Rich-side palette (Rich Text cannot reference TCSS `$vars`) — values come
-# from the palette.py Contract v2 mirror (R5 spec §4.1: no hex literal in
-# any TUI .py file outside palette.py).
+# Rich-side palette (Rich Text cannot reference TCSS `$vars`) values come
+# from the palette.py Contract mirror (R5 spec .1: no hex literal in
+# any TUI.py file outside palette.py)
 from ..palette import DIM as _C_DIM  # $dim — context / metadata
 from ..palette import ERROR as _C_DEL  # $error — removed lines
 from ..palette import GOOD as _C_ADD  # $good — added lines
 # Hunk-header / active-cursor accent is applied via the `diff-hunk-header`
-# class in styles.tcss (the allow-listed accent site), NOT inline here — the
-# UI-SPEC accent audit forbids the raw accent hex outside the audited widgets.
+# class in styles.tcss (the allow-listed accent site), NOT inline here the
+# accent audit forbids the raw accent hex outside the audited widgets
 
 
 @dataclass(frozen=True)
@@ -160,9 +145,7 @@ class DiffModal(ModalScreen):
     def on_mount(self) -> None:
         self._refresh_marks()
 
-    # ------------------------------------------------------------------
-    # cursor / decided-state rendering (display only — no decision logic)
-    # ------------------------------------------------------------------
+    # cursor / decided-state rendering (display only no decision logic)
 
     def _refresh_marks(self) -> None:
         """Highlight the hunk currently under decision, label decided hunks,
@@ -175,8 +158,8 @@ class DiffModal(ModalScreen):
             except Exception:  # noqa: BLE001 — mid-mount / test host
                 continue
             container.set_class(i == self.index, "current")
-            # Base "file:line" inherits accent from the .diff-hunk-header class
-            # (styles.tcss); only the state-label spans set explicit colors.
+            # Base "file:line" inherits accent from the.diff-hunk-header class
+            # (styles.tcss); only the state-label spans set explicit colors
             base = Text(f"{h.file}:{h.start}")
             if i < len(decided_by_pos):
                 label, color = _STATE_LABEL.get(decided_by_pos[i], ("", _C_DIM))
@@ -190,9 +173,7 @@ class DiffModal(ModalScreen):
             except Exception:  # noqa: BLE001
                 pass
 
-    # ------------------------------------------------------------------
     # actions
-    # ------------------------------------------------------------------
 
     def _record(self, decision: str) -> None:
         h = self.hunks[self.index]

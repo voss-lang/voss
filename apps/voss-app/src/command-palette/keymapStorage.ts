@@ -2,13 +2,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 /**
- * A7-03 Task 2 — frontend bridge for keymap profile and override persistence.
- *
- * Thin invoke wrappers + Tauri event listener for workspace keymap hot-reload.
- * Event name: `voss://keymap-updated`.
+ * Task 2 — frontend bridge for keymap profile and override persistence
+ * Thin invoke wrappers + Tauri event listener for workspace keymap hot-reload
  */
 
-// --- Types -------------------------------------------------------------------
 
 export type KeymapProfile = 'vscode' | 'tmux';
 
@@ -36,12 +33,10 @@ export interface KeymapUpdatePayload {
   issues: KeymapValidationIssue[];
 }
 
-// --- Error copy --------------------------------------------------------------
 
 export const KEYMAP_SAVE_FAILED = 'could not save keymap settings';
 export const KEYMAP_LOAD_FAILED = 'could not load keymap settings';
 
-// --- Tauri command bridges ---------------------------------------------------
 
 export async function loadKeymapProfile(): Promise<KeymapProfile> {
   const raw = await invoke<string>('load_keymap_profile');
@@ -74,11 +69,10 @@ export async function validateKeymapOverrides(
   });
 }
 
-// --- Hot-reload event listener (D-14) ----------------------------------------
 
 /**
- * Listen for workspace keymap changes from the Rust file watcher.
- * Returns an unlisten function for cleanup.
+ * Listen for workspace keymap changes from the Rust file watcher
+ * Returns an unlisten function for cleanup
  */
 export async function watchWorkspaceKeymap(
   workspacePath: string,

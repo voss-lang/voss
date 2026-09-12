@@ -1,8 +1,4 @@
 //! `voss-cli doctor` output structure must match `voss/harness/cli.py::doctor_cmd`.
-//!
-//! Test runs in a hermetic `$HOME = <tempdir>` so neither cred source
-//! resolves and the output reduces to its skeleton: 7 fixed lines, in order,
-//! each with a known label prefix.
 
 use std::path::PathBuf;
 use std::process::Command;

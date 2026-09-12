@@ -1,19 +1,3 @@
-// V14 chunk B — cockpit team sidebar (mockup .sidebar, 252px, left column).
-//
-// Three sections:
-//   1. VOSS TEAM — roster rows reusing RosterPanel's derivation
-//      (audit.team_config.roster_ids ∪ distinct node roles) restyled to the
-//      mockup .arow look: role-colored dot, role name + status pill, sub line
-//      (card count · scope), mono spent total.
-//   2. EXTERNAL TERMINAL AGENTS — live launched agents: the A13 swarm roster
-//      (when a manifest exists) plus cockpit-launched cards bound via the
-//      bridge cardToPane map (Bridge B). The bridge stores only cardId→paneId,
-//      so binary/provider is shown only for swarm rows where the manifest
-//      carries it.
-//   3. SESSIONS · RUN LINEAGE — compact root row (root id + node count);
-//      clicking reveals the full SessionTreePanel in a collapsible so its
-//      data-node-id tree stays reachable.
-
 import { For, Show, createEffect, createSignal } from 'solid-js';
 import type { RunData } from '../types';
 import type { SwarmReconcileResult } from '../swarmReconcile';
@@ -71,16 +55,18 @@ interface ExternalRow {
 export default function CockpitSidebar(props: {
   data: RunData | null;
   swarm: SwarmReconcileResult;
-  /** V15-05: live sidecar client — the "Server sessions" section is hidden
-   *  entirely without it (nothing to list). */
+/**
+ * 05: live sidecar client — the "Server sessions" section is hidden
+ * entirely without it (nothing to list)
+ */
   vossClient?: SidecarVossClient;
-  /** V15-05: Attach action → App attachSession/openAttachedPane seam. */
+/** 05: Attach action → App attachSession/openAttachedPane seam */
   onAttach?: (sessionId: string) => void;
 }) {
   const [sessionsOpen, setSessionsOpen] = createSignal(false);
   const [serverSessionsOpen, setServerSessionsOpen] = createSignal(false);
 
-  // D-04: refresh the honest GET /session mirror whenever the section opens.
+  // refresh the honest GET /session mirror whenever the section opens.
   createEffect(() => {
     const client = props.vossClient;
     if (serverSessionsOpen() && client) void refreshSessions(client);
@@ -220,8 +206,6 @@ export default function CockpitSidebar(props: {
         )}
       </Show>
 
-      {/* 4 — Server sessions (V15-05, D-04/D-05): honest GET /session mirror,
-          newest first, unfiltered. Hidden entirely without a live client. */}
       <Show when={props.vossClient}>
         <div
           class="cockpit-sect"

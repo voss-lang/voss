@@ -1,8 +1,6 @@
-"""V20-04 (VRES-04): critical risk tier — Done requires explicit human approval.
-
+"""
+V20-04 (VRES-04): critical risk tier — Done requires explicit human approval.
 NO agent verdict can clear the 'human' clause: the card parks pending-human
-(resumable gate refusal, not terminal) until an operator approve/reject
-record exists under .voss/sessions/<root>/approvals/<card_id>.json.
 """
 from __future__ import annotations
 

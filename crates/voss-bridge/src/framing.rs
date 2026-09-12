@@ -1,17 +1,12 @@
-//! LSP-style Content-Length framing for JSON-RPC over stdio.
-//!
-//! Per phase D-01..D-03: header lines terminated by `\r\n`, header block
-//! terminated by an empty `\r\n` line, then exactly Content-Length bytes of
-//! body. Unknown headers are tolerated (forward-compat); missing or negative
-//! Content-Length is rejected.
+//! LSP-style Content-Length framing for JSON-RPC over stdio
+//! Per phase..: header lines terminated by `\r\n`, header block
+
 
 use std::io;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-/// Read one LSP-framed message from `r` and return its body bytes.
-///
-/// Returns `InvalidData` on missing/negative/unparseable Content-Length.
-/// Returns `UnexpectedEof` if the stream closes before a body is fully read.
+/// Read one LSP-framed message from `r` and return its body bytes
+/// Returns `InvalidData` on missing/negative/unparseable Content-Length
 pub async fn read_frame<R: AsyncBufRead + Unpin>(r: &mut R) -> io::Result<Vec<u8>> {
     let mut content_length: Option<i64> = None;
 
@@ -24,7 +19,7 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(r: &mut R) -> io::Result<Vec<u8
                 "eof while reading headers",
             ));
         }
-        // Strip CRLF (or lone LF for tolerance).
+        // Strip CRLF (or lone LF for tolerance)
         let trimmed = line.trim_end_matches(['\r', '\n']);
         if trimmed.is_empty() {
             break;
@@ -46,9 +41,9 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(r: &mut R) -> io::Result<Vec<u8
                 }
                 content_length = Some(parsed);
             }
-            // Other headers tolerated (D-02 forward-compat).
+            // Other headers tolerated ( forward-compat)
         }
-        // Lines without ':' are ignored (defensive).
+        // Lines without ':' are ignored (defensive)
     }
 
     let n = content_length
@@ -58,7 +53,7 @@ pub async fn read_frame<R: AsyncBufRead + Unpin>(r: &mut R) -> io::Result<Vec<u8
     Ok(body)
 }
 
-/// Write one LSP-framed message to `w`.
+/// Write one LSP-framed message to `w`
 pub async fn write_frame<W: AsyncWrite + Unpin>(w: &mut W, body: &[u8]) -> io::Result<()> {
     let header = format!("Content-Length: {}\r\n\r\n", body.len());
     w.write_all(header.as_bytes()).await?;

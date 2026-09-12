@@ -1,18 +1,6 @@
-"""WorkingIndicator widget — ephemeral turn-activity line (spec §3.6, R2).
-
-One dim line, always the last TranscriptView child while a turn runs:
-
-    ✦ working · 8s · 2.1k tok · ctrl+c to interrupt
-
-The glyph slot starts as the `WORKING` brand glyph and animates through
-`SPINNER_FRAMES` (iterated by index) at ~2 Hz once the app loop ticks.
-Elapsed time refreshes at 1 Hz from the widget's own mount time, so the
-renderer only needs to thread token updates (`update_working`). Timers are
-guarded like status_line.py — headless unit tests construct the widget
-without a running app and must not explode.
-
-No accent color: the entire line (glyph included) renders dim — the locked
-accent allow-list does not include the working indicator.
+"""
+WorkingIndicator widget ephemeral turn-activity line (spec .6, R2)
+One dim line, always the last TranscriptView child while a turn runs
 """
 from __future__ import annotations
 
@@ -63,16 +51,14 @@ class WorkingIndicator(Static):
         self._frame += 1
         self.refresh()
 
-    # ------------------------------------------------------------------
     # state mutators (called by TranscriptView.show_working/update_working)
-    # ------------------------------------------------------------------
 
     def set_label(self, label: str) -> None:
         self._label = label
         self.refresh()
 
     def update_metrics(self, elapsed_s: float, tokens: int) -> None:
-        # elapsed_s <= 0 means "no caller-side clock" — keep self-timing.
+        # elapsed_s <= 0 means "no caller-side clock" keep self-timing
         if elapsed_s > 0:
             self._elapsed_override = elapsed_s
         if tokens > 0:

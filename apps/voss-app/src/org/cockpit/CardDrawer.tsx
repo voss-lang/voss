@@ -1,32 +1,3 @@
-// VCKP-05 — persistent Card detail drawer, recomposed in V14 chunk B to the
-// cockpit mockup .drawer (curated sections instead of stacked full panels).
-//
-// Sections (top to bottom):
-//   header   — mono card-id line, 14px/600 title, 2x2 kv grid (Risk / Column /
-//              Budget / Confidence — Confidence renders only when the live SSE
-//              overlay carries a score; snapshot runs omit the cell).
-//   peek     — live agent frame, ONLY when a pane is bound via the id-bridge
-//              (D-07); keeps the verbatim "coming soon" copy.
-//   criteria — EM acceptance criteria, ONLY when the card's em.ticket carries
-//              a criteria list (no persisted field exists in the V2-V7
-//              substrate today, so this stays hidden until the harness ships
-//              one — never faked).
-//   reviewers— Reviewer-A / Reviewer-B verdict rows from the ReviewSidecar
-//              (pend/pass/fail coloring).
-//   diff     — compact container reusing DiffPanel's data source (the review
-//              sidecar). Raw diff text NEVER persists in this substrate
-//              (Pitfall 4) so the body is the truthful no-diff state plus the
-//              a_verification evidence (rubric + notes).
-//   routing  — EM routing rationale from the em.routing transition (hidden
-//              when absent).
-//   comment  — VCKP-09 follow-up affordance, UNCHANGED behavior (disabled-
-//              with-reason on snapshot cards; feedbackWritePath.test.ts).
-//   audit /  — the run-level Audit + Blocked panel bodies stay reachable in
-//   blocked    compact collapsibles (Scope/Budget detail moved to the kv grid
-//              + gate bar; Verdict detail lives in the reviewers section).
-//   actions  — Reject ⓘ (disabled-with-reason: no CLI reject path) and the
-//              primary Open in grid (publishes openInGridRequest, D-07).
-
 import { Show, For, createSignal, type JSX } from 'solid-js';
 import type { RunData, ReviewSidecar, EmRouting } from '../types';
 import { runData } from '../orgStore';
@@ -104,19 +75,18 @@ function DrawerCollapse(props: { title: string; children: JSX.Element }) {
 }
 
 /**
- * Persistent drawer. Reads the global `selectedCardId()` / `runData()`. A
+ * Persistent drawer. Reads the global `selectedCardId` / `runData`. A
  * `data` prop is accepted so CockpitShell may pass the snapshot explicitly, but
- * it defaults to the global `runData()` accessor to keep the shell wiring thin.
  */
 export default function CardDrawer(props: {
   data?: RunData | null;
-  /** V13.1 client for the VCKP-09 follow-up write path (absent = no live wiring). */
+/** 1 client -up write path (absent = no live wiring) */
   followUpClient?: FollowUpClient;
 }) {
   const data = (): RunData | null =>
     props.data !== undefined ? props.data : runData();
 
-  // D-07: the bound live pane for the selected card (undefined for pure
+  // the bound live pane for the selected card (undefined for pure
   // snapshot cards). Drives the peek section + the Open-in-grid enabled state.
   const boundPaneId = (): string | undefined => {
     const id = selectedCardId();
@@ -172,7 +142,7 @@ export default function CardDrawer(props: {
     return null;
   };
 
-  // VCKP-09: a comment can dispatch only when a live client exists AND the
+  // 09: a comment can dispatch only when a live client exists AND the
   // selected card is bound to a NATIVE session (snapshot cards have no write
   // path → disabled-with-reason, never a silent no-op).
   const [comment, setComment] = createSignal('');
@@ -266,8 +236,6 @@ export default function CardDrawer(props: {
           </Show>
         </header>
 
-        {/* D-07: read-only live-pane peek — rendered ONLY when a live pane is
-            bound (UI-REVIEW 2c: no dead chrome on snapshot cards). */}
         <Show when={boundPaneId()}>
           <section class="cockpit-dsec" aria-label="Live execution">
             <div class="cockpit-dsec__title">Live execution</div>
@@ -351,9 +319,6 @@ export default function CardDrawer(props: {
           </div>
         </section>
 
-        {/* Diff — compact container over DiffPanel's data source. Raw diff
-            text never persists in this substrate (Pitfall 4): the truthful
-            no-diff state + the a_verification evidence. */}
         <section class="cockpit-dsec" aria-label="Diff">
           <div class="cockpit-dsec__title">Diff</div>
           <div class="cockpit-diff">
@@ -385,7 +350,6 @@ export default function CardDrawer(props: {
           )}
         </Show>
 
-        {/* VCKP-09: inline follow-up comment — active only on a native session. */}
         <section class="cockpit-comment" aria-label="Follow-up comment">
           <textarea
             class="cockpit-comment__box"

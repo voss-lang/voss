@@ -1,4 +1,6 @@
-"""V9 audit product — read-only audit surface over V2-V7 session data."""
+"""
+audit product read-only audit surface over session data
+"""
 from __future__ import annotations
 
 from .model import (

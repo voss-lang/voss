@@ -1,8 +1,3 @@
-// V24-06 (VADE2-06) — the no-fake-signal guard. The load-bearing test of the
-// phase: every rendered edge MUST carry a real, non-empty `source`, and the
-// derive MUST NOT infer an edge from co-presence. Mirrors swarmReconcile.test.ts
-// pure-fixture discipline.
-
 import { describe, it, expect } from 'vitest';
 
 import { deriveSwarmGraph } from '../swarmMapDerive';
@@ -33,7 +28,7 @@ function node(
 
 const KNOWN_SOURCE = /^(board_transition:|sse_event:|audit_artifact:)/;
 
-// Two agents co-present in a run, but NO transitions/audit/attention.
+// Two agents co-present in a run, but NO transitions/audit/attention
 function partialRun(): RunData {
   return {
     run_id: 'run-partial',
@@ -51,7 +46,7 @@ function partialRun(): RunData {
   };
 }
 
-// A run exercising every node + edge type from real signals.
+// A run exercising every node + edge type from real signals
 function fullRun(): RunData {
   const routing: Transition = {
     kind: 'em.routing',
@@ -139,7 +134,7 @@ describe('deriveSwarmGraph — NO-FAKE-SIGNAL guard (VADE2-06)', () => {
   it('partial RunData with no transitions yields zero edges (no co-presence inference)', () => {
     const { edges } = deriveSwarmGraph([{ runData: partialRun(), liveOverlay: {} }], []);
     expect(edges.length).toBe(0);
-    // Vacuously true here, but the contract holds for any edge that exists.
+    // Vacuously true here, but the contract holds for any edge that exists
     expect(edges.every((e) => typeof e.source === 'string' && e.source.length > 0)).toBe(true);
   });
 

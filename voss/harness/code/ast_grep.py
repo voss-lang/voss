@@ -1,10 +1,7 @@
 """
-ast-grep CLI wrapper (M10-03 Task 1).
-
-Uses subprocess + --json=stream for structural search.
-Strictly read-only. Soft dependency.
+ast-grep CLI wrapper
+Uses subprocess + --json=stream for structural search
 """
-
 from __future__ import annotations
 
 import asyncio

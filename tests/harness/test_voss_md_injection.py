@@ -1,8 +1,6 @@
-"""M8-01 VOSS.md injection into run_turn sys_prompt (Req 1, D-08).
-
+"""
+M8-01 VOSS.md injection into run_turn sys_prompt (Req 1, D-08).
 Drives `run_turn` with a FakeProvider that captures the system message it
-receives, then asserts the VOSS.md head block lands (or doesn't) per file
-presence.
 """
 from __future__ import annotations
 

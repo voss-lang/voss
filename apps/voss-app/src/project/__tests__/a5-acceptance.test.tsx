@@ -251,7 +251,7 @@ describe('WS-07 — project switching path exists before palette UI lands', () =
     });
     const el = mount(() => <App />);
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
-    // A6 D-10: session/default resolved before project state; rejected default
+    // A6: session/default resolved before project state; rejected default
     // caught silently → project still opens.
     await waitFor(() =>
       expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull(),

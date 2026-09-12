@@ -1,11 +1,6 @@
-"""R1 TranscriptView streaming entry points (ITER-03 delta render).
-
+"""
+R1 TranscriptView streaming entry points (ITER-03 delta render).
 tui-redesign-spec §3.2/§8 R1 replaces the append-only RichLog with a block
-transcript: deltas accumulate into ONE in-place-updated AssistantBlock, and
-finalize_stream writes the metadata as a dim footer BELOW the body inside
-the block. These tests assert delta accumulation, empty-state (HomeScreen)
-removal on first delta, multi-block separation, append_turn parity, and a
-1000-delta smoke test.
 """
 from __future__ import annotations
 

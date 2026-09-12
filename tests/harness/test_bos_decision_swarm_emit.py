@@ -1,9 +1,6 @@
-"""BOS4-04: task_to_agent decision emission at the swarm assignment seam (D-R02).
-
+"""
+BOS4-04: task_to_agent decision emission at the swarm assignment seam (D-R02).
 Drives `run_cli_member` against a REAL temp git repo with a FAKE spawn_fn
-(mirrors tests/harness/test_swarm_runtime.py), then asserts the inline-emitted
-decision record landed in `.voss/bos/decisions.jsonl` and validates against the
-authoritative contract.
 """
 from __future__ import annotations
 

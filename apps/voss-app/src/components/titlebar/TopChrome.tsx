@@ -8,22 +8,19 @@ import Search from 'lucide-solid/icons/search';
 import WindowControls from './WindowControls';
 
 /**
- * V24-09 — reference-design top chrome.
- *
- * Single 44px bar: window controls + project identity, centered section label,
- * search/composer trigger, notifications stub, "New task" CTA, safety chip, and
- * live chip. Layout presets and Plan/Edit/Auto toggles stay in the portal rail.
+ * 09 — reference-design top chrome
+ * Single 44px bar: window controls + project identity, centered section label
  */
 export type TopChromeProps = {
   projectName?: string;
   gitBranch?: string | null;
-  /** Uppercase portal section label (e.g. "WORKSPACES"). */
+/** Uppercase portal section label (e.g. "WORKSPACES") */
   sectionLabel: string;
-  /** Live/snapshot data-source state (sseClient liveLabel, via App). */
+/** Live/snapshot data-source state (sseClient liveLabel, via App) */
   liveState?: 'live' | 'snapshot';
-  /** Safety mode of the most-recently-created Task; chip hidden when absent. */
+/** Safety mode of the most-recently-created Task; chip hidden when absent */
   currentSafetyMode?: 'Read only' | 'Can edit' | 'Autopilot';
-  /** Opens the ⌘K "Ask Voss to…" composer. */
+/** Opens the ⌘K "Ask Voss to…" composer */
   onOpenComposer?: () => void;
 };
 
@@ -85,7 +82,7 @@ export default function TopChrome(props: TopChromeProps) {
           type="button"
           aria-label={`Project: ${titleText()}${props.gitBranch ? `, branch ${props.gitBranch}` : ''}`}
           onClick={() => {
-            // TODO(V24-09): open project/branch picker menu.
+            // TODO: open project/branch picker menu
           }}
           style={{
             display: 'flex',
@@ -229,7 +226,7 @@ export default function TopChrome(props: TopChromeProps) {
           type="button"
           aria-label="Notifications"
           onClick={() => {
-            // TODO(V24-09): open notifications panel when wired.
+            // TODO: open notifications panel when wired
           }}
           style={{
             display: 'flex',

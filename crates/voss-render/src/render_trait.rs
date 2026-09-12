@@ -1,6 +1,6 @@
 //! Renderer trait shared by all 3 impls. Plan/ToolCall live in voss-agent
 //! and are passed through as primitive views (`PlanStepView`) so this crate
-//! does not need to depend on voss-agent (cycle prevention).
+
 
 use std::path::Path;
 
@@ -22,7 +22,7 @@ impl ToolState {
 }
 
 /// View into a single Plan step. Lives in voss-render so voss-render does
-/// not need to depend on voss-agent (where Plan/ToolCall are defined).
+/// not need to depend on voss-agent (where Plan/ToolCall are defined)
 pub struct PlanStepView<'a> {
     pub name: &'a str,
     pub args: &'a serde_json::Value,

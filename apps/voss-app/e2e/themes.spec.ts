@@ -2,12 +2,8 @@ import { test, expect } from '@playwright/test';
 import { bootApp } from './_helpers';
 
 /**
- * A8 theme / appearance end-to-end — bundled catalog, live preview, apply,
- * high-contrast toggle. Runs on macOS via mock-IPC against `vite dev`.
- *
- * Accessibility contrast-pair measurement (theme-ac5) and reduced-motion
- * emulation (theme-ac6) are covered by vitest; the live browser versions
- * stay deferred to Linux CI under TAURI_E2E=1.
+ * A8 theme / appearance end-to-end — bundled catalog, live preview, apply
+ * high-contrast toggle. Runs on macOS via mock-IPC against `vite dev`
  */
 
 test.describe.configure({ mode: 'serial' });
@@ -87,7 +83,6 @@ test.describe('A8 themes (mock-IPC)', () => {
   });
 });
 
-// --- Live contrast + reduced-motion measurement ------------------------------
 // Contrast-pair sampling and prefers-reduced-motion emulation stay on the
 // vitest track; the live browser versions require real computed-style
 // measurement against xterm internals which the mock-IPC harness cannot

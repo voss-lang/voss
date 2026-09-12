@@ -1,7 +1,6 @@
-"""DeterministicReviewerStub — O3 test reviewer.
-
-Production code must NOT import this module. The O3-04 stress test enforces
-this via a repo-wide grep gate.
+"""
+DeterministicReviewerStub test reviewer
+Production code must NOT import this module. The stress test enforces
 """
 from __future__ import annotations
 
@@ -23,7 +22,7 @@ class DeterministicReviewerStub:
 
     def review(self, card: object, *, tier: str | None = None) -> ReviewerVerdict:
         # VRES-05: echo an explicitly passed tier for observability; no-tier
-        # calls keep the configured tier (zero churn for existing callers).
+        # calls keep the configured tier (zero churn for existing callers)
         return ReviewerVerdict(
             conf=self.conf,
             source=self.source,       # type: ignore[arg-type]

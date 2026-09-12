@@ -11,11 +11,8 @@ import {
 } from '../registry';
 
 /**
- * A7-05 Task 1 + A8-05 Task 3 — native menu model tests.
- *
- * Verifies the pure menu model generation — no Tauri runtime needed.
- * The Tauri `setAsAppMenu` installation is manual-only verification except
- * for the non-Tauri no-op guard tested below.
+ * + native menu model tests
+ * Verifies the pure menu model generation no Tauri runtime needed
  */
 
 const registry = createCommandRegistry([

@@ -1,23 +1,6 @@
-"""Agent instruction files (AGENTS.md / CLAUDE.md) as one hashed bundle.
-
+"""
+Agent instruction files (AGENTS.md / CLAUDE.md) as one hashed bundle
 `bundle_hash` identifies the *effective* bundle: file identities, the budget
-settings, the truncation outcome, and a digest of the rendered text, so two
-runs with the same files but a different injected prompt get different hashes.
-`tokens` counts the merged text; the `## Instructions` frame is reserved out
-of `budget_tokens` so the rendered block never exceeds the budget.
-
-Imports (`@path`) are confined to the instruction root: the project root for
-repository files, the file's own directory for opt-in global files. Absolute,
-home-relative, and traversal paths are rejected.
-
-Pure module in the `cognition.load()` mould: never raises out of `load()`,
-failures land in `InstructionBundle.load_errors`.
-
-Discovery order (injection order): optional global files, then the project
-root, then every directory from the root down to `target_dir`. Within a
-directory AGENTS.md precedes CLAUDE.md. A CLAUDE.md whose only content is
-`@`-imports of files already in the bundle collapses (Claude Code convention
-for "CLAUDE.md just points at AGENTS.md").
 """
 from __future__ import annotations
 

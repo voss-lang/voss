@@ -11,7 +11,7 @@ import type {
 } from '../../workspaces/workspaceStore';
 import './workspace.css';
 
-/** UI-SPEC copy constants — Copywriting Contract. */
+/** copy constants — Copywriting Contract */
 export const COPY_NEW_WORKSPACE = 'New workspace';
 export const COPY_RENAME_WORKSPACE = 'Rename workspace';
 export const COPY_COLOR = 'Color';
@@ -20,15 +20,15 @@ export const COPY_LAST_WORKSPACE_BLOCKED = 'Last workspace stays open';
 export const COPY_CLOSE_RUNNING_CONFIRM =
   'Processes are running. Close workspace?';
 
-/** UI-SPEC dimension contract. */
-/** Matches pane header row (--pane-header-height). */
+/** dimension contract */
+/** Matches pane header row (--pane-header-height) */
 export const WORKSPACE_BAR_HEIGHT_PX = 22;
 export const WORKSPACE_TAB_HEIGHT_PX = 22;
 export const WORKSPACE_TAB_MIN_WIDTH_PX = 96;
 export const WORKSPACE_TAB_MAX_WIDTH_PX = 220;
 export const WORKSPACE_LEFT_INSET_PX = 12;
 
-/** Fixed Warp-style eight-color palette (D-03). */
+/** Fixed Warp-style eight-color palette */
 export const WORKSPACE_ACCENT_COLORS = [
   'neutral',
   'red',

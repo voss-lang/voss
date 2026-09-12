@@ -20,7 +20,6 @@ where
 {
     // Must exceed the supervisor's 60s handshake budget (a cold litellm import
     // can take ~45s) so the supervisor's richer error surfaces instead of this
-    // blanket timeout.
     tokio::time::timeout(Duration::from_secs(75), future)
         .await
         .expect("integration test timed out")
@@ -221,7 +220,7 @@ async fn supervisor_no_orphan() {
     .await;
 }
 
-// FAKE_TURN emits no permission.updated event (app.py 166-178). A hermetic
+// FAKE_TURN emits no permission.updated event (app.py 166. A hermetic
 // permission test needs a future VOSS_SERVE_FAKE_TURN_PERMISSION server seam.
 #[tokio::test]
 async fn permission_roundtrip() {

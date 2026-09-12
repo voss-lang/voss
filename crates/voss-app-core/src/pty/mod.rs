@@ -23,7 +23,6 @@ use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize, SlaveP
 /// `master` and `_slave` are `Send` but not `Sync`, so each is held behind a
 /// `Mutex` (Tauri-managed state must be `Send + Sync`). `_slave` is held alive
 /// deliberately — dropping it before the child exits closes the PTY
-/// prematurely on Windows (A2-RESEARCH Pitfall 6).
 pub struct PtySession {
     pub id: uuid::Uuid,
     master: Mutex<Box<dyn MasterPty + Send>>,
@@ -76,7 +75,6 @@ impl PtySession {
         Ok(())
     }
 
-    /// Kill the child and reap it (no zombie — A2-RESEARCH Pitfall 4).
     ///
     /// Bounded: `child.wait()` can block indefinitely for an interactive shell
     /// that ignores the kill signal, so reap via a short `try_wait` poll loop
@@ -249,8 +247,6 @@ fn neutral_terminal_command(program: &str) -> CommandBuilder {
     cmd
 }
 
-/// VCKP-13a managed-launch wrap hook: spawn a command under the OS
-/// scope-sandbox. Generates the per-run profile, wraps the argv via
 /// `sandbox::wrap_argv`, and delegates to `spawn_command_session_with_env`
 /// (the unmanaged path is untouched). Returns the spawned session plus
 /// `sandboxed: false` when no sandbox tool exists on this host — the caller

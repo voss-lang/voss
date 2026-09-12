@@ -1,9 +1,9 @@
 import { For, Show, createSignal } from 'solid-js';
 import type { RunData, ReviewSidecar } from '../types';
 
-// VADE-08 — per-card verification drilldown.
-// RESEARCH Pitfall 4: raw diff text NEVER persists in the V2-V7 substrate
-// (sections_missing always contains diff_summary). So the per-card surface is
+// 08 — card verification drilldown.
+// raw diff text NEVER persists in the V2-V7 substrate
+// (sections_missing always contains diff_summary). So the card surface is
 // the review sidecar's a_verification; the "No diff recorded" state is the
 // verified reality, NOT a placeholder.
 

@@ -1,6 +1,3 @@
-//! PTY core tests (A2-02). Drive `spawn_session` directly (Tauri-free) so no
-//! `AppHandle`/`Channel` is required.
-
 use std::io::Read;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -85,7 +82,7 @@ fn test_pty_round_trip() {
         "round-trip failed; got: {out:?}"
     );
 
-    // Session id is a UUID v4 (non-sequential — T-A2-03).
+    // Session id is a UUID v4 (non-sequential — T-).
     assert_eq!(
         session.id.get_version_num(),
         4,

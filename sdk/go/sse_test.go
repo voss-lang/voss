@@ -9,7 +9,6 @@ import (
 
 // TestIntegrationSSEOrdering asserts the real fake-turn stream delivers
 // server.connected first, session.idle last, with typed plan/stream.delta/final
-// between.
 func TestIntegrationSSEOrdering(t *testing.T) {
 	c := requireShared(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -69,7 +68,6 @@ loop:
 
 // TestIntegrationSSECancel opens a real stream (no turn posted, so it idles open
 // after server.connected), cancels mid-stream, and asserts the channel closes
-// and no goroutine leaks.
 func TestIntegrationSSECancel(t *testing.T) {
 	c := requireShared(t)
 	base := runtime.NumGoroutine()

@@ -1,24 +1,3 @@
-// V15-03/04 (VLIVE-04/05/07) — Structured Protocol Pane body, now a pure VIEW
-// over the protocolSessions store (grid-rearrange fix Part B): the transcript,
-// gate states, lifecycle flags, and the SSE stream itself live module-side
-// keyed by SERVER session id, so a remounted pane (drag/swap/layout) re-renders
-// the same state and never re-subscribes or loses the transcript. The stream
-// is torn down only via destroyProtocolSession (pane-close destroy hook).
-//
-// Renders the PROTOCOL §6 event union per the V15-UI-SPEC: dedicated rows for
-// user / tool / plan / stream.delta+finalize / final / thinking /
-// permission.updated, and a generic fallback row for every other member —
-// nothing is silently dropped.
-//
-// D-07: tool lines are collapsed one-liners; click expands args/result.
-// D-08: transcript capped trim-oldest with task-header + permission pins.
-// D-09: consecutive stream.delta events grow ONE block with a pulse cursor;
-//       stream.finalize settles it; sticky-bottom autoscroll (20px).
-//
-// T-V15-05: ALL event text renders via Solid text bindings ({…}) — no raw
-// HTML injection. Only view-local state (tool-row expansion, the boot elapsed
-// ticker) lives in component signals.
-
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, Switch, Match } from 'solid-js';
 import type { AgentEvent } from '../../../../sdk/typescript/src/client/sse';
 import type { PermissionChoice } from '../../../../sdk/typescript/src/client/permission';
@@ -40,18 +19,13 @@ import './ProtocolPane.css';
 export interface ProtocolPaneProps {
   sessionId: string;
   sidecarId: string;
-  /** Workspace cwd — the D-12 "Retry start" re-invokes startVossServe(cwd). */
   cwd?: string;
-  /** Called when the session ends (clean idle or server death — D-11). */
   onEnded?: () => void;
-  /** Test/mock injection — forwarded to connectLiveStream (Pitfall 4). */
   stream?: AsyncIterable<AgentEvent>;
 }
 
 export { destroyProtocolSession };
 
-/** Generic-row summary: first present text-like field, else truncated JSON.
- *  `probable` shows its probability % ahead of the text (UI-SPEC §2g). */
 function genericSummary(ev: AgentEvent): string {
   const r = ev as unknown as Record<string, unknown>;
   const pct =
@@ -110,7 +84,7 @@ const RESOLVED_LABEL: Record<string, string> = {
   A: 'allowed for scope',
 };
 
-/** Allow-for-scope label: first path-looking string in args, else "session". */
+/** Allow-for-scope label: first path-looking string in args, else "session" */
 function scopeLabel(args: unknown): string {
   if (args && typeof args === 'object') {
     for (const v of Object.values(args as Record<string, unknown>)) {
@@ -121,7 +95,7 @@ function scopeLabel(args: unknown): string {
 }
 
 export default function ProtocolPane(props: ProtocolPaneProps) {
-  // View-local state ONLY (Pitfall 4 inverted: everything session-scoped now
+  // View-local state ONLY ( inverted: everything session-scoped now
   // lives in the protocolSessions store).
   const [expanded, setExpanded] = createSignal<Set<number>>(new Set());
   const [elapsed, setElapsed] = createSignal(0);
@@ -144,7 +118,7 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
     // destroyProtocolSession runs via the pane destroy hook on real close.
   });
 
-  // D-11: surface the ended state (clean idle or death) to the pane chrome.
+  // surface the ended state (clean idle or death) to the pane chrome.
   let endedFired = false;
   createEffect(() => {
     if (st().endedReason && !endedFired) {
@@ -153,7 +127,7 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
     }
   });
 
-  // D-12: Retry start — re-invoke the sidecar spawn and rebind the stream to
+  // Retry start — re-invoke the sidecar spawn and rebind the stream to
   // the fresh handshake. User-initiated only; no auto-restart anywhere.
   const retryStart = async () => {
     try {
@@ -166,7 +140,7 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
     }
   };
 
-  // Coalesce the event list into row descriptors (D-09 stream blocks).
+  // Coalesce the event list into row descriptors ( stream blocks).
   const rows = createMemo<Row[]>(() => {
     const out: Row[] = [];
     st().events.forEach((ev, idx) => {
@@ -180,7 +154,7 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
           break;
         case 'plan': {
           // §6 plan = {steps: [{name, args}], confidence} — render step names
-          // as prose lines (the UI-SPEC prose block).
+          // as prose lines (the prose block).
           const steps = Array.isArray(e.steps) ? (e.steps as { name?: string }[]) : [];
           const text =
             steps.map((s, i) => `${i + 1}. ${s.name ?? ''}`).join('\n') ||
@@ -239,7 +213,7 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
     return out;
   });
 
-  // D-09 sticky-bottom autoscroll: pinned while the user is within 20px of
+  // sticky-bottom autoscroll: pinned while the user is within 20px of
   // the bottom; scrolling up disables, returning re-enables.
   let scrollRef: HTMLDivElement | undefined;
   let stick = true;
@@ -267,7 +241,7 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
   const toolStateMark = (state: string) =>
     state === 'ok' ? '✓' : state === 'error' ? '✗' : '…';
 
-  /** Expanded tool body text: args key:value lines + result excerpt (~20 lines). */
+/** Expanded tool body text: args key:value lines + result excerpt (~20 lines) */
   const toolExpandedText = (t: ToolEvent): string => {
     const lines: string[] = [];
     for (const [k, v] of Object.entries(t.args ?? {})) {
@@ -292,7 +266,6 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
       role="log"
       aria-label="Run transcript"
     >
-      {/* D-10 boot placeholder — until the first event arrives. */}
       <Show when={st().bootState === 'booting'}>
         <div class="proto-boot">
           <div class="proto-boot__label">Starting…</div>
@@ -303,7 +276,6 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
         </div>
       </Show>
 
-      {/* D-12 spawn-failure — stderr tail + user-initiated retry. */}
       <Show when={st().bootState === 'error'}>
         <div class="proto-spawn-error">
           <div class="proto-spawn-error__heading">
@@ -512,8 +484,6 @@ export default function ProtocolPane(props: ProtocolPaneProps) {
         )}
       </For>
 
-      {/* D-11 ended row — inline in transcript flow (scrolls with it); no
-          Restart for server death (the NEXT run respawns fresh). */}
       <Show when={st().bootState === 'ended'}>
         <div class="proto-ended-row">
           <ExitBanner

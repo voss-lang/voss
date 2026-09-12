@@ -1,15 +1,6 @@
-"""Shared fixtures for tests/e2e/.
-
+"""
+Shared fixtures for tests/e2e/.
 Layered on the StubProvider + sitecustomize pattern in tests/examples/helpers.
-Adds:
-
-  - `--update-transcripts` pytest CLI flag (read by recorded_transcript).
-  - `cli_runner` fixture: per-test CliRunner pointing at an isolated project.
-  - `tmp_project` fixture: copies tests/e2e/fixtures/projects/minimal into
-    a tmp_path so tests can mutate it freely.
-  - `recorded_transcript` fixture: closure-bound to current --update flag.
-  - `stubbed_provider` fixture: in-process StubProvider registration for tests
-    that exercise harness modules directly (no subprocess).
 """
 from __future__ import annotations
 

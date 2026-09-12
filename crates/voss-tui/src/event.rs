@@ -1,12 +1,8 @@
-//! Protocol event parsing (H2.4).
-//!
-//! Maps an SSE frame (`event:` name + JSON `data`) to a UI-facing [`AppEvent`].
-//! Mirrors `.planning/PROTOCOL.md` §6 / the server's `events.py`. Unknown event
-//! names degrade to [`AppEvent::Other`] (forward-compatible), and missing/odd
-//! fields default rather than erroring — a thin client must never crash on a
-//! server it is slightly out of sync with.
+//! Protocol event parsing
+//! Maps an SSE frame (`event:` name + JSON `data`) to a UI-facing [`AppEvent`]
 
-/// UI-facing event decoded from the wire.
+
+/// UI-facing event decoded from the wire
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppEvent {
     Connected,
@@ -43,12 +39,12 @@ pub enum AppEvent {
     Warning(String),
     SessionIdle,
     Error(String),
-    /// An event type this client does not specifically render.
+    /// An event type this client does not specifically render
     Other(String),
 }
 
 impl AppEvent {
-    /// Decode an SSE frame into an [`AppEvent`]. Never panics.
+    /// Decode an SSE frame into an [`AppEvent`]. Never panics
     pub fn from_wire(event: &str, data: &str) -> AppEvent {
         let v: serde_json::Value = serde_json::from_str(data).unwrap_or(serde_json::Value::Null);
         let s = |k: &str| {

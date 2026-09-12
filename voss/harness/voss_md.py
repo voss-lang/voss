@@ -1,18 +1,6 @@
-"""VOSS.md file-format owner: parse fenced blocks, inject into system context, migrate legacy architecture.md.
-
-D-05: VOSS.md is a single markdown file with human prose interleaved with
-machine fences marked by `<!-- voss:begin id=<id> -->` / `<!-- voss:end id=<id> -->`
-and a `<!-- voss:hash <sha256> -->` integrity header.
-
-D-07: Machine writes refuse when the recorded hash drifts from the on-disk
-body's sha256 (HashMismatch). Drift resolution lives in `voss memory adopt`.
-
-D-08: `read_and_inject(cwd) -> str | None` returns the verbatim bytes of
-cwd/VOSS.md, or None when absent. Absence degrades silently — no log, no
-exception.
-
-M8-01 implements parse / read_and_inject / read_fence_body / write_fence_body /
-machine_fence_path_or_marker + HashMismatch. M8-02 fills `ensure_migrated`.
+"""
+VOSS.md file-format owner: parse fenced blocks, inject into system context, migrate legacy architecture.md
+VOSS.md is a single markdown file with human prose interleaved with
 """
 from __future__ import annotations
 

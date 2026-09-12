@@ -5,15 +5,8 @@ import { filterQuickItems, type QuickOpenItem } from './quickOpen';
 import type { Command, CommandCategory } from './registry';
 
 /**
- * A7-02 Task 1 — Variant B command palette (D-06).
- *
- * One component, two modes:
- * - `quick` (⌘P): saved layouts + recent projects.
- * - `full` (⌘⇧P): all registry commands with chord hints.
- *
- * Centered overlay, 48px input, 32px rows, 0px radius, token-only colors.
- * Esc / click-outside dismiss. Enter executes. ArrowUp/Down navigate.
- * While open, all keystrokes belong to the palette (T-A7-03).
+ * Task 1 — Variant B command palette
+ * One component, two modes
  */
 
 const CATEGORY_GLYPH: Record<CommandCategory, string> = {
@@ -41,7 +34,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
   const [query, setQuery] = createSignal('');
   const [selected, setSelected] = createSignal(0);
 
-  // --- Computed rows ---------------------------------------------------------
+  // Computed rows
 
   type DisplayRow = {
     id: string;
@@ -76,7 +69,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
     }));
   });
 
-  // --- Keyboard & focus ------------------------------------------------------
+  // Keyboard & focus
 
   const execute = (id: string) => {
     props.onExecute(id);
@@ -117,7 +110,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
     setSelected(0);
   };
 
-  // --- Section headers for quick mode ----------------------------------------
+  // Section headers for quick mode
 
   const sectionBreaks = createMemo((): Set<number> => {
     if (props.mode !== 'quick') return new Set();
@@ -133,7 +126,7 @@ export default function CommandPalette(props: CommandPaletteProps) {
     return breaks;
   });
 
-  // --- Placeholder & empty state ---------------------------------------------
+  // Placeholder & empty state
 
   const placeholder = () =>
     props.mode === 'quick'

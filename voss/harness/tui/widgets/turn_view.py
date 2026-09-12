@@ -1,12 +1,6 @@
-"""TranscriptView widget — block transcript (main pane).
-
-TUI redesign spec §3.1/§3.2 (docs/tui-redesign-spec.md, phases R1+R2).
-Replaces the RichLog-based TurnView: every transcript entry is a discrete,
-mutable child widget (UserBlock / AssistantBlock / RoleBlock / LocalBlock*),
-so later phases can update entries in place (tool cards R3). R2 adds live
-markdown streaming (throttled ≤10 Hz) and the ephemeral WorkingIndicator
-(always last child while a turn runs). Auto-scrolls to tail unless the user
-scrolled up; a new user message re-engages follow.
+"""
+TranscriptView widget block transcript (main pane)
+TUI redesign spec .1/.2 (docs/tui-redesign-spec.md, phases R1+R2)
 """
 from __future__ import annotations
 
@@ -183,10 +177,10 @@ class UserBlock(Static):
         return self._plain
 
 
-# Live-stream re-render throttle (spec §3.3): coalesce markdown re-parses to
+# Live-stream re-render throttle (spec .3): coalesce markdown re-parses to
 # ≤10 Hz. Chosen by R2 measurement: Rich Markdown re-render of a 20 KB doc
 # at width 100 is ~40 ms p95 (< 50 ms budget); Textual's Markdown widget
-# `update()` measured ~1.8 s at 20 KB and was rejected.
+# `update` measured ~1.8 s at 20 KB and was rejected
 STREAM_RENDER_INTERVAL_S = 0.1
 
 
@@ -343,10 +337,10 @@ class RoleBlock(Static):
         return self._plain
 
 
-# Trim policy (spec §3.2, R7): above TRIM_THRESHOLD mounted blocks the
+# Trim policy (spec .2, R7): above TRIM_THRESHOLD mounted blocks the
 # oldest blocks are flattened into one static placeholder, keeping the
-# newest TRIM_KEEP — bounds widget count on long sessions (RichLog had
-# `max_lines`; a widget transcript needs an equivalent).
+# newest TRIM_KEEP bounds widget count on long sessions (RichLog had
+# `max_lines`; a widget transcript needs an equivalent)
 TRIM_THRESHOLD = 500
 TRIM_KEEP = 400
 
@@ -397,33 +391,31 @@ class TranscriptView(VerticalScroll):
     def __init__(self, **kw) -> None:
         super().__init__(**kw)
         self._turn_count = 0
-        # R6 nav mode state: index into _nav_blocks(), None = no focus ring.
+        # R6 nav mode state: index into _nav_blocks, None = no focus ring
         self._nav_index: int | None = None
         self._pending_g: bool = False  # `g g` double-tap state machine
         self._streaming: bool = False
         self._stream_block: AssistantBlock | None = None
-        # R2 working indicator (spec §3.6) — ephemeral, always last child
+        # R2 working indicator (spec .6) ephemeral, always last child
         # while active. `_pending_interrupt` is set by app.action_interrupt
         # so the cancellation path's finalize_stream gains the interrupted
-        # footer without a Renderer-protocol signature change.
+        # footer without a Renderer-protocol signature change
         self._working: WorkingIndicator | None = None
         self._pending_interrupt: bool = False
-        # R3 tool cards (spec §3.4): one mutable card per call, keyed by the
-        # harness-minted call_id so the settled event updates in place.
+        # R3 tool cards (spec .4): one mutable card per call, keyed by the
+        # harness-minted call_id so the settled event updates in place
         self._tool_cards: dict[str, ToolCard] = {}
-        # R4 inline agent trees (spec §3.5): one spawn parent card per
-        # parent_id; child progress lines + gather mutate it in place.
+        # R4 inline agent trees (spec .5): one spawn parent card per
+        # parent_id; child progress lines + gather mutate it in place
         self._agent_trees: dict[str, AgentTreeCard] = {}
-        # R7 trim policy (spec §3.2): one placeholder, cumulative count.
+        # R7 trim policy (spec .2): one placeholder, cumulative count
         self._trim_placeholder: TrimPlaceholder | None = None
         self._trimmed_count = 0
 
     def compose(self):
         yield HomeScreen()
 
-    # ------------------------------------------------------------------
     # internal append plumbing + scroll policy
-    # ------------------------------------------------------------------
 
     def _remove_home(self) -> None:
         for home in self.query(HomeScreen):
@@ -442,8 +434,8 @@ class TranscriptView(VerticalScroll):
             widget.styles.margin = (1, 0, 0, 0)
         pinned = force_follow or self.is_vertical_scroll_end
         self._turn_count += 1
-        # WorkingIndicator stays the last child (spec §3.2): while active,
-        # every append mounts BEFORE it.
+        # WorkingIndicator stays the last child (spec .2): while active
+        # every append mounts BEFORE it
         if self._working is not None and self._working in list(self.children):
             try:
                 self.mount(widget, before=self._working)
@@ -494,12 +486,10 @@ class TranscriptView(VerticalScroll):
             self.mount(self._trim_placeholder, before=0)
         self._trim_placeholder.set_count(self._trimmed_count)
 
-    # ------------------------------------------------------------------
-    # block factories (spec §3.2)
-    # ------------------------------------------------------------------
+    # block factories (spec .2)
 
     def add_user(self, body: str) -> None:
-        # Programmatic scroll-to-end on a new user message re-engages follow.
+        # Programmatic scroll-to-end on a new user message re-engages follow
         self._append_block(UserBlock(body), separate=True, force_follow=True)
 
     def add_local_block(self, widget: Widget) -> None:
@@ -526,9 +516,7 @@ class TranscriptView(VerticalScroll):
         except Exception:  # noqa: BLE001 — unmounted (headless tests)
             return False
 
-    # ------------------------------------------------------------------
-    # inline agent trees (spec §3.5, R4)
-    # ------------------------------------------------------------------
+    # inline agent trees (spec .5, R4)
 
     def add_agent_tree(
         self, parent_id: str, agent_name: str, budget_total: int = 0
@@ -560,9 +548,7 @@ class TranscriptView(VerticalScroll):
         if card is not None:
             card.gather(n_results)
 
-    # ------------------------------------------------------------------
-    # working indicator (spec §3.2 / §3.6, R2)
-    # ------------------------------------------------------------------
+    # working indicator (spec .2 / .6, R2)
 
     @property
     def working_active(self) -> bool:
@@ -606,9 +592,7 @@ class TranscriptView(VerticalScroll):
         """
         self._pending_interrupt = True
 
-    # ------------------------------------------------------------------
     # append entry points (TextualRenderer non-stream paths)
-    # ------------------------------------------------------------------
 
     def append_turn(
         self,
@@ -621,12 +605,12 @@ class TranscriptView(VerticalScroll):
     ) -> None:
         # Chat layout: user gets a prompt glyph, everything else is indented
         # under a dim role label. Cost/confidence/timestamp live on the status
-        # line, never inline (keeps the transcript reading like a chat).
+        # line, never inline (keeps the transcript reading like a chat)
         if role == "user":
             self.add_user(body)
             return
         if role == "assistant":
-            # `body` is untrusted (LLM output) — render via plain Text, no markup.
+            # `body` is untrusted (LLM output) render via plain Text, no markup
             self._append_block(
                 AssistantBlock(Text(body, no_wrap=False), plain=body), separate=True
             )
@@ -656,12 +640,10 @@ class TranscriptView(VerticalScroll):
             return
         self._append_block(RoleBlock(role, body, markdown=True), separate=True)
 
-    # ------------------------------------------------------------------
-    # streaming entry points consumed by the iteration loop (T1-05).
-    # R1 interim (spec §8 R1): first delta creates an AssistantBlock;
-    # subsequent deltas update it in place — no per-delta widget growth.
-    # Throttling / live markdown is R2.
-    # ------------------------------------------------------------------
+    # streaming entry points consumed by the iteration loop (T1-05)
+    # R1 interim (spec R1): first delta creates an AssistantBlock
+    # subsequent deltas update it in place no per-delta widget growth
+    # Throttling / live markdown is R2
 
     def stream_delta(self, text: str) -> None:
         """Route one incremental text delta into the live AssistantBlock."""
@@ -711,11 +693,9 @@ class TranscriptView(VerticalScroll):
         self._streaming = False
         self._stream_block = None
 
-    # ------------------------------------------------------------------
-    # nav mode (spec §7.1, R6) — block focus while TranscriptView holds
+    # nav mode (spec .1, R6) block focus while TranscriptView holds
     # real keyboard focus. Keymap rows live in keymap.py under the
-    # "transcript" context tier; they resolve here via on_key.
-    # ------------------------------------------------------------------
+    # "transcript" context tier; they resolve here via on_key
 
     def _nav_blocks(self) -> list[Widget]:
         """Navigable children — skips HomeScreen, WorkingIndicator and the
@@ -800,7 +780,7 @@ class TranscriptView(VerticalScroll):
                 pass
 
     def on_focus(self, event) -> None:
-        # Entering nav mode lands on the newest block.
+        # Entering nav mode lands on the newest block
         if self._nav_index is None:
             blocks = self._nav_blocks()
             if blocks:
@@ -847,7 +827,7 @@ class TranscriptView(VerticalScroll):
                 self._pending_g = True
             return
         if key in ("G", "upper_g"):
-            # Bottom + re-engage auto-follow (scroll_end pins to tail).
+            # Bottom + re-engage auto-follow (scroll_end pins to tail)
             event.prevent_default()
             event.stop()
             blocks = self._nav_blocks()
@@ -857,14 +837,12 @@ class TranscriptView(VerticalScroll):
             return
         char = getattr(event, "character", None)
         if char and char.isprintable():
-            # Any other printable lands in the input (spec §7.1).
+            # Any other printable lands in the input (spec .1)
             event.prevent_default()
             event.stop()
             self._nav_focus_input(forward_char=char)
 
-    # ------------------------------------------------------------------
     # test/introspection helper
-    # ------------------------------------------------------------------
 
     def plain_text(self) -> str:
         """Flatten every mounted block to plain text (tests + copy paths)."""

@@ -1,10 +1,3 @@
-//! PTY master-side streaming reader loop.
-//!
-//! The PTY reader is BLOCKING (`Box<dyn Read + Send>`), so it MUST run on
-//! `spawn_blocking`, never the async executor (A2-RESEARCH Pitfall 3).
-//! Watermark backpressure: a `pause_rx` signal blocks the loop until resumed
-//! (D-02 server-side half).
-
 use std::io::Read;
 use std::sync::Arc;
 
@@ -18,7 +11,6 @@ const CONTEXT_PREFIX: &[u8] = b"\x1b]1337;voss-context=";
 /// Returns `Some((json_bytes, display_bytes))` if the full sequence is present;
 /// `None` passes through the buffer unchanged as display bytes.
 /// Buffer fragmentation: returns `None` silently — next emission has cumulative
-/// state (F3 D-03 / F4 D-26).
 pub(crate) fn extract_voss_osc(data: &[u8], prefix: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
     let start = data.windows(prefix.len()).position(|w| w == prefix)?;
     let json_start = start + prefix.len();
@@ -32,7 +24,6 @@ pub(crate) fn extract_voss_osc(data: &[u8], prefix: &[u8]) -> Option<(Vec<u8>, V
 
 /// Start the blocking read loop for `session_id`. On EOF/err it emits
 /// `PtyEvent::Exit` with the real exit code, reaps the child, and removes the
-/// session from the registry (no zombie — Pitfall 4).
 pub fn start_reader(
     session_id: String,
     mut reader: Box<dyn Read + Send>,
@@ -51,7 +42,7 @@ pub fn start_reader(
                 Ok(0) => break, // EOF — child exited
                 Ok(n) => {
                     let slice = &buf[..n];
-                    // Budget OSC check (F3)
+                    // Budget OSC check
                     if let Some((json_bytes, display_bytes)) =
                         extract_voss_osc(slice, BUDGET_PREFIX)
                     {
@@ -69,7 +60,7 @@ pub fn start_reader(
                         }
                         continue;
                     }
-                    // Context OSC check (F4)
+                    // Context OSC check
                     if let Some((json_bytes, display_bytes)) =
                         extract_voss_osc(slice, CONTEXT_PREFIX)
                     {

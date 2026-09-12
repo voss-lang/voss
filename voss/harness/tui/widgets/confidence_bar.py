@@ -1,8 +1,6 @@
-"""ConfidenceBar widget — locked 16-cell width (W4).
-
-Format: `{bar:10} {value:.2f} ` — 10 bar + 1 space + 4 numeric + 1 trailing = 16.
-Tier class chosen by value; `.accent` only when `is_final=True AND value >= 0.85`
-(UI-SPEC accent allow-list item 6).
+"""
+ConfidenceBar widget locked 16-cell width (W4)
+Format: `{bar:10} {value:.2f} ` 10 bar + 1 space + 4 numeric + 1 trailing = 16
 """
 from __future__ import annotations
 
@@ -24,7 +22,7 @@ class ConfidenceBar(Static):
         filled = round(self.value * 10)
         bar = glyphs.BAR_FILL * filled + glyphs.BAR_EMPTY * (10 - filled)
         numeric = f"{self.value:.2f}"  # exactly 4 chars: d.dd
-        # Tier — UI-SPEC Color Contract thresholds.
+        # Tier Color Contract thresholds
         if self.is_final and self.value >= 0.85:
             klass = "accent"
         elif self.value >= 0.85:
@@ -33,7 +31,7 @@ class ConfidenceBar(Static):
             klass = "signal-warn"
         else:
             klass = "signal-error"
-        # LOCKED WIDTH: 10 bar + 1 space + 4 numeric + 1 trailing = 16 cells (W4).
+        # LOCKED WIDTH: 10 bar + 1 space + 4 numeric + 1 trailing = 16 cells (W4)
         text = Text(f"{bar} {numeric} ")
         text.stylize(klass)
         return text

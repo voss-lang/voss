@@ -16,13 +16,13 @@ const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct ShellRunArgs {
-    /// Shell command. Binary must be on the allowlist.
+    /// Shell command. Binary must be on the allowlist
     pub cmd: String,
 }
 
 pub struct ShellRun {
     pub cwd: PathBuf,
-    /// Timeout in seconds (test seam).
+    /// Timeout in seconds (test seam)
     pub timeout_secs: u64,
 }
 
@@ -59,8 +59,8 @@ impl Tool for ShellRun {
         if let Err(e) = shell_allowed(&args.cmd, &load_allowlist()) {
             return Ok(format!("<denied: {e}>"));
         }
-        // Split into argv and exec directly — no shell. Mirrors the Python
-        // harness which uses `create_subprocess_exec` (not `_shell`).
+        // Split into argv and exec directly no shell. Mirrors the Python
+        // harness which uses `create_subprocess_exec` (not `_shell`)
         let argv = match shlex::split(&args.cmd) {
             Some(v) if !v.is_empty() => v,
             _ => return Ok("<denied: unparseable command>".into()),

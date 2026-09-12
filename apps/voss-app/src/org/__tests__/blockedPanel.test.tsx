@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render } from 'solid-js/web';
 
-// invoke resolves a successful DecisionResult; we assert run_decision is the
-// ONLY write-path call (VADE-09 / one-write-path invariant).
 const invokeMock = vi.fn((cmd: string, _args?: unknown) => {
   if (cmd === 'run_decision') {
     return Promise.resolve({ success: true, stdout: 'approve: permitted', stderr: '', exit_code: 0 });
@@ -15,7 +13,6 @@ import BlockedPanel from '../panels/BlockedPanel';
 import type { RunData } from '../types';
 import nodeChild from './fixtures/node-child.json';
 
-// A blocked card = a node whose derived column is "Blocked" (killed terminal).
 function blockedRunData(): RunData {
   const killed = JSON.parse(JSON.stringify(nodeChild));
   killed.terminal_state.exit_reason = 'killed';
@@ -80,7 +77,6 @@ describe('BlockedPanel — VADE-09', () => {
     await Promise.resolve();
     expect(invokeMock).toHaveBeenCalledWith('run_decision', expect.anything());
     const cmds = invokeMock.mock.calls.map((c) => c[0]);
-    // no filesystem/write command — only run_decision (+ any refresh load_run)
     expect(cmds.every((c) => c === 'run_decision' || c === 'load_run')).toBe(true);
   });
 

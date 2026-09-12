@@ -1,22 +1,7 @@
-"""SwarmStore — server-side single source of truth for swarm runtime state (V25).
-
-Every mutation appends an event to the per-swarm append-only JSONL log
-(`swarm/events.py`); `replay()` rebuilds a Swarm purely from that log (VSWARM-01
-/ VSWARM-11). This module also hosts the pure-Python pieces every other V25 plan
-imports:
-
-- overlap validation (VSWARM-06) — two active tasks may not own the same file
-  unless ordered by `depends_on`;
-- the per-session swarm index (VSWARM-09 headless boundary) — the Rust SQLite
-  column-add is V25-03, a separate cargo concern;
-- the ownership-deny policy builder (consumed by V25-05 / VSWARM-05);
-- the scoped-recall helper (VSWARM-07) — a post-filter wrapper over
-  `MemoryStore.recall`, not a recall signature change.
-
-`SwarmStore` is app-scoped (stored on `app.state`, NOT a module global): module
-globals leak across TestClient instances in pytest (research Anti-Pattern).
 """
-
+SwarmStore server-side single source of truth for swarm runtime state
+Every mutation appends an event to the per-swarm append-only JSONL log
+"""
 from __future__ import annotations
 
 import uuid
@@ -29,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .cognition_schemas import PermissionsConfig
 from .swarm.events import SwarmEventLog
 
-# Task lifecycle states (VSWARM-11 replay timeline).
+# Task lifecycle states (VSWARM-11 replay timeline)
 OPEN = "open"
 ASSIGNED = "assigned"
 CANDIDATE_READY = "candidate_ready"
@@ -37,8 +22,8 @@ DONE = "done"
 _ACTIVE_STATES = {OPEN, ASSIGNED, CANDIDATE_READY}
 
 # Write tools the ownership policy must cover. fs_edit_many is NOT in
-# permissions.WRITE, so its rule is matched by tool-name key directly — list all
-# three so a builder cannot route around the deny via the bulk-edit tool.
+# permissions.WRITE, so its rule is matched by tool-name key directly list all
+# three so a builder cannot route around the deny via the bulk-edit tool
 _WRITE_TOOLS = ("fs_write", "fs_edit", "fs_edit_many")
 
 
@@ -55,27 +40,25 @@ class OwnershipOverlapError(ValueError):
     """Two active tasks declare the same owned file without a depends_on order."""
 
 
-# ---------------------------------------------------------------------------
-# Models — extra="ignore" mirrors the `_Base` convention so a forward-compatible
-# event payload (extra keys from a newer writer) replays without raising.
-# ---------------------------------------------------------------------------
+# Models extra="ignore" mirrors the `_Base` convention so a forward-compatible
+# event payload (extra keys from a newer writer) replays without raising
 class _Base(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
 class Role(_Base):
     name: str
-    # R3 agent axis (SWARM-RECONCILIATION): which executor backs this role.
-    # "voss" = the native in-process run_turn loop (V25 behavior, default →
+    # R3 agent axis (SWARM-RECONCILIATION): which executor backs this role
+    # "voss" = the native in-process run_turn loop ( behavior, default →
     # backward compatible). Any other value names a real CLI spawned in the
-    # member's own git worktree; resolved to an argv by `swarm_agents`.
+    # member's own git worktree; resolved to an argv by `swarm_agents`
     agent: str = "voss"
     # Raw command for agent="custom" (host tokenizes via shlex). Ignored for
-    # catalog agents and the native loop.
+    # catalog agents and the native loop
     command: str = ""
-    # Extra CLI flags appended after the model/cwd flags. Ignored for native.
+    # Extra CLI flags appended after the model/cwd flags. Ignored for native
     args: list[str] = Field(default_factory=list)
-    # Native model id OR the chosen CLI's `--model` flag value.
+    # Native model id OR the chosen CLI's `--model` flag value
     model: str = "default"
     auth_pref: str = "auto"
 
@@ -105,9 +88,7 @@ class Swarm(_Base):
         return None
 
 
-# ---------------------------------------------------------------------------
 # Roster
-# ---------------------------------------------------------------------------
 def default_roster(builders: int = 2) -> list[Role]:
     """Coordinator + N builders + reviewer. NO scout.
 
@@ -121,9 +102,7 @@ def default_roster(builders: int = 2) -> list[Role]:
     return roster
 
 
-# ---------------------------------------------------------------------------
 # Overlap validation (VSWARM-06)
-# ---------------------------------------------------------------------------
 def _ordered_by_dependency(a: Task, b: Task) -> bool:
     return a.id in b.depends_on or b.id in a.depends_on
 
@@ -144,9 +123,7 @@ def validate_no_overlap(new_task: Task, active_tasks: list[Task]) -> None:
             )
 
 
-# ---------------------------------------------------------------------------
-# Ownership policy builder (VSWARM-05 — consumed by V25-05)
-# ---------------------------------------------------------------------------
+# Ownership policy builder (VSWARM-05 consumed by )
 def build_ownership_policy(owned_files: list[str]) -> PermissionsConfig:
     """Synthetic PermissionsConfig denying writes to any non-owned path.
 
@@ -162,17 +139,15 @@ def build_ownership_policy(owned_files: list[str]) -> PermissionsConfig:
             n = _norm(f)
             # The deny check fnmatches the RAW path the agent passes, which may
             # carry a `./` prefix. Allow both the normalized and `./`-prefixed
-            # forms so an owned file is never falsely denied (Pitfall 1). The
-            # blanket "*":"deny" still catches every non-owned path/form.
+            # forms so an owned file is never falsely denied. The
+            # blanket "*":"deny" still catches every non-owned path/form
             tool_rules[n] = "allow"
             tool_rules[f"./{n}"] = "allow"
         rules[tool] = tool_rules
     return PermissionsConfig(rules=rules)
 
 
-# ---------------------------------------------------------------------------
-# Scoped recall (VSWARM-07) — post-filter wrapper, not a recall signature change
-# ---------------------------------------------------------------------------
+# Scoped recall (VSWARM-07) post-filter wrapper, not a recall signature change
 class _Recallable(Protocol):
     def recall(
         self, query: str, *, top_k: int = ..., source: str | None = ...
@@ -209,9 +184,7 @@ def scoped_recall(
     return scoped[:top_k]
 
 
-# ---------------------------------------------------------------------------
 # SwarmStore
-# ---------------------------------------------------------------------------
 class SwarmStore:
     """In-process swarm registry. App-scoped, event-log backed."""
 
@@ -219,10 +192,10 @@ class SwarmStore:
         self.cwd = Path(cwd).resolve()
         self._log = SwarmEventLog(self.cwd)
         self._swarms: dict[str, Swarm] = {}
-        # Session index (VSWARM-09 headless boundary).
+        # Session index (VSWARM-09 headless boundary)
         self._agents: dict[str, dict[str, Any]] = {}
 
-    # -- event envelope ----------------------------------------------------
+    # event envelope
     @staticmethod
     def _event(etype: str, swarm_id: str, actor: str, payload: dict) -> dict:
         return {
@@ -238,7 +211,7 @@ class SwarmStore:
     def _emit(self, etype: str, swarm_id: str, actor: str, payload: dict) -> None:
         self._log.append(swarm_id, self._event(etype, swarm_id, actor, payload))
 
-    # -- mutations ---------------------------------------------------------
+    # mutations
     def create(
         self,
         goal: str,
@@ -250,7 +223,7 @@ class SwarmStore:
         sid = uuid.uuid4().hex[:12]
         # An explicit roster (R3: per-role agent axis) is persisted as-is so the
         # stored/replayed swarm matches what was spawned; otherwise the default
-        # coordinator + N builders + reviewer.
+        # coordinator + N builders + reviewer
         roster = roster if roster is not None else default_roster(builders=builders)
         swarm = Swarm(
             id=sid, goal=goal, cwd=cwd or str(self.cwd), roster=roster, tasks=[]
@@ -357,7 +330,7 @@ class SwarmStore:
             raise KeyError(f"task {task_id!r} not in swarm {swarm_id!r}")
         return task
 
-    # -- session index (VSWARM-09 headless) --------------------------------
+    # session index (VSWARM-09 headless)
     def register_agent(
         self,
         swarm_id: str,
@@ -378,7 +351,7 @@ class SwarmStore:
             if rec["swarm_id"] == swarm_id
         ]
 
-    # -- decision recording (VSWARM-10) ------------------------------------
+    # decision recording (VSWARM-10)
     def record_gate_decision(
         self,
         swarm_id: str,
@@ -417,7 +390,7 @@ class SwarmStore:
         path.chmod(0o600)
         return path
 
-    # -- replay (VSWARM-01 / VSWARM-11) ------------------------------------
+    # replay (VSWARM-01 / VSWARM-11)
     def replay(self, swarm_id: str) -> Swarm:
         """Rebuild a Swarm purely from its event log. State after replay is
         equal to the live in-memory Swarm (same goal, roster, tasks, states)."""
@@ -434,7 +407,7 @@ class SwarmStore:
                     tasks=[],
                 )
             elif swarm is None:
-                # No create seen yet — log is malformed/forged; skip.
+                # No create seen yet log is malformed/forged; skip
                 continue
             elif etype == "swarm.task":
                 swarm.tasks.append(

@@ -1,16 +1,8 @@
-// V24-07 (VADE2-07) — reduced-motion fallback Event Trace list.
-//
-// Driven by the SAME liveGraphPatches() signal that animates the connectors —
-// a display toggle, not a second data source. Always populated; collapsed in
-// motion mode, expanded + pinned under reduced motion so no information is
-// motion-only (the a11y parity bar). Rows: [timestamp] [edge type]
-// [source → destination]. Bounded slice (T-V24-07-D).
-
 import { type Component, For, Show } from 'solid-js';
 import { liveGraphPatches } from '../../org/live/sseClient';
 
 export interface EventTraceListProps {
-  /** Expanded + pinned under reduced motion; collapsed (count only) in motion. */
+/** Expanded + pinned under reduced motion; collapsed (count only) in motion */
   expanded: boolean;
 }
 
@@ -23,7 +15,7 @@ function fmtTime(ts: number): string {
 }
 
 const EventTraceList: Component<EventTraceListProps> = (props) => {
-  // Most-recent first, bounded.
+  // Most-recent first, bounded
   const rows = () => liveGraphPatches().slice(-MAX_ROWS).slice().reverse();
 
   return (

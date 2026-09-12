@@ -1,4 +1,5 @@
-//! `voss-cli sessions` — list saved session records, mtime-descending.
+//! `voss-cli sessions` list saved session records, mtime-descending
+
 
 use crate::session;
 

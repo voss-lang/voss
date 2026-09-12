@@ -137,7 +137,6 @@ func (c *Client) Doctor(ctx context.Context) (DoctorReport, error) {
 
 // PermissionReply answers a pending gate. choice: "a"/"A"/"d"/"y"/"n" (PROTOCOL
 // §7). POST -> 200. stale=true means already resolved (not an error); 401/404
-// surface as *VossError.
 func (c *Client) PermissionReply(ctx context.Context, sessionID, id, choice string) (bool, error) {
 	body := PermissionReply{Id: id, Choice: choice}
 	var out struct {

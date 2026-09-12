@@ -1,12 +1,6 @@
-"""M5 EVAL-05 / D-16: build wheel, install in temp venv, smoke the post-install
+"""
+M5 EVAL-05 / D-16: build wheel, install in temp venv, smoke the post-install
 CLI surface.
-
-These three tests prove the v0.1 wheel installs cleanly into a fresh, isolated
-virtualenv (no `--system-site-packages`, no `--no-deps`) and exposes the
-post-install command surface that M6's npm wrapper will rely on. Marked
-`@pytest.mark.slow` because `python -m build` performs a real wheel build
-(~tens of seconds) and the venv create + pip install are network-dependent
-on first invocation.
 """
 
 from __future__ import annotations

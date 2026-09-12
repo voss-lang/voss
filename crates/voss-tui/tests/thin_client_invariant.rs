@@ -1,10 +1,3 @@
-//! H3.2 — thin-client invariant.
-//!
-//! The Rust client must hold NO credentials and reimplement NO provider/auth
-//! logic: all of that stays server-side (Python). This grep-gate fails the
-//! build if a credential identifier leaks into the client sources, so the
-//! invariant cannot silently regress.
-
 const SOURCES: &[(&str, &str)] = &[
     ("lib.rs", include_str!("../src/lib.rs")),
     ("main.rs", include_str!("../src/main.rs")),

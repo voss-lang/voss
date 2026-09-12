@@ -1,10 +1,6 @@
-"""E2E for `voss chat` REPL via stdin script.
-
+"""
+E2E for `voss chat` REPL via stdin script.
 Drives the REPL by piping `/help\\n/tools\\n/exit\\n` into stdin. Asserts:
-  - banner appears
-  - /help lists known slash commands
-  - /tools renders the tool table
-  - /exit closes the REPL cleanly with exit 0
 """
 from __future__ import annotations
 

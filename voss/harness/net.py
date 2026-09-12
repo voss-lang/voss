@@ -1,13 +1,7 @@
-"""NetSession owns the shared httpx.AsyncClient + per-tool TokenBucket
-registry + telemetry emit wrappers for net.request / net.response
-(T3-05, NET-01).
-
-Lifecycle: __init__ registers self with lifecycle.register_session so
-reap_all() awaits aclose() at interpreter shutdown. The httpx client is
-lazily constructed (mirrors providers.py) so test-import never opens a
-socket.
 """
-
+NetSession owns the shared httpx.AsyncClient + per-tool TokenBucket
+registry + telemetry emit wrappers for net.request / net.response
+"""
 from __future__ import annotations
 
 import math
@@ -65,11 +59,11 @@ class NetSession:
             self._client = None
 
     def acquire(self, tool_name: str) -> tuple[bool, float]:
-        # V1-03 CAP-07: the prior blanket `if "__" in tool_name: return True`
-        # bypass (D-16 / NET-07e) is superseded by capability unification — MCP
+        # CAP-07: the prior blanket `if "__" in tool_name: return True`
+        # bypass ( / NET-07e) is superseded by capability unification MCP
         # namespaced names now follow the same bucket lookup as native tools, so
         # a configured MCP bucket is honored. Unconfigured names still fall
-        # through to no-limit below (unchanged behavior for native + MCP).
+        # through to no-limit below (unchanged behavior for native + MCP)
         bucket = self._buckets.get(tool_name)
         if bucket is None:
             return True, 0.0  # unknown tool — no limit configured

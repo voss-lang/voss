@@ -1,7 +1,6 @@
-"""VBUS-04 `voss bus inbox` cursor semantics — xfail until V15 ships.
-
+"""
+VBUS-04 `voss bus inbox` cursor semantics — xfail until V15 ships.
 Contract: inbox returns messages mentioning the caller since its last read;
-a second call returns nothing (cursor advanced server-side, D-10).
 """
 from __future__ import annotations
 

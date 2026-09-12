@@ -1,14 +1,6 @@
-"""Persisted model preferences for the /models picker: recents + favorites.
-
+"""
+Persisted model preferences for the /models picker: recents + favorites
 Stored as JSON at ~/.config/voss/model_prefs.json (XDG-aware), separate from
-config.toml so the ordered/list shapes stay clean:
-
-    {"recent": [["ollama-cloud", "gemma3:27b"], ...],
-     "favorites": [["opencode", "kimi-k2.5-free"], ...]}
-
-Each item is a [provider_id, model_id] pair (a model id can repeat across
-providers, so the provider scopes it). Recents are most-recent-first, deduped,
-and capped. All writes are best-effort — a failure never breaks the picker.
 """
 from __future__ import annotations
 

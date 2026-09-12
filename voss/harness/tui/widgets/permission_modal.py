@@ -1,13 +1,4 @@
-"""PermissionModal — three-choice permission prompt (M9-05, TUI-07).
-
-UI-SPEC locked copy:
-  Heading: `Permission required`
-  Body:    `Tool {tool_name} wants to {action_verb} {target}.`
-  Buttons: `[a] Allow once · [A] Allow always · [d] Deny · [Esc] Deny`
-
-Plus the scope-expand variant matching permissions._interactive_expand_prompt:
-  [y] yes once · [a] always (this session) · [n] no · [Esc] no.
-"""
+"""Three-choice permission prompt modal."""
 from __future__ import annotations
 
 from typing import Literal

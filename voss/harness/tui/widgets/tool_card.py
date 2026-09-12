@@ -1,22 +1,6 @@
-"""ToolCard widget — one in-place mutable card per tool call (spec §3.4, R3).
-
+"""
+ToolCard widget one in-place mutable card per tool call (spec .4, R3)
 One widget per call, keyed by `call_id` in TranscriptView. Layout: status
-glyph + tool name + arg summary, result metric right-aligned.
-
-    running:   ⠹ fs_edit voss/provider.py                       1.2s
-    ok:        ⏺ fs_edit voss/provider.py                     +12 -48
-               ⎿ ▸ 1 hunk · ctrl+d full diff
-    error:     ⏺ shell_run pytest -x                            exit 1
-               ⎿ ▾ FAILED tests/... (auto-expanded, first 10 lines)
-
-States: running (spinner frames at 2 Hz, dim, live elapsed) → settled
-(`TOOL_OK` in signal-good / signal-error). Output body is collapsed by
-default for ok (expand: click, or `expand()/collapse()/toggle()` for the
-R4 ctrl+o global and R6 nav mode); errors auto-expand the first 10 lines.
-Edit-class tools render an inline mini-diff (up to 3 hunks, built from the
-call args — the harness result string carries only a line-count delta) in
-`$good`/`$error` foreground; `ctrl+d`'s full DiffModal stays on the
-permissions bridge, untouched.
 """
 from __future__ import annotations
 
@@ -38,8 +22,8 @@ ERROR_HEAD_LINES = 10     # error body: auto-expanded head length
 MAX_DIFF_HUNKS = 3        # inline mini-diff hunk cap (spec §3.4)
 HUNK_SIDE_LINES = 4       # per-hunk per-side line cap (full diff = ctrl+d)
 
-# Tool classes for the right-aligned metric (spec §3.4). Derived from the
-# registered toolset in voss/harness/tools.py.
+# Tool classes for the right-aligned metric (spec .4). Derived from the
+# registered toolset in voss/harness/tools.py
 _READ_TOOLS = frozenset({"fs_read", "fs_read_many"})
 _EDIT_TOOLS = frozenset({"fs_edit", "fs_edit_many", "fs_write"})
 _SHELL_TOOLS = frozenset({"shell_run", "shell_run_background"})
@@ -77,7 +61,7 @@ def _metric(
     """
     duration = _fmt_duration(elapsed_s)
     if name in _SHELL_TOOLS:
-        # shell_run results start with `[exit N]` (first line == summary).
+        # shell_run results start with `[exit N]` (first line == summary)
         m = _EXIT_RE.match(output or summary or "")
         if m:
             return f"exit {m.group(1)} · {duration}"
@@ -97,7 +81,7 @@ def _metric(
         added, deleted = _edit_counts(name, args)
         if added is not None:
             return f"+{added} -{deleted}"
-        # fs_edit result: `edited path (+N lines)` — net delta fallback.
+        # fs_edit result: `edited path (+N lines)` net delta fallback
         m = _DELTA_RE.search(summary or "")
         if m:
             return f"{m.group(1)} lines"
@@ -184,9 +168,7 @@ class ToolCard(Widget):
         self._spin_timer = None
         super().__init__(**kw)
 
-    # ------------------------------------------------------------------
     # lifecycle
-    # ------------------------------------------------------------------
 
     def on_mount(self) -> None:
         if self._state != "running":
@@ -242,9 +224,7 @@ class ToolCard(Widget):
     def expanded(self) -> bool:
         return self._expanded
 
-    # ------------------------------------------------------------------
     # expansion API (click now; R4 global ctrl+o + R6 nav mode reuse this)
-    # ------------------------------------------------------------------
 
     def expand(self) -> None:
         if self._has_body():
@@ -264,9 +244,7 @@ class ToolCard(Widget):
     def on_click(self) -> None:
         self.toggle()
 
-    # ------------------------------------------------------------------
     # rendering
-    # ------------------------------------------------------------------
 
     def _has_body(self) -> bool:
         if self._state == "running":

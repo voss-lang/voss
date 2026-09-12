@@ -1,7 +1,6 @@
-"""Tests for the @-mention file finder (OpenCode-leverage port).
-
+"""
+Tests for the @-mention file finder (OpenCode-leverage port).
 Pure ranking/token logic + a pilot-driven open→select→insert flow and the
-dismiss/precedence edges.
 """
 from __future__ import annotations
 

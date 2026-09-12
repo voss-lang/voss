@@ -1,8 +1,6 @@
-"""CACHE-03: LiteLLM's cost_per_token charges for cache_creation_input_tokens.
-
+"""
+CACHE-03: LiteLLM's cost_per_token charges for cache_creation_input_tokens.
 Voss trusts this entirely (D-06). No Voss-owned pricing table. A4: if the
-local LiteLLM pricing table lacks the test model, skip rather than inventing
-fallback pricing in Voss.
 """
 
 import pytest

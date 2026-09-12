@@ -1,20 +1,6 @@
-"""V17 claims engine — advisory pre-edit conflict guards (VBUS-01/02).
-
+"""
+claims engine advisory pre-edit conflict guards (VBUS-01/02)
 Pure overlap algorithms (glob + URI), serverless SQLite storage at
-<cwd>/.voss-cache/claims.sqlite (D-02 locked location), the atomic
-check-and-stake transaction, and the `voss claims` click verbs
-(stake/check/release/extend/list — exit 0 clear, 1 conflict, 2 identity/usage).
-
-Overlap is conservative static pattern-vs-pattern analysis: no filesystem
-reads (D-05). URIs (`card://123`, `port://8080`) overlap on exact match or
-path-prefix at `/` boundaries (D-06). Same-agent self-overlap is never a
-conflict — re-stake is an idempotent refresh (D-04).
-
-Concurrency: WAL + `BEGIN IMMEDIATE` acquires the write lock at transaction
-start, so N processes racing to stake an overlapping pattern get exactly one
-winner. Never use `with conn:` for the stake transaction (deferred BEGIN
-allows a double-grant) and never an in-memory database (per-process
-isolation would make claims invisible across CLI processes).
 """
 from __future__ import annotations
 
@@ -35,9 +21,7 @@ DEFAULT_TTL_SECONDS = 1800
 _GLOB_CHARS = set("*?[{")
 
 
-# ---------------------------------------------------------------------------
-# Overlap engine (pure — no filesystem reads, D-05)
-# ---------------------------------------------------------------------------
+# Overlap engine (pure no filesystem reads, )
 
 
 def _is_uri(pattern: str) -> bool:
@@ -125,9 +109,7 @@ def canonicalize_pattern(pattern: str, cwd: Path) -> str:
     return norm
 
 
-# ---------------------------------------------------------------------------
-# SQLite storage (serverless, concurrent-safe — VBUS-02)
-# ---------------------------------------------------------------------------
+# SQLite storage (serverless, concurrent-safe VBUS-02)
 
 _CLAIMS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS claims (
@@ -142,7 +124,7 @@ CREATE INDEX IF NOT EXISTS idx_claims_agent ON claims (agent_id);
 
 
 def _get_db_path(cwd: Path) -> Path:
-    # D-02: .voss-cache/claims.sqlite — locked deviation from SPEC's .voss/.
+    # voss-cache/claims.sqlite locked deviation from SPEC's.voss/
     return Path(cwd).resolve() / ".voss-cache" / "claims.sqlite"
 
 
@@ -279,9 +261,7 @@ def prune_expired(conn: sqlite3.Connection, now: float | None = None) -> int:
     return cur.rowcount
 
 
-# ---------------------------------------------------------------------------
-# CLI verbs (VBUS-01) — exit contract: 0 clear/success, 1 conflict, 2 usage/identity
-# ---------------------------------------------------------------------------
+# CLI verbs (VBUS-01) exit contract: 0 clear/success, 1 conflict, 2 usage/identity
 
 
 def _resolve_agent_id() -> str:
@@ -314,7 +294,7 @@ def _claim_id_for(agent_id: str, canonical: list[str]) -> str:
 def _advice_for_conflict(
     owner: str, requested: tuple[str, ...], verb_args: list[str]
 ) -> list[str]:
-    # D-07/VBUS-06: first entry is a runnable bus message naming the owner.
+    # /VBUS-06: first entry is a runnable bus message naming the owner
     want = requested[0] if requested else "this scope"
     return [
         f'voss bus send "@{owner} I need {want} — when are you done?"',

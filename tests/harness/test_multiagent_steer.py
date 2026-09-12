@@ -1,24 +1,6 @@
-"""M13 Wave-0 RED scaffold — autonomous-parent course-correction (MAG-05).
-
+"""
+M13 Wave-0 RED scaffold — autonomous-parent course-correction (MAG-05).
 Pins MAG-05 from M13-VALIDATION.md: a scripted parent injects a mid-run
-correction into a still-running child via `subagent_steer`; the child stub
-BRANCHES on injected-guidance presence and emits a different `final` when
-steered. The WITH-correction child output must differ from the
-no-correction control.
-
-Threat: T-M13-mis-steer (steer to wrong/finished child, Tampering) —
-M13-VALIDATION.md §"Security Domain". `ChildRegistry.get(handle)` validates;
-steering a `done` child is a no-op.
-
-RESEARCH Pitfall 2 (cited): a child that decides "done" before the
-`agent.py:830` steer-inbox drain never consumes a pending steer — so the
-child MUST be scripted for ≥2 iterations for the drain to be observably
-hit. The scripts below give the child two iterations on purpose.
-
-Wave-0 discipline: `voss.harness.multiagent` does NOT exist yet; it is
-imported inside the test body, and the class is `xfail(strict=False)` so
-this runs RED-by-design (xfail) — never green, never errored at collection.
-No production code is written here.
 """
 from __future__ import annotations
 

@@ -6,10 +6,8 @@ import ToastStack, {
 } from '../toast';
 
 /**
- * A7-03 Task 3 — toast stack tests.
- *
- * Verifies exact A7-UI-SPEC copy, severity rails, max visible count,
- * and assertive live-region for errors.
+ * toast stack tests
+ * Verifies exact copy, severity rails, max visible count
  */
 
 let dispose: (() => void) | undefined;

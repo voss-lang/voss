@@ -25,9 +25,9 @@ if TYPE_CHECKING:
 
 
 # Single source of truth for the spawn tool name; consumed by the TUI
-# renderer (M9-04) to detect subagent dispatch in show_tool_call without
+# renderer to detect subagent dispatch in show_tool_call without
 # hardcoding the string. Must equal the literal passed to attach_subagent_tool
-# below.
+# below
 SPAWN_TOOL_NAME: str = "subagent_run"
 
 
@@ -36,7 +36,7 @@ class SubagentSpec:
     id: str
     description: str
     role_prompt: str
-    # O2 additions; all optional / defaulted for back-compat.
+    # additions; all optional / defaulted for back-compat
     model: Optional[str] = None
     mode: Optional[Mode] = None
     scope: "TeamRoleScope | None" = None
@@ -89,9 +89,7 @@ def default_subagent_registry() -> SubagentRegistry:
     return registry
 
 
-# ---------------------------------------------------------------------------
-# H5.4 — custom agents from `.voss/agents/*.md` (markdown + YAML frontmatter)
-# ---------------------------------------------------------------------------
+# custom agents from `.voss/agents/*.md` (markdown + YAML frontmatter)
 
 
 def _parse_frontmatter(text: str) -> tuple[dict, str]:
@@ -282,7 +280,7 @@ async def run_subagent(
         return f"<error: unknown subagent {agent_id!r}>"
     # [VTREE-04] Pre-emptive spend guard: refuse to begin a call when the
     # node's envelope is exhausted. Pure read of the node's own envelope with
-    # no lock and no await between check and return — atomic under asyncio.
+    # no lock and no await between check and return atomic under asyncio
     if node is not None and node.envelope["spent"] >= node.envelope["limit"]:
         if not node._finalized:
             finalize_node(
@@ -327,7 +325,7 @@ async def run_subagent(
                     cognition=cognition,
                 )
         # [VTREE-04] Update spent from actual token usage so the pre-emptive
-        # guard is live (not dead code). Negative delta increments spent.
+        # guard is live (not dead code). Negative delta increments spent
         if node and result.run is not None:
             tokens_used = (
                 (result.run.iteration_total_prompt_tokens or 0)
@@ -399,7 +397,7 @@ def attach_subagent_tool(
     cognition: Any = None,
 ) -> None:
     # Resolve the `smol` role once: cheap-subagent chain when configured, else
-    # the parent provider. Network-free unless [harness.roles.smol] is set.
+    # the parent provider. Network-free unless [harness.roles.smol] is set
     from . import roles
 
     try:

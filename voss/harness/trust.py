@@ -1,4 +1,6 @@
-"""Signature-trust verification and pinned-key trust store implementation."""
+"""
+Signature-trust verification and pinned-key trust store implementation
+"""
 from __future__ import annotations
 
 import base64
@@ -95,7 +97,7 @@ def pin_key(identity: str, pub_key_b64: str, *, tofu: bool = False) -> Path:
     # Pre-create the file with strict perms BEFORE portalocker opens it, so
     # the file never exists under default-umask perms (typically 0644). Then
     # chmod again inside the lock as belt-and-braces in case the file
-    # already existed with looser perms.
+    # already existed with looser perms
     if not path.exists():
         fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
         os.close(fd)
@@ -126,7 +128,7 @@ def pin_key(identity: str, pub_key_b64: str, *, tofu: bool = False) -> Path:
         fh.write(text)
         fh.flush()
         # chmod inside the lock so no other process can read under
-        # looser perms in the window between unlock and chmod.
+        # looser perms in the window between unlock and chmod
         path.chmod(0o600)
 
     return path

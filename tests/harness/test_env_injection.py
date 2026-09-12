@@ -1,10 +1,6 @@
-"""VBUS-03 agent identity — automatable CLI side.
-
+"""
+VBUS-03 agent identity — automatable CLI side.
 GREEN as of V17-03 (claims verbs) + V17-04 (spawn injection). The full
-end-to-end (live Tauri pane env contains VOSS_AGENT_ID) is manual-only —
-see V17 VALIDATION. Automatable portion: claims verbs resolve identity
-from VOSS_AGENT_ID (recorded as owner), and a bare invocation without the
-var exits 2 with an actionable message.
 """
 from __future__ import annotations
 

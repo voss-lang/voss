@@ -1,9 +1,6 @@
-"""Editable scope for `voss edit` sessions.
-
+"""
+Editable scope for `voss edit` sessions
 Reads are unrestricted under cwd (the existing path jail covers that). The
-scope only restricts WRITES. Per D-02, default scope = <path> + sibling test
-mirror. Per D-04, out-of-scope writes prompt; "always" expands the scope for
-the rest of the session only — never persisted to PermissionStore.
 """
 from __future__ import annotations
 
@@ -20,12 +17,12 @@ def _candidate_test_siblings(p: Path) -> list[Path]:
     suffix = p.suffix
     parent = p.parent
     candidates: list[Path] = []
-    # Adjacent siblings: test_foo.py, foo_test.py.
+    # Adjacent siblings: test_foo.py, foo_test.py
     candidates.append(parent / f"test_{name}{suffix}")
     candidates.append(parent / f"{name}_test{suffix}")
     # Walk parents looking for a `tests/<rel>/` mirror. Also try stripping
     # common source-root prefixes (`src/`, `lib/`) from the relative path so
-    # `src/foo/bar.py` maps to `tests/foo/test_bar.py`.
+    # `src/foo/bar.py` maps to `tests/foo/test_bar.py`
     for up in range(1, 6):
         anchor = parent
         for _ in range(up):

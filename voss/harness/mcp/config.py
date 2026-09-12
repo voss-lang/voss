@@ -1,4 +1,6 @@
-"""Schema and loader for .voss/mcp.yml."""
+"""
+Schema and loader for.voss/mcp.yml
+"""
 from __future__ import annotations
 
 import os

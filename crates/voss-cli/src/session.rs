@@ -1,11 +1,6 @@
 //! Persisted session snapshots. Wire-format-compatible with
-//! `voss/harness/session.py`.
-//!
-//! Storage path: `$XDG_STATE_HOME/voss/sessions/<id>.json` (default
-//! `~/.local/state/voss/sessions/`).
-//!
-//! IMPORTANT: provider creds (access tokens, refresh tokens, API keys) are
-//! NEVER serialized into a session record.
+//! `voss/harness/session.py`
+
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -38,8 +33,8 @@ pub fn session_path(id: &str) -> PathBuf {
     state_dir().join(format!("{id}.json"))
 }
 
-/// Mirrors `voss/harness/session.py::SessionRecord` field-for-field.
-/// JSON key order: id, name, cwd, model, started_at, updated_at, total_cost_usd, turns.
+/// Mirrors `voss/harness/session.py::SessionRecord` field-for-field
+/// JSON key order: id, name, cwd, model, started_at, updated_at, total_cost_usd, turns
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct SessionRecord {
     pub id: String,
@@ -47,8 +42,7 @@ pub struct SessionRecord {
     pub cwd: String,
     pub model: String,
     /// ISO-8601 UTC, seconds precision. Matches Python
-    /// `datetime.now(timezone.utc).isoformat(timespec="seconds")`,
-    /// e.g. `"2026-05-09T15:30:00+00:00"`.
+    /// `datetime.now(timezone.utc).isoformat(timespec="seconds")`
     pub started_at: String,
     pub updated_at: String,
     #[serde(default)]
@@ -61,14 +55,14 @@ pub struct SessionRecord {
 pub struct Turn {
     pub role: String,
     pub content: String,
-    /// Preserves any unknown fields a Python session may carry.
+    /// Preserves any unknown fields a Python session may carry
     #[serde(flatten)]
     pub extra: BTreeMap<String, serde_json::Value>,
 }
 
 impl SessionRecord {
     pub fn new(cwd: &Path, model: &str, name: Option<&str>) -> Self {
-        // 12-hex-char id, matching Python `uuid.uuid4().hex[:12]`.
+        // 12-hex-char id, matching Python `uuid.uuid4.hex[:12]`
         let full = uuid::Uuid::new_v4().simple().to_string();
         let id: String = full.chars().take(12).collect();
         let now = iso_now();
@@ -108,8 +102,8 @@ impl SessionRecord {
     }
 }
 
-/// Format current time as Python `isoformat(timespec="seconds")` does:
-/// `YYYY-MM-DDTHH:MM:SS+00:00`.
+/// Format current time as Python `isoformat(timespec="seconds")` does
+/// `YYYY-MM-DDTHH:MM:SS+00:00`
 pub fn iso_now() -> String {
     let now: DateTime<Utc> = Utc::now();
     now.format("%Y-%m-%dT%H:%M:%S+00:00").to_string()
@@ -138,7 +132,7 @@ fn set_owner_only(_path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Resolve by id-prefix OR exact name. Errors on ambiguity / not-found.
+/// Resolve by id-prefix OR exact name. Errors on ambiguity / not-found
 pub fn load(id_or_name: &str) -> std::io::Result<SessionRecord> {
     let mut matches: Vec<SessionRecord> = Vec::new();
     let mut dirs = cwd_session_dirs();

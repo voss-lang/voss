@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-// VCKP-01: pure adapter `buildModel(snapshot, liveAgents, budgets, bridge)` that
+// 01: pure adapter `buildModel(snapshot, liveAgents, budgets, bridge)` that
 // uses cardsFromRunData as the spine and overlays live-plane fields by the
 // id-bridge. buildModel is pure (no Solid/produce), so it is fixture-testable
 // like boardDerive.ts — imported eagerly here now that ../adapters exists.
@@ -9,7 +9,6 @@ import { buildModel, type AgentEntry, type CardBridge } from '../adapters';
 import type { BudgetEntry } from '../../../pane/budgetRegistry';
 import type { RunData } from '../../types';
 
-// --- Golden fixtures ---------------------------------------------------------
 
 // A minimal RunData whose single non-root node has id "C1" (snapshot card id IS
 // the node id — boardDerive uses n.id). cardsFromRunData yields one card: C1.
@@ -125,7 +124,7 @@ describe('adapters.buildModel — VCKP-01', () => {
     expect(card.liveStatus).toBe('running');
   });
 
-  // --- Behavior 2: card with no bound pane -----------------------------------
+  // Behavior 2: card with no bound pane
 
   it('a card with no bound pane gets no paneId/liveBudget but keeps snapshot fields + sessionNodeId === own id', () => {
     const noBind: CardBridge = { paneIdForCard: () => undefined };
@@ -142,7 +141,7 @@ describe('adapters.buildModel — VCKP-01', () => {
     expect(card.sessionNodeId).toBe('C1');
   });
 
-  // --- Behavior 3: null tolerance (mirror boardDerive) -----------------------
+  // Behavior 3: null tolerance (mirror boardDerive)
 
   it('buildModel(null, [], {}, bridge) returns an empty-cards Run without throwing', () => {
     const run = buildModel(null, [], {}, BRIDGE);

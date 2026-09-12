@@ -1,14 +1,3 @@
-// V14-12 gap-fix verification — the two design-contract violations found at
-// the phase-final checkpoint:
-//
-//   1. D-03: RunCommandBar must be an always-on strip in BOTH Live Work and
-//      Run Review (it was mounted only inside CockpitShell → Live Work looked
-//      pre-V14). Now mounted at App level ABOVE the grid/cockpit display swap;
-//      CockpitShell renders NO bar (no double strip).
-//   2. VCKP-12: AdoptAgentModal had no UI entry point. Now reachable via the
-//      sidebar agent context menu ("Manage with Voss"), and the adoption
-//      registry drives the post-spawn budget-stop.
-
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -95,7 +84,7 @@ describe('VCKP-12 — adopt entry point (sidebar agent context menu)', () => {
 describe('D-03 — RunCommandBar is an always-on strip in BOTH modes', () => {
   it('the App-level mount keeps ONE bar visible across the Live↔Review display swap', () => {
     // Verbatim replication of the App work-surface column: the strip sits
-    // ABOVE the display-swapped grid container, OUTSIDE the swap.
+    // ABOVE the display-swapped grid container, OUTSIDE the swap
     const [orgViewOpen, setOrgViewOpen] = createSignal(false);
     mount(() => (
       <div style={{ display: 'flex', 'flex-direction': 'column' }}>
@@ -105,16 +94,16 @@ describe('D-03 — RunCommandBar is an always-on strip in BOTH modes', () => {
       </div>
     ));
 
-    // Live Work: bar present.
+    // Live Work: bar present
     expect(document.querySelectorAll('.run-command-bar')).toHaveLength(1);
-    // Review: bar STILL present, still exactly one.
+    // Review: bar STILL present, still exactly one
     setOrgViewOpen(true);
     expect(document.querySelectorAll('.run-command-bar')).toHaveLength(1);
-    // Back to Live: unchanged.
+    // Back to Live: unchanged
     setOrgViewOpen(false);
     expect(document.querySelectorAll('.run-command-bar')).toHaveLength(1);
 
-    // D-10 copy rule: internal-mechanics vocabulary never surfaces in the bar.
+    // copy rule: internal-mechanics vocabulary never surfaces in the bar
     const barCopy = document.querySelector('.run-command-bar')!.textContent ?? '';
     expect(barCopy).not.toMatch(/voss[- ]native/i);
   });

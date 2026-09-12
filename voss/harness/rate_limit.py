@@ -1,14 +1,7 @@
-"""Per-tool token-bucket rate limiting. Pure stdlib. T3-04 / NET-07.
-
-Tests monkeypatch ``voss.harness.rate_limit.time.monotonic`` for
-deterministic clocks (RESEARCH Pitfall 7). NetSession (T3-05) owns the
-per-tool registry; this module owns the primitive only.
-
-Acquire is fail-fast: on a missed token we return (False, retry_after_s)
-and never sleep. The caller (NetSession in T3-05) surfaces a
-``<error: rate limit: retry after Ns>`` envelope to the agent loop.
 """
-
+Per-tool token-bucket rate limiting. Pure stdlib. T3-04 / NET-07
+Tests monkeypatch ``voss.harness.rate_limit.time.monotonic`` for
+"""
 from __future__ import annotations
 
 import time

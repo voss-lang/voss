@@ -42,7 +42,6 @@ interface AgentEntry {
 
 const LOGIN_SHELLS = new Set(['zsh', 'bash', 'sh', 'fish', 'dash', 'tcsh', 'csh', 'ksh']);
 
-/** A terminal pane is idle (reusable for a run) when only a login shell is in it. */
 export function isIdleShellProc(proc: string | undefined): boolean {
   if (!proc) return true;
   const base = (proc.split('/').pop() ?? proc).replace(/^-/, '').toLowerCase();
@@ -149,7 +148,7 @@ function sessionPaneIds(session: SessionFile): string[] {
 }
 
 export interface WorkspaceHostDeps {
-  /** Fires whenever a project path is opened for a workspace (keymap watch). */
+/** Fires whenever a project path is opened for a workspace (keymap watch) */
   onProjectOpened: (path: string) => void;
   onCloseBlocked: () => void;
 }

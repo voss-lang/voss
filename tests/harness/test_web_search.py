@@ -1,8 +1,6 @@
-"""NET-02 web_search acceptance tests.
-
+"""
+NET-02 web_search acceptance tests.
 These tests target the planned Brave-backed NetSession.search API. They
-intentionally defer implementation-specific imports until runtime so this
-file still collects while Task 1 is being integrated by another worker.
 """
 
 from __future__ import annotations

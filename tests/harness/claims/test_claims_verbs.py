@@ -1,8 +1,6 @@
-"""VBUS-01 two-agent stake/check/release acceptance sequence.
-
+"""
+VBUS-01 two-agent stake/check/release acceptance sequence.
 GREEN as of V17-03 (claims_group shipped). Serverless: storage at
-<cwd>/.voss-cache/claims.sqlite (D-02), identity from VOSS_AGENT_ID
-(exit 2 when absent).
 """
 from __future__ import annotations
 

@@ -1,19 +1,3 @@
-//! A6 session persistence — private per-workspace session files, locked writes,
-//! fail-safe loads, and copy-only migration from legacy repo-local state.
-//!
-//! Follows the `layouts.rs` pattern: a versioned wrapper around `GridState`
-//! with typed errors whose Display strings surface through Tauri verbatim.
-//! Corrupt, missing, or unsupported session files fail closed to `Ok(None)`
-//! so app startup is never blocked (D-11).
-//!
-//! Two save tiers share the same file and schema (D-04/D-06):
-//! - **Structural auto-save** writes tree + cwds + shells + focus + preset
-//!   with `scrollback: null` per pane.
-//! - **Quit full-save** writes the same shape with scrollback arrays populated.
-//!
-//! Every write is locked exclusively via `fs2::FileExt` (PER-06) and uses
-//! a tmp-file rename so readers never see a partial write.
-
 use std::path::{Path, PathBuf};
 
 use fs2::FileExt;
@@ -28,8 +12,6 @@ pub const CURRENT_SESSION_VERSION: u32 = 2;
 /// webview migrates to canvas nodes and re-saves as v2.
 pub const MIN_SESSION_VERSION: u32 = 1;
 
-/// Persisted session file. Wraps `GridState` with per-pane scrollback,
-/// the active preset, and the project-less flag (D-12).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFile {
@@ -43,8 +25,6 @@ pub struct SessionFile {
     pub project_less_accepted: bool,
 }
 
-/// Per-pane scrollback payload. `scrollback: None` means tree-only auto-save
-/// (D-04); `Some(lines)` means full quit save (D-01).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionPane {
@@ -98,7 +78,6 @@ pub enum SessionError {
     LoadFailed,
 }
 
-// --- Path resolution ---------------------------------------------------------
 
 /// `~/.config/voss-app/sessions/<workspace_id>.json`.
 pub fn session_path(workspace_id: &str) -> PathBuf {
@@ -125,7 +104,6 @@ pub fn global_session_path() -> PathBuf {
     })
 }
 
-/// `~/.config/voss-app/sessions/<workspace_id>.json` (D-04 project-less workspaces).
 pub fn project_less_session_path(workspace_id: &str) -> PathBuf {
     session_path(workspace_id)
 }
@@ -152,7 +130,6 @@ fn config_voss_app_dir() -> PathBuf {
         .join("voss-app")
 }
 
-// --- Save / Load -------------------------------------------------------------
 
 /// Save a workspace session to private app data.
 pub fn save_session(workspace_id: &str, session: &SessionFile) -> Result<(), SessionError> {
@@ -244,7 +221,6 @@ fn is_filename_safe_workspace_id(id: &str) -> bool {
     !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
-// --- Internal helpers --------------------------------------------------------
 
 /// Locked write: create parent dir → open lock file → lock exclusively →
 /// write tmp → rename over destination. Lock released on drop.
@@ -325,7 +301,6 @@ fn parse_session(raw: &str) -> Result<SessionFile, &'static str> {
     }
 }
 
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 thread_local! {
@@ -397,7 +372,6 @@ mod tests {
         dir
     }
 
-    // --- Task 1: schema + serde -------------------------------------------
 
     #[test]
     fn session_file_new_sets_current_version() {
@@ -483,7 +457,6 @@ mod tests {
         );
     }
 
-    // --- Task 2: file I/O ------------------------------------------------
 
     #[test]
     fn session_path_resolves_under_private_app_data() {
@@ -609,7 +582,6 @@ mod tests {
         assert!(session_path("ws-1").exists());
     }
 
-    // --- Project-less per-workspace sessions (A8 D-04) ---------------------
 
     #[test]
     fn project_less_session_path_resolves_under_config_sessions() {

@@ -1,10 +1,6 @@
-"""R6 — Home screen data rows + transcript nav mode + queued input + paste chip.
-
+"""
+R6 — Home screen data rows + transcript nav mode + queued input + paste chip.
 tui-redesign-spec §5.4 (cwd/model/resume rows), §7.1 (nav mode), §7.3
-(queued input), §5.5 (paste chip). Acceptance: fresh launch shows the
-resume row when a prior session exists and omits it otherwise; nav mode is
-reachable only when idle; the queue dispatches FIFO after finalize and
-clears on interrupt.
 """
 from __future__ import annotations
 

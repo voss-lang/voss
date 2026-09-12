@@ -1,10 +1,3 @@
-/**
- * A8-03 Task 3 — workspace keyboard shortcuts (UXP-03).
- *
- * Ctrl+1..9, Ctrl+Tab, Ctrl+Shift+Tab. Mac uses Control (not Cmd) so
- * Cmd+1..9 pane focus stays on the A7 registry / grid keymap path.
- */
-
 export type WorkspaceShortcutAction =
   | 'focus1'
   | 'focus2'
@@ -30,10 +23,6 @@ const FOCUS_ACTIONS: readonly WorkspaceShortcutAction[] = [
   'focus9',
 ];
 
-/**
- * Parse a workspace shortcut from a keydown event.
- * Returns null when the event is not a workspace chord (including Cmd+1..9).
- */
 export function parseWorkspaceShortcut(
   e: KeyboardEvent,
 ): WorkspaceShortcutAction | null {
@@ -50,7 +39,6 @@ export function parseWorkspaceShortcut(
   return null;
 }
 
-/** Zero-based workspace index for a focus action (focus1 → 0). */
 export function workspaceIndexForFocusAction(
   action: WorkspaceShortcutAction,
 ): number | null {

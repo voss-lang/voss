@@ -1,4 +1,6 @@
-"""Fetch skill bundles from local path, git URL, GitHub shorthand, or archive."""
+"""
+Fetch skill bundles from local path, git URL, GitHub shorthand, or archive
+"""
 from __future__ import annotations
 
 import re
@@ -38,7 +40,7 @@ def fetch_bundle(source: str, staging_dir: Path) -> Path:
         url = f"https://github.com/{source}.git"
         return _git_clone(url, staging_dir)
 
-    # 3. Git URL (HTTPS only — reject git:// and http://)
+    # 3. Git URL (HTTPS only reject git:// and http://)
     if source.startswith(("git://", "http://")):
         raise ValueError(
             f"insecure transport rejected (HTTPS required): {source!r}"

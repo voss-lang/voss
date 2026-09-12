@@ -1,14 +1,6 @@
-"""V18 VOPT-07: M5 quality-preservation eval gate.
-
+"""
+V18 VOPT-07: M5 quality-preservation eval gate.
 Token metric note: runs.jsonl rows carry an additive `input_tokens` field
-summed from per-iteration prompt_tokens, so the mean input-token half of
-VOPT-07 is measured from a real figure.
-
-Biting proof note (RESEARCH Assumption A9, encoded in V18-05-PLAN Task 2):
-the hermetic stub golden suite stays below recent_full_k iterations, so
-even an over-aggressive profile (recent_full_k=1) cannot regress it.
-The biting tests assert the rejection clauses directly against synthesized
-on/off pairs so the gate cannot pass on a failed or no-savings run.
 """
 from __future__ import annotations
 

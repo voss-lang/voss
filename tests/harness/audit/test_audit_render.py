@@ -1,11 +1,6 @@
-"""V9 RED scaffolds for the audit renderers (VAUD-08).
-
+"""
+V9 RED scaffolds for the audit renderers (VAUD-08).
 Pins ``voss.harness.audit.render.render_text/render_markdown/render_json``.
-Expected RED until V9-04 lands. Uses tmp_path; never writes to the real
-``.voss/`` directory. No xfail masking.
-
-Note: ``render_json`` round-trips tuples as JSON lists (dataclasses.asdict
-coerces tuple -> list). Round-trip assertions check for lists, not tuples.
 """
 from __future__ import annotations
 

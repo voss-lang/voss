@@ -1,8 +1,6 @@
-"""VREV-03/04/07 RED scaffold: two-source (A+B) Done gate + B-block + slot back-compat.
-
+"""
+VREV-03/04/07 RED scaffold: two-source (A+B) Done gate + B-block + slot back-compat.
 RED until V6 adds reviewer_a/reviewer_b slots to Board, the a_verification_passes
-and b_passes gate predicates, and the terminal B-block routing. These tests fail
-at runtime (missing slots / gate behavior), NOT at collection.
 """
 
 from __future__ import annotations

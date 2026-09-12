@@ -1,7 +1,6 @@
-"""Dump the parameter JSON schemas for each Python tool descriptor.
-
+"""
+Dump the parameter JSON schemas for each Python tool descriptor.
 Used by the Rust tool-schema parity gate
-(`crates/voss-tools/tests/schema_parity.rs`).
 """
 
 from __future__ import annotations

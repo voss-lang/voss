@@ -2,11 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { normalizeChord, normalizePrefixKey, formatChord } from '../chords';
 
 /**
- * A7-01 Task 1 — chord normalization tests.
- *
- * Every A3/A4 chord must round-trip through normalizeChord so the
- * registry dispatch can replace the old switch-based keymap. Unmatched
- * events must return null — PTY pass-through is never broken.
+ * chord normalization tests
+ * Every / chord must round-trip through normalizeChord so the
  */
 
 function key(init: KeyboardEventInit): KeyboardEvent {

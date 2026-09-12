@@ -1,17 +1,6 @@
-"""T2-06 / PAR-05: partition scheduler speedup gate.
-
+"""
+T2-06 / PAR-05: partition scheduler speedup gate.
 Self-contained, deterministic benchmark proving the T2-03 partition
-scheduler achieves ≥40% wall-clock drop on a 6-step read batch vs.
-serial baseline. Uses STUB tools with asyncio.sleep (no live disk or
-network — SPEC PAR-05 line 62) so timing stays stable across CI.
-
-Two acceptance tests:
-1. test_parallel_read_speedup_default_cap — cap=8 vs cap=1, ratio ≤ 0.6
-2. test_parallel_read_speedup_cap_1_sanity — cap=1 wall-clock ≥ 250ms
-   (forced-serial proof; safety net for any parallelism leak regression)
-
-Tests do NOT use a recorder; scheduler timing is isolated from recorder
-overhead.
 """
 from __future__ import annotations
 

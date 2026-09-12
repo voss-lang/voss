@@ -1,9 +1,7 @@
 """
-Regex fallback for code_search when ast-grep is unavailable (M10-03 Task 2).
-
-Searches only files present in the current index.db, with strict path jailing.
+Regex fallback for code_search when ast-grep is unavailable
+Searches only files present in the current index.db, with strict path jailing
 """
-
 from __future__ import annotations
 
 import re
@@ -35,8 +33,8 @@ async def search(
     # Get list of files from index (we reuse summarize for now; later we can add a direct file list)
     try:
         summary = index_summarize(root)
-        # For simplicity in M10-03 we walk from index knowledge via a crude approach.
-        # Better: expose a list_files from index.py. For now we do a safe walk.
+        # For simplicity in we walk from index knowledge via a crude approach
+        # Better: expose a list_files from index.py. For now we do a safe walk
     except Exception:
         summary = None
 

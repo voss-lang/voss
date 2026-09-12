@@ -8,9 +8,6 @@ import (
 
 // allEventTypes is the authoritative 21-member set of AgentEvent `type` strings
 // from voss/harness/server/events.py. Decode() must dispatch every one to its
-// typed Go value, and any other value to ErrUnknownEventType. Note:
-// principles_overflow is in events.py but NOT in PROTOCOL.md (RESEARCH
-// Pitfall 4) — it MUST be covered.
 var allEventTypes = []string{
 	"server.connected",
 	"session.idle",
@@ -202,7 +199,6 @@ func decodeTable() []decodeCase {
 
 // TestDecodeAllMembers asserts Decode() turns an EventEnvelope for each of the
 // 21 type strings into the matching typed Go struct with fields populated, with
-// no entry skipped and eventType() round-tripping the discriminator.
 func TestDecodeAllMembers(t *testing.T) {
 	table := decodeTable()
 	if len(table) != 21 {
@@ -238,7 +234,6 @@ func TestDecodeAllMembers(t *testing.T) {
 
 // TestDecodeUnknownType asserts an unrecognized `type` yields a typed
 // ErrUnknownEventType (matchable via errors.As) carrying the raw type, never a
-// nil error with a nil event.
 func TestDecodeUnknownType(t *testing.T) {
 	ev, err := Decode(envFromEvent(t, `{"v":1,"type":"future.event.v2"}`))
 	if ev != nil {

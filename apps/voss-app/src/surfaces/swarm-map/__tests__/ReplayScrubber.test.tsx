@@ -1,8 +1,3 @@
-// V24-07 (VADE2-07) — replay scrubber drives the graph state. The range value
-// reflects the step signal; moving it changes the projected frame
-// (computeBoardAtStep) to the corresponding step. Signal-drive render mirror of
-// liveReviewToggle.test.tsx + the ReplayPanel step pattern.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { fireEvent } from '@testing-library/dom';
@@ -39,7 +34,7 @@ function node(
 }
 
 // Completed run: card 'a' moves Backlog→InProgress (step 0) then InProgress→Done
-// (step 1), so the Done count changes between steps.
+// (step 1), so the Done count changes between steps
 function completedRun(): RunData {
   return {
     run_id: 'r',

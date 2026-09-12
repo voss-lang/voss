@@ -2,10 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { scoreCommand, rankCommandItems } from '../fuzzy';
 
 /**
- * A7-01 Task 1 — fuzzy scoring tests.
- *
- * Verifies case-insensitive substring matching, recency boost,
- * ranking order, and edge cases.
+ * fuzzy scoring tests
+ * Verifies case-insensitive substring matching, recency boost
  */
 
 describe('scoreCommand', () => {

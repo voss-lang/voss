@@ -1,8 +1,6 @@
 /**
- * A7-02 Task 1 — quick-open item builders for ⌘P palette mode (D-05).
- *
+ * Task 1 — quick-open item builders for ⌘P palette mode
  * Converts saved layout names and recent project paths into palette rows
- * with `Layouts` and `Recent Projects` sections. No Tauri or Solid.
  */
 
 export interface QuickOpenItem {
@@ -19,7 +17,7 @@ export interface DirEntryLike {
   children?: DirEntryLike[];
 }
 
-/** Workspace-relative file paths from a `list_dir` result, depth first. */
+/** Workspace-relative file paths from a `list_dir` result, depth first */
 export function flattenFiles(entries: readonly DirEntryLike[], prefix = ''): string[] {
   const out: string[] = [];
   for (const e of entries) {
@@ -66,7 +64,7 @@ export function buildQuickOpenItems(
   return items;
 }
 
-/** Simple case-insensitive filter for quick-open items. */
+/** Simple case-insensitive filter for quick-open items */
 export function filterQuickItems(
   items: readonly QuickOpenItem[],
   query: string,

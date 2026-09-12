@@ -1,14 +1,3 @@
-//! A3 binary-split grid mirror — the in-memory Rust reflection of the Solid
-//! source-of-truth tree (GRD-08). NO disk I/O in A3: this is memory-only;
-//! A4 adds `name`, A6 serializes the whole struct to `session.json`.
-//!
-//! serde uses `rename_all = "camelCase"` on every struct/enum that carries
-//! multi-word or TS-aligned keys so the JSON round-trips the `tree.ts` field
-//! names exactly (`focusedId`, `kind`, `orientation`, `ratio`, `left`,
-//! `right`, `id`, `cwd`, `shell`, `index`). `Orientation` is intentionally
-//! NOT renamed: its variants must serialize as the literal `"H"` / `"V"` the
-//! TypeScript model uses.
-
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -29,8 +18,7 @@ pub struct SplitNode {
     pub right: Box<TreeNode>,
 }
 
-/// Not `rename_all`'d — variants serialize as the literal `"H"` / `"V"`
-/// matching the TypeScript `orientation` union.
+// Variants serialize as literal "H" / "V" for TypeScript compatibility.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Orientation {
     H,
@@ -53,9 +41,6 @@ pub struct GridState {
     pub focused_id: String,
 }
 
-/// Single default pane — initializes the managed mirror before the webview's
-/// first `sync_grid` (overwritten on the first structural change). In-memory
-/// only; no disk seed (GRD-08).
 impl Default for GridState {
     fn default() -> Self {
         GridState {
@@ -70,11 +55,6 @@ impl Default for GridState {
     }
 }
 
-/// Plain mirror mutators — the cross-crate seam. `tauri::generate_handler!`
-/// can only resolve the command helper macros generated in the SAME crate,
-/// so the app crate registers its own thin `#[tauri::command]` wrappers
-/// (src-tauri/src/lib.rs) that delegate here (same pattern A2-05 used for
-/// PTY). Pure in-memory, no filesystem (GRD-08).
 pub fn overwrite(slot: &Mutex<GridState>, new_state: GridState) -> Result<(), String> {
     let mut guard = slot
         .lock()
@@ -83,7 +63,6 @@ pub fn overwrite(slot: &Mutex<GridState>, new_state: GridState) -> Result<(), St
     Ok(())
 }
 
-/// Clone the in-memory mirror for read-back (parity testing only — no disk).
 pub fn snapshot(slot: &Mutex<GridState>) -> Result<GridState, String> {
     let guard = slot
         .lock()
@@ -91,8 +70,6 @@ pub fn snapshot(slot: &Mutex<GridState>) -> Result<GridState, String> {
     Ok(guard.clone())
 }
 
-/// Overwrite the in-memory grid mirror with the webview's latest tree
-/// (GRD-08). In-memory ONLY — no filesystem access.
 #[tauri::command]
 pub fn sync_grid(
     state: tauri::State<'_, Mutex<GridState>>,
@@ -101,8 +78,6 @@ pub fn sync_grid(
     overwrite(state.inner(), new_state)
 }
 
-/// Read-back of the in-memory mirror for Solid↔Rust parity assertions
-/// (GRD-08). In-memory ONLY — no filesystem access.
 #[tauri::command]
 pub fn get_grid(state: tauri::State<'_, Mutex<GridState>>) -> Result<GridState, String> {
     snapshot(state.inner())
@@ -132,7 +107,6 @@ mod tests {
 
     #[test]
     fn grid_state_2x2_round_trips_through_serde_json() {
-        // V[ H[a,b], H[c,d] ]
         let original = GridState {
             root: split(
                 Orientation::V,
@@ -153,7 +127,6 @@ mod tests {
             focused_id: "x".into(),
         };
         let json = serde_json::to_string(&s).unwrap();
-        // camelCase + literal kind/orientation values matching tree.ts
         assert!(json.contains("\"focusedId\""), "focusedId key: {json}");
         assert!(json.contains("\"kind\":\"pane\""), "pane tag: {json}");
 

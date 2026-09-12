@@ -1,9 +1,7 @@
 """
-Project Index context renderer (M10-05 Task 1).
-
-Produces a bounded `## Project Index` markdown section with no raw snippets.
+Project Index context renderer
+Produces a bounded `## Project Index` markdown section with no raw snippets
 """
-
 from __future__ import annotations
 
 from typing import Any
@@ -54,7 +52,7 @@ def render_project_index_section(
         },
     ).removesuffix("\n")
 
-    # Simple truncation guard (real token count would be better, but this satisfies the plan for v0.2)
+    # Simple truncation guard (real token count would be better, but this satisfies the plan for.2)
     if len(body) > max_tokens * 3.5:  # rough chars-to-tokens
         body = body[: int(max_tokens * 3.5)] + "\n\n(truncated)"
 

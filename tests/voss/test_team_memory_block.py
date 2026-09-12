@@ -1,7 +1,6 @@
-"""V10 RED scaffold — memory{} block compile to MemoryConfig (VLANG-01c).
-
+"""
+V10 RED scaffold — memory{} block compile to MemoryConfig (VLANG-01c).
 Targets the planned MemoryConfig (voss.harness.team) + TeamConfig.memory, and
-the documented defaults. RED expected. No expected-fail/skip masks (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations
 

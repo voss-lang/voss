@@ -16,7 +16,6 @@ const sseMaxLineBytes = 1 << 20
 
 // Events streams typed events from GET /session/:id/events. A non-200 open
 // returns a *VossError. Cancelling ctx tears down the TCP read (cancelling the
-// turn server-side, PROTOCOL §8) and closes the channel; no leak.
 func (c *Client) Events(ctx context.Context, sessionID string) (<-chan TypedEvent, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, "/session/"+url.PathEscape(sessionID)+"/events", nil)
 	if err != nil {
@@ -48,7 +47,6 @@ func (c *Client) Events(ctx context.Context, sessionID string) (<-chan TypedEven
 
 // parseSSE accumulates `data:` lines, decodes each frame on the blank-line
 // boundary, and ignores comment/event/id lines. Bad JSON or unknown types are
-// skipped, not panicked.
 func parseSSE(ctx context.Context, r io.Reader, ch chan<- TypedEvent) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), sseMaxLineBytes)

@@ -1,7 +1,6 @@
-"""V10 RED scaffold — gate{} block compile to GateConfig (VLANG-01b).
-
+"""
+V10 RED scaffold — gate{} block compile to GateConfig (VLANG-01b).
 Targets the planned GateConfig (voss.harness.team) and TeamConfig.gate_configs.
-RED expected. No expected-fail/skip masks (gsd-scaffold-fictional-api).
 """
 from __future__ import annotations
 

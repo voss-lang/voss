@@ -15,9 +15,9 @@ import {
   __resetBridgeMaps,
 } from '../../model/bridge';
 
-// V15-05 (VLIVE-06): the "Server sessions" list mirrors GET /session honestly
+// 05 (-06): the "Server sessions" list mirrors GET /session honestly
 // (newest first, no source filtering, opaque-shape tolerant) and Attach wires
-// the forward stream only — no transcript backfill (T-V15-12).
+// the forward stream only — no transcript backfill (-12).
 
 afterEach(() => {
   __resetServerSessions();
@@ -101,14 +101,14 @@ describe('serverSessions — attachSession (D-06, T-V15-08/T-V15-12)', () => {
     });
 
     expect(ensureClient).toHaveBeenCalledWith('/repo');
-    // D-06: attached ≡ started — Bridge A registration.
+    // attached ≡ started — Bridge A registration.
     expect(cardToSessionNode()['sess-99']).toBe('sess-99');
     expect(openAttachedPane).toHaveBeenCalledWith({
       sessionId: 'sess-99',
       sidecarId: 'test-sidecar',
       client,
     });
-    // T-V15-12: forward stream only — no backfill/transcript fetch.
+    // 12: forward stream only — no backfill/transcript fetch.
     expect(client.getSession).not.toHaveBeenCalled();
     expect(client.listSaved).not.toHaveBeenCalled();
     expect(client.postMessage).not.toHaveBeenCalled();

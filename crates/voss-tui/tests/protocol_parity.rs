@@ -1,13 +1,3 @@
-//! H3.3 — cross-language protocol parity (drift guard).
-//!
-//! Enumerates every event `type` the server's `events.py` AgentEvent union
-//! declares (via the real Python), and asserts the Rust client's known set
-//! matches exactly. If the server adds/renames/removes an event type, this
-//! fails and forces a human to decide whether the client should render it.
-//! Also asserts the rendered subset maps to specific AppEvent variants.
-//!
-//! Skips (does not fail) when the repo venv interpreter is absent.
-
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::Command;

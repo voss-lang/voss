@@ -1,27 +1,3 @@
-// VCKP-03 — RunCommandBar (D-03): an always-on top intake strip mounted above
-// the 4-region cockpit grid. It is the universal run-intake keystone (closes
-// G2): one bar that starts BOTH run types from the same captured context.
-//
-// V24 vocabulary (D-11): humane safety labels (Read only / Can edit / Autopilot)
-// replace exposed Plan/Edit/Auto toggles. Scope stays inline; team / budget /
-// run target fold behind a Details disclosure (D-05 pattern).
-//
-// Two start paths (config-assembly mirrors AgentLaunchModal.buildConfig):
-//   Bridge B (terminal): registerTerminalCard(paneId) mints the cardId, then
-//     spawnAgent({..., sessionId: cardId, paneId}) — the cardId rides through as
-//     the spawn_agent `sessionId` arg (zero Rust change). mode/team/scope/budget
-//     are encoded into cliArgs so the launch carries the full intake context.
-//   Bridge A (native): the injected V13.1 client's createSession(spec) returns
-//     {id}; registerNativeCard(id, id) stores it (the create-response id IS the
-//     snapshot node id — A1 finding). The client is GATED/mock in V14: when no
-//     client is injected the native path is a disabled-with-reason no-op.
-//
-// Autopilot gating follows the decisionActions disabled-with-reason discipline:
-// an Autopilot start missing budget OR scope renders the reason INLINE and calls
-// NO start path (never a silent no-op).
-//
-// Styling: A12 tokens only via runCommandBar.css.
-
 import { type Component, createMemo, createSignal, For, Show } from 'solid-js';
 import { invoke } from '@tauri-apps/api/core';
 import './runCommandBar.css';
@@ -34,7 +10,7 @@ import {
 } from './runIntake';
 import { registerTerminalCard, registerNativeCard } from '../model/bridge';
 
-/** Minimal V13.1-client surface RunCommandBar consumes (mock-injectable). */
+/** Minimal.1-client surface RunCommandBar consumes (mock-injectable) */
 export interface RunNativeClient {
   createSession(spec: RunSpec): Promise<{ id: string }>;
 }
@@ -42,8 +18,6 @@ export interface RunNativeClient {
 /**
  * Default terminal launcher: invokes the existing `spawn_agent` Tauri command
  * directly with the minted cardId as the `sessionId` arg (Bridge B). Mirrors
- * pty-ipc.ts `spawnAgent` payload shape so the launch is wired identically to
- * the pane path. Injectable so the test can assert the call without a real PTY.
  */
 export type SpawnAgentFn = (o: {
   cliBinary: string;
@@ -63,21 +37,19 @@ const defaultSpawnAgent: SpawnAgentFn = (o) =>
     cwd: o.cwd,
   });
 
-/** Deps the run dispatch needs, independent of any one intake surface. */
+/** Deps the run dispatch needs, independent of any one intake surface */
 export interface DispatchDeps {
   cliBinary: string;
   cwd?: string;
-  /** Native (Voss harness) client. Native dispatch throws if absent. */
+/** Native (Voss harness) client. Native dispatch throws if absent */
   client?: RunNativeClient;
   spawnAgent?: SpawnAgentFn;
   resolvePaneId?: () => string;
 }
 
 /**
- * Shared run dispatch for every intake surface (RunCommandBar + VossComposer).
+ * Shared run dispatch for every intake surface (RunCommandBar + VossComposer)
  * Performs the side-effects (mint card, spawn/createSession) and THROWS on
- * failure; callers own UI feedback. Caller must pass a gate-passed spec
- * (validateAutoStart) — this does not re-gate.
  */
 export async function dispatchRunSpec(
   spec: RunSpec,
@@ -109,14 +81,17 @@ export async function dispatchRunSpec(
 export interface RunCommandBarProps {
   cwd: string;
   cliBinary: string;
-  /** Native (Voss harness) client — GATED/mock in V14. Native path is a
-   *  disabled-with-reason no-op when undefined. */
+/**
+ * Native (Voss harness) client — GATED/mock in. Native path is a
+ * disabled-with-reason no-op when undefined
+ */
   client?: RunNativeClient;
-  /** Terminal launch fn (Bridge B). Defaults to a direct spawn_agent invoke. */
+/** Terminal launch fn (Bridge B). Defaults to a direct spawn_agent invoke */
   spawnAgent?: SpawnAgentFn;
-  /** Pane id for the terminal launch. The cockpit has no active pane bound to
-   *  the bar, so a fresh pane id is minted per run by default (mirrors
-   *  PaneComponent using props.id as paneId). */
+/**
+ * Pane id for the terminal launch. The cockpit has no active pane bound to
+ * the bar, so a fresh pane id is minted per run by default (mirrors
+ */
   resolvePaneId?: () => string;
   allowedTargets?: readonly RunTarget[];
 }
@@ -125,7 +100,7 @@ type SafetyMode = 'Read only' | 'Can edit' | 'Autopilot';
 
 const SAFETY_MODES: SafetyMode[] = ['Read only', 'Can edit', 'Autopilot'];
 
-// Humane safety label → internal RunMode (D-09: identifiers never surface).
+// Humane safety label → internal RunMode (: identifiers never surface).
 const SAFETY_TO_RUNMODE: Record<SafetyMode, RunMode> = {
   'Read only': 'Plan',
   'Can edit': 'Edit',
@@ -138,7 +113,7 @@ const SAFETY_CLASS: Record<SafetyMode, string> = {
   Autopilot: 'run-bar__safety--autopilot',
 };
 
-// D-10 copy rule: internal-mechanics vocabulary (incl. "Voss-native") never
+// copy rule: internal-mechanics vocabulary (incl. "Voss-native") never
 // surfaces in UI strings — the native target reads "Voss run".
 const TARGETS: { id: RunTarget; label: string }[] = [
   { id: 'native', label: 'Voss run' },
@@ -148,7 +123,7 @@ const TEAMS = ['solo', 'core', 'review'];
 
 /**
  * Encode the intake context into CLI args so the terminal launch carries
- * mode/team/scope/budget (mirrors AgentLaunchModal.buildConfig arg assembly).
+ * mode/team/scope/budget (mirrors AgentLaunchModal.buildConfig arg assembly)
  */
 function intakeCliArgs(spec: RunSpec): string[] {
   const args: string[] = ['--mode', spec.mode, '--team', spec.team];

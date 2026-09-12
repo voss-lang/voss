@@ -1,18 +1,3 @@
-// V14 chunk C — Live Work board summary strip (mockup .summary / .scol).
-//
-// A thin, read-only digest of the loaded run's board, mounted by App UNDER the
-// RunCommandBar inside the Live-Work-only container (Run Review shows the full
-// board, so the strip never renders there). Data is the snapshot plane:
-// cardsFromRunData(runData()) — the exact deriveColumn columns the cockpit
-// board renders. No run loaded (zero cards) → renders NOTHING (no dead
-// chrome). Clicking a chip is the opt-in jump to Run Review (App flips
-// orgViewOpen).
-//
-// Styling: A12 tokens only, inline styles (mirrors StatusBar). Column dot
-// colors match the cockpit board's --org-col-* RESOLUTIONS — those tokens are
-// scoped to .org-view-shell and unavailable out here, so the base tokens they
-// resolve to are used directly.
-
 import { createMemo, For, Show } from 'solid-js';
 import { runData } from '../org/orgStore';
 import { cardsFromRunData } from '../org/boardDerive';
@@ -27,7 +12,7 @@ const COLUMNS: Array<{ key: string; label: string; color: string }> = [
 ];
 
 export type BoardSummaryStripProps = {
-  /** Opt-in jump to Run Review (App flips orgViewOpen). */
+/** Opt-in jump to Run Review (App flips orgViewOpen) */
   onOpen: () => void;
 };
 

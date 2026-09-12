@@ -1,12 +1,3 @@
-// V24-05 (VADE2-05) — Agents mission-control surface.
-//
-// Agent roster grouped by role (the session-tree nodes that carry a role).
-// Each row: role-colored status dot (var(--role-*), mirroring AgentItem), the
-// agent name (focal point), and cost (mono, tabular-nums). Clicking a row
-// deep-links to its pane (bridge B) or review drawer via org/selection — same
-// contract as the Task rows. Model/elapsed are omitted: the snapshot node shape
-// does not carry them (honest-signal — no fabricated columns).
-
 import { type Component, For, Show } from 'solid-js';
 import '../surfaces.css';
 import { runData, loading, loadError } from '../../org/orgStore';

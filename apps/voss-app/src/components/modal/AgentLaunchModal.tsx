@@ -8,10 +8,8 @@ import {
   type ModelCliKey,
 } from '../../agents/modelPrefs';
 
-// V14-09 (D-09 sparse premium): preset launcher for external agent CLIs.
+// ( sparse premium): preset launcher for external agent CLIs
 // Presets are the five known agent CLIs plus a plain Terminal. Native Voss runs
-// go through RunCommandBar (D-04) — they are intentionally NOT here. No free-form
-// command field, no effort matrices, no permission-bypass toggle.
 
 type PresetId = ModelCliKey | 'terminal';
 
@@ -70,7 +68,7 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
   });
 
   // The effective model for the active preset: explicit selection, else the
-  // persisted/built-in default. `null` = no flag injected (CLI's own default).
+  // persisted/built-in default. `null` = no flag injected (CLI's own default)
   const effectiveModel = createMemo<string | null>(() => {
     const k = cliKey();
     if (!k) return null;
@@ -94,7 +92,7 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
     const cwd = workingDir().trim();
 
     if (isTerminal()) {
-      // Plain login shell — no agentConfig wired in App (see blankTerminalWiring).
+      // Plain login shell no agentConfig wired in App (see blankTerminalWiring)
       return {
         cliBinary: '',
         cliArgs: [],
@@ -110,7 +108,7 @@ const AgentLaunchModal: Component<AgentLaunchModalProps> = (props) => {
     const args: string[] = [];
 
     // Persist the chosen default model so the next launch pre-fills it. Only
-    // when the user actively selected one (never overwrite with a blank).
+    // when the user actively selected one (never overwrite with a blank)
     const selected = model().trim();
     if (selected) void saveDefaultModel(k, selected);
 

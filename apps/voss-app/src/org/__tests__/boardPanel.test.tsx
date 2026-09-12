@@ -29,7 +29,6 @@ function clone<T>(x: T): T {
   return JSON.parse(JSON.stringify(x)) as T;
 }
 
-// --- Test harness ------------------------------------------------------------
 
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown) {
@@ -44,7 +43,6 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-// --- VADE-02: derivation -----------------------------------------------------
 
 describe('boardDerive — column/risk (verified harness algorithm)', () => {
   it('deriveColumn: last board.transition + terminal "done" → Done', () => {
@@ -83,7 +81,6 @@ describe('boardDerive — column/risk (verified harness algorithm)', () => {
   });
 });
 
-// --- VADE-02: BoardPanel render ----------------------------------------------
 
 describe('BoardPanel — 6 columns + cards + selection', () => {
   it('renders all 6 columns', () => {

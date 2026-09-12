@@ -1,12 +1,5 @@
 //! Tool schema parity. For every tool registered in `default_toolset`, the
 //! schemars-derived schema MUST agree with the pydantic-style descriptor in
-//! `voss/harness/tools.py` on:
-//!   - the set of property names
-//!   - the required-set
-//!
-//! Description text and field-level metadata are deliberately not byte-
-//! compared (see SUMMARY.md). The required-set check catches the dangerous
-//! drift class.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;

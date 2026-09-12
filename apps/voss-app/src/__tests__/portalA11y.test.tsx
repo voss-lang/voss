@@ -1,23 +1,6 @@
-// V24-08 (VADE2-08) — cross-surface accessibility phase gate.
-//
-// One automated assertion of the V24 a11y contract authored across V24-02..07,
-// re-checked here as the single gate before /gsd-verify-work:
-//   (a) PortalRail — role="tablist" with role="tab" items carrying aria-selected
-//       and aria-label, plus the V24-09 Workspaces tab and collapsible toggle;
-//   (b) VossComposer — a <dialog aria-modal="true"> with an aria-label and an
-//       aria-label="Safety mode" control (V24-04);
-//   (c) Tasks mission-control rows are <button aria-label="Open Task: …"> (not
-//       anchors), so the deep-link is keyboard-operable (V24-05);
-//   (d) the reduced-motion contract holds — swarmMap.css carries no bare
-//       animation declaration outside the sentinel-delimited guard (V24-07),
-//       re-asserted from source (complementary to swarmA11y).
-//
-// jsdom does not evaluate media queries, so (d) is a source assertion read via
-// fs (the same grep discipline as cockpit a11y.test.tsx + the swarm token gate).
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-// @ts-ignore -- node builtin available in the vitest runtime; the app tsconfig is browser-lib only.
+// @ts-ignore -- node builtin available in the vitest runtime; the app tsconfig is browser-lib only
 import { readFileSync } from 'node:fs';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -36,7 +19,7 @@ import { __resetBridgeMaps } from '../org/model/bridge';
 import { __resetAttentionQueue } from '../org/attention/attentionQueue';
 import type { RunData, SessionTreeNode, Transition } from '../org/types';
 
-// --- Tasks fixture (mirrors TasksSurface.test.tsx) ---
+// Tasks fixture (mirrors TasksSurface.test.tsx)
 function node(partial: Partial<SessionTreeNode> & { id: string }): SessionTreeNode {
   return {
     root_id: 'root',
@@ -115,7 +98,7 @@ describe('V24-08 a11y gate — PortalRail tablist', () => {
       expect(tab.getAttribute('aria-selected')).toMatch(/^(true|false)$/);
       expect(tab.getAttribute('aria-label')?.trim()).not.toBe('');
     }
-    // Exactly the active view's tab reports aria-selected="true".
+    // Exactly the active view's tab reports aria-selected="true"
     const selected = tabs.filter((t) => t.getAttribute('aria-selected') === 'true');
     expect(selected).toHaveLength(1);
     expect(selected[0].getAttribute('aria-label')).toBe(PORTAL_ITEMS[0].label);
@@ -143,7 +126,7 @@ describe('V24-10 a11y gate — Context/Settings/Memory surfaces wired (no stale 
     const el = mount(() => <MemorySurface />);
     expect(el.querySelector('[role="tabpanel"][aria-label="Memory"]')).toBeTruthy();
     expect(el.textContent).not.toContain('Coming in a later V24 plan');
-    // Honest-signal: points to the real entry point, no fabricated rows.
+    // Honest-signal: points to the real entry point, no fabricated rows
     expect(el.textContent).toContain('/memory');
   });
 
@@ -176,14 +159,14 @@ describe('V24-08 a11y gate — Tasks rows are keyboard-operable buttons', () => 
     expect(row).toBeTruthy();
     expect(row!.tagName.toLowerCase()).toBe('button');
     expect(row!.getAttribute('aria-label')).toMatch(/^Open Task: /);
-    // Deep-link must NOT be an anchor (no href navigation in a webview app).
+    // Deep-link must NOT be an anchor (no href navigation in a webview app)
     expect(el.querySelector('a.surface-row')).toBeNull();
   });
 });
 
 describe('V24-08 a11y gate — reduced-motion CSS contract (source assertion)', () => {
   it('swarmMap.css has no bare animation declaration outside the reduced-motion guard', () => {
-    // Path is relative to the vitest root (apps/voss-app — vitest.config.ts).
+    // Path is relative to the vitest root (apps/voss-app vitest.config.ts)
     const css: string = readFileSync('src/surfaces/swarm-map/swarmMap.css', 'utf8');
 
     const guardStart = css.indexOf('@media (not (prefers-reduced-motion: reduce))');
@@ -192,10 +175,10 @@ describe('V24-08 a11y gate — reduced-motion CSS contract (source assertion)', 
     expect(guardStart, 'reduced-motion guard present').toBeGreaterThanOrEqual(0);
     expect(endIdx, 'guard sentinel present').toBeGreaterThan(guardStart);
 
-    // Strip the entire guard block, then assert nothing animates outside it.
+    // Strip the entire guard block, then assert nothing animates outside it
     const outside = css.slice(0, guardStart) + css.slice(endIdx + endMarker.length);
-    // `animation-play-state` (the pause hook) intentionally survives — it is not a
-    // bare `animation:` declaration, so the regex below leaves it alone.
+    // `animation-play-state` (the pause hook) intentionally survives it is not a
+    // bare `animation:` declaration, so the regex below leaves it alone
     expect(outside).not.toMatch(/animation:/);
   });
 });

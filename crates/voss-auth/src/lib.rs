@@ -1,5 +1,6 @@
-//! voss-auth — credential discovery, refresh, and resolution for Claude
-//! (Anthropic OAuth) and Codex (OpenAI) auth.
+//! voss-auth credential discovery, refresh, and resolution for Claude
+//! (Anthropic OAuth) and Codex (OpenAI) auth
+
 
 pub mod anthropic;
 pub mod codex;
@@ -19,12 +20,12 @@ pub use refresh::{refresh_anthropic, refresh_codex};
 pub use resolve::{resolve, AuthPref, Resolution};
 
 /// Load Anthropic OAuth credentials from Keychain (macOS) or fall back to
-/// `~/.claude/.credentials.json`.
+/// `~/.claude/.credentials.json`
 pub fn load_anthropic_oauth() -> Option<AnthropicOAuthCreds> {
     keychain::read_anthropic().or_else(file_store::read_anthropic)
 }
 
-/// Load Codex credentials from `~/.codex/auth.json`.
+/// Load Codex credentials from `~/.codex/auth.json`
 pub fn load_codex() -> Option<CodexCreds> {
     file_store::read_codex()
 }

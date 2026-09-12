@@ -8,9 +8,8 @@ import { lastLines } from './lod';
 const REFRESH_MS = 1000;
 
 /**
- * Low-detail stand-in for a terminal node below the LOD zoom: process name,
+ * Low-detail stand-in for a terminal node below the LOD zoom: process name
  * status dot, the last three buffer lines, and the budget bar. The live
- * xterm stays in the pane session registry, detached from layout.
  */
 export default function TerminalChip(props: {
   paneId: string;

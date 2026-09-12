@@ -6,7 +6,6 @@ use reqwest::{RequestBuilder, StatusCode};
 use crate::error::VossError;
 use crate::types::rest::{CostInfo, DoctorReport, SavedSession};
 
-/// Per-request timeout for short REST calls. Do not apply this to SSE streams.
 const REST_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone)]
@@ -28,7 +27,7 @@ impl fmt::Debug for VossClient {
 impl VossClient {
     pub fn new(base: String, token: String) -> Self {
         // connect_timeout bounds establishment for all requests, including the
-        // future SSE GET, without capping long-lived response bodies.
+        // future SSE GET, without capping long-lived response bodies
         let inner = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .build()
@@ -44,7 +43,7 @@ impl VossClient {
         rb.bearer_auth(&self.token)
     }
 
-    /// POST /session - returns the new session id.
+    /// POST /session - returns the new session id
     pub async fn create_session(&self, cwd: &str) -> Result<String, VossError> {
         let resp = self
             .auth(self.inner.post(format!("{}/session", self.base)))
@@ -60,7 +59,7 @@ impl VossClient {
             .ok_or_else(|| VossError::Decode("create_session: no id in response".into()))
     }
 
-    /// POST /session {resume} - adopt a saved session and return its id.
+    /// POST /session {resume} - adopt a saved session and return its id
     pub async fn create_session_resume(
         &self,
         resume_id: &str,
@@ -81,9 +80,9 @@ impl VossClient {
     }
 
     // The SDK intentionally omits GET /session and GET /session/:id here: they
-    // are not in the proven voss-tui surface, and deep readers are V4/V9 gated.
+    // are not in the proven voss-tui surface, and deep readers are / gated
 
-    /// DELETE /session/:id.
+    /// DELETE /session/:id
     pub async fn delete_session(&self, sid: &str) -> Result<(), VossError> {
         let resp = self
             .auth(self.inner.delete(format!("{}/session/{}", self.base, sid)))
@@ -94,7 +93,7 @@ impl VossClient {
         Ok(())
     }
 
-    /// POST /session/:id/message - enqueue a turn.
+    /// POST /session/:id/message - enqueue a turn
     pub async fn post_message(&self, sid: &str, text: &str, mode: &str) -> Result<(), VossError> {
         let resp = self
             .auth(
@@ -112,7 +111,7 @@ impl VossClient {
         Ok(())
     }
 
-    /// POST /session/:id/abort.
+    /// POST /session/:id/abort
     pub async fn abort(&self, sid: &str) -> Result<(), VossError> {
         let resp = self
             .auth(
@@ -126,7 +125,7 @@ impl VossClient {
         Ok(())
     }
 
-    /// POST /session/:id/permission.
+    /// POST /session/:id/permission
     pub async fn permission_reply(
         &self,
         sid: &str,
@@ -146,7 +145,7 @@ impl VossClient {
         Ok(())
     }
 
-    /// GET /sessions/saved - on-disk sessions resumable for this cwd.
+    /// GET /sessions/saved - on-disk sessions resumable for this cwd
     pub async fn list_saved_sessions(&self, cwd: &str) -> Result<Vec<SavedSession>, VossError> {
         let resp = self
             .auth(
@@ -166,7 +165,7 @@ impl VossClient {
         serde_json::from_value(list).map_err(|e| VossError::Decode(e.to_string()))
     }
 
-    /// GET /session/:id/cost - session cost total.
+    /// GET /session/:id/cost - session cost total
     pub async fn cost(&self, sid: &str) -> Result<CostInfo, VossError> {
         let resp = self
             .auth(
@@ -190,7 +189,7 @@ impl VossClient {
         })
     }
 
-    /// GET /doctor - server-side diagnostics.
+    /// GET /doctor - server-side diagnostics
     pub async fn doctor(&self, cwd: &str) -> Result<DoctorReport, VossError> {
         let resp = self
             .auth(

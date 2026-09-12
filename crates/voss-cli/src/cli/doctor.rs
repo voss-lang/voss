@@ -1,4 +1,5 @@
-//! `voss doctor` — env diagnostics. Output mirrors `voss/harness/cli.py::doctor_cmd`.
+//! `voss doctor` env diagnostics. Output mirrors `voss/harness/cli.py::doctor_cmd`
+
 
 use voss_auth::{load_anthropic_oauth, load_codex, resolve, AuthPref};
 
@@ -56,7 +57,7 @@ pub fn run_doctor() -> std::process::ExitCode {
     println!("--auth=auto picks   : {} — {}", res.source(), res.detail());
 
     // Python tries `import voss_runtime`. Rust mirrors by reporting importable
-    // when the package directory is present in the repo root.
+    // when the package directory is present in the repo root
     let importable = std::path::Path::new("voss_runtime").is_dir()
         || std::path::Path::new("../voss_runtime").is_dir()
         || std::path::Path::new("../../voss_runtime").is_dir();

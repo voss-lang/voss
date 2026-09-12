@@ -1,9 +1,6 @@
-"""E3 surface driver tests.
-
+"""
+E3 surface driver tests.
 CLI drivers run under STUB mode here (D-10 — sitecustomize/StubProvider
-injection is permitted in tests via the CliRunner env; the live drivers
-themselves never inject it). The stub env reaches the driver subprocess by
-monkeypatching voss.eval.runner._live_env for the cli:* tests only.
 """
 from __future__ import annotations
 

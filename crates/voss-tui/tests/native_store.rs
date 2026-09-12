@@ -1,8 +1,4 @@
 //! H7 — native session-store reader + cross-language parity.
-//!
-//! Proves the Rust native reader parses the on-disk session format and, given
-//! the same directory, produces the same listing the Python server's
-//! `/sessions/saved` returns (the data-compat enabler for incremental porting).
 
 use std::path::Path;
 

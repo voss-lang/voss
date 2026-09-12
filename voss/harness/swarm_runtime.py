@@ -1,31 +1,7 @@
-"""R3 server-side swarm orchestrator — run a CLI swarm member end-to-end.
-
-This is the glue tying together the already-built Wave 1/2 pieces (see
-`SWARM-RECONCILIATION.md`, "R3 Concrete Plan"): the SwarmStore (state), the agent
-argv resolver, the git-worktree-per-member lifecycle, the file-bus, and the
-ownership detect/revert plane. It is the **headless execution backend** of R3's
-two-backend split — the server spawns each CLI as a plain subprocess in its own
-worktree; the GUI/Tauri PTY backend is the other (out of scope here).
-
-The design centers on two things the tests pin down:
-
-1. **An injectable spawn seam.** No real `claude`/`codex` binary exists in CI, so
-   spawning is a `SpawnFn` the caller supplies. The default `subprocess_spawn`
-   wraps `subprocess.Popen` (no shell) for production; tests pass a fake.
-
-2. **Deterministic post-exit ownership reconciliation.** R3's ownership guarantee
-   for black-box CLIs is post-hoc (the watcher can't gate a write before it
-   lands). So *after* the member process exits we do the authoritative check —
-   `changed_files` → `detect_violations` → revert + escalate — rather than racing
-   live fs events. A live `OwnershipWatcher` may run alongside as
-   belt-and-suspenders, but correctness never depends on it firing.
-
-This module is the "control + enforcement plane" half: it owns the worktree
-lifecycle and ownership reconciliation. It is intentionally free of any FastAPI /
-SSE import — the caller (the swarm route) passes an `on_event` callback that
-forwards the plain event dicts to the SSE emitter.
 """
-
+R3 server-side swarm orchestrator run a CLI swarm member end-to-end
+This is the glue tying together the already-built Wave 1/2 pieces (see
+"""
 from __future__ import annotations
 
 import subprocess
@@ -52,9 +28,7 @@ from .swarm_worktree import (
 EventHook = Callable[[dict], None] | None
 
 
-# ---------------------------------------------------------------------------
-# Spawn seam — the one injectable point so tests never spawn a real CLI.
-# ---------------------------------------------------------------------------
+# Spawn seam the one injectable point so tests never spawn a real CLI
 class SpawnHandle(Protocol):
     """A started member process. Minimal surface the orchestrator needs."""
 
@@ -67,7 +41,7 @@ class SpawnHandle(Protocol):
         ...
 
 
-# (argv, cwd) -> a started process handle. cwd is the member's git worktree.
+# (argv, cwd) -> a started process handle. cwd is the member's git worktree
 SpawnFn = Callable[[list[str], Path], SpawnHandle]
 
 
@@ -98,9 +72,7 @@ def subprocess_spawn(argv: list[str], cwd: Path) -> SpawnHandle:
     return _PopenHandle(proc)
 
 
-# ---------------------------------------------------------------------------
-# Result of running one member.
-# ---------------------------------------------------------------------------
+# Result of running one member
 @dataclass
 class MemberResult:
     role: str
@@ -120,9 +92,7 @@ def _emit(on_event: EventHook, event: dict) -> None:
         on_event(event)
 
 
-# ---------------------------------------------------------------------------
-# One CLI member, end to end.
-# ---------------------------------------------------------------------------
+# One CLI member, end to end
 async def run_cli_member(
     store: SwarmStore,
     repo_root: Path,
@@ -174,7 +144,7 @@ async def run_cli_member(
 
     mw = create_member_worktree(repo_root, swarm_id, role.name)
 
-    # File-bus task lives in the MAIN checkout (shared), per R3.
+    # File-bus task lives in the MAIN checkout (shared), per R3
     if context:
         write_shared_context(repo_root, swarm_id, context)
     write_task_file(
@@ -191,8 +161,8 @@ async def run_cli_member(
 
     # Inline emission at the assignment seam (D-R01/D-R02): freeze the
     # task_to_agent decision against the exact assignment context + BOS3 event
-    # ledger tail. Best-effort — a ledger write error must never abort the swarm
-    # run. No outcome/result data is captured here (no-leakage, schema D-04).
+    # ledger tail. a ledger write error must never abort the swarm
+    # run. No outcome/result data is captured here (no-leakage, schema )
     try:
         swarm = store.get(swarm_id)
         roster = swarm.roster if swarm is not None else [role]
@@ -226,9 +196,9 @@ async def run_cli_member(
 
     argv = resolve_agent_argv(role, cwd=mw.path, task_text=task.goal)
 
-    # Belt-and-suspenders live watcher; the post-exit check below is the authority,
-    # so a missed fs event cannot make us wrong. on_violation here is best-effort
-    # flagging — the deterministic pass re-detects and re-emits.
+    # Belt-and-suspenders live watcher; the post-exit check below is the authority
+    # so a missed fs event cannot make us wrong. on_violation here is
+    # flagging the deterministic pass re-detects and re-emits
     watcher = OwnershipWatcher(mw, task.owned_files, on_violation=lambda _paths: None)
     watcher.start()
     try:
@@ -237,7 +207,7 @@ async def run_cli_member(
     finally:
         watcher.stop()
 
-    # Deterministic post-exit ownership reconciliation — do NOT rely on the watcher.
+    # Deterministic post-exit ownership reconciliation do NOT rely on the watcher
     changed = changed_files(mw)
     violations = detect_violations(changed, task.owned_files)
     if violations:
@@ -254,13 +224,13 @@ async def run_cli_member(
         )
 
     # Read the member's result from the MAIN repo's file-bus (where the host
-    # hands the CLI its result path; the bus is shared, not per-worktree).
+    # hands the CLI its result path; the bus is shared, not per-worktree)
     result = read_result_file(repo_root, swarm_id, role.name)
     summary = result.summary if result is not None else None
 
     # Freeze the member's in-scope work on its branch, but do not merge or destroy
     # it. Integration is a separate review-gated operation. A clean worktree has
-    # no candidate to preserve and can complete normally.
+    # no candidate to preserve and can complete normally
     candidate_head = _commit_member_work(mw.path, role.name)
     if candidate_head is not None:
         store.mark_candidate_ready(
@@ -354,9 +324,7 @@ def _commit_member_work(worktree: Path, role: str) -> str | None:
     return head.stdout.strip()
 
 
-# ---------------------------------------------------------------------------
-# The whole swarm.
-# ---------------------------------------------------------------------------
+# The whole swarm
 async def run_cli_swarm(
     store: SwarmStore,
     repo_root: Path,

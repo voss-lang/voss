@@ -20,7 +20,6 @@ export type { Theme, ThemeAppearance, ThemeValidationResult } from './schema';
 export { HIGH_CONTRAST_OVERLAY } from './highContrast';
 export { contrastRatio } from './schema';
 
-/** Curated bundled theme IDs (A8 UI-SPEC — exactly 13, no VSCode import). */
 export const BUNDLED_THEME_IDS = [
   'voss-ignite',
   'variant-b',
@@ -67,8 +66,8 @@ export function getBundledTheme(id: string): Theme | undefined {
 }
 
 /**
- * Merge theme cssVars, ANSI palette (--ansi-0..15), and optional high-contrast overlay
- * for applyThemeOverrides().
+ * Merge theme cssVars, ANSI palette (--ansi.15), and optional high-contrast overlay
+ * for applyThemeOverrides
  */
 export function resolveThemeCssVars(
   theme: Theme,

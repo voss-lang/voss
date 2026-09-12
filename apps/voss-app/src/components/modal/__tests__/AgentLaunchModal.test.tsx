@@ -3,9 +3,8 @@ import { render } from 'solid-js/web';
 import { fireEvent } from '@testing-library/dom';
 import AgentLaunchModal from '../AgentLaunchModal';
 
-// The modal reads/writes the real model-prefs source (appearance settings).
-// Mock it so getCommittedAppearanceSettings() is deterministic ({} → built-in
-// preset defaults) and saveDefaultModel → saveAppearanceSettings is observable.
+// The modal reads/writes the real model-prefs source (appearance settings)
+// Mock it so getCommittedAppearanceSettings is deterministic ({} → built-in
 const saveAppearanceSettings = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../../appearance/settings', () => ({
   loadAppearanceSettings: vi.fn().mockResolvedValue({}),
@@ -54,7 +53,7 @@ describe('AgentLaunchModal — presets', () => {
       'Aider',
       'Terminal',
     ]);
-    // Removed legacy presets must not appear.
+    // Removed legacy presets must not appear
     expect(labels).not.toContain('Voss');
     expect(labels).not.toContain('Custom');
     expect(labels).not.toContain('Antigravity');
@@ -62,7 +61,7 @@ describe('AgentLaunchModal — presets', () => {
 
   it('Claude (verified-real) shows its default model label "Claude Code · sonnet"', () => {
     const el = mount(() => <AgentLaunchModal {...defaultProps()} />);
-    // The model hint reflects the REAL persisted default (mocked {} → built-in 'sonnet').
+    // The model hint reflects the REAL persisted default (mocked {} → built-in 'sonnet')
     const hint = Array.from(el.querySelectorAll('.modal-hint')).find((h) =>
       h.textContent?.includes('Claude Code'),
     );
@@ -87,7 +86,7 @@ describe('AgentLaunchModal — presets', () => {
         h.textContent?.includes('uses its own default model'),
       );
       expect(hint, `${label} default-model hint`).toBeTruthy();
-      // No segmented model chips for the unverified CLIs — only a free-text override.
+      // No segmented model chips for the unverified CLIs only a free-text override
       const chipLabels = Array.from(el.querySelectorAll('.modal-segmented__btn')).map(
         (b) => b.textContent?.trim(),
       );
@@ -109,7 +108,7 @@ describe('AgentLaunchModal — launch wiring', () => {
     expect(cfg.cliBinary).toBe('claude');
     expect(cfg.cliArgs).toContain('--model');
     expect(cfg.cliArgs).toContain('sonnet');
-    // --model precedes its value.
+    // model precedes its value
     expect(cfg.cliArgs.indexOf('--model')).toBeLessThan(cfg.cliArgs.indexOf('sonnet'));
     expect(cfg.placement).toBe('right');
   });
@@ -120,7 +119,7 @@ describe('AgentLaunchModal — launch wiring', () => {
     fireEvent.click(launchBtn(el));
     const cfg = p.onLaunch.mock.calls[0][0];
     // Source-1 roster inclusion requires kind:'agent' + a known cliBinary so
-    // App.handleLaunchAgent writes agentConfigByPaneId (vs. the early terminal return).
+    // App.handleLaunchAgent writes agentConfigByPaneId (vs. the early terminal return)
     expect(cfg.kind).toBe('agent');
     expect(cfg.cliBinary).toBe('claude');
     expect(cfg.managed).toBe(false);
@@ -150,7 +149,7 @@ describe('AgentLaunchModal — launch wiring', () => {
     const cfg = p.onLaunch.mock.calls[0][0];
     expect(cfg.cliArgs).toContain('opus');
     expect(cfg.cliArgs).not.toContain('sonnet');
-    // Persisted through saveDefaultModel → saveAppearanceSettings.
+    // Persisted through saveDefaultModel → saveAppearanceSettings
     expect(saveAppearanceSettings).toHaveBeenCalled();
   });
 
@@ -178,7 +177,7 @@ describe('AgentLaunchModal — Terminal preset', () => {
     expect(cfg.cliBinary).toBe('');
     expect(cfg.cliArgs).toEqual([]);
     expect(cfg.cliArgs).not.toContain('--model');
-    // Terminal is never a managed external agent.
+    // Terminal is never a managed external agent
     expect(cfg.managed).toBe(false);
   });
 
@@ -188,7 +187,7 @@ describe('AgentLaunchModal — Terminal preset', () => {
     const chips = Array.from(el.querySelectorAll('.modal-segmented__btn')).map((b) =>
       b.textContent?.trim(),
     );
-    // Placement chips remain; model alias chips are gone.
+    // Placement chips remain; model alias chips are gone
     expect(chips).not.toContain('opus');
     expect(chips).not.toContain('sonnet');
     expect(chips).not.toContain('haiku');
@@ -219,7 +218,7 @@ describe('AgentLaunchModal — managed/tier honesty', () => {
     expect(copy).toMatch(/External agent/i);
     expect(copy).toMatch(/uses your local/i);
     expect(copy).toMatch(/advisory scope/i);
-    // Honesty: no claim of full/active management today.
+    // Honesty: no claim of full/active management today
     expect(copy).not.toMatch(/fully managed/i);
   });
 
@@ -240,7 +239,7 @@ describe('AgentLaunchModal — no config-heavy surface', () => {
     const placeholders = Array.from(el.querySelectorAll('input, textarea')).map((i) =>
       (i.getAttribute('placeholder') ?? '').toLowerCase(),
     );
-    // No field invites a raw shell command / agent name.
+    // No field invites a raw shell command / agent name
     for (const ph of placeholders) {
       expect(ph).not.toMatch(/command to run|raw command|agent name|name your/);
     }

@@ -1,7 +1,6 @@
-//! OAuth refresh paths for Anthropic (JSON body) and Codex (form-encoded body).
-//!
+//! OAuth refresh paths for Anthropic (JSON body) and Codex (form-encoded body)
 //! Wire shape mirrors `voss/harness/auth.py` lines 147-251 so existing
-//! recorded fixtures and back-end expectations remain valid.
+
 
 use crate::anthropic::{AnthropicOAuthCreds, ANTHROPIC_TOKEN_URL, CLAUDE_CODE_CLIENT_ID};
 use crate::codex::{CodexCreds, CODEX_CLIENT_ID, OPENAI_TOKEN_URL};
@@ -45,7 +44,7 @@ pub async fn refresh_anthropic(
         .unwrap_or(3600);
     creds.expires_at_ms = now_ms + expires_in * 1000;
 
-    // Persist: try Keychain on macOS, else file.
+    // Persist: try Keychain on macOS, else file
     if keychain::write_anthropic(creds).is_err() {
         file_store::write_anthropic(creds).ok();
     }

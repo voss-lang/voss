@@ -1,4 +1,6 @@
-"""Local-only TUI blocks for input-bar shortcut results."""
+"""
+Local-only TUI blocks for input-bar shortcut results
+"""
 from __future__ import annotations
 
 from rich.text import Text

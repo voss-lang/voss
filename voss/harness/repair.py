@@ -1,15 +1,6 @@
-"""Repair engine for `voss doctor --fix`.
-
-D-13 default is unchanged: plain `voss doctor` never mutates. Repairs run
-only behind the explicit `--fix` opt-in, gated per-check by RepairTier:
-
-- MANUAL (or no `repair` callable): never executed; fix text only.
-- CONFIRM: requires the interactive confirmation; skipped under `--yes`.
-- SAFE: runs whenever the `--fix` plan is approved (or under `--yes`).
-
-Every executed repair is verified by re-running its check through the
-diagnostics REGISTRY; a repair only counts as fixed when the re-check
-comes back OK.
+"""
+Repair engine for `voss doctor --fix`
+default is unchanged: plain `voss doctor` never mutates. Repairs run
 """
 from __future__ import annotations
 

@@ -1,8 +1,6 @@
-"""O4 plug-in contract. ZERO transitive harness imports — verified by test.
-
+"""
+plug-in contract. ZERO transitive harness imports verified by test
 Adding any import beyond `typing`, `dataclasses`, `__future__` here breaks the
-contract that O4's Reviewer A/B impls can import this module without circular
-dependencies. See O3-SPEC.md acceptance L124.
 """
 from __future__ import annotations
 
@@ -29,8 +27,8 @@ class ReviewerVerdict:
     verdict: Literal["pass", "fail", "block"]
     notes: str
     evidence_refs: tuple[str, ...]
-    # VREV-06 (D-06): additive, defaulted, MUST be last on this frozen+slots
-    # dataclass. B clamps the LLM value to this set; A leaves the default.
+    # VREV-06: additive, defaulted, MUST be last on this frozen+slots
+    # dataclass. B clamps the LLM value to this set; A leaves the default
     domain_inferred: Literal["code", "ai", "docs", "unknown"] = "unknown"
 
 

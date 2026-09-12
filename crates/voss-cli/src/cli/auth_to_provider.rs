@@ -1,4 +1,5 @@
-//! Build a model provider from a resolved auth path.
+//! Build a model provider from a resolved auth path
+
 
 use voss_auth::{CodexCreds, Resolution};
 use voss_providers::{AnthropicOAuthProvider, ModelProvider, OpenAIOAuthProvider};

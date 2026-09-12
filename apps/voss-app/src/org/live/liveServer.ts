@@ -1,10 +1,3 @@
-// V24 swarm surface — module accessor for the live `voss serve` connection.
-//
-// The swarm surface (and its command bar) are mounted prop-less, so they reach the
-// live server through this module signal instead of props. App sets it from the
-// BuiltVossClient inside ensureVossClient; surfaces receive only an opaque
-// Rust-owned sidecar handle plus the follow-up client.
-
 import { createSignal } from 'solid-js';
 
 export interface FollowUpLike {
@@ -13,7 +6,7 @@ export interface FollowUpLike {
 
 export interface LiveServer {
   sidecarId: string;
-  /** Workspace cwd — needed to discover the active swarm from the agent registry. */
+/** Workspace cwd — needed to discover the active swarm from the agent registry */
   cwd?: string | null;
   followUpClient?: FollowUpLike;
 }
@@ -31,12 +24,12 @@ export type LiveServerConnector = () => Promise<unknown>;
 
 let connector: LiveServerConnector | null = null;
 
-/** App registers (or clears) the sidecar-spawning connector. */
+/** App registers (or clears) the sidecar-spawning connector */
 export function setLiveServerConnector(fn: LiveServerConnector | null): void {
   connector = fn;
 }
 
-/** Whether on-demand connect is wired (App mounted). */
+/** Whether on-demand connect is wired (App mounted) */
 export function canConnectLiveServer(): boolean {
   return connector != null;
 }
@@ -44,8 +37,6 @@ export function canConnectLiveServer(): boolean {
 /**
  * Ensure a live server, spawning the sidecar on demand. Returns the connected
  * LiveServer, or null when there's nothing to connect to (no connector, or no
- * workspace folder). The connector populates the signal via setLiveServer; we
- * re-read it after it resolves. Propagates connector errors (sidecar failures).
  */
 export async function connectLiveServer(): Promise<LiveServer | null> {
   const current = liveServer();
@@ -55,7 +46,7 @@ export async function connectLiveServer(): Promise<LiveServer | null> {
   return liveServer();
 }
 
-/** Test-only reset. */
+/** Test-only reset */
 export function __resetLiveServer(): void {
   setLiveServer(null);
   connector = null;

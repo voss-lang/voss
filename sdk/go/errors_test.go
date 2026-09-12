@@ -19,7 +19,6 @@ func resp(status int, body string) *http.Response {
 
 // TestVossError proves the typed error model: 2xx -> nil; a 401 {v,detail}
 // body -> *VossError{401,"unauthorized"} via errors.As; a malformed body ->
-// non-panic VossError with empty Detail; and Error() never leaks a token.
 func TestVossError(t *testing.T) {
 	// 2xx -> nil.
 	for _, code := range []int{200, 201, 202, 204} {

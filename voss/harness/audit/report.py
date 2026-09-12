@@ -1,15 +1,6 @@
-"""V9 AuditReport aggregate — assembles all PRD §9 sections from persisted data.
-
-Read-only. Imports nothing from the board / EM / CLI layers.
-Principles and team config are loaded HERE (not in load.py) to satisfy the
-``TestNoLiveImports`` guard — ``load.py`` is forbidden those imports.
-
-The report distinguishes EM-authored claims (em.ticket/em.run_final/em.routing
-transitions) from verified evidence (review sidecars); unsupported EM claims are
-flagged in ``AuditReport.unsupported_claims``. Missing sources render an explicit
-"none" via ``sections_missing`` rather than crashing. Leak-6 is synthesized as an
-accepted-gap (no standup→memory writer exists in the V2-V7 substrate) — never
-injected into persisted data.
+"""
+AuditReport aggregate assembles all PRD sections from persisted data
+Read-only. Imports nothing from the board / EM / CLI layers
 """
 from __future__ import annotations
 
@@ -29,8 +20,8 @@ from voss.harness.audit.model import (
     Leak6Assessment,
 )
 
-# PRD §9 sections that have no persisted source anywhere in V2-V7 — they always
-# render an explicit "none".
+# PRD sections that have no persisted source anywhere in they always
+# render an explicit "none"
 _ALWAYS_MISSING: tuple[str, ...] = ("diff_summary", "tests_evals")
 
 
@@ -191,7 +182,7 @@ def build_audit_report(
     unsupported = _unsupported_claims(snapshot, sidecars)
     # Residual risk computed read-only; the frozen snapshot already carries the
     # fixture's accepted_gap marker, so snapshot.leak6 stays authoritative for
-    # the report's snapshot field. _residual_risk is exposed for the renderer.
+    # the report's snapshot field. _residual_risk is exposed for the renderer
     _residual_risk(snapshot)
 
     return AuditReport(

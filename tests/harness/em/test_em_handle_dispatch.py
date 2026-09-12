@@ -5,7 +5,6 @@ from __future__ import annotations
 from voss.harness.em.tickets import KillRecord, RescopeRecord, RoutingRationale
 
 
-
 class TestDispatchRoutingRationale:
     def test_dispatch_emits_routing_rationale(self, make_handle):
         h = make_handle()

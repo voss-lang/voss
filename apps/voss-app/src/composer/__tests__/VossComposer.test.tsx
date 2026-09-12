@@ -1,11 +1,3 @@
-// V24-04 (VADE2-04) — "Ask Voss to…" composer default-state contract.
-//
-// Progressive intake (D-04/D-05): on open the composer shows ONLY the ask field
-// and a safety-mode control defaulted to "Read only". Scope / agent target /
-// team / budget / attached context are collapsed behind "Advanced". No raw
-// internal labels (Plan/Edit/Auto, runId) surface by default (D-09). This suite
-// pins that behavior before the component exists (RED).
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { fireEvent } from '@testing-library/dom';
@@ -34,7 +26,7 @@ describe('VossComposer — default open state (D-04/D-05)', () => {
     const el = mount(() => <VossComposer open={true} onClose={() => {}} />);
     expect(el.querySelector('textarea')).toBeTruthy();
     expect(el.querySelector('[aria-label="Safety mode"]')).toBeTruthy();
-    // Advanced panel absent until expanded.
+    // Advanced panel absent until expanded
     expect(el.querySelector('#advanced-panel')).toBeNull();
     const toggle = el.querySelector('[aria-controls="advanced-panel"]');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');

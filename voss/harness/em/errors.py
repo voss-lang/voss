@@ -1,8 +1,6 @@
-"""Typed exceptions for the EM cage (O5).
-
+"""
+Typed exceptions for the EM cage
 EMCageViolation is raised when the EM attempts an operation the cage
-forbids: ceiling/p rewrite, non-roster dispatch, budget extension.
-Structured `.op` and `.reason` attrs for O6 audit surface.
 """
 from __future__ import annotations
 

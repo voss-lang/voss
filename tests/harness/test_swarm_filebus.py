@@ -1,8 +1,6 @@
-"""Unit tests for the swarm file-bus (R3 A13-format task/result transport).
-
+"""
+Unit tests for the swarm file-bus (R3 A13-format task/result transport).
 Covers the round trip the host depends on: write a task file from a Task, then
-read it back; parse a hand-authored result file (matching A13-SPEC.md); and the
-"not done yet" sentinel where a missing result returns None.
 """
 from __future__ import annotations
 

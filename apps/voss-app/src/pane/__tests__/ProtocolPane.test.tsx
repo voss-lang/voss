@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 
-// V15-04: the live permission gate replies through the SDK — mock it so the
+// 04: the live permission gate replies through the SDK — mock it so the
 // gate tests assert the POST contract without a server.
-// V15-04: the spawn-failure Retry re-invokes startVossServe — mock the Tauri
+// 04: the spawn-failure Retry re-invokes startVossServe — mock the Tauri
 // wrapper so no command is issued under jsdom.
 vi.mock('../../org/live/sidecarClient', () => ({
   startVossServe: vi.fn(),
@@ -27,11 +27,11 @@ import { __resetBridgeMaps } from '../../org/model/bridge';
 const mockReply = vi.mocked(replySidecarPermission);
 const mockStartServe = vi.mocked(startVossServe);
 
-// V15-03 (VLIVE-04): the structured protocol pane renders the §6 union as DOM
-// per the UI-SPEC — dedicated rows for user/tool/plan/stream/final/thinking,
-// a generic fallback for everything else (nothing silently dropped), D-07
-// collapsed tool lines with click-expand, and the D-08 capped/pinned transcript.
-// The stream is injected (Pitfall 4 — the webview only consumes).
+// 03: the structured protocol pane renders the §6 union as DOM
+// per the — dedicated rows for user/tool/plan/stream/final/thinking,
+// a generic fallback for everything else (nothing silently dropped),
+// collapsed tool lines with click-expand, and the capped/pinned transcript.
+// The stream is injected ( — the webview only consumes).
 
 function ev(payload: Record<string, unknown>): AgentEvent {
   return { v: 1, ...payload } as unknown as AgentEvent;
@@ -301,7 +301,7 @@ describe('ProtocolPane — live permission gate (V15-04, VLIVE-05)', () => {
       true,
     );
     expect(gate?.textContent).toContain('allowed once');
-    // Queue row cleared by the SAME prefixed id (T-V15-11).
+    // Queue row cleared by the SAME prefixed id (-11).
     expect(
       attentionQueue().find((i) => i.id === 'permission:perm-1'),
     ).toBeUndefined();

@@ -1,6 +1,6 @@
-//! Anthropic OAuth (Claude Code) types and constants.
-//!
-//! Verbatim port of the constants and shape from `voss/harness/auth.py`.
+//! Anthropic OAuth (Claude Code) types and constants
+//! Verbatim port of the constants and shape from `voss/harness/auth.py`
+
 
 use serde::{Deserialize, Serialize};
 
@@ -20,7 +20,7 @@ pub struct AnthropicOAuthCreds {
 }
 
 impl AnthropicOAuthCreds {
-    /// Refresh proactively 60s before stated expiry (matches Python).
+    /// Refresh proactively 60s before stated expiry (matches Python)
     pub fn expired(&self) -> bool {
         let now_ms = now_unix_ms();
         now_ms >= self.expires_at_ms - 60_000

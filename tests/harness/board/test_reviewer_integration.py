@@ -1,14 +1,6 @@
-"""O4-04 Task 1: Full board lifecycle with real ReviewerA + ReviewerB (ORVW-10).
-
+"""
+O4-04 Task 1: Full board lifecycle with real ReviewerA + ReviewerB (ORVW-10).
 Proves the A/B split plugs into O3's Board via the frozen Reviewer Protocol:
-- ReviewerB is the Board's gate reviewer (called by conf_meets_p during
-  Board.move at InProgress→InReview and InReview→Done)
-- ReviewerA operates outside the gate system (called by the test driver,
-  standing in for the EM loop) to author verification
-- Both produce ReviewerVerdict instances; both are Protocol-compatible
-  with DeterministicReviewerStub
-
-No real LLM calls — fake providers for both reviewers.
 """
 from __future__ import annotations
 

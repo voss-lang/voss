@@ -1,21 +1,13 @@
-// V24-07 (VADE2-07) — completed-run replay scrubber.
-//
-// Replaces ReplayPanel's ‹/› buttons with an accessible <input type="range">
-// (UI-SPEC §7) driving the SAME pure reducer (computeBoardAtStep). MANDATORY
-// proxy-strip before the reducer (Solid store proxies throw — ReplayPanel
-// pattern). Shown only for completed runs (the caller gates on run_final).
-
 import { type Component, createSignal, onCleanup } from 'solid-js';
 import { computeBoardAtStep } from '../../org/replayReducer';
 import type { RunData, SessionTreeNode } from '../../org/types';
 
 export interface ReplayScrubberProps {
   data: RunData;
-  /** Notified with each computed frame so the canvas can project the scrub. */
+/** Notified with each computed frame so the canvas can project the scrub */
   onFrame?: (frame: ReturnType<typeof computeBoardAtStep>) => void;
 }
 
-/** Total replay steps = count of board.transition entries (ReplayPanel parity). */
 function countSteps(nodes: SessionTreeNode[]): number {
   let n = 0;
   for (const node of nodes) {
@@ -30,7 +22,7 @@ const ReplayScrubber: Component<ReplayScrubberProps> = (props) => {
   const [step, setStep] = createSignal(0);
   const [playing, setPlaying] = createSignal(false);
 
-  // MANDATORY proxy-strip before the pure reducer.
+  // MANDATORY proxy-strip before the pure reducer
   const plainNodes = (): SessionTreeNode[] =>
     JSON.parse(JSON.stringify(props.data?.session_tree.nodes ?? []));
   const total = () => countSteps(plainNodes());

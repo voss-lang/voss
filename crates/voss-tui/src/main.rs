@@ -1,8 +1,6 @@
-//! voss-tui entry point (H2.1).
-//!
+//! voss-tui entry point
 //! Spawns (or attaches to) the harness server, creates a session, then runs the
-//! ratatui UI. The terminal is always restored, and a spawned server is killed,
-//! on exit.
+
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -15,30 +13,30 @@ struct Cli {
     #[command(subcommand)]
     cmd: Option<Cmd>,
     /// Attach to an already-running server (e.g. http://127.0.0.1:PORT) instead
-    /// of spawning one.
+    /// of spawning one
     #[arg(long, global = true)]
     attach: Option<String>,
-    /// Bearer token for --attach (or VOSS_TUI_TOKEN).
+    /// Bearer token for --attach (or VOSS_TUI_TOKEN)
     #[arg(long, global = true, env = "VOSS_TUI_TOKEN")]
     token: Option<String>,
-    /// Project working directory for the session.
+    /// Project working directory for the session
     #[arg(long, global = true, default_value = ".")]
     cwd: String,
 }
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Run server-side diagnostics and exit (no TUI).
+    /// Run server-side diagnostics and exit (no TUI)
     Doctor,
-    /// List resumable saved sessions and exit (no TUI).
+    /// List resumable saved sessions and exit (no TUI)
     Sessions {
-        /// Read via the Python server instead of natively (H7).
+        // / Read via the Python server instead of natively
         #[arg(long)]
         via_server: bool,
     },
-    /// Resume a saved session by id/name into the TUI.
+    /// Resume a saved session by id/name into the TUI
     Resume {
-        /// Saved session id or name.
+        /// Saved session id or name
         id: String,
     },
 }
@@ -47,13 +45,13 @@ enum Cmd {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // H7: native session listing needs no Python server — short-circuit before
-    // spawning one. Rust reads the same on-disk format Python writes.
+    // H7: native session listing needs no Python server short-circuit before
+    // spawning one. Rust reads the same on-disk format Python writes
     if matches!(cli.cmd, Some(Cmd::Sessions { via_server: false })) {
         return sessions::list_native(&cli.cwd);
     }
 
-    // Resolve the server: attach to an existing one, or spawn + supervise.
+    // Resolve the server: attach to an existing one, or spawn + supervise
     let (handle, http) = match cli.attach.clone() {
         Some(url) => {
             let token = cli.token.clone().unwrap_or_default();
@@ -67,7 +65,7 @@ async fn main() -> Result<()> {
     };
 
     // Run the chosen command, ALWAYS shutting the server down before exiting
-    // (std::process::exit skips Drop, so shutdown must precede it explicitly).
+    // (std::process::exit skips Drop, so shutdown must precede it explicitly)
     let outcome: Result<Option<i32>> = match cli.cmd {
         Some(Cmd::Doctor) => doctor::run(&http, &cli.cwd).await.map(Some),
         Some(Cmd::Sessions { .. }) => sessions::list(&http, &cli.cwd).await.map(|()| Some(0)),
@@ -88,7 +86,7 @@ async fn main() -> Result<()> {
 
 async fn run_tui(http: &HttpClient, cwd: &str) -> Result<()> {
     // Create the session before entering raw mode so credential/connection
-    // errors print normally instead of inside the alternate screen.
+    // errors print normally instead of inside the alternate screen
     let sid = http
         .create_session(cwd)
         .await

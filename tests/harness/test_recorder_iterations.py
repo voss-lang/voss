@@ -1,10 +1,6 @@
-"""T1-01: RunRecorder.begin_iteration / end_iteration + finalize wiring.
-
+"""
+T1-01: RunRecorder.begin_iteration / end_iteration + finalize wiring.
 Locks the per-iteration capture API. Tests cover behavior, validation, and
-finalize forwarding to RunRecord.iterations / iteration_count / exit_reason
-/ iteration_total_*_tokens.
-
-No provider, no git. Plan stub is a SimpleNamespace with model_dump.
 """
 from __future__ import annotations
 

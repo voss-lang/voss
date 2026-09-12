@@ -1,12 +1,6 @@
-"""VBOARD-03 Card field completeness — Wave 0 RED scaffold.
-
+"""
+VBOARD-03 Card field completeness — Wave 0 RED scaffold.
 Drives the REAL planned API (V5-02):
-  - Card gains additive fields: idea / role / acceptance_criteria /
-    verification_requirement, all defaulting to "".
-  - Module-level helpers card_status(card) and card_budget(envelope).
-
-RED until V5-02 implements those symbols/fields. Failures are genuine
-(AttributeError / unexpected-keyword / ImportError) — no xfail/skip masking.
 """
 from __future__ import annotations
 

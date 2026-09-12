@@ -1,9 +1,6 @@
-"""M5 D-18: README install section contains the required content.
-
+"""
+M5 D-18: README install section contains the required content.
 Content-assert tests pin the v0.1 distribution narrative in the README so the
-install instructions cannot silently drift to a stale or incorrect path
-(e.g. re-introducing `cargo install voss` or losing the `voss doctor` first-run
-guidance).
 """
 
 from __future__ import annotations

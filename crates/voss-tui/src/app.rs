@@ -1,9 +1,9 @@
-//! ratatui UI loop (H2.6, H2.7, H2.8).
-//!
+//! ratatui UI loop (,, )
 //! A single UI task owns terminal + state and runs `tokio::select!` over three
-//! sources: crossterm input (`EventStream`), network events (mpsc from the SSE
-//! task), and a render tick. `draw` is a pure function of `&App` — no I/O. The
-//! network lives in spawned tasks so the render loop never blocks.
+
+//! ratatui UI loop (, , )
+//! A single UI task owns terminal + state and runs `tokio::select!` over three
+
 
 use anyhow::Result;
 use crossterm::event::{Event as CtEvent, EventStream, KeyCode, KeyEventKind, KeyModifiers};
@@ -59,7 +59,6 @@ impl App {
 
     /// Commit any partially-streamed text to the transcript so a terminal event
     /// (error / idle / final) never leaves an orphaned live line that re-renders
-    /// forever and contaminates the next turn's buffer.
     fn flush_streaming(&mut self) {
         if !self.streaming.is_empty() {
             let s = std::mem::take(&mut self.streaming);
@@ -131,7 +130,7 @@ impl App {
 
 const ACCENT: Color = Color::Cyan;
 
-/// Style a transcript line by its leading glyph (role distinction, TUI parity).
+/// Style a transcript line by its leading glyph (role distinction, TUI parity)
 fn line_to_styled(s: &str) -> Line<'static> {
     let style = match s.chars().next() {
         Some('\u{203A}') => Style::default().add_modifier(Modifier::BOLD), // › user
@@ -154,7 +153,7 @@ fn draw(f: &mut Frame, app: &App) {
     ])
     .areas(f.area());
 
-    // Header: model · session · tokens · cost.
+    // Header: model · session · tokens · cost
     let sid8 = app.session_id.chars().take(8).collect::<String>();
     let header_text = format!(
         " voss · {} · {} · {} tok · ${:.4}",
@@ -170,7 +169,7 @@ fn draw(f: &mut Frame, app: &App) {
         header,
     );
 
-    // Transcript: role-styled, bottom-pinned by wrapped-row count.
+    // Transcript: role-styled, bottom-pinned by wrapped-row count
     let mut lines: Vec<String> = app.transcript.clone();
     if !app.streaming.is_empty() {
         lines.push(app.streaming.clone());
@@ -210,7 +209,7 @@ fn draw(f: &mut Frame, app: &App) {
         input,
     );
 
-    // Status bar: spinner while busy + the latest status line.
+    // Status bar: spinner while busy + the latest status line
     const SPIN: [char; 4] = ['⠋', '⠙', '⠹', '⠸'];
     let prefix = if app.busy {
         format!("{} ", SPIN[app.spinner % SPIN.len()])
@@ -237,9 +236,8 @@ fn submit(http: &HttpClient, sid: &str, tx: &mpsc::Sender<AppEvent>, text: Strin
     });
 }
 
-/// Handle a slash command typed in the TUI (H4.4, minimal).
+/// Handle a slash command typed in the TUI (, minimal)
 /// Edit/insight slashes (/diff /apply /budget /why) are deferred until the
-/// server models pending-edits + budget envelopes.
 fn slash(app: &mut App, cmd: &str, http: &HttpClient, sid: &str, tx: &mpsc::Sender<AppEvent>) {
     match cmd {
         "help" | "" => app
@@ -270,8 +268,8 @@ fn slash(app: &mut App, cmd: &str, http: &HttpClient, sid: &str, tx: &mpsc::Send
     }
 }
 
-/// Spawn a one-shot REST call off the UI task; report failure as an error event.
-/// Keeps the select! loop responsive even if the server is slow/unreachable.
+/// Spawn a one-shot REST call off the UI task; report failure as an error event
+/// Keeps the select! loop responsive even if the server is slow/unreachable
 fn spawn_fire<F, Fut>(
     http: &HttpClient,
     sid: &str,
@@ -314,8 +312,8 @@ async fn handle_key(
             app.status = format!("mode: {}", app.mode);
         }
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            // Spawn — never await network on the UI task or a slow server
-            // freezes the whole loop (incl. Esc-to-quit).
+            // Spawn never await network on the UI task or a slow server
+            // freezes the whole loop (incl. Esc-to-quit)
             spawn_fire(
                 http,
                 sid,
@@ -357,7 +355,7 @@ async fn handle_key(
     }
 }
 
-/// Run the UI loop until the user quits.
+/// Run the UI loop until the user quits
 pub async fn run(mut terminal: DefaultTerminal, http: HttpClient, sid: String) -> Result<()> {
     let mut app = App::new(sid.clone());
     let (tx, mut rx) = mpsc::channel::<AppEvent>(256);

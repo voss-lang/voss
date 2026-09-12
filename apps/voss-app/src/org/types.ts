@@ -1,12 +1,3 @@
-// V13.1-REPLACE: hand-authored stopgap — replace with codegen contract snapshot when Phase V13.1 TypeScript Local Client SDK lands.
-//
-// Pure type/interface module: no imports, no logic, no side effects.
-// Shapes mirror the VERIFIED upstream CLI-JSON contracts (V11-RESEARCH.md
-// "Upstream JSON Contracts"). guards.ts is the runtime boundary that rejects
-// drift between these declared shapes and the real `load_run` output (D-02).
-
-// --- Session tree node + transitions -----------------------------------------
-
 export interface Envelope {
   limit: number;
   spent: number;
@@ -72,7 +63,7 @@ export interface EmRescope {
   rescoped_at: string;
 }
 
-/** Discriminated union over `kind` — every transition shape a node may hold. */
+/** Discriminated union over `kind` — every transition shape a node may hold */
 export type Transition =
   | BoardTransition
   | EmTicket
@@ -94,7 +85,6 @@ export interface SessionTreeNode {
   role: string | null;
 }
 
-// --- Run final ---------------------------------------------------------------
 
 export interface SignOff {
   decision: 'approve' | 'reject';
@@ -115,7 +105,6 @@ export interface RunFinal {
   sign_off?: SignOff;
 }
 
-// --- Review sidecar ----------------------------------------------------------
 
 export interface AVerification {
   result: string;
@@ -138,7 +127,6 @@ export interface ReviewSidecar {
   final_outcome: 'pass' | 'fail' | 'block' | '?';
 }
 
-// --- Audit report ------------------------------------------------------------
 
 export interface AuditCard {
   node_id: string;
@@ -181,16 +169,15 @@ export interface AuditReport {
   unsupported_claims: string[];
 }
 
-// --- Command results ---------------------------------------------------------
 
-/** One entry from `enumerate_runs`. */
+/** One entry from `enumerate_runs` */
 export interface RunEntry {
   run_id: string;
   mtime_secs: number;
   has_run_final: boolean;
 }
 
-/** Result of `run_decision` (D-08: stdout/stderr/exit captured). */
+/** Result of `run_decision` (: stdout/stderr/exit captured) */
 export interface DecisionResult {
   success: boolean;
   stdout: string;
@@ -198,7 +185,7 @@ export interface DecisionResult {
   exit_code: number;
 }
 
-/** Aggregate returned by `load_run` — the root contract guards.ts validates. */
+/** Aggregate returned by `load_run` — the root contract guards.ts validates */
 export interface RunData {
   run_id: string;
   session_tree: { root_id: string; nodes: SessionTreeNode[] };
@@ -207,7 +194,6 @@ export interface RunData {
   run_final: RunFinal | null;
 }
 
-// --- Replay reducer view types (D-05/D-06) -----------------------------------
 
 export interface CardSnapshot {
   id: string;
@@ -217,7 +203,7 @@ export interface CardSnapshot {
   budget: { limit: number; spent: number };
 }
 
-/** Board/card state reconstructed at a single replay step. */
+/** Board/card state reconstructed at a single replay step */
 export interface BoardFrame {
   columns: Record<string, CardSnapshot[]>;
   step: number;

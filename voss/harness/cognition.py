@@ -1,9 +1,6 @@
-"""Project cognition: load durable .voss/ state, drift-check, helpers.
-
-Pure module. Never raises out of `load()` or `drift_check()` — failures
-populate `CognitionBundle.load_errors` or fall back to sentinel values.
-All YAML parsing uses `yaml.safe_load` (T-M2-01). Subprocess calls wrapped
-in try/except for OSError + SubprocessError (T-M2-03).
+"""
+Project cognition: load durable.voss/ state, drift-check, helpers
+Pure module. Never raises out of `load` or `drift_check` failures
 """
 from __future__ import annotations
 
@@ -80,9 +77,7 @@ def cache_dir(cwd: Path) -> Path:
     return cwd / ".voss-cache"
 
 
-# ---------------------------------------------------------------------------
 # Private helpers
-# ---------------------------------------------------------------------------
 
 
 def _load_json(path: Path, model, errors: list[str]):
@@ -205,7 +200,7 @@ def _git_rev_list_count(cwd: Path, sha: str) -> int:
             timeout=5,
         )
         if result.returncode != 0:
-            # Unreachable SHA (force-rebase) — treat as drifted (Pitfall 4)
+            # Unreachable SHA (force-rebase) treat as drifted
             return DRIFT_COMMITS
         return int(result.stdout.strip())
     except (OSError, subprocess.SubprocessError, ValueError):
@@ -242,9 +237,7 @@ def _days_since(analyzed_at: str) -> int:
         return 0
 
 
-# ---------------------------------------------------------------------------
 # Public API
-# ---------------------------------------------------------------------------
 
 
 def _is_initialized(cwd: Path) -> bool:
@@ -265,7 +258,7 @@ def load(cwd: Path, *, token_count: "callable | None" = None) -> CognitionBundle
     constraints = _load_yaml(root / "constraints.yml", ConstraintsConfig, errors)
     permissions = _load_yaml(root / "permissions.yml", PermissionsConfig, errors)
     validation = _load_yaml(root / "validation.yml", ValidationConfig, errors)
-    # V12: optional project-local safety policy (missing file → None, no error).
+    # optional project-local safety policy (missing file → None, no error)
     safety = _load_yaml(root / "safety.yml", SafetyConfig, errors)
     tok = token_count(arch_body) if (token_count and arch_body) else 0
     return CognitionBundle(
@@ -352,9 +345,9 @@ def build_repo_idx(cwd: Path) -> dict:
         try:
             stat = fp.stat()
             raw = fp.read_bytes()
-            # Truncated SHA-256 for repo-index fingerprinting. Not security-
+            # Truncated SHA-256 for repo-index fingerprinting. Not security
             # critical (local cache invalidation only) but SHA-1 is prohibited
-            # for new code by NIST/BSI/ANSSI regardless of intent.
+            # for new code by NIST/BSI/ANSSI regardless of intent
             sha = hashlib.sha256(raw).hexdigest()[:40]
             files.append(
                 {
@@ -420,9 +413,7 @@ def reserve_filename(dir_: Path, base: str, ext: str = ".md") -> Path:
     return p
 
 
-# ---------------------------------------------------------------------------
-# M2-04: hybrid bootstrap helpers
-# ---------------------------------------------------------------------------
+# hybrid bootstrap helpers
 
 
 _LANG_BY_EXT = {

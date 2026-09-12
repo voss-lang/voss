@@ -1,14 +1,5 @@
 //! Schema parity gate. Compares the schemars-derived JSON Schema for
 //! `voss_agent::Plan` and `voss_agent::ToolCall` against the pydantic-derived
-//! schema in `voss/harness/agent.py`. Drift fails CI.
-//!
-//! Strictness level: property-name set parity + required-set parity. Type
-//! and description text are NOT byte-compared because pydantic adds Field
-//! metadata (`title`, range constraints) that schemars omits, and the
-//! property *types* are already enforced at compile-time by serde
-//! roundtripping. The required-set check catches the dangerous drift class
-//! (a field becoming required on one side but not the other), and the
-//! name-set check catches field add/remove/rename.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;

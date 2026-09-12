@@ -1,8 +1,6 @@
-"""E2E for `voss memory <vacuum|adopt|size>`.
-
+"""
+E2E for `voss memory <vacuum|adopt|size>`.
 vacuum + size require an existing .voss/memory/ tree; we seed it directly
-because `voss do` does not create memory entries today. adopt requires a
-VOSS.md fence we control end-to-end.
 """
 from __future__ import annotations
 

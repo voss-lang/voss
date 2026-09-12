@@ -1,20 +1,6 @@
-"""Swarm coordinator — server-side goal decomposition (R3 / A13 D-03, D-16).
-
+"""
+Swarm coordinator server-side goal decomposition (R3 / , )
 Under R3 the coordinator is a SINGLE server-side LLM call (not a long-lived
-agent): given a natural-language goal it returns 2–6 parallelizable subtasks, each
-with a DISJOINT `owned_files` set and a per-task agent choice (D-16: "coordinator
-picks the CLI per subtask"). The host then writes one task file per subtask
-(`swarm_filebus.write_task_file`) and seeds SwarmStore.
-
-Disjoint ownership is what makes the rest of R3 work: it is the a-priori guard
-(VSWARM-06 overlap validation) AND what guarantees the fan-in worktree merge is
-conflict-free. So `to_tasks` re-runs `validate_no_overlap` across the whole
-decomposition and rejects an overlapping plan up front — the LLM is asked for
-disjoint files, but we never trust it to be correct.
-
-This module depends only on the provider Protocol (structured output via
-`response_format` → `resp.parsed`) and the pure pieces of swarm_store/swarm_agents,
-so it has no server/web/fs coupling and is unit-testable with a stub provider.
 """
 from __future__ import annotations
 
@@ -27,9 +13,7 @@ from .swarm_agents import NATIVE, known_agents
 from .swarm_store import Task, validate_no_overlap
 
 
-# ---------------------------------------------------------------------------
-# Structured-output schema — what the coordinator LLM must return.
-# ---------------------------------------------------------------------------
+# Structured-output schema what the coordinator LLM must return
 class SubtaskSpec(BaseModel):
     """One decomposed subtask: a goal, the files it exclusively owns, and the
     CLI agent that should execute it (D-16). `agent` defaults to the native loop
@@ -114,7 +98,7 @@ async def decompose(
         )
     subtasks = list(parsed.subtasks)
     # Clamp: drop anything past max_tasks; a too-short plan is left as-is (we can't
-    # fabricate subtasks) but never trimmed below what the model returned.
+    # fabricate subtasks) but never trimmed below what the model returned
     return subtasks[:max_tasks]
 
 

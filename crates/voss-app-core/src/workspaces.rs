@@ -1,8 +1,3 @@
-//! A8 workspace index — `~/.config/voss-app/workspaces.json` metadata (D-04).
-//!
-//! Fail-safe loads never block app startup: missing, corrupt, or unsupported
-//! index files yield a single default project-less workspace.
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -12,10 +7,8 @@ pub const CURRENT_WORKSPACES_VERSION: u32 = 1;
 /// Default workspace id used when the index is missing or unusable.
 pub const DEFAULT_WORKSPACE_ID: &str = "default";
 
-/// Default accent when no user override exists (D-03 palette).
 pub const DEFAULT_ACCENT_COLOR: &str = "blue";
 
-/// On-disk workspace index (D-04).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacesIndex {
@@ -26,7 +19,6 @@ pub struct WorkspacesIndex {
 }
 
 /// One workspace tab's persisted metadata. Pane tree + scrollback live in
-/// per-workspace session files under private app data.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceEntry {
@@ -57,7 +49,6 @@ pub enum WorkspacesError {
     SaveFailed,
 }
 
-// --- Path helpers ------------------------------------------------------------
 
 #[cfg(not(test))]
 pub fn workspaces_index_path() -> PathBuf {
@@ -81,7 +72,6 @@ fn config_dir() -> PathBuf {
         .join("voss-app")
 }
 
-// --- Validation --------------------------------------------------------------
 
 /// Workspace ids must be stable filename-safe tokens (alphanumeric + hyphen).
 pub fn validate_workspace_id(id: &str) -> Result<(), WorkspacesError> {
@@ -107,7 +97,6 @@ fn validate_index(index: &WorkspacesIndex) -> Result<(), WorkspacesError> {
     Ok(())
 }
 
-// --- Default index -----------------------------------------------------------
 
 /// Single project-less default workspace — used when the index cannot be loaded.
 pub fn default_workspaces_index() -> WorkspacesIndex {
@@ -127,7 +116,6 @@ pub fn default_workspaces_index() -> WorkspacesIndex {
     }
 }
 
-// --- Load / save -------------------------------------------------------------
 
 /// Load `workspaces.json`. Missing, corrupt, unsupported, or empty → default
 /// index (never blocks boot).
@@ -221,7 +209,6 @@ pub fn workspace_session_path(entry: &WorkspaceEntry) -> PathBuf {
     crate::session::session_path(&entry.id)
 }
 
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 thread_local! {
@@ -257,7 +244,6 @@ mod tests {
         }
     }
 
-    // --- schema ------------------------------------------------------------
 
     #[test]
     fn workspace_entry_round_trips_camel_case() {
@@ -295,7 +281,6 @@ mod tests {
         assert!(!json.contains("projectPath"), "omit null: {json}");
     }
 
-    // --- id validation -----------------------------------------------------
 
     #[test]
     fn validate_workspace_id_accepts_alphanumeric_and_hyphen() {
@@ -312,7 +297,6 @@ mod tests {
         assert!(validate_workspace_id("ws 1").is_err());
     }
 
-    // --- fail-safe load ----------------------------------------------------
 
     #[test]
     fn load_missing_index_returns_default_workspace() {
@@ -360,7 +344,6 @@ mod tests {
         assert_eq!(load_workspaces_index(), default_workspaces_index());
     }
 
-    // --- save / round-trip -------------------------------------------------
 
     #[test]
     fn save_then_load_round_trips_index() {
@@ -414,7 +397,6 @@ mod tests {
         assert!(!workspaces_index_path().with_extension("json.tmp").exists());
     }
 
-    // --- session path resolution -------------------------------------------
 
     #[test]
     fn workspace_session_path_project_uses_private_app_data() {

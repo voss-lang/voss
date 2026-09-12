@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // modelPrefs persists via the real appearance-settings flatten store, which
 // calls @tauri-apps/api/core invoke('save_appearance_settings'). Mock invoke so
-// the persistence call is observable and round-trips through committedSettings.
 const h = vi.hoisted(() => ({
   invoke: vi.fn(),
 }));
@@ -50,7 +49,7 @@ describe('modelPrefs — catalog honesty', () => {
 describe('modelPrefs — defaultModelFor', () => {
   it('returns the real built-in default for each CLI when nothing is persisted', () => {
     expect(defaultModelFor('claude')).toBe('sonnet');
-    // null = omit --model so a missing/renamed model can never break the launch.
+    // null = omit --model so a missing/renamed model can never break the launch
     expect(defaultModelFor('codex')).toBeNull();
     expect(defaultModelFor('gemini')).toBeNull();
     expect(defaultModelFor('opencode')).toBeNull();
@@ -62,7 +61,7 @@ describe('modelPrefs — defaultModelFor', () => {
     await saveDefaultModel('claude', 'opus');
     expect(defaultModelFor('claude')).toBe('opus');
 
-    // A non-Claude override flips its default from null to the chosen id.
+    // A non-Claude override flips its default from null to the chosen id
     expect(defaultModelFor('codex')).toBeNull();
     await saveDefaultModel('codex', 'gpt-5.1-codex');
     expect(defaultModelFor('codex')).toBe('gpt-5.1-codex');
@@ -109,7 +108,7 @@ describe('modelPrefs — persistence', () => {
     h.invoke.mockResolvedValueOnce({ cliDefaultModels: { claude: 'opus', codex: 'gpt-x' } });
     const prefs = await loadModelPrefs();
     expect(prefs).toMatchObject({ claude: 'opus', codex: 'gpt-x' });
-    // After hydration, the synchronous default reflects the loaded value.
+    // After hydration, the synchronous default reflects the loaded value
     expect(defaultModelFor('claude')).toBe('opus');
   });
 

@@ -1,6 +1,6 @@
 //! Sandbox: path jailing + shell allowlist. Verbatim port of
 //! `voss/harness/sandbox.py`. Allowlist persists to
-//! `~/.config/voss/sandbox.toml` (overridable via `$XDG_CONFIG_HOME`).
+
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -23,8 +23,6 @@ pub const DENY_TOKENS: &[&str] = &[
 
 /// Shell metacharacters that change command-flow semantics. Mirrors
 /// `voss/harness/sandbox.py::SHELL_METACHARS`. Even though callers MAY use
-/// exec-style invocation (no shell), we reject these at allowlist time so a
-/// misuse of the API by a future caller can't re-enable shell parsing.
 pub const SHELL_METACHARS: &[&str] = &[
     ";", "|", "&&", "||", "&", "$(", "`", ">", "<", ">>", "<<", "<(", ">(",
 ];
@@ -43,11 +41,8 @@ pub enum SandboxError {
     Empty,
 }
 
-/// Resolve `target` against `cwd`; reject any path that escapes `cwd`.
-///
-/// Mirrors `voss/harness/sandbox.py::jail_path`. For non-existent paths,
-/// canonicalization may fail — fall back to lexical join + parent-canonical
-/// containment check so the jail still rejects `../etc/passwd` style escapes.
+/// Resolve `target` against `cwd`; reject any path that escapes `cwd`
+/// Mirrors `voss/harness/sandbox.py::jail_path`. For non-existent paths
 pub fn jail_path(cwd: &Path, target: &str) -> Result<PathBuf, SandboxError> {
     let cwd_real = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
     let p = Path::new(target);
@@ -61,9 +56,6 @@ pub fn jail_path(cwd: &Path, target: &str) -> Result<PathBuf, SandboxError> {
         Err(_) => {
             // Path may not exist yet (e.g. fs_write target). Anchor to the
             // nearest existing ancestor; collect remaining components in
-            // reverse and re-append in order so we don't introduce trailing
-            // slashes (which would make `std::fs::write` think the target
-            // is a directory).
             let mut base = abs.clone();
             let mut tail_rev: Vec<std::ffi::OsString> = Vec::new();
             loop {
@@ -91,7 +83,7 @@ pub fn jail_path(cwd: &Path, target: &str) -> Result<PathBuf, SandboxError> {
     Ok(resolved)
 }
 
-/// Check whether `cmd` is allowed under `allowlist`. Returns Ok(()) on allow.
+/// Check whether `cmd` is allowed under `allowlist`. Returns Ok on allow
 pub fn shell_allowed(cmd: &str, allowlist: &HashSet<String>) -> Result<(), SandboxError> {
     let lowered = cmd.to_lowercase();
     for bad in DENY_TOKENS {

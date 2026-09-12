@@ -1,16 +1,6 @@
-"""ContextAllocator unit contract (VOPT-01/02/03/04).
-
+"""
+ContextAllocator unit contract (VOPT-01/02/03/04).
 Fixtures are synthetic SimpleNamespace iters shaped like
-voss.harness.session.IterationRecord (index/plan/tool_results) — no
-provider, no live model, no filesystem dependency: the allocator is pure.
-
-Contract pinned here:
-    from voss.harness.context_allocator import ContextAllocator, PackingProfile
-    ContextAllocator(token_count=callable)            # injected for purity
-    .pack(iter_records, packing_budget, profile) -> list[tuple[dict, dict]]
-    .stable_region_hash() -> str                      # SHA-256 of stable replay prefix
-    PackingProfile(recent_full_k=8, digest_cutoff_m=20,
-                   high_water=0.80, low_water=0.60, enabled=True)
 """
 from __future__ import annotations
 

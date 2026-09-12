@@ -1,8 +1,6 @@
-"""VREV-06 RED scaffold: ReviewerVerdict.domain_inferred (7th field).
-
+"""
+VREV-06 RED scaffold: ReviewerVerdict.domain_inferred (7th field).
 RED until V6-02 adds the `domain_inferred` field to ReviewerVerdict and the
-clamp to {code,ai,docs,unknown} in ReviewerB._to_verdict. These tests fail at
-runtime (missing field / attribute), NOT at collection.
 """
 
 from __future__ import annotations

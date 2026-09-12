@@ -36,7 +36,7 @@ pub struct AgentEntry {
     pub cwd: String,
     pub status: String,
     pub last_seen: i64,
-    // V25 VSWARM-09: swarm pane-binding. All nullable — non-swarm agents leave
+    // VSWARM-09: swarm pane-binding. All nullable — non-swarm agents leave
     // them None. camelCase rename yields swarmId/role/ownedFiles for IPC.
     // owned_files is a JSON array string; the frontend parses it defensively.
     // Coordinator references init task list
@@ -125,7 +125,7 @@ pub fn create_schema(conn: &Connection) -> Result<(), AgentRegistryError> {
         eprintln!("[voss-app] agent registry schema failed: {e}");
         AgentRegistryError::WriteFailed
     })?;
-    // V25 VSWARM-09: idempotent add of swarm columns. ALTER ADD COLUMN errors
+    // VSWARM-09: idempotent add of swarm columns. ALTER ADD COLUMN errors
     // if the column already exists, so guard via PRAGMA table_info. Columns are
     // nullable DEFAULT NULL → no table rewrite, safe across re-open.
     let existing: std::collections::HashSet<String> = {
@@ -171,7 +171,7 @@ pub fn register_agent(
     cli_binary: &str,
     cli_args: &[String],
     cwd: &str,
-    // V25 VSWARM-09 swarm pane-binding — None for non-swarm agents (NULL cols).
+    // VSWARM-09 swarm pane-binding — None for non-swarm agents (NULL cols).
     swarm_id: Option<&str>,
     role: Option<&str>,
     owned_files: Option<&str>,

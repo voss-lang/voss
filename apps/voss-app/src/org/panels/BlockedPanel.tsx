@@ -5,7 +5,7 @@ import { currentRunId, currentCwd, currentCliBinary } from '../orgStore';
 import DecisionDialog from '../DecisionDialog';
 import type { DecisionAction } from '../decisionActions';
 
-// VADE-09 — blocked-card list + decision flow. A card is blocked when its
+// 09 — blocked-card list + decision flow. A card is blocked when its
 // derived column is "Blocked" (reuses the verified boardDerive algorithm).
 // Only `approve` has a non-interactive CLI surface; reject/unblock render
 // disabled-with-explanation (one-write-path invariant — no invented behavior).

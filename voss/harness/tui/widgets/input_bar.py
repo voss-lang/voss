@@ -1,4 +1,6 @@
-"""InputBar widget - bottom multi-line input with locked prompt glyph."""
+"""
+InputBar widget - bottom multi-line input with locked prompt glyph
+"""
 from __future__ import annotations
 
 import asyncio
@@ -18,8 +20,8 @@ from .local_block import LocalBlockNote, LocalBlockShell
 
 IMAGE_INDICATOR = "[image attached · 1 image]"
 NO_VISION_NOTICE = "current model has no vision — image not attached"
-# R6 paste chip (spec §5.5): a bracketed paste of MORE than this many lines
-# collapses to a `[pasted N lines]` chip token, expanded on submit.
+# R6 paste chip (spec .5): a bracketed paste of MORE than this many lines
+# collapses to a `[pasted N lines]` chip token, expanded on submit
 PASTE_CHIP_THRESHOLD_LINES = 5
 
 
@@ -56,7 +58,7 @@ def _probe_clipboard_image():
 
 
 def _model_supports_vision(model_name: str) -> bool:
-    # [ASSUMED] No provider capability API exists; T8 gates by known model prefixes.
+    # [ASSUMED] No provider capability API exists; T8 gates by known model prefixes
     name = (model_name or "").lower()
     return name.startswith(("claude-3", "claude-opus", "gpt-4o", "gpt-4-vision", "gemini"))
 
@@ -80,29 +82,29 @@ class _InputTextArea(TextArea):
         if bar is None or not isinstance(bar, InputBar):
             await super()._on_key(event)
             return
-        # Delegate special keys to InputBar.
+        # Delegate special keys to InputBar
         if event.key == "ctrl+r":
             event.prevent_default()
             event.stop()
             bar.action_reverse_search()
             return
         # Forward the global copy-code shortcut: a focused TextArea would
-        # otherwise swallow ctrl+y before the app-level binding fires.
+        # otherwise swallow ctrl+y before the app-level binding fires
         if event.key == "ctrl+y":
             event.prevent_default()
             event.stop()
             self.app.action_copy_code()
             return
         if getattr(bar, "_search_mode", False):
-            # Reverse-search mode — let InputBar handle all keys.
+            # Reverse-search mode let InputBar handle all keys
             event.prevent_default()
             event.stop()
             await bar._on_key(event)
             return
-        # Slash OR @-mention palette open → route nav/select/dismiss keys to it.
+        # Slash OR @-mention palette open → route nav/select/dismiss keys to it
         # The textarea keeps focus (so printable keys + backspace still filter
-        # via Changed), so the palette's own bindings never fire — forward them
-        # explicitly. Both palettes expose the same nav/_submit_current surface.
+        # via Changed), so the palette's own bindings never fire forward them
+        # explicitly. Both palettes expose the same nav/_submit_current surface
         palette = bar.mounted_slash_palette() or bar.mounted_mention_palette()
         if palette is not None:
             if event.key == "up":
@@ -121,19 +123,19 @@ class _InputTextArea(TextArea):
                 palette.action_dismiss()
                 return
             if event.key == "enter" and palette._names:
-                # Run the highlighted command instead of submitting raw text.
+                # Run the highlighted command instead of submitting raw text
                 event.prevent_default()
                 event.stop()
                 palette._submit_current()
                 return
             if event.key == "enter":
-                # No matching command — close palette, fall through to submit.
+                # No matching command close palette, fall through to submit
                 palette.action_dismiss()
         if event.key == "escape":
-            # R6 spec §7.1: idle esc focuses the transcript (nav mode).
+            # R6 spec .1: idle esc focuses the transcript (nav mode)
             # Palette esc never reaches here (dismissed above) and modal esc
             # is on the modal screen's own focus chain. A running turn keeps
-            # esc inert so interrupt semantics (ctrl+c) are untouched.
+            # esc inert so interrupt semantics (ctrl+c) are untouched
             task = getattr(self.app, "active_turn_task", None)
             if task is None or task.done():
                 event.prevent_default()
@@ -144,7 +146,7 @@ class _InputTextArea(TextArea):
                     pass
                 return
         if event.key == "backspace" and bar._pasted_blobs:
-            # R6 spec §5.5: backspace at a chip boundary deletes the chip whole.
+            # R6 spec .5: backspace at a chip boundary deletes the chip whole
             if bar.delete_chip_before_cursor():
                 event.prevent_default()
                 event.stop()
@@ -182,10 +184,10 @@ class _InputTextArea(TextArea):
 class InputBar(Widget):
     """TextArea-backed input with locked prompt glyph + Submitted contract."""
 
-    # Structural layout only — all colors/border states live in styles.tcss
-    # (R5 spec §5.5 + §4.1: no hex literal in TUI .py files; the $accent
+    # Structural layout only all colors/border states live in styles.tcss
+    # (R5 spec .5 + .1: no hex literal in TUI.py files; the $accent
     # focus border is declared in the audit-exempt tcss site, mirroring the
-    # MentionPalette precedent).
+    # MentionPalette precedent)
     DEFAULT_CSS = """
     InputBar {
         layout: horizontal;
@@ -197,7 +199,7 @@ class InputBar(Widget):
     }
     """
 
-    # Static placeholder shown while the buffer is empty (R5 spec §5.5).
+    # Static placeholder shown while the buffer is empty (R5 spec .5)
     PLACEHOLDER = "/ commands · @ files · ctrl+r history"
 
     BINDINGS = [
@@ -216,14 +218,14 @@ class InputBar(Widget):
         self._search_corpus: list[str] = []
         self._pending_image = None
         self._mention_files: list[str] | None = None
-        # R6 paste chips (spec §5.5): token-in-buffer → full pasted text.
+        # R6 paste chips (spec .5): token-in-buffer → full pasted text
         self._pasted_blobs: dict[str, str] = {}
 
     def on_focus(self, event) -> None:
         # InputBar is focusable so the app can target `#input`, but editing
-        # bindings (backspace, arrows, etc.) only fire on the TextArea itself.
-        # Forward focus to the child so those keys work — without this, focus
-        # sits on InputBar and backspace silently no-ops.
+        # bindings (backspace, arrows, etc.) only fire on the TextArea itself
+        # Forward focus to the child so those keys work without this, focus
+        # sits on InputBar and backspace silently no-ops
         try:
             self.query_one("#input-textarea", _InputTextArea).focus()
         except Exception:  # noqa: BLE001 — pre-mount focus event
@@ -242,7 +244,7 @@ class InputBar(Widget):
             ),
         )
         # Placeholder overlays the textarea start on the `hint` layer
-        # (styles.tcss); hidden as soon as the buffer is non-empty.
+        # (styles.tcss); hidden as soon as the buffer is non-empty
         yield Static(self.PLACEHOLDER, id="input-placeholder")
 
     def set_mode(self, mode: str) -> None:
@@ -326,9 +328,7 @@ class InputBar(Widget):
             super().__init__()
             self.value = value
 
-    # ------------------------------------------------------------------
-    # R6 paste chips (spec §5.5)
-    # ------------------------------------------------------------------
+    # R6 paste chips (spec .5)
 
     def store_paste(self, text: str) -> str:
         """Stash a large paste; return the chip token inserted in its place."""
@@ -455,7 +455,7 @@ class InputBar(Widget):
                 self._mention_files = None  # refresh tree next time
             return
 
-        # Slash and mention palettes are mutually exclusive.
+        # Slash and mention palettes are mutually exclusive
         slash = self.mounted_slash_palette()
         if slash is not None:
             slash.remove()

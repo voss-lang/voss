@@ -2,11 +2,8 @@ import { test, expect } from '@playwright/test';
 import { bootApp, stableRects, paneRects, type PaneRect } from './_helpers';
 
 /**
- * A4 layout presets end-to-end — preset cycle, custom-state surfacing,
- * preset click dispatch. Runs on macOS via mock-IPC.
- *
- * Save/load round-trip (writes to .voss/layouts/) and default.json auto-apply
- * (real filesystem) stay deferred to Linux CI under TAURI_E2E=1.
+ * A4 layout presets end-to-end — preset cycle, custom-state surfacing
+ * preset click dispatch. Runs on macOS via mock-IPC
  */
 
 test.describe.configure({ mode: 'serial' });
@@ -89,14 +86,13 @@ test.describe('A4 layout presets (mock-IPC)', () => {
       .sort()
       .join('|');
 
-    // No pane was destroyed — same ids survive (A4 LAY-04 contract).
+    // No pane was destroyed — same ids survive
     expect(afterIds).toEqual(beforeIds);
     // Geometry changed (watchers silhouette differs from the row).
     expect(afterSig).not.toEqual(beforeSig);
   });
 });
 
-// --- Save/load + default.json filesystem scenarios ---------------------------
 const TAURI_E2E =
   process.env.TAURI_E2E === '1' || process.env.TAURI_E2E === 'true';
 const SKIP_REASON_FS =

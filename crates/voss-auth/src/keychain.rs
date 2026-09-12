@@ -1,11 +1,6 @@
-//! macOS Keychain access for Anthropic OAuth.
-//!
-//! Stores a single generic-password item under service `Claude Code-credentials`,
-//! account = `$USER`. Payload is a JSON blob in the same shape Claude Code
-//! itself writes.
-//!
-//! For tests, the service name can be overridden via `$VOSS_KEYCHAIN_SERVICE`
-//! to avoid touching the user's real credentials.
+//! macOS Keychain access for Anthropic OAuth
+//! Stores a single generic-password item under service `Claude Code-credentials`
+
 
 #[cfg_attr(not(target_os = "macos"), allow(unused_imports))]
 use crate::anthropic::{AnthropicOAuthCreds, KEYCHAIN_SERVICE};
@@ -21,7 +16,7 @@ fn account() -> String {
 }
 
 /// When set to "1", all Keychain calls short-circuit. Tests use this to keep
-/// macOS from popping authentication dialogs during automated runs.
+/// macOS from popping authentication dialogs during automated runs
 #[cfg(target_os = "macos")]
 fn disabled() -> bool {
     std::env::var("VOSS_DISABLE_KEYCHAIN")

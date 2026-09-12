@@ -1,5 +1,6 @@
-//! `run_turn` — one agent turn. Mirrors `voss/harness/agent.py::run_turn`
-//! but partitions tool execution per D-11..D-14 (parallel-by-default).
+//! `run_turn` one agent turn. Mirrors `voss/harness/agent.py::run_turn`
+//! but partitions tool execution per.. (parallel-by-default)
+
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,13 +31,11 @@ on them. Keep `final_when_done` short — under 200 words.\n";
 
 /// Permission-check abstraction. **Defined in voss-agent** (not voss-cli) so
 /// voss-cli can supply an adapter without forcing voss-agent to depend on
-/// voss-cli (build-graph cycle prevention). voss-cli's `cli/repl.rs`
-/// provides `GateAdapter` implementing this trait.
 pub trait PermissionCheck: Send + Sync {
     fn check(&mut self, tool_name: &str, args: &serde_json::Value) -> (bool, String);
 }
 
-/// Always-allow stub used by tests + non-interactive runs.
+/// Always-allow stub used by tests + non-interactive runs
 pub struct AlwaysAllow;
 
 impl PermissionCheck for AlwaysAllow {
@@ -53,8 +52,7 @@ pub struct TurnConfig {
     pub model: String,
     pub parallel_cap: usize,
     /// Ctrl-C cancel signal. When set to `true`, `run_turn` aborts at the
-    /// next checkpoint (before LLM call, before dispatch, between steps).
-    /// `None` = uncancellable (test/headless default).
+    /// next checkpoint (before LLM call, before dispatch, between steps)
     pub cancel: Option<Arc<AtomicBool>>,
 }
 
@@ -71,7 +69,7 @@ impl Default for TurnConfig {
     }
 }
 
-/// True if a cancel token is set and tripped.
+/// True if a cancel token is set and tripped
 pub(crate) fn cancelled(tok: &Option<Arc<AtomicBool>>) -> bool {
     tok.as_ref()
         .map(|t| t.load(Ordering::Relaxed))
@@ -246,8 +244,8 @@ pub async fn run_turn(
         total_tokens as f32 / cfg.token_budget as f32
     };
 
-    // D-08: status line at end of turn ONLY in TTY mode (suppressed in --json).
-    // Exactly once per turn in TTY mode.
+    // status line at end of turn ONLY in TTY mode (suppressed in --json)
+    // Exactly once per turn in TTY mode
     if !suppress_status {
         renderer.status(&cfg.model, total_tokens, resp.cost_usd, ctx_pct);
     }

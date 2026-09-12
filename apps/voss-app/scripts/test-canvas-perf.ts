@@ -1,17 +1,4 @@
-/**
- * S2 canvas perf gate. Runs e2e/canvas-perf.spec.ts (mock-IPC, Chromium)
- * and asserts AC-S2-3: 12 flooding terminal nodes, pan for 5 s; p95 frame
- * ≤ 16 ms at zoom 1 and ≤ 8 ms at zoom 0.5. A frame interval can never be
- * shorter than the display refresh period (8.33 ms on a 120 Hz panel). The
- * spec measures that period on an idle page first; a bar below it passes
- * when p95 stays under 1.5× the idle period, i.e. no frame missed a refresh
- * (rAF deltas jitter by about ±1.5 ms around the period even when idle).
- * The stressed samples never widen their own bar. Numbers are printed and
- * recorded in docs/canvas-perf.md after a run on the dev machine.
- *
- * Usage: pnpm test:canvas-perf            (starts vite via playwright.config)
- *        VOSS_APP_URL=http://localhost:5199 pnpm test:canvas-perf
- */
+
 
 import { spawnSync } from 'node:child_process';
 

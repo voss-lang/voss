@@ -1,8 +1,6 @@
 //! File-based credential store: `~/.claude/.credentials.json` (Anthropic) and
-//! `~/.codex/auth.json` (Codex).
-//!
-//! Both readers and writers respect `$HOME` (via `dirs::home_dir`) so tests can
-//! point to a `tempfile::TempDir`.
+//! `~/.codex/auth.json` (Codex)
+
 
 use std::path::PathBuf;
 

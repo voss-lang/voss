@@ -8,7 +8,7 @@ export default defineConfig({
   reporter: 'list',
   // Auto-start vite dev server if not already running. Reuses existing server
   // on port 5173 when present (e.g. `pnpm dev` in another terminal). The dev
-  // server is shared across all spec files — mocks are installed per-page via
+  // server is shared across all spec files — mocks are installed page via
   // addInitScript, so server state is irrelevant.
   webServer: {
     command: 'pnpm dev',

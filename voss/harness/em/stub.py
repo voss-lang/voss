@@ -1,9 +1,4 @@
-"""DeterministicEMStub — scripted EM planner for tests (O5-03, OEM-04).
-
-Production callers MUST NOT import this module. The stub yields scripted
-EMPlanResponses with zero live LLM calls, mirroring the O3
-DeterministicReviewerStub pattern.
-"""
+"""Deterministic EM stub for tests — not for production use."""
 from __future__ import annotations
 
 from .schema import EMPlanResponse, NoopOp

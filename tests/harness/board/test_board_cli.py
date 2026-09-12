@@ -1,13 +1,6 @@
-"""VBOARD-10 `voss board [root_id]` read-only CLI — Wave 0 RED scaffold.
-
+"""
+VBOARD-10 `voss board [root_id]` read-only CLI — Wave 0 RED scaffold.
 Drives the REAL planned command voss.harness.cli.board_cmd (V5-03), a
-read-only renderer over persisted session-tree nodes
-(<cwd>/.voss/sessions/<root_id>/<node_id>.json).
-
-RED until V5-03 lands: `board_cmd` does not exist yet. The import is inside
-each test method so collection still succeeds (no import-time crash). Node-JSON
-fixtures use the REAL persisted shape (transitions / envelope{spent,limit} /
-terminal_state). No xfail/skip masking — failures are genuine ImportError.
 """
 from __future__ import annotations
 

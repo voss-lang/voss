@@ -1,7 +1,6 @@
-"""VSEM-02 RED tests: hash-manifest incremental re-embedding + D-13 trigger #2.
-
+"""
+VSEM-02 RED tests: hash-manifest incremental re-embedding + D-13 trigger #2.
 Embed-call counting: a DefaultEmbeddingFunction subclass records every input
-batch, monkeypatched onto SemanticMemory — only re-embedded chunks appear.
 """
 from __future__ import annotations
 

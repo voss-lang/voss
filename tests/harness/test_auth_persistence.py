@@ -1,7 +1,6 @@
-"""Phase 3 tests: keyring-backed credential persistence + resolve precedence.
-
+"""
+Phase 3 tests: keyring-backed credential persistence + resolve precedence.
 `keyring` exposes a `set_keyring()` hook that lets us install an in-memory
-backend for tests — no Keychain access, no Secret Service required.
 """
 from __future__ import annotations
 

@@ -1,20 +1,6 @@
-"""Shared fixtures for skill tests (T7 seam).
-
+"""
+Shared fixtures for skill tests (T7 seam).
 `isolated_state` is autouse — every skill test gets an XDG_STATE_HOME
-sandbox pointed at its own tmp_path so session JSON / permission state never
-leaks into the real `~/.local/state` or the working tree.
-
-`seed_git_repo(root)` is a module-level helper that builds a one-commit git
-tree at an arbitrary `root` WITHOUT clobbering pre-seeded fixture files (it
-only writes a README when none exists). The `git_repo` fixture delegates to
-it with `tmp_path`, matching `tests/harness/conftest.py:34-42`.
-
-`FakeProvider` is copied verbatim from
-`tests/harness/test_agent_integration.py:30-102` (post-T1-05 contract:
-`run_turn` drives `provider.stream()`, not `complete()`). It is a
-module-level class, not a fixture — downstream tests construct it inline with
-their own `Plan` objects. The supporting harness imports are re-exported here
-so downstream test files can import them from one place.
 """
 from __future__ import annotations
 

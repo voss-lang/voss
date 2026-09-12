@@ -1,11 +1,7 @@
-"""`voss serve` runtime (HYBRID-REFACTOR-PLAN H1.11 + H1.12).
-
-Binds an ephemeral loopback port, prints the `{port, token}` handshake line
-to stdout (race-free: bind before serve), then runs uvicorn. Self-terminates
-when its parent process dies (getppid poll + stdin-EOF fallback) so a dropped
-client never leaves a zombie server — macOS has no PR_SET_PDEATHSIG.
 """
-
+`voss serve` runtime ( + )
+Binds an ephemeral loopback port, prints the `{port, token}` handshake line
+"""
 from __future__ import annotations
 
 import asyncio
@@ -46,21 +42,21 @@ def run_server(host: str = "127.0.0.1", port: int = 0, token: str | None = None)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((host, port))
-    # listen() BEFORE the handshake so the OS queues client connects that
-    # arrive before uvicorn's accept loop is up — otherwise a client that
+    # listen BEFORE the handshake so the OS queues client connects that
+    # arrive before uvicorn's accept loop is up otherwise a client that
     # reads the handshake and connects immediately races to "connection
-    # refused". uvicorn re-listens on the same socket harmlessly.
+    # refused". uvicorn re-listens on the same socket harmlessly
     sock.listen(128)
     chosen_port = sock.getsockname()[1]
 
     app = create_app(token)
 
-    # Handshake line — the client reads exactly this to discover port + token.
+    # Handshake line the client reads exactly this to discover port + token
     print(json.dumps({"v": 1, "port": chosen_port, "token": token}), flush=True)
 
-    # stdin-EOF heartbeat only when stdin is piped (client supervises us);
+    # stdin-EOF heartbeat only when stdin is piped (client supervises us)
     # skip for an interactive terminal so manual `voss serve` doesn't exit on
-    # a stray newline.
+    # a stray newline
     if not sys.stdin.isatty():
         threading.Thread(target=_watch_stdin_eof, daemon=True).start()
 

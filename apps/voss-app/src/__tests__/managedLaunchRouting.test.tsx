@@ -1,12 +1,3 @@
-// VCKP-13 / V14-11 Task 4 — the managed toggle does REAL enforcement routing.
-//
-// Closes the BLOCKER class T-V14-07: a UI "managed" switch that routes to the
-// unsandboxed spawn is a security control that does nothing. Asserted here at
-// the transport seam with the REAL PtyTransport (mocked Tauri invoke), plus the
-// PaneComponent.doSpawn branch and App.handleLaunchAgent tier-recording
-// replicated verbatim (the liveReviewToggle.test.tsx harness convention —
-// App.test.tsx mocks GridRoot and can't observe spawns).
-
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 const h = vi.hoisted(() => {
@@ -36,7 +27,7 @@ function freshTransport(extra?: Partial<ConstructorParameters<typeof PtyTranspor
   return new PtyTransport({ write: (_d, cb) => cb?.(), ...extra });
 }
 
-/** Default invoke behavior: spawn commands resolve their documented shapes. */
+/** Default invoke behavior: spawn commands resolve their documented shapes */
 function armInvoke() {
   h.invoke.mockImplementation(async (cmd: unknown) => {
     if (cmd === 'spawn_managed_agent') {
@@ -60,7 +51,6 @@ afterEach(() => {
 /**
  * Verbatim replication of the PaneComponent.doSpawn branch (the seam that
  * issues the actual invoke): managed config → spawnManagedAgent with
- * scope+tier; otherwise the unchanged spawnAgent path.
  */
 async function routeDoSpawn(
   transport: PtyTransport,
@@ -136,7 +126,6 @@ describe('VCKP-13 — managed launch routes to spawn_managed_agent', () => {
 /**
  * Verbatim replication of App.handleLaunchAgent's tier recording: the tier
  * written into the pane config MUST come from resolveTier for the command
- * actually invoked — never the modal's static value.
  */
 function recordedTierFor(config: { cliBinary: string; managed?: boolean }) {
   return resolveTier({

@@ -1,9 +1,6 @@
-"""Unit tests for the swarm coordinator (R3 goal decomposition).
-
+"""
+Unit tests for the swarm coordinator (R3 goal decomposition).
 Uses a stub provider whose `.complete` returns a canned Decomposition on
-`resp.parsed` — NO network/LLM calls. Verifies decompose returns + clamps the
-subtasks, that a None `.parsed` raises, and that to_tasks builds Tasks and rejects
-an overlapping decomposition via VSWARM-06 overlap validation.
 """
 from __future__ import annotations
 

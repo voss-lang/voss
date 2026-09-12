@@ -8,24 +8,19 @@ import {
 import { applyThemeToRuntime } from '../themes/themeRuntime';
 
 /**
- * A8-01 Task 3 — frontend bridge for settings profile snapshots.
- *
- * Profiles are full settings snapshots at `~/.config/voss-app/profiles/<name>.json`.
- * Active profile id lives in `settings.json` (`appearance.activeProfileId`).
- * Row labels `active` / `pinned` are UI metadata — not stored inside profile files.
+ * Task 3 — frontend bridge for settings profile snapshots
+ * Profiles are full settings snapshots at `~/.config/voss-app/profiles/<name>.json`
  */
 
-// --- Version -----------------------------------------------------------------
 
 export const CURRENT_PROFILE_VERSION = 1 as const;
 
-// --- Types (aligned with Rust `voss_app_core::profiles::ProfileFile`) --------
 
 export type CursorShape = 'block' | 'bar' | 'underline';
 export type CursorBlink = 'off' | 'slow' | 'fast';
 export type BellBehavior = 'visual' | 'audible' | 'none' | 'badge';
 
-/** Appearance slice of a profile snapshot (D-14). */
+/** Appearance slice of a profile snapshot */
 export interface AppearanceSnapshot {
   themeId?: string;
   activeThemeId?: string;
@@ -43,13 +38,13 @@ export interface AppearanceSnapshot {
   reducedMotion?: boolean;
 }
 
-/** Terminal and layout sections are opaque forward-compat buckets. */
+/** Terminal and layout sections are opaque forward-compat buckets */
 export type TerminalSnapshot = Record<string, unknown>;
 export type LayoutSnapshot = Record<string, unknown>;
 
 /**
  * Flattened settings map — mirrors Rust `ProfileFile` with `#[serde(flatten)]`
- * on `settings` (top-level keys beside `version` in JSON).
+ * on `settings` (top-level keys beside `version` in JSON)
  */
 export interface ProfileSettings {
   appearance?: AppearanceSnapshot;
@@ -63,7 +58,7 @@ export type ProfileFile = {
   version: typeof CURRENT_PROFILE_VERSION;
 } & ProfileSettings;
 
-/** Picker row metadata; `active` / `pinned` are computed for display only. */
+/** Picker row metadata; `active` / `pinned` are computed for display only */
 export interface ProfileListEntry {
   id: string;
   name: string;
@@ -72,11 +67,11 @@ export interface ProfileListEntry {
 }
 
 export interface ProfileApplyOptions {
-  /** Workspace path for resolving custom themes under `.voss/themes/`. */
+/** Workspace path for resolving custom themes under `.voss/themes/` */
   workspacePath?: string;
-  /** When set, `applyProfile` persists `appearance.activeProfileId`. */
+/** When set, `applyProfile` persists `appearance.activeProfileId` */
   profileId?: string;
-  /** When true, `applyProfile` also persists `appearance.activeThemeId`. */
+/** When true, `applyProfile` also persists `appearance.activeThemeId` */
   persistThemeId?: boolean;
 }
 
@@ -92,7 +87,6 @@ type CustomThemeWire = {
   cursorText?: string;
 };
 
-// --- Copy (A8 UI-SPEC) -------------------------------------------------------
 
 export const PROFILE_SWITCH_COMMAND = 'Switch Profile';
 export const PROFILE_CHANGED = 'Profile changed';
@@ -102,7 +96,6 @@ export const PROFILE_SAVE_FAILED = 'could not save profile';
 export const PROFILE_LOAD_FAILED = 'could not load profile';
 export const PROFILE_SETTINGS_SAVE_FAILED = 'could not save profile settings';
 
-// --- Tauri command bridges ---------------------------------------------------
 
 export async function listProfiles(): Promise<string[]> {
   return invoke<string[]>('list_profiles');
@@ -129,7 +122,6 @@ export async function saveActiveProfileId(
   await invoke('save_active_profile_id', { id });
 }
 
-// --- Parsing / list metadata -------------------------------------------------
 
 export function isSupportedProfileVersion(
   version: unknown,
@@ -137,7 +129,7 @@ export function isSupportedProfileVersion(
   return version === CURRENT_PROFILE_VERSION;
 }
 
-/** Fail-safe parse for wire values; unsupported versions return null. */
+/** Fail-safe parse for wire values; unsupported versions return null */
 export function parseProfileFile(value: unknown): ProfileFile | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return null;
@@ -172,7 +164,6 @@ export function extractAppearanceSnapshot(
   return appearance as AppearanceSnapshot;
 }
 
-// --- Appearance application --------------------------------------------------
 
 function wireCustomThemeToTheme(wire: CustomThemeWire): Theme | null {
   const candidate = {
@@ -216,7 +207,7 @@ async function resolveThemeForAppearance(
   return wireCustomThemeToTheme(wire);
 }
 
-/** Apply font/opacity/document hints from appearance (terminal reload is A8-04). */
+/** Apply font/opacity/document hints from appearance (terminal reload is ) */
 export function applyAppearanceDocumentHints(
   appearance: AppearanceSnapshot,
 ): void {
@@ -247,9 +238,7 @@ export function applyAppearanceDocumentHints(
   root.dataset.bellBehavior = appearance.bellBehavior ?? '';
 }
 
-/**
- * Apply theme + document-level appearance from a snapshot without persisting ids.
- */
+/** Apply theme + document-level appearance from a snapshot without persisting ids */
 export async function applyAppearanceFromSnapshot(
   profile: ProfileSettings,
   workspacePath?: string,
@@ -270,7 +259,7 @@ export async function applyAppearanceFromSnapshot(
   applyAppearanceDocumentHints(appearance);
 }
 
-/** Commit profile snapshot and persist active profile (and optional theme) ids. */
+/** Commit profile snapshot and persist active profile (and optional theme) ids */
 export async function applyProfile(
   snapshot: ProfileFile,
   options: ProfileApplyOptions = {},
@@ -289,7 +278,7 @@ export async function applyProfile(
   }
 }
 
-/** Preview snapshot live without updating active profile id. */
+/** Preview snapshot live without updating active profile id */
 export async function previewProfile(
   snapshot: ProfileFile,
   workspacePath?: string,

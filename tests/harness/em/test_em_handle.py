@@ -8,7 +8,6 @@ from voss.harness.em.errors import EMCageViolation
 from voss.harness.em.tickets import Ticket
 
 
-
 class TestCreateTicket:
     def test_returns_ticket_with_matching_fields(self, make_handle):
         h = make_handle()

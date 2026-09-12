@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { bootApp, paneRects, stableRects } from './_helpers';
 
 /**
- * S1 canvas end-to-end (mock-IPC): free nodes, keyboard focus, close/respawn,
- * pan/zoom, v1 session migration, arrangements.
+ * S1 canvas end-to-end (mock-IPC): free nodes, keyboard focus, close/respawn
+ * pan/zoom, v1 session migration, arrangements
  */
 
 test.describe.configure({ mode: 'serial' });

@@ -1,10 +1,6 @@
-"""R2 WorkingIndicator + live-stream throttle + interrupt footer.
-
+"""
+R2 WorkingIndicator + live-stream throttle + interrupt footer.
 tui-redesign-spec §3.3/§3.6/§8 R2: the WorkingIndicator mounts on turn
-dispatch, stays the last TranscriptView child across appends, and is removed
-on finalize AND on interrupt; AssistantBlock streaming renders live markdown
-coalesced to ≤10 Hz with exactly one final render on finalize; an
-interrupted stream keeps its content and gains a `· interrupted` footer.
 """
 from __future__ import annotations
 

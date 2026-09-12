@@ -69,9 +69,6 @@ func TestBearerHeader(t *testing.T) {
 
 // TestIntegration409 fires two concurrent PostMessage calls at one session and
 // asserts exactly one *VossError{409} when the race is triggered. The fake turn
-// can complete before the second post arrives, so the race is not always
-// observable — retry a few times and skip (not fail) if it never triggers
-// (RESEARCH Pitfall 7).
 func TestIntegration409(t *testing.T) {
 	c := requireShared(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

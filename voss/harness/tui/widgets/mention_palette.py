@@ -1,12 +1,6 @@
-"""MentionPalette — @-mention file finder anchored above the InputBar.
-
+"""
+MentionPalette @-mention file finder anchored above the InputBar
 Ported from OpenCode's @-file autocomplete. Reuses Voss's own slash-palette
-plumbing (a mounted ListView routed nav keys from the InputBar) rather than
-forking anything: typing `@` opens a fuzzy file picker over the working tree;
-selecting inserts the path into the prompt.
-
-`gather_files` and `rank_files` are pure so they can be unit-tested without a
-Textual app.
 """
 from __future__ import annotations
 
@@ -19,7 +13,7 @@ from textual.widgets import ListItem, ListView, Static
 _MAX_RESULTS = 8
 _WALK_LIMIT = 4000
 
-# Directories never worth surfacing in a file finder.
+# Directories never worth surfacing in a file finder
 _IGNORE_DIRS = frozenset(
     {
         ".git",
@@ -105,8 +99,8 @@ def find_mention_token(text: str, cursor: int) -> tuple[int, str] | None:
 
 
 class MentionPalette(ListView):
-    # Styling (incl. the accent border) lives in styles.tcss — the
-    # allow-listed accent site — so the UI-SPEC accent audit stays clean.
+    # Styling (incl. the accent border) lives in styles.tcss the
+    # allow-listed accent site so the accent audit stays clean
     BINDINGS = [("escape", "dismiss", "Close file finder")]
 
     class MentionSubmitted(Message):
@@ -120,9 +114,9 @@ class MentionPalette(ListView):
         self.query_text = ""
         self._names: list[str] = []
         # Fixed reusable pool (≤ _MAX_RESULTS) toggled per query rather than
-        # cleared+rebuilt — keeps click targets stable (the compositor's
+        # cleared+rebuilt keeps click targets stable (the compositor's
         # spatial map breaks when widgets are removed/re-added each keystroke)
-        # and avoids per-keystroke churn.
+        # and avoids per-keystroke churn
         self._pool: list[ListItem] = []
         self._pool_statics: list[Static] = []
         self._empty_item: ListItem | None = None

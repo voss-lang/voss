@@ -8,7 +8,6 @@ import type { RunData } from '../types';
 import nodeRoot from './fixtures/node-root.json';
 import nodeChild from './fixtures/node-child.json';
 
-// node-child has 4 board.transition entries → M = 4.
 const FIXTURE_RUN_DATA = {
   run_id: 'a1b2c3d4e5f6',
   session_tree: { root_id: 'a1b2c3d4e5f6', nodes: [nodeRoot, nodeChild] },
@@ -17,7 +16,6 @@ const FIXTURE_RUN_DATA = {
   run_final: null,
 } as unknown as RunData;
 
-// root only → no board.transition → M = 0.
 const NO_TRANSITIONS = {
   run_id: 'a1b2c3d4e5f6',
   session_tree: { root_id: 'a1b2c3d4e5f6', nodes: [nodeRoot] },
@@ -54,7 +52,6 @@ describe('ReplayPanel — VADE-10', () => {
     expect(back(root).disabled).toBe(true);
     expect(back(root).getAttribute('aria-disabled')).toBe('true');
     expect(root.textContent).toContain('Step 1 / 4');
-    // step 0 applies the 0th transition → child in Planned
     expect(col(root, 'Planned').querySelector(`[data-card-id="${CHILD_ID}"]`)).toBeTruthy();
   });
 
@@ -62,7 +59,6 @@ describe('ReplayPanel — VADE-10', () => {
     const root = mount(() => <ReplayPanel data={FIXTURE_RUN_DATA} />);
     fwd(root).click();
     expect(root.textContent).toContain('Step 2 / 4');
-    // step 1 → child now in InProgress
     expect(col(root, 'InProgress').querySelector(`[data-card-id="${CHILD_ID}"]`)).toBeTruthy();
   });
 

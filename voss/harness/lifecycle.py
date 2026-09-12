@@ -1,21 +1,7 @@
-"""Shared lifecycle reap hook for MCP subprocesses, net sessions, and jobs.
-
-Contract: register_session accepts any object that exposes an awaitable
-``aclose(self) -> None`` method (duck typed; no import of NetSession to avoid
-circular dependency with voss.harness.net).
-
-reap_all sends SIGTERM to every still-running subprocess, waits up to 5.0s,
-then sends SIGKILL on timeout. After subprocesses, every registered session
-gets ``await session.aclose()`` wrapped in a swallow-all guard so a single
-failing aclose never aborts the reap loop. Background jobs are then reaped via
-the parallel _JOBS registry.
-
-atexit fallback: at interpreter shutdown we attempt ``asyncio.run(reap_all())``.
-If a running loop is detected (RuntimeError on asyncio.run), we fall back to a
-fresh ``asyncio.new_event_loop().run_until_complete``. Both paths are wrapped
-in try/except — atexit hooks must not raise.
 """
-
+Shared lifecycle reap hook for MCP subprocesses, net sessions, and jobs
+Contract: register_session accepts any object that exposes an awaitable
+"""
 from __future__ import annotations
 
 import asyncio
@@ -34,12 +20,12 @@ import psutil
 
 _SUBPROCESSES: list[asyncio.subprocess.Process] = []
 _SESSIONS: list[object] = []
-# _JOBS is separate because background jobs have distinct reap semantics:
-# watchdog timers, mid-life signals, and lifetimes beyond the 5s subprocess deadline.
+# _JOBS is separate because background jobs have distinct reap semantics
+# watchdog timers, mid-life signals, and lifetimes beyond the 5s subprocess deadline
 _JOBS: dict[tuple[str, str], "JobRecord"] = {}
 _HANDLE_COUNTERS: dict[str, int] = {}
-# _WATCHERS is separate because watchdog Observer is a thread (no pid/proc);
-# it is stopped via observer.stop()/join(), not SIGTERM.
+# _WATCHERS is separate because watchdog Observer is a thread (no pid/proc)
+# it is stopped via observer.stop/join, not SIGTERM
 _WATCHERS: dict[tuple[str, str], "WatcherRecord"] = {}
 _WATCH_HANDLE_COUNTERS: dict[str, int] = {}
 

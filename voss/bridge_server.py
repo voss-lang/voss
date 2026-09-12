@@ -1,8 +1,6 @@
-"""JSON-RPC over stdio server. Companion to crates/voss-bridge.
-
+"""
+JSON-RPC over stdio server. Companion to crates/voss-bridge.
 LSP-style framing: ``Content-Length: <n>\\r\\n\\r\\n<json-body>``.
-Versioned envelope: every successful response carries ``"v": 1`` inside
-``result``. Methods: ``ast``, ``check``, ``compile``, ``run``.
 """
 
 from __future__ import annotations

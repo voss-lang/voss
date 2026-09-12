@@ -1,14 +1,4 @@
-"""EM structured-output schema — pydantic v2 LENIENT (O5-03, OEM-03).
-
-LENIENT posture (extra="ignore"): hallucinated LLM fields drop silently
-at parse. The cage is enforced by the EMBoardHandle facade (W2), NOT by
-the schema. This mirrors voss/eval/judge.py's Verdict posture and
-contrasts with voss/harness/cognition_schemas.py's STRICT ("extra=forbid")
-used for harness config files.
-
-The 7 Op models form a discriminated union routed on the `op` field.
-EMPlanResponse.ops has max_length=20 to bound per-iteration blast radius.
-"""
+"""Lenient pydantic schema for EM structured output."""
 from __future__ import annotations
 
 from typing import Annotated, Literal, Optional, Union

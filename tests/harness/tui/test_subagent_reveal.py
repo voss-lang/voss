@@ -1,16 +1,6 @@
-"""R4 inline AgentTree — quiet-by-default reveal + post-gather settle.
-
+"""
+R4 inline AgentTree — quiet-by-default reveal + post-gather settle.
 Rewrites the M13 Wave-0 SubAgentPanel scaffold to the inline model
-(tui-redesign-spec §3.5): the side panel is retired; a spawn renders as
-an AgentTreeCard parent in the transcript, child step lines nest under it
-with the locked NEST glyphs, ctrl+o (action_toggle_detail, spec §7.2)
-reveals them, and the final gather settles the parent in place.
-
-Intent preserved from the scaffold:
-- MAG-02 / D-09 quiet-by-default: child steps stay hidden while the live
-  budget counter ticks; the global toggle reveals them.
-- MAG-07 post-gather clean: gather settles every parent (idempotent
-  re-gather is a no-op) and the side region is never touched by spawns.
 """
 from __future__ import annotations
 

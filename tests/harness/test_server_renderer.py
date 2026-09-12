@@ -1,11 +1,6 @@
-"""H1.2 + H1.3 verification.
-
+"""
+H1.2 + H1.3 verification.
 - EventBusRenderer satisfies the render.Renderer protocol.
-- Each of the 13 Renderer methods enqueues the matching protocol event.
-- finalize_stream drops accumulated_text (JsonRenderer parity).
-- Full bounded queue drops the oldest event (lossy-latest).
-- The AgentEvent discriminated union round-trips every member by `type`.
-- EventEnvelope exposes the union to OpenAPI codegen.
 """
 
 from __future__ import annotations

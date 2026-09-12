@@ -1,11 +1,6 @@
-"""BOS5 outcome/reward contract-validation suite (13 checks, ACC-01..ACC-07).
-
+"""
+BOS5 outcome/reward contract-validation suite (13 checks, ACC-01..ACC-07).
 Loads contracts/outcomes.schema.json + .planning/schemas/examples/outcome*.json
-and asserts the structural properties locked in BOS5-01. This suite READS the
-artifacts; it does not modify them. The BOS4 decision-no-outcome check is
-CONDITIONAL — it skips cleanly while the BOS4 decision schema is absent.
-
-Normative test names come from BOS5-VALIDATION.md.
 """
 
 from __future__ import annotations

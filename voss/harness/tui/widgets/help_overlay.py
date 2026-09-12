@@ -1,7 +1,6 @@
-"""HelpOverlay — `?` modal showing keymap + visible slash commands.
-
-UI-SPEC heading copy locked: `voss tui · keys + commands`.
-Dismissed by Esc.
+"""
+HelpOverlay `?` modal showing keymap + visible slash commands
+heading copy locked: `voss tui · keys + commands`
 """
 from __future__ import annotations
 

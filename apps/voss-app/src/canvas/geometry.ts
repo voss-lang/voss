@@ -23,7 +23,7 @@ export function worldToScreen(
   return { x: wx * view.zoom + view.x, y: wy * view.zoom + view.y };
 }
 
-/** Zoom so the world point under (sx, sy) stays under the cursor. */
+/** Zoom so the world point under (sx, sy) stays under the cursor */
 export function zoomAt(
   view: CanvasView,
   nextZoom: number,
@@ -54,7 +54,7 @@ export function boundsOf(nodes: readonly CanvasNode[]): Rect | null {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** View that frames `bounds` inside `viewport` with `padding` screen px. */
+/** View that frames `bounds` inside `viewport` with `padding` screen px */
 export function fitToBounds(
   bounds: Rect,
   viewport: Size,
@@ -72,7 +72,7 @@ export function fitToBounds(
   };
 }
 
-/** View that puts `node` at zoom 1 centred in `viewport`. */
+/** View that puts `node` at zoom 1 centred in `viewport` */
 export function centerOn(node: Rect, viewport: Size): CanvasView {
   return {
     zoom: 1,
@@ -102,7 +102,6 @@ export function intersects(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-/** Normalise a rect dragged from `a` to `b` (either corner may be the origin). */
 export function rectFromPoints(
   a: { x: number; y: number },
   b: { x: number; y: number },
@@ -121,8 +120,7 @@ export function nodesIntersecting(nodes: readonly CanvasNode[], rect: Rect): Can
 
 /**
  * Smallest pan that shows `node` inside `viewport` with `padding` screen px
- * at the current zoom; a node larger than the viewport is centred instead.
- * Returns `view` unchanged when the node is already visible.
+ * at the current zoom; a node larger than the viewport is centred instead
  */
 export function panToReveal(
   view: CanvasView,

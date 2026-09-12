@@ -1,20 +1,5 @@
 // Command specgen regenerates ../../types.gen.go from the committed OpenAPI
 // snapshot. It is the target of the //go:generate directive in doc.go and the
-// single deterministic entry point used by the drift gate.
-//
-// Why this exists: FastAPI emits OpenAPI 3.1.0, but oapi-codegen v2.7.1 only
-// supports 3.0.x (https://github.com/oapi-codegen/oapi-codegen/issues/373) and
-// fails on 3.1 null-union nullables (anyOf: [{type: X}, {type: null}]). specgen
-// performs a minimal, deterministic 3.1->3.0 downgrade in memory — set the
-// version to 3.0.3 and rewrite single-type null unions to `nullable: true` —
-// then hands the normalized spec to oapi-codegen via the pinned `tool`
-// directive. The upstream contracts/openapi.json (owned by V13.1) is never
-// modified.
-//
-// Input resolution: ../../contracts/openapi.json when present (the live V13.1
-// artifact), otherwise testdata/openapi.fixture.json (the captured pre-V13.1
-// fallback). Paths are relative to sdk/go, the working directory `go generate`
-// uses for doc.go.
 package main
 
 import (
@@ -82,12 +67,6 @@ func run() error {
 
 // normalize recursively downgrades OpenAPI 3.1 null-union nullables to the 3.0
 // `nullable: true` form. A schema node of the shape
-//
-//	{ "anyOf": [ {<schema>}, {"type": "null"} ] }
-//
-// (exactly one non-null subschema) is collapsed to <schema> with
-// "nullable": true and any sibling keys preserved. All other nodes pass through
-// unchanged. The transform is deterministic and order-independent.
 func normalize(v any) any {
 	switch t := v.(type) {
 	case map[string]any:

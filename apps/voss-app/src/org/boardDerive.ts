@@ -1,7 +1,3 @@
-// Pure board-derivation helpers (VADE-02). Mirrors the verified harness
-// `board/cli_view._derive_column` / `_derive_risk` algorithm exactly. No Solid
-// imports, no produce/structuredClone — plain reads + object literals.
-
 import type { RunData, SessionTreeNode } from './types';
 
 export interface BoardCard {
@@ -14,10 +10,6 @@ export interface BoardCard {
   limit: number;
 }
 
-/**
- * Walk board.transition entries (last `.to` wins, default "Backlog"), then
- * apply the terminal_state override: done → "Done", timeout/killed → "Blocked".
- */
 export function deriveColumn(node: SessionTreeNode): string {
   let column = 'Backlog';
   for (const t of node.transitions) {
@@ -33,7 +25,6 @@ export function deriveColumn(node: SessionTreeNode): string {
   return column;
 }
 
-/** First em.ticket.risk_tier, default "med". */
 export function deriveRisk(node: SessionTreeNode): string {
   for (const t of node.transitions) {
     if (t.kind === 'em.ticket') return t.risk_tier;
@@ -41,7 +32,6 @@ export function deriveRisk(node: SessionTreeNode): string {
   return 'med';
 }
 
-/** One card per non-root node (root = parent_run_id null). Null-tolerant. */
 export function cardsFromRunData(data: RunData | null): BoardCard[] {
   if (!data) return [];
   return data.session_tree.nodes

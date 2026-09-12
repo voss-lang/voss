@@ -1,4 +1,5 @@
-//! voss-tools — sandbox + tools + registry.
+//! voss-tools sandbox + tools + registry
+
 
 pub mod anchor;
 pub mod fs_edit;

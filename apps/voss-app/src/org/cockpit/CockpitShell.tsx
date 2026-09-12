@@ -1,23 +1,3 @@
-// VCKP-05 — integrated Run cockpit (D-01/D-02/D-08), recomposed in V14 chunk B
-// to the cockpit mockup (.planning/sketches/V14-cockpit-mockup.html):
-//
-//   [team sidebar 252px] | [main: run header + board + horizontal timeline] |
-//   [card drawer 372px]  with the gate bar (38px) spanning the bottom.
-//
-// The run-load + run-picker logic and the loading/error <Show> wrappers are
-// LIFTED from OrgViewShell (now folded into the run header row so the picker /
-// refresh / "← Grid" controls stay reachable in every load state). The
-// ORG_TABS/activeTab tab machinery stays dropped (D-01/D-02).
-//
-// Five regions, driven by ONE global selection (../selection):
-//   1. Team sidebar         — CockpitSidebar (roster / external agents / lineage)
-//   2. Board                — BoardPanel (rich cards, onCardSelect)
-//   3. Horizontal timeline  — TimelineRail (run milestones, node per card)
-//   4. Card detail drawer   — CardDrawer (persistent, curated sections)
-//   5. Bottom gate bar      — GateBar
-// Selecting a card once updates board+drawer+rail+gate (single-selection
-// acceptance, cockpit.test.tsx).
-
 import {
   createSignal,
   createEffect,
@@ -59,17 +39,17 @@ const CockpitShell: Component<{
   cwd: string;
   cliBinary: string;
   onClose: () => void;
-  /** V15-02: live follow-up write client, forwarded to the CardDrawer. */
+/** 02: live follow-up write client, forwarded to the CardDrawer */
   followUpClient?: FollowUpClient;
-  /** V15-05: live sidecar client for the sidebar "Server sessions" section. */
+/** 05: live sidecar client for the sidebar "Server sessions" section */
   vossClient?: SidecarVossClient;
-  /** V15-05: Attach action — App attachSession/openAttachedPane seam. */
+/** 05: Attach action — App attachSession/openAttachedPane seam */
   onAttach?: (sessionId: string) => void;
 }> = (props) => {
   const [pickerOpen, setPickerOpen] = createSignal(false);
   const [swarmManifest, setSwarmManifest] = createSignal<unknown>(null);
 
-  // VCKP-07 (GATED A13, best-effort): the swarm roster derives from the A13
+  // 07 (GATED, best-effort): the swarm roster derives from the
   // .voss/swarm/manifest.json. reconcileSwarm is null-tolerant, so absence of a
   // manifest yields empty roster/cards and the sidebar section stays unrendered.
   const swarm = (): SwarmReconcileResult =>
@@ -79,7 +59,7 @@ const CockpitShell: Component<{
   let railRef: HTMLDivElement | undefined;
 
   // UI-REVIEW 6a: the timeline rail REACTS to the global selection — selecting
-  // a board card highlights the matching timeline node. The rail's per-card
+  // a board card highlights the matching timeline node. The rail's card
   // nodes carry data-node-id (TimelineRail), the same hook the old vertical
   // rail exposed.
   createEffect(() => {
@@ -95,15 +75,15 @@ const CockpitShell: Component<{
   });
 
   onMount(() => {
-    // D-04: auto-load the most-recent run on open.
+    // auto-load the most-recent run on open.
     void enumerateRuns(props.cwd).then((entries) => {
       if (entries.length > 0) {
         void loadRun(entries[0].run_id, props.cwd, props.cliBinary);
       }
     });
 
-    // VCKP-07 (GATED A13, best-effort): read .voss/swarm/manifest.json if a
-    // future read path exists. No read command / fs-plugin ships in V14, so this
+    // 07 (GATED, best-effort): read.voss/swarm/manifest.json if a
+    // future read path exists. No read command / fs-plugin ships in, so this
     // degrades silently to no-swarm. We do NOT call a non-existent invoke (avoids
     // console noise); the "when present" path is covered by the swarmReconcile
     // adapter test, not faked here. Establish the null default explicitly.
@@ -153,10 +133,6 @@ const CockpitShell: Component<{
 
   return (
     <div class="org-view-shell" role="region" aria-label="Run cockpit">
-      {/* D-03: the RunCommandBar strip is mounted at App level ABOVE the
-          grid/cockpit swap so it is present in BOTH Live Work and Run Review
-          modes — it is intentionally NOT rendered here (no double strip). */}
-
       <div class="cockpit-body">
         <div class="cockpit-grid">
           {/* 1 — Team sidebar (mockup .sidebar) */}
@@ -197,8 +173,6 @@ const CockpitShell: Component<{
                 </span>
                 Refresh
               </button>
-              {/* VCKP-06: live/snapshot state label. Bound to the sseClient
-                  liveLabel signal; default 'snapshot' (no auto-stream in V14). */}
               <span
                 class={`cockpit-live-label cockpit-live-label--${liveLabel()}`}
                 aria-label={`Data source: ${liveLabel()}`}

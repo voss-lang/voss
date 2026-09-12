@@ -1,23 +1,9 @@
-//! A7 keymap persistence — profile selection in `settings.json` and
-//! workspace `.voss/keymap.json` override schema with per-entry validation.
-//!
-//! Follows the `layouts.rs`/`session.rs` pattern: fail-safe loads, lazy
-//! `.voss/` creation on write only, and typed errors whose Display strings
-//! surface through Tauri verbatim.
-//!
-//! Profile default is `vscode`. The `tmux` profile adds `⌘B` prefix
-//! chords on top of vscode bindings. Custom `.voss/keymap.json` merges
-//! additively over the active profile (D-13): set a command id to a new
-//! chord to override, set to `null` to unbind.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-// --- Profile -----------------------------------------------------------------
 
-/// Named keymap profiles (D-11). `vscode` is the default.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum KeymapProfile {
@@ -26,7 +12,6 @@ pub enum KeymapProfile {
     Tmux,
 }
 
-/// Subset of `settings.json` that carries the keymap profile (D-12).
 /// Other settings fields are preserved on read/write via `flatten`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,7 +31,6 @@ struct KeymapSection {
     profile: KeymapProfile,
 }
 
-// --- Override schema ---------------------------------------------------------
 
 pub const CURRENT_KEYMAP_VERSION: u32 = 1;
 
@@ -66,7 +50,6 @@ pub struct KeyBindingOverride {
     pub key: String,
 }
 
-/// Validation result for a single override entry (D-15).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeymapValidationIssue {
@@ -92,7 +75,6 @@ pub enum KeymapError {
     LoadFailed,
 }
 
-// --- Path helpers ------------------------------------------------------------
 
 #[cfg(not(test))]
 fn settings_path() -> PathBuf {
@@ -116,7 +98,6 @@ pub fn keymap_override_path(workspace: &Path) -> PathBuf {
     workspace.join(".voss").join("keymap.json")
 }
 
-// --- Profile load/save -------------------------------------------------------
 
 /// Load the active keymap profile from `~/.config/voss-app/settings.json`.
 /// Missing or corrupt settings default to `vscode`.
@@ -163,7 +144,6 @@ pub fn save_keymap_profile(profile: &KeymapProfile) -> Result<(), KeymapError> {
     Ok(())
 }
 
-// --- Override load/validate --------------------------------------------------
 
 /// Load `.voss/keymap.json`. Returns `None` for missing, corrupt, or
 /// unsupported files. Never creates `.voss/`.
@@ -186,7 +166,6 @@ pub fn load_keymap_overrides(workspace: &Path) -> Option<KeymapOverrideFile> {
 }
 
 /// Validate override entries against known command ids and valid chords.
-/// Returns valid entries + issues for invalid ones (D-15 partial apply).
 pub fn validate_keymap_overrides(
     overrides: &KeymapOverrideFile,
     known_command_ids: &[String],
@@ -256,7 +235,6 @@ pub fn validate_workspace_keymap_overrides(
     }
 }
 
-// --- Tests -------------------------------------------------------------------
 
 #[cfg(test)]
 thread_local! {

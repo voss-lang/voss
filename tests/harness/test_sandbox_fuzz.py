@@ -1,8 +1,6 @@
-"""Sandbox `jail_path` fuzz against traversal + escape inputs.
-
+"""
+Sandbox `jail_path` fuzz against traversal + escape inputs.
 20 inputs covering: parent traversal (..), absolute escapes, hidden symlink
-exits, double-encoded paths, current-dir traversal, mixed-separator,
-nested-relative escapes.
 """
 from __future__ import annotations
 

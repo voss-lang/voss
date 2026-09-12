@@ -1,10 +1,6 @@
-"""M9-04 runtime-surface hash regression.
-
+"""
+M9-04 runtime-surface hash regression.
 Pins voss/harness/recorder.py + voss_runtime/{probable,budget,agent}.py to
-their pre-M9-04 byte content. Any change requires either revert or running
-the test with `UPDATE_BASELINE=1` AND documenting the change in the M9-04
-SUMMARY. subagents.py is INTENTIONALLY excluded — the SPAWN_TOOL_NAME
-constant is the M9-04 W3 resolution.
 """
 from __future__ import annotations
 

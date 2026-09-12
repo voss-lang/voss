@@ -1,4 +1,5 @@
-//! voss-bridge — LSP-framed JSON-RPC over stdio to the Python bridge server.
+//! voss-bridge LSP-framed JSON-RPC over stdio to the Python bridge server
+
 
 pub mod framing;
 pub mod jsonrpc;

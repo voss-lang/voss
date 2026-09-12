@@ -8,13 +8,12 @@ const PAD = 6;
 
 export type MinimapLayout = {
   scale: number;
-  /** World origin that maps to the minimap's top-left. */
+/** World origin that maps to the minimap's top-left */
   origin: { x: number; y: number };
   nodes: (Rect & { id: string })[];
   viewport: Rect;
 };
 
-/** World rect the viewport shows under `view`. */
 export function viewportWorldRect(view: CanvasView, viewport: Size): Rect {
   const tl = screenToWorld(view, 0, 0);
   return { x: tl.x, y: tl.y, w: viewport.w / view.zoom, h: viewport.h / view.zoom };
@@ -26,7 +25,7 @@ function union(a: Rect, b: Rect): Rect {
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 }
 
-/** Fit every node plus the viewport into `size`, preserving aspect. */
+/** Fit every node plus the viewport into `size`, preserving aspect */
 export function minimapLayout(
   nodes: readonly CanvasNode[],
   view: CanvasView,
@@ -54,7 +53,7 @@ export function minimapLayout(
   };
 }
 
-/** View that centres the world point under minimap pixel (mx, my). */
+/** View that centres the world point under minimap pixel (mx, my) */
 export function viewCenteredOnMinimapPoint(
   layout: MinimapLayout,
   view: CanvasView,

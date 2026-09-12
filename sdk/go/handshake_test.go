@@ -9,7 +9,6 @@ import (
 
 // TestHandshakeParse covers scan-until-parse past leading noise, EOF before a
 // handshake, and the timeout path; plus AttachClient's base-URL/token/nil-spawn
-// invariants.
 func TestHandshakeParse(t *testing.T) {
 	t.Run("scan past noise", func(t *testing.T) {
 		r := strings.NewReader("INFO: uvicorn started\n{\"v\":1,\"port\":51234,\"token\":\"abc\"}\n")

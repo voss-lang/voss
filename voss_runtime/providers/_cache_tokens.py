@@ -1,8 +1,6 @@
-"""T4 D-04 cache-token extraction helpers.
-
+"""
+T4 D-04 cache-token extraction helpers.
 Use a universal probe instead of provider/model branching so Anthropic, OpenAI,
-stub, and future provider usage shapes all degrade to the same default-zero
-contract.
 """
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 import { For, Show, createSignal } from 'solid-js';
 import type { RunData, SessionTreeNode } from '../types';
 
-// VADE-06 — budget allocation/consumption per root / per card / per agent.
+// 06 — budget allocation/consumption per root / per card / per agent.
 // Bar thresholds match the grid BudgetBar (<70 green / 70-90 amber / >90 red);
 // logic is inlined (the grid component expects a different prop shape).
 

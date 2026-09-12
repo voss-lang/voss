@@ -4,7 +4,6 @@ import { renderMarkdown } from './markdown';
 
 const SAVE_DEBOUNCE_MS = 300;
 
-/** Markdown note: CodeMirror while focused, rendered preview otherwise. */
 export default function NoteNode(props: {
   text: string;
   focused: boolean;

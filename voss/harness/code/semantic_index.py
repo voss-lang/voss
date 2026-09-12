@@ -1,12 +1,6 @@
-"""CodeIndex: semantic code memory over the M10 lexical index (V19 VSEM-01/02).
-
-Symbol-aware chunks from the M10 SQLite symbols table, a content-hash manifest
-for incremental (never-full) reindex, a `voss_code` Chroma collection via the
-reused SemanticMemory wrapper, and RRF(BM25+vector) query that degrades to
-BM25-only when Chroma is absent.
-
-Consume-not-modify boundary: the M10 db is opened read-only (SELECT only).
-All artifacts live under `cwd/.voss-cache/code/` (derived cache — safe to rm).
+"""
+CodeIndex: semantic code memory over the lexical index ( VSEM-01/02)
+Symbol-aware chunks from the SQLite symbols table, a content-hash manifest
 """
 from __future__ import annotations
 
@@ -24,7 +18,7 @@ from voss.harness.memory_store import Hit, MemoryStore, _bm25_tokenize
 from voss_runtime.memory import SemanticMemory  # noqa: F401  (lazy use in _maybe_semantic)
 
 # MiniLM max_seq_length=256 tokens (~512 chars); 800-char regions sub-split
-# so no chunk silently truncates in the embedding window (Pitfall 5).
+# so no chunk silently truncates in the embedding window
 _MAX_CHUNK_CHARS = 800
 
 
@@ -37,9 +31,9 @@ def _split_oversize(
     start: int, end: int, lines: list[str], max_chars: int = _MAX_CHUNK_CHARS
 ) -> list[tuple[int, int, str]]:
     text = "".join(lines[start - 1 : end])
-    # `end <= start` base case: a single line can't be subdivided line-wise —
-    # return it whole even when oversize (the embedding window truncates it).
-    # Without this a >800-char single line recurses forever.
+    # `end <= start` base case: a single line can't be subdivided line-wise
+    # return it whole even when oversize (the embedding window truncates it)
+    # Without this a >800-char single line recurses forever
     if len(text) <= max_chars or end <= start:
         return [(start, end, text)]
     mid = start + max(1, (end - start + 1) // 2)
@@ -90,7 +84,7 @@ def extract_chunks(db_path: Path, file_path: str, content: str) -> list[tuple[in
 
 
 def _file_hash(content: str) -> str:
-    # Identical call to M10 build_index so manifests stay consistent with files.hash.
+    # Identical call to build_index so manifests stay consistent with files.hash
     return hashlib.sha256(content.encode("utf-8", errors="ignore")).hexdigest()
 
 
@@ -140,7 +134,7 @@ class CodeIndex:
         # (chunk_id, text, rel_path, line_start, line_end) for the FULL current chunk set
         self._bm25_chunks: list[tuple[str, str, str, int, int]] = []
 
-    # -- lazy chroma probe (mirror of MemoryStore._maybe_chroma) -----------
+    # lazy chroma probe (mirror of MemoryStore._maybe_chroma)
 
     def _maybe_semantic(self) -> "SemanticMemory | None":
         if self._sem is not None:
@@ -162,7 +156,7 @@ class CodeIndex:
         self._sem = sem
         return sem
 
-    # -- manifest -----------------------------------------------------------
+    # manifest
 
     def _load_manifest(self) -> dict:
         return _load_manifest(self.cwd)
@@ -181,7 +175,7 @@ class CodeIndex:
             embedding_function=sem._embedding_function(),
         )
 
-    # -- build / incremental reindex ----------------------------------------
+    # build / incremental reindex
 
     def build(self, session_id: str | None = None) -> None:
         """Full-or-incremental build into the voss_code collection.
@@ -256,15 +250,15 @@ class CodeIndex:
                 for cid, (start, end, text) in zip(ids, chunks)
             )
 
-        # Files deleted from the repo: purge their chunks.
+        # Files deleted from the repo: purge their chunks
         for rel in [r for r in file_entries if r not in seen]:
             old = file_entries.pop(rel)
             if sem is not None and old.get("chunk_ids"):
                 sem._collection.delete(ids=old["chunk_ids"])
 
-        # V19-06 (VSEM-07/08): opt-in enrichment of the chunks that changed
-        # this pass. Internally fail-closed — profile off / no index_enrich
-        # config → returns before any provider construction (Pitfall 7).
+        # (VSEM-07/08): opt-in enrichment of the chunks that changed
+        # this pass. Internally fail-closed profile off / no index_enrich
+        # config → returns before any provider construction
         self._run_enrichment(
             changed_chunks,
             session_id=(session_id or "index-background"),
@@ -278,11 +272,10 @@ class CodeIndex:
             except Exception:  # noqa: BLE001 — metadata tag is best-effort
                 pass
 
-        # Pitfall 4: BM25 rebuilt from the FULL current chunk set, never the delta.
+        # BM25 rebuilt from the FULL current chunk set, never the delta
         self._set_bm25_corpus(all_chunks)
         self._save_manifest(manifest)
 
-    # -- enrichment (V19-06, VSEM-07/08) --------------------------------------
 
     def _run_enrichment(
         self,
@@ -321,7 +314,7 @@ class CodeIndex:
             entry = None
         if entry is None:
             # Bare litellm-routable entry (e.g. "ollama/gpt-oss"); key, if
-            # needed, is read from the env by litellm itself.
+            # needed, is read from the env by litellm itself
             entry = ModelEntry(
                 id=enrich_model,
                 name=enrich_model,
@@ -349,8 +342,8 @@ class CodeIndex:
             if total_tokens >= budget:
                 break  # clean cap abort — remaining chunks left un-enriched
             # Prompt-injection mitigation: chunk text rides inside a fenced
-            # context block; the output is a one-liner stored as metadata,
-            # never executed.
+            # context block; the output is a one-liner stored as metadata
+            # never executed
             prompt = (
                 "Summarize the purpose of this code chunk in ONE line "
                 "(<=120 chars). Reply with the line only.\n\n"
@@ -374,7 +367,7 @@ class CodeIndex:
                 summary = (getattr(resp, "text", None) or "").strip() or None
             except Exception:  # noqa: BLE001 — a failed one-liner never breaks the build
                 summary = None
-            # Conservative estimate; stub/offline providers expose no usage.
+            # Conservative estimate; stub/offline providers expose no usage
             total_tokens += (len(prompt) + len(summary or "")) // 4
             if summary and sem is not None:
                 try:
@@ -396,7 +389,7 @@ class CodeIndex:
                     pass
 
         # Distinct /cost line: original=0 so the recorder's saved>=0 clamp
-        # can't inflate a savings claim (this is spend, not savings).
+        # can't inflate a savings claim (this is spend, not savings)
         try:
             from datetime import datetime, timezone
 
@@ -418,7 +411,7 @@ class CodeIndex:
         except Exception as exc:  # noqa: BLE001 — ledger write is observability, not correctness
             print(f"code index: enrich ledger write failed ({exc})", file=sys.stderr)
 
-    # -- BM25 ----------------------------------------------------------------
+    # BM25
 
     def _set_bm25_corpus(self, chunks: list[tuple[str, str, str, int, int]]) -> None:
         from rank_bm25 import BM25Okapi
@@ -468,8 +461,8 @@ class CodeIndex:
         for chunk, score in zip(self._bm25_chunks, scores):
             score_float = float(score)
             if score_float <= 0 and query_token_set.intersection(_bm25_tokenize(chunk[1])):
-                # rank_bm25 zero/negative IDF on tiny corpora — keep true
-                # lexical matches (mirror of memory_store._bm25_recall guard).
+                # rank_bm25 zero/negative IDF on tiny corpora keep true
+                # lexical matches (mirror of memory_store._bm25_recall guard)
                 score_float = float(len(query_token_set.intersection(_bm25_tokenize(chunk[1]))))
             if score_float <= 0:
                 continue
@@ -487,7 +480,7 @@ class CodeIndex:
             for score, (cid, text, _rel, start, end) in ranked[:top_k]
         ]
 
-    # -- query ----------------------------------------------------------------
+    # query
 
     def query(self, query: str, top_k: int = 5) -> list[Hit]:
         """RRF(BM25+vector) Hits with file:line; BM25-only when Chroma absent."""
@@ -568,8 +561,8 @@ class CodeIndexService:
 
     def query(self, query: str, top_k: int = 5) -> list[Hit]:
         if not self._ready.is_set():
-            # Mid-build: BM25-only. Never touch the embedding path here — a
-            # chroma query would block behind the in-flight build's embeds.
+            # Mid-build: BM25-only. Never touch the embedding path here a
+            # chroma query would block behind the in-flight build's embeds
             hits = self._code_index._bm25_query(query, top_k)
             return [dataclasses.replace(h, source="code[degraded]") for h in hits]
         return self._code_index.query(query, top_k=top_k)

@@ -1,11 +1,3 @@
-/**
- * Latching agent detection registry: once a pane's foreground process
- * matches a known agent CLI name (via exact or fuzzy match), the pane
- * is permanently marked as an agent pane until cleanup.
- *
- * This solves the pgid-poll problem: Claude Code's OS process is "node",
- * but its OSC title briefly says "claude" — the latch captures that.
- */
 import { createSignal } from 'solid-js';
 import { looksLikeAgent } from './agentDetect';
 
@@ -19,7 +11,7 @@ const [agentPaneById, setAgentPaneById] = createSignal<
 
 /**
  * Call on every proc/title update. If the name looks like an agent CLI
- * and the pane isn't already latched, record it.
+ * and the pane isn't already latched, record it
  */
 export function maybeLatchAgent(paneId: string, proc: string): void {
   setAgentPaneById((prev) => {

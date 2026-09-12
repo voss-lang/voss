@@ -19,11 +19,8 @@ import {
 } from '../projectStorage';
 
 /**
- * A5-03 Task 1 — dialog picker + invoke wrappers + exact setup-window copy.
- *
+ * dialog picker + invoke wrappers + exact setup-window copy
  * Command names and payload keys must match
- * `apps/voss-app/src-tauri/src/lib.rs` (A5-02) exactly, otherwise Tauri's
- * camelCase param mapping fails silently at runtime.
  */
 
 function makeProject(): ProjectInfo {

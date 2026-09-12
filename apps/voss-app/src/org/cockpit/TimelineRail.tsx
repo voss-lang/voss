@@ -1,17 +1,3 @@
-// V14 chunk B — horizontal timeline rail (mockup .timeline / .tl-track).
-//
-// Replaces the vertical SessionTreePanel+ReplayPanel rail position with a
-// horizontal track of run milestones derived from the persisted board/card
-// transitions: idea -> cards -> one node per card (terminal state colors it)
-// -> sign-off. Done nodes are green, blocked red, in-flight nodes carry the
-// focus ring (mockup .tl-node.cur).
-//
-// The derivation reuses the verified boardDerive column algorithm (D-02:
-// restyle, don't re-derive wrong). Card nodes keep the `data-node-id` attr the
-// CockpitShell selection effect already queries, so selecting a board card
-// highlights its node here (.cockpit-rail__selected); clicking a node selects
-// the card back (single global selection).
-
 import { For, Show } from 'solid-js';
 import type { RunData } from '../types';
 import { cardsFromRunData } from '../boardDerive';
@@ -22,7 +8,7 @@ export interface TimelineNodeView {
   key: string;
   label: string;
   state: TimelineNodeState;
-  /** Present only for per-card nodes — wired to the global selection. */
+/** Present only for card nodes — wired to the global selection */
   cardId?: string;
 }
 
@@ -30,7 +16,7 @@ function shortId(id: string): string {
   return id.length > 8 ? `${id.slice(0, 8)}…` : id;
 }
 
-/** Pure milestone derivation: idea -> cards -> per-card terminal -> sign-off. */
+/** Pure milestone derivation: idea -> cards -> card terminal -> sign-off */
 export function timelineNodesFromRunData(
   data: RunData | null,
 ): TimelineNodeView[] {
@@ -66,7 +52,7 @@ export function timelineNodesFromRunData(
   return nodes;
 }
 
-/** Total persisted board.transition count (the replay step total). */
+/** Total persisted board.transition count (the replay step total) */
 export function transitionCount(data: RunData | null): number {
   if (!data) return 0;
   let n = 0;

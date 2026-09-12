@@ -1,4 +1,5 @@
-//! Codex (OpenAI) credential type + endpoint constants.
+//! Codex (OpenAI) credential type + endpoint constants
+
 
 use serde::{Deserialize, Serialize};
 

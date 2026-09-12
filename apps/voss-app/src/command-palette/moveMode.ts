@@ -15,7 +15,6 @@ const KEYS: Record<string, MoveDirection> = {
   ArrowRight: 'right',
 };
 
-/** hjkl / WASD / arrows → direction while move mode is active; null exits. */
 export function moveModeDirection(key: string): MoveDirection | null {
   return KEYS[key] ?? KEYS[key.toLowerCase()] ?? null;
 }

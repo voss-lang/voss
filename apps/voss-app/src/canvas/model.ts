@@ -1,8 +1,3 @@
-/**
- * Free-floating canvas model (S1). Every pane is a node with world-space
- * geometry; there is no split tree. Field names are the wire contract: the
- * Rust mirror (`canvas.rs`) and `session.json` v2 round-trip these keys.
- */
 export type NodeKind = 'terminal' | 'native' | 'note' | 'file';
 
 export type NotePayload = { text: string };
@@ -16,7 +11,7 @@ export type CanvasNode = {
   w: number;
   h: number;
   z: number;
-  /** Geometric reading order (row by row, left to right), 1-based. */
+/** Geometric reading order (row by row, left to right), 1-based */
   index: number;
   cwd: string;
   shell: string;
@@ -107,8 +102,6 @@ export function createCanvasState(defaults?: {
 /**
  * Reading order: nodes are grouped into rows whose top edges lie within
  * ROW_BAND_PX of the row's first node, rows sorted top to bottom, nodes
- * within a row left to right. Assigns 1-based `index` in place and returns
- * the nodes in that order.
  */
 export function recomputeIndices(nodes: CanvasNode[]): CanvasNode[] {
   const byY = [...nodes].sort((a, b) => a.y - b.y || a.x - b.x);

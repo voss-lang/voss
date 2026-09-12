@@ -12,11 +12,6 @@ function inline(s: string): string {
   return out;
 }
 
-/**
- * Small markdown → HTML renderer for note previews: headings, fenced code,
- * bullet and numbered lists, paragraphs, and inline code/bold/italic/links.
- * Everything is HTML-escaped first; only http(s) links become anchors.
- */
 export function renderMarkdown(text: string): string {
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const out: string[] = [];

@@ -1,22 +1,6 @@
-"""Model roles + fallback chains.
-
+"""
+Model roles + fallback chains
 A *role* names a model-selection intent (`default` turn, `smol` cheap
-subagents, `slow` deep reasoning, `plan`, `commit`). Each role maps to an
-ordered list of `(provider, model)` candidates declared in the harness config:
-
-    [harness.roles.default]
-    chain = [
-      { provider = "anthropic", model = "claude-opus-4-8" },
-      { provider = "opencode",  model = "claude-opus-4-5" },
-    ]
-
-    [harness.roles.smol]
-    chain = [{ provider = "anthropic", model = "claude-haiku-4-5" }]
-
-`build_role_provider` resolves a chain against the live model catalog + key
-store and returns a `FallbackProvider` that cascades on 429/quota. This module
-is the policy layer; the cascade mechanics live in
-`voss_runtime.providers.fallback`.
 """
 from __future__ import annotations
 

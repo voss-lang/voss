@@ -1,12 +1,3 @@
-// V24 swarm surface — "Build your roster" launch wizard.
-//
-// A full-canvas, three-step intake shown in the swarm empty state: set the goal,
-// compose the roster (presets + per-role agent/model), review + launch. Honest
-// throughout: it self-connects the live server on launch (connectLiveServer),
-// sends an explicit roster (per-role agent axis), and only the model choices the
-// catalog verifies are offered. Native roles run in-process; CLI roles run via
-// runSwarm() inside launchSwarm.
-
 import { type Component, createSignal, For, Show } from 'solid-js';
 import './swarmWizard.css';
 import {
@@ -28,7 +19,7 @@ import {
 } from '../../org/live/roster';
 
 interface SwarmLaunchWizardProps {
-  /** Called after a successful launch (the map then renders the live swarm). */
+/** Called after a successful launch (the map then renders the live swarm) */
   onLaunched?: () => void;
 }
 

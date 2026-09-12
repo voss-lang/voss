@@ -1,13 +1,5 @@
-// Runtime validation boundary for `load_run` output (D-02).
-//
-// types.ts declares the assumed CLI-JSON shapes; this guard is where contract
-// drift surfaces as an EXPLICIT error rather than a silent render miss. Keep
-// the checks structural and cheap — they run on every run load at the Tauri
-// boundary, not in a hot loop.
-
 import type { RunData } from './types';
 
-/** Structural type-guard: true when `o` has the load-bearing RunData shape. */
 export function isRunData(o: unknown): o is RunData {
   if (typeof o !== 'object' || o === null) return false;
   const r = o as Record<string, unknown>;
@@ -18,11 +10,6 @@ export function isRunData(o: unknown): o is RunData {
   return true;
 }
 
-/**
- * Assert + narrow `o` to RunData, throwing an Error that names the failing
- * field. This is the D-02 drift detector: malformed `load_run` output is
- * rejected loudly instead of half-rendering.
- */
 export function assertRunData(o: unknown): RunData {
   if (typeof o !== 'object' || o === null) {
     throw new Error(

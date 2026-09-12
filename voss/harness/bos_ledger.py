@@ -1,8 +1,6 @@
-"""Local append-only BOS event ledger.
-
-The ledger stores projected Behavioral OS events at `.voss/bos/events.jsonl`.
-It is intentionally local-only: projection remains pure, and source session or
-swarm logs are not modified when BOS events are appended here.
+"""
+Local append-only BOS event ledger
+The ledger stores projected Behavioral OS events at `.voss/bos/events.jsonl`
 """
 from __future__ import annotations
 

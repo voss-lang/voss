@@ -1,7 +1,3 @@
-/**
- * Shared reactive registry: pane id → context data (F4).
- * PaneComponent writes; App.tsx reads for the focused pane.
- */
 import { createSignal } from 'solid-js';
 import type { ContextData } from './pty-ipc';
 

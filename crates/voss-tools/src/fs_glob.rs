@@ -11,7 +11,7 @@ use crate::tool_trait::Tool;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FsGlobArgs {
-    /// Glob pattern (e.g. `**/*.rs`).
+    /// Glob pattern (e.g. `**/*.rs`)
     pub pattern: String,
 }
 

@@ -1,9 +1,9 @@
 import { For, Show, createSignal } from 'solid-js';
 import type { RunData, SessionTreeNode } from '../types';
 
-// VADE-07 — declared scope per role / per card.
+// 07 — declared scope per role / per card.
 // NOTE: out-of-scope detection has no persisted source in the V2-V7 substrate
-// (confirmed in RESEARCH). The ⚑ flag is therefore data-driven and currently
+// (confirmed in ). The ⚑ flag is therefore data-driven and currently
 // inert — `isOutOfScope` returns false until a harness field exists.
 
 function isOutOfScope(_node: SessionTreeNode): boolean {

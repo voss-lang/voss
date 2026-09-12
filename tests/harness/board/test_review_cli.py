@@ -1,8 +1,6 @@
-"""VREV-10 RED scaffold: `voss review [run_id]` CLI.
-
+"""
+VREV-10 RED scaffold: `voss review [run_id]` CLI.
 RED until V6 adds review_cmd to voss.harness.cli. review_cmd is imported at
-test-function level so an absent symbol fails the individual tests (RED) without
-aborting collection of the rest of the board suite.
 """
 
 from __future__ import annotations

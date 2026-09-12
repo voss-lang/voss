@@ -10,9 +10,9 @@ use crate::tool_trait::Tool;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FsReadArgs {
-    /// Path relative to cwd.
+    /// Path relative to cwd
     pub path: String,
-    /// When true, prefix each line with its `{anchor}│` content-hash gutter for hashline edits.
+    /// When true, prefix each line with its `{anchor}│` content-hash gutter for hashline edits
     pub annotate: Option<bool>,
 }
 

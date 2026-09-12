@@ -1,11 +1,4 @@
-"""Project prompt override loader (V16-04, R5/D-18).
-
-`voss sync` writes editable copies of the reviewer/EM prompts under
-`.voss/prompts/<name>.txt`. At load time the project copy wins when present;
-otherwise the package template renders byte-identically to today (R5).
-Runtime placeholders are filled via plain str.replace — never Jinja at
-runtime (D-18), so user edits cannot raise StrictUndefined.
-"""
+"""Load project prompt overrides written by `voss sync`."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,7 +9,7 @@ from voss.template_render import render_package_template
 
 # Single source of truth for the synced-prompt contract: `voss sync` writes
 # `.voss/prompts/<name>.txt` from each resource, and load_prompt reads the
-# same names back. sync.py imports this — do not duplicate the pairs.
+# same names back. sync.py imports this do not duplicate the pairs
 SYNCED_PROMPTS = (
     ("reviewer_a_role", "templates/prompts/reviewer_a_role.txt.jinja"),
     ("reviewer_b_system", "templates/prompts/reviewer_b_system.txt.jinja"),

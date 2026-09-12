@@ -1,17 +1,3 @@
-// V24-05 (VADE2-05) — Tasks mission-control surface.
-//
-// Managed work as a Linear-like status system (not a toolbar). Reuses the
-// existing board derivation (cardsFromRunData + deriveColumn) and the live
-// id-bridge / adoption registries — no re-derivation. Rows deep-link to the
-// corresponding pane (bridge B) or review drawer via org/selection. Blocked
-// rows surface an inline attention action (never a new modal).
-//
-// Data source: the module-level orgStore signals (runData/loading/loadError) —
-// the surface is mounted prop-less inside PortalShell, so all state is read from
-// the shared store (mirrors BoardPanel). Copy uses PRODUCT.md vocabulary
-// ("Tasks", "steps"/"cards" for board items — never "Runs", never "tasks"
-// inside a Task).
-
 import { type Component, createSignal, For, Show } from 'solid-js';
 import '../surfaces.css';
 import { runData, loading, loadError } from '../../org/orgStore';
@@ -35,7 +21,7 @@ export interface GroupMeta {
   color: string;
 }
 
-// UI-SPEC §Component Inventory 4 group taxonomy + accent dots.
+// §Component Inventory 4 group taxonomy + accent dots
 export const GROUPS: GroupMeta[] = [
   { key: 'active', label: 'ACTIVE', color: 'var(--accent-cyan)' },
   { key: 'blocked', label: 'BLOCKED', color: 'var(--accent-red)' },
@@ -46,7 +32,7 @@ export const GROUPS: GroupMeta[] = [
 ];
 
 // deriveColumn keys → display group (display-layer rename only; code keys
-// unchanged, D-09). Anything off-taxonomy (e.g. Backlog) reads as active.
+// unchanged, ). Anything off-taxonomy (e.g. Backlog) reads as active
 const COLUMN_TO_GROUP: Record<string, GroupKey> = {
   InProgress: 'active',
   Backlog: 'active',
@@ -57,7 +43,7 @@ const COLUMN_TO_GROUP: Record<string, GroupKey> = {
 
 /**
  * Group a card by its real signals: a pane-bound card is a terminal agent
- * (adopted if the pane is in the adoption registry); otherwise its board column.
+ * (adopted if the pane is in the adoption registry); otherwise its board column
  */
 export function groupForCard(card: BoardCard): GroupKey {
   const paneId = paneIdForCard(card.id);
@@ -79,15 +65,17 @@ export function groupCards(cards: BoardCard[]): Record<GroupKey, BoardCard[]> {
   return out;
 }
 
-/** Deep link: pane-bound card → grid; otherwise → review drawer. */
+/** Deep link: pane-bound card → grid; otherwise → review drawer */
 function openCard(card: BoardCard): void {
   const paneId = paneIdForCard(card.id);
   if (paneId) requestOpenInGrid(paneId);
   else requestOpenInReview(card.id);
 }
 
-/** A single Task row + its inline attention action. Self-contained expand state
- *  so it is reusable from OverviewSurface. */
+/**
+ * A single Task row + its inline attention action. Self-contained expand state
+ * so it is reusable from OverviewSurface
+ */
 export const TaskRow: Component<{ card: BoardCard; color: string }> = (props) => {
   const [expanded, setExpanded] = createSignal(false);
   const attn = (): AttentionItem | undefined =>

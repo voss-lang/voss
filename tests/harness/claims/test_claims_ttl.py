@@ -1,7 +1,6 @@
-"""VBUS-02 TTL behavior.
-
+"""
+VBUS-02 TTL behavior.
 GREEN as of V17-03. `--ttl <seconds>` on stake (default 1800); expired
-claims stop blocking `check` and are ignored by `stake`.
 """
 from __future__ import annotations
 

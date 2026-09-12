@@ -6,10 +6,8 @@ import type { Command } from '../registry';
 import type { QuickOpenItem } from '../quickOpen';
 
 /**
- * A7-02 Task 1 — CommandPalette component tests.
- *
- * Verifies exact UI-SPEC copy, chord hints, empty states,
- * keyboard navigation, and dismiss behavior.
+ * CommandPalette component tests
+ * Verifies exact copy, chord hints, empty states
  */
 
 let dispose: (() => void) | undefined;

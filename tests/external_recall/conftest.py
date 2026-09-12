@@ -1,9 +1,6 @@
-"""Shared fixtures for the V22 external recall RED suite.
-
+"""
+Shared fixtures for the V22 external recall RED suite.
 Imports of the planned V22 module `voss.harness.recall.external_index` are
-deferred into fixture/test bodies so pytest collection succeeds before the
-implementation exists. Runtime ImportError/NotImplementedError is the RED
-signal for later V22 waves.
 """
 from __future__ import annotations
 

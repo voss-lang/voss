@@ -1,14 +1,7 @@
-"""Server session manager (HYBRID-REFACTOR-PLAN H1.4).
-
-Holds per-session server state: the event queue drained by SSE, the
-`SessionRecord` + `EpisodicMemory` reused from the existing session store,
-the in-flight turn task (for abort + one-turn-per-session), the resolved
-provider, and the pending-permission future registry (H1.9).
-
-The session id is the existing `SessionRecord.id` (`uuid4().hex[:12]`) so
-on-disk persistence (`session.save/load`) and the protocol id are the same.
 """
-
+Server session manager
+Holds per-session server state: the event queue drained by SSE, the
+"""
 from __future__ import annotations
 
 import asyncio
@@ -38,22 +31,22 @@ class ServerSession:
     task: asyncio.Task | None = None
     pending: dict[str, Future] = field(default_factory=dict)
     title: str = ""
-    # M2: prior RunRecords from a resumed session, surfaced on the first turn
-    # then cleared (deep history thereafter flows via `history`).
+    # prior RunRecords from a resumed session, surfaced on the first turn
+    # then cleared (deep history thereafter flows via `history`)
     prior_context: Any = None
-    # V25 swarm runtime (VSWARM-04). All default to None/empty so a normally
-    # created session is byte-identical to pre-V25 behaviour (ungated parity).
+    # swarm runtime (VSWARM-04). All default to None/empty so a normally
+    # created session is byte-identical to pre- behaviour (ungated parity)
     # gate_event: None = ungated/normal; a set asyncio.Event = a builder that
     # blocks in _run_turn until the coordinator's swarm.assign arrives. The
-    # Event MUST be constructed inside an async route handler (Pitfall 2), not
-    # here — this field only holds it.
+    # Event MUST be constructed inside an async route handler, not
+    # here this field only holds it
     gate_event: "asyncio.Event | None" = None
     swarm_id: str | None = None
     swarm_task_id: str | None = None
     swarm_owned_files: list[str] = field(default_factory=list)
     swarm_role: str | None = None
-    # PermissionsConfig attached by V25-05; typed Any to avoid importing
-    # cognition_schemas into sessions.py.
+    # PermissionsConfig attached by; typed Any to avoid importing
+    # cognition_schemas into sessions.py
     # Tasks assigned by orchestraotr per init sys prompt
     swarm_policy: Any = None
 

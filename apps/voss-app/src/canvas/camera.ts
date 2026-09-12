@@ -2,7 +2,7 @@ import type { CanvasView } from './model';
 
 export const CAMERA_MS = 200;
 
-/** Appearance setting (html.reduced-motion) or the OS preference. */
+/** Appearance setting (html.reduced-motion) or the OS preference */
 export function prefersReducedMotion(): boolean {
   if (typeof document !== 'undefined' && document.documentElement.classList.contains('reduced-motion')) return true;
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -23,7 +23,6 @@ export function lerpView(from: CanvasView, to: CanvasView, t: number): CanvasVie
 /**
  * Tween `from` → `to` over `durationMs`, calling `apply` each frame and
  * `done` with the exact target. Returns a cancel function. A zero duration
- * applies the target synchronously.
  */
 export function animateView(
   from: CanvasView,

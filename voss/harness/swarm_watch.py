@@ -1,28 +1,6 @@
-"""Ownership detection + revert for R3 CLI swarm members (fs-watch plane).
-
+"""
+Ownership detection + revert for R3 CLI swarm members (fs-watch plane)
 R3 (see `SWARM-RECONCILIATION.md`) drops the in-process `PermissionGate`
-ownership check (VSWARM-05) for CLI members — a black-box `codex`/`claude`
-binary writes to disk directly, so voss cannot deny the write before it lands.
-The guarantee is restored *post-hoc*: each member works in its own git worktree
-(`swarm_worktree`), an fs-watch loop diffs that worktree, and any path the member
-touched that is not in its `owned_files` is flagged (operator escalation) and
-reverted with `git restore`.
-
-Design split (so the loop is trivially testable):
-
-- **`detect_violations`** — PURE. Decides which changed paths are out of scope.
-  It reuses `swarm_store.build_ownership_policy` + `permissions.match_permission_rules`
-  — the *same* deny/allow machinery the native gate runs — so CLI enforcement and
-  native-gate enforcement give identical verdicts for the same `owned_files`.
-- **`revert_paths`** — the only fs/git side effect: `git restore` the listed
-  out-of-scope paths in the member's worktree.
-- **`OwnershipWatcher`** — a thin `watchfiles` loop. Each batch: `changed_files`
-  → `detect_violations` → if any, `on_violation(paths)` then `revert_paths`. All
-  judgement lives in the pure function; the loop just plumbs.
-
-`on_violation` is a caller-supplied callback (the server wires it to a
-`swarm.needs_operator` emit, VSWARM-10) so this module stays free of any server
-or event coupling.
 """
 from __future__ import annotations
 
@@ -51,7 +29,7 @@ def detect_violations(changed: list[str], owned_files: list[str]) -> list[str]:
     policy = build_ownership_policy(owned_files)
     rules = policy.rules
     # Any write tool gives the same verdict (build_ownership_policy installs the
-    # same sub-map for each); pick one deterministically.
+    # same sub-map for each); pick one deterministically
     tool = _WRITE_TOOLS[0]
     violations: list[str] = []
     for raw in changed:
@@ -85,7 +63,7 @@ def revert_paths(mw: MemberWorktree, paths: Iterable[str]) -> None:
         except (OSError, subprocess.SubprocessError):
             pass
         # Untracked creates are invisible to `git restore`; delete them so an
-        # out-of-scope new file is genuinely gone, not merely un-indexed.
+        # out-of-scope new file is genuinely gone, not merely un-indexed
         target = mw.path / p
         if _is_untracked(mw, p) and target.is_file():
             try:
@@ -132,25 +110,25 @@ class OwnershipWatcher:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
-    # -- the unit the loop calls per batch; pure-path driven, separately testable
+    # the unit the loop calls per batch; pure-path driven, separately testable
     def _handle_batch(self) -> list[str]:
         """Recompute changes → detect → flag+revert. Returns reverted paths."""
         violations = detect_violations(changed_files(self.mw), self.owned_files)
         if violations:
-            # Flag first so escalation is recorded even if the revert later fails.
+            # Flag first so escalation is recorded even if the revert later fails
             self.on_violation(violations)
             revert_paths(self.mw, violations)
         return violations
 
     def _run(self) -> None:
         # Imported lazily so importing this module never hard-requires watchfiles
-        # for callers that only use the pure functions.
+        # for callers that only use the pure functions
         from watchfiles import watch
 
         for _changes in watch(str(self.mw.path), stop_event=self._stop):
             # Ignore the per-event paths watchfiles reports and re-derive truth
-            # from git: it is the authority on what changed vs the member's base,
-            # and collapses a noisy burst of fs events into one clean diff.
+            # from git: it is the authority on what changed vs the member's base
+            # and collapses a noisy burst of fs events into one clean diff
             self._handle_batch()
 
     def start(self) -> None:

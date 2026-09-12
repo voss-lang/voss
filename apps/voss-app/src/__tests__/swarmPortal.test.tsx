@@ -1,13 +1,3 @@
-// V24-02 (VADE2-02) — canvas-swap round-trip + pane-identity contract.
-//
-// Harness mirrors liveReviewToggle.test.tsx exactly: we do NOT mount the real
-// App (App.test.tsx mocks GridRoot entirely and cannot observe the swap). Per
-// that established convention we replicate the App-local canvas-swap closure
-// (the `display: activeView()==='grid' ? 'flex' : 'none'` div from App.tsx) in a
-// tiny harness component driven by a local PortalView signal, and exercise the
-// REAL global modules under contract: portalTypes (PortalView/PORTAL_ITEMS) and
-// paneSessionRegistry (module-level session map, not tied to component lifecycle).
-
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal } from 'solid-js';
@@ -49,9 +39,7 @@ function fakeSession(paneId: string): PaneSession {
   } as unknown as PaneSession;
 }
 
-// ---------------------------------------------------------------------------
 // PORTAL CONTRACT — the 9-item nav model authored in portalTypes.ts
-// ---------------------------------------------------------------------------
 describe('VADE2-02 — PortalView contract', () => {
   it('exposes exactly 9 navigable items in UI-SPEC order; "grid" returns to Workspaces', () => {
     expect(PORTAL_ITEMS.map((i) => i.id)).toEqual([
@@ -76,11 +64,9 @@ describe('VADE2-02 — PortalView contract', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// CANVAS-SWAP (D-01, Pitfall 1) — grid host stays mounted; only display flips.
+// CANVAS-SWAP (, ) — grid host stays mounted; only display flips.
 // Replicates App.tsx:1495 verbatim in a tiny harness; widens the binary toggle
 // to the 8-way PortalView signal.
-// ---------------------------------------------------------------------------
 describe('VADE2-02 — canvas-swap keeps the grid host mounted', () => {
   it('grid host is the same element ref across grid→tasks→grid; display flips flex→none→flex', () => {
     const [activeView, setActiveView] = createSignal<PortalView>('grid');
@@ -96,7 +82,7 @@ describe('VADE2-02 — canvas-swap keeps the grid host mounted', () => {
 
     const before = root.querySelector('[data-testid="grid-host"]') as HTMLElement;
     const gridBefore = root.querySelector('[data-testid="grid-root"]');
-    expect(before.style.display).toBe('flex'); // boots to grid (D-02)
+    expect(before.style.display).toBe('flex'); // boots to grid
 
     setActiveView('tasks'); // swap to a portal surface
     const during = root.querySelector('[data-testid="grid-host"]') as HTMLElement;
@@ -111,12 +97,10 @@ describe('VADE2-02 — canvas-swap keeps the grid host mounted', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// PANE-SESSION IDENTITY — the load-bearing DoS mitigation (T-V24-02-D).
+// PANE-SESSION IDENTITY — the load-bearing DoS mitigation (-02-D).
 // The pane session registry is module-level state keyed by paneId, NOT tied to
 // GridRoot's component lifecycle. A display:none canvas-swap never calls
 // destroyPaneSession, so the session key must survive a portal round-trip.
-// ---------------------------------------------------------------------------
 describe('VADE2-02 — pane/session identity survives a portal round-trip', () => {
   it('a registered paneSession key is still present after grid→swarm-map→grid', () => {
     const [activeView, setActiveView] = createSignal<PortalView>('grid');

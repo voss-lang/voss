@@ -1,12 +1,8 @@
 import { invoke, Channel } from '@tauri-apps/api/core';
 
 /**
- * Tauri PTY transport: owns the D-02 flood-contract frontend mechanisms —
- * per-requestAnimationFrame coalescing AND watermark backpressure (BOTH
- * required, complementary). The xterm `write` is injected so this layer is
- * unit-testable without a real Terminal.
- *
- * Mirrors the Rust `PtyEvent` (serde tag = "type", snake_case) from A2-02.
+ * Tauri PTY transport: owns the flood-contract frontend mechanisms
+ * requestAnimationFrame coalescing AND watermark backpressure (BOTH
  */
 export type PtyEvent =
   | { type: 'data'; bytes: number[] }
@@ -43,32 +39,34 @@ export interface AgentConfig {
   cliBinary: string;
   cliArgs: string[];
   sessionId: string;
-  /** VCKP-13 managed launch: route to spawn_managed_agent (OS scope-sandbox). */
+/** 13 managed launch: route to spawn_managed_agent (OS scope-sandbox) */
   managed?: boolean;
-  /** Sandbox write-scope (absolute path) — required for a managed launch. */
+/** Sandbox write-scope (absolute path) — required for a managed launch */
   scope?: string;
-  /** Honest capability tier recorded for this launch (resolveTier output). */
+/** Honest capability tier recorded for this launch (resolveTier output) */
   tier?: 'A' | 'B' | 'C';
-  /** Budget-kill threshold (USD): at/over → pty_kill (VCKP-13c). */
+/** Budget-kill threshold (USD): at/over → pty_kill (-13c) */
   budgetUsd?: number;
-  /** VBUS-03 agent identity slug injected as VOSS_AGENT_ID (D-11/D-12). */
+/** VBUS-03 agent identity slug injected as VOSS_AGENT_ID (/) */
   vossAgentId?: string;
 }
 
-/** Result of `spawn_managed_agent` — `tier` is the EFFECTIVE tier (downgraded
- * to 'C' when no sandbox tool exists on the host; never overstated). */
+/**
+ * Result of `spawn_managed_agent` — `tier` is the EFFECTIVE tier (downgraded
+ * to 'C' when no sandbox tool exists on the host; never overstated)
+ */
 export type ManagedSpawnResult = {
   pty_id: string;
   tier: 'A' | 'B' | 'C';
   sandboxed: boolean;
 };
 
-/** D-02 watermark thresholds — locked constants (do not tune). */
+/** watermark thresholds — locked constants (do not tune) */
 export const HIGH_WATERMARK = 100_000; // 100 KB → pause
 export const LOW_WATERMARK = 10_000; //  10 KB → resume
 
 export interface PtyTransportOpts {
-  /** xterm `term.write` (data, callback). Injected for testability. */
+/** xterm `term.write` (data, callback). Injected for testability */
   write: (data: Uint8Array, cb?: () => void) => void;
   onExit?: (code: number) => void;
   onFgProcess?: (name: string) => void;
@@ -77,7 +75,7 @@ export interface PtyTransportOpts {
   onContextUpdate?: (data: ContextData) => void;
   agentPaneId?: string;
   workspacePath?: string;
-  /** VCKP-13c budget-kill: cost_usd at/over this → pty_kill the pane. */
+/** 13c budget-kill: cost_usd at/over this → pty_kill the pane */
   budgetKillLimitUsd?: number;
   onBudgetKill?: (costUsd: number) => void;
 }
@@ -148,7 +146,7 @@ export class PtyTransport {
           iteration: ev.iteration,
           model: ev.model,
         });
-        // VCKP-13c budget-kill — the universal (tier-C-and-up) hard control:
+        // 13c budget-kill — the universal (tier-C-and-up) hard control
         // at/over the limit, terminate the pane via the existing pty_kill path.
         const limit = this.opts.budgetKillLimitUsd;
         if (limit != null && ev.cost_usd >= limit && this.sessionId) {
@@ -169,7 +167,7 @@ export class PtyTransport {
     }
   }
 
-  /** Merge a frame's worth of chunks into ONE xterm write (coalescing). */
+/** Merge a frame's worth of chunks into ONE xterm write (coalescing) */
   private flush(): void {
     this.rafPending = false;
     if (this.pending.length === 0) return;
@@ -219,9 +217,10 @@ export class PtyTransport {
     return this.sessionId;
   }
 
-  /** VCKP-13: managed launch under the OS scope-sandbox. Mirrors spawnAgent
-   * but invokes `spawn_managed_agent` with the scope + requested tier; returns
-   * the EFFECTIVE tier (honestly downgraded when no sandbox tool exists). */
+/**
+ * 13: managed launch under the OS scope-sandbox. Mirrors spawnAgent
+ * but invokes `spawn_managed_agent` with the scope + requested tier; returns
+ */
   async spawnManagedAgent(o: {
     rows: number;
     cols: number;
@@ -268,7 +267,7 @@ export class PtyTransport {
     this.sessionId = null;
   }
 
-  /** D-07 fallback: resolve the foreground process name via the Rust pgid poll. */
+/** fallback: resolve the foreground process name via the Rust pgid poll */
   async fgProcess(): Promise<string | null> {
     if (!this.sessionId) return null;
     return invoke<string | null>('get_fg_process', {

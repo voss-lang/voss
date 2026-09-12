@@ -1,8 +1,6 @@
-"""M14 WATCH scaffold tests.
-
+"""
+M14 WATCH scaffold tests.
 These tests intentionally bind the public names and behavior that later M14
-plans implement. Wave 0 expects the file to collect cleanly while most tests
-fail RED against today's production code.
 """
 
 from __future__ import annotations

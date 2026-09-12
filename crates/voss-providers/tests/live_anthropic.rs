@@ -1,6 +1,4 @@
 //! Live smoke against real Anthropic via Claude Code OAuth.
-//!
-//! Opt-in only. Set `VOSS_LIVE_SMOKES=1` to run. Default skip in CI.
 
 use voss_providers::{AnthropicOAuthProvider, CompleteRequest, Message, ModelProvider};
 

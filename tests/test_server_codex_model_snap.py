@@ -1,31 +1,6 @@
-"""Regression tests for codex-oauth model snapping + provider-error visibility.
-
+"""
+Regression tests for codex-oauth model snapping + provider-error visibility.
 FIX-1 target: ``voss/harness/server/app.py`` (this test imports it; it does not
-modify it). Two defects, both surfaced by the swarm diagnosis:
-
-1. **Model snap.** When auth resolves to ``codex-oauth`` the ChatGPT Codex
-   backend only accepts ``gpt-5.x`` model ids. ``create_session`` currently sets
-   the session model to ``body.model or VOSS_SERVE_DEFAULT_MODEL or
-   get_config().default_model`` (``claude-sonnet-4-5``) without snapping it to a
-   codex model, so the first ``provider.stream`` 400s. The CLI already does this
-   snap (``cli.py:686-687``); the server must reach parity.
-
-2. **Silent swallow.** ``_run_turn`` catches only ``asyncio.CancelledError``; a
-   provider ``RuntimeError`` is orphaned on the asyncio task and the only event
-   the client sees is ``session.idle`` (a bare empty turn). The turn must instead
-   surface a visible event.
-
-Empirical proof of the underlying bug (DIAG-B, server stderr captured in
-``/tmp/voss_repro/s1_plan_default_serve.log``)::
-
-    Task exception was never retrieved
-    RuntimeError: OpenAI OAuth stream failed [400]: b'{"detail":"The
-    \\'claude-sonnet-4-5\\' model is not supported when using Codex with a
-    ChatGPT account."}'
-
-These tests are RED on current code and GREEN after FIX-1. The guard tests
-(valid gpt-5 kept; non-codex auth untouched) are GREEN both before and after and
-exist so the fix cannot over-snap.
 """
 from __future__ import annotations
 

@@ -1,10 +1,3 @@
-// V24-05 (VADE2-05) — Tasks mission-control surface: status grouping.
-//
-// Managed work reads like a status system: fixture runs spanning each status
-// (InProgress / Blocked / InReview / Done) appear under the correct UI-SPEC
-// group (ACTIVE / BLOCKED / REVIEWING / DONE). Mirrors swarmReconcile.test.ts
-// pure-fixture discipline + the cockpit tauri-mock for the data-loading import.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 
@@ -36,7 +29,7 @@ function boardTo(to: string): Transition {
   return { kind: 'board.transition', from: 'Backlog', to, outcome: '', verdict_snapshot: null };
 }
 
-// A run with one non-root node per status column.
+// A run with one non-root node per status column
 function makeRun(): RunData {
   return {
     run_id: 'run-1',

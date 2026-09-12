@@ -84,11 +84,9 @@ describe('runIntake — validate + assemble (pure)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Start-path tests (sibling suite — `-t "validate"` still selects only the pure
 // validator suite above). Exercise the rendered RunCommandBar's two start paths
 // (Bridge B terminal / Bridge A native) and the Auto-block visible reason.
-// ---------------------------------------------------------------------------
 
 let dispose: (() => void) | undefined;
 function mount(ui: () => unknown): HTMLElement {

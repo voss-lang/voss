@@ -1,9 +1,6 @@
-"""R3 git-worktree-per-member lifecycle tests (SWARM-RECONCILIATION).
-
+"""
+R3 git-worktree-per-member lifecycle tests (SWARM-RECONCILIATION).
 Real temp git repos throughout (mirrors tests/harness/test_layout.py's `_git`
-+ fixture style). Exercises create/list/remove, change detection for tracked
-edits and untracked new files, and fan-in merge bringing a member's change back
-to the main checkout's HEAD.
 """
 
 from __future__ import annotations

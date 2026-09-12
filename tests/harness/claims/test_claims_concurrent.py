@@ -1,9 +1,6 @@
-"""VBUS-01 concurrent-stake exactly-one-winner — Wave 0 RED (integration).
-
+"""
+VBUS-01 concurrent-stake exactly-one-winner — Wave 0 RED (integration).
 Races N real CLI subprocesses (`python -m voss.cli claims stake`) against the
-same file-backed claims DB under tmp_path. SQLite BEGIN IMMEDIATE must grant
-exactly one winner (V17-RESEARCH Pattern 1); distinct agent ids so D-04
-self-overlap idempotency cannot mask a double grant.
 """
 from __future__ import annotations
 

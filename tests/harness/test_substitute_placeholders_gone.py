@@ -1,9 +1,6 @@
-"""T1 ITER-02 grep gate: _substitute_placeholders must stay deleted.
-
+"""
+T1 ITER-02 grep gate: _substitute_placeholders must stay deleted.
 SPEC acceptance criterion 3: `grep -r _substitute_placeholders voss/`
-returns zero matches. CI also runs this grep as an explicit workflow
-step (.github/workflows/ci.yml); the pytest copy is a developer-local
-safety net so the regression fails fast before push.
 """
 from __future__ import annotations
 

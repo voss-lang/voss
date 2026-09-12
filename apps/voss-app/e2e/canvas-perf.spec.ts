@@ -4,9 +4,6 @@ import { bootApp, stableRects } from './_helpers';
 /**
  * S2 canvas perf gate (mock-IPC): 12 terminal nodes each receiving a flood of
  * PTY data through their mocked Channel while the plane pans for 5 s, at zoom
- * 1 and at zoom 0.5 (chips). Prints one JSON line per zoom for
- * scripts/test-canvas-perf.ts to assert against; the spec itself only checks
- * that frames were sampled.
  */
 
 const NODE_COUNT = 12;
@@ -90,7 +87,7 @@ async function measure(page: import('@playwright/test').Page, zoom: number) {
   );
 }
 
-/** Median rAF interval with no input and no PTY traffic: the display refresh period. */
+/** Median rAF interval with no input and no PTY traffic: the display refresh period */
 async function measureIdle(page: import('@playwright/test').Page) {
   return page.evaluate(
     async (ms) =>

@@ -1,9 +1,6 @@
-"""T2-03 / PAR-02: per-step PermissionGate.check preserved inside batches.
-
+"""
+T2-03 / PAR-02: per-step PermissionGate.check preserved inside batches.
 The partition scheduler dispatches read-only steps in parallel under
-asyncio.gather, but PermissionGate.check MUST still fire once per step
-(M1 D-06 / SPEC Constraint 7). This test confirms no caching / skipping
-happens just because steps run concurrently.
 """
 from __future__ import annotations
 

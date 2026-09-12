@@ -4,10 +4,7 @@ use crate::client::VossClient;
 use crate::error::VossError;
 
 /// Parsed from the one-line `{"v":1,"port":...,"token":...}` emitted by
-/// `voss serve` on startup.
-///
-/// This helper only models the local server bearer token handshake. Provider
-/// credentials and JSON-RPC transport authentication are separate concerns.
+/// `voss serve` on startup
 #[derive(Debug, Deserialize)]
 pub struct Handshake {
     pub port: u16,

@@ -1,8 +1,3 @@
-//! System monospace font enumeration (A8 D-13).
-//!
-//! Returns a sorted, deduplicated list of font family names with
-//! **JetBrains Mono** always present as the guaranteed fallback.
-
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -31,7 +26,6 @@ const COMMON_MONO: &[&str] = &[
     "Courier",
 ];
 
-/// List monospace-capable system fonts. Always includes [`GUARANTEED_FONT`].
 pub fn list_system_fonts() -> Vec<String> {
     let mut names = BTreeSet::new();
     names.insert(GUARANTEED_FONT.to_string());

@@ -1,17 +1,9 @@
-//! A8 settings profile persistence — full snapshots at
-//! `~/.config/voss-app/profiles/<name>.json` and active profile id in
-//! `settings.json`.
-//!
-//! Follows `keymap.rs` (settings flatten) and `session.rs` (atomic writes,
-//! fail-safe loads).
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 pub const CURRENT_PROFILE_VERSION: u32 = 1;
 
-/// Full settings snapshot (appearance, terminal, layout defaults, etc.).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileFile {
@@ -30,7 +22,6 @@ pub enum ProfileError {
     SettingsSaveFailed,
 }
 
-// --- Settings (active profile id) --------------------------------------------
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,7 +77,6 @@ fn profiles_dir() -> PathBuf {
     })
 }
 
-// --- Path helpers ------------------------------------------------------------
 
 pub fn profile_path(name: &str) -> Result<PathBuf, ProfileError> {
     validate_profile_name(name)?;
@@ -112,9 +102,7 @@ pub fn validate_profile_name(name: &str) -> Result<(), ProfileError> {
     Ok(())
 }
 
-// --- Profile I/O -------------------------------------------------------------
 
-/// List profile names (stems of `*.json`). Missing directory → empty list.
 pub fn list_profiles() -> Vec<String> {
     let dir = profiles_dir();
     if !dir.exists() {
@@ -141,8 +129,6 @@ pub fn list_profiles() -> Vec<String> {
     names
 }
 
-/// Load `profiles/<name>.json`. Returns `None` for missing, corrupt, or
-/// unsupported files.
 pub fn load_profile(name: &str) -> Option<ProfileFile> {
     let path = profile_path(name).ok()?;
     if !path.exists() {
@@ -158,7 +144,6 @@ pub fn load_profile(name: &str) -> Option<ProfileFile> {
     }
 }
 
-/// Save a profile snapshot, creating `profiles/` on first write.
 pub fn save_profile(name: &str, profile: &ProfileFile) -> Result<(), ProfileError> {
     let path = profile_path(name)?;
     let json = serde_json::to_string_pretty(profile).map_err(|e| {
@@ -168,9 +153,7 @@ pub fn save_profile(name: &str, profile: &ProfileFile) -> Result<(), ProfileErro
     atomic_write(&path, &json)
 }
 
-// --- Active profile id in settings.json --------------------------------------
 
-/// Load `appearance.activeProfileId`. Missing/corrupt → `None`.
 pub fn load_active_profile_id() -> Option<String> {
     let path = settings_path();
     let raw = std::fs::read_to_string(&path).ok()?;
@@ -178,7 +161,6 @@ pub fn load_active_profile_id() -> Option<String> {
     settings.appearance.active_profile_id
 }
 
-/// Persist `appearance.activeProfileId`, preserving unknown settings keys.
 pub fn save_active_profile_id(id: Option<&str>) -> Result<(), ProfileError> {
     let path = settings_path();
     if let Some(dir) = path.parent() {
@@ -203,7 +185,6 @@ pub fn save_active_profile_id(id: Option<&str>) -> Result<(), ProfileError> {
     Ok(())
 }
 
-// --- Internal helpers --------------------------------------------------------
 
 fn parse_profile(raw: &str) -> Result<ProfileFile, &'static str> {
     let value: serde_json::Value = serde_json::from_str(raw).map_err(|_| "invalid JSON")?;
@@ -236,7 +217,6 @@ fn atomic_write(path: &Path, json: &str) -> Result<(), ProfileError> {
     Ok(())
 }
 
-// --- Tests -------------------------------------------------------------------
 
 #[cfg(test)]
 thread_local! {

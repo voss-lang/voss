@@ -12,11 +12,8 @@ enum EventStreamState {
     Done,
 }
 
-/// Open `GET /session/:id/events` and yield typed [`AgentEvent`] values.
-///
+/// Open `GET /session/:id/events` and yield typed [`AgentEvent`] values
 /// Dropping the returned stream drops the underlying response and closes the TCP
-/// connection, which is the protocol's turn-cancellation signal. No explicit
-/// abort request is needed.
 pub fn event_stream(
     client: VossClient,
     session_id: String,

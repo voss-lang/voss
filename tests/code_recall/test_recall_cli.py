@@ -1,8 +1,6 @@
-"""VSEM-05 RED tests: `voss recall` exits 0 with labeled hits; --json honors
+"""
+VSEM-05 RED tests: `voss recall` exits 0 with labeled hits; --json honors
 the documented schema and leaks no secrets (threat T-V19-04).
-
-In-process click CliRunner so the fake-embed monkeypatch applies to the
-command's own SemanticMemory construction.
 """
 from __future__ import annotations
 

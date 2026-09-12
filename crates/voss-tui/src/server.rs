@@ -1,9 +1,6 @@
-//! Server child supervision (H2.2).
-//!
+//! Server child supervision
 //! Spawns `voss serve`, reads the one-line `{port, token}` handshake, and keeps
-//! the child's stdin open as the heartbeat the server watches (closing it makes
-//! the server self-terminate — see `server/serve.py`). The child is killed on
-//! drop and explicitly on shutdown to avoid zombies.
+
 
 use std::process::Stdio;
 
@@ -19,7 +16,7 @@ pub struct ServerHandle {
 }
 
 impl ServerHandle {
-    /// Kill the server child and reap it (prevents a zombie).
+    /// Kill the server child and reap it (prevents a zombie)
     pub async fn shutdown(mut self) {
         let _ = self.child.start_kill();
         let _ = self.child.wait().await;
@@ -33,12 +30,12 @@ struct Handshake {
 }
 
 /// Interpreter used to launch the server. `VOSS_PYTHON` overrides; else the
-/// repo's `.venv/bin/python` relative to this crate, else `python3` on PATH.
+/// repo's `.venv/bin/python` relative to this crate, else `python3` on PATH
 pub fn python_path() -> String {
     if let Ok(p) = std::env::var("VOSS_PYTHON") {
         return p;
     }
-    // crate dir = <repo>/crates/voss-tui -> repo root is two levels up.
+    // crate dir = <repo>/crates/voss-tui -> repo root is two levels up
     let venv = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
     if venv.exists() {
         return venv.to_string_lossy().into_owned();
@@ -46,13 +43,13 @@ pub fn python_path() -> String {
     "python3".to_string()
 }
 
-/// Spawn `voss serve` and complete the handshake.
+/// Spawn `voss serve` and complete the handshake
 pub async fn spawn_server() -> Result<ServerHandle> {
     spawn_server_with(&python_path(), &[]).await
 }
 
 /// Spawn with an explicit interpreter and extra environment (used by tests to
-/// set `VOSS_SERVE_FAKE_TURN`).
+/// set `VOSS_SERVE_FAKE_TURN`)
 pub async fn spawn_server_with(python: &str, extra_env: &[(&str, &str)]) -> Result<ServerHandle> {
     let mut cmd = Command::new(python);
     cmd.args(["-m", "voss.cli", "serve", "--port", "0"])
@@ -82,7 +79,7 @@ pub async fn spawn_server_with(python: &str, extra_env: &[(&str, &str)]) -> Resu
     .await
     .map_err(|_| anyhow!("server handshake timed out"))??;
 
-    // Drain remaining stdout so a full pipe buffer never blocks the server.
+    // Drain remaining stdout so a full pipe buffer never blocks the server
     tokio::spawn(async move { while let Ok(Some(_)) = lines.next_line().await {} });
 
     let base = format!("http://127.0.0.1:{}", hs.port);

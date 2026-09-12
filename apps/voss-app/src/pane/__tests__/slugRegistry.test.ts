@@ -1,7 +1,3 @@
-/**
- * V17-04 (VBUS-03): slug minting + registry — D-12 format (<cli>-<n> for
- * agent CLIs, pane-<n> for plain shells), shared monotonic counter.
- */
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   mintSlug,

@@ -1,18 +1,3 @@
-// V24-04 (VADE2-04) — global "Ask Voss to…" composer.
-//
-// A modal <dialog> reachable from any surface (⌘K + the portal-rail ask
-// trigger). On open it shows ONLY the ask field and a safety-mode control
-// defaulted to "Read only" (D-04); scope / agent target / team / budget /
-// attached context are collapsed behind "Advanced" (D-05). It reuses the
-// existing run-intake assembler (runIntake.ts assembleRunSpec + validateAutoStart);
-// the humane safety labels map to the internal RunMode (Read only→Plan,
-// Can edit→Edit, Autopilot→Auto) — code identifiers unchanged (D-09).
-//
-// Focus discipline (RESEARCH Pitfall 7): on open focus the ask textarea; a Tab
-// trap keeps focus inside the dialog so Tab cannot reach a focused xterm pane
-// behind the overlay. Escape closes; ⌘Enter creates; bare Enter inserts a
-// newline (terminal-dense app — never auto-submits).
-
 import { type Component, createEffect, createSignal, For, Show } from 'solid-js';
 import './composer.css';
 import { devlog } from '../devlog';
@@ -35,7 +20,7 @@ type SafetyMode = 'Read only' | 'Can edit' | 'Autopilot';
 
 const SAFETY_MODES: SafetyMode[] = ['Read only', 'Can edit', 'Autopilot'];
 
-// Humane safety label → internal RunMode (D-09: identifiers never surface).
+// Humane safety label → internal RunMode (: identifiers never surface)
 const SAFETY_TO_RUNMODE: Record<SafetyMode, RunMode> = {
   'Read only': 'Plan',
   'Can edit': 'Edit',
@@ -44,8 +29,8 @@ const SAFETY_TO_RUNMODE: Record<SafetyMode, RunMode> = {
 
 const TEAMS = ['solo', 'core', 'review'];
 
-// Advanced "agent target" maps to RunTarget; D-10 humane labels (no internal
-// "native" vocabulary in UI strings).
+// Advanced "agent target" maps to RunTarget; humane labels (no internal
+// "native" vocabulary in UI strings)
 const TARGETS: { id: RunTarget; label: string }[] = [
   { id: 'native', label: 'Voss run' },
   { id: 'terminal', label: 'Terminal agent' },
@@ -71,7 +56,7 @@ const VossComposer: Component<VossComposerProps> = (props) => {
   let askRef: HTMLTextAreaElement | undefined;
   let dialogRef: HTMLDialogElement | undefined;
 
-  // On open: clear transient error and focus the ask field (RESEARCH Pitfall 7).
+  // On open: clear transient error and focus the ask field
   createEffect(() => {
     if (props.open) {
       setError(null);
@@ -104,7 +89,7 @@ const VossComposer: Component<VossComposerProps> = (props) => {
       hasScope: Boolean(state.scope),
       goalLen: state.goal.length,
     });
-    // Autopilot ("Auto") must pass the run-intake gate before dispatch.
+    // Autopilot ("Auto") must pass the run-intake gate before dispatch
     const gate = validateAutoStart(state);
     if (!gate.ok) {
       devlog('warn', 'composer.create', 'gate blocked', { reason: gate.reason });
@@ -130,13 +115,13 @@ const VossComposer: Component<VossComposerProps> = (props) => {
       props.onClose();
       return;
     }
-    // ⌘Enter creates; bare Enter is left to the textarea (newline).
+    // ⌘Enter creates; bare Enter is left to the textarea (newline)
     if (e.key === 'Enter' && e.metaKey) {
       e.preventDefault();
       handleCreate();
       return;
     }
-    // Tab trap — keep focus within the dialog (Pitfall 7).
+    // Tab trap keep focus within the dialog
     if (e.key === 'Tab' && dialogRef) {
       const focusables = Array.from(
         dialogRef.querySelectorAll<HTMLElement>(

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// --- Mock @tauri-apps/api/core ----------------------------------------------
+// Mock @tauri-apps/api/core
 const h = vi.hoisted(() => {
   const channels: Array<{ onmessage: ((m: unknown) => void) | null }> = [];
   return {
@@ -27,7 +27,7 @@ import {
   type PtyEvent,
 } from '../pty-ipc';
 
-// --- Controllable requestAnimationFrame -------------------------------------
+// Controllable requestAnimationFrame
 let rafQueue: FrameRequestCallback[] = [];
 beforeEach(() => {
   rafQueue = [];
@@ -83,7 +83,7 @@ describe('PtyTransport — D-02 coalescing + watermark', () => {
     });
     await t.spawn({ rows: 24, cols: 80 });
     const ch = lastChannel();
-    // Fill above HIGH so a pause is in flight, then drain via the cb.
+    // Fill above HIGH so a pause is in flight, then drain via the cb
     ch.onmessage!(dataEvent(HIGH_WATERMARK + LOW_WATERMARK));
     flushRaf();
     expect(savedCb).toBeTypeOf('function');

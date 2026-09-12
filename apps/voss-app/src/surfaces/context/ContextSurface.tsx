@@ -1,17 +1,3 @@
-// V24-10 (VADE2-10) — Context surface.
-//
-// Closes the V24-SPEC §41/86/91 requirement that Context "wire to existing
-// panels/drawers as-is". The full Context feature already ships as the F4 side
-// drawer (components/ContextPanel.tsx); this surface gives it a full-canvas home in
-// the portal, fed by the SAME focused-pane ContextData the drawer uses (passed via
-// a contextSlot thunk from App, mirroring reviewSlot). No re-derivation, no new
-// data path.
-//
-// Empty state: ContextPanel's own empty text is styled for the narrow F4 side
-// drawer (position:absolute, 240px) and looks broken on a full canvas, so here
-// we render the shared centered SurfaceEmpty card instead and only mount
-// ContextPanel once there's an agent pane with real context to show.
-
 import { type Component, Show } from 'solid-js';
 import '../surfaces.css';
 import ContextPanel from '../../components/ContextPanel';

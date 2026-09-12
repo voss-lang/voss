@@ -1,7 +1,6 @@
-"""Unit tests for the upgraded DiffModal rendering (colored + syntax diffs).
-
+"""
+Unit tests for the upgraded DiffModal rendering (colored + syntax diffs).
 Covers the pure render helper and the decision-cursor tracking, the two
-things the OpenCode-leverage port added on top of the locked approval gate.
 """
 from __future__ import annotations
 

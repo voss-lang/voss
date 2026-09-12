@@ -1,13 +1,7 @@
-"""voss.harness.code — Code intelligence subsystem (M10).
-
-This package provides the project index, LSP-backed semantic search,
-ast-grep structural search, and related surfaces. It is intentionally
-lazy: importing submodules does not require the optional heavy dependencies to be
-installed (those live only under the optional `voss[code]` extra).
-
-Public surface is re-exported here for convenience.
 """
-
+voss.harness.code Code intelligence subsystem
+This package provides the project index, LSP-backed semantic search
+"""
 from __future__ import annotations
 
 # Models are always importable (pure data)

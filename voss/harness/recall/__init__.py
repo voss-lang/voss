@@ -1,5 +1,6 @@
-"""External recall package contracts."""
-
+"""
+External recall package contracts
+"""
 from voss.harness.recall.external_index import (
     ExternalRecallService,
     ExternalSourceIndex,

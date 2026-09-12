@@ -1,15 +1,6 @@
-"""R3 swarm runtime orchestrator tests (SWARM-RECONCILIATION, Wave 3).
-
+"""
+R3 swarm runtime orchestrator tests (SWARM-RECONCILIATION, Wave 3).
 Drives `run_cli_member` / `run_cli_swarm` end-to-end against a REAL temp git repo
-(mirrors tests/harness/test_layout.py + test_swarm_worktree.py `_git` style) with
-a FAKE spawn_fn — no real `claude`/`codex` is ever launched, and nothing uses
-`time.sleep` for synchronization.
-
-Each fake spawn writes inside the worktree cwd it is handed (simulating the CLI
-doing its work in its own checkout), then returns a handle whose `wait()` returns
-an exit code. Correctness of the ownership reconciliation is asserted on the MAIN
-branch state AFTER the run, which is what the deterministic post-exit check (not a
-racing watcher) guarantees.
 """
 
 from __future__ import annotations

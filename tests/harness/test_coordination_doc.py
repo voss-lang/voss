@@ -1,7 +1,6 @@
-"""VBUS-07 coordination doc + verb --help parse.
-
+"""
+VBUS-07 coordination doc + verb --help parse.
 GREEN as of V17-07 (doc) + V17-03 (claims verbs). The bus-verb portion
-stays xfail-gated until V17-06 ships post-V15.
 """
 from __future__ import annotations
 

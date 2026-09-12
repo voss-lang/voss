@@ -11,7 +11,6 @@ from voss.harness.em.stub import DeterministicEMStub
 from voss.harness.em.tickets import RunFinal
 
 
-
 class TestEmLoopHappyPath:
     @pytest.mark.asyncio
     async def test_idea_to_done(self, make_handle, stub_board):

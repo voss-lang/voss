@@ -1,10 +1,4 @@
-"""ForkConfirmModal — confirm fork-from-turn (M9-06, TUI-08).
-
-UI-SPEC locked copy:
-  Heading: `Fork session from turn {n}?`
-  Body:    `Creates a new session starting from this turn. The current session keeps its history.`
-  Buttons: `[Enter] Fork · [Esc] Cancel`
-"""
+"""Confirm fork-from-turn modal."""
 from __future__ import annotations
 
 from textual.app import ComposeResult

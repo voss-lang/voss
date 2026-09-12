@@ -1,8 +1,6 @@
-"""CLI tests for `voss team check` (VTEAM-10).
-
+"""
+CLI tests for `voss team check` (VTEAM-10).
 Thin wrapper over compile_team: valid -> exit 0 + roster/ceiling summary;
-invalid -> exit 1 + first error; missing file -> non-zero + clear message;
---json -> parseable {"ok": ...} object.
 """
 
 from __future__ import annotations

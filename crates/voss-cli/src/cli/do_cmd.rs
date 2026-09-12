@@ -1,4 +1,5 @@
-//! `voss-cli do <task>` — one-shot agent invocation.
+//! `voss-cli do <task>` one-shot agent invocation
+
 
 use std::path::Path;
 

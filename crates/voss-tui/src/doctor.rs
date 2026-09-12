@@ -1,8 +1,6 @@
-//! `voss-tui doctor` (H3.1).
-//!
+//! `voss-tui doctor`
 //! The thin client reimplements NO diagnostics: it asks the server's `/doctor`
-//! (which runs the harness's own `diagnostics.run_all_checks`, the same source
-//! `voss doctor` uses) and renders the result. Returns the server's exit code.
+
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -40,7 +38,7 @@ fn glyph(status: &str) -> &'static str {
     }
 }
 
-/// Fetch + render the server diagnostics. Returns the server's aggregate exit code.
+/// Fetch + render the server diagnostics. Returns the server's aggregate exit code
 pub async fn run(http: &HttpClient, cwd: &str) -> Result<i32> {
     let r = http.doctor(cwd).await?;
     println!("  auth      : {} — {}", r.auth_source, r.auth_detail);

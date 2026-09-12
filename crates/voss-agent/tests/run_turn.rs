@@ -1,5 +1,3 @@
-//! run_turn end-to-end behavior + D-08 status invariants.
-
 use std::sync::Arc;
 
 use async_trait::async_trait;

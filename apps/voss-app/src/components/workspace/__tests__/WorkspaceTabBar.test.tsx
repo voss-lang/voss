@@ -15,9 +15,8 @@ import WorkspaceTabBar, {
 import type { WorkspaceRecord } from '../../../workspaces/workspaceStore';
 
 /**
- * A8-03 Task 1 — WorkspaceTabBar + context menu (TDD).
- *
- * Contract: A8-UI-SPEC Workspace Tab Bar + Copywriting sections.
+ * Task 1 — WorkspaceTabBar + context menu (TDD)
+ * Contract: Workspace Tab Bar + Copywriting sections
  */
 
 const WS1: WorkspaceRecord = {

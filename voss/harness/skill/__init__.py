@@ -1,1 +1,3 @@
-"""Skill plugin marketplace harness package (M15)."""
+"""
+Skill plugin marketplace harness package
+"""

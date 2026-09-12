@@ -2,8 +2,8 @@ import { For, Show, createSignal } from 'solid-js';
 import type { RunData, SessionTreeNode, CardSnapshot } from '../types';
 import { computeBoardAtStep } from '../replayReducer';
 
-// VADE-10 — step through persisted transitions; the board snapshot at each step
-// is computed by the pure client-side reducer (D-05/D-06: board/card only).
+// 10 — step through persisted transitions; the board snapshot at each step
+// is computed by the pure client-side reducer (/: board/card only).
 // Other panels stay final-snapshot. The replay board is READ-ONLY.
 
 const COLUMNS: Array<{ key: string; label: string; color: string }> = [
@@ -62,7 +62,7 @@ function ReplayCard(props: { card: CardSnapshot }) {
 export default function ReplayPanel(props: { data: RunData | null }) {
   const [step, setStep] = createSignal(0);
 
-  // Pitfall 3: strip Solid store proxies before the pure reducer.
+  // strip Solid store proxies before the pure reducer.
   // NEVER produce()/structuredClone() here.
   const plainNodes = (): SessionTreeNode[] =>
     JSON.parse(JSON.stringify(props.data?.session_tree.nodes ?? []));
@@ -166,7 +166,6 @@ export default function ReplayPanel(props: { data: RunData | null }) {
           </span>
         </div>
 
-        {/* Other-panels notice (D-06) */}
         <div
           style={{
             height: '24px',

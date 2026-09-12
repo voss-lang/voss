@@ -1,5 +1,6 @@
-"""Stdio JSON-RPC MCP client for harness network tools."""
-
+"""
+Stdio JSON-RPC MCP client for harness network tools
+"""
 from __future__ import annotations
 
 import asyncio

@@ -3,13 +3,8 @@ import { render } from 'solid-js/web';
 import RestoreBanner from '../RestoreBanner';
 
 /**
- * A6-05 Task 1 — RestoreBanner component tests.
- *
- * Verifies:
- * - Exact copy "Session restored - N lines"
- * - Height 22px
- * - No dismiss button
- * - Various line counts (0, 1, 2000)
+ * RestoreBanner component tests
+ * Verifies
  */
 
 let dispose: (() => void) | undefined;

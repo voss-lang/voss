@@ -11,7 +11,6 @@ import (
 
 // requirePython skips the test when no interpreter is resolvable (VOSS_PYTHON
 // unset and repo .venv/bin/python absent), so spawn integration tests are
-// hermetic-optional.
 func requirePython(t *testing.T) {
 	t.Helper()
 	if !pythonAvailable() {
@@ -115,7 +114,6 @@ func TestSpawnBadInterpreter(t *testing.T) {
 
 // TestAttachRoundTrip spawns a server, builds an AttachClient from its base/token,
 // does a REST round-trip, and asserts the attach client's Close() does NOT kill
-// the still-running spawned server.
 func TestAttachRoundTrip(t *testing.T) {
 	requirePython(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)

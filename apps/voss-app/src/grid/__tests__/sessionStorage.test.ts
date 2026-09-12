@@ -14,10 +14,8 @@ import {
 } from '../sessionStorage';
 
 /**
- * A6-02 Task 1 — session invoke wrappers + error copy.
- *
+ * Task 1 — session invoke wrappers + error copy
  * Command names and payload keys must match
- * `apps/voss-app/src-tauri/src/lib.rs` (A6-01) exactly.
  */
 
 function makeSession(): SessionFileV1 {

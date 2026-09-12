@@ -1,10 +1,8 @@
+//! Cross-language session round-trip parity. Both directions
+//! Rust writes → Python reads.
+
 //! Cross-language session round-trip parity. Both directions:
 //!   - Rust writes → Python reads.
-//!   - Python writes → Rust reads.
-//!
-//! Skips with a printed reason when the Python `voss` package is not
-//! importable (keeps the workspace test suite green on machines without
-//! the venv available).
 
 use std::path::PathBuf;
 use std::process::Command;

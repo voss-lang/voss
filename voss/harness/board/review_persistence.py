@@ -1,13 +1,7 @@
-"""Review sidecar persistence (VREV-09).
-
-Writes a per-card ``<node_id>.review.json`` next to the session-tree node file,
-mirroring ``session_tree._write_node_file`` (0o600, JSON). Captures Reviewer-A's
-verification, Reviewer-B's full verdict, and the final card outcome so a run's
-review is durable and re-readable by ``voss review`` (V6-04).
-
-Stdlib-only imports — type hints are strings to avoid a board import cycle.
 """
-
+Review sidecar persistence (VREV-09)
+Writes a per-card ``<node_id>.review.json`` next to the session-tree node file
+"""
 from __future__ import annotations
 
 import dataclasses

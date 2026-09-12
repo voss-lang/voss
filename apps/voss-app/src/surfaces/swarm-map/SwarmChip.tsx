@@ -1,11 +1,3 @@
-// V24 swarm surface — a rich chip card for one swarm node (the reference look).
-//
-// Renders role icon tile + name + a current-work line (the builder's bound
-// Task.goal, real from the V25 plane) + a meta row (role tag, model, status dot).
-// HONEST: every line is a real signal or omitted — no fabricated duration/cost
-// (the plane snapshot carries no per-agent created_at/cost source yet, so those
-// are intentionally hidden, not invented). Rendered inside an SVG <foreignObject>.
-
 import { type Component, Show } from 'solid-js';
 import Crown from 'lucide-solid/icons/crown';
 import Hammer from 'lucide-solid/icons/hammer';

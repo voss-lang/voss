@@ -358,7 +358,7 @@ describe('App — project open flow', () => {
     await waitFor(() => expect(h.workspaceStore).not.toBeNull());
     fireEvent.click(el.querySelector('button[aria-label="Open project"]')!);
 
-    // A6 D-10: session/default resolved before project state set.
+    // A6: session/default resolved before project state set.
     // Rejected default is caught silently → project still opens.
     await waitFor(() => expect(el.textContent).toContain('x'));
     expect(el.querySelector('[data-testid="grid-root"]')).not.toBeNull();

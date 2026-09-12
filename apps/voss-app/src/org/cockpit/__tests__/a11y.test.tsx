@@ -1,22 +1,5 @@
-// VCKP-10 — keyboard navigation + reduced motion + monospace numerics.
-//
-// Focus order (V14 chunk B recomposition): the cockpit regions carry
-// tabindex="0" in the mockup DOM order
-//   Team sidebar -> Board -> timeline rail -> detail drawer -> gate bar
-// (sidebar | main(board + horizontal rail) | drawer, gate bar spanning last),
-// so Tab traverses them in that order (tab order == document order for
-// tabindex=0).
-//
-// Reduced motion: cockpitStyles.css must carry a
-// `@media (prefers-reduced-motion: reduce)` block that disables cockpit
-// animations INCLUDING the AttentionQueue pill pulse (.attn-pill--pulse).
-// jsdom does not evaluate media queries, so the gate is asserted on the
-// stylesheet source (?raw) — the same grep-style discipline as the token gate.
-
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-// CockpitShell's onMount load path: enumerate_runs -> [] keeps the snapshot
-// empty (loading=false, no error) so the 4-region grid renders immediately.
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn((cmd: string) => {
     if (cmd === 'enumerate_runs') return Promise.resolve([]);
@@ -26,13 +9,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 import { render } from 'solid-js/web';
 import CockpitShell from '../CockpitShell';
-// Source files are read via fs (NOT a vite `?raw` import): the css is also a
-// regular style import, and the transformed-module cache can serve stale
-// content for the `?raw` variant.
-// @ts-ignore -- node builtin available in the vitest runtime; the app tsconfig is browser-lib only.
 import { readFileSync } from 'node:fs';
 
-// Paths are relative to the vitest root (apps/voss-app — vitest.config.ts).
 const rawCockpitCss: string = readFileSync(
   'src/org/cockpit/cockpitStyles.css',
   'utf8',
@@ -50,7 +28,6 @@ async function mountCockpit(): Promise<HTMLElement> {
       ) as never,
     root,
   );
-  // Flush the onMount enumerate_runs microtask chain.
   await Promise.resolve();
   await Promise.resolve();
   return root;
@@ -76,15 +53,12 @@ describe('VCKP-10 — keyboard focus order sidebar → Board → timeline → dr
     expect(drawer).toBeTruthy();
     expect(gate).toBeTruthy();
 
-    // Tabbable — full traversal sidebar→board→rail→drawer→gate.
     expect(sidebar.getAttribute('tabindex')).toBe('0');
     expect(board.getAttribute('tabindex')).toBe('0');
     expect(rail.getAttribute('tabindex')).toBe('0');
     expect(drawer.getAttribute('tabindex')).toBe('0');
     expect(gate.getAttribute('tabindex')).toBe('0');
 
-    // Document order == tab order for tabindex=0 (V14 chunk B: sidebar |
-    // main(board + horizontal rail) | drawer, gate bar last).
     expect(
       sidebar.compareDocumentPosition(board) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -131,13 +105,10 @@ describe('VCKP-10 — reduced motion disables cockpit animation', () => {
     );
     expect(media, 'reduced-motion media query present').toBeTruthy();
     const block = rawCockpitCss.slice(media!.index!);
-    // The pulse + spinner selectors are inside the block, and animation is
-    // forced off (assertions tolerate minified whitespace).
     expect(block).toContain('.attn-pill--pulse');
     expect(block).toContain('.org-refresh-glyph--spinning');
     expect(block).toMatch(/animation:\s*none\s*!important/);
     expect(block).toMatch(/transition:\s*none\s*!important/);
-    // The cockpit-wide kill switch covers every animated descendant.
     expect(block).toMatch(/\.org-view-shell\s*\*/);
   });
 });

@@ -17,7 +17,6 @@ fn with_temp_home<F: FnOnce()>(f: F) {
     std::env::set_var("HOME", tmp.path());
     // Block macOS Keychain access entirely — refresh paths must fall through
     // to the file_store. Without this, set_generic_password may prompt the
-    // user the first time it runs in a test environment.
     std::env::set_var("VOSS_DISABLE_KEYCHAIN", "1");
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
     match prev_home {

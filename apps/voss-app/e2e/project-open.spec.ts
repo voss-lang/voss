@@ -2,13 +2,8 @@ import { test, expect } from '@playwright/test';
 import { bootApp } from './_helpers';
 
 /**
- * A5 project-open end-to-end — setup-vs-grid branching, project-less mode,
- * recent projects, mock folder picker. Runs on macOS via mock-IPC.
- *
- * The native folder dialog is mocked via the TauriMock's `dialogOpenResult`
- * field, so we can exercise the open-project flow without a real Tauri
- * runtime. Pane-id survival across project change and default.json
- * auto-apply stay deferred to Linux CI under TAURI_E2E=1.
+ * A5 project-open end-to-end — setup-vs-grid branching, project-less mode
+ * recent projects, mock folder picker. Runs on macOS via mock-IPC
  */
 
 test.describe.configure({ mode: 'serial' });

@@ -1,10 +1,6 @@
-"""E2E for `voss resume <session>`.
-
+"""
+E2E for `voss resume <session>`.
 Strategy: write a session JSON directly (since `voss do` doesn't persist),
-then resume by id-prefix + drive REPL via stdin `/exit\\n`. Verify the
-"resumed: …" line confirms history was hydrated.
-
-Failure path: resume with a bogus id exits 1 with a clear stderr message.
 """
 from __future__ import annotations
 

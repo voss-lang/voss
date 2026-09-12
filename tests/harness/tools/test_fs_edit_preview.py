@@ -1,8 +1,6 @@
-"""Item 3: single fs_edit preview-then-accept through the diff modal.
-
+"""
+Item 3: single fs_edit preview-then-accept through the diff modal.
 Mirrors fs_edit_many's modal contract for the single-edit path: accept writes,
-reject/skip leaves the file untouched, and a renderer without show_diff_modal
-(JSON/plain/None) writes after validation as before.
 """
 from __future__ import annotations
 

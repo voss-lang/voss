@@ -1,4 +1,5 @@
-//! Provider trait + request/response shapes shared by every model backend.
+//! Provider trait + request/response shapes shared by every model backend
+
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -27,9 +28,9 @@ pub struct CompleteRequest {
     pub model: String,
     pub temperature: f32,
     pub max_tokens: Option<u32>,
-    /// JSON Schema for forced structured output. None = free-form.
+    /// JSON Schema for forced structured output. None = free-form
     pub response_schema: Option<Value>,
-    /// Optional name for the response schema (used as tool name).
+    /// Optional name for the response schema (used as tool name)
     pub response_schema_name: Option<String>,
     pub tools: Option<Vec<Value>>,
 }

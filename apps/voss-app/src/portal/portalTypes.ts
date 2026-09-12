@@ -1,14 +1,3 @@
-// V24-02 (VADE2-02) — PortalView contract. Wave-0 interface consumed by
-// PortalRail, PortalShell, App.tsx, and every downstream V24 surface
-// (V24-03 chrome, V24-05 mission control, V24-06 Orchestra).
-//
-// The 9-member union widens the old binary `orgViewOpen` toggle into the
-// left-portal navigation model. `'grid'` is now the FIRST portal item
-// ("Workspaces") and remains the terminal canvas-swap default (D-01/D-02).
-// Selecting Workspaces routes back to activeView='grid' without remounting the
-// grid host. Labels use the locked vocabulary from apps/voss-app/PRODUCT.md
-// §Locked Vocabulary ("Tasks" not "Runs", "Orchestra").
-
 export type PortalView =
   | 'grid'
   | 'overview'
@@ -26,8 +15,6 @@ export interface PortalItem {
   glyph: string;
 }
 
-// The 9 navigable portal items in UI-SPEC §Component Inventory 1 order.
-// The first item returns to the canvas-swap grid host.
 export const PORTAL_ITEMS: readonly PortalItem[] = [
   { id: 'grid', label: 'Workspaces', glyph: '▦' },
   { id: 'overview', label: 'Overview', glyph: '⊞' },

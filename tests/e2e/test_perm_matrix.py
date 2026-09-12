@@ -1,16 +1,6 @@
-"""Permission gate matrix: 3 modes × 3 mutating tools.
-
+"""
+Permission gate matrix: 3 modes × 3 mutating tools.
 Asserts the `mode_allows` contract directly. End-to-end coverage via
-`voss do` would require driving the stubbed planner to emit specific tool
-calls per mode — fingerprint-keyed stub responses make that brittle. The
-unit contract is the source of truth; this matrix test pins it.
-
-Truth table (voss/harness/permissions.py:mode_allows):
-
-           | fs_write | fs_edit | shell_run
-    plan   |   deny   |  deny   |   deny
-    edit   |   allow  |  allow  |   deny
-    auto   |   allow  |  allow  |   allow
 """
 from __future__ import annotations
 

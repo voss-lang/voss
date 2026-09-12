@@ -16,14 +16,13 @@ import {
   __resetAttentionQueue,
 } from '../attentionQueue';
 
-// VCKP-04 global AttentionQueue. The module-level queue + bridge maps are GLOBAL
+// 04 global AttentionQueue. The module-level queue + bridge maps are GLOBAL
 // signals — reset both after every test so ingest/register state never leaks.
 afterEach(() => {
   __resetAttentionQueue();
   __resetBridgeMaps();
 });
 
-// --- Fixtures ---------------------------------------------------------------
 
 const permissionEvent: AgentEvent = {
   type: 'permission.updated',
@@ -46,7 +45,7 @@ function budgetThresholdEvent(sessionId: string): AgentEvent {
   };
 }
 
-/** A run snapshot whose RunFinal carries a sign_off (signoff item source). */
+/** A run snapshot whose RunFinal carries a sign_off (signoff item source) */
 function runDataWithSignOff(): RunData {
   return {
     run_id: 'R1',
@@ -69,7 +68,6 @@ function runDataWithSignOff(): RunData {
   };
 }
 
-// --- Test 1: three planes → exactly 3 deep-linked items ---------------------
 
 describe('AttentionQueue — aggregator (permission + budget + sign-off)', () => {
   it('injecting permission + budget-threshold + sign-off yields exactly 3 items, each deep-linked via resolveCard', () => {
@@ -109,7 +107,6 @@ describe('AttentionQueue — aggregator (permission + budget + sign-off)', () =>
   });
 });
 
-// --- Test 2: permission item shape ------------------------------------------
 
 describe('AttentionQueue — permission item shape', () => {
   it('exposes allow-once/allow-scoped/deny and carries tool + args + dimension + affectedPath', () => {
@@ -134,7 +131,6 @@ describe('AttentionQueue — permission item shape', () => {
   });
 });
 
-// --- Test 3: dedup ----------------------------------------------------------
 
 describe('AttentionQueue — dedup', () => {
   it('re-ingesting the same event id does not add a second item', () => {
@@ -146,7 +142,6 @@ describe('AttentionQueue — dedup', () => {
   });
 });
 
-// --- Test 4: VCKP-13b CLI permission-proxy routing --------------------------
 
 describe('AttentionQueue — VCKP-13b CLI permission-proxy (best-effort)', () => {
   it('a simulated Claude Code PreToolUse-shaped payload routes through ingestEvent → permission item with tool + affectedPath', () => {
@@ -179,7 +174,6 @@ describe('AttentionQueue — VCKP-13b CLI permission-proxy (best-effort)', () =>
   });
 });
 
-// --- V15-04: resolveAttentionItem (dual-surface clear inverse of pushItem) ---
 
 describe('AttentionQueue — resolveAttentionItem (V15-04)', () => {
   it('removes exactly the row with the prefixed permission id, leaving others intact', () => {

@@ -1,16 +1,4 @@
-"""Reviewer-A: verification-authoring reviewer (O4-03, ORVW-01..03, 08, 09).
-
-A derives the judging bar from the original human idea — NOT from EM's AC/DoD.
-For code cards, A authors tests and runs them via shell_run (exit code = verdict).
-For AI cards, A authors a rubric and delegates to judge_run (Verdict.confidence
-becomes ReviewerVerdict.conf).
-
-EpisodicMemory is created fresh per review() call (Pitfall 2: no cross-card
-bleed). uuid4 generates a fresh session_id per call.
-
-Reviewer.review Protocol is sync. ReviewerA bridges the async run_turn + judge_run
-calls using a thread-pool executor when an event loop is already running.
-"""
+"""Reviewer-A: verification-authoring reviewer."""
 from __future__ import annotations
 
 import asyncio
@@ -46,7 +34,7 @@ REVIEWER_A_ROLE_PROMPT = render_package_template(
 def _reviewer_a_task(original_idea: str, artifact_text: str, domain: str) -> str:
     """Format the task prompt for Reviewer-A's run_turn call."""
     # Template ends at "." with no trailing newline; keep_trailing_newline adds
-    # the file's final newline, so strip it to match the original f-string.
+    # the file's final newline, so strip it to match the original f-string
     return render_package_template(
         "voss",
         "templates/prompts/reviewer_a_user.md.jinja",
@@ -91,7 +79,7 @@ def _extract_exit_code(tool_results: list[str]) -> tuple[int, str]:
         m = _EXIT_CODE_RE.search(result)
         if m:
             return int(m.group(1)), result
-    # No exit code found — treat as failure.
+    # No exit code found treat as failure
     return 1, "no shell_run exit code found in tool_results"
 
 
@@ -123,7 +111,7 @@ class ReviewerA:
         self._judge_run_fn = judge_run_fn or judge_run
 
         # SubagentSpec for permission gating. Prompt resolved at load time so
-        # a project copy under .voss/prompts/ is honored (V16-04, R5).
+        # a project copy under .voss/prompts/ is honored
         prompt_root = Path(cwd).resolve()
         self._spec = SubagentSpec(
             id="reviewer_a",
@@ -135,7 +123,7 @@ class ReviewerA:
             ),
             tools=frozenset({"fs", "shell"}),
         )
-        # Validate gate compatibility at construction time.
+        # Validate gate compatibility at construction time
         self._gate = gate_for_role(self._spec, base_gate)
 
     def review(self, card: object, *, tier: str = "fast") -> ReviewerVerdict:
@@ -155,7 +143,7 @@ class ReviewerA:
 
     async def _review_async(self, card: object) -> ReviewerVerdict:
         """Async implementation of review()."""
-        # Fresh memory + session per call (ORVW-08: no cross-card bleed).
+        # Fresh memory + session per call (ORVW-08: no cross-card bleed)
         memory = EpisodicMemory(capacity=20)
         session_id = str(uuid.uuid4())
 
@@ -193,7 +181,7 @@ class ReviewerA:
             exit_code, output = _extract_exit_code(result.tool_results)
             return _verdict_from_test_exit(exit_code, "a_test.py", output)
 
-        # AI-card path: result.final is A's authored rubric.
+        # AI-card path: result.final is A's authored rubric
         rubric = result.final or ""
         try:
             verdict_obj, _ = await self._judge_run_fn(

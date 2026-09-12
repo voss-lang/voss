@@ -1,17 +1,3 @@
-// VCKP-08 / V14-08 — Live <-> Review toggle persistence + open-in-grid + spawn wiring.
-//
-// Harness rationale (see plan 08 research note): App.test.tsx MOCKS GridRoot
-// ENTIRELY and supplies a controllerRef whose `splitFocused` is a no-op and which
-// implements no `focusPaneById`, and it never mounts a real PaneComponent — so it
-// CANNOT observe spawn_agent or pane-id minting. We therefore follow the
-// runCommandBar.test.tsx pattern instead: stub `@tauri-apps/api/core`, exercise the
-// real GLOBAL modules under test (selection.ts, model/bridge.ts), and replicate the
-// App-local closures (orgViewOpen toggle, the display:none swap at App.tsx:1234, the
-// open-in-grid createEffect at App.tsx:317-323, and handleLaunchAgent's race-free
-// ordering at App.tsx:286-311) verbatim in tiny harness components / functions. This
-// is approach (1) from the note: assert handleLaunchAgent's ordering at the
-// GridController seam with a fake controller — no DOM-mocked GridRoot, deterministic.
-
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal, createEffect } from 'solid-js';
@@ -60,14 +46,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ---------------------------------------------------------------------------
 // Case 1 — SELECTION PERSISTS ACROSS A LIVE->REVIEW->LIVE TOGGLE
 //
 // orgViewOpen is App-local; the ⌘⇧O path is `setOrgViewOpen((p) => !p)`
 // (App.tsx:1061/1335). Replicate that exact toggle and round-trip it twice. The
 // selection signals are a SEPARATE global module (selection.ts), so the toggle must
-// not perturb them — that is the persistence guarantee VCKP-08 asserts.
-// ---------------------------------------------------------------------------
+// not perturb them — that is the asserts
 describe('VCKP-08 — selection persists across the Live/Review toggle', () => {
   it('selectedRunId + selectedCardId survive a Live->Review->Live round-trip', () => {
     const [orgViewOpen, setOrgViewOpen] = createSignal(false); // false = Live (grid)
@@ -86,14 +70,12 @@ describe('VCKP-08 — selection persists across the Live/Review toggle', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Case 2 — GRID STAYS MOUNTED (Pitfall 3: no conditional unmount)
+// Case 2 — GRID STAYS MOUNTED (: no conditional unmount)
 //
 // App.tsx:1234 wraps the grid in a node whose ONLY toggle is the inline
 // `display: orgViewOpen() ? 'none' : 'flex'`. The node is NEVER torn down. Replicate
 // that exact container and assert the SAME element reference persists across the
 // toggle — only `display` flips between 'flex' and 'none'.
-// ---------------------------------------------------------------------------
 describe('VCKP-08 — grid container stays mounted across the toggle', () => {
   it('the grid node is the same element reference; only inline display flips', () => {
     const [orgViewOpen, setOrgViewOpen] = createSignal(false);
@@ -126,17 +108,15 @@ describe('VCKP-08 — grid container stays mounted across the toggle', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Case 3 — OPEN-IN-GRID (D-07)
+// Case 3 — OPEN-IN-GRID
 //
 // Two halves:
 //  (a) CardDrawer button: bind a card to a pane via registerTerminalCard so
 //      boundPaneId() is set, render the real CardDrawer, click "Open in grid", and
-//      assert it pushes the bound paneId onto openInGridRequest (CardDrawer.tsx:89-94).
+// assert it pushes the bound paneId onto openInGridRequest (CardDrawer.tsx:89
 //  (b) App-side effect: replicate App.tsx:317-323 — read openInGridRequest(), flip
 //      orgViewOpen(false), call gridController.focusPaneById(paneId), clear the
 //      request — and assert all three on a spy controller.
-// ---------------------------------------------------------------------------
 describe('VCKP-08 — open-in-grid (D-07)', () => {
   it("CardDrawer 'Open in grid' button publishes the bound pane onto openInGridRequest", () => {
     // Bind a card to a pane (Bridge B) and select it so boundPaneId() resolves.
@@ -180,7 +160,7 @@ describe('VCKP-08 — open-in-grid (D-07)', () => {
     expect(orgViewOpen()).toBe(true);
     expect(focusPaneById).not.toHaveBeenCalled();
 
-    // Fire the D-07 request (what CardDrawer does).
+    // Fire the request (what CardDrawer does).
     requestOpenInGrid('pane-31');
 
     expect(orgViewOpen()).toBe(false); // jumped back to the grid (Live)
@@ -190,17 +170,15 @@ describe('VCKP-08 — open-in-grid (D-07)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // Case 4 — SPAWN WIRING (Bridge B), asserted at the GridController seam.
 //
-// Replicate handleLaunchAgent's exact race-free ordering (App.tsx:286-311) against a
+// Replicate handleLaunchAgent's exact race-free ordering (App.tsx:286 against a
 // fake controller whose snapshot() returns a fresh focusedId after splitFocused.
 // Assert: a cardId is minted, bound to the new pane (cardToPane), and carried as the
-// AgentConfig.sessionId written to the per-pane config map. This is the seam doSpawn
+// AgentConfig.sessionId written to the pane config map. This is the seam doSpawn
 // later reads to take the spawnAgent branch.
-// ---------------------------------------------------------------------------
 
-/** Minimal re-statement of App.tsx handleLaunchAgent against an injected seam. */
+/** Minimal re-statement of App.tsx handleLaunchAgent against an injected seam */
 function wireAgentLaunch(
   ctrl: Pick<GridController, 'splitFocused' | 'snapshot'>,
   config: { cliBinary: string; cliArgs: string[]; taskPrompt: string },
@@ -209,7 +187,7 @@ function wireAgentLaunch(
   const before = ctrl.snapshot().focusedId;
   ctrl.splitFocused('H');
   const newId = ctrl.snapshot().focusedId;
-  if (newId === before) return null; // GRD-05 guard: split rejected — abort.
+  if (newId === before) return null; // 05 guard: split rejected — abort.
 
   const cardId = registerTerminalCard(newId);
   const cfg: AgentConfig = {

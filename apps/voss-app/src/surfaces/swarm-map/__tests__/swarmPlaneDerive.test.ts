@@ -1,9 +1,3 @@
-// V24 swarm surface — no-fake-signal guard for the V25-plane derive.
-//
-// Every edge must carry a KNOWN_PLANE_SOURCE; a roster with no live signals
-// yields only the declared structural edges (coordinator→role, source
-// snapshot:roster) and never an inferred one.
-
 import { describe, it, expect } from 'vitest';
 import { deriveSwarmPlane, KNOWN_PLANE_SOURCE } from '../swarmPlaneDerive';
 import type { SwarmSnapshot } from '../../../org/live/swarmClient';
@@ -49,7 +43,7 @@ describe('deriveSwarmPlane — honesty', () => {
     expect(obj?.work).toBe('Ship the thing');
     // 1 coordinator + 2 builders + 1 reviewer
     expect(g.nodes.filter((n) => n.type === 'agent')).toHaveLength(3);
-    // builder chips carry NO work line without an assignment (honest '—')
+    // builder chips carry NO work line without an assignment (honest '')
     expect(g.nodes.find((n) => n.role === 'builder-1')?.work).toBeUndefined();
     // every edge is coordinator→role, sourced from the declared roster
     expect(g.edges.every((e) => e.from === obj!.id)).toBe(true);

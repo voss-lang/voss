@@ -1,5 +1,6 @@
 //! TTY renderer. Boxed cards for plan / tool calls, ANSI-styled assistant
-//! replies via the markdown sub-module, and a budget-bar at end-of-turn.
+//! replies via the markdown sub-module, and a budget-bar at end-of-turn
+
 
 use std::io::{Stdout, Write};
 use std::path::Path;
@@ -58,7 +59,7 @@ fn args_inline(args: &serde_json::Value) -> String {
     }
 }
 
-/// 8-cell confidence meter. Red <0.6, yellow <0.8, green ≥0.8.
+/// 8-cell confidence meter. Red <0.6, yellow <0.8, green ≥0.8
 fn confidence_bar(confidence: f32) -> String {
     let conf = confidence.clamp(0.0, 1.0);
     let filled = (conf * 8.0).round() as usize;
@@ -74,7 +75,7 @@ fn confidence_bar(confidence: f32) -> String {
 }
 
 /// Render a card with a titled top bar and bottom edge. `title_left` shown
-/// bold; `title_right` shown dim and right-aligned. Body is written between.
+/// bold; `title_right` shown dim and right-aligned. Body is written between
 fn open_card(out: &mut Stdout, title_left: &str, title_right: &str) {
     let w = term_width();
     let left_visible = title_left.chars().count();
@@ -158,7 +159,7 @@ impl Render for TtyRender {
             ToolState::Pending => ("…", YELLOW),
         };
         let args_str = args_inline(args);
-        // Single line — compact like Claude Code.
+        // Single line compact like Claude Code
         let _ = writeln!(
             self.out,
             "  {color}{mark}{RESET} {CYAN}{name}{RESET}({DIM}{args_str}{RESET})  {DIM}{summary}{RESET}"
@@ -190,7 +191,7 @@ impl Render for TtyRender {
     }
 
     fn status(&mut self, model: &str, tokens: usize, cost: f64, ctx_pct: f32) {
-        // D-08: end-of-turn only.
+        // end-of-turn only
         let line = status_line::format(model, tokens, cost, ctx_pct, term_width());
         let _ = writeln!(self.out, "{line}");
     }

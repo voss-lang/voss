@@ -1,21 +1,3 @@
-//! A4 layout persistence — versioned private app-data layouts plus copy-only
-//! migration from legacy `.voss/layouts/<name>.json` files.
-//!
-//! The on-disk shape wraps `GridState` so the same camelCase keys the
-//! TypeScript model uses (`focusedId`, `kind`, `orientation`, `ratio`, …)
-//! round-trip unchanged. Adding fields here without bumping `version`
-//! breaks the at-rest contract — bump `CURRENT_LAYOUT_VERSION` whenever
-//! the schema shape changes.
-//!
-//! All errors are typed (`LayoutError`) so the app-level `#[tauri::command]`
-//! wrappers can map them to the UI-SPEC error copy without leaking
-//! Rust-formatted strings into the UI. Corrupt or unsupported `default.json`
-//! files fail closed (load_default_layout returns `Ok(None)` + stderr log)
-//! so app startup is never blocked by a bad layout (D-09).
-//!
-//! Private layout directories are created lazily on save or valid legacy
-//! migration. Repository directories are never created or modified.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -37,7 +19,6 @@ pub struct LayoutFile {
     pub version: u32,
     /// One of "fanout" / "pipeline" / "swarm" / "watchers" / null.
     /// Stored as a free string here — the TS layer validates against
-    /// `LayoutPreset` after load (LAY-01..05 own the closed cycle).
     pub active_preset: Option<String>,
     /// v1 split tree; absent on v2 files written from the canvas.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -83,7 +64,6 @@ impl LayoutFile {
     }
 }
 
-/// Typed errors for layout save/load. Display strings match the UI-SPEC
 /// user-facing copy so the app-level command wrappers can pass them
 /// through verbatim.
 #[derive(Debug, thiserror::Error)]
@@ -168,7 +148,6 @@ pub fn legacy_layout_path(workspace: &Path, name: &str) -> Result<PathBuf, Layou
         .join(format!("{name}.json")))
 }
 
-// --- File I/O (Task 2) ------------------------------------------------------
 
 /// Save `layout` to private app data.
 pub fn save_layout(workspace_id: &str, name: &str, layout: &LayoutFile) -> Result<(), LayoutError> {
@@ -273,7 +252,6 @@ pub fn list_layouts(
 /// Auto-load the private `default.json` on project open.
 /// Missing file → `Ok(None)` (silent). Corrupt JSON or unsupported
 /// version → `Ok(None)` after a stderr log — never crashes startup
-/// (D-09 fail-safe).
 pub fn load_default_layout(
     workspace_id: &str,
     legacy_workspace: Option<&Path>,
@@ -325,7 +303,6 @@ fn parse_layout(raw: &str) -> Result<LayoutFile, LayoutError> {
     }
 }
 
-// ---------------------------------------------------------------------------
 #[cfg(test)]
 thread_local! {
     static TEST_PRIVATE_LAYOUTS_DIR: std::cell::RefCell<Option<PathBuf>> =
@@ -370,7 +347,6 @@ mod tests {
         }
     }
 
-    // --- Task 1: schema + validation --------------------------------------
 
     #[test]
     fn layout_file_round_trips_through_json_with_version_2() {
@@ -463,7 +439,6 @@ mod tests {
         assert!(matches!(err, LayoutError::InvalidName));
     }
 
-    // --- Task 2: file I/O -------------------------------------------------
 
     #[test]
     fn save_then_load_round_trips_the_layout() {
@@ -597,7 +572,7 @@ mod tests {
 
     #[test]
     fn error_display_strings_match_ui_spec_copy() {
-        // Matches A4-UI-SPEC Save/Load Feedback table exactly so the
+        // Matches Save/Load Feedback table exactly so the
         // app-level wrappers can forward these to the UI verbatim.
         assert_eq!(
             LayoutError::InvalidName.to_string(),

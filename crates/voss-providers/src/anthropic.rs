@@ -1,11 +1,6 @@
-//! Anthropic OAuth provider — Claude Code subscription via Messages API.
-//!
+//! Anthropic OAuth provider Claude Code subscription via Messages API
 //! Verbatim port of `voss/harness/providers.py::AnthropicOAuthProvider` (lines
-//! 22-210). Critical parity rules:
-//!   - System block list MUST begin with the Claude Code preamble verbatim,
-//!     else the OAuth token is rejected.
-//!   - `response_format` translates to a forced `submit_response` tool call.
-//!   - 401 responses trigger a single refresh + retry.
+
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,11 +13,10 @@ use crate::traits::{CompleteRequest, ModelProvider, ProviderResponse};
 use voss_auth::{AnthropicOAuthCreds, ANTHROPIC_API_BASE, ANTHROPIC_OAUTH_BETA};
 
 /// Verbatim per `voss/harness/providers.py:38`. Anthropic OAuth tokens REJECT
-/// requests whose system block does not begin with this exact string.
-/// Do not paraphrase.
+/// requests whose system block does not begin with this exact string
 pub const CLAUDE_CODE_PREAMBLE: &str = "You are Claude Code, Anthropic's official CLI for Claude.";
 
-/// Conservative model alias map matching providers.py:27-32.
+/// Conservative model alias map matching providers.py:27-32
 fn resolve_model(model: &str) -> &str {
     match model {
         "claude-sonnet-4-7" => "claude-sonnet-4-5",
@@ -58,7 +52,7 @@ impl AnthropicOAuthProvider {
         self
     }
 
-    /// Override the token endpoint used by `refresh_anthropic` (test seam).
+    /// Override the token endpoint used by `refresh_anthropic` (test seam)
     pub fn with_token_url_override(mut self, url: impl Into<String>) -> Self {
         self.token_url_override = Some(url.into());
         self
@@ -70,7 +64,7 @@ impl AnthropicOAuthProvider {
     }
 
     fn build_payload(&self, req: &CompleteRequest) -> Value {
-        // Split system messages from chat per providers.py:101-110.
+        // Split system messages from chat per providers.py:101-110
         let mut system_chunks: Vec<String> = Vec::new();
         let mut chat: Vec<Value> = Vec::new();
         for m in &req.messages {
@@ -80,7 +74,7 @@ impl AnthropicOAuthProvider {
             }
         }
 
-        // Preamble first, then any harness system messages (providers.py:116-119).
+        // Preamble first, then any harness system messages (providers.py:116
         let mut system_blocks: Vec<Value> =
             vec![json!({"type": "text", "text": CLAUDE_CODE_PREAMBLE})];
         for chunk in system_chunks.into_iter().filter(|c| !c.is_empty()) {

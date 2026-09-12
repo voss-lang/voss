@@ -37,7 +37,6 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-// --- VADE-03: buildTree -------------------------------------------------------
 
 describe('buildTree — flat nodes → parent→child', () => {
   it('root + child fixture → 1 root with 1 child', () => {
@@ -61,7 +60,6 @@ describe('buildTree — flat nodes → parent→child', () => {
   });
 });
 
-// --- VADE-03: SessionTreePanel render ----------------------------------------
 
 function rowFor(root: HTMLElement, id: string): HTMLElement | null {
   return root.querySelector(`[data-node-id="${id}"]`);

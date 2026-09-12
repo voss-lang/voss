@@ -1,16 +1,15 @@
 import { Show } from 'solid-js';
 
 /**
- * Warp-style per-pane header — one 22px row: status + index, centered session
- * title, trailing menu (GRD-06). Grid owns this chrome; PaneComponent hides
- * its internal header when `embeddedInGrid`.
+ * Warp-style pane header — one 22px row: status + index, centered session
+ * title, trailing menu (06). Grid owns this chrome; PaneComponent hides
  */
 export interface PaneHeaderProps {
   index: number;
   focused: boolean;
   cwd: string;
   shell: string;
-  /** Foreground process / session title (from procRegistry when live). */
+/** Foreground process / session title (from procRegistry when live) */
   process?: string;
   dotState?: 'running' | 'exited';
   prefixActive?: boolean;
@@ -28,7 +27,7 @@ function basename(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
-/** Session title: live process name, else cwd, else shell. */
+/** Session title: live process name, else cwd, else shell */
 export function paneSessionTitle(
   process: string | undefined,
   cwd: string,

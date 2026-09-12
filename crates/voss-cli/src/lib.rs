@@ -19,7 +19,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Parse a Voss source file and print its AST as JSON.
+    /// Parse a Voss source file and print its AST as JSON
     Ast {
         source: PathBuf,
         #[arg(long)]
@@ -27,9 +27,9 @@ enum Cmd {
         #[arg(long)]
         compact: bool,
     },
-    /// Diagnose env: credentials, runtime imports, picked auth path.
+    /// Diagnose env: credentials, runtime imports, picked auth path
     Doctor,
-    /// One-shot agent invocation: run a single task and exit.
+    /// One-shot agent invocation: run a single task and exit
     Do {
         task: Vec<String>,
         #[arg(long)]
@@ -41,7 +41,7 @@ enum Cmd {
         #[arg(long, default_value = "auto")]
         auth: String,
     },
-    /// Drop into the chat REPL (also the default with no subcommand).
+    /// Drop into the chat REPL (also the default with no subcommand)
     Chat {
         #[arg(long)]
         json: bool,
@@ -50,30 +50,30 @@ enum Cmd {
         #[arg(long, default_value = "auto")]
         auth: String,
     },
-    /// List saved agent sessions.
+    /// List saved agent sessions
     Sessions,
-    /// List plugin manifests.
+    /// List plugin manifests
     Plugins,
-    /// Manage plugin manifest enablement.
+    /// Manage plugin manifest enablement
     Plugin {
         #[command(subcommand)]
         cmd: PluginCmd,
     },
-    /// List registered skills.
+    /// List registered skills
     Skills,
-    /// Run registered skills.
+    /// Run registered skills
     Skill {
         #[command(subcommand)]
         cmd: SkillCmd,
     },
-    /// List registered subagents.
+    /// List registered subagents
     Agents,
-    /// Run registered subagents.
+    /// Run registered subagents
     Agent {
         #[command(subcommand)]
         cmd: AgentCmd,
     },
-    /// Resume a saved session by id-prefix or name.
+    /// Resume a saved session by id-prefix or name
     Resume { id: String },
 }
 

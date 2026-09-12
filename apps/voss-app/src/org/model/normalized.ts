@@ -1,22 +1,12 @@
-// V14 normalized UI data model (VCKP-01). Pure type/interface module: no Solid
-// imports, no logic, no side effects — mirrors the boardDerive.ts / types.ts
-// pure-module convention so it stays fixture-testable.
-//
-// This overlay extends the snapshot plane (`RunData`/`SessionTreeNode` from
-// ../types) with live-plane fields. It MUST NOT edit the D-02-guarded `RunData`
-// or `guards.ts` — the overlay lives only here (RESEARCH §4, Pitfall 2).
-
 import type { RunData, SessionTreeNode } from '../types';
 
-// --- Capability tier (D-13, VCKP-13) -----------------------------------------
 
 export type CapabilityTier = 'A' | 'B' | 'C';
 
-// --- Card: snapshot fields + optional live overlay ---------------------------
 
 /**
  * A board card: the snapshot-derived fields (id/title/column/role/risk/scope/
- * budget) plus optional live-overlay fields bound via the id-bridge (VCKP-02).
+ * budget) plus optional live-overlay fields bound via the id-bridge (-02)
  */
 export interface Card {
   // Snapshot fields (from cardsFromRunData / CardSnapshot)
@@ -35,7 +25,6 @@ export interface Card {
   liveStatus?: string;
 }
 
-// --- Agent: live-plane participant -------------------------------------------
 
 export interface Agent {
   id: string;
@@ -51,12 +40,10 @@ export interface Agent {
   capabilityTier?: CapabilityTier;
 }
 
-// --- SessionNode: normalized view over the snapshot session tree -------------
 
-/** Normalized session-tree node; aliases the snapshot `SessionTreeNode`. */
+/** Normalized session-tree node; aliases the snapshot `SessionTreeNode` */
 export interface SessionNode extends SessionTreeNode {}
 
-// --- Evidence + Decision -----------------------------------------------------
 
 export interface Evidence {
   id: string;
@@ -75,9 +62,8 @@ export interface Decision {
   ts: string;
 }
 
-// --- Run: top-level normalized model -----------------------------------------
 
-/** The merged model: the snapshot run spine overlaid with live cards/agents. */
+/** The merged model: the snapshot run spine overlaid with live cards/agents */
 export interface Run {
   runId: string;
   snapshot: RunData | null;

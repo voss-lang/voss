@@ -1,7 +1,3 @@
-/**
- * Shared reactive registry: pane id → budget state.
- * PaneComponent writes; sidebar / status bar reads.
- */
 import { createSignal } from 'solid-js';
 import type { BudgetState } from './pty-ipc';
 

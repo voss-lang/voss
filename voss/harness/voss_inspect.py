@@ -1,8 +1,6 @@
-"""Read-only inspection helpers for persisted Voss run records.
-
+"""
+Read-only inspection helpers for persisted Voss run records
 This module intentionally derives views only from fields already saved on
-SessionRecord/RunRecord payloads. It does not inspect runtime state, recorder
-state, or budget/probable primitives.
 """
 from __future__ import annotations
 

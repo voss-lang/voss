@@ -1,7 +1,6 @@
-"""M12-05: end-to-end subprocess acceptance for `voss mcp serve`.
-
+"""
+M12-05: end-to-end subprocess acceptance for `voss mcp serve`.
 Spawns the real CLI as a subprocess and exchanges JSON-RPC over stdio.
-Closes MCP-01..07 at the wire level. Nyquist Dim-8 acceptance gate.
 """
 from __future__ import annotations
 

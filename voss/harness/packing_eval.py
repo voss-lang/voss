@@ -1,15 +1,6 @@
-"""V18 VOPT-07: M5 quality-preservation gate for context packing.
-
-Runs the golden eval suite twice — packing OFF (VOSS_NO_PACK=1) vs
-packing ON — and gates on two clauses:
-
-  1. success_rate(on) >= success_rate(off) - tolerance
-  2. mean input tokens must drop (tokens_on < tokens_off)
-
-The savings % is an OUTPUT of this gate (token_reduction), never an
-input. A profile that regresses golden-task success beyond the locked
-tolerance is REJECTED (the biting proof lives in
-tests/harness/test_packing_eval_gate.py).
+"""
+VOPT-07: quality-preservation gate for context packing
+Runs the golden eval suite twice packing OFF (VOSS_NO_PACK=1) vs
 """
 from __future__ import annotations
 

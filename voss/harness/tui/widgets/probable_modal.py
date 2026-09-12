@@ -1,4 +1,6 @@
-"""Read-only probable decision inspector modal (M11-05)."""
+"""
+Read-only probable decision inspector modal
+"""
 from __future__ import annotations
 
 import re

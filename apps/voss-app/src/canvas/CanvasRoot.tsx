@@ -55,13 +55,12 @@ export interface CloseUI {
   fgName: (paneId: string) => string;
 }
 
-/** Native server session backing a structured (non-PTY) pane. */
 export interface NativeSessionRecord {
   sessionId: string;
   sidecarId: string;
 }
 
-/** Imperative handle App composes with. Superset of the old GridController. */
+/** Imperative handle App composes with. Superset of the old GridController */
 export type CanvasController = {
   applyPreset: (preset: LayoutPreset) => void;
   applyLoadedLayout: (file: LayoutFile) => void;
@@ -79,10 +78,10 @@ export type CanvasController = {
   zoomReset: () => void;
   zoomFit: () => void;
   zoomToFocused: () => void;
-  /** Enter placement: a ghost follows the cursor, click places, Esc cancels. */
+/** Enter placement: a ghost follows the cursor, click places, Esc cancels */
   placeNode: (kind: NodeKind) => void;
   cancelPlacement: () => void;
-  /** Focus the file node at `path` (updating its line) or open one next to the focused node. */
+/** Focus the file node at `path` (updating its line) or open one next to the focused node */
   openFile: (path: string, line?: number) => void;
   updateNote: (id: string, text: string) => void;
   setView: (view: CanvasView) => void;
@@ -185,7 +184,7 @@ export default function CanvasRoot(props: {
     viewTimer = setTimeout(changed, VIEW_PERSIST_MS);
   };
 
-  /** Camera move: ≤ 200 ms tween, instant under reduced motion. */
+/** Camera move: ≤ 200 ms tween, instant under reduced motion */
   const flyTo = (view: CanvasView) => {
     cancelCamera?.();
     if (prefersReducedMotion()) {
@@ -212,7 +211,7 @@ export default function CanvasRoot(props: {
     if (next !== store.view) flyTo(next);
   };
 
-  /** World box the viewport currently shows; arrangements fill it. */
+/** World box the viewport currently shows; arrangements fill it */
   const visibleBox = () => {
     const vp = viewport();
     const tl = screenToWorld(store.view, 0, 0);
@@ -381,10 +380,10 @@ export default function CanvasRoot(props: {
     snapshot: plain,
   };
 
-  /**
-   * One pointer gesture at a time. `end` runs on pointerup, pointercancel,
-   * or unmount, so listeners and the drag flag never outlive the gesture.
-   */
+/**
+ * One pointer gesture at a time. `end` runs on pointerup, pointercancel
+ * or unmount, so listeners and the drag flag never outlive the gesture
+ */
   let endActiveGesture: (() => void) | null = null;
   const beginGesture = (move: (ev: PointerEvent) => void, settle: () => void) => {
     endActiveGesture?.();
@@ -406,7 +405,7 @@ export default function CanvasRoot(props: {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
-  // --- placement mode ---------------------------------------------------------
+  // placement mode
   const onPlacementMove = (e: PointerEvent) => {
     const p = placement();
     if (!p) return;
@@ -446,7 +445,7 @@ export default function CanvasRoot(props: {
     }
   };
 
-  /** Typing into a chip-rendered focused node snaps the camera to it at zoom 1. */
+/** Typing into a chip-rendered focused node snaps the camera to it at zoom 1 */
   const onTypingKey = (e: KeyboardEvent) => {
     if (props.active?.() === false || !lod() || placement() || !isTypingKey(e)) return;
     const target = e.target as HTMLElement | null;
@@ -455,7 +454,7 @@ export default function CanvasRoot(props: {
     if (n) flyTo(centerOn(n, viewport()));
   };
 
-  // --- pointer: shift-drag marquee on the empty plane ------------------------
+  // pointer: shift-drag marquee on the empty plane
   const beginMarquee = (e: PointerEvent) => {
     const origin = rootPoint(e);
     const base = new Set(selectedIds());
@@ -474,7 +473,7 @@ export default function CanvasRoot(props: {
     );
   };
 
-  // --- pointer: pan on empty plane ------------------------------------------
+  // pointer: pan on empty plane
   const onRootPointerDown = (e: PointerEvent) => {
     if (placement()) {
       e.preventDefault();
@@ -527,7 +526,7 @@ export default function CanvasRoot(props: {
     commitView({ x: store.view.x - e.deltaX, y: store.view.y - e.deltaY, zoom: store.view.zoom });
   };
 
-  // --- pointer: drag a node (or the selection) by its header ----------------
+  // pointer: drag a node (or the selection) by its header
   const beginNodeDrag = (e: PointerEvent, id: string) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest?.('button')) return;

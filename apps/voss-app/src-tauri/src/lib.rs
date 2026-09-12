@@ -51,11 +51,11 @@ struct SettingsFile {
 
 fn settings_path() -> PathBuf {
     // NOTE: build the path manually from home_dir() so it resolves to
-    // ~/.config/voss-app/settings.json on every platform (CONTEXT D-08/D-09).
+    // ~/.config/voss-app/settings.json on every platform (CONTEXT /).
     // The `dirs` crate's platform-native config helper is intentionally NOT
     // used: on macOS it resolves to ~/Library/Application Support, which
-    // diverges from the user-facing ~/.config path locked by D-08.
-    // See A1-RESEARCH.md Pitfall 8 and A1-UI-SPEC.md Theme Override System Contract.
+    // diverges from the user-facing ~/.config path locked by.
+    // See A1-.md and A1-.md Theme Override System Contract.
     dirs::home_dir()
         .unwrap_or_default()
         .join(".config")
@@ -123,7 +123,6 @@ fn save_custom_agents(agents: Vec<CustomAgent>) -> Result<(), String> {
     Ok(())
 }
 
-// ---- PTY commands ---------------------------------------------------------
 // Thin app-level #[tauri::command] wrappers over the voss-app-core `pty`
 // public API. They live in the APP crate (not voss-app-core) because
 // `tauri::generate_handler!` can only resolve the hidden command helper
@@ -246,7 +245,6 @@ fn env_for_embedded_cli(
 
 /// VBUS-03: append the agent-identity slug to an owned env set. Owned
 /// `(String, String)` because the slug is dynamic — `env_for_embedded_cli`'s
-/// `&'static` return cannot carry it (V17 RESEARCH Pitfall 3).
 fn build_env_with_agent_id(
     base: Vec<(String, String)>,
     voss_agent_id: Option<String>,
@@ -346,10 +344,8 @@ async fn spawn_agent(
     Ok(pty_id)
 }
 
-/// VCKP-13 managed launch result. `tier` is the EFFECTIVE capability tier:
 /// when no sandbox tool exists on this host the requested tier is downgraded
 /// to "C" (observe-only) — the UI must never claim enforcement that is not
-/// active (T-V14-03).
 #[derive(Serialize, Clone)]
 struct ManagedSpawnResult {
     pty_id: String,
@@ -357,9 +353,7 @@ struct ManagedSpawnResult {
     sandboxed: bool,
 }
 
-/// VCKP-13: clone of `spawn_agent` that launches the CLI under the OS
 /// scope-sandbox (Seatbelt/bwrap) from t0. Identical body except the spawn
-/// goes through `spawn_command_session_managed` (per-run profile + wrapped
 /// argv) and the effective tier is returned for honest recording. Bridge B
 /// sessionId passthrough is preserved.
 #[tauri::command]
@@ -584,7 +578,6 @@ mod tests {
         );
     }
 
-    /// VBUS-03 camelCase IPC round-trip guard (V14 AgentEntry lesson): a
     /// serde rename mismatch on `vossAgentId` would arrive here as `None`
     /// and silently skip injection — the Some case pins the env entry shape.
     #[test]
@@ -691,7 +684,6 @@ mod tests {
         fs::remove_file(path).ok();
     }
 
-    // ---- V11 ADE org integration data-layer tests --------------------------
     use std::fs;
     use std::path::PathBuf;
     use std::time::SystemTime;
@@ -731,7 +723,7 @@ mod tests {
         let run_dir = sessions.join("abc123run456");
         fs::create_dir_all(&run_dir).unwrap();
         fs::write(run_dir.join("node1.json"), "{}").unwrap();
-        // Legacy flat SessionRecord (Pitfall 1) — must be excluded.
+        // Legacy flat SessionRecord — must be excluded.
         fs::write(sessions.join("legacyflat999.json"), "{}").unwrap();
 
         let runs = super::enumerate_runs_impl(base.to_string_lossy().into_owned());
@@ -887,7 +879,6 @@ async fn get_fg_process(session_id: String, state: Reg<'_>) -> Result<Option<Str
     Ok(foreground::get_foreground_name(fd))
 }
 
-// ---- Appearance settings + fonts (A8-04) ------------------------------------
 
 #[tauri::command]
 fn load_appearance_settings() -> AppearanceSettings {
@@ -904,9 +895,7 @@ fn list_system_fonts() -> Vec<String> {
     fonts::list_system_fonts()
 }
 
-// ---- Grid mirror commands (GRD-08) ----------------------------------------
 // Thin app-level wrappers delegating to voss-app-core's plain `grid::overwrite`
-// / `grid::snapshot` — same cross-crate `generate_handler!` constraint as the
 // PTY commands above (the core's own `#[tauri::command]` macros are not in
 // scope here). In-memory mirror only; zero disk I/O.
 
@@ -934,7 +923,6 @@ fn get_canvas(state: CanvasSlot<'_>) -> Result<CanvasState, String> {
     canvas::snapshot(state.inner())
 }
 
-// ---- Layout persistence commands (A4-03, LAY-06/07) -----------------------
 // Thin app-level wrappers over `voss_app_core::layouts`. Same cross-crate
 // `generate_handler!` constraint as the PTY and grid commands above — the
 // core's own `#[tauri::command]` macros are not in scope here.
@@ -942,7 +930,7 @@ fn get_canvas(state: CanvasSlot<'_>) -> Result<CanvasState, String> {
 // Private layouts are keyed by the registered workspace UUID. The project path
 // is derived in Rust and used only for copy-only legacy migration.
 // Errors propagate as `LayoutError`'s Display strings — those match the
-// A4-UI-SPEC error copy exactly, so the renderer can surface them
+// error copy exactly, so the renderer can surface them
 // verbatim.
 
 #[tauri::command]
@@ -969,9 +957,8 @@ fn load_default_layout(workspace_id: String) -> Result<Option<LayoutFile>, Strin
     layouts::load_default_layout(&workspace_id, Some(&legacy_project)).map_err(|e| e.to_string())
 }
 
-// ---- Context pin commands (F4-04) -------------------------------------------
 // Write .voss/context-pins.json atomically (write-then-rename). The harness
-// reads this file at iteration start (F4 D-20). ADE is the sole writer.
+// reads this file at iteration start. ADE is the sole writer
 
 #[tauri::command]
 fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Result<(), String> {
@@ -985,7 +972,6 @@ fn write_context_pins(workspace_path: String, pinned_paths: Vec<String>) -> Resu
     Ok(())
 }
 
-// ---- Swarm orchestration commands (A13) -------------------------------------
 
 const SWARM_RESULT_EVENT: &str = "voss://swarm-result-added";
 
@@ -1073,7 +1059,6 @@ fn stop_swarm_watcher(
     Ok(())
 }
 
-// ---- Project open commands (A5-02) ----------------------------------------
 // Thin app-level wrappers over `voss_app_core::project`. Same cross-crate
 // `generate_handler!` constraint as the PTY, grid, and layout commands above.
 
@@ -1092,7 +1077,6 @@ fn default_cwd(project_path: Option<String>) -> String {
     project::default_cwd(project_path.as_deref().map(Path::new))
 }
 
-// ---- Session persistence commands (A6-01) -----------------------------------
 // Thin app-level wrappers over `voss_app_core::session`. Same cross-crate
 // `generate_handler!` constraint as the PTY, grid, layout, and project
 // commands above. Project sessions are keyed by the registered workspace UUID;
@@ -1130,7 +1114,6 @@ fn load_global_session() -> Result<Option<SessionFile>, String> {
     session::load_global_session().map_err(|e| e.to_string())
 }
 
-// ---- Workspace index + project-less sessions (A8-02) ------------------------
 // Thin wrappers over `voss_app_core::workspaces` and extended session paths.
 
 #[tauri::command]
@@ -1158,7 +1141,6 @@ fn load_project_less_session(workspace_id: String) -> Result<Option<SessionFile>
     session::load_project_less_session(&workspace_id).map_err(|e| e.to_string())
 }
 
-// ---- Keymap commands (A7-03) ------------------------------------------------
 // Thin wrappers over `voss_app_core::keymap`. Profile persistence uses
 // `settings.json`; workspace overrides use `.voss/keymap.json`.
 
@@ -1263,7 +1245,6 @@ fn watch_keymap_overrides(
     Ok(initial)
 }
 
-// ---- Theme persistence commands (A8-01) -------------------------------------
 // Thin wrappers over `voss_app_core::themes`. Custom themes live under
 // `<workspace>/.voss/themes/`; active theme id is in `settings.json`.
 
@@ -1296,7 +1277,6 @@ fn save_active_theme_id(id: Option<String>) -> Result<(), String> {
     themes::save_active_theme_id(id.as_deref()).map_err(|e| e.to_string())
 }
 
-// ---- Profile persistence commands (A8-01) -----------------------------------
 // Thin wrappers over `voss_app_core::profiles`. Snapshots live at
 // `~/.config/voss-app/profiles/`; active profile id is in `settings.json`.
 
@@ -1325,7 +1305,6 @@ fn save_active_profile_id(id: Option<String>) -> Result<(), String> {
     profiles::save_active_profile_id(id.as_deref()).map_err(|e| e.to_string())
 }
 
-// ---- File tree commands (A12-07) -------------------------------------------
 
 #[derive(Debug, serde::Serialize)]
 struct DirEntry {
@@ -1450,12 +1429,11 @@ fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommit>, Strin
     Ok(commits)
 }
 
-// ---- ADE org integration commands (V11) ------------------------------------
 // The single CLI-JSON data path for the org view. `load_run` aggregates a run's
 // node files + review sidecars + audit JSON + run-final into one typed payload
-// (D-01). `enumerate_runs` discovers V4+ session-tree dirs only (D-03).
+// . `enumerate_runs` discovers V4+ session-tree dirs only.
 // `run_decision` shells the voss CLI — the sole non-interactive write path —
-// and captures stdout/stderr/exit (D-08). No `.voss/sessions` parsing happens
+// and captures stdout/stderr/exit. No `.voss/sessions` parsing happens
 // in the frontend.
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -1482,7 +1460,6 @@ struct DecisionResult {
     exit_code: i32,
 }
 
-/// Reject run_ids that could escape the sessions directory (T-V11-03).
 fn is_safe_run_id(run_id: &str) -> bool {
     !run_id.is_empty() && !run_id.contains('/') && !run_id.contains('\\') && !run_id.contains("..")
 }
@@ -1503,7 +1480,7 @@ fn load_run_impl(run_id: String, cwd: String, cli_binary: String) -> Result<RunD
 
     // (a) node `.json` files (exclude run-final.json + *.review.json) and
     // (b) `*.review.json` sidecars keyed by node id — direct Rust read per
-    // RESEARCH Open-Q2 (`voss board` has no JSON output; no session subprocess).
+    // Open-Q2 (`voss board` has no JSON output; no session subprocess).
     let mut node_files: Vec<PathBuf> = Vec::new();
     let mut review = serde_json::Map::new();
     if let Ok(rd) = std::fs::read_dir(&run_dir) {
@@ -1536,7 +1513,7 @@ fn load_run_impl(run_id: String, cwd: String, cli_binary: String) -> Result<RunD
     let session_tree = serde_json::json!({ "root_id": run_id, "nodes": nodes });
 
     // (c) audit section: shell `voss audit <run_id> --cwd <cwd> --format json`
-    // via Command::args (NOT a shell string — T-V11-04). Degrade to null.
+    // via Command::args (. Degrade to null
     let audit = match std::process::Command::new(&cli_binary)
         .args([
             "audit",
@@ -1553,7 +1530,7 @@ fn load_run_impl(run_id: String, cwd: String, cli_binary: String) -> Result<RunD
         _ => serde_json::Value::Null,
     };
 
-    // (d) optional run-final.json (Pitfall 5 — absence tolerated).
+    // (d) optional run-final.json ( — absence tolerated).
     let run_final = std::fs::read_to_string(run_dir.join("run-final.json"))
         .ok()
         .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
@@ -1577,13 +1554,13 @@ fn enumerate_runs_impl(cwd: String) -> Vec<RunEntry> {
     let mut entries: Vec<RunEntry> = rd
         .filter_map(|e| e.ok())
         .filter_map(|e| {
-            // Pitfall 1: flat `.json` files are legacy SessionRecords, not runs.
+            // flat `.json` files are legacy SessionRecords, not runs.
             let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
             if !is_dir {
                 return None;
             }
             let path = e.path();
-            // Require at least one node `.json` file inside (V4+ session tree).
+            // Require at least one node `.json` file inside
             let has_node = std::fs::read_dir(&path)
                 .ok()?
                 .filter_map(|f| f.ok())
@@ -1617,11 +1594,11 @@ fn run_decision_impl(
     cwd: String,
     args: Vec<String>,
 ) -> Result<DecisionResult, String> {
-    // Only the voss CLI may be exec'd (T-V11-06).
+    // Only the voss CLI may be exec'd (-06).
     if !is_voss_cli_binary(&cli_binary) {
         return Err(format!("not a voss CLI binary: {cli_binary}"));
     }
-    // Validate run_id-shaped positionals — reject traversal (T-V11-03).
+    // Validate run_id-shaped positionals — reject traversal
     for arg in &args {
         if arg.starts_with('-') {
             continue;
@@ -1630,7 +1607,7 @@ fn run_decision_impl(
             return Err(format!("invalid argument: {arg}"));
         }
     }
-    // Command::args(vector) — never shell string interpolation (T-V11-04).
+    // Command::args(vector) — never shell string interpolation
     let output = std::process::Command::new(&cli_binary)
         .args(&args)
         .current_dir(&cwd)
@@ -1695,11 +1672,10 @@ fn run_decision(
     )
 }
 
-// ---- voss serve sidecar (V15) ----------------------------------------------
-// VLIVE-01: lazily spawn one `voss serve` per workspace cwd, reuse it while
+// 01: lazily spawn one `voss serve` per workspace cwd, reuse it while
 // alive, and reap all on app exit (map entries drop with the managed state —
-// kill_on_drop, T-V15-02). Only the Tauri side can spawn the server (V14
-// Pitfall 4 — the webview launcher imports node:child_process).
+// Only the Tauri side can spawn the server (
+// the webview launcher imports node:child_process).
 
 fn authorize_sidecar_cwd(cwd: &str, index: &WorkspacesIndex) -> Result<PathBuf, String> {
     let canonical = validate_workspace_cwd(cwd, &[])?;
@@ -2153,7 +2129,7 @@ async fn start_voss_serve(
     let key = canonical.to_string_lossy().into_owned();
 
     // Reuse-if-alive; pid() == None means the child was reaped — drop the
-    // stale entry and respawn (Pitfall 5). Lock scope closes before any await.
+    // stale entry and respawn. Lock scope closes before any await.
     {
         let mut map = state.lock().map_err(|_| "lock poisoned".to_string())?;
         match map.get(&key) {
@@ -2169,7 +2145,7 @@ async fn start_voss_serve(
         }
     }
 
-    // T-V15-10: the error path carries stderr tails but never the token.
+    // 10: the error path carries stderr tails but never the token.
     let serve = spawn_voss_serve(&python_path(), &canonical)
         .await
         .map_err(|e| e.to_string())?;
@@ -2187,7 +2163,6 @@ async fn start_voss_serve(
     Ok(SidecarHandle { sidecar_id })
 }
 
-// ---- ui_log: webview diagnostics -> dev terminal ---------------------------
 // The webview's console.* only reaches devtools. This bridges frontend
 // lifecycle/error logs onto the Rust process stdout/stderr so they interleave
 // with the sidecar + Tauri output in the `pnpm tauri dev` terminal. `scope` is

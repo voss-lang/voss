@@ -25,11 +25,8 @@ import {
 } from '../layoutStorage';
 
 /**
- * A4-04 Task 1 — invoke wrappers + exact UI-SPEC copy.
- *
+ * Task 1 — invoke wrappers + exact copy
  * Command names and payload keys must match
- * `apps/voss-app/src-tauri/src/lib.rs` (A4-03) exactly, otherwise Tauri's
- * camelCase param mapping fails silently at runtime.
  */
 
 function makeLayout(): LayoutFile {

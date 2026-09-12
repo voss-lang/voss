@@ -1,12 +1,6 @@
-"""FallbackProvider — a ModelProvider decorator with per-role cascade.
-
+"""
+FallbackProvider — a ModelProvider decorator with per-role cascade.
 Wraps an ordered list of `(provider, model)` candidates. On a *retryable*
-failure (HTTP 429 / quota / overloaded / rate limit) it advances to the next
-candidate with exponential backoff; non-retryable errors and the final
-candidate's error propagate unchanged. It implements the same
-complete/stream/count_tokens surface as any provider, so call sites are
-untouched: the caller's `model=` argument is ignored — each candidate carries
-its own model string.
 """
 from __future__ import annotations
 

@@ -1,8 +1,6 @@
-"""R4 simplified side region — CodeIntelPanel is #side's only occupant.
-
+"""
+R4 simplified side region — CodeIntelPanel is #side's only occupant.
 Rewrites the M9-08 region-share precedence tests: the pin/owner state
-machine is deleted (tui-redesign-spec §5.6). Spawns render inline in the
-transcript (§3.5) and never touch #side; show/hide is the whole API.
 """
 
 from __future__ import annotations

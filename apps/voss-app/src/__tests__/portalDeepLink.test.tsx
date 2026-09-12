@@ -1,11 +1,3 @@
-// V24-05 (VADE2-05) — portal surface deep-link contract.
-//
-// Clicking a Task row deep-links to the corresponding pane/drawer via the real
-// org/selection signals: a row whose card is bound to a pane (bridge B) fires
-// requestOpenInGrid(paneId); an unbound card falls back to
-// requestOpenInReview(cardId). No fabricated APIs — uses the real bridge,
-// selection signals, and cardsFromRunData path through TasksSurface.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { fireEvent } from '@testing-library/dom';

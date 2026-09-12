@@ -1,7 +1,6 @@
-"""T1-05 Task 1: pure helpers for the iteration loop.
-
+"""
+T1-05 Task 1: pure helpers for the iteration loop.
 Constants + four functions land in agent.py before _run_turn_exec is
-rewritten. Behavior is unit-testable in isolation — no provider, no IO.
 """
 from __future__ import annotations
 

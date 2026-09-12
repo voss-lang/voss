@@ -1,9 +1,6 @@
-"""Clock abstraction + async tick loop for Board (O3 OBRD-09).
-
-Two clock forms supported:
-  (a) Callable[[], float] — the auth.py:423 convention.
-  (b) Clock Protocol — for tests that want clock.advance(dt) ergonomics.
-FakeClock satisfies BOTH (callable + .now()/.advance()).
+"""
+Clock abstraction + async tick loop for Board ( OBRD-09)
+Two clock forms supported
 """
 from __future__ import annotations
 

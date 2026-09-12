@@ -1,13 +1,6 @@
 //! Permission gate for tool calls. Verbatim port of
-//! `voss/harness/permissions.py` semantics with TOML persistence.
-//!
-//! Modes:
-//!   - Plan: reads auto, every write/shell prompts
-//!   - Edit: reads + scoped writes auto, shell/net prompt   (default)
-//!   - Auto: all allowlisted auto, destructive patterns prompt
-//!
-//! Decisions persist per-cwd at `~/.config/voss/permissions.toml`
-//! (overridable via `$XDG_CONFIG_HOME`).
+//! `voss/harness/permissions.py` semantics with TOML persistence
+
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -52,7 +45,7 @@ fn config_path() -> PathBuf {
 
 #[derive(Default, Serialize, Deserialize)]
 struct StoreFile {
-    /// Map of cwd-string → CwdEntry.
+    /// Map of cwd-string → CwdEntry
     #[serde(flatten)]
     cwds: BTreeMap<String, CwdEntry>,
 }
@@ -143,7 +136,7 @@ impl PermissionGate {
     }
 
     /// Run permission check. `prompt` is a closure called only when the
-    /// gate cannot decide autonomously. Returns `(allowed, reason)`.
+    /// gate cannot decide autonomously. Returns `(allowed, reason)`
     pub fn check<F>(
         &mut self,
         tool_name: &str,
@@ -176,8 +169,8 @@ impl PermissionGate {
     }
 }
 
-/// Default interactive prompt — reads a line from stdin. Used by the agent
-/// loop; tests inject their own closure to keep cases hermetic.
+/// Default interactive prompt reads a line from stdin. Used by the agent
+/// loop; tests inject their own closure to keep cases hermetic
 pub fn interactive_prompt(tool_name: &str, args: &serde_json::Value) -> char {
     use std::io::{BufRead, Write};
     let argstr = args.to_string();

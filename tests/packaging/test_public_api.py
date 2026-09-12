@@ -1,11 +1,6 @@
-"""Public API stability test.
-
+"""
+Public API stability test.
 Pins the exact public surface of ``voss_runtime`` and ``voss.harness``.
-Any change to ``__all__`` MUST update the expected sets below in the same
-PR — that's the human signal that the public-API contract in
-``docs/sdk.md`` is being touched.
-
-This test does NOT prevent change. It surfaces change.
 """
 
 from __future__ import annotations

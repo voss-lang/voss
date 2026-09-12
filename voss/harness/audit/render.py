@@ -1,14 +1,6 @@
-"""V9 audit renderers — deterministic text / Markdown / JSON exporters (VAUD-08).
-
-Pure functions: no ``datetime.now()``, no ``random``, no mtime-derived values.
-Identical persisted data always renders byte-identical output. JSON uses
-``sort_keys=True``. Collections are sorted by a stable key before emission.
-
-Note: ``render_json`` round-trips tuples as JSON lists — ``dataclasses.asdict``
-coerces every tuple to a list. Round-trip consumers see ordered lists, not
-tuples; both are ordered sequences.
-
-Stdlib only. The single project import is the audit model (no board/em/cli).
+"""
+audit renderers deterministic text / Markdown / JSON exporters (VAUD-08)
+Pure functions: no ``datetime.now``, no ``random``, no mtime-derived values
 """
 from __future__ import annotations
 
@@ -18,7 +10,7 @@ import json
 from voss.harness.audit.model import AuditReport
 from voss.template_render import render_package_template
 
-# PRD §9 audit sections, in fixed order (ORCHESTRATION_LAYERS.md §9).
+# PRD audit sections, in fixed order (ORCHESTRATION_LAYERS.md )
 _SECTIONS: tuple[tuple[int, str], ...] = (
     (1, "Goal"),
     (2, "Active Team"),
@@ -37,7 +29,7 @@ _SECTIONS: tuple[tuple[int, str], ...] = (
     (15, "Final Human Decision"),
 )
 
-# Section number -> the sections_missing key the report uses for it.
+# Section number -> the sections_missing key the report uses for it
 _MISSING_KEY = {1: "goal", 8: "diff_summary", 9: "tests_evals"}
 
 _NONE = "_none_"
@@ -59,9 +51,7 @@ def render_json(report: AuditReport) -> str:
     return json.dumps(_to_dict(report), sort_keys=True, indent=2)
 
 
-# ---------------------------------------------------------------------------
 # Section body builders (deterministic, stable-sorted)
-# ---------------------------------------------------------------------------
 
 
 def _principles_body(report: AuditReport) -> list[str]:
@@ -166,7 +156,7 @@ def _decision_body(report: AuditReport) -> list[str]:
 
 
 def _section_body(report: AuditReport, num: int) -> list[str]:
-    # Explicitly-missing sections render _none_.
+    # Explicitly-missing sections render _none_
     missing_key = _MISSING_KEY.get(num)
     if missing_key and missing_key in report.sections_missing:
         return [_NONE]

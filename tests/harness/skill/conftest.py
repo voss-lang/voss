@@ -1,7 +1,6 @@
-"""Shared fixtures for skill tests in the harness package.
-
+"""
+Shared fixtures for skill tests in the harness package.
 Exposes FakeProvider, seed_git_repo, Plan, PermissionGate, PlainRenderer, and make_toolset.
-Sets up XDG_STATE_HOME and XDG_CONFIG_HOME isolation fixtures.
 """
 from __future__ import annotations
 

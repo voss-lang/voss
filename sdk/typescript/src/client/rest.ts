@@ -218,7 +218,7 @@ function expectArray<T>(value: unknown, response: Response, message: string): T[
   throw decodeError(response, message);
 }
 
-/** Accept either a bare array or the server's `{v, sessions: [...]}` envelope. */
+/** Accept either a bare array or the server's `{v, sessions: [...]}` envelope */
 function expectSessionsArray<T>(value: unknown, response: Response, message: string): T[] {
   if (isRecord(value) && Array.isArray(value.sessions)) {
     return value.sessions as T[];

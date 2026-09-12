@@ -9,14 +9,8 @@ import (
 	"testing"
 )
 
-// TestNoFFI enforces the thin-client boundary (SPEC req 7 / VSDK-GO-07): the Go
+// TestNoFFI enforces the thin-client boundary (SPEC req 7 / VSDK-GO: the Go
 // SDK introduces no cgo and reimplements/imports no orchestration. It parses
-// every .go file under sdk/go and fails on:
-//   - import "C" (cgo)
-//   - any import path under voss/harness or voss_runtime (orchestration)
-//
-// Allowed imports: the Go stdlib, github.com/oapi-codegen/runtime, and the
-// local module github.com/vosslang/voss/sdk/go/...
 func TestNoFFI(t *testing.T) {
 	fset := token.NewFileSet()
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {

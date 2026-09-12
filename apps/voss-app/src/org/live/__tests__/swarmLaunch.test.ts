@@ -1,5 +1,3 @@
-// V24 swarm surface — launchSwarm orchestration: create → activate → stream → kick.
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const createSwarm = vi.fn();
@@ -49,11 +47,8 @@ describe('launchSwarm', () => {
       cwd: '/repo',
       roster: undefined,
     });
-    // streams only the 2 native sessions (pending CLI role skipped)
     expect(connectLiveStream).toHaveBeenCalledTimes(2);
-    // coordinator kicked with the goal
     expect(postMessage).toHaveBeenCalledWith('s-co', 'ship it');
-    // a pending CLI role is present → the headless driver is kicked
     expect(runSwarm).toHaveBeenCalledWith('test-sidecar', 'sw9');
   });
 
@@ -79,7 +74,6 @@ describe('launchSwarm', () => {
       cwd: '/repo',
       roster,
     });
-    // all sessions native (session_id present) → no CLI driver call
     expect(runSwarm).not.toHaveBeenCalled();
   });
 

@@ -1,13 +1,3 @@
-// V24-06/07 + V24 redesign — radial swarm surface.
-//
-// Data source (re-based onto the V25 server-native swarm plane): when a live
-// swarm is discovered from the agent registry, the graph derives from GET
-// /swarm/{id} (roster + tasks) + the swarm.* SSE live store (assignments/gates/
-// operator). Otherwise it falls back to the legacy board-derived graph. Either
-// way every node/edge traces to a real signal (honest-signal contract); nodes
-// render as rich chip cards via SVG <foreignObject> inside the panned/zoomed <g>.
-// runData is proxy-stripped before the pure legacy derive (Pitfall 3).
-
 import {
   type Component,
   createEffect,
@@ -61,7 +51,7 @@ const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2.0;
 const clampZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
 
-/** Work-node deep-link: strip the `work:` prefix back to the real card id. */
+/** Work-node deep-link: strip the `work:` prefix back to the real card id */
 function openNode(node: SwarmNode): void {
   if (node.type !== 'work') return;
   const cardId = node.id.slice('work:'.length);
@@ -78,7 +68,7 @@ const SwarmMap: Component = () => {
   let canvasRef: SVGSVGElement | undefined;
   const now = useNow();
 
-  // --- V25 swarm plane: discover + fetch snapshot, refetch on each swarm event ---
+  // swarm plane: discover + fetch snapshot, refetch on each swarm event
   const [swarmData] = createResource(
     () => {
       const srv = liveServer();
@@ -106,13 +96,12 @@ const SwarmMap: Component = () => {
   );
   const snapshot = () => swarmData.latest ?? null;
 
-  // Proxy-strip before the legacy pure derive (MANDATORY — Pitfall 3).
   const plainRunData = () => {
     const rd = runData();
     return rd ? JSON.parse(JSON.stringify(rd)) : null;
   };
 
-  // Prefer the real V25 swarm plane; fall back to the legacy board-derive.
+  // Prefer the real swarm plane; fall back to the legacy board-derive.
   const graph = createMemo(() => {
     const snap = snapshot();
     if (snap) {
@@ -137,7 +126,7 @@ const SwarmMap: Component = () => {
   };
 
   // Returns board state and reflects on snapshot to ensure context isn't clipped
-  // Reduced-motion: OS preference OR the html.reduced-motion class (A8).
+  // Reduced-motion: OS preference OR the html.reduced-motion class
   const [reduced, setReduced] = createSignal(false);
   onMount(() => {
     const mql =
@@ -259,7 +248,7 @@ const SwarmMap: Component = () => {
     });
   };
 
-  // A real swarm to render: the live V25 plane, or a legacy run graph with
+  // A real swarm to render: the live plane, or a legacy run graph with
   // actual structure (work / agent / artifact nodes). A lone objective or
   // placeholder from an idle focused run is NOT a swarm — fall through to the
   // launch wizard instead of rendering a phantom "CONTROLLER" node.

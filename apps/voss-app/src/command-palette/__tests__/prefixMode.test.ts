@@ -2,10 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { createPrefixMode } from '../prefixMode';
 
 /**
- * A7-04 Task 1 — tmux prefix state machine tests.
- *
- * Verifies: profile gate, mapped keys, timeout, Esc cancel,
- * unknown key pass-through.
+ * Task 1 — tmux prefix state machine tests
+ * Verifies: profile gate, mapped keys, timeout, Esc cancel
  */
 
 function setup() {

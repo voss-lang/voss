@@ -1,19 +1,6 @@
-"""AgentTreeCard widget — inline sub-agent spawn card (spec §3.5, R4).
-
+"""
+AgentTreeCard widget inline sub-agent spawn card (spec .5, R4)
 Replaces the retired side-panel SubAgentPanel: a spawn renders as a parent
-ToolCard in the transcript; child step lines (`show_subagent_progress`
-payloads, already-settled text) nest under it with the locked
-NEST_MID/NEST_LAST glyphs; the final gather settles the parent in place.
-
-    ⏺ spawn researcher                                12.4k/32k tok
-      ├─ read docs/sdk.md
-      ├─ grep "max_turns" · 7 matches
-      └─ ⏺ gathered · 3 results
-
-Quiet-by-default (D-09 preserved): collapsed shows ONLY the spawn line +
-live budget counter (right metric). Child rows reveal via click or the
-global ctrl+o expand/collapse-all action — there is no expander hint line,
-unlike the base ToolCard, so the collapsed card stays a single row.
 """
 from __future__ import annotations
 
@@ -52,9 +39,7 @@ class AgentTreeCard(ToolCard):
         self.budget_used = 0
         self._child_lines: list[str] = []
 
-    # ------------------------------------------------------------------
     # child rows + gather
-    # ------------------------------------------------------------------
 
     def add_child(self, line: str, used: int = 0) -> None:
         """Append one child step row; tick the live budget counter."""
@@ -75,12 +60,10 @@ class AgentTreeCard(ToolCard):
         self._child_lines.append(f"{glyphs.TOOL_OK} {summary}")
         self.settle("ok", summary)
 
-    # ------------------------------------------------------------------
     # ToolCard overrides
-    # ------------------------------------------------------------------
 
     def _has_body(self) -> bool:
-        # Unlike the base card, child rows are expandable WHILE running.
+        # Unlike the base card, child rows are expandable WHILE running
         return bool(self._child_lines)
 
     def _budget_text(self) -> str:
@@ -106,7 +89,7 @@ class AgentTreeCard(ToolCard):
             left.append(f" {self._tool_name}")
             fallback = _fmt_duration(self._elapsed)
         # Right metric = live budget `used/total tok` (replaces the retired
-        # BudgetMeter-in-panel); duration when no budget signal exists.
+        # BudgetMeter-in-panel); duration when no budget signal exists
         grid.add_row(left, Text(self._budget_text() or fallback, style="dim"))
         return grid
 
@@ -119,7 +102,7 @@ class AgentTreeCard(ToolCard):
         return rows
 
     def render(self):
-        # D-09: collapsed = the spawn line + budget counter, nothing else.
+        # collapsed = the spawn line + budget counter, nothing else
         if not self._expanded or not self._child_lines:
             return self._head()
         return Group(self._head(), *self._child_rows())

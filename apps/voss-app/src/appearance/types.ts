@@ -1,9 +1,7 @@
 import type { BellBehavior, CursorBlink, CursorShape } from './profiles';
 
-/** Minimum terminal font size (A8 UI-SPEC). */
 export const MIN_FONT_SIZE = 10;
 
-/** Live appearance settings persisted under `settings.json` → `appearance`. */
 export interface AppearanceSettings {
   fontFamily: string;
   fontSize: number;
@@ -16,11 +14,10 @@ export interface AppearanceSettings {
   bellBehavior: BellBehavior;
   highContrastEnabled: boolean;
   reducedMotionEnabled: boolean;
-  /**
-   * Per-CLI chosen default model (V14-09), keyed by CLI binary
-   * (`claude`/`codex`/...) → model alias/id. Absent → preset built-in default.
-   * Rides the existing appearance flatten store (no new Tauri command).
-   */
+/**
+ * CLI chosen default model, keyed by CLI binary
+ * (`claude`/`codex`/...) → model alias/id. Absent → preset built-in default
+ */
   cliDefaultModels?: Record<string, string>;
 }
 
@@ -37,7 +34,6 @@ export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
   reducedMotionEnabled: false,
 };
 
-/** Clamp font size to the 10px floor. */
 export function clampFontSize(size: number): number {
   if (!Number.isFinite(size)) {
     return DEFAULT_APPEARANCE_SETTINGS.fontSize;

@@ -1,11 +1,8 @@
 import { createSignal, For } from 'solid-js';
 
 /**
- * A7-03 Task 3 — minimal Variant B toast stack (D-16).
- *
- * Fixed bottom-right, max 3 visible, auto-dismiss (5s normal, 8s error).
- * Severity rail: success=green, warning=amber, error=red, info=cyan.
- * First consumer: keymap validation feedback (CMD-06).
+ * Task 3 — minimal Variant B toast stack
+ * Fixed bottom-right, max 3 visible, auto-dismiss (5s normal, 8s error)
  */
 
 export type ToastSeverity = 'success' | 'warning' | 'error' | 'info';
@@ -29,7 +26,6 @@ const DISMISS_MS_ERROR = 8000;
 
 let nextId = 1;
 
-// --- Shared toast store (module-level, one per app) --------------------------
 
 const [toasts, setToasts] = createSignal<ToastItem[]>([]);
 
@@ -46,12 +42,11 @@ export function dismissToast(id: number): void {
   setToasts((prev) => prev.filter((t) => t.id !== id));
 }
 
-/** Test-only: clear all toasts. */
+/** Test-only: clear all toasts */
 export function _resetToastsForTest(): void {
   setToasts([]);
 }
 
-// --- Component ---------------------------------------------------------------
 
 export default function ToastStack() {
   return (

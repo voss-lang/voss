@@ -1,8 +1,6 @@
-"""Unit tests for voss/harness/repair.py — the `voss doctor --fix` engine.
-
+"""
+Unit tests for voss/harness/repair.py — the `voss doctor --fix` engine.
 Engine policy under test: candidate filtering (non-OK + repairable +
-non-MANUAL), tier gating under --yes, exception containment, re-check
-verification via REGISTRY, and post-repair result merging.
 """
 from __future__ import annotations
 

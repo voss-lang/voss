@@ -11,13 +11,13 @@ use crate::tool_trait::Tool;
 #[derive(Deserialize, JsonSchema)]
 pub struct FsEditArgs {
     pub path: String,
-    /// Replacement text.
+    /// Replacement text
     pub new: String,
-    /// Verbatim text to replace; must match exactly once. Use this OR `anchor`.
+    /// Verbatim text to replace; must match exactly once. Use this OR `anchor`
     pub old: Option<String>,
-    /// Content hash (from `fs_read` annotate=true) of the first line to replace.
+    /// Content hash (from `fs_read` annotate=true) of the first line to replace
     pub anchor: Option<String>,
-    /// Content hash of the last line of a multi-line span. Requires `anchor`.
+    /// Content hash of the last line of a multi-line span. Requires `anchor`
     pub end_anchor: Option<String>,
 }
 

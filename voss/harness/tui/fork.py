@@ -1,13 +1,4 @@
-"""Pure session-fork primitive (M9-06, TUI-08).
-
-`fork_session(record, turn_index, cwd) -> SessionRecord` creates a NEW
-SessionRecord seeded from the original's first `turn_index + 1` turns,
-sets `parent_id` + `parent_turn_index` for lineage, and persists it to
-`<cwd>/.voss/sessions/<new_id>.json` via the existing `session.save`.
-
-The original record is NEVER modified or deleted. This module imports
-nothing UI-shaped — the modal lives in `voss/harness/tui/widgets/fork_modal.py`.
-"""
+"""Pure session-fork primitive."""
 from __future__ import annotations
 
 import uuid

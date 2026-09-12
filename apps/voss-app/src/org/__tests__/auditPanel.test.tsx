@@ -40,7 +40,6 @@ describe('AuditPanel — VADE-04', () => {
     const flag = root.querySelector('[aria-label="Unsupported claim"]');
     expect(flag).toBeTruthy();
     expect(flag?.textContent).toContain('⚑');
-    // the unsupported node id (from fixture unsupported_claims) is rendered
     expect(root.textContent).toContain('bbb111222333');
   });
 

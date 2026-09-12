@@ -1,8 +1,6 @@
-"""O6-01 Task 2: Deterministic audit fixtures (OAUD-08).
-
+"""
+O6-01 Task 2: Deterministic audit fixtures (OAUD-08).
 Provides fixture builders for a synthetic audit session tree. All fixture
-data is written under pytest ``tmp_path``, never under the developer's
-real ``.voss/`` directory.
 """
 from __future__ import annotations
 

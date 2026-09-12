@@ -1,7 +1,7 @@
 import { For, Show } from 'solid-js';
 import type { RunData, ReviewSidecar } from '../types';
 
-// VADE-05 — Reviewer-A and Reviewer-B in two visually-separated half-panes.
+// 05 — Reviewer-A and Reviewer-B in two visually-separated half-panes.
 // A (left) header --role-reviewer; B (right) header --accent-magenta.
 
 function verdictColor(label: string): string {

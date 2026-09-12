@@ -1,8 +1,6 @@
-"""RecorderBridge — pure read-only consumer of RunRecorder.
-
-Translates new delta entries on each `flush()` into widget mutator calls on
-the bound app. Does NOT mutate RunRecorder or add new emit points anywhere.
-M9-04 contract: zero changes to voss/harness/recorder.py or voss_runtime/*.
+"""
+RecorderBridge pure read-only consumer of RunRecorder
+Translates new delta entries on each `flush` into widget mutator calls on
 """
 from __future__ import annotations
 

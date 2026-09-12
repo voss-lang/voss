@@ -5,7 +5,7 @@ import {
   unregisterPaneBudget,
 } from '../budgetRegistry';
 
-// budgetRegistry is module-level state — clean up after each test
+// budgetRegistry is module-level state clean up after each test
 afterEach(() => {
   // Unregister all keys to reset state
   for (const key of Object.keys(budgetByPaneId())) {

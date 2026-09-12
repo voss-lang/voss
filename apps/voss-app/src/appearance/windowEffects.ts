@@ -2,7 +2,6 @@ import { getCurrentWindow, Effect } from '@tauri-apps/api/window';
 import { platform } from '@tauri-apps/plugin-os';
 import type { AppearanceSnapshot } from './profiles';
 
-/** Linux never receives native window effects — CSS opacity only (A8-RESEARCH). */
 export const LINUX_CSS_OPACITY_ONLY = true as const;
 
 export type WindowPlatform = 'macos' | 'windows' | 'linux' | 'unknown';
@@ -23,7 +22,7 @@ function normalizePlatform(value: string): WindowPlatform {
   }
 }
 
-/** Sync platform hint from navigator when Tauri plugin is unavailable. */
+/** Sync platform hint from navigator when Tauri plugin is unavailable */
 function detectPlatformFromNavigator(): WindowPlatform {
   if (typeof navigator === 'undefined') {
     return 'unknown';
@@ -48,7 +47,6 @@ function detectPlatformFromNavigator(): WindowPlatform {
   return 'unknown';
 }
 
-/** Detect host OS; uses cached Tauri `platform()` when available. */
 export function detectPlatform(): WindowPlatform {
   if (cachedPlatform) {
     return cachedPlatform;
@@ -75,7 +73,7 @@ function clampOpacity(opacity: number | undefined): number | undefined {
   return Math.min(1, Math.max(0.5, opacity));
 }
 
-/** Token-driven semi-transparent background for CSS-only platforms. */
+/** Token-driven semi-transparent background for CSS-only platforms */
 function applyCssWindowOpacity(opacity: number | undefined): void {
   const root = document.documentElement;
   const clamped = clampOpacity(opacity);
@@ -120,20 +118,16 @@ async function clearNativeWindowEffects(): Promise<void> {
     const win = getCurrentWindow();
     await win.clearEffects();
   } catch {
-    // Non-Tauri or unsupported — no-op.
+    // Non-Tauri or unsupported no-op
   }
 }
 
 export interface WindowEffectsOptions {
   opacity?: number;
-  /** When false, clears native effects and restores opaque `--bg-0`. */
+/** When false, clears native effects and restores opaque `--bg-0` */
   enabled?: boolean;
 }
 
-/**
- * Apply platform-gated window opacity / vibrancy.
- * macOS and Windows try native effects (fail soft). Linux uses CSS tokens only.
- */
 export async function applyWindowEffects(
   options: WindowEffectsOptions = {},
 ): Promise<void> {
@@ -154,13 +148,12 @@ export async function applyWindowEffects(
   await applyNativeWindowEffects(plat);
 }
 
-/** Reset opaque CSS backgrounds and clear native effects when possible. */
 export async function clearWindowEffects(): Promise<void> {
   clearCssWindowOpacity();
   await clearNativeWindowEffects();
 }
 
-/** Hook for profile / appearance apply paths. */
+/** Hook for profile / appearance apply paths */
 export async function initWindowEffectsFromAppearance(
   appearance: AppearanceSnapshot = {},
 ): Promise<void> {
@@ -175,7 +168,6 @@ export async function initWindowEffectsFromAppearance(
   });
 }
 
-/** Test-only reset of cached platform detection. */
 export function _resetWindowEffectsForTest(): void {
   cachedPlatform = null;
   clearCssWindowOpacity();

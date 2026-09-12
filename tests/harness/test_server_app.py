@@ -1,8 +1,6 @@
-"""H1.5-H1.10 + H1.14 verification.
-
+"""
+H1.5-H1.10 + H1.14 verification.
 Drives the FastAPI app via TestClient with run_turn + provider resolution
-monkeypatched (no live API, no disk writes). Covers: bearer auth, session
-CRUD, message->SSE event stream, abort, permission reply, OpenAPI event union.
 """
 
 from __future__ import annotations

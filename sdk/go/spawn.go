@@ -42,7 +42,6 @@ func interpreterPath() string {
 
 // Spawn launches `voss serve --port 0`, reads its handshake, and returns a
 // Client bound to the ephemeral port. stdin is held open as the EOF heartbeat;
-// Close()/ctx-cancel tears it down. extraEnv augments the environment.
 func Spawn(ctx context.Context, extraEnv map[string]string) (*Client, error) {
 	python := interpreterPath()
 	cmd := exec.CommandContext(ctx, python, "-m", "voss.cli", "serve", "--port", "0")

@@ -1,12 +1,6 @@
-"""V12 safety policy: pure classification + decision types (VSAFE-02/03/04/06).
-
-This module is intentionally PURE — no tool execution, no prompting, no I/O.
-Runtime integrations (PermissionGate overlay, EM dispatch, audit) call into the
-classifier here in later plans. Keeping it pure makes the dangerous-operation
-routing deterministic and unit-testable before any enforcement exists.
-
-The strict `.voss/safety.yml` schema lives in `cognition_schemas`; it is
-re-exported here so callers can `from voss.harness.safety import SafetyConfig`.
+"""
+safety policy: pure classification + decision types (VSAFE-02/03/04/06)
+This module is intentionally PURE no tool execution, no prompting, no I/O
 """
 from __future__ import annotations
 
@@ -46,7 +40,7 @@ __all__ = [
     "exact_action_text",
 ]
 
-# Dangerous-operation classes routed to factory runbooks (VSAFE-02).
+# Dangerous-operation classes routed to factory runbooks (VSAFE-02)
 DANGEROUS_CLASSES: tuple[str, ...] = (
     "irreversible",
     "deploy",
@@ -56,7 +50,7 @@ DANGEROUS_CLASSES: tuple[str, ...] = (
     "prod",
 )
 
-# Tool-arg keys that carry a filesystem path / a shell command, in priority order.
+# Tool-arg keys that carry a filesystem path / a shell command, in priority order
 _PATH_KEYS = ("path", "file", "target", "dest", "destination")
 _CMD_KEYS = ("cmd", "command", "argv", "script")
 
@@ -165,7 +159,7 @@ def classify(
     path = _arg_path(args)
     op_text = _arg_command(args) or tool_name
 
-    # 1. Factory-only paths (VSAFE-06).
+    # 1. Factory-only paths (VSAFE-06)
     if path is not None:
         for i, rule in enumerate(config.factory_only_paths):
             if fnmatch(path, rule.glob):
@@ -179,7 +173,7 @@ def classify(
                     **base,
                 )
 
-    # 2. Factory-only operations (VSAFE-02).
+    # 2. Factory-only operations (VSAFE-02)
     for i, rule in enumerate(config.factory_only_operations):
         if _op_matches(rule.tool, rule.pattern, tool_name, op_text):
             return SafetyClassification(
@@ -191,7 +185,7 @@ def classify(
                 **base,
             )
 
-    # 3. Latency-critical fixed pipelines (VSAFE-03).
+    # 3. Latency-critical fixed pipelines (VSAFE-03)
     for i, rule in enumerate(config.latency_pipelines):
         if _op_matches(rule.tool, rule.pattern, tool_name, op_text):
             return SafetyClassification(
@@ -202,7 +196,7 @@ def classify(
             )
 
     # 4. Weak-model scaffolds (VSAFE-04). Only fires for rules that constrain by
-    # role or tier AND whose actor matches — strong/unconfigured actors are exempt.
+    # role or tier AND whose actor matches strong/unconfigured actors are exempt
     for i, rule in enumerate(config.weak_model_scaffolds):
         if not (rule.roles or rule.model_tiers):
             continue

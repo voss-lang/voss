@@ -1,12 +1,6 @@
-"""VSEM-07/08 RED tests: enrichment profile routing, fail-closed default,
+"""
+VSEM-07/08 RED tests: enrichment profile routing, fail-closed default,
 budget cap, cost-ledger row.
-
-Planned seams:
-  voss.harness.config.get_index_enrich_model() -> str | None   (D-06 fail-closed)
-  voss.harness.config.get_code_recall_config() -> dict          (enrich_profile/enrich_budget_tokens/inject)
-  CodeIndex._run_enrichment(...) dispatches via
-  voss.harness.model_router.build_provider_for_model (stub_provider intercepts).
-  Ledger row: .voss/sessions/<id>/token-savings.jsonl, method == "enrich".
 """
 from __future__ import annotations
 

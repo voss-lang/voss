@@ -1,15 +1,3 @@
-// V24-06 (VADE2-06) — pure swarm graph derivation.
-//
-// The swarm surface's single hardest constraint is HONESTY: every node and edge
-// must trace to a real signal (RunData / board+session tree / audit-review /
-// attention queue). Missing signals render as placeholder nodes or are omitted —
-// nothing is synthesized. Every edge carries a non-empty `source` string and the
-// derive NEVER infers an edge from mere co-presence (Pitfall 2).
-//
-// Discipline mirrors boardDerive.ts: no Solid imports, no produce/structuredClone,
-// plain reads + object literals, null guard first — so the function is
-// fixture-tested directly and the no-fake-signal guard is load-bearing.
-
 import { cardsFromRunData, deriveColumn } from '../../org/boardDerive';
 import type { RunData } from '../../org/types';
 import type { LiveOverlayEntry } from '../../org/live/sseClient';
@@ -21,17 +9,17 @@ export interface SwarmNode {
   runId: string;
   label: string;
   status?: string;
-  /** Roster role name (coordinator/builder-N/reviewer) for icon + tag + color. */
+/** Roster role name (coordinator/builder-N/reviewer) for icon + tag + color */
   role?: string;
-  /** The chip's current-work line: a builder's bound Task.goal / the swarm goal. */
+/** The chip's current-work line: a builder's bound Task.goal / the swarm goal */
   work?: string;
-  /** Per-role ordinal for "Builder 1"/"Builder 2" (1-based; omitted when single). */
+/** role ordinal for "Builder 1"/"Builder 2" (1-based; omitted when single) */
   ordinal?: number;
-  /** Roster Role.model, when distinct from the default. */
+/** Roster Role.model, when distinct from the default */
   model?: string;
-  /** Bound session id (from swarm.assign) — direct target + elapsed/cost lookup. */
+/** Bound session id (from swarm.assign) — direct target + elapsed/cost lookup */
   sessionId?: string;
-  /** Task ownedFiles, surfaced in the inspector. */
+/** Task ownedFiles, surfaced in the inspector */
   ownedFiles?: string[];
 }
 
@@ -40,7 +28,7 @@ export interface SwarmEdge {
   from: string;
   to: string;
   type: 'delegation' | 'message' | 'tool-call' | 'file-edit' | 'review' | 'blocker';
-  /** REQUIRED — a real source. The no-fake-signal guard asserts this is set. */
+/** REQUIRED — a real source. The no-fake-signal guard asserts this is set */
   source: string;
 }
 
@@ -61,12 +49,8 @@ const artifactId = (runId: string, key: string) => `artifact:${runId}:${key}`;
 const alertId = (itemId: string) => `alert:${itemId}`;
 
 /**
- * Derive the swarm graph from real signals only.
- *
- * - null/empty runs → { nodes: [], edges: [] } (never throws).
- * - null runData for a run → a single objective placeholder node, zero edges.
- * - every edge is constructed with an explicit, real `source` and only when
- *   both endpoints exist — no dangling edges, no co-presence inference.
+ * Derive the swarm graph from real signals only
+ * null/empty runs → { nodes: [], edges: [] } (never throws)
  */
 export function deriveSwarmGraph(
   runs: SwarmRun[],
@@ -93,7 +77,7 @@ export function deriveSwarmGraph(
     const data = run.runData;
     const runId = data?.run_id ?? `run-${i}`;
 
-    // --- null runData → honest objective placeholder only ---
+    // null runData → honest objective placeholder only
     if (!data) {
       addNode({
         id: `placeholder:${runId}`,
@@ -104,7 +88,7 @@ export function deriveSwarmGraph(
       return;
     }
 
-    // --- objective (center) — show the idea, never the raw run id (D-09) ---
+    // objective (center) — show the idea, never the raw run id
     const idea = data.audit?.idea ?? data.run_final?.idea;
     addNode({
       id: objId(runId),
@@ -113,7 +97,7 @@ export function deriveSwarmGraph(
       label: idea ?? runId,
     });
 
-    // --- agent nodes: one per UNIQUE role present on the session tree ---
+    // agent nodes: one per UNIQUE role present on the session tree
     const roles = new Set<string>();
     for (const node of data.session_tree.nodes) {
       if (node.role !== null) roles.add(node.role);
@@ -131,7 +115,7 @@ export function deriveSwarmGraph(
       });
     }
 
-    // --- work nodes: one per non-root card ---
+    // work nodes: one per non-root card
     const cards = cardsFromRunData(data);
     for (const card of cards) {
       cardRunIndex.set(card.id, runId);
@@ -144,7 +128,7 @@ export function deriveSwarmGraph(
       });
     }
 
-    // --- artifact nodes: audit review-sidecars with a real a_verification ---
+    // artifact nodes: audit review-sidecars with a real a_verification
     const sidecars = data.audit?.review_sidecars ?? {};
     for (const key in sidecars) {
       const ver = sidecars[key]?.a_verification;
@@ -158,7 +142,7 @@ export function deriveSwarmGraph(
       }
     }
 
-    // --- edges from real transitions (NEVER co-presence) ---
+    // edges from real transitions (NEVER co-presence)
     for (const node of data.session_tree.nodes) {
       for (const t of node.transitions) {
         // delegation: an explicit routing decision routed this card to a role.
@@ -212,7 +196,7 @@ export function deriveSwarmGraph(
     }
   });
 
-  // --- alert nodes + edges: real attention-queue items only ---
+  // alert nodes + edges: real attention-queue items only
   const firstRunId = runs[0].runData?.run_id ?? 'run-0';
   for (const item of attentionItems) {
     if (item.kind !== 'permission' && item.kind !== 'budget' && item.kind !== 'blocked') {

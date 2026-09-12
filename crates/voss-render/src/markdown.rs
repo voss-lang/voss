@@ -1,10 +1,6 @@
-//! Minimal markdown → ANSI styler for TTY rendering of assistant replies.
-//!
-//! Handles: headings, bold, italic, inline code, fenced code, lists,
-//! blockquotes, links (text only, URL appended dim). No tables / footnotes
-//! / HTML — intentionally narrow.
-//!
-//! Output is line-oriented and assumes a TTY that understands SGR escapes.
+//! Minimal markdown → ANSI styler for TTY rendering of assistant replies
+//! Handles: headings, bold, italic, inline code, fenced code, lists
+
 
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
@@ -18,7 +14,7 @@ const YELLOW: &str = "\x1b[33m";
 const GREEN: &str = "\x1b[32m";
 
 /// Render markdown to a string with ANSI styling. Falls back to printing the
-/// raw text if anything goes wrong.
+/// raw text if anything goes wrong
 pub fn to_ansi(src: &str) -> String {
     let parser = Parser::new_ext(src, Options::ENABLE_STRIKETHROUGH);
     let mut out = String::with_capacity(src.len() + 64);
@@ -43,7 +39,7 @@ pub fn to_ansi(src: &str) -> String {
                 Tag::Link { dest_url, .. } => {
                     out.push_str(UNDERLINE);
                     out.push_str(CYAN);
-                    // text follows; URL appended on link close.
+                    // text follows; URL appended on link close
                     let _ = dest_url; // captured at end via TagEnd::Link
                 }
                 Tag::CodeBlock(kind) => {
@@ -138,7 +134,7 @@ pub fn to_ansi(src: &str) -> String {
         }
     }
 
-    // Trim trailing blank lines to avoid double-spacing into status line.
+    // Trim trailing blank lines to avoid double-spacing into status line
     while out.ends_with('\n') {
         out.pop();
     }

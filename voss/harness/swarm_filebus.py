@@ -1,22 +1,6 @@
-"""Swarm file-bus — pure file IO for the A13 task/result transport (R3).
-
+"""
+Swarm file-bus pure file IO for the task/result transport (R3)
 Under the R3 reconciliation (SWARM-RECONCILIATION.md), a swarm member is a real
-CLI (claude/codex/opencode/…) that cannot subscribe to voss's SSE bus — files are
-the only IPC a black-box CLI offers. So the A13 file-bus is the LIVE coordination
-transport, not an audit afterthought: the host writes one `tasks/<role>.task.md`
-per member, the member writes back `results/<role>.result.md`, and completion is
-detected by that result file appearing.
-
-This module is deliberately pure file IO (no SwarmStore, no provider, no git) so
-it is trivially unit-testable and importable from both the headless server spawn
-path and the GUI/Rust execution plane. The on-disk formats are the EXACT shapes
-documented in A13-SPEC.md "File Formats" — keeping them byte-compatible means the
-existing frontend `swarmReconcile.ts` manifest reader and any A13-era CLI prompt
-stay valid.
-
-The bus lives in the MAIN checkout's `.voss/swarm/<id>/` (shared across members),
-NOT inside any per-member git worktree: members are hermetic in their worktree and
-never read `.voss` themselves — the host hands each CLI its task inline.
 """
 from __future__ import annotations
 
@@ -28,14 +12,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from .swarm_store import Task
 
 # Result-file `status` values a member may report. We do not enforce these on
-# read (forward-compatible), but they document the contract for writers.
+# read (forward-compatible), but they document the contract for writers
 STATUS_COMPLETE = "complete"
 STATUS_FAILED = "failed"
 
 
-# ---------------------------------------------------------------------------
-# Directory helpers — create-as-needed so callers never pre-mkdir.
-# ---------------------------------------------------------------------------
+# Directory helpers create-as-needed so callers never pre-mkdir
 def swarm_dir(repo_root: str | Path, swarm_id: str) -> Path:
     """`<repo_root>/.voss/swarm/<swarm_id>`, created if missing.
 
@@ -67,9 +49,7 @@ def shared_dir(repo_root: str | Path, swarm_id: str) -> Path:
     return d
 
 
-# ---------------------------------------------------------------------------
 # Frontmatter codec
-# ---------------------------------------------------------------------------
 def _split_frontmatter(text: str) -> tuple[dict, str]:
     """Split a `---`-delimited YAML frontmatter document into (meta, body).
 
@@ -79,7 +59,7 @@ def _split_frontmatter(text: str) -> tuple[dict, str]:
     """
     if not text.startswith("---"):
         return {}, text
-    # Frontmatter is the region between the first two `---` fences.
+    # Frontmatter is the region between the first two `---` fences
     parts = text.split("---", 2)
     if len(parts) < 3:
         return {}, text
@@ -88,7 +68,7 @@ def _split_frontmatter(text: str) -> tuple[dict, str]:
     if not isinstance(meta, dict):
         meta = {}
     # The body keeps a single leading newline after the closing fence; strip just
-    # that separator so callers get the markdown as authored.
+    # that separator so callers get the markdown as authored
     return meta, body.lstrip("\n")
 
 
@@ -102,9 +82,7 @@ def _dump_frontmatter(meta: dict, body: str) -> str:
     return f"---\n{fm}\n---\n\n{body}"
 
 
-# ---------------------------------------------------------------------------
 # Task files (host → member)
-# ---------------------------------------------------------------------------
 def write_task_file(
     repo_root: str | Path,
     swarm_id: str,
@@ -161,9 +139,7 @@ def write_shared_context(repo_root: str | Path, swarm_id: str, text: str) -> Pat
     return path
 
 
-# ---------------------------------------------------------------------------
 # Result files (member → host)
-# ---------------------------------------------------------------------------
 class ResultFile(BaseModel):
     """Parsed `results/<role>.result.md` — a member's completion report.
 
@@ -205,7 +181,7 @@ def read_result_file(
         return None
     meta, body = _split_frontmatter(path.read_text(encoding="utf-8"))
     # Body wins as the human summary; a frontmatter `summary:` is a fallback for
-    # writers that put everything in metadata.
+    # writers that put everything in metadata
     summary = body.strip() or str(meta.get("summary", ""))
     return ResultFile(
         agent=str(meta.get("agent", "")),

@@ -1,17 +1,6 @@
-"""Pinning test: subagent recursion has no depth guard.
-
+"""
+Pinning test: subagent recursion has no depth guard.
 `voss.harness.subagents.run_subagent` calls `run_turn`, which can dispatch
-the `subagent_run` tool, which loops back through `run_subagent`. There is
-currently no depth counter or `max_depth` parameter — recursion is bounded
-only by Python's stack (default ~1000 frames). A malicious or buggy plan
-that always emits `subagent_run` will OOM/RecursionError.
-
-This test pins the gap. If a guard is added (e.g. a `depth` kwarg on
-`run_subagent` or a module-level `MAX_DEPTH` constant), update the
-assertions below to verify the guard fires.
-
-Follow-up issue: add `max_depth` (default 5) to run_subagent + a clear
-"subagent depth exceeded" error path.
 """
 from __future__ import annotations
 

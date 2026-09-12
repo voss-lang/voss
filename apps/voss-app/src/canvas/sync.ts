@@ -12,7 +12,6 @@ export async function syncCanvasToRust(state: CanvasState): Promise<void> {
 type StructuralChangeListener = () => void;
 const structuralListeners: StructuralChangeListener[] = [];
 
-/** Subscribe to structural changes (session autosave hooks in here). */
 export function subscribeStructuralChange(
   listener: StructuralChangeListener,
 ): () => void {
@@ -27,7 +26,7 @@ export function notifyStructuralChange(): void {
   for (const listener of structuralListeners) listener();
 }
 
-/** Structural change (add/remove/move/resize/focus): mirror now, autosave later. */
+/** Structural change (add/remove/move/resize/focus): mirror now, autosave later */
 export function markCanvasChange(state: CanvasState): void {
   void syncCanvasToRust(state).catch(() => {});
   notifyStructuralChange();
@@ -35,12 +34,12 @@ export function markCanvasChange(state: CanvasState): void {
 
 let dragInFlight = false;
 
-/** Pointer-move during a drag: nothing is mirrored until the pointer settles. */
+/** Pointer-move during a drag: nothing is mirrored until the pointer settles */
 export function markCanvasDragMove(): void {
   dragInFlight = true;
 }
 
-/** Pointer-up: mirror the caller's settled state exactly once. */
+/** Pointer-up: mirror the caller's settled state exactly once */
 export function markCanvasDragSettled(state: CanvasState): void {
   dragInFlight = false;
   markCanvasChange(state);
@@ -50,7 +49,7 @@ export function isCanvasDragInFlight(): boolean {
   return dragInFlight;
 }
 
-/** Drag abandoned (pointer cancelled, host unmounted): nothing to mirror. */
+/** Drag abandoned (pointer cancelled, host unmounted): nothing to mirror */
 export function resetCanvasDrag(): void {
   dragInFlight = false;
 }

@@ -1,17 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * D-02 flood-performance Playwright driver.
- *
+ * flood-performance Playwright driver
  * SKIPPED on macOS — platform block: this drives a live Tauri app under
- * WebDriver (`tauri-driver`), which Apple's WKWebView does not support
- * (tauri-driver = Linux WebKitWebDriver / Windows Edge only). Per the A2-04
- * user decision (project memory `voss-app-tauri-e2e-macos-blocked`), the
- * D-02 *mechanism* is unit-proven on macOS (A2-03 `pty-ipc.test.ts` 3/3:
- * rAF coalescing + watermark pause>HIGH + resume<LOW); the full live
- * flood *measurement* is deferred to a Linux CI job (A10 / CI phase).
- *
- * The measurement logic below is the unchanged contract for that CI un-skip.
  */
 
 const FLOOD_CMD = process.env.PERF_CAT

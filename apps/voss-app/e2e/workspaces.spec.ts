@@ -3,10 +3,7 @@ import { bootApp, type MockWorkspace } from './_helpers';
 
 /**
  * A8 workspace end-to-end — tab bar, new-workspace picker, switch, close
- * guard, Ctrl+Tab / Ctrl+1..9 shortcuts. Runs on macOS via mock-IPC.
- *
- * Restart-restore (ws-ac7) needs a real app relaunch under Tauri — deferred
- * to Linux CI under TAURI_E2E=1.
+ * guard, Ctrl+Tab / Ctrl+1..9 shortcuts. Runs on macOS via mock-IPC
  */
 
 test.describe.configure({ mode: 'serial' });
@@ -87,6 +84,6 @@ test.describe('A8 workspaces (live-only)', () => {
 
   test('ws-ac7: quit and relaunch restores workspace index and sessions', () => {
     // Open three workspaces → quit app → relaunch → assert count, order,
-    // active index, and per-workspace cwd/layout.
+    // active index, and workspace cwd/layout.
   });
 });

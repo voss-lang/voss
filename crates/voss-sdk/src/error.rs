@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-/// All errors returned by the voss-sdk public API.
+/// All errors returned by the voss-sdk public API
 #[derive(Debug, Error)]
 pub enum VossError {
     #[error("http request failed: {0}")]

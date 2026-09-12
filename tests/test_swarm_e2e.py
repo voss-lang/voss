@@ -1,13 +1,6 @@
-"""V25 acceptance bar — the 2-builder enforced swarm run as ONE integration test.
-
+"""
+V25 acceptance bar — the 2-builder enforced swarm run as ONE integration test.
 Drives the whole server-native swarm runtime headlessly via TestClient under the
-VOSS_SERVE_FAKE_TURN seam (no live provider, no nudge files, no stdin). Exercises
-VSWARM-01/02/03/04/05/06/07/10/11 in a single scripted path:
-
-  create swarm → 2 disjoint tasks (3rd overlap rejected) → builders gated (zero
-  turns until assign) → assign → owned-only edit allowed, 3rd-file write denied at
-  the gate + swarm.needs_operator escalation → reviewer gate writes a decision →
-  swarm.complete emitted → events.jsonl replays the full open→assigned→done timeline.
 """
 from __future__ import annotations
 

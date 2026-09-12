@@ -3,7 +3,7 @@ import type { RunData, ReviewSidecar } from '../types';
 import { cardsFromRunData, type BoardCard } from '../boardDerive';
 import { paneIdForCard } from '../model/bridge';
 
-// VADE-02 — 6-column Kanban, restyled in V14 chunk B to the cockpit mockup
+// 02 — 6-column Kanban, restyled in chunk B to the cockpit mockup
 // .card/.colhdr: role-colored left accent, title-first cards, badge row
 // (id / risk·tier / mono budget / ● live / A·B reviewer dots), mini progress
 // bar, and count-pill column headers (WIP-colored for In Progress).
@@ -82,7 +82,7 @@ function BoardCardView(props: {
   const pct = () =>
     props.card.limit > 0 ? (props.card.spent / props.card.limit) * 100 : 0;
   const rc = () => roleColor(props.card.role);
-  // V14 chunk B: ● live badge when the id-bridge binds this card to a pane.
+  // chunk B: ● live badge when the id-bridge binds this card to a pane.
   const live = () => paneIdForCard(props.card.id) !== undefined;
   return (
     <div

@@ -1,8 +1,6 @@
-"""Locked keymap table — single source of truth for VossTUIApp.BINDINGS.
-
-UI-SPEC "Keybindings" rows. Diff modal + permission modal keys live on
-those modals themselves (M9-05); KEYMAP holds global + main + input +
-modal-dismiss baseline.
+"""
+Locked keymap table single source of truth for VossTUIApp.BINDINGS
+"Keybindings" rows. Diff modal + permission modal keys live on
 """
 from __future__ import annotations
 
@@ -37,10 +35,10 @@ KEYMAP: tuple[Binding, ...] = (
     Binding("ctrl+y", "global", "copy_code", "Copy last code block to clipboard"),
     Binding("ctrl+c", "global", "interrupt", "Interrupt turn; press again to exit"),
     Binding("ctrl+l", "global", "redraw", "Redraw screen"),
-    # R6 transcript nav mode (spec §7.1). These rows are handled by
-    # TranscriptView.on_key while it holds focus — NOT App.BINDINGS (the
+    # R6 transcript nav mode (spec .1). These rows are handled by
+    # TranscriptView.on_key while it holds focus NOT App.BINDINGS (the
     # App comprehension filters to global/input/modal). Entry: `esc` from
-    # the input bar when idle (no modal/palette open, no turn running).
+    # the input bar when idle (no modal/palette open, no turn running)
     Binding("escape", "transcript", "nav_focus_input", "Leave nav mode → input"),
     Binding("i", "transcript", "nav_focus_input", "Leave nav mode → input"),
     Binding("j", "transcript", "nav_next_block", "Focus next block"),

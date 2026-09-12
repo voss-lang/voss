@@ -1,8 +1,6 @@
-"""Packing integration at the agent replay chokepoint.
-
+"""
+Packing integration at the agent replay chokepoint.
 VOPT-06 (--no-pack byte-identity, cached-prefix preservation) and the
-VOPT-03 steady-state cache half, driven through _run_turn_exec with the
-FakeStreamingProvider double from test_agent_loop.
 """
 from __future__ import annotations
 

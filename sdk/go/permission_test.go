@@ -11,8 +11,6 @@ import (
 
 // newPermissionStub returns an httptest server for POST /session/:id/permission
 // that replies with the given status JSON when authed, else 401. Per CONTEXT
-// D-09 the route contract is verified via direct HTTP (FAKE_TURN emits no
-// permission.updated, so a live gate is manual/deferred).
 func newPermissionStub(t *testing.T, wantToken, status string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +30,6 @@ func newPermissionStub(t *testing.T, wantToken, status string) *httptest.Server 
 
 // TestPermissionAllow asserts an allow reply maps to stale=false (the reply was
 // recorded). The gate-outcome (allowed→tool runs) is observed over SSE with a
-// real provider — manual/deferred per D-09.
 func TestPermissionAllow(t *testing.T) {
 	srv := newPermissionStub(t, "good", "ok")
 	c := AttachClient(srv.URL, "good")
@@ -47,7 +44,6 @@ func TestPermissionAllow(t *testing.T) {
 
 // TestPermissionDeny asserts a deny reply maps to stale=false (recorded), a
 // reply to an already-resolved/unknown id maps to stale=true (not an error),
-// and an unauthorized reply surfaces a typed *VossError.
 func TestPermissionDeny(t *testing.T) {
 	ctx := context.Background()
 

@@ -9,7 +9,7 @@ type DirEntry = {
 
 export interface FileTreeProps {
   projectPath: string | null;
-  /** Click on a file; receives the workspace-relative path. */
+/** Click on a file; receives the workspace-relative path */
   onOpenFile?: (relPath: string) => void;
 }
 

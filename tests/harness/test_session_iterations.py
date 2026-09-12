@@ -1,7 +1,6 @@
-"""T1-01: IterationRecord + additive RunRecord fields.
-
+"""
+T1-01: IterationRecord + additive RunRecord fields.
 Locks the additive-only schema substrate that the iteration loop writes to.
-No behavior here — purely schema shape, defaults, and old-fixture round-trip.
 """
 from __future__ import annotations
 
