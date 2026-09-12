@@ -287,4 +287,40 @@ describe('SettingsSurface — Observation section (S3.8)', () => {
       { enabled: true },
     );
   });
+
+  it('falls back to the unavailable notice when settings cannot be loaded', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    observeApi.getObserveSettings.mockRejectedValue(new Error('sidecar down'));
+    setLiveServer({ sidecarId: 'sc-1', cwd: '/ws' });
+    const el = mount(() => <SettingsSurface />);
+    await settle();
+
+    expect(
+      el.querySelector('input[aria-label="Observe this repository"]'),
+    ).toBeNull();
+    expect(el.textContent).toContain(
+      'Open a project with a live session to manage observation.',
+    );
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('reverts the optimistic toggle when PATCH fails', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const ctx = await observeContextForWorkspace('/ws', 'sc-1');
+    observeApi.patchObserveSettings.mockRejectedValue(new Error('403'));
+    const el = await mountWithServer({ [ctx.repositoryId]: ENROLLED });
+
+    const toggle = el.querySelector<HTMLInputElement>(
+      'input[aria-label="Pause capture"]',
+    )!;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+
+    expect(observeApi.patchObserveSettings).toHaveBeenCalled();
+    expect(toggle.checked).toBe(false);
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
 });

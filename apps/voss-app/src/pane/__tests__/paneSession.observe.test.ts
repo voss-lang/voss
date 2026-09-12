@@ -107,10 +107,9 @@ describe('paneSession — observe wiring for project panes', () => {
     expect(h.createObserveClient).toHaveBeenCalledWith(
       expect.objectContaining({ paneId: 'p1', actor: 'developer' }),
     );
-    const cfg = h.createObserveClient.mock.calls[0][0] as {
-      context: () => Promise<unknown>;
-      sidecarId: () => string | null;
-    };
+    const [cfg] = h.createObserveClient.mock.calls[0] as unknown as [
+      { context: () => Promise<unknown>; sidecarId: () => string | null },
+    ];
     expect(cfg.sidecarId()).toBe('sc-1');
     void cfg.context();
     expect(h.observeContextForWorkspace).toHaveBeenCalledWith('/repo', 'sc-1');
