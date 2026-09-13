@@ -50,7 +50,7 @@ An engineering team can route AI-assisted work through bounded, reviewable execu
 
 ## Context
 
-- **Existing substrate:** Voss already has the harness server, SSE event union, session trees, budget/scope controls, audit surfaces, memory/recall, voss-app desktop ADE, and a V25 server-native swarm runtime track.
+- **Existing substrate:** Voss already has the harness server, SSE event union, session trees, budget/scope controls, audit surfaces, memory/recall, and a V25 server-native swarm runtime track. The voss-app desktop ADE moved to a separate repository on 2026-09-12 (`docs/architecture/0004-voss-ade-repository-split.md`).
 - **Swarm impact:** Current swarm architecture already provides server-side state, task ownership, assignment, operator gates, worker completion, and audit files. BOS should observe and label those events rather than create new coordination infrastructure.
 - **Planted seed:** `SEED-001-coordination-bus` remains relevant as a future external-agent CLI surface, but only as a thin client over the existing server plane.
 - **Product direction:** The Behavioral OS should land first as a narrow recommendation/data layer over AI-assisted engineering work, then expand toward engineering-team workflow management after the decision/outcome corpus exists.

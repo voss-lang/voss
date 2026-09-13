@@ -50,3 +50,22 @@ To build any of it, check out `794b9f13` or earlier.
 The code stays greppable and cherry-pickable by path for the separate ADE
 repository, and the history behind every decision in the app stays attached
 to the files it shaped.
+
+## Integrating from the new ADE repository
+
+Everything the ADE needs is a released Voss executable, a compatible SDK, and
+the protocol. No Voss source checkout at runtime.
+
+- **Launch.** Set `VOSS_BIN` or pass an explicit executable to the SDK. It runs
+  `<voss> serve --port 0`, reads the one-line `{"v":1,"port":...,"token":...}`
+  handshake from stdout, and holds stdin open as a heartbeat.
+- **Protocol.** `docs/protocol.md`, wire version `v = 1`. Machine-checkable
+  contracts: `contracts/openapi.json`, `contracts/events.schema.json`, plus
+  `decision-ledger`, `outcomes`, and `observe-events` schemas.
+- **SDKs.** Rust: the `voss-sdk` crate. TypeScript: `@vosslang/sdk` for the
+  client, `@vosslang/sdk/node` for the `VossLauncher`. Go: `sdk/go`.
+- **Not provided by Voss.** PTYs, tmux, xterm, canvas, layouts, themes,
+  keymaps, and the app's local SQLite. Terminal and pane sessions never
+  round-trip through Voss.
+- **Model presets.** `voss/harness/swarm_agents.py` holds the authoritative
+  agent table. The ADE's `modelPrefs.ts` mirrors it, not the reverse.

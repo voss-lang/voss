@@ -15,6 +15,12 @@ progress:
 
 # State: Voss
 
+> **2026-09-12 — Voss ADE is a separate repository.** The A-track and the
+> ADE-facing V-track rows below are frozen history; the desktop app now lives
+> in its own repo and integrates over the protocol
+> (`docs/architecture/0004-voss-ade-repository-split.md`). Frozen copy:
+> `archive/voss-ade/`. The dated log here is kept as a record.
+
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-06-20)
