@@ -48,7 +48,9 @@ from ..swarm_store import (
     SwarmStore,
     build_ownership_policy,
 )
-from ..tools import make_toolset
+from ..tools import attach_memory_tools, make_toolset
+from ..memory_gateway import open_memory_store
+from ..memory_store import MemoryStore
 from . import events as E
 from .renderer import EventBusRenderer
 from .sessions import ServerSession, SessionManager
@@ -284,14 +286,23 @@ def _swarm_recall_text(session: ServerSession, text: str) -> str:
     (VSWARM-07). Returns "" when there are no owned files or no scoped hits."""
     if not session.swarm_owned_files:
         return ""
-    from ..memory_store import MemoryStore
     from ..swarm_store import scoped_recall
 
-    store = MemoryStore(session.cwd)
+    store = session.memory_store or open_memory_store(session.cwd)
     hits = scoped_recall(store, text, session.swarm_owned_files)
+    if not isinstance(store, MemoryStore):
+        retained = [
+            hit for hit in store.recall(text)
+            if hit.source in {"notes", "conventions", "decisions"}
+        ]
+        hits = MemoryStore._rrf_merge([hits, retained], top_k=5)
     if not hits:
         return ""
-    lines = ["## Task-scoped recall (your owned files)"]
+    lines = [
+        "## Task-scoped recall (owned files and project memory)"
+        if not isinstance(store, MemoryStore)
+        else "## Task-scoped recall (your owned files)"
+    ]
     for h in hits:
         lines.append(f"- {h.locator}: {h.excerpt}")
     return "\n".join(lines)
@@ -332,6 +343,14 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
     try:
         renderer.show_user(text)
         tools = make_toolset(session.cwd, renderer=renderer)
+        if session.memory_store is None:
+            session.memory_store = open_memory_store(session.cwd)
+        memory_kwargs = {}
+        if not isinstance(session.memory_store, MemoryStore):
+            attach_memory_tools(tools, store=session.memory_store, session_id=session.id)
+            memory_kwargs["pinned_memory_text"] = await asyncio.to_thread(
+                session.memory_store.render_pinned_memory_text, model=session.model
+            )
         gate = PermissionGate(
             mode=mode,  # type: ignore[arg-type]
             store=PermissionStore.load(session.cwd),
@@ -366,7 +385,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             # VSWARM-07: a swarm builder gets recall filtered to its ownedFiles
             # non-swarm sessions keep the unscoped code-recall path unchanged
             if session.swarm_owned_files:
-                code_recall_text = _swarm_recall_text(session, text)
+                code_recall_text = await asyncio.to_thread(_swarm_recall_text, session, text)
             else:
                 code_recall_text = _render_code_recall_text(
                     session.cwd, text, session_id=session.id
@@ -389,6 +408,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             project_index_text=project_index_text,
             code_recall_text=code_recall_text,
             prior_context=session.prior_context,
+            **memory_kwargs,
         )
         # Consume resume context once: deep history now flows via session.history
         session.prior_context = None
@@ -781,12 +801,14 @@ def create_app(token: str | None = None) -> FastAPI:
         # Read-only view of the harness memory store for the workspace. summary
         # is a cheap fs walk (handles missing dirs); recall runs only when a
         # query is given (it lazily builds the semantic index). VADE2-11
-        from ..memory_store import MemoryStore
-
-        store = MemoryStore(Path(cwd).resolve())
-        out: dict = {"v": 1, "summary": store.summary(), "query": q, "hits": []}
+        try:
+            store = open_memory_store(Path(cwd).resolve())
+            summary = store.summary()
+            hits = store.recall(q, top_k=max(1, min(top_k, 50))) if q else []
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise HTTPException(503, "Memory backend unavailable") from exc
+        out: dict = {"v": 1, "summary": summary, "query": q, "hits": []}
         if q:
-            hits = store.recall(q, top_k=max(1, min(top_k, 50)))
             out["hits"] = [
                 {
                     "source": h.source,

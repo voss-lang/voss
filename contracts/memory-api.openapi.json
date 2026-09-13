@@ -1,0 +1,819 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Voss Retained Memory API",
+    "version": "1.0.0",
+    "description": "Loopback API for project-scoped retained notes, conventions, and decisions."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1",
+      "description": "Loopback service; deployments must not expose this API publicly."
+    }
+  ],
+  "tags": [
+    {
+      "name": "health",
+      "description": "Readiness without authentication."
+    },
+    {
+      "name": "projects",
+      "description": "Explicit project registration and retained-memory operations."
+    },
+    {
+      "name": "memories",
+      "description": "Project-scoped retained-memory CRUD and search."
+    }
+  ],
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": ["health"],
+        "summary": "Check service readiness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The service is ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/projects": {
+      "post": {
+        "operationId": "registerProject",
+        "tags": ["projects"],
+        "summary": "Register a project identity",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterProjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The project was registered or was already registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The project was registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/v1/projects/{project}/memories": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Project"
+        }
+      ],
+      "post": {
+        "operationId": "createMemory",
+        "tags": ["memories"],
+        "summary": "Create a retained memory",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMemoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The memory was committed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listMemories",
+        "tags": ["memories"],
+        "summary": "List active retained memories",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MemoryKindQuery"
+          },
+          {
+            "$ref": "#/components/parameters/PinnedQuery"
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/CursorQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active memories in the requested page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/projects/{project}/memories/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Project"
+        },
+        {
+          "$ref": "#/components/parameters/MemoryId"
+        }
+      ],
+      "get": {
+        "operationId": "getMemory",
+        "tags": ["memories"],
+        "summary": "Read a retained memory",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "The memory, including superseded memories.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMemory",
+        "tags": ["memories"],
+        "summary": "Revise, pin, or supersede a retained memory",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The revised memory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMemory",
+        "tags": ["memories"],
+        "summary": "Forget a retained memory",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteMemoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The memory was forgotten and reduced to a tombstone.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteMemoryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/projects/{project}/search": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Project"
+        }
+      ],
+      "post": {
+        "operationId": "searchMemories",
+        "tags": ["memories"],
+        "summary": "Search active retained memories",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchMemoriesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matching active memories ordered by relevance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Runtime-only VOSS_MEMORY_API_TOKEN. Never place credentials in URLs or repository files."
+      }
+    },
+    "parameters": {
+      "Project": {
+        "name": "project",
+        "in": "path",
+        "required": true,
+        "description": "Explicitly registered project identity; this is not a filesystem path.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        }
+      },
+      "MemoryId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Server-generated memory UUID.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "Stable key for retrying the same operation. Use only 1–128 safe ASCII characters.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._~-]{1,128}$"
+        }
+      },
+      "MemoryKindQuery": {
+        "name": "kind",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "$ref": "#/components/schemas/MemoryKind"
+        }
+      },
+      "PinnedQuery": {
+        "name": "pinned",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "LimitQuery": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50
+        }
+      },
+      "CursorQuery": {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["api_version", "status"],
+        "properties": {
+          "api_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "status": {
+            "type": "string",
+            "const": "ready"
+          }
+        }
+      },
+      "MemoryKind": {
+        "type": "string",
+        "enum": ["note", "convention", "decision"]
+      },
+      "MemoryStatus": {
+        "type": "string",
+        "enum": ["active", "superseded", "deleted"]
+      },
+      "ProjectId": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{1,64}$"
+      },
+      "Project": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "name": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "RegisterProjectRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Memory": {
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "kind",
+          "body",
+          "revision",
+          "pinned",
+          "status",
+          "superseded_by",
+          "provenance",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MemoryKind"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
+            "description": "UTF-8 text no larger than 65,536 bytes."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemoryStatus"
+          },
+          "superseded_by": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "provenance": {
+            "type": ["object", "null"],
+            "additionalProperties": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MemorySearchHit": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Memory"
+          },
+          {
+            "type": "object",
+            "required": ["score"],
+            "properties": {
+              "score": {
+                "type": "number"
+              }
+            }
+          }
+        ],
+        "description": "An active memory returned by keyword search, with its relevance score."
+      },
+      "CreateMemoryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "body"],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/MemoryKind"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
+            "description": "UTF-8 text no larger than 65,536 bytes."
+          },
+          "provenance": {
+            "type": ["object", "null"],
+            "additionalProperties": true
+          }
+        }
+      },
+      "UpdateMemoryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["expected_revision"],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
+            "description": "UTF-8 text no larger than 65,536 bytes."
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "superseded_by": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          }
+        }
+      },
+      "DeleteMemoryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["expected_revision"],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "SearchMemoriesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryKind"
+            },
+            "uniqueItems": true
+          },
+          "top_k": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 5
+          }
+        }
+      },
+      "ProjectResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Project"
+          }
+        }
+      },
+      "MemoryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Memory"
+          }
+        }
+      },
+      "MemoryListResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "next_cursor"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Memory"
+            }
+          },
+          "next_cursor": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemorySearchHit"
+            }
+          }
+        }
+      },
+      "DeleteMemoryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "revision", "status"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "status": {
+                "type": "string",
+                "const": "deleted"
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable category such as validation, auth, conflict, not_found, or unavailable."
+          },
+          "message": {
+            "type": "string",
+            "description": "Safe diagnostic text; it must not contain credentials."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "The bearer token is missing, invalid, or not configured.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "The request does not satisfy the API contract.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The idempotency key or expected revision conflicts with an existing operation/state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The project or memory is not available in this scope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "The service or its local persistence is unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  }
+}

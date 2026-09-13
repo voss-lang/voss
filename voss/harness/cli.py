@@ -33,6 +33,7 @@ from . import session as session_store
 from . import voss_md
 from .memory_cli import memory_group
 from .memory_store import MemoryStore, make_global_store
+from .memory_gateway import open_memory_store
 from .agent import Plan
 from .claims import claims_group
 from .net import NetSession
@@ -927,7 +928,7 @@ def _save_note(ctx, args: list[str], _line: str) -> None:
         return
     cwd = getattr(ctx, "cwd", None)
     try:
-        display = path.relative_to(cwd) if cwd else path
+        display = path.relative_to(cwd) if cwd and isinstance(path, Path) else path
     except ValueError:
         display = path
     click.echo(f"note saved: {display}")
@@ -1068,7 +1069,7 @@ def _code_recall_kwargs(run_turn_fn, cwd: Path, task_text: str, session_id: str 
     return {"code_recall_text": text} if text else {}
 
 
-def _pinned_memory_kwargs(run_turn_fn, cwd: Path, *, model: str) -> dict:
+def _pinned_memory_kwargs(run_turn_fn, cwd: Path, *, model: str, store=None) -> dict:
     """kwargs-splat guard for VRNK-06 pinned-memory injection.
 
     Returns {} when the resolved run_turn predates `pinned_memory_text` (compiled
@@ -1083,9 +1084,13 @@ def _pinned_memory_kwargs(run_turn_fn, cwd: Path, *, model: str) -> dict:
             return {}
     except (TypeError, ValueError):
         return {}
+    if store is None:
+        store = open_memory_store(cwd)
     try:
-        text = MemoryStore(cwd).render_pinned_memory_text(model=model)
-    except Exception:  # noqa: BLE001 — injection is additive; failures render nothing
+        text = store.render_pinned_memory_text(model=model)
+    except Exception:
+        if not isinstance(store, MemoryStore):
+            raise
         return {}
     return {"pinned_memory_text": text} if text else {}
 
@@ -2226,7 +2231,7 @@ def do_cmd(
     do_model = cfg.default_model
     do_record = session_store.SessionRecord.new(cwd=cwd, model=do_model)
     do_history = EpisodicMemory(capacity=40)
-    do_memory_store = MemoryStore(cwd).bind(session_id=do_record.id)
+    do_memory_store = open_memory_store(cwd, session_id=do_record.id)
     # V21 (VGMEM-*): wire the cross-project global corpus into agent recall when
     # global memory is enabled. The agent reads global hits but can never write
     # them (memory_remember only ever targets the project store).
@@ -2267,7 +2272,7 @@ def do_cmd(
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
             **_code_recall_kwargs(run_turn, cwd, text, session_id=do_record.id),
-            **_pinned_memory_kwargs(run_turn, cwd, model=do_model),
+            **_pinned_memory_kwargs(run_turn, cwd, model=do_model, store=do_memory_store),
             **_rt_kwargs,
         ),
         renderer=renderer,
@@ -2534,7 +2539,7 @@ def _run_repl(
         prior_context=prior_context,
         total_cost=record.total_cost_usd,
         voss_md_text=voss_md_text,
-        memory_store=MemoryStore(cwd).bind(session_id=record.id),
+        memory_store=open_memory_store(cwd, session_id=record.id),
         model=cfg.default_model,
         project_index_text=project_index_text,
     )
@@ -2693,7 +2698,10 @@ def _run_repl(
                                 voss_md_text=ctx.voss_md_text,
                                 project_index_text=ctx.project_index_text,
                                 **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                                **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model),
+                                **(await asyncio.to_thread(
+                                    _pinned_memory_kwargs, run_turn, cwd,
+                                    model=get_config().default_model, store=ctx.memory_store,
+                                )),
                             ),
                             _multiagent_teardown,
                         )
@@ -2812,7 +2820,7 @@ def _run_repl(
                             voss_md_text=ctx.voss_md_text,
                             project_index_text=ctx.project_index_text,
                             **_code_recall_kwargs(run_turn, cwd, line, session_id=record.id),
-                            **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model),
+                            **_pinned_memory_kwargs(run_turn, cwd, model=get_config().default_model, store=ctx.memory_store),
                         ),
                         _multiagent_teardown,
                     ),
@@ -3819,7 +3827,7 @@ def _extension_context(
         )
     attach_memory_tools(
         tools,
-        store=MemoryStore(cwd).bind(session_id=ctx.record.id),
+        store=open_memory_store(cwd, session_id=ctx.record.id),
         session_id=ctx.record.id,
     )
     return ctx
@@ -5208,9 +5216,12 @@ def recall_cmd(query: tuple[str, ...], json_out: bool, top_k: int, do_refresh: b
 
     recall_k = max(top_k * 3, top_k)
     code_hits = code_index.query(query_str, top_k=recall_k)
+    store = open_memory_store(cwd)
     try:
-        mem_hits = MemoryStore(cwd).recall(query_str, top_k=recall_k)
-    except Exception:  # noqa: BLE001 — missing/corrupt memory store must not kill code recall
+        mem_hits = store.recall(query_str, top_k=recall_k)
+    except Exception as exc:
+        if not isinstance(store, MemoryStore):
+            raise click.ClickException(str(exc)) from exc
         mem_hits = []
     # V21 (VGMEM-*): fuse the cross-project global corpus. Global hits carry a
     # `global:` locator prefix so they survive RRF dedup distinctly and render
