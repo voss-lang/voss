@@ -59,3 +59,10 @@ def test_render_includes_summary_and_turns():
         "content": "Conversation summary so far:\nprior context",
     }
     assert rendered[1] == {"role": "user", "content": "hello"}
+
+
+@pytest.mark.asyncio
+async def test_summarize_with_no_turns_returns_existing_summary():
+    em = EpisodicMemory(provider=StubProvider(), model="stub")
+    em.summary = "prior context"
+    assert await em.summarize() == "prior context"

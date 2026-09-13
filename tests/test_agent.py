@@ -123,3 +123,38 @@ async def test_agent_tool_schemas_reach_provider_call_history():
 
     assert await ToolAgent().run("find docs") == "used tool schema"
     assert provider.calls[0]["tools"] == [search.schema()]
+
+
+async def test_gather_empty_returns_empty_list():
+    assert await gather([]) == []
+
+
+async def test_agent_handle_cancel_marks_task_cancelled():
+    class SlowAgent(VossAgent):
+        async def run(self):
+            await asyncio.sleep(10)
+
+    handle = SlowAgent().spawn()
+    await handle.cancel()
+    assert handle.task.cancelled()
+
+
+async def test_provider_validation_error_becomes_parse_error():
+    from voss_runtime.exceptions import ParseError
+
+    class _Req(BaseModel):
+        x: int
+
+    class ValidationErrorProvider(StubProviderClass):
+        async def complete(self, **kwargs):
+            self.calls.append(kwargs)
+            _Req()  # missing required field -> pydantic ValidationError
+
+    register("agent-validation-error-model", ValidationErrorProvider())
+
+    class VErrAgent(VossAgent):
+        model = "agent-validation-error-model"
+        retries = 0
+
+    with pytest.raises(ParseError):
+        await VErrAgent().run("go")

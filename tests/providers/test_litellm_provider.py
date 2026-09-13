@@ -246,3 +246,31 @@ async def test_live_complete_returns_text(model):
         max_tokens=10,
     )
     assert out.text
+
+
+def test_response_format_param_passthrough_for_non_model():
+    from voss_runtime.providers.litellm_provider import _as_response_format_param
+
+    already = {"type": "json_schema"}
+    assert _as_response_format_param(already) is already
+
+
+async def test_complete_forwards_route_timeout_and_tools(monkeypatch):
+    captured = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_resp("ok")
+
+    monkeypatch.setattr("litellm.acompletion", fake_acompletion)
+
+    p = LiteLLMProvider(custom_llm_provider="ollama")
+    await p.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model="m",
+        timeout=5.0,
+        tools=[{"type": "function"}],
+    )
+    assert captured["custom_llm_provider"] == "ollama"
+    assert captured["timeout"] == 5.0
+    assert captured["tools"] == [{"type": "function"}]

@@ -42,7 +42,7 @@ class SemanticMatcher:
         else:
             self._embeddings = self._encode([c.description for c in self.cases])
 
-    def _ensure_encoder(self):
+    def _ensure_encoder(self):  # pragma: no cover - optional sentence-transformers extra; live-only
         if self._encoder is None:
             try:
                 from sentence_transformers import SentenceTransformer
@@ -57,7 +57,7 @@ class SemanticMatcher:
             self._encoder = SentenceTransformer(self.model_name)
         return self._encoder
 
-    def _encode(self, texts: list[str]) -> Any:
+    def _encode(self, texts: list[str]) -> Any:  # pragma: no cover - optional sentence-transformers extra; live-only
         np = _numpy()
         enc = self._ensure_encoder()
         vecs = enc.encode(texts, normalize_embeddings=True)

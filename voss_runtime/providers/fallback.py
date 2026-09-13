@@ -72,8 +72,8 @@ class FallbackProvider:
                 if i + 1 >= n or not is_retryable_error(e):
                     raise
                 await self._sleep(self._backoff(i))
-        assert last is not None  # loop body either returns or sets last
-        raise last
+        assert last is not None  # pragma: no cover - loop always returns or raises
+        raise last  # pragma: no cover
 
     async def stream(self, *, messages, model=None, **kw):
         # Retry is only safe before the first event is yielded. The live
@@ -98,8 +98,8 @@ class FallbackProvider:
             async for ev in agen:
                 yield ev
             return
-        if last is not None:
-            raise last
+        if last is not None:  # pragma: no cover - loop always returns or raises
+            raise last  # pragma: no cover
 
     def count_tokens(self, *, text, model=None) -> int:
         prov, m = self._candidates[0]
