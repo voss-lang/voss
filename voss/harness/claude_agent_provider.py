@@ -34,6 +34,26 @@ from voss_runtime.providers.base import ProviderResponse
 from . import telemetry
 from .providers import Done, ParsedPlan, ProviderStreamEvent, TextDelta, Usage
 
+# A wedged `claude` subprocess (auth stall, orphaned pipe) yields no SDK
+# message and would otherwise hang the turn forever. When the caller passes no
+# timeout, bound the wait for the NEXT event so a stall surfaces as an error.
+# Events stream continuously during a real turn, so this never trips on a
+# working call. Override with VOSS_CLAUDE_AGENT_TIMEOUT (seconds).
+_DEFAULT_INACTIVITY_TIMEOUT_S = 300.0
+
+
+def _default_inactivity_timeout() -> float:
+    raw = os.environ.get("VOSS_CLAUDE_AGENT_TIMEOUT")
+    if raw:
+        try:
+            value = float(raw)
+        except ValueError:
+            return _DEFAULT_INACTIVITY_TIMEOUT_S
+        if value > 0:
+            return value
+    return _DEFAULT_INACTIVITY_TIMEOUT_S
+
+
 _INSTALL_HINT = "claude-agent-sdk not installed — pip install 'voss[claude]'"
 _CLI_HINT = "claude CLI not found — npm install -g @anthropic-ai/claude-code"
 _LOGIN_HINT = "run `claude /login` in a terminal to connect your subscription"
@@ -224,19 +244,20 @@ class ClaudeAgentProvider:
 
         text_acc: list[str] = []
         result_msg: Any = None
+        inactivity_timeout = (
+            timeout if timeout is not None else _default_inactivity_timeout()
+        )
         it = aiter(query(prompt=prompt, options=options))
         try:
             while True:
                 try:
-                    if timeout:
-                        msg = await asyncio.wait_for(anext(it), timeout)
-                    else:
-                        msg = await anext(it)
+                    msg = await asyncio.wait_for(anext(it), inactivity_timeout)
                 except StopAsyncIteration:
                     break
                 except asyncio.TimeoutError:
                     raise RuntimeError(
-                        f"claude-agent call timed out after {timeout}s"
+                        f"claude-agent call timed out after {inactivity_timeout}s "
+                        "(no event from the claude subprocess)"
                     ) from None
                 except (RuntimeError, asyncio.CancelledError):
                     raise

@@ -373,6 +373,21 @@ async def test_timeout_raises_and_closes_generator() -> None:
     assert closed["flag"] is True
 
 
+@pytest.mark.asyncio
+async def test_default_inactivity_timeout_bounds_a_stalled_subprocess(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VOSS_CLAUDE_AGENT_TIMEOUT", "0.01")
+
+    async def slow_query(*, prompt, options):
+        await asyncio.sleep(60)
+        yield FakeResultMessage(usage=USAGE)
+
+    p = ClaudeAgentProvider(query_fn=slow_query)
+    with pytest.raises(RuntimeError, match="no event from the claude subprocess"):
+        await _drain(p)
+
+
 # ---------------------------------------------------------------------------
 # complete() parity
 # ---------------------------------------------------------------------------
