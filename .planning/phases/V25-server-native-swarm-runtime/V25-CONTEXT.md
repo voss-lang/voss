@@ -56,9 +56,9 @@ Downstream agents MUST read `V25-SPEC.md` before planning or implementing. Requi
 - `.planning/ROADMAP.md` § "Phase V25: Server-Native Swarm Runtime" — goal, supersede relationship, scope, out-of-scope, concurrency note, suggested waves.
 
 ### Superseded transport — design context + shipped artifacts to reuse
-- `.planning/phases/A13-voss-app-agent-swarm-orchestration/A13-CONTEXT.md` — file-bus design decisions D-01..D-22 (D-02/D-12 carried; D-03/D-20 reversed). The transport V25 supersedes.
-- `.planning/phases/A13-voss-app-agent-swarm-orchestration/A13-01-SUMMARY.md` — what A13-01 SHIPPED: `apps/voss-app/src/swarm/swarmTypes.ts` (camelCase `swarmId`/`resultFile`), Rust Tauri commands for `.voss/swarm/` writes + polling watcher + temp-rename manifest. These are the writers demoted to snapshot rendering (D-04).
-- `.planning/phases/A13-voss-app-agent-swarm-orchestration/A13-SPEC.md` — SWM-01..12; file protocol + directory schema retained as audit format.
+- `archive/voss-ade/planning/phases/A13-voss-app-agent-swarm-orchestration/A13-CONTEXT.md` — file-bus design decisions D-01..D-22 (D-02/D-12 carried; D-03/D-20 reversed). The transport V25 supersedes.
+- `archive/voss-ade/planning/phases/A13-voss-app-agent-swarm-orchestration/A13-01-SUMMARY.md` — what A13-01 SHIPPED: `apps/voss-app/src/swarm/swarmTypes.ts` (camelCase `swarmId`/`resultFile`), Rust Tauri commands for `.voss/swarm/` writes + polling watcher + temp-rename manifest. These are the writers demoted to snapshot rendering (D-04).
+- `archive/voss-ade/planning/phases/A13-voss-app-agent-swarm-orchestration/A13-SPEC.md` — SWM-01..12; file protocol + directory schema retained as audit format.
 
 ### V24 — Swarm Map consumer (V25 emits its plane)
 - `.planning/phases/V24-ade-product-revamp-swarm-observability/V24-CONTEXT.md` — Swarm Map data contract, `swarmReconcile` radial model (D-06/07), **honest-signal rule** (render only real events, never fake), identifiers stay `runId`/`RunData`.

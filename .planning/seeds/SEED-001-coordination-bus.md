@@ -53,7 +53,7 @@ Advisory-only (rogue agent can ignore — that's what tiers A/B are for); no del
 - `apps/voss-app/src/org/adopt.ts` — advisory budget+scope applied at adoption; claims make it checkable; tier-C consumers
 - `crates/voss-app-core/src/sandbox.rs` — `validate_scope` canonicalization/traversal logic to reuse for overlap detection
 - `.planning/PROTOCOL.md` + `contracts/events.schema.json` — event union the message event type joins
-- `.planning/phases/A13-voss-app-agent-swarm-orchestration/A13-SPEC.md` — SWM-04/05/06 file coordination that slice 2 supersedes
+- `archive/voss-ade/planning/phases/A13-voss-app-agent-swarm-orchestration/A13-SPEC.md` — SWM-04/05/06 file coordination that slice 2 supersedes
 - `.planning/phases/V10-voss-language-as-coordination-spec/V10-SPEC.md` — eventual `.voss` declaration could compile-to-config
 - V16 (Managed Docs) — delivery vehicle for conventions/verbs in the managed AGENTS.md section
 - `.planning/notes/seed-structured-pane-rendering.md` — sibling seed, same "panes as first-class Voss citizens" direction
