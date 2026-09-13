@@ -57,7 +57,7 @@ in the Observe package.
 | Principles/session-redaction guards | 13 passed |
 | Desktop `pnpm test` | 876 passed, 5 skipped |
 | Desktop `pnpm build` and `pnpm check:xterm-pin` | Passed; xterm 5.5.0 |
-| `cargo test -p voss-app-core` | 182 passed; isolated shell-spawn child check also passed |
+| `cargo test -p voss-app-core` (crate now archived under `archive/voss-ade/`) | 182 passed; isolated shell-spawn child check also passed |
 | `cargo check -p voss-app` | Passed |
 | Browser Playwright suite on port 5189 | 24 passed, 39 native-only checks skipped |
 | `.venv/bin/python scripts/check_contracts.py` | Passed |
@@ -89,7 +89,7 @@ Focused Python command, run from repository root:
 Browser checks used a dedicated Vite server, because port 5173 was occupied:
 
 ```sh
-# From apps/voss-app, separate terminals:
+# From archive/voss-ade/apps/voss-app (frozen), separate terminals:
 pnpm exec vite --host 127.0.0.1 --port 5189
 VOSS_APP_URL=http://127.0.0.1:5189 pnpm exec playwright test
 ```

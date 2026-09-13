@@ -2,16 +2,5 @@
   "name": "voss-monorepo",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.0.0",
-  "pnpm": {
-    "overrides": {
-      "@xterm/xterm": "5.5.0"
-    }
-  },
-  "dependencies": {
-    "@solidjs/router": "^0.16.1",
-    "chromadb": "^3.4.3",
-    "d3-force": "^3.0.0",
-    "litellm": "^0.12.0"
-  }
+  "packageManager": "pnpm@10.0.0"
 }

@@ -27,7 +27,7 @@ class AgentSpec:
     default_model: str | None = None
 
 
-# Mirrors MODEL_PRESETS in apps/voss-app/src/agents/modelPrefs.ts (binary == key)
+# Authoritative agent table (binary == key); ADE clients mirror it, not the reverse
 # Only Claude has a known-safe default model alias; the others let the local CLI
 # pick unless the role names a model explicitly
 AGENT_CATALOG: dict[str, AgentSpec] = {

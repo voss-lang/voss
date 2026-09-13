@@ -1,7 +1,7 @@
 # Shell integration (OSC 133 capture)
 
 `voss shell-init --shell zsh|bash|fish` prints a snippet that lets the Voss PTY
-reader (`crates/voss-app-core/src/pty/reader.rs`) see command boundaries,
+reader (`archive/voss-ade/crates/voss-app-core/src/pty/reader.rs`, frozen) see command boundaries,
 exit codes, cwd, and argv text in a terminal pane. It is the capture half of
 Observe (S3).
 
@@ -84,7 +84,7 @@ VOSS_EMBEDDED=1 zsh -c 'source <(voss shell-init --shell zsh); _voss_precmd; _vo
 # expect: ^[]133;A^G ^[]7;file://... ^[]133;C^G ^[]1337;voss-cmd={...}^G ^[]133;D;0^G
 ```
 
-Reader unit tests: `cargo test -p voss-app-core pty::` (scanner, tracker
+Reader unit tests lived in the archived app crate (scanner, tracker
 lifecycle, truncation head/tail, wire format).
 
 ## Enrollment and recovery
