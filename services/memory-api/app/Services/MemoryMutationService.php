@@ -13,10 +13,6 @@ class MemoryMutationService
 {
     public function __construct(private readonly MemorySearchIndex $searchIndex) {}
 
-    /**
-     * @param  array{kind: string, body: string, provenance?: array<string, mixed>|null}  $attributes
-     * @return array{memory: Memory, status: int}
-     */
     public function create(Project $project, string $idempotencyKey, array $attributes): array
     {
         return DB::transaction(function () use ($project, $idempotencyKey, $attributes): array {
@@ -50,10 +46,6 @@ class MemoryMutationService
         }, 3);
     }
 
-    /**
-     * @param  array{expected_revision: int, body?: string, pinned?: bool, superseded_by?: string|null}  $attributes
-     * @return array{memory: Memory, status: int}
-     */
     public function update(Project $project, string $memoryId, string $idempotencyKey, array $attributes): array
     {
         return DB::transaction(function () use ($project, $memoryId, $idempotencyKey, $attributes): array {
@@ -121,9 +113,6 @@ class MemoryMutationService
         }, 3);
     }
 
-    /**
-     * @return array{data: array{id: string, revision: int, status: string}, status: int}
-     */
     public function delete(Project $project, string $memoryId, string $idempotencyKey, int $expectedRevision): array
     {
         return DB::transaction(function () use ($project, $memoryId, $idempotencyKey, $expectedRevision): array {
@@ -199,9 +188,6 @@ class MemoryMutationService
         }
     }
 
-    /**
-     * @return array{memory: Memory, status: int}
-     */
     private function replayMemoryMutation(MutationReceipt $receipt, Project $project): array
     {
         $memory = Memory::query()
@@ -220,9 +206,6 @@ class MemoryMutationService
         return ['memory' => $memory, 'status' => $receipt->response_status];
     }
 
-    /**
-     * @return array{data: array{id: string, revision: int, status: string}, status: int}
-     */
     private function replayDelete(MutationReceipt $receipt): array
     {
         if ($receipt->resource_status !== Memory::STATUS_DELETED) {

@@ -267,9 +267,6 @@ class MemoryApiTest extends TestCase
         return $this->postJson('/v1/projects', $payload, $this->authHeaders());
     }
 
-    /**
-     * @param  array{kind?: string, body?: string, provenance?: array<string, mixed>}  $overrides
-     */
     private function createMemory(string $project, array $overrides, string $key): TestResponse
     {
         return $this->postJson(
@@ -279,17 +276,11 @@ class MemoryApiTest extends TestCase
         );
     }
 
-    /**
-     * @param  array{expected_revision: int, body?: string, pinned?: bool, superseded_by?: string|null}  $payload
-     */
     private function updateMemory(string $memoryId, array $payload, string $key): TestResponse
     {
         return $this->updateMemoryForProject('project-a', $memoryId, $payload, $key);
     }
 
-    /**
-     * @param  array{expected_revision: int, body?: string, pinned?: bool, superseded_by?: string|null}  $payload
-     */
     private function updateMemoryForProject(string $project, string $memoryId, array $payload, string $key): TestResponse
     {
         return $this->patchJson('/v1/projects/'.$project.'/memories/'.$memoryId, $payload, $this->authHeaders(['Idempotency-Key' => $key]));
@@ -305,9 +296,6 @@ class MemoryApiTest extends TestCase
         return $this->deleteJson('/v1/projects/'.$project.'/memories/'.$memoryId, ['expected_revision' => $revision], $this->authHeaders(['Idempotency-Key' => $key]));
     }
 
-    /**
-     * @param  array{kinds?: list<string>, top_k?: int}  $options
-     */
     private function searchMemory(string $project, string $query, array $options = []): TestResponse
     {
         return $this->postJson('/v1/projects/'.$project.'/search', array_merge(['query' => $query], $options), $this->authHeaders());
@@ -321,10 +309,6 @@ class MemoryApiTest extends TestCase
         return $id;
     }
 
-    /**
-     * @param  array<string, string>  $extra
-     * @return array<string, string>
-     */
     private function authHeaders(array $extra = []): array
     {
         return array_merge([

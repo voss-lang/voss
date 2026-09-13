@@ -1,9 +1,4 @@
-"""Project-scoped retained-memory routing for the harness.
-
-The gateway leaves turns, ledgers, code search, and the global corpus in the
-existing Python store.  When selected, Laravel owns only project notes,
-conventions, and decisions.
-"""
+"""Keep retained memory in Laravel and session history in the Python store."""
 
 from __future__ import annotations
 
@@ -49,7 +44,7 @@ class MemoryGatewayConfigurationError(MemoryGatewayError):
 
 @dataclass(frozen=True)
 class SavedMemoryReference:
-    """Truthful reference returned after a Laravel memory is acknowledged."""
+    """A remote locator, not a filesystem path."""
 
     id: str
     project_id: str
@@ -72,8 +67,6 @@ class SavedMemoryReference:
 
 
 class MemoryGateway:
-    """Compose Python history with a selected Laravel retained store."""
-
     backend = "laravel"
     uses_remote = True
 

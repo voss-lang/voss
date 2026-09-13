@@ -1,10 +1,4 @@
-"""Small synchronous client for the local Laravel memory API.
-
-The harness deliberately keeps this client independent from the Laravel
-runtime.  It only speaks the versioned HTTP contract and has no retry or
-service-starting behavior.  A caller that retries an ambiguous mutation must
-reuse the same idempotency key.
-"""
+"""Loopback memory API client; callers must reuse idempotency keys for retries."""
 
 from __future__ import annotations
 
@@ -148,29 +142,20 @@ def _validate_timeout(timeout: float) -> float:
 
 
 def _safe_error_message(message: str, token: str | None) -> str:
-    """Strip credentials and response noise from messages shown to callers."""
     text = str(message).replace("\r", " ").replace("\n", " ").strip()
     if token:
         text = text.replace(token, "<redacted>")
-    # Bearer strings may be included in a proxy's error body even when the
-    # configured token was transformed or truncated by that proxy.
+    # Redact transformed bearer values as well as the configured token.
     text = re.sub(r"(?i)bearer\s+[^\s,;]+", "Bearer <redacted>", text)
     return text[:512] or "memory API request failed"
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
 
 class MemoryApiClient:
-    """Synchronous local HTTP client for the Laravel retained-memory API.
-
-    ``opener`` is a small test seam.  It must expose ``open(request,
-    timeout=...)`` and return an ``HTTPResponse``-like object.  The default
-    opener disables redirects before any request is sent.
-    """
-
     def __init__(
         self,
         base_url: str,
