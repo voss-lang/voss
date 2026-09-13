@@ -74,3 +74,4 @@ def test_live_real_encoder():
         threshold=0.5,
     )
     assert matcher.match("I want a refund") == "refund"
+

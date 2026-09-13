@@ -57,3 +57,20 @@ async def test_nested_scopes_restore_outer():
         async with BudgetScope(token_limit=50, name="inner") as inner:
             assert current_budget() is inner
         assert current_budget() is outer
+
+
+@pytest.mark.asyncio
+async def test_check_raises_when_latency_budget_exceeded():
+    async with BudgetScope(latency_ms=1, name="lat") as bs:
+        await asyncio.sleep(0.02)
+        with pytest.raises(BudgetExceededError) as exc_info:
+            bs.check()
+    assert exc_info.value.reason == "latency"
+
+
+@pytest.mark.asyncio
+async def test_run_with_budget_without_latency_returns_value():
+    async def work():
+        return 42
+
+    assert await run_with_budget(work(), token_limit=100) == 42

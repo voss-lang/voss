@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from pydantic import BaseModel
 
 from voss_runtime.providers.stub import StubProvider
@@ -75,3 +76,31 @@ def test_default_summarizer_shrinks_text():
     assert len(out) == 40
     out2 = p.summarizer(text, 1)
     assert len(out2) == 16
+
+
+async def test_non_plan_schema_reraises_validation_error():
+    from pydantic import BaseModel
+
+    from voss_runtime.providers.stub import StubProvider
+
+    class NotPlan(BaseModel):
+        answer: int
+
+    stub = StubProvider(default_response="not a number")
+    with pytest.raises(Exception):
+        await stub.complete(
+            messages=[{"role": "user", "content": "hi"}],
+            model="m",
+            response_format=NotPlan,
+        )
+
+
+def test_fallback_payload_returns_none_for_non_plan_schema():
+    from pydantic import BaseModel
+
+    from voss_runtime.providers.stub import _fallback_payload_for_schema
+
+    class NotPlan(BaseModel):
+        answer: int
+
+    assert _fallback_payload_for_schema(NotPlan, "x") is None

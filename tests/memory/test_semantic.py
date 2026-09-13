@@ -47,3 +47,46 @@ def test_semantic_memory_live_local_fallback(tmp_path):
     results = mem.retrieve("what language do programmers use?", top_k=2)
     assert results
     assert "python" in results[0].lower()
+
+
+def test_ingest_source_indexes_text_files(tmp_path, monkeypatch):
+    embed_fn = _default_embed_fn()
+    if embed_fn is None:
+        pytest.skip("chromadb DefaultEmbeddingFunction unavailable")
+
+    from voss_runtime.memory.semantic import SemanticMemory
+
+    monkeypatch.setattr(SemanticMemory, "_embedding_function", lambda self: embed_fn)
+
+    src = tmp_path / "docs"
+    src.mkdir()
+    (src / "a.md").write_text("python is a programming language for developers")
+    (src / "b.rst").write_text("paris is the capital of france")
+    (src / "c.bin").write_text("ignored non-text content")
+
+    try:
+        mem = SemanticMemory(source=str(src), persist_dir=str(tmp_path / "chroma"))
+    except Exception as e:
+        pytest.skip(f"SemanticMemory init failed (likely needs network): {e}")
+
+    results = mem.retrieve("what language do programmers use?", top_k=1)
+    assert results
+    assert "python" in results[0].lower()
+
+
+def test_ingest_source_missing_path_is_noop(tmp_path, monkeypatch):
+    embed_fn = _default_embed_fn()
+    if embed_fn is None:
+        pytest.skip("chromadb DefaultEmbeddingFunction unavailable")
+
+    from voss_runtime.memory.semantic import SemanticMemory
+
+    monkeypatch.setattr(SemanticMemory, "_embedding_function", lambda self: embed_fn)
+    try:
+        mem = SemanticMemory(
+            source=str(tmp_path / "does-not-exist"),
+            persist_dir=str(tmp_path / "chroma"),
+        )
+    except Exception as e:
+        pytest.skip(f"SemanticMemory init failed: {e}")
+    assert mem.retrieve("anything", top_k=1) == []

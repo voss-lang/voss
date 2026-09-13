@@ -78,3 +78,24 @@ async def test_budget_scope_composition():
         cs = ContextScope(token_budget=10000, provider=stub, model="stub-model")
         await cs.ask("say hi")
         assert bs.tokens_so_far > 0
+
+
+@pytest.mark.asyncio
+async def test_default_compressor_compresses_summarize_slot_and_skips_others():
+    stub = StubProvider(default_response="tiny")
+    cs = ContextScope(token_budget=10, provider=stub, model="stub-model")
+    await cs.add("x" * 400, compression="none")
+    await cs.add("y" * 400, compression="summarize")
+    assert any(slot.content == "tiny" for slot in cs.slots)
+    assert any(slot.compression == "none" for slot in cs.slots)
+
+
+@pytest.mark.asyncio
+async def test_compression_breaks_once_under_budget():
+    stub = StubProvider(default_response="t")
+    cs = ContextScope(token_budget=250, provider=stub, model="stub-model")
+    await cs.add("a" * 400, compression="summarize")
+    await cs.add("b" * 400, compression="summarize")
+    await cs.add("c" * 400, compression="summarize")
+    assert cs.tokens_used <= cs.token_budget
+    assert any(slot.content != "t" for slot in cs.slots)

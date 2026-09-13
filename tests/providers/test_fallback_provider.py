@@ -95,3 +95,54 @@ def test_primary_model_and_candidates() -> None:
 def test_empty_candidates_rejected() -> None:
     with pytest.raises(ValueError):
         FallbackProvider([])
+
+
+class _EmptyStreamProvider:
+    async def stream(self, *, messages, model, **kw):
+        if False:  # pragma: no cover - makes this an async generator that yields nothing
+            yield None
+
+    async def complete(self, *, messages, model, **kw):
+        return _resp(model)
+
+    def count_tokens(self, *, text, model) -> int:
+        return len(text)
+
+
+class _MultiEventProvider:
+    async def stream(self, *, messages, model, **kw):
+        yield ("a", model)
+        yield ("b", model)
+
+    async def complete(self, *, messages, model, **kw):
+        return _resp(model)
+
+    def count_tokens(self, *, text, model) -> int:
+        return len(text)
+
+
+@pytest.mark.asyncio
+async def test_stream_returns_when_first_candidate_is_empty() -> None:
+    fb = FallbackProvider([(_EmptyStreamProvider(), "m1")], sleep=_nosleep)
+    events = [ev async for ev in fb.stream(messages=[], model="x")]
+    assert events == []
+
+
+@pytest.mark.asyncio
+async def test_stream_reraises_non_retryable_error() -> None:
+    p1 = _StubProvider(error=ProviderError("m1: 400 bad request"))
+    fb = FallbackProvider([(p1, "m1")], sleep=_nosleep)
+    with pytest.raises(ProviderError):
+        [ev async for ev in fb.stream(messages=[], model="x")]
+
+
+@pytest.mark.asyncio
+async def test_stream_yields_events_after_the_first() -> None:
+    fb = FallbackProvider([(_MultiEventProvider(), "m1")], sleep=_nosleep)
+    events = [ev async for ev in fb.stream(messages=[], model="x")]
+    assert events == [("a", "m1"), ("b", "m1")]
+
+
+def test_count_tokens_delegates_to_primary_candidate() -> None:
+    fb = FallbackProvider([(_StubProvider(), "m1"), (_StubProvider(), "m2")])
+    assert fb.count_tokens(text="hello") == 5
