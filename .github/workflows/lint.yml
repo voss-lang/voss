@@ -48,7 +48,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install Voss Python package (the SDK tests spawn voss serve)
-        run: pip install -e .
+        run: pip install -e ".[server]"
       - run: pnpm install --frozen-lockfile
       - run: pnpm -C sdk/typescript typecheck
       - run: pnpm -C sdk/typescript test
