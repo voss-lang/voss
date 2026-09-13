@@ -20,7 +20,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
 
@@ -684,10 +684,11 @@ def create_app(token: str | None = None) -> FastAPI:
         s = _require(session_id)
         return {"v": 1, "id": s.id, "cwd": str(s.cwd), "model": s.model, "title": s.title, "busy": s.busy}
 
-    @app.delete("/session/{session_id}", status_code=204)
-    def delete_session(session_id: str) -> None:
+    @app.delete("/session/{session_id}", status_code=204, response_class=Response)
+    def delete_session(session_id: str) -> Response:
         if not mgr.delete(session_id):
             raise HTTPException(404, "session not found")
+        return Response(status_code=204)
 
     @app.post("/session/{session_id}/message", status_code=202)
     async def post_message(session_id: str, body: MessageBody) -> dict:
