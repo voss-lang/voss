@@ -14,8 +14,22 @@ See `docs/architecture/0004-voss-ade-repository-split.md` for the boundary.
 | `crates/voss-app-core/` | Rust core the Tauri shell called: PTY reader (OSC 133/1337 capture), session and layout persistence, sidecar launch |
 | `docs/` | App-only docs and screenshots that used to live in `docs/` and the repo root |
 
-Planning history for the A-track and ADE-facing V-track phases is added under
-`planning/` by the follow-up docs PR.
+## Planning history under `planning/`
+
+Superseded by ADR 0004 (`docs/architecture/0004-voss-ade-repository-split.md`).
+Moved from `.planning/` on 2026-09-12:
+
+| Path here | Was |
+|---|---|
+| `planning/phases/A1..A13-voss-app-*`, `999.1-*`, `999.2-*` | The A-track: Tauri shell, PTY panes, grid, layouts, project open, session persistence, command palette, workspaces, settings, status bar, visual redesign, swarm orchestration, plus the two 999 fixups |
+| `planning/phases/E5-tui-voss-app-autonomous-driving` | Autonomous-driving eval phase for the desktop app |
+| `planning/phases/V11-ade-org-integration`, `V14-ade-run-cockpit-*`, `V24-ade-product-revamp-swarm-observability` | ADE cockpit and product-revamp phases |
+| `planning/research/voss-ade/`, `planning/research/ade-ui-design-contract-research.md` | ADE terminal, workspace, attention, review, security, and UI-contract research |
+| `planning/ADE-REDESIGN.md`, `VOSS-ADE-DEEP-DIVE-JUL19.md`, `VOSS-OBSERVE-IMPLEMENTATION-BRIEF.md`, `CANVAS-OBSERVE-INSTRUCTIONS-PLAN.md` | ADE redesign, deep dive, and the observe/canvas implementation plans |
+| `planning/notes/plan-grid-drag-rearrange.md`, `seed-structured-pane-rendering.md` | Grid and pane-rendering notes |
+
+`V15-live-plane-integration` stayed in active planning: its live SSE event plane
+is engine work the ADE consumes, not desktop code.
 
 ## Nothing here is built
 
