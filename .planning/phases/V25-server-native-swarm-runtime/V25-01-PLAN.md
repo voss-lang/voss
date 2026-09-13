@@ -93,7 +93,7 @@ lock + `open(path, "a")` + `json.dumps(evt) + "\n"`. Mirror this for the swarm e
     - voss/harness/memory_store.py (lines 600-640 recall, the write_turn append+portalocker pattern, Hit dataclass at :43-45)
     - voss/harness/session.py (SessionRecord.new id form `uuid4().hex[:12]`, `.voss/` save discipline)
     - .planning/phases/V25-server-native-swarm-runtime/V25-RESEARCH.md (Pattern 5 JSONL event log, event envelope schema, replay algorithm; Pitfall — never rewrite JSONL in place)
-    - .planning/phases/A13-voss-app-agent-swarm-orchestration/A13-SPEC.md (`.voss/swarm/<id>/` directory schema retained as audit format)
+    - archive/voss-ade/planning/phases/A13-voss-app-agent-swarm-orchestration/A13-SPEC.md (`.voss/swarm/<id>/` directory schema retained as audit format)
   </read_first>
   <behavior>
     - Test: `SwarmStore.create(goal=...)` then `add_task` x2 then `SwarmStore.replay(swarm_id)` from events.jsonl ALONE reconstructs identical Swarm (same tasks, same roster, same goal) — `test_replay_reconstructs_state`.
@@ -143,7 +143,7 @@ lock + `open(path, "a")` + `json.dumps(evt) + "\n"`. Mirror this for the swarm e
 <task type="auto">
   <name>Task 3: Author the three role-prompt templates</name>
   <read_first>
-    - .planning/phases/A13-voss-app-agent-swarm-orchestration/A13-CONTEXT.md (Coordinator Flow section — the behavioral spec the coordinator prompt is authored FROM)
+    - archive/voss-ade/planning/phases/A13-voss-app-agent-swarm-orchestration/A13-CONTEXT.md (Coordinator Flow section — the behavioral spec the coordinator prompt is authored FROM)
     - .planning/phases/V25-server-native-swarm-runtime/V25-CONTEXT.md (D-05 versioned templates; D-01 coordinator is a full ServerSession that seeds tasks + emits swarm.assign)
     - .planning/phases/V25-server-native-swarm-runtime/V25-RESEARCH.md (Open Question 1: BridgeSwarm playbook ABSENT on disk — author fresh, do NOT plan a "copy recovered playbook" step)
   </read_first>

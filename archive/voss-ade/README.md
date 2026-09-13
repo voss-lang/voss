@@ -14,8 +14,22 @@ See `docs/architecture/0004-voss-ade-repository-split.md` for the boundary.
 | `crates/voss-app-core/` | Rust core the Tauri shell called: PTY reader (OSC 133/1337 capture), session and layout persistence, sidecar launch |
 | `docs/` | App-only docs and screenshots that used to live in `docs/` and the repo root |
 
-Planning history for the A-track and ADE-facing V-track phases is added under
-`planning/` by the follow-up docs PR.
+## Planning history under `planning/`
+
+Superseded by ADR 0004 (`docs/architecture/0004-voss-ade-repository-split.md`).
+Moved from `.planning/` on 2026-09-12:
+
+| Path here | Was |
+|---|---|
+| `planning/phases/A1..A13-voss-app-*`, `999.1-*`, `999.2-*` | The A-track: Tauri shell, PTY panes, grid, layouts, project open, session persistence, command palette, workspaces, settings, status bar, visual redesign, swarm orchestration, plus the two 999 fixups |
+| `planning/phases/E5-tui-voss-app-autonomous-driving` | Autonomous-driving eval phase for the desktop app |
+| `planning/phases/V11-ade-org-integration`, `V14-ade-run-cockpit-*`, `V24-ade-product-revamp-swarm-observability` | ADE cockpit and product-revamp phases |
+| `planning/research/voss-ade/`, `planning/research/ade-ui-design-contract-research.md` | ADE terminal, workspace, attention, review, security, and UI-contract research |
+| `planning/ADE-REDESIGN.md`, `VOSS-ADE-DEEP-DIVE-JUL19.md`, `VOSS-OBSERVE-IMPLEMENTATION-BRIEF.md`, `CANVAS-OBSERVE-INSTRUCTIONS-PLAN.md` | ADE redesign, deep dive, and the observe/canvas implementation plans |
+| `planning/notes/plan-grid-drag-rearrange.md`, `seed-structured-pane-rendering.md` | Grid and pane-rendering notes |
+
+`V15-live-plane-integration` stayed in active planning: its live SSE event plane
+is engine work the ADE consumes, not desktop code.
 
 ## Nothing here is built
 
@@ -36,3 +50,22 @@ To build any of it, check out `794b9f13` or earlier.
 The code stays greppable and cherry-pickable by path for the separate ADE
 repository, and the history behind every decision in the app stays attached
 to the files it shaped.
+
+## Integrating from the new ADE repository
+
+Everything the ADE needs is a released Voss executable, a compatible SDK, and
+the protocol. No Voss source checkout at runtime.
+
+- **Launch.** Set `VOSS_BIN` or pass an explicit executable to the SDK. It runs
+  `<voss> serve --port 0`, reads the one-line `{"v":1,"port":...,"token":...}`
+  handshake from stdout, and holds stdin open as a heartbeat.
+- **Protocol.** `docs/protocol.md`, wire version `v = 1`. Machine-checkable
+  contracts: `contracts/openapi.json`, `contracts/events.schema.json`, plus
+  `decision-ledger`, `outcomes`, and `observe-events` schemas.
+- **SDKs.** Rust: the `voss-sdk` crate. TypeScript: `@vosslang/sdk` for the
+  client, `@vosslang/sdk/node` for the `VossLauncher`. Go: `sdk/go`.
+- **Not provided by Voss.** PTYs, tmux, xterm, canvas, layouts, themes,
+  keymaps, and the app's local SQLite. Terminal and pane sessions never
+  round-trip through Voss.
+- **Model presets.** `voss/harness/swarm_agents.py` holds the authoritative
+  agent table. The ADE's `modelPrefs.ts` mirrors it, not the reverse.

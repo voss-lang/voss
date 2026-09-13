@@ -45,7 +45,7 @@ func TestTypesAreUpToDate(t *testing.T) {
 // TestDecodeCoversAllServerEventTypes drives the live Python server module to
 // enumerate the AgentEvent union's `type` strings and asserts the full
 // 29-member set is present (including principles_overflow, which is in
-// events.py but absent from PROTOCOL.md. 's
+// events.py but absent from docs/protocol.md. 's
 // Decode() switch must cover this exact set. Skips when no interpreter is
 // available.
 func TestDecodeCoversAllServerEventTypes(t *testing.T) {

@@ -18,7 +18,7 @@
 
 Voss makes probabilistic values, context windows, and per-call budgets first-class so that AI-augmented code is auditable and predictable instead of vibes-based.
 
-Voss v0.1 ships as a Python harness plus the `.voss` workflow-control language. A native Rust shell is preserved in `crates/` as a frozen spike and stays out of the v0.1 ship path — npm (M6) distributes the same Python harness with a vendored interpreter.
+Voss v0.1 ships as a Python harness and the `.voss` workflow-control language, a local `voss serve` API (REST + SSE, `docs/protocol.md`), a thin Rust TUI, and client SDKs in `sdk/` and `crates/voss-sdk`. npm (M6) distributes the same Python harness with a vendored interpreter. A separate Voss ADE desktop application integrates through the local protocol; the original in-repo app is frozen under `archive/voss-ade/` (`docs/architecture/0004-voss-ade-repository-split.md`).
 
 ## What is .voss
 
@@ -104,7 +104,7 @@ pip install -e ".[dev]"
 
 ### Roadmap notes
 
-`npm i -g @vosslang/cli` ships v0.1 with M6 (the npm wrapper bundles a pinned Python 3.12 + the v0.1 wheel; `pip install voss` remains supported). A native Rust shell and Homebrew distribution stay deferred until dogfood signals demand them.
+`npm i -g @vosslang/cli` ships v0.1 with M6 (the npm wrapper bundles a pinned Python 3.12 + the v0.1 wheel; `pip install voss` remains supported). Homebrew distribution stays deferred until dogfood signals demand it.
 
 ## First run · `voss login`
 

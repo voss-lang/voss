@@ -1,7 +1,7 @@
 """Protocol event models (HYBRID-REFACTOR-PLAN H1.2).
 
 Pydantic v2 discriminated union mirroring the wire contract in
-`.planning/PROTOCOL.md` §6. Each member's `type` literal is BOTH the SSE
+`docs/protocol.md` §6. Each member's `type` literal is BOTH the SSE
 `event:` name and the serde discriminator. The core 13 mirror the existing
 `JsonRenderer` emit shapes (`voss/harness/render.py:493-567`) field-for-field
 so the server emits exactly what the harness already produces; the rest are
@@ -23,7 +23,7 @@ PROTOCOL_VERSION = 1
 
 
 class _Base(BaseModel):
-    """Shared envelope. `v` is the protocol version (PROTOCOL.md §1)."""
+    """Shared envelope. `v` is the protocol version (docs/protocol.md §1)."""
 
     model_config = ConfigDict(extra="ignore")
     v: int = PROTOCOL_VERSION
