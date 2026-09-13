@@ -49,6 +49,7 @@ class ServerSession:
     # cognition_schemas into sessions.py
     # Tasks assigned by orchestraotr per init sys prompt
     swarm_policy: Any = None
+    memory_store: Any = None
 
     @property
     def busy(self) -> bool:

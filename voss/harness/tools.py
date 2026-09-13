@@ -194,7 +194,10 @@ def attach_memory_tools(
         if not query:
             return "<error: empty query>"
         try:
-            hits = store.recall(query, top_k=top_k, source=source)
+            if isinstance(store, MemoryStore):
+                hits = store.recall(query, top_k=top_k, source=source)
+            else:
+                hits = await asyncio.to_thread(store.recall, query, top_k=top_k, source=source)
         except Exception as exc:  # noqa: BLE001 — recall must not crash the turn
             return f"<error: recall failed: {exc}>"
         if external_service is not None:
@@ -256,7 +259,10 @@ def attach_memory_tools(
         if not text:
             return "<error: empty note>"
         try:
-            path = store.write_note(text, session_id=session_id)
+            if isinstance(store, MemoryStore):
+                path = store.write_note(text, session_id=session_id)
+            else:
+                path = await asyncio.to_thread(store.write_note, text, session_id=session_id)
         except Exception as exc:  # noqa: BLE001 — persistence failure is recoverable
             return f"<error: {exc}>"
         return f"remembered: {path.name}"

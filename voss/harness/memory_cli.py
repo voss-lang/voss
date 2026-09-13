@@ -17,6 +17,7 @@ import portalocker
 from . import voss_md
 from .cognition import reserve_filename, slug
 from .memory_store import MemoryStore, _repo_id, make_global_store, make_id
+from .memory_gateway import open_memory_store
 
 
 _PROMOTABLE_SOURCES = {
@@ -88,6 +89,16 @@ def _remove_existing_promotions(gstore: MemoryStore, source_dir: str, provenance
             continue
 
 
+def _legacy_project_store(cwd: Path) -> MemoryStore:
+    store = open_memory_store(cwd)
+    if not isinstance(store, MemoryStore):
+        raise click.ClickException(
+            "This administrative command is not yet available for Laravel memory. "
+            "Use the memory service API; legacy project files were not changed."
+        )
+    return store
+
+
 @click.group("memory")
 def memory_group() -> None:
     """Manage Voss project memory store."""
@@ -116,7 +127,7 @@ def memory_vacuum_cmd(cwd_str: str, use_global: bool) -> None:
             sys.exit(1)
     else:
         cwd = Path(cwd_str).resolve()
-        store = MemoryStore(cwd)
+        store = _legacy_project_store(cwd)
         if not store.root.exists():
             click.echo(f"no memory store at {store.root}", err=True)
             sys.exit(1)
@@ -182,7 +193,7 @@ def memory_adopt_cmd(cwd_str: str, fence_id: str) -> None:
 def memory_promote_cmd(locator: str | None, cwd_str: str, list_only: bool) -> None:
     """Copy a project memory entry into the global store with provenance tag."""
     cwd = Path(cwd_str).resolve()
-    store = MemoryStore(cwd)
+    store = _legacy_project_store(cwd)
 
     if list_only:
         for source in ("notes", "decisions", "conventions"):
@@ -284,7 +295,7 @@ def memory_forget_cmd(locator: str, use_global: bool, confirm: bool, cwd_str: st
             sys.exit(1)
         store.root.mkdir(parents=True, exist_ok=True)
     else:
-        store = MemoryStore(Path(cwd_str).resolve())
+        store = _legacy_project_store(Path(cwd_str).resolve())
     n = store.forget(locator, confirm=confirm)
     click.echo(f"tombstoned: {n} entries")
 
@@ -300,7 +311,7 @@ def memory_forget_cmd(locator: str, use_global: bool, confirm: bool, cwd_str: st
 def memory_size_cmd(cwd_str: str) -> None:
     """Report memory store size per source."""
     cwd = Path(cwd_str).resolve()
-    store = MemoryStore(cwd)
+    store = _legacy_project_store(cwd)
     root = store.root
     if not root.exists():
         click.echo("no memory store", err=True)
@@ -337,7 +348,7 @@ def _memory_store_for(cwd_str: str, use_global: bool) -> MemoryStore:
             sys.exit(1)
         store.root.mkdir(parents=True, exist_ok=True)
         return store
-    store = MemoryStore(Path(cwd_str).resolve())
+    store = _legacy_project_store(Path(cwd_str).resolve())
     if not store.root.exists():
         click.echo(f"no memory store at {store.root}", err=True)
         sys.exit(1)
