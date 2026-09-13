@@ -2,7 +2,7 @@
 # check-native-embedding-refs.sh — references-resolve gate for docs/native-embedding.md (VSDK-C-06).
 #
 # Enumerates every path the doc cites and verifies it resolves:
-#   - ALWAYS-EXPECTED-NOW  : .planning/PROTOCOL.md, docs/sdk.md  -> missing = hard FAIL (exit 1).
+#   - ALWAYS-EXPECTED-NOW  : docs/protocol.md, docs/sdk.md  -> missing = hard FAIL (exit 1).
 #   - UPSTREAM-GATED       : contracts/openapi.json + contracts/events.schema.json (V13.1),
 #                            docs/ORCHESTRATION_LAYERS.md (V13)  -> while any is absent, WARN-SKIP (exit 0),
 #                            because the doc is authored against to-be-committed artifacts (D-02/D-04).
@@ -15,7 +15,7 @@ set -u
 root=$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))
 cd "$root" || { echo "FATAL: cannot cd to repo root"; exit 2; }
 
-always_expected=".planning/PROTOCOL.md docs/sdk.md"
+always_expected="docs/protocol.md docs/sdk.md"
 upstream_gated="contracts/openapi.json contracts/events.schema.json docs/ORCHESTRATION_LAYERS.md"
 
 fail=0
