@@ -47,9 +47,16 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - run: pip install -e ".[dev]"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - name: Cache the chroma ONNX embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/chroma
+          key: chroma-onnx-${{ runner.os }}-v1
+      - run: uv pip install --system -e ".[dev]"
       - name: voss check harness sources (M4 DOG-06)
         run: python -m voss.cli check voss/harness/agent/
       - run: python -m voss.cli check voss-demos/
@@ -70,6 +77,9 @@ jobs:
           PYTEST_MARKERS: ${{ github.event_name == 'pull_request' && 'not live and not slow' || 'not live' }}
           PYTHONFAULTHANDLER: "1"
           VOSS_EXIT_DIAG: "1"
+          # litellm fetches its model-cost map over the network on import;
+          # force the bundled local map so tests never wait on that request.
+          LITELLM_LOCAL_MODEL_COST_MAP: "true"
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
