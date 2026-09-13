@@ -1,0 +1,24 @@
+{
+  "id": "98f623df637a",
+  "name": "py-session",
+  "cwd": "/Users/benjaminmarks/Projects/Voss",
+  "model": "claude-sonnet-4-5",
+  "started_at": "2026-09-13T00:20:49+00:00",
+  "updated_at": "2026-09-13T00:20:49+00:00",
+  "total_cost_usd": 0.0,
+  "turns": [
+    {
+      "role": "user",
+      "content": "hi"
+    },
+    {
+      "role": "assistant",
+      "content": "ok"
+    }
+  ],
+  "runs": [],
+  "parent_id": null,
+  "parent_turn_index": null,
+  "instructions_hash": "2cb33835efd3c126af8496c2fcb9228091400aa6b61bd33d885cc45c83b029ef",
+  "instructions_files": []
+}

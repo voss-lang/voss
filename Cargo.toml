@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["archive"]
 members = [
     "crates/voss-cli",
     "crates/voss-agent",
@@ -8,10 +9,8 @@ members = [
     "crates/voss-tools",
     "crates/voss-render",
     "crates/voss-bridge",
-    "crates/voss-app-core",
     "crates/voss-tui",
     "crates/voss-sdk",
-    "apps/voss-app/src-tauri",
 ]
 
 [workspace.package]
