@@ -23,6 +23,7 @@ Known tradeoffs:
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Optional
@@ -49,7 +50,8 @@ def _default_inactivity_timeout() -> float:
             value = float(raw)
         except ValueError:
             return _DEFAULT_INACTIVITY_TIMEOUT_S
-        if value > 0:
+        # A finite positive value only: inf passes `> 0` but gives no deadline.
+        if math.isfinite(value) and value > 0:
             return value
     return _DEFAULT_INACTIVITY_TIMEOUT_S
 

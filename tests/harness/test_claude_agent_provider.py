@@ -388,6 +388,17 @@ async def test_default_inactivity_timeout_bounds_a_stalled_subprocess(
         await _drain(p)
 
 
+@pytest.mark.parametrize("bad", ["inf", "-inf", "nan", "0", "-5", "abc", ""])
+def test_non_finite_or_nonpositive_timeout_falls_back_to_default(monkeypatch, bad):
+    from voss.harness.claude_agent_provider import (
+        _DEFAULT_INACTIVITY_TIMEOUT_S,
+        _default_inactivity_timeout,
+    )
+
+    monkeypatch.setenv("VOSS_CLAUDE_AGENT_TIMEOUT", bad)
+    assert _default_inactivity_timeout() == _DEFAULT_INACTIVITY_TIMEOUT_S
+
+
 # ---------------------------------------------------------------------------
 # complete() parity
 # ---------------------------------------------------------------------------
