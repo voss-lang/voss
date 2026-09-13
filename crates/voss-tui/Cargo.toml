@@ -27,6 +27,7 @@ reqwest = { workspace = true, features = ["stream"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
+voss-sdk = { path = "../voss-sdk" }
 crossterm = { workspace = true, features = ["event-stream"] }
 # ratatui 0.29 tracks crossterm 0.28 (the workspace pin) — no second crossterm.
 ratatui = "0.29"

@@ -6,7 +6,8 @@ import { createVossClient, type VossClient } from "../client/rest";
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 
 export interface VossLauncherOptions {
-  python?: string;
+  /** Path to the `voss` executable. Falls back to `VOSS_BIN`, then `voss` on PATH. */
+  executable?: string;
   cwd?: string;
 }
 
@@ -36,9 +37,9 @@ export class VossLauncher {
       throw new Error("voss serve is already running for this launcher");
     }
 
-    const python = options.python ?? process.env.PYTHON_BIN ?? "python3";
+    const executable = options.executable ?? process.env.VOSS_BIN ?? "voss";
     const cwd = options.cwd ?? process.cwd();
-    const child = spawn(python, ["-m", "voss.cli", "serve"], {
+    const child = spawn(executable, ["serve"], {
       cwd,
       env: process.env,
       stdio: ["pipe", "pipe", "inherit"],
