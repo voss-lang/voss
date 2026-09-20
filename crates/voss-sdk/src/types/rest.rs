@@ -133,3 +133,39 @@ pub struct SwarmCreated {
     #[serde(default)]
     pub sessions: Vec<SwarmRole>,
 }
+
+/// One task in a swarm's plan, as `GET /swarm/{id}` reports it.
+///
+/// `state` is the store's own vocabulary: `open`, `assigned`, `candidate_ready`
+/// or `done`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SwarmTask {
+    pub id: String,
+    #[serde(default)]
+    pub goal: String,
+    #[serde(default)]
+    pub owned_files: Vec<String>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub candidate_branch: Option<String>,
+    #[serde(default)]
+    pub candidate_worktree: Option<String>,
+    #[serde(default)]
+    pub candidate_head: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Swarm {
+    pub id: String,
+    #[serde(default)]
+    pub goal: String,
+    #[serde(default)]
+    pub cwd: String,
+    #[serde(default)]
+    pub roster: Vec<RoleSpec>,
+    #[serde(default)]
+    pub tasks: Vec<SwarmTask>,
+}

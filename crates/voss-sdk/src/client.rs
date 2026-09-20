@@ -4,7 +4,7 @@ use std::time::Duration;
 use reqwest::{RequestBuilder, StatusCode};
 
 use crate::error::VossError;
-use crate::types::rest::{CostInfo, DoctorReport, RoleSpec, SavedSession, SwarmCreated};
+use crate::types::rest::{CostInfo, DoctorReport, RoleSpec, SavedSession, Swarm, SwarmCreated};
 
 const REST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -218,6 +218,40 @@ impl VossClient {
             .await?;
         let resp = ok_or_detail(resp).await?;
         resp.json().await.map_err(VossError::Http)
+    }
+
+    /// GET /swarm/:id - the swarm with its roster and the state of every task
+    pub async fn swarm(&self, swarm_id: &str) -> Result<Swarm, VossError> {
+        let resp = self
+            .auth(self.inner.get(format!("{}/swarm/{}", self.base, swarm_id)))
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
+        let resp = ok_or_detail(resp).await?;
+        let v: serde_json::Value = resp.json().await?;
+        let swarm = v
+            .get("swarm")
+            .cloned()
+            .ok_or_else(|| VossError::Decode("swarm: no swarm in response".into()))?;
+        serde_json::from_value(swarm).map_err(|e| VossError::Decode(e.to_string()))
+    }
+
+    /// POST /swarm/:id/run - drive the swarm's CLI members
+    ///
+    /// Fire and forget: the server returns once the run is scheduled and reports
+    /// progress over the session event stream. A swarm with no tasks is seeded
+    /// from its goal first, so this is what starts work after `create_swarm`.
+    pub async fn run_swarm(&self, swarm_id: &str) -> Result<(), VossError> {
+        let resp = self
+            .auth(
+                self.inner
+                    .post(format!("{}/swarm/{}/run", self.base, swarm_id)),
+            )
+            .timeout(REST_TIMEOUT)
+            .send()
+            .await?;
+        ok_or_detail(resp).await?;
+        Ok(())
     }
 
     /// GET /doctor - server-side diagnostics
