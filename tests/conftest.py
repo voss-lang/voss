@@ -79,11 +79,35 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int):
         if snapshot_plugin is not None and original_save_svg_diffs is not None:
             snapshot_plugin.save_svg_diffs = original_save_svg_diffs
         _report_exit_state()
-        # Torch/onnxruntime abort in Py_Finalize ("terminate called without an
-        # active exception") once a background index build has loaded them.
-        # Coverage and snapshot plugins have already written; skip C++ teardown.
-        if os.environ.get("VOSS_EXIT_DIAG") or _abort_prone_native_loaded():
-            os._exit(exitstatus)
+        session.config._voss_exitstatus = exitstatus
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Skip C++ teardown when it would abort, without eating the report.
+
+    Torch/onnxruntime abort in Py_Finalize ("terminate called without an active
+    exception") once a background index build has loaded them, so the session
+    ends with `os._exit` instead. This hook is the right place for it, not
+    `pytest_sessionfinish`, in both process roles:
+
+    On the main process, `pytest_unconfigure` runs after every reporter, so the
+    failure summary, durations and coverage report have already been written.
+    Exiting from `pytest_sessionfinish` truncated all three — a red CI run
+    reported a bare exit 1 with the failing test named nowhere.
+
+    On an xdist worker, the session-finish message is how the controller learns
+    the worker is done. Exiting before it lands reads as a crashed node and the
+    worker is respawned, re-importing torch each time. By `pytest_unconfigure`
+    the message has been sent, so the worker may exit the same way — and it
+    must, or it aborts in Py_Finalize like any other process here.
+    """
+    if not (os.environ.get("VOSS_EXIT_DIAG") or _abort_prone_native_loaded()):
+        return
+    import sys
+
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(getattr(config, "_voss_exitstatus", 0))
 
 
 def _report_exit_state() -> None:
