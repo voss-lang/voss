@@ -55,3 +55,81 @@ pub struct SessionInfo {
     #[serde(default)]
     pub model: String,
 }
+
+/// One role in a requested swarm roster (`POST /swarm`).
+///
+/// `agent` names the executor: `"voss"` is the harness's own in-process loop,
+/// any other value names a CLI the host spawns in the role's own worktree.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RoleSpec {
+    pub name: String,
+    #[serde(default = "native_agent")]
+    pub agent: String,
+    #[serde(default)]
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default = "default_model")]
+    pub model: String,
+    #[serde(default = "auto_auth")]
+    pub auth_pref: String,
+}
+
+fn native_agent() -> String {
+    "voss".into()
+}
+
+fn default_model() -> String {
+    "default".into()
+}
+
+fn auto_auth() -> String {
+    "auto".into()
+}
+
+impl RoleSpec {
+    /// A role run by the harness itself.
+    pub fn native(name: &str) -> Self {
+        Self {
+            name: name.into(),
+            agent: native_agent(),
+            command: String::new(),
+            args: Vec::new(),
+            model: default_model(),
+            auth_pref: auto_auth(),
+        }
+    }
+
+    /// A role the host spawns as a CLI. The server returns it as pending.
+    pub fn cli(name: &str, agent: &str) -> Self {
+        Self {
+            agent: agent.into(),
+            ..Self::native(name)
+        }
+    }
+}
+
+/// One roster entry as the server answered it.
+///
+/// Native roles carry the `session_id` of the harness session already running
+/// them. CLI roles carry no session and are marked `pending`: the server
+/// records the axis but leaves the spawning to the host.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SwarmRole {
+    #[serde(default)]
+    pub session_id: Option<String>,
+    pub role: String,
+    #[serde(default)]
+    pub agent: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub pending: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SwarmCreated {
+    pub id: String,
+    #[serde(default)]
+    pub sessions: Vec<SwarmRole>,
+}
