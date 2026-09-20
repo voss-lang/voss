@@ -1038,6 +1038,36 @@ def create_app(token: str | None = None) -> FastAPI:
             if sess is not None:
                 EventBusRenderer(sess.queue, session_id=sess.id).emit(ev)
 
+    def _assign_to_session(swarm_id: str, task: Any, session_id: str) -> None:
+        """Hand a task to a harness session: mark it, unblock it, announce it.
+
+        Shared by the coordinator's assign message and the native half of
+        `/swarm/{id}/run` so both produce the same store state and the same
+        `swarm.assign`.
+        """
+        store = app.state.swarm_store
+        store.mark_assigned(swarm_id, task.id, session_id=session_id)
+        builder = mgr.get(session_id)
+        if builder is not None:
+            builder.swarm_task_id = task.id
+            builder.swarm_owned_files = task.owned_files
+            # VSWARM-05: attach the per-task ownership-deny policy now that
+            # owned_files are known. _run_turn injects it into the gate
+            builder.swarm_policy = build_ownership_policy(task.owned_files)
+            # In-process unblock ( independent of queue state)
+            if builder.gate_event is not None:
+                builder.gate_event.set()
+        _emit_swarm_event(
+            swarm_id,
+            E.SwarmAssign(
+                swarm_id=swarm_id,
+                task_id=task.id,
+                session_id=session_id,
+                owned_files=task.owned_files,
+                role=(builder.swarm_role if builder else None) or "builder",
+            ),
+        )
+
     @app.post("/swarm", status_code=201)
     async def create_swarm(body: CreateSwarmBody) -> dict:
         store = app.state.swarm_store
@@ -1122,27 +1152,7 @@ def create_app(token: str | None = None) -> FastAPI:
             task = swarm.task(body.task_id)
             if task is None:
                 raise HTTPException(404, "task not found")
-            store.mark_assigned(swarm_id, body.task_id, session_id=body.session_id)
-            builder = mgr.get(body.session_id)
-            if builder is not None:
-                builder.swarm_task_id = body.task_id
-                builder.swarm_owned_files = task.owned_files
-                # VSWARM-05: attach the per-task ownership-deny policy now that
-                # owned_files are known. _run_turn injects it into the gate
-                builder.swarm_policy = build_ownership_policy(task.owned_files)
-                # In-process unblock ( independent of queue state)
-                if builder.gate_event is not None:
-                    builder.gate_event.set()
-            _emit_swarm_event(
-                swarm_id,
-                E.SwarmAssign(
-                    swarm_id=swarm_id,
-                    task_id=body.task_id,
-                    session_id=body.session_id,
-                    owned_files=task.owned_files,
-                    role=(builder.swarm_role if builder else None) or "builder",
-                ),
-            )
+            _assign_to_session(swarm_id, task, body.session_id)
         elif body.kind == "worker_done":
             if body.task_id:
                 store.mark_done(swarm_id, body.task_id, summary=body.summary)
@@ -1292,8 +1302,13 @@ def create_app(token: str | None = None) -> FastAPI:
         over the swarm SSE plane; the route returns immediately.
 
         A swarm with no tasks is seeded here first: one coordinator LLM call
-        decomposes the goal into one task per CLI member. A client that seeded
-        its own tasks keeps them — this only fills an empty plan."""
+        decomposes the goal into one task per runnable member. A client that
+        seeded its own tasks keeps them — this only fills an empty plan.
+
+        Both member kinds run: CLI roles through `run_cli_swarm`, native builder
+        sessions through the in-process turn path. The default roster is all
+        native, so without the second half `/run` on a default swarm did
+        nothing at all."""
         store = app.state.swarm_store
         swarm = store.get(swarm_id)
         if swarm is None:
@@ -1305,13 +1320,21 @@ def create_app(token: str | None = None) -> FastAPI:
         repo_root = Path(swarm.cwd)
         on_event = _r3_event_adapter(swarm_id)
         cli_roles = [role for role in swarm.roster if not is_native(role)]
+        # Native builders are sessions, not subprocesses, so they are found
+        # through the agents the create route registered, not the roster.
+        native_builders = [
+            rec["session_id"]
+            for rec in store.list_agents_by_swarm(swarm_id)
+            if str(rec.get("role", "")).startswith("builder")
+        ]
+        members = len(cli_roles) + len(native_builders)
 
         async def _seed() -> bool:
             """Fill an empty plan. False means the run must not proceed."""
-            if swarm.tasks or not cli_roles:
+            if swarm.tasks or not members:
                 return True
             coord = next(
-                (r for r in swarm.roster if r.name == "coordinator"), cli_roles[0]
+                (r for r in swarm.roster if r.name == "coordinator"), swarm.roster[0]
             )
             try:
                 res, provider = _resolve_provider(coord.auth_pref)
@@ -1325,7 +1348,7 @@ def create_app(token: str | None = None) -> FastAPI:
                     # codex-oauth host that default is an Anthropic id.
                     model=_effective_model(coord.model, res),
                     cwd=str(repo_root),
-                    slots=len(cli_roles),
+                    slots=members,
                 )
             except Exception as exc:  # noqa: BLE001 — surfaced, never silent
                 on_event(
@@ -1340,16 +1363,49 @@ def create_app(token: str | None = None) -> FastAPI:
                 return False
             return True
 
+        async def _run_native_builder(session_id: str, task: Any) -> None:
+            """One native builder: assign, run its turn, report it done."""
+            sess = mgr.get(session_id)
+            if sess is None:
+                return
+            _assign_to_session(swarm_id, task, session_id)
+            sess.task = asyncio.create_task(_run_turn(sess, task.goal, "auto"))
+            try:
+                await sess.task
+            finally:
+                # The ownership policy bounds what the turn could touch, so a
+                # finished turn completes its task either way; a crashed one
+                # must not leave the plan stuck in `assigned`.
+                store.mark_done(swarm_id, task.id, summary=None)
+                _emit_swarm_event(
+                    swarm_id,
+                    E.SwarmWorkerDone(
+                        swarm_id=swarm_id,
+                        task_id=task.id,
+                        session_id=session_id,
+                        summary=None,
+                    ),
+                )
+
         async def _drive() -> None:
             if not await _seed():
                 return
+            # `run_cli_swarm` zips CLI roles against the plan in order, so the
+            # native builders take the tail and the two halves never contend.
+            native_tasks = store.get(swarm_id).tasks[len(cli_roles) :]
             try:
-                await run_cli_swarm(
-                    store,
-                    repo_root,
-                    swarm_id,
-                    spawn_fn=subprocess_spawn,
-                    on_event=on_event,
+                await asyncio.gather(
+                    run_cli_swarm(
+                        store,
+                        repo_root,
+                        swarm_id,
+                        spawn_fn=subprocess_spawn,
+                        on_event=on_event,
+                    ),
+                    *(
+                        _run_native_builder(sid, task)
+                        for sid, task in zip(native_builders, native_tasks)
+                    ),
                 )
             except Exception:  # noqa: BLE001 — background driver must not crash the loop
                 pass

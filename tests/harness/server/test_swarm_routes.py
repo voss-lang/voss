@@ -17,7 +17,7 @@ from voss.harness.agent import Plan, TurnResult
 from voss.harness.memory_store import Hit, MemoryStore
 from voss.harness.permissions import PermissionGate
 from voss.harness.server import app as appmod
-from voss.harness.swarm_store import build_ownership_policy
+from voss.harness.swarm_store import DONE, build_ownership_policy
 
 TOKEN = "test-token-swarm"
 
@@ -252,6 +252,7 @@ async def test_spawn_gate_zero_turns_before_assign(monkeypatch, tmp_path):
 def test_run_route_drives_orchestrator_and_maps_events(client, monkeypatch):
     # R3 driver: POST /swarm/{id}/run kicks off run_cli_swarm and its plain-dict
     # events are mapped to typed SSE events fanned to registered sessions.
+    import voss.harness.swarm_coordinator as sc
     import voss.harness.swarm_runtime as rt
 
     r = client.post(
@@ -259,6 +260,14 @@ def test_run_route_drives_orchestrator_and_maps_events(client, monkeypatch):
     ).json()
     sid = r["id"]
     coord = next(s["session_id"] for s in r["sessions"] if s["role"] == "coordinator")
+    # The default roster is all native, so /run now seeds it before driving.
+    _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
 
     async def _fake_run_cli_swarm(
         store, repo_root, swarm_id, *, spawn_fn, on_event=None, **kw
@@ -629,3 +638,80 @@ def test_run_gates_visibly_when_decomposition_cannot_be_seeded(client, monkeypat
     assert gates and gates[0].gate_type == "decompose_failed"
     assert "overlap" in gates[0].detail
     assert calls  # the stub was reached
+
+
+def test_run_drives_native_builders_on_the_default_roster(client, monkeypatch):
+    """The default roster is all native: /run used to be a silent no-op."""
+    import voss.harness.swarm_coordinator as sc
+
+    r = client.post(
+        "/swarm", json={"goal": "tidy up", "cwd": client._cwd}, headers=_auth()
+    ).json()
+    sid = r["id"]
+    coord = next(s["session_id"] for s in r["sessions"] if s["role"] == "coordinator")
+    builders = [s["session_id"] for s in r["sessions"] if s["role"].startswith("builder")]
+    assert len(builders) == 2
+
+    seen = _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
+
+    assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+
+    # One task per native builder, not decompose's 6-subtask default.
+    assert seen["max_tasks"] == 2
+    tasks = client.get(f"/swarm/{sid}", headers=_auth()).json()["swarm"]["tasks"]
+    assert [t["goal"] for t in tasks] == ["A", "B"]
+    assert [t["state"] for t in tasks] == [DONE, DONE]
+
+    events = _drain(client, sid, coord)
+    assigned = {(e.task_id, e.session_id) for e in events if e.type == "swarm.assign"}
+    done = {(e.task_id, e.session_id) for e in events if e.type == "swarm.worker_done"}
+    assert assigned == {(tasks[0]["id"], builders[0]), (tasks[1]["id"], builders[1])}
+    assert done == assigned, "every assigned native builder reports done"
+
+
+def test_run_splits_the_plan_between_cli_and_native_members(client, monkeypatch):
+    """A mixed roster runs both halves without two members sharing a task."""
+    import voss.harness.swarm_coordinator as sc
+    import voss.harness.swarm_runtime as rt
+
+    created = _cli_swarm(
+        client,
+        roster=[
+            {"name": "coordinator", "agent": "voss"},
+            {"name": "builder-1", "agent": "codex"},
+            {"name": "builder-2", "agent": "voss"},
+        ],
+    )
+    sid = created["id"]
+    coord = next(s["session_id"] for s in created["sessions"] if s["role"] == "coordinator")
+    native = next(s["session_id"] for s in created["sessions"] if s["role"] == "builder-2")
+
+    seen = _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
+    cli_tasks: list[str] = []
+
+    async def _fake_run_cli_swarm(store, repo_root, swarm_id, *, spawn_fn, on_event=None, **kw):
+        cli_tasks.extend(t.id for t in store.get(swarm_id).tasks[:1])
+
+    monkeypatch.setattr(rt, "run_cli_swarm", _fake_run_cli_swarm)
+
+    assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+    assert seen["max_tasks"] == 2, "one CLI builder plus one native builder"
+
+    tasks = client.get(f"/swarm/{sid}", headers=_auth()).json()["swarm"]["tasks"]
+    native_assigned = [
+        e.task_id for e in _drain(client, sid, coord) if e.type == "swarm.assign"
+    ]
+    assert native_assigned == [tasks[1]["id"]], "the native builder takes the tail"
+    assert cli_tasks == [tasks[0]["id"]], "the CLI member keeps the head"

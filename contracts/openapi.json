@@ -2718,7 +2718,7 @@
     },
     "/swarm/{swarm_id}/run": {
       "post": {
-        "description": "Drive the R3 CLI members of a swarm (worktree spawn + ownership +\ncandidate preservation) headlessly. Native roles are untouched \u2014 they run via the\nin-process turn path. Fire-and-forget: the orchestrator streams progress\nover the swarm SSE plane; the route returns immediately.\n\nA swarm with no tasks is seeded here first: one coordinator LLM call\ndecomposes the goal into one task per CLI member. A client that seeded\nits own tasks keeps them \u2014 this only fills an empty plan.",
+        "description": "Drive the R3 CLI members of a swarm (worktree spawn + ownership +\ncandidate preservation) headlessly. Native roles are untouched \u2014 they run via the\nin-process turn path. Fire-and-forget: the orchestrator streams progress\nover the swarm SSE plane; the route returns immediately.\n\nA swarm with no tasks is seeded here first: one coordinator LLM call\ndecomposes the goal into one task per runnable member. A client that\nseeded its own tasks keeps them \u2014 this only fills an empty plan.\n\nBoth member kinds run: CLI roles through `run_cli_swarm`, native builder\nsessions through the in-process turn path. The default roster is all\nnative, so without the second half `/run` on a default swarm did\nnothing at all.",
         "operationId": "run_swarm_swarm__swarm_id__run_post",
         "parameters": [
           {
