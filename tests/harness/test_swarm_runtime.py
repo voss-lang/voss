@@ -285,3 +285,41 @@ def test_subprocess_spawn_real_process(tmp_path: Path) -> None:
     exit code (no shell, argv list)."""
     handle = subprocess_spawn(["python3", "-c", "import sys; sys.exit(3)"], tmp_path)
     assert handle.wait() == 3
+
+
+def test_member_emits_assign_and_worker_done(repo: Path) -> None:
+    """Issue #144: a client watching the stream during /run must be able to tell
+    when a member started and finished, not just that candidates appeared."""
+    store = SwarmStore(cwd=repo)
+    swarm = store.create(
+        "ship it", cwd=str(repo), roster=[Role(name="builder-1", agent="codex")]
+    )
+    task = store.add_task(swarm.id, "edit owned", owned_files=["owned.py"])
+    spawn = _spawn_with_result(
+        repo, {"owned.py": "# changed\n"}, swarm.id, "builder-1", "did it"
+    )
+
+    events: list[dict] = []
+    asyncio.run(
+        run_cli_member(
+            store,
+            repo,
+            swarm.id,
+            swarm.roster[0],
+            task,
+            spawn_fn=spawn,
+            on_event=events.append,
+        )
+    )
+
+    kinds = [e["type"] for e in events]
+    assert kinds[0] == "swarm.assign"
+    assert kinds[-1] == "swarm.worker_done"
+    assign = events[0]
+    assert assign["task_id"] == task.id
+    assert assign["role"] == "builder-1"
+    assert assign["owned_files"] == ["owned.py"]
+    assert events[-1]["summary"] == "did it"
+    # The store transition rides along with the event, so GET /swarm and the
+    # stream cannot disagree.
+    assert store.get(swarm.id).task(task.id).state == CANDIDATE_READY

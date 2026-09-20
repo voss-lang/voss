@@ -132,17 +132,17 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
 
 
 def _codex_session_model() -> str:
-    """Default model id for codex-oauth sessions (gpt-5.x only).
+    """Default model id for codex-oauth sessions.
 
-    The ChatGPT-account Codex backend rejects non-gpt-5.x model ids; the harness
+    The ChatGPT-account Codex backend rejects ids it does not serve; the harness
     default (`claude-sonnet-4-5`) 400s there and the turn dies before any output.
     Mirrors `cli._codex_default_model` WITHOUT importing `cli` (whose top-level
     `@click` command registration has heavy import side effects): read Codex CLI's
     own default, else fall back to the first subscription codex model.
     """
     m = auth_mod.load_codex_default_model()
-    if m and m.startswith("gpt-5."):
-        return m
+    if auth_mod.is_codex_backend_model(m):
+        return m  # type: ignore[return-value]
     from ..subscription_models import SUBSCRIPTION_MODELS
 
     return SUBSCRIPTION_MODELS["codex"][0].id
@@ -154,9 +154,9 @@ def _effective_model(requested: str | None, res: Any) -> str:
     The swarm roster uses the literal `"default"` sentinel (swarm_store.Role)
     to mean 'no explicit choice' — treat it (and None) as unspecified and fall
     through to the serve-env default then the config default. An explicit,
-    non-sentinel model is honored as-is. In all cases the codex-oauth gpt-5.x
-    constraint is applied last (mirrors create_session, app.py:556-565), so a
-    non-gpt-5.x id never reaches the Codex backend and 400s the turn.
+    non-sentinel model is honored as-is. In all cases the codex-oauth backend
+    constraint is applied last (mirrors create_session, app.py:556-565), so an
+    id that backend does not serve never reaches it and 400s the turn.
     """
     model = requested if (requested and requested != "default") else None
     model = (
@@ -164,7 +164,7 @@ def _effective_model(requested: str | None, res: Any) -> str:
         or os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
         or get_config().default_model
     )
-    if res.source == "codex-oauth" and not model.startswith("gpt-5."):
+    if res.source == "codex-oauth" and not auth_mod.is_codex_backend_model(model):
         model = _codex_session_model()
     return model
 
@@ -649,12 +649,14 @@ def create_app(token: str | None = None) -> FastAPI:
                 provider=provider,
                 prior_context=record.runs or None,
             )
-            # Twin of the create snap: a saved record may carry a non-gpt-5.x
-            # model (e.g. the old default) that the Codex backend 400s on. Snap
-            # the EFFECTIVE session model only `record.model` stays intact so
+            # Twin of the create snap: a saved record may carry a model (e.g.
+            # the old default) that the Codex backend 400s on. Snap the
+            # EFFECTIVE session model only `record.model` stays intact so
             # the turn-end save (app.py: session_store.save) never corrupts the
             # user's saved model
-            if res.source == "codex-oauth" and not s.model.startswith("gpt-5."):
+            if res.source == "codex-oauth" and not auth_mod.is_codex_backend_model(
+                s.model
+            ):
                 s.model = _codex_session_model()
             return {"v": 1, "id": s.id, "auth": res.source, "resumed": True}
         model = (
@@ -662,10 +664,10 @@ def create_app(token: str | None = None) -> FastAPI:
             or os.environ.get("VOSS_SERVE_DEFAULT_MODEL")
             or get_config().default_model
         )
-        # codex-oauth: snap a non-gpt-5.x model to Codex's default so the
-        # backend doesn't 400 the turn into a bare idle (session-scoped; mirrors
-        # cli.py:686-687 without the global configure mutation)
-        if res.source == "codex-oauth" and not model.startswith("gpt-5."):
+        # codex-oauth: snap a model the backend does not serve to Codex's own
+        # default so it doesn't 400 the turn into a bare idle (session-scoped;
+        # mirrors cli.py:686-687 without the global configure mutation)
+        if res.source == "codex-oauth" and not auth_mod.is_codex_backend_model(model):
             model = _codex_session_model()
         s = mgr.create(cwd=cwd, model=model, provider=provider, title=body.title or "")
         return {"v": 1, "id": s.id, "auth": res.source, "resumed": False}
@@ -1204,7 +1206,40 @@ def create_app(token: str | None = None) -> FastAPI:
 
         def emit(ev: dict) -> None:
             etype = ev.get("type")
-            if etype == "swarm.needs_operator":
+            if etype == "swarm.assign":
+                # CLI members are subprocesses, not harness sessions, so
+                # `role` + `task_id` are the member identity here.
+                _emit_swarm_event(
+                    swarm_id,
+                    E.SwarmAssign(
+                        swarm_id=swarm_id,
+                        task_id=ev.get("task_id", ""),
+                        session_id="",
+                        owned_files=ev.get("owned_files") or [],
+                        role=ev.get("role", ""),
+                    ),
+                )
+            elif etype == "swarm.worker_done":
+                _emit_swarm_event(
+                    swarm_id,
+                    E.SwarmWorkerDone(
+                        swarm_id=swarm_id,
+                        task_id=ev.get("task_id", ""),
+                        session_id="",
+                        summary=ev.get("summary"),
+                    ),
+                )
+            elif etype == "swarm.gate":
+                _emit_swarm_event(
+                    swarm_id,
+                    E.SwarmGate(
+                        swarm_id=swarm_id,
+                        task_id=ev.get("task_id", ""),
+                        gate_type=ev.get("gate_type", ""),
+                        detail=ev.get("detail", ""),
+                    ),
+                )
+            elif etype == "swarm.needs_operator":
                 paths = ev.get("paths") or []
                 _emit_swarm_event(
                     swarm_id,
@@ -1254,18 +1289,60 @@ def create_app(token: str | None = None) -> FastAPI:
         """Drive the R3 CLI members of a swarm (worktree spawn + ownership +
         candidate preservation) headlessly. Native roles are untouched — they run via the
         in-process turn path. Fire-and-forget: the orchestrator streams progress
-        over the swarm SSE plane; the route returns immediately."""
+        over the swarm SSE plane; the route returns immediately.
+
+        A swarm with no tasks is seeded here first: one coordinator LLM call
+        decomposes the goal into one task per CLI member. A client that seeded
+        its own tasks keeps them — this only fills an empty plan."""
         store = app.state.swarm_store
         swarm = store.get(swarm_id)
         if swarm is None:
             raise HTTPException(404, "swarm not found")
 
+        from ..swarm_coordinator import SeedError, seed_tasks
         from ..swarm_runtime import run_cli_swarm, subprocess_spawn
 
         repo_root = Path(swarm.cwd)
         on_event = _r3_event_adapter(swarm_id)
+        cli_roles = [role for role in swarm.roster if not is_native(role)]
+
+        async def _seed() -> bool:
+            """Fill an empty plan. False means the run must not proceed."""
+            if swarm.tasks or not cli_roles:
+                return True
+            coord = next(
+                (r for r in swarm.roster if r.name == "coordinator"), cli_roles[0]
+            )
+            try:
+                res, provider = _resolve_provider(coord.auth_pref)
+                if provider is None:
+                    raise SeedError(f"no usable credentials ({res.detail})")
+                await seed_tasks(
+                    store,
+                    swarm_id,
+                    provider=provider,
+                    # _effective_model, not the config default: on a
+                    # codex-oauth host that default is an Anthropic id.
+                    model=_effective_model(coord.model, res),
+                    cwd=str(repo_root),
+                    slots=len(cli_roles),
+                )
+            except Exception as exc:  # noqa: BLE001 — surfaced, never silent
+                on_event(
+                    {
+                        "type": "swarm.gate",
+                        "swarm_id": swarm_id,
+                        "task_id": "",
+                        "gate_type": "decompose_failed",
+                        "detail": str(exc),
+                    }
+                )
+                return False
+            return True
 
         async def _drive() -> None:
+            if not await _seed():
+                return
             try:
                 await run_cli_swarm(
                     store,

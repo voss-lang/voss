@@ -112,7 +112,10 @@ async def run_cli_member(
          `.voss/swarm/<id>/` — NOT the worktree. The member is hermetic in its
          worktree and gets its task inline via the resolved argv's trailing
          task_text; the file-bus is the shared host-side record.
-      3. Mark the task assigned, resolve argv, spawn into the worktree, wait.
+      3. Mark the task assigned (+ `swarm.assign`), resolve argv, spawn into the
+         worktree, wait. `swarm.worker_done` follows the store transition in 5,
+         so a client can build a per-member timeline off the stream alone —
+         correlate the pair by `task_id`, which carries the role.
       4. **Deterministic** ownership reconciliation post-exit: diff the worktree,
          detect out-of-`owned_files` writes, revert them, and emit a
          `swarm.needs_operator` event. (A live OwnershipWatcher runs alongside as
@@ -158,6 +161,16 @@ async def run_cli_member(
     )
 
     store.mark_assigned(swarm_id, task.id)
+    _emit(
+        on_event,
+        {
+            "type": "swarm.assign",
+            "swarm_id": swarm_id,
+            "task_id": task.id,
+            "role": role.name,
+            "owned_files": list(task.owned_files),
+        },
+    )
 
     # Inline emission at the assignment seam (D-R01/D-R02): freeze the
     # task_to_agent decision against the exact assignment context + BOS3 event
@@ -257,6 +270,17 @@ async def run_cli_member(
     else:
         store.mark_done(swarm_id, task.id, summary=summary)
         remove_member_worktree(repo_root, mw)
+
+    _emit(
+        on_event,
+        {
+            "type": "swarm.worker_done",
+            "swarm_id": swarm_id,
+            "task_id": task.id,
+            "role": role.name,
+            "summary": summary,
+        },
+    )
 
     return MemberResult(
         role=role.name,

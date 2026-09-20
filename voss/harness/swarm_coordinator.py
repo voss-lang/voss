@@ -10,7 +10,7 @@ from typing import Any, Callable
 from pydantic import BaseModel, Field
 
 from .swarm_agents import NATIVE, known_agents
-from .swarm_store import Task, validate_no_overlap
+from .swarm_store import OwnershipOverlapError, SwarmStore, Task, validate_no_overlap
 
 
 # Structured-output schema what the coordinator LLM must return
@@ -34,6 +34,10 @@ class Decomposition(BaseModel):
 
 class DecompositionError(RuntimeError):
     """The provider returned no parsed structured output (forced-tool path failed)."""
+
+
+class SeedError(RuntimeError):
+    """No runnable plan could be produced; the swarm was seeded with nothing."""
 
 
 def _system_prompt(known: list[str], min_tasks: int, max_tasks: int) -> str:
@@ -127,3 +131,62 @@ def to_tasks(
         validate_no_overlap(task, tasks)
         tasks.append(task)
     return tasks
+
+
+async def seed_tasks(
+    store: SwarmStore,
+    swarm_id: str,
+    *,
+    provider: Any,
+    model: str,
+    cwd: str,
+    slots: int,
+) -> list[Task]:
+    """Decompose the swarm's goal into `slots` parallel tasks and store them.
+
+    `slots` is how many CLI members `run_cli_swarm` will actually pair with a
+    task — it zips roles against tasks in order — so the decomposition is
+    clamped to it rather than to the 6-subtask default. Anything past that
+    would be stored and then silently never run.
+
+    The seeded path is strictly parallel: `run_cli_swarm` gathers every member
+    at once and honors no ordering, so a plan that needs `depends_on` is not
+    runnable here and is rejected the same way an overlapping one is. The whole
+    plan is validated before a single row is written, so a rejection seeds
+    nothing. One retry hands the rejection back to the model; a second failure
+    raises `SeedError`.
+
+    `SubtaskSpec.agent` is advisory only — `Task` carries no agent, so roster
+    order decides which CLI runs which task. Native roles are excluded from
+    `slots` upstream and are never paired here.
+    """
+    swarm = store.get(swarm_id)
+    if swarm is None:
+        raise KeyError(f"no swarm {swarm_id!r}")
+
+    context = ""
+    for attempt in (1, 2):
+        try:
+            subtasks = await decompose(
+                provider,
+                goal=swarm.goal,
+                model=model,
+                cwd=cwd,
+                project_context=context,
+                min_tasks=min(2, slots),
+                max_tasks=slots,
+            )
+            if any(spec.depends_on for spec in subtasks):
+                raise SeedError(
+                    "a subtask declared depends_on, but every member of this run "
+                    "executes concurrently — return fully parallel subtasks with "
+                    "disjoint owned_files instead"
+                )
+            tasks = to_tasks(subtasks)
+        except (DecompositionError, OwnershipOverlapError, SeedError) as exc:
+            if attempt == 2:
+                raise SeedError(f"decomposition rejected twice: {exc}") from exc
+            context = f"Your previous decomposition was rejected: {exc}"
+            continue
+        return [store.add_task(swarm_id, t.goal, t.owned_files) for t in tasks]
+    raise AssertionError("unreachable")  # pragma: no cover
