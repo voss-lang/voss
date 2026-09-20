@@ -332,6 +332,34 @@ def load_codex_default_model(path: Path | None = None) -> str | None:
     return None
 
 
+# Model ids the ChatGPT Codex backend is known to reject. gpt-5 and gpt-5-codex
+# were retired April 2026 (providers.py `_OPENAI_MODEL_DEFAULT`); the gpt-4
+# generation never reached that endpoint.
+CODEX_RETIRED_MODELS = frozenset(
+    {"gpt-5", "gpt-5-codex", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4"}
+)
+
+
+def is_codex_backend_model(model: str | None) -> bool:
+    """True when `model` is plausibly served by the ChatGPT Codex backend.
+
+    Data first: whatever the Codex CLI itself is configured with is by
+    definition a model that backend serves, so a newer id (`gpt-6-astra`) is
+    accepted without this module learning about it. Otherwise any OpenAI-shaped
+    id passes and a known-retired one does not — an unrecognised newer id
+    surfaces as a turn error, which beats silently downgrading it. Everything
+    else (claude-*, ollama ids, the harness default) is rejected so callers snap
+    it to a usable id instead of 400ing the turn.
+    """
+    if not model:
+        return False
+    if model == load_codex_default_model():
+        return True
+    if model in CODEX_RETIRED_MODELS:
+        return False
+    return model.startswith(("gpt-", "o1", "o3", "o4", "codex-"))
+
+
 # ---------------------------------------------------------------------------
 # Resolution
 # ---------------------------------------------------------------------------
@@ -367,8 +395,10 @@ def resolve(preference: str = "auto", role: str | None = None) -> Resolution:
     if preference == "none":
         return Resolution(source="none", detail="forced none")
 
+    # Gated on a configured Codex CLI, never on WHICH model it names: the id in
+    # config.toml says nothing about whether the credentials work (issue #143).
     codex_model = load_codex_default_model()
-    if preference == "auto" and codex_model and codex_model.startswith("gpt-5."):
+    if preference == "auto" and codex_model:
         if codex := load_codex():
             if codex.api_key:
                 return Resolution(

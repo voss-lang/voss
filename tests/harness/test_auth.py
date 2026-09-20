@@ -101,6 +101,26 @@ class TestLoadCodexDefaultModel:
         assert A.load_codex_default_model() is None
 
 
+class TestIsCodexBackendModel:
+    def test_accepts_the_configured_codex_model(self, fake_home: Path) -> None:
+        _write_codex_config(fake_home, model="gpt-6-astra")
+        assert A.is_codex_backend_model("gpt-6-astra")
+
+    def test_accepts_openai_shaped_ids_without_config(self, fake_home: Path) -> None:
+        assert A.is_codex_backend_model("gpt-5.4")
+        assert A.is_codex_backend_model("gpt-7-unknown")
+
+    def test_rejects_retired_and_foreign_ids(self, fake_home: Path) -> None:
+        assert not A.is_codex_backend_model("gpt-5-codex")
+        assert not A.is_codex_backend_model("claude-sonnet-4-5")
+        assert not A.is_codex_backend_model(None)
+
+    def test_configured_model_beats_the_retired_list(self, fake_home: Path) -> None:
+        """Data wins: if the Codex CLI is pointed at it, that backend serves it."""
+        _write_codex_config(fake_home, model="gpt-5-codex")
+        assert A.is_codex_backend_model("gpt-5-codex")
+
+
 class TestResolve:
     def test_env_anthropic_wins(self, fake_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-env")
@@ -162,6 +182,18 @@ class TestResolve:
         _write_codex_config(fake_home)
         res = A.resolve("auto")
         assert res.source == "codex"
+
+    def test_newer_codex_model_still_resolves_oauth_creds(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Issue #143 repro: a Codex model past gpt-5.x must not disable the
+        credential branch and fall through to a leftover OPENAI_API_KEY."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-leftover-env")
+        _write_codex_auth(fake_home, api_key="")
+        _write_codex_config(fake_home, model="gpt-6-astra")
+        res = A.resolve("auto")
+        assert res.source == "codex-oauth"
+        assert res.codex_oauth is not None
 
     def test_explicit_codex_skips_claude(self, fake_home: Path) -> None:
         _write_claude_creds(fake_home)

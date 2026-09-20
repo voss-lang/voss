@@ -743,8 +743,8 @@ def _build_provider_from_resolution(res: auth_mod.Resolution) -> ModelProvider:
         return ClaudeAgentProvider(cli_path=res.cli_path)
     if res.source == "codex-oauth":
         cfg = get_config()
-        if not cfg.default_model.startswith("gpt-5."):
-            configure(default_model="gpt-5.5")
+        if not auth_mod.is_codex_backend_model(cfg.default_model):
+            configure(default_model=auth_mod.load_codex_default_model() or "gpt-5.5")
         return OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
     if res.source in ("env-openai", "voss-openai", "codex"):
         if res.openai_api_key:

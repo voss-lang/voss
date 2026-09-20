@@ -484,3 +484,148 @@ def test_reviewer_reject_writes_decision(tmp_path):
     assert "related_session: sess-abc" in text
     assert "gate_type: reviewer_reject" in text
     assert "# Swarm Gate Decision" in text
+
+
+# --- issue #144: /run seeds an empty swarm and streams the member timeline ----
+
+
+def _cli_swarm(client, **body) -> dict:
+    """A swarm whose roster is CLI members — the ones `run_cli_swarm` drives."""
+    body.setdefault("goal", "add a feature")
+    body.setdefault("cwd", client._cwd)
+    body.setdefault(
+        "roster",
+        [
+            {"name": "coordinator", "agent": "voss"},
+            {"name": "builder-1", "agent": "codex"},
+            {"name": "builder-2", "agent": "claude"},
+        ],
+    )
+    r = client.post("/swarm", json=body, headers=_auth())
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def _canned_decomposition(monkeypatch, subtasks):
+    """Stub the coordinator LLM call; records the kwargs it was handed."""
+    import voss.harness.swarm_coordinator as sc
+
+    seen: dict = {}
+
+    async def _fake(provider, **kwargs):
+        seen.update(kwargs)
+        return list(subtasks)
+
+    monkeypatch.setattr(sc, "decompose", _fake)
+    return seen
+
+
+def _drain(client, sid, session_id):
+    """Give the fire-and-forget driver a tick, then drain that session's queue."""
+    client.get(f"/swarm/{sid}", headers=_auth())
+    q = client.app.state.sessions.get(session_id).queue
+    out = []
+    while not q.empty():
+        out.append(q.get_nowait())
+    return out
+
+
+def test_run_seeds_empty_swarm_and_streams_member_timeline(client, monkeypatch):
+    import voss.harness.swarm_coordinator as sc
+    import voss.harness.swarm_runtime as rt
+
+    created = _cli_swarm(client)
+    sid = created["id"]
+    coord = next(s["session_id"] for s in created["sessions"] if s["role"] == "coordinator")
+
+    seen = _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
+
+    async def _fake_run_cli_swarm(store, repo_root, swarm_id, *, spawn_fn, on_event=None, **kw):
+        for task in store.get(swarm_id).tasks:
+            on_event({"type": "swarm.assign", "swarm_id": swarm_id,
+                      "task_id": task.id, "role": "builder", "owned_files": task.owned_files})
+            on_event({"type": "swarm.worker_done", "swarm_id": swarm_id,
+                      "task_id": task.id, "role": "builder", "summary": "ok"})
+
+    monkeypatch.setattr(rt, "run_cli_swarm", _fake_run_cli_swarm)
+
+    assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+
+    tasks = client.get(f"/swarm/{sid}", headers=_auth()).json()["swarm"]["tasks"]
+    assert [t["goal"] for t in tasks] == ["A", "B"]
+    assert [t["owned_files"] for t in tasks] == [["a.py"], ["b.py"]]
+
+    # Clamped to the CLI members that will actually be paired with a task, not
+    # decompose's 6-subtask default.
+    assert seen["max_tasks"] == 2
+
+    events = _drain(client, sid, coord)
+    assert [e.type for e in events] == [
+        "swarm.assign", "swarm.worker_done", "swarm.assign", "swarm.worker_done",
+    ]
+    assert {e.task_id for e in events} == {t["id"] for t in tasks}
+
+
+def test_run_does_not_reseed_a_client_seeded_swarm(client, monkeypatch):
+    import voss.harness.swarm_runtime as rt
+
+    sid = _cli_swarm(client)["id"]
+    client.post(
+        f"/swarm/{sid}/task", json={"goal": "mine", "owned_files": ["x.py"]}, headers=_auth()
+    )
+
+    def _boom(*a, **kw):
+        raise AssertionError("client-seeded swarm must not be decomposed")
+
+    monkeypatch.setattr("voss.harness.swarm_coordinator.decompose", _boom)
+    monkeypatch.setattr(
+        rt, "run_cli_swarm",
+        lambda *a, **kw: asyncio.sleep(0),
+    )
+
+    assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+    tasks = client.get(f"/swarm/{sid}", headers=_auth()).json()["swarm"]["tasks"]
+    assert [t["goal"] for t in tasks] == ["mine"]
+
+
+def test_run_gates_visibly_when_decomposition_cannot_be_seeded(client, monkeypatch):
+    """An overlapping plan is retried once, then fails loudly — never a partial
+    seed and never a silent empty run."""
+    import voss.harness.swarm_coordinator as sc
+
+    created = _cli_swarm(client)
+    sid = created["id"]
+    coord = next(s["session_id"] for s in created["sessions"] if s["role"] == "coordinator")
+
+    calls = _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["shared.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["shared.py"]),
+        ],
+    )
+    attempts = []
+    real = sc.decompose
+
+    async def _counting(provider, **kwargs):
+        attempts.append(kwargs.get("project_context", ""))
+        return await real(provider, **kwargs)
+
+    monkeypatch.setattr(sc, "decompose", _counting)
+
+    assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+
+    assert client.get(f"/swarm/{sid}", headers=_auth()).json()["swarm"]["tasks"] == []
+    assert len(attempts) == 2, "one retry, with the rejection fed back"
+    assert "rejected" in attempts[1]
+
+    gates = [e for e in _drain(client, sid, coord) if e.type == "swarm.gate"]
+    assert gates and gates[0].gate_type == "decompose_failed"
+    assert "overlap" in gates[0].detail
+    assert calls  # the stub was reached
