@@ -35,8 +35,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # `slow` tests (the code_recall embedding-index pair) used to run on every
+  # push to master and nowhere else, and cost ~12m of a ~29m job. They now run
+  # on the nightly schedule instead; push and PR share one marker set.
   stub:
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -72,9 +75,13 @@ jobs:
       - name: snap11 isolation probe (temporary)
         continue-on-error: true
         run: pytest -q tests/harness/tui/test_paste_image.py --snapshot-report=snapshot_report_probe.html
-      - run: pytest -q -m "$PYTEST_MARKERS" --cov=voss_runtime --cov-report=term-missing --cov-report=xml
+      # -n auto: the suite is ~3500 tests in one process otherwise, which is
+      # where the ~29m runs came from. Coverage runs only on the leg that
+      # uploads it (3.12) — 3.11's coverage.xml was built and discarded.
+      - run: pytest -q -m "$PYTEST_MARKERS" -n auto $COV
         env:
-          PYTEST_MARKERS: ${{ github.event_name == 'pull_request' && 'not live and not slow' || 'not live' }}
+          PYTEST_MARKERS: ${{ github.event_name == 'schedule' && 'not live' || 'not live and not slow' }}
+          COV: ${{ matrix.python-version == '3.12' && '--cov=voss_runtime --cov-report=term-missing --cov-report=xml' || '' }}
           PYTHONFAULTHANDLER: "1"
           VOSS_EXIT_DIAG: "1"
           # litellm fetches its model-cost map over the network on import;
