@@ -35,8 +35,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # `slow` tests (the code_recall embedding-index pair) used to run on every
+  # push to master and nowhere else, and cost ~12m of a ~29m job. They now run
+  # on the nightly schedule instead; push and PR share one marker set.
   stub:
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -72,9 +75,21 @@ jobs:
       - name: snap11 isolation probe (temporary)
         continue-on-error: true
         run: pytest -q tests/harness/tui/test_paste_image.py --snapshot-report=snapshot_report_probe.html
-      - run: pytest -q -m "$PYTEST_MARKERS" --cov=voss_runtime --cov-report=term-missing --cov-report=xml
+      # -n 2, not `auto`: the runner has 4 vCPU and many tests spawn their own
+      # `voss` subprocess, so `auto` put ~8 heavy processes on 4 cores and the
+      # run got SLOWER (18m vs 15m). Coverage runs only on the leg that uploads
+      # it (3.12) — 3.11's coverage.xml was built and discarded.
+      #
+      # tests/e2e is off the PR and push path. Each of its ~82 tests spawns a
+      # real `voss` subprocess, which is ~40% of the suite's runtime and the
+      # only part that fails under worker contention — three runs timed out on
+      # three different e2e tests. It runs on the nightly and on release, where
+      # nothing is waiting on it.
+      - run: pytest -q -m "$PYTEST_MARKERS" -n 2 $IGNORES $COV
         env:
-          PYTEST_MARKERS: ${{ github.event_name == 'pull_request' && 'not live and not slow' || 'not live' }}
+          PYTEST_MARKERS: ${{ github.event_name == 'schedule' && 'not live' || 'not live and not slow' }}
+          IGNORES: ${{ (github.event_name == 'schedule' || github.event_name == 'release') && '' || '--ignore=tests/e2e' }}
+          COV: ${{ matrix.python-version == '3.12' && '--cov=voss_runtime --cov-report=term-missing --cov-report=xml' || '' }}
           PYTHONFAULTHANDLER: "1"
           VOSS_EXIT_DIAG: "1"
           # litellm fetches its model-cost map over the network on import;

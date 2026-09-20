@@ -132,6 +132,14 @@ def _build_sitecustomize(extra: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 
+# Every timeout here is a hang guard calibrated on an uncontended machine. Under
+# `-n auto` each worker spawns its own `voss` subprocess, so the same cold start
+# competes for the same cores and legitimately takes several times longer — two
+# tests/e2e renderer tests hit the 30s guard on a 4 vCPU runner. Scale the guard
+# with the contention instead of loosening it for serial runs.
+_TIMEOUT_SCALE = 4.0 if os.environ.get("PYTEST_XDIST_WORKER") else 1.0
+
+
 @dataclass
 class CliRunner:
     """Invokes `python -m voss.cli <args>` in a deterministic subprocess.
@@ -184,7 +192,7 @@ class CliRunner:
         self,
         *args: str,
         stdin: str | None = None,
-        timeout: float = 30.0,
+        timeout: float = 30.0,  # scaled by _TIMEOUT_SCALE under xdist
         env_overrides: dict[str, str] | None = None,
         cwd: Path | None = None,
     ) -> Result:
@@ -199,7 +207,7 @@ class CliRunner:
             input="" if stdin is None else stdin,
             capture_output=True,
             text=True,
-            timeout=timeout,
+            timeout=timeout * _TIMEOUT_SCALE,
         )
         return Result(
             returncode=proc.returncode,
