@@ -43,6 +43,7 @@ from ..observe.store import ObserveStore, db_path, observe_dir
 from ..permissions import PermissionGate, PermissionStore
 from ..swarm_agents import is_native
 from ..swarm_store import (
+    OPEN,
     OwnershipOverlapError,
     Role,
     SwarmStore,
@@ -590,6 +591,10 @@ def create_app(token: str | None = None) -> FastAPI:
     # TestClient instances; Anti-Pattern). Event-log cwd defaults to
     # the serve cwd; tests override app.state.swarm_store to point at a tmp dir
     app.state.swarm_store = SwarmStore(cwd=Path(".").resolve())
+    # swarm id -> the task driving its /run. Holds a strong reference: the
+    # loop only keeps a weak one, and a driver that awaits long members would
+    # otherwise be collected mid-run.
+    app.state.swarm_runs = {}
 
     app.add_middleware(_BearerASGI, token=token)
 
@@ -1296,19 +1301,21 @@ def create_app(token: str | None = None) -> FastAPI:
 
     @app.post("/swarm/{swarm_id}/run", status_code=202)
     async def run_swarm(swarm_id: str) -> dict:
-        """Drive the R3 CLI members of a swarm (worktree spawn + ownership +
-        candidate preservation) headlessly. Native roles are untouched — they run via the
-        in-process turn path. Fire-and-forget: the orchestrator streams progress
-        over the swarm SSE plane; the route returns immediately.
+        """Drive a swarm's members headlessly. Fire-and-forget: the orchestrator
+        streams progress over the swarm SSE plane; the route returns immediately.
+
+        Both member kinds run. CLI roles go through `run_cli_swarm` (worktree
+        spawn, ownership reconciliation, candidate preservation); native builder
+        sessions run one turn each on the in-process path. The default roster is
+        all native, so without that second half `/run` on a default swarm did
+        nothing at all.
 
         A swarm with no tasks is seeded here first: one coordinator LLM call
         decomposes the goal into one task per runnable member. A client that
         seeded its own tasks keeps them — this only fills an empty plan.
 
-        Both member kinds run: CLI roles through `run_cli_swarm`, native builder
-        sessions through the in-process turn path. The default roster is all
-        native, so without the second half `/run` on a default swarm did
-        nothing at all."""
+        One run per swarm at a time, and a member whose session is mid-turn is
+        left alone, so a second call cannot start a second turn in a session."""
         store = app.state.swarm_store
         swarm = store.get(swarm_id)
         if swarm is None:
@@ -1366,7 +1373,9 @@ def create_app(token: str | None = None) -> FastAPI:
         async def _run_native_builder(session_id: str, task: Any) -> None:
             """One native builder: assign, run its turn, report it done."""
             sess = mgr.get(session_id)
-            if sess is None:
+            if sess is None or sess.busy:
+                # A session runs one turn at a time; the message route enforces
+                # the same invariant with a 409.
                 return
             _assign_to_session(swarm_id, task, session_id)
             sess.task = asyncio.create_task(_run_turn(sess, task.goal, "auto"))
@@ -1387,30 +1396,79 @@ def create_app(token: str | None = None) -> FastAPI:
                     ),
                 )
 
-        async def _drive() -> None:
-            if not await _seed():
+        def _member_event(ev: dict, held: dict) -> None:
+            """Pass member events through, holding the run's terminal event.
+
+            `run_cli_swarm` ends with `swarm.candidates_ready` or
+            `swarm.complete`, which fires when the CLI half finishes — at once,
+            and with a count of zero, when there is no CLI half. The run emits
+            one of its own once both halves are done.
+            """
+            kind = ev.get("type")
+            if kind == "swarm.candidates_ready":
+                held["candidates"] += int(ev.get("candidate_count") or 0)
                 return
-            # `run_cli_swarm` zips CLI roles against the plan in order, so the
-            # native builders take the tail and the two halves never contend.
-            native_tasks = store.get(swarm_id).tasks[len(cli_roles) :]
+            if kind == "swarm.complete":
+                return
+            on_event(ev)
+
+        async def _drive() -> None:
             try:
-                await asyncio.gather(
+                if not await _seed():
+                    return
+                # `run_cli_swarm` zips CLI roles against the plan in order, so
+                # the native builders take the tail and the two halves never
+                # contend. Open tasks only: a re-run must not redo finished work.
+                native_tasks = [
+                    task
+                    for task in store.get(swarm_id).tasks[len(cli_roles) :]
+                    if task.state == OPEN
+                ]
+                held = {"candidates": 0}
+                results = await asyncio.gather(
                     run_cli_swarm(
                         store,
                         repo_root,
                         swarm_id,
                         spawn_fn=subprocess_spawn,
-                        on_event=on_event,
+                        on_event=lambda ev: _member_event(ev, held),
                     ),
                     *(
                         _run_native_builder(sid, task)
                         for sid, task in zip(native_builders, native_tasks)
                     ),
+                    return_exceptions=True,
                 )
+                cli_ran = results[0] if isinstance(results[0], list) else []
+                if not cli_ran and not native_tasks:
+                    # Nothing was driven: a re-run of a finished plan, or a
+                    # swarm with no members. Silence beats a terminal event for
+                    # a run that never happened.
+                    return
+                if held["candidates"]:
+                    on_event(
+                        {
+                            "type": "swarm.candidates_ready",
+                            "swarm_id": swarm_id,
+                            "candidate_count": held["candidates"],
+                        }
+                    )
+                else:
+                    on_event(
+                        {
+                            "type": "swarm.complete",
+                            "swarm_id": swarm_id,
+                            "task_count": len(cli_ran) + len(native_tasks),
+                        }
+                    )
             except Exception:  # noqa: BLE001 — background driver must not crash the loop
                 pass
 
-        asyncio.create_task(_drive())
+        if swarm_id in app.state.swarm_runs:
+            return {"v": 1, "status": "already running"}
+        driver = asyncio.create_task(_drive())
+        app.state.swarm_runs[swarm_id] = driver
+        driver.add_done_callback(lambda _t: app.state.swarm_runs.pop(swarm_id, None))
         return {"v": 1, "status": "running"}
 
     # OpenAPI: force the event union into components
