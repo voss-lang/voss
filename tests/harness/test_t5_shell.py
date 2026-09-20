@@ -158,9 +158,18 @@ def test_monitor_cursor_progression(tmp_path: Path) -> None:
         assert "[running]" in first_prefix
         assert first_cursor >= 0
 
-        await asyncio.sleep(0.4)
-        second = await _invoke(tools, "shell_monitor", handle=handle, since_ms=first_cursor)
-        second_prefix, second_chunk = second.split("\n", 1)
+        # Poll for exit rather than assuming it lands inside a fixed sleep: on a
+        # loaded runner the emitter had not finished in 400ms.
+        second_prefix = second_chunk = ""
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            await asyncio.sleep(0.05)
+            second = await _invoke(
+                tools, "shell_monitor", handle=handle, since_ms=first_cursor
+            )
+            second_prefix, second_chunk = second.split("\n", 1)
+            if "[exit " in second_prefix:
+                break
         assert "[exit " in second_prefix
         assert _cursor(second_prefix) >= first_cursor
         assert first_chunk + second_chunk

@@ -75,10 +75,12 @@ jobs:
       - name: snap11 isolation probe (temporary)
         continue-on-error: true
         run: pytest -q tests/harness/tui/test_paste_image.py --snapshot-report=snapshot_report_probe.html
-      # -n auto: the suite is ~3500 tests in one process otherwise, which is
-      # where the ~29m runs came from. Coverage runs only on the leg that
-      # uploads it (3.12) — 3.11's coverage.xml was built and discarded.
-      - run: pytest -q -m "$PYTEST_MARKERS" -n auto $COV
+      # -n 2, not `auto`: the runner has 4 vCPU and many tests spawn their own
+      # `voss` subprocess, so `auto` put ~8 heavy processes on 4 cores. That run
+      # was SLOWER than 4 workers should be (18m) and pushed subprocess timeouts
+      # and fixed-sleep assertions over their limits. Coverage runs only on the
+      # leg that uploads it (3.12) — 3.11's coverage.xml was built and discarded.
+      - run: pytest -q -m "$PYTEST_MARKERS" -n 2 $COV
         env:
           PYTEST_MARKERS: ${{ github.event_name == 'schedule' && 'not live' || 'not live and not slow' }}
           COV: ${{ matrix.python-version == '3.12' && '--cov=voss_runtime --cov-report=term-missing --cov-report=xml' || '' }}
