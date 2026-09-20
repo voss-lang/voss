@@ -116,6 +116,57 @@ async fn swarm_roster_splits_native_from_cli_roles() {
 }
 
 #[tokio::test]
+async fn swarm_is_readable_and_runnable_by_id() {
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
+        return;
+    };
+
+    let _guard = SERVER_TEST_LOCK.lock().await;
+    with_timeout(async {
+        let supervisor = spawn_with(&voss, &[("VOSS_SERVE_FAKE_TURN", "1")])
+            .await
+            .expect("server should start");
+        let client = supervisor.client.clone();
+
+        let roster = [RoleSpec::cli("builder1", "claude")];
+        let created = client
+            .create_swarm("tidy the docs", ".", 1, &roster)
+            .await
+            .expect("create swarm");
+
+        let swarm = client.swarm(&created.id).await.expect("read swarm");
+        assert_eq!(swarm.id, created.id);
+        assert_eq!(swarm.goal, "tidy the docs");
+        assert_eq!(
+            swarm
+                .roster
+                .iter()
+                .map(|r| r.name.as_str())
+                .collect::<Vec<_>>(),
+            ["builder1"]
+        );
+        assert!(swarm.tasks.is_empty(), "a fresh swarm has no plan yet");
+
+        client.run_swarm(&created.id).await.expect("run swarm");
+        assert_eq!(
+            client
+                .swarm(&created.id)
+                .await
+                .expect("read swarm again")
+                .id,
+            created.id
+        );
+
+        let missing = client.swarm("not-a-swarm").await.unwrap_err();
+        assert!(matches!(missing, VossError::HttpStatus { status: 404, .. }));
+
+        supervisor.shutdown().await;
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn auth_bad_token() {
     let Some(voss) = venv_voss() else {
         eprintln!("skipping: .venv/bin/voss not found");
