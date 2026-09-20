@@ -5,6 +5,7 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use voss_sdk::error::VossError;
 use voss_sdk::types::events::AgentEvent;
+use voss_sdk::types::rest::RoleSpec;
 use voss_sdk::{event_stream, LaunchOptions, Supervisor, VossClient};
 
 static SERVER_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -59,6 +60,55 @@ async fn rest_roundtrip() {
         let cost = client.cost(&sid).await.expect("read cost");
         assert_eq!(cost.turns, 0);
         client.delete_session(&sid).await.expect("delete session");
+
+        supervisor.shutdown().await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn swarm_roster_splits_native_from_cli_roles() {
+    let Some(voss) = venv_voss() else {
+        eprintln!("skipping: .venv/bin/voss not found");
+        return;
+    };
+
+    let _guard = SERVER_TEST_LOCK.lock().await;
+    with_timeout(async {
+        let supervisor = spawn_with(&voss, &[("VOSS_SERVE_FAKE_TURN", "1")])
+            .await
+            .expect("server should start");
+        let client = supervisor.client.clone();
+
+        let roster = [
+            RoleSpec::native("coordinator"),
+            RoleSpec::cli("builder1", "claude"),
+        ];
+        let swarm = client
+            .create_swarm("tidy the docs", ".", 1, &roster)
+            .await
+            .expect("create swarm");
+
+        assert!(!swarm.id.is_empty());
+        let native = swarm
+            .sessions
+            .iter()
+            .find(|r| r.role == "coordinator")
+            .expect("coordinator in the roster");
+        assert!(!native.pending, "a native role runs in the harness");
+        assert!(
+            native.session_id.is_some(),
+            "a native role carries its session"
+        );
+
+        let cli = swarm
+            .sessions
+            .iter()
+            .find(|r| r.role == "builder1")
+            .expect("builder1 in the roster");
+        assert!(cli.pending, "a CLI role is left for the host to spawn");
+        assert_eq!(cli.session_id, None);
+        assert_eq!(cli.agent, "claude");
 
         supervisor.shutdown().await;
     })

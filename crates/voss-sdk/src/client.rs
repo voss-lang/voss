@@ -4,7 +4,7 @@ use std::time::Duration;
 use reqwest::{RequestBuilder, StatusCode};
 
 use crate::error::VossError;
-use crate::types::rest::{CostInfo, DoctorReport, SavedSession};
+use crate::types::rest::{CostInfo, DoctorReport, RoleSpec, SavedSession, SwarmCreated};
 
 const REST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -191,6 +191,33 @@ impl VossClient {
                 .and_then(serde_json::Value::as_u64)
                 .unwrap_or(0),
         })
+    }
+
+    /// POST /swarm - start a swarm and return its id with the spawned roster
+    ///
+    /// An empty `roster` asks the server for its default (coordinator,
+    /// `builders` builders, reviewer). Roles whose `agent` is not `"voss"`
+    /// come back `pending`: the server records them, the host spawns them.
+    pub async fn create_swarm(
+        &self,
+        goal: &str,
+        cwd: &str,
+        builders: u32,
+        roster: &[RoleSpec],
+    ) -> Result<SwarmCreated, VossError> {
+        let mut body = serde_json::json!({ "goal": goal, "cwd": cwd, "builders": builders });
+        if !roster.is_empty() {
+            body["roster"] =
+                serde_json::to_value(roster).map_err(|e| VossError::Decode(e.to_string()))?;
+        }
+        let resp = self
+            .auth(self.inner.post(format!("{}/swarm", self.base)))
+            .timeout(REST_TIMEOUT)
+            .json(&body)
+            .send()
+            .await?;
+        let resp = ok_or_detail(resp).await?;
+        resp.json().await.map_err(VossError::Http)
     }
 
     /// GET /doctor - server-side diagnostics
