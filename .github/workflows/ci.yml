@@ -76,13 +76,19 @@ jobs:
         continue-on-error: true
         run: pytest -q tests/harness/tui/test_paste_image.py --snapshot-report=snapshot_report_probe.html
       # -n 2, not `auto`: the runner has 4 vCPU and many tests spawn their own
-      # `voss` subprocess, so `auto` put ~8 heavy processes on 4 cores. That run
-      # was SLOWER than 4 workers should be (18m) and pushed subprocess timeouts
-      # and fixed-sleep assertions over their limits. Coverage runs only on the
-      # leg that uploads it (3.12) — 3.11's coverage.xml was built and discarded.
-      - run: pytest -q -m "$PYTEST_MARKERS" -n 2 $COV
+      # `voss` subprocess, so `auto` put ~8 heavy processes on 4 cores and the
+      # run got SLOWER (18m vs 15m). Coverage runs only on the leg that uploads
+      # it (3.12) — 3.11's coverage.xml was built and discarded.
+      #
+      # tests/e2e is off the PR and push path. Each of its ~82 tests spawns a
+      # real `voss` subprocess, which is ~40% of the suite's runtime and the
+      # only part that fails under worker contention — three runs timed out on
+      # three different e2e tests. It runs on the nightly and on release, where
+      # nothing is waiting on it.
+      - run: pytest -q -m "$PYTEST_MARKERS" -n 2 $IGNORES $COV
         env:
           PYTEST_MARKERS: ${{ github.event_name == 'schedule' && 'not live' || 'not live and not slow' }}
+          IGNORES: ${{ (github.event_name == 'schedule' || github.event_name == 'release') && '' || '--ignore=tests/e2e' }}
           COV: ${{ matrix.python-version == '3.12' && '--cov=voss_runtime --cov-report=term-missing --cov-report=xml' || '' }}
           PYTHONFAULTHANDLER: "1"
           VOSS_EXIT_DIAG: "1"
