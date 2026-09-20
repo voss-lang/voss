@@ -342,13 +342,13 @@ def _resolve_default_model(user_explicit: str | None) -> None:
 
 
 def _is_codex_model(model: str) -> bool:
-    return model.startswith("gpt-5.")
+    return auth_mod.is_codex_backend_model(model)
 
 
 def _codex_default_model() -> str:
     model = auth_mod.load_codex_default_model()
-    if model and _is_codex_model(model):
-        return model
+    if _is_codex_model(model or ""):
+        return model  # type: ignore[return-value]
     from .subscription_models import SUBSCRIPTION_MODELS
 
     return SUBSCRIPTION_MODELS["codex"][0].id
@@ -682,8 +682,8 @@ def _build_provider_for_auth(
             )
         provider = OpenAIOAuthProvider(res.codex_oauth)  # type: ignore[arg-type]
         cfg = get_config()
-        # The ChatGPT-account Codex backend only accepts gpt-5.x model ids
-        # (gpt-5/gpt-5-codex/gpt-4o are rejected). Snap any non-codex default
+        # The ChatGPT-account Codex backend rejects ids it does not serve
+        # (gpt-5/gpt-5-codex/gpt-4o among them). Snap any non-codex default
         # to Codex CLI's own default when set; leave a compatible choice alone.
         if not _is_codex_model(cfg.default_model):
             configure(default_model=_codex_default_model())

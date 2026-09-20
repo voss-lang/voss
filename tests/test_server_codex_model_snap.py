@@ -92,6 +92,18 @@ def test_codex_oauth_keeps_valid_gpt5_model(client, monkeypatch):
     assert _model_of(client, sid) == "gpt-5.4"
 
 
+def test_codex_oauth_keeps_newer_configured_model(client, monkeypatch):
+    """Issue #143: the model the Codex CLI is configured with is served by that
+    backend by definition, so a post-gpt-5.x id must survive the snap."""
+    monkeypatch.setattr(
+        auth_mod, "load_codex_default_model", lambda path=None: "gpt-6-astra"
+    )
+    _use_provider(monkeypatch)
+    assert _model_of(client, _create(client, model="gpt-6-astra")) == "gpt-6-astra"
+    # ...and the harness default still snaps — to Codex's own model, not gpt-5.x.
+    assert _model_of(client, _create(client)) == "gpt-6-astra"
+
+
 def test_non_codex_auth_keeps_model(client, monkeypatch):
     """Guard: non-codex auth must NOT be snapped (don't break Anthropic/etc.)."""
     _use_provider(monkeypatch, source="claude-agent")
