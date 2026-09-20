@@ -132,7 +132,6 @@ def _build_sitecustomize(extra: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
 # Every timeout here is a hang guard calibrated on an uncontended machine. Under
 # `-n auto` each worker spawns its own `voss` subprocess, so the same cold start
 # competes for the same cores and legitimately takes several times longer — two
@@ -141,6 +140,7 @@ def _build_sitecustomize(extra: str = "") -> str:
 _TIMEOUT_SCALE = 4.0 if os.environ.get("PYTEST_XDIST_WORKER") else 1.0
 
 
+@dataclass
 class CliRunner:
     """Invokes `python -m voss.cli <args>` in a deterministic subprocess.
 
