@@ -738,3 +738,66 @@ def test_a_second_run_leaves_finished_and_busy_members_alone(client, monkeypatch
         )
         assert _drain(client, sid, coord) == []
         client.app.state.swarm_runs.pop(sid, None)
+
+
+def _stubbed_cli_run(monkeypatch, result):
+    """Replace the CLI half with one that returns `result` (or raises it)."""
+    import voss.harness.swarm_runtime as rt
+
+    async def _fake_run_cli_swarm(store, repo_root, swarm_id, *, spawn_fn, on_event=None, **kw):
+        if isinstance(result, BaseException):
+            raise result
+        return result(store.get(swarm_id).tasks)
+
+    monkeypatch.setattr(rt, "run_cli_swarm", _fake_run_cli_swarm)
+
+
+def test_a_run_with_a_failed_member_does_not_report_complete(client, monkeypatch):
+    """`complete` would read as finished; a failed member makes the run incomplete."""
+    import voss.harness.swarm_coordinator as sc
+    from voss.harness.swarm_runtime import MemberResult
+
+    _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
+    _stubbed_cli_run(
+        monkeypatch,
+        lambda tasks: [
+            MemberResult(role="builder-1", task_id=tasks[0].id, exit_code=0),
+            MemberResult(role="builder-2", task_id=tasks[1].id, exit_code=-1, error="boom"),
+        ],
+    )
+
+    with client:
+        created = _cli_swarm(client)
+        sid = created["id"]
+        coord = next(s["session_id"] for s in created["sessions"] if s["role"] == "coordinator")
+        assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+        events = _drain_until(client, sid, coord, "swarm.gate")
+
+    types = [e.type for e in events]
+    assert "swarm.complete" not in types
+    gate = next(e for e in events if e.type == "swarm.gate")
+    assert (gate.gate_type, gate.detail) == ("run_incomplete", "1 of 2 members failed")
+
+
+def test_a_run_that_fails_outright_says_so(client, monkeypatch):
+    """The driver used to swallow its own failure and go quiet."""
+    import voss.harness.swarm_coordinator as sc
+
+    _canned_decomposition(monkeypatch, [sc.SubtaskSpec(goal="A", owned_files=["a.py"])])
+    _stubbed_cli_run(monkeypatch, RuntimeError("worktree add failed: no HEAD"))
+
+    with client:
+        created = _cli_swarm(client)
+        sid = created["id"]
+        coord = next(s["session_id"] for s in created["sessions"] if s["role"] == "coordinator")
+        assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+        events = _drain_until(client, sid, coord, "swarm.gate")
+
+    gates = [(e.gate_type, e.detail) for e in events if e.type == "swarm.gate"]
+    assert ("run_failed", "CLI members: worktree add failed: no HEAD") in gates
