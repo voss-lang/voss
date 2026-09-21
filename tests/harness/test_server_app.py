@@ -179,3 +179,78 @@ def test_session_env_defaults_for_sdk_clients(client, monkeypatch):
     assert seen[-1] == "claude"  # explicit body wins over env
     info2 = client.get(f"/session/{r2.json()['id']}", headers=_auth()).json()
     assert info2["model"] == "claude-x"
+
+
+def _init_project(root, **voss_files: str) -> None:
+    (root / "VOSS.md").write_text("# Project\n")
+    (root / ".voss").mkdir(exist_ok=True)
+    for name, body in voss_files.items():
+        (root / ".voss" / f"{name}.yml").write_text(body)
+
+
+async def _server_turn_decision(monkeypatch, cwd, tool: str, args: dict) -> dict:
+    """Run one server turn whose agent attempts a single tool call."""
+    seen: dict = {}
+
+    async def _run(text, *, renderer, permissions, cognition=None, **kw):
+        seen["decision"] = permissions.check(tool, args, is_mutating=True)
+        seen["cognition"] = cognition
+        return TurnResult(
+            plan=Plan(rationale="r", steps=[], confidence=0.9),
+            confidence=0.9,
+            final="done",
+            tool_results=[],
+            cost_usd=0.0,
+            run=None,
+        )
+
+    monkeypatch.setattr(appmod, "run_turn", _run)
+    monkeypatch.setattr(appmod.session_store, "save", lambda record, history: None)
+    app = appmod.create_app(TOKEN)
+    s = app.state.sessions.create(cwd=cwd, model="m", provider=object())
+    await appmod._run_turn(s, "go", "auto")
+    seen["events"] = []
+    while not s.queue.empty():
+        seen["events"].append(s.queue.get_nowait())
+    return seen
+
+
+async def test_server_turn_denies_tools_the_project_permissions_deny(monkeypatch, tmp_path):
+    write = ("fs_write", {"path": "notes.txt", "content": "x"})
+    before = await _server_turn_decision(monkeypatch, tmp_path, *write)
+    assert before["decision"][0] is True
+
+    _init_project(tmp_path, permissions="tool_policy:\n  deny: [fs_write]\n")
+    after = await _server_turn_decision(monkeypatch, tmp_path, *write)
+    assert after["decision"] == (False, "denied by .voss/permissions.yml")
+    assert after["cognition"].initialized
+
+
+async def test_server_turn_denies_irreversible_actions_under_the_safety_policy(
+    monkeypatch, tmp_path
+):
+    write = ("fs_write", {"path": "infra/prod/app.yml", "content": "x"})
+    before = await _server_turn_decision(monkeypatch, tmp_path, *write)
+    assert before["decision"][0] is True
+
+    _init_project(
+        tmp_path,
+        safety=(
+            "runbooks:\n  - name: prod-deploy\n    steps: [plan, apply]\n"
+            "factory_only_paths:\n  - id: prod-paths\n    glob: 'infra/prod/**'\n"
+            "    runbook: prod-deploy\n    classes: [prod, irreversible]\n"
+        ),
+    )
+    after = await _server_turn_decision(monkeypatch, tmp_path, *write)
+    allowed, why = after["decision"]
+    assert allowed is False
+    assert why.startswith("safety:")
+
+
+async def test_server_turn_warns_when_project_policy_fails_to_load(monkeypatch, tmp_path):
+    _init_project(tmp_path, permissions="not_a_field: true\n")
+    seen = await _server_turn_decision(
+        monkeypatch, tmp_path, "fs_write", {"path": "notes.txt", "content": "x"}
+    )
+    warnings = [e for e in seen["events"] if e.type == "warning"]
+    assert any("permissions.yml" in e.model_dump_json() for e in warnings)
