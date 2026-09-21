@@ -18,7 +18,7 @@ func TestIntegrationRestRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	id, err := c.CreateSession(ctx, ".")
+	id, err := c.CreateSession(ctx, SessionOptions{Cwd: "."})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestIntegrationRestRoundTrip(t *testing.T) {
 func TestIntegration401(t *testing.T) {
 	c := requireShared(t)
 	bad := AttachClient(c.baseURL, "wrong-token")
-	_, err := bad.CreateSession(context.Background(), ".")
+	_, err := bad.CreateSession(context.Background(), SessionOptions{Cwd: "."})
 	var ve *VossError
 	if !errors.As(err, &ve) || ve.Status != 401 {
 		t.Fatalf("err = %v, want *VossError{401}", err)
@@ -75,7 +75,7 @@ func TestIntegration409(t *testing.T) {
 	defer cancel()
 
 	for attempt := 0; attempt < 3; attempt++ {
-		id, err := c.CreateSession(ctx, ".")
+		id, err := c.CreateSession(ctx, SessionOptions{Cwd: "."})
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}

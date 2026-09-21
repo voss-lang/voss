@@ -102,7 +102,22 @@ type CreateSessionBody struct {
 	Title    *string `json:"title,omitempty"`
 }
 
-// EventEnvelope OpenAPI schema anchor.
+// CreateSwarmBody defines model for CreateSwarmBody.
+type CreateSwarmBody struct {
+	Builders *int        `json:"builders,omitempty"`
+	Cwd      *string     `json:"cwd,omitempty"`
+	Goal     string      `json:"goal"`
+	Roster   *[]RoleSpec `json:"roster,omitempty"`
+}
+
+// CreateTaskBody defines model for CreateTaskBody.
+type CreateTaskBody struct {
+	DependsOn  *[]string `json:"depends_on,omitempty"`
+	Goal       string    `json:"goal"`
+	OwnedFiles *[]string `json:"owned_files,omitempty"`
+}
+
+// EventEnvelope OpenAPI schema anchor (H1.14).
 //
 // Forced into the OpenAPI components so a typed client codegens a tagged
 // enum over the full event union, even though no route returns it directly.
@@ -138,6 +153,15 @@ type HTTPValidationError struct {
 	Detail *[]ValidationError `json:"detail,omitempty"`
 }
 
+// InstructionsOverflow defines model for InstructionsOverflow.
+type InstructionsOverflow struct {
+	Budget             *int      `json:"budget,omitempty"`
+	InstructionsTokens int       `json:"instructions_tokens"`
+	Truncated          *[]string `json:"truncated,omitempty"`
+	Type               string    `json:"type"`
+	V                  *int      `json:"v,omitempty"`
+}
+
 // MessageBody defines model for MessageBody.
 type MessageBody struct {
 	Mode  *string        `json:"mode,omitempty"`
@@ -148,6 +172,36 @@ type MessageBody struct {
 type MessagePart struct {
 	Text *string `json:"text,omitempty"`
 	Type *string `json:"type,omitempty"`
+}
+
+// ObserveEnrollmentPatch defines model for ObserveEnrollmentPatch.
+type ObserveEnrollmentPatch struct {
+	Analysis   *bool    `json:"analysis,omitempty"`
+	BudgetUsd  *float32 `json:"budget_usd,omitempty"`
+	Capture    *bool    `json:"capture,omitempty"`
+	Disclosure *bool    `json:"disclosure,omitempty"`
+	Enabled    *bool    `json:"enabled,omitempty"`
+	Paused     *bool    `json:"paused,omitempty"`
+	Provider   *string  `json:"provider,omitempty"`
+}
+
+// ObserveEventBody defines model for ObserveEventBody.
+type ObserveEventBody struct {
+	Event    map[string]interface{} `json:"event"`
+	Evidence *[]ObserveEvidenceItem `json:"evidence,omitempty"`
+}
+
+// ObserveEvidenceItem defines model for ObserveEvidenceItem.
+type ObserveEvidenceItem struct {
+	Content   *string `json:"content,omitempty"`
+	Kind      *string `json:"kind,omitempty"`
+	Truncated *bool   `json:"truncated,omitempty"`
+}
+
+// ObserveSettingsBody defines model for ObserveSettingsBody.
+type ObserveSettingsBody struct {
+	Enrollment   ObserveEnrollmentPatch `json:"enrollment"`
+	RepositoryId string                 `json:"repository_id"`
 }
 
 // PermissionReply defines model for PermissionReply.
@@ -198,6 +252,16 @@ type ProbableEvent struct {
 	V            *int           `json:"v,omitempty"`
 }
 
+// RoleSpec defines model for RoleSpec.
+type RoleSpec struct {
+	Agent    *string   `json:"agent,omitempty"`
+	Args     *[]string `json:"args,omitempty"`
+	AuthPref *string   `json:"auth_pref,omitempty"`
+	Command  *string   `json:"command,omitempty"`
+	Model    *string   `json:"model,omitempty"`
+	Name     string    `json:"name"`
+}
+
 // ServerConnected defines model for ServerConnected.
 type ServerConnected struct {
 	Type string `json:"type"`
@@ -236,6 +300,101 @@ type StreamFinalize struct {
 	Timestamp  *string  `json:"timestamp,omitempty"`
 	Type       string   `json:"type"`
 	V          *int     `json:"v,omitempty"`
+}
+
+// SwarmAssign defines model for SwarmAssign.
+type SwarmAssign struct {
+	Eid        *string   `json:"eid,omitempty"`
+	OwnedFiles *[]string `json:"owned_files,omitempty"`
+	Role       string    `json:"role"`
+	SessionId  string    `json:"session_id"`
+	SwarmId    string    `json:"swarm_id"`
+	TaskId     string    `json:"task_id"`
+	Type       string    `json:"type"`
+	V          *int      `json:"v,omitempty"`
+}
+
+// SwarmCandidateReady defines model for SwarmCandidateReady.
+type SwarmCandidateReady struct {
+	Branch   string  `json:"branch"`
+	Eid      *string `json:"eid,omitempty"`
+	Head     string  `json:"head"`
+	Role     string  `json:"role"`
+	Summary  *string `json:"summary,omitempty"`
+	SwarmId  string  `json:"swarm_id"`
+	TaskId   string  `json:"task_id"`
+	Type     string  `json:"type"`
+	V        *int    `json:"v,omitempty"`
+	Worktree string  `json:"worktree"`
+}
+
+// SwarmCandidatesReady defines model for SwarmCandidatesReady.
+type SwarmCandidatesReady struct {
+	CandidateCount int     `json:"candidate_count"`
+	Eid            *string `json:"eid,omitempty"`
+	SwarmId        string  `json:"swarm_id"`
+	Type           string  `json:"type"`
+	V              *int    `json:"v,omitempty"`
+}
+
+// SwarmComplete defines model for SwarmComplete.
+type SwarmComplete struct {
+	Eid       *string `json:"eid,omitempty"`
+	Summary   *string `json:"summary,omitempty"`
+	SwarmId   string  `json:"swarm_id"`
+	TaskCount int     `json:"task_count"`
+	Type      string  `json:"type"`
+	V         *int    `json:"v,omitempty"`
+}
+
+// SwarmGate defines model for SwarmGate.
+type SwarmGate struct {
+	Detail   string  `json:"detail"`
+	Eid      *string `json:"eid,omitempty"`
+	GateType string  `json:"gate_type"`
+	SwarmId  string  `json:"swarm_id"`
+	TaskId   string  `json:"task_id"`
+	Type     string  `json:"type"`
+	V        *int    `json:"v,omitempty"`
+}
+
+// SwarmMessageBody defines model for SwarmMessageBody.
+type SwarmMessageBody struct {
+	Confidence  *float32 `json:"confidence,omitempty"`
+	Detail      *string  `json:"detail,omitempty"`
+	FromSession *string  `json:"from_session,omitempty"`
+	GateType    *string  `json:"gate_type,omitempty"`
+	Kind        *string  `json:"kind,omitempty"`
+	Path        *string  `json:"path,omitempty"`
+	SessionId   *string  `json:"session_id,omitempty"`
+	Summary     *string  `json:"summary,omitempty"`
+	TaskCount   *int     `json:"task_count,omitempty"`
+	TaskId      *string  `json:"task_id,omitempty"`
+	Text        *string  `json:"text,omitempty"`
+	ToolName    *string  `json:"tool_name,omitempty"`
+}
+
+// SwarmNeedsOperator defines model for SwarmNeedsOperator.
+type SwarmNeedsOperator struct {
+	Eid       *string `json:"eid,omitempty"`
+	Path      *string `json:"path,omitempty"`
+	SessionId string  `json:"session_id"`
+	SwarmId   string  `json:"swarm_id"`
+	TaskId    string  `json:"task_id"`
+	ToolName  string  `json:"tool_name"`
+	Type      string  `json:"type"`
+	V         *int    `json:"v,omitempty"`
+}
+
+// SwarmWorkerDone defines model for SwarmWorkerDone.
+type SwarmWorkerDone struct {
+	Eid       *string `json:"eid,omitempty"`
+	SessionId string  `json:"session_id"`
+	Summary   *string `json:"summary,omitempty"`
+	SwarmId   string  `json:"swarm_id"`
+	TaskId    string  `json:"task_id"`
+	Type      string  `json:"type"`
+	V         *int    `json:"v,omitempty"`
 }
 
 // ThinkingEvent defines model for ThinkingEvent.
@@ -295,10 +454,41 @@ type DoctorDoctorGetParams struct {
 	Cwd  *string `form:"cwd,omitempty" json:"cwd,omitempty"`
 }
 
+// GetMemoryMemoryGetParams defines parameters for GetMemoryMemoryGet.
+type GetMemoryMemoryGetParams struct {
+	Cwd  *string `form:"cwd,omitempty" json:"cwd,omitempty"`
+	Q    *string `form:"q,omitempty" json:"q,omitempty"`
+	TopK *int    `form:"top_k,omitempty" json:"top_k,omitempty"`
+}
+
+// ObserveContextObserveContextGetParams defines parameters for ObserveContextObserveContextGet.
+type ObserveContextObserveContextGetParams struct {
+	Cwd string `form:"cwd" json:"cwd"`
+}
+
+// ListObserveEventsObserveEventsGetParams defines parameters for ListObserveEventsObserveEventsGet.
+type ListObserveEventsObserveEventsGetParams struct {
+	RepositoryId string `form:"repository_id" json:"repository_id"`
+	Cursor       *int   `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit        *int   `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ObserveStreamObserveStreamGetParams defines parameters for ObserveStreamObserveStreamGet.
+type ObserveStreamObserveStreamGetParams struct {
+	RepositoryId string `form:"repository_id" json:"repository_id"`
+	Cursor       *int   `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ListSavedSessionsSessionsSavedGetParams defines parameters for ListSavedSessionsSessionsSavedGet.
 type ListSavedSessionsSessionsSavedGetParams struct {
 	Cwd *string `form:"cwd,omitempty" json:"cwd,omitempty"`
 }
+
+// PostObserveEventObserveEventsPostJSONRequestBody defines body for PostObserveEventObserveEventsPost for application/json ContentType.
+type PostObserveEventObserveEventsPostJSONRequestBody = ObserveEventBody
+
+// PatchObserveSettingsObserveSettingsPatchJSONRequestBody defines body for PatchObserveSettingsObserveSettingsPatch for application/json ContentType.
+type PatchObserveSettingsObserveSettingsPatchJSONRequestBody = ObserveSettingsBody
 
 // CreateSessionSessionPostJSONRequestBody defines body for CreateSessionSessionPost for application/json ContentType.
 type CreateSessionSessionPostJSONRequestBody = CreateSessionBody
@@ -308,6 +498,15 @@ type PostMessageSessionSessionIdMessagePostJSONRequestBody = MessageBody
 
 // ReplyPermissionSessionSessionIdPermissionPostJSONRequestBody defines body for ReplyPermissionSessionSessionIdPermissionPost for application/json ContentType.
 type ReplyPermissionSessionSessionIdPermissionPostJSONRequestBody = PermissionReply
+
+// CreateSwarmSwarmPostJSONRequestBody defines body for CreateSwarmSwarmPost for application/json ContentType.
+type CreateSwarmSwarmPostJSONRequestBody = CreateSwarmBody
+
+// SwarmMessageSwarmSwarmIdMessagePostJSONRequestBody defines body for SwarmMessageSwarmSwarmIdMessagePost for application/json ContentType.
+type SwarmMessageSwarmSwarmIdMessagePostJSONRequestBody = SwarmMessageBody
+
+// CreateSwarmTaskSwarmSwarmIdTaskPostJSONRequestBody defines body for CreateSwarmTaskSwarmSwarmIdTaskPost for application/json ContentType.
+type CreateSwarmTaskSwarmSwarmIdTaskPostJSONRequestBody = CreateTaskBody
 
 // AsServerConnected returns the union data inside the EventEnvelope_Event as a ServerConnected
 func (t EventEnvelope_Event) AsServerConnected() (ServerConnected, error) {
@@ -757,6 +956,34 @@ func (t *EventEnvelope_Event) MergePrinciplesOverflow(v PrinciplesOverflow) erro
 	return err
 }
 
+// AsInstructionsOverflow returns the union data inside the EventEnvelope_Event as a InstructionsOverflow
+func (t EventEnvelope_Event) AsInstructionsOverflow() (InstructionsOverflow, error) {
+	var body InstructionsOverflow
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromInstructionsOverflow overwrites any union data inside the EventEnvelope_Event as the provided InstructionsOverflow
+func (t *EventEnvelope_Event) FromInstructionsOverflow(v InstructionsOverflow) error {
+	v.Type = "instructions_overflow"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeInstructionsOverflow performs a merge with any union data inside the EventEnvelope_Event, using the provided InstructionsOverflow
+func (t *EventEnvelope_Event) MergeInstructionsOverflow(v InstructionsOverflow) error {
+	v.Type = "instructions_overflow"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 // AsWarningEvent returns the union data inside the EventEnvelope_Event as a WarningEvent
 func (t EventEnvelope_Event) AsWarningEvent() (WarningEvent, error) {
 	var body WarningEvent
@@ -897,6 +1124,202 @@ func (t *EventEnvelope_Event) MergeGateUpdated(v GateUpdated) error {
 	return err
 }
 
+// AsSwarmAssign returns the union data inside the EventEnvelope_Event as a SwarmAssign
+func (t EventEnvelope_Event) AsSwarmAssign() (SwarmAssign, error) {
+	var body SwarmAssign
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSwarmAssign overwrites any union data inside the EventEnvelope_Event as the provided SwarmAssign
+func (t *EventEnvelope_Event) FromSwarmAssign(v SwarmAssign) error {
+	v.Type = "swarm.assign"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSwarmAssign performs a merge with any union data inside the EventEnvelope_Event, using the provided SwarmAssign
+func (t *EventEnvelope_Event) MergeSwarmAssign(v SwarmAssign) error {
+	v.Type = "swarm.assign"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSwarmCandidateReady returns the union data inside the EventEnvelope_Event as a SwarmCandidateReady
+func (t EventEnvelope_Event) AsSwarmCandidateReady() (SwarmCandidateReady, error) {
+	var body SwarmCandidateReady
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSwarmCandidateReady overwrites any union data inside the EventEnvelope_Event as the provided SwarmCandidateReady
+func (t *EventEnvelope_Event) FromSwarmCandidateReady(v SwarmCandidateReady) error {
+	v.Type = "swarm.candidate_ready"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSwarmCandidateReady performs a merge with any union data inside the EventEnvelope_Event, using the provided SwarmCandidateReady
+func (t *EventEnvelope_Event) MergeSwarmCandidateReady(v SwarmCandidateReady) error {
+	v.Type = "swarm.candidate_ready"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSwarmCandidatesReady returns the union data inside the EventEnvelope_Event as a SwarmCandidatesReady
+func (t EventEnvelope_Event) AsSwarmCandidatesReady() (SwarmCandidatesReady, error) {
+	var body SwarmCandidatesReady
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSwarmCandidatesReady overwrites any union data inside the EventEnvelope_Event as the provided SwarmCandidatesReady
+func (t *EventEnvelope_Event) FromSwarmCandidatesReady(v SwarmCandidatesReady) error {
+	v.Type = "swarm.candidates_ready"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSwarmCandidatesReady performs a merge with any union data inside the EventEnvelope_Event, using the provided SwarmCandidatesReady
+func (t *EventEnvelope_Event) MergeSwarmCandidatesReady(v SwarmCandidatesReady) error {
+	v.Type = "swarm.candidates_ready"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSwarmWorkerDone returns the union data inside the EventEnvelope_Event as a SwarmWorkerDone
+func (t EventEnvelope_Event) AsSwarmWorkerDone() (SwarmWorkerDone, error) {
+	var body SwarmWorkerDone
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSwarmWorkerDone overwrites any union data inside the EventEnvelope_Event as the provided SwarmWorkerDone
+func (t *EventEnvelope_Event) FromSwarmWorkerDone(v SwarmWorkerDone) error {
+	v.Type = "swarm.worker_done"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSwarmWorkerDone performs a merge with any union data inside the EventEnvelope_Event, using the provided SwarmWorkerDone
+func (t *EventEnvelope_Event) MergeSwarmWorkerDone(v SwarmWorkerDone) error {
+	v.Type = "swarm.worker_done"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSwarmGate returns the union data inside the EventEnvelope_Event as a SwarmGate
+func (t EventEnvelope_Event) AsSwarmGate() (SwarmGate, error) {
+	var body SwarmGate
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSwarmGate overwrites any union data inside the EventEnvelope_Event as the provided SwarmGate
+func (t *EventEnvelope_Event) FromSwarmGate(v SwarmGate) error {
+	v.Type = "swarm.gate"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSwarmGate performs a merge with any union data inside the EventEnvelope_Event, using the provided SwarmGate
+func (t *EventEnvelope_Event) MergeSwarmGate(v SwarmGate) error {
+	v.Type = "swarm.gate"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSwarmNeedsOperator returns the union data inside the EventEnvelope_Event as a SwarmNeedsOperator
+func (t EventEnvelope_Event) AsSwarmNeedsOperator() (SwarmNeedsOperator, error) {
+	var body SwarmNeedsOperator
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSwarmNeedsOperator overwrites any union data inside the EventEnvelope_Event as the provided SwarmNeedsOperator
+func (t *EventEnvelope_Event) FromSwarmNeedsOperator(v SwarmNeedsOperator) error {
+	v.Type = "swarm.needs_operator"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSwarmNeedsOperator performs a merge with any union data inside the EventEnvelope_Event, using the provided SwarmNeedsOperator
+func (t *EventEnvelope_Event) MergeSwarmNeedsOperator(v SwarmNeedsOperator) error {
+	v.Type = "swarm.needs_operator"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSwarmComplete returns the union data inside the EventEnvelope_Event as a SwarmComplete
+func (t EventEnvelope_Event) AsSwarmComplete() (SwarmComplete, error) {
+	var body SwarmComplete
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSwarmComplete overwrites any union data inside the EventEnvelope_Event as the provided SwarmComplete
+func (t *EventEnvelope_Event) FromSwarmComplete(v SwarmComplete) error {
+	v.Type = "swarm.complete"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSwarmComplete performs a merge with any union data inside the EventEnvelope_Event, using the provided SwarmComplete
+func (t *EventEnvelope_Event) MergeSwarmComplete(v SwarmComplete) error {
+	v.Type = "swarm.complete"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t EventEnvelope_Event) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -927,6 +1350,8 @@ func (t EventEnvelope_Event) ValueByDiscriminator() (interface{}, error) {
 		return t.AsFinalEvent()
 	case "gate.updated":
 		return t.AsGateUpdated()
+	case "instructions_overflow":
+		return t.AsInstructionsOverflow()
 	case "permission.updated":
 		return t.AsPermissionUpdated()
 	case "plan":
@@ -945,6 +1370,20 @@ func (t EventEnvelope_Event) ValueByDiscriminator() (interface{}, error) {
 		return t.AsStreamDelta()
 	case "stream.finalize":
 		return t.AsStreamFinalize()
+	case "swarm.assign":
+		return t.AsSwarmAssign()
+	case "swarm.candidate_ready":
+		return t.AsSwarmCandidateReady()
+	case "swarm.candidates_ready":
+		return t.AsSwarmCandidatesReady()
+	case "swarm.complete":
+		return t.AsSwarmComplete()
+	case "swarm.gate":
+		return t.AsSwarmGate()
+	case "swarm.needs_operator":
+		return t.AsSwarmNeedsOperator()
+	case "swarm.worker_done":
+		return t.AsSwarmWorkerDone()
 	case "thinking":
 		return t.AsThinkingEvent()
 	case "tool":

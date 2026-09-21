@@ -2,15 +2,19 @@ package voss
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"sync"
 	"time"
 )
 
 // spawnHandshakeTimeout is 60s: litellm's cold import can take tens of seconds.
 const spawnHandshakeTimeout = 60 * time.Second
+
+// stderrTailBytes bounds how much server stderr is kept for handshake errors.
+const stderrTailBytes = 8 << 10
 
 // SpawnError is returned when launching or handshaking with `voss serve` fails.
 type SpawnError struct{ Err error }
@@ -24,32 +28,64 @@ func (e *SpawnError) Error() string {
 
 func (e *SpawnError) Unwrap() error { return e.Err }
 
-// interpreterPath resolves Python: VOSS_PYTHON → repo .venv/bin/python →
-// "python3". Fixed chain, no caller input. Mirrors voss-tui python_path().
-func interpreterPath() string {
-	if v := os.Getenv("VOSS_PYTHON"); v != "" {
+// LaunchOptions configures Spawn. The zero value resolves the executable,
+// inherits the caller's working directory and waits 60s for the handshake.
+type LaunchOptions struct {
+	Executable       string
+	Cwd              string
+	Env              map[string]string
+	HandshakeTimeout time.Duration
+}
+
+// resolveExecutable picks the explicit path, else VOSS_BIN, else `voss` on
+// PATH, the same order as the Rust and TypeScript SDKs (docs/sdk.md).
+func resolveExecutable(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if v := os.Getenv("VOSS_BIN"); v != "" {
 		return v
 	}
-	cand := filepath.Join("..", "..", ".venv", "bin", "python")
-	if _, err := os.Stat(cand); err == nil {
-		if abs, err := filepath.Abs(cand); err == nil {
-			return abs
-		}
-		return cand
+	return "voss"
+}
+
+// stderrTail keeps the end of the server's stderr so it can be reported on a
+// failed handshake without ever writing to the consumer's terminal.
+type stderrTail struct {
+	mu sync.Mutex
+	b  []byte
+}
+
+func (t *stderrTail) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.b = append(t.b, p...)
+	if len(t.b) > stderrTailBytes {
+		t.b = t.b[len(t.b)-stderrTailBytes:]
 	}
-	return "python3"
+	return len(p), nil
+}
+
+func (t *stderrTail) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return string(t.b)
 }
 
 // Spawn launches `voss serve --port 0`, reads its handshake, and returns a
-// Client bound to the ephemeral port. stdin is held open as the EOF heartbeat;
-func Spawn(ctx context.Context, extraEnv map[string]string) (*Client, error) {
-	python := interpreterPath()
-	cmd := exec.CommandContext(ctx, python, "-m", "voss.cli", "serve", "--port", "0")
-	cmd.Env = append(os.Environ(), "LITELLM_LOCAL_MODEL_COST_MAP=true")
-	for k, v := range extraEnv {
+// Client bound to the ephemeral port. stdin is held open as a heartbeat: the
+// server exits when it closes.
+func Spawn(ctx context.Context, opts LaunchOptions) (*Client, error) {
+	cmd := exec.CommandContext(ctx, resolveExecutable(opts.Executable), "serve", "--port", "0")
+	cmd.Dir = opts.Cwd
+	cmd.Env = append(os.Environ(), "PYDANTIC_DISABLE_PLUGINS=1", "LITELLM_LOCAL_MODEL_COST_MAP=true")
+	for k, v := range opts.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
-	cmd.Stderr = os.Stderr
+	stderr := &stderrTail{}
+	cmd.Stderr = stderr
+	// Bounds Wait when a wrapper's child (the npm launcher's Python) still holds stderr.
+	cmd.WaitDelay = 2 * time.Second
 
 	stdinW, err := cmd.StdinPipe()
 	if err != nil {
@@ -65,12 +101,16 @@ func Spawn(ctx context.Context, extraEnv map[string]string) (*Client, error) {
 		return nil, &SpawnError{Err: err}
 	}
 
-	hs, err := readHandshake(stdout, spawnHandshakeTimeout)
+	timeout := opts.HandshakeTimeout
+	if timeout == 0 {
+		timeout = spawnHandshakeTimeout
+	}
+	hs, err := readHandshake(stdout, timeout)
 	if err != nil {
 		_ = stdinW.Close()
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
-		return nil, &SpawnError{Err: err}
+		return nil, &SpawnError{Err: fmt.Errorf("%w; stderr:\n%s", err, stderr)}
 	}
 
 	// Drain the rest of stdout so a full pipe never blocks the server.

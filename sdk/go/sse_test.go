@@ -3,6 +3,7 @@ package voss
 import (
 	"context"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -14,7 +15,7 @@ func TestIntegrationSSEOrdering(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	id, err := c.CreateSession(ctx, ".")
+	id, err := c.CreateSession(ctx, SessionOptions{Cwd: "."})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -73,7 +74,7 @@ func TestIntegrationSSECancel(t *testing.T) {
 	base := runtime.NumGoroutine()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	id, err := c.CreateSession(ctx, ".")
+	id, err := c.CreateSession(ctx, SessionOptions{Cwd: "."})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -114,5 +115,27 @@ closed:
 	}
 	if leaked {
 		t.Fatalf("goroutine leak: base=%d now=%d", base, runtime.NumGoroutine())
+	}
+}
+
+// TestParseSSEDeliversUnknownTypes asserts a frame with a type newer than the SDK
+// arrives as UnknownEvent with its raw JSON, and known frames still decode.
+func TestParseSSEDeliversUnknownTypes(t *testing.T) {
+	stream := "data: {\"v\":1,\"type\":\"future.event\",\"x\":1}\n\n" +
+		"data: {\"v\":1,\"type\":\"session.idle\",\"session_id\":\"s\"}\n\n"
+	ch := make(chan TypedEvent, 2)
+	parseSSE(context.Background(), strings.NewReader(stream), ch)
+	close(ch)
+
+	first := <-ch
+	unknown, ok := first.(UnknownEvent)
+	if !ok {
+		t.Fatalf("got %T, want UnknownEvent", first)
+	}
+	if unknown.Type != "future.event" || !strings.Contains(string(unknown.Raw), `"x":1`) {
+		t.Fatalf("unknown event = %+v", unknown)
+	}
+	if _, ok := (<-ch).(SessionIdle); !ok {
+		t.Fatal("known frame after an unknown one was not decoded")
 	}
 }

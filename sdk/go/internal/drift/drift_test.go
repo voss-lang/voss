@@ -82,8 +82,6 @@ print(json.dumps([m.model_fields['type'].default for m in models]))`
 		t.Fatalf("server union missing principles_overflow (RESEARCH Pitfall 4): %v", got)
 	}
 	t.Logf("server AgentEvent union (29 members): %v", got)
-	// TODO(.3: cross-check this set against voss.Decode's switch once
-	// Decode is implemented, asserting no member is missing or extra.
 }
 
 func pickPython(t *testing.T) string {
