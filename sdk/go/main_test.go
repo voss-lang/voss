@@ -15,26 +15,37 @@ var (
 	integrationEnabled bool
 )
 
-// pythonAvailable reports whether an interpreter is resolvable (VOSS_PYTHON set
-// or repo .venv/bin/python present) — the precondition for spawn integration.
-func pythonAvailable() bool {
-	if os.Getenv("VOSS_PYTHON") != "" {
-		return true
+// testExecutable resolves the server for integration tests: VOSS_BIN, else the
+// repo's .venv/bin/voss. ok=false disables integration.
+func testExecutable() (string, bool) {
+	if v := os.Getenv("VOSS_BIN"); v != "" {
+		return v, true
 	}
-	_, err := os.Stat(filepath.Join("..", "..", ".venv", "bin", "python"))
-	return err == nil
+	p, err := filepath.Abs(filepath.Join("..", "..", ".venv", "bin", "voss"))
+	if err != nil {
+		return "", false
+	}
+	if _, err := os.Stat(p); err != nil {
+		return "", false
+	}
+	return p, true
+}
+
+func fakeTurnOptions() LaunchOptions {
+	exe, _ := testExecutable()
+	return LaunchOptions{Executable: exe, Env: map[string]string{"VOSS_SERVE_FAKE_TURN": "1"}}
 }
 
 // TestMain spawns one shared fake-turn server (when an interpreter is available)
 // for the integration tests, runs the suite, and tears the server down with no
 func TestMain(m *testing.M) {
 	os.Exit(func() int {
-		if !pythonAvailable() {
+		if _, ok := testExecutable(); !ok {
 			return m.Run()
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
-		c, err := Spawn(ctx, map[string]string{"VOSS_SERVE_FAKE_TURN": "1"})
+		c, err := Spawn(ctx, fakeTurnOptions())
 		if err != nil {
 			// Could not spawn; run unit tests only rather than failing the suite.
 			return m.Run()
@@ -52,7 +63,7 @@ func TestMain(m *testing.M) {
 func requireShared(t *testing.T) *Client {
 	t.Helper()
 	if !integrationEnabled || sharedClient == nil {
-		t.Skip("integration disabled: no VOSS_PYTHON / repo .venv python")
+		t.Skip("integration disabled: no VOSS_BIN / repo .venv/bin/voss")
 	}
 	return sharedClient
 }

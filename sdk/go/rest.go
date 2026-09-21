@@ -50,9 +50,25 @@ type DoctorReport struct {
 	Checks       []DoctorCheck `json:"checks"`
 }
 
-// CreateSession opens a session rooted at cwd. POST /session -> 201.
-func (c *Client) CreateSession(ctx context.Context, cwd string) (string, error) {
-	body := CreateSessionBody{Cwd: &cwd}
+// SessionOptions are the POST /session fields; empty strings take the server's
+// defaults. Resume adopts a saved session by id or name.
+type SessionOptions struct {
+	Cwd    string
+	Model  string
+	Auth   string
+	Title  string
+	Resume string
+}
+
+// CreateSession opens a session, or resumes a saved one. POST /session -> 201.
+func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (string, error) {
+	body := CreateSessionBody{
+		Cwd:    optional(opts.Cwd),
+		Model:  optional(opts.Model),
+		Auth:   optional(opts.Auth),
+		Title:  optional(opts.Title),
+		Resume: optional(opts.Resume),
+	}
 	var out struct {
 		Id string `json:"id"`
 	}
@@ -146,4 +162,11 @@ func (c *Client) PermissionReply(ctx context.Context, sessionID, id, choice stri
 		return false, err
 	}
 	return out.Status == "stale", nil
+}
+
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

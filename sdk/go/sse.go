@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -46,7 +47,8 @@ func (c *Client) Events(ctx context.Context, sessionID string) (<-chan TypedEven
 }
 
 // parseSSE accumulates `data:` lines, decodes each frame on the blank-line
-// boundary, and ignores comment/event/id lines. Bad JSON or unknown types are
+// boundary, and ignores comment/event/id lines. Malformed frames are skipped;
+// unknown types arrive as UnknownEvent.
 func parseSSE(ctx context.Context, r io.Reader, ch chan<- TypedEvent) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), sseMaxLineBytes)
@@ -64,8 +66,11 @@ func parseSSE(ctx context.Context, r io.Reader, ch chan<- TypedEvent) {
 			return true // tolerate malformed frame
 		}
 		ev, err := Decode(EventEnvelope{Event: union})
-		if err != nil {
-			return true // unknown type: cannot deliver on a TypedEvent channel
+		var unknown ErrUnknownEventType
+		if errors.As(err, &unknown) {
+			ev = UnknownEvent{Type: unknown.Type, Raw: json.RawMessage(payload)}
+		} else if err != nil {
+			return true // tolerate malformed frame
 		}
 		select {
 		case ch <- ev:

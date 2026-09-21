@@ -193,14 +193,14 @@ Tool descriptors carry `is_mutating: bool`. Anything mutating is gated.
 
 ## Launching `voss serve` from a client SDK
 
-The Rust (`crates/voss-sdk`) and TypeScript (`@vosslang/sdk/node`) clients
-support two separate use cases. Pick one; nothing forces a consumer to
-launch its own server.
+The Rust (`crates/voss-sdk`), TypeScript (`@vosslang/sdk/node`) and Go
+(`sdk/go`) clients support two separate use cases. Pick one; nothing
+forces a consumer to launch its own server.
 
 **Connect to a server you already have.** You hold a base URL and bearer
 token (for example from a handshake another process read). Build a client
 directly: `VossClient::new(base, token)` in Rust, `createVossClient(base,
-token)` in TypeScript.
+token)` in TypeScript, `voss.AttachClient(base, token)` in Go.
 
 **Supervise a local server.** The SDK spawns `voss serve --port 0`, reads the
 one-line `{"v":1,"port":...,"token":...}` handshake from stdout, holds stdin
@@ -228,7 +228,16 @@ const { client } = await launcher.start({ executable: "/opt/voss/bin/voss" });
 launcher.dispose();
 ```
 
-The executable is resolved in this order, in both SDKs:
+```go
+client, err := voss.Spawn(ctx, voss.LaunchOptions{
+    Executable: "/opt/voss/bin/voss",
+    Cwd:        "/path/to/project",
+})
+// ...
+client.Close()
+```
+
+The executable is resolved in this order, in all three SDKs:
 
 1. `executable` passed by the consumer
 2. the `VOSS_BIN` environment variable

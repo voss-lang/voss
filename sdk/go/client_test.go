@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 )
 
-// requirePython skips the test when no interpreter is resolvable (VOSS_PYTHON
-// unset and repo .venv/bin/python absent), so spawn integration tests are
-func requirePython(t *testing.T) {
+// requireVoss skips spawn integration tests when no server executable resolves
+// (VOSS_BIN unset and repo .venv/bin/voss absent).
+func requireVoss(t *testing.T) {
 	t.Helper()
-	if !pythonAvailable() {
-		t.Skip("no VOSS_PYTHON and no repo .venv/bin/python; skipping spawn integration")
+	if _, ok := testExecutable(); !ok {
+		t.Skip("no VOSS_BIN and no repo .venv/bin/voss; skipping spawn integration")
 	}
 }
 
@@ -44,11 +45,11 @@ func drainTurn(t *testing.T, ch <-chan TypedEvent, timeout time.Duration) map[st
 // TestSpawnNoOrphan spawns a FAKE_TURN server, runs a full turn end-to-end, then
 // asserts Close() leaves no orphan (the recorded PID is gone).
 func TestSpawnNoOrphan(t *testing.T) {
-	requirePython(t)
+	requireVoss(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	c, err := Spawn(ctx, map[string]string{"VOSS_SERVE_FAKE_TURN": "1"})
+	c, err := Spawn(ctx, fakeTurnOptions())
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
@@ -58,7 +59,7 @@ func TestSpawnNoOrphan(t *testing.T) {
 	pid := c.spawn.pid
 
 	// End-to-end fake turn: create -> open stream -> post -> drain to idle.
-	id, err := c.CreateSession(ctx, ".")
+	id, err := c.CreateSession(ctx, SessionOptions{Cwd: "."})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -90,36 +91,55 @@ func TestSpawnNoOrphan(t *testing.T) {
 	}
 }
 
-// TestSpawnBadInterpreter asserts a bad VOSS_PYTHON yields a typed *SpawnError
-// promptly (no hang).
-func TestSpawnBadInterpreter(t *testing.T) {
-	t.Setenv("VOSS_PYTHON", "/nonexistent/voss-python-does-not-exist")
+// TestSpawnBadExecutable asserts a missing executable yields a typed
+// *SpawnError naming the path, promptly (no hang).
+func TestSpawnBadExecutable(t *testing.T) {
+	const bad = "/nonexistent/voss-does-not-exist"
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	start := time.Now()
-	c, err := Spawn(ctx, nil)
+	c, err := Spawn(ctx, LaunchOptions{Executable: bad})
 	if elapsed := time.Since(start); elapsed > 25*time.Second {
-		t.Fatalf("Spawn hung %v on a bad interpreter", elapsed)
+		t.Fatalf("Spawn hung %v on a bad executable", elapsed)
 	}
 	if c != nil {
 		_ = c.Close()
-		t.Fatal("expected nil client on bad interpreter")
+		t.Fatal("expected nil client on bad executable")
 	}
 	var se *SpawnError
 	if !errors.As(err, &se) {
 		t.Fatalf("error %v is not *SpawnError", err)
+	}
+	if !strings.Contains(err.Error(), bad) {
+		t.Fatalf("error %q does not name %s", err, bad)
+	}
+}
+
+// TestResolveExecutableOrder asserts explicit path, then VOSS_BIN, then `voss`
+// on PATH, matching the Rust and TypeScript SDKs.
+func TestResolveExecutableOrder(t *testing.T) {
+	t.Setenv("VOSS_BIN", "/from/env/voss")
+	if got := resolveExecutable("/explicit/voss"); got != "/explicit/voss" {
+		t.Fatalf("explicit: got %q", got)
+	}
+	if got := resolveExecutable(""); got != "/from/env/voss" {
+		t.Fatalf("VOSS_BIN: got %q", got)
+	}
+	t.Setenv("VOSS_BIN", "")
+	if got := resolveExecutable(""); got != "voss" {
+		t.Fatalf("PATH fallback: got %q", got)
 	}
 }
 
 // TestAttachRoundTrip spawns a server, builds an AttachClient from its base/token,
 // does a REST round-trip, and asserts the attach client's Close() does NOT kill
 func TestAttachRoundTrip(t *testing.T) {
-	requirePython(t)
+	requireVoss(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	srv, err := Spawn(ctx, map[string]string{"VOSS_SERVE_FAKE_TURN": "1"})
+	srv, err := Spawn(ctx, fakeTurnOptions())
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
@@ -129,7 +149,7 @@ func TestAttachRoundTrip(t *testing.T) {
 	if att.spawn != nil {
 		t.Fatal("attach client must own no child")
 	}
-	if _, err := att.CreateSession(ctx, "."); err != nil {
+	if _, err := att.CreateSession(ctx, SessionOptions{Cwd: "."}); err != nil {
 		t.Fatalf("attach CreateSession: %v", err)
 	}
 	// Attach Close is a no-op for the process.
@@ -137,7 +157,7 @@ func TestAttachRoundTrip(t *testing.T) {
 		t.Fatalf("attach Close: %v", err)
 	}
 	// The spawned server is still alive: a follow-up call succeeds.
-	if _, err := srv.CreateSession(ctx, "."); err != nil {
+	if _, err := srv.CreateSession(ctx, SessionOptions{Cwd: "."}); err != nil {
 		t.Fatalf("spawned server died after attach Close: %v", err)
 	}
 }

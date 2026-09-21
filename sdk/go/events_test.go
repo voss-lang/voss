@@ -3,10 +3,12 @@ package voss
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-// allEventTypes is the authoritative 21-member set of AgentEvent `type` strings
+// allEventTypes is the authoritative 29-member set of AgentEvent `type` strings
 // from voss/harness/server/events.py. Decode() must dispatch every one to its
 var allEventTypes = []string{
 	"server.connected",
@@ -30,6 +32,14 @@ var allEventTypes = []string{
 	"budget.updated",
 	"confidence.updated",
 	"gate.updated",
+	"instructions_overflow",
+	"swarm.assign",
+	"swarm.candidate_ready",
+	"swarm.candidates_ready",
+	"swarm.worker_done",
+	"swarm.gate",
+	"swarm.needs_operator",
+	"swarm.complete",
 }
 
 // envFromEvent builds an EventEnvelope wrapping the given raw event JSON via the
@@ -43,7 +53,7 @@ func envFromEvent(t *testing.T, eventJSON string) EventEnvelope {
 	return EventEnvelope{Event: u}
 }
 
-// decodeCase is one row of the 21-member decode table: a fixture JSON for a
+// decodeCase is one row of the 29-member decode table: a fixture JSON for a
 // `type` plus an assertion that Decode produced the right typed value.
 type decodeCase struct {
 	typ   string
@@ -194,15 +204,87 @@ func decodeTable() []decodeCase {
 				t.Fatalf("gate/decision = %q/%q, want budget/allow", e.Gate, e.Decision)
 			}
 		}},
+		{"instructions_overflow", `{"v":1,"type":"instructions_overflow","instructions_tokens":900,"budget":500}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(InstructionsOverflow)
+			if !ok {
+				t.Fatalf("got %T, want InstructionsOverflow", ev)
+			}
+			if e.InstructionsTokens != 900 {
+				t.Fatalf("instructions_tokens = %d, want 900", e.InstructionsTokens)
+			}
+		}},
+		{"swarm.assign", `{"v":1,"type":"swarm.assign","swarm_id":"w1","task_id":"t1","session_id":"s1","role":"builder","owned_files":["a.go"]}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(SwarmAssign)
+			if !ok {
+				t.Fatalf("got %T, want SwarmAssign", ev)
+			}
+			if e.Role != "builder" || e.OwnedFiles == nil {
+				t.Fatalf("role/owned_files = %q/%v", e.Role, e.OwnedFiles)
+			}
+		}},
+		{"swarm.candidate_ready", `{"v":1,"type":"swarm.candidate_ready","swarm_id":"w1","task_id":"t1","role":"builder","branch":"b","head":"abc","worktree":"/wt"}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(SwarmCandidateReady)
+			if !ok {
+				t.Fatalf("got %T, want SwarmCandidateReady", ev)
+			}
+			if e.Head != "abc" {
+				t.Fatalf("head = %q, want abc", e.Head)
+			}
+		}},
+		{"swarm.candidates_ready", `{"v":1,"type":"swarm.candidates_ready","swarm_id":"w1","candidate_count":2}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(SwarmCandidatesReady)
+			if !ok {
+				t.Fatalf("got %T, want SwarmCandidatesReady", ev)
+			}
+			if e.CandidateCount != 2 {
+				t.Fatalf("candidate_count = %d, want 2", e.CandidateCount)
+			}
+		}},
+		{"swarm.worker_done", `{"v":1,"type":"swarm.worker_done","swarm_id":"w1","task_id":"t1","session_id":"s1"}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(SwarmWorkerDone)
+			if !ok {
+				t.Fatalf("got %T, want SwarmWorkerDone", ev)
+			}
+			if e.TaskId != "t1" {
+				t.Fatalf("task_id = %q, want t1", e.TaskId)
+			}
+		}},
+		{"swarm.gate", `{"v":1,"type":"swarm.gate","swarm_id":"w1","task_id":"t1","gate_type":"review","detail":"d"}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(SwarmGate)
+			if !ok {
+				t.Fatalf("got %T, want SwarmGate", ev)
+			}
+			if e.GateType != "review" {
+				t.Fatalf("gate_type = %q, want review", e.GateType)
+			}
+		}},
+		{"swarm.needs_operator", `{"v":1,"type":"swarm.needs_operator","swarm_id":"w1","task_id":"t1","session_id":"s1","tool_name":"fs_edit"}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(SwarmNeedsOperator)
+			if !ok {
+				t.Fatalf("got %T, want SwarmNeedsOperator", ev)
+			}
+			if e.ToolName != "fs_edit" {
+				t.Fatalf("tool_name = %q, want fs_edit", e.ToolName)
+			}
+		}},
+		{"swarm.complete", `{"v":1,"type":"swarm.complete","swarm_id":"w1","task_count":3}`, func(t *testing.T, ev TypedEvent) {
+			e, ok := ev.(SwarmComplete)
+			if !ok {
+				t.Fatalf("got %T, want SwarmComplete", ev)
+			}
+			if e.TaskCount != 3 {
+				t.Fatalf("task_count = %d, want 3", e.TaskCount)
+			}
+		}},
 	}
 }
 
 // TestDecodeAllMembers asserts Decode() turns an EventEnvelope for each of the
-// 21 type strings into the matching typed Go struct with fields populated, with
+// 29 type strings into the matching typed Go struct with fields populated, with
 func TestDecodeAllMembers(t *testing.T) {
 	table := decodeTable()
-	if len(table) != 21 {
-		t.Fatalf("decode table has %d entries, want 21", len(table))
+	if len(table) != len(allEventTypes) {
+		t.Fatalf("decode table has %d entries, want %d", len(table), len(allEventTypes))
 	}
 	// Every member of the authoritative set must have a table row.
 	covered := map[string]bool{}
@@ -248,5 +330,41 @@ func TestDecodeUnknownType(t *testing.T) {
 	}
 	if unknown.Type != "future.event.v2" {
 		t.Fatalf("ErrUnknownEventType.Type = %q, want future.event.v2", unknown.Type)
+	}
+}
+
+// TestDecodeCoversContract asserts allEventTypes is exactly the event union in
+// contracts/openapi.json, so a new server event fails here until Decode handles it.
+func TestDecodeCoversContract(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "contracts", "openapi.json"))
+	if err != nil {
+		t.Fatalf("read contract: %v", err)
+	}
+	var spec struct {
+		Components struct {
+			Schemas struct {
+				EventEnvelope struct {
+					Properties struct {
+						Event struct {
+							Discriminator struct {
+								Mapping map[string]string `json:"mapping"`
+							} `json:"discriminator"`
+						} `json:"event"`
+					} `json:"properties"`
+				} `json:"EventEnvelope"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(raw, &spec); err != nil {
+		t.Fatalf("parse contract: %v", err)
+	}
+	mapping := spec.Components.Schemas.EventEnvelope.Properties.Event.Discriminator.Mapping
+	if len(mapping) != len(allEventTypes) {
+		t.Fatalf("contract has %d event types, SDK handles %d", len(mapping), len(allEventTypes))
+	}
+	for _, typ := range allEventTypes {
+		if _, ok := mapping[typ]; !ok {
+			t.Fatalf("SDK event %q is not in the contract", typ)
+		}
 	}
 }
