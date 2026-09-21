@@ -17,7 +17,7 @@ from voss.harness.swarm_runtime import (
     run_cli_swarm,
     subprocess_spawn,
 )
-from voss.harness.swarm_store import CANDIDATE_READY, DONE, Role, SwarmStore
+from voss.harness.swarm_store import CANDIDATE_READY, DONE, OPEN, Role, SwarmStore
 
 
 def _git(args: list[str], cwd: Path) -> None:
@@ -323,3 +323,41 @@ def test_member_emits_assign_and_worker_done(repo: Path) -> None:
     # The store transition rides along with the event, so GET /swarm and the
     # stream cannot disagree.
     assert store.get(swarm.id).task(task.id).state == CANDIDATE_READY
+
+
+def test_a_member_that_cannot_start_is_reported_and_spares_its_sibling(repo: Path) -> None:
+    """A setup failure used to end the whole run with no event at all."""
+    store = SwarmStore(cwd=repo)
+    swarm = store.create(
+        "one broken member",
+        cwd=str(repo),
+        roster=[
+            Role(name="builder-1", agent="no-such-cli"),
+            Role(name="builder-2", agent="codex"),
+        ],
+    )
+    broken = store.add_task(swarm.id, "A", owned_files=["owned.py"])
+    healthy = store.add_task(swarm.id, "B", owned_files=["other.py"])
+
+    def spawn(argv: list[str], cwd: Path) -> _FakeHandle:
+        (cwd / "other.py").write_text("# by builder-2\n")
+        _write_result(repo, swarm.id, cwd.name, "builder-2 done")
+        return _FakeHandle(0)
+
+    events: list[dict] = []
+    results = asyncio.run(
+        run_cli_swarm(store, repo, swarm.id, spawn_fn=spawn, on_event=events.append)
+    )
+
+    failed = [r for r in results if r.error]
+    assert [r.role for r in failed] == ["builder-1"]
+    assert "no-such-cli" in failed[0].error
+
+    gates = [e for e in events if e["type"] == "swarm.gate"]
+    assert [(g["gate_type"], g["task_id"]) for g in gates] == [("member_failed", broken.id)]
+    assert gates[0]["detail"].startswith("builder-1: ")
+
+    # The agent could not be resolved, so the task was never assigned: it stays
+    # open for a retry instead of sitting in `assigned` with no process behind it.
+    assert store.get(swarm.id).task(broken.id).state == OPEN
+    assert store.get(swarm.id).task(healthy.id).state == CANDIDATE_READY

@@ -1396,6 +1396,17 @@ def create_app(token: str | None = None) -> FastAPI:
                     ),
                 )
 
+        def _gate(gate_type: str, detail: str, task_id: str = "") -> None:
+            on_event(
+                {
+                    "type": "swarm.gate",
+                    "swarm_id": swarm_id,
+                    "task_id": task_id,
+                    "gate_type": gate_type,
+                    "detail": detail,
+                }
+            )
+
         def _member_event(ev: dict, held: dict) -> None:
             """Pass member events through, holding the run's terminal event.
 
@@ -1439,13 +1450,27 @@ def create_app(token: str | None = None) -> FastAPI:
                     ),
                     return_exceptions=True,
                 )
+                if isinstance(results[0], BaseException):
+                    # run_cli_swarm isolates its members, so this is the run
+                    # itself failing, not one member.
+                    _gate("run_failed", f"CLI members: {results[0]}")
                 cli_ran = results[0] if isinstance(results[0], list) else []
+                failed = [r for r in cli_ran if r.error]
+                for task, outcome in zip(native_tasks, results[1:]):
+                    if isinstance(outcome, BaseException):
+                        _gate("member_failed", f"native builder: {outcome}", task.id)
+                        failed.append(outcome)
                 if not cli_ran and not native_tasks:
                     # Nothing was driven: a re-run of a finished plan, or a
                     # swarm with no members. Silence beats a terminal event for
                     # a run that never happened.
                     return
-                if held["candidates"]:
+                if failed:
+                    # Not `complete`: a client would read the run as finished.
+                    # Each failure already has its own member_failed gate.
+                    total = len(cli_ran) + len(native_tasks)
+                    _gate("run_incomplete", f"{len(failed)} of {total} members failed")
+                elif held["candidates"]:
                     on_event(
                         {
                             "type": "swarm.candidates_ready",
@@ -1461,8 +1486,8 @@ def create_app(token: str | None = None) -> FastAPI:
                             "task_count": len(cli_ran) + len(native_tasks),
                         }
                     )
-            except Exception:  # noqa: BLE001 — background driver must not crash the loop
-                pass
+            except Exception as exc:  # noqa: BLE001 — must not crash the loop, must not go quiet
+                _gate("run_failed", str(exc))
 
         if swarm_id in app.state.swarm_runs:
             return {"v": 1, "status": "already running"}

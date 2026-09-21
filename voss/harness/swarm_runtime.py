@@ -85,6 +85,9 @@ class MemberResult:
     candidate_worktree: str | None = None
     candidate_head: str | None = None
     summary: str | None = None
+    # Set when the member never ran: its worktree, task file, argv or process
+    # could not be set up. The task is left where the failure found it.
+    error: str | None = None
 
 
 def _emit(on_event: EventHook, event: dict) -> None:
@@ -160,6 +163,10 @@ async def run_cli_member(
         context=context,
     )
 
+    # Resolved before the task is marked assigned: an agent that cannot be
+    # launched is a setup failure, and the task stays open for a retry.
+    argv = resolve_agent_argv(role, cwd=mw.path, task_text=task.goal)
+
     store.mark_assigned(swarm_id, task.id)
     _emit(
         on_event,
@@ -206,8 +213,6 @@ async def run_cli_member(
         )
     except (OSError, ValueError):
         pass
-
-    argv = resolve_agent_argv(role, cwd=mw.path, task_text=task.goal)
 
     # Belt-and-suspenders live watcher; the post-exit check below is the authority
     # so a missed fs event cannot make us wrong. on_violation here is
@@ -382,16 +387,32 @@ async def run_cli_swarm(
     sem = asyncio.Semaphore(max_concurrency)
 
     async def _guarded(role: Role, task: Task) -> MemberResult:
+        """One member, isolated: its failure is reported, never its siblings'."""
         async with sem:
-            return await run_cli_member(
-                store,
-                repo_root,
-                swarm_id,
-                role,
-                task,
-                spawn_fn=spawn_fn,
-                on_event=on_event,
-            )
+            try:
+                return await run_cli_member(
+                    store,
+                    repo_root,
+                    swarm_id,
+                    role,
+                    task,
+                    spawn_fn=spawn_fn,
+                    on_event=on_event,
+                )
+            except Exception as exc:  # noqa: BLE001 — reported, not swallowed
+                _emit(
+                    on_event,
+                    {
+                        "type": "swarm.gate",
+                        "swarm_id": swarm_id,
+                        "task_id": task.id,
+                        "gate_type": "member_failed",
+                        "detail": f"{role.name}: {exc}",
+                    },
+                )
+                return MemberResult(
+                    role=role.name, task_id=task.id, exit_code=-1, error=str(exc)
+                )
 
     results: list[MemberResult] = []
     if pairs:
