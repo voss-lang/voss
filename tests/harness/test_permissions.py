@@ -118,3 +118,37 @@ async def test_per_step_check_denies_one_step_in_batch_others_still_run() -> Non
     assert results[0] == "ok:a"
     assert results[1] == "<denied: test-denied>"
     assert results[2] == "ok:c"
+
+
+
+def test_a_prompt_is_logged_before_it_waits_on_the_user(monkeypatch, tmp_path) -> None:
+    """Telemetry used to learn about a prompt only after it was answered."""
+    import json
+
+    from voss.harness import telemetry
+
+    log = tmp_path / "telemetry.ndjson"
+    monkeypatch.setenv("VOSS_LOG", "1")
+    monkeypatch.setenv("VOSS_LOG_PATH", str(log))
+    telemetry.reset_session_sink()
+
+    def kinds() -> list[str]:
+        return [json.loads(line)["kind"] for line in log.read_text().splitlines()]
+
+    at_prompt: list[str] = []
+
+    def prompt(tool_name, args):
+        at_prompt.extend(kinds())
+        return "d"
+
+    # edit is the mode that asks before a write; plan denies writes outright.
+    gate = PermissionGate(mode="edit", prompt_fn=prompt)
+    allowed, _ = gate.check("fs_write", {"path": "x.txt", "content": "secret"}, is_mutating=True)
+    telemetry.reset_session_sink()
+
+    assert not allowed
+    assert at_prompt == ["permission.request"], "the request is on disk while the prompt is up"
+    assert kinds() == ["permission.request", "permission.result"]
+    request = json.loads(log.read_text().splitlines()[0])
+    assert request["data"]["tool"] == "fs_write"
+    assert "secret" not in json.dumps(request), "args are redacted like permission.result"
