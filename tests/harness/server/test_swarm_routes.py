@@ -17,7 +17,7 @@ from voss.harness.agent import Plan, TurnResult
 from voss.harness.memory_store import Hit, MemoryStore
 from voss.harness.permissions import PermissionGate
 from voss.harness.server import app as appmod
-from voss.harness.swarm_store import build_ownership_policy
+from voss.harness.swarm_store import DONE, build_ownership_policy
 
 TOKEN = "test-token-swarm"
 
@@ -250,8 +250,12 @@ async def test_spawn_gate_zero_turns_before_assign(monkeypatch, tmp_path):
 
 
 def test_run_route_drives_orchestrator_and_maps_events(client, monkeypatch):
+    # The default roster's native builders now run too, and the run's terminal
+    # event waits for them; the canned turn keeps that deterministic.
+    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
     # R3 driver: POST /swarm/{id}/run kicks off run_cli_swarm and its plain-dict
     # events are mapped to typed SSE events fanned to registered sessions.
+    import voss.harness.swarm_coordinator as sc
     import voss.harness.swarm_runtime as rt
 
     r = client.post(
@@ -259,6 +263,14 @@ def test_run_route_drives_orchestrator_and_maps_events(client, monkeypatch):
     ).json()
     sid = r["id"]
     coord = next(s["session_id"] for s in r["sessions"] if s["role"] == "coordinator")
+    # The default roster is all native, so /run now seeds it before driving.
+    _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
 
     async def _fake_run_cli_swarm(
         store, repo_root, swarm_id, *, spawn_fn, on_event=None, **kw
@@ -294,18 +306,15 @@ def test_run_route_drives_orchestrator_and_maps_events(client, monkeypatch):
 
     monkeypatch.setattr(rt, "run_cli_swarm", _fake_run_cli_swarm)
 
-    resp = client.post(f"/swarm/{sid}/run", headers=_auth())
-    assert resp.status_code == 202, resp.text
-
-    # The driver fires `asyncio.create_task`; a follow-up request gives the
-    # portal loop a tick to run the (await-free) fake to completion.
-    client.get(f"/swarm/{sid}", headers=_auth())
-
-    # The background task ran; the coordinator queue received the mapped events.
-    q = client.app.state.sessions.get(coord).queue
-    seen = set()
-    while not q.empty():
-        seen.add(q.get_nowait().type)
+    with client:
+        resp = client.post(f"/swarm/{sid}/run", headers=_auth())
+        assert resp.status_code == 202, resp.text
+        # The driver outlives the request that starts it: the default roster's
+        # native builders run too, and the terminal event waits for them.
+        seen = {
+            e.type
+            for e in _drain_until(client, sid, coord, "swarm.candidates_ready")
+        }
     assert {
         "swarm.needs_operator",
         "swarm.candidate_ready",
@@ -520,6 +529,17 @@ def _canned_decomposition(monkeypatch, subtasks):
     return seen
 
 
+def _drain_until(client, sid, session_id, kind, tries=25):
+    """Drain across a few ticks: the driver needs one per await to settle."""
+    out: list = []
+    for _ in range(tries):
+        out += _drain(client, sid, session_id)
+        if any(e.type == kind for e in out):
+            break
+        time.sleep(0.02)
+    return out
+
+
 def _drain(client, sid, session_id):
     """Give the fire-and-forget driver a tick, then drain that session's queue."""
     client.get(f"/swarm/{sid}", headers=_auth())
@@ -629,3 +649,92 @@ def test_run_gates_visibly_when_decomposition_cannot_be_seeded(client, monkeypat
     assert gates and gates[0].gate_type == "decompose_failed"
     assert "overlap" in gates[0].detail
     assert calls  # the stub was reached
+
+
+def test_run_drives_native_builders_on_the_default_roster(client, monkeypatch):
+    """The default roster is all native: /run used to be a silent no-op."""
+    import voss.harness.swarm_coordinator as sc
+
+    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+    seen = _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
+
+    # `with`: the driver outlives the request that starts it, so the portal's
+    # loop has to outlive it too.
+    with client:
+        r = client.post(
+            "/swarm", json={"goal": "tidy up", "cwd": client._cwd}, headers=_auth()
+        ).json()
+        sid = r["id"]
+        coord = next(s["session_id"] for s in r["sessions"] if s["role"] == "coordinator")
+        builders = [
+            s["session_id"] for s in r["sessions"] if s["role"].startswith("builder")
+        ]
+        assert len(builders) == 2
+
+        assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+        events = _drain_until(client, sid, coord, "swarm.complete")
+        tasks = client.get(f"/swarm/{sid}", headers=_auth()).json()["swarm"]["tasks"]
+
+    # One task per native builder, not decompose's 6-subtask default.
+    assert seen["max_tasks"] == 2
+    assert [t["goal"] for t in tasks] == ["A", "B"]
+    assert [t["state"] for t in tasks] == [DONE, DONE]
+
+    assigned = {(e.task_id, e.session_id) for e in events if e.type == "swarm.assign"}
+    done = {(e.task_id, e.session_id) for e in events if e.type == "swarm.worker_done"}
+    assert assigned == {(tasks[0]["id"], builders[0]), (tasks[1]["id"], builders[1])}
+    assert done == assigned, "every assigned native builder reports done"
+
+    # One terminal event for the whole run, counting the native half. The CLI
+    # half would otherwise report `complete` with zero tasks the moment it
+    # found no members to run.
+    terminal = [
+        e for e in events if e.type in ("swarm.complete", "swarm.candidates_ready")
+    ]
+    assert [e.type for e in terminal] == ["swarm.complete"]
+    assert terminal[0].task_count == 2
+
+
+def test_a_second_run_leaves_finished_and_busy_members_alone(client, monkeypatch):
+    """One run per swarm, and one turn per session."""
+    import voss.harness.swarm_coordinator as sc
+
+    monkeypatch.setenv("VOSS_SERVE_FAKE_TURN", "1")
+    _canned_decomposition(
+        monkeypatch,
+        [
+            sc.SubtaskSpec(goal="A", owned_files=["a.py"]),
+            sc.SubtaskSpec(goal="B", owned_files=["b.py"]),
+        ],
+    )
+
+    with client:
+        r = client.post(
+            "/swarm", json={"goal": "tidy up", "cwd": client._cwd}, headers=_auth()
+        ).json()
+        sid = r["id"]
+        coord = next(s["session_id"] for s in r["sessions"] if s["role"] == "coordinator")
+
+        assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+        first = _drain_until(client, sid, coord, "swarm.complete")
+        assert [e.type for e in first].count("swarm.assign") == 2
+
+        # Nothing is open any more, so a second run drives nothing and says so
+        # with silence rather than a terminal event for a run that never was.
+        assert client.post(f"/swarm/{sid}/run", headers=_auth()).status_code == 202
+        assert _drain_until(client, sid, coord, "swarm.complete", tries=5) == []
+
+        # And a run already in flight is not joined by a second one.
+        client.app.state.swarm_runs[sid] = object()
+        assert (
+            client.post(f"/swarm/{sid}/run", headers=_auth()).json()["status"]
+            == "already running"
+        )
+        assert _drain(client, sid, coord) == []
+        client.app.state.swarm_runs.pop(sid, None)
