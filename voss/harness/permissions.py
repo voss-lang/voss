@@ -104,6 +104,21 @@ def match_permission_rules(
     return None
 
 
+def _announce_prompt(data: dict) -> None:
+    """Log that a question is about to wait on the user.
+
+    `permission.result` only arrives once the question is answered, so without
+    this a process watching the log (an ADE pane, `voss log tail`) sees a run
+    that is waiting on someone as one that is still working.
+    """
+    from . import telemetry
+
+    if telemetry.enabled():
+        if "args" in data:
+            data = {**data, "args": telemetry.redact_tool_args(data["args"])}
+        telemetry.emit("permission.request", "info", data=data)
+
+
 def mode_allows(mode: Mode, tool_name: str, is_mutating: bool) -> tuple[bool, str]:
     """Strict tier check. Returns (allowed_by_mode, reason).
 
@@ -467,6 +482,7 @@ class PermissionGate:
         if self.scope_prompt_fn is None and not sys.stdin.isatty():
             return False, "non-interactive denial"
         prompt = self.scope_prompt_fn or _interactive_expand_prompt
+        _announce_prompt({"tool": "scope.expand", "target": target, "mode": self.mode})
         choice = prompt(target)
         if choice in ("y", "once"):
             return True, "once"
@@ -488,6 +504,7 @@ class PermissionGate:
         if self.prompt_fn is None and not sys.stdin.isatty():
             return False, "non-interactive denial"
         prompt = self.prompt_fn or _interactive_prompt
+        _announce_prompt({"tool": tool_name, "mode": self.mode, "args": dict(args)})
         choice = prompt(tool_name, args)
         if choice == "a":
             allowed, reason = True, "allowed once"

@@ -25,6 +25,7 @@ from starlette.responses import JSONResponse, Response
 from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config used lazily)
 
 from .. import auth as auth_mod
+from .. import cognition as cognition_mod
 from .. import session as session_store
 from ..agent import run_turn
 from ..observe import admission as observe_admission
@@ -352,14 +353,24 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             memory_kwargs["pinned_memory_text"] = await asyncio.to_thread(
                 session.memory_store.render_pinned_memory_text, model=session.model
             )
+        bundle = cognition_mod.load(session.cwd)
+        for err in bundle.load_errors:
+            renderer.show_warning(f"cognition error: {err}")
         gate = PermissionGate(
             mode=mode,  # type: ignore[arg-type]
             store=PermissionStore.load(session.cwd),
             auto_yes=False,
-            # VSWARM-05: a swarm builder's ownership-deny policy rides the
-            # deny-wins project_policy layer. None for non-swarm sessions →
-            # byte-identical to pre- behaviour
-            project_policy=session.swarm_policy,
+            # VSWARM-05: a swarm builder's ownership-deny policy takes the
+            # project_policy slot in place of .voss/permissions.yml.
+            project_policy=(
+                session.swarm_policy
+                if session.swarm_policy is not None
+                else bundle.permissions if bundle.initialized else None
+            ),
+            safety_policy=bundle.safety if bundle.initialized else None,
+            # No protocol channel for a typed confirmation, and stdin is the
+            # heartbeat, so irreversible actions are denied.
+            safety_confirm_fn=lambda req: "",
         )
         _install_server_permissions(gate, session, renderer)
         if session.swarm_policy is not None:
@@ -405,6 +416,7 @@ async def _run_turn(session: ServerSession, text: str, mode: str) -> None:
             permissions=gate,
             history=session.history,
             session_id=session.id,
+            cognition=bundle,
             voss_md_text=voss_md_text,
             project_index_text=project_index_text,
             code_recall_text=code_recall_text,
