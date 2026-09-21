@@ -25,14 +25,20 @@ def test_native_role_is_native_and_has_no_argv():
 def test_catalog_agent_with_explicit_model():
     r = Role(name="b1", agent="codex", model="gpt-5.5")
     argv = resolve_agent_argv(r, cwd="/wt", task_text="do the thing")
-    assert argv == ["codex", "--model", "gpt-5.5", "--cwd", "/wt", "do the thing"]
+    # `exec` is Codex's one-shot run; bare `codex` would open the TUI.
+    assert argv == [
+        "codex", "exec", "--sandbox", "workspace-write",
+        "--model", "gpt-5.5", "--cd", "/wt", "do the thing",
+    ]
 
 
 def test_catalog_agent_falls_through_to_default_model():
     # claude has a safe default alias; an unset model uses it.
     r = Role(name="b1", agent="claude", model="default")
     argv = resolve_agent_argv(r, cwd="/wt")
-    assert argv == ["claude", "--model", "sonnet", "--cwd", "/wt"]
+    # Claude has no cwd flag (it rejects --cwd outright); the spawn's process
+    # cwd is the worktree.
+    assert argv == ["claude", "-p", "--permission-mode", "acceptEdits", "--model", "sonnet"]
 
 
 def test_catalog_agent_no_default_omits_model_flag():
