@@ -52,3 +52,7 @@ cabal.project.local~
 
 .DS_Store
 site-redesign-ledger.html
+
+# Go TUI build output
+/tui/tui
+/tui/voss-tui-go

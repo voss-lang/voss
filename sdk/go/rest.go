@@ -141,9 +141,9 @@ func (c *Client) Cost(ctx context.Context, id string) (CostInfo, error) {
 	return out, nil
 }
 
-// Doctor returns the server's environment/provider diagnostics. GET /doctor -> 200.
-func (c *Client) Doctor(ctx context.Context) (DoctorReport, error) {
-	path := "/doctor?" + url.Values{"auth": {"auto"}, "cwd": {"."}}.Encode()
+// Doctor returns the server's environment/provider diagnostics for cwd. GET /doctor -> 200.
+func (c *Client) Doctor(ctx context.Context, cwd string) (DoctorReport, error) {
+	path := "/doctor?" + url.Values{"auth": {"auto"}, "cwd": {cwd}}.Encode()
 	var out DoctorReport
 	if err := c.getJSON(ctx, path, http.StatusOK, &out); err != nil {
 		return DoctorReport{}, err
