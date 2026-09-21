@@ -25,14 +25,31 @@ class AgentSpec:
     binary: str
     model_flag: str = "--model"
     default_model: str | None = None
+    # Args placed right after the binary that make the CLI run one task and
+    # exit instead of opening its TUI, with leave to edit files.
+    headless: tuple[str, ...] = ()
+    # The CLI's own working-directory flag. None when it only honours the
+    # process cwd, which the spawn already sets to the member's worktree.
+    cwd_flag: str | None = "--cwd"
 
 
 # Authoritative agent table (binary == key); ADE clients mirror it, not the reverse
 # Only Claude has a known-safe default model alias; the others let the local CLI
 # pick unless the role names a model explicitly
 AGENT_CATALOG: dict[str, AgentSpec] = {
-    "claude": AgentSpec("claude", default_model="sonnet"),
-    "codex": AgentSpec("codex"),
+    # `claude -p` runs one prompt and exits; acceptEdits lets it write its owned
+    # files without a prompt nobody is there to answer. It has no cwd flag.
+    "claude": AgentSpec(
+        "claude",
+        default_model="sonnet",
+        headless=("-p", "--permission-mode", "acceptEdits"),
+        cwd_flag=None,
+    ),
+    # Bare `codex` is the TUI; `exec` is the non-interactive run, and its cwd
+    # flag is --cd.
+    "codex": AgentSpec(
+        "codex", headless=("exec", "--sandbox", "workspace-write"), cwd_flag="--cd"
+    ),
     "gemini": AgentSpec("gemini"),
     "opencode": AgentSpec("opencode"),
     "aider": AgentSpec("aider"),
@@ -87,11 +104,12 @@ def resolve_agent_argv(role: Role, *, cwd: str | Path, task_text: str = "") -> l
             f"known: {', '.join(known_agents())}"
         )
 
-    argv = [spec.binary]
+    argv = [spec.binary, *spec.headless]
     model = _resolved_model(role, spec)
     if model:
         argv += [spec.model_flag, model]
-    argv += ["--cwd", str(cwd)]
+    if spec.cwd_flag:
+        argv += [spec.cwd_flag, str(cwd)]
     argv += list(role.args)
     if task_text:
         argv.append(task_text)
