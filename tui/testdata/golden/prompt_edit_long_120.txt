@@ -1,0 +1,23 @@
+⚠ allow fs_edit? notes.txt
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  line
+  … 11 more lines
+  [a] allow once  [A] always  [d] deny

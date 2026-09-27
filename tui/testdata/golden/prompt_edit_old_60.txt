@@ -1,0 +1,3 @@
+⚠ allow fs_edit? notes.txt
+  the quickslow brown fox jumps
+  [a] allow once  [A] always  [d] deny

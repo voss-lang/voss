@@ -1,0 +1,2 @@
+⚠ allow shell? command=go test ./... cwd=.
+  [a] allow once  [A] always  [d] deny

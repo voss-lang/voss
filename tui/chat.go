@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
@@ -19,18 +18,11 @@ var modes = []string{"plan", "edit", "auto"}
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-var (
-	styleUser    = lipgloss.NewStyle().Bold(true)
-	styleDim     = lipgloss.NewStyle().Faint(true)
-	styleTool    = lipgloss.NewStyle().Foreground(lipgloss.Yellow)
-	styleClarify = lipgloss.NewStyle().Foreground(lipgloss.Cyan)
-	styleError   = lipgloss.NewStyle().Foreground(lipgloss.Red)
-)
-
 type (
 	eventMsg        struct{ ev voss.TypedEvent }
 	streamClosedMsg struct{}
 	tickMsg         struct{ gen int }
+	liveMsg         struct{}
 	errMsg          struct {
 		what string
 		err  error
@@ -44,6 +36,7 @@ type chatModel struct {
 	ctx       context.Context
 	client    *voss.Client
 	sessionID string
+	cwd       string
 	events    <-chan voss.TypedEvent
 
 	turn      turn
@@ -54,12 +47,16 @@ type chatModel struct {
 	frame     int
 	tickGen   int
 	width     int
+	dark      bool
+	r         renderer
+	live      string
+	liveTick  bool
 	lastCtrlC time.Time
 	quitting  bool
 	offline   bool
 }
 
-func newChatModel(ctx context.Context, client *voss.Client, sessionID string, events <-chan voss.TypedEvent) chatModel {
+func newChatModel(ctx context.Context, client *voss.Client, sessionID, cwd string, events <-chan voss.TypedEvent) chatModel {
 	ed := textarea.New()
 	ed.ShowLineNumbers = false
 	ed.Placeholder = "message voss"
@@ -78,16 +75,20 @@ func newChatModel(ctx context.Context, client *voss.Client, sessionID string, ev
 		ctx:       ctx,
 		client:    client,
 		sessionID: sessionID,
+		cwd:       cwd,
 		events:    events,
 		turn:      turn{model: "—"},
 		mode:      modes[0],
 		editor:    ed,
+		dark:      true,
+		r:         newRenderer(0, true),
 	}
 }
 
 func (m chatModel) Init() tea.Cmd {
 	return tea.Batch(
-		tea.Println(styleDim.Render("voss · session "+short(m.sessionID, 8)+" · enter sends · shift+tab mode · esc aborts · ctrl+d quits")),
+		tea.Println(styleDim.Render("voss · "+short(m.sessionID, 8)+" · shift+tab mode · esc abort · ctrl+o tool args · ctrl+d quit")),
+		tea.RequestBackgroundColor,
 		waitEvent(m.events),
 	)
 }
@@ -117,14 +118,34 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.editor.SetWidth(msg.Width)
+		m.r = newRenderer(m.width, m.dark)
+		m.live = m.renderLive()
+		return m, nil
+
+	case tea.BackgroundColorMsg:
+		m.dark = msg.IsDark()
+		m.r = newRenderer(m.width, m.dark)
+		m.live = m.renderLive()
+		return m, nil
+
+	case liveMsg:
+		m.liveTick = false
+		m.live = m.renderLive()
 		return m, nil
 
 	case eventMsg:
-		wasBusy := m.turn.busy
+		wasBusy, wasStreaming := m.turn.busy, m.turn.streaming
 		var blocks []block
 		m.turn, blocks = reduce(m.turn, msg.ev)
 		// Print before reading the next event so scrollback keeps event order.
-		cmds := []tea.Cmd{tea.Sequence(printBlocks(blocks), waitEvent(m.events))}
+		cmds := []tea.Cmd{tea.Sequence(m.printBlocks(blocks), waitEvent(m.events))}
+		if m.turn.streaming == "" {
+			m.live = ""
+		} else if m.turn.streaming != wasStreaming && !m.liveTick {
+			// Re-render streamed markdown at most 30 times a second.
+			m.liveTick = true
+			cmds = append(cmds, tea.Tick(time.Second/30, func(time.Time) tea.Msg { return liveMsg{} }))
+		}
 		if m.turn.busy && !wasBusy {
 			m.sentAt = time.Now()
 			cmds = append(cmds, m.startTicking())
@@ -139,7 +160,7 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamClosedMsg:
 		m.turn.busy = false
 		m.offline = true
-		return m, printBlocks([]block{{blockError, "lost the connection to voss serve (ctrl+d quits)"}})
+		return m, m.printBlocks([]block{{blockError, "lost the connection to voss serve (ctrl+d quits)"}})
 
 	case tickMsg:
 		if !m.turn.busy || msg.gen != m.tickGen {
@@ -157,10 +178,10 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.what == "send" {
 			m.turn.busy = false
 		}
-		return m, printBlocks([]block{{blockError, msg.what + ": " + errText(msg.err)}})
+		return m, m.printBlocks([]block{{blockError, msg.what + ": " + errText(msg.err)}})
 
 	case costMsg:
-		return m, printBlocks([]block{{blockNotice, fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)}})
+		return m, m.printBlocks([]block{{blockNotice, fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)}})
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -213,6 +234,12 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.turn.thinking = "aborting"
 		return m, m.abort()
 
+	case "ctrl+o":
+		if m.turn.lastTool == nil {
+			return m, nil
+		}
+		return m, tea.Println(m.r.toolArgs(*m.turn.lastTool))
+
 	case "shift+tab":
 		for i, mode := range modes {
 			if mode == m.mode {
@@ -233,7 +260,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.offline {
 			m.editor.SetValue(text)
-			return m, printBlocks([]block{{blockError, "not connected to voss serve (ctrl+d quits)"}})
+			return m, m.printBlocks([]block{{blockError, "not connected to voss serve (ctrl+d quits)"}})
 		}
 		if m.turn.busy {
 			m.queue = append(m.queue, text)
@@ -268,9 +295,9 @@ func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
 			return costMsg(c)
 		}
 	case "/help":
-		return m, printBlocks([]block{{blockNotice, "commands: /help /cost /quit"}})
+		return m, m.printBlocks([]block{{blockNotice, "commands: /help /cost /quit"}})
 	}
-	return m, printBlocks([]block{{blockNotice, text + " is not available in this client"}})
+	return m, m.printBlocks([]block{{blockNotice, text + " is not available in this client"}})
 }
 
 // send posts a message with the current mode.
@@ -319,21 +346,14 @@ func (m chatModel) View() tea.View {
 		return tea.NewView("")
 	}
 	var parts []string
-	if m.turn.streaming != "" {
-		parts = append(parts, m.wrap(m.turn.streaming))
+	if m.live != "" {
+		parts = append(parts, m.live)
 	}
 	if p := m.turn.permission; p != nil {
-		parts = append(parts, m.wrap(permissionPrompt(*p)))
+		parts = append(parts, m.r.permission(*p, m.cwd))
 	}
-	parts = append(parts, m.editor.View(), m.footer())
+	parts = append(parts, m.editor.View(), ansi.Truncate(m.footer(), m.r.width, "…"))
 	return tea.NewView(strings.Join(parts, "\n"))
-}
-
-func (m chatModel) wrap(s string) string {
-	if m.width <= 0 {
-		return s
-	}
-	return lipgloss.NewStyle().Width(m.width).Render(s)
 }
 
 func (m chatModel) footer() string {
@@ -354,75 +374,20 @@ func (m chatModel) footer() string {
 		m.mode, m.turn.model, m.turn.tokens, m.turn.costUSD, m.turn.ctxPct*100))
 }
 
-func permissionPrompt(p voss.PermissionUpdated) string {
-	if p.ToolName == "scope_expand" {
-		target := ""
-		if p.Args != nil {
-			target = fmt.Sprint((*p.Args)["target"])
-		}
-		return styleTool.Render("⚠ expand scope to "+target+"?") + "  [y] yes  [n] no"
-	}
-	return styleTool.Render("⚠ allow "+p.ToolName+"?") + " " + styleDim.Render(argSummary(p.Args)) +
-		"\n  [a] allow once  [A] always  [d] deny"
-}
-
-func argSummary(args *map[string]interface{}) string {
-	if args == nil {
+func (m chatModel) renderLive() string {
+	if m.turn.streaming == "" {
 		return ""
 	}
-	keys := make([]string, 0, len(*args))
-	for k := range *args {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	pairs := make([]string, len(keys))
-	for i, k := range keys {
-		pairs[i] = k + "=" + short(strings.ReplaceAll(fmt.Sprint((*args)[k]), "\n", "⏎"), 60)
-	}
-	return strings.Join(pairs, " ")
+	return m.r.markdown(m.turn.streaming)
 }
 
-func printBlocks(blocks []block) tea.Cmd {
+func (m chatModel) printBlocks(blocks []block) tea.Cmd {
 	if len(blocks) == 0 {
 		return nil
 	}
 	lines := make([]string, len(blocks))
 	for i, b := range blocks {
-		lines[i] = renderBlock(b)
+		lines[i] = m.r.block(b)
 	}
 	return tea.Println(strings.Join(lines, "\n"))
-}
-
-func renderBlock(b block) string {
-	switch b.kind {
-	case blockUser:
-		return "\n" + styleUser.Render("› "+strings.ReplaceAll(b.text, "\n", "\n  "))
-	case blockPlan, blockNotice:
-		return styleDim.Render(b.text)
-	case blockTool:
-		return styleTool.Render("⚙ " + b.text)
-	case blockClarify:
-		return styleClarify.Render("? " + b.text)
-	case blockWarning:
-		return styleTool.Render("⚠ " + b.text)
-	case blockError:
-		return styleError.Render("✗ " + b.text)
-	}
-	return b.text
-}
-
-func errText(err error) string {
-	var ve *voss.VossError
-	if errors.As(err, &ve) && ve.Detail != "" {
-		return ve.Detail
-	}
-	return err.Error()
-}
-
-func short(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n-1]) + "…"
 }

@@ -32,6 +32,7 @@ type turn struct {
 	streaming  string
 	thinking   string
 	permission *voss.PermissionUpdated
+	lastTool   *voss.ToolEvent
 	model      string
 	tokens     int
 	costUSD    float64
@@ -53,15 +54,23 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 		names := make([]string, len(*e.Steps))
 		for i, s := range *e.Steps {
 			names[i] = s.Name
+			if s.Args != nil {
+				if path, ok := (*s.Args)["path"].(string); ok && path != "" {
+					names[i] += " " + path
+				}
+			}
 		}
-		return t, []block{{blockPlan, "plan: " + strings.Join(names, ", ")}}
+		return t, []block{{blockPlan, "plan: " + strings.Join(names, " → ")}}
 	case voss.ToolEvent:
 		if e.State == "pending" {
 			return t, nil
 		}
+		t.lastTool = &e
 		text := e.Name + " " + toolGlyph(e.State)
-		if e.Summary != nil && *e.Summary != "" {
-			text += " " + *e.Summary
+		if e.Summary != nil {
+			if line, _, _ := strings.Cut(strings.TrimSpace(*e.Summary), "\n"); line != "" {
+				text += " " + line
+			}
 		}
 		return t, []block{{blockTool, text}}
 	case voss.StreamDelta:
@@ -83,6 +92,16 @@ func reduce(t turn, ev voss.TypedEvent) (turn, []block) {
 		return t, []block{{blockClarify, e.Question}}
 	case voss.WarningEvent:
 		return t, []block{{blockWarning, e.Message}}
+	case voss.CognitionOverflow:
+		return t, []block{{blockWarning, overBudget("architecture context", e.ArchitectureTokens, e.Budget)}}
+	case voss.PrinciplesOverflow:
+		return t, []block{{blockWarning, overBudget("principles", e.PrinciplesTokens, e.Budget)}}
+	case voss.InstructionsOverflow:
+		msg := overBudget("instructions", e.InstructionsTokens, e.Budget)
+		if e.Truncated != nil && len(*e.Truncated) > 0 {
+			msg += "; truncated " + strings.Join(*e.Truncated, ", ")
+		}
+		return t, []block{{blockWarning, msg}}
 	case voss.StatusEvent:
 		if e.Model != "" {
 			t.model = e.Model
@@ -114,6 +133,13 @@ func flush(t turn, kind blockKind) (turn, []block) {
 	b := block{kind, strings.Trim(t.streaming, "\n")}
 	t.streaming = ""
 	return t, []block{b}
+}
+
+func overBudget(what string, tokens int, budget *int) string {
+	if budget == nil {
+		return fmt.Sprintf("%s is %d tokens, over budget", what, tokens)
+	}
+	return fmt.Sprintf("%s is %d tokens, over the %d-token budget", what, tokens, *budget)
 }
 
 func toolGlyph(state string) string {

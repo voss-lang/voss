@@ -63,7 +63,10 @@ func TestFakeTurnCaptureCommitsUserStreamAndFinal(t *testing.T) {
 }
 
 func TestReduceSingleEvents(t *testing.T) {
-	steps := []voss.PlanStep{{Name: "fs_read"}, {Name: "fs_edit"}}
+	path := map[string]any{"path": "notes.txt"}
+	budget := 6000
+	truncated := []string{"AGENTS.md", "VOSS.md"}
+	steps := []voss.PlanStep{{Name: "fs_read", Args: &path}, {Name: "fs_edit"}}
 	for _, tc := range []struct {
 		name string
 		ev   voss.TypedEvent
@@ -72,12 +75,16 @@ func TestReduceSingleEvents(t *testing.T) {
 		{"pending tool waits for its result", voss.ToolEvent{Name: "fs_read", State: "pending"}, nil},
 		{"finished tool is one row", voss.ToolEvent{Name: "fs_read", State: "ok", Summary: str("12 lines")}, []block{{blockTool, "fs_read ✓ 12 lines"}}},
 		{"failed tool", voss.ToolEvent{Name: "fs_edit", State: "error"}, []block{{blockTool, "fs_edit ✗"}}},
-		{"plan lists its steps", voss.PlanEvent{Steps: &steps}, []block{{blockPlan, "plan: fs_read, fs_edit"}}},
+		{"plan lists its steps and paths", voss.PlanEvent{Steps: &steps}, []block{{blockPlan, "plan: fs_read notes.txt → fs_edit"}}},
 		{"stepless plan is hidden", voss.PlanEvent{}, nil},
 		{"clarify", voss.ClarifyEvent{Question: "which file?"}, []block{{blockClarify, "which file?"}}},
 		{"warning", voss.WarningEvent{Message: "cognition error"}, []block{{blockWarning, "cognition error"}}},
 		{"newer server event is visible", voss.UnknownEvent{Type: "tool.progress"}, []block{{blockNotice, `unsupported event "tool.progress" from a newer server`}}},
 		{"swarm events are ignored for now", voss.SwarmComplete{}, nil},
+		{"multi-line tool summary keeps its first line", voss.ToolEvent{Name: "fs_read", State: "ok", Summary: str("2cf24dba│hello\nabc│world")}, []block{{blockTool, "fs_read ✓ 2cf24dba│hello"}}},
+		{"architecture over budget", voss.CognitionOverflow{ArchitectureTokens: 7000, Budget: &budget}, []block{{blockWarning, "architecture context is 7000 tokens, over the 6000-token budget"}}},
+		{"principles over budget", voss.PrinciplesOverflow{PrinciplesTokens: 1200}, []block{{blockWarning, "principles is 1200 tokens, over budget"}}},
+		{"instructions truncated", voss.InstructionsOverflow{InstructionsTokens: 5000, Budget: &budget, Truncated: &truncated}, []block{{blockWarning, "instructions is 5000 tokens, over the 6000-token budget; truncated AGENTS.md, VOSS.md"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, got := reduce(turn{}, tc.ev)
@@ -130,5 +137,13 @@ func TestPermissionEventOpensPrompt(t *testing.T) {
 	st, _ := reduce(turn{busy: true}, voss.PermissionUpdated{Id: "p1", ToolName: "fs_edit"})
 	if st.permission == nil || st.permission.Id != "p1" {
 		t.Fatalf("permission = %+v", st.permission)
+	}
+}
+
+func TestLastFinishedToolIsKeptForCtrlO(t *testing.T) {
+	st, _ := reduce(turn{}, voss.ToolEvent{Name: "fs_read", State: "ok"})
+	st, _ = reduce(st, voss.ToolEvent{Name: "fs_edit", State: "pending"})
+	if st.lastTool == nil || st.lastTool.Name != "fs_read" {
+		t.Fatalf("lastTool = %+v, want the finished fs_read, not the pending call", st.lastTool)
 	}
 }
