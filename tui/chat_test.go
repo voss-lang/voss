@@ -205,6 +205,35 @@ func TestEnterDuringTurnQueuesAndSendsAfterIdleInOrder(t *testing.T) {
 	}
 }
 
+func TestQueuedLinesShowAChipAndReplayInOrderAfterTheTurn(t *testing.T) {
+	f, client := newFakeServer(t)
+	events := make(chan voss.TypedEvent)
+	d := newDriver(t, client, events)
+
+	d.typeText("first")
+	d.press("enter")
+	d.typeText("/mode edit")
+	d.press("enter")
+	d.typeText(`say "hi"`)
+	d.press("enter")
+	if chip := ansi.Strip(d.m.bottom()); !strings.Contains(chip, `queued (2): "say "hi""`) {
+		t.Fatalf("bottom area:\n%s", chip)
+	}
+	if strings.Contains(d.transcript(), "mode: edit") {
+		t.Fatal("a slash command typed during a turn ran before the turn ended")
+	}
+
+	events <- voss.SessionIdle{}
+	d.until("queued send", func() bool { return len(f.requestsTo("/message")) == 2 })
+	sent := f.requestsTo("/message")[1]
+	if text(sent) != `say "hi"` || sent.body["mode"] != "edit" {
+		t.Fatalf("second send = %+v; want the queued /mode applied first", sent.body)
+	}
+	if !strings.Contains(d.transcript(), "mode: edit") || strings.Contains(ansi.Strip(d.m.bottom()), "queued") {
+		t.Fatal("the queue did not drain")
+	}
+}
+
 func TestConflictPutsMessageBackAndRetriesAfterIdle(t *testing.T) {
 	f, client := newFakeServer(t)
 	f.conflicts = 1

@@ -169,10 +169,8 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sentAt = time.Now()
 			cmds = append(cmds, m.startTicking())
 		}
-		if _, idle := msg.ev.(voss.SessionIdle); idle && len(m.queue) > 0 {
-			text := m.queue[0]
-			m.queue = m.queue[1:]
-			cmds = append(cmds, m.send(text))
+		if _, idle := msg.ev.(voss.SessionIdle); idle {
+			cmds = append(cmds, m.drain())
 		}
 		return m, tea.Batch(cmds...)
 
@@ -288,19 +286,11 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.editor.Reset()
-		if strings.HasPrefix(text, "/") {
-			return m.slash(text)
-		}
-		if m.offline {
-			m.editor.SetValue(text)
-			m.add(roleBlock("error", "not connected to voss serve (ctrl+c quits)"))
-			return m, nil
-		}
 		if m.turn.busy {
 			m.queue = append(m.queue, text)
 			return m, nil
 		}
-		cmd := m.send(text)
+		cmd := m.dispatch(text)
 		return m, cmd
 	}
 
@@ -314,17 +304,44 @@ func (m chatModel) quit() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
+// dispatch runs one input line: a slash command locally, anything else as a
+// turn. Live submits and queued lines both come through here, as in Textual.
+func (m *chatModel) dispatch(text string) tea.Cmd {
+	if strings.HasPrefix(text, "/") {
+		return m.slash(text)
+	}
+	if m.offline {
+		m.editor.SetValue(text)
+		m.add(roleBlock("error", "not connected to voss serve (ctrl+c quits)"))
+		return nil
+	}
+	return m.send(text)
+}
+
+// drain dispatches queued lines after a turn ends, running slash commands in
+// order until a line starts the next turn.
+func (m *chatModel) drain() tea.Cmd {
+	var cmds []tea.Cmd
+	for len(m.queue) > 0 && !m.turn.busy && !m.quitting {
+		text := m.queue[0]
+		m.queue = m.queue[1:]
+		cmds = append(cmds, m.dispatch(text))
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *chatModel) slash(text string) tea.Cmd {
 	args := strings.Fields(text)
 	switch args[0] {
 	case "/quit", "/exit":
-		return m.quit()
+		m.quitting = true
+		return tea.Quit
 	case "/mode":
 		m.add(m.setMode(args[1:]))
-		return m, nil
+		return nil
 	case "/cost":
 		client, ctx, id := m.client, m.ctx, m.sessionID
-		return m, func() tea.Msg {
+		return func() tea.Msg {
 			c, err := client.Cost(ctx, id)
 			if err != nil {
 				return errMsg{"cost", err}
@@ -333,10 +350,10 @@ func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
 		}
 	case "/help":
 		m.add(roleBlock("system", "commands: /help /cost /mode /quit"))
-		return m, nil
+		return nil
 	}
 	m.add(roleBlock("warning", glyphs.Warn+" unknown command: "+text+". /help for list."))
-	return m, nil
+	return nil
 }
 
 // setMode follows the CLI's /mode: no argument shows the mode, and auto
@@ -420,8 +437,11 @@ func (m chatModel) View() tea.View {
 
 // bottom is everything under the transcript: the status line and the input bar.
 func (m chatModel) bottom() string {
-	return statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git) +
-		"\n" + inputBox(m.width, m.editorView(), !m.navMode)
+	out := statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git)
+	if len(m.queue) > 0 {
+		out += "\n" + queueChip(m.queue, m.width)
+	}
+	return out + "\n" + inputBox(m.width, m.editorView(), !m.navMode)
 }
 
 // editorView draws the placeholder over an empty editor with no cursor on it,
