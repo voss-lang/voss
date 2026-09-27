@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -12,10 +11,13 @@ import (
 	"path/filepath"
 	"syscall"
 
+	tea "charm.land/bubbletea/v2"
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
-const usage = `usage: voss-tui-go [--attach URL --token TOKEN] [--cwd DIR] <command>
+const usage = `usage: voss-tui-go [--attach URL --token TOKEN] [--cwd DIR] [--model MODEL] [command]
+
+Without a command, opens a chat session.
 
 commands:
   doctor     run the server's diagnostics and exit
@@ -29,6 +31,7 @@ type options struct {
 	attach string
 	token  string
 	cwd    string
+	model  string
 	cmd    string
 }
 
@@ -40,21 +43,22 @@ func parseArgs(args []string) (options, error) {
 	fs.StringVar(&o.attach, "attach", "", "")
 	fs.StringVar(&o.token, "token", o.token, "")
 	fs.StringVar(&o.cwd, "cwd", ".", "")
+	fs.StringVar(&o.model, "model", "", "")
 	if err := fs.Parse(args); err != nil {
 		return o, err
 	}
-	if fs.NArg() == 0 {
-		return o, errors.New("missing command")
-	}
-	o.cmd = fs.Arg(0)
-	if err := fs.Parse(fs.Args()[1:]); err != nil {
-		return o, err
-	}
+	o.cmd = "chat"
 	if fs.NArg() > 0 {
-		return o, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+		o.cmd = fs.Arg(0)
+		if err := fs.Parse(fs.Args()[1:]); err != nil {
+			return o, err
+		}
+		if fs.NArg() > 0 {
+			return o, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+		}
 	}
 	switch o.cmd {
-	case "doctor", "sessions":
+	case "chat", "doctor", "sessions":
 	default:
 		return o, fmt.Errorf("unknown command %q", o.cmd)
 	}
@@ -90,6 +94,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	defer client.Close()
 
+	if o.cmd == "chat" {
+		if err := runChat(ctx, client, o); err != nil {
+			return fail(ctx, stderr, err)
+		}
+		return 0
+	}
+
 	report, err := client.Doctor(ctx, o.cwd)
 	if err != nil {
 		return fail(ctx, stderr, fmt.Errorf("doctor: %w", err))
@@ -105,6 +116,22 @@ func fail(ctx context.Context, stderr io.Writer, err error) int {
 	}
 	fmt.Fprintf(stderr, "voss-tui-go: %v\n", err)
 	return 1
+}
+
+func runChat(ctx context.Context, client *voss.Client, o options) error {
+	id, err := client.CreateSession(ctx, voss.SessionOptions{Cwd: o.cwd, Model: o.model})
+	if err != nil {
+		return fmt.Errorf("create session: %w", err)
+	}
+	// One stream for the session's life: the server aborts the turn when it drops.
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	events, err := client.Events(streamCtx, id)
+	if err != nil {
+		return fmt.Errorf("event stream: %w", err)
+	}
+	_, err = tea.NewProgram(newChatModel(ctx, client, id, events), tea.WithContext(ctx)).Run()
+	return err
 }
 
 func connect(ctx context.Context, o options) (*voss.Client, error) {

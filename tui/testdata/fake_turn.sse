@@ -1,0 +1,27 @@
+event: server.connected
+data: {"v":1,"type":"server.connected"}
+
+event: user
+data: {"v":1,"type":"user","task":"hi"}
+
+event: thinking
+data: {"v":1,"type":"thinking","label":"planning 1/1"}
+
+event: plan
+data: {"v":1,"type":"plan","confidence":0.9,"steps":[],"cost_usd":0.0}
+
+event: stream.delta
+data: {"v":1,"type":"stream.delta","text":"hello "}
+
+event: stream.delta
+data: {"v":1,"type":"stream.delta","text":"from fake turn"}
+
+event: stream.finalize
+data: {"v":1,"type":"stream.finalize","role":"assistant","confidence":0.9,"cost_usd":0.0,"timestamp":null}
+
+event: final
+data: {"v":1,"type":"final","text":"echo: hi","confidence":0.9,"cost_usd":0.0}
+
+event: session.idle
+data: {"v":1,"type":"session.idle","session_id":"SESSION"}
+
