@@ -60,8 +60,17 @@ type SessionOptions struct {
 	Resume string
 }
 
-// CreateSession opens a session, or resumes a saved one. POST /session -> 201.
-func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (string, error) {
+// OpenedSession is the POST /session response. Auth is the credential source
+// the server resolved, such as "codex-oauth" or "env-anthropic".
+type OpenedSession struct {
+	Id      string `json:"id"`
+	Auth    string `json:"auth"`
+	Resumed bool   `json:"resumed"`
+}
+
+// OpenSession opens a session, or resumes a saved one, and returns the whole
+// response. POST /session -> 201.
+func (c *Client) OpenSession(ctx context.Context, opts SessionOptions) (OpenedSession, error) {
 	body := CreateSessionBody{
 		Cwd:    optional(opts.Cwd),
 		Model:  optional(opts.Model),
@@ -69,13 +78,17 @@ func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (string
 		Title:  optional(opts.Title),
 		Resume: optional(opts.Resume),
 	}
-	var out struct {
-		Id string `json:"id"`
-	}
+	var out OpenedSession
 	if err := c.sendJSON(ctx, http.MethodPost, "/session", body, &out, http.StatusCreated); err != nil {
-		return "", err
+		return OpenedSession{}, err
 	}
-	return out.Id, nil
+	return out, nil
+}
+
+// CreateSession is OpenSession returning only the session id.
+func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (string, error) {
+	s, err := c.OpenSession(ctx, opts)
+	return s.Id, err
 }
 
 // ListSessions returns the active in-memory sessions. GET /session -> 200.
