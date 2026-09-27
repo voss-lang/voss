@@ -1,1 +1,2 @@
-⚠ instructions is 5000 tokens, over the 4000-token budget; truncated AGENTS.md
+warning
+  ⚠ instruction files truncated to 4000 tokens (AGENTS.md)

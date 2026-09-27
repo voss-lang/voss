@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -77,18 +78,17 @@ func (f *fakeServer) requestsTo(suffix string) []request {
 	return out
 }
 
-// driver is a minimal Bubble Tea event loop: it runs commands, feeds their
-// messages back into the model and keeps what the model prints to scrollback.
+// driver is a minimal Bubble Tea event loop: it runs commands and feeds
+// their messages back into the model.
 type driver struct {
-	t       *testing.T
-	m       chatModel
-	msgs    chan tea.Msg
-	printed []string
-	quit    bool
+	t    *testing.T
+	m    chatModel
+	msgs chan tea.Msg
+	quit bool
 }
 
 func newDriver(t *testing.T, client *voss.Client, events <-chan voss.TypedEvent) *driver {
-	d := &driver{t: t, m: newChatModel(context.Background(), client, "sess-1", t.TempDir(), events), msgs: make(chan tea.Msg, 1024)}
+	d := &driver{t: t, m: newChatModel(context.Background(), client, sessionMeta{ID: "sess-1", Cwd: t.TempDir()}, events), msgs: make(chan tea.Msg, 1024)}
 	d.run(d.m.Init())
 	return d
 }
@@ -148,18 +148,14 @@ func (d *driver) until(what string, cond func() bool) {
 				d.quit = true
 				continue
 			}
-			if v := reflect.ValueOf(msg); v.Type().Name() == "printLineMessage" {
-				d.printed = append(d.printed, v.FieldByName("messageBody").String())
-				continue
-			}
 			d.send(msg)
 		case <-deadline:
-			d.t.Fatalf("timed out waiting for %s; printed:\n%s", what, strings.Join(d.printed, "\n"))
+			d.t.Fatalf("timed out waiting for %s; transcript:\n%s", what, d.transcript())
 		}
 	}
 }
 
-func (d *driver) transcript() string { return ansi.Strip(strings.Join(d.printed, "\n")) }
+func (d *driver) transcript() string { return ansi.Strip(strings.Join(d.m.rendered, "\n")) }
 
 func key(s string) tea.KeyPressMsg {
 	switch s {
@@ -270,7 +266,7 @@ func TestPermissionPromptTakesOnlyItsChoices(t *testing.T) {
 	}
 }
 
-func TestEscAbortsAndReturnsQueuedMessagesToEditor(t *testing.T) {
+func TestCtrlCClearsTheQueueAndAbortsTheTurn(t *testing.T) {
 	f, client := newFakeServer(t)
 	events := make(chan voss.TypedEvent)
 	d := newDriver(t, client, events)
@@ -280,54 +276,85 @@ func TestEscAbortsAndReturnsQueuedMessagesToEditor(t *testing.T) {
 	d.typeText("two")
 	d.press("enter")
 	d.press("esc")
+	if len(f.requestsTo("/abort")) != 0 || len(d.m.queue) != 1 {
+		t.Fatal("esc during a turn should do nothing, as in Textual")
+	}
+	d.press("ctrl+c")
 	d.until("abort", func() bool { return len(f.requestsTo("/abort")) == 1 })
-	if d.m.editor.Value() != "two" || len(d.m.queue) != 0 {
-		t.Fatalf("editor = %q, queue = %v; want the queued message back in the editor", d.m.editor.Value(), d.m.queue)
+	if len(d.m.queue) != 0 || d.quit {
+		t.Fatalf("queue = %v, quit = %v; want the queue cleared and the app still running", d.m.queue, d.quit)
 	}
 	events <- voss.SessionIdle{}
 	d.until("idle", func() bool { return !d.m.turn.busy })
 	if n := len(f.requestsTo("/message")); n != 1 {
-		t.Fatalf("%d sends after abort, want only the first", n)
+		t.Fatalf("%d sends after the abort, want only the first", n)
 	}
 }
 
-func TestShiftTabCyclesModeSentWithMessage(t *testing.T) {
+func TestCtrlCExitsWhenIdle(t *testing.T) {
+	_, client := newFakeServer(t)
+	d := newDriver(t, client, make(chan voss.TypedEvent))
+	d.typeText("draft")
+	d.press("ctrl+c")
+	d.until("quit", func() bool { return d.quit })
+}
+
+func TestModeCommandSetsTheModeSentWithMessages(t *testing.T) {
 	f, client := newFakeServer(t)
 	d := newDriver(t, client, make(chan voss.TypedEvent))
 
-	d.press("shift+tab")
+	for _, line := range []string{"/mode", "/mode auto", "/mode nope", "/mode edit"} {
+		d.typeText(line)
+		d.press("enter")
+	}
+	out := d.transcript()
+	for _, want := range []string{
+		"system\n    mode: plan",
+		"⚠ escalating to auto requires --confirm (e.g. /mode auto --confirm)",
+		"⚠ mode must be plan|edit|auto|observe",
+		"system\n    mode: edit",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
 	d.typeText("go")
 	d.press("enter")
 	d.until("send", func() bool { return len(f.requestsTo("/message")) == 1 })
 	if mode := f.requestsTo("/message")[0].body["mode"]; mode != "edit" {
 		t.Fatalf("mode = %v, want edit", mode)
 	}
-	d.press("shift+tab", "shift+tab")
-	if d.m.mode != "plan" {
-		t.Fatalf("mode = %q after a full cycle, want plan", d.m.mode)
+}
+
+func TestUnknownCommandWarnsLikeTextual(t *testing.T) {
+	f, client := newFakeServer(t)
+	d := newDriver(t, client, make(chan voss.TypedEvent))
+	d.typeText("/nope x")
+	d.press("enter")
+	if !strings.Contains(d.transcript(), "⚠ unknown command: /nope x. /help for list.") || len(f.requestsTo("/message")) != 0 {
+		t.Fatalf("transcript:\n%s", d.transcript())
 	}
 }
 
-func TestCtrlCClearsThenQuitsAndCtrlDQuitsWhenEmpty(t *testing.T) {
+func TestTabAndEscMoveFocusBetweenInputAndTranscript(t *testing.T) {
 	_, client := newFakeServer(t)
 	d := newDriver(t, client, make(chan voss.TypedEvent))
-
-	d.typeText("draft")
-	d.press("ctrl+c")
-	if d.m.editor.Value() != "" {
-		t.Fatalf("editor = %q after ctrl+c", d.m.editor.Value())
+	d.press("esc")
+	if !d.m.navMode {
+		t.Fatal("esc when idle should focus the transcript")
 	}
-	d.press("ctrl+c")
-	d.until("quit", func() bool { return d.quit })
-
-	d = newDriver(t, client, make(chan voss.TypedEvent))
-	d.typeText("x")
-	d.press("ctrl+d")
-	if d.m.editor.Value() == "" {
-		t.Fatal("ctrl+d with text in the editor should not quit or clear")
+	d.press("x")
+	if d.m.navMode || d.m.editor.Value() != "x" {
+		t.Fatalf("a printable key should return to the input and type it; editor %q", d.m.editor.Value())
 	}
-	d.press("ctrl+c", "ctrl+d")
-	d.until("quit", func() bool { return d.quit })
+	d.press("tab")
+	if !d.m.navMode {
+		t.Fatal("tab should move focus to the transcript")
+	}
+	d.press("i")
+	if d.m.navMode || d.m.editor.Value() != "x" {
+		t.Fatal("i should return to the input without typing")
+	}
 }
 
 func TestClosedStreamIsReportedAndSendsAreHeld(t *testing.T) {
@@ -401,6 +428,39 @@ func TestEditPromptShowsTheWordDiff(t *testing.T) {
 	}
 }
 
+func TestFullScreenFillsTheWindowAndFollowsTheTail(t *testing.T) {
+	_, client := newFakeServer(t)
+	events := make(chan voss.TypedEvent, 64)
+	d := newDriver(t, client, events)
+	d.send(tea.WindowSizeMsg{Width: 60, Height: 12})
+
+	for i := range 30 {
+		events <- voss.WarningEvent{Message: fmt.Sprintf("line %d", i)}
+	}
+	d.until("30 lines", func() bool { return strings.Contains(d.transcript(), "line 29") })
+	view := d.m.View()
+	if !view.AltScreen || strings.Count(view.Content, "\n")+1 != 12 {
+		t.Fatalf("alt screen %v, %d lines; want the full 12-line window", view.AltScreen, strings.Count(view.Content, "\n")+1)
+	}
+	if !d.m.vp.AtBottom() || !strings.Contains(ansi.Strip(view.Content), "line 29") {
+		t.Fatal("the newest line is not on screen")
+	}
+
+	d.press("pgup")
+	offset := d.m.vp.YOffset()
+	events <- voss.WarningEvent{Message: "arrives while scrolled up"}
+	d.until("new line", func() bool { return strings.Contains(d.transcript(), "arrives while scrolled up") })
+	if d.m.vp.YOffset() != offset {
+		t.Fatalf("scrolled from %d to %d while the user was reading", offset, d.m.vp.YOffset())
+	}
+
+	events <- voss.UserEvent{Task: "next question"}
+	d.until("user block", func() bool { return strings.Contains(d.transcript(), "next question") })
+	if !d.m.vp.AtBottom() {
+		t.Fatal("a new user message did not return to the bottom")
+	}
+}
+
 func text(r request) string {
 	parts, _ := r.body["parts"].([]any)
 	if len(parts) == 0 {
@@ -457,7 +517,7 @@ func TestTwoQuickMessagesAgainstFakeTurnServer(t *testing.T) {
 
 	out := d.transcript()
 	last := -1
-	for _, want := range []string{"› first", "hello from fake turn", "echo: first", "› second", "echo: second"} {
+	for _, want := range []string{"❯ first", "hello from fake turn", "echo: first", "❯ second", "echo: second"} {
 		i := strings.Index(out[last+1:], want)
 		if i < 0 {
 			t.Fatalf("%q missing or out of order in:\n%s", want, out)

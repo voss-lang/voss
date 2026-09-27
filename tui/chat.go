@@ -5,18 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
+	"charm.land/lipgloss/v2"
 	voss "github.com/vosslang/voss/sdk/go"
 )
-
-var modes = []string{"plan", "edit", "auto"}
-
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 type (
 	eventMsg        struct{ ev voss.TypedEvent }
@@ -37,60 +35,71 @@ type chatModel struct {
 	client    *voss.Client
 	sessionID string
 	cwd       string
+	provider  string
+	git       string
+	home      [][2]string
 	events    <-chan voss.TypedEvent
 
-	turn      turn
-	mode      string
-	editor    textarea.Model
-	queue     []string
-	sentAt    time.Time
-	frame     int
-	tickGen   int
-	width     int
-	dark      bool
-	r         renderer
-	live      string
-	liveTick  bool
-	lastCtrlC time.Time
-	quitting  bool
-	offline   bool
+	turn     turn
+	mode     string
+	editor   textarea.Model
+	queue    []string
+	sentAt   time.Time
+	frame    int
+	tickGen  int
+	width    int
+	height   int
+	r        renderer
+	blocks   []block
+	rendered []string
+	vp       viewport.Model
+	follow   bool
+	live     string
+	liveTick bool
+	navMode  bool
+	quitting bool
+	offline  bool
 }
 
-func newChatModel(ctx context.Context, client *voss.Client, sessionID, cwd string, events <-chan voss.TypedEvent) chatModel {
+func newChatModel(ctx context.Context, client *voss.Client, meta sessionMeta, events <-chan voss.TypedEvent) chatModel {
 	ed := textarea.New()
 	ed.ShowLineNumbers = false
-	ed.Placeholder = "message voss"
-	ed.SetPromptFunc(2, func(info textarea.PromptInfo) string {
-		if info.LineNumber == 0 {
-			return "› "
-		}
-		return "  "
-	})
+	ed.Prompt = ""
+	ed.Placeholder = "/ commands · @ files · ctrl+r history"
 	ed.DynamicHeight = true
 	ed.MinHeight = 1
-	ed.MaxHeight = 10
+	ed.MaxHeight = 6
 	ed.KeyMap.InsertNewline.SetKeys("shift+enter", "ctrl+j")
+	surface := lipgloss.NewStyle().Background(col(palette.Surface))
+	state := textarea.StyleState{
+		Base:        surface,
+		Text:        surface.Foreground(col(palette.Text)),
+		CursorLine:  surface.Foreground(col(palette.Text)),
+		Placeholder: surface.Foreground(col(palette.Dim)),
+		EndOfBuffer: surface,
+	}
+	ed.SetStyles(textarea.Styles{Focused: state, Blurred: state, Cursor: textarea.CursorStyle{Color: col(palette.Accent)}})
 	ed.Focus()
 	return chatModel{
 		ctx:       ctx,
 		client:    client,
-		sessionID: sessionID,
-		cwd:       cwd,
+		sessionID: meta.ID,
+		cwd:       meta.Cwd,
+		provider:  meta.Provider,
+		git:       meta.Git,
+		home:      homeRows(meta),
 		events:    events,
-		turn:      turn{model: "—"},
-		mode:      modes[0],
+		turn:      turn{model: meta.Model},
+		mode:      "plan",
 		editor:    ed,
-		dark:      true,
-		r:         newRenderer(0, true),
+		r:         newRenderer(0),
+		vp:        viewport.New(),
+		follow:    true,
 	}
 }
 
 func (m chatModel) Init() tea.Cmd {
-	return tea.Batch(
-		tea.Println(styleDim.Render("voss · "+short(m.sessionID, 8)+" · shift+tab mode · esc abort · ctrl+o tool args · ctrl+d quit")),
-		tea.RequestBackgroundColor,
-		waitEvent(m.events),
-	)
+	return waitEvent(m.events)
 }
 
 func waitEvent(ch <-chan voss.TypedEvent) tea.Cmd {
@@ -103,30 +112,37 @@ func waitEvent(ch <-chan voss.TypedEvent) tea.Cmd {
 	}
 }
 
-// startTicking starts a spinner loop and retires any older one.
+// startTicking starts the working indicator's loop and retires any older one.
 func (m *chatModel) startTicking() tea.Cmd {
 	m.tickGen++
+	m.frame = -1
 	return tick(m.tickGen)
 }
 
 func tick(gen int) tea.Cmd {
-	return tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{gen} })
+	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{gen} })
 }
 
 func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	cm := next.(chatModel)
+	cm.layout()
+	return cm, cmd
+}
+
+func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.editor.SetWidth(msg.Width)
-		m.r = newRenderer(m.width, m.dark)
-		m.live = m.renderLive()
+		m.width, m.height = msg.Width, msg.Height
+		m.editor.SetWidth(max(msg.Width-8, 1))
+		m.rerender()
 		return m, nil
 
-	case tea.BackgroundColorMsg:
-		m.dark = msg.IsDark()
-		m.r = newRenderer(m.width, m.dark)
-		m.live = m.renderLive()
-		return m, nil
+	case tea.MouseWheelMsg:
+		var cmd tea.Cmd
+		m.vp, cmd = m.vp.Update(msg)
+		m.follow = m.vp.AtBottom()
+		return m, cmd
 
 	case liveMsg:
 		m.liveTick = false
@@ -137,8 +153,11 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasBusy, wasStreaming := m.turn.busy, m.turn.streaming
 		var blocks []block
 		m.turn, blocks = reduce(m.turn, msg.ev)
-		// Print before reading the next event so scrollback keeps event order.
-		cmds := []tea.Cmd{tea.Sequence(m.printBlocks(blocks), waitEvent(m.events))}
+		if _, user := msg.ev.(voss.UserEvent); user {
+			m.follow = true
+		}
+		m.add(blocks...)
+		cmds := []tea.Cmd{waitEvent(m.events)}
 		if m.turn.streaming == "" {
 			m.live = ""
 		} else if m.turn.streaming != wasStreaming && !m.liveTick {
@@ -160,7 +179,8 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamClosedMsg:
 		m.turn.busy = false
 		m.offline = true
-		return m, m.printBlocks([]block{{blockError, "lost the connection to voss serve (ctrl+d quits)"}})
+		m.add(roleBlock("error", "lost the connection to voss serve (ctrl+c quits)"))
+		return m, nil
 
 	case tickMsg:
 		if !m.turn.busy || msg.gen != m.tickGen {
@@ -178,10 +198,12 @@ func (m chatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.what == "send" {
 			m.turn.busy = false
 		}
-		return m, m.printBlocks([]block{{blockError, msg.what + ": " + errText(msg.err)}})
+		m.add(roleBlock("error", msg.what+": "+errText(msg.err)))
+		return m, nil
 
 	case costMsg:
-		return m, m.printBlocks([]block{{blockNotice, fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)}})
+		m.add(roleBlock("system", fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)))
+		return m, nil
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -207,46 +229,56 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.navMode {
+		switch {
+		case slices.Contains([]string{"ctrl+c", "tab", "shift+tab", "esc", "ctrl+l", "ctrl+o", "pgup", "pgdown"}, key):
+		case key == "i":
+			m.navMode = false
+			return m, nil
+		case msg.Text != "":
+			m.navMode = false
+		default:
+			return m, nil
+		}
+	}
+
 	switch key {
 	case "ctrl+c":
-		if time.Since(m.lastCtrlC) < time.Second {
+		// Textual clears the queue before aborting so nothing queued sends after.
+		m.queue = nil
+		if !m.turn.busy {
 			return m.quit()
 		}
-		m.lastCtrlC = time.Now()
-		m.editor.Reset()
-		return m, nil
+		m.turn.interrupted = true
+		return m, m.abort()
 
-	case "ctrl+d":
-		if m.editor.Value() == "" {
-			return m.quit()
-		}
+	case "tab", "shift+tab":
+		m.navMode = !m.navMode
+		return m, nil
 
 	case "esc":
 		if !m.turn.busy {
-			return m, nil
+			m.navMode = !m.navMode
 		}
-		// Queued messages go back to the editor instead of sending after the abort.
-		if len(m.queue) > 0 {
-			restored := append(m.queue, m.editor.Value())
-			m.queue = nil
-			m.editor.SetValue(strings.TrimRight(strings.Join(restored, "\n"), "\n"))
-		}
-		m.turn.thinking = "aborting"
-		return m, m.abort()
+		return m, nil
+
+	case "ctrl+l":
+		return m, tea.ClearScreen
 
 	case "ctrl+o":
-		if m.turn.lastTool == nil {
-			return m, nil
+		if m.turn.lastTool != nil {
+			m.add(block{kind: blockToolArgs, text: toolArgsText(*m.turn.lastTool), joined: true})
 		}
-		return m, tea.Println(m.r.toolArgs(*m.turn.lastTool))
+		return m, nil
 
-	case "shift+tab":
-		for i, mode := range modes {
-			if mode == m.mode {
-				m.mode = modes[(i+1)%len(modes)]
-				break
-			}
-		}
+	case "pgup":
+		m.vp.PageUp()
+		m.follow = m.vp.AtBottom()
+		return m, nil
+
+	case "pgdown":
+		m.vp.PageDown()
+		m.follow = m.vp.AtBottom()
 		return m, nil
 
 	case "enter":
@@ -260,7 +292,8 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.offline {
 			m.editor.SetValue(text)
-			return m, m.printBlocks([]block{{blockError, "not connected to voss serve (ctrl+d quits)"}})
+			m.add(roleBlock("error", "not connected to voss serve (ctrl+c quits)"))
+			return m, nil
 		}
 		if m.turn.busy {
 			m.queue = append(m.queue, text)
@@ -275,16 +308,19 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// quit clears the live region so the editor is not left in scrollback.
 func (m chatModel) quit() (tea.Model, tea.Cmd) {
 	m.quitting = true
 	return m, tea.Quit
 }
 
 func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
-	switch strings.Fields(text)[0] {
-	case "/quit":
+	args := strings.Fields(text)
+	switch args[0] {
+	case "/quit", "/exit":
 		return m.quit()
+	case "/mode":
+		m.add(m.setMode(args[1:]))
+		return m, nil
 	case "/cost":
 		client, ctx, id := m.client, m.ctx, m.sessionID
 		return m, func() tea.Msg {
@@ -295,16 +331,35 @@ func (m chatModel) slash(text string) (tea.Model, tea.Cmd) {
 			return costMsg(c)
 		}
 	case "/help":
-		return m, m.printBlocks([]block{{blockNotice, "commands: /help /cost /quit"}})
+		m.add(roleBlock("system", "commands: /help /cost /mode /quit"))
+		return m, nil
 	}
-	return m, m.printBlocks([]block{{blockNotice, text + " is not available in this client"}})
+	m.add(roleBlock("warning", glyphs.Warn+" unknown command: "+text+". /help for list."))
+	return m, nil
+}
+
+// setMode follows the CLI's /mode: no argument shows the mode, and auto
+// needs --confirm.
+func (m *chatModel) setMode(args []string) block {
+	if len(args) == 0 {
+		return roleBlock("system", "  mode: "+m.mode)
+	}
+	switch mode := args[0]; {
+	case mode != "plan" && mode != "edit" && mode != "auto" && mode != "observe":
+		return roleBlock("warning", glyphs.Warn+" mode must be plan|edit|auto|observe")
+	case mode == "auto" && !slices.Contains(args, "--confirm"):
+		return roleBlock("warning", glyphs.Warn+" escalating to auto requires --confirm (e.g. /mode auto --confirm)")
+	default:
+		m.mode = mode
+		return roleBlock("system", "  mode: "+mode)
+	}
 }
 
 // send posts a message with the current mode.
 func (m *chatModel) send(text string) tea.Cmd {
 	m.turn.busy = true
-	m.turn.thinking = ""
 	m.sentAt = time.Now()
+	m.follow = true
 	client, ctx, id, mode := m.client, m.ctx, m.sessionID, m.mode
 	post := func() tea.Msg {
 		err := client.PostMessage(ctx, id, text, mode)
@@ -345,49 +400,102 @@ func (m chatModel) View() tea.View {
 	if m.quitting {
 		return tea.NewView("")
 	}
+	transcript := lipgloss.NewStyle().Padding(0, 3, 0, 1).Render(m.vp.View())
+	if m.turn.thinking != "" {
+		transcript = overlayToast(transcript, glyphs.ToolCall+" "+m.turn.thinking, m.width)
+	}
+	v := tea.NewView(transcript + "\n" + m.bottom())
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	v.BackgroundColor = col(palette.Bg)
+	v.ForegroundColor = col(screenText)
+	return v
+}
+
+// bottom is everything under the transcript: the permission prompt, the
+// status line and the input bar.
+func (m chatModel) bottom() string {
 	var parts []string
+	if p := m.turn.permission; p != nil {
+		parts = append(parts, lipgloss.NewStyle().Padding(0, 1).Render(m.r.permission(*p, m.cwd)))
+	}
+	parts = append(parts,
+		statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git),
+		inputBox(m.width, m.editorView(), !m.navMode))
+	return strings.Join(parts, "\n")
+}
+
+// editorView draws the placeholder over an empty editor with no cursor on it,
+// as Textual's overlay does.
+func (m chatModel) editorView() string {
+	if m.editor.Value() == "" {
+		return lipgloss.NewStyle().Background(col(palette.Surface)).Foreground(col(palette.Dim)).Render(m.editor.Placeholder)
+	}
+	return m.editor.View()
+}
+
+func (m chatModel) working() string {
+	label := "working"
+	if m.turn.pendingTool != "" {
+		label = "tool: " + m.turn.pendingTool
+	}
+	return workingLine(m.frame, label, time.Since(m.sentAt), m.turn.streamedChars/4)
+}
+
+// layout sizes the transcript to the space the bottom area leaves and keeps
+// it on the newest line while following.
+func (m *chatModel) layout() {
+	m.vp.SetWidth(m.r.width)
+	m.vp.SetHeight(max(m.height-lipgloss.Height(m.bottom()), 1))
+	if len(m.blocks) == 0 && m.live == "" && !m.turn.busy {
+		m.vp.SetContent(homeScreen(m.width, m.height, m.home))
+		m.vp.GotoTop()
+		return
+	}
+	parts := append([]string(nil), m.rendered...)
 	if m.live != "" {
 		parts = append(parts, m.live)
 	}
-	if p := m.turn.permission; p != nil {
-		parts = append(parts, m.r.permission(*p, m.cwd))
+	if m.turn.busy {
+		parts = append(parts, m.working())
 	}
-	parts = append(parts, m.editor.View(), ansi.Truncate(m.footer(), m.r.width, "…"))
-	return tea.NewView(strings.Join(parts, "\n"))
+	content := strings.Join(parts, "\n")
+	m.vp.SetContent(content)
+	if m.follow {
+		m.vp.GotoBottom()
+	}
 }
 
-func (m chatModel) footer() string {
-	var left string
-	if m.turn.busy {
-		label := m.turn.thinking
-		if label == "" {
-			label = "working"
-		}
-		elapsed := int(time.Since(m.sentAt).Seconds())
-		left = fmt.Sprintf("%s %s · %ds · esc to abort", spinnerFrames[m.frame%len(spinnerFrames)], label, elapsed)
-		if n := len(m.queue); n > 0 {
-			left += fmt.Sprintf(" · %d queued", n)
-		}
-		left += " · "
+// add commits finished blocks to the transcript.
+func (m *chatModel) add(blocks ...block) {
+	for _, b := range blocks {
+		m.blocks = append(m.blocks, b)
+		m.rendered = append(m.rendered, m.renderAt(len(m.blocks)-1))
 	}
-	return styleDim.Render(left + fmt.Sprintf("%s mode · %s · %d tok · $%.4f · ctx %.0f%%",
-		m.mode, m.turn.model, m.turn.tokens, m.turn.costUSD, m.turn.ctxPct*100))
+}
+
+// renderAt draws block i with the blank line Textual puts before every block
+// after the first unless it is joined to the one above.
+func (m chatModel) renderAt(i int) string {
+	b := m.blocks[i]
+	if i > 0 && !b.joined {
+		return "\n" + m.r.block(b)
+	}
+	return m.r.block(b)
+}
+
+// rerender rebuilds every block for a new width or background.
+func (m *chatModel) rerender() {
+	m.r = newRenderer(m.width - transcriptInset)
+	for i := range m.blocks {
+		m.rendered[i] = m.renderAt(i)
+	}
+	m.live = m.renderLive()
 }
 
 func (m chatModel) renderLive() string {
 	if m.turn.streaming == "" {
 		return ""
 	}
-	return m.r.markdown(m.turn.streaming)
-}
-
-func (m chatModel) printBlocks(blocks []block) tea.Cmd {
-	if len(blocks) == 0 {
-		return nil
-	}
-	lines := make([]string, len(blocks))
-	for i, b := range blocks {
-		lines[i] = m.r.block(b)
-	}
-	return tea.Println(strings.Join(lines, "\n"))
+	return m.r.block(assistantBlock(m.turn.streaming))
 }

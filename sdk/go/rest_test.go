@@ -40,6 +40,23 @@ func TestIntegrationRestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestIntegrationOpenSessionReportsAuth checks the create response carries the
+// resolved auth source, which clients use to name the provider.
+func TestIntegrationOpenSessionReportsAuth(t *testing.T) {
+	c := requireShared(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	s, err := c.OpenSession(ctx, SessionOptions{Cwd: "."})
+	if err != nil {
+		t.Fatalf("OpenSession: %v", err)
+	}
+	defer c.DeleteSession(ctx, s.Id)
+	if s.Id == "" || s.Auth == "" || s.Resumed {
+		t.Fatalf("OpenSession = %+v, want an id, an auth source and resumed=false", s)
+	}
+}
+
 // TestIntegration401 asserts a wrong bearer token yields *VossError{401}.
 func TestIntegration401(t *testing.T) {
 	c := requireShared(t)

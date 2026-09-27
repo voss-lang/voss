@@ -1,1 +1,3 @@
-plan: fs_read notes.txt → fs_edit notes.txt
+plan
+    · fs_read
+    · fs_edit

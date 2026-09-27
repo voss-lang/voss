@@ -3,10 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
-	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
@@ -27,67 +27,109 @@ const (
 	maxDiffLines = 20
 )
 
-// renderer draws blocks for one terminal width and background.
+// renderer draws blocks for one transcript width.
 type renderer struct {
 	width int
-	md    *glamour.TermRenderer
 }
 
-func newRenderer(width int, dark bool) renderer {
+func newRenderer(width int) renderer {
 	if width <= 0 {
 		width = defaultWidth
 	}
-	style := "light"
-	if dark {
-		style = "dark"
-	}
-	// glamour's styles add a 2-column margin on each side of the wrapped text.
-	md, err := glamour.NewTermRenderer(glamour.WithStandardStyle(style), glamour.WithWordWrap(max(width-4, 20)))
-	if err != nil {
-		md = nil
-	}
-	return renderer{width: width, md: md}
-}
-
-func (r renderer) markdown(s string) string {
-	if r.md == nil {
-		return s
-	}
-	out, err := r.md.Render(s)
-	if err != nil {
-		return s
-	}
-	lines := strings.Split(out, "\n")
-	for i, line := range lines {
-		// glamour pads each line to the wrap width with styled spaces.
-		visible := strings.TrimRight(ansi.Strip(line), " ")
-		if visible == "" {
-			lines[i] = ""
-			continue
-		}
-		lines[i] = ansi.Truncate(line, ansi.StringWidth(visible), "")
-	}
-	return strings.Trim(strings.Join(lines, "\n"), "\n")
+	return renderer{width: width}
 }
 
 func (r renderer) block(b block) string {
 	switch b.kind {
 	case blockUser:
-		return "\n" + r.hang("›", b.text, styleUser)
+		return r.user(b.text)
 	case blockAssistant:
-		return r.markdown(b.text)
-	case blockPlan, blockNotice:
-		return r.hang("", b.text, styleDim)
+		return r.assistant(b.text, b.footer)
+	case blockRole:
+		return r.role(b.role, b.text)
+	case blockConfidence:
+		return confidenceBar(b.conf, false)
 	case blockTool:
 		return styleTool.Render(ansi.Truncate("⚙ "+b.text, r.width, "…"))
-	case blockClarify:
-		return r.hang("?", b.text, styleClarify)
-	case blockWarning:
-		return r.hang("⚠", b.text, styleTool)
-	case blockError:
-		return r.hang("✗", b.text, styleError)
+	case blockToolArgs:
+		lines := strings.Split(b.text, "\n")
+		for i, line := range lines {
+			lines[i] = styleDim.Render(ansi.Truncate(line, r.width, "…"))
+		}
+		return strings.Join(lines, "\n")
 	}
 	return b.text
+}
+
+// user draws Textual's UserBlock: a faint accent edge, one column of padding
+// and faint text on the surface colour, filling the width.
+func (r renderer) user(text string) string {
+	edge := lipgloss.NewStyle().Foreground(blend(palette.Accent, palette.Bg, 0.06)).Background(col(palette.Surface)).Render("▎")
+	fill := lipgloss.NewStyle().Background(col(palette.Surface))
+	body := fill.Faint(true).Foreground(col(userText))
+	textW := max(r.width-3, 1)
+	var out []string
+	for i, line := range strings.Split(text, "\n") {
+		prefix := "  "
+		if i == 0 {
+			prefix = glyphs.UserInput + " "
+		}
+		for _, w := range richWrap(prefix+line, textW) {
+			out = append(out, edge+fill.Render(" ")+body.Render(w)+fill.Render(strings.Repeat(" ", max(textW-ansi.StringWidth(w), 0)+1)))
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// assistant draws Textual's AssistantBlock: a bold accent gutter, the
+// markdown body, and the faint metadata footer when there is one.
+func (r renderer) assistant(text, footer string) string {
+	gutter := lipgloss.NewStyle().Foreground(col(palette.Accent)).Bold(true).Render(glyphs.Assistant)
+	lines := strings.Split(richMarkdown(text, r.width-2), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			lines[i] = gutter + " " + line
+		} else {
+			lines[i] = "  " + line
+		}
+	}
+	if footer != "" {
+		for _, w := range richWrap(footer, r.width) {
+			lines = append(lines, lipgloss.NewStyle().Faint(true).Render(w))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// role draws Textual's RoleBlock: a faint label, then the body indented two
+// columns.
+func (r renderer) role(role, text string) string {
+	faint := lipgloss.NewStyle().Faint(true)
+	out := []string{faint.Render(role)}
+	for _, line := range strings.Split(text, "\n") {
+		for _, w := range richWrap("  "+line, r.width) {
+			out = append(out, faint.Render(w))
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// confidenceBar matches Textual's ConfidenceBar: ten cells, the value, and a
+// colour by threshold.
+func confidenceBar(value float64, final bool) string {
+	value = math.Max(0, math.Min(1, value))
+	filled := int(math.RoundToEven(value * 10))
+	colour := palette.Error
+	switch {
+	case final && value >= 0.85:
+		colour = palette.Accent
+	case value >= 0.85:
+		colour = palette.Good
+	case value >= 0.5:
+		colour = palette.Warn
+	}
+	bar := strings.Repeat(glyphs.BarFill, filled) + strings.Repeat(glyphs.BarEmpty, 10-filled)
+	return lipgloss.NewStyle().Foreground(col(colour)).Render(fmt.Sprintf("%s %.2f ", bar, value))
 }
 
 // hang wraps text to the width with a glyph on the first line and a
@@ -190,21 +232,18 @@ func writeStyled(sb *strings.Builder, text string, style lipgloss.Style) {
 	}
 }
 
-// toolArgs lists a tool call's arguments one per line, each cut to the width.
-func (r renderer) toolArgs(ev voss.ToolEvent) string {
+// toolArgsText lists a tool call's arguments one per line.
+func toolArgsText(ev voss.ToolEvent) string {
 	lines := []string{ev.Name + " arguments:"}
 	if ev.Args == nil || len(*ev.Args) == 0 {
 		lines = append(lines, "  (none)")
 	}
 	if ev.Args != nil {
 		for _, k := range sortedKeys(*ev.Args) {
-			v := strings.ReplaceAll(fmt.Sprint((*ev.Args)[k]), "\n", "⏎")
-			lines = append(lines, ansi.Truncate("  "+k+": "+v, r.width, "…"))
+			lines = append(lines, "  "+k+": "+strings.ReplaceAll(fmt.Sprint((*ev.Args)[k]), "\n", "⏎"))
 		}
 	}
-	var sb strings.Builder
-	writeStyled(&sb, strings.Join(lines, "\n"), styleDim)
-	return sb.String()
+	return strings.Join(lines, "\n")
 }
 
 func argSummary(args map[string]any) string {

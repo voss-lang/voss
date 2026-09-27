@@ -29,18 +29,18 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 			return r.permission(voss.PermissionUpdated{Id: "p", ToolName: tool, Args: &args}, dir)
 		}
 	}
-	block := func(kind blockKind, text string) func(renderer) string {
-		return func(r renderer) string { return r.block(block{kind, text}) }
+	blk := func(b block) func(renderer) string {
+		return func(r renderer) string { return r.block(b) }
 	}
 	return map[string]func(renderer) string{
-		"user":      block(blockUser, "fix the bug in "+long),
-		"assistant": block(blockAssistant, sampleMarkdown),
-		"plan":      block(blockPlan, "plan: fs_read notes.txt → fs_edit notes.txt"),
-		"tool":      block(blockTool, "fs_read ✓ "+long),
-		"clarify":   block(blockClarify, "which file did you mean? "+long),
-		"warning":   block(blockWarning, "instructions is 5000 tokens, over the 4000-token budget; truncated AGENTS.md"),
-		"error":     block(blockError, "send: "+long),
-		"notice":    block(blockNotice, `unsupported event "tool.progress" from a newer server`),
+		"user":             blk(userBlock("fix the bug in " + long + "\nsecond line")),
+		"assistant":        blk(assistantBlock(sampleMarkdown)),
+		"assistant_footer": blk(block{kind: blockAssistant, text: "streamed reply", footer: "assistant · 2026-09-27T12:00:00+00:00 · $0.0041 · conf 0.92"}),
+		"plan":             blk(roleBlock("plan", "  · fs_read\n  · fs_edit")),
+		"clarify":          blk(roleBlock("clarify", "which file did you mean? "+long)),
+		"confidence":       blk(block{kind: blockConfidence, conf: 0.62}),
+		"warning":          blk(roleBlock("warning", "⚠ instruction files truncated to 4000 tokens (AGENTS.md)")),
+		"tool":             blk(block{kind: blockTool, text: "fs_read ✓ " + long}),
 		"prompt_edit_old": prompt("fs_edit", map[string]any{
 			"path": "notes.txt", "old": "the quick brown fox", "new": "the slow brown fox jumps",
 		}),
@@ -61,7 +61,7 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 		"prompt_scope": prompt("scope_expand", map[string]any{"target": "../other"}),
 		"tool_args": func(r renderer) string {
 			args := map[string]any{"path": "notes.txt", "new": "hello\nworld " + long}
-			return r.toolArgs(voss.ToolEvent{Name: "fs_edit", Args: &args})
+			return r.block(block{kind: blockToolArgs, text: toolArgsText(voss.ToolEvent{Name: "fs_edit", Args: &args})})
 		},
 	}
 }
@@ -70,7 +70,7 @@ func TestRenderGolden(t *testing.T) {
 	for name, render := range goldenCases(t) {
 		for _, width := range []int{60, 120} {
 			t.Run(fmt.Sprintf("%s_%d", name, width), func(t *testing.T) {
-				out := render(newRenderer(width, true))
+				out := render(newRenderer(width))
 				for i, line := range strings.Split(out, "\n") {
 					if w := ansi.StringWidth(line); w > width {
 						t.Errorf("line %d is %d columns, wider than %d: %q", i+1, w, width, ansi.Strip(line))
@@ -99,16 +99,8 @@ func TestRenderGolden(t *testing.T) {
 	}
 }
 
-func TestMarkdownLinesCarryNoPadding(t *testing.T) {
-	for _, line := range strings.Split(newRenderer(120, true).markdown("short"), "\n") {
-		if strings.HasSuffix(ansi.Strip(line), " ") {
-			t.Fatalf("trailing spaces in %q", ansi.Strip(line))
-		}
-	}
-}
-
 func TestDiffStylesChangedWords(t *testing.T) {
-	out := newRenderer(80, true).diff("the old value", "the new value", true)
+	out := newRenderer(80).diff("the old value", "the new value", true)
 	if !strings.Contains(out, styleDel.Render("old")) || !strings.Contains(out, styleAdd.Render("new")) {
 		t.Fatalf("diff did not style the changed words: %q", out)
 	}
