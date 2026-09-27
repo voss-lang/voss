@@ -26,7 +26,7 @@ func goldenCases(t *testing.T) map[string]func(renderer) string {
 	long := strings.Repeat("word ", 30)
 	prompt := func(tool string, args map[string]any) func(renderer) string {
 		return func(r renderer) string {
-			return r.permission(voss.PermissionUpdated{Id: "p", ToolName: tool, Args: &args}, dir)
+			return r.permissionModal(voss.PermissionUpdated{Id: "p", ToolName: tool, Args: &args}, dir, r.width)
 		}
 	}
 	blk := func(b block) func(renderer) string {

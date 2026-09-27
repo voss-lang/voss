@@ -217,14 +217,15 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 
-	if p := m.turn.permission; p != nil && key != "esc" && key != "ctrl+c" {
-		choices := "aAd"
+	if p := m.turn.permission; p != nil && key != "ctrl+c" {
+		choices := map[string]string{"a": "a", "A": "A", "d": "d", "esc": "d"}
 		if p.ToolName == "scope_expand" {
-			choices = "yn"
+			// The server's scope check accepts y/once and always; anything else denies.
+			choices = map[string]string{"y": "y", "a": "always", "n": "n", "esc": "n"}
 		}
-		if len(key) == 1 && strings.Contains(choices, key) {
+		if choice, ok := choices[key]; ok {
 			m.turn.permission = nil
-			return m, m.replyPermission(p.Id, key)
+			return m, m.replyPermission(p.Id, choice)
 		}
 		return m, nil
 	}
@@ -404,7 +405,12 @@ func (m chatModel) View() tea.View {
 	if m.turn.thinking != "" {
 		transcript = overlayToast(transcript, glyphs.ToolCall+" "+m.turn.thinking, m.width)
 	}
-	v := tea.NewView(transcript + "\n" + m.bottom())
+	screen := transcript + "\n" + m.bottom()
+	if p := m.turn.permission; p != nil {
+		screen = m.r.permissionModal(*p, m.cwd, m.width)
+		screen += strings.Repeat("\n", max(m.height-lipgloss.Height(screen), 0))
+	}
+	v := tea.NewView(screen)
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	v.BackgroundColor = col(palette.Bg)
@@ -412,17 +418,10 @@ func (m chatModel) View() tea.View {
 	return v
 }
 
-// bottom is everything under the transcript: the permission prompt, the
-// status line and the input bar.
+// bottom is everything under the transcript: the status line and the input bar.
 func (m chatModel) bottom() string {
-	var parts []string
-	if p := m.turn.permission; p != nil {
-		parts = append(parts, lipgloss.NewStyle().Padding(0, 1).Render(m.r.permission(*p, m.cwd)))
-	}
-	parts = append(parts,
-		statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git),
-		inputBox(m.width, m.editorView(), !m.navMode))
-	return strings.Join(parts, "\n")
+	return statusLine(m.width, m.provider, m.turn.model, m.mode, m.turn.ctxPct, m.turn.costUSD, m.git) +
+		"\n" + inputBox(m.width, m.editorView(), !m.navMode)
 }
 
 // editorView draws the placeholder over an empty editor with no cursor on it,

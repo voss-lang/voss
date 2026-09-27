@@ -237,13 +237,16 @@ func TestSendFailureShowsServerDetailAndClearsBusy(t *testing.T) {
 	}
 }
 
-func TestPermissionPromptTakesOnlyItsChoices(t *testing.T) {
+func TestPermissionModalTakesOnlyItsChoices(t *testing.T) {
 	f, client := newFakeServer(t)
 	events := make(chan voss.TypedEvent)
 	d := newDriver(t, client, events)
 
 	events <- voss.PermissionUpdated{Id: "p1", ToolName: "fs_edit"}
 	d.until("prompt", func() bool { return d.m.turn.permission != nil })
+	if view := ansi.Strip(d.m.View().Content); !strings.HasPrefix(view, "Permission required\n\nTool fs_edit wants to modify .") {
+		t.Fatalf("modal screen:\n%s", view)
+	}
 	d.press("x", "y")
 	if d.m.turn.permission == nil || d.m.editor.Value() != "" {
 		t.Fatalf("stray keys answered the prompt or reached the editor (editor %q)", d.m.editor.Value())
@@ -253,16 +256,22 @@ func TestPermissionPromptTakesOnlyItsChoices(t *testing.T) {
 	if r := f.requestsTo("/permission")[0]; r.body["id"] != "p1" || r.body["choice"] != "A" {
 		t.Fatalf("reply = %+v", r.body)
 	}
-	if d.m.turn.permission != nil {
-		t.Fatal("prompt still open after answering")
+
+	events <- voss.PermissionUpdated{Id: "p2", ToolName: "shell_run"}
+	d.until("second prompt", func() bool { return d.m.turn.permission != nil })
+	d.press("esc")
+	d.until("esc denies", func() bool { return len(f.requestsTo("/permission")) == 2 })
+	if r := f.requestsTo("/permission")[1]; r.body["choice"] != "d" {
+		t.Fatalf("esc replied %v, want d", r.body["choice"])
 	}
 
-	events <- voss.PermissionUpdated{Id: "p2", ToolName: "scope_expand"}
+	args := map[string]any{"target": "../other"}
+	events <- voss.PermissionUpdated{Id: "p3", ToolName: "scope_expand", Args: &args}
 	d.until("scope prompt", func() bool { return d.m.turn.permission != nil })
-	d.press("a", "n")
-	d.until("scope reply", func() bool { return len(f.requestsTo("/permission")) == 2 })
-	if r := f.requestsTo("/permission")[1]; r.body["id"] != "p2" || r.body["choice"] != "n" {
-		t.Fatalf("scope reply = %+v", r.body)
+	d.press("x", "a")
+	d.until("scope reply", func() bool { return len(f.requestsTo("/permission")) == 3 })
+	if r := f.requestsTo("/permission")[2]; r.body["id"] != "p3" || r.body["choice"] != "always" {
+		t.Fatalf("scope reply = %+v, want always: the server denies a bare a", r.body)
 	}
 }
 
