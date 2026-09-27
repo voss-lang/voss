@@ -26,6 +26,7 @@ from voss_runtime import EpisodicMemory, get_config  # noqa: F401  (get_config u
 
 from .. import auth as auth_mod
 from .. import cognition as cognition_mod
+from .. import config as harness_config
 from .. import session as session_store
 from ..agent import run_turn
 from ..observe import admission as observe_admission
@@ -118,6 +119,13 @@ def _resolve_provider(preference: str) -> tuple[auth_mod.Resolution, Any]:
 
     from ..claude_agent_provider import ClaudeAgentProvider
     from ..providers import OpenAIOAuthProvider
+
+    # Same persisted-default rule as cli._resolve_auth_or_die: `[harness] auth`
+    # applies when nothing more specific was asked for.
+    if preference == "auto":
+        saved = harness_config.load_harness_config().get("auth")
+        if saved in ("claude", "codex", "api", "none"):
+            preference = saved
 
     res = auth_mod.resolve(preference)
     if res.source == "none":
