@@ -1,0 +1,1 @@
+unsupported event "tool.progress" from a newer server

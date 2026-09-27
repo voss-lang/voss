@@ -1,0 +1,1 @@
+⚠ instructions is 5000 tokens, over the 4000-token budget; truncated AGENTS.md

@@ -1,0 +1,4 @@
+⚠ allow fs_edit? notes.txt
+  (old text unavailable)
+  replacement
+  [a] allow once  [A] always  [d] deny

@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
@@ -87,7 +88,7 @@ type driver struct {
 }
 
 func newDriver(t *testing.T, client *voss.Client, events <-chan voss.TypedEvent) *driver {
-	d := &driver{t: t, m: newChatModel(context.Background(), client, "sess-1", events), msgs: make(chan tea.Msg, 1024)}
+	d := &driver{t: t, m: newChatModel(context.Background(), client, "sess-1", t.TempDir(), events), msgs: make(chan tea.Msg, 1024)}
 	d.run(d.m.Init())
 	return d
 }
@@ -158,7 +159,7 @@ func (d *driver) until(what string, cond func() bool) {
 	}
 }
 
-func (d *driver) transcript() string { return strings.Join(d.printed, "\n") }
+func (d *driver) transcript() string { return ansi.Strip(strings.Join(d.printed, "\n")) }
 
 func key(s string) tea.KeyPressMsg {
 	switch s {
@@ -172,6 +173,8 @@ func key(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	case "ctrl+d":
 		return tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}
+	case "ctrl+o":
+		return tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl}
 	}
 	r := []rune(s)[0]
 	k := tea.KeyPressMsg{Code: unicode.ToLower(r), Text: s}
@@ -339,6 +342,62 @@ func TestClosedStreamIsReportedAndSendsAreHeld(t *testing.T) {
 	d.until("offline notice", func() bool { return strings.Contains(d.transcript(), "not connected") })
 	if n := len(f.requestsTo("/message")); n != 0 || d.m.editor.Value() != "hi" {
 		t.Fatalf("sends = %d, editor = %q; want nothing sent and the text kept", n, d.m.editor.Value())
+	}
+}
+
+func TestCtrlOPrintsTheLastToolArguments(t *testing.T) {
+	_, client := newFakeServer(t)
+	events := make(chan voss.TypedEvent)
+	d := newDriver(t, client, events)
+
+	d.press("ctrl+o")
+	args := map[string]any{"path": "notes.txt"}
+	events <- voss.ToolEvent{Name: "fs_read", State: "ok", Args: &args}
+	d.until("tool row", func() bool { return strings.Contains(d.transcript(), "⚙ fs_read") })
+	if strings.Contains(d.transcript(), "arguments") {
+		t.Fatal("ctrl+o printed something before any tool ran")
+	}
+	d.press("ctrl+o")
+	d.until("arguments", func() bool { return strings.Contains(d.transcript(), "fs_read arguments:\n  path: notes.txt") })
+}
+
+func TestStreamedMarkdownRendersLiveThenCommits(t *testing.T) {
+	_, client := newFakeServer(t)
+	events := make(chan voss.TypedEvent, 4)
+	d := newDriver(t, client, events)
+
+	events <- voss.StreamDelta{Text: "some **bold** "}
+	events <- voss.StreamDelta{Text: strings.Repeat("words ", 20)}
+	d.until("live render", func() bool { return strings.Contains(ansi.Strip(d.m.live), "some bold words") })
+	if strings.Contains(d.m.live, "**") {
+		t.Fatalf("live text is not rendered as markdown: %q", ansi.Strip(d.m.live))
+	}
+
+	d.send(tea.WindowSizeMsg{Width: 40, Height: 20})
+	for _, line := range strings.Split(d.m.live, "\n") {
+		if w := ansi.StringWidth(line); w > 40 {
+			t.Fatalf("live line is %d columns after resizing to 40", w)
+		}
+	}
+
+	events <- voss.StreamFinalize{Role: "assistant"}
+	d.until("commit", func() bool { return strings.Contains(d.transcript(), "some bold words") })
+	if d.m.live != "" {
+		t.Fatalf("live area still shows %q after finalize", ansi.Strip(d.m.live))
+	}
+}
+
+func TestEditPromptShowsTheWordDiff(t *testing.T) {
+	_, client := newFakeServer(t)
+	events := make(chan voss.TypedEvent)
+	d := newDriver(t, client, events)
+
+	args := map[string]any{"path": "notes.txt", "old": "the old value", "new": "the new value"}
+	events <- voss.PermissionUpdated{Id: "p1", ToolName: "fs_edit", Args: &args}
+	d.until("prompt", func() bool { return d.m.turn.permission != nil })
+	view := d.m.View().Content
+	if !strings.Contains(view, styleDel.Render("old")) || !strings.Contains(view, styleAdd.Render("new")) {
+		t.Fatalf("prompt has no word diff:\n%s", ansi.Strip(view))
 	}
 }
 

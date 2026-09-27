@@ -130,7 +130,7 @@ func runChat(ctx context.Context, client *voss.Client, o options) error {
 	if err != nil {
 		return fmt.Errorf("event stream: %w", err)
 	}
-	_, err = tea.NewProgram(newChatModel(ctx, client, id, events), tea.WithContext(ctx)).Run()
+	_, err = tea.NewProgram(newChatModel(ctx, client, id, o.cwd, events), tea.WithContext(ctx)).Run()
 	return err
 }
 
