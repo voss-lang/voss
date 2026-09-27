@@ -99,14 +99,6 @@ func TestRenderGolden(t *testing.T) {
 	}
 }
 
-func TestMarkdownLinesCarryNoPadding(t *testing.T) {
-	for _, line := range strings.Split(newRenderer(120).markdown("short"), "\n") {
-		if strings.HasSuffix(ansi.Strip(line), " ") {
-			t.Fatalf("trailing spaces in %q", ansi.Strip(line))
-		}
-	}
-}
-
 func TestDiffStylesChangedWords(t *testing.T) {
 	out := newRenderer(80).diff("the old value", "the new value", true)
 	if !strings.Contains(out, styleDel.Render("old")) || !strings.Contains(out, styleAdd.Render("new")) {

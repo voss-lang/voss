@@ -5,22 +5,13 @@ go 1.26.0
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.0.9
-	charm.land/glamour/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.6
+	github.com/alecthomas/chroma/v2 v2.14.0
 	github.com/vosslang/voss/sdk/go v0.0.0
+	github.com/yuin/goldmark v1.7.8
 )
 
-require (
-	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
-	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
-	github.com/dlclark/regexp2 v1.11.0 // indirect
-	github.com/gorilla/css v1.0.1 // indirect
-	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
-	github.com/yuin/goldmark v1.7.8 // indirect
-	github.com/yuin/goldmark-emoji v1.0.5 // indirect
-	golang.org/x/net v0.50.0 // indirect
-)
+require github.com/dlclark/regexp2 v1.11.0 // indirect
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect

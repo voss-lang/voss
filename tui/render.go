@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
@@ -28,45 +27,16 @@ const (
 	maxDiffLines = 20
 )
 
-// renderer draws blocks for one terminal width and background.
+// renderer draws blocks for one transcript width.
 type renderer struct {
 	width int
-	md    *glamour.TermRenderer
 }
 
-// newRenderer always uses glamour's dark style: like Textual, the client
-// paints its own dark background.
 func newRenderer(width int) renderer {
 	if width <= 0 {
 		width = defaultWidth
 	}
-	// glamour's styles add a 2-column margin on each side of the wrapped text.
-	md, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(max(width-4, 20)))
-	if err != nil {
-		md = nil
-	}
-	return renderer{width: width, md: md}
-}
-
-func (r renderer) markdown(s string) string {
-	if r.md == nil {
-		return s
-	}
-	out, err := r.md.Render(s)
-	if err != nil {
-		return s
-	}
-	lines := strings.Split(out, "\n")
-	for i, line := range lines {
-		// glamour pads each line to the wrap width with styled spaces.
-		visible := strings.TrimRight(ansi.Strip(line), " ")
-		if visible == "" {
-			lines[i] = ""
-			continue
-		}
-		lines[i] = ansi.Truncate(line, ansi.StringWidth(visible), "")
-	}
-	return strings.Trim(strings.Join(lines, "\n"), "\n")
+	return renderer{width: width}
 }
 
 func (r renderer) block(b block) string {
@@ -115,7 +85,7 @@ func (r renderer) user(text string) string {
 // markdown body, and the faint metadata footer when there is one.
 func (r renderer) assistant(text, footer string) string {
 	gutter := lipgloss.NewStyle().Foreground(col(palette.Accent)).Bold(true).Render(glyphs.Assistant)
-	lines := strings.Split(renderer{width: r.width - 2, md: r.md}.markdown(text), "\n")
+	lines := strings.Split(richMarkdown(text, r.width-2), "\n")
 	for i, line := range lines {
 		if i == 0 {
 			lines[i] = gutter + " " + line
