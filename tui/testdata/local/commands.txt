@@ -1,0 +1,19 @@
+ls -la
+git status
+cat "my file.txt"
+grep 'a b' "c\"d" e\ f
+echo "back\\slash \$HOME `x`"
+rm -rf /
+sudo ls
+ls; pwd
+ls | wc
+ls > out
+ls $(pwd)
+echo "unterminated
+curl https://x
+/usr/bin/GIT log
+Python3 -V
+make build
+nc host 80
+ls /tmp > /dev/null
+echo trailing\\

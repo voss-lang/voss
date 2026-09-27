@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -204,6 +205,11 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.add(roleBlock("error", msg.what+": "+errText(msg.err)))
 		return m, nil
 
+	case shellDoneMsg:
+		body := strings.Join(nonEmpty(strings.TrimRight(msg.stdout, " \t\n"), strings.TrimRight(msg.stderr, " \t\n")), "\n")
+		m.add(block{kind: blockShell, text: msg.cmd, body: body, exit: msg.exit, joined: true})
+		return m, nil
+
 	case costMsg:
 		m.add(roleBlock("system", fmt.Sprintf("cost: $%.4f over %d turn(s)", msg.TotalUsd, msg.Turns)))
 		return m, nil
@@ -314,6 +320,23 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.editor.Reset()
+		// Like Textual's input bar, ! and # lines run at once, even mid-turn.
+		if cmd, ok := strings.CutPrefix(text, "!"); ok {
+			if cmd = strings.TrimSpace(cmd); cmd != "" {
+				return m, runShell(m.ctx, m.cwd, cmd)
+			}
+			return m, nil
+		}
+		if note, ok := strings.CutPrefix(text, "#"); ok {
+			if note = strings.TrimSpace(note); note != "" {
+				if err := appendVossNote(filepath.Join(m.cwd, "VOSS.md"), note, time.Now()); err != nil {
+					m.add(roleBlock("error", "note: "+err.Error()))
+				} else {
+					m.add(block{kind: blockNote, joined: true})
+				}
+			}
+			return m, nil
+		}
 		if m.turn.busy {
 			m.queue = append(m.queue, text)
 			return m, nil
@@ -553,4 +576,14 @@ func (m chatModel) renderLive() string {
 		return ""
 	}
 	return m.r.block(assistantBlock(m.turn.streaming))
+}
+
+func nonEmpty(parts ...string) []string {
+	var out []string
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

@@ -48,6 +48,10 @@ func (r renderer) block(b block) string {
 		return confidenceBar(b.conf, false)
 	case blockTool:
 		return styleTool.Render(ansi.Truncate("⚙ "+b.text, r.width, "…"))
+	case blockShell:
+		return r.shell(b.text, b.body, b.exit)
+	case blockNote:
+		return " " + lipgloss.NewStyle().Faint(true).Render("# note saved")
 	case blockToolArgs:
 		lines := strings.Split(b.text, "\n")
 		for i, line := range lines {
@@ -108,6 +112,34 @@ func (r renderer) role(role, text string) string {
 			out = append(out, faint.Render(w))
 		}
 	}
+	return strings.Join(out, "\n")
+}
+
+// shell draws Textual's LocalBlockShell: "! cmd", the output, and the exit
+// code in the good or error colour, with one column of padding.
+func (r renderer) shell(cmd, body string, exit int) string {
+	var out []string
+	add := func(text string, style lipgloss.Style) {
+		for _, w := range richWrap(text, max(r.width-2, 1)) {
+			out = append(out, " "+style.Render(w))
+		}
+	}
+	for i, w := range richWrap("! "+cmd, max(r.width-2, 1)) {
+		if i == 0 {
+			w = lipgloss.NewStyle().Bold(true).Render("! ") + strings.TrimPrefix(w, "! ")
+		}
+		out = append(out, " "+w)
+	}
+	for _, line := range strings.Split(body, "\n") {
+		if body != "" {
+			add(line, lipgloss.NewStyle())
+		}
+	}
+	colour := palette.Good
+	if exit != 0 {
+		colour = palette.Error
+	}
+	add(fmt.Sprintf("· exit %d", exit), lipgloss.NewStyle().Foreground(col(colour)))
 	return strings.Join(out, "\n")
 }
 
