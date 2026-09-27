@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	voss "github.com/vosslang/voss/sdk/go"
 )
 
@@ -57,6 +58,9 @@ type chatModel struct {
 	live     string
 	liveTick bool
 	navMode  bool
+	pastes   map[string]string
+	search   reverseSearch
+	sent     []string
 	quitting bool
 	offline  bool
 }
@@ -153,8 +157,9 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasBusy, wasStreaming := m.turn.busy, m.turn.streaming
 		var blocks []block
 		m.turn, blocks = reduce(m.turn, msg.ev)
-		if _, user := msg.ev.(voss.UserEvent); user {
+		if u, user := msg.ev.(voss.UserEvent); user {
 			m.follow = true
+			m.sent = append(m.sent, u.Task)
 		}
 		m.add(blocks...)
 		cmds := []tea.Cmd{waitEvent(m.events)}
@@ -205,6 +210,15 @@ func (m chatModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case tea.PasteMsg:
+		if m.search.active || m.navMode {
+			return m, nil
+		}
+		if len(strings.Split(msg.Content, "\n")) > pasteChipLines {
+			m.editor.InsertString(m.storePaste(msg.Content))
+			return m, nil
+		}
 	}
 
 	var cmd tea.Cmd
@@ -226,6 +240,10 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, m.replyPermission(p.Id, choice)
 		}
 		return m, nil
+	}
+
+	if m.search.active {
+		return m.searchKey(msg)
 	}
 
 	if m.navMode {
@@ -264,6 +282,16 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+l":
 		return m, tea.ClearScreen
 
+	case "ctrl+r":
+		m.search = reverseSearch{active: true, saved: m.editor.Value()}
+		m.refreshSearch()
+		return m, nil
+
+	case "backspace":
+		if len(m.pastes) > 0 && m.deleteChipBeforeCursor() {
+			return m, nil
+		}
+
 	case "ctrl+o":
 		if m.turn.lastTool != nil {
 			m.add(block{kind: blockToolArgs, text: toolArgsText(*m.turn.lastTool), joined: true})
@@ -281,7 +309,7 @@ func (m chatModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
-		text := strings.TrimSpace(m.editor.Value())
+		text := strings.TrimSpace(m.expandPastes(m.editor.Value()))
 		if text == "" {
 			return m, nil
 		}
@@ -447,8 +475,16 @@ func (m chatModel) bottom() string {
 // editorView draws the placeholder over an empty editor with no cursor on it,
 // as Textual's overlay does.
 func (m chatModel) editorView() string {
+	surface := lipgloss.NewStyle().Background(col(palette.Surface))
+	if m.search.active {
+		line := m.searchLine()
+		if m.width > 8 {
+			line = ansi.Truncate(line, m.width-8, "…")
+		}
+		return surface.Foreground(col(palette.Text)).Render(line)
+	}
 	if m.editor.Value() == "" {
-		return lipgloss.NewStyle().Background(col(palette.Surface)).Foreground(col(palette.Dim)).Render(m.editor.Placeholder)
+		return surface.Foreground(col(palette.Dim)).Render(m.editor.Placeholder)
 	}
 	return m.editor.View()
 }
